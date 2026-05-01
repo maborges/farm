@@ -4,6 +4,7 @@ node_modules
 .claude
 .venv
 .next
+.qwen
 **/.next
 **/.venv
 __pycache__
