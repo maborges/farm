@@ -24,6 +24,7 @@ from agricola.cenarios.schemas import (
 from agricola.custos.models import CostAllocation
 from agricola.a1_planejamento.models import ItemOrcamentoSafra
 from agricola.romaneios.models import RomaneioColheita
+from financeiro.models.lancamento import LancamentoFinanceiro
 from agricola.production_units.models import ProductionUnit
 from agricola.safras.models import Safra
 from agricola.cultivos.models import Cultivo
@@ -515,6 +516,10 @@ class CenariosService(BaseService[SafraCenario]):
             depreciacao_total += dep_total_linha
             ir_total += ir_linha
 
+        # Integrar lançamentos financeiros reais da safra
+        lancamentos_custo = await self._fetch_lancamentos_custo(cenario.safra_id)
+        custo_total_sum += lancamentos_custo
+
         cenario.area_total_ha = _f(area_total) if area_total else None
         cenario.receita_bruta_total = _f(receita_total) if receita_total else None
         cenario.custo_total = _f(custo_total_sum) if custo_total_sum else None
@@ -536,6 +541,18 @@ class CenariosService(BaseService[SafraCenario]):
         )
         cenario.calculado_em = now
         cenario.updated_at = now
+
+    async def _fetch_lancamentos_custo(self, safra_id: uuid.UUID) -> Decimal:
+        """Retorna soma dos lançamentos financeiros do tipo CUSTO para a safra."""
+        stmt = select(func.coalesce(func.sum(LancamentoFinanceiro.valor), 0)).where(
+            and_(
+                LancamentoFinanceiro.tenant_id == self.tenant_id,
+                LancamentoFinanceiro.safra_id == safra_id,
+                LancamentoFinanceiro.tipo == "CUSTO",
+            )
+        )
+        total = (await self.session.execute(stmt)).scalar_one()
+        return Decimal(str(total))
 
     # ------------------------------------------------------------------
     # Privados — helpers de validação

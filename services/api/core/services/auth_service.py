@@ -17,6 +17,7 @@ from core.schemas.auth_schemas import LoginRequest, UserCreateRequest, TenantAce
 from core.config import settings
 from core.services.login_rate_limit_service import LoginRateLimitService
 from core.services.email_service import email_service
+from core.utils.cpf_cnpj import normalizar_documento_opcional, validar_cpf_ou_cnpj
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -493,10 +494,14 @@ class AuthService:
         if not plano:
             raise HTTPException(status_code=404, detail="Plano não encontrado")
 
+        documento_tenant = normalizar_documento_opcional(cpf_cnpj)
+        if documento_tenant and not validar_cpf_ou_cnpj(documento_tenant):
+            raise HTTPException(status_code=400, detail="CPF ou CNPJ inválido")
+
         agora = datetime.now(timezone.utc)
 
         # 1. Criar Tenant
-        tenant = Tenant(nome=nome, documento=cpf_cnpj or "", slug="", ativo=True)
+        tenant = Tenant(nome=nome, documento=documento_tenant, slug="", ativo=True)
         self.session.add(tenant)
         await self.session.flush()  # gera tenant.id
 

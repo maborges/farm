@@ -2,7 +2,7 @@ from pydantic import BaseModel, EmailStr, field_validator
 from uuid import UUID
 from datetime import datetime
 from typing import List, Optional
-from core.utils.cpf_cnpj import validar_cpf_ou_cnpj, apenas_numeros
+from core.utils.cpf_cnpj import validar_cpf_ou_cnpj, apenas_numeros, normalizar_documento_opcional
 
 class ConviteCreateRequest(BaseModel):
     email_convidado: EmailStr
@@ -50,6 +50,7 @@ class AssinanteRegisterRequest(BaseModel):
     @field_validator("cnpj_tenant")
     @classmethod
     def validar_cnpj_tenant(cls, v: Optional[str]) -> Optional[str]:
+        v = normalizar_documento_opcional(v)
         if not v:
             return None
         if not validar_cpf_ou_cnpj(v):

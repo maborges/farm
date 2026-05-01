@@ -25,6 +25,7 @@ from operacional.schemas.estoque import (
     ReservaCreate, ReservaCancelarRequest, ReservaConsumirRequest,
 )
 from operacional.services.estoque_ledger import registrar_ledger_estoque
+from financeiro.models.lancamento import LancamentoFinanceiro
 
 
 class EstoqueService(BaseService[SaldoEstoque]):
@@ -373,6 +374,27 @@ class EstoqueService(BaseService[SaldoEstoque]):
             motivo=motivo
         )
 
+    async def _criar_lancamento_insumo(
+        self,
+        safra_id: UUID,
+        nome_produto: str,
+        custo_unitario: float,
+        quantidade: float,
+    ) -> None:
+        valor = custo_unitario * quantidade
+        if valor <= 0:
+            return
+        lancamento = LancamentoFinanceiro(
+            tenant_id=self.tenant_id,
+            safra_id=safra_id,
+            descricao=f"Uso de insumo: {nome_produto}",
+            valor=valor,
+            data=date.today(),
+            tipo="CUSTO",
+            categoria="INSUMOS",
+        )
+        self.session.add(lancamento)
+
     async def registrar_saida(self, data: SaidaEstoqueRequest) -> EstoqueMovimento:
         if data.deposito_id:
             stmt = select(SaldoEstoque).where(
@@ -391,25 +413,44 @@ class EstoqueService(BaseService[SaldoEstoque]):
             if data.lote_id:
                 await self._descontar_lote(data.lote_id, data.quantidade)
             prod = await self._get_produto(data.produto_id)
+            custo_unit = prod.preco_medio if prod else 0.0
             mov = await self._registrar_movimento(
                 deposito_id=data.deposito_id, produto_id=data.produto_id,
                 tipo="SAIDA", quantidade=data.quantidade,
-                custo_unitario=prod.preco_medio if prod else None,
+                custo_unitario=custo_unit or None,
                 motivo=data.motivo, origem_id=data.origem_id,
                 origem_tipo=data.origem_tipo or "MANUAL",
                 lote_id=data.lote_id,
             )
+            if data.safra_id and custo_unit and custo_unit > 0:
+                await self._criar_lancamento_insumo(
+                    safra_id=data.safra_id,
+                    nome_produto=prod.nome if prod else str(data.produto_id),
+                    custo_unitario=custo_unit,
+                    quantidade=data.quantidade,
+                )
             await self.session.flush()
             await self.session.refresh(mov)
             return mov
         elif data.unidade_produtiva_id:
-            return await self.registrar_saida_insumo(
+            mov = await self.registrar_saida_insumo(
                 produto_id=data.produto_id, quantidade=data.quantidade,
                 unidade_produtiva_id=data.unidade_produtiva_id,
                 origem_id=data.origem_id or uuid.uuid4(),
                 origem_tipo=data.origem_tipo or "MANUAL",
                 motivo=data.motivo or "Saída manual",
             )
+            if data.safra_id:
+                prod = await self._get_produto(data.produto_id)
+                custo_unit = prod.preco_medio if prod else 0.0
+                if custo_unit and custo_unit > 0:
+                    await self._criar_lancamento_insumo(
+                        safra_id=data.safra_id,
+                        nome_produto=prod.nome if prod else str(data.produto_id),
+                        custo_unitario=custo_unit,
+                        quantidade=data.quantidade,
+                    )
+            return mov
         raise BusinessRuleError("Informe deposito_id ou unidade_produtiva_id.")
 
     async def registrar_ajuste(self, data: AjusteEstoqueRequest) -> EstoqueMovimento:

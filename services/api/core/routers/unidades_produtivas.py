@@ -13,6 +13,12 @@ from core.services.geoprocessamento_service import GeoprocessamentoService
 router = APIRouter(prefix="/unidades-produtivas", tags=["Core — Unidades Produtivas"])
 
 @router.get(
+    "",
+    response_model=List[UnidadeProdutivaResponse],
+    summary="Lista todas as unidades produtivas do Tenant logado",
+    include_in_schema=False,
+)
+@router.get(
     "/",
     response_model=List[UnidadeProdutivaResponse],
     summary="Lista todas as unidades produtivas do Tenant logado",
@@ -25,6 +31,14 @@ async def listar_unidades_produtivas(
     svc = UnidadeProdutivaService(session, tenant_id)
     return await svc.list_all()
 
+@router.post(
+    "",
+    response_model=UnidadeProdutivaResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Cadastra uma nova unidade produtiva atrelada ao tenant",
+    dependencies=[Depends(require_limit("max_fazendas"))],
+    include_in_schema=False,
+)
 @router.post(
     "/",
     response_model=UnidadeProdutivaResponse,

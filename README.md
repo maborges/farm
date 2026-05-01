@@ -32,6 +32,13 @@ O projeto é dividido em um monorepo contendo:
 - **Instanciação Rápida**: Aplicação de checklists e tarefas padronizadas por cultura e fase da safra com um clique.
 - **Regras de Gate**: Configuração de pré-requisitos para avanço de fase, garantindo compliance e padronização operacional entre diferentes propriedades.
 
+### 5. Sistema de Alertas Inteligentes (Step 101)
+- **Alertas em Runtime**: Geração automática de alertas financeiros baseados em 3 regras de negócio — sem persistência em banco, calculados a cada requisição.
+- **Regra CUSTO_REGISTRADO** (info): Dispara quando `custo_total > 0` na safra, informando quantos lançamentos existem.
+- **Regra MARGEM_NEGATIVA** (danger): Dispara quando a margem do cenário base é negativa, exibindo o valor absoluto para revisão imediata.
+- **Regra AUMENTO_CUSTO** (warning): Compara os dois últimos períodos da série temporal — alerta quando a variação supera 20%.
+- **Fluxo**: `GET /api/v1/financeiro/lancamentos/alertas?safra_id=` → `LancamentoService.gerar_alertas()` → componente `AlertasCard` no dashboard. O card se auto-atualiza a cada 60 segundos e é invalidado após qualquer lançamento de custo.
+
 ---
 
 ## 🛠️ Como Executar

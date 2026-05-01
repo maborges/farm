@@ -382,7 +382,10 @@ async def onboarding_status(
     usuarios_result = await session.execute(usuarios_stmt)
     etapa3 = len(usuarios_result.fetchall()) > 1
 
-    completo = etapa1 and etapa2
+    # Completo se wizard concluído OU se tenant legado já tem fazenda ativa.
+    # A flag onboarding_configuracao_completo é definida pelo wizard novo;
+    # etapa2 garante compatibilidade com tenants criados antes do wizard existir.
+    completo = bool(tenant and tenant.onboarding_configuracao_completo) or (etapa1 and etapa2)
 
     return OnboardingStatusResponse(
         completo=completo,

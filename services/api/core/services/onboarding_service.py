@@ -13,6 +13,7 @@ from core.models.unidade_produtiva import UnidadeProdutiva as Fazenda
 from core.models.billing import PlanoAssinatura, AssinaturaTenant, Fatura
 from core.schemas.onboarding_schemas import AssinanteRegisterRequest, ConviteCreateRequest, ConviteResponse
 from core.services.email_service import email_service
+from core.utils.cpf_cnpj import normalizar_documento_opcional, validar_cpf_ou_cnpj
 from loguru import logger
 
 class OnboardingService:
@@ -42,14 +43,18 @@ class OnboardingService:
         """
         from decimal import Decimal
 
+        documento_tenant = normalizar_documento_opcional(data.cnpj_tenant)
+        if documento_tenant and not validar_cpf_ou_cnpj(documento_tenant):
+            raise HTTPException(status_code=400, detail="CPF ou CNPJ inválido. Verifique os dados informados.")
+
         # 1. Checar email/username duplicado
         stmt = select(Usuario).where((Usuario.email == data.email) | (Usuario.username == data.username))
         if (await self.session.execute(stmt)).scalars().first():
             raise HTTPException(status_code=400, detail="E-mail ou Username já existe no sistema.")
 
         # 2. Checar CNPJ/CPF duplicado (se informado)
-        if data.cnpj_tenant:
-            stmt = select(Tenant).where(Tenant.documento == data.cnpj_tenant)
+        if documento_tenant:
+            stmt = select(Tenant).where(Tenant.documento == documento_tenant)
             if (await self.session.execute(stmt)).scalars().first():
                 raise HTTPException(status_code=400, detail="Este CPF ou CNPJ já está cadastrado no sistema.")
 
@@ -79,7 +84,7 @@ class OnboardingService:
         # 5. Criar Tenant (Produtor Rural)
         tenant = Tenant(
             nome=data.nome_produtor,
-            documento=data.cnpj_tenant or "",
+            documento=documento_tenant,
             ativo=True,
         )
         self.session.add(tenant)

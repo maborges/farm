@@ -167,6 +167,47 @@ async def test_create_tenant_for_user_plan_gratis(db_session: AsyncSession):
 
 
 @pytest.mark.asyncio
+async def test_create_tenant_for_user_sem_documento_persiste_null(db_session: AsyncSession):
+    """Garante que CPF/CNPJ opcional vazio não vira string vazia no banco."""
+    user = Usuario(
+        email="teste3@example.com",
+        username="teste3",
+        nome_completo="Teste User 3",
+        senha_hash="dummy_hash",
+        ativo=True,
+    )
+    db_session.add(user)
+    await db_session.flush()
+
+    plano = PlanoAssinatura(
+        nome="Starter",
+        preco_mensal=79.0,
+        preco_anual=790.0,
+        is_free=False,
+        tem_trial=True,
+        dias_trial=14,
+        modulos_inclusos=["CORE"],
+        max_fazendas=1,
+    )
+    db_session.add(plano)
+    await db_session.flush()
+
+    svc = AuthService(db_session)
+
+    result = await svc.create_tenant_for_user(
+        user_id=user.id,
+        nome="Fazenda Sem Documento",
+        plano_id=plano.id,
+        ciclo="MENSAL",
+        cpf_cnpj="   ",
+    )
+
+    tenant = await db_session.get(Tenant, result["tenant_id"])
+    assert tenant is not None
+    assert tenant.documento is None
+
+
+@pytest.mark.asyncio
 async def test_create_tenant_isolacao_multitenancy(db_session: AsyncSession):
     """Testa que novo tenant fica isolado de outros tenants."""
     # Criar 2 usuários

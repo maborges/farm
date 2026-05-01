@@ -142,3 +142,18 @@ def formatar_documento(documento: str) -> Optional[str]:
 def apenas_numeros(documento: str) -> str:
     """Remove todos os caracteres não numéricos do documento."""
     return re.sub(r'\D', '', documento) if documento else ""
+
+
+def normalizar_documento_opcional(documento: str | None) -> str | None:
+    """
+    Normaliza CPF/CNPJ opcional para persistência.
+
+    - trim em espaços externos
+    - remove caracteres não numéricos
+    - retorna None para vazio/whitespace/não informado
+    """
+    if documento is None:
+        return None
+
+    documento_limpo = apenas_numeros(documento.strip())
+    return documento_limpo or None

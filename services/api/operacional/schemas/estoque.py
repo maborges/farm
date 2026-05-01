@@ -109,6 +109,7 @@ class SaidaEstoqueRequest(BaseModel):
     origem_id: Optional[uuid.UUID] = None
     origem_tipo: Optional[str] = Field(None, max_length=50)
     lote_id: Optional[uuid.UUID] = None  # Se informado, desconta do lote específico (PEPS por padrão)
+    safra_id: Optional[uuid.UUID] = None  # Quando informado, gera lançamento financeiro automático
 
 
 class AjusteEstoqueRequest(BaseModel):

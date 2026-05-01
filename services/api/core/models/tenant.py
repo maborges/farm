@@ -12,8 +12,8 @@ class Tenant(Base):
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     nome: Mapped[str] = mapped_column(String(150), nullable=False)
-    documento: Mapped[str] = mapped_column(
-        String(20), unique=True, nullable=False, index=True
+    documento: Mapped[str | None] = mapped_column(
+        String(20), unique=True, nullable=True, index=True
     )  # CPF/CNPJ
     ativo: Mapped[bool] = mapped_column(Boolean, default=True)
 
