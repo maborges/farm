@@ -2,7 +2,7 @@ import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, text
 from financeiro.models.lancamento import LancamentoFinanceiro
-from financeiro.schemas.lancamento_schema import LancamentoCreate, LancamentoResumo, InsightDashboard, CategoriaBreakdown, SerieTemporal, AlertaSafra
+from financeiro.schemas.lancamento_schema import LancamentoCreate, LancamentoResumo, InsightDashboard, CategoriaBreakdown, SerieTemporal, AlertaSafra, RecomendacaoSafra
 from agricola.safras.models import Safra
 from agricola.cenarios.models import SafraCenario
 
@@ -199,3 +199,83 @@ class LancamentoService:
 
         rows = (await self.session.execute(stmt)).fetchall()
         return [SerieTemporal(periodo=r[0], total=float(r[1])) for r in rows]
+
+    async def gerar_recomendacoes(self, safra_id: uuid.UUID) -> list[RecomendacaoSafra]:
+        """Gera recomendações acionáveis baseadas em regras determinísticas.
+
+        Reutiliza dados já disponíveis (cenário base, categorias, série temporal)
+        sem recalcular tudo do zero.
+
+        Args:
+            safra_id: UUID da safra a ser analisada.
+
+        Returns:
+            Lista de RecomendacaoSafra ordenada por prioridade (margem primeiro).
+        """
+        recomendacoes: list[RecomendacaoSafra] = []
+        safra_id_str = str(safra_id)
+
+        # ------------------------------------------------------------------ #
+        # Regra 1: Margem negativa → revisar custos operacionais              #
+        # ------------------------------------------------------------------ #
+        stmt_cenario = (
+            select(SafraCenario)
+            .where(and_(
+                SafraCenario.tenant_id == self.tenant_id,
+                SafraCenario.safra_id == safra_id,
+                SafraCenario.eh_base == True,
+            ))
+            .limit(1)
+        )
+        cenario = (await self.session.execute(stmt_cenario)).scalar_one_or_none()
+        margem: float | None = None
+        if cenario and cenario.custo_total is not None and cenario.receita_bruta_total is not None:
+            margem = float(cenario.receita_bruta_total) - float(cenario.custo_total)
+
+        if margem is not None and margem < 0:
+            recomendacoes.append(RecomendacaoSafra(
+                tipo="REVISAR_CUSTOS",
+                mensagem="Revise seus custos operacionais. A margem atual está negativa.",
+                acao="Ver cenários",
+                rota=f"/agricola/safras/{safra_id_str}/cenarios",
+            ))
+
+        # ------------------------------------------------------------------ #
+        # Regra 2: INSUMOS é o maior custo → analisar categoria             #
+        # ------------------------------------------------------------------ #
+        stmt_cat = select(
+            LancamentoFinanceiro.categoria,
+            func.sum(LancamentoFinanceiro.valor).label("total"),
+        ).where(and_(
+            LancamentoFinanceiro.tenant_id == self.tenant_id,
+            LancamentoFinanceiro.safra_id == safra_id,
+            LancamentoFinanceiro.tipo == "CUSTO",
+        )).group_by(LancamentoFinanceiro.categoria).order_by(func.sum(LancamentoFinanceiro.valor).desc()).limit(1)
+
+        cat_row = (await self.session.execute(stmt_cat)).first()
+        if cat_row and str(cat_row[0]).upper() == "INSUMOS":
+            recomendacoes.append(RecomendacaoSafra(
+                tipo="ANALISAR_INSUMOS",
+                mensagem="Custos com insumos estão elevados e lideram sua estrutura de custos.",
+                acao="Analisar por categoria",
+                rota=f"/agricola/safras/{safra_id_str}/cenarios",
+            ))
+
+        # ------------------------------------------------------------------ #
+        # Regra 3: Aumento > 20% no último período → ver evolução        #
+        # ------------------------------------------------------------------ #
+        serie = await self.serie_temporal(safra_id)
+        if len(serie) >= 2:
+            ultimo = serie[-1].total
+            penultimo = serie[-2].total
+            if penultimo > 0:
+                variacao_pct = (ultimo - penultimo) / penultimo * 100
+                if variacao_pct > 20:
+                    recomendacoes.append(RecomendacaoSafra(
+                        tipo="VER_EVOLUCAO",
+                        mensagem=f"Seus custos aumentaram {variacao_pct:.1f}% recentemente. Acompanhe a evolução.",
+                        acao="Ver evolução de custos",
+                        rota=f"/agricola/safras/{safra_id_str}/operacoes",
+                    ))
+
+        return recomendacoes

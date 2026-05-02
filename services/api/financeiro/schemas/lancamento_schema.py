@@ -68,6 +68,13 @@ class AlertaSafra(BaseModel):
     mensagem: str
 
 
+class RecomendacaoSafra(BaseModel):
+    tipo: str       # REVISAR_CUSTOS | ANALISAR_INSUMOS | VER_EVOLUCAO
+    mensagem: str
+    acao: str       # texto curto do botão
+    rota: str       # caminho de destino (ex: "/agricola/safras/{id}/cenarios")
+
+
 class InsightDashboard(BaseModel):
     total_custos: float
     quantidade_lancamentos: int

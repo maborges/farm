@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from loguru import logger
 
 from core.dependencies import get_session, get_tenant_id
-from financeiro.schemas.lancamento_schema import LancamentoCreate, LancamentoResponse, LancamentoResumo, InsightDashboard, SerieTemporal, AlertaSafra
+from financeiro.schemas.lancamento_schema import LancamentoCreate, LancamentoResponse, LancamentoResumo, InsightDashboard, SerieTemporal, AlertaSafra, RecomendacaoSafra
 from financeiro.services.lancamento_service import LancamentoService
 
 router = APIRouter(prefix="/lancamentos", tags=["Financeiro — Lançamentos"])
@@ -68,3 +68,13 @@ async def alertas_safra(
 ):
     svc = LancamentoService(session, tenant_id)
     return await svc.gerar_alertas(safra_id)
+
+
+@router.get("/recomendacoes", response_model=list[RecomendacaoSafra])
+async def recomendacoes_safra(
+    safra_id: uuid.UUID = Query(...),
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    session: AsyncSession = Depends(get_session),
+):
+    svc = LancamentoService(session, tenant_id)
+    return await svc.gerar_recomendacoes(safra_id)

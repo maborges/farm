@@ -39,7 +39,12 @@ O projeto é dividido em um monorepo contendo:
 - **Regra AUMENTO_CUSTO** (warning): Compara os dois últimos períodos da série temporal — alerta quando a variação supera 20%.
 - **Fluxo**: `GET /api/v1/financeiro/lancamentos/alertas?safra_id=` → `LancamentoService.gerar_alertas()` → componente `AlertasCard` no dashboard. O card se auto-atualiza a cada 60 segundos e é invalidado após qualquer lançamento de custo.
 
----
+### 6. Sistema de Recomendações (Step 102)
+- **Recomendações Acionáveis**: Geração automática de orientações determinísticas para o usuário agir sobre os problemas identificados pelos alertas.
+- **Regra REVISAR_CUSTOS**: Acionada quando margem < 0 — orienta o usuário a revisar custos e leva diretamente à tela de cenários da safra.
+- **Regra ANALISAR_INSUMOS**: Acionada quando INSUMOS é a categoria de maior custo — orienta análise da estrutura de custos.
+- **Regra VER_EVOLUCAO**: Acionada quando aumento > 20% no último período — leva o usuário à tela de operações por fase.
+- **Fluxo**: `GET /api/v1/financeiro/lancamentos/recomendacoes?safra_id=` → `LancamentoService.gerar_recomendacoes()` → componente `RecomendacoesCard` no dashboard, abaixo do `AlertasCard`. Cada recomendação inclui botão com link direto para a tela de ação.
 
 ## 🛠️ Como Executar
 
