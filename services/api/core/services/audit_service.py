@@ -16,15 +16,15 @@ def _serialize(obj: Any) -> dict | None:
     try:
         mapper = sa_inspect(type(obj))
         result = {}
-        for col in mapper.columns:
-            val = getattr(obj, col.key)
+        for attr in mapper.column_attrs:
+            val = getattr(obj, attr.key)
             if isinstance(val, uuid.UUID):
                 val = str(val)
             elif hasattr(val, "isoformat"):  # datetime / date
                 val = val.isoformat()
             elif isinstance(val, Decimal):
                 val = float(val)
-            result[col.key] = val
+            result[attr.key] = val
         return result
     except Exception:
         return None

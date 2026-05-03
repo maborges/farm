@@ -17,6 +17,13 @@ class SolicitacaoCompraCreate(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
 
+class FornecedorConsistenciaResponse(BaseModel):
+    fornecedor_nome: str
+    preco_medio: float
+    desvio_padrao: float
+    variacao_percentual: float
+    classificacao: str
+
 class SolicitacaoCompraResponse(BaseModel):
     id: uuid.UUID
     tenant_id: uuid.UUID
@@ -149,6 +156,11 @@ class CotacaoSolicitacaoResponse(BaseModel):
     percentual_acima_media: Optional[float] = None
     mensagem_alerta: Optional[str] = None
     
+    # Step 159: Score de Compra
+    score_compra: float = 0.0
+    classificacao_score: str = "ATENCAO" # BOA, ATENCAO, RUIM
+    motivos_score: List[str] = []
+    
     created_at: datetime
     updated_at: datetime
 
@@ -201,3 +213,16 @@ class PrecoHistoricoResponse(BaseModel):
     maior_preco: float
     preco_medio: float
     historico: List[PrecoHistoricoItem]
+
+class PrecoIdealResponse(BaseModel):
+    preco_minimo_referencia: float
+    preco_ideal: float
+    preco_maximo_recommended: float
+    base_calculo: str
+
+class MelhorFornecedorResponse(BaseModel):
+    fornecedor_nome: str
+    preco_medio: float
+    ultimo_preco: float
+    qtd_compras: int
+    score: float

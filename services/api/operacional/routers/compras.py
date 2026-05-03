@@ -20,7 +20,8 @@ from operacional.schemas.compras import (
     SolicitacaoCompraCreate, SolicitacaoCompraResponse, SolicitacaoCompraStatusUpdate,
     CotacaoSolicitacaoCreate, CotacaoSolicitacaoResponse,
     PedidoCompraResponse, PedidoCompraStatusUpdate,
-    PrecoHistoricoResponse
+    PrecoHistoricoResponse, MelhorFornecedorResponse, PrecoIdealResponse,
+    FornecedorConsistenciaResponse
 )
 from core.cadastros.models import ProdutoCatalogo as Produto
 from operacional.services.estoque_service import EstoqueService
@@ -81,6 +82,17 @@ async def create_fornecedor(
     await session.commit()
     await session.refresh(forn)
     return forn
+
+
+@router.get("/fornecedores/consistencia", response_model=List[FornecedorConsistenciaResponse])
+async def get_consistencia_fornecedores(
+    item_id: uuid.UUID,
+    tenant: Tenant = Depends(get_current_tenant),
+    session: AsyncSession = Depends(get_session)
+):
+    """Retorna a análise de consistência de preços por fornecedor para um item."""
+    svc = ComprasService(session, tenant.id)
+    return await svc.obter_consistencia_fornecedores(item_id)
 
 
 @router.get("/fornecedores/{fornecedor_id}", response_model=FornecedorResponse)
@@ -260,6 +272,29 @@ async def get_precos_historico_item(
     """Retorna o histórico detalhado de preços para um item específico."""
     svc = ComprasService(session, tenant.id)
     return await svc.get_historico_precos(item_id)
+
+
+@router.get("/precos/melhor-fornecedor", response_model=Optional[MelhorFornecedorResponse])
+async def get_melhor_fornecedor_item(
+    item_id: uuid.UUID,
+    tenant: Tenant = Depends(get_current_tenant),
+    session: AsyncSession = Depends(get_session)
+):
+    """Retorna a recomendação do melhor fornecedor para um item."""
+    svc = ComprasService(session, tenant.id)
+    return await svc.obter_melhor_fornecedor(item_id)
+
+
+@router.get("/precos/preco-ideal", response_model=Optional[PrecoIdealResponse])
+async def get_preco_ideal_item(
+    item_id: uuid.UUID,
+    tenant: Tenant = Depends(get_current_tenant),
+    session: AsyncSession = Depends(get_session)
+):
+    """Retorna a sugestão de faixa de preço ideal para um item."""
+    svc = ComprasService(session, tenant.id)
+    return await svc.obter_preco_ideal(item_id)
+
 
 
 # --- SOLICITAÇÕES DE COMPRA (Step 147-150) ---

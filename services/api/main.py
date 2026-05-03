@@ -100,11 +100,17 @@ async def lifespan(app):
 
     task = asyncio.create_task(_job_suspender_vencidos())
     yield
+    # Shutdown
     task.cancel()
     try:
         await task
     except asyncio.CancelledError:
         pass
+    
+    # Libera pool de conexões do banco
+    from core.database import engine
+    await engine.dispose()
+    logger.info("Database engine disposed on shutdown.")
 
 
 app = FastAPI(
@@ -269,6 +275,12 @@ app.include_router(compras.router, prefix="/api/v1")
 app.include_router(router_apontamento.router, prefix="/api/v1")
 app.include_router(router_abastecimento.router, prefix="/api/v1")
 app.include_router(router_checklist.router, prefix="/api/v1")
+from ia.router import router as ia_uso_router
+app.include_router(ia_uso_router, prefix="/api/v1")
+from pagamentos.webhook_router import router as pagamentos_webhook_router
+app.include_router(pagamentos_webhook_router, prefix="/api/v1")
+from core.routers.backoffice_ia_auditoria import router as backoffice_ia_auditoria_router
+app.include_router(backoffice_ia_auditoria_router, prefix="/api/v1")
 app.include_router(router_doc_equipamento.router, prefix="/api/v1")
 app.include_router(router_core_cadastros, prefix="/api/v1")
 app.include_router(router_propriedades_econ, prefix="/api/v1")
@@ -351,7 +363,7 @@ from integracoes.regulatorias.router import router as regulatorias_router
 # from contabilidade.routers.exportacoes import router as contabilidade_exportacoes_router
 # from contabilidade.routers.lancamentos import router as contabilidade_lancamentos_router
 
-from financeiro.routers import despesas, receitas, planos_conta, relatorios as relatorios_fin, integracao as integracao_fin, conciliacao, notas_fiscais as notas_fiscais_router, lancamentos as lancamentos_router
+from financeiro.routers import despesas, receitas, planos_conta, relatorios as relatorios_fin, integracao as integracao_fin, conciliacao, notas_fiscais as notas_fiscais_router, lancamentos as lancamentos_router, plano_acoes as plano_acoes_router
 from financeiro.comercializacao.router import router as router_comercializacoes
 from ambiental.router import router as router_ambiental
 from rh.router import router as router_rh
@@ -442,7 +454,14 @@ app.include_router(conciliacao.router, prefix="/api/v1/financeiro")
 app.include_router(notas_fiscais_router.router, prefix="/api/v1/financeiro")
 app.include_router(router_comercializacoes, prefix="/api/v1/financeiro")
 app.include_router(lancamentos_router.router, prefix="/api/v1/financeiro")
+app.include_router(plano_acoes_router.router, prefix="/api/v1/financeiro")
 app.include_router(router_ambiental, prefix="/api/v1")
+
+from atividades.router import router as router_atividades
+app.include_router(router_atividades, prefix="/api/v1")
+
+from automacoes.router import router as router_automacoes
+app.include_router(router_automacoes, prefix="/api/v1")
 app.include_router(frota_router.router, prefix="/api/v1")
 
 # --- EXCEPTION HANDLERS GLOBAIS ---

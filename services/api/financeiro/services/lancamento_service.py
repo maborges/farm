@@ -2,7 +2,7 @@ import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, text
 from financeiro.models.lancamento import LancamentoFinanceiro
-from financeiro.schemas.lancamento_schema import LancamentoCreate, LancamentoResumo, InsightDashboard, CategoriaBreakdown, SerieTemporal, AlertaSafra, RecomendacaoSafra
+from financeiro.schemas.lancamento_schema import LancamentoCreate, LancamentoResumo, InsightDashboard, CategoriaBreakdown, SerieTemporal, AlertaSafra, RecomendacaoSafra, ResumoInteligente, ItemPlanoAcao
 from agricola.safras.models import Safra
 from agricola.cenarios.models import SafraCenario
 
@@ -13,6 +13,34 @@ class LancamentoService:
         self.tenant_id = tenant_id
 
     async def criar(self, data: LancamentoCreate) -> LancamentoFinanceiro:
+        # Valida que safra_id pertence ao tenant
+        if data.safra_id is not None:
+            safra = await self.session.get(Safra, data.safra_id)
+            if safra is None or safra.tenant_id != self.tenant_id:
+                from fastapi import HTTPException
+                raise HTTPException(status_code=404, detail="Safra não encontrada para este tenant")
+
+        # Detecção de duplicata: mesmos tenant+safra+tipo+categoria+valor+data+descricao normalizada
+        descricao_norm = data.descricao.strip().lower()
+        stmt_dup = select(LancamentoFinanceiro.id).where(
+            and_(
+                LancamentoFinanceiro.tenant_id == self.tenant_id,
+                LancamentoFinanceiro.safra_id == data.safra_id,
+                LancamentoFinanceiro.tipo == data.tipo,
+                LancamentoFinanceiro.categoria == data.categoria,
+                LancamentoFinanceiro.valor == data.valor,
+                LancamentoFinanceiro.data == data.data,
+                func.lower(func.trim(LancamentoFinanceiro.descricao)) == descricao_norm,
+            )
+        ).limit(1)
+        dup = (await self.session.execute(stmt_dup)).first()
+        if dup:
+            from fastapi import HTTPException
+            raise HTTPException(
+                status_code=409,
+                detail="Lançamento duplicado: já existe um registro idêntico para esta data, valor, categoria e descrição.",
+            )
+
         lancamento = LancamentoFinanceiro(
             tenant_id=self.tenant_id,
             safra_id=data.safra_id,
@@ -21,11 +49,85 @@ class LancamentoService:
             data=data.data,
             tipo=data.tipo,
             categoria=data.categoria,
+            origem=data.origem,
+            origem_id=data.origem_id,
         )
         self.session.add(lancamento)
         await self.session.commit()
         await self.session.refresh(lancamento)
         return lancamento
+
+    async def atualizar(self, lancamento_id: uuid.UUID, data: "LancamentoUpdate") -> LancamentoFinanceiro:
+        from financeiro.schemas.lancamento_schema import LancamentoUpdate
+        from fastapi import HTTPException
+
+        lancamento = (
+            await self.session.execute(
+                select(LancamentoFinanceiro).where(
+                    and_(
+                        LancamentoFinanceiro.id == lancamento_id,
+                        LancamentoFinanceiro.tenant_id == self.tenant_id,
+                    )
+                )
+            )
+        ).scalars().first()
+
+        if lancamento is None:
+            raise HTTPException(status_code=404, detail="Lançamento não encontrado.")
+
+        if lancamento.origem is not None and lancamento.origem != "MANUAL":
+            raise HTTPException(
+                status_code=422,
+                detail="Lançamentos gerados pelo estoque devem ser ajustados na movimentação de estoque.",
+            )
+
+        if data.descricao is not None:
+            lancamento.descricao = data.descricao
+        if data.valor is not None:
+            lancamento.valor = data.valor
+        if data.data is not None:
+            lancamento.data = data.data
+        if data.categoria is not None:
+            lancamento.categoria = data.categoria
+
+        await self.session.flush()
+        await self.session.refresh(lancamento)
+
+        if lancamento.safra_id:
+            try:
+                from agricola.cenarios.service import CenariosService
+                await CenariosService(self.session, self.tenant_id).recalcular_base(lancamento.safra_id)
+            except Exception:
+                pass
+
+        return lancamento
+
+    async def listar_origens(self, safra_id: uuid.UUID) -> list:
+        from financeiro.schemas.lancamento_schema import LancamentoOrigemItem
+        stmt = (
+            select(LancamentoFinanceiro)
+            .where(
+                and_(
+                    LancamentoFinanceiro.tenant_id == self.tenant_id,
+                    LancamentoFinanceiro.safra_id == safra_id,
+                )
+            )
+            .order_by(LancamentoFinanceiro.data.desc())
+        )
+        rows = (await self.session.execute(stmt)).scalars().all()
+        return [
+            LancamentoOrigemItem(
+                lancamento_id=r.id,
+                descricao=r.descricao,
+                valor=float(r.valor),
+                origem=r.origem or "MANUAL",
+                origem_id=r.origem_id,
+                data=r.data,
+                categoria=r.categoria,
+                gerado_automaticamente=r.origem is not None,
+            )
+            for r in rows
+        ]
 
     async def resumo(self) -> LancamentoResumo:
         stmt = select(
@@ -279,3 +381,151 @@ class LancamentoService:
                     ))
 
         return recomendacoes
+
+    async def gerar_resumo_inteligente(self, safra_id: uuid.UUID) -> ResumoInteligente:
+        LABEL_CAT = {"INSUMOS": "insumos", "MAO_OBRA": "mão de obra", "OPERACOES": "operações", "ADMINISTRATIVO": "administrativo"}
+
+        # Reutiliza dados já calculados
+        alertas = await self.gerar_alertas(safra_id)
+        serie = await self.serie_temporal(safra_id)
+        recomendacoes = await self.gerar_recomendacoes(safra_id)
+
+        # Totais e categoria dominante
+        stmt_total = select(
+            func.coalesce(func.sum(LancamentoFinanceiro.valor), 0).label("total"),
+            func.count(LancamentoFinanceiro.id).label("qtd"),
+        ).where(and_(
+            LancamentoFinanceiro.tenant_id == self.tenant_id,
+            LancamentoFinanceiro.safra_id == safra_id,
+            LancamentoFinanceiro.tipo == "CUSTO",
+        ))
+        row = (await self.session.execute(stmt_total)).one()
+        total_custos = float(row.total)
+        qtd = int(row.qtd)
+
+        stmt_cat = select(
+            LancamentoFinanceiro.categoria,
+            func.sum(LancamentoFinanceiro.valor).label("total"),
+        ).where(and_(
+            LancamentoFinanceiro.tenant_id == self.tenant_id,
+            LancamentoFinanceiro.safra_id == safra_id,
+            LancamentoFinanceiro.tipo == "CUSTO",
+        )).group_by(LancamentoFinanceiro.categoria).order_by(func.sum(LancamentoFinanceiro.valor).desc()).limit(1)
+        cat_row = (await self.session.execute(stmt_cat)).first()
+        cat_dominante = LABEL_CAT.get(cat_row[0] or "", cat_row[0] or "") if cat_row else None
+
+        # Margem do cenário BASE
+        stmt_cenario = select(SafraCenario).where(and_(
+            SafraCenario.tenant_id == self.tenant_id,
+            SafraCenario.safra_id == safra_id,
+            SafraCenario.eh_base == True,
+        )).limit(1)
+        cenario = (await self.session.execute(stmt_cenario)).scalar_one_or_none()
+        margem: float | None = None
+        if cenario and cenario.custo_total is not None and cenario.receita_bruta_total is not None:
+            margem = float(cenario.receita_bruta_total) - float(cenario.custo_total)
+
+        # Monta resumo
+        fmt = lambda v: f"R$ {v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+        if total_custos == 0:
+            return ResumoInteligente(
+                titulo="Resumo financeiro da safra",
+                resumo="Nenhum custo registrado nesta safra ainda. Comece lançando os primeiros custos operacionais.",
+                pontos_atencao=[],
+                proximas_acoes=["Registrar primeiro custo", "Vincular insumos à safra"],
+            )
+
+        partes_resumo = [f"Sua safra possui {fmt(total_custos)} em custos registrados ({qtd} lançamento{'s' if qtd != 1 else ''})."]
+        if cat_dominante:
+            partes_resumo.append(f"A maior concentração está em {cat_dominante}.")
+        if margem is not None:
+            if margem >= 0:
+                partes_resumo.append(f"O cenário base apresenta margem positiva de {fmt(margem)}.")
+            else:
+                partes_resumo.append(f"O cenário base apresenta margem negativa de {fmt(abs(margem))}.")
+
+        # Pontos de atenção priorizados e deduplicados por tipo semântico
+        # Ordem: margem_negativa → aumento_custo → categoria_dominante
+        pontos: list[str] = []
+        seen: set[str] = set()
+
+        # 1. Margem negativa (danger — máxima prioridade)
+        if margem is not None and margem < 0:
+            pontos.append(f"Operação com margem negativa de {fmt(abs(margem))}. Revise os custos.")
+            seen.add("aumento_custo")  # suprime variação se margem já é negativa
+
+        # 2. Variação de custo no último período
+        if "aumento_custo" not in seen and len(serie) >= 2 and serie[-2].total > 0:
+            variacao = (serie[-1].total - serie[-2].total) / serie[-2].total * 100
+            if variacao > 20:
+                pontos.append(f"Custos aumentaram {variacao:.1f}% entre {serie[-2].periodo} e {serie[-1].periodo}.")
+                seen.add("aumento_custo")
+            elif variacao < -10:
+                pontos.append(f"Custos reduziram {abs(variacao):.1f}% no último período — boa evolução.")
+                seen.add("aumento_custo")
+
+        # 3. Categoria dominante
+        if cat_dominante and "cat_dominante" not in seen:
+            pontos.append(f"A categoria {cat_dominante} representa a maior concentração de custos.")
+            seen.add("cat_dominante")
+
+        proximas: list[str] = []
+        seen_rec: set[str] = set()
+        for r in recomendacoes:
+            if r.tipo not in seen_rec:
+                proximas.append(r.mensagem)
+                seen_rec.add(r.tipo)
+        if not proximas:
+            proximas = ["Revisar custos por categoria", "Comparar cenários econômicos", "Acompanhar evolução mensal"]
+
+        return ResumoInteligente(
+            titulo="Resumo financeiro da safra",
+            resumo=" ".join(partes_resumo),
+            pontos_atencao=pontos[:3],
+            proximas_acoes=proximas[:3],
+        )
+
+    async def gerar_plano_acao(self, safra_id: uuid.UUID) -> list[ItemPlanoAcao]:
+        """Transforma recomendações em itens de plano de ação priorizados.
+
+        Reutiliza gerar_recomendacoes() — sem recalcular regras.
+        """
+        MAPA: dict[str, dict] = {
+            "REVISAR_CUSTOS": {
+                "titulo": "Revisar custos e cenários da safra",
+                "descricao": "A margem atual está negativa. Revise os custos operacionais e compare os cenários econômicos.",
+                "prioridade": "ALTA",
+            },
+            "ANALISAR_INSUMOS": {
+                "titulo": "Analisar custos de insumos",
+                "descricao": "Os insumos representam a maior parte dos custos da safra. Avalie oportunidades de redução.",
+                "prioridade": "MEDIA",
+            },
+            "VER_EVOLUCAO": {
+                "titulo": "Verificar evolução mensal dos custos",
+                "descricao": "Os custos tiveram variação significativa no último período. Acompanhe a tendência.",
+                "prioridade": "MEDIA",
+            },
+        }
+
+        recomendacoes = await self.gerar_recomendacoes(safra_id)
+        plano: list[ItemPlanoAcao] = []
+        seen: set[str] = set()
+
+        for rec in recomendacoes:
+            if rec.tipo in seen or rec.tipo not in MAPA:
+                continue
+            seen.add(rec.tipo)
+            meta = MAPA[rec.tipo]
+            plano.append(ItemPlanoAcao(
+                id=rec.tipo.lower(),
+                tipo=rec.tipo.upper(),
+                titulo=meta["titulo"],
+                descricao=meta["descricao"],
+                prioridade=meta["prioridade"],
+                status="PENDENTE",
+                rota=rec.rota,
+            ))
+
+        return plano

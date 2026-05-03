@@ -1,0 +1,232 @@
+============================= test session starts ==============================
+platform linux -- Python 3.10.12, pytest-9.0.2, pluggy-1.6.0
+rootdir: /opt/lampp/htdocs/farm/services/api
+configfile: pyproject.toml
+plugins: asyncio-1.3.0, anyio-4.12.1, cov-7.1.0
+asyncio: mode=auto, debug=False, asyncio_default_fixture_loop_scope=session, asyncio_default_test_loop_scope=session
+collected 1 item
+
+tests/integration/test_compras_score_step159.py 2026-05-03 14:42:03.018 | WARNING  | core.services.geoprocessamento_service:<module>:27 - Fiona/Shapely não disponíveis. Funcionalidades geoespaciais limitadas.
+E
+
+==================================== ERRORS ====================================
+_____________ ERROR at setup of test_score_compra_calculo_step159 ______________
+file /opt/lampp/htdocs/farm/services/api/tests/integration/test_compras_score_step159.py, line 7
+  @pytest.mark.asyncio
+  async def test_score_compra_calculo_step159(client: AsyncClient, headers_operacional: dict, db_session):
+      """
+      Testa a lógica de cálculo de score de compra (Step 159).
+      """
+      tenant_id = uuid.UUID(headers_operacional["X-Tenant-ID"])
+      item_id = uuid.uuid4()
+
+      # Mock de uma cotação para teste
+      cotacao = CotacaoCompra(
+          id=uuid.uuid4(),
+          tenant_id=tenant_id,
+          solicitacao_id=uuid.uuid4(),
+          fornecedor_nome="Fornecedor Teste Score",
+          item_id=item_id,
+          valor_unitario=10.0,
+          valor_total=100.0,
+          prazo_entrega_dias=2, # Bom prazo
+          status="RECEBIDA",
+          acima_media=False # Bom preço
+      )
+
+      svc = ComprasService(db_session, tenant_id)
+
+      # Mock de métodos internos para não depender de DB real complexo
+      # Em um teste de integração real, teríamos dados no banco.
+      # Aqui vamos testar se a função retorna a estrutura correta.
+
+      score_res = await svc.calcular_score_compra(cotacao)
+
+      assert "score" in score_res
+      assert "classificacao" in score_res
+      assert "motivos" in score_res
+      assert score_res["classificacao"] in ["BOA", "ATENCAO", "RUIM"]
+      assert len(score_res["motivos"]) > 0
+
+      # Teste de valores específicos baseados no mock
+      # Como não tem histórico, deve cair nos fallbacks (20 + 15 + 20 + 5 = 60 -> ATENCAO)
+      # Valor unitário 10, no histórico fallback é acima_media=False -> +40
+      # Prazo 2 -> +20
+      # Consistencia fallback -> +15
+      # Recorrencia fallback -> +5
+      # Total esperado aproximado: 80 (BOA)
+      assert score_res["score"] >= 50
+E       fixture 'db_session' not found
+>       available fixtures: _class_scoped_runner, _function_scoped_runner, _module_scoped_runner, _package_scoped_runner, _session_scoped_runner, anyio_backend, anyio_backend_name, anyio_backend_options, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, client, cov, doctest_namespace, event_loop_policy, free_tcp_port, free_tcp_port_factory, free_udp_port, free_udp_port_factory, headers_admin, headers_agricola, headers_core_only, headers_financeiro, headers_operacional, headers_rh, monkeypatch, no_cover, outro_tenant_id, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, session, session_a, session_b, subtests, talhao_id, tenant_id, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, token_admin, token_agricola, token_core_only, token_financeiro, token_operacional, token_rh, unidade_produtiva_id, unused_tcp_port, unused_tcp_port_factory, unused_udp_port, unused_udp_port_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/opt/lampp/htdocs/farm/services/api/tests/integration/test_compras_score_step159.py:7
+=============================== warnings summary ===============================
+tests/integration/test_compras_score_step159.py::test_score_compra_calculo_step159
+  /opt/lampp/htdocs/farm/services/api/core/schemas/support_schemas.py:14: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class MensagemChamadoResponse(MensagemChamadoBase):
+
+tests/integration/test_compras_score_step159.py::test_score_compra_calculo_step159
+  /opt/lampp/htdocs/farm/services/api/core/schemas/support_schemas.py:32: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class ChamadoSuporteResponse(ChamadoSuporteBase):
+
+tests/integration/test_compras_score_step159.py::test_score_compra_calculo_step159
+  /opt/lampp/htdocs/farm/services/api/core/routers/backoffice_admins.py:46: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class AdminUserResponse(BaseModel):
+
+tests/integration/test_compras_score_step159.py::test_score_compra_calculo_step159
+  /opt/lampp/htdocs/farm/services/api/core/routers/team.py:56: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class PerfilResponse(BaseModel):
+
+tests/integration/test_compras_score_step159.py::test_score_compra_calculo_step159
+  /opt/lampp/htdocs/farm/services/api/core/routers/backoffice_profiles.py:42: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SystemProfileResponse(BaseModel):
+
+tests/integration/test_compras_score_step159.py::test_score_compra_calculo_step159
+  /opt/lampp/htdocs/farm/services/api/core/schemas/knowledge_base_schemas.py:14: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class ConhecimentoCategoriaResponse(ConhecimentoCategoriaBase):
+
+tests/integration/test_compras_score_step159.py::test_score_compra_calculo_step159
+  /opt/lampp/htdocs/farm/services/api/core/schemas/knowledge_base_schemas.py:37: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class ConhecimentoArtigoResponse(ConhecimentoArtigoBase):
+
+tests/integration/test_compras_score_step159.py::test_score_compra_calculo_step159
+  /opt/lampp/htdocs/farm/services/api/core/schemas/config_schemas.py:6: PydanticDeprecatedSince20: Using extra keyword arguments on `Field` is deprecated and will be removed. Use `json_schema_extra` instead. (Extra keys: 'example'). Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    host: str = Field(..., example="smtp.mailtrap.io")
+
+tests/integration/test_compras_score_step159.py::test_score_compra_calculo_step159
+  /opt/lampp/htdocs/farm/services/api/core/schemas/config_schemas.py:7: PydanticDeprecatedSince20: Using extra keyword arguments on `Field` is deprecated and will be removed. Use `json_schema_extra` instead. (Extra keys: 'example'). Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    port: int = Field(587, example=587)
+
+tests/integration/test_compras_score_step159.py::test_score_compra_calculo_step159
+  /opt/lampp/htdocs/farm/services/api/core/schemas/config_schemas.py:10: PydanticDeprecatedSince20: Using extra keyword arguments on `Field` is deprecated and will be removed. Use `json_schema_extra` instead. (Extra keys: 'example'). Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    mail_from: str = Field(..., alias="from", example="noreply@agrosaas.com.br")
+
+tests/integration/test_compras_score_step159.py::test_score_compra_calculo_step159
+  /opt/lampp/htdocs/farm/services/api/core/schemas/config_schemas.py:5: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SMTPConfig(BaseModel):
+
+tests/integration/test_compras_score_step159.py::test_score_compra_calculo_step159
+  /opt/lampp/htdocs/farm/services/api/core/schemas/config_schemas.py:26: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class TenantConfigResponse(BaseModel):
+
+tests/integration/test_compras_score_step159.py::test_score_compra_calculo_step159
+  /opt/lampp/htdocs/farm/services/api/core/schemas/config_schemas.py:106: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class CategoriaResponse(BaseModel):
+
+tests/integration/test_compras_score_step159.py::test_score_compra_calculo_step159
+  /opt/lampp/htdocs/farm/services/api/core/schemas/config_schemas.py:147: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class ConfiguracaoFazendaResponse(BaseModel):
+
+tests/integration/test_compras_score_step159.py::test_score_compra_calculo_step159
+  /opt/lampp/htdocs/farm/services/api/core/schemas/config_schemas.py:165: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HistoricoConfiguracaoItem(BaseModel):
+
+tests/integration/test_compras_score_step159.py::test_score_compra_calculo_step159
+  /opt/lampp/htdocs/farm/services/api/core/routers/cupons.py:29: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class CupomResponse(BaseModel):
+
+tests/integration/test_compras_score_step159.py::test_score_compra_calculo_step159
+  /opt/lampp/htdocs/farm/services/api/core/routers/backoffice_audit.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class AuditLogResponse(BaseModel):
+
+tests/integration/test_compras_score_step159.py::test_score_compra_calculo_step159
+  /opt/lampp/htdocs/farm/services/api/core/routers/backoffice_audit.py:54: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SecurityIncidentResponse(BaseModel):
+
+tests/integration/test_compras_score_step159.py::test_score_compra_calculo_step159
+  /opt/lampp/htdocs/farm/services/api/core/routers/tenant_audit.py:21: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class TenantAuditLogResponse(BaseModel):
+
+tests/integration/test_compras_score_step159.py::test_score_compra_calculo_step159
+  /opt/lampp/htdocs/farm/services/api/core/routers/backoffice_email_templates.py:44: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class EmailTemplateResponse(BaseModel):
+
+tests/integration/test_compras_score_step159.py::test_score_compra_calculo_step159
+  /opt/lampp/htdocs/farm/services/api/core/routers/backoffice_email_templates.py:63: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class EmailLogResponse(BaseModel):
+
+tests/integration/test_compras_score_step159.py::test_score_compra_calculo_step159
+  /opt/lampp/htdocs/farm/services/api/core/routers/backoffice_sessions.py:21: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SessionResponse(BaseModel):
+
+tests/integration/test_compras_score_step159.py::test_score_compra_calculo_step159
+  /opt/lampp/htdocs/farm/services/api/core/routers/sessions.py:36: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SessaoResponse(BaseModel):
+
+tests/integration/test_compras_score_step159.py::test_score_compra_calculo_step159
+  /opt/lampp/htdocs/farm/services/api/core/routers/backoffice_crm.py:38: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class EstagioResponse(BaseModel):
+
+tests/integration/test_compras_score_step159.py::test_score_compra_calculo_step159
+  /opt/lampp/htdocs/farm/services/api/core/routers/backoffice_crm.py:111: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class AtividadeResponse(BaseModel):
+
+tests/integration/test_compras_score_step159.py::test_score_compra_calculo_step159
+  /opt/lampp/htdocs/farm/services/api/core/routers/backoffice_crm.py:126: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class LeadResponse(BaseModel):
+
+tests/integration/test_compras_score_step159.py::test_score_compra_calculo_step159
+  /opt/lampp/htdocs/farm/services/api/core/routers/backoffice_crm_ofertas.py:43: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class ProdutoResponse(BaseModel):
+
+tests/integration/test_compras_score_step159.py::test_score_compra_calculo_step159
+  /opt/lampp/htdocs/farm/services/api/core/routers/backoffice_crm_ofertas.py:77: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class PlanoComercialResponse(BaseModel):
+
+tests/integration/test_compras_score_step159.py::test_score_compra_calculo_step159
+  /opt/lampp/htdocs/farm/services/api/core/routers/backoffice_crm_ofertas.py:103: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class OfertaPersonalizadaResponse(BaseModel):
+
+tests/integration/test_compras_score_step159.py::test_score_compra_calculo_step159
+  /opt/lampp/htdocs/farm/services/api/operacional/routers/compras.py:47: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class FornecedorResponse(BaseModel):
+
+tests/integration/test_compras_score_step159.py::test_score_compra_calculo_step159
+  /opt/lampp/htdocs/farm/services/api/imoveis/routers/imovel.py:92: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class ImovelResponse(BaseModel):
+
+tests/integration/test_compras_score_step159.py::test_score_compra_calculo_step159
+  /opt/lampp/htdocs/farm/services/api/imoveis/routers/imovel.py:130: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class CartorioResponse(BaseModel):
+
+tests/integration/test_compras_score_step159.py::test_score_compra_calculo_step159
+  /opt/lampp/htdocs/farm/services/api/imoveis/routers/imovel.py:158: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class BenfeitoriaResponse(BaseModel):
+
+tests/integration/test_compras_score_step159.py::test_score_compra_calculo_step159
+  /opt/lampp/htdocs/farm/services/api/agricola/dashboard/schemas.py:37: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SafraResumoFinanceiro(BaseModel):
+
+tests/integration/test_compras_score_step159.py::test_score_compra_calculo_step159
+  /opt/lampp/htdocs/farm/services/api/agricola/beneficiamento/schemas.py:23: PydanticDeprecatedSince20: `min_items` is deprecated and will be removed, use `min_length` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    romaneio_ids: List[UUID] = Field(..., min_items=1, description="IDs dos romaneios a agrupar")
+
+tests/integration/test_compras_score_step159.py::test_score_compra_calculo_step159
+  /opt/lampp/htdocs/farm/services/api/integracoes/sankhya/schemas/__init__.py:15: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SankhyaConfigResponse(BaseModel):
+
+tests/integration/test_compras_score_step159.py::test_score_compra_calculo_step159
+  /opt/lampp/htdocs/farm/services/api/integracoes/sankhya/schemas/__init__.py:31: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SankhyaSyncLogResponse(BaseModel):
+
+tests/integration/test_compras_score_step159.py::test_score_compra_calculo_step159
+  /opt/lampp/htdocs/farm/services/api/integracoes/sankhya/schemas/__init__.py:48: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SankhyaPessoaResponse(BaseModel):
+
+tests/integration/test_compras_score_step159.py::test_score_compra_calculo_step159
+  /opt/lampp/htdocs/farm/services/api/integracoes/sankhya/schemas/__init__.py:67: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SankhyaProdutoResponse(BaseModel):
+
+tests/integration/test_compras_score_step159.py::test_score_compra_calculo_step159
+  /opt/lampp/htdocs/farm/services/api/integracoes/sankhya/schemas/__init__.py:83: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SankhyaNFEResponse(BaseModel):
+
+tests/integration/test_compras_score_step159.py::test_score_compra_calculo_step159
+  /opt/lampp/htdocs/farm/services/api/integracoes/sankhya/schemas/__init__.py:100: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SankhyaLancamentoFinanceiroResponse(BaseModel):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+ERROR tests/integration/test_compras_score_step159.py::test_score_compra_calculo_step159
+======================== 41 warnings, 1 error in 5.60s =========================

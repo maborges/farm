@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     # Stripe Config
     stripe_secret_key: str = ""
     stripe_webhook_secret: str = ""
+
+    # Pagamentos Webhook (mock/genérico)
+    pagamentos_webhook_secret: str = ""
     frontend_url: str = "http://localhost:3000"
     allow_origins: list[str] = [
         "http://localhost:3000",

@@ -22,14 +22,14 @@ engine = create_async_engine(
     DB_URL,
     echo=False,  # Em produção manter False para não floodar de logs SQL
     future=True,
-    # Pool conservador: pool_size + max_overflow = 10 conexões máximas por worker
+    # Pool conservador: pool_size + max_overflow = 5 conexões máximas por worker
     # Evita TooManyConnectionsError em PostgreSQL com max_connections baixo
     **({} if "sqlite" in DB_URL else {
-        "pool_size": 5,
-        "max_overflow": 5,
+        "pool_size": 3,
+        "max_overflow": 2,
         "pool_pre_ping": True,
-        "pool_recycle": 300,   # Recicla conexões ociosas a cada 5 min
-        "pool_timeout": 30,    # Falha rápido se pool esgotado (não trava indefinidamente)
+        "pool_recycle": 1800,
+        "pool_timeout": 60,
     }),
     connect_args={"check_same_thread": False} if "sqlite" in DB_URL else {"server_settings": {"search_path": "farms"}}
 )

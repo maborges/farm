@@ -1,8 +1,10 @@
 from uuid import UUID
+from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import update, func
 from fastapi import WebSocket
+from loguru import logger
 
 from core.base_service import BaseService
 from notificacoes.models import Notificacao
@@ -25,7 +27,6 @@ class NotificationManager:
             conns.remove(ws)
 
     async def push(self, tenant_id: str, data: dict):
-        """Send JSON payload to all connections for a tenant."""
         for ws in list(self._connections.get(str(tenant_id), [])):
             try:
                 await ws.send_json(data)
@@ -33,7 +34,6 @@ class NotificationManager:
                 self.disconnect(str(tenant_id), ws)
 
 
-# Singleton — shared across the FastAPI process
 manager = NotificationManager()
 
 
@@ -41,31 +41,140 @@ class NotificacaoService(BaseService[Notificacao]):
     def __init__(self, session: AsyncSession, tenant_id: UUID):
         super().__init__(Notificacao, session, tenant_id)
 
-    async def criar_e_push(self, dados: NotificacaoCreate) -> Notificacao:
+    async def criar_e_push(self, dados: NotificacaoCreate) -> Notificacao | None:
+        from core.models.tenant import Tenant
+        from core.models.auth import Usuario
+        from notificacoes.models import NotificacaoPreferencia
+        from datetime import datetime, timezone, timedelta
+        
+        COOLDOWN_HORAS = 24
+        
+        # Encontrar o responsável para validar as preferências
+        stmt = select(Tenant.email_responsavel).where(Tenant.id == self.tenant_id)
+        email_resp = (await self.session.execute(stmt)).scalar()
+        
+        enviar_por_email = True
+        sistema_ativo = True
+        user = None
+        
+        if email_resp:
+            stmt_user = select(Usuario).where(Usuario.email == email_resp).limit(1)
+            user = (await self.session.execute(stmt_user)).scalar_one_or_none()
+
+        usuario_id = user.id if user else None
+
+        # --- Anti-spam Cooldown ---
+        limite_tempo = datetime.now(timezone.utc) - timedelta(hours=COOLDOWN_HORAS)
+        
+        stmt_cooldown = select(Notificacao).where(
+            Notificacao.tenant_id == self.tenant_id,
+            Notificacao.tipo == dados.tipo,
+            Notificacao.nivel == dados.nivel,
+            Notificacao.created_at >= limite_tempo
+        )
+        if dados.origem:
+            stmt_cooldown = stmt_cooldown.where(Notificacao.origem == dados.origem)
+        if dados.origem_id:
+            stmt_cooldown = stmt_cooldown.where(Notificacao.origem_id == dados.origem_id)
+        if usuario_id:
+            stmt_cooldown = stmt_cooldown.where(Notificacao.usuario_id == usuario_id)
+            
+        recente = (await self.session.execute(stmt_cooldown.limit(1))).scalar_one_or_none()
+        if recente:
+            logger.info(f"Notificação suprimida por cooldown: {dados.tipo} (origem={dados.origem})")
+            return None
+        # --------------------------
+
+        if user:
+                stmt_pref = select(NotificacaoPreferencia).where(
+                    NotificacaoPreferencia.tenant_id == self.tenant_id,
+                    NotificacaoPreferencia.usuario_id == user.id,
+                    NotificacaoPreferencia.tipo == dados.tipo
+                )
+                pref = (await self.session.execute(stmt_pref)).scalar_one_or_none()
+                if pref:
+                    enviar_por_email = pref.email_ativo
+                    sistema_ativo = pref.sistema_ativo
+
+        # Se sistema_ativo = False, não criamos a notificação para este fluxo (simplificação para owner)
+        if not sistema_ativo:
+            return None
+
         notif = await self.create({
             "tipo": dados.tipo,
             "titulo": dados.titulo,
             "mensagem": dados.mensagem,
+            "nivel": dados.nivel,
+            "origem": dados.origem,
+            "origem_id": dados.origem_id,
             "meta": dados.meta,
+            "usuario_id": user.id if user else None,
         })
         await self.session.commit()
         await self.session.refresh(notif)
-        # Push to all connected clients of this tenant
+        
+        # Envio proativo de email para notificações críticas (DANGER)
+        if notif.nivel == "DANGER" and email_resp and enviar_por_email:
+            import asyncio
+            from notificacoes.email_service import enviar_email
+            
+            assunto = f"AgroSaaS — Atenção na sua safra: {notif.titulo}"
+            asyncio.create_task(enviar_email(email_resp, assunto, notif.mensagem))
+        
         await manager.push(str(self.tenant_id), {
             "tipo": "nova_notificacao",
             "id": str(notif.id),
             "notificacao_tipo": notif.tipo,
             "titulo": notif.titulo,
             "mensagem": notif.mensagem,
+            "nivel": notif.nivel,
             "created_at": notif.created_at.isoformat(),
         })
         return notif
 
+    async def criar_sem_duplicar(self, dados: NotificacaoCreate) -> Notificacao | None:
+        """Cria notificação apenas se não houver outra não-lida da mesma origem+tipo."""
+        if dados.origem and dados.origem_id:
+            stmt = select(Notificacao).where(
+                Notificacao.tenant_id == self.tenant_id,
+                Notificacao.tipo == dados.tipo,
+                Notificacao.origem == dados.origem,
+                Notificacao.origem_id == dados.origem_id,
+                Notificacao.lida == False,  # noqa: E712
+            ).limit(1)
+            result = await self.session.execute(stmt)
+            if result.scalar_one_or_none():
+                return None
+        return await self.criar_e_push(dados)
+
+    async def sincronizar_safra(self, safra_id: UUID) -> list[Notificacao]:
+        """Gera notificações a partir do plano de ação pendente da safra."""
+        from financeiro.services.plano_acao_service import PlanoAcaoService
+
+        svc = PlanoAcaoService(self.session, self.tenant_id)
+        itens = await svc.listar(safra_id)
+        pendentes = [i for i in itens if i.status == "PENDENTE"]
+
+        NIVEL_MAP = {"ALTA": "DANGER", "MEDIA": "WARNING", "BAIXA": "INFO"}
+
+        criadas: list[Notificacao] = []
+        for item in pendentes:
+            notif = await self.criar_sem_duplicar(NotificacaoCreate(
+                tipo="PLANO_ACAO",
+                titulo=item.titulo,
+                mensagem=item.descricao,
+                nivel=NIVEL_MAP.get(item.prioridade, "INFO"),
+                origem="plano_acao",
+                origem_id=str(item.id),
+            ))
+            if notif:
+                criadas.append(notif)
+                logger.info(f"Notificação criada para ação {item.id}")
+
+        return criadas
+
     async def listar(self, lida: bool | None = None, limit: int = 50) -> list[Notificacao]:
-        stmt = (
-            select(Notificacao)
-            .where(Notificacao.tenant_id == self.tenant_id)
-        )
+        stmt = select(Notificacao).where(Notificacao.tenant_id == self.tenant_id)
         if lida is not None:
             stmt = stmt.where(Notificacao.lida == lida)
         stmt = stmt.order_by(Notificacao.created_at.desc()).limit(limit)
@@ -73,13 +182,11 @@ class NotificacaoService(BaseService[Notificacao]):
         return list(result.scalars().all())
 
     async def marcar_lidas(self, ids: list[UUID] | None = None) -> int:
-        stmt = (
-            update(Notificacao)
-            .where(Notificacao.tenant_id == self.tenant_id)
-        )
+        agora = datetime.now(timezone.utc)
+        stmt = update(Notificacao).where(Notificacao.tenant_id == self.tenant_id)
         if ids:
             stmt = stmt.where(Notificacao.id.in_(ids))
-        stmt = stmt.values(lida=True)
+        stmt = stmt.values(lida=True, read_at=agora)
         result = await self.session.execute(stmt)
         await self.session.commit()
         return result.rowcount

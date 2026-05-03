@@ -8,9 +8,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.dependencies import get_tenant_id, get_session_with_tenant, get_current_admin
 from core.database import async_session_maker
 from notificacoes.models import Notificacao
-from notificacoes.schemas import NotificacaoCreate, NotificacaoResponse, MarcarLidasRequest
+from notificacoes.schemas import NotificacaoCreate, NotificacaoResponse, MarcarLidasRequest, NotificacaoPreferenciaUpdate, NotificacaoPreferenciaResponse
 from notificacoes.service import NotificacaoService, manager
+from notificacoes.models import NotificacaoPreferencia
 from notificacoes.alertas_engine import AlertasEngine
+from core.dependencies import get_current_user
 
 router = APIRouter(prefix="/notificacoes", tags=["Notificações"])
 
@@ -58,6 +60,62 @@ async def criar(
     return await svc.criar_e_push(dados)
 
 
+@router.get("/preferencias", response_model=List[NotificacaoPreferenciaResponse])
+async def listar_preferencias(
+    session: AsyncSession = Depends(get_session_with_tenant),
+    tenant_id: UUID = Depends(get_tenant_id),
+    current_user: dict = Depends(get_current_user),
+):
+    from sqlalchemy import select
+    usuario_id = UUID(current_user["sub"])
+    stmt = select(NotificacaoPreferencia).where(
+        NotificacaoPreferencia.tenant_id == tenant_id,
+        NotificacaoPreferencia.usuario_id == usuario_id
+    )
+    result = await session.execute(stmt)
+    return list(result.scalars().all())
+
+
+@router.patch("/preferencias/{tipo}", response_model=NotificacaoPreferenciaResponse)
+async def atualizar_preferencia(
+    tipo: str,
+    dados: NotificacaoPreferenciaUpdate,
+    session: AsyncSession = Depends(get_session_with_tenant),
+    tenant_id: UUID = Depends(get_tenant_id),
+    current_user: dict = Depends(get_current_user),
+):
+    from sqlalchemy import select
+    from datetime import datetime, timezone
+    import uuid
+    usuario_id = UUID(current_user["sub"])
+    
+    stmt = select(NotificacaoPreferencia).where(
+        NotificacaoPreferencia.tenant_id == tenant_id,
+        NotificacaoPreferencia.usuario_id == usuario_id,
+        NotificacaoPreferencia.tipo == tipo
+    )
+    pref = (await session.execute(stmt)).scalar_one_or_none()
+    
+    if pref:
+        pref.email_ativo = dados.email_ativo
+        pref.sistema_ativo = dados.sistema_ativo
+        pref.updated_at = datetime.now(timezone.utc)
+    else:
+        pref = NotificacaoPreferencia(
+            id=uuid.uuid4(),
+            tenant_id=tenant_id,
+            usuario_id=usuario_id,
+            tipo=tipo,
+            email_ativo=dados.email_ativo,
+            sistema_ativo=dados.sistema_ativo
+        )
+        session.add(pref)
+        
+    await session.commit()
+    await session.refresh(pref)
+    return pref
+
+
 @router.post("/demo")
 async def gerar_demo(
     session: AsyncSession = Depends(get_session_with_tenant),
@@ -94,6 +152,29 @@ async def gerar_demo(
     for d in demos:
         await svc.criar_e_push(d)
     return {"message": f"{len(demos)} notificações de demonstração criadas"}
+
+
+@router.post("/sincronizar", response_model=List[NotificacaoResponse])
+async def sincronizar_notificacoes(
+    safra_id: UUID = Query(...),
+    session: AsyncSession = Depends(get_session_with_tenant),
+    tenant_id: UUID = Depends(get_tenant_id),
+):
+    """Cria notificações a partir das ações pendentes do plano de ação da safra."""
+    svc = NotificacaoService(session, tenant_id)
+    return await svc.sincronizar_safra(safra_id)
+
+
+@router.patch("/{notificacao_id}/lida", response_model=NotificacaoResponse)
+async def marcar_uma_lida(
+    notificacao_id: UUID,
+    session: AsyncSession = Depends(get_session_with_tenant),
+    tenant_id: UUID = Depends(get_tenant_id),
+):
+    svc = NotificacaoService(session, tenant_id)
+    await svc.marcar_lidas([notificacao_id])
+    result = await session.get(Notificacao, notificacao_id)
+    return result
 
 
 @router.post("/alertas/verificar", response_model=dict)
