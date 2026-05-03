@@ -53,6 +53,10 @@ class PedidoCompra(Base):
     # ABERTO, ENVIADO, RECEBIDO, CANCELADO
     status: Mapped[str] = mapped_column(String(30), default="ABERTO", index=True)
 
+    # Dashboard de Economia (Step 163)
+    economia_absoluta: Mapped[float | None] = mapped_column(Float, default=0.0)
+    economia_percentual: Mapped[float | None] = mapped_column(Float, default=0.0)
+
     # Campos de Auditoria/Legado
     usuario_solicitante_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=True)
     data_pedido: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))

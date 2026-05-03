@@ -57,6 +57,20 @@ O projeto é dividido em um monorepo contendo:
 - **Análise e Auditoria**: Interface dedicada em `/suprimentos/compras/solicitacoes` para que o setor de compras analise, aprove ou cancele solicitações, com histórico de status e enriquecimento de dados (nome do item, depósito, quantidade).
 - **Fluxo**: `POST /api/v1/compras/solicitacoes` (criação) → `PATCH /api/v1/compras/solicitacoes/{id}/status` (gestão) → Integração com fluxo de suprimentos.
 
+### 9. Inteligência em Compras e Cotações (Steps 153, 154 e 155)
+- **Histórico de Preços (Step 153)**: Consolidação automática de preços praticados em cotações e pedidos de compra para cada item.
+- **Alertas de Preço (Step 154)**: Sistema de alerta visual que identifica cotações com valor 15% acima da média histórica, prevenindo compras superfaturadas.
+- **Sugestão de Melhor Fornecedor (Step 155)**: Algoritmo determinístico que calcula um "Score de Melhor Compra" (Preço 50%, Frequência 30%, Recência 20%) para recomendar o fornecedor ideal.
+- **Visualização de Tendência (Step 156)**: Gráfico interativo (Recharts) que exibe a evolução histórica dos preços do item, com identificação visual de alta (vermelho) ou queda (verde).
+- **Sugestão de Preço Ideal (Step 157)**: Define uma faixa de referência (Mínimo, Ideal e Máximo Recomendado) baseada no histórico interno, com feedback em tempo real no formulário (ex: alerta de valor excessivo ou selo de "Boa Cotação").
+- **Fluxo Funcional**: Ao registrar uma cotação (`CotacaoSolicitacaoDialog`), o sistema busca a melhor recomendação via `GET /api/v1/compras/precos/melhor-fornecedor`, exibe o gráfico de tendência e a faixa de preço ideal. O comprador recebe feedback visual imediato ao digitar o valor unitário.
+
+### 10. Dashboard de Economia - Savings (Step 163)
+- **Cálculo de Ganhos**: O sistema calcula automaticamente a economia gerada ao aprovar uma cotação, comparando o preço escolhido com o pior preço disponível (Savings de Negociação).
+- **Métricas Financeiras**: Os pedidos de compra armazenam de forma imutável a `economia_absoluta` e a `economia_percentual`.
+- **Painel de Analytics**: Interface executiva que consolida a economia total acumulada, média percentual por compra e destaca a "Melhor Decisão" (item com maior economia gerada).
+- **Fluxo Funcional**: `GET /api/v1/compras/analytics/economia` retorna os KPIs que alimentam o `EconomiaAnalyticsCard` no topo da lista de solicitações, fornecendo visibilidade imediata do ROI do sistema de compras.
+
 ## 🛠️ Como Executar
 
 ### Backend

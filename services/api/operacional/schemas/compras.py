@@ -165,6 +165,11 @@ class CotacaoSolicitacaoResponse(BaseModel):
     posicao_ranking: int = 0
     melhor_opcao: bool = False
     
+    # Step 161: Assistente de Compra (Exposição Textual)
+    explicacao_compra: Optional[str] = None
+    pontos_fortes: List[str] = []
+    pontos_atencao: List[str] = []
+    
     created_at: datetime
     updated_at: datetime
 
@@ -230,3 +235,55 @@ class MelhorFornecedorResponse(BaseModel):
     ultimo_preco: float
     qtd_compras: int
     score: float
+
+# ── Dashboard de Economia (Step 163) ──────────────────────────────────────────
+
+class MelhorDecisaoItem(BaseModel):
+    item: str
+    economia: float
+
+class EconomiaAnalyticsResponse(BaseModel):
+    economia_total: float
+    economia_media_percentual: float
+    total_pedidos: int
+    melhor_decisao: MelhorDecisaoItem
+
+# ── Série Temporal de Economia (Step 164) ─────────────────────────────────────
+
+class EconomiaSerieTemporalItem(BaseModel):
+    periodo: str  # YYYY-MM
+    economia_total: float
+
+class EconomiaSerieTemporalResponse(BaseModel):
+    items: list[EconomiaSerieTemporalItem]
+
+class EconomiaCategoriaItem(BaseModel):
+    categoria: str
+    economia_total: float
+    percentual: float
+
+class EconomiaCategoriaResponse(BaseModel):
+    items: list[EconomiaCategoriaItem]
+
+# ── Performance de Compradores (Step 166) ────────────────────────────────────
+
+class EconomiaUsuarioItem(BaseModel):
+    usuario_id: Optional[uuid.UUID]
+    usuario_nome: str
+    economia_total: float
+    economia_percentual: float
+    total_pedidos: int
+
+class EconomiaUsuarioResponse(BaseModel):
+    items: list[EconomiaUsuarioItem]
+
+# ── Performance por Fornecedor (Step 167) ────────────────────────────────────
+
+class EconomiaFornecedorItem(BaseModel):
+    fornecedor_nome: str
+    economia_total: float
+    economia_percentual: float
+    total_pedidos: int
+
+class EconomiaFornecedorResponse(BaseModel):
+    items: list[EconomiaFornecedorItem]

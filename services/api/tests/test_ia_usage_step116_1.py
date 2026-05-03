@@ -78,7 +78,7 @@ async def test_dentro_limite_profissional():
     result = MagicMock()
     result.scalar_one.return_value = 50  # 50 de 100
     session.execute = AsyncMock(return_value=result)
-    assert await verificar_limite_ia(uuid.uuid4(), "PROFISSIONAL", session) is True
+    assert await verificar_limite_ia(uuid.uuid4(), "PROFISSIONAL", session) == (True, "PLANO")
 
 
 @pytest.mark.asyncio
@@ -87,7 +87,8 @@ async def test_limite_atingido_profissional():
     result = MagicMock()
     result.scalar_one.return_value = 100  # exatamente no limite
     session.execute = AsyncMock(return_value=result)
-    assert await verificar_limite_ia(uuid.uuid4(), "PROFISSIONAL", session) is False
+    with patch("ia.usage_service.creditos_extras_ativos", new=AsyncMock(return_value=0)):
+        assert await verificar_limite_ia(uuid.uuid4(), "PROFISSIONAL", session) == (False, "PLANO")
 
 
 @pytest.mark.asyncio
@@ -96,14 +97,14 @@ async def test_enterprise_limite_maior():
     result = MagicMock()
     result.scalar_one.return_value = 500  # 500 de 1000
     session.execute = AsyncMock(return_value=result)
-    assert await verificar_limite_ia(uuid.uuid4(), "ENTERPRISE", session) is True
+    assert await verificar_limite_ia(uuid.uuid4(), "ENTERPRISE", session) == (True, "PLANO")
 
 
 @pytest.mark.asyncio
 async def test_basico_sem_limite_retorna_false():
     session = MagicMock()
     session.execute = AsyncMock()
-    assert await verificar_limite_ia(uuid.uuid4(), "BASICO", session) is False
+    assert await verificar_limite_ia(uuid.uuid4(), "BASICO", session) == (False, "PLANO")
 
 
 # ── registrar_uso_ia ─────────────────────────────────────────────────────────
@@ -165,7 +166,7 @@ async def test_limite_atingido_usa_fallback_com_flags():
     session.add = MagicMock()
     session.flush = AsyncMock()
     with patch("ia.insights_service.tenant_tem_ia", new=AsyncMock(return_value=True)), \
-         patch("ia.usage_service.verificar_limite_ia", new=AsyncMock(return_value=False)), \
+         patch("ia.usage_service.verificar_limite_ia", new=AsyncMock(return_value=(False, "PLANO"))), \
          patch("ia.usage_service.registrar_uso_ia", new=AsyncMock()), \
          patch.dict("os.environ", {"IA_ENABLED": "true", "ANTHROPIC_API_KEY": "sk-test"}):
         result = await gerar_resumo_consultivo(_ctx(), tenant_id=tid, session=session, tier="PROFISSIONAL")
@@ -184,7 +185,7 @@ async def test_dentro_limite_chama_ia_e_registra():
     session.add = MagicMock()
     session.flush = AsyncMock()
     with patch("ia.insights_service.tenant_tem_ia", new=AsyncMock(return_value=True)), \
-         patch("ia.usage_service.verificar_limite_ia", new=AsyncMock(return_value=True)), \
+         patch("ia.usage_service.verificar_limite_ia", new=AsyncMock(return_value=(True, "PLANO"))), \
          patch("ia.usage_service.registrar_uso_ia", new=registrar_mock), \
          patch("ia.insights_service._chamar_ia", new=AsyncMock(return_value=ia_result)), \
          patch.dict("os.environ", {"IA_ENABLED": "true", "ANTHROPIC_API_KEY": "sk-test"}):
@@ -204,7 +205,7 @@ async def test_ia_erro_registra_status_erro():
     session.add = MagicMock()
     session.flush = AsyncMock()
     with patch("ia.insights_service.tenant_tem_ia", new=AsyncMock(return_value=True)), \
-         patch("ia.usage_service.verificar_limite_ia", new=AsyncMock(return_value=True)), \
+         patch("ia.usage_service.verificar_limite_ia", new=AsyncMock(return_value=(True, "PLANO"))), \
          patch("ia.usage_service.registrar_uso_ia", new=registrar_mock), \
          patch("ia.insights_service._chamar_ia", new=AsyncMock(side_effect=Exception("API down"))), \
          patch.dict("os.environ", {"IA_ENABLED": "true", "ANTHROPIC_API_KEY": "sk-test"}):

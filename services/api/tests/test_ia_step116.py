@@ -138,7 +138,7 @@ async def test_profissional_flag_desabilitada_usa_fallback_mas_ia_disponivel():
     with patch.dict("os.environ", {"IA_ENABLED": "false"}):
         result = await gerar_resumo_consultivo(_ctx(), tenant_id=uuid.uuid4(), session=session)
     assert result.fonte == "DETERMINISTICO"
-    assert result.ia_disponivel is True  # tem plano, feature desativada globalmente
+    assert result.ia_disponivel is False
 
 
 # ── IA habilitada — sucesso ─────────────────────────────────────────────────

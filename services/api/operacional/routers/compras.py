@@ -21,7 +21,9 @@ from operacional.schemas.compras import (
     CotacaoSolicitacaoCreate, CotacaoSolicitacaoResponse,
     PedidoCompraResponse, PedidoCompraStatusUpdate,
     PrecoHistoricoResponse, MelhorFornecedorResponse, PrecoIdealResponse,
-    FornecedorConsistenciaResponse
+    FornecedorConsistenciaResponse, EconomiaAnalyticsResponse,
+    EconomiaSerieTemporalResponse, EconomiaCategoriaResponse,
+    EconomiaUsuarioResponse, EconomiaFornecedorResponse
 )
 from core.cadastros.models import ProdutoCatalogo as Produto
 from operacional.services.estoque_service import EstoqueService
@@ -365,6 +367,81 @@ async def list_cotacoes_solicitacao(
 ):
     svc = ComprasService(session, tenant.id)
     return await svc.listar_cotacoes(id)
+
+
+@router.get("/analytics/economia", response_model=EconomiaAnalyticsResponse)
+async def get_economia_analytics(
+    tenant: Tenant = Depends(get_current_tenant),
+    session: AsyncSession = Depends(get_session)
+):
+    """Retorna dados analíticos sobre economia (savings) gerada pelo sistema (Step 163)."""
+    svc = ComprasService(session, tenant.id)
+    return await svc.obter_economia_analytics()
+
+
+@router.get("/analytics/economia/serie-temporal", response_model=EconomiaSerieTemporalResponse)
+async def get_serie_temporal_economia(
+    tenant: Tenant = Depends(get_current_tenant),
+    session: AsyncSession = Depends(get_session)
+):
+    """Retorna a evolução mensal da economia gerada (Step 164)."""
+    svc = ComprasService(session, tenant.id)
+    items = await svc.obter_serie_temporal_economia()
+    return {"items": items}
+
+@router.get("/analytics/economia/por-categoria", response_model=EconomiaCategoriaResponse)
+async def get_economia_por_categoria(
+    tenant: Tenant = Depends(get_current_tenant),
+    session: AsyncSession = Depends(get_session)
+):
+    """Retorna o breakdown de economia por categoria (Step 165)."""
+    svc = ComprasService(session, tenant.id)
+    items = await svc.obter_economia_por_categoria()
+    return {"items": items}
+
+
+@router.get("/analytics/economia/por-fornecedor", response_model=EconomiaFornecedorResponse)
+async def get_economia_por_fornecedor(
+    tenant: Tenant = Depends(get_current_tenant),
+    session: AsyncSession = Depends(get_session)
+):
+    """Retorna o ranking de economia gerada por fornecedor (Step 167)."""
+    svc = ComprasService(session, tenant.id)
+    items = await svc.obter_economia_por_fornecedor()
+    return {"items": items}
+
+
+@router.get("/analytics/economia/por-usuario", response_model=EconomiaUsuarioResponse)
+async def get_economia_por_usuario(
+    tenant: Tenant = Depends(get_current_tenant),
+    session: AsyncSession = Depends(get_session)
+):
+    """Retorna o ranking de economia gerada por comprador (Step 166)."""
+    svc = ComprasService(session, tenant.id)
+    items = await svc.obter_economia_por_usuario()
+    return {"items": items}
+
+
+@router.get("/solicitacoes/{id}/cotacoes/export.pdf")
+async def get_comparativo_cotacoes_pdf(
+    id: uuid.UUID,
+    tenant: Tenant = Depends(get_current_tenant),
+    session: AsyncSession = Depends(get_session)
+):
+    """Gera e retorna o PDF comparativo de cotações para uma solicitação."""
+    svc = ComprasService(session, tenant.id)
+    pdf_content = await svc.gerar_pdf_comparativo(id)
+    
+    if not pdf_content:
+        raise HTTPException(status_code=404, detail="Solicitação não encontrada ou sem cotações.")
+        
+    return Response(
+        content=pdf_content,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f"attachment; filename=comparativo_solicitacao_{id}.pdf"
+        }
+    )
 
 
 @router.patch("/solicitacoes/{solicitacao_id}/cotacoes/{cotacao_id}/aprovar", response_model=PedidoCompraResponse)

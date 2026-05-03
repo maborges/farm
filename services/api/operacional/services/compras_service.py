@@ -1,6 +1,6 @@
 import uuid
 from typing import List, Optional
-from sqlalchemy import select, func, union_all, literal_column
+from sqlalchemy import select, func, union_all, literal_column, cast, Numeric
 from sqlalchemy.ext.asyncio import AsyncSession
 from loguru import logger
 
@@ -158,9 +158,12 @@ class ComprasService:
         result = await self.session.execute(stmt)
         cotacoes = list(result.scalars().all())
         
+        solicitacao = await self.session.get(SolicitacaoCompra, solicitacao_id)
+        
         # Enriquecer com Score de Compra (Step 159)
         for cot in cotacoes:
-            res_score = await self.calcular_score_compra(cot)
+            # Passar produto_id da solicitação para o cálculo do score
+            res_score = await self.calcular_score_compra(cot, solicitacao.produto_id if solicitacao else None)
             cot.score_compra = res_score["score"]
             cot.classificacao_score = res_score["classificacao"]
             cot.motivos_score = res_score["motivos"]
@@ -176,6 +179,12 @@ class ComprasService:
         for i, cot in enumerate(cotacoes):
             cot.posicao_ranking = i + 1
             cot.melhor_opcao = (i == 0)
+            
+            # Step 161: Gerar Explicação Textual
+            expl = await self.gerar_explicacao_compra(cot)
+            cot.explicacao_compra = expl["explicacao"]
+            cot.pontos_fortes = expl["pontos_fortes"]
+            cot.pontos_atencao = expl["pontos_atencao"]
             
         return cotacoes
 
@@ -211,7 +220,16 @@ class ComprasService:
         for o in outras:
             o.status = "RECUSADA"
 
-        # 3. Criar Pedido de Compra
+        # 3. Calcular Economia (Savings) - Step 163
+        # Savings = (Pior Preço - Preço Escolhido) * Quantidade
+        todas_cotacoes = [cotacao.valor_unitario] + [o.valor_unitario for o in outras]
+        pior_preco_unitario = max(todas_cotacoes)
+        
+        economia_unitaria = pior_preco_unitario - cotacao.valor_unitario
+        economia_absoluta = economia_unitaria * solicitacao.quantidade_solicitada
+        economia_percentual = (economia_unitaria / pior_preco_unitario * 100) if pior_preco_unitario > 0 else 0.0
+
+        # 4. Criar Pedido de Compra
         pedido = PedidoCompra(
             tenant_id=self.tenant_id,
             solicitacao_id=solicitacao_id,
@@ -224,7 +242,9 @@ class ComprasService:
             unidade=solicitacao.unidade,
             valor_unitario=cotacao.valor_unitario,
             valor_total=cotacao.valor_total,
-            status="ABERTO"
+            status="ABERTO",
+            economia_absoluta=economia_absoluta,
+            economia_percentual=economia_percentual
         )
         
         self.session.add(pedido)
@@ -418,16 +438,129 @@ class ComprasService:
         # Local de Entrega
         elements.append(Paragraph(f"<b>Local de Entrega:</b> {pedido.deposito_nome}", styles['Normal']))
         
-        # Rodapé
-        elements.append(Spacer(1, 40))
-        elements.append(Paragraph("-" * 50, styles['Normal']))
-        elements.append(Paragraph("Documento Operacional Gerado pelo AgroSaaS", styles['Normal']))
-        
         doc.build(elements)
-        pdf = buffer.getvalue()
+        pdf_content = buffer.getvalue()
         buffer.close()
         
-        return pdf
+        return pdf_content
+
+    async def gerar_pdf_comparativo(self, solicitacao_id: uuid.UUID) -> Optional[bytes]:
+        """Gera um PDF comparativo de cotações para uma solicitação (Step 162)."""
+        from reportlab.lib.pagesizes import A4, landscape
+        from reportlab.lib import colors
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+        import io
+
+        # 1. Buscar dados
+        solicitacao = await self.session.get(SolicitacaoCompra, solicitacao_id)
+        if not solicitacao or solicitacao.tenant_id != self.tenant_id:
+            return None
+            
+        # Enriquecer solicitação com nomes legíveis
+        from core.cadastros.produtos.models import Produto
+        from operacional.models.estoque import Deposito
+        p = await self.session.get(Produto, solicitacao.produto_id)
+        d = await self.session.get(Deposito, solicitacao.deposito_id)
+        item_nome = p.nome if p else "N/A"
+        deposito_nome = d.nome if d else "N/A"
+        
+        cotacoes = await self.listar_cotacoes(solicitacao_id)
+        
+        # 2. Criar PDF em memória
+        buffer = io.BytesIO()
+        # Usar landscape para caber melhor a tabela comparativa
+        doc = SimpleDocTemplate(buffer, pagesize=landscape(A4), rightMargin=30, leftMargin=30, topMargin=30, bottomMargin=18)
+        styles = getSampleStyleSheet()
+        
+        # Estilos customizados
+        title_style = ParagraphStyle(
+            'TitleStyle',
+            parent=styles['Heading1'],
+            fontSize=18,
+            textColor=colors.black,
+            alignment=1, # Center
+            spaceAfter=20
+        )
+        
+        elements = []
+        
+        # Cabeçalho
+        elements.append(Paragraph("MAPA COMPARATIVO DE COTAÇÕES", title_style))
+        elements.append(Spacer(1, 12))
+        
+        # Dados da Solicitação
+        data_sol = [
+            [Paragraph(f"<b>Item:</b> {item_nome}", styles['Normal']), Paragraph(f"<b>Qtd:</b> {solicitacao.quantidade_solicitada} {solicitacao.unidade}", styles['Normal'])],
+            [Paragraph(f"<b>Depósito:</b> {deposito_nome}", styles['Normal']), Paragraph(f"<b>Status:</b> {solicitacao.status}", styles['Normal'])]
+        ]
+        t_sol = Table(data_sol, colWidths=[400, 300])
+        elements.append(t_sol)
+        elements.append(Spacer(1, 20))
+        
+        # Tabela Comparativa
+        header_table = ["Ranking", "Fornecedor", "Valor Unit", "Valor Total", "Prazo", "Score", "Classificação", "Melhor Opção"]
+        rows = []
+        for cot in cotacoes:
+            rows.append([
+                f"#{cot.posicao_ranking}",
+                cot.fornecedor_nome,
+                f"R$ {cot.valor_unitario:,.2f}",
+                f"R$ {cot.valor_total:,.2f}",
+                f"{cot.prazo_entrega_dias} dias" if cot.prazo_entrega_dias else "N/A",
+                f"{cot.score_compra:.1f}",
+                cot.classificacao_score,
+                "SIM" if cot.melhor_opcao else ""
+            ])
+            
+        t_comp = Table([header_table] + rows, colWidths=[60, 180, 80, 80, 60, 60, 100, 80])
+        
+        # Estilização da Tabela
+        table_style_list = [
+            ('BACKGROUND', (0,0), (-1,0), colors.HexColor("#10b981")), # Verde Esmeralda (Marca Agro)
+            ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
+            ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+            ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0,0), (-1,-1), 9),
+            ('BOTTOMPADDING', (0,0), (-1,0), 12),
+            ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ]
+        
+        # Colorir linhas baseadas na classificação
+        for i, cot in enumerate(cotacoes):
+            if cot.melhor_opcao:
+                table_style_list.append(('BACKGROUND', (0, i+1), (-1, i+1), colors.HexColor("#d1fae5")))
+            elif cot.classificacao_score == "RUIM":
+                 table_style_list.append(('TEXTCOLOR', (6, i+1), (6, i+1), colors.red))
+                 
+        t_comp.setStyle(TableStyle(table_style_list))
+        elements.append(t_comp)
+        elements.append(Spacer(1, 30))
+        
+        # Recomendação do Assistente (da melhor opção)
+        melhor = next((c for c in cotacoes if c.melhor_opcao), None)
+        if melhor:
+            elements.append(Paragraph("<b>ANÁLISE E RECOMENDAÇÃO DO ASSISTENTE</b>", styles['Heading3']))
+            elements.append(Spacer(1, 10))
+            elements.append(Paragraph(melhor.explicacao_compra, styles['Normal']))
+            
+            if melhor.pontos_fortes:
+                elements.append(Spacer(1, 10))
+                elements.append(Paragraph("<b>Pontos Fortes:</b>", styles['Normal']))
+                for p in melhor.pontos_fortes:
+                    elements.append(Paragraph(f"• {p}", styles['Normal']))
+            
+            if melhor.pontos_atencao:
+                elements.append(Spacer(1, 10))
+                elements.append(Paragraph("<b>Pontos de Atenção:</b>", styles['Normal']))
+                for p in melhor.pontos_atencao:
+                    elements.append(Paragraph(f"• {p}", styles['Normal']))
+        
+        doc.build(elements)
+        pdf_bytes = buffer.getvalue()
+        buffer.close()
+        return pdf_bytes
 
     async def get_historico_precos(self, item_id: uuid.UUID) -> dict:
         """Retorna o histórico de preços de um item e estatísticas básicas."""
@@ -620,7 +753,7 @@ class ComprasService:
             
         return results
 
-    async def calcular_score_compra(self, cotacao: CotacaoCompra) -> dict:
+    async def calcular_score_compra(self, cotacao: CotacaoCompra, item_id: Optional[uuid.UUID] = None) -> dict:
         """
         Calcula o score de 0 a 100 para uma cotação baseado em múltiplos critérios.
         Retorna score, classificação e lista de motivos.
@@ -628,10 +761,26 @@ class ComprasService:
         score = 0.0
         motivos = []
         
+        # Tentar obter item_id se não fornecido
+        if not item_id:
+            try:
+                # Tenta buscar via solicitação se o objeto tiver
+                if hasattr(cotacao, 'solicitacao'):
+                    item_id = cotacao.solicitacao.produto_id
+                else:
+                    # Busca pontual se necessário
+                    sol = await self.session.get(SolicitacaoCompra, cotacao.solicitacao_id)
+                    if sol:
+                        item_id = sol.produto_id
+            except Exception:
+                pass
+
         # 1. Preço (Max 40)
-        # Tenta obter preço ideal
         try:
-            ideal = await self.obter_preco_ideal(cotacao.item_id)
+            if not item_id:
+                raise ValueError("ID do item não identificado")
+
+            ideal = await self.obter_preco_ideal(item_id)
             if ideal and ideal.get("preco_ideal"):
                 p_ideal = ideal["preco_ideal"]
                 p_max = ideal.get("preco_maximo_recommended", p_ideal * 1.10)
@@ -645,21 +794,22 @@ class ComprasService:
                 else:
                     motivos.append("Preço acima do máximo recomendado")
             else:
-                # Fallback para média simples (Step 154)
                 if not cotacao.acima_media:
                     score += 40
                     motivos.append("Preço competitivo (abaixo da média histórica)")
                 else:
                     score += 10
                     motivos.append("Preço acima da média histórica")
-        except Exception:
-            # Neutro se falhar busca
+        except Exception as e:
+            print(f"DEBUG: Erro Preço: {e}")
             score += 20
             motivos.append("Base de comparação de preço indisponível")
 
         # 2. Consistência do Fornecedor (Max 30)
         try:
-            consistencias = await self.obter_consistencia_fornecedores(cotacao.item_id)
+            if not item_id:
+                raise ValueError("ID do item não identificado")
+            consistencias = await self.obter_consistencia_fornecedores(item_id)
             f_cons = next((f for f in consistencias if f["fornecedor_nome"] == cotacao.fornecedor_nome), None)
             
             if f_cons:
@@ -674,7 +824,7 @@ class ComprasService:
             else:
                 score += 15
                 motivos.append("Histórico de consistência do fornecedor insuficiente")
-        except Exception:
+        except Exception as e:
             score += 15
 
         # 3. Prazo de Entrega (Max 20)
@@ -694,14 +844,16 @@ class ComprasService:
 
         # 4. Histórico/Recorrência (Max 10)
         try:
-            melhor = await self.obter_melhor_fornecedor(cotacao.item_id)
+            if not item_id:
+                raise ValueError("ID do item não identificado")
+            melhor = await self.obter_melhor_fornecedor(item_id)
             if melhor and melhor.get("fornecedor_nome") == cotacao.fornecedor_nome:
                 score += 10
                 motivos.append("Fornecedor recomendado pelo histórico de compras")
             else:
                 score += 5
                 motivos.append("Fornecedor com histórico secundário")
-        except Exception:
+        except Exception as e:
             score += 5
 
         # Classificação Final
@@ -717,3 +869,231 @@ class ComprasService:
             "classificacao": classificacao,
             "motivos": motivos
         }
+
+    async def gerar_explicacao_compra(self, cotacao: CotacaoCompra) -> dict:
+        """
+        Gera uma explicação textual determinística para a cotação (Step 161).
+        """
+        fortes = []
+        atencao = []
+        
+        # Analisar motivos existentes para categorizar em pontos fortes e de atenção
+        motivos = getattr(cotacao, 'motivos_score', [])
+        for m in motivos:
+            m_lower = m.lower()
+            if any(key in m_lower for key in ["competitivo", "estáveis", "rápida", "recomendado", "adequado", "estável", "excelente", "ideal"]):
+                fortes.append(m)
+            elif any(key in m_lower for key in ["acima", "instabilidade", "longo", "insuficiente", "não informado", "indisponível"]):
+                atencao.append(m)
+
+        classificacao = getattr(cotacao, 'classificacao_score', 'ATENCAO')
+        nome = cotacao.fornecedor_nome
+
+        if classificacao == "BOA":
+            explicacao = f"O fornecedor {nome} é a melhor escolha técnica. Apresenta um histórico sólido de estabilidade e preços competitivos para este item."
+        elif classificacao == "ATENCAO":
+            explicacao = f"A proposta de {nome} é aceitável, mas requer atenção a detalhes como variação histórica ou prazo de entrega."
+        else:
+            explicacao = f"Não recomendamos a compra com {nome} no momento devido a preços fora da realidade de mercado ou histórico instável."
+
+        return {
+            "explicacao": explicacao,
+            "pontos_fortes": fortes,
+            "pontos_atencao": atencao
+        }
+
+    async def obter_economia_analytics(self) -> dict:
+        """Calcula agregados de economia gerada pelo sistema (Step 163)."""
+        from sqlalchemy import func
+        from core.cadastros.produtos.models import Produto
+        
+        # Agregados Gerais
+        stmt = (
+            select(
+                func.sum(PedidoCompra.economia_absoluta).label("total_absoluto"),
+                func.avg(cast(PedidoCompra.economia_percentual, Numeric)).label("avg_percentual"),
+                func.count(PedidoCompra.id).label("total_pedidos")
+            )
+            .where(
+                PedidoCompra.tenant_id == self.tenant_id,
+                PedidoCompra.economia_absoluta > 0
+            )
+        )
+        
+        exec_res = await self.session.execute(stmt)
+        result = exec_res.one_or_none()
+        
+        # Melhor Decisão (Maior Economia Absoluta)
+        stmt_best = (
+            select(
+                Produto.nome,
+                PedidoCompra.economia_absoluta
+            )
+            .join(Produto, PedidoCompra.item_id == Produto.id)
+            .where(PedidoCompra.tenant_id == self.tenant_id)
+            .order_by(PedidoCompra.economia_absoluta.desc())
+            .limit(1)
+        )
+        exec_best = await self.session.execute(stmt_best)
+        best = exec_best.one_or_none()
+        
+        return {
+            "economia_total": float(result.total_absoluto or 0.0) if result else 0.0,
+            "economia_media_percentual": float(result.avg_percentual or 0.0) if result else 0.0,
+            "total_pedidos": int(result.total_pedidos or 0) if result else 0,
+            "melhor_decisao": {
+                "item": best[0] if best else "N/A",
+                "economia": float(best[1] or 0.0) if best else 0.0
+            }
+        }
+
+    async def obter_serie_temporal_economia(self) -> List[dict]:
+        """Calcula a evolução mensal da economia gerada (Step 164)."""
+        from sqlalchemy import func
+        
+        # Agrupamento por mês (YYYY-MM) usando to_char do PostgreSQL
+        periodo_col = func.to_char(PedidoCompra.created_at, 'YYYY-MM')
+        
+        stmt = (
+            select(
+                periodo_col.label("periodo"),
+                func.sum(PedidoCompra.economia_absoluta).label("total_mes")
+            )
+            .where(
+                PedidoCompra.tenant_id == self.tenant_id,
+                PedidoCompra.economia_absoluta > 0
+            )
+            .group_by(periodo_col)
+            .order_by(periodo_col.asc())
+        )
+        
+        res = await self.session.execute(stmt)
+        return [
+            {"periodo": row.periodo, "economia_total": float(row.total_mes or 0.0)}
+            for row in res.all()
+        ]
+
+    async def obter_economia_por_categoria(self) -> List[dict]:
+        """Calcula o breakdown de economia por categoria de insumo (Step 165)."""
+        from core.cadastros.produtos.models import Produto
+        from sqlalchemy import func, case, text
+        
+        # Mapeamento simplificado de TipoProduto -> Categoria Macro (INSUMOS vs OPERACOES)
+        tipo_insumos = ["SEMENTE", "DEFENSIVO", "FERTILIZANTE", "INOCULANTE", "ADJUVANTE", "RACAO", "MEDICAMENTO", "VACINA", "MINERAL"]
+        tipo_operacoes = ["PECA", "LUBRIFICANTE", "COMBUSTIVEL", "MATERIAL_GERAL", "SERVICO"]
+        
+        categoria_macro = case(
+            (Produto.tipo.in_(tipo_insumos), "INSUMOS"),
+            (Produto.tipo.in_(tipo_operacoes), "OPERACOES"),
+            else_="OUTROS"
+        ).label("categoria_macro")
+
+        # Total economizado pelo tenant para cálculo de percentual
+        stmt_total = select(func.sum(PedidoCompra.economia_absoluta)).where(PedidoCompra.tenant_id == self.tenant_id)
+        total_geral = (await self.session.execute(stmt_total)).scalar() or 0.0
+        
+        if total_geral == 0:
+            return []
+
+        stmt = (
+            select(
+                categoria_macro,
+                func.sum(PedidoCompra.economia_absoluta).label("total_cat")
+            )
+            .join(Produto, PedidoCompra.item_id == Produto.id)
+            .where(
+                PedidoCompra.tenant_id == self.tenant_id,
+                PedidoCompra.economia_absoluta > 0
+            )
+            .group_by(text("categoria_macro"))
+            .order_by(func.sum(PedidoCompra.economia_absoluta).desc())
+        )
+        
+        res = await self.session.execute(stmt)
+        return [
+            {
+                "categoria": row.categoria_macro,
+                "economia_total": float(row.total_cat or 0.0),
+                "percentual": round((float(row.total_cat or 0.0) / total_geral) * 100, 1)
+            }
+            for row in res.all()
+        ]
+
+    async def obter_economia_por_fornecedor(self) -> list[dict]:
+        """Calcula economia gerada agrupada por fornecedor (Step 167)."""
+        stmt_total = select(func.sum(PedidoCompra.economia_absoluta)).where(
+            PedidoCompra.tenant_id == self.tenant_id,
+            PedidoCompra.economia_absoluta > 0
+        )
+        total_geral = (await self.session.execute(stmt_total)).scalar() or 0.0
+
+        if total_geral == 0:
+            return []
+
+        stmt = (
+            select(
+                PedidoCompra.fornecedor_nome,
+                func.sum(PedidoCompra.economia_absoluta).label("economia_total"),
+                func.count(PedidoCompra.id).label("total_pedidos")
+            )
+            .where(
+                PedidoCompra.tenant_id == self.tenant_id,
+                PedidoCompra.economia_absoluta > 0,
+                PedidoCompra.fornecedor_nome.isnot(None)
+            )
+            .group_by(PedidoCompra.fornecedor_nome)
+            .order_by(func.sum(PedidoCompra.economia_absoluta).desc())
+        )
+
+        res = await self.session.execute(stmt)
+        return [
+            {
+                "fornecedor_nome": row.fornecedor_nome,
+                "economia_total": float(row.economia_total or 0.0),
+                "economia_percentual": round((float(row.economia_total or 0.0) / float(total_geral)) * 100, 1),
+                "total_pedidos": row.total_pedidos,
+            }
+            for row in res.all()
+        ]
+
+    async def obter_economia_por_usuario(self) -> list[dict]:
+        """Calcula economia gerada por cada comprador (Step 166)."""
+        from core.models.auth import Usuario
+
+        # Total geral do tenant para cálculo de percentual
+        stmt_total = select(func.sum(PedidoCompra.economia_absoluta)).where(
+            PedidoCompra.tenant_id == self.tenant_id,
+            PedidoCompra.economia_absoluta > 0
+        )
+        total_geral = (await self.session.execute(stmt_total)).scalar() or 0.0
+
+        if total_geral == 0:
+            return []
+
+        stmt = (
+            select(
+                PedidoCompra.usuario_solicitante_id,
+                func.coalesce(Usuario.nome_completo, Usuario.username, "Sem Responsável").label("usuario_nome"),
+                func.sum(PedidoCompra.economia_absoluta).label("economia_total"),
+                func.count(PedidoCompra.id).label("total_pedidos")
+            )
+            .outerjoin(Usuario, PedidoCompra.usuario_solicitante_id == Usuario.id)
+            .where(
+                PedidoCompra.tenant_id == self.tenant_id,
+                PedidoCompra.economia_absoluta > 0
+            )
+            .group_by(PedidoCompra.usuario_solicitante_id, Usuario.nome_completo, Usuario.username)
+            .order_by(func.sum(PedidoCompra.economia_absoluta).desc())
+        )
+
+        res = await self.session.execute(stmt)
+        return [
+            {
+                "usuario_id": row.usuario_solicitante_id,
+                "usuario_nome": row.usuario_nome,
+                "economia_total": float(row.economia_total or 0.0),
+                "economia_percentual": round((float(row.economia_total or 0.0) / float(total_geral)) * 100, 1),
+                "total_pedidos": row.total_pedidos,
+            }
+            for row in res.all()
+        ]
