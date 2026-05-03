@@ -156,7 +156,16 @@ class ComprasService:
         )
         
         result = await self.session.execute(stmt)
-        return list(result.scalars().all())
+        cotacoes = list(result.scalars().all())
+        
+        # Enriquecer com Score de Compra (Step 159)
+        for cot in cotacoes:
+            res_score = await self.calcular_score_compra(cot)
+            cot.score_compra = res_score["score"]
+            cot.classificacao_score = res_score["classificacao"]
+            cot.motivos_score = res_score["motivos"]
+            
+        return cotacoes
 
     async def aprovar_cotacao(self, solicitacao_id: uuid.UUID, cotacao_id: uuid.UUID) -> Optional[PedidoCompra]:
         """Aprova uma cotação, recusa as outras e gera o pedido de compra."""
@@ -446,7 +455,7 @@ class ComprasService:
             u.c.valor_unitario, 
             u.c.data, 
             u.c.origem
-        ).order_by(u.c.data.desc())
+        ).order_by(u.c.data.asc())
         
         res = await self.session.execute(stmt_final)
         historico = []
@@ -469,3 +478,230 @@ class ComprasService:
         }
         
         return stats
+
+    async def obter_melhor_fornecedor(self, item_id: uuid.UUID) -> Optional[dict]:
+        """Calcula e sugere o melhor fornecedor para um item baseado no histórico."""
+        stats = await self.get_historico_precos(item_id)
+        historico = stats.get("historico", [])
+        
+        if not historico:
+            return None
+            
+        # Agrupar por fornecedor
+        fornecedores = {}
+        for h in historico:
+            f_nome = h["fornecedor_nome"]
+            if f_nome not in fornecedores:
+                fornecedores[f_nome] = {
+                    "precos": [],
+                    "datas": [],
+                    "qtd": 0
+                }
+            fornecedores[f_nome]["precos"].append(h["valor_unitario"])
+            fornecedores[f_nome]["datas"].append(h["data"])
+            fornecedores[f_nome]["qtd"] += 1
+
+        # Processar métricas por fornecedor
+        processed = []
+        for nome, data in fornecedores.items():
+            avg = sum(data["precos"]) / len(data["precos"])
+            last = data["precos"][-1] # Histórico agora vem ordenado por data asc
+            last_date = data["datas"][-1]
+            
+            processed.append({
+                "fornecedor_nome": nome,
+                "preco_medio": avg,
+                "ultimo_preco": last,
+                "qtd_compras": data["qtd"],
+                "data_ultima": last_date
+            })
+
+        if not processed:
+            return None
+
+        # Ignorar fornecedores com apenas 1 registro (se houver outros com mais)
+        multi_registro = [p for p in processed if p["qtd_compras"] > 1]
+        pool = multi_registro if multi_registro else processed
+
+        # Calcular Scores
+        min_avg = min(p["preco_medio"] for p in pool)
+        max_qtd = max(p["qtd_compras"] for p in pool)
+        
+        # O último fornecedor geral (mais recente de todos)
+        ultimo_geral_nome = historico[-1]["fornecedor_nome"]
+
+        results = []
+        for p in pool:
+            # Score Preço (0.50): Menor preço médio = 1.0
+            score_preco = (min_avg / p["preco_medio"]) * 0.50
+            
+            # Score Frequência (0.30): Mais compras = 1.0
+            score_freq = (p["qtd_compras"] / max_qtd) * 0.30
+            
+            # Score Recência (0.20): Se foi o último = 1.0
+            score_recencia = (1.0 if p["fornecedor_nome"] == ultimo_geral_nome else 0.2) * 0.20
+            
+            p["score"] = round(score_preco + score_freq + score_recencia, 2)
+            results.append(p)
+
+        # Ordenar por score desc
+        results.sort(key=lambda x: x["score"], reverse=True)
+        
+        return results[0] if results else None
+
+    async def obter_preco_ideal(self, item_id: uuid.UUID) -> Optional[dict]:
+        """Calcula a faixa de preço ideal sugerida para um item."""
+        stats = await self.get_historico_precos(item_id)
+        historico = stats.get("historico", [])
+        
+        if len(historico) < 2:
+            return None
+            
+        preco_medio = stats["preco_medio"]
+        menor_preco = stats["menor_preco"]
+        
+        return {
+            "preco_minimo_referencia": menor_preco,
+            "preco_ideal": preco_medio,
+            "preco_maximo_recommended": preco_medio * 1.10,
+            "base_calculo": "Histórico interno dos últimos registros"
+        }
+
+    async def obter_consistencia_fornecedores(self, item_id: uuid.UUID) -> List[dict]:
+        """Analisa a estabilidade de preços por fornecedor para um item."""
+        import statistics
+        
+        stats = await self.get_historico_precos(item_id)
+        historico = stats.get("historico", [])
+        
+        # Agrupar por fornecedor
+        fornecedores_precos = {}
+        for h in historico:
+            nome = h["fornecedor_nome"]
+            if nome not in fornecedores_precos:
+                fornecedores_precos[nome] = []
+            fornecedores_precos[nome].append(h["valor_unitario"])
+            
+        results = []
+        for nome, precos in fornecedores_precos.items():
+            if len(precos) < 2:
+                continue
+                
+            media = statistics.mean(precos)
+            desvio = statistics.stdev(precos)
+            variacao = (desvio / media) * 100 if media > 0 else 0
+            
+            if variacao <= 10:
+                classificacao = "ESTAVEL"
+            elif variacao <= 25:
+                classificacao = "MODERADO"
+            else:
+                classificacao = "INSTAVEL"
+                
+            results.append({
+                "fornecedor_nome": nome,
+                "preco_medio": media,
+                "desvio_padrao": desvio,
+                "variacao_percentual": variacao,
+                "classificacao": classificacao
+            })
+            
+        return results
+
+    async def calcular_score_compra(self, cotacao: CotacaoCompra) -> dict:
+        """
+        Calcula o score de 0 a 100 para uma cotação baseado em múltiplos critérios.
+        Retorna score, classificação e lista de motivos.
+        """
+        score = 0.0
+        motivos = []
+        
+        # 1. Preço (Max 40)
+        # Tenta obter preço ideal
+        try:
+            ideal = await self.obter_preco_ideal(cotacao.item_id)
+            if ideal and ideal.get("preco_ideal"):
+                p_ideal = ideal["preco_ideal"]
+                p_max = ideal.get("preco_maximo_recommended", p_ideal * 1.10)
+                
+                if cotacao.valor_unitario <= p_ideal:
+                    score += 40
+                    motivos.append("Preço excelente (abaixo ou igual à meta ideal)")
+                elif cotacao.valor_unitario <= p_max:
+                    score += 20
+                    motivos.append("Preço dentro da faixa aceitável")
+                else:
+                    motivos.append("Preço acima do máximo recomendado")
+            else:
+                # Fallback para média simples (Step 154)
+                if not cotacao.acima_media:
+                    score += 40
+                    motivos.append("Preço competitivo (abaixo da média histórica)")
+                else:
+                    score += 10
+                    motivos.append("Preço acima da média histórica")
+        except Exception:
+            # Neutro se falhar busca
+            score += 20
+            motivos.append("Base de comparação de preço indisponível")
+
+        # 2. Consistência do Fornecedor (Max 30)
+        try:
+            consistencias = await self.obter_consistencia_fornecedores(cotacao.item_id)
+            f_cons = next((f for f in consistencias if f["fornecedor_nome"] == cotacao.fornecedor_nome), None)
+            
+            if f_cons:
+                if f_cons["classificacao"] == "ESTAVEL":
+                    score += 30
+                    motivos.append("Fornecedor com preços historicamente estáveis")
+                elif f_cons["classificacao"] == "MODERADO":
+                    score += 15
+                    motivos.append("Fornecedor com variação de preço moderada")
+                else:
+                    motivos.append("Fornecedor com alta instabilidade de preços")
+            else:
+                score += 15
+                motivos.append("Histórico de consistência do fornecedor insuficiente")
+        except Exception:
+            score += 15
+
+        # 3. Prazo de Entrega (Max 20)
+        prazo = cotacao.prazo_entrega_dias
+        if prazo is not None:
+            if prazo <= 3:
+                score += 20
+                motivos.append("Entrega rápida (até 3 dias)")
+            elif prazo <= 7:
+                score += 10
+                motivos.append("Prazo de entrega adequado")
+            else:
+                motivos.append("Prazo de entrega longo (> 7 dias)")
+        else:
+            score += 10
+            motivos.append("Prazo de entrega não informado")
+
+        # 4. Histórico/Recorrência (Max 10)
+        try:
+            melhor = await self.obter_melhor_fornecedor(cotacao.item_id)
+            if melhor and melhor.get("fornecedor_nome") == cotacao.fornecedor_nome:
+                score += 10
+                motivos.append("Fornecedor recomendado pelo histórico de compras")
+            else:
+                score += 5
+                motivos.append("Fornecedor com histórico secundário")
+        except Exception:
+            score += 5
+
+        # Classificação Final
+        if score >= 80:
+            classificacao = "BOA"
+        elif score >= 50:
+            classificacao = "ATENCAO"
+        else:
+            classificacao = "RUIM"
+            
+        return {
+            "score": score,
+            "classificacao": classificacao,
+            "motivos": motivos
+        }
