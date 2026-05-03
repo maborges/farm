@@ -1,7 +1,42 @@
 from pydantic import BaseModel, Field, ConfigDict
-from typing import Optional, List
+from typing import Optional, List, Literal
 from datetime import datetime
 import uuid
+
+
+# ── Solicitação de Compra (Step 147) ──────────────────────────────────────────
+
+class SolicitacaoCompraCreate(BaseModel):
+    item_id: uuid.UUID = Field(..., alias="produto_id")
+    deposito_id: uuid.UUID
+    quantidade_solicitada: float = Field(..., gt=0)
+    unidade: str = Field(..., max_length=20)
+    origem: str = Field("MANUAL", description="REPOSICAO_ESTOQUE | MANUAL")
+    origem_id: Optional[str] = Field(None, max_length=50)
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class SolicitacaoCompraResponse(BaseModel):
+    id: uuid.UUID
+    tenant_id: uuid.UUID
+    produto_id: uuid.UUID = Field(..., serialization_alias="item_id")
+    produto_nome: Optional[str] = None
+    deposito_id: uuid.UUID
+    deposito_nome: Optional[str] = None
+    quantidade_solicitada: float
+    unidade: str
+    origem: str
+    origem_id: Optional[str]
+    status: str
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+
+
+class SolicitacaoCompraStatusUpdate(BaseModel):
+    status: Literal["ABERTA", "EM_ANALISE", "APROVADA", "CANCELADA"]
 
 
 # ── Recebimento Parcial ────────────────────────────────────────────────────────
@@ -87,3 +122,82 @@ class DevolucaoResponse(BaseModel):
     observacoes: Optional[str]
     itens: List[ItemDevolucaoResponse] = []
     model_config = ConfigDict(from_attributes=True)
+
+
+# ── Cotação de Preços (Step 149) ──────────────────────────────────────────────
+
+class CotacaoSolicitacaoCreate(BaseModel):
+    fornecedor_nome: str = Field(..., max_length=150)
+    fornecedor_contato: Optional[str] = Field(None, max_length=150)
+    valor_unitario: float = Field(..., gt=0)
+    prazo_entrega_dias: Optional[int] = Field(None, ge=0)
+
+
+class CotacaoSolicitacaoResponse(BaseModel):
+    id: uuid.UUID
+    tenant_id: uuid.UUID
+    solicitacao_id: uuid.UUID
+    fornecedor_nome: str
+    fornecedor_contato: Optional[str]
+    valor_unitario: float
+    valor_total: float
+    prazo_entrega_dias: Optional[int]
+    status: str
+    
+    # Inteligência
+    acima_media: bool = False
+    percentual_acima_media: Optional[float] = None
+    mensagem_alerta: Optional[str] = None
+    
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+# ── Pedido de Compra (Step 150) ────────────────────────────────────────────────
+
+class PedidoCompraResponse(BaseModel):
+    id: uuid.UUID
+    tenant_id: uuid.UUID
+    solicitacao_id: Optional[uuid.UUID] = None
+    cotacao_id: Optional[uuid.UUID] = None
+    
+    fornecedor_nome: str
+    fornecedor_contato: Optional[str] = None
+    
+    item_id: uuid.UUID
+    item_nome: Optional[str] = None
+    deposito_id: uuid.UUID
+    deposito_nome: Optional[str] = None
+    
+    quantidade: float
+    unidade: str
+    valor_unitario: float
+    valor_total: float
+    
+    status: str
+    data_pedido: datetime
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class PedidoCompraStatusUpdate(BaseModel):
+    status: Literal["ABERTO", "ENVIADO", "RECEBIDO", "CANCELADO"]
+
+
+# ── Inteligência de Compra (Step 153) ──────────────────────────────────────────
+
+class PrecoHistoricoItem(BaseModel):
+    fornecedor_nome: str
+    valor_unitario: float
+    data: datetime
+    origem: str
+
+class PrecoHistoricoResponse(BaseModel):
+    menor_preco: float
+    maior_preco: float
+    preco_medio: float
+    historico: List[PrecoHistoricoItem]

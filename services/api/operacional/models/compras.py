@@ -27,20 +27,43 @@ class Fornecedor(Base):
     avaliacao: Mapped[float | None] = mapped_column(Float)
 
 class PedidoCompra(Base):
-    """Solicitação de compra interna ou cotação."""
+    """Pedido de compra oficial gerado a partir de uma cotação ou manual."""
     __tablename__ = "compras_pedidos"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
-    usuario_solicitante_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("usuarios.id"))
     
-    data_pedido: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
-    # ABERTO, COTACAO, APROVADO, EM_RECEBIMENTO, RECEBIDO, RECEBIDO_PARCIAL, CANCELADO
-    status: Mapped[str] = mapped_column(String(30), default="ABERTO")
+    # Link com o fluxo de solicitação
+    solicitacao_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("compras_solicitacoes.id", ondelete="SET NULL"), nullable=True, index=True)
+    cotacao_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("compras_cotacoes.id", ondelete="SET NULL"), nullable=True, index=True)
+    
+    # Dados do Fornecedor
+    fornecedor_nome: Mapped[str] = mapped_column(String(150), nullable=False)
+    fornecedor_contato: Mapped[str | None] = mapped_column(String(150))
+    
+    # Dados do Item
+    item_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("cadastros_produtos.id"), index=True)
+    deposito_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("estoque_depositos.id"), index=True)
+    
+    quantidade: Mapped[float] = mapped_column(Float, nullable=False)
+    unidade: Mapped[str] = mapped_column(String(20), nullable=False)
+    valor_unitario: Mapped[float] = mapped_column(Float, nullable=False)
+    valor_total: Mapped[float] = mapped_column(Float, nullable=False)
+    
+    # ABERTO, ENVIADO, RECEBIDO, CANCELADO
+    status: Mapped[str] = mapped_column(String(30), default="ABERTO", index=True)
 
-    deposito_destino_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("estoque_depositos.id"), nullable=True)
-    data_recebimento: Mapped[date | None] = mapped_column(Date, nullable=True)
+    # Campos de Auditoria/Legado
+    usuario_solicitante_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=True)
+    data_pedido: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     observacoes: Mapped[str | None] = mapped_column(String(500))
+    
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), 
+        default=lambda: datetime.now(timezone.utc), 
+        onupdate=lambda: datetime.now(timezone.utc)
+    )
 
 class ItemPedidoCompra(Base):
     __tablename__ = "compras_itens_pedido"
@@ -112,7 +135,7 @@ class ItemDevolucao(Base):
 
 class CotacaoFornecedor(Base):
     """Resposta de um fornecedor a um pedido de compra."""
-    __tablename__ = "compras_cotacoes"
+    __tablename__ = "compras_pedidos_cotacoes"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     pedido_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("compras_pedidos.id", ondelete="CASCADE"))
@@ -124,3 +147,62 @@ class CotacaoFornecedor(Base):
     vencimento_cotacao: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     
     selecionada: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class CotacaoCompra(Base):
+    """Cotação de preços para uma solicitação de compra."""
+    __tablename__ = "compras_cotacoes"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    solicitacao_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("compras_solicitacoes.id", ondelete="CASCADE"), index=True)
+    
+    fornecedor_nome: Mapped[str] = mapped_column(String(150), nullable=False)
+    fornecedor_contato: Mapped[str | None] = mapped_column(String(150))
+    
+    valor_unitario: Mapped[float] = mapped_column(Float, nullable=False)
+    valor_total: Mapped[float] = mapped_column(Float, nullable=False)
+    prazo_entrega_dias: Mapped[int | None] = mapped_column(Integer)
+    
+    # RECEBIDA, APROVADA, RECUSADA
+    status: Mapped[str] = mapped_column(String(20), default="RECEBIDA", index=True)
+    
+    # Alertas de Inteligência
+    acima_media: Mapped[bool] = mapped_column(Boolean, default=False)
+    percentual_acima_media: Mapped[float | None] = mapped_column(Float, nullable=True)
+    mensagem_alerta: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), 
+        default=lambda: datetime.now(timezone.utc), 
+        onupdate=lambda: datetime.now(timezone.utc)
+    )
+
+
+class SolicitacaoCompra(Base):
+    """Solicitação interna de compra (etapa prévia ao pedido)."""
+    __tablename__ = "compras_solicitacoes"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    
+    produto_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("cadastros_produtos.id"), index=True)
+    deposito_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("estoque_depositos.id"), index=True)
+    
+    quantidade_solicitada: Mapped[float] = mapped_column(Float, nullable=False)
+    unidade: Mapped[str] = mapped_column(String(20), nullable=False)
+    
+    # REPOSICAO_ESTOQUE, MANUAL
+    origem: Mapped[str] = mapped_column(String(30), default="MANUAL")
+    origem_id: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    
+    # ABERTA, EM_ANALISE, APROVADA, CANCELADA
+    status: Mapped[str] = mapped_column(String(20), default="ABERTA", index=True)
+    
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), 
+        default=lambda: datetime.now(timezone.utc), 
+        onupdate=lambda: datetime.now(timezone.utc)
+    )

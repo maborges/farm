@@ -46,6 +46,17 @@ O projeto é dividido em um monorepo contendo:
 - **Regra VER_EVOLUCAO**: Acionada quando aumento > 20% no último período — leva o usuário à tela de operações por fase.
 - **Fluxo**: `GET /api/v1/financeiro/lancamentos/recomendacoes?safra_id=` → `LancamentoService.gerar_recomendacoes()` → componente `RecomendacoesCard` no dashboard, abaixo do `AlertasCard`. Cada recomendação inclui botão com link direto para a tela de ação.
 
+### 7. Agendamento Manual das Automações (Step 111)
+- **Agendamento de Regras**: Permite definir uma frequência de execução (`DIARIA`, `SEMANAL`, `MENSAL` ou `MANUAL`) para cada regra de automação da safra.
+- **Cálculo da Próxima Execução**: O backend calcula e armazena automaticamente a `proxima_execucao` com base na frequência selecionada. Frequência `MANUAL` não possui próxima execução predefinida.
+- **Fluxo Funcional**: `PATCH /api/v1/automacoes/configuracoes/{regra}` recebe `frequencia` e atualiza a configuração no banco de dados. O frontend exibe um seletor e a próxima data/hora programada no componente `AutomacoesConfigCard`.
+
+### 8. Gestão de Suprimentos e Compras (Step 147 e 148)
+- **Reposição Automática**: Alertas de estoque crítico geram sugestões de reposição baseadas em estoque mínimo configurável por depósito.
+- **Solicitações de Compra**: Permite converter alertas de reposição em solicitações formais (`ABERTA`) com um clique, rastreando a origem (`REPOSICAO_ESTOQUE`).
+- **Análise e Auditoria**: Interface dedicada em `/suprimentos/compras/solicitacoes` para que o setor de compras analise, aprove ou cancele solicitações, com histórico de status e enriquecimento de dados (nome do item, depósito, quantidade).
+- **Fluxo**: `POST /api/v1/compras/solicitacoes` (criação) → `PATCH /api/v1/compras/solicitacoes/{id}/status` (gestão) → Integração com fluxo de suprimentos.
+
 ## 🛠️ Como Executar
 
 ### Backend
@@ -58,6 +69,14 @@ source .venv/bin/activate
 ./start_server.sh
 
 uvicorn main:app --reload
+
+### Worker de Automações (scheduler)
+
+No diretório raiz do projeto:
+```bash
+source .venv/bin/activate
+python scripts/run_worker.py
+```
 
 
 ### Frontend
