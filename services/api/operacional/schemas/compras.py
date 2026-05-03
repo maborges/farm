@@ -161,6 +161,10 @@ class CotacaoSolicitacaoResponse(BaseModel):
     classificacao_score: str = "ATENCAO" # BOA, ATENCAO, RUIM
     motivos_score: List[str] = []
     
+    # Step 160: Ranking
+    posicao_ranking: int = 0
+    melhor_opcao: bool = False
+    
     created_at: datetime
     updated_at: datetime
 

@@ -165,6 +165,18 @@ class ComprasService:
             cot.classificacao_score = res_score["classificacao"]
             cot.motivos_score = res_score["motivos"]
             
+        # Step 160: Ranking Comparativo
+        # Ordenação: Score DESC -> Valor ASC -> Prazo ASC
+        cotacoes.sort(key=lambda x: (
+            -x.score_compra,
+            x.valor_total,
+            x.prazo_entrega_dias if x.prazo_entrega_dias is not None else 999
+        ))
+        
+        for i, cot in enumerate(cotacoes):
+            cot.posicao_ranking = i + 1
+            cot.melhor_opcao = (i == 0)
+            
         return cotacoes
 
     async def aprovar_cotacao(self, solicitacao_id: uuid.UUID, cotacao_id: uuid.UUID) -> Optional[PedidoCompra]:
