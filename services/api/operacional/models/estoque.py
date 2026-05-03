@@ -28,6 +28,7 @@ class SaldoEstoque(Base):
     
     quantidade_atual: Mapped[float] = mapped_column(Float, default=0.0)
     quantidade_reservada: Mapped[float] = mapped_column(Float, default=0.0)
+    estoque_minimo: Mapped[float | None] = mapped_column(Numeric(18, 6), nullable=True)
     ultima_atualizacao: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 class LoteEstoque(Base):

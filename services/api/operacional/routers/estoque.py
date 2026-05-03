@@ -12,8 +12,9 @@ from operacional.schemas.estoque import (
     DepositoCreate, DepositoUpdate, DepositoResponse,
     SaldoResponse,
     EntradaEstoqueRequest, SaidaEstoqueRequest,
-    AjusteEstoqueRequest, TransferenciaEstoqueRequest,
-    MovimentacaoResponse, AlertaEstoqueItem,
+    AjusteEstoqueRequest, AjusteMovimentoRequest, TransferenciaEstoqueRequest,
+    MovimentacaoResponse, AlertaEstoqueItem, AuditoriaMovimentacaoResponse,
+    SaldoMinimoUpdateRequest,
     LoteCreate, LoteUpdate, LoteResponse,
     RequisicaoCreate, RequisicaoAprovarRequest, RequisicaoEntregarRequest, RequisicaoResponse,
     ReservaCreate, ReservaCancelarRequest, ReservaConsumirRequest, ReservaResponse,
@@ -117,13 +118,34 @@ async def atualizar_deposito(
 
 # ── Saldos ────────────────────────────────────────────────────────────────────
 
-@router.get("/saldos", response_model=List[SaldoResponse])
-async def listar_saldos(
-    unidade_produtiva_id: Optional[uuid.UUID] = Query(None),
+@router.get("/alertas-reposicao", response_model=List[AlertaEstoqueItem])
+async def listar_alertas_reposicao(
     tenant: Tenant = Depends(get_current_tenant),
     session: AsyncSession = Depends(get_session),
 ):
-    return await _svc(session, tenant).listar_saldos(unidade_produtiva_id)
+    return await _svc(session, tenant).listar_alertas_reposicao()
+
+
+@router.patch("/saldos/{saldo_id}/minimo", response_model=SaldoResponse)
+async def atualizar_estoque_minimo(
+    saldo_id: uuid.UUID,
+    data: SaldoMinimoUpdateRequest,
+    tenant: Tenant = Depends(get_current_tenant),
+    session: AsyncSession = Depends(get_session),
+):
+    svc = _svc(session, tenant)
+    return await svc.atualizar_estoque_minimo(saldo_id, data.estoque_minimo)
+
+
+@router.get("/saldos", response_model=List[SaldoResponse])
+async def listar_saldos(
+    unidade_produtiva_id: Optional[uuid.UUID] = Query(None),
+    produto_id: Optional[uuid.UUID] = Query(None),
+    deposito_id: Optional[uuid.UUID] = Query(None),
+    tenant: Tenant = Depends(get_current_tenant),
+    session: AsyncSession = Depends(get_session),
+):
+    return await _svc(session, tenant).listar_saldos(unidade_produtiva_id, produto_id, deposito_id)
 
 
 @router.get("/alertas", response_model=List[AlertaEstoqueItem])
@@ -146,6 +168,34 @@ async def listar_movimentacoes(
     session: AsyncSession = Depends(get_session),
 ):
     return await _svc(session, tenant).listar_movimentacoes(produto_id, deposito_id, limit)
+
+
+@router.get("/movimentacoes/{movimentacao_id}", response_model=MovimentacaoResponse)
+async def obter_movimentacao(
+    movimentacao_id: uuid.UUID,
+    tenant: Tenant = Depends(get_current_tenant),
+    session: AsyncSession = Depends(get_session),
+):
+    return await _svc(session, tenant).obter_movimentacao(movimentacao_id)
+
+
+@router.post("/movimentacoes/{movimentacao_id}/ajustar", response_model=MovimentacaoResponse)
+async def ajustar_movimentacao(
+    movimentacao_id: uuid.UUID,
+    data: AjusteMovimentoRequest,
+    tenant: Tenant = Depends(get_current_tenant),
+    session: AsyncSession = Depends(get_session),
+):
+    return await _svc(session, tenant).ajustar_movimentacao(movimentacao_id, data)
+
+
+@router.get("/movimentacoes/{movimentacao_id}/auditoria", response_model=AuditoriaMovimentacaoResponse)
+async def obter_auditoria_movimentacao(
+    movimentacao_id: uuid.UUID,
+    tenant: Tenant = Depends(get_current_tenant),
+    session: AsyncSession = Depends(get_session),
+):
+    return await _svc(session, tenant).get_auditoria_movimentacao(movimentacao_id)
 
 
 @router.post("/movimentacoes/entrada", response_model=MovimentacaoResponse, status_code=201)

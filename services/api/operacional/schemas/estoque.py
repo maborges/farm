@@ -82,9 +82,15 @@ class SaldoResponse(BaseModel):
     quantidade_disponivel: float = 0.0
     unidade_medida: str
     preco_medio: float = 0.0
+    estoque_minimo: Optional[float] = None
     abaixo_minimo: bool
     ultima_atualizacao: datetime
     model_config = ConfigDict(from_attributes=True)
+
+
+class SaldoMinimoUpdateRequest(BaseModel):
+    deposito_id: uuid.UUID
+    estoque_minimo: float = Field(..., ge=0)
 
 
 # ── Movimentações ─────────────────────────────────────────────────────────────
@@ -119,6 +125,12 @@ class AjusteEstoqueRequest(BaseModel):
     motivo: str = Field(..., min_length=3, max_length=255)
 
 
+class AjusteMovimentoRequest(BaseModel):
+    tipo_ajuste: Literal["ENTRADA", "SAIDA"]
+    quantidade: float = Field(..., gt=0)
+    motivo: str = Field(..., min_length=3, max_length=255)
+
+
 class TransferenciaEstoqueRequest(BaseModel):
     deposito_origem_id: uuid.UUID
     deposito_destino_id: uuid.UUID
@@ -130,7 +142,9 @@ class TransferenciaEstoqueRequest(BaseModel):
 class MovimentacaoResponse(BaseModel):
     id: uuid.UUID
     deposito_id: uuid.UUID
+    deposito_nome: Optional[str] = None
     produto_id: uuid.UUID
+    produto_nome: Optional[str] = None
     lote_id: Optional[uuid.UUID]
     tipo: str
     quantidade: float
@@ -246,10 +260,35 @@ class ReservaResponse(BaseModel):
 # ── Alertas ───────────────────────────────────────────────────────────────────
 
 class AlertaEstoqueItem(BaseModel):
+    id: uuid.UUID
     produto_id: uuid.UUID
+    deposito_id: uuid.UUID
     produto_nome: str
     deposito_nome: str
     quantidade_atual: float
     estoque_minimo: float
     unidade_medida: str
-    deficit: float
+    quantidade_sugerida: float
+# ── Auditoria ──────────────────────────────────────────────────────────────────
+
+class LancamentoFinanceiroSimplificado(BaseModel):
+    id: uuid.UUID
+    valor: float
+    categoria: str
+    data: date
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AjusteAuditoriaItem(BaseModel):
+    id: uuid.UUID
+    tipo: str
+    quantidade: float
+    motivo: Optional[str]
+    created_at: datetime
+    lancamento_financeiro: Optional[LancamentoFinanceiroSimplificado] = None
+    model_config = ConfigDict(from_attributes=True)
+
+
+class AuditoriaMovimentacaoResponse(BaseModel):
+    movimentacao_original: MovimentacaoResponse
+    ajustes: List[AjusteAuditoriaItem]

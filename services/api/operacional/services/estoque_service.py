@@ -17,12 +17,14 @@ from operacional.schemas.estoque import (
     EntradaEstoqueRequest,
     SaidaEstoqueRequest,
     AjusteEstoqueRequest,
+    AjusteMovimentoRequest,
     TransferenciaEstoqueRequest,
     SaldoResponse,
     AlertaEstoqueItem,
     LoteCreate, LoteUpdate,
     RequisicaoCreate, RequisicaoAprovarRequest, RequisicaoEntregarRequest,
     ReservaCreate, ReservaCancelarRequest, ReservaConsumirRequest,
+    AuditoriaMovimentacaoResponse,
 )
 from operacional.services.estoque_ledger import registrar_ledger_estoque
 from financeiro.models.lancamento import LancamentoFinanceiro
@@ -90,13 +92,23 @@ class EstoqueService(BaseService[SaldoEstoque]):
             await self.session.flush()
         return saldo
 
-    async def listar_saldos(self, unidade_produtiva_id: UUID | None = None) -> list[SaldoResponse]:
+    async def listar_saldos(
+        self, 
+        unidade_produtiva_id: UUID | None = None,
+        produto_id: UUID | None = None,
+        deposito_id: UUID | None = None
+    ) -> list[SaldoResponse]:
         dep_stmt = select(Deposito).where(Deposito.tenant_id == self.tenant_id, Deposito.ativo == True)
         if unidade_produtiva_id:
             dep_stmt = dep_stmt.where(Deposito.unidade_produtiva_id == unidade_produtiva_id)
+        if deposito_id:
+            dep_stmt = dep_stmt.where(Deposito.id == deposito_id)
+            
         depositos = {d.id: d for d in (await self.session.execute(dep_stmt)).scalars().all()}
 
         prod_stmt = select(ProdutoCatalogo).where(ProdutoCatalogo.tenant_id == self.tenant_id, ProdutoCatalogo.ativo == True)
+        if produto_id:
+            prod_stmt = prod_stmt.where(ProdutoCatalogo.id == produto_id)
         produtos = {p.id: p for p in (await self.session.execute(prod_stmt)).scalars().all()}
 
         if not depositos:
@@ -105,29 +117,87 @@ class EstoqueService(BaseService[SaldoEstoque]):
         saldo_stmt = select(SaldoEstoque).where(
             SaldoEstoque.deposito_id.in_(list(depositos.keys()))
         )
+        if produto_id:
+            saldo_stmt = saldo_stmt.where(SaldoEstoque.produto_id == produto_id)
+            
         saldos = (await self.session.execute(saldo_stmt)).scalars().all()
 
-        result = []
-        for s in saldos:
-            dep = depositos.get(s.deposito_id)
-            prod = produtos.get(s.produto_id)
-            if not dep or not prod:
-                continue
-            result.append(SaldoResponse(
-                id=s.id,
-                deposito_id=s.deposito_id,
-                produto_id=s.produto_id,
-                produto_nome=prod.nome,
-                deposito_nome=dep.nome,
-                quantidade_atual=s.quantidade_atual,
-                quantidade_reservada=s.quantidade_reservada,
-                quantidade_disponivel=max(0.0, s.quantidade_atual - s.quantidade_reservada),
-                preco_medio=prod.preco_medio,
-                unidade_medida=prod.unidade_medida,
-                abaixo_minimo=s.quantidade_atual < prod.estoque_minimo,
-                ultima_atualizacao=s.ultima_atualizacao,
-            ))
+        result = [SaldoResponse(
+            id=s.id,
+            deposito_id=s.deposito_id,
+            produto_id=s.produto_id,
+            produto_nome=produtos.get(s.produto_id).nome if produtos.get(s.produto_id) else "N/A",
+            deposito_nome=depositos.get(s.deposito_id).nome if depositos.get(s.deposito_id) else "N/A",
+            quantidade_atual=s.quantidade_atual,
+            quantidade_reservada=s.quantidade_reservada,
+            quantidade_disponivel=max(0.0, s.quantidade_atual - s.quantidade_reservada),
+            preco_medio=produtos.get(s.produto_id).preco_medio if produtos.get(s.produto_id) else 0.0,
+            unidade_medida=produtos.get(s.produto_id).unidade_medida if produtos.get(s.produto_id) else "",
+            estoque_minimo=s.estoque_minimo,
+            abaixo_minimo=max(0.0, s.quantidade_atual - s.quantidade_reservada) <= (s.estoque_minimo or 0) if s.estoque_minimo is not None else False,
+            ultima_atualizacao=s.ultima_atualizacao,
+        ) for s in saldos if s.deposito_id in depositos and s.produto_id in produtos]
         return result
+
+    async def atualizar_estoque_minimo(self, saldo_id: UUID, estoque_minimo: float) -> SaldoEstoque:
+        stmt = select(SaldoEstoque).where(SaldoEstoque.id == saldo_id)
+        saldo = (await self.session.execute(stmt)).scalars().first()
+        if not saldo:
+            raise EntityNotFoundError("Saldo não encontrado.")
+        saldo.estoque_minimo = estoque_minimo
+        self.session.add(saldo)
+        await self.session.flush()
+        
+        # Verificar se já está abaixo do novo mínimo
+        await self._verificar_e_notificar_estoque_baixo(saldo)
+        
+        return saldo
+
+    async def listar_alertas_reposicao(self) -> list[AlertaEstoqueItem]:
+        saldos = await self.listar_saldos()
+        alertas = []
+        for s in saldos:
+            if s.abaixo_minimo:
+                minimo = s.estoque_minimo or 0
+                # Regra: repor até 20% acima do mínimo para dar margem operacional
+                sugerido = (minimo * 1.2) - s.quantidade_atual
+                alertas.append(AlertaEstoqueItem(
+                    id=s.id,
+                    produto_id=s.produto_id,
+                    deposito_id=s.deposito_id,
+                    produto_nome=s.produto_nome,
+                    deposito_nome=s.deposito_nome,
+                    quantidade_atual=s.quantidade_atual,
+                    estoque_minimo=minimo,
+                    unidade_medida=s.unidade_medida,
+                    quantidade_sugerida=round(max(0, sugerido), 2)
+                ))
+        return alertas
+
+    async def _verificar_e_notificar_estoque_baixo(self, saldo: SaldoEstoque):
+        if saldo.estoque_minimo is not None:
+            disponivel = max(0.0, saldo.quantidade_atual - saldo.quantidade_reservada)
+            if disponivel <= saldo.estoque_minimo:
+                from notificacoes.service import NotificacaoService
+                from notificacoes.schemas import NotificacaoCreate
+                from core.models.cadastros.produto import ProdutoCatalogo
+                
+                # Buscar nomes para a mensagem
+                dep_stmt = select(Deposito.nome).where(Deposito.id == saldo.deposito_id)
+                prod_stmt = select(ProdutoCatalogo.nome).where(ProdutoCatalogo.id == saldo.produto_id)
+                
+                dep_nome = (await self.session.execute(dep_stmt)).scalar() or "N/A"
+                prod_nome = (await self.session.execute(prod_stmt)).scalar() or "N/A"
+
+                notif_svc = NotificacaoService(self.session, self.tenant_id)
+                await notif_svc.criar_e_push(NotificacaoCreate(
+                    tipo="ESTOQUE_REPOSICAO",
+                    titulo="Estoque Baixo",
+                    mensagem=f"O item {prod_nome} atingiu o nível crítico no depósito {dep_nome}. Saldo: {disponivel:.2f}",
+                    nivel="WARNING",
+                    origem="estoque_saldo",
+                    origem_id=str(saldo.id)
+                ))
 
     # ── Lotes ─────────────────────────────────────────────────────────────
 
@@ -288,6 +358,7 @@ class EstoqueService(BaseService[SaldoEstoque]):
         )
         await self.session.flush()
         await self.session.refresh(mov)
+        await self._verificar_e_notificar_estoque_baixo(saldo)
         return mov
 
     async def registrar_saida_insumo(
@@ -343,6 +414,7 @@ class EstoqueService(BaseService[SaldoEstoque]):
         )
         await self.session.flush()
         await self.session.refresh(mov)
+        await self._verificar_e_notificar_estoque_baixo(saldo_sel)
         return mov
 
     async def registrar_saida_insumo_por_nome(
@@ -380,10 +452,22 @@ class EstoqueService(BaseService[SaldoEstoque]):
         nome_produto: str,
         custo_unitario: float,
         quantidade: float,
+        movimentacao_id: UUID | None = None,
     ) -> None:
         valor = custo_unitario * quantidade
         if valor <= 0:
             return
+
+        # Idempotência: não duplicar se já existe lançamento para este movimento
+        if movimentacao_id is not None:
+            stmt_dup = select(LancamentoFinanceiro.id).where(
+                LancamentoFinanceiro.tenant_id == self.tenant_id,
+                LancamentoFinanceiro.origem == "ESTOQUE",
+                LancamentoFinanceiro.origem_id == movimentacao_id,
+            ).limit(1)
+            if (await self.session.execute(stmt_dup)).first():
+                return
+
         lancamento = LancamentoFinanceiro(
             tenant_id=self.tenant_id,
             safra_id=safra_id,
@@ -392,6 +476,8 @@ class EstoqueService(BaseService[SaldoEstoque]):
             data=date.today(),
             tipo="CUSTO",
             categoria="INSUMOS",
+            origem="ESTOQUE",
+            origem_id=movimentacao_id,
         )
         self.session.add(lancamento)
 
@@ -428,9 +514,11 @@ class EstoqueService(BaseService[SaldoEstoque]):
                     nome_produto=prod.nome if prod else str(data.produto_id),
                     custo_unitario=custo_unit,
                     quantidade=data.quantidade,
+                    movimentacao_id=mov.id,
                 )
             await self.session.flush()
             await self.session.refresh(mov)
+            await self._verificar_e_notificar_estoque_baixo(saldo)
             return mov
         elif data.unidade_produtiva_id:
             mov = await self.registrar_saida_insumo(
@@ -449,6 +537,7 @@ class EstoqueService(BaseService[SaldoEstoque]):
                         nome_produto=prod.nome if prod else str(data.produto_id),
                         custo_unitario=custo_unit,
                         quantidade=data.quantidade,
+                        movimentacao_id=mov.id,
                     )
             return mov
         raise BusinessRuleError("Informe deposito_id ou unidade_produtiva_id.")
@@ -467,6 +556,7 @@ class EstoqueService(BaseService[SaldoEstoque]):
         )
         await self.session.flush()
         await self.session.refresh(mov)
+        await self._verificar_e_notificar_estoque_baixo(saldo)
         return mov
 
     async def registrar_transferencia(self, data: TransferenciaEstoqueRequest) -> list[EstoqueMovimento]:
@@ -500,6 +590,8 @@ class EstoqueService(BaseService[SaldoEstoque]):
         await self.session.flush()
         await self.session.refresh(mov_saida)
         await self.session.refresh(mov_entrada)
+        await self._verificar_e_notificar_estoque_baixo(saldo_orig)
+        await self._verificar_e_notificar_estoque_baixo(saldo_dest)
         return [mov_saida, mov_entrada]
 
     async def listar_movimentacoes(
@@ -507,21 +599,173 @@ class EstoqueService(BaseService[SaldoEstoque]):
         produto_id: UUID | None = None,
         deposito_id: UUID | None = None,
         limit: int = 100,
-    ) -> list[EstoqueMovimento]:
-        dep_stmt = select(Deposito.id).where(Deposito.tenant_id == self.tenant_id)
-        dep_ids = set((await self.session.execute(dep_stmt)).scalars().all())
-
-        stmt = select(EstoqueMovimento).where(
-            EstoqueMovimento.tenant_id == self.tenant_id,
-            EstoqueMovimento.deposito_id.in_(dep_ids),
-        ).order_by(EstoqueMovimento.data_movimento.desc()).limit(limit)
+    ) -> list[dict]:
+        stmt = (
+            select(
+                EstoqueMovimento,
+                ProdutoCatalogo.nome.label("produto_nome"),
+                Deposito.nome.label("deposito_nome"),
+            )
+            .join(ProdutoCatalogo, EstoqueMovimento.produto_id == ProdutoCatalogo.id)
+            .outerjoin(Deposito, EstoqueMovimento.deposito_id == Deposito.id)
+            .where(EstoqueMovimento.tenant_id == self.tenant_id)
+            .order_by(EstoqueMovimento.data_movimento.desc())
+            .limit(limit)
+        )
 
         if produto_id:
             stmt = stmt.where(EstoqueMovimento.produto_id == produto_id)
         if deposito_id:
             stmt = stmt.where(EstoqueMovimento.deposito_id == deposito_id)
 
-        return list((await self.session.execute(stmt)).scalars().all())
+        rows = (await self.session.execute(stmt)).all()
+        result = []
+        for mov, p_nome, d_nome in rows:
+            mov_dict = {c.name: getattr(mov, c.name) for c in mov.__table__.columns}
+            mov_dict["produto_nome"] = p_nome
+            mov_dict["deposito_nome"] = d_nome
+            # Mapeia campos legados para o schema MovimentacaoResponse
+            mov_dict["data_movimentacao"] = mov.data_movimento
+            mov_dict["motivo"] = mov.observacoes
+            result.append(mov_dict)
+        return result
+
+    async def obter_movimentacao(self, movimentacao_id: UUID) -> dict:
+        stmt = (
+            select(
+                EstoqueMovimento,
+                ProdutoCatalogo.nome.label("produto_nome"),
+                Deposito.nome.label("deposito_nome"),
+            )
+            .join(ProdutoCatalogo, EstoqueMovimento.produto_id == ProdutoCatalogo.id)
+            .outerjoin(Deposito, EstoqueMovimento.deposito_id == Deposito.id)
+            .where(
+                EstoqueMovimento.id == movimentacao_id,
+                EstoqueMovimento.tenant_id == self.tenant_id,
+            )
+        )
+
+        result = (await self.session.execute(stmt)).first()
+        if not result:
+            raise EntityNotFoundError(f"Movimentação {movimentacao_id} não encontrada.")
+
+        mov, p_nome, d_nome = result
+        mov_dict = {c.name: getattr(mov, c.name) for c in mov.__table__.columns}
+        mov_dict["produto_nome"] = p_nome
+        mov_dict["deposito_nome"] = d_nome
+        mov_dict["data_movimentacao"] = mov.data_movimento
+        mov_dict["motivo"] = mov.observacoes
+        return mov_dict
+
+    async def ajustar_movimentacao(self, movimentacao_id: UUID, data: AjusteMovimentoRequest) -> EstoqueMovimento:
+        # 1. Buscar movimentação original
+        stmt = select(EstoqueMovimento).where(
+            EstoqueMovimento.id == movimentacao_id,
+            EstoqueMovimento.tenant_id == self.tenant_id
+        )
+        original = (await self.session.execute(stmt)).scalars().first()
+        if not original:
+            raise EntityNotFoundError(f"Movimentação {movimentacao_id} não encontrada.")
+
+        # 2. Registrar o ajuste no estoque via ledger
+        mov = await registrar_ledger_estoque(
+            self.session,
+            tenant_id=self.tenant_id,
+            produto_id=original.produto_id,
+            deposito_id=original.deposito_id,
+            lote_id=original.lote_id,
+            tipo_movimento=data.tipo_ajuste,
+            quantidade=data.quantidade,
+            custo_unitario=original.custo_unitario,
+            origem="AJUSTE",
+            ajuste_de=original.id,
+            observacoes=data.motivo,
+        )
+
+        # 3. Atualizar saldo real (SaldoEstoque)
+        saldo = await self._get_ou_criar_saldo(original.deposito_id, original.produto_id)
+        # registrar_ledger_estoque normaliza a quantidade dependendo do tipo (SAIDA fica negativo)
+        real_qty = float(mov.quantidade)
+        
+        if data.tipo_ajuste == "SAIDA":
+            disponivel = saldo.quantidade_atual - saldo.quantidade_reservada
+            if disponivel < data.quantidade:
+                raise BusinessRuleError(
+                    f"Saldo insuficiente para ajuste de saída. Disponível: {disponivel:.3f}, Necessário: {data.quantidade:.3f}"
+                )
+        
+        saldo.quantidade_atual += real_qty
+        await self._verificar_e_notificar_estoque_baixo(saldo)
+
+        # 4. Atualizar saldo do lote se existir
+        if original.lote_id:
+            stmt_lote = select(LoteEstoque).where(LoteEstoque.id == original.lote_id)
+            lote = (await self.session.execute(stmt_lote)).scalars().first()
+            if lote:
+                lote.quantidade_atual += real_qty
+                if lote.quantidade_atual <= 0:
+                    lote.status = "ESGOTADO"
+                elif lote.status == "ESGOTADO" and lote.quantidade_atual > 0:
+                    lote.status = "ATIVO"
+
+        # 5. Ajuste Financeiro (se SAIDA e houver safra_id vinculada à original)
+        if data.tipo_ajuste == "SAIDA":
+            stmt_lanc = select(LancamentoFinanceiro.safra_id).where(
+                LancamentoFinanceiro.tenant_id == self.tenant_id,
+                LancamentoFinanceiro.origem == "ESTOQUE",
+                LancamentoFinanceiro.origem_id == original.id
+            ).limit(1)
+            safra_id = (await self.session.execute(stmt_lanc)).scalar_one_or_none()
+            
+            if safra_id:
+                prod = await self._get_produto(original.produto_id)
+                await self._criar_lancamento_insumo(
+                    safra_id=safra_id,
+                    nome_produto=f"Ajuste de estoque: {prod.nome if prod else 'Produto'}",
+                    custo_unitario=float(original.custo_unitario or 0),
+                    quantidade=data.quantidade,
+                    movimentacao_id=mov.id
+                )
+
+        await self.session.flush()
+        await self.session.refresh(mov)
+        return mov
+
+    async def get_auditoria_movimentacao(self, movimentacao_id: UUID) -> dict:
+        # 1. Buscar movimentação original
+        original = await self.obter_movimentacao(movimentacao_id)
+        
+        # 2. Buscar ajustes vinculados
+        stmt_ajustes = select(EstoqueMovimento).where(
+            EstoqueMovimento.ajuste_de == movimentacao_id,
+            EstoqueMovimento.tenant_id == self.tenant_id
+        ).order_by(EstoqueMovimento.created_at.asc())
+        ajustes_db = (await self.session.execute(stmt_ajustes)).scalars().all()
+        
+        ajustes_list = []
+        for a in ajustes_db:
+            # Buscar lançamento financeiro se existir
+            stmt_lanc = select(LancamentoFinanceiro).where(
+                LancamentoFinanceiro.tenant_id == self.tenant_id,
+                LancamentoFinanceiro.origem == "ESTOQUE",
+                LancamentoFinanceiro.origem_id == a.id
+            ).limit(1)
+            lanc = (await self.session.execute(stmt_lanc)).scalars().first()
+            
+            ajuste_item = {
+                "id": a.id,
+                "tipo": a.tipo,
+                "quantidade": a.quantidade,
+                "motivo": a.observacoes,
+                "created_at": a.created_at,
+                "lancamento_financeiro": lanc if lanc else None
+            }
+            ajustes_list.append(ajuste_item)
+            
+        return {
+            "movimentacao_original": original,
+            "ajustes": ajustes_list
+        }
 
     # ── Requisições de Material ────────────────────────────────────────────
 
