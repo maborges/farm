@@ -9,6 +9,10 @@ node_modules
 **/.venv
 __pycache__
 **/__pycache__
+*.log
+*.tsbuildinfo
+test-results/
+**/test-results/
 *.pyc
 *.pyo
 .env.local
