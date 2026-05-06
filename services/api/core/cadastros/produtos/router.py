@@ -263,10 +263,18 @@ async def listar_produtos(
     marca_id: Optional[uuid.UUID] = Query(None),
     ativo: Optional[bool] = Query(None),
     q: Optional[str] = Query(None),
+    incluir_sistema: bool = Query(False),
     session: AsyncSession = Depends(get_session_with_tenant),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
-    objs = await ProdutoService(session, tenant_id).listar_produtos(tipo=tipo, categoria_id=categoria_id, marca_id=marca_id, ativo=ativo, q=q)
+    objs = await ProdutoService(session, tenant_id).listar_produtos(
+        tipo=tipo,
+        categoria_id=categoria_id,
+        marca_id=marca_id,
+        ativo=ativo,
+        q=q,
+        incluir_sistema=incluir_sistema,
+    )
     return [_enrich_produto(o) for o in objs]
 
 

@@ -49,6 +49,14 @@ class NotificacaoPreferencia(Base):
     tipo: Mapped[str] = mapped_column(String(60), nullable=False)
     email_ativo: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     sistema_ativo: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    whatsapp_ativo: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    
+    # Horário de envio (ex: "07:00") - Relevante para tipo=RESUMO_DIARIO
+    horario_envio: Mapped[str] = mapped_column(String(5), default="07:00", nullable=False)
+    
+    # Nível de sensibilidade: ALTO (todos), MEDIO (avisos+criticos), BAIXO (apenas criticos)
+    nivel_sensibilidade: Mapped[str] = mapped_column(String(20), default="ALTO", nullable=False)
+
     created_at: Mapped[datetime] = mapped_column(
         server_default=text("(CURRENT_TIMESTAMP)"), nullable=False
     )

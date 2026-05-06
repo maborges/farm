@@ -37,10 +37,16 @@ class MarcarLidasRequest(BaseModel):
 class NotificacaoPreferenciaUpdate(BaseModel):
     email_ativo: bool
     sistema_ativo: bool
+    whatsapp_ativo: bool = False
+    horario_envio: str = "07:00"
+    nivel_sensibilidade: str = "ALTO" # ALTO, MEDIO, BAIXO
 
 class NotificacaoPreferenciaResponse(BaseModel):
     tipo: str
     email_ativo: bool
     sistema_ativo: bool
+    whatsapp_ativo: bool
+    horario_envio: str
+    nivel_sensibilidade: str
     
     model_config = ConfigDict(from_attributes=True)

@@ -99,6 +99,9 @@ async def atualizar_preferencia(
     if pref:
         pref.email_ativo = dados.email_ativo
         pref.sistema_ativo = dados.sistema_ativo
+        pref.whatsapp_ativo = dados.whatsapp_ativo
+        pref.horario_envio = dados.horario_envio
+        pref.nivel_sensibilidade = dados.nivel_sensibilidade
         pref.updated_at = datetime.now(timezone.utc)
     else:
         pref = NotificacaoPreferencia(
@@ -107,7 +110,10 @@ async def atualizar_preferencia(
             usuario_id=usuario_id,
             tipo=tipo,
             email_ativo=dados.email_ativo,
-            sistema_ativo=dados.sistema_ativo
+            sistema_ativo=dados.sistema_ativo,
+            whatsapp_ativo=dados.whatsapp_ativo,
+            horario_envio=dados.horario_envio,
+            nivel_sensibilidade=dados.nivel_sensibilidade,
         )
         session.add(pref)
         

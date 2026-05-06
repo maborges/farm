@@ -20,6 +20,8 @@ _PRODUTO_LOADS = [
 
 
 class ProdutoService(BaseService[Produto]):
+    def __init__(self, session: AsyncSession, tenant_id: uuid.UUID):
+        super().__init__(Produto, session, tenant_id)
 
     # ── Marcas ────────────────────────────────────────────────────────────────
 
@@ -167,8 +169,13 @@ class ProdutoService(BaseService[Produto]):
     async def listar_produtos(
         self, tipo: Optional[str] = None, categoria_id: Optional[uuid.UUID] = None,
         marca_id: Optional[uuid.UUID] = None, ativo: Optional[bool] = None, q: Optional[str] = None,
+        incluir_sistema: bool = False,
     ) -> list[Produto]:
-        stmt = select(Produto).where(Produto.tenant_id == self.tenant_id).options(*_PRODUTO_LOADS).order_by(Produto.nome)
+        stmt = select(Produto).options(*_PRODUTO_LOADS).order_by(Produto.nome)
+        if incluir_sistema:
+            stmt = stmt.where(or_(Produto.tenant_id.is_(None), Produto.tenant_id == self.tenant_id))
+        else:
+            stmt = stmt.where(Produto.tenant_id == self.tenant_id)
         if tipo:
             stmt = stmt.where(Produto.tipo == tipo)
         if categoria_id:
@@ -199,14 +206,21 @@ class ProdutoService(BaseService[Produto]):
 
     async def _get_produto(self, produto_id: uuid.UUID) -> Produto:
         obj = (await self.session.execute(
-            select(Produto).where(Produto.id == produto_id, Produto.tenant_id == self.tenant_id).options(*_PRODUTO_LOADS)
+            select(Produto).where(
+                Produto.id == produto_id,
+                or_(Produto.tenant_id.is_(None), Produto.tenant_id == self.tenant_id),
+            ).options(*_PRODUTO_LOADS)
         )).scalar_one_or_none()
         if not obj:
             raise EntityNotFoundError("Produto não encontrado")
         return obj
 
     async def atualizar_produto(self, produto_id: uuid.UUID, data) -> Produto:
-        obj = await self._get_produto(produto_id)
+        obj = (await self.session.execute(
+            select(Produto).where(Produto.id == produto_id, Produto.tenant_id == self.tenant_id).options(*_PRODUTO_LOADS)
+        )).scalar_one_or_none()
+        if not obj:
+            raise EntityNotFoundError("Produto não encontrado")
         for k, v in data.model_dump(exclude_none=True).items():
             setattr(obj, k, v)
         await self.session.flush()
@@ -216,7 +230,11 @@ class ProdutoService(BaseService[Produto]):
         return res
 
     async def remover_produto(self, produto_id: uuid.UUID) -> None:
-        obj = await self._get_produto(produto_id)
+        obj = (await self.session.execute(
+            select(Produto).where(Produto.id == produto_id, Produto.tenant_id == self.tenant_id)
+        )).scalar_one_or_none()
+        if not obj:
+            raise EntityNotFoundError("Produto não encontrado")
         obj.ativo = False
 
     # ── Culturas ──────────────────────────────────────────────────────────────

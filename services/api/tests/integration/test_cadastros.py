@@ -126,6 +126,42 @@ async def test_listar_produtos_com_filtros(client, session, headers_admin):
     assert tipos <= {"INSUMO"}, f"Filtro de tipo falhou: {tipos}"
 
 
+@pytest.mark.asyncio
+async def test_listar_produtos_inclui_catalogo_global(client, session, headers_admin):
+    """CAD-PRO-03B: GET /cadastros/produtos inclui produtos padrão do sistema (tenant_id=NULL)."""
+    await _garantir_tenant(session)
+
+    produto_global_id = uuid.uuid4()
+    await session.execute(text("""
+        INSERT INTO cadastros_produtos (
+            id, tenant_id, nome, tipo, unidade_medida, descricao,
+            estoque_minimo, preco_medio, ativo, created_at, updated_at
+        ) VALUES (
+            :id, NULL, :nome, :tipo, :unidade_medida, :descricao,
+            :estoque_minimo, :preco_medio, true, NOW(), NOW()
+        )
+        ON CONFLICT (id) DO NOTHING
+    """), {
+        "id": str(produto_global_id),
+        "nome": f"Produto Sistema {uuid.uuid4().hex[:6]}",
+        "tipo": "INSUMO",
+        "unidade_medida": "L",
+        "descricao": "Produto padrão do sistema",
+        "estoque_minimo": 0,
+        "preco_medio": 0,
+    })
+    await session.commit()
+
+    response = await client.get(
+        "/api/v1/cadastros/produtos?tipo=INSUMO&incluir_sistema=true",
+        headers=headers_admin,
+    )
+
+    assert response.status_code == 200, response.text
+    produtos = response.json()
+    assert any(p["id"] == str(produto_global_id) for p in produtos), "Produto global não foi listado"
+
+
 # ---------------------------------------------------------------------------
 # CAD-PRO-04: Atualizar produto
 # ---------------------------------------------------------------------------

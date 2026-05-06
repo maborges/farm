@@ -264,7 +264,7 @@ class ProdutoUpdate(BaseModel):
 
 class ProdutoResponse(BaseModel):
     id: uuid.UUID
-    tenant_id: uuid.UUID
+    tenant_id: Optional[uuid.UUID]
     nome: str
     tipo: str
     unidade_medida: str

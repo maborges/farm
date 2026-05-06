@@ -98,12 +98,27 @@ async def lifespan(app):
             except Exception as e:
                 logger.error(f"[job] suspender_vencidos erro: {e}")
 
-    task = asyncio.create_task(_job_suspender_vencidos())
+    async def _job_resumo_diario():
+        from notificacoes.resumo_diario_envio_service import EnvioResumoDiarioService
+        while True:
+            try:
+                # Roda a cada minuto para checar se algum usuário tem envio agendado
+                await EnvioResumoDiarioService.enviar_resumos_agendados()
+                await asyncio.sleep(60) 
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                logger.error(f"[job] resumo_diario erro: {e}")
+                await asyncio.sleep(60)
+
+    task_vencidos = asyncio.create_task(_job_suspender_vencidos())
+    task_resumo = asyncio.create_task(_job_resumo_diario())
     yield
     # Shutdown
-    task.cancel()
+    task_vencidos.cancel()
+    task_resumo.cancel()
     try:
-        await task
+        await asyncio.gather(task_vencidos, task_resumo, return_exceptions=True)
     except asyncio.CancelledError:
         pass
     
@@ -136,8 +151,12 @@ from datetime import datetime, timezone, timedelta
 import hashlib
 
 
+# Cache em memória para evitar updates excessivos de heartbeat (throttling)
+# token_hash -> datetime da última atualização
+_heartbeat_cache = {}
+
 class SessionHeartbeatMiddleware(BaseHTTPMiddleware):
-    """Atualiza o heartbeat da sessão ativa a cada requisição autenticada."""
+    """Atualiza o heartbeat da sessão ativa a cada requisição autenticada com throttling."""
 
     async def dispatch(self, request, call_next):
         response = await call_next(request)
@@ -152,19 +171,29 @@ class SessionHeartbeatMiddleware(BaseHTTPMiddleware):
         if not auth_header.startswith("Bearer "):
             return response
 
-        # Atualiza o heartbeat de forma assíncrona (fire-and-forget)
+        # Atualiza o heartbeat de forma assíncrona (fire-and-forget) com throttling
         token = auth_header[7:]
         token_hash = hashlib.sha256(token.encode()).hexdigest()
+        
+        agora = datetime.now(timezone.utc)
+        ultima_att = _heartbeat_cache.get(token_hash)
+        
+        # Throttling: só atualiza no banco se passaram mais de 5 minutos desde a última atualização
+        # Isso reduz drasticamente a pressão no pool de conexões
+        if ultima_att and (agora - ultima_att).total_seconds() < 300:
+            return response
+
+        _heartbeat_cache[token_hash] = agora
 
         # Agenda atualização em background sem bloquear a resposta
         from core.database import async_session_maker
-        from sqlalchemy import select, update
+        from sqlalchemy import update
         from core.models.sessao import SessaoAtiva
 
         async def update_heartbeat():
             try:
+                # O pool_timeout cuidará de travar se não houver conexões
                 async with async_session_maker() as session:
-                    agora = datetime.now(timezone.utc)
                     await session.execute(
                         update(SessaoAtiva)
                         .where(SessaoAtiva.token_hash == token_hash, SessaoAtiva.status == "ATIVA")
@@ -172,10 +201,11 @@ class SessionHeartbeatMiddleware(BaseHTTPMiddleware):
                     )
                     await session.commit()
             except Exception:
-                pass  # Silenciosamente ignora erros de heartbeat
+                # Se falhar, remove do cache para tentar novamente na próxima requisição
+                _heartbeat_cache.pop(token_hash, None)
+                pass
 
         # Executa em background sem bloquear
-        import asyncio
         asyncio.create_task(update_heartbeat())
 
         return response
@@ -277,6 +307,8 @@ app.include_router(router_abastecimento.router, prefix="/api/v1")
 app.include_router(router_checklist.router, prefix="/api/v1")
 from ia.router import router as ia_uso_router
 app.include_router(ia_uso_router, prefix="/api/v1")
+from ia.ux_router import router as ia_ux_router
+app.include_router(ia_ux_router, prefix="/api/v1")
 from pagamentos.webhook_router import router as pagamentos_webhook_router
 app.include_router(pagamentos_webhook_router, prefix="/api/v1")
 from core.routers.backoffice_ia_auditoria import router as backoffice_ia_auditoria_router

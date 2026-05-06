@@ -236,6 +236,7 @@ async def gerar_resumo_consultivo(
         return resultado
 
 
+
 async def _chamar_ia(ctx: ContextoSafra) -> ResumoConsultivo:
     """Chama Anthropic Claude via API. Requer ANTHROPIC_API_KEY no ambiente."""
     import httpx
@@ -282,3 +283,44 @@ async def _chamar_ia(ctx: ContextoSafra) -> ResumoConsultivo:
         nivel_confianca="ALTO",
         fonte="IA",
     )
+
+
+class IAInsightsService:
+    def __init__(self, session: AsyncSession, tenant_id: uuid.UUID):
+        self.session = session
+        self.tenant_id = tenant_id
+
+    async def obter_alertas(self, safra_id: uuid.UUID) -> list[dict]:
+        """Recupera alertas inteligentes ativos (não visualizados ou ignorados) da safra."""
+        from sqlalchemy import select, and_
+        from ia.models import IAAlertaHistorico
+
+        stmt = (
+            select(IAAlertaHistorico)
+            .where(
+                and_(
+                    IAAlertaHistorico.tenant_id == self.tenant_id,
+                    IAAlertaHistorico.safra_id == safra_id,
+                    IAAlertaHistorico.visualizado_em == None,
+                    IAAlertaHistorico.ignorado == False,
+                    IAAlertaHistorico.acao_executada == False
+                )
+            )
+            .order_by(IAAlertaHistorico.created_at.desc())
+        )
+        
+        result = await self.session.execute(stmt)
+        rows = result.scalars().all()
+        
+        return [
+            {
+                "id": r.id,
+                "tipo": r.tipo_alerta,
+                "titulo": r.titulo,
+                "descricao": r.mensagem,
+                "nivel": r.gravidade,
+                "created_at": r.created_at,
+                "link": r.parametros_json.get("link") if r.parametros_json else None
+            }
+            for r in rows
+        ]

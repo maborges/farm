@@ -1,8 +1,9 @@
 import uuid
+from datetime import date
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, text
 from financeiro.models.lancamento import LancamentoFinanceiro
-from financeiro.schemas.lancamento_schema import LancamentoCreate, LancamentoResumo, InsightDashboard, CategoriaBreakdown, SerieTemporal, AlertaSafra, RecomendacaoSafra, ResumoInteligente, ItemPlanoAcao
+from financeiro.schemas.lancamento_schema import LancamentoCreate, LancamentoResumo, InsightDashboard, CategoriaBreakdown, SerieTemporal, AlertaSafra, RecomendacaoSafra, ResumoInteligente, ItemPlanoAcao, LancamentoOrigemItem, DREOperacional
 from agricola.safras.models import Safra
 from agricola.cenarios.models import SafraCenario
 
@@ -102,8 +103,7 @@ class LancamentoService:
 
         return lancamento
 
-    async def listar_origens(self, safra_id: uuid.UUID) -> list:
-        from financeiro.schemas.lancamento_schema import LancamentoOrigemItem
+    async def listar_origens(self, safra_id: uuid.UUID) -> list[LancamentoOrigemItem]:
         stmt = (
             select(LancamentoFinanceiro)
             .where(
@@ -129,7 +129,35 @@ class LancamentoService:
             for r in rows
         ]
 
-    async def resumo(self) -> LancamentoResumo:
+    async def listar(
+        self,
+        safra_id: uuid.UUID | None = None,
+        tipo: str | None = None,
+        categoria: str | None = None,
+        origem: str | None = None,
+        data_inicio: date | None = None,
+        data_fim: date | None = None,
+    ) -> list[LancamentoFinanceiro]:
+        stmt = select(LancamentoFinanceiro).where(LancamentoFinanceiro.tenant_id == self.tenant_id)
+
+        if safra_id:
+            stmt = stmt.where(LancamentoFinanceiro.safra_id == safra_id)
+        if tipo:
+            stmt = stmt.where(LancamentoFinanceiro.tipo == tipo)
+        if categoria:
+            stmt = stmt.where(LancamentoFinanceiro.categoria == categoria)
+        if origem:
+            stmt = stmt.where(LancamentoFinanceiro.origem == origem)
+        if data_inicio:
+            stmt = stmt.where(LancamentoFinanceiro.data >= data_inicio)
+        if data_fim:
+            stmt = stmt.where(LancamentoFinanceiro.data <= data_fim)
+
+        stmt = stmt.order_by(LancamentoFinanceiro.data.desc(), LancamentoFinanceiro.created_at.desc())
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def resumo(self, safra_id: uuid.UUID | None = None) -> LancamentoResumo:
         stmt = select(
             func.coalesce(
                 func.sum(LancamentoFinanceiro.valor).filter(LancamentoFinanceiro.tipo == "CUSTO"), 0
@@ -140,6 +168,9 @@ class LancamentoService:
             func.count(LancamentoFinanceiro.id).label("quantidade"),
         ).where(LancamentoFinanceiro.tenant_id == self.tenant_id)
 
+        if safra_id:
+            stmt = stmt.where(LancamentoFinanceiro.safra_id == safra_id)
+
         row = (await self.session.execute(stmt)).one()
         total_custos = float(row.total_custos)
         total_receitas = float(row.total_receitas)
@@ -147,7 +178,7 @@ class LancamentoService:
             total_custos=total_custos,
             total_receitas=total_receitas,
             saldo=total_receitas - total_custos,
-            quantidade=row.quantidade,
+            quantidade_lancamentos=row.quantidade,
         )
 
     async def insight_dashboard(self) -> InsightDashboard:
@@ -529,3 +560,88 @@ class LancamentoService:
             ))
 
         return plano
+
+    async def gerar_dre(self, safra_id: uuid.UUID) -> DREOperacional:
+        from financeiro.schemas.lancamento_schema import DREOperacional, CategoriaBreakdown
+        
+        # Valida safra
+        safra = await self.session.get(Safra, safra_id)
+        if not safra or safra.tenant_id != self.tenant_id:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=404, detail="Safra não encontrada")
+
+        # Soma Receitas por categoria
+        stmt_rec = select(
+            LancamentoFinanceiro.categoria,
+            func.sum(LancamentoFinanceiro.valor).label("total")
+        ).where(and_(
+            LancamentoFinanceiro.tenant_id == self.tenant_id,
+            LancamentoFinanceiro.safra_id == safra_id,
+            LancamentoFinanceiro.tipo == "RECEITA"
+        )).group_by(LancamentoFinanceiro.categoria)
+        
+        rec_rows = (await self.session.execute(stmt_rec)).fetchall()
+        breakdown_rec = [CategoriaBreakdown(nome=r[0], valor=float(r[1])) for r in rec_rows]
+        total_rec = sum(r.valor for r in breakdown_rec)
+
+        # Soma Custos por categoria
+        stmt_custo = select(
+            LancamentoFinanceiro.categoria,
+            func.sum(LancamentoFinanceiro.valor).label("total")
+        ).where(and_(
+            LancamentoFinanceiro.tenant_id == self.tenant_id,
+            LancamentoFinanceiro.safra_id == safra_id,
+            LancamentoFinanceiro.tipo == "CUSTO"
+        )).group_by(LancamentoFinanceiro.categoria)
+        
+        custo_rows = (await self.session.execute(stmt_custo)).fetchall()
+        breakdown_custo = [CategoriaBreakdown(nome=r[0], valor=float(r[1])) for r in custo_rows]
+        total_custo = sum(r.valor for r in breakdown_custo)
+
+        resultado = total_rec - total_custo
+        margem = (resultado / total_rec * 100) if total_rec > 0 else 0
+
+        return DREOperacional(
+            receita_bruta=total_rec,
+            custos_operacionais=total_custo,
+            resultado_operacional=resultado,
+            margem_percentual=margem,
+            breakdown_receitas=breakdown_rec,
+            breakdown_custos=breakdown_custo
+        )
+
+    async def simular_dre(
+        self, 
+        safra_id: uuid.UUID, 
+        receita_pct: float, 
+        custos_pct: float
+    ) -> "SimulacaoDREResponse":
+        from financeiro.schemas.lancamento_schema import SimulacaoDREResponse
+        
+        # Obtém dados reais
+        dre_real = await self.gerar_dre(safra_id)
+        
+        # Aplica ajustes
+        rec_sim = dre_real.receita_bruta * (1 + receita_pct / 100)
+        custo_sim = dre_real.custos_operacionais * (1 + custos_pct / 100)
+        
+        # Recalcula
+        res_sim = rec_sim - custo_sim
+        margem_sim = (res_sim / rec_sim * 100) if rec_sim > 0 else 0
+        
+        # Variações
+        var_abs = res_sim - dre_real.resultado_operacional
+        var_pct = (var_abs / abs(dre_real.resultado_operacional) * 100) if dre_real.resultado_operacional != 0 else 0
+        
+        return SimulacaoDREResponse(
+            receita_real=dre_real.receita_bruta,
+            custos_real=dre_real.custos_operacionais,
+            resultado_real=dre_real.resultado_operacional,
+            margem_real=dre_real.margem_percentual,
+            receita_simulada=rec_sim,
+            custos_simulados=custo_sim,
+            resultado_simulado=res_sim,
+            margem_simulada=margem_sim,
+            variacao_resultado=var_abs,
+            variacao_resultado_percentual=var_pct
+        )

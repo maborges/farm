@@ -33,11 +33,11 @@ O projeto é dividido em um monorepo contendo:
 - **Regras de Gate**: Configuração de pré-requisitos para avanço de fase, garantindo compliance e padronização operacional entre diferentes propriedades.
 
 ### 5. Sistema de Alertas Inteligentes (Step 101)
+- **UX Telemetry (IA)**: Sistema de rastreamento de eventos para medir a eficiência da tomada de decisão. Compara o Modo Essencial vs Modo Avançado em termos de tempo de resposta e taxa de conversão final, fornecendo insights automáticos para otimização da interface.
 - **Alertas em Runtime**: Geração automática de alertas financeiros baseados em 3 regras de negócio — sem persistência em banco, calculados a cada requisição.
 - **Regra CUSTO_REGISTRADO** (info): Dispara quando `custo_total > 0` na safra, informando quantos lançamentos existem.
 - **Regra MARGEM_NEGATIVA** (danger): Dispara quando a margem do cenário base é negativa, exibindo o valor absoluto para revisão imediata.
 - **Regra AUMENTO_CUSTO** (warning): Compara os dois últimos períodos da série temporal — alerta quando a variação supera 20%.
-- **Fluxo**: `GET /api/v1/financeiro/lancamentos/alertas?safra_id=` → `LancamentoService.gerar_alertas()` → componente `AlertasCard` no dashboard. O card se auto-atualiza a cada 60 segundos e é invalidado após qualquer lançamento de custo.
 
 ### 6. Sistema de Recomendações (Step 102)
 - **Recomendações Acionáveis**: Geração automática de orientações determinísticas para o usuário agir sobre os problemas identificados pelos alertas.
@@ -70,6 +70,86 @@ O projeto é dividido em um monorepo contendo:
 - **Métricas Financeiras**: Os pedidos de compra armazenam de forma imutável a `economia_absoluta` e a `economia_percentual`.
 - **Painel de Analytics**: Interface executiva que consolida a economia total acumulada, média percentual por compra e destaca a "Melhor Decisão" (item com maior economia gerada).
 - **Fluxo Funcional**: `GET /api/v1/compras/analytics/economia` retorna os KPIs que alimentam o `EconomiaAnalyticsCard` no topo da lista de solicitações, fornecendo visibilidade imediata do ROI do sistema de compras.
+
+### 11. Financeiro Operacional por Safra (Step 181)
+- **Análise Consolidada**: Módulo para registrar e consultar lançamentos financeiros (Custos e Receitas) integrados ao ciclo produtivo (Safra).
+- **Filtros Avançados**: Permite filtrar o histórico por Safra, Tipo (Custo/Receita), Categoria e Período, garantindo visibilidade granular do investimento operacional.
+- **Resumo Executivo**: Backend calcula em tempo real o saldo (margem) e volume de lançamentos para o contexto selecionado, alimentando KPIs de performance.
+- **Fluxo Funcional**: `GET /api/v1/financeiro/lancamentos` (listagem) e `GET /api/v1/financeiro/lancamentos/resumo` (KPIs) → Página dedicada em `/dashboard/financeiro/lancamentos`.
+
+### 12. Receitas Operacionais Manuais (Step 182)
+- **Registro de Entradas**: Permite o registro manual de receitas vinculadas à safra, como venda de produção ou outras receitas operacionais.
+- **Validação Estrita**: Garantia de categorias válidas para o tipo RECEITA (`VENDA_PRODUCAO`, `OUTRAS_RECEITAS`) e valores positivos.
+- **Step 183 (DRE Operacional):** Implementação de visão executiva por safra com agregação de receitas, custos, resultado e margem operacional.
+- **Step 184 (IA Analisa Resultado):** Integração de inteligência artificial para interpretar o DRE, gerando resumos estratégicos, pontos de atenção e recomendações práticas para o produtor.
+- **Impacto Econômico**: As receitas registradas alimentam automaticamente o cálculo de saldo e margem operacional da safra no dashboard.
+- **Fluxo Funcional**: Botão "Registrar Receita" na tela de lançamentos abre um dialog para entrada de dados. Ao salvar, o sistema invalida os caches de resumo e listagem para atualização imediata dos KPIs.
+
+### 13. DRE Operacional por Safra (Step 183)
+- **Visão Executiva**: Relatório consolidado que apresenta a performance financeira da safra em formato de DRE simplificado (Receita Bruta, Custos Operacionais, Resultado e Margem %).
+- **Breakdown por Categoria**: Detalhamento visual da composição de custos e receitas, permitindo identificar onde estão os maiores investimentos e entradas.
+- **Isolamento de Gestão**: Foco total em métricas operacionais de campo, sem interferência de provisões contábeis, impostos corporativos ou depreciação.
+- **Fluxo Funcional**: Acessível via sidebar em `/dashboard/financeiro/dre`, utiliza um seletor de safra para carregar os dados agregados via `GET /api/v1/financeiro/lancamentos/dre`.
+
+### 14. Simulação de Resultado da Safra (What-if) (Step 185)
+- **Cenários Preditivos**: Permite simular o resultado financeiro da safra ajustando percentualmente as receitas (-50% a +100%) e custos (-50% a +50%) via sliders interativos.
+- **Análise de Impacto**: Visualização em tempo real da variação do resultado e margem simulada em comparação com os dados reais da safra.
+- **IA de Apoio à Decisão**: Integração com IA para gerar análises estratégicas sobre o cenário simulado, identificando riscos e recomendando ações preventivas ou de otimização.
+- **Fluxo Funcional**: Ativado pelo botão "Simular Cenário" na DRE. O backend processa a projeção via `POST /api/v1/financeiro/dre/simular` e a IA analisa via `POST /api/v1/ia/financeiro/simulacao`.
+
+### 16. IA Recomenda Melhor Cenário (Step 187)
+- **Análise Consultiva**: Motor de IA que avalia todos os cenários salvos e recomenda o melhor equilíbrio entre margem e risco.
+- **Justificativa Estratégica**: Além da recomendação, a IA fornece justificativas técnicas e identifica pontos de risco para cada escolha.
+- **Fluxo Funcional**: `POST /api/v1/ia/financeiro/recomendar-cenario` → Exibição do "Cenário Recomendado" com destaque visual no painel de comparação.
+
+### 17. Tracking e Score de Acerto da IA (Step 188, 189 e 190)
+- **Tracking Real vs Planejado (Step 188)**: Permite marcar um cenário como "Escolhido" e comparar automaticamente sua projeção com o resultado real consolidado da safra.
+- **Aprendizado por Histórico (Step 189)**: A IA utiliza o histórico de desvios reais de decisões passadas para ajustar e melhorar as recomendações futuras.
+- **Score de Confiabilidade (Step 190)**: Cálculo objetivo da taxa de acerto da IA baseado no desvio percentual (Acerto: ≤10%, Parcial: 10-25%, Erro: >25%).
+- **Dashboard de Performance**: Interface em `/dashboard/settings/ia` que exibe a taxa de acerto global, distribuição de precisão e status de saúde do sistema de inteligência.
+- **Fluxo Funcional**: `GET /api/v1/ia/financeiro/score` → Visualização de KPIs de confiabilidade para transparência e auditoria do usuário.
+
+### 18. Performance e Gamificação do Usuário (Step 191)
+- **Dashboard de Impacto**: Card central no painel de controle que quantifica a economia gerada e o sucesso das decisões do usuário.
+- **Métricas de Sucesso**: Avalia o desvio entre planejamento e real (Acertos) e as negociações de compra mais vantajosas.
+- **Níveis de Progressão**: Sistema de gamificação (Iniciante, Profissional, Experiente, Lendário) baseado no volume de decisões e economia total.
+- **Fluxo Funcional**: `GET /api/v1/financeiro/lancamentos/performance-usuario` → Exibição dinâmica de badges, ranking e destaque da melhor decisão no dashboard principal.
+
+### 19. Copiloto Financeiro e IA (Steps 192 - 209)
+- **Alertas Proativos**: Identificação automática de riscos (baixa rentabilidade, desvios de plano, ineficiência de custos).
+- **IA Adaptativa (Behavioral)**: Ajuste do tom e agressividade das recomendações com base no perfil de risco detectado do usuário (Conservador, Equilibrado, Agressivo).
+- **Execução Assistida (Magic Actions)**: Botão "Executar Sugestão" que prepara simulações e ajustes automaticamente, fechando o ciclo de decisão.
+- **Step 202: Dashboard de Performance e ROI do Copiloto IA** — Centralização de métricas de economia, taxas de acerto e conversão.
+- **Step 203: Recomendação de Upgrade baseada em ROI** — Motor de regras comerciais que sugere upgrades de plano ou créditos baseados no valor gerado pela IA.
+- **Step 204: Recomendação de Upgrade no Resumo Diário**: Inclusão de insights de ROI comercial no briefing matinal.
+- **Step 205: IA Preditiva de Risco Financeiro**: Antecipação de riscos de margem e tendências de custo com alertas proativos.
+- **Step 206: Simulação de Estresse Financeiro**: Motor de simulação de cenários extremos para antecipar riscos de insolvência.
+- **Step 207: Plano de Ação Automático**: Geração de estratégias estruturadas de recuperação com ações prioritárias e impacto em R$.
+- **Step 208: Plano de Ação Visual**: Componente `IAPlanoAcaoCard` que permite execução individual assistida de cada recomendação.
+- **Step 209: Execução Assistida em Lote (Batch Actions)**: Botão "Executar Plano Completo" que agrega todas as recomendações em uma única simulação consolidada no DRE.
+- **Step 211: Métricas e ROI do Autopilot**
+    - Implementação de dashboard de performance para o Autopilot.
+    - Cálculo de impacto financeiro simulado e taxa de aceitação implícita.
+    - Exposição de métricas de ROI e confiança do sistema.
+- **Step 212: Autopilot Adaptativo (Auto-Tuning)**
+    - Criação do `IAAutopilotAdaptiveService` para ajuste dinâmico de autonomia.
+    - Análise automática de taxas de reversão e aceitação para calibrar limites.
+    - Interface de sugestão nas configurações da IA para expansão ou redução de limites com base em dados reais.
+
+### 20. Growth & A/B Testing (Steps Growth-08 a Growth-10)
+- **Growth-08: Experimentos A/B**: Motor de testes para variações de configuração e copy em CTAs de upgrade. Permite distribuir tráfego entre variantes (A, B, C...) e medir conversão (SHOWN -> CLICKED) de forma isolada por tenant.
+- **Growth-09: Auto-Experimentos**: O sistema identifica contextos com baixa performance e inicia automaticamente experimentos A/B baseados em sugestões de otimização, permitindo aprendizado contínuo sem intervenção manual.
+- **Growth-10: Geração Dinâmica de Copy**: Sistema de otimização de comunicação que gera automaticamente variações de copy (Título, Descrição, Botão) baseadas em abordagens psicológicas (Urgência, Prova Social, Ganho, Perda e Educativo).
+- **Growth-11: LLM Growth Copy**: Geração de copy hiper-personalizada via IA (Claude) baseada no perfil comportamental, estágio da safra e histórico do produtor. Inclui motor de cache (12h) para latência zero e fallback robusto para templates heurísticos.
+- **Inteligência de Abordagem**: Analytics granular que identifica qual "tom de voz" converte melhor para cada perfil de uso (ex: ROI alto -> abordagem de Ganho; uso excessivo -> abordagem de Urgência).
+- **Fluxo Funcional**: `GET /ia/growth/recomendacao-upgrade` retorna o CTA com variantes dinâmicas (LLM ou Heurística) → Acompanhamento de performance por origem (`origem_copy`).
+
+### 21. IA UX — Telemetria e Interface Adaptativa (Série UX)
+- **UX-03: Telemetria de Decisão**: Rastreamento granular de eventos (tempo de decisão, modo de visualização, taxa de conversão) para medir a eficácia da IA.
+- **UX-04: Feedback Imediato**: Sistema de reforço positivo com toasts premium que quantificam o impacto financeiro e a agilidade da decisão no momento da ação.
+- **UX-05: Essencial Dinâmico (Adaptive UI)**: A interface adapta automaticamente sua densidade e nível de detalhe com base no perfil comportamental detectado (Confiante, Analítico ou Inseguro), otimizando a experiência para cada tipo de usuário.
+- **UX-06: Auto-Calibração de Thresholds**: O sistema recalibra dinamicamente os limites de classificação de perfil baseando-se em percentis da distribuição real de uso, garantindo que as definições de "Confiante" ou "Analítico" evoluam com a base de usuários.
+- **UX-07: Transparência e Explicabilidade**: Implementação de interfaces que explicam "por que" a IA se adaptou. Inclui badge de perfil no card essencial com tooltip educativo e uma nova seção na página de configurações detalhando métricas e thresholds.
 
 ## 🛠️ Como Executar
 

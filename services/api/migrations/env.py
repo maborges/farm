@@ -99,7 +99,29 @@ from financeiro.models.plano_conta import PlanoConta
 from financeiro.models.despesa import Despesa
 from financeiro.models.receita import Receita
 from financeiro.models.rateio import Rateio
+from financeiro.models.lancamento import LancamentoFinanceiro
+from financeiro.models.plano_acao import PlanoAcaoItem
 from financeiro.comercializacao.models import ComercializacaoCommodity
+
+# IA & Automacoes
+from ia.models import (
+    IAUso, IACreditosPacote, IAComprasRecomendacao, IAPromptVersao, IAPromptVersaoHistorico,
+    IAAlertaHistorico, IAAcaoAssistidaHistorico, IAAutopilotConfig, IAUXTelemetria,
+    IAGrowthEvento, IAGrowthSugestaoRegistro, IAGrowthConfig, IAGrowthConfigHistorico,
+    IAUXThreshold, IAGrowthExperimento, IAGrowthExperimentoVariante, IAGrowthExperimentoEvento,
+    IAGrowthCopyCache
+)
+from automacoes.models import AutomacaoConfiguracao, AutomacaoExecucao
+
+# Billing / Solicitacoes
+from core.models.solicitacoes_comerciais import SolicitacaoComercial
+from core.models.solicitacoes_historico import SolicitacaoHistorico
+
+# Agricola Cenarios
+from agricola.cenarios.models import SafraCenario, SafraCenarioUnidade
+
+# Outros
+from agricola.amostragem_solo.models.prescricoes_vra import PrescricaoVRA
 
 # IA Diagnóstico
 from ia_diagnostico.models import PragasDoencas, Tratamentos, Diagnosticos, Recomendacoes, ModelosMl

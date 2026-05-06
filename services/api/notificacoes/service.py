@@ -55,6 +55,7 @@ class NotificacaoService(BaseService[Notificacao]):
         
         enviar_por_email = True
         sistema_ativo = True
+        sensibilidade = "ALTO"
         user = None
         
         if email_resp:
@@ -64,7 +65,8 @@ class NotificacaoService(BaseService[Notificacao]):
         usuario_id = user.id if user else None
 
         # --- Anti-spam Cooldown ---
-        limite_tempo = datetime.now(timezone.utc) - timedelta(hours=COOLDOWN_HORAS)
+        # Usar naive datetime pois a coluna created_at é TIMESTAMP WITHOUT TIME ZONE no banco
+        limite_tempo = datetime.now().replace(microsecond=0) - timedelta(hours=COOLDOWN_HORAS)
         
         stmt_cooldown = select(Notificacao).where(
             Notificacao.tenant_id == self.tenant_id,
@@ -86,24 +88,43 @@ class NotificacaoService(BaseService[Notificacao]):
         # --------------------------
 
         if user:
-                stmt_pref = select(NotificacaoPreferencia).where(
-                    NotificacaoPreferencia.tenant_id == self.tenant_id,
-                    NotificacaoPreferencia.usuario_id == user.id,
-                    NotificacaoPreferencia.tipo == dados.tipo
-                )
-                pref = (await self.session.execute(stmt_pref)).scalar_one_or_none()
-                if pref:
-                    enviar_por_email = pref.email_ativo
-                    sistema_ativo = pref.sistema_ativo
+            stmt_pref = select(NotificacaoPreferencia).where(
+                NotificacaoPreferencia.tenant_id == self.tenant_id,
+                NotificacaoPreferencia.usuario_id == user.id,
+                NotificacaoPreferencia.tipo == dados.tipo
+            )
+            pref = (await self.session.execute(stmt_pref)).scalar_one_or_none()
+            if pref:
+                enviar_por_email = pref.email_ativo
+                sistema_ativo = pref.sistema_ativo
+                sensibilidade = pref.nivel_sensibilidade
 
-        # Se sistema_ativo = False, não criamos a notificação para este fluxo (simplificação para owner)
-        if not sistema_ativo:
+        # --- Filtro de Sensibilidade (Step 196) ---
+        # ALTO: Todas passão
+        # MEDIO: Apenas WARNING e DANGER passão
+        # BAIXO: Apenas DANGER passão
+        if sensibilidade == "MEDIO" and dados.nivel not in ["WARNING", "DANGER"]:
             return None
+        if sensibilidade == "BAIXO" and dados.nivel != "DANGER":
+            return None
+        # ------------------------------------------
+
+        if not sistema_ativo:
+            # Se sistema está desativado mas email ativo, ainda enviamos email se for crítico
+            if enviar_por_email and dados.nivel == "DANGER" and email_resp:
+                pass # continua para o envio de email
+            else:
+                return None
+
+        # --- IA: Gerar Mensagem Inteligente (Step 196) ---
+        mensagem_final = dados.mensagem
+        if dados.nivel in ["WARNING", "DANGER"] or dados.tipo == "OPORTUNIDADE":
+            mensagem_final = await self.gerar_mensagem_ia(dados)
 
         notif = await self.create({
             "tipo": dados.tipo,
             "titulo": dados.titulo,
-            "mensagem": dados.mensagem,
+            "mensagem": mensagem_final,
             "nivel": dados.nivel,
             "origem": dados.origem,
             "origem_id": dados.origem_id,
@@ -113,12 +134,12 @@ class NotificacaoService(BaseService[Notificacao]):
         await self.session.commit()
         await self.session.refresh(notif)
         
-        # Envio proativo de email para notificações críticas (DANGER)
-        if notif.nivel == "DANGER" and email_resp and enviar_por_email:
+        # Envio proativo de email para notificações críticas (DANGER) ou Oportunidades
+        if (notif.nivel == "DANGER" or dados.tipo == "OPORTUNIDADE") and email_resp and enviar_por_email:
             import asyncio
             from notificacoes.email_service import enviar_email
             
-            assunto = f"AgroSaaS — Atenção na sua safra: {notif.titulo}"
+            assunto = f"AgroSaaS — Alerta Inteligente: {notif.titulo}"
             asyncio.create_task(enviar_email(email_resp, assunto, notif.mensagem))
         
         await manager.push(str(self.tenant_id), {
@@ -131,6 +152,48 @@ class NotificacaoService(BaseService[Notificacao]):
             "created_at": notif.created_at.isoformat(),
         })
         return notif
+
+    async def gerar_mensagem_ia(self, dados: NotificacaoCreate) -> str:
+        """Gera uma mensagem curta e impactante usando IA para notificações externas (Step 196)."""
+        import os
+        import httpx
+        from loguru import logger
+        
+        api_key = os.getenv("ANTHROPIC_API_KEY", "")
+        if not api_key:
+            return dados.mensagem
+            
+        prompt = f"""Você é um copiloto agro-financeiro. Resuma o alerta abaixo em uma única frase curta (máximo 120 caracteres) para uma notificação PUSH/EMAIL.
+Deve ser direta, profissional e conter um emoji relevante.
+
+ALERTA:
+Título: {dados.titulo}
+Mensagem Original: {dados.mensagem}
+Gravidade: {dados.nivel}
+
+Exemplo de saída: 🚨 Margem caiu para 8%. Recomendamos revisar custos operacionais imediatamente.
+"""
+
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.post(
+                    "https://api.anthropic.com/v1/messages",
+                    headers={
+                        "x-api-key": api_key,
+                        "anthropic-version": "2023-06-01",
+                        "content-type": "application/json",
+                    },
+                    json={
+                        "model": os.getenv("IA_MODEL", "claude-haiku-4-5-20251001"),
+                        "max_tokens": 200,
+                        "messages": [{"role": "user", "content": prompt}],
+                    },
+                )
+                resp.raise_for_status()
+                return resp.json()["content"][0]["text"].strip()
+        except Exception as e:
+            logger.error(f"Erro ao gerar mensagem IA para notificação: {e}")
+            return dados.mensagem
 
     async def criar_sem_duplicar(self, dados: NotificacaoCreate) -> Notificacao | None:
         """Cria notificação apenas se não houver outra não-lida da mesma origem+tipo."""

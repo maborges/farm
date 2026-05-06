@@ -3,9 +3,18 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Optional
 
-from sqlalchemy import String, Integer, DateTime, ForeignKey, Numeric, Index, JSON, Boolean, Float, Text
-from sqlalchemy import Uuid as UUIDTYPE
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, Numeric, Index, JSON, Boolean, Float, Text
+try:
+    from sqlalchemy import Uuid as UUIDTYPE
+except ImportError:
+    from sqlalchemy.dialects.postgresql import UUID as UUIDTYPE
+
+try:
+    from sqlalchemy.orm import Mapped, mapped_column, relationship
+except ImportError:
+    from sqlalchemy.orm import relationship
+    Mapped = type("Mapped", (), {"__getitem__": lambda s, x: x})()
+    mapped_column = Column
 
 from core.database import Base
 
@@ -135,7 +144,301 @@ class IAPromptVersaoHistorico(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
+
+class IAAlertaHistorico(Base):
+    """Histórico de alertas inteligentes gerados e ações do usuário (Step 194)."""
+    __tablename__ = "ia_alertas_historico"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUIDTYPE(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUIDTYPE(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+    )
+    safra_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUIDTYPE(as_uuid=True), nullable=True)
+    tipo_alerta: Mapped[str] = mapped_column(String(60), nullable=False)
+    titulo: Mapped[str] = mapped_column(String(200), nullable=False)
+    mensagem: Mapped[str] = mapped_column(Text, nullable=False)
+    gravidade: Mapped[str] = mapped_column(String(20), nullable=False)
+    parametros_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    
+    visualizado_em: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    
+    acao_executada: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    acao_executada_em: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    
+    ignorado: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    ignorado_em: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
     __table_args__ = (
-        Index("ix_ia_prompt_vers_hist_prompt", "prompt_versao_id", "created_at"),
-        Index("ix_ia_prompt_vers_hist_tenant", "tenant_id", "created_at"),
+        Index("ix_ia_alertas_hist_tenant", "tenant_id", "created_at"),
+        Index("ix_ia_alertas_hist_safra", "safra_id"),
+    )
+
+
+class IAAcaoAssistidaHistorico(Base):
+    """Histórico de ações assistidas (Magic Actions) executadas pelo usuário ou sistema (Step 201/210)."""
+    __tablename__ = "ia_acoes_assistidas_historico"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUIDTYPE(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUIDTYPE(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+    )
+    usuario_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUIDTYPE(as_uuid=True), nullable=True)
+    origem: Mapped[str] = mapped_column(String(60), nullable=False) # ALERTA_INTELIGENTE, RESUMO_DIARIO, PLANO_ACAO
+    origem_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUIDTYPE(as_uuid=True), nullable=True)
+    tipo_acao: Mapped[str] = mapped_column(String(60), nullable=False) # SIMULACAO, AJUSTE_CENARIO, BATCH
+    parametros_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    
+    metodo_execucao: Mapped[str] = mapped_column(String(20), nullable=False, default="ASSISTIDA") # ASSISTIDA, AUTOMATICA
+    
+    impacto_valor: Mapped[Optional[Decimal]] = mapped_column(Numeric(15, 2), nullable=True) # Step 211
+    revertida: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False) # Step 211
+    revertida_em: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True) # Step 211
+    
+    concluida: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    concluida_em: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+    __table_args__ = (
+        Index("ix_ia_acoes_assist_tenant", "tenant_id", "created_at"),
+        Index("ix_ia_acoes_assist_origem", "origem", "origem_id"),
+    )
+
+
+class IAAutopilotConfig(Base):
+    """Configurações do Modo Autopilot (Execução Automática Controlada) (Step 210)."""
+    __tablename__ = "ia_autopilot_config"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUIDTYPE(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUIDTYPE(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, unique=True
+    )
+    ativo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    nivel_autonomia: Mapped[str] = mapped_column(String(20), nullable=False, default="BAIXO") # BAIXO, MEDIO, ALTO
+    tipos_permitidos: Mapped[list] = mapped_column(JSON, nullable=False, default=list) # SIMULACAO, AJUSTE_CENARIO, ANALISE
+    limite_impacto_percentual: Mapped[float] = mapped_column(Float, nullable=False, default=10.0)
+    
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc)
+    )
+
+    __table_args__ = (
+        Index("ix_ia_autopilot_tenant", "tenant_id"),
+    )
+
+
+class IAUXTelemetria(Base):
+    """Métricas de eficiência de UX (Step UX-03)."""
+    __tablename__ = "ia_ux_telemetria"
+
+    id = Column(UUIDTYPE(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(UUIDTYPE(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False)
+    usuario_id = Column(UUIDTYPE(as_uuid=True), nullable=True)
+    evento = Column(String(50), nullable=False) # essential_view_loaded, cta_clicked, etc.
+    modo = Column(String(20), nullable=False)   # ESSENCIAL, AVANCADO
+    sessao_id = Column(String(100), nullable=True)
+    metadados = Column(JSON, nullable=False, default=dict)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (
+        Index("ix_ia_ux_telemetria_tenant_evento", "tenant_id", "evento", "created_at"),
+        Index("ix_ia_ux_telemetria_evento", "evento"),
+    )
+
+
+class IAGrowthEvento(Base):
+    """Rastreia eventos de CTA de upgrade para controle de cooldown (Growth-01)."""
+    __tablename__ = "ia_growth_eventos"
+
+    id = Column(UUIDTYPE(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(UUIDTYPE(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False)
+    usuario_id = Column(UUIDTYPE(as_uuid=True), nullable=True)
+    evento = Column(String(60), nullable=False)
+    tipo_cta = Column(String(40), nullable=True)
+    contexto = Column(String(40), nullable=True)
+    churn_risk_score = Column(Float, nullable=True)
+    churn_risk_level = Column(String(10), nullable=True)
+    metadados = Column(JSON, nullable=True, default=dict)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (
+        Index("ix_ia_growth_tenant_evento", "tenant_id", "evento", "created_at"),
+        Index("ix_ia_growth_usuario", "usuario_id", "created_at"),
+        Index("ix_ia_growth_churn_level", "tenant_id", "churn_risk_level", "created_at"),
+    )
+
+
+class IAGrowthSugestaoRegistro(Base):
+    """Registro persistente de sugestões de otimização geradas (Growth-06)."""
+    __tablename__ = "ia_growth_sugestoes"
+
+    id = Column(UUIDTYPE(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(UUIDTYPE(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False)
+    sugestao_id = Column(String(32), nullable=False)
+    contexto = Column(String(40), nullable=False)
+    tipo = Column(String(40), nullable=False)
+    impacto = Column(String(10), nullable=False)
+    confianca = Column(Float, nullable=False)
+    justificativa = Column(Text, nullable=False)
+    acao_sugerida = Column(JSON, nullable=False, default=dict)
+    status = Column(String(20), nullable=False, default="PENDENTE")  # PENDENTE | APLICADA | IGNORADA
+    applied_at = Column(DateTime(timezone=True), nullable=True)
+    ignored_at = Column(DateTime(timezone=True), nullable=True)
+    responsavel_id = Column(UUIDTYPE(as_uuid=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (
+        Index("ix_ia_growth_sugestoes_tenant_sid", "tenant_id", "sugestao_id", unique=True),
+        Index("ix_ia_growth_sugestoes_tenant_status", "tenant_id", "status"),
+    )
+
+
+class IAGrowthConfig(Base):
+    """Configuração manual de CTAs por contexto por tenant (Growth-03)."""
+    __tablename__ = "ia_growth_config"
+
+    id = Column(UUIDTYPE(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(UUIDTYPE(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False)
+    contexto = Column(String(40), nullable=False)
+    ativo = Column(Boolean, nullable=False, default=True)
+    cooldown_horas = Column(Integer, nullable=False, default=24)
+    prioridade = Column(Integer, nullable=False, default=1)
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (
+        Index("ix_ia_growth_config_tenant_contexto", "tenant_id", "contexto", unique=True),
+    )
+
+
+class IAGrowthConfigHistorico(Base):
+    """Histórico de alterações manuais de config de CTAs (Growth-03)."""
+    __tablename__ = "ia_growth_config_historico"
+
+    id = Column(UUIDTYPE(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(UUIDTYPE(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False)
+    contexto = Column(String(40), nullable=False)
+    campo_alterado = Column(String(40), nullable=False)
+    valor_anterior = Column(String(100), nullable=True)
+    valor_novo = Column(String(100), nullable=False)
+    alterado_por = Column(UUIDTYPE(as_uuid=True), nullable=True)
+    criado_em = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (
+        Index("ix_ia_growth_config_hist_tenant", "tenant_id", "criado_em"),
+    )
+
+
+class IAUXThreshold(Base):
+    """Armazena thresholds dinâmicos para calibração de UX (Step UX-06)."""
+    __tablename__ = "ia_ux_thresholds"
+
+    id = Column(UUIDTYPE(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    chave = Column(String(100), nullable=False, unique=True) # ex: confiante_tempo_p25
+    valor = Column(Float, nullable=False)
+    valor_padrao = Column(Float, nullable=False)
+    descricao = Column(Text, nullable=True)
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (
+        Index("ix_ia_ux_thresholds_chave", "chave"),
+    )
+
+
+class IAGrowthExperimento(Base):
+    """Estrutura de Experimentos A/B para CTAs de Growth (Growth-08)."""
+    __tablename__ = "ia_growth_experimentos"
+
+    id = Column(UUIDTYPE(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(UUIDTYPE(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False)
+    contexto = Column(String(40), nullable=False)
+    nome = Column(String(120), nullable=False)
+    status = Column(String(20), nullable=False, default="ATIVO") # ATIVO | FINALIZADO
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    started_at = Column(DateTime(timezone=True), nullable=True)
+    ended_at = Column(DateTime(timezone=True), nullable=True)
+
+    variantes = relationship("IAGrowthExperimentoVariante", back_populates="experimento", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        Index("ix_ia_growth_exp_tenant_ctx_status", "tenant_id", "contexto", "status"),
+    )
+
+
+class IAGrowthExperimentoVariante(Base):
+    """Variantes (A, B, C...) de um experimento de Growth (Growth-08)."""
+    __tablename__ = "ia_growth_experimento_variantes"
+
+    id = Column(UUIDTYPE(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    experimento_id = Column(UUIDTYPE(as_uuid=True), ForeignKey("ia_growth_experimentos.id", ondelete="CASCADE"), nullable=False)
+    nome = Column(String(20), nullable=False)
+    config_override = Column(JSON, nullable=False, default=dict) # ex: {"cooldown_horas": 6}
+    cta = Column(JSON, nullable=True) # Growth-10: titulo, descricao, botao, tipo_abordagem
+    peso = Column(Float, nullable=False, default=1.0)
+    ativo = Column(Boolean, nullable=False, default=True)
+    origem_copy = Column(String(20), nullable=False, default="HEURISTICA") # HEURISTICA | LLM (Growth-11)
+
+    experimento = relationship("IAGrowthExperimento", back_populates="variantes")
+
+    __table_args__ = (
+        Index("ix_ia_growth_variantes_exp", "experimento_id"),
+    )
+
+
+class IAGrowthExperimentoEvento(Base):
+    """Rastreia visualizações e cliques específicos de experimentos A/B (Growth-08)."""
+    __tablename__ = "ia_growth_experimento_eventos"
+
+    id = Column(UUIDTYPE(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(UUIDTYPE(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False)
+    usuario_id = Column(UUIDTYPE(as_uuid=True), nullable=True)
+    experimento_id = Column(UUIDTYPE(as_uuid=True), ForeignKey("ia_growth_experimentos.id", ondelete="CASCADE"), nullable=False)
+    variante_id = Column(UUIDTYPE(as_uuid=True), ForeignKey("ia_growth_experimento_variantes.id", ondelete="CASCADE"), nullable=False)
+    evento = Column(String(20), nullable=False) # SHOWN | CLICKED
+    contexto = Column(String(40), nullable=False)
+    origem_copy = Column(String(20), nullable=True) # Growth-11
+    churn_risk_score = Column(Float, nullable=True)
+    churn_risk_level = Column(String(10), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (
+        Index("ix_ia_growth_exp_eventos_exp", "experimento_id", "evento"),
+        Index("ix_ia_growth_exp_eventos_tenant", "tenant_id", "created_at"),
+        Index("ix_ia_growth_exp_eventos_user", "usuario_id"),
+        Index("ix_ia_growth_exp_eventos_churn", "tenant_id", "churn_risk_level", "created_at"),
+    )
+
+class IAGrowthCopyCache(Base):
+    """Cache de copy gerado por LLM para evitar chamadas excessivas (Growth-11)."""
+    __tablename__ = "ia_growth_copy_cache"
+
+    tenant_id = Column(UUIDTYPE(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), primary_key=True)
+    contexto = Column(String(40), primary_key=True)
+    perfil_hash = Column(String(64), primary_key=True)
+    cta = Column(JSON, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+
+class IAGrowthUserProfile(Base):
+    """Perfil de comportamento de growth do usuário (Persona) (Growth-12)."""
+    __tablename__ = "ia_growth_user_profiles"
+
+    user_id = Column(UUIDTYPE(as_uuid=True), primary_key=True)
+    perfil = Column(String(40), nullable=False) # CONSERVADOR, EXPLORADOR, ORIENTADO_A_RESULTADO, INICIANTE, AVANCADO
+    score = Column(JSON, nullable=True)
+    updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (
+        Index("ix_ia_growth_user_perfil", "perfil"),
     )

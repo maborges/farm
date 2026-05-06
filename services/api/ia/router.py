@@ -4,12 +4,16 @@ from decimal import Decimal
 from datetime import datetime, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
+from core.database import get_db
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc, Integer as sa_Integer
 from pydantic import BaseModel, Field
 from loguru import logger
 
-from core.dependencies import get_session, get_tenant_id, get_current_user_claims, get_session_with_tenant
+from core.dependencies import (
+    get_session, get_tenant_id, get_current_user_claims, 
+    get_session_with_tenant, get_current_tenant
+)
 from core.models.billing import AssinaturaTenant, PlanoAssinatura
 from core.models.solicitacoes_comerciais import SolicitacaoComercial
 from ia.usage_service import (
@@ -17,8 +21,82 @@ from ia.usage_service import (
     consultar_uso_hibrido, LIMITES_MENSAIS,
 )
 from ia.models import IAUso
+from financeiro.schemas.lancamento_schema import SimulacaoDREPayload, ResumoDiarioResponse
+from financeiro.services.resumo_diario_service import ResumoDiarioService
+from ia.acoes_assistidas_service import AcaoAssistidaService
+from ia.performance_service import IAPerformanceService
+from ia.upgrade_recomendacao_service import IARecomendacaoUpgradeService
+from ia.schemas import (
+    IAAcaoAssistidaHistoricoResponse,
+    IAPerformanceDashboardResponse,
+    IAUpgradeRecomendacaoResponse,
+    IAPredicaoRiscoResponse,
+    IAEstresseFinanceiroResponse,
+    IAPlanoAcaoResponse,
+    IAAutopilotMetricsResponse,
+    AcaoAssistidaResponse,
+    MetricasAcaoAssistidaResponse,
+    IAProgressoResponse,
+    IAGrowthCTAResponse,
+    IAGrowthExperimentoSchema,
+    IAGrowthExperimentoCreate,
+    IAGrowthExperimentoResultado,
+    IAGrowthExperimentoAutoCreate,
+    IAGrowthCopyPerformanceResponse,
+    IAGrowthPersonasPerformanceResponse,
+    IAGrowthChurnDashboardResponse,
+)
+from ia.predicao_risco_service import IAPredicaoRiscoService
+from ia.estresse_financeiro_service import IAEstresseFinanceiroService
+from ia.autopilot_service import IAAutopilotService
 
 router = APIRouter(prefix="/ia", tags=["IA — Uso"])
+
+
+class AutopilotConfigUpdate(BaseModel):
+    ativo: Optional[bool] = None
+    nivel_autonomia: Optional[str] = None
+    tipos_permitidos: Optional[list[str]] = None
+    limite_impacto_percentual: Optional[float] = None
+
+
+class AutopilotConfigResponse(BaseModel):
+    ativo: bool
+    nivel_autonomia: str
+    tipos_permitidos: list[str]
+    limite_impacto_percentual: float
+    updated_at: datetime
+
+
+class IAAutopilotMetricsResponse(BaseModel):
+    total_acoes_automaticas: int
+    impacto_financeiro_simulado_total: float
+    impacto_medio_por_acao: float
+    taxa_aprovacao_implicita: float
+    taxa_reversao: float
+    tempo_medio_ate_interacao_minutos: float
+    insight: str
+    indicador_confianca: int
+
+class IAAutopilotTuningResponse(BaseModel):
+    deve_ajustar: bool
+    acao: str
+    limite_atual: float
+    novo_limite: float
+    mensagem: str
+    motivo: str
+
+class IAEssentialResponse(BaseModel):
+    prioridade: str
+    tipo: str
+    titulo: str
+    resumo: str
+    detalhe: str
+    impacto_financeiro: str
+    acao_label: str
+    rota: str
+    cor: str
+    id_referencia: Optional[str] = None
 
 
 class ResumoCreditosIA(BaseModel):
@@ -40,6 +118,16 @@ class SolicitarCreditosResponse(BaseModel):
     quantidade: int
     status: str
     mensagem: str
+
+
+class RegistrarAcaoAssistidaPayload(BaseModel):
+    origem: str
+    origem_id: Optional[uuid.UUID] = None
+    tipo_acao: str
+    parametros_json: Optional[dict] = None
+
+
+# Schemas definidos em ia/schemas.py
 
 
 # ── Precificação centralizada ────────────────────────────────────────────────
@@ -344,6 +432,458 @@ async def checkout_creditos_ia(
         margem_estimada=float(margem_info["margem_estimada"]),
         margem_percentual=float(margem_info["margem_percentual"]),
     )
+
+
+@router.get("/financeiro/predicao-risco", response_model=IAPredicaoRiscoResponse)
+async def prever_risco_financeiro(
+    safra_id: Optional[uuid.UUID] = Query(None),
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    session: AsyncSession = Depends(get_session),
+):
+    """
+    Analisa tendências históricas para antecipar riscos financeiros (Step 205).
+    """
+    from ia.essential_service import IAEssentialService
+    safra_id = await IAEssentialService.resolve_safra_id(session, tenant_id, safra_id)
+    if not safra_id:
+        raise HTTPException(status_code=422, detail="Safra não informada e nenhuma safra ativa encontrada.")
+        
+    svc = IAPredicaoRiscoService(session, tenant_id)
+    resultado = await svc.prever_risco_financeiro(safra_id)
+    return IAPredicaoRiscoResponse(**resultado)
+
+
+@router.get("/financeiro/simulacao-estresse", response_model=IAEstresseFinanceiroResponse)
+async def get_simulacao_estresse(
+    safra_id: Optional[uuid.UUID] = Query(None),
+    db: AsyncSession = Depends(get_db),
+    tenant_id: uuid.UUID = Depends(get_current_tenant)
+):
+    """Retorna a simulação de estresse financeiro (Step 206)."""
+    from ia.essential_service import IAEssentialService
+    safra_id = await IAEssentialService.resolve_safra_id(db, tenant_id, safra_id)
+    if not safra_id:
+        raise HTTPException(status_code=422, detail="Safra não informada e nenhuma safra ativa encontrada.")
+        
+    service = IAEstresseFinanceiroService(db, tenant_id)
+    return await service.simular_estresse_financeiro(safra_id)
+
+@router.get("/autopilot/metricas", response_model=IAAutopilotMetricsResponse)
+async def get_autopilot_metricas(
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    session: AsyncSession = Depends(get_session),
+):
+    """Retorna métricas de performance e ROI do Autopilot (Step 211)."""
+    from ia.autopilot_metrics_service import IAAutopilotMetricsService
+    return await IAAutopilotMetricsService.obter_metricas(session, tenant_id)
+
+
+@router.get("/autopilot/sugestao-tuning", response_model=IAAutopilotTuningResponse)
+async def get_autopilot_sugestao_tuning(
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    session: AsyncSession = Depends(get_session),
+):
+    """Retorna sugestão de ajuste de autonomia baseada em performance (Step 212)."""
+    from ia.adaptive_service import IAAutopilotAdaptiveService
+    return await IAAutopilotAdaptiveService.avaliar_ajuste_autonomia(session, tenant_id)
+
+
+@router.post("/autopilot/aplicar-tuning")
+async def aplicar_autopilot_tuning(
+    request: dict,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    session: AsyncSession = Depends(get_session),
+):
+    """Aplica o novo limite sugerido de autonomia (Step 212)."""
+    from ia.autopilot_service import IAAutopilotService
+    novo_limite = request.get("novo_limite")
+    
+    if novo_limite is None:
+        return {"success": False, "error": "novo_limite_obrigatorio"}
+        
+    await IAAutopilotService.update_config(session, tenant_id, {"limite_impacto_percentual": novo_limite})
+    
+    # Evento de Tracking (Log ou Tabela de Eventos se existir)
+    # logger.info(f"autopilot_tuning_applied: tenant={tenant_id} novo_limite={novo_limite}")
+    
+    return {"success": True, "novo_limite": novo_limite}
+
+
+@router.get("/essencial", response_model=IAEssentialResponse)
+async def get_visao_essencial(
+    safra_id: Optional[uuid.UUID] = Query(None),
+    session: AsyncSession = Depends(get_session),
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    claims: dict = Depends(get_current_user_claims),
+):
+    """Retorna a visão essencial e priorizada de IA (Step UX-02)."""
+    usuario_id_str = claims.get("sub")
+    usuario_id = uuid.UUID(usuario_id_str) if usuario_id_str else None
+
+    from ia.essential_service import IAEssentialService
+    safra_id = await IAEssentialService.resolve_safra_id(session, tenant_id, safra_id)
+    return await IAEssentialService.obter_essencial(session, tenant_id, safra_id, usuario_id=usuario_id)
+
+
+@router.get("/progresso", response_model=IAProgressoResponse)
+async def get_progresso_usuario_ia(
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    claims: dict = Depends(get_current_user_claims),
+    session: AsyncSession = Depends(get_session),
+):
+    """Retorna a evolução e progresso do usuário no uso da IA (Step UX-11)."""
+    usuario_id_str = claims.get("sub")
+    usuario_id = uuid.UUID(usuario_id_str) if usuario_id_str else None
+    
+    from ia.ux_telemetry_service import IAUXTelemetryService
+    return await IAUXTelemetryService.calcular_progresso_usuario_ia(session, tenant_id, usuario_id=usuario_id)
+
+
+@router.get("/growth/recomendacao-upgrade", response_model=IAGrowthCTAResponse)
+async def get_growth_recomendacao(
+    contexto: str = Query("progresso"),
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    claims: dict = Depends(get_current_user_claims),
+    session: AsyncSession = Depends(get_session),
+):
+    """Avalia gatilhos de conversão e retorna CTA contextual (Growth-01)."""
+    from ia.growth_service import IAGrowthService
+    usuario_id_str = claims.get("sub")
+    usuario_id = uuid.UUID(usuario_id_str) if usuario_id_str else None
+    return await IAGrowthService.recomendacao_upgrade(session, tenant_id, usuario_id, contexto)
+
+
+@router.post("/growth/track")
+async def track_growth_evento(
+    payload: dict,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    claims: dict = Depends(get_current_user_claims),
+    session: AsyncSession = Depends(get_session),
+):
+    """Registra evento de CTA de upgrade para cooldown e analytics (Growth-01)."""
+    from ia.growth_service import IAGrowthService
+    usuario_id_str = claims.get("sub")
+    usuario_id = uuid.UUID(usuario_id_str) if usuario_id_str else None
+    await IAGrowthService.registrar_evento(
+        db=session,
+        tenant_id=tenant_id,
+        usuario_id=usuario_id,
+        evento=payload.get("evento", "upgrade_cta_viewed"),
+        tipo_cta=payload.get("tipo_cta", ""),
+        contexto=payload.get("contexto", ""),
+        churn_risk_score=payload.get("churn_risk_score"),
+        churn_risk_level=payload.get("churn_risk_level"),
+        metadados=payload.get("metadados"),
+    )
+    return {"status": "ok"}
+
+
+@router.get("/growth/metricas")
+async def get_growth_metricas(
+    periodo_dias: int = Query(30, ge=7, le=90),
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    session: AsyncSession = Depends(get_session),
+):
+    """Métricas de conversão de CTAs por contexto (Growth-02)."""
+    from ia.growth_service import IAGrowthService
+    return await IAGrowthService.calcular_metricas_cta(session, tenant_id, periodo_dias)
+
+
+@router.get("/growth/config")
+async def get_growth_config(
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    claims: dict = Depends(get_current_user_claims),
+    session: AsyncSession = Depends(get_session),
+):
+    """Lista configurações de CTA por contexto do tenant (Growth-03)."""
+    if not claims.get("is_owner"):
+        raise HTTPException(status_code=403, detail="Apenas o proprietário do tenant pode acessar configurações de growth.")
+    from ia.growth_service import IAGrowthService
+    return await IAGrowthService.listar_configs(session, tenant_id)
+
+
+@router.patch("/growth/config/{contexto}")
+async def patch_growth_config(
+    contexto: str,
+    payload: dict,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    claims: dict = Depends(get_current_user_claims),
+    session: AsyncSession = Depends(get_session),
+):
+    """Aplica ajuste manual em config de CTA (Growth-03). Requer is_owner."""
+    if not claims.get("is_owner"):
+        raise HTTPException(status_code=403, detail="Apenas o proprietário do tenant pode alterar configurações de growth.")
+    from ia.growth_service import IAGrowthService
+    usuario_id_str = claims.get("sub")
+    usuario_id = uuid.UUID(usuario_id_str) if usuario_id_str else None
+    return await IAGrowthService.atualizar_config(session, tenant_id, contexto, usuario_id, payload)
+
+
+@router.post("/growth/config/{contexto}/reverter")
+async def reverter_growth_config(
+    contexto: str,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    claims: dict = Depends(get_current_user_claims),
+    session: AsyncSession = Depends(get_session),
+):
+    """Reverte config do contexto para defaults de fábrica (Growth-03)."""
+    if not claims.get("is_owner"):
+        raise HTTPException(status_code=403, detail="Apenas o proprietário do tenant pode reverter configurações de growth.")
+    from ia.growth_service import IAGrowthService
+    usuario_id_str = claims.get("sub")
+    usuario_id = uuid.UUID(usuario_id_str) if usuario_id_str else None
+    return await IAGrowthService.reverter_config(session, tenant_id, contexto, usuario_id)
+
+
+@router.get("/growth/config/historico")
+async def get_growth_config_historico(
+    contexto: Optional[str] = Query(None),
+    periodo_dias: int = Query(30, ge=1, le=90),
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    claims: dict = Depends(get_current_user_claims),
+    session: AsyncSession = Depends(get_session),
+):
+    """Histórico auditável de alterações em configurações de CTA (Growth-04)."""
+    if not claims.get("is_owner"):
+        raise HTTPException(status_code=403, detail="Apenas o proprietário do tenant pode visualizar o histórico de growth.")
+    from ia.growth_service import IAGrowthService
+    return await IAGrowthService.listar_historico(session, tenant_id, contexto, periodo_dias)
+
+
+@router.get("/growth/sugestoes")
+async def get_growth_sugestoes(
+    periodo_dias: int = Query(30, ge=7, le=90),
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    claims: dict = Depends(get_current_user_claims),
+    session: AsyncSession = Depends(get_session),
+):
+    """Sugestões persistidas de otimização de CTAs (Growth-05/06)."""
+    if not claims.get("is_owner"):
+        raise HTTPException(status_code=403, detail="Apenas o proprietário do tenant pode visualizar sugestões de growth.")
+    from ia.growth_service import IAGrowthService
+    return await IAGrowthService.gerar_sugestoes_otimizacao(session, tenant_id, periodo_dias)
+
+
+@router.post("/growth/sugestoes/{sugestao_id}/aplicar")
+async def aplicar_growth_sugestao(
+    sugestao_id: str,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    claims: dict = Depends(get_current_user_claims),
+    session: AsyncSession = Depends(get_session),
+):
+    """Aplica sugestão de otimização e atualiza config (Growth-06)."""
+    if not claims.get("is_owner"):
+        raise HTTPException(status_code=403, detail="Apenas o proprietário do tenant pode aplicar sugestões.")
+    from ia.growth_service import IAGrowthService
+    usuario_id = uuid.UUID(claims["sub"]) if claims.get("sub") else None
+    try:
+        return await IAGrowthService.aplicar_sugestao(session, tenant_id, sugestao_id, usuario_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post("/growth/sugestoes/{sugestao_id}/ignorar")
+async def ignorar_growth_sugestao(
+    sugestao_id: str,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    claims: dict = Depends(get_current_user_claims),
+    session: AsyncSession = Depends(get_session),
+):
+    """Marca sugestão como ignorada (Growth-06)."""
+    if not claims.get("is_owner"):
+        raise HTTPException(status_code=403, detail="Apenas o proprietário do tenant pode ignorar sugestões.")
+    from ia.growth_service import IAGrowthService
+    usuario_id = uuid.UUID(claims["sub"]) if claims.get("sub") else None
+    try:
+        return await IAGrowthService.ignorar_sugestao(session, tenant_id, sugestao_id, usuario_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/growth/sugestoes/desempenho")
+async def get_growth_sugestoes_desempenho(
+    periodo_dias: int = Query(30, ge=7, le=90),
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    claims: dict = Depends(get_current_user_claims),
+    session: AsyncSession = Depends(get_session),
+):
+    """Avalia resultado das sugestões aplicadas vs. métricas reais (Growth-07)."""
+    if not claims.get("is_owner"):
+        raise HTTPException(status_code=403, detail="Apenas o proprietário do tenant pode visualizar o desempenho das sugestões.")
+    from ia.growth_service import IAGrowthService
+    return await IAGrowthService.avaliar_resultado_sugestoes(session, tenant_id, periodo_dias)
+
+
+@router.get("/growth/experimentos", response_model=list[IAGrowthExperimentoSchema])
+async def listar_experimentos(
+    contexto: Optional[str] = Query(None),
+    status: Optional[str] = Query(None),
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    claims: dict = Depends(get_current_user_claims),
+    session: AsyncSession = Depends(get_session),
+):
+    """Lista experimentos de growth do tenant (Growth-08)."""
+    if not claims.get("is_owner"):
+        raise HTTPException(status_code=403, detail="Apenas o proprietário pode gerir experimentos.")
+    from ia.growth_service import IAGrowthService
+    return await IAGrowthService.listar_experimentos(session, tenant_id, contexto, status)
+
+
+@router.post("/growth/experimentos", response_model=IAGrowthExperimentoSchema, status_code=201)
+async def criar_experimento(
+    body: IAGrowthExperimentoCreate,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    claims: dict = Depends(get_current_user_claims),
+    session: AsyncSession = Depends(get_session),
+):
+    """Cria um novo experimento A/B para um contexto (Growth-08)."""
+    if not claims.get("is_owner"):
+        raise HTTPException(status_code=403, detail="Apenas o proprietário pode criar experimentos.")
+    from ia.growth_service import IAGrowthService
+    return await IAGrowthService.criar_experimento(
+        session, tenant_id, body.contexto, body.nome, body.variantes
+    )
+
+
+@router.post("/growth/experimentos/auto-gerar", response_model=IAGrowthExperimentoSchema, status_code=201)
+async def auto_gerar_experimento(
+    body: IAGrowthExperimentoAutoCreate,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    claims: dict = Depends(get_current_user_claims),
+    session: AsyncSession = Depends(get_session),
+):
+    """Gera automaticamente um experimento com variante LLM + Heurísticas (IA-Growth-11)."""
+    if not claims.get("is_owner"):
+        raise HTTPException(status_code=403, detail="Apenas o proprietário pode criar experimentos.")
+    
+    from ia.growth_service import IAGrowthService
+    
+    # Simula dados de contexto básicos para a geração
+    # Em um fluxo real, isso viria de métricas reais do tenant
+    dados_contexto = {
+        "roi_valor": 1250.0,
+        "percentual_uso": 85.0
+    }
+    
+    usuario_id_str = claims.get("sub")
+    usuario_id = uuid.UUID(usuario_id_str) if usuario_id_str else None
+    
+    variantes = await IAGrowthService.gerar_variacoes_cta(
+        session, tenant_id, body.contexto, dados_contexto, usuario_id
+    )
+    
+    # Formata para o formato esperado pelo criar_experimento
+    variantes_data = []
+    for i, v in enumerate(variantes):
+        variantes_data.append({
+            "nome": f"Variante {chr(65+i)} ({v['origem']})",
+            "peso": 1.0,
+            "cta": v,
+            "origem": v["origem"]
+        })
+        
+    return await IAGrowthService.criar_experimento(
+        session, tenant_id, body.contexto, body.nome, variantes_data
+    )
+
+
+@router.post("/growth/experimentos/{experimento_id}/finalizar")
+async def finalizar_experimento(
+    experimento_id: uuid.UUID,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    claims: dict = Depends(get_current_user_claims),
+    session: AsyncSession = Depends(get_session),
+):
+    """Finaliza um experimento ativo (Growth-08)."""
+    if not claims.get("is_owner"):
+        raise HTTPException(status_code=403, detail="Apenas o proprietário pode finalizar experimentos.")
+    from ia.growth_service import IAGrowthService
+    return await IAGrowthService.finalizar_experimento(session, experimento_id)
+
+
+@router.get("/growth/experimentos/{experimento_id}/resultado", response_model=IAGrowthExperimentoResultado)
+async def get_resultado_experimento(
+    experimento_id: uuid.UUID,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    claims: dict = Depends(get_current_user_claims),
+    session: AsyncSession = Depends(get_session),
+):
+    """Calcula e retorna os resultados de um experimento (Growth-08)."""
+    if not claims.get("is_owner"):
+        raise HTTPException(status_code=403, detail="Apenas o proprietário pode ver resultados de experimentos.")
+    from ia.growth_service import IAGrowthService
+    return await IAGrowthService.calcular_resultado_experimento(session, experimento_id)
+
+
+@router.get("/growth/copy/performance", response_model=IAGrowthCopyPerformanceResponse)
+async def get_growth_copy_performance(
+    contexto: Optional[str] = Query(None),
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    claims: dict = Depends(get_current_user_claims),
+    session: AsyncSession = Depends(get_session),
+):
+    """Retorna performance por tipo de abordagem de copy (Growth-10)."""
+    if not claims.get("is_owner"):
+        raise HTTPException(status_code=403, detail="Apenas o proprietário pode ver performance de copy.")
+    from ia.growth_service import IAGrowthService
+    perf = await IAGrowthService.calcular_performance_copy(session, tenant_id, contexto)
+    
+    melhor = None
+    if perf:
+        melhor = max(perf, key=lambda x: x["conversao"])["tipo_abordagem"]
+        
+    return {
+        "contexto": contexto or "todos",
+        "performance": perf,
+        "melhor_abordagem": melhor
+    }
+
+
+@router.post("/growth/experimentos/track-click")
+async def track_click_experimento(
+    payload: dict,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    claims: dict = Depends(get_current_user_claims),
+    session: AsyncSession = Depends(get_session),
+):
+    """Registra clique em um CTA de experimento (Growth-08)."""
+    from ia.growth_service import IAGrowthService
+    experimento_id = payload.get("experimento_id")
+    variante_id = payload.get("variante_id")
+    contexto = payload.get("contexto")
+    usuario_id = uuid.UUID(claims["sub"]) if claims.get("sub") else None
+    
+    if not experimento_id or not variante_id:
+        raise HTTPException(status_code=400, detail="experimento_id e variante_id são obrigatórios.")
+        
+    await IAGrowthService.registrar_click_experimento(
+        session,
+        tenant_id,
+        usuario_id,
+        uuid.UUID(experimento_id),
+        uuid.UUID(variante_id),
+        contexto,
+        churn_risk_score=payload.get("churn_risk_score"),
+        churn_risk_level=payload.get("churn_risk_level"),
+    )
+    return {"status": "ok"}
+
+
+@router.get("/financeiro/plano-acao", response_model=IAPlanoAcaoResponse)
+async def get_plano_acao(
+    safra_id: Optional[uuid.UUID] = Query(None),
+    db: AsyncSession = Depends(get_db),
+    tenant_id: uuid.UUID = Depends(get_current_tenant)
+):
+    """Retorna o plano de ação automático para recuperação financeira (Step 207)."""
+    from ia.essential_service import IAEssentialService
+    safra_id = await IAEssentialService.resolve_safra_id(db, tenant_id, safra_id)
+    if not safra_id:
+        raise HTTPException(status_code=422, detail="Safra não informada e nenhuma safra ativa encontrada.")
+        
+    from ia.plano_acao_service import IAPlanoAcaoService
+    service = IAPlanoAcaoService(db, tenant_id)
+    return await service.gerar_plano_recuperacao(safra_id)
 
 
 # ── Estratégia de Compra por IA (Step 168) ───────────────────────────────────
@@ -1250,3 +1790,525 @@ async def listar_recomendacoes_compra(
         )
         for r in rows
     ]
+
+
+# ── DRE Intelligence (Step 184) ──────────────────────────────────────────────
+
+class DREAnalysisPayload(BaseModel):
+    safra_id: uuid.UUID
+
+class DREAnalysisResponse(BaseModel):
+    resumo: str
+    pontos_positivos: list[str]
+    pontos_atencao: list[str]
+    recomendacoes: list[str]
+    nivel_confianca: float
+    fonte: str
+    ia_disponivel: bool
+    limite_atingido: bool
+
+@router.post("/financeiro/analise-dre", response_model=DREAnalysisResponse)
+async def analisar_dre_safra_endpoint(
+    body: DREAnalysisPayload,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    claims: dict = Depends(get_current_user_claims),
+    session: AsyncSession = Depends(get_session),
+):
+    """Analisa o resultado da safra usando IA para traduzir números em decisões (Step 184)."""
+    from financeiro.services.lancamento_service import LancamentoService
+    from ia.dre_intelligence_service import ContextoDRE, analisar_dre_safra as _analisar
+    
+    # 1. Obtém dados da DRE
+    fin_svc = LancamentoService(session, tenant_id)
+    dre = await fin_svc.gerar_dre(body.safra_id)
+    
+    # 2. Monta contexto
+    ctx = ContextoDRE(
+        receita_bruta=dre.receita_bruta,
+        custos_operacionais=dre.custos_operacionais,
+        resultado_operacional=dre.resultado_operacional,
+        margem_percentual=dre.margem_percentual,
+        breakdown_custos=[{"categoria": c.nome, "valor": c.valor} for c in dre.breakdown_custos],
+        breakdown_receitas=[{"categoria": c.nome, "valor": c.valor} for c in dre.breakdown_receitas]
+    )
+    
+    usuario_id_str = claims.get("sub")
+    usuario_id = uuid.UUID(usuario_id_str) if usuario_id_str else None
+    
+    # 3. Chama serviço de IA
+    resultado = await _analisar(
+        ctx,
+        tenant_id=tenant_id,
+        session=session,
+        usuario_id=usuario_id
+    )
+    
+    # Commit usage registration
+    await session.commit()
+    
+    return DREAnalysisResponse(
+        resumo=resultado.resumo,
+        pontos_positivos=resultado.pontos_positivos,
+        pontos_atencao=resultado.pontos_atencao,
+        recomendacoes=resultado.recomendacoes,
+        nivel_confianca=resultado.nivel_confianca,
+        fonte=resultado.fonte,
+        ia_disponivel=resultado.ia_disponivel,
+        limite_atingido=resultado.limite_atingido
+    )
+
+
+class DRESimulationResponse(BaseModel):
+    impacto: str
+    riscos: list[str]
+    recomendacoes: list[str]
+    nivel_confianca: float
+    fonte: str
+    ia_disponivel: bool
+    limite_atingido: bool
+class RecomendacaoCenarioResponse(BaseModel):
+    cenario_recomendado_id: Optional[str] = None
+    resumo: str
+    justificativas: list[str]
+    pontos_risco: list[str]
+    nivel_confianca: float
+    fonte: str
+    ia_disponivel: bool
+    limite_atingido: bool
+
+
+class SafraIDPayload(BaseModel):
+    safra_id: uuid.UUID
+
+
+@router.post("/financeiro/simulacao", response_model=DRESimulationResponse)
+async def analisar_simulacao_endpoint(
+    payload: SimulacaoDREPayload,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    session: AsyncSession = Depends(get_session),
+):
+    from financeiro.services.lancamento_service import LancamentoService
+    from ia.dre_intelligence_service import ContextoSimulacao, analisar_simulacao_dre
+
+    svc = LancamentoService(session, tenant_id)
+    
+    # 1. Obtém a simulação numérica (base de dados real)
+    sim = await svc.simular_dre(
+        safra_id=payload.safra_id,
+        receita_pct=payload.ajustes.receita_percentual,
+        custos_pct=payload.ajustes.custos_percentual
+    )
+    
+    # 2. Prepara contexto para IA
+    ctx = ContextoSimulacao(
+        receita_real=sim.receita_real,
+        custos_real=sim.custos_real,
+        resultado_real=sim.resultado_real,
+        margem_real=sim.margem_real,
+        receita_simulada=sim.receita_simulada,
+        custos_simulados=sim.custos_simulados,
+        resultado_simulado=sim.resultado_simulado,
+        margem_simulada=sim.margem_simulada,
+        ajuste_receita_pct=payload.ajustes.receita_percentual,
+        ajuste_custos_pct=payload.ajustes.custos_percentual
+    )
+    
+    # 3. Executa análise inteligente
+    claims = getattr(session, "_claims", {}) if hasattr(session, "_claims") else {}
+    usuario_id = claims.get("sub")
+    if usuario_id:
+        usuario_id = uuid.UUID(usuario_id)
+
+    resultado = await analisar_simulacao_dre(
+        ctx, tenant_id=tenant_id, session=session, usuario_id=usuario_id
+    )
+    
+    # Commit usage registration
+    await session.commit()
+    
+    return DRESimulationResponse(
+        impacto=resultado.impacto,
+        riscos=resultado.riscos,
+        recomendacoes=resultado.recomendacoes,
+        nivel_confianca=resultado.nivel_confianca,
+        fonte=resultado.fonte,
+        ia_disponivel=resultado.ia_disponivel,
+        limite_atingido=resultado.limite_atingido
+    )
+
+@router.post("/financeiro/recomendar-cenario", response_model=RecomendacaoCenarioResponse)
+async def recomendar_cenario_endpoint(
+    payload: SafraIDPayload,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    session: AsyncSession = Depends(get_session),
+    claims: dict = Depends(get_current_user_claims),
+):
+    from financeiro.services.lancamento_service import LancamentoService
+    from financeiro.services.cenario_service import CenarioFinanceiroService
+    from ia.dre_intelligence_service import (
+        ContextoDRE, ContextoCenarios, recomendar_cenario_safra
+    )
+
+    # 1. Obtém DRE Real
+    fin_svc = LancamentoService(session, tenant_id)
+    dre = await fin_svc.gerar_dre(payload.safra_id)
+    
+    ctx_dre = ContextoDRE(
+        receita_bruta=dre.receita_bruta,
+        custos_operacionais=dre.custos_operacionais,
+        resultado_operacional=dre.resultado_operacional,
+        margem_percentual=dre.margem_percentual,
+        breakdown_custos=[{"categoria": c.nome, "valor": c.valor} for c in dre.breakdown_custos],
+        breakdown_receitas=[{"categoria": c.nome, "valor": c.valor} for c in dre.breakdown_receitas]
+    )
+
+    # 2. Obtém cenários salvos
+    cen_svc = CenarioFinanceiroService(session, tenant_id)
+    cenarios_lista = await cen_svc.listar_cenarios(payload.safra_id)
+    
+    cenarios_contexto = [
+        {
+            "id": str(c.id),
+            "nome": c.nome,
+            "receita_simulada": c.resultado_simulado / (c.margem_simulada / 100) if c.margem_simulada > 0 else 0, # Aproximação se não tiver campo direto
+            "custos_simulados": (c.resultado_simulado / (c.margem_simulada / 100)) - c.resultado_simulado if c.margem_simulada > 0 else 0,
+            "resultado_simulado": c.resultado_simulado,
+            "margem_simulada": c.margem_simulada
+        }
+        for c in cenarios_lista
+    ]
+    
+    # Nota: Como o model de cenário pode não ter receita/custo bruto salvo (conforme Step 186),
+    # recalculamos a partir do resultado e margem salvos, ou usamos os percentuais se disponíveis.
+    # Vamos conferir o model do cenário.
+
+    ctx = ContextoCenarios(
+        dre_real=ctx_dre,
+        cenarios=cenarios_contexto
+    )
+
+    usuario_id_str = claims.get("sub")
+    usuario_id = uuid.UUID(usuario_id_str) if usuario_id_str else None
+
+    # 3. Chama serviço de recomendação
+    resultado = await recomendar_cenario_safra(
+        ctx,
+        tenant_id=tenant_id,
+        session=session,
+        usuario_id=usuario_id
+    )
+    
+    # 3.1 Marca o cenário recomendado no banco de dados para rastreio de score (Step 190)
+    if resultado.cenario_recomendado_id:
+        from financeiro.models.cenario import FinanceiroSafraCenario
+        from sqlalchemy import update
+        
+        # Desmarca recomendações anteriores da mesma safra
+        await session.execute(
+            update(FinanceiroSafraCenario)
+            .where(FinanceiroSafraCenario.safra_id == payload.safra_id)
+            .values(recomendado_pela_ia=False)
+        )
+        
+        # Marca o novo recomendado
+        try:
+            target_id = uuid.UUID(resultado.cenario_recomendado_id)
+            await session.execute(
+                update(FinanceiroSafraCenario)
+                .where(FinanceiroSafraCenario.id == target_id)
+                .values(recomendado_pela_ia=True)
+            )
+        except (ValueError, TypeError):
+            logger.warning(f"ID de cenário recomendado inválido: {resultado.cenario_recomendado_id}")
+
+    await session.commit()
+
+class ScoreIAResponse(BaseModel):
+    total_decisoes: int
+    acertos: int
+    parciais: int
+    erros: int
+    taxa_acerto: float
+    taxa_erro: float
+    status: str
+
+@router.get("/financeiro/score", response_model=ScoreIAResponse)
+async def obter_score_ia_endpoint(
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    session: AsyncSession = Depends(get_session),
+):
+    """Retorna o score de confiabilidade da IA (Step 190)."""
+    from ia.dre_intelligence_service import _calcular_score_ia
+    res = await _calcular_score_ia(tenant_id, session)
+    return res
+
+
+# ── Histórico de Alertas e Auditoria (Step 194) ──────────────────────────────
+
+class AlertaHistoricoResponse(BaseModel):
+    id: uuid.UUID
+    tipo_alerta: str
+    titulo: str
+    mensagem: str
+    gravidade: str
+    parametros_json: Optional[dict] = None
+    visualizado_em: Optional[datetime] = None
+    acao_executada: bool
+    acao_executada_em: Optional[datetime] = None
+    ignorado: bool
+    ignorado_em: Optional[datetime] = None
+    created_at: datetime
+
+
+@router.get("/alertas/historico", response_model=list[AlertaHistoricoResponse])
+async def listar_historico_alertas(
+    safra_id: Optional[uuid.UUID] = Query(None),
+    limit: int = Query(50, ge=1, le=200),
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    session: AsyncSession = Depends(get_session),
+):
+    """Lista o histórico de alertas gerados pela IA e interações do usuário (Step 194)."""
+    from ia.models import IAAlertaHistorico
+    from sqlalchemy import select, desc, and_
+    
+    conditions = [IAAlertaHistorico.tenant_id == tenant_id]
+    if safra_id:
+        conditions.append(IAAlertaHistorico.safra_id == safra_id)
+        
+    stmt = (
+        select(IAAlertaHistorico)
+        .where(and_(*conditions))
+        .order_by(desc(IAAlertaHistorico.created_at))
+        .limit(limit)
+    )
+    rows = (await session.execute(stmt)).scalars().all()
+    
+    return [
+        AlertaHistoricoResponse(
+            id=r.id,
+            tipo_alerta=r.tipo_alerta,
+            titulo=r.titulo,
+            mensagem=r.mensagem,
+            gravidade=r.gravidade,
+            parametros_json=r.parametros_json,
+            visualizado_em=r.visualizado_em,
+            acao_executada=r.acao_executada,
+            acao_executada_em=r.acao_executada_em,
+            ignorado=r.ignorado,
+            ignorado_em=r.ignorado_em,
+            created_at=r.created_at,
+        )
+        for r in rows
+    ]
+
+
+@router.patch("/alertas/{alerta_id}/visualizado", status_code=204)
+async def marcar_alerta_visualizado(
+    alerta_id: uuid.UUID,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    session: AsyncSession = Depends(get_session),
+):
+    """Registra que o usuário visualizou o alerta (Step 194)."""
+    from ia.models import IAAlertaHistorico
+    from sqlalchemy import update
+    
+    stmt = (
+        update(IAAlertaHistorico)
+        .where(IAAlertaHistorico.id == alerta_id, IAAlertaHistorico.tenant_id == tenant_id)
+        .values(visualizado_em=datetime.now(timezone.utc))
+    )
+    res = await session.execute(stmt)
+    if res.rowcount == 0:
+        raise HTTPException(status_code=404, detail="Alerta não encontrado")
+    await session.commit()
+    return None
+
+
+@router.patch("/alertas/{alerta_id}/executado", status_code=204)
+async def marcar_alerta_executado(
+    alerta_id: uuid.UUID,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    session: AsyncSession = Depends(get_session),
+):
+    """Registra que o usuário executou a ação sugerida pelo alerta (Step 194)."""
+    from ia.models import IAAlertaHistorico
+    from sqlalchemy import update
+    
+    stmt = (
+        update(IAAlertaHistorico)
+        .where(IAAlertaHistorico.id == alerta_id, IAAlertaHistorico.tenant_id == tenant_id)
+        .values(
+            acao_executada=True,
+            acao_executada_em=datetime.now(timezone.utc)
+        )
+    )
+    res = await session.execute(stmt)
+    if res.rowcount == 0:
+        raise HTTPException(status_code=404, detail="Alerta não encontrado")
+    await session.commit()
+    return None
+
+
+@router.patch("/alertas/{alerta_id}/ignorado", status_code=204)
+async def marcar_alerta_ignorado(
+    alerta_id: uuid.UUID,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    session: AsyncSession = Depends(get_session),
+):
+    """Registra que o usuário ignorou o alerta (Step 194)."""
+    from ia.models import IAAlertaHistorico
+    from sqlalchemy import update
+    
+    stmt = (
+        update(IAAlertaHistorico)
+        .where(IAAlertaHistorico.id == alerta_id, IAAlertaHistorico.tenant_id == tenant_id)
+        .values(
+            ignorado=True,
+            ignorado_em=datetime.now(timezone.utc)
+        )
+    )
+    res = await session.execute(stmt)
+    if res.rowcount == 0:
+        raise HTTPException(status_code=404, detail="Alerta não encontrado")
+    await session.commit()
+    return None
+
+# ── Resumo Diário Inteligente (Step 198) ───────────────────────────────────
+
+@router.get("/financeiro/resumo-diario", response_model=ResumoDiarioResponse)
+async def get_resumo_diario(
+    safra_id: uuid.UUID,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    session: AsyncSession = Depends(get_session),
+):
+    """Retorna o resumo consolidado diário da safra com alertas e saúde financeira (Step 198)."""
+    svc = ResumoDiarioService(session, tenant_id)
+    return await svc.obter_resumo(safra_id)
+
+# ── Ações Assistidas (Step 201) ──────────────────────────────────────────────
+
+@router.post("/acoes-assistidas/registrar", response_model=AcaoAssistidaResponse)
+async def registrar_acao_assistida(
+    payload: RegistrarAcaoAssistidaPayload,
+    session: AsyncSession = Depends(get_session),
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    claims: dict = Depends(get_current_user_claims),
+):
+    """Registra o início de uma ação assistida pela IA."""
+    usuario_id = uuid.UUID(claims["sub"]) if "sub" in claims else None
+    
+    acao = await AcaoAssistidaService.registrar_acao(
+        session=session,
+        tenant_id=tenant_id,
+        usuario_id=usuario_id,
+        origem=payload.origem,
+        origem_id=payload.origem_id,
+        tipo_acao=payload.tipo_acao,
+        parametros_json=payload.parametros_json
+    )
+    
+    await session.commit()
+    return {"id": acao.id, "status": "registrada"}
+
+
+@router.patch("/acoes-assistidas/{id}/concluir")
+async def concluir_acao_assistida(
+    id: uuid.UUID,
+    session: AsyncSession = Depends(get_session),
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+):
+    """Marca uma ação assistida como concluída pelo usuário."""
+    sucesso = await AcaoAssistidaService.concluir_acao(
+        session=session,
+        acao_id=id,
+        tenant_id=tenant_id
+    )
+    
+    if not sucesso:
+        raise HTTPException(status_code=404, detail="Ação assistida não encontrada.")
+        
+    await session.commit()
+    return {"status": "concluida"}
+
+
+@router.get("/acoes-assistidas/metricas", response_model=MetricasAcaoAssistidaResponse)
+async def obter_metricas_acoes_assistidas(
+    session: AsyncSession = Depends(get_session),
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+):
+    """Retorna métricas de eficiência das ações assistidas do Copiloto."""
+    return await AcaoAssistidaService.obter_metricas(session, tenant_id)
+
+@router.get("/performance/dashboard", response_model=IAPerformanceDashboardResponse)
+async def obter_dashboard_performance_ia(
+    session: AsyncSession = Depends(get_session),
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+):
+    """Consolida métricas de performance e ROI da IA para o dashboard."""
+    return await IAPerformanceService.get_dashboard_metrics(session, tenant_id)
+
+@router.get("/autopilot/config", response_model=AutopilotConfigResponse)
+async def get_autopilot_config(
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    session: AsyncSession = Depends(get_session)
+):
+    """Retorna as configurações de autopilot do tenant (Step 210)."""
+    config = await IAAutopilotService.get_config(session, tenant_id)
+    return AutopilotConfigResponse(
+        ativo=config.ativo,
+        nivel_autonomia=config.nivel_autonomia,
+        tipos_permitidos=config.tipos_permitidos,
+        limite_impacto_percentual=config.limite_impacto_percentual,
+        updated_at=config.updated_at
+    )
+
+@router.patch("/autopilot/config", response_model=AutopilotConfigResponse)
+async def update_autopilot_config(
+    body: AutopilotConfigUpdate,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    session: AsyncSession = Depends(get_session)
+):
+    """Atualiza as configurações de autopilot do tenant (Step 210)."""
+    updates = body.dict(exclude_unset=True)
+    config = await IAAutopilotService.update_config(session, tenant_id, updates)
+    return AutopilotConfigResponse(
+        ativo=config.ativo,
+        nivel_autonomia=config.nivel_autonomia,
+        tipos_permitidos=config.tipos_permitidos,
+        limite_impacto_percentual=config.limite_impacto_percentual,
+        updated_at=config.updated_at
+    )
+@router.get("/growth/personas/performance", response_model=IAGrowthPersonasPerformanceResponse)
+async def get_performance_personas(
+    periodo_dias: int = Query(30, ge=1, le=90),
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    claims: dict = Depends(get_current_user_claims),
+    session: AsyncSession = Depends(get_session),
+):
+    """
+    Retorna a performance de conversão segmentada por persona (Growth-13).
+    Apenas acessível por owners do tenant.
+    """
+    # Verifica se é owner (pode vir via role ou claims específicas do sistema)
+    is_owner = claims.get("role") == "owner" or claims.get("is_owner") is True
+    if not is_owner:
+        raise HTTPException(status_code=403, detail="Acesso restrito a proprietários do tenant.")
+
+    from ia.growth_service import IAGrowthService
+    return await IAGrowthService.get_dashboard_personas(session, tenant_id, periodo_dias)
+
+
+@router.get("/growth/churn/performance", response_model=IAGrowthChurnDashboardResponse)
+async def get_performance_churn(
+    periodo_dias: int = Query(30, ge=1, le=90),
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    claims: dict = Depends(get_current_user_claims),
+    session: AsyncSession = Depends(get_session),
+):
+    """Retorna consolidado de risco de churn e impacto de CTAs preventivos (IA-Growth-15)."""
+    is_owner = claims.get("role") == "owner" or claims.get("is_owner") is True
+    if not is_owner:
+        raise HTTPException(status_code=403, detail="Acesso restrito a proprietários do tenant.")
+
+    from ia.growth_service import IAGrowthService
+    return await IAGrowthService.get_dashboard_churn(session, tenant_id, periodo_dias)

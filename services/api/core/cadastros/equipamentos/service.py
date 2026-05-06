@@ -10,6 +10,8 @@ from .schemas import EquipamentoCreate, EquipamentoUpdate
 
 
 class EquipamentoService(BaseService[Equipamento]):
+    def __init__(self, session: AsyncSession, tenant_id: uuid.UUID):
+        super().__init__(Equipamento, session, tenant_id)
 
     async def listar(self, tipo: Optional[str] = None, status: Optional[str] = None) -> list[Equipamento]:
         stmt = select(Equipamento).where(Equipamento.tenant_id == self.tenant_id)
