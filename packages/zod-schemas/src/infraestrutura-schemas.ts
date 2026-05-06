@@ -6,7 +6,7 @@ export type TipoInfraestrutura = (typeof TIPOS_INFRAESTRUTURA)[number];
 export const createInfraestruturaSchema = z.object({
   area_rural_id: z.string().uuid("ID da área inválido"),
   nome: z.string().min(1, "Nome obrigatório").max(100, "Nome muito longo"),
-  tipo: z.enum(TIPOS_INFRAESTRUTURA, { errorMap: () => ({ message: "Tipo inválido" }) }),
+  tipo: z.enum(TIPOS_INFRAESTRUTURA, { message: "Tipo inválido" }),
   capacidade: z.coerce.number().positive("Capacidade deve ser positiva").optional().nullable(),
   unidade_capacidade: z.string().max(20).optional().nullable(),
   latitude: z.coerce.number().min(-90).max(90).optional().nullable(),

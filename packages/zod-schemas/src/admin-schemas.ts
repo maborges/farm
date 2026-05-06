@@ -11,7 +11,7 @@ export const createAdminSchema = z.object({
     email: z.string().email("E-mail inválido"),
     nome: z.string().min(3, "Nome deve ter pelo menos 3 caracteres").max(100, "Nome muito longo"),
     password: z.string().min(8, "Senha deve ter pelo menos 8 caracteres"),
-    role: z.enum(backofficeRoleValues, { required_error: "Selecione uma role" }),
+    role: z.enum(backofficeRoleValues, { message: "Selecione uma role" }),
 });
 
 export const updateAdminSchema = z.object({

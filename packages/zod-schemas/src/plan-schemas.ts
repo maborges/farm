@@ -9,7 +9,7 @@ export const createPlanSchema = z.object({
   name: z.string().min(3, "Nome deve ter pelo menos 3 caracteres").max(100, "Nome muito longo"),
   description: z.string().min(10, "Descrição deve ter pelo menos 10 caracteres").max(500, "Descrição muito longa"),
   price: z.number().min(0, "Preço deve ser maior ou igual a 0"),
-  billing_period: z.enum(billingPeriodValues, { required_error: "Selecione um período de cobrança" }),
+  billing_period: z.enum(billingPeriodValues, { message: "Selecione um período de cobrança" }),
   features: z.array(z.string()).min(1, "Adicione pelo menos uma funcionalidade"),
   is_active: z.boolean().default(true),
   is_default: z.boolean().default(false),

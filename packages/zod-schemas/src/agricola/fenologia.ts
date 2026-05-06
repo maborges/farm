@@ -20,7 +20,7 @@ export const FenologiaRegistroCreateSchema = z.object({
   grupo_id: z.string().uuid().optional().nullable(),
   data_observacao: z.string().date(),
   observacao: z.string().max(1000).optional().nullable(),
-  dados_extras: z.record(z.unknown()).optional().nullable(),
+  dados_extras: z.record(z.string(), z.unknown()).optional().nullable(),
 });
 
 export const FenologiaRegistroResponseSchema = FenologiaRegistroCreateSchema.extend({

@@ -8,13 +8,13 @@ export const permissionLevelValues = ["write", "read", "none"] as const;
 export const createRoleSchema = z.object({
     nome: z.string().min(2, "Nome deve ter pelo menos 2 caracteres").max(50, "Nome muito longo"),
     descricao: z.string().max(200, "Descrição muito longa").nullable().optional(),
-    permissoes: z.record(z.enum(permissionLevelValues)),
+    permissoes: z.record(z.string(), z.enum(permissionLevelValues)),
 });
 
 export const updateRoleSchema = z.object({
     nome: z.string().min(2, "Nome deve ter pelo menos 2 caracteres").max(50, "Nome muito longo").optional(),
     descricao: z.string().max(200, "Descrição muito longa").nullable().optional(),
-    permissoes: z.record(z.enum(permissionLevelValues)).optional(),
+    permissoes: z.record(z.string(), z.enum(permissionLevelValues)).optional(),
 });
 
 export type CreateRoleInput = z.infer<typeof createRoleSchema>;

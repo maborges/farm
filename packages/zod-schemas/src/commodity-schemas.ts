@@ -53,7 +53,7 @@ export const ClassificacaoSchema = z.object({
   quebrados_max_pct: z.coerce.number().nullable(),
   desconto_umidade_por_ponto: z.coerce.number().nullable(),
   desconto_impureza_por_ponto: z.coerce.number().nullable(),
-  parametros_extras: z.record(z.unknown()).optional().nullable(),
+  parametros_extras: z.record(z.string(), z.unknown()).optional().nullable(),
   ativo: z.boolean().default(true),
 });
 
