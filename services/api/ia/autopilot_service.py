@@ -2,10 +2,27 @@ import uuid
 from datetime import datetime, timezone
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from core.constants import PlanTier
+from core.models.billing import AssinaturaTenant, PlanoAssinatura
 from ia.models import IAAutopilotConfig, IAAcaoAssistidaHistorico
 from ia.acoes_assistidas_service import AcaoAssistidaService
 
 class IAAutopilotService:
+    @staticmethod
+    async def _current_tier(session: AsyncSession, tenant_id: uuid.UUID) -> str:
+        stmt = (
+            select(PlanoAssinatura.plan_tier)
+            .join(AssinaturaTenant, AssinaturaTenant.plano_id == PlanoAssinatura.id)
+            .where(
+                AssinaturaTenant.tenant_id == tenant_id,
+                AssinaturaTenant.status.in_(["ATIVA", "TRIAL"]),
+                AssinaturaTenant.tipo_assinatura == "TENANT",
+            )
+            .limit(1)
+        )
+        result = await session.execute(stmt)
+        return result.scalar_one_or_none() or PlanTier.BASICO.value
+
     @staticmethod
     async def get_config(session: AsyncSession, tenant_id: uuid.UUID) -> IAAutopilotConfig:
         """Obtém ou cria a configuração de autopilot para o tenant (Step 210)."""
@@ -18,7 +35,13 @@ class IAAutopilotService:
                 tenant_id=tenant_id,
                 ativo=False,
                 autopilot_enabled=False,
+                growth_engine_enabled=False,
+                growth_llm_copy_enabled=False,
                 growth_incentivos_enabled=False,
+                growth_learning_enabled=False,
+                growth_max_acoes_dia=3,
+                growth_max_incentivos_mes=0,
+                growth_modo="BALANCEADO",
                 nivel_autonomia="BAIXO",
                 tipos_permitidos=["SIMULACAO"],
                 limite_impacto_percentual=10.0
@@ -37,17 +60,40 @@ class IAAutopilotService:
     ) -> IAAutopilotConfig:
         """Atualiza as configurações de autopilot (Step 210)."""
         config = await IAAutopilotService.get_config(session, tenant_id)
+        tier = await IAAutopilotService._current_tier(session, tenant_id)
+        tier_enterprise = tier == PlanTier.ENTERPRISE.value
+        tier_profissional = tier == PlanTier.PROFISSIONAL.value
         
         if "ativo" in updates:
-            config.ativo = updates["ativo"]
-            config.autopilot_enabled = updates["ativo"]
+            config.ativo = bool(updates["ativo"]) if tier_enterprise else False
+            config.autopilot_enabled = config.ativo
         if "autopilot_enabled" in updates:
-            config.autopilot_enabled = updates["autopilot_enabled"]
-            config.ativo = updates["autopilot_enabled"]
+            config.autopilot_enabled = bool(updates["autopilot_enabled"]) if tier_enterprise else False
+            config.ativo = config.autopilot_enabled
+        if "growth_llm_copy_enabled" in updates:
+            config.growth_llm_copy_enabled = bool(updates["growth_llm_copy_enabled"]) if tier_enterprise else False
+        if "growth_engine_enabled" in updates:
+            config.growth_engine_enabled = bool(updates["growth_engine_enabled"]) if tier != PlanTier.BASICO.value else False
         if "growth_incentivos_enabled" in updates:
-            config.growth_incentivos_enabled = updates["growth_incentivos_enabled"]
+            config.growth_incentivos_enabled = bool(updates["growth_incentivos_enabled"]) if tier_enterprise else False
+        if "growth_learning_enabled" in updates:
+            config.growth_learning_enabled = bool(updates["growth_learning_enabled"]) if tier_enterprise else False
+        if "growth_max_acoes_dia" in updates:
+            limite = 3 if tier == PlanTier.BASICO.value else 10 if tier_profissional else 25
+            config.growth_max_acoes_dia = min(int(updates["growth_max_acoes_dia"]), limite)
+        if "growth_max_incentivos_mes" in updates:
+            limite = 0 if tier != PlanTier.ENTERPRISE.value else 50
+            config.growth_max_incentivos_mes = min(int(updates["growth_max_incentivos_mes"]), limite)
+        if "growth_modo" in updates:
+            modo = str(updates["growth_modo"]).upper()
+            if tier == PlanTier.BASICO.value:
+                config.growth_modo = "CONSERVADOR"
+            elif tier == PlanTier.PROFISSIONAL.value:
+                config.growth_modo = "BALANCEADO"
+            else:
+                config.growth_modo = modo if modo in {"CONSERVADOR", "BALANCEADO", "AGRESSIVO"} else "BALANCEADO"
         if "nivel_autonomia" in updates:
-            config.nivel_autonomia = updates["nivel_autonomia"]
+            config.nivel_autonomia = updates["nivel_autonomia"] if tier_enterprise else ("MEDIO" if tier_profissional else "BAIXO")
         if "tipos_permitidos" in updates:
             config.tipos_permitidos = updates["tipos_permitidos"]
         if "limite_impacto_percentual" in updates:

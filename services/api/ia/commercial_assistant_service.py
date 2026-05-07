@@ -147,15 +147,18 @@ class IACommercialAssistantService:
             score_oportunidade=score_oportunidade,
             categoria=score_oportunidade.get("categoria"),
         )
-        incentivo = await IAGrowthService.gerar_incentivo_controlado(
-            db,
-            tenant_id,
-            usuario_id,
-            origem="ASSISTENTE",
-            fit=fit,
-            score_oportunidade=score_oportunidade,
-            oferta_info=oferta,
-        )
+        growth_cfg = await IAGrowthService.get_growth_engine_config(db, tenant_id)
+        incentivo = None
+        if growth_cfg["growth_incentivos_enabled"]:
+            incentivo = await IAGrowthService.gerar_incentivo_controlado(
+                db,
+                tenant_id,
+                usuario_id,
+                origem="ASSISTENTE",
+                fit=fit,
+                score_oportunidade=score_oportunidade,
+                oferta_info=oferta,
+            )
 
         modulos_usados = await IACommercialAssistantService._modulos_usados(db, tenant_id, usuario_id)
         cta_recente = await IACommercialAssistantService._cta_recente(db, tenant_id, usuario_id)
@@ -446,7 +449,8 @@ CONTEXTO:
     ) -> Dict[str, Any]:
         contexto = contexto_atual or await cls.gerar_contexto_usuario(db, tenant_id, usuario_id, visao_completa=visao_completa)
 
-        if not await tenant_tem_ia(tenant_id, db) or not _ia_globalmente_habilitada():
+        growth_cfg = await IAGrowthService.get_growth_engine_config(db, tenant_id)
+        if not await tenant_tem_ia(tenant_id, db) or not _ia_globalmente_habilitada() or not growth_cfg["growth_llm_copy_enabled"]:
             heur = cls._resposta_heuristica(contexto, mensagem_usuario)
             log_id = await cls.registrar_interacao_assistente(
                 db=db,

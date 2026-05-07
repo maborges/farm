@@ -53,6 +53,8 @@ from ia.schemas import (
     IAGrowthROIResponse,
     IAGrowthLearningWeightsResponse,
     IAGrowthLearningRecalcularResponse,
+    IAGrowthEngineConfigResponse,
+    IAGrowthEngineFeatureItem,
     IAGrowthAutopilotStatusResponse,
     IAGrowthIncentivosResponse,
     IAGrowthIncentivosAprovacaoResponse,
@@ -71,7 +73,13 @@ router = APIRouter(prefix="/ia", tags=["IA — Uso"])
 class AutopilotConfigUpdate(BaseModel):
     ativo: Optional[bool] = None
     autopilot_enabled: Optional[bool] = None
+    growth_engine_enabled: Optional[bool] = None
+    growth_llm_copy_enabled: Optional[bool] = None
     growth_incentivos_enabled: Optional[bool] = None
+    growth_learning_enabled: Optional[bool] = None
+    growth_max_acoes_dia: Optional[int] = None
+    growth_max_incentivos_mes: Optional[int] = None
+    growth_modo: Optional[str] = None
     nivel_autonomia: Optional[str] = None
     tipos_permitidos: Optional[list[str]] = None
     limite_impacto_percentual: Optional[float] = None
@@ -80,7 +88,13 @@ class AutopilotConfigUpdate(BaseModel):
 class AutopilotConfigResponse(BaseModel):
     ativo: bool
     autopilot_enabled: bool
+    growth_engine_enabled: bool
+    growth_llm_copy_enabled: bool
     growth_incentivos_enabled: bool
+    growth_learning_enabled: bool
+    growth_max_acoes_dia: int
+    growth_max_incentivos_mes: int
+    growth_modo: str
     nivel_autonomia: str
     tipos_permitidos: list[str]
     limite_impacto_percentual: float
@@ -2556,7 +2570,13 @@ async def get_autopilot_config(
     return AutopilotConfigResponse(
         ativo=config.ativo,
         autopilot_enabled=getattr(config, "autopilot_enabled", config.ativo),
+        growth_engine_enabled=getattr(config, "growth_engine_enabled", False),
+        growth_llm_copy_enabled=getattr(config, "growth_llm_copy_enabled", False),
         growth_incentivos_enabled=getattr(config, "growth_incentivos_enabled", False),
+        growth_learning_enabled=getattr(config, "growth_learning_enabled", False),
+        growth_max_acoes_dia=getattr(config, "growth_max_acoes_dia", 3),
+        growth_max_incentivos_mes=getattr(config, "growth_max_incentivos_mes", 0),
+        growth_modo=getattr(config, "growth_modo", "BALANCEADO"),
         nivel_autonomia=config.nivel_autonomia,
         tipos_permitidos=config.tipos_permitidos,
         limite_impacto_percentual=config.limite_impacto_percentual,
@@ -2575,12 +2595,48 @@ async def update_autopilot_config(
     return AutopilotConfigResponse(
         ativo=config.ativo,
         autopilot_enabled=getattr(config, "autopilot_enabled", config.ativo),
+        growth_engine_enabled=getattr(config, "growth_engine_enabled", False),
+        growth_llm_copy_enabled=getattr(config, "growth_llm_copy_enabled", False),
         growth_incentivos_enabled=getattr(config, "growth_incentivos_enabled", False),
+        growth_learning_enabled=getattr(config, "growth_learning_enabled", False),
+        growth_max_acoes_dia=getattr(config, "growth_max_acoes_dia", 3),
+        growth_max_incentivos_mes=getattr(config, "growth_max_incentivos_mes", 0),
+        growth_modo=getattr(config, "growth_modo", "BALANCEADO"),
         nivel_autonomia=config.nivel_autonomia,
         tipos_permitidos=config.tipos_permitidos,
         limite_impacto_percentual=config.limite_impacto_percentual,
         updated_at=config.updated_at
     )
+
+@router.get("/growth/engine/config", response_model=IAGrowthEngineConfigResponse)
+async def get_growth_engine_config(
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    claims: dict = Depends(get_current_user_claims),
+    session: AsyncSession = Depends(get_session),
+):
+    """Retorna a configuração comercial do Growth Engine e os gates efetivos."""
+    is_owner = claims.get("role") == "owner" or claims.get("is_owner") is True or claims.get("role") == "admin"
+    if not is_owner:
+        raise HTTPException(status_code=403, detail="Acesso restrito a proprietários e administradores do tenant.")
+    from ia.growth_service import IAGrowthService
+    return IAGrowthEngineConfigResponse(**await IAGrowthService.get_growth_engine_config(session, tenant_id))
+
+
+@router.patch("/growth/engine/config", response_model=IAGrowthEngineConfigResponse)
+async def update_growth_engine_config(
+    body: AutopilotConfigUpdate,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    claims: dict = Depends(get_current_user_claims),
+    session: AsyncSession = Depends(get_session),
+):
+    """Atualiza a configuração comercial do Growth Engine dentro dos limites do plano."""
+    is_owner = claims.get("role") == "owner" or claims.get("is_owner") is True or claims.get("role") == "admin"
+    if not is_owner:
+        raise HTTPException(status_code=403, detail="Acesso restrito a proprietários e administradores do tenant.")
+    updates = body.dict(exclude_unset=True)
+    config = await IAAutopilotService.update_config(session, tenant_id, updates)
+    from ia.growth_service import IAGrowthService
+    return IAGrowthEngineConfigResponse(**await IAGrowthService.get_growth_engine_config(session, tenant_id))
 
 @router.get("/growth/autopilot/status", response_model=IAGrowthAutopilotStatusResponse)
 async def get_growth_autopilot_status(

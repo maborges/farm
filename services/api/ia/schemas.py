@@ -636,6 +636,34 @@ class IAGrowthLearningRecalcularResponse(BaseModel):
     mensagem: str
 
 
+class IAGrowthEngineFeatureItem(BaseModel):
+    chave: str
+    label: str
+    disponivel: bool
+    bloqueado: bool
+    motivo: Optional[str] = None
+
+
+class IAGrowthEngineConfigResponse(BaseModel):
+    tenant_id: uuid.UUID
+    plano_atual: str
+    plano_atual_label: str
+    growth_engine_enabled: bool
+    growth_autopilot_enabled: bool
+    growth_llm_copy_enabled: bool
+    growth_incentivos_enabled: bool
+    growth_learning_enabled: bool
+    growth_max_acoes_dia: int
+    growth_max_incentivos_mes: int
+    growth_modo: str
+    atualizado_em: datetime
+    recursos_disponiveis: List[IAGrowthEngineFeatureItem]
+    recursos_bloqueados: List[IAGrowthEngineFeatureItem]
+    limites_plano: Dict[str, Any]
+    cta_upgrade_label: str = "Ver planos"
+    cta_upgrade_url: str = "/dashboard/settings/billing"
+
+
 class IAGrowthAssistenteContextoResponse(BaseModel):
     visao_completa: bool = False
     resumo_perfil: str

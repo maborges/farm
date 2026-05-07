@@ -244,7 +244,13 @@ class IAAutopilotConfig(Base):
     )
     ativo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     autopilot_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    growth_engine_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    growth_llm_copy_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     growth_incentivos_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    growth_learning_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    growth_max_acoes_dia: Mapped[int] = mapped_column(Integer, nullable=False, default=3)
+    growth_max_incentivos_mes: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    growth_modo: Mapped[str] = mapped_column(String(20), nullable=False, default="BALANCEADO")
     nivel_autonomia: Mapped[str] = mapped_column(String(20), nullable=False, default="BAIXO") # BAIXO, MEDIO, ALTO
     tipos_permitidos: Mapped[list] = mapped_column(JSON, nullable=False, default=list) # SIMULACAO, AJUSTE_CENARIO, ANALISE
     limite_impacto_percentual: Mapped[float] = mapped_column(Float, nullable=False, default=10.0)

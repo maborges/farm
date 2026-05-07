@@ -145,13 +145,12 @@ Responda EXCLUSIVAMENTE em formato JSON:
             return cached_cta
 
         # 2. Verifica Disponibilidade de IA (Tier + Feature Flag Global)
-        # Nota: Feature flag por tenant 'llm_growth_enabled' deve ser checada no caller ou aqui via config.
-        # Por enquanto usamos o tenant_tem_ia geral.
+        # Nota: Growth LLM é Enterprise-only e depende do gate por tenant.
         if not await tenant_tem_ia(tenant_id, session) or not _ia_globalmente_habilitada():
             return None
 
-        # 3. Verifica Limites de Uso
         from core.models.billing import AssinaturaTenant, PlanoAssinatura
+        from ia.autopilot_service import IAAutopilotService
         stmt = (
             select(PlanoAssinatura.plan_tier)
             .join(AssinaturaTenant, AssinaturaTenant.plano_id == PlanoAssinatura.id)
@@ -162,7 +161,14 @@ Responda EXCLUSIVAMENTE em formato JSON:
             ).limit(1)
         )
         tier_value = (await session.execute(stmt)).scalar_one_or_none()
-        
+        if tier_value != "ENTERPRISE":
+            return None
+
+        config = await IAAutopilotService.get_config(session, tenant_id)
+        if not getattr(config, "growth_llm_copy_enabled", False):
+            return None
+
+        # 3. Verifica Limites de Uso
         pode_usar, fonte_consumo = await _usage_svc.verificar_limite_ia(tenant_id, tier_value, session)
         if not pode_usar:
             return None

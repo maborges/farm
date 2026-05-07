@@ -86,8 +86,162 @@ STATUS_INCENTIVO_VISIVEL = {"OFERECIDO", "APROVADO", "ACEITO", "RECUSADO", "EXPI
 STATUS_INCENTIVO_ATIVO = {"OFERECIDO", "APROVADO"}
 STATUS_INCENTIVO_AGUARDANDO = {"PENDENTE_APROVACAO"}
 
+GROWTH_FEATURE_LABELS = {
+    "growth_engine_enabled": "Motor de Growth",
+    "growth_autopilot_enabled": "Autopilot",
+    "growth_llm_copy_enabled": "Copy via LLM",
+    "growth_incentivos_enabled": "Incentivos controlados",
+    "growth_learning_enabled": "Aprendizado automático",
+}
+
+GROWTH_PLAN_CAPS = {
+    PlanTier.BASICO.value: {
+        "growth_engine_enabled": False,
+        "growth_autopilot_enabled": False,
+        "growth_llm_copy_enabled": False,
+        "growth_incentivos_enabled": False,
+        "growth_learning_enabled": False,
+        "growth_max_acoes_dia": 3,
+        "growth_max_incentivos_mes": 0,
+        "growth_modo": "CONSERVADOR",
+        "recursos": ["métricas básicas", "CTAs simples"],
+    },
+    PlanTier.PROFISSIONAL.value: {
+        "growth_engine_enabled": True,
+        "growth_autopilot_enabled": False,
+        "growth_llm_copy_enabled": False,
+        "growth_incentivos_enabled": False,
+        "growth_learning_enabled": False,
+        "growth_max_acoes_dia": 10,
+        "growth_max_incentivos_mes": 0,
+        "growth_modo": "BALANCEADO",
+        "recursos": ["personas", "timing", "recomendação de plano", "ROI básico"],
+    },
+    PlanTier.ENTERPRISE.value: {
+        "growth_engine_enabled": True,
+        "growth_autopilot_enabled": True,
+        "growth_llm_copy_enabled": True,
+        "growth_incentivos_enabled": True,
+        "growth_learning_enabled": True,
+        "growth_max_acoes_dia": 25,
+        "growth_max_incentivos_mes": 50,
+        "growth_modo": "BALANCEADO",
+        "recursos": ["autopilot", "LLM copy", "incentivos controlados", "aprovação", "learning weights", "ROI avançado"],
+    },
+}
+
 
 class IAGrowthService:
+    @staticmethod
+    def _growth_capabilities_for_tier(tier: str) -> Dict[str, Any]:
+        return GROWTH_PLAN_CAPS.get(tier, GROWTH_PLAN_CAPS[PlanTier.BASICO.value])
+
+    @staticmethod
+    async def _current_tier(db: AsyncSession, tenant_id: uuid.UUID) -> str:
+        stmt = (
+            select(PlanoAssinatura.plan_tier)
+            .join(AssinaturaTenant, AssinaturaTenant.plano_id == PlanoAssinatura.id)
+            .where(
+                AssinaturaTenant.tenant_id == tenant_id,
+                AssinaturaTenant.status.in_(["ATIVA", "TRIAL"]),
+                AssinaturaTenant.tipo_assinatura == "TENANT",
+            )
+            .limit(1)
+        )
+        result = await db.execute(stmt)
+        return result.scalar_one_or_none() or PlanTier.BASICO.value
+
+    @staticmethod
+    async def get_growth_engine_config(db: AsyncSession, tenant_id: uuid.UUID) -> Dict[str, Any]:
+        config = await IAAutopilotService.get_config(db, tenant_id)
+        tier = await IAGrowthService._current_tier(db, tenant_id)
+        caps = IAGrowthService._growth_capabilities_for_tier(tier)
+
+        def efetivo(flag: bool, chave: str) -> bool:
+            return bool(flag and caps.get(chave, False))
+
+        growth_engine_enabled = efetivo(getattr(config, "growth_engine_enabled", False), "growth_engine_enabled")
+        growth_autopilot_enabled = efetivo(getattr(config, "autopilot_enabled", False), "growth_autopilot_enabled")
+        growth_llm_copy_enabled = efetivo(getattr(config, "growth_llm_copy_enabled", False), "growth_llm_copy_enabled")
+        growth_incentivos_enabled = efetivo(getattr(config, "growth_incentivos_enabled", False), "growth_incentivos_enabled")
+        growth_learning_enabled = efetivo(getattr(config, "growth_learning_enabled", False), "growth_learning_enabled")
+
+        limite_acoes = min(int(getattr(config, "growth_max_acoes_dia", caps["growth_max_acoes_dia"])), int(caps["growth_max_acoes_dia"]))
+        limite_incentivos = min(int(getattr(config, "growth_max_incentivos_mes", caps["growth_max_incentivos_mes"])), int(caps["growth_max_incentivos_mes"]))
+        modo_config = str(getattr(config, "growth_modo", caps["growth_modo"]) or caps["growth_modo"]).upper()
+        if tier == PlanTier.BASICO.value:
+            modo = "CONSERVADOR"
+        elif tier == PlanTier.PROFISSIONAL.value:
+            modo = "BALANCEADO"
+        else:
+            modo = modo_config if modo_config in {"CONSERVADOR", "BALANCEADO", "AGRESSIVO"} else caps["growth_modo"]
+
+        recursos_disponiveis = []
+        recursos_bloqueados = []
+        for chave, label in GROWTH_FEATURE_LABELS.items():
+            disponivel = {
+                "growth_engine_enabled": growth_engine_enabled,
+                "growth_autopilot_enabled": growth_autopilot_enabled,
+                "growth_llm_copy_enabled": growth_llm_copy_enabled,
+                "growth_incentivos_enabled": growth_incentivos_enabled,
+                "growth_learning_enabled": growth_learning_enabled,
+            }.get(chave, False)
+            item = {
+                "chave": chave,
+                "label": label,
+                "disponivel": disponivel,
+                "bloqueado": not disponivel,
+                "motivo": None if disponivel else f"Disponível a partir do plano {PlanTier.ENTERPRISE.value if chave != 'growth_engine_enabled' else PlanTier.PROFISSIONAL.value}",
+            }
+            (recursos_disponiveis if disponivel else recursos_bloqueados).append(item)
+
+        if tier == PlanTier.BASICO.value:
+            bloqueados_extra = [
+                {"chave": "persons", "label": "Personas", "disponivel": False, "bloqueado": True, "motivo": "Disponível a partir do plano PROFISSIONAL"},
+                {"chave": "timing", "label": "Timing inteligente", "disponivel": False, "bloqueado": True, "motivo": "Disponível a partir do plano PROFISSIONAL"},
+                {"chave": "roi_basico", "label": "ROI básico", "disponivel": False, "bloqueado": True, "motivo": "Disponível a partir do plano PROFISSIONAL"},
+            ]
+            recursos_bloqueados.extend(bloqueados_extra)
+        elif tier == PlanTier.PROFISSIONAL.value:
+            recursos_disponiveis.extend([
+                {"chave": "persons", "label": "Personas", "disponivel": True, "bloqueado": False, "motivo": None},
+                {"chave": "timing", "label": "Timing inteligente", "disponivel": True, "bloqueado": False, "motivo": None},
+                {"chave": "recommendation", "label": "Recomendação de plano", "disponivel": True, "bloqueado": False, "motivo": None},
+                {"chave": "roi_basico", "label": "ROI básico", "disponivel": True, "bloqueado": False, "motivo": None},
+            ])
+        else:
+            recursos_disponiveis.extend([
+                {"chave": "persons", "label": "Personas", "disponivel": True, "bloqueado": False, "motivo": None},
+                {"chave": "timing", "label": "Timing inteligente", "disponivel": True, "bloqueado": False, "motivo": None},
+                {"chave": "recommendation", "label": "Recomendação de plano", "disponivel": True, "bloqueado": False, "motivo": None},
+                {"chave": "roi_basico", "label": "ROI básico", "disponivel": True, "bloqueado": False, "motivo": None},
+                {"chave": "roi_avancado", "label": "ROI avançado", "disponivel": True, "bloqueado": False, "motivo": None},
+            ])
+
+        return {
+            "tenant_id": tenant_id,
+            "plano_atual": tier,
+            "plano_atual_label": IAGrowthService.PLANO_LABEL.get(tier, tier),
+            "growth_engine_enabled": growth_engine_enabled,
+            "growth_autopilot_enabled": growth_autopilot_enabled,
+            "growth_llm_copy_enabled": growth_llm_copy_enabled,
+            "growth_incentivos_enabled": growth_incentivos_enabled,
+            "growth_learning_enabled": growth_learning_enabled,
+            "growth_max_acoes_dia": limite_acoes,
+            "growth_max_incentivos_mes": limite_incentivos,
+            "growth_modo": modo,
+            "atualizado_em": getattr(config, "updated_at", None),
+            "recursos_disponiveis": recursos_disponiveis,
+            "recursos_bloqueados": recursos_bloqueados,
+            "limites_plano": caps,
+            "cta_upgrade_label": "Ver planos",
+            "cta_upgrade_url": "/dashboard/settings/billing",
+        }
+
+    @staticmethod
+    async def _growth_feature_permitida(db: AsyncSession, tenant_id: uuid.UUID, feature: str) -> bool:
+        config = await IAGrowthService.get_growth_engine_config(db, tenant_id)
+        return bool(config.get(feature, False))
     @staticmethod
     def _tier_rank(tier: str) -> int:
         try:
@@ -258,6 +412,7 @@ class IAGrowthService:
         """
         fit = fit or await IAGrowthService.calcular_fit_plano(db, tenant_id, usuario_id)
         score_oportunidade = score_oportunidade or await IAGrowthService.calcular_score_oportunidade(db, tenant_id, usuario_id)
+        growth_cfg = await IAGrowthService.get_growth_engine_config(db, tenant_id)
 
         categoria = categoria or score_oportunidade.get("categoria") or "NEUTRO"
         plano_recomendado = fit.get("plano_recomendado")
@@ -306,6 +461,12 @@ class IAGrowthService:
         else:
             tipo_oferta = IAGrowthTipoOferta.CONSULTIVO.value if churn_level != "BAIXO" else IAGrowthTipoOferta.EDUCATIVO.value
 
+        if not growth_cfg["growth_incentivos_enabled"] and tipo_oferta in {
+            IAGrowthTipoOferta.INCENTIVO_LEVE.value,
+            IAGrowthTipoOferta.INCENTIVO_FORTE.value,
+        }:
+            tipo_oferta = IAGrowthTipoOferta.CONSULTIVO.value if churn_level != "ALTO" else IAGrowthTipoOferta.EDUCATIVO.value
+
         if categoria == "ALTO_POTENCIAL" and churn_level == "BAIXO" and taxa_hist >= 0.18:
             tipo_oferta = IAGrowthTipoOferta.SEM_INCENTIVO.value
         elif categoria == "TRAVADO" and tipo_oferta == IAGrowthTipoOferta.INCENTIVO_LEVE.value and taxa_hist <= 0.04:
@@ -321,8 +482,11 @@ class IAGrowthService:
             churn_level=churn_level,
         )
 
-        peso_oferta = await IAGrowthService._obter_learning_peso(db, tenant_id, "OFERTA", tipo_oferta)
-        peso_abordagem = await IAGrowthService._obter_learning_peso(db, tenant_id, "ABORDAGEM", detalhes["tipo_abordagem"])
+        peso_oferta = 1.0
+        peso_abordagem = 1.0
+        if growth_cfg["growth_learning_enabled"]:
+            peso_oferta = await IAGrowthService._obter_learning_peso(db, tenant_id, "OFERTA", tipo_oferta)
+            peso_abordagem = await IAGrowthService._obter_learning_peso(db, tenant_id, "ABORDAGEM", detalhes["tipo_abordagem"])
         if peso_oferta < 0.9 and tipo_oferta == IAGrowthTipoOferta.INCENTIVO_FORTE.value:
             tipo_oferta = IAGrowthTipoOferta.INCENTIVO_LEVE.value
             detalhes = IAGrowthService._detalhes_oferta(
@@ -469,8 +633,8 @@ class IAGrowthService:
         if not usuario_id:
             return None
 
-        config = await IAAutopilotService.get_config(db, tenant_id)
-        if not getattr(config, "growth_incentivos_enabled", False):
+        growth_cfg = await IAGrowthService.get_growth_engine_config(db, tenant_id)
+        if not growth_cfg["growth_incentivos_enabled"]:
             return None
 
         origem = (origem or "ASSISTENTE").upper()
@@ -533,10 +697,10 @@ class IAGrowthService:
         q_tenant = await db.execute(
             select(func.count(IAGrowthIncentivo.id)).where(
                 IAGrowthIncentivo.tenant_id == tenant_id,
-                IAGrowthIncentivo.created_at >= agora - timedelta(days=90),
+                IAGrowthIncentivo.created_at >= agora - timedelta(days=30),
             )
         )
-        if (q_tenant.scalar() or 0) >= INCENTIVO_MAX_TENANT_90D:
+        if (q_tenant.scalar() or 0) >= int(growth_cfg["growth_max_incentivos_mes"] or 0):
             return None
 
         tipo_incentivo = IAGrowthService._selecionar_tipo_incentivo(fit, score_oportunidade, oferta_info)
@@ -972,8 +1136,10 @@ class IAGrowthService:
         if count_ux < 2:
             score -= 0.1
 
-        peso_timing = await IAGrowthService._obter_learning_peso(db, tenant_id, "TIMING", contexto or "geral")
-        score = IAGrowthService._aplicar_learning_peso(score, peso_timing)
+        growth_cfg = await IAGrowthService.get_growth_engine_config(db, tenant_id)
+        if growth_cfg["growth_learning_enabled"]:
+            peso_timing = await IAGrowthService._obter_learning_peso(db, tenant_id, "TIMING", contexto or "geral")
+            score = IAGrowthService._aplicar_learning_peso(score, peso_timing)
         return float(max(0.0, min(1.0, score)))
 
     @staticmethod
@@ -1111,6 +1277,11 @@ class IAGrowthService:
             score -= 0.10
 
         score = float(max(0.0, min(1.0, score)))
+        growth_cfg = await IAGrowthService.get_growth_engine_config(db, tenant_id)
+        if growth_cfg["growth_learning_enabled"]:
+            peso_timing = await IAGrowthService._obter_learning_peso(db, tenant_id, "TIMING", contexto or "geral")
+            score = IAGrowthService._aplicar_learning_peso(score, peso_timing)
+            score = float(max(0.0, min(1.0, score)))
         nivel = IAGrowthService._classificar_risco_churn(score)
 
         return {
@@ -1140,6 +1311,7 @@ class IAGrowthService:
         Gatilhos: ROI alto, cota 80%, ação de impacto alto, progresso relevante.
         """
         perfil_usuario = await IAGrowthService.get_perfil_usuario(db, usuario_id) if usuario_id else None
+        growth_cfg = await IAGrowthService.get_growth_engine_config(db, tenant_id)
 
         # Respeita configuração manual do tenant (Growth-03)
         cfg = await IAGrowthService._get_config(db, tenant_id, contexto)
@@ -1154,8 +1326,9 @@ class IAGrowthService:
 
         # --- IA-Growth-14: Score de Momento (Timing Inteligente) ---
         moment_score = await IAGrowthService.calcular_score_momento(db, tenant_id, usuario_id, contexto)
-        peso_persona = await IAGrowthService._obter_learning_peso(db, tenant_id, "PERSONA", perfil_usuario or "NEUTRO")
-        moment_score = IAGrowthService._aplicar_learning_peso(moment_score, peso_persona)
+        if growth_cfg["growth_learning_enabled"]:
+            peso_persona = await IAGrowthService._obter_learning_peso(db, tenant_id, "PERSONA", perfil_usuario or "NEUTRO")
+            moment_score = IAGrowthService._aplicar_learning_peso(moment_score, peso_persona)
         timing_decision = "FULL" # FULL, SOFT, HIDDEN
         
         if moment_score >= 0.7:
@@ -1212,8 +1385,9 @@ class IAGrowthService:
         cta_info_override: Optional[Dict[str, str]] = None
 
         if roi_valor >= ROI_TRIGGER_MINIMO:
-            peso_oferta_roi = await IAGrowthService._obter_learning_peso(db, tenant_id, "OFERTA", IAGrowthTipoOferta.INCENTIVO_LEVE.value)
-            roi_valor = round(roi_valor * IAGrowthService._clamp_learning_peso(peso_oferta_roi), 2)
+            if growth_cfg["growth_learning_enabled"]:
+                peso_oferta_roi = await IAGrowthService._obter_learning_peso(db, tenant_id, "OFERTA", IAGrowthTipoOferta.INCENTIVO_LEVE.value)
+                roi_valor = round(roi_valor * IAGrowthService._clamp_learning_peso(peso_oferta_roi), 2)
             dispara = True
             roi_fmt = f"R$ {roi_valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
             mensagem = f"A IA já gerou {roi_fmt} em valor para sua operação — destrave mais decisões com o plano {PlanTier.PROFISSIONAL.value.capitalize()}."
@@ -1266,8 +1440,11 @@ class IAGrowthService:
             score_oportunidade=score_oportunidade,
             categoria=score_oportunidade.get("categoria"),
         )
-        peso_oferta = await IAGrowthService._obter_learning_peso(db, tenant_id, "OFERTA", oferta_info["tipo_oferta"])
-        peso_abordagem = await IAGrowthService._obter_learning_peso(db, tenant_id, "ABORDAGEM", oferta_info["tipo_abordagem"])
+        peso_oferta = 1.0
+        peso_abordagem = 1.0
+        if growth_cfg["growth_learning_enabled"]:
+            peso_oferta = await IAGrowthService._obter_learning_peso(db, tenant_id, "OFERTA", oferta_info["tipo_oferta"])
+            peso_abordagem = await IAGrowthService._obter_learning_peso(db, tenant_id, "ABORDAGEM", oferta_info["tipo_abordagem"])
         if peso_oferta < 0.9 and oferta_info["tipo_oferta"] == IAGrowthTipoOferta.INCENTIVO_FORTE.value:
             oferta_info["tipo_oferta"] = IAGrowthTipoOferta.INCENTIVO_LEVE.value
         elif peso_oferta > 1.1 and oferta_info["tipo_oferta"] in {
@@ -1422,9 +1599,11 @@ class IAGrowthService:
                     abordagem_vencedora=melhor_abordagem or "GANHO"
                 )
 
-                cta_dinamico = await IAGrowthLLMService.gerar_copy_cta_llm(
-                    db, tenant_id, contexto, ctx_usuario, dados_growth, usuario_id=usuario_id
-                )
+                growth_cfg = await IAGrowthService.get_growth_engine_config(db, tenant_id)
+                if growth_cfg["growth_llm_copy_enabled"]:
+                    cta_dinamico = await IAGrowthLLMService.gerar_copy_cta_llm(
+                        db, tenant_id, contexto, ctx_usuario, dados_growth, usuario_id=usuario_id
+                    )
 
             # Aplica copy dinâmico (estático da variante ou gerado por LLM)
             if cta_dinamico:
@@ -2278,9 +2457,11 @@ class IAGrowthService:
             usuario_ctx = await IAGrowthService._obter_contexto_usuario(db, tenant_id, usuario_id)
             growth_ctx = await IAGrowthService._obter_dados_growth_analiticos(db, tenant_id)
             
-            llm_cta = await IAGrowthLLMService.gerar_copy_cta_llm(
-                db, tenant_id, contexto, usuario_ctx, growth_ctx, usuario_id
-            )
+            growth_cfg = await IAGrowthService.get_growth_engine_config(db, tenant_id)
+            if growth_cfg["growth_llm_copy_enabled"]:
+                llm_cta = await IAGrowthLLMService.gerar_copy_cta_llm(
+                    db, tenant_id, contexto, usuario_ctx, growth_ctx, usuario_id
+                )
         except Exception as e:
             logger.error(f"Erro ao gerar copy via LLM: {e}")
 
@@ -3276,6 +3457,19 @@ class IAGrowthService:
         categoria: Optional[str] = None,
     ) -> Dict[str, Any]:
         """Consolida prioridades de Revenue Intelligence por usuário."""
+        growth_cfg = await IAGrowthService.get_growth_engine_config(db, tenant_id)
+        if not growth_cfg["growth_engine_enabled"]:
+            return {
+                "periodo_dias": periodo_dias,
+                "total_oportunidades": 0,
+                "alto_potencial": 0,
+                "travados": 0,
+                "risco": 0,
+                "neutros": 0,
+                "impacto_total_estimado": 0.0,
+                "contextos_disponiveis": [],
+                "oportunidades": [],
+            }
         desde = datetime.now(timezone.utc) - timedelta(days=periodo_dias)
 
         plano_map = {
@@ -3483,13 +3677,14 @@ class IAGrowthService:
         limite_usuarios: int = 50,
     ) -> Dict[str, Any]:
         """Executa ações automáticas de Growth com regras de segurança e auditoria."""
+        growth_cfg = await IAGrowthService.get_growth_engine_config(db, tenant_id)
         config = await IAAutopilotService.get_config(db, tenant_id)
-        autopilot_ativo = bool(getattr(config, "autopilot_enabled", None) if getattr(config, "autopilot_enabled", None) is not None else config.ativo)
+        autopilot_ativo = growth_cfg["growth_autopilot_enabled"]
 
         if not autopilot_ativo:
             return {
                 "ativo": False,
-                "modo": IAGrowthService._autopilot_modo_label(config.nivel_autonomia),
+                "modo": growth_cfg["growth_modo"],
                 "acoes_executadas": 0,
                 "impacto_estimado": 0.0,
                 "recentes": [],
@@ -3504,10 +3699,28 @@ class IAGrowthService:
 
         executadas: List[Dict[str, Any]] = []
         impacto_total = 0.0
-        modo_label = IAGrowthService._autopilot_modo_label(config.nivel_autonomia)
+        modo_label = growth_cfg["growth_modo"]
         max_por_usuario = 2 if config.nivel_autonomia != "ALTO" else 3
+        max_acoes_dia = int(growth_cfg["growth_max_acoes_dia"] or 0)
         desde_dismiss = datetime.now(timezone.utc) - timedelta(days=7)
         contagem_local: Dict[uuid.UUID, int] = {}
+
+        if max_acoes_dia > 0:
+            hoje_inicio = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+            q_dia = await db.execute(
+                select(func.count(IAGrowthAutopilotAcao.id)).where(
+                    IAGrowthAutopilotAcao.tenant_id == tenant_id,
+                    IAGrowthAutopilotAcao.executada_em >= hoje_inicio,
+                )
+            )
+            if (q_dia.scalar() or 0) >= max_acoes_dia:
+                return {
+                    "ativo": True,
+                    "modo": modo_label,
+                    "acoes_executadas": 0,
+                    "impacto_estimado": 0.0,
+                    "recentes": [],
+                }
 
         for item in oportunidades["oportunidades"]:
             usuario_id = uuid.UUID(item["usuario_id"])
@@ -3561,7 +3774,9 @@ class IAGrowthService:
                     logger.warning(f"[IA-Growth-21] Falha ao gerar incentivo no autopilot: {exc}")
 
             for acao in IAGrowthService._autopilot_tipo_acao(item["categoria"], modo_label, tipo_oferta):
-                peso_autopilot = await IAGrowthService._obter_learning_peso(db, tenant_id, "AUTOPILOT", acao["tipo_acao"])
+                peso_autopilot = 1.0
+                if growth_cfg["growth_learning_enabled"]:
+                    peso_autopilot = await IAGrowthService._obter_learning_peso(db, tenant_id, "AUTOPILOT", acao["tipo_acao"])
                 if acao["tipo_acao"] == "OFERTA_INCENTIVO_CONTROLADO" and not incentivo_info:
                     continue
                 if await IAGrowthService._autopilot_ja_executou(db, tenant_id, usuario_id, acao["tipo_acao"]):
@@ -3651,8 +3866,9 @@ class IAGrowthService:
         tenant_id: uuid.UUID,
         periodo_dias: int = 30,
     ) -> Dict[str, Any]:
+        growth_cfg = await IAGrowthService.get_growth_engine_config(db, tenant_id)
         config = await IAAutopilotService.get_config(db, tenant_id)
-        autopilot_ativo = bool(getattr(config, "autopilot_enabled", None) if getattr(config, "autopilot_enabled", None) is not None else config.ativo)
+        autopilot_ativo = growth_cfg["growth_autopilot_enabled"]
 
         oportunidade_top: Dict[str, Any] = {}
         incentivo_top: Optional[Dict[str, Any]] = None
@@ -3695,9 +3911,15 @@ class IAGrowthService:
 
         return {
             "ativo": autopilot_ativo,
-            "modo": IAGrowthService._autopilot_modo_label(config.nivel_autonomia),
+            "modo": growth_cfg["growth_modo"],
             "nivel_autonomia": config.nivel_autonomia,
             "autopilot_enabled": autopilot_ativo,
+            "growth_engine_enabled": growth_cfg["growth_engine_enabled"],
+            "growth_llm_copy_enabled": growth_cfg["growth_llm_copy_enabled"],
+            "growth_incentivos_enabled": growth_cfg["growth_incentivos_enabled"],
+            "growth_learning_enabled": growth_cfg["growth_learning_enabled"],
+            "growth_max_acoes_dia": growth_cfg["growth_max_acoes_dia"],
+            "growth_max_incentivos_mes": growth_cfg["growth_max_incentivos_mes"],
             "acoes_executadas": len(rows),
             "impacto_estimado": round(impacto_total, 2),
             "tipo_oferta": oportunidade_top.get("tipo_oferta", IAGrowthTipoOferta.CONSULTIVO.value),
@@ -4285,6 +4507,15 @@ class IAGrowthService:
         periodo_dias: int = 30,
     ) -> Dict[str, Any]:
         """Recalcula pesos de aprendizado de forma simples e auditável."""
+        growth_cfg = await IAGrowthService.get_growth_engine_config(db, tenant_id)
+        if not growth_cfg["growth_learning_enabled"]:
+            return {
+                "periodo_dias": periodo_dias,
+                "total_atualizados": 0,
+                "total_criados": 0,
+                "mensagem": "Aprendizado do Growth indisponível no plano/configuração atual.",
+            }
+
         desde = datetime.now(timezone.utc) - timedelta(days=periodo_dias)
         total_atualizados = 0
         total_criados = 0
@@ -4408,6 +4639,15 @@ class IAGrowthService:
         tenant_id: uuid.UUID,
         periodo_dias: int = 30,
     ) -> Dict[str, Any]:
+        growth_cfg = await IAGrowthService.get_growth_engine_config(db, tenant_id)
+        if not growth_cfg["growth_learning_enabled"]:
+            return {
+                "periodo_dias": periodo_dias,
+                "total": 0,
+                "pesos": [],
+                "ultima_atualizacao": None,
+            }
+
         stmt = (
             select(IAGrowthLearningWeight)
             .where(IAGrowthLearningWeight.tenant_id == tenant_id)
