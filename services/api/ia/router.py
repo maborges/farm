@@ -48,6 +48,7 @@ from ia.schemas import (
     IAGrowthChurnDashboardResponse,
     IAGrowthPlanoRecomendadoResponse,
     IAGrowthPlanoMetricasResponse,
+    IAGrowthOportunidadesResponse,
     IAGrowthAssistenteContextoResponse,
     IAGrowthAssistenteMensagemRequest,
     IAGrowthAssistenteMensagemResponse,
@@ -2383,6 +2384,38 @@ async def get_performance_churn(
 
     from ia.growth_service import IAGrowthService
     return await IAGrowthService.get_dashboard_churn(session, tenant_id, periodo_dias)
+
+
+@router.get("/growth/oportunidades", response_model=IAGrowthOportunidadesResponse)
+async def get_oportunidades_receita(
+    periodo_dias: int = Query(30, ge=7, le=90),
+    limite: int = Query(20, ge=1, le=100),
+    persona: Optional[str] = Query(None),
+    plano: Optional[str] = Query(None),
+    contexto: Optional[str] = Query(None),
+    categoria: Optional[str] = Query(None),
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    claims: dict = Depends(get_current_user_claims),
+    session: AsyncSession = Depends(get_session),
+):
+    """Retorna oportunidades priorizadas de revenue intelligence (IA-Growth-18)."""
+    is_privileged = claims.get("role") in {"owner", "admin"} or claims.get("is_owner") is True
+    if not is_privileged:
+        raise HTTPException(status_code=403, detail="Acesso restrito a proprietários e administradores do tenant.")
+
+    from ia.growth_service import IAGrowthService
+
+    resultado = await IAGrowthService.get_dashboard_oportunidades(
+        session,
+        tenant_id,
+        periodo_dias=periodo_dias,
+        limite=limite,
+        persona=persona,
+        plano=plano,
+        contexto=contexto,
+        categoria=categoria,
+    )
+    return IAGrowthOportunidadesResponse(**resultado)
 
 
 @router.get("/growth/assistente-comercial/contexto", response_model=IAGrowthAssistenteContextoResponse)

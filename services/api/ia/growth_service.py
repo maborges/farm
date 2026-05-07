@@ -15,7 +15,8 @@ from core.models.auth import Usuario
 from ia.models import (
     IAGrowthEvento, IAGrowthConfig, IAGrowthConfigHistorico, IAGrowthSugestaoRegistro,
     IAGrowthExperimento, IAGrowthExperimentoVariante, IAGrowthExperimentoEvento,
-    IAGrowthUserProfile, IAUXTelemetria, IAUso, IAGrowthPlanoRecomendadoLog
+    IAGrowthUserProfile, IAUXTelemetria, IAUso, IAGrowthPlanoRecomendadoLog,
+    IAGrowthAssistenteInteracao
 )
 from ia.upgrade_recomendacao_service import IARecomendacaoUpgradeService
 from ia.usage_service import consultar_creditos
@@ -30,9 +31,22 @@ PROGRESSO_MINIMO = 30.0         # % de melhoria para gatilho
 # IA-Growth-12: Personas
 PERSONAS = ["CONSERVADOR", "EXPLORADOR", "ORIENTADO_A_RESULTADO", "INICIANTE", "AVANCADO"]
 CHURN_NIVEIS = ("BAIXO", "MEDIO", "ALTO")
+OPORTUNIDADE_CATEGORIAS = ("ALTO_POTENCIAL", "TRAVADO", "RISCO", "NEUTRO")
+TIER_ORDEM = [PlanTier.BASICO.value, PlanTier.PROFISSIONAL.value, PlanTier.ENTERPRISE.value]
 
 
 class IAGrowthService:
+    @staticmethod
+    def _tier_rank(tier: str) -> int:
+        try:
+            return TIER_ORDEM.index(tier)
+        except ValueError:
+            return 0
+
+    @staticmethod
+    def _formatar_valor(valor: float) -> str:
+        return f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
     @staticmethod
     def _classificar_risco_churn(score: float) -> str:
         if score >= 0.7:
@@ -2267,6 +2281,292 @@ class IAGrowthService:
             "churn_risk_level": churn_level,
             "fit_por_plano": fit_por_plano,
             "sinais": sinais,
+        }
+
+    @staticmethod
+    async def calcular_score_oportunidade(
+        db: AsyncSession,
+        tenant_id: uuid.UUID,
+        usuario_id: Optional[uuid.UUID] = None,
+    ) -> Dict[str, Any]:
+        """Calcula score de oportunidade comercial por usuário (IA-Growth-18)."""
+        fit = await IAGrowthService.calcular_fit_plano(db, tenant_id, usuario_id)
+        sinais = fit.get("sinais", {})
+        plano_atual = fit["plano_atual"]
+        plano_recomendado = fit["plano_recomendado"]
+        churn_level = fit["churn_risk_level"]
+        persona = fit.get("persona") or "NEUTRO"
+        score_fit = float(fit["score_fit"])
+
+        desde_30d = datetime.now(timezone.utc) - timedelta(days=30)
+        desde_14d = datetime.now(timezone.utc) - timedelta(days=14)
+
+        assist_filters = [
+            IAGrowthAssistenteInteracao.tenant_id == tenant_id,
+            IAGrowthAssistenteInteracao.created_at >= desde_30d,
+        ]
+        if usuario_id:
+            assist_filters.append(IAGrowthAssistenteInteracao.usuario_id == usuario_id)
+        q_assistente = await db.execute(
+            select(func.count(IAGrowthAssistenteInteracao.id)).where(*assist_filters)
+        )
+        interacoes_assistente = int(q_assistente.scalar() or 0)
+
+        cta_filters = [
+            IAGrowthEvento.tenant_id == tenant_id,
+            IAGrowthEvento.created_at >= desde_14d,
+        ]
+        if usuario_id:
+            cta_filters.append(IAGrowthEvento.usuario_id == usuario_id)
+        q_cta = await db.execute(
+            select(
+                func.count(IAGrowthEvento.id).filter(IAGrowthEvento.evento == "upgrade_cta_viewed").label("views"),
+                func.count(IAGrowthEvento.id).filter(IAGrowthEvento.evento == "upgrade_cta_clicked").label("clicks"),
+                func.count(IAGrowthEvento.id).filter(IAGrowthEvento.evento == "upgrade_cta_dismissed").label("dismisses"),
+                func.count(IAGrowthEvento.id).filter(IAGrowthEvento.evento == "upgrade_cta_skipped").label("skipped"),
+            ).where(*cta_filters)
+        )
+        cta_row = q_cta.one()
+        cta_views = int(cta_row.views or 0)
+        cta_clicks = int(cta_row.clicks or 0)
+        cta_dismisses = int(cta_row.dismisses or 0)
+        cta_skipped = int(cta_row.skipped or 0)
+        cta_rate = (cta_clicks / cta_views) if cta_views else 0.0
+
+        usage_score = min(1.0, max(float(sinais.get("uso_ia_pct", 0.0)) / 100.0, float(sinais.get("uso_features_chave", 0.0)) / 10.0))
+        bloqueio_score = min(1.0, float(sinais.get("tentativas_features_bloqueadas", 0.0)) / 5.0)
+        freq_score = min(1.0, float(sinais.get("dias_ativos_30d", 0.0)) / 12.0)
+        persona_score = 0.9 if persona in {"EXPLORADOR", "AVANCADO"} else 0.65 if persona == "ORIENTADO_A_RESULTADO" else 0.35
+        churn_score = 1.0 if churn_level == "BAIXO" else 0.45 if churn_level == "MEDIO" else 0.0
+        assist_score = min(1.0, interacoes_assistente / 4.0)
+        cta_score = min(1.0, cta_rate + (cta_clicks / 6.0))
+        engagement_bonus = min(1.0, float(sinais.get("eventos_intencao_upgrade", 0.0)) / 3.0)
+
+        score = (
+            score_fit * 0.34
+            + usage_score * 0.16
+            + bloqueio_score * 0.10
+            + freq_score * 0.10
+            + persona_score * 0.08
+            + churn_score * 0.10
+            + assist_score * 0.07
+            + cta_score * 0.05
+            + engagement_bonus * 0.00
+        )
+
+        if churn_level == "ALTO":
+            score -= 0.18
+        elif churn_level == "MEDIO":
+            score -= 0.06
+
+        if usage_score >= 0.7 and churn_level == "BAIXO":
+            score += 0.06
+        if cta_clicks > 0:
+            score += 0.04
+        if cta_dismisses > cta_clicks:
+            score -= 0.04
+        if cta_skipped > 0:
+            score -= 0.02
+
+        score = float(max(0.0, min(1.0, score)))
+
+        if churn_level == "ALTO":
+            categoria = "RISCO"
+        elif score_fit >= 0.7 and churn_level == "BAIXO" and usage_score >= 0.55:
+            categoria = "ALTO_POTENCIAL"
+        elif score_fit >= 0.65 and (cta_views > 0 and cta_clicks == 0):
+            categoria = "TRAVADO"
+        else:
+            categoria = "NEUTRO"
+
+        nivel = "ALTO" if score >= 0.7 else "MEDIO" if score >= 0.4 else "BAIXO"
+        plano_atual_rank = IAGrowthService._tier_rank(plano_atual)
+        plano_recomendado_rank = IAGrowthService._tier_rank(plano_recomendado)
+
+        if categoria == "RISCO":
+            acao_sugerida = "REENGAJAMENTO"
+            cta_label = "Retomar valor"
+            cta_url = "/dashboard/ia/performance"
+        elif categoria == "ALTO_POTENCIAL":
+            acao_sugerida = "CTA_AGRESSIVO"
+            cta_label = "Ver plano recomendado"
+            cta_url = "/dashboard/settings/billing"
+        elif categoria == "TRAVADO":
+            acao_sugerida = "ASSISTENTE_PROATIVO"
+            cta_label = "Explicar valor"
+            cta_url = "/dashboard/ia/performance"
+        else:
+            acao_sugerida = "CONTEUDO_EDUCATIVO"
+            cta_label = "Aprender mais"
+            cta_url = "/dashboard/ia"
+
+        if plano_recomendado_rank <= plano_atual_rank and categoria == "ALTO_POTENCIAL":
+            cta_url = "/dashboard/ia/performance"
+
+        impact_base = max(
+            0.0,
+            float(sinais.get("uso_ia_pct", 0.0)) * 0.18
+            + float(sinais.get("uso_features_chave", 0.0)) * 14.0
+            + interacoes_assistente * 4.0
+            + cta_clicks * 12.0,
+        )
+        if plano_recomendado_rank > plano_atual_rank:
+            delta_tier = float(plano_recomendado_rank - plano_atual_rank)
+            impact_base += 120.0 * delta_tier * (0.65 + score_fit)
+        else:
+            impact_base += 45.0 * (0.4 + score_fit)
+        if categoria == "RISCO":
+            impact_base *= 0.45
+        elif categoria == "TRAVADO":
+            impact_base *= 0.75
+
+        return {
+            "score": score,
+            "nivel": nivel,
+            "categoria": categoria,
+            "plano_atual": plano_atual,
+            "plano_recomendado": plano_recomendado,
+            "persona": persona,
+            "churn_risk_level": churn_level,
+            "cta_views": cta_views,
+            "cta_clicks": cta_clicks,
+            "assistente_interacoes": interacoes_assistente,
+            "uso_features_chave": float(sinais.get("uso_features_chave", 0.0)),
+            "uso_ia_pct": float(sinais.get("uso_ia_pct", 0.0)),
+            "frequencia_uso_score": freq_score,
+            "uso_premium_score": usage_score,
+            "bloqueios_score": bloqueio_score,
+            "assistente_score": assist_score,
+            "cta_score": cta_score,
+            "cta_label": cta_label,
+            "cta_url": cta_url,
+            "acao_sugerida": acao_sugerida,
+            "impacto_estimado": round(impact_base, 2),
+            "score_fit": score_fit,
+        }
+
+    @staticmethod
+    async def get_dashboard_oportunidades(
+        db: AsyncSession,
+        tenant_id: uuid.UUID,
+        periodo_dias: int = 30,
+        limite: int = 20,
+        persona: Optional[str] = None,
+        plano: Optional[str] = None,
+        contexto: Optional[str] = None,
+        categoria: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Consolida prioridades de Revenue Intelligence por usuário."""
+        desde = datetime.now(timezone.utc) - timedelta(days=periodo_dias)
+
+        plano_map = {
+            row.plan_tier: {"nome": row.nome, "preco_mensal": float(row.preco_mensal or 0.0)}
+            for row in (await db.execute(
+                select(PlanoAssinatura.plan_tier, PlanoAssinatura.nome, PlanoAssinatura.preco_mensal)
+                .where(PlanoAssinatura.ativo == True)  # noqa: E712
+            )).all()
+        }
+
+        user_rows = await db.execute(
+            select(Usuario.id, Usuario.nome_completo, Usuario.username).where(Usuario.tenant_id == tenant_id)
+        )
+        usuarios = user_rows.all()
+
+        oportunidades: List[Dict[str, Any]] = []
+        for usuario_id, nome_completo, username in usuarios:
+            score = await IAGrowthService.calcular_score_oportunidade(db, tenant_id, usuario_id)
+
+            contexto_q = await db.execute(
+                select(IAGrowthEvento.contexto)
+                .where(
+                    IAGrowthEvento.tenant_id == tenant_id,
+                    IAGrowthEvento.usuario_id == usuario_id,
+                    IAGrowthEvento.created_at >= desde,
+                )
+                .order_by(IAGrowthEvento.created_at.desc())
+                .limit(1)
+            )
+            contexto_ultimo = contexto_q.scalar_one_or_none() or "geral"
+
+            plano_atual = score["plano_atual"]
+            plano_recomendado = score["plano_recomendado"]
+            plano_atual_info = plano_map.get(plano_atual, {})
+            plano_rec_info = plano_map.get(plano_recomendado, {})
+            preco_atual = float(plano_atual_info.get("preco_mensal", 0.0))
+            preco_rec = float(plano_rec_info.get("preco_mensal", 0.0))
+            delta_preco = max(0.0, preco_rec - preco_atual)
+            if delta_preco <= 0:
+                delta_preco = max(20.0, preco_atual * 0.2)
+
+            impacto_estimado = round(delta_preco * (0.55 + score["score"]), 2)
+            if score["categoria"] == "RISCO":
+                impacto_estimado = round(impacto_estimado * 0.55, 2)
+            elif score["categoria"] == "TRAVADO":
+                impacto_estimado = round(impacto_estimado * 0.85, 2)
+
+            oportunidades.append({
+                "usuario_id": str(usuario_id),
+                "usuario_label": nome_completo or username or "Usuário",
+                "persona": score["persona"],
+                "plano_atual": plano_atual,
+                "plano_atual_label": IAGrowthService.PLANO_LABEL.get(plano_atual, plano_atual),
+                "plano_recomendado": plano_recomendado,
+                "plano_recomendado_label": IAGrowthService.PLANO_LABEL.get(plano_recomendado, plano_recomendado),
+                "score_fit": score["score_fit"],
+                "score_oportunidade": score["score"],
+                "nivel": score["nivel"],
+                "categoria": score["categoria"],
+                "contexto": contexto_ultimo,
+                "cta_label": score["cta_label"],
+                "cta_url": score["cta_url"],
+                "acao_sugerida": score["acao_sugerida"],
+                "impacto_estimado": impacto_estimado,
+                "impacto_estimado_label": IAGrowthService._formatar_valor(impacto_estimado),
+                "churn_risk_level": score["churn_risk_level"],
+                "uso_premium_score": score["uso_premium_score"],
+                "frequencia_uso_score": score["frequencia_uso_score"],
+                "assistente_score": score["assistente_score"],
+                "cta_score": score["cta_score"],
+                "cta_clicks": score["cta_clicks"],
+                "cta_views": score["cta_views"],
+                "assistente_interacoes": score["assistente_interacoes"],
+            })
+
+        filtered: List[Dict[str, Any]] = []
+        for item in oportunidades:
+            if persona and item["persona"] != persona:
+                continue
+            if plano and item["plano_recomendado"] != plano and item["plano_atual"] != plano:
+                continue
+            if contexto and item["contexto"] != contexto:
+                continue
+            if categoria and item["categoria"] != categoria:
+                continue
+
+            filtered.append(item)
+
+        categorias = {c: 0 for c in OPORTUNIDADE_CATEGORIAS}
+        impacto_total = 0.0
+        contextos = []
+        for item in filtered:
+            categorias[item["categoria"]] = categorias.get(item["categoria"], 0) + 1
+            impacto_total += float(item["impacto_estimado"] or 0.0)
+            if item["contexto"] not in contextos:
+                contextos.append(item["contexto"])
+
+        filtered.sort(key=lambda item: (item["impacto_estimado"], item["score_oportunidade"]), reverse=True)
+        oportunidades_visiveis = filtered[:limite]
+
+        return {
+            "periodo_dias": periodo_dias,
+            "total_oportunidades": len(filtered),
+            "alto_potencial": categorias.get("ALTO_POTENCIAL", 0),
+            "travados": categorias.get("TRAVADO", 0),
+            "risco": categorias.get("RISCO", 0),
+            "neutros": categorias.get("NEUTRO", 0),
+            "impacto_total_estimado": round(impacto_total, 2),
+            "contextos_disponiveis": contextos,
+            "oportunidades": oportunidades_visiveis,
         }
 
     @staticmethod

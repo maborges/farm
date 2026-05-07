@@ -389,6 +389,46 @@ class IAGrowthPlanoRecomendadoResponse(BaseModel):
     log_id: Optional[uuid.UUID] = None
 
 
+class IAGrowthOportunidadeItem(BaseModel):
+    usuario_id: uuid.UUID
+    usuario_label: str
+    persona: Optional[str] = None
+    plano_atual: str
+    plano_atual_label: str
+    plano_recomendado: str
+    plano_recomendado_label: str
+    score_fit: float
+    score_oportunidade: float
+    nivel: str
+    categoria: str
+    contexto: str
+    cta_label: str
+    cta_url: str
+    acao_sugerida: str
+    impacto_estimado: float
+    impacto_estimado_label: str
+    churn_risk_level: str
+    uso_premium_score: float
+    frequencia_uso_score: float
+    assistente_score: float
+    cta_score: float
+    cta_clicks: int
+    cta_views: int
+    assistente_interacoes: int
+
+
+class IAGrowthOportunidadesResponse(BaseModel):
+    periodo_dias: int
+    total_oportunidades: int
+    alto_potencial: int
+    travados: int
+    risco: int
+    neutros: int
+    impacto_total_estimado: float
+    contextos_disponiveis: List[str]
+    oportunidades: List[IAGrowthOportunidadeItem]
+
+
 class IAGrowthAssistenteContextoResponse(BaseModel):
     visao_completa: bool = False
     resumo_perfil: str
