@@ -488,6 +488,9 @@ class IAGrowthPlanoRecomendadoLog(Base):
     nivel_urgencia = Column(String(10), nullable=False, default="BAIXA") # ALTA | MEDIA | BAIXA
     persona = Column(String(40), nullable=True)
     churn_risk_level = Column(String(10), nullable=True)
+    tipo_oferta = Column(String(30), nullable=True)
+    mensagem_oferta = Column(Text, nullable=True)
+    beneficio_destacado = Column(String(200), nullable=True)
 
     motivos = Column(JSON, nullable=True)                # list[str]
     funcionalidades_relevantes = Column(JSON, nullable=True)  # list[str]
@@ -501,6 +504,7 @@ class IAGrowthPlanoRecomendadoLog(Base):
         Index("ix_iagrowth_plano_rec_tenant_data", "tenant_id", "exibida_em"),
         Index("ix_iagrowth_plano_rec_plano", "plano_recomendado"),
         Index("ix_iagrowth_plano_rec_usuario", "usuario_id"),
+        Index("ix_iagrowth_plano_rec_oferta", "tenant_id", "tipo_oferta", "exibida_em"),
     )
 
 

@@ -138,6 +138,15 @@ class IACommercialAssistantService:
         churn_level = fit["churn_risk_level"]
         persona = fit.get("persona") or "NEUTRO"
         score_fit = float(fit["score_fit"])
+        score_oportunidade = await IAGrowthService.calcular_score_oportunidade(db, tenant_id, usuario_id)
+        oferta = await IAGrowthService.calcular_tipo_oferta(
+            db,
+            tenant_id,
+            usuario_id,
+            fit=fit,
+            score_oportunidade=score_oportunidade,
+            categoria=score_oportunidade.get("categoria"),
+        )
 
         modulos_usados = await IACommercialAssistantService._modulos_usados(db, tenant_id, usuario_id)
         cta_recente = await IACommercialAssistantService._cta_recente(db, tenant_id, usuario_id)
@@ -219,6 +228,9 @@ class IACommercialAssistantService:
             "features_bloqueadas": features_bloqueadas,
             "cta_recente": cta_recente,
             "sinais": fit.get("sinais", {}),
+            "tipo_oferta": oferta["tipo_oferta"],
+            "mensagem_oferta": oferta["mensagem_oferta"],
+            "beneficio_destacado": oferta["beneficio_destacado"],
         }
 
     @staticmethod
@@ -242,6 +254,8 @@ class IACommercialAssistantService:
         plano_atual_label = contexto["plano_atual_label"]
         motivo = contexto["motivo_principal"]
         churn = contexto["churn_risk_level"]
+        tipo_oferta = contexto.get("tipo_oferta", "CONSULTIVO")
+        beneficio_destacado = contexto.get("beneficio_destacado") or plano_sugerido_label
 
         if churn == "ALTO":
             resposta = (
@@ -283,6 +297,34 @@ class IACommercialAssistantService:
             cta_sugerido = "Explorar recursos"
             cta_url = "/dashboard/ia/performance"
             acao_sugerida = "EXPLORAR_RECURSOS"
+        elif tipo_oferta == "SEM_INCENTIVO":
+            resposta = (
+                f"O cenário já aponta para {plano_sugerido_label}. O próximo passo é objetivo e sem pressão."
+            )
+            cta_sugerido = f"Ver {plano_sugerido_label}"
+            cta_url = "/dashboard/settings/billing"
+            acao_sugerida = "VER_PLANOS"
+        elif tipo_oferta == "INCENTIVO_FORTE":
+            resposta = (
+                f"Existe uma oportunidade clara de evoluir agora. O principal ganho está em {beneficio_destacado}."
+            )
+            cta_sugerido = "Ver oportunidade"
+            cta_url = "/dashboard/settings/billing"
+            acao_sugerida = "VER_PLANOS"
+        elif tipo_oferta == "INCENTIVO_LEVE":
+            resposta = (
+                f"Há uma oportunidade simples de avançar com foco em valor prático, especialmente em {beneficio_destacado}."
+            )
+            cta_sugerido = "Sugestão de evolução"
+            cta_url = "/dashboard/settings/billing"
+            acao_sugerida = "VER_PLANOS"
+        elif tipo_oferta == "EDUCATIVO":
+            resposta = (
+                "Antes de avançar, vale explorar melhor o que você já tem disponível e destravar valor com menos fricção."
+            )
+            cta_sugerido = "Ver ajuda prática"
+            cta_url = "/dashboard/ia/performance"
+            acao_sugerida = "EXPLORAR_RECURSOS"
         else:
             resposta = (
                 f"Meu conselho inicial é focar no valor prático do {plano_sugerido_label}. "
@@ -299,6 +341,9 @@ class IACommercialAssistantService:
             "acao_sugerida": acao_sugerida,
             "plano_recomendado": plano_sugerido,
             "fonte": "HEURISTICO",
+            "tipo_oferta": tipo_oferta,
+            "mensagem_oferta": contexto.get("mensagem_oferta", ""),
+            "beneficio_destacado": beneficio_destacado,
         }
 
     @staticmethod
@@ -324,7 +369,10 @@ Responda exclusivamente em JSON com as chaves:
   "cta_sugerido": "texto do botão",
   "cta_url": "/rota/adequada",
   "plano_recomendado": "BASICO | PROFISSIONAL | ENTERPRISE",
-  "acao_sugerida": "VER_PLANOS | VER_PLANO_PROFISSIONAL | VER_PLANO_ENTERPRISE | EXPLORAR_RECURSOS | FALAR_COM_SUPORTE"
+  "acao_sugerida": "VER_PLANOS | VER_PLANO_PROFISSIONAL | VER_PLANO_ENTERPRISE | EXPLORAR_RECURSOS | FALAR_COM_SUPORTE",
+  "tipo_oferta": "SEM_INCENTIVO | INCENTIVO_LEVE | INCENTIVO_FORTE | EDUCATIVO | CONSULTIVO",
+  "mensagem_oferta": "explicacao consultiva do por que dessa abordagem",
+  "beneficio_destacado": "beneficio principal destacado"
 }}
 
 CONTEXTO:
@@ -392,7 +440,7 @@ CONTEXTO:
                 cta_sugerido=heur["cta_sugerido"],
                 acao_sugerida=heur["acao_sugerida"],
             )
-            return {**heur, "log_id": log_id}
+            return {**heur, "log_id": log_id, "contexto": contexto}
 
         tier_value = await cls._tier_atual(db, tenant_id)
         pode_usar, fonte_consumo = await _usage_svc.verificar_limite_ia(tenant_id, tier_value, db)
@@ -412,7 +460,7 @@ CONTEXTO:
                 cta_sugerido=heur["cta_sugerido"],
                 acao_sugerida=heur["acao_sugerida"],
             )
-            return {**heur, "log_id": log_id}
+            return {**heur, "log_id": log_id, "contexto": contexto}
 
         api_key = os.getenv("ANTHROPIC_API_KEY", "")
         if not api_key:
@@ -431,7 +479,7 @@ CONTEXTO:
                 cta_sugerido=heur["cta_sugerido"],
                 acao_sugerida=heur["acao_sugerida"],
             )
-            return {**heur, "log_id": log_id}
+            return {**heur, "log_id": log_id, "contexto": contexto}
 
         prompt = cls._montar_prompt(contexto, mensagem_usuario)
         model = os.getenv("IA_MODEL", "claude-haiku-4-5-20251001")
@@ -462,6 +510,9 @@ CONTEXTO:
                 parsed.get("plano_recomendado", contexto["plano_sugerido"]),
                 contexto["churn_risk_level"],
             )
+            tipo_oferta_llm = str(parsed.get("tipo_oferta", contexto.get("tipo_oferta", "CONSULTIVO"))).upper()
+            if tipo_oferta_llm not in {"SEM_INCENTIVO", "INCENTIVO_LEVE", "INCENTIVO_FORTE", "EDUCATIVO", "CONSULTIVO"}:
+                tipo_oferta_llm = contexto.get("tipo_oferta", "CONSULTIVO")
             resposta = {
                 "resposta_ia": parsed.get("resposta_ia", "Posso te ajudar a entender o próximo passo ideal.")[:500],
                 "cta_sugerido": parsed.get("cta_sugerido", mapped["cta_url"] or "Ver planos")[:80],
@@ -469,6 +520,9 @@ CONTEXTO:
                 "plano_recomendado": parsed.get("plano_recomendado", contexto["plano_sugerido"]),
                 "acao_sugerida": parsed.get("acao_sugerida", mapped["acao_sugerida"]),
                 "fonte": "LLM",
+                "tipo_oferta": tipo_oferta_llm,
+                "mensagem_oferta": parsed.get("mensagem_oferta", contexto.get("mensagem_oferta", "")),
+                "beneficio_destacado": parsed.get("beneficio_destacado", contexto.get("beneficio_destacado", "")),
             }
             if fonte_consumo == "PACOTE":
                 await _usage_svc.consumir_credito_pacote(tenant_id, db)
@@ -499,4 +553,4 @@ CONTEXTO:
             cta_sugerido=resposta["cta_sugerido"],
             acao_sugerida=resposta["acao_sugerida"],
         )
-        return {**resposta, "log_id": log_id}
+        return {**resposta, "log_id": log_id, "contexto": contexto}

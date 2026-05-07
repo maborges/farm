@@ -1,7 +1,16 @@
 import uuid
 from typing import Optional, Dict, List, Any
 from datetime import datetime
+from enum import Enum
 from pydantic import BaseModel
+
+
+class IAGrowthTipoOferta(str, Enum):
+    SEM_INCENTIVO = "SEM_INCENTIVO"
+    INCENTIVO_LEVE = "INCENTIVO_LEVE"
+    INCENTIVO_FORTE = "INCENTIVO_FORTE"
+    EDUCATIVO = "EDUCATIVO"
+    CONSULTIVO = "CONSULTIVO"
 
 class IAAcaoAssistidaHistoricoResponse(BaseModel):
     id: uuid.UUID
@@ -122,6 +131,9 @@ class IAGrowthCTAResponse(BaseModel):
     contexto: str = ""
     cooldown_ativo: bool = False
     roi_valor: float = 0.0
+    tipo_oferta: IAGrowthTipoOferta = IAGrowthTipoOferta.CONSULTIVO
+    mensagem_oferta: str = ""
+    beneficio_destacado: str = ""
     experimento_id: Optional[uuid.UUID] = None
     variante_id: Optional[uuid.UUID] = None
     titulo_alternativo: Optional[str] = None # Growth-10
@@ -382,6 +394,9 @@ class IAGrowthPlanoRecomendadoResponse(BaseModel):
     cta_url: str
     cta_secundaria_label: Optional[str] = None
     cta_secundaria_url: Optional[str] = None
+    tipo_oferta: IAGrowthTipoOferta = IAGrowthTipoOferta.CONSULTIVO
+    mensagem_oferta: str = ""
+    beneficio_destacado: str = ""
     nivel_urgencia: str   # ALTA | MEDIA | BAIXA
     churn_risk_level: str
     persona: Optional[str] = None
@@ -415,6 +430,9 @@ class IAGrowthOportunidadeItem(BaseModel):
     cta_clicks: int
     cta_views: int
     assistente_interacoes: int
+    tipo_oferta: IAGrowthTipoOferta = IAGrowthTipoOferta.CONSULTIVO
+    mensagem_oferta: str = ""
+    beneficio_destacado: str = ""
 
 
 class IAGrowthOportunidadesResponse(BaseModel):
@@ -440,6 +458,9 @@ class IAGrowthAutopilotAcaoItem(BaseModel):
     impacto_estimado: float
     executada_em: datetime
     resultado: Optional[Dict[str, Any]] = None
+    tipo_oferta: IAGrowthTipoOferta = IAGrowthTipoOferta.CONSULTIVO
+    mensagem_oferta: str = ""
+    beneficio_destacado: str = ""
 
 
 class IAGrowthAutopilotStatusResponse(BaseModel):
@@ -447,9 +468,31 @@ class IAGrowthAutopilotStatusResponse(BaseModel):
     autopilot_enabled: bool
     nivel_autonomia: str
     modo: str
+    tipo_oferta: IAGrowthTipoOferta = IAGrowthTipoOferta.CONSULTIVO
+    mensagem_oferta: str = ""
+    beneficio_destacado: str = ""
     acoes_executadas: int
     impacto_estimado: float
     recentes: List[IAGrowthAutopilotAcaoItem]
+
+
+class IAGrowthOfertaPerformanceItem(BaseModel):
+    tipo_oferta: IAGrowthTipoOferta
+    total_recomendacoes: int
+    total_clicks: int
+    total_conversoes: int
+    taxa_conversao: float
+    participacao: float
+    impacto_estimado: float
+    impacto_estimado_label: str
+
+
+class IAGrowthOfertasPerformanceResponse(BaseModel):
+    periodo_dias: int
+    total_recomendacoes: int
+    total_conversoes: int
+    impacto_total_estimado: float
+    performance: List[IAGrowthOfertaPerformanceItem]
 
 
 class IAGrowthAssistenteContextoResponse(BaseModel):
@@ -473,6 +516,9 @@ class IAGrowthAssistenteContextoResponse(BaseModel):
     features_bloqueadas: List[str] = []
     cta_recente: Dict[str, int] = {}
     sinais: Dict[str, Any] = {}
+    tipo_oferta: IAGrowthTipoOferta = IAGrowthTipoOferta.CONSULTIVO
+    mensagem_oferta: str = ""
+    beneficio_destacado: str = ""
 
 
 class IAGrowthAssistenteMensagemRequest(BaseModel):
@@ -487,8 +533,29 @@ class IAGrowthAssistenteMensagemResponse(BaseModel):
     plano_recomendado: str
     acao_sugerida: str
     fonte: str
+    tipo_oferta: IAGrowthTipoOferta = IAGrowthTipoOferta.CONSULTIVO
+    mensagem_oferta: str = ""
+    beneficio_destacado: str = ""
     log_id: Optional[uuid.UUID] = None
     contexto: Optional[IAGrowthAssistenteContextoResponse] = None
+
+
+class IAGrowthOfertaPerformanceItem(BaseModel):
+    tipo_oferta: IAGrowthTipoOferta
+    total_recomendacoes: int
+    total_clicks: int
+    total_conversoes: int
+    taxa_clique: float
+    taxa_conversao: float
+    impacto_total_estimado: float
+
+
+class IAGrowthOfertaPerformanceResponse(BaseModel):
+    periodo_dias: int
+    total_recomendacoes: int
+    distribuicao: List[IAGrowthOfertaPerformanceItem]
+    impacto_total_estimado: float
+    melhor_tipo_oferta: Optional[IAGrowthTipoOferta] = None
 
 
 class IAGrowthPlanoMetricasItem(BaseModel):

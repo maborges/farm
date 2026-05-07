@@ -48,6 +48,7 @@ from ia.schemas import (
     IAGrowthChurnDashboardResponse,
     IAGrowthPlanoRecomendadoResponse,
     IAGrowthPlanoMetricasResponse,
+    IAGrowthOfertasPerformanceResponse,
     IAGrowthOportunidadesResponse,
     IAGrowthAutopilotStatusResponse,
     IAGrowthAssistenteContextoResponse,
@@ -598,6 +599,24 @@ async def get_growth_plano_recomendado_metricas(
         )
     from ia.growth_service import IAGrowthService
     return await IAGrowthService.metricas_plano_recomendado(session, tenant_id, periodo_dias)
+
+
+@router.get("/growth/ofertas/performance", response_model=IAGrowthOfertasPerformanceResponse)
+async def get_growth_ofertas_performance(
+    periodo_dias: int = Query(30, ge=7, le=180),
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    claims: dict = Depends(get_current_user_claims),
+    session: AsyncSession = Depends(get_session),
+):
+    """Consolida distribuição, conversão e impacto por tipo de oferta."""
+    if not (claims.get("role") in {"owner", "admin"} or claims.get("is_owner") is True):
+        raise HTTPException(
+            status_code=403,
+            detail="Apenas proprietários e administradores podem acessar performance de ofertas.",
+        )
+    from ia.growth_service import IAGrowthService
+    resultado = await IAGrowthService.metricas_ofertas(session, tenant_id, periodo_dias)
+    return IAGrowthOfertasPerformanceResponse(**resultado)
 
 
 @router.post("/growth/plano-recomendado/{log_id}/clique")
@@ -2497,6 +2516,9 @@ async def post_assistente_comercial_mensagem(
         plano_recomendado=resultado["plano_recomendado"],
         acao_sugerida=resultado["acao_sugerida"],
         fonte=resultado["fonte"],
+        tipo_oferta=resultado.get("tipo_oferta", "CONSULTIVO"),
+        mensagem_oferta=resultado.get("mensagem_oferta", ""),
+        beneficio_destacado=resultado.get("beneficio_destacado", ""),
         log_id=resultado.get("log_id"),
         contexto=IAGrowthAssistenteContextoResponse(**contexto_final),
     )

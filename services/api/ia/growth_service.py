@@ -8,6 +8,7 @@ from sqlalchemy import select, func, and_, or_, cast, Float, update as sa_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ia.growth_llm_service import IAGrowthLLMService, ContextoUsuarioGrowth, DadosGrowth
+from ia.schemas import IAGrowthTipoOferta
 
 from core.constants import PlanTier
 from core.models.billing import AssinaturaTenant, PlanoAssinatura
@@ -80,6 +81,146 @@ class IAGrowthService:
             "cta_url": "/dashboard/ia",
             "titulo_alternativo": "Valor pratico para voltar ao ritmo",
             "tipo_abordagem": "VALOR_PRATICO" if contexto != "resumo" else "EDUCATIVO",
+        }
+
+    @staticmethod
+    def _mapear_tipo_abordagem(tipo_oferta: str, churn_level: str) -> str:
+        if churn_level == "ALTO":
+            return "SUPORTE"
+        return {
+            IAGrowthTipoOferta.SEM_INCENTIVO.value: "PROVA_SOCIAL",
+            IAGrowthTipoOferta.INCENTIVO_LEVE.value: "VALOR_PRATICO",
+            IAGrowthTipoOferta.INCENTIVO_FORTE.value: "GANHO",
+            IAGrowthTipoOferta.EDUCATIVO.value: "EDUCATIVO",
+            IAGrowthTipoOferta.CONSULTIVO.value: "CONSULTIVO",
+        }.get(tipo_oferta, "CONSULTIVO")
+
+    @staticmethod
+    def _detalhes_oferta(
+        tipo_oferta: str,
+        plano_recomendado_label: str,
+        beneficio_destacado: str,
+        categoria: str,
+        churn_level: str,
+    ) -> Dict[str, str]:
+        beneficio = beneficio_destacado or f"O melhor valor prático do {plano_recomendado_label}"
+        if tipo_oferta == IAGrowthTipoOferta.SEM_INCENTIVO.value:
+            mensagem = f"Seu cenário já indica {plano_recomendado_label}. O próximo passo é objetivo e sem pressão."
+        elif tipo_oferta == IAGrowthTipoOferta.INCENTIVO_LEVE.value:
+            mensagem = f"Há uma oportunidade simples de avançar agora, mantendo uma abordagem leve e consultiva."
+        elif tipo_oferta == IAGrowthTipoOferta.INCENTIVO_FORTE.value:
+            mensagem = f"Existe uma oportunidade clara de evoluir agora. Posso mostrar o ganho prático com mais detalhe."
+        elif tipo_oferta == IAGrowthTipoOferta.EDUCATIVO.value:
+            mensagem = "Antes de avançar, vale explorar melhor o que você já tem disponível."
+        else:
+            mensagem = "Vamos olhar seu contexto e sugerir o próximo passo com segurança e valor prático."
+
+        if churn_level == "ALTO":
+            mensagem = "Há sinais de risco de abandono. O foco agora é reduzir fricção e mostrar valor imediato."
+            beneficio = beneficio or "Apoio prático para retomar valor"
+        elif categoria == "TRAVADO" and tipo_oferta in {
+            IAGrowthTipoOferta.INCENTIVO_LEVE.value,
+            IAGrowthTipoOferta.INCENTIVO_FORTE.value,
+        }:
+            beneficio = beneficio or "Explicação mais forte do valor do próximo plano"
+        elif categoria == "ALTO_POTENCIAL" and tipo_oferta == IAGrowthTipoOferta.SEM_INCENTIVO.value:
+            beneficio = beneficio or "Próximo passo natural sem pressão comercial"
+
+        return {
+            "mensagem_oferta": mensagem,
+            "beneficio_destacado": beneficio,
+            "tipo_abordagem": IAGrowthService._mapear_tipo_abordagem(tipo_oferta, churn_level),
+        }
+
+    @staticmethod
+    async def calcular_tipo_oferta(
+        db: AsyncSession,
+        tenant_id: uuid.UUID,
+        usuario_id: Optional[uuid.UUID],
+        *,
+        fit: Optional[Dict[str, Any]] = None,
+        score_oportunidade: Optional[Dict[str, Any]] = None,
+        categoria: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Classifica a oferta comercial ideal para o usuário com base em fit,
+        churn, oportunidade e histórico recente de conversão.
+        """
+        fit = fit or await IAGrowthService.calcular_fit_plano(db, tenant_id, usuario_id)
+        score_oportunidade = score_oportunidade or await IAGrowthService.calcular_score_oportunidade(db, tenant_id, usuario_id)
+
+        categoria = categoria or score_oportunidade.get("categoria") or "NEUTRO"
+        plano_recomendado = fit.get("plano_recomendado")
+        plano_atual = fit.get("plano_atual")
+        score = float(score_oportunidade.get("score", 0.0))
+        churn_level = fit.get("churn_risk_level") or score_oportunidade.get("churn_risk_level") or "BAIXO"
+        persona = (fit.get("persona") or score_oportunidade.get("persona") or "NEUTRO").upper()
+        funcionalidades = list(fit.get("funcionalidades_mais_relevantes", []))
+        beneficio_destacado = funcionalidades[0] if funcionalidades else IAGrowthService.PLANO_LABEL.get(plano_recomendado, plano_recomendado or "plano recomendado")
+
+        desde = datetime.now(timezone.utc) - timedelta(days=60)
+        hist_stmt = select(
+            func.count(IAGrowthPlanoRecomendadoLog.id).label("total"),
+            func.count(IAGrowthPlanoRecomendadoLog.clicada_em).label("clicks"),
+            func.count(IAGrowthPlanoRecomendadoLog.convertida_em).label("conversoes"),
+        ).where(
+            IAGrowthPlanoRecomendadoLog.tenant_id == tenant_id,
+            IAGrowthPlanoRecomendadoLog.exibida_em >= desde,
+        )
+        if plano_recomendado:
+            hist_stmt = hist_stmt.where(IAGrowthPlanoRecomendadoLog.plano_recomendado == plano_recomendado)
+        hist_row = (await db.execute(hist_stmt)).one()
+        total_hist = int(hist_row.total or 0)
+        clicks_hist = int(hist_row.clicks or 0)
+        conv_hist = int(hist_row.conversoes or 0)
+        taxa_hist = (conv_hist / total_hist) if total_hist else 0.0
+        taxa_click_hist = (clicks_hist / total_hist) if total_hist else 0.0
+
+        if categoria == "ALTO_POTENCIAL":
+            if churn_level == "BAIXO" and score >= 0.82 and taxa_hist >= 0.12 and persona in {"EXPLORADOR", "AVANCADO", "ORIENTADO_A_RESULTADO"}:
+                tipo_oferta = IAGrowthTipoOferta.SEM_INCENTIVO.value
+            elif score >= 0.68 or taxa_hist >= 0.08:
+                tipo_oferta = IAGrowthTipoOferta.INCENTIVO_LEVE.value
+            else:
+                tipo_oferta = IAGrowthTipoOferta.CONSULTIVO.value
+        elif categoria == "TRAVADO":
+            if score >= 0.75 or taxa_hist <= 0.06:
+                tipo_oferta = IAGrowthTipoOferta.INCENTIVO_FORTE.value if persona in {"EXPLORADOR", "AVANCADO", "ORIENTADO_A_RESULTADO"} else IAGrowthTipoOferta.INCENTIVO_LEVE.value
+            else:
+                tipo_oferta = IAGrowthTipoOferta.INCENTIVO_LEVE.value
+        elif categoria == "RISCO":
+            if churn_level == "ALTO" or persona in {"CONSERVADOR", "INICIANTE"} or taxa_click_hist <= 0.05:
+                tipo_oferta = IAGrowthTipoOferta.EDUCATIVO.value
+            else:
+                tipo_oferta = IAGrowthTipoOferta.CONSULTIVO.value
+        else:
+            tipo_oferta = IAGrowthTipoOferta.CONSULTIVO.value if churn_level != "BAIXO" else IAGrowthTipoOferta.EDUCATIVO.value
+
+        if categoria == "ALTO_POTENCIAL" and churn_level == "BAIXO" and taxa_hist >= 0.18:
+            tipo_oferta = IAGrowthTipoOferta.SEM_INCENTIVO.value
+        elif categoria == "TRAVADO" and tipo_oferta == IAGrowthTipoOferta.INCENTIVO_LEVE.value and taxa_hist <= 0.04:
+            tipo_oferta = IAGrowthTipoOferta.INCENTIVO_FORTE.value
+        elif categoria == "RISCO" and churn_level == "ALTO":
+            tipo_oferta = IAGrowthTipoOferta.EDUCATIVO.value
+
+        detalhes = IAGrowthService._detalhes_oferta(
+            tipo_oferta=tipo_oferta,
+            plano_recomendado_label=IAGrowthService.PLANO_LABEL.get(plano_recomendado, plano_recomendado or "Plano recomendado"),
+            beneficio_destacado=beneficio_destacado,
+            categoria=categoria,
+            churn_level=churn_level,
+        )
+
+        return {
+            "tipo_oferta": tipo_oferta,
+            "mensagem_oferta": detalhes["mensagem_oferta"],
+            "beneficio_destacado": detalhes["beneficio_destacado"],
+            "tipo_abordagem": detalhes["tipo_abordagem"],
+            "hist_taxa_conversao": round(taxa_hist, 3),
+            "hist_taxa_clique": round(taxa_click_hist, 3),
+            "plano_atual": plano_atual,
+            "plano_recomendado": plano_recomendado,
+            "categoria": categoria,
         }
 
     @staticmethod
@@ -419,6 +560,8 @@ class IAGrowthService:
         churn_risk_score = churn["score"]
         churn_risk_level = churn["nivel"]
 
+        score_oportunidade = await IAGrowthService.calcular_score_oportunidade(db, tenant_id, usuario_id)
+
         # --- Gatilho 1: ROI acumulado via progresso UX-11 ---
         roi_valor = 0.0
         melhoria_progresso = 0.0
@@ -484,6 +627,7 @@ class IAGrowthService:
         # --- IA-Growth-16: ajuste de agressividade pelo fit do plano ---
         # Não altera billing nem força downgrade; apenas suaviza copy/CTA
         # quando o fit é baixo, e evita sugerir Enterprise para perfis sem fit.
+        fit: Optional[Dict[str, Any]] = None
         try:
             fit = await IAGrowthService.calcular_fit_plano(db, tenant_id, usuario_id)
             urgencia_fit = fit["urgencia_recomendacao"]
@@ -501,6 +645,15 @@ class IAGrowthService:
                     timing_decision = "SOFT"
         except Exception:
             pass
+
+        oferta_info = await IAGrowthService.calcular_tipo_oferta(
+            db,
+            tenant_id,
+            usuario_id,
+            fit=fit,
+            score_oportunidade=score_oportunidade,
+            categoria=score_oportunidade.get("categoria"),
+        )
 
         # Decisão final baseada em gatilho + timing
         if not dispara or timing_decision == "HIDDEN":
@@ -539,6 +692,9 @@ class IAGrowthService:
                 "timing_decision": timing_decision,
                 "churn_risk_score": churn_risk_score,
                 "churn_risk_level": churn_risk_level,
+                "tipo_oferta": oferta_info["tipo_oferta"],
+                "mensagem_oferta": oferta_info["mensagem_oferta"],
+                "beneficio_destacado": oferta_info["beneficio_destacado"],
             }
 
         # Verifica cooldown
@@ -557,6 +713,9 @@ class IAGrowthService:
                 "timing_decision": timing_decision,
                 "churn_risk_score": churn_risk_score,
                 "churn_risk_level": churn_risk_level,
+                "tipo_oferta": oferta_info["tipo_oferta"],
+                "mensagem_oferta": oferta_info["mensagem_oferta"],
+                "beneficio_destacado": oferta_info["beneficio_destacado"],
             }
 
         res = {
@@ -573,11 +732,16 @@ class IAGrowthService:
             "timing_decision": timing_decision,
             "churn_risk_score": churn_risk_score,
             "churn_risk_level": churn_risk_level,
+            "tipo_oferta": oferta_info["tipo_oferta"],
+            "mensagem_oferta": oferta_info["mensagem_oferta"],
+            "beneficio_destacado": oferta_info["beneficio_destacado"],
         }
 
         if cta_info_override:
             res["titulo_alternativo"] = cta_info_override["titulo_alternativo"]
             res["tipo_abordagem"] = cta_info_override["tipo_abordagem"]
+        else:
+            res["tipo_abordagem"] = oferta_info["tipo_abordagem"]
 
         # --- IA-Growth-11: Geração Dinâmica via LLM ---
         if experimento_info and not cta_info_override:
@@ -2481,6 +2645,14 @@ class IAGrowthService:
         oportunidades: List[Dict[str, Any]] = []
         for usuario_id, nome_completo, username in usuarios:
             score = await IAGrowthService.calcular_score_oportunidade(db, tenant_id, usuario_id)
+            oferta = await IAGrowthService.calcular_tipo_oferta(
+                db,
+                tenant_id,
+                usuario_id,
+                fit=None,
+                score_oportunidade=score,
+                categoria=score["categoria"],
+            )
 
             contexto_q = await db.execute(
                 select(IAGrowthEvento.contexto)
@@ -2536,6 +2708,9 @@ class IAGrowthService:
                 "cta_clicks": score["cta_clicks"],
                 "cta_views": score["cta_views"],
                 "assistente_interacoes": score["assistente_interacoes"],
+                "tipo_oferta": oferta["tipo_oferta"],
+                "mensagem_oferta": oferta["mensagem_oferta"],
+                "beneficio_destacado": oferta["beneficio_destacado"],
             })
 
         filtered: List[Dict[str, Any]] = []
@@ -2609,8 +2784,13 @@ class IAGrowthService:
         return qtd > 0
 
     @staticmethod
-    def _autopilot_tipo_acao(categoria: str, modo_label: str) -> List[Dict[str, Any]]:
+    def _autopilot_tipo_acao(categoria: str, modo_label: str, tipo_oferta: str) -> List[Dict[str, Any]]:
         if categoria == "ALTO_POTENCIAL":
+            if tipo_oferta in {IAGrowthTipoOferta.SEM_INCENTIVO.value, IAGrowthTipoOferta.INCENTIVO_LEVE.value}:
+                return [
+                    {"tipo_acao": "CTA_AGRESSIVO", "resultado": "CTA agressivo priorizado"},
+                    {"tipo_acao": "EXPERIMENTO_COPY", "resultado": "Copy vencedora priorizada"},
+                ]
             if modo_label == "AGRESSIVO":
                 return [
                     {"tipo_acao": "CTA_AGRESSIVO", "resultado": "CTA agressivo priorizado"},
@@ -2621,16 +2801,22 @@ class IAGrowthService:
             ]
 
         if categoria == "TRAVADO":
-            return [
+            acoes = [
                 {"tipo_acao": "ASSISTENTE_PROATIVO", "resultado": "Assistente comercial acionado"},
                 {"tipo_acao": "COPY_EDUCATIVA", "resultado": "Copy educativa reforçada"},
             ]
+            if tipo_oferta == IAGrowthTipoOferta.INCENTIVO_FORTE.value:
+                acoes.insert(0, {"tipo_acao": "CTA_AGRESSIVO", "resultado": "CTA com explicacao forte priorizado"})
+            return acoes
 
         if categoria == "RISCO":
-            return [
+            acoes = [
                 {"tipo_acao": "CTA_PREVENTIVO", "resultado": "CTA preventivo ativado"},
                 {"tipo_acao": "CONTEUDO_EDUCATIVO", "resultado": "Conteúdo educativo priorizado"},
             ]
+            if tipo_oferta == IAGrowthTipoOferta.CONSULTIVO.value:
+                acoes.append({"tipo_acao": "ASSISTENTE_PROATIVO", "resultado": "Assistente proativo em tom consultivo"})
+            return acoes
 
         return [
             {"tipo_acao": "REENGAJAMENTO_LEVE", "resultado": "Reengajamento leve aplicado"},
@@ -2675,6 +2861,7 @@ class IAGrowthService:
             score_oportunidade = float(item["score_oportunidade"])
             churn = float(1.0 if item["churn_risk_level"] == "ALTO" else 0.45 if item["churn_risk_level"] == "MEDIO" else 0.0)
             moment_score = await IAGrowthService.calcular_score_momento(db, tenant_id, usuario_id, item["contexto"])
+            tipo_oferta = item.get("tipo_oferta") or IAGrowthTipoOferta.CONSULTIVO.value
 
             if moment_score < 0.4 and item["categoria"] != "RISCO":
                 continue
@@ -2704,7 +2891,7 @@ class IAGrowthService:
             if not IAGrowthService._autopilot_permite_categoria(config.nivel_autonomia, item["categoria"]):
                 continue
 
-            for acao in IAGrowthService._autopilot_tipo_acao(item["categoria"], modo_label):
+            for acao in IAGrowthService._autopilot_tipo_acao(item["categoria"], modo_label, tipo_oferta):
                 if await IAGrowthService._autopilot_ja_executou(db, tenant_id, usuario_id, acao["tipo_acao"]):
                     continue
 
@@ -2745,6 +2932,7 @@ class IAGrowthService:
                         "resultado": acao["resultado"],
                         "usuario_label": item["usuario_label"],
                         "plano_recomendado": item["plano_recomendado"],
+                        "tipo_oferta": tipo_oferta,
                         "modo": modo_label,
                         "moment_score": round(moment_score, 3),
                         "abordagem_vencedora": abordagem_vencedora,
@@ -2765,6 +2953,7 @@ class IAGrowthService:
                     "impacto_estimado": round(impacto_estimado, 2),
                     "executada_em": registro.executada_em.isoformat(),
                     "resultado": registro.resultado,
+                    "tipo_oferta": tipo_oferta,
                 })
                 impacto_total += round(impacto_estimado, 2)
 
@@ -2788,6 +2977,19 @@ class IAGrowthService:
         config = await IAAutopilotService.get_config(db, tenant_id)
         autopilot_ativo = bool(getattr(config, "autopilot_enabled", None) if getattr(config, "autopilot_enabled", None) is not None else config.ativo)
 
+        oportunidade_top: Dict[str, Any] = {}
+        try:
+            oportunidades = await IAGrowthService.get_dashboard_oportunidades(
+                db,
+                tenant_id,
+                periodo_dias=periodo_dias,
+                limite=1,
+            )
+            if oportunidades.get("oportunidades"):
+                oportunidade_top = oportunidades["oportunidades"][0]
+        except Exception:
+            oportunidade_top = {}
+
         desde = datetime.now(timezone.utc) - timedelta(days=periodo_dias)
         stmt = (
             select(IAGrowthAutopilotAcao)
@@ -2807,6 +3009,9 @@ class IAGrowthService:
             "autopilot_enabled": autopilot_ativo,
             "acoes_executadas": len(rows),
             "impacto_estimado": round(impacto_total, 2),
+            "tipo_oferta": oportunidade_top.get("tipo_oferta", IAGrowthTipoOferta.CONSULTIVO.value),
+            "mensagem_oferta": oportunidade_top.get("mensagem_oferta", ""),
+            "beneficio_destacado": oportunidade_top.get("beneficio_destacado", ""),
             "recentes": [
                 {
                     "id": str(r.id),
@@ -2837,6 +3042,15 @@ class IAGrowthService:
         `ia_growth_plano_recomendado_log` para alimentar as métricas.
         """
         fit = await IAGrowthService.calcular_fit_plano(db, tenant_id, usuario_id)
+        score_oportunidade = await IAGrowthService.calcular_score_oportunidade(db, tenant_id, usuario_id)
+        oferta_info = await IAGrowthService.calcular_tipo_oferta(
+            db,
+            tenant_id,
+            usuario_id,
+            fit=fit,
+            score_oportunidade=score_oportunidade,
+            categoria=score_oportunidade.get("categoria"),
+        )
 
         plano_atual = fit["plano_atual"]
         plano_recomendado = fit["plano_recomendado"]
@@ -2869,6 +3083,15 @@ class IAGrowthService:
             copy = (
                 "O Plano Essencial cobre o que você usa hoje. Quando seus indicadores "
                 "evoluírem, te avisamos sobre o próximo passo natural."
+            )
+
+        if oferta_info["tipo_oferta"] in {
+            IAGrowthTipoOferta.EDUCATIVO.value,
+            IAGrowthTipoOferta.CONSULTIVO.value,
+        } and churn_level == "ALTO":
+            copy = (
+                "Antes de pensar em upgrade, o melhor caminho é mostrar valor imediato no plano atual "
+                "e te orientar de forma mais consultiva."
             )
 
         # CTA principal — orquestrado por upgrade_recomendacao_service para evitar conflito
@@ -2914,6 +3137,9 @@ class IAGrowthService:
                     nivel_urgencia=fit["urgencia_recomendacao"],
                     persona=fit["persona"],
                     churn_risk_level=churn_level,
+                    tipo_oferta=oferta_info["tipo_oferta"],
+                    mensagem_oferta=oferta_info["mensagem_oferta"],
+                    beneficio_destacado=oferta_info["beneficio_destacado"],
                     motivos=fit["motivos"],
                     funcionalidades_relevantes=fit["funcionalidades_mais_relevantes"],
                     sinais=fit["sinais"],
@@ -2950,6 +3176,9 @@ class IAGrowthService:
             "cta_url": cta_url,
             "cta_secundaria_label": cta_secundaria_label,
             "cta_secundaria_url": cta_secundaria_url,
+            "tipo_oferta": oferta_info["tipo_oferta"],
+            "mensagem_oferta": oferta_info["mensagem_oferta"],
+            "beneficio_destacado": oferta_info["beneficio_destacado"],
             "nivel_urgencia": urgencia_final,
             "churn_risk_level": churn_level,
             "persona": fit["persona"],
@@ -2998,6 +3227,103 @@ class IAGrowthService:
             "periodo_dias": periodo_dias,
             "total_recomendacoes": total_geral,
             "distribuicao": distribuicao,
+        }
+
+    @staticmethod
+    async def metricas_ofertas(
+        db: AsyncSession,
+        tenant_id: uuid.UUID,
+        periodo_dias: int = 30,
+    ) -> Dict[str, Any]:
+        """Distribuição, conversão e impacto estimado por tipo de oferta."""
+        desde = datetime.now(timezone.utc) - timedelta(days=periodo_dias)
+
+        plano_precos = {
+            row.plan_tier: float(row.preco_mensal or 0.0)
+            for row in (await db.execute(
+                select(PlanoAssinatura.plan_tier, PlanoAssinatura.preco_mensal).where(PlanoAssinatura.ativo == True)  # noqa: E712
+            )).all()
+        }
+
+        stmt = select(
+            IAGrowthPlanoRecomendadoLog.plano_atual,
+            IAGrowthPlanoRecomendadoLog.plano_recomendado,
+            IAGrowthPlanoRecomendadoLog.tipo_oferta,
+            IAGrowthPlanoRecomendadoLog.clicada_em,
+            IAGrowthPlanoRecomendadoLog.convertida_em,
+        ).where(
+            IAGrowthPlanoRecomendadoLog.tenant_id == tenant_id,
+            IAGrowthPlanoRecomendadoLog.exibida_em >= desde,
+        )
+        rows = (await db.execute(stmt)).all()
+
+        acumulado: Dict[str, Dict[str, Any]] = {}
+        impacto_total = 0.0
+
+        def _impacto_row(plano_atual: str, plano_recomendado: str, tipo_oferta: str, clicada_em: Optional[datetime], convertida_em: Optional[datetime]) -> float:
+            preco_atual = float(plano_precos.get(plano_atual, 0.0))
+            preco_rec = float(plano_precos.get(plano_recomendado, 0.0))
+            delta_preco = max(0.0, preco_rec - preco_atual)
+            if delta_preco <= 0:
+                delta_preco = max(20.0, preco_atual * 0.2)
+
+            if convertida_em:
+                peso = 1.0
+            elif clicada_em:
+                peso = 0.35
+            else:
+                peso = 0.12
+
+            if tipo_oferta in {IAGrowthTipoOferta.EDUCATIVO.value, IAGrowthTipoOferta.CONSULTIVO.value}:
+                peso *= 0.8
+            elif tipo_oferta in {IAGrowthTipoOferta.INCENTIVO_LEVE.value, IAGrowthTipoOferta.INCENTIVO_FORTE.value}:
+                peso *= 1.1
+
+            return round(delta_preco * peso, 2)
+
+        for row in rows:
+            tipo = row.tipo_oferta or IAGrowthTipoOferta.CONSULTIVO.value
+            bucket = acumulado.setdefault(tipo, {
+                "tipo_oferta": tipo,
+                "total_recomendacoes": 0,
+                "total_clicks": 0,
+                "total_conversoes": 0,
+                "impacto_estimado": 0.0,
+            })
+            bucket["total_recomendacoes"] += 1
+            if row.clicada_em:
+                bucket["total_clicks"] += 1
+            if row.convertida_em:
+                bucket["total_conversoes"] += 1
+            impacto = _impacto_row(row.plano_atual, row.plano_recomendado, tipo, row.clicada_em, row.convertida_em)
+            bucket["impacto_estimado"] = round(bucket["impacto_estimado"] + impacto, 2)
+            impacto_total += impacto
+
+        total_recomendacoes = sum(v["total_recomendacoes"] for v in acumulado.values())
+        performance = []
+        for tipo, data in acumulado.items():
+            total = int(data["total_recomendacoes"])
+            clicks = int(data["total_clicks"])
+            conv = int(data["total_conversoes"])
+            performance.append({
+                "tipo_oferta": tipo,
+                "total_recomendacoes": total,
+                "total_clicks": clicks,
+                "total_conversoes": conv,
+                "taxa_conversao": round((conv / total) if total else 0.0, 3),
+                "participacao": round((total / total_recomendacoes) if total_recomendacoes else 0.0, 3),
+                "impacto_estimado": round(float(data["impacto_estimado"]), 2),
+                "impacto_estimado_label": IAGrowthService._formatar_valor(float(data["impacto_estimado"])),
+            })
+
+        performance.sort(key=lambda item: (item["impacto_estimado"], item["total_conversoes"]), reverse=True)
+
+        return {
+            "periodo_dias": periodo_dias,
+            "total_recomendacoes": total_recomendacoes,
+            "total_conversoes": sum(item["total_conversoes"] for item in performance),
+            "impacto_total_estimado": round(impacto_total, 2),
+            "performance": performance,
         }
 
     @staticmethod
