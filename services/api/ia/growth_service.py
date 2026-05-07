@@ -17,7 +17,7 @@ from ia.models import (
     IAGrowthEvento, IAGrowthConfig, IAGrowthConfigHistorico, IAGrowthSugestaoRegistro,
     IAGrowthExperimento, IAGrowthExperimentoVariante, IAGrowthExperimentoEvento,
     IAGrowthUserProfile, IAUXTelemetria, IAUso, IAGrowthPlanoRecomendadoLog,
-    IAGrowthAssistenteInteracao, IAGrowthAutopilotAcao, IAGrowthIncentivo
+    IAGrowthAssistenteInteracao, IAGrowthAutopilotAcao, IAGrowthIncentivo, IAGrowthLearningWeight
 )
 from ia.upgrade_recomendacao_service import IARecomendacaoUpgradeService
 from ia.autopilot_service import IAAutopilotService
@@ -64,6 +64,8 @@ TIPO_OFERTA_LABELS = {
     IAGrowthTipoOferta.EDUCATIVO.value: "Educativo",
     IAGrowthTipoOferta.CONSULTIVO.value: "Consultivo",
 }
+LEARNING_DIMENSOES = {"TIMING", "PERSONA", "ABORDAGEM", "OFERTA", "AUTOPILOT"}
+LEARNING_VARIACAO_MAX = 0.25
 ORIGEM_INCENTIVO_LABELS = {
     "MANUAL": "Manual",
     "AUTOPILOT": "Autopilot",
@@ -96,6 +98,71 @@ class IAGrowthService:
     @staticmethod
     def _formatar_valor(valor: float) -> str:
         return f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+    @staticmethod
+    def _clamp_learning_peso(peso: float) -> float:
+        return max(1.0 - LEARNING_VARIACAO_MAX, min(1.0 + LEARNING_VARIACAO_MAX, peso))
+
+    @staticmethod
+    async def _obter_learning_peso(
+        db: AsyncSession,
+        tenant_id: uuid.UUID,
+        dimensao: str,
+        chave: str,
+    ) -> float:
+        if dimensao not in LEARNING_DIMENSOES:
+            return 1.0
+        q = await db.execute(
+            select(IAGrowthLearningWeight.peso_atual).where(
+                IAGrowthLearningWeight.tenant_id == tenant_id,
+                IAGrowthLearningWeight.dimensao == dimensao,
+                IAGrowthLearningWeight.chave == chave,
+            )
+        )
+        peso = q.scalar_one_or_none()
+        return float(peso or 1.0)
+
+    @staticmethod
+    def _aplicar_learning_peso(valor: float, peso: float) -> float:
+        return float(max(0.0, min(1.0, valor * IAGrowthService._clamp_learning_peso(peso))))
+
+    @staticmethod
+    def _peso_aprendizado_from_rates(taxa_chave: float, taxa_media: float) -> float:
+        if taxa_media <= 0:
+            return 1.0
+        delta = (taxa_chave - taxa_media) / taxa_media
+        return IAGrowthService._clamp_learning_peso(1.0 + (delta * 0.25))
+
+    @staticmethod
+    async def _upsert_learning_weight(
+        db: AsyncSession,
+        tenant_id: uuid.UUID,
+        dimensao: str,
+        chave: str,
+        peso_atual: float,
+        amostras: int,
+        conversoes: int,
+    ) -> None:
+        stmt = select(IAGrowthLearningWeight).where(
+            IAGrowthLearningWeight.tenant_id == tenant_id,
+            IAGrowthLearningWeight.dimensao == dimensao,
+            IAGrowthLearningWeight.chave == chave,
+        )
+        row = (await db.execute(stmt)).scalar_one_or_none()
+        peso = round(IAGrowthService._clamp_learning_peso(peso_atual), 3)
+        if row:
+            row.peso_atual = peso
+            row.amostras = amostras
+            row.conversoes = conversoes
+        else:
+            db.add(IAGrowthLearningWeight(
+                tenant_id=tenant_id,
+                dimensao=dimensao,
+                chave=chave,
+                peso_atual=peso,
+                amostras=amostras,
+                conversoes=conversoes,
+            ))
 
     @staticmethod
     def _classificar_risco_churn(score: float) -> str:
@@ -253,6 +320,34 @@ class IAGrowthService:
             categoria=categoria,
             churn_level=churn_level,
         )
+
+        peso_oferta = await IAGrowthService._obter_learning_peso(db, tenant_id, "OFERTA", tipo_oferta)
+        peso_abordagem = await IAGrowthService._obter_learning_peso(db, tenant_id, "ABORDAGEM", detalhes["tipo_abordagem"])
+        if peso_oferta < 0.9 and tipo_oferta == IAGrowthTipoOferta.INCENTIVO_FORTE.value:
+            tipo_oferta = IAGrowthTipoOferta.INCENTIVO_LEVE.value
+            detalhes = IAGrowthService._detalhes_oferta(
+                tipo_oferta=tipo_oferta,
+                plano_recomendado_label=IAGrowthService.PLANO_LABEL.get(plano_recomendado, plano_recomendado or "Plano recomendado"),
+                beneficio_destacado=beneficio_destacado,
+                categoria=categoria,
+                churn_level=churn_level,
+            )
+        elif peso_oferta > 1.1 and tipo_oferta in {
+            IAGrowthTipoOferta.CONSULTIVO.value,
+            IAGrowthTipoOferta.EDUCATIVO.value,
+        } and categoria in {"ALTO_POTENCIAL", "TRAVADO"}:
+            tipo_oferta = IAGrowthTipoOferta.INCENTIVO_LEVE.value
+            detalhes = IAGrowthService._detalhes_oferta(
+                tipo_oferta=tipo_oferta,
+                plano_recomendado_label=IAGrowthService.PLANO_LABEL.get(plano_recomendado, plano_recomendado or "Plano recomendado"),
+                beneficio_destacado=beneficio_destacado,
+                categoria=categoria,
+                churn_level=churn_level,
+            )
+        if peso_abordagem < 0.9 and detalhes["tipo_abordagem"] != "SUPORTE":
+            detalhes["tipo_abordagem"] = "CONSULTIVO"
+        elif peso_abordagem > 1.1 and detalhes["tipo_abordagem"] == "CONSULTIVO" and churn_level != "ALTO":
+            detalhes["tipo_abordagem"] = "GANHO"
 
         return {
             "tipo_oferta": tipo_oferta,
@@ -877,6 +972,8 @@ class IAGrowthService:
         if count_ux < 2:
             score -= 0.1
 
+        peso_timing = await IAGrowthService._obter_learning_peso(db, tenant_id, "TIMING", contexto or "geral")
+        score = IAGrowthService._aplicar_learning_peso(score, peso_timing)
         return float(max(0.0, min(1.0, score)))
 
     @staticmethod
@@ -1057,6 +1154,8 @@ class IAGrowthService:
 
         # --- IA-Growth-14: Score de Momento (Timing Inteligente) ---
         moment_score = await IAGrowthService.calcular_score_momento(db, tenant_id, usuario_id, contexto)
+        peso_persona = await IAGrowthService._obter_learning_peso(db, tenant_id, "PERSONA", perfil_usuario or "NEUTRO")
+        moment_score = IAGrowthService._aplicar_learning_peso(moment_score, peso_persona)
         timing_decision = "FULL" # FULL, SOFT, HIDDEN
         
         if moment_score >= 0.7:
@@ -1113,6 +1212,8 @@ class IAGrowthService:
         cta_info_override: Optional[Dict[str, str]] = None
 
         if roi_valor >= ROI_TRIGGER_MINIMO:
+            peso_oferta_roi = await IAGrowthService._obter_learning_peso(db, tenant_id, "OFERTA", IAGrowthTipoOferta.INCENTIVO_LEVE.value)
+            roi_valor = round(roi_valor * IAGrowthService._clamp_learning_peso(peso_oferta_roi), 2)
             dispara = True
             roi_fmt = f"R$ {roi_valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
             mensagem = f"A IA já gerou {roi_fmt} em valor para sua operação — destrave mais decisões com o plano {PlanTier.PROFISSIONAL.value.capitalize()}."
@@ -1165,6 +1266,19 @@ class IAGrowthService:
             score_oportunidade=score_oportunidade,
             categoria=score_oportunidade.get("categoria"),
         )
+        peso_oferta = await IAGrowthService._obter_learning_peso(db, tenant_id, "OFERTA", oferta_info["tipo_oferta"])
+        peso_abordagem = await IAGrowthService._obter_learning_peso(db, tenant_id, "ABORDAGEM", oferta_info["tipo_abordagem"])
+        if peso_oferta < 0.9 and oferta_info["tipo_oferta"] == IAGrowthTipoOferta.INCENTIVO_FORTE.value:
+            oferta_info["tipo_oferta"] = IAGrowthTipoOferta.INCENTIVO_LEVE.value
+        elif peso_oferta > 1.1 and oferta_info["tipo_oferta"] in {
+            IAGrowthTipoOferta.CONSULTIVO.value,
+            IAGrowthTipoOferta.EDUCATIVO.value,
+        } and score_oportunidade.get("categoria") in {"ALTO_POTENCIAL", "TRAVADO"}:
+            oferta_info["tipo_oferta"] = IAGrowthTipoOferta.INCENTIVO_LEVE.value
+        if peso_abordagem < 0.9 and oferta_info["tipo_abordagem"] != "SUPORTE":
+            oferta_info["tipo_abordagem"] = "CONSULTIVO"
+        elif peso_abordagem > 1.1 and oferta_info["tipo_abordagem"] == "CONSULTIVO" and churn_risk_level != "ALTO":
+            oferta_info["tipo_abordagem"] = "GANHO"
 
         # Decisão final baseada em gatilho + timing
         if not dispara or timing_decision == "HIDDEN":
@@ -3447,14 +3561,18 @@ class IAGrowthService:
                     logger.warning(f"[IA-Growth-21] Falha ao gerar incentivo no autopilot: {exc}")
 
             for acao in IAGrowthService._autopilot_tipo_acao(item["categoria"], modo_label, tipo_oferta):
+                peso_autopilot = await IAGrowthService._obter_learning_peso(db, tenant_id, "AUTOPILOT", acao["tipo_acao"])
                 if acao["tipo_acao"] == "OFERTA_INCENTIVO_CONTROLADO" and not incentivo_info:
                     continue
                 if await IAGrowthService._autopilot_ja_executou(db, tenant_id, usuario_id, acao["tipo_acao"]):
+                    continue
+                if peso_autopilot < 0.85 and acao["tipo_acao"] == "CTA_AGRESSIVO" and item["categoria"] != "RISCO":
                     continue
 
                 impacto_estimado = float(item["impacto_estimado"]) * (
                     0.35 if item["categoria"] == "RISCO" else 0.55 if item["categoria"] == "TRAVADO" else 0.70
                 )
+                impacto_estimado = round(impacto_estimado * IAGrowthService._clamp_learning_peso(peso_autopilot), 2)
                 if moment_score < 0.55 and item["categoria"] != "RISCO":
                     continue
 
@@ -4158,6 +4276,161 @@ class IAGrowthService:
             "ranking_tipos_oferta": ranking_tipos_oferta[:5],
             "ranking_incentivos": melhores_incentivos[:5],
             "receita_estimativa": "estimada",
+        }
+
+    @staticmethod
+    async def recalcular_pesos_growth(
+        db: AsyncSession,
+        tenant_id: uuid.UUID,
+        periodo_dias: int = 30,
+    ) -> Dict[str, Any]:
+        """Recalcula pesos de aprendizado de forma simples e auditável."""
+        desde = datetime.now(timezone.utc) - timedelta(days=periodo_dias)
+        total_atualizados = 0
+        total_criados = 0
+
+        async def _registrar(dimensao: str, linhas: List[Dict[str, Any]]) -> None:
+            nonlocal total_atualizados, total_criados
+            total_samples = sum(int(l["amostras"]) for l in linhas)
+            total_conversions = sum(int(l["conversoes"]) for l in linhas)
+            taxa_media = (total_conversions / total_samples) if total_samples else 0.0
+            for linha in linhas:
+                amostras = int(linha["amostras"])
+                conversoes = int(linha["conversoes"])
+                taxa_chave = (conversoes / amostras) if amostras else 0.0
+                peso = IAGrowthService._peso_aprendizado_from_rates(taxa_chave, taxa_media)
+                if amostras < 5:
+                    peso = 1.0 if linha.get("peso_atual") is None else float(linha.get("peso_atual") or 1.0)
+                existente = await db.execute(
+                    select(IAGrowthLearningWeight).where(
+                        IAGrowthLearningWeight.tenant_id == tenant_id,
+                        IAGrowthLearningWeight.dimensao == dimensao,
+                        IAGrowthLearningWeight.chave == linha["chave"],
+                    )
+                )
+                row = existente.scalar_one_or_none()
+                if row:
+                    total_atualizados += 1
+                    row.peso_atual = round(IAGrowthService._clamp_learning_peso(peso), 3)
+                    row.amostras = amostras
+                    row.conversoes = conversoes
+                else:
+                    total_criados += 1
+                    db.add(IAGrowthLearningWeight(
+                        tenant_id=tenant_id,
+                        dimensao=dimensao,
+                        chave=linha["chave"],
+                        peso_atual=round(IAGrowthService._clamp_learning_peso(peso), 3),
+                        amostras=amostras,
+                        conversoes=conversoes,
+                    ))
+
+        timing_rows = (await db.execute(
+            select(
+                IAGrowthEvento.contexto.label("chave"),
+                func.count(IAGrowthEvento.id).filter(IAGrowthEvento.evento == "upgrade_cta_viewed").label("amostras"),
+                func.count(IAGrowthEvento.id).filter(IAGrowthEvento.evento == "upgrade_cta_clicked").label("conversoes"),
+            ).where(
+                IAGrowthEvento.tenant_id == tenant_id,
+                IAGrowthEvento.created_at >= desde,
+                IAGrowthEvento.evento.in_(["upgrade_cta_viewed", "upgrade_cta_clicked"]),
+            ).group_by(IAGrowthEvento.contexto)
+        )).all()
+        await _registrar("TIMING", [{"chave": r.chave or "geral", "amostras": int(r.amostras or 0), "conversoes": int(r.conversoes or 0)} for r in timing_rows])
+
+        persona_rows = (await db.execute(
+            select(
+                IAGrowthUserProfile.perfil.label("chave"),
+                func.count(IAGrowthExperimentoEvento.id).filter(IAGrowthExperimentoEvento.evento == "SHOWN").label("amostras"),
+                func.count(IAGrowthExperimentoEvento.id).filter(IAGrowthExperimentoEvento.evento == "CLICKED").label("conversoes"),
+            )
+            .join(IAGrowthExperimentoEvento, IAGrowthExperimentoEvento.usuario_id == IAGrowthUserProfile.user_id)
+            .where(
+                IAGrowthExperimentoEvento.tenant_id == tenant_id,
+                IAGrowthExperimentoEvento.created_at >= desde,
+            )
+            .group_by(IAGrowthUserProfile.perfil)
+        )).all()
+        await _registrar("PERSONA", [{"chave": r.chave or "NEUTRO", "amostras": int(r.amostras or 0), "conversoes": int(r.conversoes or 0)} for r in persona_rows])
+
+        abordagem_rows = (await db.execute(
+            select(
+                IAGrowthExperimentoVariante.cta["tipo_abordagem"].astext.label("chave"),
+                func.count(IAGrowthExperimentoEvento.id).filter(IAGrowthExperimentoEvento.evento == "SHOWN").label("amostras"),
+                func.count(IAGrowthExperimentoEvento.id).filter(IAGrowthExperimentoEvento.evento == "CLICKED").label("conversoes"),
+            )
+            .join(IAGrowthExperimentoEvento, IAGrowthExperimentoEvento.variante_id == IAGrowthExperimentoVariante.id)
+            .join(IAGrowthExperimento, IAGrowthExperimento.id == IAGrowthExperimentoVariante.experimento_id)
+            .where(
+                IAGrowthExperimento.tenant_id == tenant_id,
+                IAGrowthExperimentoEvento.created_at >= desde,
+                IAGrowthExperimentoVariante.cta["tipo_abordagem"].is_not(None),
+            )
+            .group_by("chave")
+        )).all()
+        await _registrar("ABORDAGEM", [{"chave": r.chave or "CONSULTIVO", "amostras": int(r.amostras or 0), "conversoes": int(r.conversoes or 0)} for r in abordagem_rows])
+
+        oferta_rows = (await db.execute(
+            select(
+                IAGrowthPlanoRecomendadoLog.tipo_oferta.label("chave"),
+                func.count(IAGrowthPlanoRecomendadoLog.id).label("amostras"),
+                func.count(IAGrowthPlanoRecomendadoLog.convertida_em).label("conversoes"),
+            ).where(
+                IAGrowthPlanoRecomendadoLog.tenant_id == tenant_id,
+                IAGrowthPlanoRecomendadoLog.exibida_em >= desde,
+            ).group_by(IAGrowthPlanoRecomendadoLog.tipo_oferta)
+        )).all()
+        await _registrar("OFERTA", [{"chave": r.chave or IAGrowthTipoOferta.CONSULTIVO.value, "amostras": int(r.amostras or 0), "conversoes": int(r.conversoes or 0)} for r in oferta_rows])
+
+        autopilot_rows = (await db.execute(
+            select(
+                IAGrowthAutopilotAcao.tipo_acao.label("chave"),
+                func.count(IAGrowthAutopilotAcao.id).label("amostras"),
+                func.count(IAGrowthAutopilotAcao.id).filter(IAGrowthAutopilotAcao.resultado.is_not(None)).label("conversoes"),
+            ).where(
+                IAGrowthAutopilotAcao.tenant_id == tenant_id,
+                IAGrowthAutopilotAcao.executada_em >= desde,
+            ).group_by(IAGrowthAutopilotAcao.tipo_acao)
+        )).all()
+        await _registrar("AUTOPILOT", [{"chave": r.chave or "GENERICA", "amostras": int(r.amostras or 0), "conversoes": int(r.conversoes or 0)} for r in autopilot_rows])
+
+        await db.commit()
+        return {
+            "periodo_dias": periodo_dias,
+            "total_atualizados": total_atualizados,
+            "total_criados": total_criados,
+            "mensagem": "Pesos recalculados com base nas taxas observadas do período.",
+        }
+
+    @staticmethod
+    async def listar_learning_weights(
+        db: AsyncSession,
+        tenant_id: uuid.UUID,
+        periodo_dias: int = 30,
+    ) -> Dict[str, Any]:
+        stmt = (
+            select(IAGrowthLearningWeight)
+            .where(IAGrowthLearningWeight.tenant_id == tenant_id)
+            .order_by(IAGrowthLearningWeight.dimensao.asc(), IAGrowthLearningWeight.chave.asc())
+        )
+        rows = (await db.execute(stmt)).scalars().all()
+        ultima_atualizacao = max((row.updated_at for row in rows), default=None)
+        return {
+            "periodo_dias": periodo_dias,
+            "total": len(rows),
+            "pesos": [
+                {
+                    "id": row.id,
+                    "dimensao": row.dimensao,
+                    "chave": row.chave,
+                    "peso_atual": float(row.peso_atual or 1.0),
+                    "amostras": int(row.amostras or 0),
+                    "conversoes": int(row.conversoes or 0),
+                    "updated_at": row.updated_at,
+                }
+                for row in rows
+            ],
+            "ultima_atualizacao": ultima_atualizacao,
         }
 
     @staticmethod

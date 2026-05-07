@@ -612,6 +612,30 @@ class IAGrowthROIResponse(BaseModel):
     receita_estimativa: str = "estimada"
 
 
+class IAGrowthLearningWeightItem(BaseModel):
+    id: uuid.UUID
+    dimensao: str
+    chave: str
+    peso_atual: float
+    amostras: int
+    conversoes: int
+    updated_at: datetime
+
+
+class IAGrowthLearningWeightsResponse(BaseModel):
+    periodo_dias: int
+    total: int
+    pesos: List[IAGrowthLearningWeightItem]
+    ultima_atualizacao: Optional[datetime] = None
+
+
+class IAGrowthLearningRecalcularResponse(BaseModel):
+    periodo_dias: int
+    total_atualizados: int
+    total_criados: int
+    mensagem: str
+
+
 class IAGrowthAssistenteContextoResponse(BaseModel):
     visao_completa: bool = False
     resumo_perfil: str

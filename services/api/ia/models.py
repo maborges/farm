@@ -211,6 +211,29 @@ class IAAcaoAssistidaHistorico(Base):
     )
 
 
+class IAGrowthLearningWeight(Base):
+    """Pesos aprendidos por tenant/dimensão/chave para calibração de Growth (IA-Growth-24)."""
+    __tablename__ = "ia_growth_learning_weights"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUIDTYPE(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUIDTYPE(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+    )
+    dimensao: Mapped[str] = mapped_column(String(20), nullable=False)
+    chave: Mapped[str] = mapped_column(String(80), nullable=False)
+    peso_atual: Mapped[float] = mapped_column(Float, nullable=False, default=1.0)
+    amostras: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    conversoes: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc)
+    )
+
+    __table_args__ = (
+        Index("ix_ia_growth_learning_tenant_dim_key", "tenant_id", "dimensao", "chave", unique=True),
+        Index("ix_ia_growth_learning_tenant_dim", "tenant_id", "dimensao"),
+    )
+
+
 class IAAutopilotConfig(Base):
     """Configurações do Modo Autopilot (Execução Automática Controlada) (Step 210)."""
     __tablename__ = "ia_autopilot_config"

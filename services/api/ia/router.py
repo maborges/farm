@@ -51,6 +51,8 @@ from ia.schemas import (
     IAGrowthOfertasPerformanceResponse,
     IAGrowthOportunidadesResponse,
     IAGrowthROIResponse,
+    IAGrowthLearningWeightsResponse,
+    IAGrowthLearningRecalcularResponse,
     IAGrowthAutopilotStatusResponse,
     IAGrowthIncentivosResponse,
     IAGrowthIncentivosAprovacaoResponse,
@@ -786,6 +788,40 @@ async def get_growth_roi(
         )
     from ia.growth_service import IAGrowthService
     return IAGrowthROIResponse(**await IAGrowthService.calcular_roi_growth(session, tenant_id, periodo_dias))
+
+
+@router.get("/growth/learning/weights", response_model=IAGrowthLearningWeightsResponse)
+async def get_growth_learning_weights(
+    periodo_dias: int = Query(30, ge=7, le=180),
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    claims: dict = Depends(get_current_user_claims),
+    session: AsyncSession = Depends(get_session),
+):
+    """Lista os pesos aprendidos do Growth. Restrito ao owner/admin."""
+    if not (claims.get("role") in {"owner", "admin"} or claims.get("is_owner") is True):
+        raise HTTPException(
+            status_code=403,
+            detail="Apenas proprietários e administradores podem acessar os pesos do Growth.",
+        )
+    from ia.growth_service import IAGrowthService
+    return IAGrowthLearningWeightsResponse(**await IAGrowthService.listar_learning_weights(session, tenant_id, periodo_dias))
+
+
+@router.post("/growth/learning/recalcular", response_model=IAGrowthLearningRecalcularResponse)
+async def post_growth_learning_recalcular(
+    periodo_dias: int = Query(30, ge=7, le=180),
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    claims: dict = Depends(get_current_user_claims),
+    session: AsyncSession = Depends(get_session),
+):
+    """Recalcula os pesos do Growth. Restrito ao owner/admin."""
+    if not (claims.get("role") in {"owner", "admin"} or claims.get("is_owner") is True):
+        raise HTTPException(
+            status_code=403,
+            detail="Apenas proprietários e administradores podem recalcular os pesos do Growth.",
+        )
+    from ia.growth_service import IAGrowthService
+    return IAGrowthLearningRecalcularResponse(**await IAGrowthService.recalcular_pesos_growth(session, tenant_id, periodo_dias))
 
 
 @router.post("/growth/plano-recomendado/{log_id}/clique")
