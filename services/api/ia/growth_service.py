@@ -2287,8 +2287,20 @@ class IAGrowthService:
         plano_recomendado = fit["plano_recomendado"]
         churn_level = fit["churn_risk_level"]
 
+        # Caso especial: Enterprise com fit muito baixo → reengajamento
+        # (não recomenda upgrade nem mantém recomendação neutra)
+        enterprise_low_fit = (
+            plano_atual == PlanTier.ENTERPRISE.value
+            and fit["score_fit"] < 0.20
+        )
+
         # Copy consultiva por plano
-        if plano_recomendado == PlanTier.PROFISSIONAL.value:
+        if enterprise_low_fit:
+            copy = (
+                "Você contratou o Plano Enterprise mas ainda está usando uma fração "
+                "dos recursos. Vamos te mostrar onde extrair valor agora."
+            )
+        elif plano_recomendado == PlanTier.PROFISSIONAL.value:
             copy = (
                 "Pelo uso atual, o Plano Profissional parece ideal: você já explora "
                 "cenários, alertas e relatórios — recursos com maior retorno nesse plano."
@@ -2313,7 +2325,13 @@ class IAGrowthService:
         cta_secundaria_label: Optional[str] = "Falar com especialista"
         cta_secundaria_url: Optional[str] = "/dashboard/settings/support"
 
-        if plano_recomendado == plano_atual:
+        if enterprise_low_fit:
+            # Reengajamento: foca em ativar uso, não em billing
+            cta_label = "Ativar recursos do Enterprise"
+            cta_url = "/dashboard/ia/progresso"
+            cta_secundaria_label = "Falar com especialista"
+            cta_secundaria_url = "/dashboard/settings/support"
+        elif plano_recomendado == plano_atual:
             cta_label = "Ver detalhes do meu plano"
             cta_url = "/dashboard/settings/billing"
             cta_secundaria_label = None
@@ -2323,7 +2341,7 @@ class IAGrowthService:
             cta_url = "/dashboard/settings/ia"
 
         # Em churn alto, suaviza tom — mantém CTA mas remove ação agressiva
-        if churn_level == "ALTO":
+        if churn_level == "ALTO" and not enterprise_low_fit:
             cta_label = "Ver como aproveitar mais"
             cta_secundaria_label = "Falar com especialista"
             cta_secundaria_url = "/dashboard/settings/support"
@@ -2353,20 +2371,31 @@ class IAGrowthService:
                 logger.warning(f"[IA-Growth-16] Falha ao persistir log de recomendação: {exc}")
                 await db.rollback()
 
+        # Override de motivos/urgência quando reengajamento Enterprise
+        if enterprise_low_fit:
+            motivos_final = [
+                "Seu plano libera recursos que ainda não foram explorados",
+                "Aumentar a adoção destrava o ROI esperado do Enterprise",
+            ]
+            urgencia_final = "MEDIA" if churn_level != "ALTO" else fit["urgencia_recomendacao"]
+        else:
+            motivos_final = fit["motivos"]
+            urgencia_final = fit["urgencia_recomendacao"]
+
         return {
             "plano_atual": plano_atual,
             "plano_atual_label": IAGrowthService.PLANO_LABEL.get(plano_atual, plano_atual),
             "plano_recomendado": plano_recomendado,
             "plano_recomendado_label": IAGrowthService.PLANO_LABEL.get(plano_recomendado, plano_recomendado),
             "score_fit": fit["score_fit"],
-            "motivos": fit["motivos"],
+            "motivos": motivos_final,
             "beneficios": [copy] + fit["funcionalidades_mais_relevantes"][:3],
             "funcionalidades_mais_relevantes": fit["funcionalidades_mais_relevantes"],
             "cta_label": cta_label,
             "cta_url": cta_url,
             "cta_secundaria_label": cta_secundaria_label,
             "cta_secundaria_url": cta_secundaria_url,
-            "nivel_urgencia": fit["urgencia_recomendacao"],
+            "nivel_urgencia": urgencia_final,
             "churn_risk_level": churn_level,
             "persona": fit["persona"],
             "fit_por_plano": fit["fit_por_plano"],
