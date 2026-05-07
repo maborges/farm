@@ -442,3 +442,37 @@ class IAGrowthUserProfile(Base):
     __table_args__ = (
         Index("ix_ia_growth_user_perfil", "perfil"),
     )
+
+
+class IAGrowthPlanoRecomendadoLog(Base):
+    """Snapshot de cada recomendação de plano emitida (IA-Growth-16).
+
+    Persistido para permitir o cálculo de distribuição/CTR/conversão por
+    plano recomendado no dashboard de Performance.
+    """
+    __tablename__ = "ia_growth_plano_recomendado_log"
+
+    id = Column(UUIDTYPE(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(UUIDTYPE(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False)
+    usuario_id = Column(UUIDTYPE(as_uuid=True), nullable=True)
+
+    plano_atual = Column(String(20), nullable=False)        # BASICO | PROFISSIONAL | ENTERPRISE
+    plano_recomendado = Column(String(20), nullable=False)  # idem
+    score_fit = Column(Float, nullable=False, default=0.0)  # 0.0 - 1.0
+    nivel_urgencia = Column(String(10), nullable=False, default="BAIXA") # ALTA | MEDIA | BAIXA
+    persona = Column(String(40), nullable=True)
+    churn_risk_level = Column(String(10), nullable=True)
+
+    motivos = Column(JSON, nullable=True)                # list[str]
+    funcionalidades_relevantes = Column(JSON, nullable=True)  # list[str]
+    sinais = Column(JSON, nullable=True)                 # dict bruto usado para auditoria
+
+    exibida_em = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
+    clicada_em = Column(DateTime(timezone=True), nullable=True)
+    convertida_em = Column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        Index("ix_iagrowth_plano_rec_tenant_data", "tenant_id", "exibida_em"),
+        Index("ix_iagrowth_plano_rec_plano", "plano_recomendado"),
+        Index("ix_iagrowth_plano_rec_usuario", "usuario_id"),
+    )

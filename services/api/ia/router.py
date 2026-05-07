@@ -45,6 +45,8 @@ from ia.schemas import (
     IAGrowthCopyPerformanceResponse,
     IAGrowthPersonasPerformanceResponse,
     IAGrowthChurnDashboardResponse,
+    IAGrowthPlanoRecomendadoResponse,
+    IAGrowthPlanoMetricasResponse,
 )
 from ia.predicao_risco_service import IAPredicaoRiscoService
 from ia.estresse_financeiro_service import IAEstresseFinanceiroService
@@ -551,6 +553,71 @@ async def get_growth_recomendacao(
     usuario_id_str = claims.get("sub")
     usuario_id = uuid.UUID(usuario_id_str) if usuario_id_str else None
     return await IAGrowthService.recomendacao_upgrade(session, tenant_id, usuario_id, contexto)
+
+
+@router.get("/growth/plano-recomendado", response_model=IAGrowthPlanoRecomendadoResponse)
+async def get_growth_plano_recomendado(
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    claims: dict = Depends(get_current_user_claims),
+    session: AsyncSession = Depends(get_session),
+):
+    """Recomendação consultiva de plano para o tenant/usuário (IA-Growth-16).
+
+    Não altera billing — apenas sugere plano + copy + CTA com base em fit.
+    """
+    from ia.growth_service import IAGrowthService
+    usuario_id_str = claims.get("sub")
+    usuario_id = uuid.UUID(usuario_id_str) if usuario_id_str else None
+    return await IAGrowthService.gerar_recomendacao_plano(session, tenant_id, usuario_id)
+
+
+@router.get("/growth/plano-recomendado/metricas", response_model=IAGrowthPlanoMetricasResponse)
+async def get_growth_plano_recomendado_metricas(
+    periodo_dias: int = Query(30, ge=7, le=180),
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    claims: dict = Depends(get_current_user_claims),
+    session: AsyncSession = Depends(get_session),
+):
+    """Distribuição/CTR/conversão por plano recomendado (IA-Growth-16).
+
+    Restrito a owner/admin do tenant. Usuário comum só consome o CTA do
+    endpoint principal.
+    """
+    if not claims.get("is_owner"):
+        raise HTTPException(
+            status_code=403,
+            detail="Apenas o proprietário do tenant pode acessar métricas de Growth.",
+        )
+    from ia.growth_service import IAGrowthService
+    return await IAGrowthService.metricas_plano_recomendado(session, tenant_id, periodo_dias)
+
+
+@router.post("/growth/plano-recomendado/{log_id}/clique")
+async def post_growth_plano_recomendado_clique(
+    log_id: uuid.UUID,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    session: AsyncSession = Depends(get_session),
+):
+    """Marca clique no CTA da recomendação de plano (IA-Growth-16)."""
+    from ia.growth_service import IAGrowthService
+    ok = await IAGrowthService.marcar_plano_recomendado_evento(session, tenant_id, log_id, "clique")
+    if not ok:
+        raise HTTPException(status_code=404, detail="Recomendação não encontrada para este tenant.")
+    return {"status": "ok"}
+
+
+@router.post("/growth/plano-recomendado/{log_id}/conversao")
+async def post_growth_plano_recomendado_conversao(
+    log_id: uuid.UUID,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    session: AsyncSession = Depends(get_session),
+):
+    """Marca conversão (upgrade efetivo) referente a uma recomendação (IA-Growth-16)."""
+    from ia.growth_service import IAGrowthService
+    ok = await IAGrowthService.marcar_plano_recomendado_evento(session, tenant_id, log_id, "conversao")
+    if not ok:
+        raise HTTPException(status_code=404, detail="Recomendação não encontrada para este tenant.")
+    return {"status": "ok"}
 
 
 @router.post("/growth/track")

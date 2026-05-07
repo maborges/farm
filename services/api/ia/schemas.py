@@ -351,3 +351,55 @@ class IAGrowthChurnDashboardResponse(BaseModel):
     conversao_por_nivel: List[IAGrowthChurnConversaoItem]
     recuperacao_alto_risco: IAGrowthChurnRecuperacao
     impacto_cta_preventivo: IAGrowthChurnImpactoPreventivo
+
+
+# ─── IA-Growth-16: Recomendação consultiva de plano ────────────────────────────
+
+class IAGrowthPlanoFitItem(BaseModel):
+    """Score de fit de um plano específico (BASICO | PROFISSIONAL | ENTERPRISE)."""
+    plano: str
+    plano_label: str
+    score_fit: float
+    motivos: List[str] = []
+    funcionalidades_relevantes: List[str] = []
+
+
+class IAGrowthPlanoRecomendadoResponse(BaseModel):
+    """Resposta de GET /ia/growth/plano-recomendado.
+
+    Resultado consultivo que combina fit dos planos + copy + CTA, sem
+    alterar billing real.
+    """
+    plano_atual: str
+    plano_atual_label: str
+    plano_recomendado: str
+    plano_recomendado_label: str
+    score_fit: float
+    motivos: List[str]
+    beneficios: List[str]
+    funcionalidades_mais_relevantes: List[str]
+    cta_label: str
+    cta_url: str
+    cta_secundaria_label: Optional[str] = None
+    cta_secundaria_url: Optional[str] = None
+    nivel_urgencia: str   # ALTA | MEDIA | BAIXA
+    churn_risk_level: str
+    persona: Optional[str] = None
+    fit_por_plano: List[IAGrowthPlanoFitItem] = []
+    log_id: Optional[uuid.UUID] = None
+
+
+class IAGrowthPlanoMetricasItem(BaseModel):
+    plano: str
+    plano_label: str
+    total_recomendacoes: int
+    total_clicks: int
+    taxa_clique: float        # 0.0 - 1.0
+    total_conversoes: int
+    taxa_conversao: float     # 0.0 - 1.0
+
+
+class IAGrowthPlanoMetricasResponse(BaseModel):
+    periodo_dias: int
+    total_recomendacoes: int
+    distribuicao: List[IAGrowthPlanoMetricasItem]

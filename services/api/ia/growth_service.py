@@ -15,7 +15,7 @@ from core.models.auth import Usuario
 from ia.models import (
     IAGrowthEvento, IAGrowthConfig, IAGrowthConfigHistorico, IAGrowthSugestaoRegistro,
     IAGrowthExperimento, IAGrowthExperimentoVariante, IAGrowthExperimentoEvento,
-    IAGrowthUserProfile, IAUXTelemetria, IAUso
+    IAGrowthUserProfile, IAUXTelemetria, IAUso, IAGrowthPlanoRecomendadoLog
 )
 from ia.upgrade_recomendacao_service import IARecomendacaoUpgradeService
 from ia.usage_service import consultar_creditos
@@ -460,6 +460,27 @@ class IAGrowthService:
         tipo_cta_efetivo = cta_info_override["tipo"] if cta_info_override else tipo_cta
         cta_label_efetivo = cta_info_override["cta_label"] if cta_info_override else cta_info["cta_label"]
         cta_url_efetivo = cta_info_override["cta_url"] if cta_info_override else cta_info["cta_url"]
+
+        # --- IA-Growth-16: ajuste de agressividade pelo fit do plano ---
+        # Não altera billing nem força downgrade; apenas suaviza copy/CTA
+        # quando o fit é baixo, e evita sugerir Enterprise para perfis sem fit.
+        try:
+            fit = await IAGrowthService.calcular_fit_plano(db, tenant_id, usuario_id)
+            urgencia_fit = fit["urgencia_recomendacao"]
+            score_enterprise = next(
+                (p["score_fit"] for p in fit["fit_por_plano"] if p["plano"] == PlanTier.ENTERPRISE.value),
+                0.0,
+            )
+            # Evita sugerir Enterprise para usuário com fit baixo
+            if "Enterprise" in mensagem and score_enterprise < 0.45:
+                mensagem = mensagem.replace("Enterprise", "Profissional")
+            # Suaviza CTA agressivo quando fit aponta urgência BAIXA e churn não é alto
+            if urgencia_fit == "BAIXA" and churn_risk_level != "ALTO":
+                cta_label_efetivo = "Ver opções de evolução"
+                if dispara and timing_decision == "FULL":
+                    timing_decision = "SOFT"
+        except Exception:
+            pass
 
         # Decisão final baseada em gatilho + timing
         if not dispara or timing_decision == "HIDDEN":
@@ -1956,3 +1977,468 @@ class IAGrowthService:
                 "conversao": round((impacto_clicks / impacto_views * 100) if impacto_views else 0.0, 1),
             },
         }
+
+    # ─── IA-Growth-16: Recomendação consultiva de plano ──────────────────────
+
+    PLANO_LABEL = {
+        PlanTier.BASICO.value: "Plano Essencial / Planejamento",
+        PlanTier.PROFISSIONAL.value: "Plano Profissional",
+        PlanTier.ENTERPRISE.value: "Plano Enterprise",
+    }
+
+    PLANO_FEATURES = {
+        PlanTier.BASICO.value: [
+            "Planejamento de safra e orçamento",
+            "Cadastros essenciais",
+            "Relatórios básicos",
+        ],
+        PlanTier.PROFISSIONAL.value: [
+            "Cenários financeiros e DRE",
+            "Alertas inteligentes e recomendações",
+            "Relatórios agrícolas avançados",
+            "Hedging e gestão de custos",
+            "Integrações fiscais",
+        ],
+        PlanTier.ENTERPRISE.value: [
+            "Rastreabilidade ponta-a-ponta",
+            "Operações multi-unidade",
+            "Compliance e exportação",
+            "IA ilimitada e benchmarking",
+            "Carbono e ESG",
+        ],
+    }
+
+    @staticmethod
+    def _plano_atual_para_fit(tier: str) -> str:
+        """Normaliza tier (PREMIUM == ENTERPRISE para fins de fit)."""
+        if tier in {PlanTier.ENTERPRISE.value, "ENTERPRISE", "PREMIUM"}:
+            return PlanTier.ENTERPRISE.value
+        if tier in {PlanTier.PROFISSIONAL.value, "PROFISSIONAL"}:
+            return PlanTier.PROFISSIONAL.value
+        return PlanTier.BASICO.value
+
+    @staticmethod
+    async def _coletar_sinais_fit(
+        db: AsyncSession,
+        tenant_id: uuid.UUID,
+        usuario_id: Optional[uuid.UUID],
+    ) -> Dict[str, Any]:
+        """Coleta sinais brutos usados pelo fit. Falhas individuais não derrubam o cálculo."""
+        sinais: Dict[str, Any] = {
+            "uso_ia_pct": 0.0,
+            "uso_features_chave": 0,
+            "tentativas_features_bloqueadas": 0,
+            "eventos_intencao_upgrade": 0,
+            "dias_ativos_30d": 0,
+            "uso_ia_ilimitada_perto_limite": False,
+            "tem_multi_unidade": False,
+            "tem_pecuaria": False,
+            "tem_rh": False,
+        }
+
+        tier_atual = await IAGrowthService._tier_atual(db, tenant_id)
+
+        # Uso de IA (% da cota)
+        try:
+            uso = await consultar_creditos(tenant_id, tier_atual, db)
+            limite = uso.get("limite_plano") or 0
+            usado = uso.get("usado_plano") or 0
+            if limite > 0:
+                pct = (usado / limite) * 100
+                sinais["uso_ia_pct"] = float(round(pct, 2))
+                sinais["uso_ia_ilimitada_perto_limite"] = pct >= 70.0
+        except Exception:
+            pass
+
+        # Atividade nos últimos 30 dias
+        try:
+            desde = datetime.now(timezone.utc) - timedelta(days=30)
+            stmt = select(func.count(func.distinct(func.date(IAUXTelemetria.created_at)))).where(
+                IAUXTelemetria.tenant_id == tenant_id,
+                IAUXTelemetria.created_at >= desde,
+            )
+            if usuario_id:
+                stmt = stmt.where(IAUXTelemetria.usuario_id == usuario_id)
+            sinais["dias_ativos_30d"] = int((await db.execute(stmt)).scalar() or 0)
+        except Exception:
+            pass
+
+        # Tentativas de uso de features bloqueadas (eventos do front)
+        try:
+            desde = datetime.now(timezone.utc) - timedelta(days=30)
+            stmt = select(func.count(IAGrowthEvento.id)).where(
+                IAGrowthEvento.tenant_id == tenant_id,
+                IAGrowthEvento.created_at >= desde,
+                IAGrowthEvento.evento.in_(["monetization_blocked", "feature_blocked", "tier_required"]),
+            )
+            sinais["tentativas_features_bloqueadas"] = int((await db.execute(stmt)).scalar() or 0)
+        except Exception:
+            pass
+
+        # Eventos de intenção de upgrade (cliques no CTA, abertura da página de billing)
+        try:
+            desde = datetime.now(timezone.utc) - timedelta(days=30)
+            stmt = select(func.count(IAGrowthEvento.id)).where(
+                IAGrowthEvento.tenant_id == tenant_id,
+                IAGrowthEvento.created_at >= desde,
+                IAGrowthEvento.evento.in_(["upgrade_cta_clicked", "upgrade_intention_created", "billing_page_view"]),
+            )
+            sinais["eventos_intencao_upgrade"] = int((await db.execute(stmt)).scalar() or 0)
+        except Exception:
+            pass
+
+        # Uso de features-chave da IA (compartilhado com o pacote do calcular_score_momento)
+        try:
+            desde = datetime.now(timezone.utc) - timedelta(days=14)
+            stmt = select(func.count(IAUso.id)).where(
+                IAUso.tenant_id == tenant_id,
+                IAUso.created_at >= desde,
+            )
+            sinais["uso_features_chave"] = int((await db.execute(stmt)).scalar() or 0)
+        except Exception:
+            pass
+
+        # Tamanho/complexidade do tenant — best-effort, opcional
+        try:
+            from core.models.unidade_produtiva import UnidadeProdutiva  # type: ignore
+            stmt = select(func.count(UnidadeProdutiva.id)).where(
+                UnidadeProdutiva.tenant_id == tenant_id,
+                UnidadeProdutiva.ativo.is_(True),
+            )
+            qtd_unidades = int((await db.execute(stmt)).scalar() or 0)
+            sinais["qtd_unidades_produtivas"] = qtd_unidades
+            sinais["tem_multi_unidade"] = qtd_unidades >= 2
+        except Exception:
+            sinais["qtd_unidades_produtivas"] = 0
+
+        return sinais
+
+    @staticmethod
+    async def calcular_fit_plano(
+        db: AsyncSession,
+        tenant_id: uuid.UUID,
+        usuario_id: Optional[uuid.UUID] = None,
+    ) -> Dict[str, Any]:
+        """Calcula o score de fit (0..1) para BASICO, PROFISSIONAL e ENTERPRISE.
+
+        Retorna dict com:
+          plano_recomendado, score_fit, motivos, funcionalidades_mais_relevantes,
+          urgencia_recomendacao, persona, churn_risk_level, fit_por_plano, sinais,
+          plano_atual.
+        """
+        tier_atual_raw = await IAGrowthService._tier_atual(db, tenant_id)
+        tier_atual = IAGrowthService._plano_atual_para_fit(tier_atual_raw)
+
+        sinais = await IAGrowthService._coletar_sinais_fit(db, tenant_id, usuario_id)
+
+        persona = await IAGrowthService.get_perfil_usuario(db, usuario_id) if usuario_id else None
+        churn = await IAGrowthService.calcular_risco_churn(db, tenant_id, usuario_id)
+        churn_level = churn.get("nivel", "BAIXO")
+
+        # Score base começa pelo tier atual (mantém continuidade)
+        scores: Dict[str, float] = {
+            PlanTier.BASICO.value: 0.30,
+            PlanTier.PROFISSIONAL.value: 0.30,
+            PlanTier.ENTERPRISE.value: 0.20,
+        }
+        motivos_por_plano: Dict[str, List[str]] = {
+            PlanTier.BASICO.value: [],
+            PlanTier.PROFISSIONAL.value: [],
+            PlanTier.ENTERPRISE.value: [],
+        }
+
+        # Sinais → pontuação
+        if sinais["uso_ia_pct"] >= 70.0:
+            scores[PlanTier.PROFISSIONAL.value] += 0.20
+            scores[PlanTier.ENTERPRISE.value] += 0.10
+            motivos_por_plano[PlanTier.PROFISSIONAL.value].append(
+                f"Você já usou {sinais['uso_ia_pct']:.0f}% da cota mensal de IA"
+            )
+
+        if sinais["tentativas_features_bloqueadas"] >= 3:
+            scores[PlanTier.PROFISSIONAL.value] += 0.20
+            scores[PlanTier.ENTERPRISE.value] += 0.10
+            motivos_por_plano[PlanTier.PROFISSIONAL.value].append(
+                f"{sinais['tentativas_features_bloqueadas']} tentativas de uso de recursos não disponíveis no plano atual"
+            )
+
+        if sinais["eventos_intencao_upgrade"] >= 1:
+            scores[PlanTier.PROFISSIONAL.value] += 0.10
+            scores[PlanTier.ENTERPRISE.value] += 0.10
+            motivos_por_plano[PlanTier.PROFISSIONAL.value].append(
+                "Você demonstrou interesse explícito em planos superiores"
+            )
+
+        if sinais["dias_ativos_30d"] >= 15:
+            scores[PlanTier.PROFISSIONAL.value] += 0.10
+            motivos_por_plano[PlanTier.PROFISSIONAL.value].append(
+                f"Uso recorrente da plataforma ({sinais['dias_ativos_30d']} dias ativos no mês)"
+            )
+
+        if sinais["tem_multi_unidade"]:
+            scores[PlanTier.ENTERPRISE.value] += 0.25
+            motivos_por_plano[PlanTier.ENTERPRISE.value].append(
+                f"Operação multi-unidade ({sinais.get('qtd_unidades_produtivas', 0)} propriedades ativas)"
+            )
+
+        if sinais["uso_features_chave"] >= 30:
+            scores[PlanTier.PROFISSIONAL.value] += 0.10
+            scores[PlanTier.ENTERPRISE.value] += 0.05
+
+        # Persona → suaviza/amplia
+        if persona == "ORIENTADO_A_RESULTADO":
+            scores[PlanTier.PROFISSIONAL.value] += 0.05
+            scores[PlanTier.ENTERPRISE.value] += 0.10
+        elif persona == "AVANCADO":
+            scores[PlanTier.ENTERPRISE.value] += 0.10
+        elif persona == "INICIANTE" or persona == "CONSERVADOR":
+            scores[PlanTier.BASICO.value] += 0.10
+            # Penaliza Enterprise para perfis iniciantes/conservadores
+            scores[PlanTier.ENTERPRISE.value] = max(0.0, scores[PlanTier.ENTERPRISE.value] - 0.15)
+
+        # Churn → reduz agressividade (não força downgrade)
+        if churn_level == "ALTO":
+            for k in scores:
+                scores[k] = max(0.0, scores[k] - 0.10)
+        elif churn_level == "MEDIO":
+            for k in scores:
+                scores[k] = max(0.0, scores[k] - 0.05)
+
+        # Não recomendar tier inferior ao atual (consultivo, não downgrade)
+        ordem = [PlanTier.BASICO.value, PlanTier.PROFISSIONAL.value, PlanTier.ENTERPRISE.value]
+        idx_atual = ordem.index(tier_atual)
+        for tier_inferior in ordem[:idx_atual]:
+            scores[tier_inferior] = 0.0
+
+        # Clamp em [0, 1]
+        for k in scores:
+            scores[k] = float(min(1.0, max(0.0, scores[k])))
+
+        # Ranking → melhor fit
+        plano_recomendado, score_fit = max(scores.items(), key=lambda kv: kv[1])
+
+        # Se nada se diferencia, mantém o atual
+        if score_fit < 0.35:
+            plano_recomendado = tier_atual
+            score_fit = scores.get(tier_atual, 0.30)
+
+        # Urgência baseada em sinais críticos
+        if (
+            sinais["uso_ia_pct"] >= 90.0
+            or sinais["tentativas_features_bloqueadas"] >= 5
+            or sinais["eventos_intencao_upgrade"] >= 3
+        ):
+            urgencia = "ALTA"
+        elif score_fit >= 0.60:
+            urgencia = "MEDIA"
+        else:
+            urgencia = "BAIXA"
+
+        # Em churn alto, bloqueia "ALTA"
+        if churn_level == "ALTO" and urgencia == "ALTA":
+            urgencia = "MEDIA"
+
+        funcionalidades = IAGrowthService.PLANO_FEATURES.get(plano_recomendado, [])
+        motivos = motivos_por_plano.get(plano_recomendado, [])
+        if not motivos:
+            motivos.append(
+                f"Seu uso atual indica que o {IAGrowthService.PLANO_LABEL.get(plano_recomendado, plano_recomendado)} entrega o melhor custo-benefício."
+            )
+
+        fit_por_plano = [
+            {
+                "plano": p,
+                "plano_label": IAGrowthService.PLANO_LABEL.get(p, p),
+                "score_fit": scores[p],
+                "motivos": motivos_por_plano[p][:3],
+                "funcionalidades_relevantes": IAGrowthService.PLANO_FEATURES.get(p, [])[:3],
+            }
+            for p in ordem
+        ]
+
+        return {
+            "plano_atual": tier_atual,
+            "plano_recomendado": plano_recomendado,
+            "score_fit": round(score_fit, 3),
+            "motivos": motivos[:4],
+            "funcionalidades_mais_relevantes": funcionalidades[:5],
+            "urgencia_recomendacao": urgencia,
+            "persona": persona,
+            "churn_risk_level": churn_level,
+            "fit_por_plano": fit_por_plano,
+            "sinais": sinais,
+        }
+
+    @staticmethod
+    async def gerar_recomendacao_plano(
+        db: AsyncSession,
+        tenant_id: uuid.UUID,
+        usuario_id: Optional[uuid.UUID] = None,
+        persistir_log: bool = True,
+    ) -> Dict[str, Any]:
+        """Gera a recomendação consultiva de plano (copy + CTA + fit).
+
+        Quando `persistir_log=True`, registra um snapshot em
+        `ia_growth_plano_recomendado_log` para alimentar as métricas.
+        """
+        fit = await IAGrowthService.calcular_fit_plano(db, tenant_id, usuario_id)
+
+        plano_atual = fit["plano_atual"]
+        plano_recomendado = fit["plano_recomendado"]
+        churn_level = fit["churn_risk_level"]
+
+        # Copy consultiva por plano
+        if plano_recomendado == PlanTier.PROFISSIONAL.value:
+            copy = (
+                "Pelo uso atual, o Plano Profissional parece ideal: você já explora "
+                "cenários, alertas e relatórios — recursos com maior retorno nesse plano."
+            )
+        elif plano_recomendado == PlanTier.ENTERPRISE.value:
+            copy = (
+                "Sua operação tem perfil Enterprise: rastreabilidade ponta-a-ponta, "
+                "múltiplas unidades e exportações são desbloqueadas neste plano."
+            )
+        else:
+            copy = (
+                "O Plano Essencial cobre o que você usa hoje. Quando seus indicadores "
+                "evoluírem, te avisamos sobre o próximo passo natural."
+            )
+
+        # CTA principal — orquestrado por upgrade_recomendacao_service para evitar conflito
+        recomendacao_billing = await IARecomendacaoUpgradeService.get_recomendacao(
+            db, tenant_id, current_tier=plano_atual
+        )
+        cta_label = "Ver plano recomendado"
+        cta_url = "/dashboard/settings/billing"
+        cta_secundaria_label: Optional[str] = "Falar com especialista"
+        cta_secundaria_url: Optional[str] = "/dashboard/settings/support"
+
+        if plano_recomendado == plano_atual:
+            cta_label = "Ver detalhes do meu plano"
+            cta_url = "/dashboard/settings/billing"
+            cta_secundaria_label = None
+            cta_secundaria_url = None
+        elif recomendacao_billing.get("tipo") == "CREDITOS_IA":
+            cta_label = "Solicitar créditos de IA"
+            cta_url = "/dashboard/settings/ia"
+
+        # Em churn alto, suaviza tom — mantém CTA mas remove ação agressiva
+        if churn_level == "ALTO":
+            cta_label = "Ver como aproveitar mais"
+            cta_secundaria_label = "Falar com especialista"
+            cta_secundaria_url = "/dashboard/settings/support"
+
+        # Persistência (snapshot)
+        log_id: Optional[uuid.UUID] = None
+        if persistir_log:
+            try:
+                novo = IAGrowthPlanoRecomendadoLog(
+                    tenant_id=tenant_id,
+                    usuario_id=usuario_id,
+                    plano_atual=plano_atual,
+                    plano_recomendado=plano_recomendado,
+                    score_fit=fit["score_fit"],
+                    nivel_urgencia=fit["urgencia_recomendacao"],
+                    persona=fit["persona"],
+                    churn_risk_level=churn_level,
+                    motivos=fit["motivos"],
+                    funcionalidades_relevantes=fit["funcionalidades_mais_relevantes"],
+                    sinais=fit["sinais"],
+                )
+                db.add(novo)
+                await db.flush()
+                log_id = novo.id
+                await db.commit()
+            except Exception as exc:
+                logger.warning(f"[IA-Growth-16] Falha ao persistir log de recomendação: {exc}")
+                await db.rollback()
+
+        return {
+            "plano_atual": plano_atual,
+            "plano_atual_label": IAGrowthService.PLANO_LABEL.get(plano_atual, plano_atual),
+            "plano_recomendado": plano_recomendado,
+            "plano_recomendado_label": IAGrowthService.PLANO_LABEL.get(plano_recomendado, plano_recomendado),
+            "score_fit": fit["score_fit"],
+            "motivos": fit["motivos"],
+            "beneficios": [copy] + fit["funcionalidades_mais_relevantes"][:3],
+            "funcionalidades_mais_relevantes": fit["funcionalidades_mais_relevantes"],
+            "cta_label": cta_label,
+            "cta_url": cta_url,
+            "cta_secundaria_label": cta_secundaria_label,
+            "cta_secundaria_url": cta_secundaria_url,
+            "nivel_urgencia": fit["urgencia_recomendacao"],
+            "churn_risk_level": churn_level,
+            "persona": fit["persona"],
+            "fit_por_plano": fit["fit_por_plano"],
+            "log_id": log_id,
+        }
+
+    @staticmethod
+    async def metricas_plano_recomendado(
+        db: AsyncSession,
+        tenant_id: uuid.UUID,
+        periodo_dias: int = 30,
+    ) -> Dict[str, Any]:
+        """Distribuição/CTR/conversão por plano recomendado nos últimos N dias."""
+        desde = datetime.now(timezone.utc) - timedelta(days=periodo_dias)
+
+        stmt = select(
+            IAGrowthPlanoRecomendadoLog.plano_recomendado.label("plano"),
+            func.count(IAGrowthPlanoRecomendadoLog.id).label("total"),
+            func.count(IAGrowthPlanoRecomendadoLog.clicada_em).label("clicks"),
+            func.count(IAGrowthPlanoRecomendadoLog.convertida_em).label("conversoes"),
+        ).where(
+            IAGrowthPlanoRecomendadoLog.tenant_id == tenant_id,
+            IAGrowthPlanoRecomendadoLog.exibida_em >= desde,
+        ).group_by(IAGrowthPlanoRecomendadoLog.plano_recomendado)
+
+        rows = (await db.execute(stmt)).all()
+        distribuicao: List[Dict[str, Any]] = []
+        total_geral = 0
+        for r in rows:
+            total = int(r.total or 0)
+            clicks = int(r.clicks or 0)
+            conv = int(r.conversoes or 0)
+            total_geral += total
+            distribuicao.append({
+                "plano": r.plano,
+                "plano_label": IAGrowthService.PLANO_LABEL.get(r.plano, r.plano),
+                "total_recomendacoes": total,
+                "total_clicks": clicks,
+                "taxa_clique": round((clicks / total) if total else 0.0, 3),
+                "total_conversoes": conv,
+                "taxa_conversao": round((conv / total) if total else 0.0, 3),
+            })
+
+        return {
+            "periodo_dias": periodo_dias,
+            "total_recomendacoes": total_geral,
+            "distribuicao": distribuicao,
+        }
+
+    @staticmethod
+    async def marcar_plano_recomendado_evento(
+        db: AsyncSession,
+        tenant_id: uuid.UUID,
+        log_id: uuid.UUID,
+        evento: str,
+    ) -> bool:
+        """Atualiza um snapshot de recomendação de plano. evento ∈ {clique, conversao}."""
+        if evento not in {"clique", "conversao"}:
+            return False
+        col = (
+            IAGrowthPlanoRecomendadoLog.clicada_em
+            if evento == "clique"
+            else IAGrowthPlanoRecomendadoLog.convertida_em
+        )
+        stmt = (
+            sa_update(IAGrowthPlanoRecomendadoLog)
+            .where(
+                IAGrowthPlanoRecomendadoLog.id == log_id,
+                IAGrowthPlanoRecomendadoLog.tenant_id == tenant_id,
+            )
+            .values({col: datetime.now(timezone.utc)})
+        )
+        result = await db.execute(stmt)
+        await db.commit()
+        return (result.rowcount or 0) > 0
