@@ -17,7 +17,7 @@ from ia.models import (
     IAGrowthEvento, IAGrowthConfig, IAGrowthConfigHistorico, IAGrowthSugestaoRegistro,
     IAGrowthExperimento, IAGrowthExperimentoVariante, IAGrowthExperimentoEvento,
     IAGrowthUserProfile, IAUXTelemetria, IAUso, IAGrowthPlanoRecomendadoLog,
-    IAGrowthAssistenteInteracao, IAGrowthAutopilotAcao
+    IAGrowthAssistenteInteracao, IAGrowthAutopilotAcao, IAGrowthIncentivo
 )
 from ia.upgrade_recomendacao_service import IARecomendacaoUpgradeService
 from ia.autopilot_service import IAAutopilotService
@@ -39,6 +39,35 @@ AUTOPILOT_MODOS = {
     "BAIXO": "CONSERVADOR",
     "MEDIO": "BALANCEADO",
     "ALTO": "AGRESSIVO",
+}
+INCENTIVO_COOLDOWN_DIAS = 14
+INCENTIVO_MAX_USUARIO_90D = 2
+INCENTIVO_MAX_TENANT_90D = 100
+INCENTIVO_VALIDADE_DIAS = {
+    "TRIAL_PROFISSIONAL": 14,
+    "TRIAL_ENTERPRISE": 7,
+    "DEMO_ASSISTIDA": 7,
+    "CONSULTORIA_RAPIDA": 3,
+    "EXTENSAO_AVALIACAO": 10,
+}
+TIPO_INCENTIVO_LABELS = {
+    "TRIAL_PROFISSIONAL": "Trial Profissional",
+    "TRIAL_ENTERPRISE": "Trial Enterprise",
+    "DEMO_ASSISTIDA": "Demo assistida",
+    "CONSULTORIA_RAPIDA": "Consultoria rápida",
+    "EXTENSAO_AVALIACAO": "Extensão de avaliação",
+}
+ORIGEM_INCENTIVO_LABELS = {
+    "MANUAL": "Manual",
+    "AUTOPILOT": "Autopilot",
+    "ASSISTENTE": "Assistente",
+}
+STATUS_INCENTIVO_LABELS = {
+    "OFERECIDO": "Oferecido",
+    "ACEITO": "Aceito",
+    "RECUSADO": "Recusado",
+    "EXPIRADO": "Expirado",
+    "CANCELADO": "Cancelado",
 }
 
 
@@ -221,6 +250,338 @@ class IAGrowthService:
             "plano_atual": plano_atual,
             "plano_recomendado": plano_recomendado,
             "categoria": categoria,
+        }
+
+    @staticmethod
+    def _serializar_incentivo(incentivo: IAGrowthIncentivo, agora: Optional[datetime] = None) -> Dict[str, Any]:
+        agora = agora or datetime.now(timezone.utc)
+        validade_fim = incentivo.validade_fim
+        dias_restantes = max((validade_fim - agora).days, 0)
+        ativo = incentivo.status == "OFERECIDO" and validade_fim >= agora
+        return {
+            "id": str(incentivo.id),
+            "usuario_id": str(incentivo.usuario_id) if incentivo.usuario_id else None,
+            "tipo_incentivo": incentivo.tipo_incentivo,
+            "tipo_incentivo_label": TIPO_INCENTIVO_LABELS.get(incentivo.tipo_incentivo, incentivo.tipo_incentivo),
+            "plano_alvo": incentivo.plano_alvo,
+            "plano_alvo_label": IAGrowthService.PLANO_LABEL.get(incentivo.plano_alvo, incentivo.plano_alvo),
+            "origem": incentivo.origem,
+            "origem_label": ORIGEM_INCENTIVO_LABELS.get(incentivo.origem, incentivo.origem),
+            "status": incentivo.status,
+            "status_label": STATUS_INCENTIVO_LABELS.get(incentivo.status, incentivo.status),
+            "validade_inicio": incentivo.validade_inicio.isoformat(),
+            "validade_fim": validade_fim.isoformat(),
+            "motivo": incentivo.motivo,
+            "created_at": incentivo.created_at.isoformat(),
+            "accepted_at": incentivo.accepted_at.isoformat() if incentivo.accepted_at else None,
+            "ativo": ativo,
+            "dias_validade_restantes": dias_restantes,
+        }
+
+    @staticmethod
+    def _selecionar_tipo_incentivo(fit: Dict[str, Any], score_oportunidade: Dict[str, Any], oferta_info: Dict[str, Any]) -> Optional[str]:
+        tipo_oferta = oferta_info.get("tipo_oferta")
+        if tipo_oferta not in {IAGrowthTipoOferta.INCENTIVO_LEVE.value, IAGrowthTipoOferta.INCENTIVO_FORTE.value}:
+            return None
+
+        plano_recomendado = (fit.get("plano_recomendado") or "").upper()
+        plano_atual = (fit.get("plano_atual") or "").upper()
+        categoria = score_oportunidade.get("categoria") or "NEUTRO"
+        churn_level = fit.get("churn_risk_level") or score_oportunidade.get("churn_risk_level") or "BAIXO"
+        score_fit = float(fit.get("score_fit", 0.0))
+        score = float(score_oportunidade.get("score", 0.0))
+        funcionalidades = list(fit.get("funcionalidades_mais_relevantes", []))
+        tem_feature_bloqueada = bool(funcionalidades[2:]) or len(funcionalidades) >= 4
+
+        if churn_level == "ALTO" or categoria == "RISCO":
+            return "CONSULTORIA_RAPIDA"
+
+        if plano_recomendado == PlanTier.ENTERPRISE.value:
+            if score_fit >= 0.8 and score >= 0.7:
+                return "TRIAL_ENTERPRISE"
+            return "DEMO_ASSISTIDA" if categoria == "TRAVADO" else "CONSULTORIA_RAPIDA"
+
+        if plano_recomendado == PlanTier.PROFISSIONAL.value:
+            if categoria == "ALTO_POTENCIAL" and score_fit >= 0.82 and not tem_feature_bloqueada:
+                return "EXTENSAO_AVALIACAO"
+            if categoria == "TRAVADO" and score >= 0.65:
+                return "TRIAL_PROFISSIONAL"
+            return "DEMO_ASSISTIDA" if score < 0.7 else "TRIAL_PROFISSIONAL"
+
+        if plano_atual == PlanTier.BASICO.value and categoria == "TRAVADO" and score >= 0.7:
+            return "TRIAL_PROFISSIONAL"
+
+        if categoria == "ALTO_POTENCIAL":
+            return "EXTENSAO_AVALIACAO"
+
+        return "DEMO_ASSISTIDA"
+
+    @staticmethod
+    async def _expirar_incentivos_vencidos(db: AsyncSession, tenant_id: uuid.UUID) -> None:
+        agora = datetime.now(timezone.utc)
+        stmt = (
+            sa_update(IAGrowthIncentivo)
+            .where(
+                IAGrowthIncentivo.tenant_id == tenant_id,
+                IAGrowthIncentivo.status == "OFERECIDO",
+                IAGrowthIncentivo.validade_fim < agora,
+            )
+            .values(status="EXPIRADO")
+        )
+        await db.execute(stmt)
+        await db.commit()
+
+    @staticmethod
+    async def gerar_incentivo_controlado(
+        db: AsyncSession,
+        tenant_id: uuid.UUID,
+        usuario_id: Optional[uuid.UUID],
+        *,
+        origem: str = "ASSISTENTE",
+        fit: Optional[Dict[str, Any]] = None,
+        score_oportunidade: Optional[Dict[str, Any]] = None,
+        oferta_info: Optional[Dict[str, Any]] = None,
+    ) -> Optional[Dict[str, Any]]:
+        if not usuario_id:
+            return None
+
+        config = await IAAutopilotService.get_config(db, tenant_id)
+        if not getattr(config, "growth_incentivos_enabled", False):
+            return None
+
+        origem = (origem or "ASSISTENTE").upper()
+        if origem not in ORIGEM_INCENTIVO_LABELS:
+            origem = "ASSISTENTE"
+
+        fit = fit or await IAGrowthService.calcular_fit_plano(db, tenant_id, usuario_id)
+        score_oportunidade = score_oportunidade or await IAGrowthService.calcular_score_oportunidade(db, tenant_id, usuario_id)
+        oferta_info = oferta_info or await IAGrowthService.calcular_tipo_oferta(
+            db,
+            tenant_id,
+            usuario_id,
+            fit=fit,
+            score_oportunidade=score_oportunidade,
+            categoria=score_oportunidade.get("categoria"),
+        )
+
+        tipo_oferta = oferta_info.get("tipo_oferta")
+        if tipo_oferta not in {IAGrowthTipoOferta.INCENTIVO_LEVE.value, IAGrowthTipoOferta.INCENTIVO_FORTE.value}:
+            return None
+
+        agora = datetime.now(timezone.utc)
+        await IAGrowthService._expirar_incentivos_vencidos(db, tenant_id)
+
+        q_ativo = await db.execute(
+            select(IAGrowthIncentivo).where(
+                IAGrowthIncentivo.tenant_id == tenant_id,
+                IAGrowthIncentivo.usuario_id == usuario_id,
+                IAGrowthIncentivo.status == "OFERECIDO",
+                IAGrowthIncentivo.validade_fim >= agora,
+            ).order_by(IAGrowthIncentivo.created_at.desc()).limit(1)
+        )
+        incentivo_ativo = q_ativo.scalar_one_or_none()
+        if incentivo_ativo:
+            return IAGrowthService._serializar_incentivo(incentivo_ativo, agora)
+
+        desde_cooldown = agora - timedelta(days=INCENTIVO_COOLDOWN_DIAS)
+        q_cooldown = await db.execute(
+            select(func.count(IAGrowthIncentivo.id)).where(
+                IAGrowthIncentivo.tenant_id == tenant_id,
+                IAGrowthIncentivo.usuario_id == usuario_id,
+                IAGrowthIncentivo.created_at >= desde_cooldown,
+            )
+        )
+        if (q_cooldown.scalar() or 0) > 0:
+            return None
+
+        q_usuario = await db.execute(
+            select(func.count(IAGrowthIncentivo.id)).where(
+                IAGrowthIncentivo.tenant_id == tenant_id,
+                IAGrowthIncentivo.usuario_id == usuario_id,
+                IAGrowthIncentivo.created_at >= agora - timedelta(days=90),
+            )
+        )
+        if (q_usuario.scalar() or 0) >= INCENTIVO_MAX_USUARIO_90D:
+            return None
+
+        q_tenant = await db.execute(
+            select(func.count(IAGrowthIncentivo.id)).where(
+                IAGrowthIncentivo.tenant_id == tenant_id,
+                IAGrowthIncentivo.created_at >= agora - timedelta(days=90),
+            )
+        )
+        if (q_tenant.scalar() or 0) >= INCENTIVO_MAX_TENANT_90D:
+            return None
+
+        tipo_incentivo = IAGrowthService._selecionar_tipo_incentivo(fit, score_oportunidade, oferta_info)
+        if not tipo_incentivo:
+            return None
+
+        validade_dias = INCENTIVO_VALIDADE_DIAS.get(tipo_incentivo, 7)
+        plano_alvo = fit.get("plano_recomendado") or PlanTier.PROFISSIONAL.value
+        beneficio = oferta_info.get("beneficio_destacado") or IAGrowthService.PLANO_LABEL.get(plano_alvo, plano_alvo)
+        if tipo_incentivo == "CONSULTORIA_RAPIDA":
+            motivo = f"Apoio temporário para reduzir fricção e explicar melhor o valor de {beneficio}."
+        elif tipo_incentivo.startswith("TRIAL"):
+            motivo = f"Benefício temporário para experimentar recursos de {beneficio} sem alterar sua cobrança."
+        else:
+            motivo = f"Extensão controlada para explorar melhor {beneficio} antes de decidir."
+
+        incentivo = IAGrowthIncentivo(
+            tenant_id=tenant_id,
+            usuario_id=usuario_id,
+            tipo_incentivo=tipo_incentivo,
+            plano_alvo=plano_alvo,
+            origem=origem,
+            status="OFERECIDO",
+            validade_inicio=agora,
+            validade_fim=agora + timedelta(days=validade_dias),
+            motivo=motivo,
+        )
+        db.add(incentivo)
+        await db.flush()
+        await db.commit()
+        await db.refresh(incentivo)
+        return IAGrowthService._serializar_incentivo(incentivo, agora)
+
+    @staticmethod
+    async def listar_incentivos(
+        db: AsyncSession,
+        tenant_id: uuid.UUID,
+        usuario_id: Optional[uuid.UUID],
+        periodo_dias: int = 90,
+        status: Optional[str] = None,
+        limite: int = 50,
+        is_privileged: bool = False,
+    ) -> Dict[str, Any]:
+        agora = datetime.now(timezone.utc)
+        desde = agora - timedelta(days=periodo_dias)
+        await IAGrowthService._expirar_incentivos_vencidos(db, tenant_id)
+
+        filtros = [
+            IAGrowthIncentivo.tenant_id == tenant_id,
+            IAGrowthIncentivo.created_at >= desde,
+        ]
+        if not is_privileged and usuario_id:
+            filtros.append(IAGrowthIncentivo.usuario_id == usuario_id)
+        if status:
+            filtros.append(IAGrowthIncentivo.status == status)
+
+        stmt = (
+            select(IAGrowthIncentivo)
+            .where(and_(*filtros))
+            .order_by(IAGrowthIncentivo.created_at.desc())
+            .limit(limite)
+        )
+        rows = (await db.execute(stmt)).scalars().all()
+
+        base_filtros = [
+            IAGrowthIncentivo.tenant_id == tenant_id,
+            IAGrowthIncentivo.created_at >= desde,
+        ]
+        if not is_privileged and usuario_id:
+            base_filtros.append(IAGrowthIncentivo.usuario_id == usuario_id)
+
+        contagem_stmt = select(
+            func.count(IAGrowthIncentivo.id).label("oferecidos"),
+            func.count(IAGrowthIncentivo.id).filter(IAGrowthIncentivo.status == "ACEITO").label("aceitos"),
+            func.count(IAGrowthIncentivo.id).filter(IAGrowthIncentivo.status == "RECUSADO").label("recusados"),
+            func.count(IAGrowthIncentivo.id).filter(IAGrowthIncentivo.status == "EXPIRADO").label("expirados"),
+            func.count(IAGrowthIncentivo.id).filter(IAGrowthIncentivo.status == "CANCELADO").label("cancelados"),
+        ).where(and_(*base_filtros))
+        contagem = (await db.execute(contagem_stmt)).one()
+        oferecidos = int(contagem.oferecidos or 0)
+        aceitos = int(contagem.aceitos or 0)
+        recusados = int(contagem.recusados or 0)
+        expirados = int(contagem.expirados or 0)
+        cancelados = int(contagem.cancelados or 0)
+        taxa_aceite = round((aceitos / oferecidos) * 100, 1) if oferecidos else 0.0
+
+        aceitos_recent = [
+            row
+            for row in (await db.execute(
+                select(IAGrowthIncentivo)
+                .where(and_(*base_filtros, IAGrowthIncentivo.status == "ACEITO"))
+                .order_by(IAGrowthIncentivo.accepted_at.desc().nullslast())
+            )).scalars().all()
+        ]
+        conversoes_pos = 0
+        for incentivo in aceitos_recent:
+            if not incentivo.usuario_id or not incentivo.accepted_at:
+                continue
+            q_conv = await db.execute(
+                select(func.count(IAGrowthPlanoRecomendadoLog.id)).where(
+                    IAGrowthPlanoRecomendadoLog.tenant_id == tenant_id,
+                    IAGrowthPlanoRecomendadoLog.usuario_id == incentivo.usuario_id,
+                    IAGrowthPlanoRecomendadoLog.plano_recomendado == incentivo.plano_alvo,
+                    IAGrowthPlanoRecomendadoLog.convertida_em.is_not(None),
+                    IAGrowthPlanoRecomendadoLog.convertida_em >= incentivo.accepted_at,
+                )
+            )
+            if (q_conv.scalar() or 0) > 0:
+                conversoes_pos += 1
+        conversao_pos_incentivo = round((conversoes_pos / aceitos) * 100, 1) if aceitos else 0.0
+
+        return {
+            "periodo_dias": periodo_dias,
+            "oferecidos": oferecidos,
+            "aceitos": aceitos,
+            "recusados": recusados,
+            "expirados": expirados,
+            "cancelados": cancelados,
+            "taxa_aceite": taxa_aceite,
+            "conversao_pos_incentivo": conversao_pos_incentivo,
+            "incentivos": [IAGrowthService._serializar_incentivo(row, agora) for row in rows],
+        }
+
+    @staticmethod
+    async def responder_incentivo(
+        db: AsyncSession,
+        tenant_id: uuid.UUID,
+        incentivo_id: uuid.UUID,
+        usuario_id: Optional[uuid.UUID],
+        acao: str,
+        is_privileged: bool = False,
+    ) -> Dict[str, Any]:
+        acao = acao.upper()
+        if acao not in {"ACEITAR", "RECUSAR"}:
+            raise ValueError("Ação inválida para incentivo.")
+
+        q = await db.execute(
+            select(IAGrowthIncentivo).where(
+                IAGrowthIncentivo.id == incentivo_id,
+                IAGrowthIncentivo.tenant_id == tenant_id,
+            )
+        )
+        incentivo = q.scalar_one_or_none()
+        if not incentivo:
+            raise ValueError("Incentivo não encontrado para este tenant.")
+        if incentivo.usuario_id and not is_privileged and (not usuario_id or incentivo.usuario_id != usuario_id):
+            raise ValueError("Incentivo não pertence ao usuário atual.")
+
+        agora = datetime.now(timezone.utc)
+        if incentivo.status == "OFERECIDO" and incentivo.validade_fim < agora:
+            incentivo.status = "EXPIRADO"
+            await db.commit()
+            raise ValueError("Incentivo expirado.")
+
+        if incentivo.status in {"ACEITO", "RECUSADO", "CANCELADO"}:
+            return {
+                "status": incentivo.status,
+                "incentivo": IAGrowthService._serializar_incentivo(incentivo, agora),
+            }
+
+        if acao == "ACEITAR":
+            incentivo.status = "ACEITO"
+            incentivo.accepted_at = incentivo.accepted_at or agora
+        else:
+            incentivo.status = "RECUSADO"
+
+        await db.commit()
+        await db.refresh(incentivo)
+        return {
+            "status": incentivo.status,
+            "incentivo": IAGrowthService._serializar_incentivo(incentivo, agora),
         }
 
     @staticmethod
@@ -718,6 +1079,29 @@ class IAGrowthService:
                 "beneficio_destacado": oferta_info["beneficio_destacado"],
             }
 
+        incentivo_info: Optional[Dict[str, Any]] = None
+        if oferta_info["tipo_oferta"] in {
+            IAGrowthTipoOferta.INCENTIVO_LEVE.value,
+            IAGrowthTipoOferta.INCENTIVO_FORTE.value,
+        }:
+            try:
+                incentivo_info = await IAGrowthService.gerar_incentivo_controlado(
+                    db,
+                    tenant_id,
+                    usuario_id,
+                    origem="ASSISTENTE",
+                    fit=fit,
+                    score_oportunidade=score_oportunidade,
+                    oferta_info=oferta_info,
+                )
+            except Exception as exc:
+                logger.warning(f"[IA-Growth-21] Falha ao gerar incentivo controlado: {exc}")
+
+        if incentivo_info:
+            mensagem = f"{mensagem} {incentivo_info['motivo']}"
+            cta_label_efetivo = "Ver benefício temporário"
+            cta_url_efetivo = "/dashboard/ia/performance"
+
         res = {
             "deve_exibir": True,
             "tipo": tipo_cta_efetivo,
@@ -735,6 +1119,7 @@ class IAGrowthService:
             "tipo_oferta": oferta_info["tipo_oferta"],
             "mensagem_oferta": oferta_info["mensagem_oferta"],
             "beneficio_destacado": oferta_info["beneficio_destacado"],
+            "incentivo": incentivo_info,
         }
 
         if cta_info_override:
@@ -2797,11 +3182,13 @@ class IAGrowthService:
                     {"tipo_acao": "EXPERIMENTO_COPY", "resultado": "Copy vencedora priorizada"},
                 ]
             return [
+                {"tipo_acao": "OFERTA_INCENTIVO_CONTROLADO", "resultado": "Incentivo controlado priorizado"},
                 {"tipo_acao": "CTA_AGRESSIVO", "resultado": "CTA agressivo priorizado"},
             ]
 
         if categoria == "TRAVADO":
             acoes = [
+                {"tipo_acao": "OFERTA_INCENTIVO_CONTROLADO", "resultado": "Incentivo temporário sugerido"},
                 {"tipo_acao": "ASSISTENTE_PROATIVO", "resultado": "Assistente comercial acionado"},
                 {"tipo_acao": "COPY_EDUCATIVA", "resultado": "Copy educativa reforçada"},
             ]
@@ -2814,6 +3201,8 @@ class IAGrowthService:
                 {"tipo_acao": "CTA_PREVENTIVO", "resultado": "CTA preventivo ativado"},
                 {"tipo_acao": "CONTEUDO_EDUCATIVO", "resultado": "Conteúdo educativo priorizado"},
             ]
+            if tipo_oferta in {IAGrowthTipoOferta.INCENTIVO_LEVE.value, IAGrowthTipoOferta.INCENTIVO_FORTE.value}:
+                acoes.insert(0, {"tipo_acao": "OFERTA_INCENTIVO_CONTROLADO", "resultado": "Incentivo com foco consultivo"})
             if tipo_oferta == IAGrowthTipoOferta.CONSULTIVO.value:
                 acoes.append({"tipo_acao": "ASSISTENTE_PROATIVO", "resultado": "Assistente proativo em tom consultivo"})
             return acoes
@@ -2891,7 +3280,24 @@ class IAGrowthService:
             if not IAGrowthService._autopilot_permite_categoria(config.nivel_autonomia, item["categoria"]):
                 continue
 
+            incentivo_info: Optional[Dict[str, Any]] = None
+            if tipo_oferta in {
+                IAGrowthTipoOferta.INCENTIVO_LEVE.value,
+                IAGrowthTipoOferta.INCENTIVO_FORTE.value,
+            }:
+                try:
+                    incentivo_info = await IAGrowthService.gerar_incentivo_controlado(
+                        db,
+                        tenant_id,
+                        usuario_id,
+                        origem="AUTOPILOT",
+                    )
+                except Exception as exc:
+                    logger.warning(f"[IA-Growth-21] Falha ao gerar incentivo no autopilot: {exc}")
+
             for acao in IAGrowthService._autopilot_tipo_acao(item["categoria"], modo_label, tipo_oferta):
+                if acao["tipo_acao"] == "OFERTA_INCENTIVO_CONTROLADO" and not incentivo_info:
+                    continue
                 if await IAGrowthService._autopilot_ja_executou(db, tenant_id, usuario_id, acao["tipo_acao"]):
                     continue
 
@@ -2936,6 +3342,7 @@ class IAGrowthService:
                         "modo": modo_label,
                         "moment_score": round(moment_score, 3),
                         "abordagem_vencedora": abordagem_vencedora,
+                        "incentivo": incentivo_info,
                     },
                     executada_em=datetime.now(timezone.utc),
                 )
@@ -2954,6 +3361,7 @@ class IAGrowthService:
                     "executada_em": registro.executada_em.isoformat(),
                     "resultado": registro.resultado,
                     "tipo_oferta": tipo_oferta,
+                    "incentivo": incentivo_info,
                 })
                 impacto_total += round(impacto_estimado, 2)
 
@@ -2978,6 +3386,7 @@ class IAGrowthService:
         autopilot_ativo = bool(getattr(config, "autopilot_enabled", None) if getattr(config, "autopilot_enabled", None) is not None else config.ativo)
 
         oportunidade_top: Dict[str, Any] = {}
+        incentivo_top: Optional[Dict[str, Any]] = None
         try:
             oportunidades = await IAGrowthService.get_dashboard_oportunidades(
                 db,
@@ -2987,6 +3396,19 @@ class IAGrowthService:
             )
             if oportunidades.get("oportunidades"):
                 oportunidade_top = oportunidades["oportunidades"][0]
+                if oportunidade_top.get("tipo_oferta") in {
+                    IAGrowthTipoOferta.INCENTIVO_LEVE.value,
+                    IAGrowthTipoOferta.INCENTIVO_FORTE.value,
+                }:
+                    try:
+                        incentivo_top = await IAGrowthService.gerar_incentivo_controlado(
+                            db,
+                            tenant_id,
+                            uuid.UUID(oportunidade_top["usuario_id"]),
+                            origem="AUTOPILOT",
+                        )
+                    except Exception as exc:
+                        logger.warning(f"[IA-Growth-21] Falha ao gerar incentivo no status do autopilot: {exc}")
         except Exception:
             oportunidade_top = {}
 
@@ -3012,6 +3434,7 @@ class IAGrowthService:
             "tipo_oferta": oportunidade_top.get("tipo_oferta", IAGrowthTipoOferta.CONSULTIVO.value),
             "mensagem_oferta": oportunidade_top.get("mensagem_oferta", ""),
             "beneficio_destacado": oportunidade_top.get("beneficio_destacado", ""),
+            "incentivo": incentivo_top,
             "recentes": [
                 {
                     "id": str(r.id),
@@ -3124,6 +3547,28 @@ class IAGrowthService:
             cta_secundaria_label = "Falar com especialista"
             cta_secundaria_url = "/dashboard/settings/support"
 
+        incentivo_info: Optional[Dict[str, Any]] = None
+        if oferta_info["tipo_oferta"] in {
+            IAGrowthTipoOferta.INCENTIVO_LEVE.value,
+            IAGrowthTipoOferta.INCENTIVO_FORTE.value,
+        }:
+            try:
+                incentivo_info = await IAGrowthService.gerar_incentivo_controlado(
+                    db,
+                    tenant_id,
+                    usuario_id,
+                    origem="ASSISTENTE",
+                    fit=fit,
+                    score_oportunidade=score_oportunidade,
+                    oferta_info=oferta_info,
+                )
+            except Exception as exc:
+                logger.warning(f"[IA-Growth-21] Falha ao gerar incentivo para recomendação de plano: {exc}")
+
+        if incentivo_info:
+            cta_label = "Ver benefício temporário"
+            cta_url = "/dashboard/ia/performance"
+
         # Persistência (snapshot)
         log_id: Optional[uuid.UUID] = None
         if persistir_log:
@@ -3179,6 +3624,7 @@ class IAGrowthService:
             "tipo_oferta": oferta_info["tipo_oferta"],
             "mensagem_oferta": oferta_info["mensagem_oferta"],
             "beneficio_destacado": oferta_info["beneficio_destacado"],
+            "incentivo": incentivo_info,
             "nivel_urgencia": urgencia_final,
             "churn_risk_level": churn_level,
             "persona": fit["persona"],

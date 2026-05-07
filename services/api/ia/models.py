@@ -221,6 +221,7 @@ class IAAutopilotConfig(Base):
     )
     ativo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     autopilot_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    growth_incentivos_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     nivel_autonomia: Mapped[str] = mapped_column(String(20), nullable=False, default="BAIXO") # BAIXO, MEDIO, ALTO
     tipos_permitidos: Mapped[list] = mapped_column(JSON, nullable=False, default=list) # SIMULACAO, AJUSTE_CENARIO, ANALISE
     limite_impacto_percentual: Mapped[float] = mapped_column(Float, nullable=False, default=10.0)
@@ -234,6 +235,34 @@ class IAAutopilotConfig(Base):
 
     __table_args__ = (
         Index("ix_ia_autopilot_tenant", "tenant_id"),
+    )
+
+
+class IAGrowthIncentivo(Base):
+    """Auditoria de incentivos/trials controlados de Growth (IA-Growth-21)."""
+    __tablename__ = "ia_growth_incentivos"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUIDTYPE(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUIDTYPE(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+    )
+    usuario_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUIDTYPE(as_uuid=True), nullable=True)
+    tipo_incentivo: Mapped[str] = mapped_column(String(30), nullable=False)
+    plano_alvo: Mapped[str] = mapped_column(String(20), nullable=False)
+    origem: Mapped[str] = mapped_column(String(20), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="OFERECIDO")
+    validade_inicio: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    validade_fim: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    motivo: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    accepted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        Index("ix_ia_growth_incentivos_tenant_usuario", "tenant_id", "usuario_id"),
+        Index("ix_ia_growth_incentivos_tenant_status", "tenant_id", "status"),
+        Index("ix_ia_growth_incentivos_tenant_validade", "tenant_id", "validade_fim"),
     )
 
 

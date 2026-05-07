@@ -147,6 +147,15 @@ class IACommercialAssistantService:
             score_oportunidade=score_oportunidade,
             categoria=score_oportunidade.get("categoria"),
         )
+        incentivo = await IAGrowthService.gerar_incentivo_controlado(
+            db,
+            tenant_id,
+            usuario_id,
+            origem="ASSISTENTE",
+            fit=fit,
+            score_oportunidade=score_oportunidade,
+            oferta_info=oferta,
+        )
 
         modulos_usados = await IACommercialAssistantService._modulos_usados(db, tenant_id, usuario_id)
         cta_recente = await IACommercialAssistantService._cta_recente(db, tenant_id, usuario_id)
@@ -231,6 +240,7 @@ class IACommercialAssistantService:
             "tipo_oferta": oferta["tipo_oferta"],
             "mensagem_oferta": oferta["mensagem_oferta"],
             "beneficio_destacado": oferta["beneficio_destacado"],
+            "incentivo": incentivo,
         }
 
     @staticmethod
@@ -334,6 +344,16 @@ class IACommercialAssistantService:
             cta_url = "/dashboard/ia/performance"
             acao_sugerida = "VER_PROXIMOS_PASSOS"
 
+        incentivo = contexto.get("incentivo")
+        if incentivo and incentivo.get("status") == "OFERECIDO":
+            prazo = incentivo.get("validade_fim")
+            prazo_txt = f" até {prazo[:10]}" if isinstance(prazo, str) and len(prazo) >= 10 else " por tempo limitado"
+            resposta = f"{resposta} Também existe um benefício temporário disponível{prazo_txt}."
+            if tipo_oferta in {"INCENTIVO_LEVE", "INCENTIVO_FORTE"}:
+                cta_sugerido = "Ver benefício temporário"
+                cta_url = "/dashboard/ia/performance"
+                acao_sugerida = "VER_PLANOS"
+
         return {
             "resposta_ia": resposta,
             "cta_sugerido": cta_sugerido,
@@ -344,6 +364,7 @@ class IACommercialAssistantService:
             "tipo_oferta": tipo_oferta,
             "mensagem_oferta": contexto.get("mensagem_oferta", ""),
             "beneficio_destacado": beneficio_destacado,
+            "incentivo": contexto.get("incentivo"),
         }
 
     @staticmethod
@@ -553,4 +574,12 @@ CONTEXTO:
             cta_sugerido=resposta["cta_sugerido"],
             acao_sugerida=resposta["acao_sugerida"],
         )
-        return {**resposta, "log_id": log_id, "contexto": contexto}
+        incentivo = contexto.get("incentivo")
+        if incentivo and incentivo.get("status") == "OFERECIDO":
+            prazo = incentivo.get("validade_fim")
+            prazo_txt = f" até {prazo[:10]}" if isinstance(prazo, str) and len(prazo) >= 10 else " por tempo limitado"
+            resposta["resposta_ia"] = f"{resposta['resposta_ia']} Também há um benefício temporário disponível{prazo_txt}."
+            resposta["cta_sugerido"] = "Ver benefício temporário"
+            resposta["cta_url"] = "/dashboard/ia/performance"
+            resposta["acao_sugerida"] = "VER_PLANOS"
+        return {**resposta, "log_id": log_id, "contexto": contexto, "incentivo": incentivo}

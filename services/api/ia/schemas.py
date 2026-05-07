@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import uuid
 from typing import Optional, Dict, List, Any
 from datetime import datetime
@@ -142,6 +144,7 @@ class IAGrowthCTAResponse(BaseModel):
     timing_decision: str = "FULL" # IA-Growth-14 (FULL, SOFT, HIDDEN)
     churn_risk_score: float = 0.0 # IA-Growth-15
     churn_risk_level: str = "BAIXO" # IA-Growth-15
+    incentivo: Optional["IAGrowthIncentivoItem"] = None
 
 
 class IAGrowthMetricaContexto(BaseModel):
@@ -365,6 +368,67 @@ class IAGrowthChurnDashboardResponse(BaseModel):
     impacto_cta_preventivo: IAGrowthChurnImpactoPreventivo
 
 
+# ─── IA-Growth-21: Incentivos controlados ──────────────────────────────────────
+
+class IAGrowthTipoIncentivo(str, Enum):
+    TRIAL_PROFISSIONAL = "TRIAL_PROFISSIONAL"
+    TRIAL_ENTERPRISE = "TRIAL_ENTERPRISE"
+    DEMO_ASSISTIDA = "DEMO_ASSISTIDA"
+    CONSULTORIA_RAPIDA = "CONSULTORIA_RAPIDA"
+    EXTENSAO_AVALIACAO = "EXTENSAO_AVALIACAO"
+
+
+class IAGrowthOrigemIncentivo(str, Enum):
+    MANUAL = "MANUAL"
+    AUTOPILOT = "AUTOPILOT"
+    ASSISTENTE = "ASSISTENTE"
+
+
+class IAGrowthStatusIncentivo(str, Enum):
+    OFERECIDO = "OFERECIDO"
+    ACEITO = "ACEITO"
+    RECUSADO = "RECUSADO"
+    EXPIRADO = "EXPIRADO"
+    CANCELADO = "CANCELADO"
+
+
+class IAGrowthIncentivoItem(BaseModel):
+    id: uuid.UUID
+    usuario_id: Optional[uuid.UUID] = None
+    tipo_incentivo: IAGrowthTipoIncentivo
+    tipo_incentivo_label: str
+    plano_alvo: str
+    plano_alvo_label: str
+    origem: IAGrowthOrigemIncentivo
+    origem_label: str
+    status: IAGrowthStatusIncentivo
+    status_label: str
+    validade_inicio: datetime
+    validade_fim: datetime
+    motivo: str
+    created_at: datetime
+    accepted_at: Optional[datetime] = None
+    ativo: bool = False
+    dias_validade_restantes: int = 0
+
+
+class IAGrowthIncentivosResponse(BaseModel):
+    periodo_dias: int
+    oferecidos: int
+    aceitos: int
+    recusados: int
+    expirados: int
+    cancelados: int
+    taxa_aceite: float
+    conversao_pos_incentivo: float
+    incentivos: List[IAGrowthIncentivoItem]
+
+
+class IAGrowthIncentivoActionResponse(BaseModel):
+    status: str
+    incentivo: IAGrowthIncentivoItem
+
+
 # ─── IA-Growth-16: Recomendação consultiva de plano ────────────────────────────
 
 class IAGrowthPlanoFitItem(BaseModel):
@@ -397,6 +461,7 @@ class IAGrowthPlanoRecomendadoResponse(BaseModel):
     tipo_oferta: IAGrowthTipoOferta = IAGrowthTipoOferta.CONSULTIVO
     mensagem_oferta: str = ""
     beneficio_destacado: str = ""
+    incentivo: Optional[IAGrowthIncentivoItem] = None
     nivel_urgencia: str   # ALTA | MEDIA | BAIXA
     churn_risk_level: str
     persona: Optional[str] = None
@@ -471,6 +536,7 @@ class IAGrowthAutopilotStatusResponse(BaseModel):
     tipo_oferta: IAGrowthTipoOferta = IAGrowthTipoOferta.CONSULTIVO
     mensagem_oferta: str = ""
     beneficio_destacado: str = ""
+    incentivo: Optional[IAGrowthIncentivoItem] = None
     acoes_executadas: int
     impacto_estimado: float
     recentes: List[IAGrowthAutopilotAcaoItem]
@@ -519,6 +585,7 @@ class IAGrowthAssistenteContextoResponse(BaseModel):
     tipo_oferta: IAGrowthTipoOferta = IAGrowthTipoOferta.CONSULTIVO
     mensagem_oferta: str = ""
     beneficio_destacado: str = ""
+    incentivo: Optional[IAGrowthIncentivoItem] = None
 
 
 class IAGrowthAssistenteMensagemRequest(BaseModel):
@@ -536,6 +603,7 @@ class IAGrowthAssistenteMensagemResponse(BaseModel):
     tipo_oferta: IAGrowthTipoOferta = IAGrowthTipoOferta.CONSULTIVO
     mensagem_oferta: str = ""
     beneficio_destacado: str = ""
+    incentivo: Optional[IAGrowthIncentivoItem] = None
     log_id: Optional[uuid.UUID] = None
     contexto: Optional[IAGrowthAssistenteContextoResponse] = None
 

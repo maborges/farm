@@ -51,6 +51,8 @@ from ia.schemas import (
     IAGrowthOfertasPerformanceResponse,
     IAGrowthOportunidadesResponse,
     IAGrowthAutopilotStatusResponse,
+    IAGrowthIncentivosResponse,
+    IAGrowthIncentivoActionResponse,
     IAGrowthAssistenteContextoResponse,
     IAGrowthAssistenteMensagemRequest,
     IAGrowthAssistenteMensagemResponse,
@@ -65,6 +67,7 @@ router = APIRouter(prefix="/ia", tags=["IA — Uso"])
 class AutopilotConfigUpdate(BaseModel):
     ativo: Optional[bool] = None
     autopilot_enabled: Optional[bool] = None
+    growth_incentivos_enabled: Optional[bool] = None
     nivel_autonomia: Optional[str] = None
     tipos_permitidos: Optional[list[str]] = None
     limite_impacto_percentual: Optional[float] = None
@@ -73,6 +76,7 @@ class AutopilotConfigUpdate(BaseModel):
 class AutopilotConfigResponse(BaseModel):
     ativo: bool
     autopilot_enabled: bool
+    growth_incentivos_enabled: bool
     nivel_autonomia: str
     tipos_permitidos: list[str]
     limite_impacto_percentual: float
@@ -599,6 +603,80 @@ async def get_growth_plano_recomendado_metricas(
         )
     from ia.growth_service import IAGrowthService
     return await IAGrowthService.metricas_plano_recomendado(session, tenant_id, periodo_dias)
+
+
+@router.get("/growth/incentivos", response_model=IAGrowthIncentivosResponse)
+async def get_growth_incentivos(
+    periodo_dias: int = Query(90, ge=7, le=180),
+    status: Optional[str] = Query(None),
+    limite: int = Query(50, ge=1, le=200),
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    claims: dict = Depends(get_current_user_claims),
+    session: AsyncSession = Depends(get_session),
+):
+    """Lista incentivos/trials controlados do tenant com auditoria completa."""
+    from ia.growth_service import IAGrowthService
+    usuario_id = uuid.UUID(claims["sub"]) if claims.get("sub") else None
+    is_privileged = claims.get("role") in {"owner", "admin"} or claims.get("is_owner") is True
+    if not is_privileged and not usuario_id:
+        raise HTTPException(status_code=403, detail="Usuário não autenticado para consultar incentivos.")
+    return IAGrowthIncentivosResponse(**await IAGrowthService.listar_incentivos(
+        session,
+        tenant_id,
+        usuario_id=usuario_id if not is_privileged else None,
+        periodo_dias=periodo_dias,
+        status=status,
+        limite=limite,
+        is_privileged=is_privileged,
+    ))
+
+
+@router.post("/growth/incentivos/{incentivo_id}/aceitar", response_model=IAGrowthIncentivoActionResponse)
+async def post_growth_incentivo_aceitar(
+    incentivo_id: uuid.UUID,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    claims: dict = Depends(get_current_user_claims),
+    session: AsyncSession = Depends(get_session),
+):
+    """Marca um incentivo como aceito sem alterar billing."""
+    from ia.growth_service import IAGrowthService
+    usuario_id = uuid.UUID(claims["sub"]) if claims.get("sub") else None
+    is_privileged = claims.get("role") in {"owner", "admin"} or claims.get("is_owner") is True
+    try:
+        return IAGrowthIncentivoActionResponse(**await IAGrowthService.responder_incentivo(
+            session,
+            tenant_id,
+            incentivo_id,
+            usuario_id,
+            acao="ACEITAR",
+            is_privileged=is_privileged,
+        ))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.post("/growth/incentivos/{incentivo_id}/recusar", response_model=IAGrowthIncentivoActionResponse)
+async def post_growth_incentivo_recusar(
+    incentivo_id: uuid.UUID,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    claims: dict = Depends(get_current_user_claims),
+    session: AsyncSession = Depends(get_session),
+):
+    """Marca um incentivo como recusado sem alterar billing."""
+    from ia.growth_service import IAGrowthService
+    usuario_id = uuid.UUID(claims["sub"]) if claims.get("sub") else None
+    is_privileged = claims.get("role") in {"owner", "admin"} or claims.get("is_owner") is True
+    try:
+        return IAGrowthIncentivoActionResponse(**await IAGrowthService.responder_incentivo(
+            session,
+            tenant_id,
+            incentivo_id,
+            usuario_id,
+            acao="RECUSAR",
+            is_privileged=is_privileged,
+        ))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 @router.get("/growth/ofertas/performance", response_model=IAGrowthOfertasPerformanceResponse)
@@ -2351,6 +2429,7 @@ async def get_autopilot_config(
     return AutopilotConfigResponse(
         ativo=config.ativo,
         autopilot_enabled=getattr(config, "autopilot_enabled", config.ativo),
+        growth_incentivos_enabled=getattr(config, "growth_incentivos_enabled", False),
         nivel_autonomia=config.nivel_autonomia,
         tipos_permitidos=config.tipos_permitidos,
         limite_impacto_percentual=config.limite_impacto_percentual,
@@ -2369,6 +2448,7 @@ async def update_autopilot_config(
     return AutopilotConfigResponse(
         ativo=config.ativo,
         autopilot_enabled=getattr(config, "autopilot_enabled", config.ativo),
+        growth_incentivos_enabled=getattr(config, "growth_incentivos_enabled", False),
         nivel_autonomia=config.nivel_autonomia,
         tipos_permitidos=config.tipos_permitidos,
         limite_impacto_percentual=config.limite_impacto_percentual,
