@@ -220,6 +220,7 @@ class IAAutopilotConfig(Base):
         UUIDTYPE(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, unique=True
     )
     ativo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    autopilot_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     nivel_autonomia: Mapped[str] = mapped_column(String(20), nullable=False, default="BAIXO") # BAIXO, MEDIO, ALTO
     tipos_permitidos: Mapped[list] = mapped_column(JSON, nullable=False, default=list) # SIMULACAO, AJUSTE_CENARIO, ANALISE
     limite_impacto_percentual: Mapped[float] = mapped_column(Float, nullable=False, default=10.0)
@@ -233,6 +234,31 @@ class IAAutopilotConfig(Base):
 
     __table_args__ = (
         Index("ix_ia_autopilot_tenant", "tenant_id"),
+    )
+
+
+class IAGrowthAutopilotAcao(Base):
+    """Auditoria de ações executadas pelo Autopilot de Growth (IA-Growth-19)."""
+    __tablename__ = "ia_growth_autopilot_acoes"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUIDTYPE(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUIDTYPE(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False
+    )
+    usuario_id: Mapped[Optional[uuid.UUID]] = mapped_column(UUIDTYPE(as_uuid=True), nullable=True)
+    tipo_acao: Mapped[str] = mapped_column(String(50), nullable=False)
+    contexto: Mapped[str] = mapped_column(String(40), nullable=False)
+    motivo: Mapped[str] = mapped_column(Text, nullable=False)
+    score_oportunidade: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    churn_risk: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    impacto_estimado: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    resultado: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    executada_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (
+        Index("ix_ia_growth_autopilot_tenant_exec", "tenant_id", "executada_em"),
+        Index("ix_ia_growth_autopilot_tenant_usuario", "tenant_id", "usuario_id"),
+        Index("ix_ia_growth_autopilot_tenant_tipo", "tenant_id", "tipo_acao"),
     )
 
 

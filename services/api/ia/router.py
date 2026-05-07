@@ -49,6 +49,7 @@ from ia.schemas import (
     IAGrowthPlanoRecomendadoResponse,
     IAGrowthPlanoMetricasResponse,
     IAGrowthOportunidadesResponse,
+    IAGrowthAutopilotStatusResponse,
     IAGrowthAssistenteContextoResponse,
     IAGrowthAssistenteMensagemRequest,
     IAGrowthAssistenteMensagemResponse,
@@ -62,6 +63,7 @@ router = APIRouter(prefix="/ia", tags=["IA — Uso"])
 
 class AutopilotConfigUpdate(BaseModel):
     ativo: Optional[bool] = None
+    autopilot_enabled: Optional[bool] = None
     nivel_autonomia: Optional[str] = None
     tipos_permitidos: Optional[list[str]] = None
     limite_impacto_percentual: Optional[float] = None
@@ -69,6 +71,7 @@ class AutopilotConfigUpdate(BaseModel):
 
 class AutopilotConfigResponse(BaseModel):
     ativo: bool
+    autopilot_enabled: bool
     nivel_autonomia: str
     tipos_permitidos: list[str]
     limite_impacto_percentual: float
@@ -2328,6 +2331,7 @@ async def get_autopilot_config(
     config = await IAAutopilotService.get_config(session, tenant_id)
     return AutopilotConfigResponse(
         ativo=config.ativo,
+        autopilot_enabled=getattr(config, "autopilot_enabled", config.ativo),
         nivel_autonomia=config.nivel_autonomia,
         tipos_permitidos=config.tipos_permitidos,
         limite_impacto_percentual=config.limite_impacto_percentual,
@@ -2345,11 +2349,28 @@ async def update_autopilot_config(
     config = await IAAutopilotService.update_config(session, tenant_id, updates)
     return AutopilotConfigResponse(
         ativo=config.ativo,
+        autopilot_enabled=getattr(config, "autopilot_enabled", config.ativo),
         nivel_autonomia=config.nivel_autonomia,
         tipos_permitidos=config.tipos_permitidos,
         limite_impacto_percentual=config.limite_impacto_percentual,
         updated_at=config.updated_at
     )
+
+@router.get("/growth/autopilot/status", response_model=IAGrowthAutopilotStatusResponse)
+async def get_growth_autopilot_status(
+    periodo_dias: int = Query(30, ge=1, le=90),
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    claims: dict = Depends(get_current_user_claims),
+    session: AsyncSession = Depends(get_session),
+):
+    """Retorna status, auditoria recente e impacto estimado do Autopilot de Growth."""
+    is_owner = claims.get("role") == "owner" or claims.get("is_owner") is True or claims.get("role") == "admin"
+    if not is_owner:
+        raise HTTPException(status_code=403, detail="Acesso restrito a proprietários e administradores do tenant.")
+
+    from ia.growth_service import IAGrowthService
+    resultado = await IAGrowthService.get_status_autopilot(session, tenant_id, periodo_dias)
+    return IAGrowthAutopilotStatusResponse(**resultado)
 @router.get("/growth/personas/performance", response_model=IAGrowthPersonasPerformanceResponse)
 async def get_performance_personas(
     periodo_dias: int = Query(30, ge=1, le=90),

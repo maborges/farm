@@ -17,6 +17,7 @@ class IAAutopilotService:
             config = IAAutopilotConfig(
                 tenant_id=tenant_id,
                 ativo=False,
+                autopilot_enabled=False,
                 nivel_autonomia="BAIXO",
                 tipos_permitidos=["SIMULACAO"],
                 limite_impacto_percentual=10.0
@@ -38,6 +39,10 @@ class IAAutopilotService:
         
         if "ativo" in updates:
             config.ativo = updates["ativo"]
+            config.autopilot_enabled = updates["ativo"]
+        if "autopilot_enabled" in updates:
+            config.autopilot_enabled = updates["autopilot_enabled"]
+            config.ativo = updates["autopilot_enabled"]
         if "nivel_autonomia" in updates:
             config.nivel_autonomia = updates["nivel_autonomia"]
         if "tipos_permitidos" in updates:

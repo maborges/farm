@@ -16,9 +16,10 @@ from ia.models import (
     IAGrowthEvento, IAGrowthConfig, IAGrowthConfigHistorico, IAGrowthSugestaoRegistro,
     IAGrowthExperimento, IAGrowthExperimentoVariante, IAGrowthExperimentoEvento,
     IAGrowthUserProfile, IAUXTelemetria, IAUso, IAGrowthPlanoRecomendadoLog,
-    IAGrowthAssistenteInteracao
+    IAGrowthAssistenteInteracao, IAGrowthAutopilotAcao
 )
 from ia.upgrade_recomendacao_service import IARecomendacaoUpgradeService
+from ia.autopilot_service import IAAutopilotService
 from ia.usage_service import consultar_creditos
 from ia.ux_telemetry_service import IAUXTelemetryService
 
@@ -33,6 +34,11 @@ PERSONAS = ["CONSERVADOR", "EXPLORADOR", "ORIENTADO_A_RESULTADO", "INICIANTE", "
 CHURN_NIVEIS = ("BAIXO", "MEDIO", "ALTO")
 OPORTUNIDADE_CATEGORIAS = ("ALTO_POTENCIAL", "TRAVADO", "RISCO", "NEUTRO")
 TIER_ORDEM = [PlanTier.BASICO.value, PlanTier.PROFISSIONAL.value, PlanTier.ENTERPRISE.value]
+AUTOPILOT_MODOS = {
+    "BAIXO": "CONSERVADOR",
+    "MEDIO": "BALANCEADO",
+    "ALTO": "AGRESSIVO",
+}
 
 
 class IAGrowthService:
@@ -2567,6 +2573,255 @@ class IAGrowthService:
             "impacto_total_estimado": round(impacto_total, 2),
             "contextos_disponiveis": contextos,
             "oportunidades": oportunidades_visiveis,
+        }
+
+    @staticmethod
+    def _autopilot_modo_label(nivel_autonomia: str) -> str:
+        return AUTOPILOT_MODOS.get(nivel_autonomia, "BALANCEADO")
+
+    @staticmethod
+    def _autopilot_permite_categoria(nivel_autonomia: str, categoria: str) -> bool:
+        if nivel_autonomia == "BAIXO":
+            return categoria in {"RISCO", "TRAVADO"}
+        if nivel_autonomia == "MEDIO":
+            return categoria in {"RISCO", "TRAVADO", "ALTO_POTENCIAL"}
+        return True
+
+    @staticmethod
+    async def _autopilot_ja_executou(
+        db: AsyncSession,
+        tenant_id: uuid.UUID,
+        usuario_id: uuid.UUID,
+        tipo_acao: str,
+        cooldown_horas: int = 24,
+    ) -> bool:
+        desde = datetime.now(timezone.utc) - timedelta(hours=cooldown_horas)
+        stmt = (
+            select(func.count(IAGrowthAutopilotAcao.id))
+            .where(
+                IAGrowthAutopilotAcao.tenant_id == tenant_id,
+                IAGrowthAutopilotAcao.usuario_id == usuario_id,
+                IAGrowthAutopilotAcao.tipo_acao == tipo_acao,
+                IAGrowthAutopilotAcao.executada_em >= desde,
+            )
+        )
+        qtd = (await db.execute(stmt)).scalar() or 0
+        return qtd > 0
+
+    @staticmethod
+    def _autopilot_tipo_acao(categoria: str, modo_label: str) -> List[Dict[str, Any]]:
+        if categoria == "ALTO_POTENCIAL":
+            if modo_label == "AGRESSIVO":
+                return [
+                    {"tipo_acao": "CTA_AGRESSIVO", "resultado": "CTA agressivo priorizado"},
+                    {"tipo_acao": "EXPERIMENTO_COPY", "resultado": "Copy vencedora priorizada"},
+                ]
+            return [
+                {"tipo_acao": "CTA_AGRESSIVO", "resultado": "CTA agressivo priorizado"},
+            ]
+
+        if categoria == "TRAVADO":
+            return [
+                {"tipo_acao": "ASSISTENTE_PROATIVO", "resultado": "Assistente comercial acionado"},
+                {"tipo_acao": "COPY_EDUCATIVA", "resultado": "Copy educativa reforçada"},
+            ]
+
+        if categoria == "RISCO":
+            return [
+                {"tipo_acao": "CTA_PREVENTIVO", "resultado": "CTA preventivo ativado"},
+                {"tipo_acao": "CONTEUDO_EDUCATIVO", "resultado": "Conteúdo educativo priorizado"},
+            ]
+
+        return [
+            {"tipo_acao": "REENGAJAMENTO_LEVE", "resultado": "Reengajamento leve aplicado"},
+        ]
+
+    @staticmethod
+    async def executar_acoes_growth(
+        db: AsyncSession,
+        tenant_id: uuid.UUID,
+        periodo_dias: int = 30,
+        limite_usuarios: int = 50,
+    ) -> Dict[str, Any]:
+        """Executa ações automáticas de Growth com regras de segurança e auditoria."""
+        config = await IAAutopilotService.get_config(db, tenant_id)
+        autopilot_ativo = bool(getattr(config, "autopilot_enabled", None) if getattr(config, "autopilot_enabled", None) is not None else config.ativo)
+
+        if not autopilot_ativo:
+            return {
+                "ativo": False,
+                "modo": IAGrowthService._autopilot_modo_label(config.nivel_autonomia),
+                "acoes_executadas": 0,
+                "impacto_estimado": 0.0,
+                "recentes": [],
+            }
+
+        oportunidades = await IAGrowthService.get_dashboard_oportunidades(
+            db,
+            tenant_id,
+            periodo_dias=periodo_dias,
+            limite=limite_usuarios,
+        )
+
+        executadas: List[Dict[str, Any]] = []
+        impacto_total = 0.0
+        modo_label = IAGrowthService._autopilot_modo_label(config.nivel_autonomia)
+        max_por_usuario = 2 if config.nivel_autonomia != "ALTO" else 3
+        desde_dismiss = datetime.now(timezone.utc) - timedelta(days=7)
+        contagem_local: Dict[uuid.UUID, int] = {}
+
+        for item in oportunidades["oportunidades"]:
+            usuario_id = uuid.UUID(item["usuario_id"])
+            score_oportunidade = float(item["score_oportunidade"])
+            churn = float(1.0 if item["churn_risk_level"] == "ALTO" else 0.45 if item["churn_risk_level"] == "MEDIO" else 0.0)
+            moment_score = await IAGrowthService.calcular_score_momento(db, tenant_id, usuario_id, item["contexto"])
+
+            if moment_score < 0.4 and item["categoria"] != "RISCO":
+                continue
+
+            q_dismiss = await db.execute(
+                select(func.count(IAGrowthEvento.id)).where(
+                    IAGrowthEvento.tenant_id == tenant_id,
+                    IAGrowthEvento.usuario_id == usuario_id,
+                    IAGrowthEvento.evento == "upgrade_cta_dismissed",
+                    IAGrowthEvento.created_at >= desde_dismiss,
+                )
+            )
+            if (q_dismiss.scalar() or 0) > 0:
+                continue
+
+            q_count = await db.execute(
+                select(func.count(IAGrowthAutopilotAcao.id)).where(
+                    IAGrowthAutopilotAcao.tenant_id == tenant_id,
+                    IAGrowthAutopilotAcao.usuario_id == usuario_id,
+                    IAGrowthAutopilotAcao.executada_em >= datetime.now(timezone.utc) - timedelta(days=1),
+                )
+            )
+            total_usuario = int(q_count.scalar() or 0) + contagem_local.get(usuario_id, 0)
+            if total_usuario >= max_por_usuario:
+                continue
+
+            if not IAGrowthService._autopilot_permite_categoria(config.nivel_autonomia, item["categoria"]):
+                continue
+
+            for acao in IAGrowthService._autopilot_tipo_acao(item["categoria"], modo_label):
+                if await IAGrowthService._autopilot_ja_executou(db, tenant_id, usuario_id, acao["tipo_acao"]):
+                    continue
+
+                impacto_estimado = float(item["impacto_estimado"]) * (
+                    0.35 if item["categoria"] == "RISCO" else 0.55 if item["categoria"] == "TRAVADO" else 0.70
+                )
+                if moment_score < 0.55 and item["categoria"] != "RISCO":
+                    continue
+
+                if acao["tipo_acao"] == "CTA_AGRESSIVO" and item["categoria"] == "ALTO_POTENCIAL" and score_oportunidade < 0.7:
+                    continue
+
+                abordagem_vencedora = None
+                if item["categoria"] in {"ALTO_POTENCIAL", "TRAVADO"} and item.get("persona"):
+                    try:
+                        abordagem_vencedora = await IAGrowthService.get_melhor_abordagem_por_perfil(
+                            db,
+                            item["persona"],
+                            item["contexto"],
+                        )
+                    except Exception:
+                        abordagem_vencedora = None
+
+                registro = IAGrowthAutopilotAcao(
+                    id=uuid.uuid4(),
+                    tenant_id=tenant_id,
+                    usuario_id=usuario_id,
+                    tipo_acao=acao["tipo_acao"],
+                    contexto=item["contexto"],
+                    motivo=(
+                        f"Categoria {item['categoria']} com score {score_oportunidade:.2f}, "
+                        f"fit {float(item['score_fit']):.2f} e churn {item['churn_risk_level']}."
+                    ),
+                    score_oportunidade=score_oportunidade,
+                    churn_risk=churn,
+                    impacto_estimado=round(impacto_estimado, 2),
+                    resultado={
+                        "resultado": acao["resultado"],
+                        "usuario_label": item["usuario_label"],
+                        "plano_recomendado": item["plano_recomendado"],
+                        "modo": modo_label,
+                        "moment_score": round(moment_score, 3),
+                        "abordagem_vencedora": abordagem_vencedora,
+                    },
+                    executada_em=datetime.now(timezone.utc),
+                )
+                db.add(registro)
+                contagem_local[usuario_id] = contagem_local.get(usuario_id, 0) + 1
+                executadas.append({
+                    "id": str(registro.id),
+                    "usuario_id": item["usuario_id"],
+                    "usuario_label": item["usuario_label"],
+                    "tipo_acao": acao["tipo_acao"],
+                    "contexto": item["contexto"],
+                    "motivo": registro.motivo,
+                    "score_oportunidade": score_oportunidade,
+                    "churn_risk": churn,
+                    "impacto_estimado": round(impacto_estimado, 2),
+                    "executada_em": registro.executada_em.isoformat(),
+                    "resultado": registro.resultado,
+                })
+                impacto_total += round(impacto_estimado, 2)
+
+        if executadas:
+            await db.commit()
+
+        return {
+            "ativo": True,
+            "modo": modo_label,
+            "acoes_executadas": len(executadas),
+            "impacto_estimado": round(impacto_total, 2),
+            "recentes": executadas[:10],
+        }
+
+    @staticmethod
+    async def get_status_autopilot(
+        db: AsyncSession,
+        tenant_id: uuid.UUID,
+        periodo_dias: int = 30,
+    ) -> Dict[str, Any]:
+        config = await IAAutopilotService.get_config(db, tenant_id)
+        autopilot_ativo = bool(getattr(config, "autopilot_enabled", None) if getattr(config, "autopilot_enabled", None) is not None else config.ativo)
+
+        desde = datetime.now(timezone.utc) - timedelta(days=periodo_dias)
+        stmt = (
+            select(IAGrowthAutopilotAcao)
+            .where(
+                IAGrowthAutopilotAcao.tenant_id == tenant_id,
+                IAGrowthAutopilotAcao.executada_em >= desde,
+            )
+            .order_by(IAGrowthAutopilotAcao.executada_em.desc())
+        )
+        rows = (await db.execute(stmt)).scalars().all()
+        impacto_total = sum(float(r.impacto_estimado or 0.0) for r in rows)
+
+        return {
+            "ativo": autopilot_ativo,
+            "modo": IAGrowthService._autopilot_modo_label(config.nivel_autonomia),
+            "nivel_autonomia": config.nivel_autonomia,
+            "autopilot_enabled": autopilot_ativo,
+            "acoes_executadas": len(rows),
+            "impacto_estimado": round(impacto_total, 2),
+            "recentes": [
+                {
+                    "id": str(r.id),
+                    "usuario_id": str(r.usuario_id) if r.usuario_id else None,
+                    "tipo_acao": r.tipo_acao,
+                    "contexto": r.contexto,
+                    "motivo": r.motivo,
+                    "score_oportunidade": float(r.score_oportunidade or 0.0),
+                    "churn_risk": float(r.churn_risk or 0.0),
+                    "impacto_estimado": float(r.impacto_estimado or 0.0),
+                    "executada_em": r.executada_em.isoformat(),
+                    "resultado": r.resultado,
+                }
+                for r in rows[:10]
+            ],
         }
 
     @staticmethod

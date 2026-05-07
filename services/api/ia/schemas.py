@@ -429,6 +429,29 @@ class IAGrowthOportunidadesResponse(BaseModel):
     oportunidades: List[IAGrowthOportunidadeItem]
 
 
+class IAGrowthAutopilotAcaoItem(BaseModel):
+    id: uuid.UUID
+    usuario_id: Optional[uuid.UUID] = None
+    tipo_acao: str
+    contexto: str
+    motivo: str
+    score_oportunidade: float
+    churn_risk: float
+    impacto_estimado: float
+    executada_em: datetime
+    resultado: Optional[Dict[str, Any]] = None
+
+
+class IAGrowthAutopilotStatusResponse(BaseModel):
+    ativo: bool
+    autopilot_enabled: bool
+    nivel_autonomia: str
+    modo: str
+    acoes_executadas: int
+    impacto_estimado: float
+    recentes: List[IAGrowthAutopilotAcaoItem]
+
+
 class IAGrowthAssistenteContextoResponse(BaseModel):
     visao_completa: bool = False
     resumo_perfil: str
