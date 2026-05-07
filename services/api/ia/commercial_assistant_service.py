@@ -345,7 +345,7 @@ class IACommercialAssistantService:
             acao_sugerida = "VER_PROXIMOS_PASSOS"
 
         incentivo = contexto.get("incentivo")
-        if incentivo and incentivo.get("status") == "OFERECIDO":
+        if incentivo and incentivo.get("status") in {"OFERECIDO", "APROVADO"}:
             prazo = incentivo.get("validade_fim")
             prazo_txt = f" até {prazo[:10]}" if isinstance(prazo, str) and len(prazo) >= 10 else " por tempo limitado"
             resposta = f"{resposta} Também existe um benefício temporário disponível{prazo_txt}."
@@ -575,7 +575,7 @@ CONTEXTO:
             acao_sugerida=resposta["acao_sugerida"],
         )
         incentivo = contexto.get("incentivo")
-        if incentivo and incentivo.get("status") == "OFERECIDO":
+        if incentivo and incentivo.get("status") in {"OFERECIDO", "APROVADO"}:
             prazo = incentivo.get("validade_fim")
             prazo_txt = f" até {prazo[:10]}" if isinstance(prazo, str) and len(prazo) >= 10 else " por tempo limitado"
             resposta["resposta_ia"] = f"{resposta['resposta_ia']} Também há um benefício temporário disponível{prazo_txt}."

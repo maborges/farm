@@ -390,6 +390,9 @@ class IAGrowthStatusIncentivo(str, Enum):
     RECUSADO = "RECUSADO"
     EXPIRADO = "EXPIRADO"
     CANCELADO = "CANCELADO"
+    PENDENTE_APROVACAO = "PENDENTE_APROVACAO"
+    APROVADO = "APROVADO"
+    REPROVADO = "REPROVADO"
 
 
 class IAGrowthIncentivoItem(BaseModel):
@@ -406,6 +409,9 @@ class IAGrowthIncentivoItem(BaseModel):
     validade_inicio: datetime
     validade_fim: datetime
     motivo: str
+    aprovado_por: Optional[uuid.UUID] = None
+    aprovado_em: Optional[datetime] = None
+    motivo_reprovacao: Optional[str] = None
     created_at: datetime
     accepted_at: Optional[datetime] = None
     ativo: bool = False
@@ -427,6 +433,14 @@ class IAGrowthIncentivosResponse(BaseModel):
 class IAGrowthIncentivoActionResponse(BaseModel):
     status: str
     incentivo: IAGrowthIncentivoItem
+
+
+class IAGrowthIncentivosAprovacaoResponse(BaseModel):
+    periodo_dias: int
+    pendentes: int
+    aprovados: int
+    reprovados: int
+    incentivos: List[IAGrowthIncentivoItem]
 
 
 # ─── IA-Growth-16: Recomendação consultiva de plano ────────────────────────────

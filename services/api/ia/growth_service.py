@@ -68,7 +68,14 @@ STATUS_INCENTIVO_LABELS = {
     "RECUSADO": "Recusado",
     "EXPIRADO": "Expirado",
     "CANCELADO": "Cancelado",
+    "PENDENTE_APROVACAO": "Pendente de aprovação",
+    "APROVADO": "Aprovado",
+    "REPROVADO": "Reprovado",
 }
+
+STATUS_INCENTIVO_VISIVEL = {"OFERECIDO", "APROVADO", "ACEITO", "RECUSADO", "EXPIRADO", "CANCELADO"}
+STATUS_INCENTIVO_ATIVO = {"OFERECIDO", "APROVADO"}
+STATUS_INCENTIVO_AGUARDANDO = {"PENDENTE_APROVACAO"}
 
 
 class IAGrowthService:
@@ -257,7 +264,7 @@ class IAGrowthService:
         agora = agora or datetime.now(timezone.utc)
         validade_fim = incentivo.validade_fim
         dias_restantes = max((validade_fim - agora).days, 0)
-        ativo = incentivo.status == "OFERECIDO" and validade_fim >= agora
+        ativo = incentivo.status in STATUS_INCENTIVO_ATIVO and validade_fim >= agora
         return {
             "id": str(incentivo.id),
             "usuario_id": str(incentivo.usuario_id) if incentivo.usuario_id else None,
@@ -272,11 +279,25 @@ class IAGrowthService:
             "validade_inicio": incentivo.validade_inicio.isoformat(),
             "validade_fim": validade_fim.isoformat(),
             "motivo": incentivo.motivo,
+            "aprovado_por": str(incentivo.aprovado_por) if incentivo.aprovado_por else None,
+            "aprovado_em": incentivo.aprovado_em.isoformat() if incentivo.aprovado_em else None,
+            "motivo_reprovacao": incentivo.motivo_reprovacao,
             "created_at": incentivo.created_at.isoformat(),
             "accepted_at": incentivo.accepted_at.isoformat() if incentivo.accepted_at else None,
             "ativo": ativo,
             "dias_validade_restantes": dias_restantes,
         }
+
+    @staticmethod
+    def _status_inicial_incentivo(origem: str, tipo_incentivo: str, tipo_oferta: str) -> str:
+        origem = (origem or "ASSISTENTE").upper()
+        if origem == "MANUAL":
+            return "APROVADO"
+        if origem == "AUTOPILOT" and (
+            tipo_oferta == IAGrowthTipoOferta.INCENTIVO_FORTE.value or tipo_incentivo == "TRIAL_ENTERPRISE"
+        ):
+            return "PENDENTE_APROVACAO"
+        return "OFERECIDO"
 
     @staticmethod
     def _selecionar_tipo_incentivo(fit: Dict[str, Any], score_oportunidade: Dict[str, Any], oferta_info: Dict[str, Any]) -> Optional[str]:
@@ -323,7 +344,7 @@ class IAGrowthService:
             sa_update(IAGrowthIncentivo)
             .where(
                 IAGrowthIncentivo.tenant_id == tenant_id,
-                IAGrowthIncentivo.status == "OFERECIDO",
+                IAGrowthIncentivo.status.in_({"OFERECIDO", "PENDENTE_APROVACAO"}),
                 IAGrowthIncentivo.validade_fim < agora,
             )
             .values(status="EXPIRADO")
@@ -338,6 +359,7 @@ class IAGrowthService:
         usuario_id: Optional[uuid.UUID],
         *,
         origem: str = "ASSISTENTE",
+        registrar_pendente: bool = False,
         fit: Optional[Dict[str, Any]] = None,
         score_oportunidade: Optional[Dict[str, Any]] = None,
         oferta_info: Optional[Dict[str, Any]] = None,
@@ -375,12 +397,14 @@ class IAGrowthService:
             select(IAGrowthIncentivo).where(
                 IAGrowthIncentivo.tenant_id == tenant_id,
                 IAGrowthIncentivo.usuario_id == usuario_id,
-                IAGrowthIncentivo.status == "OFERECIDO",
+                IAGrowthIncentivo.status.in_(STATUS_INCENTIVO_ATIVO | STATUS_INCENTIVO_AGUARDANDO),
                 IAGrowthIncentivo.validade_fim >= agora,
             ).order_by(IAGrowthIncentivo.created_at.desc()).limit(1)
         )
         incentivo_ativo = q_ativo.scalar_one_or_none()
         if incentivo_ativo:
+            if incentivo_ativo.status == "PENDENTE_APROVACAO":
+                return None
             return IAGrowthService._serializar_incentivo(incentivo_ativo, agora)
 
         desde_cooldown = agora - timedelta(days=INCENTIVO_COOLDOWN_DIAS)
@@ -417,6 +441,10 @@ class IAGrowthService:
         if not tipo_incentivo:
             return None
 
+        status_inicial = IAGrowthService._status_inicial_incentivo(origem, tipo_incentivo, tipo_oferta)
+        if status_inicial == "PENDENTE_APROVACAO" and not registrar_pendente:
+            return None
+
         validade_dias = INCENTIVO_VALIDADE_DIAS.get(tipo_incentivo, 7)
         plano_alvo = fit.get("plano_recomendado") or PlanTier.PROFISSIONAL.value
         beneficio = oferta_info.get("beneficio_destacado") or IAGrowthService.PLANO_LABEL.get(plano_alvo, plano_alvo)
@@ -433,7 +461,7 @@ class IAGrowthService:
             tipo_incentivo=tipo_incentivo,
             plano_alvo=plano_alvo,
             origem=origem,
-            status="OFERECIDO",
+            status=status_inicial,
             validade_inicio=agora,
             validade_fim=agora + timedelta(days=validade_dias),
             motivo=motivo,
@@ -465,7 +493,21 @@ class IAGrowthService:
         if not is_privileged and usuario_id:
             filtros.append(IAGrowthIncentivo.usuario_id == usuario_id)
         if status:
+            if not is_privileged and status not in STATUS_INCENTIVO_VISIVEL:
+                return {
+                    "periodo_dias": periodo_dias,
+                    "oferecidos": 0,
+                    "aceitos": 0,
+                    "recusados": 0,
+                    "expirados": 0,
+                    "cancelados": 0,
+                    "taxa_aceite": 0.0,
+                    "conversao_pos_incentivo": 0.0,
+                    "incentivos": [],
+                }
             filtros.append(IAGrowthIncentivo.status == status)
+        elif not is_privileged:
+            filtros.append(IAGrowthIncentivo.status.in_(STATUS_INCENTIVO_VISIVEL))
 
         stmt = (
             select(IAGrowthIncentivo)
@@ -483,7 +525,7 @@ class IAGrowthService:
             base_filtros.append(IAGrowthIncentivo.usuario_id == usuario_id)
 
         contagem_stmt = select(
-            func.count(IAGrowthIncentivo.id).label("oferecidos"),
+            func.count(IAGrowthIncentivo.id).filter(IAGrowthIncentivo.status.in_(STATUS_INCENTIVO_ATIVO)).label("oferecidos"),
             func.count(IAGrowthIncentivo.id).filter(IAGrowthIncentivo.status == "ACEITO").label("aceitos"),
             func.count(IAGrowthIncentivo.id).filter(IAGrowthIncentivo.status == "RECUSADO").label("recusados"),
             func.count(IAGrowthIncentivo.id).filter(IAGrowthIncentivo.status == "EXPIRADO").label("expirados"),
@@ -570,6 +612,8 @@ class IAGrowthService:
                 "status": incentivo.status,
                 "incentivo": IAGrowthService._serializar_incentivo(incentivo, agora),
             }
+        if incentivo.status == "PENDENTE_APROVACAO":
+            raise ValueError("Incentivo pendente de aprovação.")
 
         if acao == "ACEITAR":
             incentivo.status = "ACEITO"
@@ -577,6 +621,105 @@ class IAGrowthService:
         else:
             incentivo.status = "RECUSADO"
 
+        await db.commit()
+        await db.refresh(incentivo)
+        return {
+            "status": incentivo.status,
+            "incentivo": IAGrowthService._serializar_incentivo(incentivo, agora),
+        }
+
+    @staticmethod
+    async def listar_incentivos_pendentes(
+        db: AsyncSession,
+        tenant_id: uuid.UUID,
+        periodo_dias: int = 90,
+        limite: int = 50,
+    ) -> Dict[str, Any]:
+        agora = datetime.now(timezone.utc)
+        desde = agora - timedelta(days=periodo_dias)
+        stmt = (
+            select(IAGrowthIncentivo)
+            .where(
+                IAGrowthIncentivo.tenant_id == tenant_id,
+                IAGrowthIncentivo.created_at >= desde,
+                IAGrowthIncentivo.status == "PENDENTE_APROVACAO",
+            )
+            .order_by(IAGrowthIncentivo.created_at.desc())
+            .limit(limite)
+        )
+        rows = (await db.execute(stmt)).scalars().all()
+
+        contagem_stmt = select(
+            func.count(IAGrowthIncentivo.id).filter(IAGrowthIncentivo.status == "PENDENTE_APROVACAO").label("pendentes"),
+            func.count(IAGrowthIncentivo.id).filter(IAGrowthIncentivo.status == "APROVADO").label("aprovados"),
+            func.count(IAGrowthIncentivo.id).filter(IAGrowthIncentivo.status == "REPROVADO").label("reprovados"),
+        ).where(
+            IAGrowthIncentivo.tenant_id == tenant_id,
+            IAGrowthIncentivo.created_at >= desde,
+        )
+        contagem = (await db.execute(contagem_stmt)).one()
+        return {
+            "periodo_dias": periodo_dias,
+            "pendentes": int(contagem.pendentes or 0),
+            "aprovados": int(contagem.aprovados or 0),
+            "reprovados": int(contagem.reprovados or 0),
+            "incentivos": [IAGrowthService._serializar_incentivo(row, agora) for row in rows],
+        }
+
+    @staticmethod
+    async def aprovar_incentivo(
+        db: AsyncSession,
+        tenant_id: uuid.UUID,
+        incentivo_id: uuid.UUID,
+        aprovado_por: uuid.UUID,
+    ) -> Dict[str, Any]:
+        q = await db.execute(
+            select(IAGrowthIncentivo).where(
+                IAGrowthIncentivo.id == incentivo_id,
+                IAGrowthIncentivo.tenant_id == tenant_id,
+            )
+        )
+        incentivo = q.scalar_one_or_none()
+        if not incentivo:
+            raise ValueError("Incentivo não encontrado para este tenant.")
+        if incentivo.status != "PENDENTE_APROVACAO":
+            raise ValueError("Incentivo não está pendente de aprovação.")
+        agora = datetime.now(timezone.utc)
+        incentivo.status = "APROVADO"
+        incentivo.aprovado_por = aprovado_por
+        incentivo.aprovado_em = agora
+        incentivo.motivo_reprovacao = None
+        await db.commit()
+        await db.refresh(incentivo)
+        return {
+            "status": incentivo.status,
+            "incentivo": IAGrowthService._serializar_incentivo(incentivo, agora),
+        }
+
+    @staticmethod
+    async def reprovar_incentivo(
+        db: AsyncSession,
+        tenant_id: uuid.UUID,
+        incentivo_id: uuid.UUID,
+        reprovado_por: uuid.UUID,
+        motivo_reprovacao: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        q = await db.execute(
+            select(IAGrowthIncentivo).where(
+                IAGrowthIncentivo.id == incentivo_id,
+                IAGrowthIncentivo.tenant_id == tenant_id,
+            )
+        )
+        incentivo = q.scalar_one_or_none()
+        if not incentivo:
+            raise ValueError("Incentivo não encontrado para este tenant.")
+        if incentivo.status != "PENDENTE_APROVACAO":
+            raise ValueError("Incentivo não está pendente de aprovação.")
+        agora = datetime.now(timezone.utc)
+        incentivo.status = "REPROVADO"
+        incentivo.aprovado_por = reprovado_por
+        incentivo.aprovado_em = agora
+        incentivo.motivo_reprovacao = motivo_reprovacao or "Reprovado manualmente."
         await db.commit()
         await db.refresh(incentivo)
         return {
@@ -3291,6 +3434,7 @@ class IAGrowthService:
                         tenant_id,
                         usuario_id,
                         origem="AUTOPILOT",
+                        registrar_pendente=True,
                     )
                 except Exception as exc:
                     logger.warning(f"[IA-Growth-21] Falha ao gerar incentivo no autopilot: {exc}")

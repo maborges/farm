@@ -52,6 +52,7 @@ from ia.schemas import (
     IAGrowthOportunidadesResponse,
     IAGrowthAutopilotStatusResponse,
     IAGrowthIncentivosResponse,
+    IAGrowthIncentivosAprovacaoResponse,
     IAGrowthIncentivoActionResponse,
     IAGrowthAssistenteContextoResponse,
     IAGrowthAssistenteMensagemRequest,
@@ -140,6 +141,10 @@ class RegistrarAcaoAssistidaPayload(BaseModel):
     origem_id: Optional[uuid.UUID] = None
     tipo_acao: str
     parametros_json: Optional[dict] = None
+
+
+class ReprovarIncentivoPayload(BaseModel):
+    motivo_reprovacao: Optional[str] = None
 
 
 # Schemas definidos em ia/schemas.py
@@ -629,6 +634,74 @@ async def get_growth_incentivos(
         limite=limite,
         is_privileged=is_privileged,
     ))
+
+
+@router.get("/growth/incentivos/pendentes", response_model=IAGrowthIncentivosAprovacaoResponse)
+async def get_growth_incentivos_pendentes(
+    periodo_dias: int = Query(90, ge=7, le=180),
+    limite: int = Query(50, ge=1, le=200),
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    claims: dict = Depends(get_current_user_claims),
+    session: AsyncSession = Depends(get_session),
+):
+    """Lista incentivos pendentes de aprovação. Restrito ao owner."""
+    if claims.get("is_owner") is not True:
+        raise HTTPException(status_code=403, detail="Apenas o proprietário do tenant pode revisar incentivos pendentes.")
+    from ia.growth_service import IAGrowthService
+    return IAGrowthIncentivosAprovacaoResponse(**await IAGrowthService.listar_incentivos_pendentes(
+        session,
+        tenant_id,
+        periodo_dias=periodo_dias,
+        limite=limite,
+    ))
+
+
+@router.post("/growth/incentivos/{incentivo_id}/aprovar", response_model=IAGrowthIncentivoActionResponse)
+async def post_growth_incentivo_aprovar(
+    incentivo_id: uuid.UUID,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    claims: dict = Depends(get_current_user_claims),
+    session: AsyncSession = Depends(get_session),
+):
+    """Aprova um incentivo pendente. Restrito ao owner."""
+    if claims.get("is_owner") is not True:
+        raise HTTPException(status_code=403, detail="Apenas o proprietário do tenant pode aprovar incentivos.")
+    from ia.growth_service import IAGrowthService
+    aprovado_por = uuid.UUID(claims["sub"]) if claims.get("sub") else uuid.uuid4()
+    try:
+        return IAGrowthIncentivoActionResponse(**await IAGrowthService.aprovar_incentivo(
+            session,
+            tenant_id,
+            incentivo_id,
+            aprovado_por,
+        ))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.post("/growth/incentivos/{incentivo_id}/reprovar", response_model=IAGrowthIncentivoActionResponse)
+async def post_growth_incentivo_reprovar(
+    incentivo_id: uuid.UUID,
+    payload: ReprovarIncentivoPayload,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    claims: dict = Depends(get_current_user_claims),
+    session: AsyncSession = Depends(get_session),
+):
+    """Reprova um incentivo pendente. Restrito ao owner."""
+    if claims.get("is_owner") is not True:
+        raise HTTPException(status_code=403, detail="Apenas o proprietário do tenant pode reprovar incentivos.")
+    from ia.growth_service import IAGrowthService
+    reprovado_por = uuid.UUID(claims["sub"]) if claims.get("sub") else uuid.uuid4()
+    try:
+        return IAGrowthIncentivoActionResponse(**await IAGrowthService.reprovar_incentivo(
+            session,
+            tenant_id,
+            incentivo_id,
+            reprovado_por,
+            motivo_reprovacao=payload.motivo_reprovacao,
+        ))
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 @router.post("/growth/incentivos/{incentivo_id}/aceitar", response_model=IAGrowthIncentivoActionResponse)

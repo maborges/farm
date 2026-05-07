@@ -254,6 +254,9 @@ class IAGrowthIncentivo(Base):
     validade_inicio: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     validade_fim: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     motivo: Mapped[str] = mapped_column(Text, nullable=False)
+    aprovado_por: Mapped[Optional[uuid.UUID]] = mapped_column(UUIDTYPE(as_uuid=True), nullable=True)
+    aprovado_em: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    motivo_reprovacao: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
