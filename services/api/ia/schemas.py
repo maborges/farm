@@ -389,6 +389,45 @@ class IAGrowthPlanoRecomendadoResponse(BaseModel):
     log_id: Optional[uuid.UUID] = None
 
 
+class IAGrowthAssistenteContextoResponse(BaseModel):
+    visao_completa: bool = False
+    resumo_perfil: str
+    oportunidade_identificada: str
+    plano_atual: str
+    plano_atual_label: str
+    plano_sugerido: str
+    plano_sugerido_label: str
+    motivo_principal: str
+    proximos_passos_sugeridos: List[str]
+    perguntas_sugeridas: List[str]
+    score_fit: float
+    persona: Optional[str] = None
+    churn_risk_level: str = "BAIXO"
+    safra_status: Optional[str] = None
+    safra_ano: Optional[str] = None
+    estagio_safra: Optional[str] = None
+    modulos_usados: List[str] = []
+    features_bloqueadas: List[str] = []
+    cta_recente: Dict[str, int] = {}
+    sinais: Dict[str, Any] = {}
+
+
+class IAGrowthAssistenteMensagemRequest(BaseModel):
+    mensagem_usuario: str
+    contexto_atual: Optional[IAGrowthAssistenteContextoResponse] = None
+
+
+class IAGrowthAssistenteMensagemResponse(BaseModel):
+    resposta_ia: str
+    cta_sugerido: str
+    cta_url: str
+    plano_recomendado: str
+    acao_sugerida: str
+    fonte: str
+    log_id: Optional[uuid.UUID] = None
+    contexto: Optional[IAGrowthAssistenteContextoResponse] = None
+
+
 class IAGrowthPlanoMetricasItem(BaseModel):
     plano: str
     plano_label: str

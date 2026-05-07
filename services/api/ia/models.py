@@ -476,3 +476,26 @@ class IAGrowthPlanoRecomendadoLog(Base):
         Index("ix_iagrowth_plano_rec_plano", "plano_recomendado"),
         Index("ix_iagrowth_plano_rec_usuario", "usuario_id"),
     )
+
+
+class IAGrowthAssistenteInteracao(Base):
+    """Interações registradas do assistente comercial/cs (IA-Growth-17)."""
+    __tablename__ = "ia_growth_assistente_interacoes"
+
+    id = Column(UUIDTYPE(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(UUIDTYPE(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False)
+    usuario_id = Column(UUIDTYPE(as_uuid=True), nullable=True)
+    plano_atual = Column(String(20), nullable=False)
+    plano_recomendado = Column(String(20), nullable=False)
+    persona = Column(String(40), nullable=True)
+    churn_risk_level = Column(String(10), nullable=True)
+    mensagem_usuario = Column(Text, nullable=False)
+    resposta_ia = Column(Text, nullable=False)
+    cta_sugerido = Column(String(120), nullable=False)
+    acao_sugerida = Column(String(60), nullable=False)
+    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (
+        Index("ix_iagrowth_assistente_tenant_data", "tenant_id", "created_at"),
+        Index("ix_iagrowth_assistente_usuario", "usuario_id", "created_at"),
+    )

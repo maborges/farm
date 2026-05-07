@@ -26,6 +26,7 @@ from financeiro.services.resumo_diario_service import ResumoDiarioService
 from ia.acoes_assistidas_service import AcaoAssistidaService
 from ia.performance_service import IAPerformanceService
 from ia.upgrade_recomendacao_service import IARecomendacaoUpgradeService
+from ia.commercial_assistant_service import IACommercialAssistantService
 from ia.schemas import (
     IAAcaoAssistidaHistoricoResponse,
     IAPerformanceDashboardResponse,
@@ -47,6 +48,9 @@ from ia.schemas import (
     IAGrowthChurnDashboardResponse,
     IAGrowthPlanoRecomendadoResponse,
     IAGrowthPlanoMetricasResponse,
+    IAGrowthAssistenteContextoResponse,
+    IAGrowthAssistenteMensagemRequest,
+    IAGrowthAssistenteMensagemResponse,
 )
 from ia.predicao_risco_service import IAPredicaoRiscoService
 from ia.estresse_financeiro_service import IAEstresseFinanceiroService
@@ -2379,3 +2383,66 @@ async def get_performance_churn(
 
     from ia.growth_service import IAGrowthService
     return await IAGrowthService.get_dashboard_churn(session, tenant_id, periodo_dias)
+
+
+@router.get("/growth/assistente-comercial/contexto", response_model=IAGrowthAssistenteContextoResponse)
+async def get_assistente_comercial_contexto(
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    claims: dict = Depends(get_current_user_claims),
+    session: AsyncSession = Depends(get_session),
+):
+    """Retorna contexto comercial consultivo para o assistente de IA-Growth-17."""
+    usuario_id = uuid.UUID(claims["sub"]) if claims.get("sub") else None
+    visao_completa = IACommercialAssistantService._is_privilegiado(claims)
+    contexto = await IACommercialAssistantService.gerar_contexto_usuario(
+        session,
+        tenant_id,
+        usuario_id,
+        visao_completa=visao_completa,
+    )
+    return IAGrowthAssistenteContextoResponse(**contexto)
+
+
+@router.post("/growth/assistente-comercial/mensagem", response_model=IAGrowthAssistenteMensagemResponse)
+async def post_assistente_comercial_mensagem(
+    payload: IAGrowthAssistenteMensagemRequest,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    claims: dict = Depends(get_current_user_claims),
+    session: AsyncSession = Depends(get_session),
+):
+    """Gera uma resposta consultiva e registra a interação do assistente comercial."""
+    usuario_id = uuid.UUID(claims["sub"]) if claims.get("sub") else None
+    visao_completa = IACommercialAssistantService._is_privilegiado(claims)
+
+    contexto = (
+        payload.contexto_atual.model_dump()
+        if payload.contexto_atual is not None
+        else None
+    )
+    resultado = await IACommercialAssistantService.gerar_recomendacao_conversacional(
+        session,
+        tenant_id,
+        usuario_id,
+        payload.mensagem_usuario,
+        contexto_atual=contexto,
+        visao_completa=visao_completa,
+    )
+
+    await session.commit()
+
+    contexto_final = contexto or await IACommercialAssistantService.gerar_contexto_usuario(
+        session,
+        tenant_id,
+        usuario_id,
+        visao_completa=visao_completa,
+    )
+    return IAGrowthAssistenteMensagemResponse(
+        resposta_ia=resultado["resposta_ia"],
+        cta_sugerido=resultado["cta_sugerido"],
+        cta_url=resultado.get("cta_url", ""),
+        plano_recomendado=resultado["plano_recomendado"],
+        acao_sugerida=resultado["acao_sugerida"],
+        fonte=resultado["fonte"],
+        log_id=resultado.get("log_id"),
+        contexto=IAGrowthAssistenteContextoResponse(**contexto_final),
+    )
