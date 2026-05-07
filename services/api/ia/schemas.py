@@ -575,6 +575,43 @@ class IAGrowthOfertasPerformanceResponse(BaseModel):
     performance: List[IAGrowthOfertaPerformanceItem]
 
 
+class IAGrowthROIRankingItem(BaseModel):
+    label: str
+    total: int = 0
+    clicks: int = 0
+    conversoes: int = 0
+    taxa_conversao: float = 0.0
+    impacto_estimado: float = 0.0
+
+
+class IAGrowthROIResponse(BaseModel):
+    periodo_dias: int
+    ctas_exibidos: int
+    cliques: int
+    conversoes: int
+    ctr: float
+    taxa_conversao: float
+    recomendacoes_plano: int
+    upgrades_influenciados: int
+    incentivos_oferecidos: int
+    incentivos_aceitos: int
+    taxa_aceite_incentivos: float
+    acoes_autopilot_executadas: int
+    usuarios_recuperados_churn: int
+    receita_potencial_influenciada: float
+    receita_estimada_convertida: float
+    funil: List[Dict[str, Any]]
+    melhor_persona: Optional[str] = None
+    melhor_abordagem: Optional[str] = None
+    melhor_tipo_oferta: Optional[str] = None
+    melhor_incentivo: Optional[str] = None
+    ranking_personas: List[IAGrowthROIRankingItem] = []
+    ranking_abordagens: List[IAGrowthROIRankingItem] = []
+    ranking_tipos_oferta: List[IAGrowthROIRankingItem] = []
+    ranking_incentivos: List[IAGrowthROIRankingItem] = []
+    receita_estimativa: str = "estimada"
+
+
 class IAGrowthAssistenteContextoResponse(BaseModel):
     visao_completa: bool = False
     resumo_perfil: str

@@ -50,6 +50,7 @@ from ia.schemas import (
     IAGrowthPlanoMetricasResponse,
     IAGrowthOfertasPerformanceResponse,
     IAGrowthOportunidadesResponse,
+    IAGrowthROIResponse,
     IAGrowthAutopilotStatusResponse,
     IAGrowthIncentivosResponse,
     IAGrowthIncentivosAprovacaoResponse,
@@ -768,6 +769,23 @@ async def get_growth_ofertas_performance(
     from ia.growth_service import IAGrowthService
     resultado = await IAGrowthService.metricas_ofertas(session, tenant_id, periodo_dias)
     return IAGrowthOfertasPerformanceResponse(**resultado)
+
+
+@router.get("/growth/roi", response_model=IAGrowthROIResponse)
+async def get_growth_roi(
+    periodo_dias: int = Query(30, ge=7, le=180),
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    claims: dict = Depends(get_current_user_claims),
+    session: AsyncSession = Depends(get_session),
+):
+    """Métricas executivas de ROI do Growth. Restrito ao owner/admin."""
+    if not (claims.get("role") in {"owner", "admin"} or claims.get("is_owner") is True):
+        raise HTTPException(
+            status_code=403,
+            detail="Apenas proprietários e administradores podem acessar o ROI do Growth.",
+        )
+    from ia.growth_service import IAGrowthService
+    return IAGrowthROIResponse(**await IAGrowthService.calcular_roi_growth(session, tenant_id, periodo_dias))
 
 
 @router.post("/growth/plano-recomendado/{log_id}/clique")

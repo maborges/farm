@@ -57,6 +57,13 @@ TIPO_INCENTIVO_LABELS = {
     "CONSULTORIA_RAPIDA": "Consultoria rápida",
     "EXTENSAO_AVALIACAO": "Extensão de avaliação",
 }
+TIPO_OFERTA_LABELS = {
+    IAGrowthTipoOferta.SEM_INCENTIVO.value: "Sem incentivo",
+    IAGrowthTipoOferta.INCENTIVO_LEVE.value: "Incentivo leve",
+    IAGrowthTipoOferta.INCENTIVO_FORTE.value: "Incentivo forte",
+    IAGrowthTipoOferta.EDUCATIVO.value: "Educativo",
+    IAGrowthTipoOferta.CONSULTIVO.value: "Consultivo",
+}
 ORIGEM_INCENTIVO_LABELS = {
     "MANUAL": "Manual",
     "AUTOPILOT": "Autopilot",
@@ -3914,6 +3921,243 @@ class IAGrowthService:
             "total_conversoes": sum(item["total_conversoes"] for item in performance),
             "impacto_total_estimado": round(impacto_total, 2),
             "performance": performance,
+        }
+
+    @staticmethod
+    async def calcular_roi_growth(
+        db: AsyncSession,
+        tenant_id: uuid.UUID,
+        periodo_dias: int = 30,
+    ) -> Dict[str, Any]:
+        """Consolida ROI executivo do Growth com métricas de conversão, retenção e receita estimada."""
+        desde = datetime.now(timezone.utc) - timedelta(days=periodo_dias)
+
+        metricas_cta = await IAGrowthService.calcular_metricas_cta(db, tenant_id, periodo_dias)
+        metricas_plano = await IAGrowthService.metricas_plano_recomendado(db, tenant_id, periodo_dias)
+        metricas_ofertas = await IAGrowthService.metricas_ofertas(db, tenant_id, periodo_dias)
+        personas = await IAGrowthService.get_dashboard_personas(db, tenant_id, periodo_dias)
+        churn = await IAGrowthService.get_dashboard_churn(db, tenant_id, periodo_dias)
+
+        plano_precos = {
+            row.plan_tier: float(row.preco_mensal or 0.0)
+            for row in (await db.execute(
+                select(PlanoAssinatura.plan_tier, PlanoAssinatura.preco_mensal).where(PlanoAssinatura.ativo == True)  # noqa: E712
+            )).all()
+        }
+
+        recs_rows = (await db.execute(
+            select(
+                IAGrowthPlanoRecomendadoLog.plano_atual,
+                IAGrowthPlanoRecomendadoLog.plano_recomendado,
+                IAGrowthPlanoRecomendadoLog.tipo_oferta,
+                IAGrowthPlanoRecomendadoLog.clicada_em,
+                IAGrowthPlanoRecomendadoLog.convertida_em,
+            ).where(
+                IAGrowthPlanoRecomendadoLog.tenant_id == tenant_id,
+                IAGrowthPlanoRecomendadoLog.exibida_em >= desde,
+            )
+        )).all()
+
+        def _delta_plano(plano_atual: str, plano_recomendado: str) -> float:
+            preco_atual = float(plano_precos.get(plano_atual, 0.0))
+            preco_rec = float(plano_precos.get(plano_recomendado, 0.0))
+            delta = max(0.0, preco_rec - preco_atual)
+            if delta <= 0:
+                delta = max(20.0, preco_atual * 0.2)
+            return delta
+
+        ctas_exibidos = int(metricas_cta["total_exibicoes"] or 0)
+        cliques = int(metricas_cta["total_cliques"] or 0)
+        conversoes = int(metricas_plano["total_conversoes"] or 0)
+        ctr = (cliques / ctas_exibidos * 100) if ctas_exibidos else 0.0
+        taxa_conversao = (conversoes / cliques * 100) if cliques else 0.0
+
+        receita_potencial_influenciada = 0.0
+        receita_estimada_convertida = 0.0
+        upgrades_influenciados = 0
+        funil = {"Exibição": 0, "Clique": 0, "Conversão": 0, "Upgrade": 0}
+
+        for row in recs_rows:
+            delta = _delta_plano(row.plano_atual, row.plano_recomendado)
+            if row.convertida_em:
+                funil["Upgrade"] += 1
+                funil["Conversão"] += 1
+                funil["Clique"] += 1
+                funil["Exibição"] += 1
+                receita_potencial_influenciada += delta
+                receita_estimada_convertida += delta
+                upgrades_influenciados += 1
+            elif row.clicada_em:
+                funil["Clique"] += 1
+                funil["Exibição"] += 1
+                receita_potencial_influenciada += round(delta * 0.35, 2)
+            else:
+                funil["Exibição"] += 1
+                receita_potencial_influenciada += round(delta * 0.12, 2)
+
+        incentivos_rows = (await db.execute(
+            select(
+                IAGrowthIncentivo.tipo_incentivo,
+                func.count(IAGrowthIncentivo.id).label("total"),
+                func.count(IAGrowthIncentivo.id).filter(IAGrowthIncentivo.status == "ACEITO").label("aceitos"),
+                func.count(IAGrowthIncentivo.id).filter(IAGrowthIncentivo.status == "APROVADO").label("aprovados"),
+                func.count(IAGrowthIncentivo.id).filter(IAGrowthIncentivo.status == "OFERECIDO").label("oferecidos"),
+            ).where(
+                IAGrowthIncentivo.tenant_id == tenant_id,
+                IAGrowthIncentivo.created_at >= desde,
+            ).group_by(IAGrowthIncentivo.tipo_incentivo)
+        )).all()
+
+        incentivos_oferecidos = 0
+        incentivos_aceitos = 0
+        receita_incentivos_potencial = 0.0
+        receita_incentivos_convertida = 0.0
+        ranking_incentivos: List[Dict[str, Any]] = []
+        for row in incentivos_rows:
+            total = int(row.total or 0)
+            aceitos = int(row.aceitos or 0)
+            aprovados = int(row.aprovados or 0)
+            oferecidos = int(row.oferecidos or 0)
+            base = oferecidos + aprovados + aceitos
+            taxa = (aceitos / base * 100) if base else 0.0
+            ranking_incentivos.append({
+                "label": TIPO_INCENTIVO_LABELS.get(row.tipo_incentivo, row.tipo_incentivo),
+                "total": total,
+                "clicks": 0,
+                "conversoes": aceitos,
+                "taxa_conversao": round(taxa, 1),
+                "impacto_estimado": round(float(aceitos) * 1.0, 2),
+            })
+            incentivos_oferecidos += base
+            incentivos_aceitos += aceitos
+
+        q_incentivo_rows = (await db.execute(
+            select(IAGrowthIncentivo.plano_alvo, IAGrowthIncentivo.status)
+            .where(
+                IAGrowthIncentivo.tenant_id == tenant_id,
+                IAGrowthIncentivo.created_at >= desde,
+            )
+        )).all()
+        for row in q_incentivo_rows:
+            delta = float(max(0.0, plano_precos.get(row.plano_alvo, 0.0) - plano_precos.get(PlanTier.BASICO.value, 0.0)))
+            if delta <= 0:
+                delta = max(20.0, float(plano_precos.get(row.plano_alvo, 0.0)) * 0.2)
+            if row.status in {"ACEITO", "APROVADO"}:
+                receita_incentivos_potencial += round(delta * 0.85, 2)
+                receita_incentivos_convertida += round(delta * 0.75, 2)
+            elif row.status == "OFERECIDO":
+                receita_incentivos_potencial += round(delta * 0.25, 2)
+
+        receita_potencial_influenciada = round(receita_potencial_influenciada + receita_incentivos_potencial, 2)
+        receita_estimada_convertida = round(receita_estimada_convertida + receita_incentivos_convertida, 2)
+        upgrades_influenciados += incentivos_aceitos
+
+        melhores_personas = sorted(
+            personas.get("performance_por_persona", []),
+            key=lambda item: (item.get("conversao", 0.0), item.get("exibicoes", 0)),
+            reverse=True,
+        )
+        melhor_persona = melhores_personas[0]["persona"] if melhores_personas else None
+        ranking_personas = [
+            {
+                "label": item["persona"],
+                "total": int(item.get("usuarios", 0) or 0),
+                "clicks": int(item.get("cliques", 0) or 0),
+                "conversoes": int(item.get("cliques", 0) or 0),
+                "taxa_conversao": float(item.get("conversao", 0.0) or 0.0),
+                "impacto_estimado": float(item.get("cliques", 0) or 0),
+            }
+            for item in melhores_personas[:5]
+        ]
+
+        perf_abordagem = (await db.execute(
+            select(
+                IAGrowthExperimentoVariante.cta["tipo_abordagem"].astext.label("abordagem"),
+                func.count().filter(IAGrowthExperimentoEvento.evento == "SHOWN").label("exibicoes"),
+                func.count().filter(IAGrowthExperimentoEvento.evento == "CLICKED").label("cliques"),
+            )
+            .select_from(IAGrowthExperimentoVariante)
+            .join(IAGrowthExperimentoEvento, IAGrowthExperimentoEvento.variante_id == IAGrowthExperimentoVariante.id)
+            .join(IAGrowthExperimento, IAGrowthExperimento.id == IAGrowthExperimentoVariante.experimento_id)
+            .where(
+                IAGrowthExperimento.tenant_id == tenant_id,
+                IAGrowthExperimentoEvento.created_at >= desde,
+                IAGrowthExperimentoVariante.cta["tipo_abordagem"].is_not(None),
+            )
+            .group_by("abordagem")
+        )).all()
+        ranking_abordagens = []
+        for row in perf_abordagem:
+            exibicoes = int(row.exibicoes or 0)
+            clq = int(row.cliques or 0)
+            taxa = (clq / exibicoes * 100) if exibicoes else 0.0
+            ranking_abordagens.append({
+                "label": row.abordagem,
+                "total": exibicoes,
+                "clicks": clq,
+                "conversoes": clq,
+                "taxa_conversao": round(taxa, 1),
+                "impacto_estimado": round(taxa * max(exibicoes, 1), 2),
+            })
+        ranking_abordagens.sort(key=lambda item: (item["taxa_conversao"], item["clicks"]), reverse=True)
+        melhor_abordagem = ranking_abordagens[0]["label"] if ranking_abordagens else personas.get("melhor_abordagem_geral")
+
+        ranking_tipos_oferta = []
+        for item in metricas_ofertas.get("performance", []):
+            ranking_tipos_oferta.append({
+                "label": TIPO_OFERTA_LABELS.get(item.get("tipo_oferta"), item.get("tipo_oferta")),
+                "total": int(item.get("total_recomendacoes", 0) or 0),
+                "clicks": int(item.get("total_clicks", 0) or 0),
+                "conversoes": int(item.get("total_conversoes", 0) or 0),
+                "taxa_conversao": float(item.get("taxa_conversao", 0.0) or 0.0),
+                "impacto_estimado": float(item.get("impacto_estimado", 0.0) or 0.0),
+            })
+        ranking_tipos_oferta.sort(key=lambda item: (item["taxa_conversao"], item["impacto_estimado"]), reverse=True)
+        melhor_tipo_oferta = ranking_tipos_oferta[0]["label"] if ranking_tipos_oferta else None
+
+        melhores_incentivos = sorted(
+            ranking_incentivos,
+            key=lambda item: (item["taxa_conversao"], item["conversoes"]),
+            reverse=True,
+        )
+        melhor_incentivo = melhores_incentivos[0]["label"] if melhores_incentivos else None
+
+        return {
+            "periodo_dias": periodo_dias,
+            "ctas_exibidos": ctas_exibidos,
+            "cliques": cliques,
+            "conversoes": conversoes,
+            "ctr": round(ctr, 1),
+            "taxa_conversao": round(taxa_conversao, 1),
+            "recomendacoes_plano": int(metricas_plano["total_recomendacoes"] or 0),
+            "upgrades_influenciados": upgrades_influenciados,
+            "incentivos_oferecidos": incentivos_oferecidos,
+            "incentivos_aceitos": incentivos_aceitos,
+            "taxa_aceite_incentivos": round((incentivos_aceitos / incentivos_oferecidos * 100) if incentivos_oferecidos else 0.0, 1),
+            "acoes_autopilot_executadas": int((await db.execute(
+                select(func.count(IAGrowthAutopilotAcao.id)).where(
+                    IAGrowthAutopilotAcao.tenant_id == tenant_id,
+                    IAGrowthAutopilotAcao.executada_em >= desde,
+                )
+            )).scalar() or 0),
+            "usuarios_recuperados_churn": int(churn.get("recuperacao_alto_risco", {}).get("usuarios_recuperados", 0)),
+            "receita_potencial_influenciada": round(receita_potencial_influenciada, 2),
+            "receita_estimada_convertida": round(receita_estimada_convertida, 2),
+            "funil": [
+                {"etapa": "Exibição", "valor": ctas_exibidos},
+                {"etapa": "Clique", "valor": cliques},
+                {"etapa": "Conversão", "valor": conversoes},
+                {"etapa": "Upgrade", "valor": upgrades_influenciados},
+            ],
+            "melhor_persona": melhor_persona,
+            "melhor_abordagem": melhor_abordagem,
+            "melhor_tipo_oferta": melhor_tipo_oferta,
+            "melhor_incentivo": melhor_incentivo,
+            "ranking_personas": ranking_personas,
+            "ranking_abordagens": ranking_abordagens[:5],
+            "ranking_tipos_oferta": ranking_tipos_oferta[:5],
+            "ranking_incentivos": melhores_incentivos[:5],
+            "receita_estimativa": "estimada",
         }
 
     @staticmethod
