@@ -2,6 +2,19 @@
 
 Sistema avançado para gestão de fazendas, focada em produtividade, isolamento de dados (Multi-tenancy) e interface de alta performance.
 
+## Leitura Inicial Obrigatória
+
+Antes de iniciar análise, implementação ou manutenção neste repositório, leia também `CONTEXTO.md`.
+
+O arquivo `CONTEXTO.md` concentra o mapa operacional do projeto, incluindo:
+
+- estrutura real do monorepo
+- pontos de entrada de frontend e backend
+- convenções ativas
+- alertas sobre diretórios duplicados ou espelhados
+
+Sempre que houver mudança relevante de arquitetura, stack, convenções ou organização de diretórios, atualize `CONTEXTO.md` junto com a mudança.
+
 ## 🏗️ Arquitetura do Sistema
 
 O projeto é dividido em um monorepo contendo:
@@ -77,7 +90,21 @@ O projeto é dividido em um monorepo contendo:
 - **Resumo Executivo**: Backend calcula em tempo real o saldo (margem) e volume de lançamentos para o contexto selecionado, alimentando KPIs de performance.
 - **Fluxo Funcional**: `GET /api/v1/financeiro/lancamentos` (listagem) e `GET /api/v1/financeiro/lancamentos/resumo` (KPIs) → Página dedicada em `/dashboard/financeiro/lancamentos`.
 
-### 12. Receitas Operacionais Manuais (Step 182)
+### 12. Módulo Frota (Gestão de Maquinários)
+- **Gestão de Equipamentos**: Cadastro completo com horímetro/odômetro e planos de manutenção.
+- **Controle de Manutenção**: Ordens de serviço, manutenções preventivas e corretivas com histórico de custos.
+- **Gestão de Combustível**: Registro de abastecimentos com integração a estoques e controle de consumo (L/h ou km/L).
+- **Integração Agrícola (FROTA-33)**: Atribuição automática de custos de máquinas a safras, talhões e operações através de jornadas integradas.
+- **Inteligência Financeira (FROTA-34)**: Identificação proativa de talhões e operações com custos acima da média e detecção de ineficiência de equipamentos ("Onde você está perdendo dinheiro").
+- **Ações Diretas (FROTA-35)**: Execução assistida ("Magic Actions") que permite abrir ordens de serviço ou analisar jornadas a partir de um insight com um único clique.
+- **Regras Inteligentes (FROTA-36)**: Motor de automação configurável para geração automática de OS, alertas de desvios financeiros e auditoria completa de ações do sistema.
+- **Confiança e Transparência (FROTA-37)**: Explicabilidade das ações do sistema, notificações em tempo real e modo assistido por padrão para uma adoção segura da automação.
+- **Validação de Adoção (FROTA-38)**: Telemetria de uso real das automações, medindo taxas de aceitação, conversão para modo automático e KPIs de confiança do gestor.
+- **Otimização de Conversão (FROTA-39)**: Cálculo de ROI (Economia Estimada) por ação, justificativas baseadas em impacto financeiro e sugestões proativas para automação total.
+- **Benchmarks e Desempenho (FROTA-40)**: Comparação histórica de custos, ranking de eficiência por talhão e relatórios de impacto da automação na fazenda.
+- **Checklists e Disponibilidade**: Inspeções pré-operacionais e status de disponibilidade em tempo real.
+
+### 13. Receitas Operacionais Manuais (Step 182)
 - **Registro de Entradas**: Permite o registro manual de receitas vinculadas à safra, como venda de produção ou outras receitas operacionais.
 - **Validação Estrita**: Garantia de categorias válidas para o tipo RECEITA (`VENDA_PRODUCAO`, `OUTRAS_RECEITAS`) e valores positivos.
 - **Step 183 (DRE Operacional):** Implementação de visão executiva por safra com agregação de receitas, custos, resultado e margem operacional.
@@ -85,7 +112,7 @@ O projeto é dividido em um monorepo contendo:
 - **Impacto Econômico**: As receitas registradas alimentam automaticamente o cálculo de saldo e margem operacional da safra no dashboard.
 - **Fluxo Funcional**: Botão "Registrar Receita" na tela de lançamentos abre um dialog para entrada de dados. Ao salvar, o sistema invalida os caches de resumo e listagem para atualização imediata dos KPIs.
 
-### 13. DRE Operacional por Safra (Step 183)
+### 14. DRE Operacional por Safra (Step 183)
 - **Visão Executiva**: Relatório consolidado que apresenta a performance financeira da safra em formato de DRE simplificado (Receita Bruta, Custos Operacionais, Resultado e Margem %).
 - **Breakdown por Categoria**: Detalhamento visual da composição de custos e receitas, permitindo identificar onde estão os maiores investimentos e entradas.
 - **Isolamento de Gestão**: Foco total em métricas operacionais de campo, sem interferência de provisões contábeis, impostos corporativos ou depreciação.

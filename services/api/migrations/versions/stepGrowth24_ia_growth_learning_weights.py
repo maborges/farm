@@ -4,7 +4,7 @@ Adiciona a tabela de pesos aprendidos e a base para recalibrar timing,
 persona, abordagem, oferta e autopilot com métricas reais.
 
 Revision ID: stepGrowth24
-Revises: stepGrowth23
+Revises: stepGrowth22
 Create Date: 2026-05-07
 """
 
@@ -12,7 +12,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision = "stepGrowth24"
-down_revision = "stepGrowth23"
+down_revision = "stepGrowth22"
 branch_labels = None
 depends_on = None
 
