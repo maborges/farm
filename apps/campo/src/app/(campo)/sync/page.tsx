@@ -1,6 +1,6 @@
 "use client";
 
-import { useLiveQuery } from "@dexie/react-hooks";
+import { useLiveQuery } from "dexie-react-hooks";
 import { useRouter } from "next/navigation";
 import { db } from "@/lib/db";
 import { useSyncStore } from "@/lib/stores/sync-store";
