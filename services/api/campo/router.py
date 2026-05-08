@@ -1,6 +1,6 @@
 from __future__ import annotations
 import uuid
-from datetime import datetime
+from datetime import datetime, date
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,7 +14,7 @@ from core.dependencies import get_tenant_id, get_user_id
 from core.exceptions import EntityNotFoundError, BusinessRuleError, TenantViolationError
 
 from campo.models import DispositivoCampo
-from campo.service import DispositivoService, SyncService
+from campo.service import DispositivoService, SyncService, TarefaProgramadaService
 from campo.schemas import (
     DeviceCreate,
     DeviceCreateResponse,
@@ -25,6 +25,9 @@ from campo.schemas import (
     SyncPullResponse,
     SyncPushRequest,
     SyncPushResponse,
+    TarefaProgramadaCreate,
+    TarefaProgramadaResponse,
+    ExecucaoUpdate,
 )
 
 router = APIRouter(prefix="/campo", tags=["Campo PWA"])
@@ -162,6 +165,105 @@ async def listar_dispositivos(
 ):
     svc = DispositivoService(session, tenant_id)
     return await svc.listar()
+
+
+# ---------------------------------------------------------------------------
+# Tarefas Programadas — gerenciadas pelo backoffice (apps/web)
+# ---------------------------------------------------------------------------
+
+@router.post("/tarefas", response_model=TarefaProgramadaResponse, status_code=status.HTTP_201_CREATED)
+async def criar_tarefa_programada(
+    data: TarefaProgramadaCreate,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    user_id: uuid.UUID | None = Depends(get_user_id),
+    session: AsyncSession = Depends(get_session),
+):
+    svc = TarefaProgramadaService(session, tenant_id, user_id or uuid.uuid4())
+    try:
+        tarefa = await svc.criar(data)
+        await session.commit()
+        await session.refresh(tarefa)
+        return tarefa
+    except Exception as exc:
+        await session.rollback()
+        logger.error(f"[campo/tarefas] {exc}")
+        raise HTTPException(status_code=500, detail=str(exc))
+
+
+@router.get("/tarefas", response_model=list[TarefaProgramadaResponse])
+async def listar_tarefas_programadas(
+    fazenda_id: uuid.UUID | None = Query(default=None),
+    data_inicio: date | None = Query(default=None),
+    data_fim: date | None = Query(default=None),
+    status_execucao: str | None = Query(default=None),
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=100, le=500),
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    session: AsyncSession = Depends(get_session),
+):
+    user_id = uuid.uuid4()
+    svc = TarefaProgramadaService(session, tenant_id, user_id)
+    return await svc.listar(
+        fazenda_id=fazenda_id,
+        data_inicio=data_inicio,
+        data_fim=data_fim,
+        status_execucao=status_execucao,
+        skip=skip,
+        limit=limit,
+    )
+
+
+@router.get("/tarefas/{tarefa_id}", response_model=TarefaProgramadaResponse)
+async def get_tarefa(
+    tarefa_id: uuid.UUID,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    session: AsyncSession = Depends(get_session),
+):
+    from core.exceptions import EntityNotFoundError
+    svc = TarefaProgramadaService(session, tenant_id, uuid.uuid4())
+    try:
+        return await svc.get_or_fail(tarefa_id)
+    except EntityNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@router.patch("/tarefas/{tarefa_id}/execucao", response_model=TarefaProgramadaResponse)
+async def atualizar_execucao(
+    tarefa_id: uuid.UUID,
+    data: ExecucaoUpdate,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    user_id: uuid.UUID | None = Depends(get_user_id),
+    session: AsyncSession = Depends(get_session),
+):
+    from core.exceptions import EntityNotFoundError, BusinessRuleError
+    svc = TarefaProgramadaService(session, tenant_id, user_id or uuid.uuid4())
+    try:
+        tarefa = await svc.atualizar_execucao(tarefa_id, data)
+        await session.commit()
+        await session.refresh(tarefa)
+        return tarefa
+    except EntityNotFoundError as exc:
+        await session.rollback()
+        raise HTTPException(status_code=404, detail=str(exc))
+    except BusinessRuleError as exc:
+        await session.rollback()
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
+@router.delete("/tarefas/{tarefa_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def cancelar_tarefa(
+    tarefa_id: uuid.UUID,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    session: AsyncSession = Depends(get_session),
+):
+    from core.exceptions import EntityNotFoundError
+    svc = TarefaProgramadaService(session, tenant_id, uuid.uuid4())
+    try:
+        await svc.cancelar(tarefa_id)
+        await session.commit()
+    except EntityNotFoundError as exc:
+        await session.rollback()
+        raise HTTPException(status_code=404, detail=str(exc))
 
 
 # ---------------------------------------------------------------------------

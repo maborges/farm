@@ -1,6 +1,6 @@
 import uuid
-from datetime import datetime
-from sqlalchemy import String, Boolean, DateTime, ForeignKey, Text, Index, UniqueConstraint
+from datetime import datetime, date
+from sqlalchemy import String, DateTime, Date, ForeignKey, Text, Index, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy import Uuid as UUID
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
@@ -46,20 +46,33 @@ class DispositivoCampo(Base):
 
 
 class TarefaCampo(Base):
-    """Tarefas criadas offline no dispositivo de campo e sincronizadas via /sync/push."""
+    """Tarefas de campo: criadas offline (MANUAL) ou programadas pelo backoffice (PROGRAMADA)."""
     __tablename__ = "campo_tarefas"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     tenant_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    dispositivo_id: Mapped[uuid.UUID] = mapped_column(
+    dispositivo_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("campo_dispositivos.id", ondelete="SET NULL"), nullable=True, index=True
     )
     user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
+    operador_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True, index=True)
 
-    # Identificador local do cliente (UUID gerado no dispositivo)
-    client_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
+    # Identificador local do cliente (UUID gerado no dispositivo; nulo para tarefas programadas)
+    client_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+
+    # Origem e status de execução
+    origem: Mapped[str] = mapped_column(String(20), default="MANUAL", nullable=False)
+    # MANUAL | PROGRAMADA
+    status_execucao: Mapped[str] = mapped_column(String(20), default="PENDENTE", nullable=False)
+    # PENDENTE | EM_EXECUCAO | CONCLUIDA | CANCELADA
+
+    # Agendamento
+    titulo: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    data_programada: Mapped[date | None] = mapped_column(Date, nullable=True)
+    prioridade: Mapped[str] = mapped_column(String(10), default="NORMAL", nullable=False)
+    # BAIXA | NORMAL | ALTA | URGENTE
 
     type: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     module: Mapped[str] = mapped_column(String(20), nullable=False)
@@ -78,9 +91,12 @@ class TarefaCampo(Base):
     latitude: Mapped[float | None] = mapped_column(sa.Numeric(10, 7), nullable=True)
     longitude: Mapped[float | None] = mapped_column(sa.Numeric(10, 7), nullable=True)
 
-    # Timestamps do cliente (para conflict resolution)
-    client_created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
-    client_updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    iniciada_em: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    concluida_em: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    # Timestamps do cliente (para conflict resolution; nulo para tarefas programadas)
+    client_created_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    client_updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
@@ -90,6 +106,9 @@ class TarefaCampo(Base):
         Index("ix_campo_tarefas_tenant_status", "tenant_id", "status"),
         Index("ix_campo_tarefas_unidade", "unidade_produtiva_id"),
         Index("ix_campo_tarefas_type", "type"),
+        Index("ix_ct_fazenda_data", "tenant_id", "data_programada", "status_execucao"),
+        Index("ix_ct_operador", "operador_id", "status_execucao"),
+        Index("ix_ct_dispositivo_data", "dispositivo_id", "data_programada"),
     )
 
 

@@ -2,11 +2,11 @@ from __future__ import annotations
 import uuid
 import secrets
 import string
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, date
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, update
+from sqlalchemy import select, and_, update, or_
 from jose import jwt
 from loguru import logger
 
@@ -20,6 +20,8 @@ from campo.schemas import (
     DeviceActivateRequest,
     SyncPushItem,
     SyncPushItemResult,
+    TarefaProgramadaCreate,
+    ExecucaoUpdate,
 )
 
 _ACTIVATION_CODE_CHARS = string.ascii_uppercase + string.digits
@@ -201,12 +203,31 @@ class SyncService:
         ).limit(500)
         insumos_rows = (await self.session.execute(stmt_i)).scalars().all()
 
-        # Tarefas pendentes do dispositivo (não concluídas)
+        # Tarefas para este dispositivo:
+        # 1. Manuais pendentes criadas pelo dispositivo
+        # 2. Programadas para hoje/atrasadas nas fazendas autorizadas (status PENDENTE ou EM_EXECUCAO)
+        hoje = date.today()
         stmt_task = select(TarefaCampo).where(
             and_(
                 TarefaCampo.tenant_id == self.tenant_id,
-                TarefaCampo.dispositivo_id == self.device.id,
-                TarefaCampo.status.in_(["PENDENTE", "EM_ANDAMENTO"]),
+                TarefaCampo.status_execucao.in_(["PENDENTE", "EM_EXECUCAO"]),
+                or_(
+                    # Tarefas manuais do dispositivo
+                    and_(
+                        TarefaCampo.origem == "MANUAL",
+                        TarefaCampo.dispositivo_id == self.device.id,
+                    ),
+                    # Tarefas programadas para fazendas autorizadas (hoje e atrasadas)
+                    and_(
+                        TarefaCampo.origem == "PROGRAMADA",
+                        TarefaCampo.unidade_produtiva_id.in_(fazenda_ids),
+                        TarefaCampo.data_programada <= hoje,
+                        or_(
+                            TarefaCampo.dispositivo_id == None,
+                            TarefaCampo.dispositivo_id == self.device.id,
+                        ),
+                    ),
+                ),
             )
         )
         tarefas_rows = (await self.session.execute(stmt_task)).scalars().all()
@@ -266,6 +287,12 @@ class SyncService:
                     "type": t.type,
                     "module": t.module,
                     "status": t.status,
+                    "origem": t.origem,
+                    "status_execucao": t.status_execucao,
+                    "titulo": t.titulo,
+                    "data_programada": t.data_programada,
+                    "prioridade": t.prioridade,
+                    "operador_id": t.operador_id,
                     "dados": t.dados,
                     "unidade_produtiva_id": t.unidade_produtiva_id,
                     "area_rural_id": t.area_rural_id,
@@ -330,6 +357,8 @@ class SyncService:
                 dispositivo_id=self.device.id,
                 user_id=self.device.user_id,
                 client_id=item.local_id,
+                origem="MANUAL",
+                status_execucao="CONCLUIDA",
                 type=payload.get("type", ""),
                 module=payload.get("module", "agricola"),
                 status=payload.get("status", "PENDENTE"),
@@ -369,6 +398,12 @@ class SyncService:
                 task.status = payload.get("status", task.status)
                 task.dados = payload.get("dados", task.dados)
                 task.client_updated_at = _parse_dt(item.client_updated_at)
+
+                # Atualizar execução de tarefas programadas
+                novo_status_exec = payload.get("status_execucao")
+                if novo_status_exec:
+                    _aplicar_status_execucao(task, novo_status_exec, payload)
+
                 await self.session.flush()
                 return SyncPushItemResult(local_id=item.local_id, status="UPDATED", server_id=str(task.id))
             else:
@@ -411,6 +446,128 @@ class SyncService:
             return SyncPushItemResult(local_id=item.local_id, status="DELETED")
 
         return SyncPushItemResult(local_id=item.local_id, status="ERROR", error_message="Operação desconhecida")
+
+
+def _aplicar_status_execucao(task: TarefaCampo, novo: str, payload: dict) -> None:
+    """Aplica transição de status_execucao com regras de negócio."""
+    if novo == "EM_EXECUCAO":
+        task.status_execucao = "EM_EXECUCAO"
+        if not task.iniciada_em:
+            task.iniciada_em = datetime.utcnow()
+    elif novo == "CONCLUIDA":
+        if task.status_execucao != "EM_EXECUCAO":
+            raise BusinessRuleError("Só é possível CONCLUIR uma tarefa que está EM_EXECUCAO")
+        task.status_execucao = "CONCLUIDA"
+        task.concluida_em = datetime.utcnow()
+        if payload.get("obs"):
+            task.dados = {**task.dados, "obs_execucao": payload["obs"]}
+        if payload.get("fotos"):
+            task.fotos = list(task.fotos) + payload["fotos"]
+        if payload.get("localizacao_status"):
+            task.localizacao_status = payload["localizacao_status"]
+        if payload.get("latitude"):
+            task.latitude = payload["latitude"]
+        if payload.get("longitude"):
+            task.longitude = payload["longitude"]
+    elif novo == "CANCELADA":
+        task.status_execucao = "CANCELADA"
+
+
+class TarefaProgramadaService:
+    def __init__(self, session: AsyncSession, tenant_id: uuid.UUID, user_id: uuid.UUID):
+        self.session = session
+        self.tenant_id = tenant_id
+        self.user_id = user_id
+
+    async def criar(self, data: TarefaProgramadaCreate) -> TarefaCampo:
+        task = TarefaCampo(
+            tenant_id=self.tenant_id,
+            user_id=self.user_id,
+            origem="PROGRAMADA",
+            status_execucao="PENDENTE",
+            titulo=data.titulo,
+            type=data.type,
+            module=data.module,
+            data_programada=data.data_programada,
+            prioridade=data.prioridade,
+            unidade_produtiva_id=data.unidade_produtiva_id,
+            area_rural_id=data.area_rural_id,
+            lote_id=data.lote_id,
+            operador_id=data.operador_id,
+            dispositivo_id=data.dispositivo_id,
+            dados=data.dados,
+            status="PENDENTE",
+            fotos=[],
+            localizacao_status="INDISPONIVEL",
+            client_created_at=None,
+            client_updated_at=None,
+        )
+        self.session.add(task)
+        await self.session.flush()
+        return task
+
+    async def listar(
+        self,
+        fazenda_id: uuid.UUID | None = None,
+        data_inicio: date | None = None,
+        data_fim: date | None = None,
+        status_execucao: str | None = None,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> list[TarefaCampo]:
+        filters = [
+            TarefaCampo.tenant_id == self.tenant_id,
+            TarefaCampo.origem == "PROGRAMADA",
+        ]
+        if fazenda_id:
+            filters.append(TarefaCampo.unidade_produtiva_id == fazenda_id)
+        if data_inicio:
+            filters.append(TarefaCampo.data_programada >= data_inicio)
+        if data_fim:
+            filters.append(TarefaCampo.data_programada <= data_fim)
+        if status_execucao:
+            filters.append(TarefaCampo.status_execucao == status_execucao)
+
+        result = await self.session.execute(
+            select(TarefaCampo)
+            .where(and_(*filters))
+            .order_by(TarefaCampo.data_programada, TarefaCampo.prioridade)
+            .offset(skip)
+            .limit(limit)
+        )
+        return list(result.scalars().all())
+
+    async def get_or_fail(self, tarefa_id: uuid.UUID) -> TarefaCampo:
+        result = await self.session.execute(
+            select(TarefaCampo).where(
+                and_(
+                    TarefaCampo.id == tarefa_id,
+                    TarefaCampo.tenant_id == self.tenant_id,
+                )
+            )
+        )
+        task = result.scalar_one_or_none()
+        if not task:
+            raise EntityNotFoundError(f"Tarefa {tarefa_id} não encontrada")
+        return task
+
+    async def atualizar_execucao(self, tarefa_id: uuid.UUID, data: ExecucaoUpdate) -> TarefaCampo:
+        task = await self.get_or_fail(tarefa_id)
+        _aplicar_status_execucao(task, data.status_execucao, {
+            "obs": data.obs,
+            "fotos": data.fotos,
+            "localizacao_status": data.localizacao_status,
+            "latitude": data.latitude,
+            "longitude": data.longitude,
+        })
+        await self.session.flush()
+        return task
+
+    async def cancelar(self, tarefa_id: uuid.UUID) -> TarefaCampo:
+        task = await self.get_or_fail(tarefa_id)
+        task.status_execucao = "CANCELADA"
+        await self.session.flush()
+        return task
 
 
 def _to_uuid(val: Any) -> uuid.UUID | None:

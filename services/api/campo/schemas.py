@@ -1,6 +1,6 @@
 from __future__ import annotations
 import uuid
-from datetime import datetime
+from datetime import datetime, date
 from typing import Any, Literal
 from pydantic import BaseModel, Field, ConfigDict
 
@@ -98,16 +98,22 @@ class InsumoSync(BaseModel):
 
 class TarefaPendenteSync(BaseModel):
     id: uuid.UUID
-    client_id: str
+    client_id: str | None
     type: str
     module: str
     status: str
+    origem: str
+    status_execucao: str
+    titulo: str | None
+    data_programada: date | None
+    prioridade: str
+    operador_id: uuid.UUID | None
     dados: dict[str, Any]
     unidade_produtiva_id: uuid.UUID | None
     area_rural_id: uuid.UUID | None
     lote_id: uuid.UUID | None
-    client_created_at: datetime
-    client_updated_at: datetime
+    client_created_at: datetime | None
+    client_updated_at: datetime | None
 
 
 class SyncTombstonesPayload(BaseModel):
@@ -158,3 +164,53 @@ class SyncPushItemResult(BaseModel):
 class SyncPushResponse(BaseModel):
     processed_at: datetime
     results: list[SyncPushItemResult]
+
+
+# ---------------------------------------------------------------------------
+# Tarefas Programadas (backoffice → PWA)
+# ---------------------------------------------------------------------------
+
+class TarefaProgramadaCreate(BaseModel):
+    titulo: str = Field(..., max_length=200)
+    type: str = Field(..., max_length=50)
+    module: str = Field(default="agricola", max_length=20)
+    data_programada: date
+    prioridade: Literal["BAIXA", "NORMAL", "ALTA", "URGENTE"] = "NORMAL"
+    unidade_produtiva_id: uuid.UUID
+    area_rural_id: uuid.UUID | None = None
+    lote_id: uuid.UUID | None = None
+    operador_id: uuid.UUID | None = None
+    dispositivo_id: uuid.UUID | None = None
+    dados: dict[str, Any] = Field(default_factory=dict)
+
+
+class TarefaProgramadaResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
+    titulo: str | None
+    type: str
+    module: str
+    origem: str
+    status_execucao: str
+    data_programada: date | None
+    prioridade: str
+    operador_id: uuid.UUID | None
+    dispositivo_id: uuid.UUID | None
+    unidade_produtiva_id: uuid.UUID | None
+    area_rural_id: uuid.UUID | None
+    lote_id: uuid.UUID | None
+    dados: dict[str, Any]
+    iniciada_em: datetime | None
+    concluida_em: datetime | None
+    created_at: datetime
+    updated_at: datetime
+
+
+class ExecucaoUpdate(BaseModel):
+    status_execucao: Literal["EM_EXECUCAO", "CONCLUIDA", "CANCELADA"]
+    obs: str | None = None
+    fotos: list[str] = Field(default_factory=list)
+    localizacao_status: str = "INDISPONIVEL"
+    latitude: float | None = None
+    longitude: float | None = None
+    client_updated_at: datetime | None = None
