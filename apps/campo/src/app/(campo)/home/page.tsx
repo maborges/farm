@@ -6,35 +6,42 @@ import { db } from "@/lib/db";
 import { useSessionStore } from "@/lib/stores/session-store";
 import { useSyncStore } from "@/lib/stores/sync-store";
 
+interface Activity {
+  key: string;
+  label: string;
+  icon: string;
+  path: string;
+  module: "agricola" | "pecuaria";
+}
+
+const ACTIVITIES: Activity[] = [
+  { key: "aplicacao", label: "Aplicação", icon: "🌿", path: "/campo/aplicacao", module: "agricola" },
+  { key: "colheita", label: "Colheita", icon: "🌾", path: "/campo/colheita", module: "agricola" },
+  { key: "pesagem", label: "Pesagem", icon: "⚖️", path: "/campo/pesagem", module: "pecuaria" },
+  { key: "vacinacao", label: "Vacinação", icon: "💉", path: "/campo/vacinacao", module: "pecuaria" },
+];
+
 export default function HomePage() {
   const router = useRouter();
   const { session, logout } = useSessionStore();
   const { pendingCount, isOnline } = useSyncStore();
 
-  const pendingTasks = useLiveQuery(
-    () => db.tasks.where("status").anyOf(["PENDENTE", "EM_ANDAMENTO"]).toArray(),
+  const recentTasks = useLiveQuery(
+    () => db.tasks.orderBy("created_at").reverse().limit(5).toArray(),
     []
   );
 
-  const modules: { label: string; key: string; icon: string; path: string }[] = [
-    ...(session?.modules.includes("agricola")
-      ? [
-          { label: "Aplicação", key: "aplicacao", icon: "🌿", path: "/agricola/aplicacao" },
-          { label: "Colheita", key: "colheita", icon: "🌾", path: "/agricola/colheita" },
-          { label: "Monitoramento", key: "monitoramento", icon: "🔍", path: "/agricola/monitoramento" },
-        ]
-      : []),
-    ...(session?.modules.includes("pecuaria")
-      ? [
-          { label: "Pesagem", key: "pesagem", icon: "⚖️", path: "/pecuaria/pesagem" },
-          { label: "Vacinação", key: "vacinacao", icon: "💉", path: "/pecuaria/vacinacao" },
-          { label: "Parto", key: "parto", icon: "🐄", path: "/pecuaria/parto" },
-        ]
-      : []),
-  ];
+  const pendingTasks = useLiveQuery(
+    () => db.tasks.where("synced").equals(0).count(),
+    []
+  );
+
+  const availableActivities = ACTIVITIES.filter(
+    (a) => session?.modules?.includes(a.module)
+  );
 
   return (
-    <div className="flex flex-col gap-6 p-4 pb-8">
+    <div className="flex flex-col gap-6 p-4 pb-10">
       {/* Header */}
       <div className="flex items-center justify-between pt-2">
         <div>
@@ -48,24 +55,59 @@ export default function HomePage() {
           <span className={`size-1.5 rounded-full ${isOnline ? "bg-green-500" : "bg-neutral-500"}`} />
           {isOnline ? "Online" : "Offline"}
           {pendingCount > 0 && (
-            <span className="bg-amber-500 text-black rounded-full px-1.5 text-xs font-bold">
+            <span className="bg-amber-500 text-black rounded-full px-1.5 text-xs font-bold ml-0.5">
               {pendingCount}
             </span>
           )}
         </button>
       </div>
 
-      {/* Tarefas pendentes */}
-      {pendingTasks && pendingTasks.length > 0 && (
+      {/* Destaque: não sincronizados */}
+      {(pendingTasks ?? 0) > 0 && (
+        <button
+          onClick={() => router.push("/sync")}
+          className="bg-amber-950 border border-amber-800/60 rounded-2xl p-4 text-left flex items-center justify-between"
+        >
+          <div>
+            <p className="text-sm font-semibold text-amber-300">
+              {pendingTasks} registro{pendingTasks! > 1 ? "s" : ""} aguardando sync
+            </p>
+            <p className="text-xs text-amber-500 mt-0.5">Toque para ver detalhes</p>
+          </div>
+          <span className="text-amber-400 text-lg">→</span>
+        </button>
+      )}
+
+      {/* Atividades disponíveis */}
+      <section className="flex flex-col gap-3">
+        <h2 className="text-sm font-semibold text-neutral-400 uppercase tracking-wide">
+          Nova Atividade
+        </h2>
+        <div className="grid grid-cols-2 gap-3">
+          {availableActivities.map((act) => (
+            <button
+              key={act.key}
+              onClick={() => router.push(act.path)}
+              className="bg-neutral-800 hover:bg-neutral-700 active:scale-95 transition-all rounded-2xl p-5 flex flex-col gap-2 text-left"
+            >
+              <span className="text-3xl">{act.icon}</span>
+              <span className="text-sm font-semibold">{act.label}</span>
+            </button>
+          ))}
+        </div>
+      </section>
+
+      {/* Registros recentes */}
+      {recentTasks && recentTasks.length > 0 && (
         <section className="flex flex-col gap-2">
           <h2 className="text-sm font-semibold text-neutral-400 uppercase tracking-wide">
-            Registros Pendentes
+            Últimos Registros
           </h2>
           <div className="flex flex-col gap-2">
-            {pendingTasks.slice(0, 5).map((task) => (
+            {recentTasks.map((task) => (
               <div
                 key={task.id}
-                className="bg-neutral-800 rounded-2xl p-4 flex items-center justify-between"
+                className="bg-neutral-800 rounded-2xl px-4 py-3 flex items-center justify-between"
               >
                 <div>
                   <p className="text-sm font-medium">{formatTaskType(task.type)}</p>
@@ -75,35 +117,18 @@ export default function HomePage() {
                   className={`text-xs rounded-full px-2 py-0.5 font-medium ${
                     task.synced
                       ? "bg-green-900 text-green-300"
+                      : task.sync_conflict
+                      ? "bg-red-900 text-red-300"
                       : "bg-amber-900 text-amber-300"
                   }`}
                 >
-                  {task.synced ? "Sincronizado" : "Pendente"}
+                  {task.synced ? "✓ Sync" : task.sync_conflict ? "Conflito" : "Pendente"}
                 </span>
               </div>
             ))}
           </div>
         </section>
       )}
-
-      {/* Módulos disponíveis */}
-      <section className="flex flex-col gap-2">
-        <h2 className="text-sm font-semibold text-neutral-400 uppercase tracking-wide">
-          Novo Registro
-        </h2>
-        <div className="grid grid-cols-2 gap-3">
-          {modules.map((mod) => (
-            <button
-              key={mod.key}
-              onClick={() => router.push(mod.path)}
-              className="bg-neutral-800 hover:bg-neutral-700 active:scale-95 transition-all rounded-2xl p-5 flex flex-col gap-2 text-left"
-            >
-              <span className="text-3xl">{mod.icon}</span>
-              <span className="text-sm font-semibold">{mod.label}</span>
-            </button>
-          ))}
-        </div>
-      </section>
     </div>
   );
 }
@@ -122,7 +147,7 @@ function formatTaskType(type: string): string {
 }
 
 function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("pt-BR", {
+  return new Date(iso).toLocaleString("pt-BR", {
     day: "2-digit",
     month: "2-digit",
     hour: "2-digit",
