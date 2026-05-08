@@ -22,10 +22,9 @@ class AreaRuralService(BaseService[AreaRural]):
         apenas_ativos: bool = True,
     ) -> list[AreaRural]:
         stmt = (
-            select(AreaRural)
+            select(AreaRural, TipoSolo.nome.label("tipo_solo_nome"), TipoIrrigacao.nome.label("tipo_irrigacao_nome"))
             .outerjoin(TipoSolo, AreaRural.tipo_solo_id == TipoSolo.id)
             .outerjoin(TipoIrrigacao, AreaRural.tipo_irrigacao_id == TipoIrrigacao.id)
-            .add_columns(TipoSolo.nome.label("tipo_solo_nome"), TipoIrrigacao.nome.label("tipo_irrigacao_nome"))
             .where(AreaRural.tenant_id == self.tenant_id)
         )
         if apenas_ativos:
@@ -36,10 +35,10 @@ class AreaRuralService(BaseService[AreaRural]):
             stmt = stmt.where(AreaRural.tipo == tipo)
         if parent_id is not None:
             stmt = stmt.where(AreaRural.parent_id == parent_id)
-        
+
         result = await self.session.execute(stmt)
         rows = result.all()
-        
+
         areas = []
         for row in rows:
             area = row.AreaRural
@@ -51,10 +50,9 @@ class AreaRuralService(BaseService[AreaRural]):
     async def listar_raizes(self, unidade_produtiva_id: uuid.UUID | None = None) -> list[AreaRural]:
         """Retorna apenas áreas sem parent (raízes da hierarquia)."""
         stmt = (
-            select(AreaRural)
+            select(AreaRural, TipoSolo.nome.label("tipo_solo_nome"), TipoIrrigacao.nome.label("tipo_irrigacao_nome"))
             .outerjoin(TipoSolo, AreaRural.tipo_solo_id == TipoSolo.id)
             .outerjoin(TipoIrrigacao, AreaRural.tipo_irrigacao_id == TipoIrrigacao.id)
-            .add_columns(TipoSolo.nome.label("tipo_solo_nome"), TipoIrrigacao.nome.label("tipo_irrigacao_nome"))
             .where(AreaRural.tenant_id == self.tenant_id, AreaRural.parent_id == None, AreaRural.ativo == True)
         )
         if unidade_produtiva_id:
