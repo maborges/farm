@@ -61,7 +61,7 @@ export default function HomePage() {
           (t) =>
             !!t.data_programada &&
             t.data_programada < hoje &&
-            (t.status_execucao === "PENDENTE" || t.status_execucao === "EM_EXECUCAO")
+            t.status_execucao === "PENDENTE"
         )
         .toArray(),
     [hoje]

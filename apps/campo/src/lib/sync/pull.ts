@@ -91,7 +91,7 @@ export async function pullSync(): Promise<void> {
       for (const id of tombstones.tarefas) {
         const task = await db.tasks.get(id) ?? await db.tasks.where("server_id").equals(id).first();
         if (task) {
-          await db.tasks.update(task.id, { status: "CANCELADA" });
+          await db.tasks.update(task.id, { status_execucao: "CANCELADA" });
         }
       }
     }
