@@ -77,6 +77,9 @@ from core.cadastros.pessoas.models import (
 from core.cadastros.propriedades.models import AreaRural, MatriculaImovel, RegistroAmbiental, TipoSolo, TipoIrrigacao
 from core.cadastros.propriedades.propriedade_models import Propriedade, ExploracaoRural, DocumentoExploracao
 
+# Campo PWA
+from campo.models import DispositivoCampo, TarefaCampo, SyncTombstone
+
 # Equipamentos
 from core.cadastros.equipamentos.models import Equipamento
 from operacional.models.apontamento import ApontamentoUso

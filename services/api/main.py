@@ -504,6 +504,11 @@ from automacoes.router import router as router_automacoes
 app.include_router(router_automacoes, prefix="/api/v1")
 app.include_router(frota_router.router, prefix="/api/v1")
 
+# Campo PWA
+from campo.router import router as campo_router, sync_router as campo_sync_router
+app.include_router(campo_router, prefix="/api/v1")
+app.include_router(campo_sync_router, prefix="/api/v1")
+
 # --- EXCEPTION HANDLERS GLOBAIS ---
 @app.exception_handler(EntityNotFoundError)
 async def not_found_handler(request: Request, exc: EntityNotFoundError):
