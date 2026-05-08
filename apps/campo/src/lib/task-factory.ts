@@ -1,4 +1,4 @@
-import { db, newLocalId, isoNow, type LocalTask, type TaskType, type TaskModule } from "./db";
+import { db, newLocalId, isoNow, type LocalTask, type TaskType, type TaskModule, type TaskStatusExecucao } from "./db";
 import { enqueueSync } from "./sync/push";
 import { useSessionStore } from "./stores/session-store";
 
@@ -35,6 +35,9 @@ export async function createTask(payload: TaskPayload): Promise<string> {
     lote_id: payload.lote_id,
     operador_id: session.user_id,
     status: "PENDENTE",
+    origem: "MANUAL",
+    status_execucao: "CONCLUIDA",
+    prioridade: "NORMAL",
     dados: payload.dados,
     fotos: payload.fotos ?? [],
     localizacao_status,
@@ -65,4 +68,56 @@ export async function createTask(payload: TaskPayload): Promise<string> {
   });
 
   return id;
+}
+
+export interface ExecucaoPayload {
+  status_execucao: TaskStatusExecucao;
+  obs?: string;
+  fotos?: string[];
+  latitude?: number;
+  longitude?: number;
+  localizacao_status?: "DISPONIVEL" | "INDISPONIVEL";
+}
+
+// Enfileira execução de tarefa programada para sync posterior
+export async function executarTarefa(taskId: string, payload: ExecucaoPayload): Promise<void> {
+  const now = isoNow();
+  const task = await db.tasks.get(taskId);
+  if (!task) throw new Error("Tarefa não encontrada");
+
+  const changes: Partial<LocalTask> = {
+    status_execucao: payload.status_execucao,
+    updated_at: now,
+    synced: false,
+  };
+
+  if (payload.status_execucao === "EM_EXECUCAO" && !task.iniciada_em) {
+    changes.iniciada_em = now;
+  }
+  if (payload.status_execucao === "CONCLUIDA") {
+    changes.concluida_em = now;
+    if (payload.fotos?.length) {
+      changes.fotos = [...(task.fotos ?? []), ...payload.fotos];
+    }
+    if (payload.obs) {
+      changes.dados = { ...task.dados, obs_execucao: payload.obs };
+    }
+    if (payload.localizacao_status) {
+      changes.localizacao_status = payload.localizacao_status;
+      changes.latitude = payload.latitude;
+      changes.longitude = payload.longitude;
+    }
+  }
+
+  await db.tasks.update(taskId, changes);
+
+  await enqueueSync("UPDATE", "task", taskId, {
+    status_execucao: payload.status_execucao,
+    obs: payload.obs,
+    fotos: payload.fotos ?? [],
+    localizacao_status: payload.localizacao_status ?? "INDISPONIVEL",
+    latitude: payload.latitude,
+    longitude: payload.longitude,
+    updated_at: now,
+  }, task.server_id);
 }

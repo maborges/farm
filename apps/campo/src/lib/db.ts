@@ -27,6 +27,9 @@ export type TaskType =
 export type TaskModule = "agricola" | "pecuaria";
 
 export type TaskStatus = "PENDENTE" | "EM_ANDAMENTO" | "CONCLUIDA" | "CANCELADA";
+export type TaskOrigem = "MANUAL" | "PROGRAMADA";
+export type TaskStatusExecucao = "PENDENTE" | "EM_EXECUCAO" | "CONCLUIDA" | "CANCELADA";
+export type TaskPrioridade = "BAIXA" | "NORMAL" | "ALTA" | "URGENTE";
 
 export type SyncQueueStatus = "PENDING" | "IN_FLIGHT" | "DONE" | "FAILED";
 
@@ -50,20 +53,28 @@ export interface LocalSession {
 }
 
 export interface LocalTask {
-  id: string;                       // UUID gerado localmente (crypto.randomUUID)
+  id: string;                       // UUID gerado localmente (MANUAL) ou server_id (PROGRAMADA)
   server_id?: string;               // UUID do servidor após sync confirmado
-  type: TaskType;
+  type: TaskType | string;
   module: TaskModule;
   fazenda_id: string;
   talhao_id?: string;
   lote_id?: string;
-  operador_id: string;
+  operador_id?: string;
   status: TaskStatus;
+  // Campos de tarefas programadas
+  origem: TaskOrigem;
+  status_execucao: TaskStatusExecucao;
+  titulo?: string;
+  data_programada?: string;         // ISO date YYYY-MM-DD
+  prioridade: TaskPrioridade;
   dados: Record<string, unknown>;
   fotos: string[];                  // base64 comprimido (máx 2 por tarefa)
   localizacao_status: LocalizacaoStatus;
   latitude?: number;
   longitude?: number;
+  iniciada_em?: string;             // ISO
+  concluida_em?: string;            // ISO
   created_at: string;               // ISO
   updated_at: string;               // ISO
   synced: boolean;
@@ -139,6 +150,22 @@ export class CampoDatabase extends Dexie {
       lotes: "id, fazenda_id",
       insumos: "id, categoria",
     });
+    this.version(2).stores({
+      session: "id",
+      tasks:
+        "id, server_id, type, module, fazenda_id, talhao_id, lote_id, status, origem, status_execucao, data_programada, synced, created_at",
+      sync_queue: "id, entity_id, entity_type, status, created_at",
+      fazendas: "id",
+      talhoes: "id, fazenda_id",
+      lotes: "id, fazenda_id",
+      insumos: "id, categoria",
+    }).upgrade((tx) =>
+      tx.table("tasks").toCollection().modify((t) => {
+        if (!t.origem) t.origem = "MANUAL";
+        if (!t.status_execucao) t.status_execucao = "CONCLUIDA";
+        if (!t.prioridade) t.prioridade = "NORMAL";
+      })
+    );
   }
 }
 

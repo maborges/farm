@@ -21,24 +21,78 @@ const ACTIVITIES: Activity[] = [
   { key: "vacinacao", label: "Vacinação", icon: "💉", path: "/campo/vacinacao", module: "pecuaria" },
 ];
 
+const PRIORIDADE_COLOR: Record<string, string> = {
+  URGENTE: "bg-red-900 text-red-300 border-red-700",
+  ALTA: "bg-orange-900 text-orange-300 border-orange-700",
+  NORMAL: "bg-neutral-700 text-neutral-300 border-neutral-600",
+  BAIXA: "bg-neutral-800 text-neutral-500 border-neutral-700",
+};
+
+const PRIORIDADE_LABEL: Record<string, string> = {
+  URGENTE: "Urgente",
+  ALTA: "Alta",
+  NORMAL: "Normal",
+  BAIXA: "Baixa",
+};
+
 export default function HomePage() {
   const router = useRouter();
-  const { session, logout } = useSessionStore();
+  const { session } = useSessionStore();
   const { pendingCount, isOnline } = useSyncStore();
 
-  const recentTasks = useLiveQuery(
-    () => db.tasks.orderBy("created_at").reverse().limit(5).toArray(),
+  const hoje = new Date().toISOString().slice(0, 10);
+
+  const tarefasHoje = useLiveQuery(
+    () =>
+      db.tasks
+        .where("origem")
+        .equals("PROGRAMADA")
+        .filter((t) => t.data_programada === hoje && t.status_execucao === "PENDENTE")
+        .toArray(),
+    [hoje]
+  );
+
+  const tarefasAtrasadas = useLiveQuery(
+    () =>
+      db.tasks
+        .where("origem")
+        .equals("PROGRAMADA")
+        .filter(
+          (t) =>
+            !!t.data_programada &&
+            t.data_programada < hoje &&
+            (t.status_execucao === "PENDENTE" || t.status_execucao === "EM_EXECUCAO")
+        )
+        .toArray(),
+    [hoje]
+  );
+
+  const tarefasEmExecucao = useLiveQuery(
+    () =>
+      db.tasks
+        .where("status_execucao")
+        .equals("EM_EXECUCAO")
+        .toArray(),
     []
   );
 
-  const pendingTasks = useLiveQuery(
-    () => db.tasks.where("synced").equals(0).count(),
+  const recentTasks = useLiveQuery(
+    () =>
+      db.tasks
+        .filter((t) => t.origem === "MANUAL")
+        .reverse()
+        .limit(5)
+        .toArray(),
     []
   );
 
   const availableActivities = ACTIVITIES.filter(
     (a) => session?.modules?.includes(a.module)
   );
+
+  const emExecucaoCount = (tarefasEmExecucao?.length ?? 0);
+  const hojeCount = (tarefasHoje?.length ?? 0);
+  const atrasadasCount = (tarefasAtrasadas?.length ?? 0);
 
   return (
     <div className="flex flex-col gap-6 p-4 pb-10">
@@ -62,23 +116,59 @@ export default function HomePage() {
         </button>
       </div>
 
-      {/* Destaque: não sincronizados */}
-      {(pendingTasks ?? 0) > 0 && (
-        <button
-          onClick={() => router.push("/sync")}
-          className="bg-amber-950 border border-amber-800/60 rounded-2xl p-4 text-left flex items-center justify-between"
-        >
-          <div>
-            <p className="text-sm font-semibold text-amber-300">
-              {pendingTasks} registro{pendingTasks! > 1 ? "s" : ""} aguardando sync
-            </p>
-            <p className="text-xs text-amber-500 mt-0.5">Toque para ver detalhes</p>
+      {/* Em execução — destaque máximo */}
+      {emExecucaoCount > 0 && (
+        <section className="flex flex-col gap-2">
+          <h2 className="text-sm font-semibold text-blue-400 uppercase tracking-wide flex items-center gap-2">
+            ▶ Em Execução
+            <span className="bg-blue-900 text-blue-300 rounded-full px-2 py-0.5 text-xs">{emExecucaoCount}</span>
+          </h2>
+          <div className="flex flex-col gap-2">
+            {tarefasEmExecucao?.map((t) => (
+              <TarefaCard key={t.id} task={t} onClick={() => router.push(`/campo/tarefa/${t.id}`)} highlight />
+            ))}
           </div>
-          <span className="text-amber-400 text-lg">→</span>
-        </button>
+        </section>
       )}
 
-      {/* Atividades disponíveis */}
+      {/* Tarefas atrasadas */}
+      {atrasadasCount > 0 && (
+        <section className="flex flex-col gap-2">
+          <h2 className="text-sm font-semibold text-red-400 uppercase tracking-wide flex items-center gap-2">
+            ⚠ Atrasadas
+            <span className="bg-red-900 text-red-300 rounded-full px-2 py-0.5 text-xs">{atrasadasCount}</span>
+          </h2>
+          <div className="flex flex-col gap-2">
+            {tarefasAtrasadas?.map((t) => (
+              <TarefaCard key={t.id} task={t} onClick={() => router.push(`/campo/tarefa/${t.id}`)} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Tarefas de hoje */}
+      {hojeCount > 0 && (
+        <section className="flex flex-col gap-2">
+          <h2 className="text-sm font-semibold text-green-400 uppercase tracking-wide flex items-center gap-2">
+            📅 Para Hoje
+            <span className="bg-green-900 text-green-300 rounded-full px-2 py-0.5 text-xs">{hojeCount}</span>
+          </h2>
+          <div className="flex flex-col gap-2">
+            {tarefasHoje?.map((t) => (
+              <TarefaCard key={t.id} task={t} onClick={() => router.push(`/campo/tarefa/${t.id}`)} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Sem tarefas programadas */}
+      {hojeCount === 0 && atrasadasCount === 0 && emExecucaoCount === 0 && (
+        <div className="bg-neutral-800 rounded-2xl p-5 text-center text-neutral-500 text-sm">
+          Nenhuma tarefa programada para hoje
+        </div>
+      )}
+
+      {/* Nova Atividade Manual */}
       <section className="flex flex-col gap-3">
         <h2 className="text-sm font-semibold text-neutral-400 uppercase tracking-wide">
           Nova Atividade
@@ -97,11 +187,11 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* Registros recentes */}
+      {/* Registros offline recentes */}
       {recentTasks && recentTasks.length > 0 && (
         <section className="flex flex-col gap-2">
           <h2 className="text-sm font-semibold text-neutral-400 uppercase tracking-wide">
-            Últimos Registros
+            Registros Offline
           </h2>
           <div className="flex flex-col gap-2">
             {recentTasks.map((task) => (
@@ -130,6 +220,45 @@ export default function HomePage() {
         </section>
       )}
     </div>
+  );
+}
+
+function TarefaCard({
+  task,
+  onClick,
+  highlight,
+}: {
+  task: { id: string; titulo?: string; type: string; data_programada?: string; prioridade: string; talhao_id?: string; lote_id?: string; operador_id?: string };
+  onClick: () => void;
+  highlight?: boolean;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`w-full rounded-2xl p-4 text-left flex items-start justify-between gap-3 border ${
+        highlight
+          ? "bg-blue-950/60 border-blue-800/50"
+          : "bg-neutral-800 border-neutral-700"
+      }`}
+    >
+      <div className="flex flex-col gap-1 flex-1 min-w-0">
+        <p className="text-sm font-semibold truncate">
+          {task.titulo ?? formatTaskType(task.type)}
+        </p>
+        {task.data_programada && (
+          <p className="text-xs text-neutral-500">
+            {new Date(task.data_programada + "T00:00:00").toLocaleDateString("pt-BR")}
+          </p>
+        )}
+      </div>
+      <span
+        className={`shrink-0 text-xs rounded-full px-2 py-0.5 border ${
+          PRIORIDADE_COLOR[task.prioridade] ?? PRIORIDADE_COLOR.NORMAL
+        }`}
+      >
+        {PRIORIDADE_LABEL[task.prioridade] ?? task.prioridade}
+      </span>
+    </button>
   );
 }
 

@@ -49,6 +49,35 @@ export async function pullSync(): Promise<void> {
       await db.insumos.bulkPut(data.insumos);
     }
 
+    // Tarefas programadas recebidas do servidor
+    if (data.tarefas_pendentes?.length) {
+      const now = new Date().toISOString();
+      await db.tasks.bulkPut(
+        data.tarefas_pendentes.map((t: any) => ({
+          id: t.client_id ?? String(t.id),
+          server_id: String(t.id),
+          type: t.type,
+          module: t.module,
+          fazenda_id: t.unidade_produtiva_id ?? "",
+          talhao_id: t.area_rural_id ?? undefined,
+          lote_id: t.lote_id ?? undefined,
+          operador_id: t.operador_id ?? undefined,
+          status: t.status ?? "PENDENTE",
+          origem: t.origem ?? "MANUAL",
+          status_execucao: t.status_execucao ?? "PENDENTE",
+          titulo: t.titulo ?? undefined,
+          data_programada: t.data_programada ?? undefined,
+          prioridade: t.prioridade ?? "NORMAL",
+          dados: t.dados ?? {},
+          fotos: [],
+          localizacao_status: "INDISPONIVEL",
+          created_at: t.client_created_at ?? now,
+          updated_at: t.client_updated_at ?? now,
+          synced: true,
+        }))
+      );
+    }
+
     // Tombstones — remove entidades deletadas no servidor
     const tombstones = data.tombstones ?? {};
     if (tombstones.talhoes?.length) {
