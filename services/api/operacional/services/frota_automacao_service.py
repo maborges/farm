@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.services.base import BaseService
+from core.base_service import BaseService
 from operacional.models.frota import FrotaRegraInteligente, FrotaLogAutomacao, OrdemServico
 from operacional.schemas.frota_automacao import FrotaRegraInteligenteCreate, FrotaRegraInteligenteUpdate
 from operacional.services.frota_service import FrotaService

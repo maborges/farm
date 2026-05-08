@@ -9,8 +9,7 @@ from loguru import logger
 from sqlalchemy import select, and_
 
 from core.config import settings
-from core.database import get_session
-from core.dependencies import get_tenant_id, get_user_id
+from core.dependencies import get_session, get_tenant_id, get_user_id
 from core.exceptions import EntityNotFoundError, BusinessRuleError, TenantViolationError
 
 from campo.models import DispositivoCampo

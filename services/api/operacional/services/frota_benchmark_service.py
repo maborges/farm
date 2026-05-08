@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from sqlalchemy import select, func, case
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.services.base import BaseService
+from core.base_service import BaseService
 from operacional.models.frota import FrotaLogAutomacao, FrotaEquipamentoCusto
 from operacional.services.frota_custo_service import FrotaCustoService
 

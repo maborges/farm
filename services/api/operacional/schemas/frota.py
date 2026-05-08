@@ -11,6 +11,7 @@ TipoMaquinario = Literal[
     "IMPLEMENTO", "PULVERIZADOR", "IRRIGACAO", "OUTROS", "OUTRO", "CAMINHAO", "PICKUP"
 ]
 StatusMaquinario = Literal["ATIVO", "MANUTENCAO", "EM_MANUTENCAO", "INATIVO", "PARADO"]
+TipoCombustivel = Literal["DIESEL", "GASOLINA", "ETANOL", "FLEX", "ELETRICO", "GNV", "OUTRO"]
 
 class MaquinarioBase(BaseModel):
     nome: str = Field(..., min_length=2, max_length=100)
