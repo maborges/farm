@@ -31,7 +31,7 @@ export function useGps(autoCapture = true): GpsResult & { capture: () => void } 
       () => {
         setResult({ latitude: null, longitude: null, status: "INDISPONIVEL" });
       },
-      { timeout: 8000, maximumAge: 30000, enableHighAccuracy: true }
+      { timeout: 15000, maximumAge: 0, enableHighAccuracy: true }
     );
   };
 

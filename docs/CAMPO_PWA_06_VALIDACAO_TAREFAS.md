@@ -115,7 +115,7 @@
 
 ---
 
-## Conclusão
+## Conclusão — Revisão Estática
 
 - [x] Grupo 1 (Criação backoffice): **APROVADO**
 - [x] Grupo 2 (Recebimento PWA): **APROVADO**
@@ -130,3 +130,60 @@
 
 **Método:** Revisão estática de código  
 **Data:** 2026-05-08
+
+---
+
+## GRUPO 7 — Validação em Dispositivo Android Real
+
+> **Instruções ao testador:**  
+> 1. Prepare o backend com o script: `python scripts/campo_seed_validacao.py --base-url http://<IP_LOCAL>:8000/api/v1 --token <JWT> --fazenda-id <UUID>`  
+> 2. Abra o PWA no Chrome Android: `http://<IP_LOCAL>:3002`  
+> 3. Instale o PWA ("Adicionar à tela inicial") antes dos testes D3 e D4  
+> 4. Preencha a tabela abaixo com os resultados reais  
+
+### Informações do Dispositivo
+
+| Campo | Valor |
+|---|---|
+| Dispositivo | _(ex: Samsung Galaxy A54)_ |
+| Versão Android | _(ex: Android 14)_ |
+| Versão Chrome | _(ex: Chrome 124.0)_ |
+| Rede | _(ex: Wi-Fi 5GHz / 4G LTE)_ |
+| Data do teste | __________________ |
+| Testador | __________________ |
+
+---
+
+### Cenários D1–D5
+
+| # | Cenário | Procedimento | Resultado | Observações |
+|---|---|---|---|---|
+| D1 | GPS capturado em até 15s no campo | Abrir tarefa → aguardar badge GPS ficar verde → cronometrar | ⬜ APROVADO / ⬜ REPROVADO / ⬜ PARCIAL | Tempo observado: ____s |
+| D2 | Câmera abre corretamente no Android Chrome | Abrir tarefa → tocar "Adicionar Foto" → verificar câmera traseira abre | ⬜ APROVADO / ⬜ REPROVADO / ⬜ PARCIAL | Fabricante pode precisar de permissão manual |
+| D3 | PWA instalável (manifest + service worker) | Chrome menu → "Adicionar à tela inicial" → confirmar ícone aparece | ⬜ APROVADO / ⬜ REPROVADO / ⬜ PARCIAL | Chrome deve exibir banner de instalação |
+| D4 | Sync automático ao reconectar no 4G | (a) Desligar Wi-Fi+dados → executar tarefa offline → (b) religar dados → aguardar sync automático | ⬜ APROVADO / ⬜ REPROVADO / ⬜ PARCIAL | Evento `online` pode demorar 5–10s em 4G |
+| D5 | Dexie v2 upgrade não trava em primeira abertura | Limpar dados do site → abrir PWA → verificar home carrega sem tela branca | ⬜ APROVADO / ⬜ REPROVADO / ⬜ PARCIAL | Checar Console DevTools por erros de upgrade |
+
+---
+
+### Falhas Encontradas
+
+| # | Severidade | Descrição | Reprodução | Status |
+|---|---|---|---|---|
+| — | — | _(preencher se houver)_ | — | — |
+
+---
+
+### Conclusão Final (Android)
+
+- [ ] D1 GPS: ________________
+- [ ] D2 Câmera: ________________
+- [ ] D3 PWA instalável: ________________
+- [ ] D4 Sync 4G: ________________
+- [ ] D5 Dexie upgrade: ________________
+
+**Resultado Android:** ⬜ APROVADO  ⬜ APROVADO COM RESSALVAS  ⬜ REPROVADO
+
+**Release autorizado para produção:** ⬜ SIM  ⬜ NÃO — aguardar correção de: ________________
+
+**Assinatura do testador:** ________________  **Data:** __________________
