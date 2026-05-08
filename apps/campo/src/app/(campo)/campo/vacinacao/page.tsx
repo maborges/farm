@@ -12,6 +12,7 @@ import { TaskHeader } from "@/components/campo/task-header";
 import { FieldSelect } from "@/components/campo/field-select";
 import { NumPad } from "@/components/campo/num-pad";
 import { CameraCapture } from "@/components/campo/camera-capture";
+import { GpsWarning } from "@/components/campo/gps-warning";
 
 type Step = "lote" | "vacina" | "confirmar";
 
@@ -139,6 +140,7 @@ export default function VacinacaoPage() {
 
       {step === "confirmar" && (
         <div className="flex flex-col gap-5 flex-1">
+          <GpsWarning status={gps.status} onRetry={gps.capture} />
           <div className="bg-neutral-800 rounded-2xl p-4 flex flex-col gap-2 text-sm">
             <SummaryRow label="Lote" value={loteAtual?.identificacao ?? "—"} />
             <SummaryRow label="Animais" value={String(loteAtual?.quantidade_cabecas ?? "—")} />

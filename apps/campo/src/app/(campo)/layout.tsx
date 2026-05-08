@@ -5,7 +5,9 @@ import { useRouter } from "next/navigation";
 import { useSessionStore } from "@/lib/stores/session-store";
 import { useSyncStore } from "@/lib/stores/sync-store";
 import { initSyncListeners } from "@/lib/sync/worker";
-import { SyncStatusBar } from "@/components/sync-status-bar";
+import { OfflineBanner } from "@/components/offline-banner";
+import { ErrorBoundary } from "@/components/error-boundary";
+import { recoverInFlight } from "@/lib/sync/worker";
 
 export default function CampoLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -25,6 +27,7 @@ export default function CampoLayout({ children }: { children: React.ReactNode })
 
   useEffect(() => {
     if (!isAuthenticated) return;
+    recoverInFlight();
     const cleanup = initSyncListeners();
     setOnline(navigator.onLine);
     return cleanup;
@@ -33,9 +36,11 @@ export default function CampoLayout({ children }: { children: React.ReactNode })
   if (!isAuthenticated) return null;
 
   return (
-    <div className="flex flex-col min-h-dvh">
-      <SyncStatusBar />
-      <main className="flex-1">{children}</main>
-    </div>
+    <ErrorBoundary>
+      <div className="flex flex-col min-h-dvh">
+        <OfflineBanner />
+        <main className="flex-1">{children}</main>
+      </div>
+    </ErrorBoundary>
   );
 }

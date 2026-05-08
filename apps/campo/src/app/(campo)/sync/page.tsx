@@ -6,6 +6,22 @@ import { db } from "@/lib/db";
 import { useSyncStore } from "@/lib/stores/sync-store";
 import { useSessionStore } from "@/lib/stores/session-store";
 import { runSync } from "@/lib/sync/worker";
+import { logger } from "@/lib/logger";
+
+async function retryItem(id: string) {
+  await db.sync_queue.update(id, { status: "PENDING", attempts: 0, last_error: undefined });
+  runSync();
+}
+
+function exportLogs() {
+  const blob = new Blob([logger.exportJson()], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `campo-logs-${Date.now()}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 export default function SyncPage() {
   const router = useRouter();
@@ -105,12 +121,22 @@ export default function SyncPage() {
           </h2>
           <div className="flex flex-col gap-2">
             {failedItems.map((item) => (
-              <div key={item.id} className="bg-neutral-800 rounded-2xl p-4">
-                <p className="text-sm font-medium">{item.entity_type} — {item.operation}</p>
-                <p className="text-xs text-red-400 mt-1">{item.last_error}</p>
-                <p className="text-xs text-neutral-600 mt-0.5">
-                  {item.attempts} tentativas • {new Date(item.created_at).toLocaleString("pt-BR")}
-                </p>
+              <div key={item.id} className="bg-neutral-800 rounded-2xl p-4 flex flex-col gap-2">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-medium">{item.entity_type} — {item.operation}</p>
+                    <p className="text-xs text-red-400 mt-1">{item.last_error}</p>
+                    <p className="text-xs text-neutral-600 mt-0.5">
+                      {item.attempts} tentativas • {new Date(item.created_at).toLocaleString("pt-BR")}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => retryItem(item.id)}
+                    className="shrink-0 text-xs text-green-400 underline"
+                  >
+                    Tentar novamente
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -143,6 +169,14 @@ export default function SyncPage() {
         <InfoRow label="Usuário" value={session?.user_name ?? "—"} />
         <InfoRow label="Módulos" value={session?.modules?.join(", ") ?? "—"} />
       </section>
+
+      {/* Diagnósticos */}
+      <button
+        onClick={exportLogs}
+        className="w-full border border-neutral-700 rounded-2xl py-3 text-sm text-neutral-400"
+      >
+        Exportar logs de diagnóstico
+      </button>
     </div>
   );
 }

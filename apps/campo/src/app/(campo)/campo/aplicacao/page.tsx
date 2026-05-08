@@ -12,6 +12,7 @@ import { TaskHeader } from "@/components/campo/task-header";
 import { FieldSelect } from "@/components/campo/field-select";
 import { NumPad } from "@/components/campo/num-pad";
 import { CameraCapture } from "@/components/campo/camera-capture";
+import { GpsWarning } from "@/components/campo/gps-warning";
 
 type Step = "local" | "produto" | "quantidade" | "confirmar";
 
@@ -114,6 +115,7 @@ export default function AplicacaoPage() {
 
       {step === "confirmar" && (
         <div className="flex flex-col gap-5 flex-1">
+          <GpsWarning status={gps.status} onRetry={gps.capture} />
           {/* Resumo */}
           <div className="bg-neutral-800 rounded-2xl p-4 flex flex-col gap-2 text-sm">
             <SummaryRow label="Talhão" value={talhoes?.find((t) => t.id === talhaoId)?.nome ?? "—"} />
