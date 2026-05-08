@@ -79,8 +79,9 @@ export default function HomePage() {
   const recentTasks = useLiveQuery(
     () =>
       db.tasks
-        .filter((t) => t.origem === "MANUAL")
+        .orderBy("created_at")
         .reverse()
+        .filter((t) => t.origem === "MANUAL")
         .limit(5)
         .toArray(),
     []
