@@ -22,7 +22,7 @@ def upgrade() -> None:
         "campo_dispositivos",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
         sa.Column("tenant_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False),
-        sa.Column("user_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+        sa.Column("user_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("usuarios.id", ondelete="CASCADE"), nullable=False),
         sa.Column("nome", sa.String(100), nullable=False),
         sa.Column("device_fingerprint", sa.String(256), nullable=True, unique=True),
         sa.Column("activation_code", sa.String(8), nullable=True),
