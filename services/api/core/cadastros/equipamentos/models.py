@@ -102,6 +102,10 @@ class Equipamento(Base):
     dados_extras: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     status: Mapped[str] = mapped_column(String(20), default="ATIVO", nullable=False)
+    bloqueado_operacional: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    motivo_bloqueio_operacional: Mapped[str | None] = mapped_column(Text, nullable=True)
+    bloqueado_operacional_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    liberado_operacional_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     observacoes: Mapped[str | None] = mapped_column(Text, nullable=True)
     ativo: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 

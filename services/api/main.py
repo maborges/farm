@@ -1,7 +1,9 @@
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from core.observability import ObservabilityMiddleware, check_db_health
 from pathlib import Path
 from loguru import logger
 import sys
@@ -67,12 +69,15 @@ from core.cadastros.produtos.router import router as router_produtos
 # Imóveis Rurais
 from imoveis.routers.imovel import router as router_imoveis
 
+# Growth — Landing Tracking (público, sem autenticação)
+from growth import router as growth_router
+
 
 # -- Configuração Loguru Estruturado p/ Grafana/Loki Compatível
 logger.configure(handlers=[{
     "sink": sys.stdout,
-    "format": "{time:YYYY-MM-DDThh:mm:ssZ} | {level} | {name}:{function}:{line} | {message}",
-    "serialize": False,  # No config final pode ser True para export JSON real
+    "format": "{time:YYYY-MM-DDThh:mm:ssZ} | {level} | {name}:{function}:{line} | {message} | {extra}",
+    "serialize": True,  # Habilitado para JSON estruturado em produção
 }])
 
 import asyncio
@@ -248,6 +253,8 @@ class TenantRLSMiddleware(BaseHTTPMiddleware):
 app.add_middleware(TenantRLSMiddleware)
 # SessionHeartbeatMiddleware SEGUNDO
 app.add_middleware(SessionHeartbeatMiddleware)
+# ObservabilityMiddleware TERCEIRO (Monitora tempo e erros)
+app.add_middleware(ObservabilityMiddleware)
 
 # CORS ÚLTIMO (será executado PRIMEIRO em tempo de execução)
 app.add_middleware(
@@ -298,6 +305,7 @@ app.include_router(knowledge_base.router, prefix="/api/v1")
 app.include_router(reports.router, prefix="/api/v1")
 app.include_router(configuration.router, prefix="/api/v1")
 app.include_router(frota.router, prefix="/api/v1")
+app.include_router(growth_router.router, prefix="/api/v1")
 app.include_router(estoque.router, prefix="/api/v1")
 app.include_router(oficina.router, prefix="/api/v1")
 app.include_router(operacional_relatorios.router, prefix="/api/v1")
@@ -541,24 +549,72 @@ async def module_not_contracted_handler(request: Request, exc: ModuleNotContract
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     import traceback
+    request_id = request.headers.get("X-Request-ID", "unknown")
     error_msg = f"Unhandled Exception: {type(exc).__name__}: {str(exc)}\n{traceback.format_exc()}"
-    logger.error(error_msg)
+    
+    # Log estruturado com request_id
+    logger.bind(request_id=request_id).error(error_msg)
+    
     # Log to a temporary file in the workspace
     with open("error_debug.log", "a") as f:
-        f.write(f"\n--- {datetime.now()} ---\n{error_msg}\n")
+        f.write(f"\n--- {datetime.now()} [ReqID: {request_id}] ---\n{error_msg}\n")
+        
     return JSONResponse(
         status_code=500,
-        content={"detail": "Internal Server Error", "error": str(exc)},
-        headers={"Access-Control-Allow-Origin": "*"} # Force CORS for error
+        content={
+            "detail": "Internal Server Error",
+            "error": str(exc),
+            "request_id": request_id
+        },
+        headers={"Access-Control-Allow-Origin": "*", "X-Request-ID": request_id}
+    )
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    request_id = request.headers.get("X-Request-ID", "unknown")
+    logger.bind(request_id=request_id).warning(f"Validation Error: {exc.errors()}")
+    return JSONResponse(
+        status_code=422,
+        content={
+            "detail": exc.errors(),
+            "request_id": request_id
+        },
+        headers={"X-Request-ID": request_id}
     )
 
 @app.exception_handler(BusinessRuleError)
 async def business_rule_handler(request: Request, exc: BusinessRuleError):
-    return JSONResponse(status_code=422, content={"detail": str(exc)})
+    request_id = request.headers.get("X-Request-ID", "unknown")
+    logger.bind(request_id=request_id).warning(f"Business Rule Error: {str(exc)}")
+    return JSONResponse(
+        status_code=400, 
+        content={
+            "detail": str(exc),
+            "request_id": request_id
+        },
+        headers={"X-Request-ID": request_id}
+    )
 
 @app.get("/health")
-async def health_check():
-    return {"status": "ok", "message": "AgroSaaS is running!"}
+@app.get("/health/ready")
+async def health_ready():
+    """Readiness probe: verifica se o app e dependências (DB) estão prontos."""
+    db_status = await check_db_health()
+    if not db_status:
+        return JSONResponse(
+            status_code=503,
+            content={"status": "degraded", "database": "disconnected"}
+        )
+    return {
+        "status": "ok",
+        "database": "connected",
+        "version": "1.0.0-frota-ready"
+    }
+
+@app.get("/health/live")
+async def health_live():
+    """Liveness probe: verifica se o processo do app está rodando."""
+    return {"status": "alive", "timestamp": datetime.now(timezone.utc).isoformat()}
 
 if __name__ == "__main__":
     import uvicorn

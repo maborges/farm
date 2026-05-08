@@ -7,6 +7,8 @@ from jose import jwt
 from typing import Optional
 import uuid
 import secrets
+import re
+import unicodedata
 from loguru import logger
 
 from core.models.auth import Usuario, TenantUsuario, PerfilAcesso, UnidadeProdutivaUsuario as FazendaUsuario, TokenRecuperacaoSenha
@@ -23,6 +25,12 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def hash_password(password: str) -> str:
     return pwd_context.hash(password)
+
+
+def _slugify_tenant_name(value: str) -> str:
+    normalized = unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode("ascii")
+    slug = re.sub(r"[^a-z0-9]+", "-", normalized.lower()).strip("-")
+    return slug or "tenant"
 
 class AuthService:
     def __init__(self, session: AsyncSession):
@@ -314,7 +322,7 @@ class AuthService:
             perfil = (await self.session.execute(
                 select(PerfilAcesso).where(PerfilAcesso.id == first_tu.perfil_id)
             )).scalar_one_or_none()
-        role_name = perfil.nome.lower() if perfil else "operador"
+        role_name = "owner" if first_tu.is_owner else (perfil.nome.lower() if perfil else "operador")
 
         modulos: list[str] = ["CORE"]
         fazendas_auth: list[dict] = []
@@ -362,6 +370,7 @@ class AuthService:
         claims = {
             "sub": str(user_id),
             "tenant_id": str(tenant_id),
+            "role": role_name,
             "modules": modulos,
             "fazendas_auth": fazendas_auth,
             "tenant_contexts": tenant_contexts,
@@ -499,9 +508,17 @@ class AuthService:
             raise HTTPException(status_code=400, detail="CPF ou CNPJ inválido")
 
         agora = datetime.now(timezone.utc)
+        slug_base = _slugify_tenant_name(nome)
+        slug = slug_base
+        suffix = 2
+        while (
+            await self.session.execute(select(Tenant.id).where(Tenant.slug == slug))
+        ).scalar_one_or_none():
+            slug = f"{slug_base}-{suffix}"
+            suffix += 1
 
         # 1. Criar Tenant
-        tenant = Tenant(nome=nome, documento=documento_tenant, slug="", ativo=True)
+        tenant = Tenant(nome=nome, documento=documento_tenant, slug=slug, ativo=True)
         self.session.add(tenant)
         await self.session.flush()  # gera tenant.id
 

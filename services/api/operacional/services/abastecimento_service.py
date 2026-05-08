@@ -7,6 +7,7 @@ from core.base_service import BaseService
 from core.exceptions import BusinessRuleError, EntityNotFoundError
 from core.cadastros.equipamentos.models import Equipamento as Maquinario
 from operacional.models.abastecimento import Abastecimento, LocalAbastecimento
+from operacional.models.frota import JornadaEquipamento
 from operacional.schemas.abastecimento import AbastecimentoCreate, AbastecimentoUpdate
 from operacional.services.estoque_service import EstoqueService
 
@@ -25,9 +26,24 @@ class AbastecimentoService(BaseService[Abastecimento]):
 
         custo_total = round(dados.litros * dados.preco_litro, 2)
         
+        # 1.5 Herança de Contexto (Jornada Ativa)
+        stmt_jornada = (
+            select(JornadaEquipamento.safra_id, JornadaEquipamento.talhao_id)
+            .where(
+                JornadaEquipamento.tenant_id == self.tenant_id,
+                JornadaEquipamento.equipamento_id == dados.equipamento_id,
+                JornadaEquipamento.status == "ABERTA"
+            )
+            .order_by(JornadaEquipamento.data_inicio.desc())
+            .limit(1)
+        )
+        jornada_ctx = (await self.session.execute(stmt_jornada)).first()
+
         ab = Abastecimento(
             tenant_id=self.tenant_id,
             custo_total=custo_total,
+            safra_id=jornada_ctx.safra_id if jornada_ctx else None,
+            talhao_id=jornada_ctx.talhao_id if jornada_ctx else None,
             **dados.model_dump()
         )
         self.session.add(ab)
@@ -41,17 +57,20 @@ class AbastecimentoService(BaseService[Abastecimento]):
         # 3. Baixa de Estoque (se for INTERNO)
         if dados.local == "INTERNO":
             estoque_svc = EstoqueService(self.session, self.tenant_id)
-            # Tenta encontrar o produto correspondente ao combustível
-            # Aqui assumimos que existe um produto no estoque com o nome/tipo do combustível
-            # Em uma implementação real, o 'tipo_combustivel' estaria ligado a um produto_id
-            await estoque_svc.registrar_saida_insumo_por_nome(
-                nome_insumo=dados.tipo_combustivel,
-                quantidade=dados.litros,
-                unidade_produtiva_id=maquina.unidade_produtiva_id,
-                origem_id=ab.id,
-                origem_tipo="ABASTECIMENTO",
-                motivo=f"Abastecimento maquina {maquina.nome}"
-            )
+            try:
+                await estoque_svc.registrar_saida_insumo_por_nome(
+                    nome_insumo=dados.tipo_combustivel,
+                    quantidade=dados.litros,
+                    unidade_produtiva_id=maquina.unidade_produtiva_id,
+                    origem_id=ab.id,
+                    origem_tipo="ABASTECIMENTO",
+                    motivo=f"Abastecimento maquina {maquina.nome}"
+                )
+            except EntityNotFoundError:
+                raise BusinessRuleError(
+                    f"Nenhum produto de combustível '{dados.tipo_combustivel}' encontrado no estoque. "
+                    "Cadastre o produto no estoque antes de registrar abastecimento interno."
+                )
         
         # 4. Integração Financeira (se for EXTERNO)
         if dados.local == "EXTERNO" and custo_total > 0:

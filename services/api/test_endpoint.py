@@ -27,6 +27,7 @@ async def test_tenant_details():
         print("\n2. Buscando assinaturas...")
         try:
             stmt_assinaturas = (
+                select(AssinaturaTenant, PlanoAssinatura)
                 .join(PlanoAssinatura, AssinaturaTenant.plano_id == PlanoAssinatura.id)
                 .where(AssinaturaTenant.tenant_id == tenant_id)
             )
@@ -56,8 +57,7 @@ async def test_tenant_details():
 
         print("\n4. Buscando grupos...")
         try:
-            stmt_grupos = (
-            )
+            stmt_grupos = select(Fazenda).where(Fazenda.tenant_id == tenant_id)
             result = await session.execute(stmt_grupos)
             grupos = result.scalars().all()
             print(f"   ✓ {len(grupos)} grupo(s) encontrado(s)")

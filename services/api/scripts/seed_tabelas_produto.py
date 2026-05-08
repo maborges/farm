@@ -93,6 +93,12 @@ MODELOS = [
     {"marca": "Shell",      "nome": "Helix HX7 10W-40",    "tipo_produto": "LUBRIFICANTE"},
     # Mobil
     {"marca": "Mobil",      "nome": "Delvac MX 15W-40",    "tipo_produto": "LUBRIFICANTE"},
+    # Combustíveis (tipo_produto = COMBUSTIVEL — usado pelo módulo Frota)
+    {"marca": "Petrobras",  "nome": "Diesel S10",           "tipo_produto": "COMBUSTIVEL"},
+    {"marca": "Petrobras",  "nome": "Diesel S500",          "tipo_produto": "COMBUSTIVEL"},
+    {"marca": "Ipiranga",   "nome": "Diesel S10",           "tipo_produto": "COMBUSTIVEL"},
+    {"marca": "Ipiranga",   "nome": "Gasolina Aditivada",   "tipo_produto": "COMBUSTIVEL"},
+    {"marca": "Raízen",     "nome": "Etanol Hidratado",     "tipo_produto": "COMBUSTIVEL"},
 ]
 
 # ---------------------------------------------------------------------------

@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.base_service import BaseService
 from core.exceptions import BusinessRuleError
 from core.cadastros.equipamentos.models import Equipamento as Maquinario
-from operacional.models.frota import PlanoManutencao, OrdemServico, RegistroManutencao, ItemOrdemServico
+from operacional.models.frota import PlanoManutencao, OrdemServico, RegistroManutencao, ItemOrdemServico, JornadaEquipamento
 from operacional.schemas.frota import (
     PlanoManutencaoCreate, OrdemServicoCreate, OrdemServicoUpdate,
     ItemOrdemServicoCreate
@@ -17,14 +17,60 @@ class FrotaService(BaseService[Maquinario]):
     def __init__(self, session: AsyncSession, tenant_id: uuid.UUID):
         super().__init__(Maquinario, session, tenant_id)
 
+    def _normalizar_payload_maquinario(self, payload: dict) -> dict:
+        normalized = dict(payload)
+
+        ano = normalized.pop("ano", None)
+        if ano is not None and "ano_fabricacao" not in normalized:
+            normalized["ano_fabricacao"] = ano
+
+        placa_chassi = normalized.pop("placa_chassi", None)
+        if placa_chassi:
+            normalized.setdefault("placa", placa_chassi)
+
+        tipo_map = {
+            "COLHEITADEIRA": "COLHEDORA",
+            "VEICULO_LEVE": "VEICULO",
+            "VEICULO_PESADO": "VEICULO",
+            "OUTROS": "OUTRO",
+            "CAMINHAO": "VEICULO",
+            "PICKUP": "VEICULO",
+        }
+        status_map = {
+            "MANUTENCAO": "EM_MANUTENCAO",
+            "PARADO": "INATIVO",
+        }
+
+        if normalized.get("tipo") in tipo_map:
+            normalized["tipo"] = tipo_map[normalized["tipo"]]
+        if normalized.get("status") in status_map:
+            normalized["status"] = status_map[normalized["status"]]
+
+        return normalized
+
+    async def create(self, obj_in):
+        payload = obj_in.model_dump() if hasattr(obj_in, "model_dump") else dict(obj_in)
+        return await super().create(self._normalizar_payload_maquinario(payload))
+
+    async def update(self, id, obj_in):
+        payload = obj_in.model_dump(exclude_unset=True) if hasattr(obj_in, "model_dump") else dict(obj_in)
+        return await super().update(id, self._normalizar_payload_maquinario(payload))
+
     async def criar_plano_manutencao(self, dados: PlanoManutencaoCreate) -> PlanoManutencao:
-        plano = PlanoManutencao(**dados.model_dump())
+        payload = dados.model_dump()
+        plano = PlanoManutencao(
+            equipamento_id=payload["maquinario_id"],
+            descricao=payload["descricao"],
+            frequencia_dias=payload.get("frequencia_dias"),
+            frequencia_horas=payload.get("frequencia_horas"),
+            frequencia_km=payload.get("frequencia_km"),
+        )
         self.session.add(plano)
         await self.session.flush()
         return plano
 
     async def listar_planos(self, maquinario_id: uuid.UUID) -> List[PlanoManutencao]:
-        stmt = select(PlanoManutencao).where(PlanoManutencao.maquinario_id == maquinario_id)
+        stmt = select(PlanoManutencao).where(PlanoManutencao.equipamento_id == maquinario_id)
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
@@ -33,16 +79,36 @@ class FrotaService(BaseService[Maquinario]):
         timestamp = int(datetime.now().timestamp())
         numero_os = f"OS-{timestamp}"
         
+        # 1.5 Herança de Contexto (Jornada Ativa)
+        stmt_jornada = (
+            select(JornadaEquipamento.safra_id, JornadaEquipamento.talhao_id)
+            .where(
+                JornadaEquipamento.tenant_id == self.tenant_id,
+                JornadaEquipamento.equipamento_id == dados.maquinario_id,
+                JornadaEquipamento.status == "ABERTA"
+            )
+            .order_by(JornadaEquipamento.data_inicio.desc())
+            .limit(1)
+        )
+        jornada_ctx = (await self.session.execute(stmt_jornada)).first()
+
         os = OrdemServico(
             tenant_id=self.tenant_id,
             numero_os=numero_os,
-            **dados.model_dump()
+            equipamento_id=dados.maquinario_id,
+            tipo=dados.tipo,
+            descricao_problema=dados.descricao_problema,
+            horimetro_na_abertura=dados.horimetro_na_abertura,
+            km_na_abertura=dados.km_na_abertura,
+            tecnico_responsavel=dados.tecnico_responsavel,
+            safra_id=jornada_ctx.safra_id if jornada_ctx else None,
+            talhao_id=jornada_ctx.talhao_id if jornada_ctx else None,
         )
         
         # Opcional: Marcar maquinário em manutenção
         maquina = await self.session.get(Maquinario, dados.maquinario_id)
         if maquina:
-            maquina.status = "MANUTENCAO"
+            maquina.status = "EM_MANUTENCAO"
             
         self.session.add(os)
         await self.session.commit()
@@ -89,7 +155,7 @@ class FrotaService(BaseService[Maquinario]):
         os.data_conclusao = datetime.now(timezone.utc)
         
         # 2. Marcar maquinário como ATIVO e atualizar horímetro se houve evolução
-        maquina = await self.session.get(Maquinario, os.maquinario_id)
+        maquina = await self.session.get(Maquinario, os.equipamento_id)
         if maquina:
             maquina.status = "ATIVO"
             # Aqui poderíamos atualizar o horímetro da máquina se a OS registrou o uso final
@@ -113,15 +179,25 @@ class FrotaService(BaseService[Maquinario]):
         # 4. Gera registro histórico consolidado
         custo_os = os.custo_total_pecas + (os.custo_mao_obra or 0)
         registro = RegistroManutencao(
-            maquinario_id=os.maquinario_id,
+            equipamento_id=os.equipamento_id,
             os_id=os.id,
             tipo=os.tipo,
             descricao=f"OS {os.numero_os} concluída: {os.descricao_problema}",
             custo_total=custo_os,
             horimetro_na_data=os.horimetro_na_abertura,
-            tecnico_responsavel=os.tecnico_responsavel
+            km_na_data=os.km_na_abertura,
+            tecnico_responsavel=os.tecnico_responsavel,
+            safra_id=os.safra_id,
+            talhao_id=os.talhao_id,
         )
         self.session.add(registro)
+
+        if os.tipo == "PREVENTIVA" and os.plano_manutencao_id:
+            plano = await self.session.get(PlanoManutencao, os.plano_manutencao_id)
+            if plano:
+                plano.ultimo_registro_data = os.data_conclusao
+                plano.ultimo_registro_horas = os.horimetro_na_abertura
+                plano.ultimo_registro_km = os.km_na_abertura
 
         # 5. Integração Financeira: Despesa de Manutenção
         if maquina and maquina.unidade_produtiva_id and custo_os > 0:

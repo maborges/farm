@@ -34,6 +34,12 @@ class Abastecimento(Base):
     operador_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("cadastros_pessoas.id", ondelete="SET NULL"), nullable=True
     )
+    safra_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("safras.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    talhao_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("cadastros_areas_rurais.id", ondelete="SET NULL"), nullable=True, index=True
+    )
 
     # Leitura no momento do abastecimento
     horimetro_na_data: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
@@ -59,6 +65,11 @@ class Abastecimento(Base):
     nota_fiscal: Mapped[str | None] = mapped_column(String(50), nullable=True)
 
     observacoes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    from sqlalchemy import Index
+    __table_args__ = (
+        Index("ix_frota_abast_tenant_equip_data", tenant_id, equipamento_id, data),
+    )
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)

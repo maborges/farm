@@ -70,6 +70,10 @@ class EquipamentoResponse(BaseModel):
     potencia_cv: Optional[float]
     capacidade_tanque_l: Optional[float]
     status: str
+    bloqueado_operacional: bool
+    motivo_bloqueio_operacional: Optional[str]
+    bloqueado_operacional_em: Optional[datetime]
+    liberado_operacional_em: Optional[datetime]
     horimetro_atual: float
     km_atual: float
     valor_aquisicao: Optional[float]

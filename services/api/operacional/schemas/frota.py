@@ -7,11 +7,10 @@ TipoOS = Literal["PREVENTIVA", "CORRETIVA", "REVISAO"]
 StatusOS = Literal["ABERTA", "EM_EXECUCAO", "CONCLUIDA", "CANCELADA"]
 
 TipoMaquinario = Literal[
-    "TRATOR", "COLHEITADEIRA", "VEICULO_LEVE", "VEICULO_PESADO",
-    "IMPLEMENTO", "PULVERIZADOR", "OUTROS"
+    "TRATOR", "COLHEITADEIRA", "COLHEDORA", "VEICULO_LEVE", "VEICULO_PESADO", "VEICULO",
+    "IMPLEMENTO", "PULVERIZADOR", "IRRIGACAO", "OUTROS", "OUTRO", "CAMINHAO", "PICKUP"
 ]
-TipoCombustivel = Literal["DIESEL", "GASOLINA", "ETANOL", "FLEX", "ELETRICO", "NAO_APLICAVEL"]
-StatusMaquinario = Literal["ATIVO", "MANUTENCAO", "INATIVO"]
+StatusMaquinario = Literal["ATIVO", "MANUTENCAO", "EM_MANUTENCAO", "INATIVO", "PARADO"]
 
 class MaquinarioBase(BaseModel):
     nome: str = Field(..., min_length=2, max_length=100)
@@ -28,7 +27,7 @@ class MaquinarioBase(BaseModel):
     horimetro_atual: float = 0.0
     km_atual: float = 0.0
     status: StatusMaquinario = "ATIVO"
-    unidade_produtiva_id: UUID
+    unidade_produtiva_id: Optional[UUID] = None
 
 class MaquinarioCreate(MaquinarioBase):
     pass
@@ -60,6 +59,7 @@ class MaquinarioResponse(MaquinarioBase):
 class PlanoManutencaoBase(BaseModel):
     maquinario_id: UUID
     descricao: str
+    frequencia_dias: Optional[int] = None
     frequencia_horas: Optional[float] = None
     frequencia_km: Optional[float] = None
 
@@ -68,6 +68,7 @@ class PlanoManutencaoCreate(PlanoManutencaoBase):
 
 class PlanoManutencaoResponse(PlanoManutencaoBase):
     id: UUID
+    ultimo_registro_data: Optional[datetime] = None
     ultimo_registro_horas: Optional[float] = None
     ultimo_registro_km: Optional[float] = None
 
