@@ -239,7 +239,7 @@ class AlertaInteligenteService:
                 IAAlertaHistorico.safra_id == safra_id,
                 IAAlertaHistorico.tipo_alerta == a["tipo"],
                 IAAlertaHistorico.created_at >= limite_recentes
-            )
+            ).limit(1)
             existente = (await self.session.execute(stmt)).scalar_one_or_none()
             
             if not existente:

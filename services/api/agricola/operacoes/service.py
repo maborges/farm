@@ -9,7 +9,15 @@ from core.exceptions import BusinessRuleError, EntityNotFoundError
 from core.base_service import BaseService
 
 from agricola.operacoes.models import OperacaoAgricola, OperacaoExecucao, InsumoOperacao
-from agricola.operacoes.schemas import OperacaoAgricolaCreate, OperacaoAgricolaUpdate, OperacaoPorFaseKPI, SafraOperacoesPorFaseResponse
+from agricola.operacoes.schemas import (
+    OperacaoAgricolaCreate,
+    OperacaoAgricolaUpdate,
+    OperacaoPorFaseKPI,
+    OperacaoTipoFaseCreate,
+    OperacaoTipoFaseUpdate,
+    SafraOperacoesPorFaseResponse,
+)
+from agricola.production_units.models import ProductionUnit
 from agricola.safras.models import SAFRA_FASES_ORDEM
 from core.cadastros.propriedades.models import AreaRural
 from agricola.safras.models import Safra
@@ -22,16 +30,229 @@ from agricola.custos.allocation_service import registrar_cost_allocation
 from financeiro.models.despesa import Despesa
 from agricola.caderno.models import CadernoCampoEntrada
 
+DEFAULT_TIPO_FASES: dict[str, list[str]] = {
+    "PLANTIO": ["PLANTIO", "DESENVOLVIMENTO"],
+    "ADUBAÇÃO": ["PREPARO_SOLO", "DESENVOLVIMENTO"],
+    "PULVERIZAÇÃO": ["PLANEJADA", "DESENVOLVIMENTO", "COLHEITA"],
+    "COLHEITA": ["COLHEITA"],
+    "OPERAÇÃO_MECANIZADA": ["PLANTIO", "DESENVOLVIMENTO"],
+    "PREPARO_SOLO": ["PREPARO_SOLO"],
+    "CALAGEM": ["PREPARO_SOLO"],
+    "IRRIGAÇÃO": ["DESENVOLVIMENTO", "COLHEITA"],
+    "OUTROS": ["PLANEJADA", "PREPARO_SOLO", "PLANTIO", "DESENVOLVIMENTO", "COLHEITA", "POS_COLHEITA"],
+}
+
+DEFAULT_TIPO_DESCRICOES: dict[str, str] = {
+    "PLANTIO": "Semeadura e plantio",
+    "ADUBAÇÃO": "Adubação de base ou cobertura",
+    "PULVERIZAÇÃO": "Aplicação de defensivos ou bioinsumos",
+    "COLHEITA": "Colheita manual ou mecanizada",
+    "OPERAÇÃO_MECANIZADA": "Operações gerais com máquinas e implementos",
+    "PREPARO_SOLO": "Aração, gradagem, subsolagem e preparo de área",
+    "CALAGEM": "Aplicação de calcário",
+    "IRRIGAÇÃO": "Operações de irrigação",
+    "OUTROS": "Outras operações de campo",
+}
+
+
+class OperacaoTipoFaseService:
+    def __init__(self, session: AsyncSession):
+        self.session = session
+
+    async def ensure_defaults(self) -> None:
+        existentes = {
+            item.tipo_operacao: item
+            for item in (
+                await self.session.execute(select(OperacaoTipoFase))
+            ).scalars().all()
+        }
+
+        for tipo_operacao, fases_permitidas in DEFAULT_TIPO_FASES.items():
+            item = existentes.get(tipo_operacao)
+            if item is None:
+                self.session.add(
+                    OperacaoTipoFase(
+                        id=uuid.uuid4(),
+                        tipo_operacao=tipo_operacao,
+                        fases_permitidas=fases_permitidas,
+                        descricao=DEFAULT_TIPO_DESCRICOES.get(tipo_operacao),
+                    )
+                )
+                continue
+
+            if not item.fases_permitidas:
+                item.fases_permitidas = fases_permitidas
+            if not item.descricao:
+                item.descricao = DEFAULT_TIPO_DESCRICOES.get(tipo_operacao)
+            self.session.add(item)
+        await self.session.flush()
+
+    async def listar(self) -> list[OperacaoTipoFase]:
+        await self.ensure_defaults()
+        stmt = select(OperacaoTipoFase).order_by(OperacaoTipoFase.tipo_operacao)
+        return list((await self.session.execute(stmt)).scalars().all())
+
+    async def criar(self, dados: OperacaoTipoFaseCreate) -> OperacaoTipoFase:
+        await self.ensure_defaults()
+        tipo_operacao = dados.tipo_operacao.strip().upper()
+        existente = (
+            await self.session.execute(
+                select(OperacaoTipoFase).where(OperacaoTipoFase.tipo_operacao == tipo_operacao)
+            )
+        ).scalar_one_or_none()
+        if existente:
+            raise BusinessRuleError(f"Tipo de operação '{tipo_operacao}' já está cadastrado.")
+
+        obj = OperacaoTipoFase(
+            id=uuid.uuid4(),
+            tipo_operacao=tipo_operacao,
+            fases_permitidas=[fase.upper() for fase in dados.fases_permitidas],
+            descricao=dados.descricao,
+        )
+        self.session.add(obj)
+        await self.session.flush()
+        return obj
+
+    async def atualizar(self, tipo_id: UUID, dados: OperacaoTipoFaseUpdate) -> OperacaoTipoFase:
+        obj = await self.get_or_fail(tipo_id)
+        tipo_anterior = obj.tipo_operacao
+        if dados.tipo_operacao is not None:
+            novo_tipo = dados.tipo_operacao.strip().upper()
+            existente = (
+                await self.session.execute(
+                    select(OperacaoTipoFase).where(
+                        OperacaoTipoFase.tipo_operacao == novo_tipo,
+                        OperacaoTipoFase.id != tipo_id,
+                    )
+                )
+            ).scalar_one_or_none()
+            if existente:
+                raise BusinessRuleError(f"Tipo de operação '{novo_tipo}' já está cadastrado.")
+            obj.tipo_operacao = novo_tipo
+            if novo_tipo != tipo_anterior:
+                operacoes = (
+                    await self.session.execute(
+                        select(OperacaoAgricola).where(OperacaoAgricola.tipo == tipo_anterior)
+                    )
+                ).scalars().all()
+                for operacao in operacoes:
+                    operacao.tipo = novo_tipo
+                    self.session.add(operacao)
+
+        if dados.fases_permitidas is not None:
+            obj.fases_permitidas = [fase.upper() for fase in dados.fases_permitidas]
+
+        if "descricao" in dados.model_dump(exclude_unset=True):
+            obj.descricao = dados.descricao
+
+        self.session.add(obj)
+        await self.session.flush()
+        return obj
+
+    async def excluir(self, tipo_id: UUID) -> None:
+        obj = await self.get_or_fail(tipo_id)
+        uso = (
+            await self.session.execute(
+                select(func.count()).select_from(OperacaoAgricola).where(OperacaoAgricola.tipo == obj.tipo_operacao)
+            )
+        ).scalar_one()
+        if uso:
+            raise BusinessRuleError(
+                f"Tipo de operação '{obj.tipo_operacao}' não pode ser excluído porque já possui operações vinculadas."
+            )
+        await self.session.delete(obj)
+        await self.session.flush()
+
+    async def get_or_fail(self, tipo_id: UUID) -> OperacaoTipoFase:
+        obj = (
+            await self.session.execute(
+                select(OperacaoTipoFase).where(OperacaoTipoFase.id == tipo_id)
+            )
+        ).scalar_one_or_none()
+        if not obj:
+            raise EntityNotFoundError("Tipo de operação", str(tipo_id))
+        return obj
+
 class OperacaoService(BaseService[OperacaoAgricola]):
     def __init__(self, session: AsyncSession, tenant_id: UUID):
         super().__init__(OperacaoAgricola, session, tenant_id)
         self.estoque_svc = EstoqueService(session, tenant_id)
 
+    async def _get_area_unit_id(self) -> UUID | None:
+        """Resolve the canonical hectare unit when available.
+
+        Some local/dev databases may not have the global HA seed loaded yet.
+        Operation creation should still succeed in that case, even if we skip the
+        derived execution record.
+        """
+        unidade_ha_stmt = text("""
+            SELECT id
+              FROM unidades_medida
+             WHERE ativo = true
+               AND codigo = 'HA'
+               AND (tenant_id IS NULL OR tenant_id = :tenant_id)
+             ORDER BY CASE WHEN tenant_id IS NULL THEN 0 ELSE 1 END
+             LIMIT 1
+        """)
+        unidade_ha_id = (
+            await self.session.execute(unidade_ha_stmt, {"tenant_id": self.tenant_id})
+        ).scalar_one_or_none()
+        if unidade_ha_id is None:
+            logger.warning(
+                "Skipping operacao_execucao creation because HA unit is missing",
+                tenant_id=str(self.tenant_id),
+            )
+        return unidade_ha_id
+
+    async def _resolve_production_unit_id(self, dados: OperacaoAgricolaCreate) -> UUID | None:
+        """Resolve a valid production unit for the current safra/talhao.
+
+        Legacy `AreaRural.unidade_produtiva_id` points to `unidades_produtivas`,
+        which is not compatible with the FK expected by `operacoes_agricolas`.
+        """
+        if dados.production_unit_id:
+            stmt = select(ProductionUnit.id).where(
+                ProductionUnit.id == dados.production_unit_id,
+                ProductionUnit.tenant_id == self.tenant_id,
+            )
+            production_unit_id = (await self.session.execute(stmt)).scalar_one_or_none()
+            if production_unit_id is not None:
+                return production_unit_id
+
+            logger.warning(
+                "Ignoring invalid production_unit_id sent to operacoes",
+                production_unit_id=str(dados.production_unit_id),
+                tenant_id=str(self.tenant_id),
+            )
+
+        stmt = (
+            select(ProductionUnit.id)
+            .where(
+                ProductionUnit.tenant_id == self.tenant_id,
+                ProductionUnit.safra_id == dados.safra_id,
+                ProductionUnit.area_id == dados.talhao_id,
+            )
+            .order_by(
+                (ProductionUnit.status == "ATIVA").desc(),
+                ProductionUnit.created_at.desc(),
+            )
+        )
+        production_unit_id = (await self.session.execute(stmt)).scalars().first()
+        if production_unit_id is None:
+            logger.warning(
+                "No production_unit found for operacao; persisting with NULL",
+                safra_id=str(dados.safra_id),
+                talhao_id=str(dados.talhao_id),
+                tenant_id=str(self.tenant_id),
+            )
+        return production_unit_id
+
     async def criar(self, dados: OperacaoAgricolaCreate) -> OperacaoAgricola:
-        # 1. Busca talhão para obter unidade_produtiva_id
-        stmt_talhao = select(AreaRural.unidade_produtiva_id).where(AreaRural.id == dados.talhao_id)
-        unidade_produtiva_id = (await self.session.execute(stmt_talhao)).scalar()
-        if not unidade_produtiva_id:
+        await OperacaoTipoFaseService(self.session).ensure_defaults()
+        # 1. Valida existência do talhão
+        stmt_talhao = select(AreaRural.id).where(AreaRural.id == dados.talhao_id)
+        talhao_id = (await self.session.execute(stmt_talhao)).scalar()
+        if not talhao_id:
             raise EntityNotFoundError("Talhão", dados.talhao_id)
 
         # 2. Auto-preenche fase_safra com fase atual da safra (override permitido)
@@ -47,19 +268,28 @@ class OperacaoService(BaseService[OperacaoAgricola]):
             OperacaoTipoFase.tipo_operacao == dados.tipo
         )
         tipo_fase = (await self.session.execute(tipo_fase_stmt)).scalars().first()
-
         if not tipo_fase:
-            logger.warning(f"Tipo de operação '{dados.tipo}' não cadastrado em lookup table")
-            raise BusinessRuleError(
-                f"Tipo de operação '{dados.tipo}' não está cadastrado no sistema. "
-                f"Tipos permitidos: PLANTIO, COLHEITA, PULVERIZAÇÃO, ADUBAÇÃO, etc."
+            fases_padrao = DEFAULT_TIPO_FASES.get(dados.tipo)
+            if not fases_padrao:
+                logger.warning(f"Tipo de operação '{dados.tipo}' não cadastrado em lookup table")
+                raise BusinessRuleError(
+                    f"Tipo de operação '{dados.tipo}' não está cadastrado no sistema. "
+                    f"Tipos permitidos: {', '.join(DEFAULT_TIPO_FASES.keys())}."
+                )
+            logger.warning(
+                "Tipo de operação ausente na lookup table; usando fallback padrão",
+                tipo_operacao=dados.tipo,
+                tenant_id=str(self.tenant_id),
             )
+            fases_permitidas = fases_padrao
+        else:
+            fases_permitidas = tipo_fase.fases_permitidas
 
         # Validar se fase atual está permitida para este tipo
-        if fase_safra not in tipo_fase.fases_permitidas:
+        if fase_safra not in fases_permitidas:
             raise BusinessRuleError(
                 f"Operação '{dados.tipo}' não é permitida na fase '{fase_safra}'. "
-                f"Fases permitidas: {', '.join(tipo_fase.fases_permitidas)}"
+                f"Fases permitidas: {', '.join(fases_permitidas)}"
             )
 
         # 2.6. VALIDAÇÃO: Data não pode ser futura
@@ -73,8 +303,10 @@ class OperacaoService(BaseService[OperacaoAgricola]):
         insumos_data = dados.insumos
         dados_dict = dados.model_dump(exclude={"insumos"})
         dados_dict["fase_safra"] = fase_safra
+        dados_dict["production_unit_id"] = await self._resolve_production_unit_id(dados)
 
-        custo_total_operacao = 0.0
+        custo_manual_informado = float(dados.custo_total or 0.0)
+        custo_total_operacao = custo_manual_informado
 
         # Create operacao in memory (NOT flushed yet)
         operacao = OperacaoAgricola(
@@ -154,66 +386,62 @@ class OperacaoService(BaseService[OperacaoAgricola]):
                     quantidade_total=quantidade_total,
                 )
 
-            # All insumos processed successfully - finalize operacao
+            # All insumos processed successfully - finalize operacao.
+            # Manual-only launches (common in "Execução por Fase") do not send
+            # insumos, so we preserve the informed total instead of forcing zero.
             operacao.custo_total = custo_total_operacao
             if operacao.area_aplicada_ha and operacao.area_aplicada_ha > 0:
                 operacao.custo_por_ha = custo_total_operacao / operacao.area_aplicada_ha
 
             operacao_execucao = None
             if operacao.status == "REALIZADA":
-                unidade_ha_id = (await self.session.execute(text("""
-                    SELECT id
-                      FROM unidades_medida
-                     WHERE tenant_id IS NULL
-                       AND codigo = 'HA'
-                       AND ativo = true
-                     LIMIT 1
-                """))).scalar_one()
-                operacao_execucao = OperacaoExecucao(
-                    tenant_id=self.tenant_id,
-                    operacao_id=operacao.id,
-                    production_unit_id=operacao.production_unit_id,
-                    data_execucao=operacao.data_realizada,
-                    hora_execucao=operacao.hora_inicio,
-                    quantidade_planejada=operacao.area_aplicada_ha,
-                    quantidade_executada=operacao.area_aplicada_ha or 1,
-                    quantidade_devolvida=0,
-                    unidade_medida_id=unidade_ha_id,
-                    custo_real=custo_total_operacao,
-                    area_ha_executada=operacao.area_aplicada_ha,
-                    status="REALIZADA",
-                    operador_id=operacao.operador_id,
-                    observacoes=operacao.observacoes,
-                )
-                self.session.add(operacao_execucao)
-                await self.session.flush()
-
-                for consumo_ledger in ledger_consumos:
-                    await registrar_ledger_estoque(
-                        self.session,
+                unidade_ha_id = await self._get_area_unit_id()
+                if unidade_ha_id is not None:
+                    operacao_execucao = OperacaoExecucao(
                         tenant_id=self.tenant_id,
-                        tipo_movimento="SAIDA",
-                        origem="OPERACAO_EXECUCAO",
-                        origem_id=operacao_execucao.id,
-                        operacao_execucao_id=operacao_execucao.id,
+                        operacao_id=operacao.id,
                         production_unit_id=operacao.production_unit_id,
-                        **consumo_ledger,
+                        data_execucao=operacao.data_realizada,
+                        hora_execucao=operacao.hora_inicio,
+                        quantidade_planejada=operacao.area_aplicada_ha,
+                        quantidade_executada=operacao.area_aplicada_ha or 1,
+                        quantidade_devolvida=0,
+                        unidade_medida_id=unidade_ha_id,
+                        custo_real=custo_total_operacao,
+                        area_ha_executada=operacao.area_aplicada_ha,
+                        status="REALIZADA",
+                        operador_id=operacao.operador_id,
+                        observacoes=operacao.observacoes,
                     )
+                    self.session.add(operacao_execucao)
+                    await self.session.flush()
 
-                if custo_total_operacao and operacao.production_unit_id:
-                    await registrar_cost_allocation(
-                        self.session,
-                        tenant_id=self.tenant_id,
-                        production_unit_id=operacao.production_unit_id,
-                        source="OPERATION_EXECUTION",
-                        source_id=operacao_execucao.id,
-                        operation_execution_id=operacao_execucao.id,
-                        cost_category="OUTROS",
-                        amount=custo_total_operacao,
-                        allocation_date=operacao_execucao.data_execucao,
-                        allocation_method="DIRECT",
-                        allocation_basis=operacao_execucao.area_ha_executada,
-                    )
+                    for consumo_ledger in ledger_consumos:
+                        await registrar_ledger_estoque(
+                            self.session,
+                            tenant_id=self.tenant_id,
+                            tipo_movimento="SAIDA",
+                            origem="OPERACAO_EXECUCAO",
+                            origem_id=operacao_execucao.id,
+                            operacao_execucao_id=operacao_execucao.id,
+                            production_unit_id=operacao.production_unit_id,
+                            **consumo_ledger,
+                        )
+
+                    if custo_total_operacao and operacao.production_unit_id:
+                        await registrar_cost_allocation(
+                            self.session,
+                            tenant_id=self.tenant_id,
+                            production_unit_id=operacao.production_unit_id,
+                            source="OPERATION_EXECUTION",
+                            source_id=operacao_execucao.id,
+                            operation_execution_id=operacao_execucao.id,
+                            cost_category="OUTROS",
+                            amount=custo_total_operacao,
+                            allocation_date=operacao_execucao.data_execucao,
+                            allocation_method="DIRECT",
+                            allocation_basis=operacao_execucao.area_ha_executada,
+                        )
 
             # 4. Sincroniza custo na Safra
             safra = await self.session.get(Safra, operacao.safra_id)
@@ -221,8 +449,16 @@ class OperacaoService(BaseService[OperacaoAgricola]):
                 # Re-calcula custo realizado por ha baseado em todas as operações (simplificado para fins de refino)
                 stmt_sum = select(func.sum(OperacaoAgricola.custo_total)).where(OperacaoAgricola.safra_id == safra.id)
                 total_acumulado = (await self.session.execute(stmt_sum)).scalar() or 0.0
-                if safra.area_plantada_ha and safra.area_plantada_ha > 0:
-                    safra.custo_realizado_ha = (float(total_acumulado) + custo_total_operacao) / float(safra.area_plantada_ha)
+                area_plantada_ha = getattr(safra, "area_plantada_ha", None)
+                if (
+                    area_plantada_ha
+                    and area_plantada_ha > 0
+                    and hasattr(safra, "custo_realizado_ha")
+                ):
+                    safra.custo_realizado_ha = (
+                        (float(total_acumulado) + custo_total_operacao)
+                        / float(area_plantada_ha)
+                    )
 
             # 5. Registra Despesa no Financeiro (Módulo Integrado)
             if custo_total_operacao > 0:
@@ -327,7 +563,16 @@ class OperacaoService(BaseService[OperacaoAgricola]):
 
         # 2. Aplica atualização
         dados_dict = dados.model_dump(exclude_unset=True)
+        if "custo_total" in dados_dict and dados_dict["custo_total"] is not None:
+            dados_dict["custo_total"] = float(dados_dict["custo_total"])
         operacao = await super().update(obj_id, dados_dict)
+
+        if "custo_total" in dados_dict or "area_aplicada_ha" in dados_dict:
+            custo_total = float(operacao.custo_total or 0.0)
+            area_aplicada = float(operacao.area_aplicada_ha or 0.0)
+            operacao.custo_por_ha = (custo_total / area_aplicada) if area_aplicada > 0 else 0.0
+            self.session.add(operacao)
+            await self.session.flush()
 
         # 3. TRIGGER: Se status mudou para REALIZADA, cria entrada no caderno de campo
         novo_status = dados_dict.get("status")

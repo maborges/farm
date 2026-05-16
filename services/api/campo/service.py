@@ -105,7 +105,7 @@ class DispositivoService:
             select(Usuario).where(Usuario.id == device.user_id)
         )
         user = user_result.scalar_one_or_none()
-        user_name = user.nome if user else "Operador"
+        user_name = user.nome_completo if user else "Operador"
 
         token = _make_device_jwt(device, user_name)
         return device, token
@@ -483,6 +483,7 @@ class TarefaProgramadaService:
         task = TarefaCampo(
             tenant_id=self.tenant_id,
             user_id=self.user_id,
+            client_id=str(uuid.uuid4()),
             origem="PROGRAMADA",
             status_execucao="PENDENTE",
             titulo=data.titulo,

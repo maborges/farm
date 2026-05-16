@@ -264,10 +264,13 @@ app.add_middleware(
         # Variantes de localhost
         "http://localhost:3000",
         "http://localhost:3001",
+        "http://localhost:3002",
         "http://0.0.0.0:3000",
         "http://0.0.0.0:3001",
+        "http://0.0.0.0:3002",
         "http://localhost.localdomain:3000",
         "http://localhost.localdomain:3001",
+        "http://localhost.localdomain:3002",
     ],
     allow_credentials=True,
     allow_methods=["*"],

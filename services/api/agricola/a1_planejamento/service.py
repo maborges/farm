@@ -6,6 +6,7 @@ from sqlalchemy import func
 
 from core.exceptions import BusinessRuleError, EntityNotFoundError
 from agricola.safras.models import Safra, SafraTalhao
+from agricola.cultivos.models import Cultivo, CultivoArea
 from agricola.operacoes.models import OperacaoAgricola
 from agricola.a1_planejamento.models import ItemOrcamentoSafra
 from core.cadastros.propriedades.models import AreaRural
@@ -55,6 +56,7 @@ class PlanejamentoService:
         item = ItemOrcamentoSafra(
             tenant_id=self.tenant_id,
             safra_id=safra_id,
+            cultivo_id=data.cultivo_id,
             production_unit_id=data.production_unit_id,
             categoria=data.categoria,
             descricao=data.descricao,
@@ -119,11 +121,44 @@ class PlanejamentoService:
             for cat, valor in agrupado.items()
         ], key=lambda x: x.custo_total, reverse=True)
 
+    async def _get_metricas_planejamento(
+        self,
+        safra_id: uuid.UUID,
+        area_ha: float,
+        safra: Safra,
+    ) -> tuple[float | None, float | None, float | None]:
+        produtividade_meta = getattr(safra, "produtividade_meta_sc_ha", None)
+        preco_venda_previsto = getattr(safra, "preco_venda_previsto", None)
+        custo_previsto_ha = getattr(safra, "custo_previsto_ha", None)
+
+        if produtividade_meta is not None and preco_venda_previsto is not None and custo_previsto_ha is not None:
+            return float(produtividade_meta), float(preco_venda_previsto), float(custo_previsto_ha)
+
+        stmt = select(
+            func.sum(CultivoArea.area_ha),
+            func.sum(Cultivo.produtividade_meta_sc_ha * CultivoArea.area_ha),
+            func.sum(Cultivo.preco_venda_previsto * CultivoArea.area_ha),
+            func.sum(Cultivo.custo_previsto_ha * CultivoArea.area_ha),
+        ).select_from(Cultivo).join(
+            CultivoArea, CultivoArea.cultivo_id == Cultivo.id
+        ).where(
+            Cultivo.safra_id == safra_id,
+            Cultivo.tenant_id == self.tenant_id,
+            CultivoArea.tenant_id == self.tenant_id,
+        )
+        total_area, prod_area_sum, preco_area_sum, custo_area_sum = (await self.session.execute(stmt)).one()
+
+        area_base = float(total_area or 0) or area_ha
+        prod = round(float(prod_area_sum) / area_base, 2) if prod_area_sum and area_base > 0 else None
+        preco = round(float(preco_area_sum) / area_base, 2) if preco_area_sum and area_base > 0 else None
+        custo = round(float(custo_area_sum) / area_base, 2) if custo_area_sum and area_base > 0 else None
+        return prod, preco, custo
+
     async def get_orcamento(self, safra_id: uuid.UUID) -> OrcamentoSafraResponse:
         safra = await self._get_safra(safra_id)
 
         # Calcula área somando os talhões associados à safra
-        # Prioridade: SafraTalhao.area_ha → AreaRural.area_hectares → safra.area_plantada_ha → 1.0
+        # Prioridade: SafraTalhao.area_ha → AreaRural.area_hectares → soma das áreas dos cultivos → 1.0
         talhoes_stmt = select(
             func.sum(
                 func.coalesce(
@@ -139,7 +174,17 @@ class PlanejamentoService:
             SafraTalhao.tenant_id == self.tenant_id,
         )
         area_talhoes = (await self.session.execute(talhoes_stmt)).scalar() or 0
-        area_ha = float(area_talhoes) if area_talhoes > 0 else float(safra.area_plantada_ha or 1.0)
+        area_cultivos_stmt = select(func.sum(CultivoArea.area_ha)).select_from(CultivoArea).join(
+            Cultivo, CultivoArea.cultivo_id == Cultivo.id
+        ).where(
+            Cultivo.safra_id == safra_id,
+            Cultivo.tenant_id == self.tenant_id,
+            CultivoArea.tenant_id == self.tenant_id,
+        )
+        area_cultivos = (await self.session.execute(area_cultivos_stmt)).scalar() or 0
+        area_legada = getattr(safra, "area_plantada_ha", None)
+        area_ha = float(area_talhoes) if area_talhoes > 0 else float(area_cultivos) if area_cultivos > 0 else float(area_legada or 1.0)
+        produtividade_meta_sc_ha, preco_venda_previsto, custo_previsto_ha = await self._get_metricas_planejamento(safra_id, area_ha, safra)
 
         # ── Previsto: itens do orçamento ──────────────────────────────────
         itens = await self.listar_itens(safra_id)
@@ -155,12 +200,12 @@ class PlanejamentoService:
             receita_esperada = 0.0
             receita_ha = 0.0
             ponto_eq = None
-            if safra.produtividade_meta_sc_ha and safra.preco_venda_previsto:
-                receita_ha = float(safra.produtividade_meta_sc_ha) * float(safra.preco_venda_previsto)
+            if produtividade_meta_sc_ha and preco_venda_previsto:
+                receita_ha = produtividade_meta_sc_ha * preco_venda_previsto
                 receita_esperada = round(receita_ha * area_ha, 2)
                 custo_ha = custo_prev_total / area_ha if area_ha else 0
-                if safra.preco_venda_previsto > 0:
-                    ponto_eq = round(custo_ha / float(safra.preco_venda_previsto), 2)
+                if preco_venda_previsto > 0:
+                    ponto_eq = round(custo_ha / preco_venda_previsto, 2)
 
             previsto = OrcamentoPrevisto(
                 custo_total=round(custo_prev_total, 2),
@@ -171,21 +216,22 @@ class PlanejamentoService:
                 ponto_equilibrio_sc_ha=ponto_eq,
                 por_categoria=self._por_categoria(cat_prev, area_ha, custo_prev_total),
             )
-        elif safra.custo_previsto_ha:
+        elif custo_previsto_ha:
             # Fallback: usa custo_previsto_ha da safra
-            custo_prev_total = float(safra.custo_previsto_ha) * area_ha
+            custo_prev_total = custo_previsto_ha * area_ha
             receita_esperada = 0.0
+            receita_ha = 0.0
             ponto_eq = None
-            if safra.produtividade_meta_sc_ha and safra.preco_venda_previsto:
-                receita_ha = float(safra.produtividade_meta_sc_ha) * float(safra.preco_venda_previsto)
+            if produtividade_meta_sc_ha and preco_venda_previsto:
+                receita_ha = produtividade_meta_sc_ha * preco_venda_previsto
                 receita_esperada = round(receita_ha * area_ha, 2)
-                if safra.preco_venda_previsto > 0:
-                    ponto_eq = round(float(safra.custo_previsto_ha) / float(safra.preco_venda_previsto), 2)
+                if preco_venda_previsto > 0:
+                    ponto_eq = round(custo_previsto_ha / preco_venda_previsto, 2)
             previsto = OrcamentoPrevisto(
                 custo_total=round(custo_prev_total, 2),
-                custo_por_ha=float(safra.custo_previsto_ha),
+                custo_por_ha=custo_previsto_ha,
                 receita_esperada=receita_esperada,
-                receita_por_ha=round(float(safra.produtividade_meta_sc_ha or 0) * float(safra.preco_venda_previsto or 0), 2),
+                receita_por_ha=round(receita_ha, 2),
                 margem_bruta=round(receita_esperada - custo_prev_total, 2),
                 ponto_equilibrio_sc_ha=ponto_eq,
                 por_categoria=[],

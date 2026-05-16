@@ -1,0 +1,891 @@
+{
+  "metadata": {
+    "descricao": "Massa de dados de teste do modulo Agricultura via API",
+    "uso": "Substituir placeholders UUID_* pelos IDs reais do ambiente antes de executar",
+    "base_url": "/api/v1",
+    "observacao": "Os payloads seguem os schemas atuais do backend ativo em services/api"
+  },
+  "placeholders": {
+    "tenant": "UUID_TENANT",
+    "talhoes_soja": {
+      "a1": "UUID_TALHAO_A1",
+      "a2": "UUID_TALHAO_A2",
+      "b1": "UUID_TALHAO_B1"
+    },
+    "talhoes_cafe": {
+      "a1": "UUID_TALHAO_CAFE_A1",
+      "a2": "UUID_TALHAO_CAFE_A2",
+      "b1": "UUID_TALHAO_CAFE_B1"
+    },
+    "production_units_soja": {
+      "a1": "UUID_PU_SOJA_A1",
+      "a2": "UUID_PU_SOJA_A2",
+      "b1": "UUID_PU_SOJA_B1"
+    },
+    "production_units_cafe": {
+      "a1": "UUID_PU_CAFE_A1",
+      "a2": "UUID_PU_CAFE_A2",
+      "b1": "UUID_PU_CAFE_B1"
+    },
+    "produtos": {
+      "semente_soja": "UUID_PRODUTO_SEMENTE_SOJA",
+      "ureia": "UUID_PRODUTO_UREIA",
+      "kcl": "UUID_PRODUTO_KCL",
+      "glifosato": "UUID_PRODUTO_GLIFOSATO",
+      "fungicida_triazol": "UUID_PRODUTO_FUNGICIDA_TRIAZOL",
+      "fungicida_ferrugem": "UUID_PRODUTO_FUNGICIDA_FERRUGEM",
+      "inseticida_broca": "UUID_PRODUTO_INSETICIDA_BROCA",
+      "herbicida_pos": "UUID_PRODUTO_HERBICIDA_POS"
+    },
+    "fenologia": {
+      "soja_emergencia": "UUID_ESCALA_SOJA_EMERGENCIA",
+      "soja_v3": "UUID_ESCALA_SOJA_V3",
+      "soja_v5": "UUID_ESCALA_SOJA_V5",
+      "cafe_floracao": "UUID_ESCALA_CAFE_FLORACAO",
+      "cafe_pegamento": "UUID_ESCALA_CAFE_PEGAMENTO",
+      "cafe_granacao": "UUID_ESCALA_CAFE_GRANACAO"
+    },
+    "monitoramento_catalogo": {
+      "lagarta": "UUID_CATALOGO_LAGARTA",
+      "ferrugem": "UUID_CATALOGO_FERRUGEM",
+      "broca_cafe": "UUID_CATALOGO_BROCA_CAFE"
+    }
+  },
+  "soja": {
+    "ordem_execucao": [
+      "create_safra",
+      "orcamento_itens",
+      "avancar_preparo_solo",
+      "operacoes_preparo",
+      "avancar_plantio",
+      "operacoes_plantio",
+      "fenologia",
+      "monitoramento",
+      "avancar_desenvolvimento",
+      "operacoes_desenvolvimento",
+      "avancar_colheita",
+      "romaneios",
+      "cenario_base_recalcular",
+      "cenarios_alternativos"
+    ],
+    "create_safra": {
+      "method": "POST",
+      "endpoint": "/safras",
+      "payload": {
+        "ano_safra": "2025/26",
+        "observacoes": "Massa de teste automatizada - soja",
+        "cultivos": [
+          {
+            "cultura": "Soja",
+            "cultivar_nome": "TMG 2383 IPRO",
+            "sistema_plantio": "SEQUEIRO",
+            "data_plantio_prevista": "2025-10-05",
+            "produtividade_meta_sc_ha": 68.0,
+            "preco_venda_previsto": 126.33,
+            "areas": [
+              {
+                "area_id": "UUID_TALHAO_A1",
+                "area_ha": 30.0
+              },
+              {
+                "area_id": "UUID_TALHAO_A2",
+                "area_ha": 25.0
+              },
+              {
+                "area_id": "UUID_TALHAO_B1",
+                "area_ha": 20.0
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "orcamento_itens": [
+      {
+        "method": "POST",
+        "endpoint": "/agricola/planejamento/safras/UUID_SAFRA_SOJA/itens",
+        "payload": {
+          "production_unit_id": "UUID_PU_SOJA_A1",
+          "categoria": "SEMENTE",
+          "descricao": "Semente Soja TMG 2383",
+          "quantidade": 1650.0,
+          "unidade": "kg",
+          "custo_unitario": 4.8,
+          "ordem": 1
+        }
+      },
+      {
+        "method": "POST",
+        "endpoint": "/agricola/planejamento/safras/UUID_SAFRA_SOJA/itens",
+        "payload": {
+          "categoria": "FERTILIZANTE",
+          "descricao": "Ureia 45%",
+          "quantidade": 6000.0,
+          "unidade": "kg",
+          "custo_unitario": 3.2,
+          "ordem": 2
+        }
+      },
+      {
+        "method": "POST",
+        "endpoint": "/agricola/planejamento/safras/UUID_SAFRA_SOJA/itens",
+        "payload": {
+          "categoria": "FERTILIZANTE",
+          "descricao": "KCl",
+          "quantidade": 3750.0,
+          "unidade": "kg",
+          "custo_unitario": 3.5,
+          "ordem": 3
+        }
+      },
+      {
+        "method": "POST",
+        "endpoint": "/agricola/planejamento/safras/UUID_SAFRA_SOJA/itens",
+        "payload": {
+          "categoria": "DEFENSIVO",
+          "descricao": "Glifosato",
+          "quantidade": 225.0,
+          "unidade": "L",
+          "custo_unitario": 32.0,
+          "ordem": 4
+        }
+      },
+      {
+        "method": "POST",
+        "endpoint": "/agricola/planejamento/safras/UUID_SAFRA_SOJA/itens",
+        "payload": {
+          "categoria": "DEFENSIVO",
+          "descricao": "Fungicida Triazol",
+          "quantidade": 112.5,
+          "unidade": "L",
+          "custo_unitario": 120.0,
+          "ordem": 5
+        }
+      }
+    ],
+    "avancar_preparo_solo": {
+      "method": "POST",
+      "endpoint": "/safras/UUID_SAFRA_SOJA/avancar-fase",
+      "payload": {
+        "novo_status": "PREPARO_SOLO",
+        "observacao": "Inicio do preparo do solo para soja"
+      }
+    },
+    "operacoes_preparo": [
+      {
+        "method": "POST",
+        "endpoint": "/operacoes/",
+        "payload": {
+          "safra_id": "UUID_SAFRA_SOJA",
+          "talhao_id": "UUID_TALHAO_A1",
+          "production_unit_id": "UUID_PU_SOJA_A1",
+          "tipo": "CALAGEM",
+          "descricao": "Correcao de solo talhao A1",
+          "data_realizada": "2025-08-20",
+          "area_aplicada_ha": 30.0,
+          "insumos": [
+            {
+              "produto_id": "UUID_PRODUTO_UREIA",
+              "dose_por_ha": 100.0,
+              "unidade": "kg"
+            }
+          ]
+        }
+      },
+      {
+        "method": "POST",
+        "endpoint": "/operacoes/",
+        "payload": {
+          "safra_id": "UUID_SAFRA_SOJA",
+          "talhao_id": "UUID_TALHAO_A2",
+          "production_unit_id": "UUID_PU_SOJA_A2",
+          "tipo": "ADUBACAO",
+          "descricao": "Adubacao de base no A2",
+          "data_realizada": "2025-09-02",
+          "area_aplicada_ha": 25.0,
+          "insumos": [
+            {
+              "produto_id": "UUID_PRODUTO_KCL",
+              "dose_por_ha": 150.0,
+              "unidade": "kg"
+            }
+          ]
+        }
+      }
+    ],
+    "avancar_plantio": {
+      "method": "POST",
+      "endpoint": "/safras/UUID_SAFRA_SOJA/avancar-fase",
+      "payload": {
+        "novo_status": "PLANTIO",
+        "observacao": "Inicio do plantio da soja"
+      }
+    },
+    "operacoes_plantio": [
+      {
+        "method": "POST",
+        "endpoint": "/operacoes/",
+        "payload": {
+          "safra_id": "UUID_SAFRA_SOJA",
+          "talhao_id": "UUID_TALHAO_A1",
+          "production_unit_id": "UUID_PU_SOJA_A1",
+          "tipo": "PLANTIO",
+          "descricao": "Plantio de soja no A1",
+          "data_realizada": "2025-10-05",
+          "area_aplicada_ha": 30.0,
+          "insumos": [
+            {
+              "produto_id": "UUID_PRODUTO_SEMENTE_SOJA",
+              "dose_por_ha": 55.0,
+              "unidade": "kg"
+            }
+          ]
+        }
+      },
+      {
+        "method": "POST",
+        "endpoint": "/operacoes/",
+        "payload": {
+          "safra_id": "UUID_SAFRA_SOJA",
+          "talhao_id": "UUID_TALHAO_A2",
+          "production_unit_id": "UUID_PU_SOJA_A2",
+          "tipo": "PLANTIO",
+          "descricao": "Plantio de soja no A2",
+          "data_realizada": "2025-10-06",
+          "area_aplicada_ha": 25.0,
+          "insumos": [
+            {
+              "produto_id": "UUID_PRODUTO_SEMENTE_SOJA",
+              "dose_por_ha": 55.0,
+              "unidade": "kg"
+            }
+          ]
+        }
+      }
+    ],
+    "fenologia": [
+      {
+        "method": "POST",
+        "endpoint": "/fenologia/safras/UUID_SAFRA_SOJA/talhoes/UUID_TALHAO_A1/registros",
+        "payload": {
+          "escala_id": "UUID_ESCALA_SOJA_EMERGENCIA",
+          "data_observacao": "2025-10-25",
+          "observacao": "Emergencia uniforme no A1"
+        }
+      },
+      {
+        "method": "POST",
+        "endpoint": "/fenologia/safras/UUID_SAFRA_SOJA/talhoes/UUID_TALHAO_A2/registros",
+        "payload": {
+          "escala_id": "UUID_ESCALA_SOJA_V3",
+          "data_observacao": "2025-11-05",
+          "observacao": "Estagio V3 no A2"
+        }
+      },
+      {
+        "method": "POST",
+        "endpoint": "/fenologia/safras/UUID_SAFRA_SOJA/talhoes/UUID_TALHAO_B1/registros",
+        "payload": {
+          "escala_id": "UUID_ESCALA_SOJA_V5",
+          "data_observacao": "2025-11-12",
+          "observacao": "Desenvolvimento vegetativo V5 no B1"
+        }
+      }
+    ],
+    "monitoramento": [
+      {
+        "method": "POST",
+        "endpoint": "/monitoramento/",
+        "payload": {
+          "safra_id": "UUID_SAFRA_SOJA",
+          "talhao_id": "UUID_TALHAO_A1",
+          "data_avaliacao": "2025-11-18",
+          "catalogo_id": "UUID_CATALOGO_LAGARTA",
+          "nivel_infestacao": 2.0,
+          "unidade_medida": "indice",
+          "nde_cultura": 3.0,
+          "acao_tomada": "MONITORAR",
+          "observacoes": "Baixa incidencia de lagarta"
+        }
+      },
+      {
+        "method": "POST",
+        "endpoint": "/monitoramento/",
+        "payload": {
+          "safra_id": "UUID_SAFRA_SOJA",
+          "talhao_id": "UUID_TALHAO_B1",
+          "data_avaliacao": "2025-12-02",
+          "catalogo_id": "UUID_CATALOGO_FERRUGEM",
+          "nivel_infestacao": 4.0,
+          "unidade_medida": "indice",
+          "nde_cultura": 3.0,
+          "acao_tomada": "CONTROLE",
+          "observacoes": "Controle imediato recomendado"
+        }
+      }
+    ],
+    "avancar_desenvolvimento": {
+      "method": "POST",
+      "endpoint": "/safras/UUID_SAFRA_SOJA/avancar-fase",
+      "payload": {
+        "novo_status": "DESENVOLVIMENTO",
+        "observacao": "Safra entrando em desenvolvimento vegetativo"
+      }
+    },
+    "operacoes_desenvolvimento": [
+      {
+        "method": "POST",
+        "endpoint": "/operacoes/",
+        "payload": {
+          "safra_id": "UUID_SAFRA_SOJA",
+          "talhao_id": "UUID_TALHAO_B1",
+          "production_unit_id": "UUID_PU_SOJA_B1",
+          "tipo": "PULVERIZACAO",
+          "descricao": "Aplicacao fitossanitaria no B1",
+          "data_realizada": "2025-12-03",
+          "area_aplicada_ha": 20.0,
+          "insumos": [
+            {
+              "produto_id": "UUID_PRODUTO_FUNGICIDA_TRIAZOL",
+              "dose_por_ha": 1.2,
+              "unidade": "L"
+            }
+          ]
+        }
+      }
+    ],
+    "avancar_colheita": {
+      "method": "POST",
+      "endpoint": "/safras/UUID_SAFRA_SOJA/avancar-fase",
+      "payload": {
+        "novo_status": "COLHEITA",
+        "observacao": "Inicio da colheita da soja"
+      }
+    },
+    "romaneios": [
+      {
+        "method": "POST",
+        "endpoint": "/romaneios/",
+        "payload": {
+          "safra_id": "UUID_SAFRA_SOJA",
+          "talhao_id": "UUID_TALHAO_A1",
+          "production_unit_id": "UUID_PU_SOJA_A1",
+          "numero_romaneio": "SOJA-2026-001",
+          "data_colheita": "2026-02-10",
+          "peso_bruto_kg": 97200.0,
+          "tara_kg": 0.0,
+          "destino": "Armazem principal",
+          "preco_saca": 128.0,
+          "observacoes": "Primeiro lote da colheita"
+        }
+      },
+      {
+        "method": "POST",
+        "endpoint": "/romaneios/",
+        "payload": {
+          "safra_id": "UUID_SAFRA_SOJA",
+          "talhao_id": "UUID_TALHAO_A2",
+          "production_unit_id": "UUID_PU_SOJA_A2",
+          "numero_romaneio": "SOJA-2026-002",
+          "data_colheita": "2026-02-12",
+          "peso_bruto_kg": 75000.0,
+          "tara_kg": 0.0,
+          "destino": "Armazem principal",
+          "preco_saca": 126.0,
+          "observacoes": "Segundo lote da colheita"
+        }
+      },
+      {
+        "method": "POST",
+        "endpoint": "/romaneios/",
+        "payload": {
+          "safra_id": "UUID_SAFRA_SOJA",
+          "talhao_id": "UUID_TALHAO_B1",
+          "production_unit_id": "UUID_PU_SOJA_B1",
+          "numero_romaneio": "SOJA-2026-003",
+          "data_colheita": "2026-02-15",
+          "peso_bruto_kg": 58800.0,
+          "tara_kg": 0.0,
+          "destino": "Armazem principal",
+          "preco_saca": 124.0,
+          "observacoes": "Terceiro lote da colheita"
+        }
+      }
+    ],
+    "cenario_base_recalcular": {
+      "method": "POST",
+      "endpoint": "/safras/UUID_SAFRA_SOJA/cenarios/base/recalcular",
+      "payload": {}
+    },
+    "cenarios_alternativos": [
+      {
+        "method": "POST",
+        "endpoint": "/safras/UUID_SAFRA_SOJA/cenarios",
+        "payload": {
+          "nome": "Otimista",
+          "tipo": "OTIMISTA",
+          "produtividade_default": 55.44,
+          "preco_default": 132.65,
+          "custo_ha_default": 830.18,
+          "ir_aliquota_pct": 15.0,
+          "unidades": [
+            {
+              "production_unit_id": "UUID_PU_SOJA_A1",
+              "produtividade_simulada": 58.32,
+              "preco_simulado": 134.0,
+              "custo_total_simulado_ha": 840.0,
+              "depreciacao_ha": 45.0
+            },
+            {
+              "production_unit_id": "UUID_PU_SOJA_A2",
+              "produtividade_simulada": 54.0,
+              "preco_simulado": 132.0,
+              "custo_total_simulado_ha": 822.0,
+              "depreciacao_ha": 40.0
+            }
+          ]
+        }
+      },
+      {
+        "method": "POST",
+        "endpoint": "/safras/UUID_SAFRA_SOJA/cenarios",
+        "payload": {
+          "nome": "Pessimista",
+          "tipo": "PESSIMISTA",
+          "produtividade_default": 46.2,
+          "preco_default": 118.75,
+          "custo_ha_default": 862.42,
+          "ir_aliquota_pct": 15.0,
+          "unidades": [
+            {
+              "production_unit_id": "UUID_PU_SOJA_A1",
+              "produtividade_simulada": 48.0,
+              "preco_simulado": 120.0,
+              "custo_total_simulado_ha": 870.0,
+              "depreciacao_ha": 45.0
+            },
+            {
+              "production_unit_id": "UUID_PU_SOJA_B1",
+              "produtividade_simulada": 44.0,
+              "preco_simulado": 117.0,
+              "custo_total_simulado_ha": 858.0,
+              "depreciacao_ha": 40.0
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "cafe": {
+    "ordem_execucao": [
+      "create_safra",
+      "orcamento_itens",
+      "avancar_preparo_solo",
+      "operacoes_preparo",
+      "avancar_plantio",
+      "operacoes_manejo",
+      "fenologia",
+      "monitoramento",
+      "avancar_desenvolvimento",
+      "operacoes_desenvolvimento",
+      "avancar_colheita",
+      "romaneios",
+      "lote_beneficiamento",
+      "cenario_base_recalcular",
+      "cenarios_alternativos"
+    ],
+    "create_safra": {
+      "method": "POST",
+      "endpoint": "/safras",
+      "payload": {
+        "ano_safra": "2025/26",
+        "observacoes": "Massa de teste automatizada - cafe",
+        "cultivos": [
+          {
+            "cultura": "Café",
+            "cultivar_nome": "Catuaí 144",
+            "sistema_plantio": "PERENE",
+            "data_plantio_prevista": "2025-07-15",
+            "produtividade_meta_sc_ha": 42.0,
+            "preco_venda_previsto": 1058.49,
+            "areas": [
+              {
+                "area_id": "UUID_TALHAO_CAFE_A1",
+                "area_ha": 20.0
+              },
+              {
+                "area_id": "UUID_TALHAO_CAFE_A2",
+                "area_ha": 25.0
+              },
+              {
+                "area_id": "UUID_TALHAO_CAFE_B1",
+                "area_ha": 30.0
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "orcamento_itens": [
+      {
+        "method": "POST",
+        "endpoint": "/agricola/planejamento/safras/UUID_SAFRA_CAFE/itens",
+        "payload": {
+          "categoria": "FERTILIZANTE",
+          "descricao": "Ureia 45%",
+          "quantidade": 22500.0,
+          "unidade": "kg",
+          "custo_unitario": 3.2,
+          "ordem": 1
+        }
+      },
+      {
+        "method": "POST",
+        "endpoint": "/agricola/planejamento/safras/UUID_SAFRA_CAFE/itens",
+        "payload": {
+          "categoria": "FERTILIZANTE",
+          "descricao": "KCl",
+          "quantidade": 11250.0,
+          "unidade": "kg",
+          "custo_unitario": 3.55,
+          "ordem": 2
+        }
+      },
+      {
+        "method": "POST",
+        "endpoint": "/agricola/planejamento/safras/UUID_SAFRA_CAFE/itens",
+        "payload": {
+          "categoria": "DEFENSIVO",
+          "descricao": "Fungicida para ferrugem",
+          "quantidade": 225.0,
+          "unidade": "L",
+          "custo_unitario": 118.0,
+          "ordem": 3
+        }
+      },
+      {
+        "method": "POST",
+        "endpoint": "/agricola/planejamento/safras/UUID_SAFRA_CAFE/itens",
+        "payload": {
+          "categoria": "DEFENSIVO",
+          "descricao": "Inseticida broca do cafe",
+          "quantidade": 150.0,
+          "unidade": "L",
+          "custo_unitario": 135.0,
+          "ordem": 4
+        }
+      },
+      {
+        "method": "POST",
+        "endpoint": "/agricola/planejamento/safras/UUID_SAFRA_CAFE/itens",
+        "payload": {
+          "categoria": "MAO_DE_OBRA",
+          "descricao": "Colheita manual e manejo",
+          "quantidade": 1.0,
+          "unidade": "lote",
+          "custo_unitario": 280000.0,
+          "ordem": 5
+        }
+      }
+    ],
+    "avancar_preparo_solo": {
+      "method": "POST",
+      "endpoint": "/safras/UUID_SAFRA_CAFE/avancar-fase",
+      "payload": {
+        "novo_status": "PREPARO_SOLO",
+        "observacao": "Inicio do preparo e manejo inicial do cafe"
+      }
+    },
+    "operacoes_preparo": [
+      {
+        "method": "POST",
+        "endpoint": "/operacoes/",
+        "payload": {
+          "safra_id": "UUID_SAFRA_CAFE",
+          "talhao_id": "UUID_TALHAO_CAFE_A1",
+          "production_unit_id": "UUID_PU_CAFE_A1",
+          "tipo": "CALAGEM",
+          "descricao": "Correcao de solo no cafe A1",
+          "data_realizada": "2025-07-20",
+          "area_aplicada_ha": 20.0,
+          "insumos": [
+            {
+              "produto_id": "UUID_PRODUTO_UREIA",
+              "dose_por_ha": 100.0,
+              "unidade": "kg"
+            }
+          ]
+        }
+      },
+      {
+        "method": "POST",
+        "endpoint": "/operacoes/",
+        "payload": {
+          "safra_id": "UUID_SAFRA_CAFE",
+          "talhao_id": "UUID_TALHAO_CAFE_A2",
+          "production_unit_id": "UUID_PU_CAFE_A2",
+          "tipo": "ADUBACAO",
+          "descricao": "Adubacao inicial no cafe A2",
+          "data_realizada": "2025-08-01",
+          "area_aplicada_ha": 25.0,
+          "insumos": [
+            {
+              "produto_id": "UUID_PRODUTO_KCL",
+              "dose_por_ha": 150.0,
+              "unidade": "kg"
+            }
+          ]
+        }
+      }
+    ],
+    "avancar_plantio": {
+      "method": "POST",
+      "endpoint": "/safras/UUID_SAFRA_CAFE/avancar-fase",
+      "payload": {
+        "novo_status": "PLANTIO",
+        "observacao": "Fase de manejo estrutural do cafe"
+      }
+    },
+    "operacoes_manejo": [
+      {
+        "method": "POST",
+        "endpoint": "/operacoes/",
+        "payload": {
+          "safra_id": "UUID_SAFRA_CAFE",
+          "talhao_id": "UUID_TALHAO_CAFE_A1",
+          "production_unit_id": "UUID_PU_CAFE_A1",
+          "tipo": "PODA",
+          "descricao": "Poda de manejo no cafe A1",
+          "data_realizada": "2025-08-20",
+          "area_aplicada_ha": 20.0,
+          "insumos": []
+        }
+      }
+    ],
+    "fenologia": [
+      {
+        "method": "POST",
+        "endpoint": "/fenologia/safras/UUID_SAFRA_CAFE/talhoes/UUID_TALHAO_CAFE_A1/registros",
+        "payload": {
+          "escala_id": "UUID_ESCALA_CAFE_FLORACAO",
+          "data_observacao": "2025-09-18",
+          "observacao": "Floracao uniforme no A1"
+        }
+      },
+      {
+        "method": "POST",
+        "endpoint": "/fenologia/safras/UUID_SAFRA_CAFE/talhoes/UUID_TALHAO_CAFE_A2/registros",
+        "payload": {
+          "escala_id": "UUID_ESCALA_CAFE_PEGAMENTO",
+          "data_observacao": "2025-10-10",
+          "observacao": "Bom pegamento no A2"
+        }
+      },
+      {
+        "method": "POST",
+        "endpoint": "/fenologia/safras/UUID_SAFRA_CAFE/talhoes/UUID_TALHAO_CAFE_B1/registros",
+        "payload": {
+          "escala_id": "UUID_ESCALA_CAFE_GRANACAO",
+          "data_observacao": "2025-11-12",
+          "observacao": "Granacao em andamento no B1"
+        }
+      }
+    ],
+    "monitoramento": [
+      {
+        "method": "POST",
+        "endpoint": "/monitoramento/",
+        "payload": {
+          "safra_id": "UUID_SAFRA_CAFE",
+          "talhao_id": "UUID_TALHAO_CAFE_A1",
+          "data_avaliacao": "2025-10-22",
+          "catalogo_id": "UUID_CATALOGO_FERRUGEM",
+          "nivel_infestacao": 2.0,
+          "unidade_medida": "indice",
+          "nde_cultura": 3.0,
+          "acao_tomada": "MONITORAR",
+          "observacoes": "Inicio de incidencia de ferrugem"
+        }
+      },
+      {
+        "method": "POST",
+        "endpoint": "/monitoramento/",
+        "payload": {
+          "safra_id": "UUID_SAFRA_CAFE",
+          "talhao_id": "UUID_TALHAO_CAFE_A2",
+          "data_avaliacao": "2025-11-05",
+          "catalogo_id": "UUID_CATALOGO_BROCA_CAFE",
+          "nivel_infestacao": 4.0,
+          "unidade_medida": "indice",
+          "nde_cultura": 3.0,
+          "acao_tomada": "CONTROLE",
+          "observacoes": "Broca do cafe acima do nivel de dano"
+        }
+      }
+    ],
+    "avancar_desenvolvimento": {
+      "method": "POST",
+      "endpoint": "/safras/UUID_SAFRA_CAFE/avancar-fase",
+      "payload": {
+        "novo_status": "DESENVOLVIMENTO",
+        "observacao": "Entrada no desenvolvimento da safra de cafe"
+      }
+    },
+    "operacoes_desenvolvimento": [
+      {
+        "method": "POST",
+        "endpoint": "/operacoes/",
+        "payload": {
+          "safra_id": "UUID_SAFRA_CAFE",
+          "talhao_id": "UUID_TALHAO_CAFE_A2",
+          "production_unit_id": "UUID_PU_CAFE_A2",
+          "tipo": "PULVERIZACAO",
+          "descricao": "Controle fitossanitario no cafe A2",
+          "data_realizada": "2025-11-06",
+          "area_aplicada_ha": 25.0,
+          "insumos": [
+            {
+              "produto_id": "UUID_PRODUTO_FUNGICIDA_FERRUGEM",
+              "dose_por_ha": 1.0,
+              "unidade": "L"
+            }
+          ]
+        }
+      }
+    ],
+    "avancar_colheita": {
+      "method": "POST",
+      "endpoint": "/safras/UUID_SAFRA_CAFE/avancar-fase",
+      "payload": {
+        "novo_status": "COLHEITA",
+        "observacao": "Inicio da colheita do cafe"
+      }
+    },
+    "romaneios": [
+      {
+        "method": "POST",
+        "endpoint": "/romaneios/",
+        "payload": {
+          "safra_id": "UUID_SAFRA_CAFE",
+          "talhao_id": "UUID_TALHAO_CAFE_A1",
+          "production_unit_id": "UUID_PU_CAFE_A1",
+          "numero_romaneio": "CAFE-2026-001",
+          "data_colheita": "2026-05-28",
+          "peso_bruto_kg": 45600.0,
+          "tara_kg": 0.0,
+          "destino": "Terreiro 1",
+          "preco_saca": 1080.0,
+          "observacoes": "Primeiro lote cafe A1"
+        }
+      },
+      {
+        "method": "POST",
+        "endpoint": "/romaneios/",
+        "payload": {
+          "safra_id": "UUID_SAFRA_CAFE",
+          "talhao_id": "UUID_TALHAO_CAFE_A2",
+          "production_unit_id": "UUID_PU_CAFE_A2",
+          "numero_romaneio": "CAFE-2026-002",
+          "data_colheita": "2026-06-02",
+          "peso_bruto_kg": 58800.0,
+          "tara_kg": 0.0,
+          "destino": "Terreiro 1",
+          "preco_saca": 1040.0,
+          "observacoes": "Segundo lote cafe A2"
+        }
+      },
+      {
+        "method": "POST",
+        "endpoint": "/romaneios/",
+        "payload": {
+          "safra_id": "UUID_SAFRA_CAFE",
+          "talhao_id": "UUID_TALHAO_CAFE_B1",
+          "production_unit_id": "UUID_PU_CAFE_B1",
+          "numero_romaneio": "CAFE-2026-003",
+          "data_colheita": "2026-06-07",
+          "peso_bruto_kg": 70800.0,
+          "tara_kg": 0.0,
+          "destino": "Terreiro 2",
+          "preco_saca": 1060.0,
+          "observacoes": "Terceiro lote cafe B1"
+        }
+      }
+    ],
+    "lote_beneficiamento": {
+      "method": "POST",
+      "endpoint": "/beneficiamento/from-romaneios",
+      "payload": {
+        "romaneio_ids": [
+          "UUID_ROMANEIO_CAFE_001",
+          "UUID_ROMANEIO_CAFE_002",
+          "UUID_ROMANEIO_CAFE_003"
+        ],
+        "metodo": "NATURAL",
+        "numero_lote": "CAFE-BEN-2026-001"
+      }
+    },
+    "cenario_base_recalcular": {
+      "method": "POST",
+      "endpoint": "/safras/UUID_SAFRA_CAFE/cenarios/base/recalcular",
+      "payload": {}
+    },
+    "cenarios_alternativos": [
+      {
+        "method": "POST",
+        "endpoint": "/safras/UUID_SAFRA_CAFE/cenarios",
+        "payload": {
+          "nome": "Otimista Cafe",
+          "tipo": "OTIMISTA",
+          "produtividade_default": 41.27,
+          "preco_default": 1100.83,
+          "custo_ha_default": 847.28,
+          "ir_aliquota_pct": 15.0,
+          "unidades": [
+            {
+              "production_unit_id": "UUID_PU_CAFE_A1",
+              "produtividade_simulada": 40.28,
+              "preco_simulado": 1120.0,
+              "custo_total_simulado_ha": 810.0,
+              "depreciacao_ha": 65.0
+            },
+            {
+              "production_unit_id": "UUID_PU_CAFE_B1",
+              "produtividade_simulada": 41.68,
+              "preco_simulado": 1098.0,
+              "custo_total_simulado_ha": 852.0,
+              "depreciacao_ha": 70.0
+            }
+          ]
+        }
+      },
+      {
+        "method": "POST",
+        "endpoint": "/safras/UUID_SAFRA_CAFE/cenarios",
+        "payload": {
+          "nome": "Pessimista Cafe",
+          "tipo": "PESSIMISTA",
+          "produtividade_default": 35.43,
+          "preco_default": 984.4,
+          "custo_ha_default": 880.51,
+          "ir_aliquota_pct": 15.0,
+          "unidades": [
+            {
+              "production_unit_id": "UUID_PU_CAFE_A2",
+              "produtividade_simulada": 35.0,
+              "preco_simulado": 980.0,
+              "custo_total_simulado_ha": 884.0,
+              "depreciacao_ha": 68.0
+            },
+            {
+              "production_unit_id": "UUID_PU_CAFE_B1",
+              "produtividade_simulada": 35.8,
+              "preco_simulado": 988.0,
+              "custo_total_simulado_ha": 878.0,
+              "depreciacao_ha": 70.0
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

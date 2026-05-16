@@ -49,6 +49,7 @@ class OperacaoAgricolaCreate(BaseModel):
     operador_id: UUID | None = None
     latitude: float | None = Field(None, ge=-90, le=90)
     longitude: float | None = Field(None, ge=-180, le=180)
+    custo_total: float | None = Field(None, ge=0)
     observacoes: str | None = None
     insumos: list[InsumoOperacaoCreate] = []
 
@@ -66,6 +67,7 @@ class OperacaoAgricolaUpdate(BaseModel):
     implemento: str | None = None
     operador_id: UUID | None = None
     production_unit_id: UUID | None = None
+    custo_total: float | None = Field(None, ge=0)
     status: str | None = None
     observacoes: str | None = None
 
@@ -82,6 +84,29 @@ class SafraOperacoesPorFaseResponse(BaseModel):
     safra_id: UUID
     fases: list[OperacaoPorFaseKPI]
     custo_total_safra: float
+
+
+class OperacaoTipoFaseBase(BaseModel):
+    tipo_operacao: str = Field(..., min_length=2, max_length=30)
+    fases_permitidas: list[str] = Field(..., min_length=1)
+    descricao: str | None = None
+
+
+class OperacaoTipoFaseCreate(OperacaoTipoFaseBase):
+    pass
+
+
+class OperacaoTipoFaseUpdate(BaseModel):
+    tipo_operacao: str | None = Field(None, min_length=2, max_length=30)
+    fases_permitidas: list[str] | None = None
+    descricao: str | None = None
+
+
+class OperacaoTipoFaseResponse(OperacaoTipoFaseBase):
+    id: UUID
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
 
 class OperacaoAgricolaResponse(BaseModel):
     id: UUID

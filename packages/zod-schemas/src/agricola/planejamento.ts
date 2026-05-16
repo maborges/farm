@@ -8,6 +8,7 @@ export const CategoriaOrcamentoSchema = z.enum([
 export type CategoriaOrcamento = z.infer<typeof CategoriaOrcamentoSchema>;
 
 export const ItemOrcamentoCreateSchema = z.object({
+  cultivo_id: z.string().uuid().nullable().optional(),
   categoria: CategoriaOrcamentoSchema,
   descricao: z.string().min(2, "A descrição deve ter pelo menos 2 caracteres").max(200, "A descrição suporta até 200 caracteres"),
   quantidade: z.number().positive("A quantidade deve ser maior que 0"),
@@ -20,6 +21,7 @@ export const ItemOrcamentoCreateSchema = z.object({
 export type ItemOrcamentoCreate = z.infer<typeof ItemOrcamentoCreateSchema>;
 
 export const ItemOrcamentoUpdateSchema = z.object({
+  cultivo_id: z.string().uuid().nullable().optional(),
   categoria: CategoriaOrcamentoSchema.nullable().optional(),
   descricao: z.string().min(2, "A descrição deve ter pelo menos 2 caracteres").max(200).nullable().optional(),
   quantidade: z.number().positive("A quantidade deve ser maior que 0").nullable().optional(),

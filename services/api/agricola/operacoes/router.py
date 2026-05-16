@@ -1,19 +1,26 @@
-from fastapi import APIRouter, Depends, status, BackgroundTasks, Response, Query
+from fastapi import APIRouter, Depends, status, BackgroundTasks, Response, Query, HTTPException
 from typing import List
 from uuid import UUID
 from datetime import date
 from sqlalchemy.ext.asyncio import AsyncSession
+from loguru import logger
+import traceback
+from pathlib import Path
 
-from core.dependencies import get_tenant_id, require_module, require_role
-from core.dependencies import get_session_with_tenant
+from core.dependencies import get_current_admin, get_current_user_claims, get_tenant_id, require_module, require_role
+from core.dependencies import get_session, get_session_with_tenant
 from core.utils.pdf_generator import generate_caderno_campo_pdf
 from agricola.operacoes.schemas import (
     OperacaoAgricolaCreate, OperacaoAgricolaResponse, OperacaoAgricolaUpdate,
+    OperacaoTipoFaseCreate,
+    OperacaoTipoFaseResponse,
+    OperacaoTipoFaseUpdate,
     SafraOperacoesPorFaseResponse,
 )
-from agricola.operacoes.service import OperacaoService
+from agricola.operacoes.service import OperacaoService, OperacaoTipoFaseService
 
 router = APIRouter(prefix="/operacoes", tags=["Operações Agrícolas — A2"])
+ERROR_DEBUG_LOG = Path(__file__).resolve().parents[2] / "error_debug.log"
 
 MODULE = "A2_CAMPO"
 
@@ -74,8 +81,22 @@ async def criar_operacao(
     user: dict = Depends(require_role(["agronomo", "admin", "operador"])),
 ):
     svc = OperacaoService(session, tenant_id)
-    operacao = await svc.criar(dados)
-    await session.commit()
+    try:
+        operacao = await svc.criar(dados)
+        await session.commit()
+    except Exception as exc:
+        logger.exception("Erro ao criar operação agrícola")
+        with ERROR_DEBUG_LOG.open("a") as f:
+            f.write(
+                "\n--- OPERACOES CREATE ---\n"
+                f"payload={dados.model_dump()}\n"
+                f"error={type(exc).__name__}: {exc}\n"
+                f"{traceback.format_exc()}\n"
+            )
+        raise HTTPException(
+            status_code=500,
+            detail=f"{type(exc).__name__}: {exc}",
+        ) from exc
     background_tasks.add_task(
         verificar_alertas_pos_operacao,
         operacao_id=operacao.id,
@@ -117,6 +138,76 @@ async def listar_operacoes(
         operacoes = [o for o in operacoes if o.data_realizada <= data_fim]
 
     return [OperacaoAgricolaResponse.model_validate(o) for o in operacoes]
+
+
+@router.get(
+    "/tipos",
+    response_model=List[OperacaoTipoFaseResponse],
+    summary="Lista tipos de operação cadastrados",
+)
+async def listar_tipos_operacao(
+    session: AsyncSession = Depends(get_session),
+    claims: dict = Depends(get_current_user_claims),
+):
+    _ = claims
+    svc = OperacaoTipoFaseService(session)
+    items = await svc.listar()
+    await session.commit()
+    return [OperacaoTipoFaseResponse.model_validate(i) for i in items]
+
+
+@router.post(
+    "/tipos",
+    response_model=OperacaoTipoFaseResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Cria tipo de operação",
+)
+async def criar_tipo_operacao(
+    dados: OperacaoTipoFaseCreate,
+    session: AsyncSession = Depends(get_session),
+    admin: dict = Depends(get_current_admin),
+):
+    _ = admin
+    svc = OperacaoTipoFaseService(session)
+    item = await svc.criar(dados)
+    await session.commit()
+    await session.refresh(item)
+    return OperacaoTipoFaseResponse.model_validate(item)
+
+
+@router.patch(
+    "/tipos/{tipo_id}",
+    response_model=OperacaoTipoFaseResponse,
+    summary="Atualiza tipo de operação",
+)
+async def atualizar_tipo_operacao(
+    tipo_id: UUID,
+    dados: OperacaoTipoFaseUpdate,
+    session: AsyncSession = Depends(get_session),
+    admin: dict = Depends(get_current_admin),
+):
+    _ = admin
+    svc = OperacaoTipoFaseService(session)
+    item = await svc.atualizar(tipo_id, dados)
+    await session.commit()
+    await session.refresh(item)
+    return OperacaoTipoFaseResponse.model_validate(item)
+
+
+@router.delete(
+    "/tipos/{tipo_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Exclui tipo de operação",
+)
+async def excluir_tipo_operacao(
+    tipo_id: UUID,
+    session: AsyncSession = Depends(get_session),
+    admin: dict = Depends(get_current_admin),
+):
+    _ = admin
+    svc = OperacaoTipoFaseService(session)
+    await svc.excluir(tipo_id)
+    await session.commit()
 
 
 @router.get(
@@ -182,6 +273,8 @@ async def atualizar_operacao(
 ):
     svc = OperacaoService(session, tenant_id)
     operacao = await svc.atualizar(id, dados)
+    await session.commit()
+    await session.refresh(operacao)
     return OperacaoAgricolaResponse.model_validate(operacao)
 
 

@@ -128,7 +128,7 @@ async def ativar_dispositivo(
             device_id=device.id,
             tenant_id=device.tenant_id,
             user_id=device.user_id,
-            user_name=user.nome if user else "Operador",
+            user_name=user.nome_completo if user else "Operador",
             fazenda_ids=device.fazenda_ids,
             modulos=device.modulos,
             expires_at=device.expires_at,

@@ -170,6 +170,8 @@ class SafraService(BaseService[Safra]):
         if "status" in filters:
             stmt = stmt.where(Safra.status == filters["status"])
 
+        stmt = stmt.order_by(Safra.created_at.desc(), Safra.ano_safra.desc())
+
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 

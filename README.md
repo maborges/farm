@@ -195,8 +195,8 @@ uvicorn main:app --reload
 
 No diretório raiz do projeto:
 ```bash
-source .venv/bin/activate
-python scripts/run_worker.py
+    source .venv/bin/activate
+    python scripts/run_worker.py
 ```
 
 
