@@ -103,6 +103,8 @@ O projeto é dividido em um monorepo contendo:
 - **Otimização de Conversão (FROTA-39)**: Cálculo de ROI (Economia Estimada) por ação, justificativas baseadas em impacto financeiro e sugestões proativas para automação total.
 - **Benchmarks e Desempenho (FROTA-40)**: Comparação histórica de custos, ranking de eficiência por talhão e relatórios de impacto da automação na fazenda.
 - **Checklists e Disponibilidade**: Inspeções pré-operacionais e status de disponibilidade em tempo real.
+- **Consolidação de Custos Operacionais Reais (Step 03)**: Consolidação econômica confiável por equipamento, safra, unidade produtiva e operação/talhão. Utiliza rateio dinâmico baseado em jornadas concluídas, alocações ativas e fallbacks inteligentes. Fornece indicadores econômicos reais como custo por hora/km, disponibilidade operacional (%) e tempo parado para manutenção, com visualização unificada no dashboard da frota e endpoints de custos integrados.
+
 
 ### 13. Receitas Operacionais Manuais (Step 182)
 - **Registro de Entradas**: Permite o registro manual de receitas vinculadas à safra, como venda de produção ou outras receitas operacionais.
@@ -177,6 +179,13 @@ O projeto é dividido em um monorepo contendo:
 - **UX-05: Essencial Dinâmico (Adaptive UI)**: A interface adapta automaticamente sua densidade e nível de detalhe com base no perfil comportamental detectado (Confiante, Analítico ou Inseguro), otimizando a experiência para cada tipo de usuário.
 - **UX-06: Auto-Calibração de Thresholds**: O sistema recalibra dinamicamente os limites de classificação de perfil baseando-se em percentis da distribuição real de uso, garantindo que as definições de "Confiante" ou "Analítico" evoluam com a base de usuários.
 - **UX-07: Transparência e Explicabilidade**: Implementação de interfaces que explicam "por que" a IA se adaptou. Inclui badge de perfil no card essencial com tooltip educativo e uma nova seção na página de configurações detalhando métricas e thresholds.
+
+### 22. Manutenção Preventiva Inteligente (Step 04)
+- **Planos de Manutenção Preventiva**: Criação e atualização de planos preventivos contendo categorias e checklists específicos para as inspeções.
+- **Cálculo Dinâmico de Vencimento**: Processamento inteligente de proximidade e vencimento de planos com base em dias corridos, quilometragem acumulada ou horas de horímetro, retornando os status `EM_DIA`, `PROXIMO_VENCIMENTO` ou `VENCIDO`.
+- **Geração Assistida de OS Preventiva**: Abertura de ordens de serviço preventivas, importando automaticamente o checklist preventivo padrão para o campo `checklist_aplicado` do maquinário, além de transicionar o status do equipamento para `EM_MANUTENCAO` e impedir ordens de serviço duplicadas para o mesmo plano preventivo em aberto.
+- **Encerramento de OS e Apropriação Econômica**: Conclusão de ordens de serviço, restaurando o status da máquina para `ATIVO`, salvando o histórico no `RegistroManutencao` e gerando uma `Despesa` integrada no módulo financeiro vinculada adequadamente à Safra, à Unidade Produtiva (UP) e ao Cultivo de forma rastreável.
+- **Indicadores do Dashboard de Frota**: Atualização do painel executivo de frota com a computação consolidada do Tempo Médio Entre Falhas (MTBF) e a distribuição percentual de custos de manutenção preventivos vs corretivos.
 
 ## 🛠️ Como Executar
 

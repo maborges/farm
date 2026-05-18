@@ -60,15 +60,19 @@ class FrotaService(BaseService[Maquinario]):
     async def criar_plano_manutencao(self, dados: PlanoManutencaoCreate) -> PlanoManutencao:
         payload = dados.model_dump()
         plano = PlanoManutencao(
+            tenant_id=self.tenant_id,
             equipamento_id=payload["maquinario_id"],
             descricao=payload["descricao"],
             frequencia_dias=payload.get("frequencia_dias"),
             frequencia_horas=payload.get("frequencia_horas"),
             frequencia_km=payload.get("frequencia_km"),
+            checklist_preventivo=payload.get("checklist_preventivo"),
+            categoria=payload.get("categoria"),
         )
         self.session.add(plano)
         await self.session.flush()
         return plano
+
 
     async def listar_planos(self, maquinario_id: uuid.UUID) -> List[PlanoManutencao]:
         stmt = select(PlanoManutencao).where(PlanoManutencao.equipamento_id == maquinario_id)
@@ -242,18 +246,32 @@ class FrotaService(BaseService[Maquinario]):
             )
             plano_id = (await self.session.execute(stmt_pc)).scalar()
             if plano_id:
+                from agricola.cultivos.models import Cultivo
+                stmt_cultivo = (
+                    select(Cultivo.id)
+                    .where(
+                        Cultivo.tenant_id == self.tenant_id,
+                        Cultivo.safra_id == os.safra_id,
+                    )
+                    .limit(1)
+                )
+                cultivo_id = (await self.session.execute(stmt_cultivo)).scalar() if os.safra_id else None
+
                 hoje = _date.today()
                 self.session.add(Despesa(
                     id=uuid.uuid4(),
                     tenant_id=self.tenant_id,
                     unidade_produtiva_id=unidade_operacional,
                     plano_conta_id=plano_id,
+                    cultivo_id=cultivo_id,
                     descricao=f"Manutenção — {os.numero_os}: {maquina.nome if maquina else str(os.equipamento_id)}",
                     valor_total=round(custo_os, 2),
                     data_emissao=hoje,
                     data_vencimento=hoje,
                     data_pagamento=hoje,
                     status="PAGO",
+                    origem_id=os.id,
+                    origem_tipo="ORDEM_SERVICO",
                 ))
 
         await self.session.commit()
