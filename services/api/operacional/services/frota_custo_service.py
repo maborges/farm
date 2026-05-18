@@ -295,21 +295,25 @@ class FrotaCustoService(FrotaDashboardService):
 
     async def _obter_custo_por_safra_sql(self, equipamento_ids: list[uuid.UUID], data_corte: datetime | None, total_geral: float) -> list[FrotaCustoAgrupadoSafra]:
         # Agrega abastecimentos e manutenções por safra
+        # Safra não possui coluna `nome` — o label é composto por ano_safra + cultura
         stmt = (
-            select(Safra.id, Safra.nome, func.sum(Abastecimento.custo_total))
+            select(Safra.id, Safra.ano_safra, Safra.cultura, func.sum(Abastecimento.custo_total))
             .join(Safra, Abastecimento.safra_id == Safra.id)
-            .where(Abastecimento.tenant_id == self.tenant_id)
-            .group_by(Safra.id, Safra.nome)
+            .where(
+                Abastecimento.tenant_id == self.tenant_id,
+                Safra.tenant_id == self.tenant_id,
+            )
+            .group_by(Safra.id, Safra.ano_safra, Safra.cultura)
         )
-        # Adicionar manutenções também se possível, mas como MVP vamos focar na união ou no principal custo (combustível)
-        # Para um dashboard real, usaríamos uma subquery ou UNION.
+        if data_corte:
+            stmt = stmt.where(Abastecimento.data >= data_corte)
         result = await self.session.execute(stmt)
         return [
             FrotaCustoAgrupadoSafra(
                 safra_id=row[0],
-                safra_nome=row[1],
-                custo_total=float(row[2] or 0.0),
-                participacao_percentual=round((float(row[2]) / total_geral) * 100, 2) if total_geral > 0 else 0.0
+                safra_nome=" / ".join(part for part in [row[1], row[2]] if part),
+                custo_total=float(row[3] or 0.0),
+                participacao_percentual=round((float(row[3]) / total_geral) * 100, 2) if total_geral > 0 else 0.0
             )
             for row in result.all()
         ]

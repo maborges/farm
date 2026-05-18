@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from agricola.cultivos.models import Cultivo, CultivoArea
 from agricola.safras.models import Safra
 from agricola.safras.models import SafraTalhao
+from core.cadastros.equipamentos.alocacao_service import get_equipamento_unidade_operacional
 from core.cadastros.equipamentos.models import Equipamento
 from core.cadastros.pessoas.models import Pessoa
 from core.cadastros.propriedades.models import AreaRural
@@ -71,9 +72,39 @@ class FrotaJornadaService(FrotaDashboardService):
         )
 
     async def criar_jornada(self, dados: FrotaJornadaCreate) -> FrotaJornadaDetailResponse:
-        equipamento = await self._obter_equipamento(dados.equipamento_id, dados.unidade_produtiva_id)
-        await self._validar_abertura(equipamento.id, dados.unidade_produtiva_id)
-        unidade_produtiva_id = dados.unidade_produtiva_id or equipamento.unidade_produtiva_id
+        """Cria jornada operacional validando UP operacional via alocação.
+
+        Resolve a UP operacional do equipamento (alocação > legado) e verifica que
+        o equipamento está autorizado a operar na UP solicitada antes de abrir jornada.
+
+        Args:
+            dados: Dados da nova jornada.
+
+        Returns:
+            Detalhe da jornada criada.
+
+        Raises:
+            BusinessRuleError: Equipamento indisponível, UP incompatível ou contexto incoerente.
+            EntityNotFoundError: Equipamento não localizado no tenant.
+        """
+        # Step 02: resolve UP operacional via alocação — com validação de coerência
+        contexto = await get_equipamento_unidade_operacional(
+            self.session,
+            tenant_id=self.tenant_id,
+            equipamento_id=dados.equipamento_id,
+            expected_unidade_produtiva_id=dados.unidade_produtiva_id,  # None = sem restrição
+        )
+        unidade_produtiva_id = contexto.unidade_produtiva_id
+
+        # Se foi passada uma UP diferente da operacional → rejeita
+        if dados.unidade_produtiva_id is not None and unidade_produtiva_id != dados.unidade_produtiva_id:
+            raise BusinessRuleError(
+                "Equipamento não está alocado na unidade produtiva informada. "
+                "Verifique a alocação do equipamento antes de abrir jornada."
+            )
+
+        equipamento = await self._obter_equipamento_por_id(dados.equipamento_id)
+        await self._validar_abertura(equipamento.id, unidade_produtiva_id)
         await self._validar_contexto_agricola(
             unidade_produtiva_id=unidade_produtiva_id,
             safra_id=dados.safra_id,
@@ -89,7 +120,9 @@ class FrotaJornadaService(FrotaDashboardService):
             talhao_id=dados.talhao_id,
             tipo_operacao=dados.tipo_operacao.strip(),
             data_inicio=dados.data_inicio,
-            horimetro_inicial=dados.horimetro_inicial if dados.horimetro_inicial is not None else equipamento.horimetro_atual,
+            horimetro_inicial=(
+                dados.horimetro_inicial if dados.horimetro_inicial is not None else equipamento.horimetro_atual
+            ),
             km_inicial=dados.km_inicial if dados.km_inicial is not None else equipamento.km_atual,
             status="ABERTA",
             observacoes=dados.observacoes,
@@ -110,7 +143,13 @@ class FrotaJornadaService(FrotaDashboardService):
             raise BusinessRuleError("Somente jornadas abertas podem ser atualizadas.")
 
         if dados.unidade_produtiva_id is not None:
-            await self._obter_equipamento(jornada.equipamento_id, dados.unidade_produtiva_id)
+            # Step 02: valida que o equipamento é compatível com a nova UP
+            await get_equipamento_unidade_operacional(
+                self.session,
+                tenant_id=self.tenant_id,
+                equipamento_id=jornada.equipamento_id,
+                expected_unidade_produtiva_id=dados.unidade_produtiva_id,
+            )
             jornada.unidade_produtiva_id = dados.unidade_produtiva_id
         if dados.operador_id is not None:
             jornada.operador_id = dados.operador_id
@@ -171,7 +210,8 @@ class FrotaJornadaService(FrotaDashboardService):
             jornada.km_final,
         )
 
-        equipamento = await self._obter_equipamento(jornada.equipamento_id, jornada.unidade_produtiva_id)
+        # Step 02: atualiza horímetro/km no equipamento mestre
+        equipamento = await self._obter_equipamento_por_id(jornada.equipamento_id)
         if jornada.horimetro_final is not None:
             equipamento.horimetro_atual = jornada.horimetro_final
         if jornada.km_final is not None:
@@ -202,19 +242,32 @@ class FrotaJornadaService(FrotaDashboardService):
         equipamento_id: uuid.UUID,
         unidade_produtiva_id: uuid.UUID | None,
     ) -> None:
+        """Valida que não há jornada aberta e que o equipamento está disponível.
+
+        Realiza verificações diretas no banco sem invocar o serviço de disponibilidade
+        completo, para evitar overhead de carregamento de dashboard.
+
+        Args:
+            equipamento_id: ID do equipamento.
+            unidade_produtiva_id: UP operacional resolvida (pode ser None).
+
+        Raises:
+            BusinessRuleError: Jornada já aberta ou equipamento indisponível.
+        """
         aberta = await self._buscar_jornada_aberta_por_equipamento(equipamento_id)
         if aberta:
             raise BusinessRuleError("Já existe uma jornada aberta para este equipamento.")
 
-        disponibilidade = await FrotaDisponibilidadeService(self.session, self.tenant_id).obter_disponibilidade_equipamento(
-            equipamento_id=equipamento_id,
-            unidade_produtiva_id=unidade_produtiva_id,
-        )
-        if disponibilidade.equipamento.status_operacional != "DISPONIVEL":
+        # Verifica status e bloqueio operacional diretamente no equipamento
+        equipamento = await self._obter_equipamento_por_id(equipamento_id)
+        if equipamento.bloqueado_operacional:
             raise BusinessRuleError(
-                disponibilidade.equipamento.motivo_status
-                or "Equipamento indisponível para abertura de jornada."
+                equipamento.motivo_bloqueio_operacional or "Equipamento bloqueado para operações."
             )
+        if equipamento.status == "EM_MANUTENCAO":
+            raise BusinessRuleError("Equipamento em manutenção. Abra uma OS para liberar.")
+        if equipamento.status not in {"ATIVO"}:
+            raise BusinessRuleError(f"Equipamento com status '{equipamento.status}' não permite abertura de jornada.")
 
     async def _buscar_jornadas(
         self,
@@ -244,11 +297,33 @@ class FrotaJornadaService(FrotaDashboardService):
         )
         return (await self.session.execute(stmt)).scalar_one_or_none()
 
+    async def _obter_equipamento_por_id(self, equipamento_id: uuid.UUID) -> Equipamento:
+        """Busca equipamento pelo ID garantindo isolamento de tenant.
+
+        Args:
+            equipamento_id: ID do equipamento.
+
+        Returns:
+            Equipamento encontrado.
+
+        Raises:
+            EntityNotFoundError: Equipamento não localizado no tenant.
+        """
+        stmt = select(Equipamento).where(
+            Equipamento.id == equipamento_id,
+            Equipamento.tenant_id == self.tenant_id,
+        )
+        equipamento = (await self.session.execute(stmt)).scalar_one_or_none()
+        if equipamento is None:
+            raise EntityNotFoundError("Equipamento não encontrado para o tenant informado.")
+        return equipamento
+
     async def _obter_equipamento(
         self,
         equipamento_id: uuid.UUID,
         unidade_produtiva_id: uuid.UUID | None,
     ) -> Equipamento:
+        """Fallback legado: busca via listagem por UP (mantido por retrocompatibilidade)."""
         equipamentos = await self._listar_equipamentos(unidade_produtiva_id)
         for equipamento in equipamentos:
             if equipamento.id == equipamento_id:
@@ -380,6 +455,16 @@ class FrotaJornadaService(FrotaDashboardService):
         safra_id: uuid.UUID | None,
         talhao_id: uuid.UUID | None,
     ) -> None:
+        """Valida coerência entre safra, talhão e UP operacional.
+
+        Args:
+            unidade_produtiva_id: UP resolvida (pode ser None em fallback legado).
+            safra_id: Safra opcional da jornada.
+            talhao_id: Talhão opcional da jornada.
+
+        Raises:
+            BusinessRuleError: Contexto incoerente (talhão/safra não vinculados à UP).
+        """
         if safra_id is not None:
             stmt_safra = select(Safra.id).where(
                 Safra.id == safra_id,

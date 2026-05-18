@@ -5,6 +5,7 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from core.base_service import BaseService
 from core.exceptions import BusinessRuleError
+from core.cadastros.equipamentos.alocacao_service import get_equipamento_unidade_operacional
 from core.cadastros.equipamentos.models import Equipamento as Maquinario
 from operacional.models.frota import PlanoManutencao, OrdemServico, RegistroManutencao, ItemOrdemServico, JornadaEquipamento
 from operacional.schemas.frota import (
@@ -140,45 +141,70 @@ class FrotaService(BaseService[Maquinario]):
         return item
 
     async def fechar_os(self, os_id: uuid.UUID, dados: OrdemServicoUpdate) -> OrdemServico:
+        """Fecha OS e realiza baixa de estoque + despesa financeira na UP operacional ativa.
+
+        Step 02: usa `get_equipamento_unidade_operacional` para resolver a UP no momento
+        do fechamento (alocação > legado), preservando o histórico sem depender do campo
+        legado `unidade_produtiva_id` diretamente.
+
+        Args:
+            os_id: ID da OS a fechar.
+            dados: Dados de fechamento (diagnóstico, custo mão de obra, etc.).
+
+        Returns:
+            OS atualizada.
+
+        Raises:
+            BusinessRuleError: OS não encontrada ou já concluída.
+        """
         os = await self.session.get(OrdemServico, os_id)
         if not os or os.tenant_id != self.tenant_id:
             raise BusinessRuleError("Ordem de serviço não encontrada.")
-            
+
         if os.status == "CONCLUIDA":
             raise BusinessRuleError("Esta OS já foi concluída.")
 
         # 1. Atualiza dados básicos
         for key, value in dados.model_dump(exclude_unset=True).items():
             setattr(os, key, value)
-            
+
         os.status = "CONCLUIDA"
         os.data_conclusao = datetime.now(timezone.utc)
-        
-        # 2. Marcar maquinário como ATIVO e atualizar horímetro se houve evolução
+
+        # 2. Marcar maquinário como ATIVO
         maquina = await self.session.get(Maquinario, os.equipamento_id)
         if maquina:
             maquina.status = "ATIVO"
-            # Aqui poderíamos atualizar o horímetro da máquina se a OS registrou o uso final
-        
-        # 3. Baixa Automática no Estoque para cada item da OS
+
+        # Step 02: resolve UP operacional do equipamento no momento do fechamento
+        contexto_up = await get_equipamento_unidade_operacional(
+            self.session,
+            tenant_id=self.tenant_id,
+            equipamento_id=os.equipamento_id,
+        )
+        unidade_operacional = contexto_up.unidade_produtiva_id
+
+        # 3. Baixa Automática no Estoque para cada item da OS (usa UP operacional ativa)
         estoque_svc = EstoqueService(self.session, self.tenant_id)
-        
+
         stmt_itens = select(ItemOrdemServico).where(ItemOrdemServico.os_id == os_id)
         itens = (await self.session.execute(stmt_itens)).scalars().all()
-        
+
         for item in itens:
-            await estoque_svc.registrar_saida_insumo(
-                produto_id=item.produto_id,
-                quantidade=item.quantidade,
-                unidade_produtiva_id=maquina.unidade_produtiva_id, # Usamos a fazenda do maquinário
-                origem_id=os.id,
-                origem_tipo="ORDEM_SERVICO",
-                motivo=f"Uso na OS {os.numero_os} - {maquina.nome}"
-            )
-            
-        # 4. Gera registro histórico consolidado
+            if unidade_operacional is not None:
+                await estoque_svc.registrar_saida_insumo(
+                    produto_id=item.produto_id,
+                    quantidade=item.quantidade,
+                    unidade_produtiva_id=unidade_operacional,
+                    origem_id=os.id,
+                    origem_tipo="ORDEM_SERVICO",
+                    motivo=f"Uso na OS {os.numero_os} - {maquina.nome if maquina else os.equipamento_id}"
+                )
+
+        # 4. Gera registro histórico consolidado (contexto congelado no momento da OS)
         custo_os = os.custo_total_pecas + (os.custo_mao_obra or 0)
         registro = RegistroManutencao(
+            tenant_id=self.tenant_id,
             equipamento_id=os.equipamento_id,
             os_id=os.id,
             tipo=os.tipo,
@@ -199,8 +225,8 @@ class FrotaService(BaseService[Maquinario]):
                 plano.ultimo_registro_horas = os.horimetro_na_abertura
                 plano.ultimo_registro_km = os.km_na_abertura
 
-        # 5. Integração Financeira: Despesa de Manutenção
-        if maquina and maquina.unidade_produtiva_id and custo_os > 0:
+        # 5. Integração Financeira: Despesa de Manutenção na UP operacional ativa
+        if unidade_operacional is not None and custo_os > 0:
             from datetime import date as _date
             from financeiro.models.despesa import Despesa
             from financeiro.models.plano_conta import PlanoConta
@@ -220,9 +246,9 @@ class FrotaService(BaseService[Maquinario]):
                 self.session.add(Despesa(
                     id=uuid.uuid4(),
                     tenant_id=self.tenant_id,
-                    unidade_produtiva_id=maquina.unidade_produtiva_id,
+                    unidade_produtiva_id=unidade_operacional,
                     plano_conta_id=plano_id,
-                    descricao=f"Manutenção — {os.numero_os}: {maquina.nome}",
+                    descricao=f"Manutenção — {os.numero_os}: {maquina.nome if maquina else str(os.equipamento_id)}",
                     valor_total=round(custo_os, 2),
                     data_emissao=hoje,
                     data_vencimento=hoje,
