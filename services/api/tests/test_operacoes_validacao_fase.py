@@ -9,14 +9,58 @@ Valida:
 import pytest
 from uuid import uuid4
 from datetime import date, timedelta
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.exceptions import BusinessRuleError, EntityNotFoundError
 from agricola.operacoes.service import OperacaoService
-from agricola.safras.models import Safra
+from agricola.safras.models import Safra, SafraTalhao
 from agricola.operacoes.models import OperacaoAgricola
 from agricola.models import OperacaoTipoFase
 from agricola.operacoes.schemas import OperacaoAgricolaCreate, InsumoOperacaoCreate
+
+
+async def _criar_safra_com_talhao(
+    session: AsyncSession,
+    *,
+    tenant_id,
+    talhao_id,
+    status: str,
+    cultura: str = "MILHO",
+) -> Safra:
+    safra = Safra(
+        id=uuid4(),
+        tenant_id=tenant_id,
+        ano_safra="2025/26",
+        cultura=cultura,
+        status=status,
+    )
+    session.add(safra)
+    await session.flush()
+    session.add(
+        SafraTalhao(
+            tenant_id=tenant_id,
+            safra_id=safra.id,
+            area_id=talhao_id,
+            area_ha=50.0,
+            principal=True,
+        )
+    )
+    await session.commit()
+    return safra
+
+
+async def _garantir_tenant(session: AsyncSession, tenant_id) -> None:
+    await session.execute(
+        text(
+            "INSERT INTO tenants (id, nome, documento, ativo, "
+            "storage_usado_mb, storage_limite_mb, idioma_padrao, created_at, updated_at) "
+            "VALUES (:id, :nome, :doc, true, 0, 10240, 'pt-BR', now(), now()) "
+            "ON CONFLICT DO NOTHING"
+        ),
+        {"id": str(tenant_id), "nome": f"Tenant {str(tenant_id)[:8]}", "doc": str(tenant_id)[:11]},
+    )
+    await session.commit()
 
 
 class TestOperacaoValidacaoFase:
@@ -32,17 +76,12 @@ class TestOperacaoValidacaoFase:
     ):
         """Operação PLANTIO não deve ser permitida em fase COLHEITA."""
         # Setup: Criar safra em fase COLHEITA
-        safra = Safra(
-            id=uuid4(),
+        safra = await _criar_safra_com_talhao(
+            session,
             tenant_id=tenant_id,
             talhao_id=talhao_id,
-            ano_safra="2025/26",
-            cultura="MILHO",
-            status="COLHEITA",  # ← COLHEITA
-            area_plantada_ha=50.0
+            status="COLHEITA",
         )
-        session.add(safra)
-        await session.commit()
 
         # Act & Assert: Tentar criar operação PLANTIO deve falhar
         service = OperacaoService(session, tenant_id)
@@ -75,17 +114,12 @@ class TestOperacaoValidacaoFase:
     ):
         """Operação COLHEITA deve ser permitida em fase COLHEITA."""
         # Setup: Criar safra em fase COLHEITA
-        safra = Safra(
-            id=uuid4(),
+        safra = await _criar_safra_com_talhao(
+            session,
             tenant_id=tenant_id,
             talhao_id=talhao_id,
-            ano_safra="2025/26",
-            cultura="MILHO",
-            status="COLHEITA",  # ← COLHEITA
-            area_plantada_ha=50.0
+            status="COLHEITA",
         )
-        session.add(safra)
-        await session.commit()
 
         # Act: Criar operação COLHEITA
         service = OperacaoService(session, tenant_id)
@@ -117,17 +151,12 @@ class TestOperacaoValidacaoFase:
     ):
         """Operação com data futura deve ser rejeitada."""
         # Setup
-        safra = Safra(
-            id=uuid4(),
+        safra = await _criar_safra_com_talhao(
+            session,
             tenant_id=tenant_id,
             talhao_id=talhao_id,
-            ano_safra="2025/26",
-            cultura="MILHO",
             status="DESENVOLVIMENTO",
-            area_plantada_ha=50.0
         )
-        session.add(safra)
-        await session.commit()
 
         # Act & Assert
         service = OperacaoService(session, tenant_id)
@@ -157,17 +186,12 @@ class TestOperacaoValidacaoFase:
     ):
         """Operação com tipo não cadastrado na lookup table deve falhar."""
         # Setup
-        safra = Safra(
-            id=uuid4(),
+        safra = await _criar_safra_com_talhao(
+            session,
             tenant_id=tenant_id,
             talhao_id=talhao_id,
-            ano_safra="2025/26",
-            cultura="MILHO",
             status="DESENVOLVIMENTO",
-            area_plantada_ha=50.0
         )
-        session.add(safra)
-        await session.commit()
 
         # Act & Assert
         service = OperacaoService(session, tenant_id)
@@ -198,14 +222,13 @@ class TestOperacaoValidacaoFase:
     ):
         """Operação não deve ser criada para safra de outro tenant."""
         # Setup: Safra de outro tenant
+        await _garantir_tenant(session, outro_tenant_id)
         safra_outro = Safra(
             id=uuid4(),
-            tenant_id=outro_tenant_id,  # ← Outro tenant
-            talhao_id=talhao_id,
+            tenant_id=outro_tenant_id,
             ano_safra="2025/26",
             cultura="MILHO",
             status="DESENVOLVIMENTO",
-            area_plantada_ha=50.0
         )
         session.add(safra_outro)
         await session.commit()
@@ -236,17 +259,12 @@ class TestOperacaoValidacaoFase:
     ):
         """Operação deve registrar snapshot da fase_safra no momento da criação."""
         # Setup
-        safra = Safra(
-            id=uuid4(),
+        safra = await _criar_safra_com_talhao(
+            session,
             tenant_id=tenant_id,
             talhao_id=talhao_id,
-            ano_safra="2025/26",
-            cultura="MILHO",
-            status="DESENVOLVIMENTO",  # ← Status atual
-            area_plantada_ha=50.0
+            status="DESENVOLVIMENTO",
         )
-        session.add(safra)
-        await session.commit()
 
         # Act
         service = OperacaoService(session, tenant_id)
@@ -277,17 +295,12 @@ class TestOperacaoValidacaoFase:
         # PULVERIZAÇÃO → [DESENVOLVIMENTO, COLHEITA]
 
         # Test 1: DESENVOLVIMENTO
-        safra_dev = Safra(
-            id=uuid4(),
+        safra_dev = await _criar_safra_com_talhao(
+            session,
             tenant_id=tenant_id,
             talhao_id=talhao_id,
-            ano_safra="2025/26",
-            cultura="MILHO",
             status="DESENVOLVIMENTO",
-            area_plantada_ha=50.0
         )
-        session.add(safra_dev)
-        await session.commit()
 
         service = OperacaoService(session, tenant_id)
         op_dev = await service.criar(OperacaoAgricolaCreate(
@@ -302,17 +315,12 @@ class TestOperacaoValidacaoFase:
         assert op_dev.fase_safra == "DESENVOLVIMENTO"
 
         # Test 2: COLHEITA
-        safra_colh = Safra(
-            id=uuid4(),
+        safra_colh = await _criar_safra_com_talhao(
+            session,
             tenant_id=tenant_id,
             talhao_id=talhao_id,
-            ano_safra="2025/26",
-            cultura="MILHO",
             status="COLHEITA",
-            area_plantada_ha=50.0
         )
-        session.add(safra_colh)
-        await session.commit()
 
         op_colh = await service.criar(OperacaoAgricolaCreate(
             safra_id=safra_colh.id,

@@ -11,6 +11,7 @@ RiscoOperacionalTipo = Literal[
     "MANUTENCAO_VENCIDA",
     "DOCUMENTO_VENCIDO",
     "CUSTO_ACIMA_MEDIA",
+    "CHECKLIST_FALHA_CRITICA",
 ]
 
 
@@ -26,6 +27,21 @@ class FrotaDashboardResumo(BaseModel):
     manutencoes_proximas: int
     documentos_vencidos: int
     custo_total_acumulado: float
+    disponibilidade_media: float = 100.0
+    tempo_parado_manutencao_horas: float = 0.0
+    mtbf_medio_horas: float = 0.0
+    proporcao_custo_preventivo_percentual: float = 0.0
+    custo_operacional_total: float = 0.0
+    custo_preventivo_total: float = 0.0
+    custo_corretivo_total: float = 0.0
+    hectares_totais_apontados: float = 0.0
+    custo_por_hectare: float | None = None
+    indice_rentabilidade_operacional: float | None = None
+    equipamentos_ociosos: int = 0
+    equipamentos_falhas_criticas: int = 0
+    checklists_pendentes: int = 0
+    equipamentos_bloqueados: int = 0
+
 
 
 class FrotaDashboardUltimoAbastecimento(BaseModel):
@@ -105,6 +121,31 @@ class FrotaDashboardEquipamentoItem(BaseModel):
     riscos: list[RiscoOperacionalTipo]
 
 
+class FrotaDashboardOperadorItem(BaseModel):
+    operador_id: UUID
+    operador_nome: str
+    horas_operadas: float
+    jornadas: int
+    equipamentos_utilizados: int
+    tempo_parado_horas: float
+    falhas_reportadas: int
+    checklists_com_ocorrencia: int
+    consumo_operacional: float
+    produtividade_operacional: float
+    equipamentos_mais_utilizados: list[str] = []
+
+
+class FrotaDashboardOcorrenciaChecklistItem(BaseModel):
+    resposta_id: UUID
+    equipamento_id: UUID
+    equipamento_nome: str
+    criticidade: str | None = None
+    observacao: str | None = None
+    tipo_jornada: str
+    created_at: datetime
+    os_gerada_id: UUID | None = None
+
+
 class FrotaDashboardResponse(BaseModel):
     resumo: FrotaDashboardResumo
     equipamentos: list[FrotaDashboardEquipamentoItem]
@@ -112,4 +153,7 @@ class FrotaDashboardResponse(BaseModel):
     alertas_operacionais: list[FrotaDashboardRiscoItem]
     ultimos_abastecimentos: list[FrotaDashboardUltimoAbastecimento]
     ultimas_jornadas: list[FrotaDashboardJornadaItem]
+    maquinas_ociosas: list[FrotaDashboardEquipamentoItem] = []
+    operadores_produtividade: list[FrotaDashboardOperadorItem] = []
+    principais_ocorrencias: list[FrotaDashboardOcorrenciaChecklistItem] = []
     gerado_em: datetime

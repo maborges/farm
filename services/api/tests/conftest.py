@@ -7,7 +7,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import pytest
 import uuid
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
-from sqlalchemy.pool import NullPool
 from sqlalchemy import text
 from core.database import Base
 from core.models import Tenant
@@ -41,13 +40,13 @@ def outro_tenant_id() -> uuid.UUID:
 @pytest.fixture
 async def session():
     """
-    Cria uma nova sessão para cada teste com engine fresco (NullPool).
+    Cria uma nova sessão para cada teste.
     """
     engine = create_async_engine(
         _get_db_url(),
         echo=False,
         future=True,
-        poolclass=NullPool,
+        pool_pre_ping=True,
         connect_args={'server_settings': {'search_path': 'farms'}}
     )
     
@@ -73,7 +72,7 @@ async def session():
 async def session_a():
     """Sessão para Tenant A nos testes de isolamento multi-tenant."""
     engine = create_async_engine(
-        _get_db_url(), echo=False, future=True, poolclass=NullPool,
+        _get_db_url(), echo=False, future=True, pool_pre_ping=True,
         connect_args={'server_settings': {'search_path': 'farms'}}
     )
     try:
@@ -101,7 +100,7 @@ async def session_a():
 async def session_b():
     """Sessão para Tenant B nos testes de isolamento multi-tenant."""
     engine = create_async_engine(
-        _get_db_url(), echo=False, future=True, poolclass=NullPool,
+        _get_db_url(), echo=False, future=True, pool_pre_ping=True,
         connect_args={'server_settings': {'search_path': 'farms'}}
     )
     try:

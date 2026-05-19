@@ -26,6 +26,11 @@ class PlanoManutencao(Base):
     ultimo_registro_data: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     ultimo_registro_horas: Mapped[float | None] = mapped_column(Float, default=0.0)
     ultimo_registro_km: Mapped[float | None] = mapped_column(Float, default=0.0)
+    
+    # Novos campos do Step 04
+    checklist_preventivo: Mapped[str | None] = mapped_column(Text, nullable=True)
+    categoria: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     @property
@@ -40,6 +45,10 @@ class PlanoManutencao(Base):
     __table_args__ = (
         Index("ix_frota_planos_tenant_equip", tenant_id, equipamento_id),
     )
+
+
+PlanoManutencaoPreventiva = PlanoManutencao
+
 
 
 class OrdemServico(Base):
@@ -73,6 +82,8 @@ class OrdemServico(Base):
 
     data_abertura: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     data_conclusao: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    aberta_por_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True, index=True)
+    encerrada_por_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True, index=True)
 
     horimetro_na_abertura: Mapped[float] = mapped_column(Float, default=0.0)
     km_na_abertura: Mapped[float | None] = mapped_column(Float, nullable=True)
@@ -80,6 +91,8 @@ class OrdemServico(Base):
     tecnico_responsavel: Mapped[str | None] = mapped_column(String(100), nullable=True)
     custo_total_pecas: Mapped[float] = mapped_column(Float, default=0.0)
     custo_mao_obra: Mapped[float] = mapped_column(Float, default=0.0)
+    checklist_aplicado: Mapped[str | None] = mapped_column(Text, nullable=True)
+    origem_checklist_resposta_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True, index=True)
 
     itens: Mapped[list["ItemOrdemServico"]] = relationship(back_populates="os", lazy="noload", cascade="all, delete-orphan")
 
@@ -102,15 +115,36 @@ class ItemOrdemServico(Base):
     __tablename__ = "frota_os_itens"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     os_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("frota_ordens_servico.id", ondelete="CASCADE"), nullable=False
     )
     produto_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("cadastros_produtos.id"), nullable=False
     )
+    deposito_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("estoque_depositos.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    lote_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("estoque_lotes.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    unidade_produtiva_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("unidades_produtivas.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    safra_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("safras.id", ondelete="SET NULL"), nullable=True, index=True
+    )
 
     quantidade: Mapped[float] = mapped_column(Float, nullable=False)
     preco_unitario_na_data: Mapped[float] = mapped_column(Float, default=0.0)
+    custo_unitario: Mapped[float] = mapped_column(Float, default=0.0)
+    custo_total: Mapped[float] = mapped_column(Float, default=0.0)
+    movimento_estoque_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("estoque_movimentos.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    executado_por_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True, index=True)
 
     os: Mapped["OrdemServico"] = relationship(back_populates="itens", lazy="noload")
 
@@ -140,6 +174,7 @@ class RegistroManutencao(Base):
     tipo: Mapped[str] = mapped_column(String(30))
     descricao: Mapped[str] = mapped_column(String(500))
     custo_total: Mapped[float] = mapped_column(Float, default=0.0)
+    executado_por_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True, index=True)
 
     horimetro_na_data: Mapped[float] = mapped_column(Float, default=0.0)
     km_na_data: Mapped[float | None] = mapped_column(Float, nullable=True)
@@ -203,6 +238,8 @@ class JornadaEquipamento(Base):
         comment="ABERTA | FINALIZADA | CANCELADA",
     )
     observacoes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    aberta_por_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True, index=True)
+    encerrada_por_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True, index=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at: Mapped[datetime] = mapped_column(

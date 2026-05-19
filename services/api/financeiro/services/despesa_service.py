@@ -5,9 +5,17 @@ from typing import List, Optional
 from dateutil.relativedelta import relativedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from loguru import logger
 
 from core.base_service import BaseService
 from core.exceptions import BusinessRuleError
+from core.models.unidade_produtiva import UnidadeProdutiva
+from core.operational_context import (
+    validate_area_in_tenant,
+    validate_pessoa_tenant,
+    validate_safra_area_link,
+    validate_safra_in_tenant,
+)
 from agricola.custos.allocation_service import registrar_allocations_fin_rateio
 from financeiro.models.despesa import Despesa
 from financeiro.models.rateio import Rateio
@@ -28,6 +36,54 @@ class DespesaService(BaseService[Despesa]):
         if not plano:
             raise BusinessRuleError("Plano de contas não localizado ou inacessível.")
         return plano
+
+    async def _validar_unidade_produtiva(self, unidade_produtiva_id: uuid.UUID) -> None:
+        unidade = (
+            await self.session.execute(
+                select(UnidadeProdutiva.id).where(
+                    UnidadeProdutiva.id == unidade_produtiva_id,
+                    UnidadeProdutiva.tenant_id == self.tenant_id,
+                    UnidadeProdutiva.ativo == True,
+                )
+            )
+        ).scalar_one_or_none()
+        if unidade is None:
+            logger.warning(
+                "multi_up_context_invalid",
+                reason="despesa_unidade_produtiva_tenant_mismatch",
+                tenant_id=str(self.tenant_id),
+                unidade_produtiva_id=str(unidade_produtiva_id),
+            )
+            raise BusinessRuleError("Unidade produtiva da despesa não localizada ou inacessível.")
+
+    async def _validar_rateios_contexto(self, obj_in: DespesaCreate) -> None:
+        for rateio in obj_in.rateios:
+            if rateio.safra_id:
+                await validate_safra_in_tenant(self.session, tenant_id=self.tenant_id, safra_id=rateio.safra_id)
+            if rateio.talhao_id:
+                area = await validate_area_in_tenant(
+                    self.session,
+                    tenant_id=self.tenant_id,
+                    area_id=rateio.talhao_id,
+                )
+                if area.unidade_produtiva_id != obj_in.unidade_produtiva_id:
+                    logger.warning(
+                        "multi_up_context_invalid",
+                        reason="rateio_talhao_despesa_unidade_mismatch",
+                        tenant_id=str(self.tenant_id),
+                        despesa_unidade_produtiva_id=str(obj_in.unidade_produtiva_id),
+                        talhao_unidade_produtiva_id=str(area.unidade_produtiva_id),
+                        talhao_id=str(rateio.talhao_id),
+                        safra_id=str(rateio.safra_id) if rateio.safra_id else None,
+                    )
+                    raise BusinessRuleError("Rateio não pode usar talhão de outra unidade produtiva.")
+                if rateio.safra_id:
+                    await validate_safra_area_link(
+                        self.session,
+                        tenant_id=self.tenant_id,
+                        safra_id=rateio.safra_id,
+                        area_id=rateio.talhao_id,
+                    )
 
     def _calcular_parcelas(self, valor_total: float, total_parcelas: int) -> list[float]:
         """
@@ -50,6 +106,10 @@ class DespesaService(BaseService[Despesa]):
         Retorna lista de despesas criadas (1 item se sem parcelamento).
         """
         await self._validar_plano_conta(obj_in.plano_conta_id)
+        await self._validar_unidade_produtiva(obj_in.unidade_produtiva_id)
+        if obj_in.pessoa_id:
+            await validate_pessoa_tenant(self.session, tenant_id=self.tenant_id, pessoa_id=obj_in.pessoa_id)
+        await self._validar_rateios_contexto(obj_in)
 
         base_data = obj_in.model_dump(exclude={"rateios", "total_parcelas"})
         total_parcelas = obj_in.total_parcelas or 1

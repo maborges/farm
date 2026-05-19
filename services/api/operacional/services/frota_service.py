@@ -7,12 +7,16 @@ from core.base_service import BaseService
 from core.exceptions import BusinessRuleError
 from core.cadastros.equipamentos.alocacao_service import get_equipamento_unidade_operacional
 from core.cadastros.equipamentos.models import Equipamento as Maquinario
+from core.operational_context import validate_deposito_context, validate_lote_context, validate_operador_context
+from agricola.custos.allocation_service import registrar_cost_allocation
 from operacional.models.frota import PlanoManutencao, OrdemServico, RegistroManutencao, ItemOrdemServico, JornadaEquipamento
 from operacional.schemas.frota import (
     PlanoManutencaoCreate, OrdemServicoCreate, OrdemServicoUpdate,
     ItemOrdemServicoCreate
 )
+from operacional.schemas.estoque import SaidaEstoqueRequest
 from operacional.services.estoque_service import EstoqueService
+from core.cadastros.produtos.models import Produto
 
 class FrotaService(BaseService[Maquinario]):
     def __init__(self, session: AsyncSession, tenant_id: uuid.UUID):
@@ -79,7 +83,7 @@ class FrotaService(BaseService[Maquinario]):
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
-    async def abrir_os(self, dados: OrdemServicoCreate) -> OrdemServico:
+    async def abrir_os(self, dados: OrdemServicoCreate, usuario_id: uuid.UUID | None = None) -> OrdemServico:
         # Gera numero de OS sequencial ou baseado em timestamp
         timestamp = int(datetime.now().timestamp())
         numero_os = f"OS-{timestamp}"
@@ -108,6 +112,7 @@ class FrotaService(BaseService[Maquinario]):
             tecnico_responsavel=dados.tecnico_responsavel,
             safra_id=jornada_ctx.safra_id if jornada_ctx else None,
             talhao_id=jornada_ctx.talhao_id if jornada_ctx else None,
+            aberta_por_id=usuario_id,
         )
         
         # Opcional: Marcar maquinário em manutenção
@@ -119,32 +124,70 @@ class FrotaService(BaseService[Maquinario]):
         await self.session.commit()
         return os
 
-    async def adicionar_item_os(self, os_id: uuid.UUID, dados: ItemOrdemServicoCreate) -> ItemOrdemServico:
+    async def adicionar_item_os(
+        self,
+        os_id: uuid.UUID,
+        dados: ItemOrdemServicoCreate,
+        usuario_id: uuid.UUID | None = None,
+    ) -> ItemOrdemServico:
         os = await self.session.get(OrdemServico, os_id)
         if not os or os.tenant_id != self.tenant_id:
             raise BusinessRuleError("Ordem de serviço não encontrada.")
-        
-        # Busca preço médio do produto para registrar o custo histórico na OS
-        from core.cadastros.models import ProdutoCatalogo as Produto
+
         produto = await self.session.get(Produto, dados.produto_id)
         if not produto:
             raise BusinessRuleError("Produto não encontrado.")
+        contexto_up = await get_equipamento_unidade_operacional(
+            self.session,
+            tenant_id=self.tenant_id,
+            equipamento_id=os.equipamento_id,
+        )
+        unidade_operacional = contexto_up.unidade_produtiva_id
 
         item = ItemOrdemServico(
+            tenant_id=self.tenant_id,
             os_id=os_id,
             produto_id=dados.produto_id,
             quantidade=dados.quantidade,
-            preco_unitario_na_data=produto.preco_medio
+            preco_unitario_na_data=produto.preco_medio,
+            custo_unitario=produto.preco_medio,
+            custo_total=round(dados.quantidade * produto.preco_medio, 2),
         )
-        
-        # Atualiza custo total de peças na OS
-        os.custo_total_pecas += (dados.quantidade * produto.preco_medio)
-        
+
+        if dados.deposito_id is not None:
+            await validate_deposito_context(
+                self.session,
+                tenant_id=self.tenant_id,
+                deposito_id=dados.deposito_id,
+                expected_unidade_produtiva_id=unidade_operacional,
+            )
+            item.deposito_id = dados.deposito_id
+        if dados.lote_id is not None:
+            await validate_lote_context(
+                self.session,
+                tenant_id=self.tenant_id,
+                lote_id=dados.lote_id,
+                produto_id=dados.produto_id,
+                deposito_id=dados.deposito_id,
+            )
+            item.lote_id = dados.lote_id
+
         self.session.add(item)
+        await self.session.flush()
+
+        if dados.baixar_estoque:
+            await self._baixar_item_os(item, os, usuario_id=usuario_id, unidade_operacional=unidade_operacional)
+            os.custo_total_pecas = round(float(os.custo_total_pecas or 0.0) + float(item.custo_total or 0.0), 2)
+
         await self.session.commit()
         return item
 
-    async def fechar_os(self, os_id: uuid.UUID, dados: OrdemServicoUpdate) -> OrdemServico:
+    async def fechar_os(
+        self,
+        os_id: uuid.UUID,
+        dados: OrdemServicoUpdate,
+        usuario_id: uuid.UUID | None = None,
+    ) -> OrdemServico:
         """Fecha OS e realiza baixa de estoque + despesa financeira na UP operacional ativa.
 
         Step 02: usa `get_equipamento_unidade_operacional` para resolver a UP no momento
@@ -174,6 +217,7 @@ class FrotaService(BaseService[Maquinario]):
 
         os.status = "CONCLUIDA"
         os.data_conclusao = datetime.now(timezone.utc)
+        os.encerrada_por_id = usuario_id
 
         # 2. Marcar maquinário como ATIVO
         maquina = await self.session.get(Maquinario, os.equipamento_id)
@@ -195,15 +239,13 @@ class FrotaService(BaseService[Maquinario]):
         itens = (await self.session.execute(stmt_itens)).scalars().all()
 
         for item in itens:
-            if unidade_operacional is not None:
-                await estoque_svc.registrar_saida_insumo(
-                    produto_id=item.produto_id,
-                    quantidade=item.quantidade,
-                    unidade_produtiva_id=unidade_operacional,
-                    origem_id=os.id,
-                    origem_tipo="ORDEM_SERVICO",
-                    motivo=f"Uso na OS {os.numero_os} - {maquina.nome if maquina else os.equipamento_id}"
-                )
+            if item.movimento_estoque_id is None:
+                await self._baixar_item_os(item, os, unidade_operacional=unidade_operacional, estoque_svc=estoque_svc, usuario_id=usuario_id)
+
+        if itens:
+            os.custo_total_pecas = round(sum(float(item.custo_total or 0.0) for item in itens), 2)
+        else:
+            os.custo_total_pecas = round(float(os.custo_total_pecas or 0.0), 2)
 
         # 4. Gera registro histórico consolidado (contexto congelado no momento da OS)
         custo_os = os.custo_total_pecas + (os.custo_mao_obra or 0)
@@ -214,6 +256,7 @@ class FrotaService(BaseService[Maquinario]):
             tipo=os.tipo,
             descricao=f"OS {os.numero_os} concluída: {os.descricao_problema}",
             custo_total=custo_os,
+            executado_por_id=usuario_id,
             horimetro_na_data=os.horimetro_na_abertura,
             km_na_data=os.km_na_abertura,
             tecnico_responsavel=os.tecnico_responsavel,
@@ -277,3 +320,79 @@ class FrotaService(BaseService[Maquinario]):
         await self.session.commit()
         await self.session.refresh(os)
         return os
+
+    async def _baixar_item_os(
+        self,
+        item: ItemOrdemServico,
+        os: OrdemServico,
+        *,
+        usuario_id: uuid.UUID | None = None,
+        unidade_operacional: uuid.UUID | None = None,
+        estoque_svc: EstoqueService | None = None,
+    ) -> None:
+        produto = await self.session.get(Produto, item.produto_id)
+        if produto is None:
+            raise BusinessRuleError("Produto não encontrado para baixa de estoque.")
+
+        svc = estoque_svc or EstoqueService(self.session, self.tenant_id)
+        if item.deposito_id is not None:
+            mov = await svc.registrar_saida(
+                SaidaEstoqueRequest(
+                    deposito_id=item.deposito_id,
+                    produto_id=item.produto_id,
+                    quantidade=item.quantidade,
+                    motivo=f"Uso na OS {os.numero_os}",
+                    origem_id=os.id,
+                    origem_tipo="ORDEM_SERVICO",
+                    lote_id=item.lote_id,
+                    safra_id=os.safra_id,
+                )
+            )
+        else:
+            if unidade_operacional is None:
+                contexto_up = await get_equipamento_unidade_operacional(
+                    self.session,
+                    tenant_id=self.tenant_id,
+                    equipamento_id=os.equipamento_id,
+                )
+                unidade_operacional = contexto_up.unidade_produtiva_id
+            mov = await svc.registrar_saida_insumo(
+                produto_id=item.produto_id,
+                quantidade=item.quantidade,
+                unidade_produtiva_id=unidade_operacional,
+                origem_id=os.id,
+                origem_tipo="ORDEM_SERVICO",
+                motivo=f"Uso na OS {os.numero_os}",
+                deposito_id=item.deposito_id,
+            )
+
+        item.movimento_estoque_id = mov.id
+        item.deposito_id = item.deposito_id or mov.deposito_id
+        item.custo_unitario = float(mov.custo_unitario or produto.preco_medio or 0.0)
+        item.custo_total = round(float(item.quantidade) * float(item.custo_unitario or 0.0), 2)
+        item.preco_unitario_na_data = item.custo_unitario
+        item.executado_por_id = usuario_id
+        if item.safra_id is None:
+            item.safra_id = os.safra_id
+        if item.unidade_produtiva_id is None and unidade_operacional is not None:
+            item.unidade_produtiva_id = unidade_operacional
+        if item.lote_id is None:
+            item.lote_id = mov.lote_id
+        self.session.add(item)
+
+        if os.safra_id and item.custo_total > 0:
+            if unidade_operacional is None:
+                return
+            await registrar_cost_allocation(
+                self.session,
+                tenant_id=self.tenant_id,
+                production_unit_id=unidade_operacional,
+                source="ESTOQUE",
+                amount=item.custo_total,
+                allocation_date=datetime.now(timezone.utc).date(),
+                cost_category="PECAS_MANUTENCAO",
+                source_id=mov.id,
+                inventory_movement_id=mov.id,
+                allocation_method="DIRECT",
+                allocation_basis=float(item.quantidade),
+            )

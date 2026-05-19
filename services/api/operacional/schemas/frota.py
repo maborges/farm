@@ -63,6 +63,8 @@ class PlanoManutencaoBase(BaseModel):
     frequencia_dias: Optional[int] = None
     frequencia_horas: Optional[float] = None
     frequencia_km: Optional[float] = None
+    checklist_preventivo: Optional[str] = None
+    categoria: Optional[str] = None
 
 class PlanoManutencaoCreate(PlanoManutencaoBase):
     pass
@@ -74,6 +76,12 @@ class PlanoManutencaoResponse(PlanoManutencaoBase):
     ultimo_registro_km: Optional[float] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+# Aliases de compatibilidade para PlanoManutencaoPreventiva
+PlanoManutencaoPreventivaBase = PlanoManutencaoBase
+PlanoManutencaoPreventivaCreate = PlanoManutencaoCreate
+PlanoManutencaoPreventivaResponse = PlanoManutencaoResponse
+
 
 class OrdemServicoBase(BaseModel):
     maquinario_id: UUID
@@ -97,6 +105,8 @@ class OrdemServicoResponse(OrdemServicoBase):
     status: str
     data_abertura: datetime
     data_conclusao: Optional[datetime] = None
+    aberta_por_id: Optional[UUID] = None
+    encerrada_por_id: Optional[UUID] = None
     custo_total_pecas: float
 
     model_config = ConfigDict(from_attributes=True)
@@ -104,14 +114,26 @@ class OrdemServicoResponse(OrdemServicoBase):
 class ItemOrdemServicoCreate(BaseModel):
     produto_id: UUID
     quantidade: float = Field(..., gt=0)
+    deposito_id: UUID | None = None
+    lote_id: UUID | None = None
+    baixar_estoque: bool = False
 
 
 class ItemOrdemServicoResponse(BaseModel):
     id: UUID
+    tenant_id: UUID
     os_id: UUID
     produto_id: UUID
+    deposito_id: UUID | None = None
+    lote_id: UUID | None = None
+    unidade_produtiva_id: UUID | None = None
+    safra_id: UUID | None = None
     quantidade: float
     preco_unitario_na_data: float
+    custo_unitario: float
+    custo_total: float
+    movimento_estoque_id: UUID | None = None
+    executado_por_id: UUID | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -123,6 +145,7 @@ class RegistroManutencaoResponse(BaseModel):
     tipo: str
     descricao: str
     custo_total: float
+    executado_por_id: UUID | None = None
     horimetro_na_data: float
     km_na_data: Optional[float]
     tecnico_responsavel: Optional[str]

@@ -70,6 +70,13 @@ class FrotaCustoAgrupadoOperacao(BaseModel):
     participacao_percentual: float | None = None
 
 
+class FrotaCustoAgrupadoUP(BaseModel):
+    unidade_produtiva_id: UUID | None = None
+    unidade_produtiva_nome: str | None = None
+    custo_total: float
+    participacao_percentual: float | None = None
+
+
 class FrotaCustoResponse(BaseModel):
     resumo: FrotaCustoResumo
     equipamentos: list[FrotaCustoEquipamentoItem]
@@ -77,6 +84,7 @@ class FrotaCustoResponse(BaseModel):
     por_safra: list[FrotaCustoAgrupadoSafra] = []
     por_talhao: list[FrotaCustoAgrupadoTalhao] = []
     por_operacao: list[FrotaCustoAgrupadoOperacao] = []
+    por_unidade_produtiva: list[FrotaCustoAgrupadoUP] = []
     gerado_em: datetime
 
 

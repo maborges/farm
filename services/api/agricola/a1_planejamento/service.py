@@ -121,6 +121,48 @@ class PlanejamentoService:
             for cat, valor in agrupado.items()
         ], key=lambda x: x.custo_total, reverse=True)
 
+    async def _get_area_safra(self, safra_id: uuid.UUID, safra: Safra | None = None) -> tuple[float, uuid.UUID | None]:
+        talhoes_stmt = select(
+            func.sum(
+                func.coalesce(
+                    SafraTalhao.area_ha,
+                    AreaRural.area_hectares,
+                    AreaRural.area_hectares_manual,
+                )
+            )
+        ).select_from(SafraTalhao).join(
+            AreaRural, SafraTalhao.area_id == AreaRural.id
+        ).where(
+            SafraTalhao.safra_id == safra_id,
+            SafraTalhao.tenant_id == self.tenant_id,
+        )
+        area_talhoes = (await self.session.execute(talhoes_stmt)).scalar() or 0
+
+        talhao_stmt = select(SafraTalhao.area_id).where(
+            SafraTalhao.safra_id == safra_id,
+            SafraTalhao.tenant_id == self.tenant_id,
+        ).order_by(SafraTalhao.principal.desc(), SafraTalhao.created_at.asc()).limit(1)
+        talhao_id = (await self.session.execute(talhao_stmt)).scalar_one_or_none()
+
+        area_cultivos_stmt = select(func.sum(CultivoArea.area_ha)).select_from(CultivoArea).join(
+            Cultivo, CultivoArea.cultivo_id == Cultivo.id
+        ).where(
+            Cultivo.safra_id == safra_id,
+            Cultivo.tenant_id == self.tenant_id,
+            CultivoArea.tenant_id == self.tenant_id,
+        )
+        area_cultivos = (await self.session.execute(area_cultivos_stmt)).scalar() or 0
+
+        area_legada = getattr(safra, "area_plantada_ha", None) if safra else None
+        area = (
+            float(area_talhoes)
+            if area_talhoes > 0
+            else float(area_cultivos)
+            if area_cultivos > 0
+            else float(area_legada or 0)
+        )
+        return area, talhao_id
+
     async def _get_metricas_planejamento(
         self,
         safra_id: uuid.UUID,
@@ -157,33 +199,8 @@ class PlanejamentoService:
     async def get_orcamento(self, safra_id: uuid.UUID) -> OrcamentoSafraResponse:
         safra = await self._get_safra(safra_id)
 
-        # Calcula área somando os talhões associados à safra
-        # Prioridade: SafraTalhao.area_ha → AreaRural.area_hectares → soma das áreas dos cultivos → 1.0
-        talhoes_stmt = select(
-            func.sum(
-                func.coalesce(
-                    SafraTalhao.area_ha,
-                    AreaRural.area_hectares,
-                    AreaRural.area_hectares_manual
-                )
-            )
-        ).select_from(SafraTalhao).join(
-            AreaRural, SafraTalhao.area_id == AreaRural.id
-        ).where(
-            SafraTalhao.safra_id == safra_id,
-            SafraTalhao.tenant_id == self.tenant_id,
-        )
-        area_talhoes = (await self.session.execute(talhoes_stmt)).scalar() or 0
-        area_cultivos_stmt = select(func.sum(CultivoArea.area_ha)).select_from(CultivoArea).join(
-            Cultivo, CultivoArea.cultivo_id == Cultivo.id
-        ).where(
-            Cultivo.safra_id == safra_id,
-            Cultivo.tenant_id == self.tenant_id,
-            CultivoArea.tenant_id == self.tenant_id,
-        )
-        area_cultivos = (await self.session.execute(area_cultivos_stmt)).scalar() or 0
-        area_legada = getattr(safra, "area_plantada_ha", None)
-        area_ha = float(area_talhoes) if area_talhoes > 0 else float(area_cultivos) if area_cultivos > 0 else float(area_legada or 1.0)
+        area_ha, _ = await self._get_area_safra(safra_id, safra)
+        area_ha = area_ha or 1.0
         produtividade_meta_sc_ha, preco_venda_previsto, custo_previsto_ha = await self._get_metricas_planejamento(safra_id, area_ha, safra)
 
         # ── Previsto: itens do orçamento ──────────────────────────────────
@@ -289,7 +306,7 @@ class PlanejamentoService:
 
         return OrcamentoSafraResponse(
             safra_id=safra_id,
-            cultura=safra.cultura,
+            cultura=safra.cultura or "Safra",
             ano_safra=safra.ano_safra,
             area_ha=area_ha,
             status_safra=safra.status,
@@ -314,26 +331,31 @@ class PlanejamentoService:
         total_real = 0.0
 
         for s in safras:
-            area = float(s.area_plantada_ha or 0)
+            area, talhao_id = await self._get_area_safra(s.id, s)
             total_area += area
 
-            custo_prev_ha = float(s.custo_previsto_ha) if s.custo_previsto_ha else None
-            custo_real_ha = float(s.custo_realizado_ha) if s.custo_realizado_ha else None
+            custo_previsto_ha = getattr(s, "custo_previsto_ha", None)
+            custo_realizado_ha = getattr(s, "custo_realizado_ha", None)
+            custo_prev_ha = float(custo_previsto_ha) if custo_previsto_ha else None
+            custo_real_ha = float(custo_realizado_ha) if custo_realizado_ha else None
 
             desvio_custo = None
             if custo_prev_ha and custo_real_ha and custo_prev_ha > 0:
                 desvio_custo = round((custo_real_ha - custo_prev_ha) / custo_prev_ha * 100, 2)
 
-            prod_meta = float(s.produtividade_meta_sc_ha) if s.produtividade_meta_sc_ha else None
-            prod_real = float(s.produtividade_real_sc_ha) if s.produtividade_real_sc_ha else None
+            produtividade_meta = getattr(s, "produtividade_meta_sc_ha", None)
+            produtividade_real = getattr(s, "produtividade_real_sc_ha", None)
+            prod_meta = float(produtividade_meta) if produtividade_meta else None
+            prod_real = float(produtividade_real) if produtividade_real else None
 
             desvio_prod = None
             if prod_meta and prod_real and prod_meta > 0:
                 desvio_prod = round((prod_real - prod_meta) / prod_meta * 100, 2)
 
             receita_esp = None
-            if prod_meta and s.preco_venda_previsto and area:
-                receita_esp = round(prod_meta * float(s.preco_venda_previsto) * area, 2)
+            preco_venda_previsto = getattr(s, "preco_venda_previsto", None)
+            if prod_meta and preco_venda_previsto and area:
+                receita_esp = round(prod_meta * float(preco_venda_previsto) * area, 2)
 
             if custo_prev_ha and area:
                 total_prev += custo_prev_ha * area
@@ -342,8 +364,8 @@ class PlanejamentoService:
 
             kpis.append(SafraKPI(
                 safra_id=s.id,
-                talhao_id=s.talhao_id,
-                cultura=s.cultura,
+                talhao_id=talhao_id,
+                cultura=s.cultura or "Safra",
                 ano_safra=s.ano_safra,
                 area_ha=area,
                 status=s.status,

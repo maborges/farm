@@ -3,7 +3,7 @@ import enum
 from datetime import datetime, timezone
 from sqlalchemy import String, DateTime, ForeignKey, Text, Boolean, JSON, Integer
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import Uuid as UUID
+from sqlalchemy import Uuid as UUID, Index
 from core.database import Base
 
 
@@ -94,4 +94,112 @@ class ChecklistRealizado(Base):
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+
+class ChecklistOperacional(Base):
+    """Modelo operacional de checklist por tipo de equipamento e momento da jornada."""
+
+    __tablename__ = "frota_checklists_operacionais"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    nome: Mapped[str] = mapped_column(String(150), nullable=False)
+    tipo_equipamento: Mapped[str | None] = mapped_column(String(30), nullable=True, index=True)
+    tipo_jornada: Mapped[str] = mapped_column(
+        String(20), nullable=False, index=True, comment="ABERTURA | ENCERRAMENTO"
+    )
+    exige_antes_operacao: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    bloqueia_falha_critica: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    ativo: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+    itens: Mapped[list["ChecklistOperacionalItem"]] = relationship(
+        back_populates="checklist", lazy="selectin", cascade="all, delete-orphan"
+    )
+
+    __table_args__ = (
+        Index("ix_frota_checklists_oper_tenant_tipo", tenant_id, tipo_equipamento, tipo_jornada, ativo),
+    )
+
+
+class ChecklistOperacionalItem(Base):
+    """Item normalizado do checklist operacional."""
+
+    __tablename__ = "frota_checklists_operacionais_itens"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    checklist_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("frota_checklists_operacionais.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    categoria: Mapped[str] = mapped_column(String(30), nullable=False, index=True)
+    descricao: Mapped[str] = mapped_column(String(255), nullable=False)
+    obrigatorio: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    ordem: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    ativo: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    checklist: Mapped["ChecklistOperacional"] = relationship(back_populates="itens", lazy="noload")
+
+    __table_args__ = (
+        Index("ix_frota_checklist_itens_tenant_checklist", tenant_id, checklist_id),
+    )
+
+
+class ChecklistOperacionalResposta(Base):
+    """Resposta por item com contexto operacional congelado para rastreabilidade."""
+
+    __tablename__ = "frota_checklists_operacionais_respostas"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    checklist_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("frota_checklists_operacionais.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    item_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("frota_checklists_operacionais_itens.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    equipamento_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("cadastros_equipamentos.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    jornada_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("frota_jornadas_equipamento.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    operador_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("cadastros_pessoas.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    executado_por_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True, index=True)
+    reportado_por_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True, index=True)
+    unidade_produtiva_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("unidades_produtivas.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    safra_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("safras.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    tipo_jornada: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, comment="CONFORME | NAO_CONFORME | NAO_APLICAVEL")
+    falha: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
+    criticidade: Mapped[str | None] = mapped_column(String(20), nullable=True, index=True)
+    observacao: Mapped[str | None] = mapped_column(Text, nullable=True)
+    alerta_operacional: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    os_gerada_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("frota_ordens_servico.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), index=True
+    )
+
+    __table_args__ = (
+        Index("ix_frota_check_resp_tenant_equip_data", tenant_id, equipamento_id, created_at),
+        Index("ix_frota_check_resp_tenant_operador", tenant_id, operador_id),
+        Index("ix_frota_check_resp_tenant_up", tenant_id, unidade_produtiva_id),
+        Index("ix_frota_check_resp_tenant_safra", tenant_id, safra_id),
     )

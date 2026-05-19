@@ -5,6 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from core.base_service import BaseService
 from core.exceptions import BusinessRuleError, EntityNotFoundError
+from core.cadastros.equipamentos.alocacao_service import get_equipamento_unidade_operacional
 from core.cadastros.equipamentos.models import Equipamento as Maquinario
 from operacional.models.abastecimento import Abastecimento, LocalAbastecimento
 from operacional.models.frota import JornadaEquipamento
@@ -23,6 +24,13 @@ class AbastecimentoService(BaseService[Abastecimento]):
         maquina = await self.session.get(Maquinario, dados.equipamento_id)
         if not maquina or maquina.tenant_id != self.tenant_id:
             raise EntityNotFoundError("Equipamento não encontrado")
+        unidade_operacional = (
+            await get_equipamento_unidade_operacional(
+                self.session,
+                tenant_id=self.tenant_id,
+                equipamento_id=dados.equipamento_id,
+            )
+        ).unidade_produtiva_id
 
         custo_total = round(dados.litros * dados.preco_litro, 2)
         
@@ -56,12 +64,14 @@ class AbastecimentoService(BaseService[Abastecimento]):
 
         # 3. Baixa de Estoque (se for INTERNO)
         if dados.local == "INTERNO":
+            if unidade_operacional is None:
+                raise BusinessRuleError("Equipamento sem unidade produtiva operacional para baixa de estoque.")
             estoque_svc = EstoqueService(self.session, self.tenant_id)
             try:
                 await estoque_svc.registrar_saida_insumo_por_nome(
                     nome_insumo=dados.tipo_combustivel,
                     quantidade=dados.litros,
-                    unidade_produtiva_id=maquina.unidade_produtiva_id,
+                    unidade_produtiva_id=unidade_operacional,
                     origem_id=ab.id,
                     origem_tipo="ABASTECIMENTO",
                     motivo=f"Abastecimento maquina {maquina.nome}"
@@ -91,11 +101,13 @@ class AbastecimentoService(BaseService[Abastecimento]):
             plano_id = (await self.session.execute(stmt_pc)).scalar()
             
             if plano_id:
+                if unidade_operacional is None:
+                    raise BusinessRuleError("Equipamento sem unidade produtiva operacional para despesa de abastecimento.")
                 hoje = date.today()
                 despesa = Despesa(
                     id=uuid.uuid4(),
                     tenant_id=self.tenant_id,
-                    unidade_produtiva_id=maquina.unidade_produtiva_id,
+                    unidade_produtiva_id=unidade_operacional,
                     plano_conta_id=plano_id,
                     descricao=f"Abastecimento Externo — {maquina.nome} ({dados.litros}L)",
                     valor_total=custo_total,

@@ -12,6 +12,10 @@ from core.exceptions import EntityNotFoundError
 from operacional.models.abastecimento import Abastecimento
 from operacional.models.documento_equipamento import DocumentoEquipamento
 from operacional.models.frota import ItemOrdemServico, OrdemServico, RegistroManutencao, JornadaEquipamento
+from operacional.services.frota_custo_consolidado_service import (
+    FrotaCustoConsolidadoService,
+    FiltroCustoContexto,
+)
 from operacional.schemas.frota_custo import (
     FrotaCustoEquipamentoDetalhe,
     FrotaCustoEquipamentoItem,
@@ -24,6 +28,7 @@ from operacional.schemas.frota_custo import (
     FrotaCustoAgrupadoSafra,
     FrotaCustoAgrupadoTalhao,
     FrotaCustoAgrupadoOperacao,
+    FrotaCustoAgrupadoUP,
 )
 from operacional.services.frota_dashboard_service import FrotaDashboardService
 from agricola.safras.models import Safra
@@ -35,6 +40,7 @@ class FrotaCustoService(FrotaDashboardService):
 
     def __init__(self, session: AsyncSession, tenant_id: uuid.UUID):
         super().__init__(session, tenant_id)
+        self.consolidado_svc = FrotaCustoConsolidadoService(session, tenant_id)
 
     async def obter_custos(
         self,
@@ -43,7 +49,13 @@ class FrotaCustoService(FrotaDashboardService):
         tipo_equipamento: str | None = None,
     ) -> FrotaCustoResponse:
         agora = datetime.now(timezone.utc)
-        equipamentos = await self._listar_equipamentos_filtrados(unidade_produtiva_id, tipo_equipamento)
+        ctx = FiltroCustoContexto(
+            tenant_id=self.tenant_id,
+            periodo_dias=periodo_dias,
+            unidade_produtiva_id=unidade_produtiva_id,
+            tipo_equipamento=tipo_equipamento,
+        )
+        equipamentos = await self.consolidado_svc.obter_equipamentos_filtrados(ctx)
         if not equipamentos:
             return FrotaCustoResponse(
                 resumo=FrotaCustoResumo(
@@ -62,11 +74,10 @@ class FrotaCustoService(FrotaDashboardService):
         equipamento_ids = [equipamento.id for equipamento in equipamentos]
         data_corte = agora - timedelta(days=periodo_dias) if periodo_dias else None
 
-        # SQL-based aggregations for costs
-        custo_combustivel = await self._obter_custo_abastecimento_sql(equipamento_ids, data_corte)
-        custo_manutencao_mao_obra = await self._obter_custo_manutencao_sql(equipamento_ids, data_corte)
-        custo_pecas = await self._obter_custo_pecas_sql(equipamento_ids, data_corte)
-        custo_manutencao_avulsa = await self._obter_custo_manutencao_avulsa_sql(equipamento_ids, data_corte)
+        custo_combustivel = await self.consolidado_svc.obter_custo_combustivel(equipamento_ids, data_corte)
+        custo_manutencao_mao_obra = await self.consolidado_svc.obter_custo_mao_obra(equipamento_ids, data_corte)
+        custo_pecas = await self.consolidado_svc.obter_custo_pecas(equipamento_ids, data_corte)
+        custo_manutencao_avulsa = await self.consolidado_svc.obter_custo_manutencao_avulsa(equipamento_ids, data_corte)
 
         totais: dict[uuid.UUID, float] = {}
         for equipamento in equipamentos:
@@ -87,7 +98,7 @@ class FrotaCustoService(FrotaDashboardService):
                 custo_combustivel=round(custo_combustivel.get(equipamento.id, 0.0), 2),
                 custo_manutencao=round(custo_manutencao_mao_obra.get(equipamento.id, 0.0) + custo_manutencao_avulsa.get(equipamento.id, 0.0), 2),
                 custo_pecas=round(custo_pecas.get(equipamento.id, 0.0), 2),
-                custo_documental=0.0,  # TODO: Implement documental aggregation if needed
+                custo_documental=0.0,
                 custo_total=totais[equipamento.id],
                 custo_total_frota=custo_total_frota,
             )
@@ -97,7 +108,28 @@ class FrotaCustoService(FrotaDashboardService):
         ranking = self._serializar_ranking(itens)
         equipamento_mais_caro = ranking[0] if ranking else None
 
-        por_safra = await self._obter_custo_por_safra_sql(equipamento_ids, data_corte, custo_total_frota)
+        safra_res = await self.consolidado_svc.obter_custos_por_safra(data_corte)
+        por_safra = [
+            FrotaCustoAgrupadoSafra(
+                safra_id=row["safra_id"],
+                safra_nome=row["safra_nome"],
+                custo_total=row["custo_total"],
+                participacao_percentual=row["participacao_percentual"],
+            )
+            for row in safra_res
+        ]
+
+        up_res = await self.consolidado_svc.consolidar_por_up(data_corte)
+        por_unidade_produtiva = [
+            FrotaCustoAgrupadoUP(
+                unidade_produtiva_id=row["unidade_produtiva_id"],
+                unidade_produtiva_nome=row["unidade_produtiva_nome"],
+                custo_total=row["custo_total"],
+                participacao_percentual=row["participacao_percentual"],
+            )
+            for row in up_res
+        ]
+
         por_talhao = await self._obter_custo_por_talhao_sql(equipamento_ids, data_corte, custo_total_frota)
         por_operacao = await self._obter_custo_por_operacao_sql(equipamento_ids, data_corte, custo_total_frota)
 
@@ -117,6 +149,7 @@ class FrotaCustoService(FrotaDashboardService):
             por_safra=por_safra,
             por_talhao=por_talhao,
             por_operacao=por_operacao,
+            por_unidade_produtiva=por_unidade_produtiva,
             gerado_em=agora,
         )
 
@@ -162,7 +195,10 @@ class FrotaCustoService(FrotaDashboardService):
         for item in abastecimentos:
             historico.append(FrotaCustoHistoricoItem(referencia=str(item.id), tipo="COMBUSTIVEL", valor=round(float(item.custo_total or 0.0), 2), data=item.data))
         for ordem in ordens:
-            total_itens = sum(float(item.quantidade or 0.0) * float(item.preco_unitario_na_data or 0.0) for item in itens_por_os[ordem.id])
+            total_itens = sum(
+                float(item.custo_total or (float(item.quantidade or 0.0) * float(item.preco_unitario_na_data or 0.0)))
+                for item in itens_por_os[ordem.id]
+            )
             pecas = round(total_itens if total_itens > 0 else float(ordem.custo_total_pecas or 0.0), 2)
             if pecas > 0:
                 historico.append(FrotaCustoHistoricoItem(referencia=ordem.numero_os, tipo="PECAS", valor=pecas, data=ordem.data_abertura))
@@ -223,7 +259,10 @@ class FrotaCustoService(FrotaDashboardService):
     async def _listar_itens_os(self, os_ids: list[uuid.UUID]) -> list[ItemOrdemServico]:
         if not os_ids:
             return []
-        stmt = select(ItemOrdemServico).where(ItemOrdemServico.os_id.in_(os_ids))
+        stmt = select(ItemOrdemServico).where(
+            ItemOrdemServico.tenant_id == self.tenant_id,
+            ItemOrdemServico.os_id.in_(os_ids),
+        )
         return list((await self.session.execute(stmt)).scalars().all())
 
     async def _obter_custo_abastecimento_sql(self, equipamento_ids: list[uuid.UUID], data_corte: datetime | None = None) -> dict[uuid.UUID, float]:

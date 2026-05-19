@@ -23,12 +23,22 @@ from core.cadastros.propriedades.models import AreaRural
 from agricola.safras.models import Safra
 from agricola.models import OperacaoTipoFase
 from core.cadastros.produtos.models import Produto
+from core.cadastros.equipamentos.models import Equipamento
 from operacional.services import EstoqueService
 from operacional.services.estoque_fifo import consumir_lotes_fifo, atualizar_saldo_apos_consumo
 from operacional.services.estoque_ledger import registrar_ledger_estoque
 from agricola.custos.allocation_service import registrar_cost_allocation
 from financeiro.models.despesa import Despesa
 from agricola.caderno.models import CadernoCampoEntrada
+from core.operational_context import (
+    validate_area_in_tenant,
+    validate_cultivo_context,
+    validate_deposito_context,
+    validate_pessoa_tenant,
+    validate_production_unit_context,
+    validate_safra_area_link,
+    validate_safra_in_tenant,
+)
 
 DEFAULT_TIPO_FASES: dict[str, list[str]] = {
     "PLANTIO": ["PLANTIO", "DESENVOLVIMENTO"],
@@ -211,19 +221,16 @@ class OperacaoService(BaseService[OperacaoAgricola]):
         which is not compatible with the FK expected by `operacoes_agricolas`.
         """
         if dados.production_unit_id:
-            stmt = select(ProductionUnit.id).where(
-                ProductionUnit.id == dados.production_unit_id,
-                ProductionUnit.tenant_id == self.tenant_id,
+            cultivo_id = getattr(dados, "cultivo_id", None)
+            pu = await validate_production_unit_context(
+                self.session,
+                tenant_id=self.tenant_id,
+                production_unit_id=dados.production_unit_id,
+                safra_id=dados.safra_id,
+                area_id=dados.talhao_id,
+                cultivo_id=cultivo_id,
             )
-            production_unit_id = (await self.session.execute(stmt)).scalar_one_or_none()
-            if production_unit_id is not None:
-                return production_unit_id
-
-            logger.warning(
-                "Ignoring invalid production_unit_id sent to operacoes",
-                production_unit_id=str(dados.production_unit_id),
-                tenant_id=str(self.tenant_id),
-            )
+            return pu.id
 
         stmt = (
             select(ProductionUnit.id)
@@ -249,17 +256,59 @@ class OperacaoService(BaseService[OperacaoAgricola]):
 
     async def criar(self, dados: OperacaoAgricolaCreate) -> OperacaoAgricola:
         await OperacaoTipoFaseService(self.session).ensure_defaults()
-        # 1. Valida existência do talhão
-        stmt_talhao = select(AreaRural.id).where(AreaRural.id == dados.talhao_id)
-        talhao_id = (await self.session.execute(stmt_talhao)).scalar()
-        if not talhao_id:
-            raise EntityNotFoundError("Talhão", dados.talhao_id)
+        # 1. Valida tenant e contexto operacional das entidades base.
+        talhao = await validate_area_in_tenant(
+            self.session,
+            tenant_id=self.tenant_id,
+            area_id=dados.talhao_id,
+        )
+        unidade_produtiva_id = talhao.unidade_produtiva_id
 
         # 2. Auto-preenche fase_safra com fase atual da safra (override permitido)
-        safra_stmt = select(Safra).where(Safra.id == dados.safra_id, Safra.tenant_id == self.tenant_id)
-        safra_atual = (await self.session.execute(safra_stmt)).scalar_one_or_none()
-        if not safra_atual:
-            raise EntityNotFoundError("Safra", dados.safra_id)
+        safra_atual = await validate_safra_in_tenant(
+            self.session,
+            tenant_id=self.tenant_id,
+            safra_id=dados.safra_id,
+        )
+        cultivo_id = getattr(dados, "cultivo_id", None)
+        if cultivo_id:
+            await validate_cultivo_context(
+                self.session,
+                tenant_id=self.tenant_id,
+                cultivo_id=cultivo_id,
+                safra_id=dados.safra_id,
+            )
+        await validate_safra_area_link(
+            self.session,
+            tenant_id=self.tenant_id,
+            safra_id=dados.safra_id,
+            area_id=dados.talhao_id,
+            cultivo_id=cultivo_id,
+        )
+        if dados.operador_id:
+            await validate_pessoa_tenant(self.session, tenant_id=self.tenant_id, pessoa_id=dados.operador_id)
+        if dados.maquina_id:
+            equipamento = (
+                await self.session.execute(
+                    select(Equipamento).where(Equipamento.id == dados.maquina_id, Equipamento.tenant_id == self.tenant_id)
+                )
+            ).scalars().first()
+            if not equipamento:
+                logger.warning(
+                    "multi_up_tenant_mismatch",
+                    resource="equipamento",
+                    tenant_id=str(self.tenant_id),
+                    equipamento_id=str(dados.maquina_id),
+                )
+                raise BusinessRuleError("Equipamento não localizado ou inacessível para o tenant.")
+            if equipamento.unidade_produtiva_id and equipamento.unidade_produtiva_id != unidade_produtiva_id:
+                logger.warning(
+                    "multi_up_equipment_operating_outside_home_unit",
+                    tenant_id=str(self.tenant_id),
+                    equipamento_id=str(equipamento.id),
+                    equipamento_unidade_produtiva_id=str(equipamento.unidade_produtiva_id),
+                    operacao_unidade_produtiva_id=str(unidade_produtiva_id),
+                )
         fase_safra = dados.fase_safra or safra_atual.status
 
         # 2.5. VALIDAÇÃO: Operação só permitida em fases específicas
@@ -324,7 +373,13 @@ class OperacaoService(BaseService[OperacaoAgricola]):
 
                 # Busca produto
                 produto = await self.session.get(Produto, insumo.produto_id)
-                if not produto:
+                if not produto or (produto.tenant_id is not None and produto.tenant_id != self.tenant_id):
+                    logger.warning(
+                        "multi_up_tenant_mismatch",
+                        resource="produto",
+                        tenant_id=str(self.tenant_id),
+                        produto_id=str(insumo.produto_id),
+                    )
                     raise EntityNotFoundError("Produto/Insumo", insumo.produto_id)
 
                 # FIFO: Consume oldest batches first
@@ -343,6 +398,12 @@ class OperacaoService(BaseService[OperacaoAgricola]):
                 custo_item = consumo.custo_total
 
                 for lote_consumido in consumo.lotes_consumidos:
+                    await validate_deposito_context(
+                        self.session,
+                        tenant_id=self.tenant_id,
+                        deposito_id=lote_consumido["deposito_id"],
+                        expected_unidade_produtiva_id=unidade_produtiva_id,
+                    )
                     ledger_consumos.append({
                         "produto_id": insumo.produto_id,
                         "deposito_id": lote_consumido["deposito_id"],

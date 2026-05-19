@@ -108,7 +108,7 @@ class OrcamentoSafraResponse(BaseModel):
 
 class SafraKPI(BaseModel):
     safra_id: uuid.UUID
-    talhao_id: uuid.UUID
+    talhao_id: Optional[uuid.UUID] = None
     cultura: str
     ano_safra: str
     area_ha: float

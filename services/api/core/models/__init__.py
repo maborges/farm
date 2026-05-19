@@ -33,7 +33,7 @@ from core.cadastros.propriedades.models import (
 )
 
 # Cadastros — equipamentos
-from core.cadastros.equipamentos.models import Equipamento
+from core.cadastros.equipamentos.models import Equipamento, EquipamentoAlocacao
 
 # Cadastros — produtos (insumos / almoxarifado)
 from core.cadastros.produtos.models import (

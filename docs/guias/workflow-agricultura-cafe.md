@@ -8,6 +8,80 @@ Documento base relacionado:
 
 - [workflow-atricultura.md](/opt/lampp/htdocs/farm/docs/guias/workflow-atricultura.md)
 
+## Modelo de navegação esperado
+
+Para café, o fluxo deve seguir 2 níveis:
+
+- sidebar global do módulo para visão consolidada
+- subnav da safra para operação diária
+
+## Caminhos do menu no sidebar
+
+Use sempre o menu lateral esquerdo como ponto de partida. Quando o documento citar um caminho, leia da esquerda para a direita como uma sequência de cliques no sidebar.
+
+| Objetivo | Caminho no sidebar | Rota |
+|---|---|---|
+| Cadastrar ou revisar a fazenda | `Cadastros > Minha Propriedade > Propriedades` | `/cadastros/propriedades` |
+| Cadastrar ou revisar talhões | `Cadastros > Minha Propriedade > Georreferenciamento` | `/cadastros/propriedades/talhoes` |
+| Cadastrar produtos, fertilizantes e defensivos | `Cadastros > Insumos & Ativos > Catálogo de Produtos` | `/cadastros/produtos` |
+| Cadastrar equipamentos e frota | `Cadastros > Insumos & Ativos > Equipamentos & Frota` | `/cadastros/equipamentos` |
+| Cadastrar pessoas, operadores e parceiros | `Cadastros > Pessoas & Parceiros > Pessoas e Parceiros` | `/cadastros/pessoas` |
+| Cadastrar culturas e variedades | `Agricultura > ① Planejamento da Safra > Culturas e Variedades` | `/agricola/cadastros/culturas` |
+| Abrir a lista de safras | `Agricultura > Visão Geral > Safras` | `/agricola/safras` |
+| Criar a safra de café | `Agricultura > Visão Geral > Safras > Nova Safra` | `/agricola/safras` |
+| Planejar orçamento geral | `Agricultura > ① Planejamento da Safra > Orçamento de Safra` | `/agricola/planejamento` |
+| Registrar custos agrícolas | `Agricultura > ① Planejamento da Safra > Custeio Agrícola` | `/agricola/custos` |
+| Consultar operações consolidadas | `Agricultura > ② Execução & Registros > Operações Consolidadas` | `/agricola/operacoes` |
+| Registrar caderno de campo consolidado | `Agricultura > ② Execução & Registros > Caderno de Campo` | `/agricola/caderno` |
+| Monitorar pragas e doenças | `Agricultura > ③ Monitoramento > Pragas & Doenças` | `/agricola/monitoramento` |
+| Registrar fenologia | `Agricultura > ③ Monitoramento > Fenologia` | `/agricola/fenologia` |
+| Registrar romaneios | `Agricultura > ④ Colheita & Pós-Colheita > Romaneios de Colheita` | `/agricola/romaneios` |
+| Registrar beneficiamento | `Agricultura > ④ Colheita & Pós-Colheita > Beneficiamento` | `/agricola/beneficiamento` |
+| Emitir relatórios | `Agricultura > ⑤ Gestão & Relatórios > Relatórios` | `/agricola/relatorios` |
+
+Depois que a safra for criada e aberta, a aplicação também mostra uma navegação horizontal própria da safra. Essa navegação aparece no topo das páginas de `/agricola/safras/{id}` e deve ser usada para operar tudo que pertence somente àquela safra.
+
+| Objetivo dentro da safra | Navegação interna da safra | Rota |
+|---|---|---|
+| Ver resumo da safra | `Resumo > Visão Geral` | `/agricola/safras/{id}` |
+| Ver indicadores da safra | `Resumo > Dashboard` | `/agricola/safras/{id}/dashboard` |
+| Montar orçamento da safra | `Planejamento > Orçamento` | `/agricola/safras/{id}/orcamento` |
+| Conferir unidades/talhões da safra | `Planejamento > Unidades` | `/agricola/safras/{id}/production-units` |
+| Registrar análise de solo da safra | `Planejamento > Solo` | `/agricola/safras/{id}/analises-solo` |
+| Comparar cenários | `Planejamento > Cenários` | `/agricola/safras/{id}/cenarios` |
+| Registrar execução por fase | `Execução > Execução` | `/agricola/safras/{id}/operacoes` |
+| Criar tarefas | `Execução > Tarefas` | `/agricola/safras/{id}/tarefas` |
+| Executar checklist | `Execução > Checklist` | `/agricola/safras/{id}/checklist` |
+| Conferir estoque vinculado | `Execução > Estoque` | `/agricola/safras/{id}/estoque` |
+| Registrar sanidade | `Monitoramento > Sanidade` | `/agricola/safras/{id}/monitoramento` |
+| Registrar fenologia da safra | `Monitoramento > Fenologia` | `/agricola/safras/{id}/fenologia` |
+| Consultar NDVI | `Monitoramento > NDVI` | `/agricola/safras/{id}/ndvi` |
+| Registrar romaneios da safra | `Colheita > Romaneios` | `/agricola/safras/{id}/romaneios` |
+| Registrar beneficiamento da safra | `Colheita > Beneficiamento` | `/agricola/safras/{id}/beneficiamento` |
+| Conferir financeiro | `Gestão > Financeiro` | `/agricola/safras/{id}/financeiro` |
+| Consultar caderno da safra | `Gestão > Caderno` | `/agricola/safras/{id}/caderno` |
+
+### Entrada global
+
+Usar o sidebar global para:
+
+- abrir `Safras`
+- consultar `Operações Consolidadas`
+- acessar visão ampla de `Monitoramento`, `Romaneios` e `Relatórios`
+
+### Operação da safra
+
+Depois de abrir `/agricola/safras/{id}`, executar o fluxo principalmente por:
+
+- `Resumo`
+- `Planejamento`
+- `Execução`
+- `Monitoramento`
+- `Colheita`
+- `Gestão`
+
+Para café, isso é importante porque a cultura perene exige leitura contínua de fase, monitoramento e pós-colheita no mesmo contexto operacional.
+
 ## Capturas de referência
 
 ### Dashboard Agrícola
@@ -23,14 +97,14 @@ Documento base relacionado:
 O workflow cobre:
 
 - criação da safra de café
-- orçamento
-- manejo por fase
-- fenologia
-- monitoramento fitossanitário
-- caderno de campo
-- romaneios
-- beneficiamento
-- financeiro
+- orçamento global e orçamento da safra
+- manejo por fase no contexto da safra
+- fenologia da safra
+- monitoramento fitossanitário da safra
+- caderno de campo da safra
+- romaneios da safra
+- beneficiamento da safra
+- financeiro da safra
 - cenários e comparativo
 - dashboard executivo e dashboard agrícola
 
@@ -53,6 +127,20 @@ O workflow cobre:
 - planos de conta de despesa e receita ativos
 - produtos e insumos cadastrados
 - estoque inicial carregado, se aplicável
+
+### Checklist antes de criar a safra
+
+Antes de clicar em `Nova Safra`, confirme estes cadastros. Sem eles, o usuário até pode abrir a tela de safras, mas terá dificuldade para vincular talhões, selecionar cultura ou executar o restante do workflow.
+
+| Verificação | Caminho no sidebar | O que conferir |
+|---|---|---|
+| Tenant correto | seletor de empresa/fazenda no topo da aplicação | a operação deve estar no tenant da fazenda que será usada no teste |
+| Fazenda cadastrada | `Cadastros > Minha Propriedade > Propriedades` | existe uma propriedade chamada `Fazenda Boa Esperança` |
+| Talhões cadastrados | `Cadastros > Minha Propriedade > Georreferenciamento` | existem os talhões `Café A1`, `Café A2` e `Café B1`, todos como tipo `TALHAO` |
+| Área dos talhões | `Cadastros > Minha Propriedade > Georreferenciamento` | A1 tem `20,00 ha`, A2 tem `25,00 ha` e B1 tem `30,00 ha` |
+| Cultura cadastrada | `Agricultura > ① Planejamento da Safra > Culturas e Variedades` | existe a cultura `Café`; se houver variedade, usar `Catuaí 144` |
+| Produtos cadastrados | `Cadastros > Insumos & Ativos > Catálogo de Produtos` | existem fertilizantes, defensivos e demais insumos que serão usados no planejamento |
+| Pessoas cadastradas | `Cadastros > Pessoas & Parceiros > Pessoas e Parceiros` | existe ao menos um operador ou responsável técnico, se o fluxo de execução exigir |
 
 ## Estratégia do cenário
 
@@ -126,24 +214,118 @@ O esperado é que a IA:
 
 ## Etapa 1 — Criar a safra de café
 
-### Onde testar
+### Caminho no sidebar
+
+`Agricultura > Visão Geral > Safras`
+
+Rota direta:
 
 - `/agricola/safras`
 
-### Ação
+### Objetivo da etapa
 
-Criar a safra `Café 2025/26` vinculando A1, A2 e B1.
+Criar a safra `2025/26` de café e vincular os talhões `Café A1`, `Café A2` e `Café B1`, totalizando `75,00 ha`.
+
+Ao final desta etapa, a safra deve existir na listagem, deve abrir o painel próprio da safra e deve estar pronta para receber orçamento, operações, monitoramento e colheita.
+
+### Passo a passo para um usuário leigo
+
+1. Abra a aplicação e confirme que está logado no tenant correto.
+2. No menu lateral esquerdo, clique em `Agricultura`.
+3. Dentro de `Agricultura`, localize o grupo `Visão Geral`.
+4. Clique em `Safras`.
+5. Confira se a tela abriu com o título `Safras`.
+6. Se aparecer uma lista de safras, verifique se já existe uma safra `2025/26`. Se ela já existir, não crie outra com o mesmo ano agrícola para o mesmo contexto de teste.
+7. Clique no botão `Nova Safra`.
+8. Aguarde abrir o dialog chamado `Nova Safra`.
+9. No campo `Ano Agrícola`, digite `2025/26`.
+10. Na seção `Cultivos`, preencha o primeiro cultivo.
+11. No campo `Cultura`, selecione `Café`.
+12. No campo `Cultivar`, digite `Catuaí 144`.
+13. Clique no botão `Talhão`.
+14. No campo `Talhão`, selecione `Café A1`.
+15. No campo `Plantar (ha)`, informe `20,00`.
+16. Clique novamente no botão `Talhão`.
+17. Selecione `Café A2`.
+18. No campo `Plantar (ha)`, informe `25,00`.
+19. Clique novamente no botão `Talhão`.
+20. Selecione `Café B1`.
+21. No campo `Plantar (ha)`, informe `30,00`.
+22. No campo `Meta de Produtividade`, informe `42,00`.
+23. Não marque `Consorciado`, porque este cenário usa somente café ocupando os talhões.
+24. No campo `Início da ocupação`, informe `2025-07-15`.
+25. No campo `Fim da ocupação`, informe `2026-06-10`.
+26. Revise os dados antes de salvar.
+27. Clique em `Criar Safra`.
+28. Aguarde a mensagem de sucesso.
+29. Confirme que a safra `2025/26` aparece na listagem de `Safras`.
+30. Clique no card da safra para abrir o painel da safra.
+31. Confirme que a navegação interna da safra aparece no topo com os grupos `Resumo`, `Planejamento`, `Execução`, `Monitoramento`, `Colheita` e `Gestão`.
+
+### Dados que devem ser preenchidos
+
+#### Identificação da safra
+
+| Campo na tela | Valor a usar | Observação |
+|---|---|---|
+| Ano Agrícola | `2025/26` | o campo aceita o formato `AAAA` ou `AAAA/AA` |
+
+#### Cultivo
+
+| Campo na tela | Valor a usar | Observação |
+|---|---|---|
+| Cultura | `Café` | vem do cadastro `Agricultura > ① Planejamento da Safra > Culturas e Variedades` |
+| Cultivar | `Catuaí 144` | campo opcional, mas deve ser preenchido neste teste |
+| Meta de Produtividade | `42,00` | unidade esperada: sacas por hectare |
+| Consorciado | desmarcado | marcar somente quando houver duas culturas compartilhando a mesma área |
+| Início da ocupação | `2025-07-15` | início operacional da safra |
+| Fim da ocupação | `2026-06-10` | data prevista para encerramento/colheita |
+
+#### Talhões
+
+| Talhão | Plantar (ha) | Observação |
+|---|---:|---|
+| Café A1 | `20,00` | produção adulta |
+| Café A2 | `25,00` | produção intermediária |
+| Café B1 | `30,00` | produção adulta |
+| Total | `75,00` | soma usada no planejamento e indicadores |
+
+### Conferência depois de salvar
+
+Depois de clicar em `Criar Safra`, confira:
+
+- a safra aparece na lista com o ano `2025/26`
+- o card mostra a cultura `Café` ou `Multi-cultivo`, dependendo da forma como a API retorna o resumo
+- o status inicial aparece como `Planejada`
+- ao clicar no card, a rota muda para `/agricola/safras/{id}`
+- a navegação interna da safra é exibida no topo da página
+- em `Planejamento > Unidades`, os talhões vinculados aparecem como unidades da safra
+
+### Erros comuns e como corrigir
+
+| Sintoma | Causa provável | Correção |
+|---|---|---|
+| Campo `Cultura` aparece vazio | cultura ainda não cadastrada | ir em `Agricultura > ① Planejamento da Safra > Culturas e Variedades` e cadastrar `Café` |
+| Lista de `Talhão` aparece vazia | talhões não estão cadastrados como tipo `TALHAO` | ir em `Cadastros > Minha Propriedade > Georreferenciamento` e revisar o tipo dos talhões |
+| Área do talhão não preenche automaticamente | talhão está sem área cadastrada | editar o talhão e preencher `area_hectares` |
+| Sistema não deixa salvar | algum campo obrigatório ficou vazio | revisar `Ano Agrícola`, `Cultura`, ao menos um `Talhão`, `Plantar (ha)` e `Início da ocupação` |
+| Área informada é recusada | valor maior que a área cadastrada do talhão | informar uma área igual ou menor que a área real do talhão |
+| Safra duplicada na lista | usuário criou mais de uma safra para o mesmo ano | manter somente a safra correta para o teste, se a regra operacional permitir exclusão ou inativação |
 
 ### Resultado esperado
 
 - safra criada com status `PLANEJADA`
 - safra visível na listagem e no dashboard agrícola
+- safra aberta com subnav própria em `/agricola/safras/{id}`
+- talhões `Café A1`, `Café A2` e `Café B1` vinculados à safra
+- área total da safra igual a `75,00 ha`
 
 ## Etapa 2 — Planejamento e orçamento do café
 
 ### Onde testar
 
 - `/agricola/planejamento`
+- `/agricola/safras/{id}/orcamento`
 
 ### Itens sugeridos
 
@@ -166,8 +348,13 @@ Total sugerido:
 - custo total previsto exibido
 - receita esperada e margem projetada calculadas
 - ponto de equilíbrio exibido
+- subnav da safra permanece coerente com a etapa
 
 ## Etapa 3 — Preparo e manejo inicial
+
+### Onde testar
+
+- `/agricola/safras/{id}/operacoes`
 
 ### Ação
 
@@ -211,7 +398,7 @@ Avançar para `PLANTIO` e registrar:
 
 ### Onde testar
 
-- `/agricola/fenologia`
+- `/agricola/safras/{id}/fenologia`
 
 ### Registros sugeridos
 
@@ -230,7 +417,7 @@ Avançar para `PLANTIO` e registrar:
 
 ### Onde testar
 
-- `/agricola/monitoramento`
+- `/agricola/safras/{id}/monitoramento`
 
 ### Registros sugeridos
 
@@ -251,6 +438,10 @@ Avançar para `PLANTIO` e registrar:
 - contextualizar o risco com a fase da lavoura
 
 ## Etapa 7 — Operações de desenvolvimento
+
+### Onde testar
+
+- `/agricola/safras/{id}/operacoes`
 
 ### Ação
 
@@ -316,7 +507,7 @@ Totais sugeridos:
 
 ### Onde testar
 
-- `/agricola/beneficiamento`
+- `/agricola/safras/{id}/beneficiamento`
 
 ### Ação
 
@@ -458,15 +649,17 @@ Subtotal:
 |---|---|---|
 | `/agricola/safras` | safra `Café 2025/26` criada e listada | cadastro de safra perene com talhões válidos |
 | `/agricola/dashboard` | safra de café no acompanhamento | dashboard global reflete fase atual |
-| `/agricola/planejamento` | orçamento cafeeiro consolidado | cálculo previsto da safra |
-| `/agricola/operacoes` | manejo de calagem, adubação, poda e pulverização listado | coerência entre operação e fase da safra |
-| `/agricola/fenologia` | registros de floração, pegamento e granação | leitura fenológica da cultura café |
-| `/agricola/monitoramento` | ferrugem e broca registradas | monitoramento fitossanitário por talhão |
-| `/agricola/monitoramento` | quando houver IA, interpretação clara de risco e ação | apoio técnico assistido por IA |
+| `/agricola/planejamento` | planejamento macro disponível | entrada global do planejamento |
+| `/agricola/safras/{id}/orcamento` | orçamento cafeeiro consolidado | cálculo previsto da safra |
+| `/agricola/operacoes` | operações consolidadas disponíveis | visão global do histórico operacional |
+| `/agricola/safras/{id}/operacoes` | manejo de calagem, adubação, poda e pulverização listado | coerência entre operação e fase da safra |
+| `/agricola/safras/{id}/fenologia` | registros de floração, pegamento e granação | leitura fenológica da cultura café |
+| `/agricola/safras/{id}/monitoramento` | ferrugem e broca registradas | monitoramento fitossanitário por talhão |
+| `/agricola/safras/{id}/monitoramento` | quando houver IA, interpretação clara de risco e ação | apoio técnico assistido por IA |
 | `/agricola/safras/{id}/caderno` | timeline com visitas, monitoramentos e entregas | consolidação do histórico da safra |
-| `/agricola/romaneios` | romaneios com produção, preço e receita | registro da colheita por lote |
-| `/agricola/beneficiamento` | lote beneficiado com quebra de peso | rastreabilidade pós-colheita |
-| `/agricola/beneficiamento` | quando houver IA, leitura da perda e da qualidade do lote | apoio de IA na pós-colheita |
+| `/agricola/safras/{id}/romaneios` | romaneios com produção, preço e receita | registro da colheita por lote |
+| `/agricola/safras/{id}/beneficiamento` | lote beneficiado com quebra de peso | rastreabilidade pós-colheita |
+| `/agricola/safras/{id}/beneficiamento` | quando houver IA, leitura da perda e da qualidade do lote | apoio de IA na pós-colheita |
 | `/agricola/safras/{id}/financeiro` | custos, receitas e ROI positivos | integração agrícola-financeira do café |
 | `/agricola/safras/{id}/cenarios` | cenário base e alternativos calculados | modelagem econômica da safra cafeeira |
 | `/agricola/safras/{id}/cenarios` | quando houver IA, explicação útil do risco econômico | apoio de IA na análise cafeeira |

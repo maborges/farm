@@ -12,6 +12,41 @@ Este documento define um roteiro completo de validação funcional do módulo Ag
 
 O objetivo é permitir um teste end-to-end reproduzível por QA, produto, suporte ou implantação.
 
+## Modelo de navegação esperado
+
+O módulo Agricultura deve ser testado em 2 níveis:
+
+- navegação global do módulo
+- navegação contextual da safra
+
+### Navegação global do módulo
+
+Usar o sidebar global para entrar nas áreas amplas:
+
+- `Visão Geral`
+- `Safras`
+- `Planejamento da Safra`
+- `Execução & Registros`
+- `Monitoramento`
+- `Colheita & Pós-Colheita`
+- `Gestão & Relatórios`
+
+### Navegação contextual da safra
+
+Depois de abrir `/agricola/safras/{id}`, a operação diária deve seguir no subnav da própria safra:
+
+- `Resumo`
+- `Planejamento`
+- `Execução`
+- `Monitoramento`
+- `Colheita`
+- `Gestão`
+
+Regra prática:
+
+- telas globais servem para visão consolidada, consulta e entrada no módulo
+- a execução da safra deve acontecer preferencialmente dentro de `/agricola/safras/{id}/*`
+
 ## Escopo do teste
 
 O workflow cobre as áreas visíveis hoje no módulo:
@@ -19,11 +54,20 @@ O workflow cobre as áreas visíveis hoje no módulo:
 - dashboard agrícola global: `/agricola/dashboard`
 - safras: `/agricola/safras`
 - orçamento de safra: `/agricola/planejamento`
-- operações de campo: `/agricola/operacoes`
-- fenologia: `/agricola/fenologia`
-- monitoramento: `/agricola/monitoramento`
-- romaneios de colheita: `/agricola/romaneios`
-- beneficiamento: `/agricola/beneficiamento`
+- operações consolidadas: `/agricola/operacoes`
+- monitoramento global: `/agricola/monitoramento`
+- romaneios globais: `/agricola/romaneios`
+- beneficiamento global: `/agricola/beneficiamento`
+- orçamento da safra: `/agricola/safras/{id}/orcamento`
+- execução da safra: `/agricola/safras/{id}/operacoes`
+- fenologia da safra: `/agricola/safras/{id}/fenologia`
+- monitoramento da safra: `/agricola/safras/{id}/monitoramento`
+- romaneios da safra: `/agricola/safras/{id}/romaneios`
+- beneficiamento da safra: `/agricola/safras/{id}/beneficiamento`
+- tarefas da safra: `/agricola/safras/{id}/tarefas`
+- checklist da safra: `/agricola/safras/{id}/checklist`
+- estoque da safra: `/agricola/safras/{id}/estoque`
+- análises de solo da safra: `/agricola/safras/{id}/analises-solo`
 - cenários econômicos: `/agricola/safras/{id}/cenarios`
 - comparativo de cenários: `/agricola/safras/{id}/cenarios/comparativo`
 - caderno de campo: `/agricola/safras/{id}/caderno`
@@ -211,6 +255,7 @@ Criar a safra `Soja 2025/26` com os 3 talhões acima.
 ### Onde testar
 
 - `/agricola/planejamento`
+- `/agricola/safras/{id}/orcamento`
 
 ### Ação
 
@@ -238,6 +283,7 @@ Total estimado sugerido:
 - custo total previsto visível
 - margem bruta projetada calculada
 - ponto de equilíbrio exibido
+- safra continua navegável no subnav contextual
 
 ## Etapa 3 — Avançar para preparo do solo
 
@@ -261,6 +307,7 @@ Avançar a safra para `PREPARO_SOLO`.
 ### Onde testar
 
 - `/agricola/operacoes`
+- `/agricola/safras/{id}/operacoes`
 - `/agricola/safras/{id}/caderno`
 
 ### Ações recomendadas
@@ -323,7 +370,7 @@ Registrar 2 operações adicionais:
 
 ### Onde testar
 
-- `/agricola/fenologia`
+- `/agricola/safras/{id}/fenologia`
 
 ### Ação
 
@@ -347,7 +394,7 @@ Criar registros fenológicos para a safra.
 
 ### Onde testar
 
-- `/agricola/monitoramento`
+- `/agricola/safras/{id}/monitoramento`
 - `/agricola/safras/{id}/caderno`
 
 ### Ação
@@ -377,7 +424,7 @@ Registrar 2 ocorrências de monitoramento.
 
 ### Onde testar
 
-- `/agricola/operacoes`
+- `/agricola/safras/{id}/operacoes`
 
 ### Ação
 
@@ -443,7 +490,7 @@ Avançar a safra para `COLHEITA`.
 
 ### Onde testar
 
-- `/agricola/romaneios`
+- `/agricola/safras/{id}/romaneios`
 
 ### Ação
 
@@ -480,7 +527,7 @@ Produtividade aproximada:
 
 ### Onde testar
 
-- `/agricola/beneficiamento`
+- `/agricola/safras/{id}/beneficiamento`
 
 ### Ação
 
@@ -763,14 +810,16 @@ E o sistema deve demonstrar, na prática:
 |---|---|---|
 | `/agricola/safras` | Safra `Soja 2025/26` criada e listada | cadastro de safra, vínculo com talhões e validação de área |
 | `/agricola/dashboard` | Safra aparece em `Acompanhamento de Safras` | dashboard global reflete status atual da safra |
-| `/agricola/planejamento` | orçamento com custo previsto, margem e ponto de equilíbrio | cálculo orçamentário por safra |
-| `/agricola/operacoes` | operações de preparo, plantio e desenvolvimento listadas | operação só pode existir com safra válida e fase coerente |
-| `/agricola/fenologia` | registros fenológicos por talhão | persistência e filtro por safra |
-| `/agricola/monitoramento` | ocorrências leves e críticas salvas | monitoramento agronômico vinculado à safra |
-| `/agricola/monitoramento` | se houver IA, recomendação vinculada ao risco observado | uso de IA com contexto agronômico |
+| `/agricola/planejamento` | planejamento macro disponível | entrada global do planejamento |
+| `/agricola/safras/{id}/orcamento` | orçamento com custo previsto, margem e ponto de equilíbrio | cálculo orçamentário por safra |
+| `/agricola/operacoes` | operações consolidadas disponíveis | visão global de histórico e consulta |
+| `/agricola/safras/{id}/operacoes` | operações de preparo, plantio e desenvolvimento listadas | operação só pode existir com safra válida e fase coerente |
+| `/agricola/safras/{id}/fenologia` | registros fenológicos por talhão | persistência e filtro por safra |
+| `/agricola/safras/{id}/monitoramento` | ocorrências leves e críticas salvas | monitoramento agronômico vinculado à safra |
+| `/agricola/safras/{id}/monitoramento` | se houver IA, recomendação vinculada ao risco observado | uso de IA com contexto agronômico |
 | `/agricola/safras/{id}/caderno` | timeline com operações, monitoramentos e entradas manuais | consolidação cronológica do histórico da safra |
-| `/agricola/romaneios` | 3 romaneios com produção e receita | produção, preço e origem por safra/talhão |
-| `/agricola/beneficiamento` | lote final com quebra registrada | rastreabilidade entre origem e lote beneficiado |
+| `/agricola/safras/{id}/romaneios` | 3 romaneios com produção e receita | produção, preço e origem por safra/talhão |
+| `/agricola/safras/{id}/beneficiamento` | lote final com quebra registrada | rastreabilidade entre origem e lote beneficiado |
 | `/agricola/safras/{id}/financeiro` | custos, receitas, lucro e ROI | integração agrícola-financeira |
 | `/agricola/safras/{id}/cenarios` | cenário base, otimista e pessimista calculados | simulação econômica por safra |
 | `/agricola/safras/{id}/cenarios` | se houver IA, leitura clara de risco e impacto | apoio à decisão econômica |

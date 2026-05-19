@@ -4,6 +4,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from operacional.schemas.frota_checklist import ChecklistOperacionalPreenchimentoCreate
+
 
 StatusJornadaFrota = Literal["ABERTA", "FINALIZADA", "CANCELADA"]
 
@@ -19,6 +21,8 @@ class FrotaJornadaCreate(BaseModel):
     horimetro_inicial: float | None = None
     km_inicial: float | None = None
     observacoes: str | None = None
+    checklist_abertura: ChecklistOperacionalPreenchimentoCreate | None = None
+    aberta_por_id: UUID | None = None
 
 
 class FrotaJornadaUpdate(BaseModel):
@@ -38,6 +42,8 @@ class FrotaJornadaFinalizarRequest(BaseModel):
     horimetro_final: float | None = None
     km_final: float | None = None
     observacoes: str | None = None
+    checklist_encerramento: ChecklistOperacionalPreenchimentoCreate | None = None
+    encerrada_por_id: UUID | None = None
 
 
 class FrotaJornadaCancelarRequest(BaseModel):
@@ -76,6 +82,10 @@ class FrotaJornadaItem(BaseModel):
     km_final: float | None = None
     status: StatusJornadaFrota
     observacoes: str | None = None
+    aberta_por_id: UUID | None = None
+    encerrada_por_id: UUID | None = None
+    aberta_por_nome: str | None = None
+    encerrada_por_nome: str | None = None
     duracao_horas: float | None = None
     horas_trabalhadas: float | None = None
     km_trabalhados: float | None = None

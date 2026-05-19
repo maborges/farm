@@ -12,9 +12,14 @@ from .schemas import CommodityClassificacaoResponse, CotacaoCommodityResponse, C
 
 
 class CommodityService(BaseService[Commodity]):
+    def __init__(self, session: AsyncSession, tenant_id: uuid.UUID):
+        super().__init__(Commodity, session, tenant_id)
 
     def _tenant_or_sistema(self):
-        return or_(Commodity.tenant_id == self.tenant_id, Commodity.sistema == True)
+        return or_(
+            Commodity.tenant_id == self.tenant_id,
+            Commodity.tenant_id.is_(None),
+        )
 
     # ── Commodity ─────────────────────────────────────────────────────────────
 
@@ -24,7 +29,12 @@ class CommodityService(BaseService[Commodity]):
     ) -> list[Commodity]:
         stmt = select(Commodity)
         if incluir_sistema:
-            stmt = stmt.where(or_(Commodity.tenant_id == self.tenant_id, Commodity.sistema == True))
+            stmt = stmt.where(
+                or_(
+                    Commodity.tenant_id == self.tenant_id,
+                    Commodity.tenant_id.is_(None),
+                )
+            )
         else:
             stmt = stmt.where(Commodity.tenant_id == self.tenant_id)
         if apenas_ativos:

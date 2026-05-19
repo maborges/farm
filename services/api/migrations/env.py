@@ -81,10 +81,16 @@ from core.cadastros.propriedades.propriedade_models import Propriedade, Explorac
 from campo.models import DispositivoCampo, TarefaCampo, SyncTombstone
 
 # Equipamentos
-from core.cadastros.equipamentos.models import Equipamento
+from core.cadastros.equipamentos.models import Equipamento, EquipamentoAlocacao
 from operacional.models.apontamento import ApontamentoUso
 from operacional.models.abastecimento import Abastecimento
-from operacional.models.checklist import ChecklistModelo, ChecklistRealizado
+from operacional.models.checklist import (
+    ChecklistModelo,
+    ChecklistRealizado,
+    ChecklistOperacional,
+    ChecklistOperacionalItem,
+    ChecklistOperacionalResposta,
+)
 from operacional.models.estoque import Deposito, SaldoEstoque, LoteEstoque, RequisicaoMaterial, ItemRequisicao, ReservaEstoque, EstoqueMovimento
 from operacional.models.documento_equipamento import DocumentoEquipamento
 from operacional.models.frota import PlanoManutencao, OrdemServico, ItemOrdemServico, RegistroManutencao, JornadaEquipamento

@@ -14,6 +14,7 @@ Respeite o budget de contexto em TODAS as respostas:
 - **Code review loops:** Delegue a subagents via Agent tool com isolation=worktree
 - **Busca de padrões:** Use Grep com glob patterns (`--glob="*.ts"`), não find
 - **Confirmação:** todas as mensagem de confirmação para o usuário devem utilizar o componente AlertDialog em @/components/ui/alert-dialog.
+- **Coomponentes Padrões:** utilize os componentes padrões de @/components/ui/ para evitar retrabalho e manter a consistência visual, não tente criar componentes visuais próprios.
 
 ---
 

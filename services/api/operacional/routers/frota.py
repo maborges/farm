@@ -1,13 +1,21 @@
-from fastapi import APIRouter, Depends, status, UploadFile, File
-from typing import List
+from fastapi import APIRouter, Depends, File, Query, status, UploadFile
+from fastapi.responses import StreamingResponse
+from typing import List, Literal
+from io import BytesIO
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.constants import PlanTier
-from core.dependencies import get_tenant_id, require_module, require_tier
+from core.dependencies import get_tenant_id, get_user_id, require_module, require_tier
 from core.dependencies import get_session_with_tenant
 from operacional.schemas.frota_dashboard_detail import FrotaDashboardDetalheResponse
 from operacional.schemas.frota_dashboard import FrotaDashboardResponse
+from operacional.schemas.frota_checklist import (
+    ChecklistOperacionalCreate,
+    ChecklistOperacionalPreenchimentoCreate,
+    ChecklistOperacionalPreenchimentoResponse,
+    ChecklistOperacionalResponse,
+)
 from operacional.schemas.frota_custo import (
     FrotaCustoEquipamentoResponse,
     FrotaCustoRankingResponse,
@@ -60,6 +68,7 @@ from operacional.schemas.frota import (
     ItemOrdemServicoCreate, ItemOrdemServicoResponse
 )
 from operacional.services.frota_dashboard_detail_service import FrotaDashboardDetailService
+from operacional.services.frota_checklist_service import FrotaChecklistService
 from operacional.services.frota_dashboard_service import FrotaDashboardService
 from operacional.services.frota_custo_service import FrotaCustoService
 from operacional.services.frota_disponibilidade_service import FrotaDisponibilidadeService
@@ -67,12 +76,69 @@ from operacional.services.frota_consumo_service import FrotaConsumoService
 from operacional.services.frota_jornada_service import FrotaJornadaService
 from operacional.services.frota_inteligencia_service import FrotaInteligenciaService
 from operacional.services.frota_agricultura_service import FrotaAgriculturaService
+from operacional.services.frota_export_service import FrotaExportService
 from operacional.services.frota_manutencao_preventiva_service import FrotaManutencaoPreventivaService
 from operacional.services.frota_automacao_service import FrotaAutomacaoService
 from operacional.services.frota_service import FrotaService
 from operacional.services.frota_import_service import FrotaImportService
 
 router = APIRouter(prefix="/frota", tags=["Frota — Maquinários"])
+
+
+@router.post(
+    "/checklists",
+    response_model=ChecklistOperacionalResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def criar_checklist_operacional(
+    dados: ChecklistOperacionalCreate,
+    session: AsyncSession = Depends(get_session_with_tenant),
+    tenant_id: UUID = Depends(get_tenant_id),
+    _: None = Depends(require_module("O1_FROTA")),
+    _tier: None = Depends(require_tier(PlanTier.PROFISSIONAL)),
+):
+    svc = FrotaChecklistService(session, tenant_id)
+    checklist = await svc.criar_checklist(dados)
+    await session.commit()
+    await session.refresh(checklist)
+    return checklist
+
+
+@router.get("/checklists", response_model=list[ChecklistOperacionalResponse])
+async def listar_checklists_operacionais(
+    tipo_equipamento: str | None = None,
+    tipo_jornada: str | None = None,
+    skip: int = Query(0, ge=0),
+    limit: int | None = Query(None, ge=1, le=200),
+    session: AsyncSession = Depends(get_session_with_tenant),
+    tenant_id: UUID = Depends(get_tenant_id),
+    _: None = Depends(require_module("O1_FROTA")),
+    _tier: None = Depends(require_tier(PlanTier.PROFISSIONAL)),
+):
+    svc = FrotaChecklistService(session, tenant_id)
+    return await svc.listar_checklists(
+        tipo_equipamento=tipo_equipamento,
+        tipo_jornada=tipo_jornada,
+        skip=skip,
+        limit=limit,
+    )
+
+
+@router.post("/checklists/respostas", response_model=ChecklistOperacionalPreenchimentoResponse)
+async def registrar_respostas_checklist_operacional(
+    dados: ChecklistOperacionalPreenchimentoCreate,
+    session: AsyncSession = Depends(get_session_with_tenant),
+    tenant_id: UUID = Depends(get_tenant_id),
+    user_id: UUID | None = Depends(get_user_id),
+    _: None = Depends(require_module("O1_FROTA")),
+    _tier: None = Depends(require_tier(PlanTier.PROFISSIONAL)),
+):
+    svc = FrotaChecklistService(session, tenant_id)
+    if user_id is not None:
+        dados = dados.model_copy(update={"executado_por_id": user_id, "reportado_por_id": user_id})
+    resposta = await svc.registrar_respostas(dados)
+    await session.commit()
+    return resposta
 
 
 @router.get("/dashboard", response_model=FrotaDashboardResponse)
@@ -188,6 +254,51 @@ async def obter_ranking_eficiencia(
 ):
     svc = FrotaConsumoService(session, tenant_id)
     return await svc.obter_ranking(unidade_produtiva_id=unidade_produtiva_id)
+
+
+@router.get("/export/{dataset}")
+async def exportar_dados_frota(
+    dataset: Literal["custos", "jornadas", "manutencoes", "produtividade"],
+    formato: Literal["csv", "xlsx"] = "csv",
+    unidade_produtiva_id: UUID | None = None,
+    periodo_dias: int | None = Query(None, ge=1, le=3650),
+    tipo_equipamento: str | None = None,
+    session: AsyncSession = Depends(get_session_with_tenant),
+    tenant_id: UUID = Depends(get_tenant_id),
+    _: None = Depends(require_module("O1_FROTA")),
+    _tier: None = Depends(require_tier(PlanTier.PROFISSIONAL)),
+):
+    svc = FrotaExportService(session, tenant_id)
+    if dataset == "custos":
+        artifact = await svc.exportar_custos(
+            periodo_dias=periodo_dias,
+            unidade_produtiva_id=unidade_produtiva_id,
+            tipo_equipamento=tipo_equipamento,
+            formato=formato,
+        )
+    elif dataset == "jornadas":
+        artifact = await svc.exportar_jornadas(
+            unidade_produtiva_id=unidade_produtiva_id,
+            periodo_dias=periodo_dias,
+            formato=formato,
+        )
+    elif dataset == "manutencoes":
+        artifact = await svc.exportar_manutencoes(
+            unidade_produtiva_id=unidade_produtiva_id,
+            periodo_dias=periodo_dias,
+            formato=formato,
+        )
+    else:
+        artifact = await svc.exportar_produtividade(
+            unidade_produtiva_id=unidade_produtiva_id,
+            formato=formato,
+        )
+
+    return StreamingResponse(
+        BytesIO(artifact.content),
+        media_type=artifact.media_type,
+        headers={"Content-Disposition": f'attachment; filename="{artifact.filename}"'},
+    )
 
 
 @router.get("/disponibilidade", response_model=FrotaDisponibilidadeResponse)
@@ -321,6 +432,8 @@ async def listar_jornadas_frota(
     equipamento_id: UUID | None = None,
     status_jornada: str | None = None,
     periodo_dias: int | None = None,
+    skip: int = Query(0, ge=0),
+    limit: int | None = Query(None, ge=1, le=500),
     session: AsyncSession = Depends(get_session_with_tenant),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("O1_FROTA")),
@@ -332,6 +445,8 @@ async def listar_jornadas_frota(
         equipamento_id=equipamento_id,
         status=status_jornada,
         periodo_dias=periodo_dias,
+        skip=skip,
+        limit=limit,
     )
 
 
@@ -340,10 +455,13 @@ async def criar_jornada_frota(
     dados: FrotaJornadaCreate,
     session: AsyncSession = Depends(get_session_with_tenant),
     tenant_id: UUID = Depends(get_tenant_id),
+    user_id: UUID | None = Depends(get_user_id),
     _: None = Depends(require_module("O1_FROTA")),
     _tier: None = Depends(require_tier(PlanTier.PROFISSIONAL)),
 ):
     svc = FrotaJornadaService(session, tenant_id)
+    if user_id is not None:
+        dados = dados.model_copy(update={"aberta_por_id": user_id})
     return await svc.criar_jornada(dados)
 
 
@@ -378,10 +496,13 @@ async def finalizar_jornada_frota(
     dados: FrotaJornadaFinalizarRequest,
     session: AsyncSession = Depends(get_session_with_tenant),
     tenant_id: UUID = Depends(get_tenant_id),
+    user_id: UUID | None = Depends(get_user_id),
     _: None = Depends(require_module("O1_FROTA")),
     _tier: None = Depends(require_tier(PlanTier.PROFISSIONAL)),
 ):
     svc = FrotaJornadaService(session, tenant_id)
+    if user_id is not None:
+        dados = dados.model_copy(update={"encerrada_por_id": user_id})
     return await svc.finalizar_jornada(jornada_id, dados)
 
 
@@ -507,6 +628,8 @@ async def criar_maquinario(
 @router.get("/", response_model=List[MaquinarioResponse])
 async def listar_maquinarios(
     unidade_produtiva_id: UUID | None = None,
+    skip: int = Query(0, ge=0),
+    limit: int | None = Query(None, ge=1, le=500),
     session: AsyncSession = Depends(get_session_with_tenant),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("O1_FROTA"))
@@ -514,7 +637,7 @@ async def listar_maquinarios(
     svc = FrotaService(session, tenant_id)
     filters = {}
     if unidade_produtiva_id: filters["unidade_produtiva_id"] = unidade_produtiva_id
-    return await svc.list_all(**filters)
+    return await svc.list_all(skip=skip, limit=limit if limit is not None else 1000000, **filters)
 
 @router.get("/{id}", response_model=MaquinarioResponse)
 async def detalhar_maquinario(
@@ -574,10 +697,11 @@ async def abrir_ordem_servico(
     dados: OrdemServicoCreate,
     session: AsyncSession = Depends(get_session_with_tenant),
     tenant_id: UUID = Depends(get_tenant_id),
+    user_id: UUID | None = Depends(get_user_id),
     _: None = Depends(require_module("O1_FROTA"))
 ):
     svc = FrotaService(session, tenant_id)
-    return await svc.abrir_os(dados)
+    return await svc.abrir_os(dados, usuario_id=user_id)
 
 @router.post("/os/{os_id}/itens", response_model=ItemOrdemServicoResponse)
 async def adicionar_peça_os(
@@ -585,10 +709,11 @@ async def adicionar_peça_os(
     dados: ItemOrdemServicoCreate,
     session: AsyncSession = Depends(get_session_with_tenant),
     tenant_id: UUID = Depends(get_tenant_id),
+    user_id: UUID | None = Depends(get_user_id),
     _: None = Depends(require_module("O1_FROTA"))
 ):
     svc = FrotaService(session, tenant_id)
-    return await svc.adicionar_item_os(os_id, dados)
+    return await svc.adicionar_item_os(os_id, dados, usuario_id=user_id)
 
 @router.patch("/os/{os_id}/fechar", response_model=OrdemServicoResponse)
 async def fechar_ordem_servico(
@@ -596,10 +721,11 @@ async def fechar_ordem_servico(
     dados: OrdemServicoUpdate,
     session: AsyncSession = Depends(get_session_with_tenant),
     tenant_id: UUID = Depends(get_tenant_id),
+    user_id: UUID | None = Depends(get_user_id),
     _: None = Depends(require_module("O1_FROTA"))
 ):
     svc = FrotaService(session, tenant_id)
-    return await svc.fechar_os(os_id, dados)
+    return await svc.fechar_os(os_id, dados, usuario_id=user_id)
 
 # --- Importação de Dados ---
 
@@ -632,7 +758,9 @@ async def importar_manutencoes(
 @router.get("/inteligencia/regras", response_model=list[FrotaRegraInteligenteSchema])
 async def listar_regras_automacao(
     session: AsyncSession = Depends(get_session_with_tenant),
-    tenant_id: UUID = Depends(get_tenant_id)
+    tenant_id: UUID = Depends(get_tenant_id),
+    _: None = Depends(require_module("O1_FROTA")),
+    _tier: None = Depends(require_tier(PlanTier.ENTERPRISE)),
 ):
     svc = FrotaAutomacaoService(session, tenant_id)
     return await svc.listar_regras()
@@ -642,7 +770,9 @@ async def atualizar_regra_automacao(
     regra_id: UUID,
     dados: FrotaRegraInteligenteUpdate,
     session: AsyncSession = Depends(get_session_with_tenant),
-    tenant_id: UUID = Depends(get_tenant_id)
+    tenant_id: UUID = Depends(get_tenant_id),
+    _: None = Depends(require_module("O1_FROTA")),
+    _tier: None = Depends(require_tier(PlanTier.ENTERPRISE)),
 ):
     svc = FrotaAutomacaoService(session, tenant_id)
     return await svc.atualizar_regra(regra_id, dados)
@@ -650,19 +780,29 @@ async def atualizar_regra_automacao(
 @router.get("/inteligencia/automacoes/logs", response_model=list[FrotaLogAutomacaoSchema])
 async def listar_logs_automacao(
     session: AsyncSession = Depends(get_session_with_tenant),
-    tenant_id: UUID = Depends(get_tenant_id)
+    tenant_id: UUID = Depends(get_tenant_id),
+    _: None = Depends(require_module("O1_FROTA")),
+    _tier: None = Depends(require_tier(PlanTier.ENTERPRISE)),
+    limit: int = Query(100, ge=1, le=1000),
 ):
     # Query direta no banco para logs de automação
     from operacional.models.frota import FrotaLogAutomacao
     from sqlalchemy import select
-    query = select(FrotaLogAutomacao).where(FrotaLogAutomacao.tenant_id == tenant_id).order_by(FrotaLogAutomacao.created_at.desc())
+    query = (
+        select(FrotaLogAutomacao)
+        .where(FrotaLogAutomacao.tenant_id == tenant_id)
+        .order_by(FrotaLogAutomacao.created_at.desc())
+        .limit(limit)
+    )
     result = await session.execute(query)
     return list(result.scalars().all())
 
 @router.get("/inteligencia/automacoes/metricas")
 async def obter_metricas_automacao(
     session: AsyncSession = Depends(get_session_with_tenant),
-    tenant_id: UUID = Depends(get_tenant_id)
+    tenant_id: UUID = Depends(get_tenant_id),
+    _: None = Depends(require_module("O1_FROTA")),
+    _tier: None = Depends(require_tier(PlanTier.ENTERPRISE)),
 ):
     """
     Retorna KPIs de adoção das automações (FROTA-38).
@@ -673,7 +813,9 @@ async def obter_metricas_automacao(
 @router.get("/inteligencia/benchmark")
 async def obter_benchmark_frota(
     session: AsyncSession = Depends(get_session_with_tenant),
-    tenant_id: UUID = Depends(get_tenant_id)
+    tenant_id: UUID = Depends(get_tenant_id),
+    _: None = Depends(require_module("O1_FROTA")),
+    _tier: None = Depends(require_tier(PlanTier.ENTERPRISE)),
 ):
     """
     Retorna benchmarks e rankings de desempenho (FROTA-40).

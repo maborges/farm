@@ -1,7 +1,7 @@
 import uuid
 import enum
 from datetime import datetime, timezone
-from sqlalchemy import String, DateTime, ForeignKey, Float, Text, JSON
+from sqlalchemy import String, DateTime, ForeignKey, Float, Numeric, Text, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy import Uuid as UUID
 from core.database import Base
@@ -32,6 +32,12 @@ class ApontamentoUso(Base):
         UUID(as_uuid=True), ForeignKey("cadastros_equipamentos.id", ondelete="CASCADE"),
         nullable=False, index=True
     )
+    jornada_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("frota_jornadas_equipamento.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
 
     # Quem / quando
     operador_id: Mapped[uuid.UUID | None] = mapped_column(
@@ -50,6 +56,18 @@ class ApontamentoUso(Base):
     unidade_produtiva_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("unidades_produtivas.id", ondelete="SET NULL"), nullable=True
     )
+    safra_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("safras.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    production_unit_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("production_units.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     talhao_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("cadastros_areas_rurais.id", ondelete="SET NULL"),
@@ -62,6 +80,11 @@ class ApontamentoUso(Base):
         nullable=True,
         comment="Tipo de operação realizada (plantio, pulverização, etc)"
     )
+    area_ha_trabalhada: Mapped[float | None] = mapped_column(Numeric(12, 4), nullable=True)
+    quantidade_produzida: Mapped[float | None] = mapped_column(Numeric(18, 6), nullable=True)
+    quantidade_aplicada: Mapped[float | None] = mapped_column(Numeric(18, 6), nullable=True)
+    custo_total: Mapped[float | None] = mapped_column(Numeric(15, 2), nullable=True)
+    custo_por_ha: Mapped[float | None] = mapped_column(Numeric(15, 4), nullable=True)
 
     # Implementos acoplados (lista de UUIDs de Equipamento tipo IMPLEMENTO)
     implementos_ids: Mapped[list | None] = mapped_column(
@@ -81,3 +104,6 @@ class ApontamentoUso(Base):
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
     )
+
+
+ApontamentoOperacional = ApontamentoUso

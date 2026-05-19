@@ -16,6 +16,8 @@ from core.cadastros.pessoas.models import Pessoa
 from core.cadastros.propriedades.models import AreaRural
 from core.exceptions import BusinessRuleError, EntityNotFoundError
 from core.models.unidade_produtiva import UnidadeProdutiva
+from core.operational_context import validate_operador_context
+from operacional.models.checklist import ChecklistOperacionalResposta
 from operacional.models.frota import JornadaEquipamento
 from operacional.schemas.frota_jornada import (
     FrotaJornadaCancelarRequest,
@@ -28,6 +30,7 @@ from operacional.schemas.frota_jornada import (
     FrotaJornadaUpdate,
 )
 from operacional.services.frota_custo_service import FrotaCustoService
+from operacional.services.frota_checklist_service import FrotaChecklistService
 from operacional.services.frota_dashboard_service import FrotaDashboardService
 from operacional.services.frota_disponibilidade_service import FrotaDisponibilidadeService
 
@@ -42,6 +45,8 @@ class FrotaJornadaService(FrotaDashboardService):
         equipamento_id: uuid.UUID | None = None,
         status: str | None = None,
         periodo_dias: int | None = None,
+        skip: int = 0,
+        limit: int | None = None,
     ) -> FrotaJornadaListResponse:
         agora = datetime.now(timezone.utc)
         jornadas = await self._buscar_jornadas(
@@ -49,6 +54,8 @@ class FrotaJornadaService(FrotaDashboardService):
             equipamento_id=equipamento_id,
             status=status,
             periodo_dias=periodo_dias,
+            skip=skip,
+            limit=limit,
         )
         itens = await self._serializar_jornadas(jornadas, unidade_produtiva_id)
         return FrotaJornadaListResponse(
@@ -104,12 +111,34 @@ class FrotaJornadaService(FrotaDashboardService):
             )
 
         equipamento = await self._obter_equipamento_por_id(dados.equipamento_id)
+        if dados.operador_id is not None:
+            await validate_operador_context(
+                self.session,
+                tenant_id=self.tenant_id,
+                operador_id=dados.operador_id,
+                unidade_produtiva_id=unidade_produtiva_id,
+            )
         await self._validar_abertura(equipamento.id, unidade_produtiva_id)
         await self._validar_contexto_agricola(
             unidade_produtiva_id=unidade_produtiva_id,
             safra_id=dados.safra_id,
             talhao_id=dados.talhao_id,
         )
+        checklist_resposta = None
+        if dados.checklist_abertura and dados.checklist_abertura.equipamento_id != equipamento.id:
+            raise BusinessRuleError("Checklist de abertura não pertence ao equipamento da jornada.")
+        checklist_payload = dados.checklist_abertura.model_copy(
+            update={
+                "equipamento_id": equipamento.id,
+                "operador_id": dados.operador_id,
+                "unidade_produtiva_id": unidade_produtiva_id,
+                "safra_id": dados.safra_id,
+                "tipo_jornada": "ABERTURA",
+            }
+        ) if dados.checklist_abertura else None
+        checklist_resposta = await FrotaChecklistService(
+            self.session, self.tenant_id
+        ).validar_checklist_obrigatorio_abertura(equipamento, checklist_payload)
 
         jornada = JornadaEquipamento(
             tenant_id=self.tenant_id,
@@ -126,8 +155,20 @@ class FrotaJornadaService(FrotaDashboardService):
             km_inicial=dados.km_inicial if dados.km_inicial is not None else equipamento.km_atual,
             status="ABERTA",
             observacoes=dados.observacoes,
+            aberta_por_id=dados.aberta_por_id or dados.operador_id,
         )
         self.session.add(jornada)
+        await self.session.flush()
+        if checklist_resposta:
+            resposta_ids = [item.id for item in checklist_resposta.respostas]
+            if resposta_ids:
+                stmt_respostas = select(ChecklistOperacionalResposta).where(
+                    ChecklistOperacionalResposta.tenant_id == self.tenant_id,
+                    ChecklistOperacionalResposta.id.in_(resposta_ids),
+                )
+                respostas = (await self.session.execute(stmt_respostas)).scalars().all()
+                for resposta in respostas:
+                    resposta.jornada_id = jornada.id
         await self.session.commit()
         await self.session.refresh(jornada)
         return await self.obter_jornada(jornada.id)
@@ -152,6 +193,12 @@ class FrotaJornadaService(FrotaDashboardService):
             )
             jornada.unidade_produtiva_id = dados.unidade_produtiva_id
         if dados.operador_id is not None:
+            await validate_operador_context(
+                self.session,
+                tenant_id=self.tenant_id,
+                operador_id=dados.operador_id,
+                unidade_produtiva_id=jornada.unidade_produtiva_id,
+            )
             jornada.operador_id = dados.operador_id
         if dados.safra_id is not None:
             jornada.safra_id = dados.safra_id
@@ -169,6 +216,7 @@ class FrotaJornadaService(FrotaDashboardService):
             jornada.km_inicial = dados.km_inicial
         if dados.observacoes is not None:
             jornada.observacoes = dados.observacoes
+        jornada.encerrada_por_id = dados.encerrada_por_id or jornada.operador_id
 
         await self._validar_contexto_agricola(
             unidade_produtiva_id=jornada.unidade_produtiva_id,
@@ -200,6 +248,7 @@ class FrotaJornadaService(FrotaDashboardService):
         jornada.horimetro_final = dados.horimetro_final if dados.horimetro_final is not None else jornada.horimetro_final
         jornada.km_final = dados.km_final if dados.km_final is not None else jornada.km_final
         jornada.status = "FINALIZADA"
+        jornada.encerrada_por_id = dados.encerrada_por_id or jornada.operador_id
         if dados.observacoes is not None:
             jornada.observacoes = dados.observacoes
 
@@ -216,6 +265,23 @@ class FrotaJornadaService(FrotaDashboardService):
             equipamento.horimetro_atual = jornada.horimetro_final
         if jornada.km_final is not None:
             equipamento.km_atual = jornada.km_final
+
+        if dados.checklist_encerramento:
+            if dados.checklist_encerramento.equipamento_id != jornada.equipamento_id:
+                raise BusinessRuleError("Checklist de encerramento não pertence ao equipamento da jornada.")
+            checklist_payload = dados.checklist_encerramento.model_copy(
+                update={
+                    "equipamento_id": jornada.equipamento_id,
+                    "operador_id": jornada.operador_id,
+                    "jornada_id": jornada.id,
+                    "unidade_produtiva_id": jornada.unidade_produtiva_id,
+                    "safra_id": jornada.safra_id,
+                    "tipo_jornada": "ENCERRAMENTO",
+                    "executado_por_id": dados.encerrada_por_id or jornada.operador_id,
+                    "reportado_por_id": dados.encerrada_por_id or jornada.operador_id,
+                }
+            )
+            await FrotaChecklistService(self.session, self.tenant_id).registrar_respostas(checklist_payload)
 
         await self.session.commit()
         await self.session.refresh(jornada)
@@ -275,6 +341,8 @@ class FrotaJornadaService(FrotaDashboardService):
         equipamento_id: uuid.UUID | None = None,
         status: str | None = None,
         periodo_dias: int | None = None,
+        skip: int = 0,
+        limit: int | None = None,
     ) -> list[JornadaEquipamento]:
         stmt = select(JornadaEquipamento).where(JornadaEquipamento.tenant_id == self.tenant_id)
         if unidade_produtiva_id:
@@ -287,6 +355,10 @@ class FrotaJornadaService(FrotaDashboardService):
             data_corte = datetime.now(timezone.utc) - timedelta(days=periodo_dias)
             stmt = stmt.where(JornadaEquipamento.data_inicio >= data_corte)
         stmt = stmt.order_by(JornadaEquipamento.data_inicio.desc(), JornadaEquipamento.created_at.desc())
+        if skip:
+            stmt = stmt.offset(skip)
+        if limit is not None:
+            stmt = stmt.limit(limit)
         return list((await self.session.execute(stmt)).scalars().all())
 
     async def _buscar_jornada_aberta_por_equipamento(self, equipamento_id: uuid.UUID) -> JornadaEquipamento | None:
@@ -353,6 +425,8 @@ class FrotaJornadaService(FrotaDashboardService):
         equipamentos_map = {item.id: item for item in equipamentos if item.id in equipamento_ids}
 
         pessoas_ids = [item.operador_id for item in jornadas if item.operador_id]
+        pessoas_ids.extend(item.aberta_por_id for item in jornadas if getattr(item, "aberta_por_id", None))
+        pessoas_ids.extend(item.encerrada_por_id for item in jornadas if getattr(item, "encerrada_por_id", None))
         unidades_ids = [item.unidade_produtiva_id for item in jornadas if item.unidade_produtiva_id]
         safra_ids = [item.safra_id for item in jornadas if item.safra_id]
         talhao_ids = [item.talhao_id for item in jornadas if item.talhao_id]
@@ -404,6 +478,10 @@ class FrotaJornadaService(FrotaDashboardService):
                     km_final=jornada.km_final,
                     status=jornada.status,  # type: ignore[arg-type]
                     observacoes=jornada.observacoes,
+                    aberta_por_id=jornada.aberta_por_id,
+                    encerrada_por_id=jornada.encerrada_por_id,
+                    aberta_por_nome=pessoas_map.get(jornada.aberta_por_id) if jornada.aberta_por_id else None,
+                    encerrada_por_nome=pessoas_map.get(jornada.encerrada_por_id) if jornada.encerrada_por_id else None,
                     duracao_horas=duracao_horas,
                     horas_trabalhadas=horas_trabalhadas,
                     km_trabalhados=km_trabalhados,

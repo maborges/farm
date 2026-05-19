@@ -107,6 +107,7 @@ class FrotaManutencaoPreventivaService(FrotaDashboardService):
             data_abertura=agora,
             horimetro_na_abertura=float(equipamento.horimetro_atual or 0.0),
             km_na_abertura=equipamento.km_atual,
+            checklist_aplicado=plano.checklist_preventivo,
         )
         if self._normalizar_status(equipamento.status) == "ATIVO":
             equipamento.status = "EM_MANUTENCAO"
@@ -115,6 +116,7 @@ class FrotaManutencaoPreventivaService(FrotaDashboardService):
         await self.session.commit()
         await self.session.refresh(os)
         return self._serializar_resposta_os(os, criada=True, plano_id=plano.id)
+
 
     async def _montar_contextos(self, equipamentos: list[Equipamento]) -> list[_PlanoContexto]:
         if not equipamentos:

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import Depends, HTTPException, status, Request
+from fastapi import Depends, HTTPException, Query, status, Request
 from loguru import logger
 from jose import JWTError, jwt
 from core.config import settings
@@ -8,8 +8,10 @@ from typing import TYPE_CHECKING, List, Optional, AsyncGenerator
 import uuid
 import hashlib
 import time
+import asyncio
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text, select
+from sqlalchemy.exc import SQLAlchemyError
 from core.database import async_session_maker, DB_URL
 
 # ---------------------------------------------------------------------------
@@ -53,10 +55,22 @@ async def get_session(request: Request = None) -> AsyncGenerator[AsyncSession, N
     """
     async with async_session_maker() as session:
         tenant_id = getattr(request.state, "rls_tenant_id", None) if request else None
-        if tenant_id and "postgresql" in DB_URL:
-            await session.execute(text(f"SET LOCAL app.current_tenant_id = '{tenant_id}';"))
-            session.info["tenant_id"] = tenant_id
-        yield session
+        try:
+            if tenant_id and "postgresql" in DB_URL:
+                await session.execute(text(f"SET LOCAL app.current_tenant_id = '{tenant_id}';"))
+                session.info["tenant_id"] = tenant_id
+            yield session
+        except (asyncio.TimeoutError, OSError, SQLAlchemyError) as exc:
+            logger.error(
+                "Falha ao abrir/usar sessão do banco",
+                error_type=type(exc).__name__,
+                detail=str(exc),
+                path=str(request.url.path) if request else None,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Banco de dados indisponível ou pool de conexões esgotado. Tente novamente em instantes.",
+            ) from exc
 
 def get_token(request: Request) -> str:
     authorization = request.headers.get("Authorization")
@@ -139,12 +153,24 @@ async def get_session_with_tenant(
 ) -> AsyncGenerator[AsyncSession, None]:
     """Dependency que abre conexão com postgres injetando a claim local para o RLS."""
     async with async_session_maker() as session:
-        session.info["tenant_id"] = tenant_id
-        if "postgresql" in DB_URL:
-            await session.execute(
-                text(f"SET LOCAL app.current_tenant_id = '{tenant_id}';")
+        try:
+            session.info["tenant_id"] = tenant_id
+            if "postgresql" in DB_URL:
+                await session.execute(
+                    text(f"SET LOCAL app.current_tenant_id = '{tenant_id}';")
+                )
+            yield session
+        except (asyncio.TimeoutError, OSError, SQLAlchemyError) as exc:
+            logger.error(
+                "Falha ao abrir/usar sessão do banco com tenant",
+                error_type=type(exc).__name__,
+                detail=str(exc),
+                tenant_id=str(tenant_id),
             )
-        yield session
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Banco de dados indisponível ou pool de conexões esgotado. Tente novamente em instantes.",
+            ) from exc
 
 async def get_current_user(
     claims: dict = Depends(get_current_user_claims),
@@ -946,4 +972,47 @@ def require_fazenda_access(fazenda_id_param: str = "unidade_produtiva_id"):
         return True
     return _dependency
 
-    return _dependency
+
+async def get_unidade_produtiva_context(
+    request: Request,
+    unidade_produtiva_id: uuid.UUID | None = Query(None),
+    claims: dict = Depends(get_current_user_claims),
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    session: AsyncSession = Depends(get_session),
+):
+    """Dependency padronizada para contexto operacional de fazenda/UP."""
+    from core.models.auth import TenantUsuario
+    from core.operational_context import resolve_unidade_produtiva_context
+
+    user_id = None
+    sub = claims.get("sub")
+    if sub:
+        try:
+            user_id = uuid.UUID(sub)
+        except ValueError:
+            raise HTTPException(status_code=401, detail="Token inválido: usuário malformado.")
+
+    # Owner do tenant mantém acesso amplo; demais usuários precisam vínculo
+    # explícito com a unidade produtiva.
+    if user_id is not None:
+        owner = (
+            await session.execute(
+                select(TenantUsuario.id).where(
+                    TenantUsuario.tenant_id == tenant_id,
+                    TenantUsuario.usuario_id == user_id,
+                    TenantUsuario.status == "ATIVO",
+                    TenantUsuario.is_owner == True,
+                )
+            )
+        ).scalar_one_or_none()
+        if owner:
+            user_id = None
+
+    return await resolve_unidade_produtiva_context(
+        session,
+        tenant_id=tenant_id,
+        request=request,
+        unidade_produtiva_id=unidade_produtiva_id,
+        user_id=user_id,
+        required=False,
+    )

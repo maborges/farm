@@ -94,6 +94,7 @@ class CommodityUpdate(BaseModel):
 class CommodityResponse(BaseModel):
     id: uuid.UUID
     tenant_id: Optional[uuid.UUID]
+    sistema: bool = False
     nome: str
     codigo: str
     descricao: Optional[str]

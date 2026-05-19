@@ -115,3 +115,35 @@ class Equipamento(Base):
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
     )
+
+
+class EquipamentoAlocacao(Base):
+    """Alocação operacional de equipamento em uma unidade produtiva.
+
+    Mantém o cadastro mestre de Equipamento global no tenant, enquanto registra
+    onde o ativo está operando ao longo do tempo.
+    """
+
+    __tablename__ = "equipamento_alocacoes"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    equipamento_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("cadastros_equipamentos.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    unidade_produtiva_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("unidades_produtivas.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    data_inicio: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False, index=True
+    )
+    data_fim: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    principal: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="ATIVA", nullable=False, index=True)
+    observacao: Mapped[str | None] = mapped_column(Text, nullable=True)
+    responsavel_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("cadastros_pessoas.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))

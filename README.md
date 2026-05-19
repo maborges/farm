@@ -67,7 +67,9 @@ O projeto é dividido em um monorepo contendo:
 ### 8. Gestão de Suprimentos e Compras (Step 147 e 148)
 - **Reposição Automática**: Alertas de estoque crítico geram sugestões de reposição baseadas em estoque mínimo configurável por depósito.
 - **Solicitações de Compra**: Permite converter alertas de reposição em solicitações formais (`ABERTA`) com um clique, rastreando a origem (`REPOSICAO_ESTOQUE`).
-- **Análise e Auditoria**: Interface dedicada em `/suprimentos/compras/solicitacoes` para que o setor de compras analise, aprove ou cancele solicitações, com histórico de status e enriquecimento de dados (nome do item, depósito, quantidade).
+- **Análise e Auditoria Premium**: Interface dedicada em `/suprimentos/compras/solicitacoes` que utiliza a tabela padronizada `DataTable` com pesquisa textual e filtros avançados, suporte a exportação em PDF e Excel, e uma gaveta lateral interativa (`Sheet`) que mostra os detalhes da solicitação de compras de forma condensada, eliminando layout shifts.
+- **Nova Solicitação Manual**: Suporte a criação manual de solicitações de compras via caixa de diálogo (`Dialog`) onde o usuário seleciona o produto (com autopreenchimento de unidade), depósito e quantidade.
+- **Rota e Fluxo Padronizados (RSC)**: Página de pedidos de compra unificada em `/suprimentos/compras` funcionando como um Server-Side Component (RSC), eliminando duplicações antigas em `/suprimentos/compras/pedidos` (que agora redireciona com Next.js `redirect()`), com breadcrumbs perfeitamente alinhados.
 - **Fluxo**: `POST /api/v1/compras/solicitacoes` (criação) → `PATCH /api/v1/compras/solicitacoes/{id}/status` (gestão) → Integração com fluxo de suprimentos.
 
 ### 9. Inteligência em Compras e Cotações (Steps 153, 154 e 155)
@@ -186,6 +188,20 @@ O projeto é dividido em um monorepo contendo:
 - **Geração Assistida de OS Preventiva**: Abertura de ordens de serviço preventivas, importando automaticamente o checklist preventivo padrão para o campo `checklist_aplicado` do maquinário, além de transicionar o status do equipamento para `EM_MANUTENCAO` e impedir ordens de serviço duplicadas para o mesmo plano preventivo em aberto.
 - **Encerramento de OS e Apropriação Econômica**: Conclusão de ordens de serviço, restaurando o status da máquina para `ATIVO`, salvando o histórico no `RegistroManutencao` e gerando uma `Despesa` integrada no módulo financeiro vinculada adequadamente à Safra, à Unidade Produtiva (UP) e ao Cultivo de forma rastreável.
 - **Indicadores do Dashboard de Frota**: Atualização do painel executivo de frota com a computação consolidada do Tempo Médio Entre Falhas (MTBF) e a distribuição percentual de custos de manutenção preventivos vs corretivos.
+
+## 🐛 Correções de Layout e UX (Bugfixes)
+
+### 1. Padronização do Alinhamento das Páginas de Compras
+- **Problema**: As páginas de Solicitações de Compra (`SolicitacoesClient.tsx`) e Pedidos de Compra (`PedidosClient.tsx`) continham um container com largura máxima forçada (`max-w-7xl mx-auto w-full`), gerando um desalinhamento visual e posicionamento fora do padrão (centralizado) em relação às demais páginas do sistema, que seguem o alinhamento responsivo natural do grid principal.
+- **Comportamento Esperado**: Utilização da classe de container padrão `p-6 space-y-6` para que as telas herdem o comportamento fluido, responsivo e alinhado do grid da aplicação.
+
+### 2. Erro de Conexão no Servidor (RSC SSR) na Rota de Compras
+- **Problema**: As páginas de `/suprimentos/compras/solicitacoes` e `/suprimentos/compras` utilizavam `apiFetch` (apenas cliente) no servidor, disparando um erro de conexão com a API no SSR devido a URLs relativas sem origem.
+- **Comportamento Esperado**: Utilização de `apiFetchServer` de `@/lib/api-server` no servidor (RSC) para carregar os dados de forma segura resolvendo o endereço de backend (`BACKEND_URL`).
+
+### 3. Falha ao Listar Produtos Registrados na Criação de Solicitação
+- **Problema**: O dialog "Criar Solicitação de Compra" consultava o endpoint inexistente `/estoque/produtos`, fazendo com que a listagem de itens no select de produto ficasse vazia.
+- **Comportamento Esperado**: Consulta ao catálogo oficial `/cadastros/produtos?ativo=true&incluir_sistema=true` para carregar e exibir corretamente todos os produtos ativos.
 
 ## 🛠️ Como Executar
 

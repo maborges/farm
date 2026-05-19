@@ -4,9 +4,16 @@ from datetime import date
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from loguru import logger
 
 from core.base_service import BaseService
 from core.exceptions import BusinessRuleError, EntityNotFoundError
+from core.models.unidade_produtiva import UnidadeProdutiva
+from core.operational_context import (
+    validate_deposito_context,
+    validate_lote_context,
+    validate_safra_in_tenant,
+)
 from operacional.models.estoque import (
     Deposito, EstoqueMovimento, SaldoEstoque,
     LoteEstoque, RequisicaoMaterial, ItemRequisicao, ReservaEstoque,
@@ -41,11 +48,43 @@ class EstoqueService(BaseService[SaldoEstoque]):
         )
         return (await self.session.execute(stmt)).scalars().first()
 
+    async def _get_produto_or_fail(self, produto_id: UUID) -> ProdutoCatalogo:
+        produto = await self._get_produto(produto_id)
+        if not produto:
+            logger.warning(
+                "multi_up_tenant_mismatch",
+                resource="produto_estoque",
+                tenant_id=str(self.tenant_id),
+                produto_id=str(produto_id),
+            )
+            raise BusinessRuleError("Produto não localizado ou inacessível para o tenant.")
+        return produto
+
+    async def _validar_unidade_produtiva(self, unidade_produtiva_id: UUID) -> None:
+        unidade = (
+            await self.session.execute(
+                select(UnidadeProdutiva.id).where(
+                    UnidadeProdutiva.id == unidade_produtiva_id,
+                    UnidadeProdutiva.tenant_id == self.tenant_id,
+                    UnidadeProdutiva.ativo == True,
+                )
+            )
+        ).scalar_one_or_none()
+        if unidade is None:
+            logger.warning(
+                "multi_up_context_invalid",
+                reason="estoque_unidade_produtiva_tenant_mismatch",
+                tenant_id=str(self.tenant_id),
+                unidade_produtiva_id=str(unidade_produtiva_id),
+            )
+            raise BusinessRuleError("Unidade produtiva não localizada ou inacessível para o tenant.")
+
     # ── Categorias ────────────────────────────────────────────────────────
 
     # ── Depósitos ─────────────────────────────────────────────────────────
 
     async def criar_deposito(self, data: DepositoCreate) -> Deposito:
+        await self._validar_unidade_produtiva(data.unidade_produtiva_id)
         dep = Deposito(
             tenant_id=self.tenant_id,
             unidade_produtiva_id=data.unidade_produtiva_id,
@@ -81,6 +120,8 @@ class EstoqueService(BaseService[SaldoEstoque]):
     # ── Saldos ────────────────────────────────────────────────────────────
 
     async def _get_ou_criar_saldo(self, deposito_id: UUID, produto_id: UUID) -> SaldoEstoque:
+        await validate_deposito_context(self.session, tenant_id=self.tenant_id, deposito_id=deposito_id)
+        await self._get_produto_or_fail(produto_id)
         stmt = select(SaldoEstoque).where(
             SaldoEstoque.deposito_id == deposito_id,
             SaldoEstoque.produto_id == produto_id,
@@ -144,6 +185,7 @@ class EstoqueService(BaseService[SaldoEstoque]):
         saldo = (await self.session.execute(stmt)).scalars().first()
         if not saldo:
             raise EntityNotFoundError("Saldo não encontrado.")
+        await validate_deposito_context(self.session, tenant_id=self.tenant_id, deposito_id=saldo.deposito_id)
         saldo.estoque_minimo = estoque_minimo
         self.session.add(saldo)
         await self.session.flush()
@@ -202,6 +244,8 @@ class EstoqueService(BaseService[SaldoEstoque]):
     # ── Lotes ─────────────────────────────────────────────────────────────
 
     async def criar_lote(self, data: LoteCreate) -> LoteEstoque:
+        await validate_deposito_context(self.session, tenant_id=self.tenant_id, deposito_id=data.deposito_id)
+        await self._get_produto_or_fail(data.produto_id)
         lote = LoteEstoque(
             produto_id=data.produto_id,
             deposito_id=data.deposito_id,
@@ -220,10 +264,7 @@ class EstoqueService(BaseService[SaldoEstoque]):
         return lote
 
     async def atualizar_lote(self, lote_id: UUID, data: LoteUpdate) -> LoteEstoque:
-        stmt = select(LoteEstoque).where(LoteEstoque.id == lote_id)
-        lote = (await self.session.execute(stmt)).scalars().first()
-        if not lote:
-            raise EntityNotFoundError(f"Lote {lote_id} não encontrado.")
+        lote = await validate_lote_context(self.session, tenant_id=self.tenant_id, lote_id=lote_id)
         for field, value in data.model_dump(exclude_unset=True).items():
             setattr(lote, field, value)
         self.session.add(lote)
@@ -284,6 +325,16 @@ class EstoqueService(BaseService[SaldoEstoque]):
         origem_tipo: str | None = None,
         lote_id: UUID | None = None,
     ) -> EstoqueMovimento:
+        await validate_deposito_context(self.session, tenant_id=self.tenant_id, deposito_id=deposito_id)
+        await self._get_produto_or_fail(produto_id)
+        if lote_id:
+            await validate_lote_context(
+                self.session,
+                tenant_id=self.tenant_id,
+                lote_id=lote_id,
+                produto_id=produto_id,
+                deposito_id=deposito_id,
+            )
         return await registrar_ledger_estoque(
             self.session,
             tenant_id=self.tenant_id,
@@ -300,10 +351,7 @@ class EstoqueService(BaseService[SaldoEstoque]):
 
     async def _descontar_lote(self, lote_id: UUID, quantidade: float) -> LoteEstoque:
         """Desconta quantidade de um lote e atualiza status se esgotado."""
-        stmt = select(LoteEstoque).where(LoteEstoque.id == lote_id)
-        lote = (await self.session.execute(stmt)).scalars().first()
-        if not lote:
-            raise EntityNotFoundError(f"Lote {lote_id} não encontrado.")
+        lote = await validate_lote_context(self.session, tenant_id=self.tenant_id, lote_id=lote_id)
         if lote.quantidade_atual < quantidade:
             raise BusinessRuleError(
                 f"Saldo insuficiente no lote {lote.numero_lote}. "
@@ -315,19 +363,22 @@ class EstoqueService(BaseService[SaldoEstoque]):
         return lote
 
     async def registrar_entrada(self, data: EntradaEstoqueRequest) -> EstoqueMovimento:
-        stmt = select(Deposito).where(
-            Deposito.id == data.deposito_id, Deposito.tenant_id == self.tenant_id
-        )
-        dep = (await self.session.execute(stmt)).scalars().first()
-        if not dep:
-            raise EntityNotFoundError("Depósito não encontrado.")
+        await validate_deposito_context(self.session, tenant_id=self.tenant_id, deposito_id=data.deposito_id)
+        prod = await self._get_produto_or_fail(data.produto_id)
+        if data.lote_id:
+            await validate_lote_context(
+                self.session,
+                tenant_id=self.tenant_id,
+                lote_id=data.lote_id,
+                produto_id=data.produto_id,
+                deposito_id=data.deposito_id,
+            )
 
         saldo = await self._get_ou_criar_saldo(data.deposito_id, data.produto_id)
         qtd_antes = saldo.quantidade_atual
         saldo.quantidade_atual += data.quantidade
 
         # Atualiza preço médio ponderado
-        prod = await self._get_produto(data.produto_id)
         if data.custo_unitario and data.custo_unitario > 0:
             if qtd_antes > 0:
                 prod.preco_medio = round(
@@ -371,7 +422,15 @@ class EstoqueService(BaseService[SaldoEstoque]):
         motivo: str = "Uso em operação agrícola",
         deposito_id: UUID | None = None,
     ) -> EstoqueMovimento:
+        await self._validar_unidade_produtiva(unidade_produtiva_id)
+        await self._get_produto_or_fail(produto_id)
         if deposito_id:
+            await validate_deposito_context(
+                self.session,
+                tenant_id=self.tenant_id,
+                deposito_id=deposito_id,
+                expected_unidade_produtiva_id=unidade_produtiva_id,
+            )
             stmt_saldo = select(SaldoEstoque).where(
                 SaldoEstoque.produto_id == produto_id,
                 SaldoEstoque.deposito_id == deposito_id,
@@ -482,7 +541,19 @@ class EstoqueService(BaseService[SaldoEstoque]):
         self.session.add(lancamento)
 
     async def registrar_saida(self, data: SaidaEstoqueRequest) -> EstoqueMovimento:
+        await self._get_produto_or_fail(data.produto_id)
+        if data.safra_id:
+            await validate_safra_in_tenant(self.session, tenant_id=self.tenant_id, safra_id=data.safra_id)
         if data.deposito_id:
+            await validate_deposito_context(self.session, tenant_id=self.tenant_id, deposito_id=data.deposito_id)
+            if data.lote_id:
+                await validate_lote_context(
+                    self.session,
+                    tenant_id=self.tenant_id,
+                    lote_id=data.lote_id,
+                    produto_id=data.produto_id,
+                    deposito_id=data.deposito_id,
+                )
             stmt = select(SaldoEstoque).where(
                 SaldoEstoque.produto_id == data.produto_id,
                 SaldoEstoque.deposito_id == data.deposito_id,
@@ -560,6 +631,26 @@ class EstoqueService(BaseService[SaldoEstoque]):
         return mov
 
     async def registrar_transferencia(self, data: TransferenciaEstoqueRequest) -> list[EstoqueMovimento]:
+        dep_origem = await validate_deposito_context(
+            self.session,
+            tenant_id=self.tenant_id,
+            deposito_id=data.deposito_origem_id,
+        )
+        dep_destino = await validate_deposito_context(
+            self.session,
+            tenant_id=self.tenant_id,
+            deposito_id=data.deposito_destino_id,
+        )
+        await self._get_produto_or_fail(data.produto_id)
+        if dep_origem.unidade_produtiva_id != dep_destino.unidade_produtiva_id:
+            logger.info(
+                "multi_up_stock_transfer_between_units",
+                tenant_id=str(self.tenant_id),
+                deposito_origem_id=str(data.deposito_origem_id),
+                deposito_destino_id=str(data.deposito_destino_id),
+                unidade_origem_id=str(dep_origem.unidade_produtiva_id),
+                unidade_destino_id=str(dep_destino.unidade_produtiva_id),
+            )
         stmt = select(SaldoEstoque).where(
             SaldoEstoque.produto_id == data.produto_id,
             SaldoEstoque.deposito_id == data.deposito_origem_id,
