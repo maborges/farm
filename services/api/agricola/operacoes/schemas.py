@@ -113,6 +113,7 @@ class OperacaoAgricolaResponse(BaseModel):
     tenant_id: UUID
     safra_id: UUID
     talhao_id: UUID
+    talhao_nome: str | None = None
     production_unit_id: UUID | None = None
     tarefa_id: UUID | None = None
     tipo: str

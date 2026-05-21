@@ -40,6 +40,17 @@ O projeto é dividido em um monorepo contendo:
 - **Automação de Tarefas**: Geração automática de ordens de serviço (SafraTarefa) baseada em prescrições técnicas com cálculo de investimento total.
 - **Financeiro Rural**: DRE, Contas a Pagar/Receber com foco em custeio de safra.
 
+### 3.1. Conceitos de Propriedade, Talhão e Unidade Produtiva
+- **Propriedade / Unidade Produtiva**: cadastro mestre da fazenda ou unidade rural. Concentra nome, tipo, documentos, endereço, áreas totais, coordenadas, geometria e logotipo.
+- **Área Rural / Talhão**: divisão física cadastrada dentro da propriedade. É a base para operações agrícolas, análises de solo, caderno de campo, monitoramento, NDVI e demais registros por área.
+- **Production Unit da safra**: vínculo operacional entre `cultivo` + `área` + `participação` dentro de uma safra específica. Essa estrutura existe para distribuir a safra entre áreas e culturas, sem substituir o cadastro mestre da propriedade.
+- **Fluxo recomendado**:
+  - primeiro cadastra-se a propriedade em `/cadastros/propriedades`
+  - a propriedade gera ou organiza as áreas rurais/talhões
+  - a safra vincula essas áreas em `production-units`
+  - os módulos agrícolas da safra passam a operar sobre esses vínculos
+- **Resumo prático**: `propriedade` responde "onde é a fazenda"; `production-units` responde "como a safra está distribuída nessa fazenda".
+
 ### 4. Templates Agrícolas e Governança (Fase Atual)
 - **Módulo de Templates**: Centralização de PhaseTemplates (Governança) e OperationTemplates (Operacional).
 - **Instanciação Rápida**: Aplicação de checklists e tarefas padronizadas por cultura e fase da safra com um clique.
@@ -188,6 +199,13 @@ O projeto é dividido em um monorepo contendo:
 - **Geração Assistida de OS Preventiva**: Abertura de ordens de serviço preventivas, importando automaticamente o checklist preventivo padrão para o campo `checklist_aplicado` do maquinário, além de transicionar o status do equipamento para `EM_MANUTENCAO` e impedir ordens de serviço duplicadas para o mesmo plano preventivo em aberto.
 - **Encerramento de OS e Apropriação Econômica**: Conclusão de ordens de serviço, restaurando o status da máquina para `ATIVO`, salvando o histórico no `RegistroManutencao` e gerando uma `Despesa` integrada no módulo financeiro vinculada adequadamente à Safra, à Unidade Produtiva (UP) e ao Cultivo de forma rastreável.
 - **Indicadores do Dashboard de Frota**: Atualização do painel executivo de frota com a computação consolidada do Tempo Médio Entre Falhas (MTBF) e a distribuição percentual de custos de manutenção preventivos vs corretivos.
+
+### 23. Módulo de Navegação Unificada da Safra (Mega Menu Subnav)
+- **Centralização de Módulos**: Consolida todos os 17 sub-módulos e funcionalidades da safra diretamente em um mega menu unificado na barra de subnavegação (`SafraSubnav`).
+- **Design Totalmente Responsivo**:
+  - No desktop, os módulos são organizados em 6 dropdowns temáticos de acesso rápido (Resumo, Planejamento, Execução, Monitoramento, Colheita, Gestão) e contam com breadcrumbs interativos.
+  - Em telas menores/mobile, colapsa-se em um único botão "Módulos da Safra" super elegante que abre uma gaveta vertical completa dividida por categorias.
+- **Fluxo Funcional**: O componente cliente `SafraSubnav` é instanciado no `layout.tsx` dinâmico do painel de safras (`/agricola/safras/[id]`). Ele detecta dinamicamente a cultura cultivada (ex: se é café via `/safras/{id}/cultivos`) e o nível de plano contratado (`useHasTier`) para exibir apenas os módulos autorizados e contextualizados, como o módulo de "Beneficiamento" exclusivo para produtores profissionais de café.
 
 ## 🐛 Correções de Layout e UX (Bugfixes)
 

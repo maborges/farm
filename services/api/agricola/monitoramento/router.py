@@ -2,9 +2,11 @@ from fastapi import APIRouter, Depends, status, UploadFile, File
 from typing import List
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 from core.dependencies import get_tenant_id, require_module, require_role
 from core.dependencies import get_session_with_tenant
+from core.cadastros.propriedades.models import AreaRural
 from agricola.monitoramento.schemas import (
     MonitoramentoPragasCreate,
     MonitoramentoPragasUpdate,
@@ -15,6 +17,26 @@ from agricola.monitoramento.schemas import (
 from agricola.monitoramento.service import MonitoramentoService, MonitoramentoCatalogoService
 
 router = APIRouter(prefix="/monitoramentos", tags=["Monitoramento Fitossanitário"])
+
+
+async def _enriquecer_talhao_nome(
+    session: AsyncSession,
+    registros: list[MonitoramentoPragasResponse] | list,
+):
+    talhao_ids = {r.talhao_id for r in registros if getattr(r, "talhao_id", None)}
+    if not talhao_ids:
+        return [MonitoramentoPragasResponse.model_validate(r) for r in registros]
+
+    stmt = select(AreaRural.id, AreaRural.nome).where(AreaRural.id.in_(talhao_ids))
+    result = await session.execute(stmt)
+    talhoes = {talhao_id: nome for talhao_id, nome in result.all()}
+
+    return [
+        MonitoramentoPragasResponse.model_validate(r).model_copy(
+            update={"talhao_nome": talhoes.get(r.talhao_id)}
+        )
+        for r in registros
+    ]
 
 # ─── Catálogo ─────────────────────────────────────────────────────────────────
 
@@ -61,7 +83,9 @@ async def criar_monitoramento(
     registro = await svc.criar(dados, tecnico_id=tecnico_id)
     await session.commit()
     await session.refresh(registro)
-    return MonitoramentoPragasResponse.model_validate(registro)
+    return (
+        await _enriquecer_talhao_nome(session, [registro])
+    )[0]
 
 
 @router.get("/safra/{safra_id}", response_model=List[MonitoramentoPragasResponse])
@@ -75,7 +99,7 @@ async def listar_por_safra(
 ):
     svc = MonitoramentoService(session, tenant_id)
     registros = await svc.listar_por_safra(safra_id, tipo=tipo, talhao_id=talhao_id)
-    return [MonitoramentoPragasResponse.model_validate(r) for r in registros]
+    return await _enriquecer_talhao_nome(session, registros)
 
 
 @router.get("/{id}", response_model=MonitoramentoPragasResponse)
@@ -86,7 +110,8 @@ async def detalhar_monitoramento(
     _: None = Depends(require_module("A2_CAMPO")),
 ):
     svc = MonitoramentoService(session, tenant_id)
-    return MonitoramentoPragasResponse.model_validate(await svc.get_or_fail(id))
+    registro = await svc.get_or_fail(id)
+    return (await _enriquecer_talhao_nome(session, [registro]))[0]
 
 
 @router.patch("/{id}", response_model=MonitoramentoPragasResponse)
@@ -102,7 +127,7 @@ async def atualizar_monitoramento(
     registro = await svc.update(id, dados.model_dump(exclude_none=True))
     await session.commit()
     await session.refresh(registro)
-    return MonitoramentoPragasResponse.model_validate(registro)
+    return (await _enriquecer_talhao_nome(session, [registro]))[0]
 
 
 @router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)

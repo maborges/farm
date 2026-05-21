@@ -16,13 +16,13 @@ from core.exceptions import EntityNotFoundError, BusinessRuleError
 
 class ProductionUnitService(BaseService[ProductionUnit]):
     def __init__(self, session: AsyncSession, tenant_id: uuid.UUID):
-        super().__init__(session, ProductionUnit, tenant_id)
+        super().__init__(ProductionUnit, session, tenant_id)
 
     async def listar_por_safra(self, safra_id: uuid.UUID) -> list[dict]:
         stmt = (
             select(ProductionUnit, Cultivo.cultura, AreaRural.nome)
-            .join(Cultivo, Cultivo.id == ProductionUnit.cultivo_id)
-            .join(AreaRural, AreaRural.id == ProductionUnit.area_id)
+            .outerjoin(Cultivo, Cultivo.id == ProductionUnit.cultivo_id)
+            .outerjoin(AreaRural, AreaRural.id == ProductionUnit.area_id)
             .where(
                 and_(
                     ProductionUnit.tenant_id == self.tenant_id,

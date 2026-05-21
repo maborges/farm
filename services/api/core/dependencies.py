@@ -14,6 +14,11 @@ from sqlalchemy import text, select
 from sqlalchemy.exc import SQLAlchemyError
 from core.database import async_session_maker, DB_URL
 
+try:
+    from asyncpg.exceptions import TooManyConnectionsError
+except Exception:  # pragma: no cover - asyncpg may not be installed in sqlite-only envs
+    TooManyConnectionsError = None
+
 # ---------------------------------------------------------------------------
 # Cache simples TTL para validação de sessão (evita query por request)
 # ---------------------------------------------------------------------------
@@ -39,6 +44,20 @@ def _cache_set(token_hash: str, is_valid: bool) -> None:
 def invalidate_session_cache(token_hash: str) -> None:
     """Invalida o cache de uma sessão específica (chamar ao revogar)."""
     _SESSION_CACHE.pop(token_hash, None)
+
+
+def _is_connection_exhaustion_error(exc: Exception) -> bool:
+    """Detecta recusa do Postgres por falta de slots/conexões."""
+    if TooManyConnectionsError is not None and isinstance(exc, TooManyConnectionsError):
+        return True
+
+    message = str(exc).lower()
+    return (
+        "remaining connection slots are reserved" in message
+        or "too many connections" in message
+        or "connection slots" in message
+        or type(exc).__name__ == "TooManyConnectionsError"
+    )
 
 if TYPE_CHECKING:
     from core.constants import PlanTier
@@ -71,6 +90,19 @@ async def get_session(request: Request = None) -> AsyncGenerator[AsyncSession, N
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="Banco de dados indisponível ou pool de conexões esgotado. Tente novamente em instantes.",
             ) from exc
+        except Exception as exc:
+            if _is_connection_exhaustion_error(exc):
+                logger.warning(
+                    "Pool de conexões do Postgres esgotado",
+                    error_type=type(exc).__name__,
+                    detail=str(exc),
+                    path=str(request.url.path) if request else None,
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Banco de dados indisponível ou pool de conexões esgotado. Tente novamente em instantes.",
+                ) from exc
+            raise
 
 def get_token(request: Request) -> str:
     authorization = request.headers.get("Authorization")
@@ -171,6 +203,19 @@ async def get_session_with_tenant(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="Banco de dados indisponível ou pool de conexões esgotado. Tente novamente em instantes.",
             ) from exc
+        except Exception as exc:
+            if _is_connection_exhaustion_error(exc):
+                logger.warning(
+                    "Pool de conexões do Postgres esgotado",
+                    error_type=type(exc).__name__,
+                    detail=str(exc),
+                    tenant_id=str(tenant_id),
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Banco de dados indisponível ou pool de conexões esgotado. Tente novamente em instantes.",
+                ) from exc
+            raise
 
 async def get_current_user(
     claims: dict = Depends(get_current_user_claims),

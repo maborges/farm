@@ -2,10 +2,12 @@ from fastapi import APIRouter, Depends, Query, status
 from typing import List, Optional
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 from core.constants import PlanTier
 from core.dependencies import get_tenant_id, require_module, require_role, require_tier
 from core.dependencies import get_session_with_tenant
+from core.cadastros.propriedades.models import AreaRural
 from agricola.analises_solo.schemas import AnaliseSoloCreate, AnaliseSoloUpdate, AnaliseSoloResponse
 from agricola.analises_solo.service import AnaliseSoloService
 
@@ -61,7 +63,21 @@ async def listar_analises(
     if talhao_id:
         filters["talhao_id"] = talhao_id
     analises = await svc.list_all(limit=limit, **filters)
-    return [AnaliseSoloResponse.model_validate(a) for a in analises]
+
+    talhao_ids = {a.talhao_id for a in analises if getattr(a, "talhao_id", None)}
+    talhao_nomes: dict[UUID, str] = {}
+    if talhao_ids:
+        result = await session.execute(
+            select(AreaRural.id, AreaRural.nome).where(AreaRural.id.in_(talhao_ids))
+        )
+        talhao_nomes = {row[0]: row[1] for row in result.all()}
+
+    return [
+        AnaliseSoloResponse.model_validate(a).model_copy(
+            update={"talhao_nome": talhao_nomes.get(a.talhao_id)}
+        )
+        for a in analises
+    ]
 
 
 @router.get("/{id}", response_model=AnaliseSoloResponse)

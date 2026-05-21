@@ -73,6 +73,7 @@ class MonitoramentoPragasResponse(BaseModel):
     tenant_id: UUID
     safra_id: UUID
     talhao_id: UUID
+    talhao_nome: str | None = None
     data_avaliacao: date
     catalogo_id: UUID | None
     tipo: str | None

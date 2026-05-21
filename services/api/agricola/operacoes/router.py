@@ -3,12 +3,14 @@ from typing import List
 from uuid import UUID
 from datetime import date
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 from loguru import logger
 import traceback
 from pathlib import Path
 
 from core.dependencies import get_current_admin, get_current_user_claims, get_tenant_id, require_module, require_role
 from core.dependencies import get_session, get_session_with_tenant
+from core.cadastros.propriedades.models import AreaRural
 from core.utils.pdf_generator import generate_caderno_campo_pdf
 from agricola.operacoes.schemas import (
     OperacaoAgricolaCreate, OperacaoAgricolaResponse, OperacaoAgricolaUpdate,
@@ -23,6 +25,23 @@ router = APIRouter(prefix="/operacoes", tags=["Operações Agrícolas — A2"])
 ERROR_DEBUG_LOG = Path(__file__).resolve().parents[2] / "error_debug.log"
 
 MODULE = "A2_CAMPO"
+
+
+async def _enriquecer_talhao_nome(session: AsyncSession, operacoes: list):
+    talhao_ids = {op.talhao_id for op in operacoes if getattr(op, "talhao_id", None)}
+    if not talhao_ids:
+        return [OperacaoAgricolaResponse.model_validate(op) for op in operacoes]
+
+    stmt = select(AreaRural.id, AreaRural.nome).where(AreaRural.id.in_(talhao_ids))
+    result = await session.execute(stmt)
+    talhoes = {talhao_id: nome for talhao_id, nome in result.all()}
+
+    return [
+        OperacaoAgricolaResponse.model_validate(op).model_copy(
+            update={"talhao_nome": talhoes.get(op.talhao_id)}
+        )
+        for op in operacoes
+    ]
 
 
 def verificar_alertas_pos_operacao(operacao_id: UUID, tenant_id: UUID):
@@ -102,7 +121,7 @@ async def criar_operacao(
         operacao_id=operacao.id,
         tenant_id=tenant_id,
     )
-    return OperacaoAgricolaResponse.model_validate(operacao)
+    return (await _enriquecer_talhao_nome(session, [operacao]))[0]
 
 
 @router.get(
@@ -137,7 +156,7 @@ async def listar_operacoes(
     if data_fim:
         operacoes = [o for o in operacoes if o.data_realizada <= data_fim]
 
-    return [OperacaoAgricolaResponse.model_validate(o) for o in operacoes]
+    return await _enriquecer_talhao_nome(session, operacoes)
 
 
 @router.get(
@@ -239,7 +258,7 @@ async def operacoes_de_fase(
 ):
     svc = OperacaoService(session, tenant_id)
     ops = await svc.listar_por_safra_e_fase(safra_id, fase.upper())
-    return [OperacaoAgricolaResponse.model_validate(o) for o in ops]
+    return await _enriquecer_talhao_nome(session, ops)
 
 
 @router.get(
@@ -252,10 +271,10 @@ async def detalhar_operacao(
     session: AsyncSession = Depends(get_session_with_tenant),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module(MODULE)),
-):
+    ):
     svc = OperacaoService(session, tenant_id)
     operacao = await svc.get_or_fail(id)
-    return OperacaoAgricolaResponse.model_validate(operacao)
+    return (await _enriquecer_talhao_nome(session, [operacao]))[0]
 
 
 @router.patch(
@@ -275,7 +294,7 @@ async def atualizar_operacao(
     operacao = await svc.atualizar(id, dados)
     await session.commit()
     await session.refresh(operacao)
-    return OperacaoAgricolaResponse.model_validate(operacao)
+    return (await _enriquecer_talhao_nome(session, [operacao]))[0]
 
 
 @router.delete(

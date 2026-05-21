@@ -55,6 +55,7 @@ class RelatorioTecnicoResponse(BaseModel):
     tenant_id: UUID
     safra_id: UUID
     talhao_id: UUID
+    talhao_nome: str | None = None
     usuario_id: UUID
     data_visita: datetime
     estadio_fenologico: str | None
