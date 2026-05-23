@@ -108,6 +108,11 @@ class AlertasEngine:
                 logger.info(
                     f"Tenant {tenant_id}: {findings_total} inconsistência(s) de workflow operacional observadas"
                 )
+            reconciliacao_total = await governanca_svc.verificar_reconciliacao_economica()
+            if reconciliacao_total:
+                logger.info(
+                    f"Tenant {tenant_id}: {reconciliacao_total} inconsistência(s) de reconciliação econômica observadas"
+                )
 
         return alertas_gerados
 

@@ -167,6 +167,30 @@ Observação:
 - despesa automática sem origem rastreável
 - `CostAllocation` duplicada para a mesma origem operacional
 
+## Reconciliação Econômica
+
+Além da governança operacional, o AgroSaaS passa a observar o alinhamento entre:
+
+- `CostAllocation`
+- `EstoqueMovimento`
+- `Despesa`
+- `LancamentoFinanceiro`
+
+Objetivo:
+
+- detectar custo operacional sem reflexo econômico compatível
+- manter rastreio de apropriação direta e reflexo financeiro
+- reutilizar os detectores já existentes para dupla apropriação e despesa automática sem origem
+
+Camada observada no Step 07:
+
+- `CUSTO_OPERACIONAL_SEM_REFLEXO_ECONOMICO`
+
+Camadas já existentes e reutilizadas:
+
+- `ALLOCATION_POTENCIALMENTE_DUPLICADA`
+- `DESPESA_AUTOMATICA_SEM_ORIGEM`
+
 ## Classificação de Severidade
 
 ### Warning leve

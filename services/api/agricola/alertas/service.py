@@ -27,6 +27,7 @@ from agricola.fenologia.models import SafraFenologiaRegistro
 from agricola.tarefas.models import SafraTarefa
 from core.services.audit_service import write_audit_log
 from financeiro.models.despesa import Despesa
+from financeiro.models.lancamento import LancamentoFinanceiro
 from notificacoes.service import NotificacaoService
 from notificacoes.schemas import NotificacaoCreate
 from operacional.models.apontamento import ApontamentoUso
@@ -130,6 +131,7 @@ class AlertasAgricolasService:
         total += await self._verificar_fase_parada()
         total += await self._verificar_fenologia_vencida()
         total += await self.verificar_governanca_operacional()
+        total += await self.verificar_reconciliacao_economica()
         return total
 
     async def _safras_ativas(self) -> list[Safra]:
@@ -243,6 +245,32 @@ class AlertasAgricolasService:
         await self._registrar_scan_governanca(findings)
         return len(findings)
 
+    async def verificar_reconciliacao_economica(self) -> int:
+        findings = await self.detectar_inconsistencias_reconciliacao_economica()
+        if not findings:
+            await self._registrar_scan_reconciliacao([])
+            logger.info(
+                "workflow_economic_reconciliation_scan",
+                tenant_id=str(self.tenant_id),
+                findings=0,
+            )
+            return 0
+
+        for finding in findings:
+            await self.registrar_ocorrencia_governanca(
+                WorkflowGovernanceEvent(
+                    finding=finding,
+                    resource_id=finding.amostras[0] if finding.amostras else None,
+                    action="reconcile_finding",
+                    notify=True,
+                    audit=False,
+                    origem_id=finding.codigo,
+                )
+            )
+
+        await self._registrar_scan_reconciliacao(findings)
+        return len(findings)
+
     async def detectar_inconsistencias_operacionais(self) -> list[WorkflowGovernanceFinding]:
         findings: list[WorkflowGovernanceFinding] = []
 
@@ -263,12 +291,43 @@ class AlertasAgricolasService:
         )
         return findings
 
+    async def detectar_inconsistencias_reconciliacao_economica(self) -> list[WorkflowGovernanceFinding]:
+        findings: list[WorkflowGovernanceFinding] = []
+
+        findings.extend(
+            [
+                finding
+                for finding in [
+                    await self._detectar_allocation_sem_reflexo_economico(),
+                ]
+                if finding is not None
+            ]
+        )
+        return findings
+
     async def _registrar_scan_governanca(self, findings: list[WorkflowGovernanceFinding]) -> None:
         await write_audit_log(
             self.session,
             tenant_id=self.tenant_id,
             user_id=None,
             action="scan",
+            resource=WORKFLOW_GOVERNANCE_RESOURCE,
+            resource_id=None,
+            payload_before=None,
+            payload_after={
+                "findings": [finding.to_payload() for finding in findings],
+                "total_findings": len(findings),
+            },
+            ip_address=None,
+        )
+        await self.session.commit()
+
+    async def _registrar_scan_reconciliacao(self, findings: list[WorkflowGovernanceFinding]) -> None:
+        await write_audit_log(
+            self.session,
+            tenant_id=self.tenant_id,
+            user_id=None,
+            action="reconcile",
             resource=WORKFLOW_GOVERNANCE_RESOURCE,
             resource_id=None,
             payload_before=None,
@@ -737,6 +796,85 @@ class AlertasAgricolasService:
             ],
             meta={
                 "maior_duplicidade": max(int(row.duplicidades or 0) for row in rows),
+            },
+        )
+
+    async def _detectar_allocation_sem_reflexo_economico(self) -> WorkflowGovernanceFinding | None:
+        op_stmt = (
+            select(
+                CostAllocation.id,
+                CostAllocation.source,
+                CostAllocation.source_id,
+                CostAllocation.amount,
+                OperacaoAgricola.id.label("operacao_id"),
+            )
+            .join(OperacaoExecucao, CostAllocation.operation_execution_id == OperacaoExecucao.id)
+            .join(OperacaoAgricola, OperacaoExecucao.operacao_id == OperacaoAgricola.id)
+            .outerjoin(
+                Despesa,
+                and_(
+                    Despesa.tenant_id == self.tenant_id,
+                    Despesa.origem_tipo == "OPERACAO_AGRICOLA",
+                    Despesa.origem_id == OperacaoAgricola.id,
+                    Despesa.ativo == True,
+                ),
+            )
+            .where(
+                CostAllocation.tenant_id == self.tenant_id,
+                CostAllocation.source == "OPERATION_EXECUTION",
+                CostAllocation.amount > 0,
+                Despesa.id.is_(None),
+            )
+        )
+
+        estoque_stmt = (
+            select(
+                CostAllocation.id,
+                CostAllocation.source,
+                CostAllocation.source_id,
+                CostAllocation.amount,
+                EstoqueMovimento.id.label("movimento_id"),
+            )
+            .join(EstoqueMovimento, CostAllocation.inventory_movement_id == EstoqueMovimento.id)
+            .outerjoin(
+                LancamentoFinanceiro,
+                and_(
+                    LancamentoFinanceiro.tenant_id == self.tenant_id,
+                    LancamentoFinanceiro.origem == "ESTOQUE",
+                    LancamentoFinanceiro.origem_id == EstoqueMovimento.id,
+                ),
+            )
+            .where(
+                CostAllocation.tenant_id == self.tenant_id,
+                CostAllocation.source == "INVENTORY_MOVEMENT",
+                CostAllocation.amount > 0,
+                CostAllocation.inventory_movement_id.is_not(None),
+                LancamentoFinanceiro.id.is_(None),
+            )
+        )
+
+        op_rows = list((await self.session.execute(op_stmt)).all())
+        estoque_rows = list((await self.session.execute(estoque_stmt)).all())
+        if not op_rows and not estoque_rows:
+            return None
+
+        amostras = [
+            *(f"OPERACAO:{row.operacao_id}:{row.id}" for row in op_rows[:10]),
+            *(f"ESTOQUE:{row.movimento_id}:{row.id}" for row in estoque_rows[:10]),
+        ]
+        return self._build_finding(
+            codigo="CUSTO_OPERACIONAL_SEM_REFLEXO_ECONOMICO",
+            titulo="Custo operacional sem reflexo econômico",
+            severidade="RISCO_ECONOMICO",
+            origem="reconciliacao_economica",
+            rows=[*op_rows, *estoque_rows],
+            mensagem=(
+                f"{len(op_rows) + len(estoque_rows)} apropriação(ões) econômicas não encontraram "
+                "reflexo financeiro compatível em despesa ou lançamento."
+            ),
+            meta={
+                "operacoes_sem_reflexo": len(op_rows),
+                "estoques_sem_lancamento": len(estoque_rows),
             },
         )
 
