@@ -10,8 +10,9 @@ Condições verificadas:
 """
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import asdict, dataclass
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from uuid import UUID
 
 from loguru import logger
@@ -31,7 +32,7 @@ from financeiro.models.lancamento import LancamentoFinanceiro
 from notificacoes.service import NotificacaoService
 from notificacoes.schemas import NotificacaoCreate
 from operacional.models.apontamento import ApontamentoUso
-from operacional.models.compras import ItemRecebimento, PedidoCompra, RecebimentoParcial
+from operacional.models.compras import DevolucaoFornecedor, ItemDevolucao, ItemRecebimento, PedidoCompra, RecebimentoParcial
 from operacional.models.estoque import EstoqueMovimento
 from core.exceptions import BusinessRuleError
 
@@ -97,6 +98,32 @@ class WorkflowGovernanceEvent:
     notify: bool = True
     audit: bool = True
     origem_id: str | None = None
+
+
+@dataclass(slots=True)
+class WorkflowGovernanceReportItem:
+    codigo: str
+    titulo: str
+    severidade: str
+    tipo_inconsistencia: str
+    origem: str
+    origem_tipo: str | None
+    origem_id: str | None
+    total: int
+    mensagem: str
+    sugestao_correcao: str
+    amostras: list[str]
+    meta: dict
+
+
+@dataclass(slots=True)
+class WorkflowGovernanceReport:
+    tenant_id: UUID
+    gerado_em: datetime
+    total_inconsistencias: int
+    por_severidade: dict[str, int]
+    por_tipo: dict[str, int]
+    itens: list[WorkflowGovernanceReportItem]
 
 
 @dataclass(slots=True)
@@ -270,6 +297,29 @@ class AlertasAgricolasService:
 
         await self._registrar_scan_reconciliacao(findings)
         return len(findings)
+
+    async def gerar_relatorio_governanca(self) -> WorkflowGovernanceReport:
+        findings = [
+            *await self.detectar_inconsistencias_operacionais(),
+            *await self.detectar_inconsistencias_reconciliacao_economica(),
+        ]
+
+        devolucoes = await self._detectar_devolucao_sem_movimento_original()
+        if devolucoes is not None:
+            findings.append(devolucoes)
+
+        itens = [self._finding_para_relatorio(finding) for finding in findings]
+        por_severidade = Counter(item.severidade for item in itens)
+        por_tipo = Counter(item.tipo_inconsistencia for item in itens)
+
+        return WorkflowGovernanceReport(
+            tenant_id=self.tenant_id,
+            gerado_em=datetime.now(timezone.utc),
+            total_inconsistencias=len(itens),
+            por_severidade=dict(sorted(por_severidade.items())),
+            por_tipo=dict(sorted(por_tipo.items())),
+            itens=itens,
+        )
 
     async def detectar_inconsistencias_operacionais(self) -> list[WorkflowGovernanceFinding]:
         findings: list[WorkflowGovernanceFinding] = []
@@ -1277,3 +1327,145 @@ class AlertasAgricolasService:
                 if key in mapping:
                     return str(mapping[key])
         return str(row)
+
+    def _classificar_tipo_relatorio(self, codigo: str) -> str:
+        if codigo.startswith("TAREFA_"):
+            return "TAREFA"
+        if codigo.startswith("OPERACAO_"):
+            return "OPERACAO"
+        if codigo.startswith("APONTAMENTO_"):
+            return "APONTAMENTO"
+        if codigo.startswith("PEDIDO_") or codigo.startswith("DEVOLUCAO_"):
+            return "COMPRAS"
+        if codigo.startswith("DESPESA_"):
+            return "DESPESA"
+        if codigo.startswith("ALLOCATION_") or codigo.startswith("COST_ALLOCATION_"):
+            return "COST_ALLOCATION"
+        if codigo.startswith("MOVIMENTO_") or codigo.startswith("ESTOQUE_"):
+            return "ESTOQUE"
+        if codigo.startswith("DIVERGENCIA_") or codigo.startswith("CUSTO_"):
+            return "ECONOMICO"
+        return "GERAL"
+
+    def _sugerir_correcao_relatorio(self, finding: WorkflowGovernanceFinding) -> str:
+        sugestoes = {
+            "TAREFA_CONCLUIDA_SEM_OPERACAO": "Vincular operação agrícola ou registrar justificativa operacional no fechamento.",
+            "OPERACAO_REALIZADA_SEM_EXECUCAO": "Criar OperacaoExecucao correspondente para o novo fluxo.",
+            "OPERACAO_COM_CUSTO_SEM_ALLOCATION": "Gerar CostAllocation para a execução ou revisar ProductionUnit.",
+            "APONTAMENTO_COM_CUSTO_SEM_CONTEXTO": "Associar operação, jornada ou contextos mínimos antes do fechamento.",
+            "PEDIDO_RECEBIDO_SEM_MOVIMENTO_OU_LOTE": "Materializar lote, movimento e saldo antes de manter o pedido como RECEBIDO.",
+            "DESPESA_AUTOMATICA_SEM_ORIGEM": "Preencher origem_tipo e origem_id no lançamento automático.",
+            "ALLOCATION_POTENCIALMENTE_DUPLICADA": "Eliminar lançamentos duplicados e manter apenas uma apropriação por origem.",
+            "CUSTO_OPERACIONAL_SEM_REFLEXO_ECONOMICO": "Gerar reflexo financeiro ou reclassificar a apropriação econômica.",
+            "COST_ALLOCATION_SEM_ORIGEM_RASTREAVEL": "Resolver a origem operacional antes de manter o rateio manual.",
+            "DESPESA_AUTOMATICA_DUPLICADA_MESMA_ORIGEM": "Remover a duplicidade e consolidar o lançamento automático.",
+            "MOVIMENTO_COM_CUSTO_SEM_ALLOCATION": "Criar CostAllocation para o movimento com custo ou registrar justificativa.",
+            "DIVERGENCIA_VALOR_OPERACIONAL_APROPRIADO": "Reconciliar o valor operacional com a soma das apropriações.",
+            "DEVOLUCAO_SEM_MOVIMENTO_ORIGINAL": "Vincular o movimento de entrada original antes de concluir a devolução.",
+        }
+        return sugestoes.get(
+            finding.codigo,
+            "Revisar a origem operacional e corrigir a rastreabilidade antes do saneamento.",
+        )
+
+    def _extrair_detalhes_origem_relatorio(self, finding: WorkflowGovernanceFinding) -> tuple[str | None, str | None]:
+        if finding.codigo == "ALLOCATION_POTENCIALMENTE_DUPLICADA" and finding.amostras:
+            parts = finding.amostras[0].split(":")
+            if len(parts) >= 3:
+                return parts[0], parts[1]
+        if finding.codigo == "DESPESA_AUTOMATICA_DUPLICADA_MESMA_ORIGEM" and finding.amostras:
+            parts = finding.amostras[0].split(":")
+            if len(parts) >= 2:
+                return parts[0], parts[1]
+        if finding.codigo == "MOVIMENTO_COM_CUSTO_SEM_ALLOCATION" and finding.amostras:
+            return "INVENTORY_MOVEMENT", finding.amostras[0]
+        if finding.codigo in {"TAREFA_CONCLUIDA_SEM_OPERACAO", "OPERACAO_REALIZADA_SEM_EXECUCAO", "OPERACAO_COM_CUSTO_SEM_ALLOCATION"} and finding.amostras:
+            return self._classificar_tipo_relatorio(finding.codigo), finding.amostras[0]
+        if finding.codigo in {"PEDIDO_RECEBIDO_SEM_MOVIMENTO_OU_LOTE", "DEVOLUCAO_SEM_MOVIMENTO_ORIGINAL"} and finding.amostras:
+            return "COMPRA", finding.amostras[0]
+        if finding.codigo in {"DESPESA_AUTOMATICA_SEM_ORIGEM", "COST_ALLOCATION_SEM_ORIGEM_RASTREAVEL"} and finding.amostras:
+            return self._classificar_tipo_relatorio(finding.codigo), finding.amostras[0]
+        return None, None
+
+    def _finding_para_relatorio(self, finding: WorkflowGovernanceFinding) -> WorkflowGovernanceReportItem:
+        origem_tipo, origem_id = self._extrair_detalhes_origem_relatorio(finding)
+        return WorkflowGovernanceReportItem(
+            codigo=finding.codigo,
+            titulo=finding.titulo,
+            severidade=finding.severidade,
+            tipo_inconsistencia=self._classificar_tipo_relatorio(finding.codigo),
+            origem=finding.origem,
+            origem_tipo=origem_tipo,
+            origem_id=origem_id,
+            total=finding.total,
+            mensagem=finding.mensagem,
+            sugestao_correcao=self._sugerir_correcao_relatorio(finding),
+            amostras=list(finding.amostras),
+            meta=dict(finding.meta),
+        )
+
+    async def _detectar_devolucao_sem_movimento_original(self) -> WorkflowGovernanceFinding | None:
+        stmt = (
+            select(DevolucaoFornecedor.id, DevolucaoFornecedor.pedido_id)
+            .where(
+                DevolucaoFornecedor.tenant_id == self.tenant_id,
+                DevolucaoFornecedor.status.in_(["ABERTA", "ENVIADA", "CONCLUIDA"]),
+            )
+        )
+        devolucoes = list((await self.session.execute(stmt)).all())
+        if not devolucoes:
+            return None
+
+        problematics: list[tuple[str, str | None]] = []
+        for row in devolucoes:
+            itens = list(
+                (
+                    await self.session.execute(
+                        select(ItemDevolucao).where(ItemDevolucao.devolucao_id == row.id)
+                    )
+                ).scalars().all()
+            )
+            if not itens:
+                continue
+
+            has_issue = False
+            for item in itens:
+                if item.lote_id is None:
+                    has_issue = True
+                    break
+                original_mov = (
+                    await self.session.execute(
+                        select(EstoqueMovimento.id).where(
+                            EstoqueMovimento.tenant_id == self.tenant_id,
+                            EstoqueMovimento.origem == "COMPRA",
+                            EstoqueMovimento.origem_id == row.pedido_id,
+                            EstoqueMovimento.produto_id == item.produto_id,
+                            EstoqueMovimento.deposito_id == item.deposito_origem_id,
+                            EstoqueMovimento.lote_id == item.lote_id,
+                        )
+                    )
+                ).scalar_one_or_none()
+                if original_mov is None:
+                    has_issue = True
+                    break
+
+            if has_issue:
+                problematics.append((str(row.id), str(row.pedido_id) if row.pedido_id else None))
+
+        if not problematics:
+            return None
+
+        return WorkflowGovernanceFinding(
+            codigo="DEVOLUCAO_SEM_MOVIMENTO_ORIGINAL",
+            titulo="Devolução sem movimento original rastreável",
+            severidade="RISCO_CRITICO",
+            origem="compras_devolucoes",
+            total=len(problematics),
+            mensagem=(
+                f"{len(problematics)} devolução(ões) não possuem movimento original rastreável para saneamento."
+            ),
+            amostras=[row_id for row_id, _ in problematics[:10]],
+            meta={
+                "pedidos": [pedido_id for _, pedido_id in problematics[:10] if pedido_id],
+            },
+        )
