@@ -28,6 +28,8 @@ from operacional.services import EstoqueService
 from operacional.services.estoque_fifo import consumir_lotes_fifo, atualizar_saldo_apos_consumo
 from operacional.services.estoque_ledger import registrar_ledger_estoque
 from agricola.custos.allocation_service import registrar_cost_allocation
+from agricola.custos.models import CostAllocation
+from agricola.alertas.service import AlertasAgricolasService, WorkflowGovernanceEvent
 from financeiro.models.despesa import Despesa
 from agricola.caderno.models import CadernoCampoEntrada
 from core.operational_context import (
@@ -254,6 +256,219 @@ class OperacaoService(BaseService[OperacaoAgricola]):
             )
         return production_unit_id
 
+    async def _buscar_execucao_existente(self, operacao_id: UUID) -> OperacaoExecucao | None:
+        stmt = (
+            select(OperacaoExecucao)
+            .where(
+                OperacaoExecucao.operacao_id == operacao_id,
+                OperacaoExecucao.tenant_id == self.tenant_id,
+            )
+            .order_by(OperacaoExecucao.created_at.asc())
+            .limit(1)
+        )
+        return (await self.session.execute(stmt)).scalars().first()
+
+    async def _buscar_allocation_existente(
+        self,
+        *,
+        operacao_execucao_id: UUID | None,
+        production_unit_id: UUID | None,
+    ) -> CostAllocation | None:
+        stmt = select(CostAllocation).where(CostAllocation.tenant_id == self.tenant_id)
+        if operacao_execucao_id is not None:
+            stmt = stmt.where(CostAllocation.operation_execution_id == operacao_execucao_id)
+        elif production_unit_id is not None:
+            stmt = stmt.where(
+                CostAllocation.source == "OPERATION_EXECUTION",
+                CostAllocation.production_unit_id == production_unit_id,
+            )
+        else:
+            return None
+        stmt = stmt.limit(1)
+        return (await self.session.execute(stmt)).scalars().first()
+
+    async def _garantir_execucao_e_allocation_leves(
+        self,
+        operacao: OperacaoAgricola,
+        *,
+        allow_create_execucao: bool,
+    ) -> tuple[OperacaoExecucao | None, CostAllocation | None]:
+        if operacao.status != "REALIZADA":
+            return None, None
+
+        alertas_svc = AlertasAgricolasService(self.session, self.tenant_id)
+        regra = alertas_svc.classificar_origem_operacao(operacao.tipo)
+        operacao_execucao = await self._buscar_execucao_existente(operacao.id)
+        allocation = None
+
+        if operacao_execucao is None and allow_create_execucao:
+            unidade_ha_id = await self._get_area_unit_id()
+            if unidade_ha_id is not None:
+                operacao_execucao = OperacaoExecucao(
+                    tenant_id=self.tenant_id,
+                    operacao_id=operacao.id,
+                    production_unit_id=operacao.production_unit_id,
+                    data_execucao=operacao.data_realizada,
+                    hora_execucao=operacao.hora_inicio,
+                    quantidade_planejada=operacao.area_aplicada_ha,
+                    quantidade_executada=operacao.area_aplicada_ha or 1,
+                    quantidade_devolvida=0,
+                    unidade_medida_id=unidade_ha_id,
+                    custo_real=float(operacao.custo_total or 0.0),
+                    area_ha_executada=operacao.area_aplicada_ha,
+                    status="REALIZADA",
+                    operador_id=operacao.operador_id,
+                    observacoes=operacao.observacoes,
+                )
+                self.session.add(operacao_execucao)
+                await self.session.flush()
+
+        if operacao_execucao is None:
+            finding = alertas_svc.build_finding(
+                codigo="OPERACAO_REALIZADA_SEM_EXECUCAO_NOVO_FLUXO",
+                titulo="Operação realizada sem execução no novo fluxo",
+                severidade="INCONSISTENCIA_MODERADA",
+                origem="operacoes_agricolas",
+                total=1,
+                mensagem=(
+                    "Operação marcada como realizada no novo fluxo não possui "
+                    "OperacaoExecucao criada automaticamente."
+                ),
+                amostras=[str(operacao.id)],
+                meta={"operacao_id": str(operacao.id), "tipo_operacao": operacao.tipo},
+            )
+            await alertas_svc.registrar_e_aplicar_enforcement(
+                WorkflowGovernanceEvent(
+                    finding=finding,
+                    resource_id=str(operacao.id),
+                    action="lv_missing_exec",
+                    notify=True,
+                    audit=True,
+                    origem_id=f"operacao:{operacao.id}:missing_execution",
+                ),
+                allow_block=True,
+            )
+            return None, None
+
+        custo_operacional = float(operacao.custo_total or 0.0)
+        if custo_operacional <= 0 or operacao.production_unit_id is None:
+            if custo_operacional > 0 and operacao.production_unit_id is None and regra.exige_cost_allocation:
+                finding = alertas_svc.build_finding(
+                    codigo="OPERACAO_COM_CUSTO_SEM_CONTEXTO_ALLOCATION",
+                    titulo="Operação com custo sem contexto suficiente para apropriação",
+                    severidade="RISCO_ECONOMICO",
+                    origem="operacoes_agricolas",
+                    total=1,
+                    mensagem=(
+                        "Operação possui custo, mas ainda não foi possível resolver "
+                        "production_unit para gerar CostAllocation."
+                    ),
+                    amostras=[str(operacao.id)],
+                    meta={"operacao_id": str(operacao.id), "tipo_operacao": operacao.tipo},
+                )
+                await alertas_svc.registrar_e_aplicar_enforcement(
+                    WorkflowGovernanceEvent(
+                        finding=finding,
+                        resource_id=str(operacao.id),
+                        action="lv_alloc_ctx",
+                        notify=True,
+                        audit=True,
+                        origem_id=f"operacao:{operacao.id}:missing_allocation_context",
+                    ),
+                    allow_block=True,
+                    error_message=(
+                        "Nao e possivel concluir a operacao com custo sem apropriacao economica. "
+                        "Revise ProductionUnit ou o contexto operacional da safra."
+                    ),
+                )
+            elif custo_operacional <= 0 and regra.origem == "AGRICOLA_OPERACIONAL":
+                finding = alertas_svc.build_finding(
+                    codigo="OPERACAO_AGRICOLA_SEM_CUSTO_NOVO_FLUXO",
+                    titulo="Operação agrícola realizada sem custo direto",
+                    severidade="WARNING_LEVE",
+                    origem="operacoes_agricolas",
+                    total=1,
+                    mensagem=(
+                        "Operação agrícola foi marcada como realizada sem custo direto. "
+                        "O fluxo é permitido, mas não é o caminho recomendado sem evidência complementar."
+                    ),
+                    amostras=[str(operacao.id)],
+                    meta={"operacao_id": str(operacao.id), "tipo_operacao": operacao.tipo, "classificacao_origem": regra.origem},
+                )
+                await alertas_svc.registrar_e_aplicar_enforcement(
+                    WorkflowGovernanceEvent(
+                        finding=finding,
+                        resource_id=str(operacao.id),
+                        action="op_no_cost",
+                        notify=True,
+                        audit=True,
+                        origem_id=f"operacao:{operacao.id}:no_cost",
+                    ),
+                    allow_block=True,
+                )
+            return operacao_execucao, None
+
+        allocation = await self._buscar_allocation_existente(
+            operacao_execucao_id=operacao_execucao.id,
+            production_unit_id=operacao.production_unit_id,
+        )
+        if allocation is not None:
+            return operacao_execucao, allocation
+
+        try:
+            allocation = await registrar_cost_allocation(
+                self.session,
+                tenant_id=self.tenant_id,
+                production_unit_id=operacao.production_unit_id,
+                source="OPERATION_EXECUTION",
+                source_id=operacao_execucao.id,
+                operation_execution_id=operacao_execucao.id,
+                cost_category="OUTROS",
+                amount=custo_operacional,
+                allocation_date=operacao_execucao.data_execucao,
+                allocation_method="DIRECT",
+                allocation_basis=operacao_execucao.area_ha_executada,
+            )
+            await self.session.flush()
+        except Exception as exc:
+            logger.warning(
+                "light_validation_allocation_failed",
+                tenant_id=str(self.tenant_id),
+                operacao_id=str(operacao.id),
+                error=str(exc),
+            )
+            finding = alertas_svc.build_finding(
+                codigo="OPERACAO_COM_CUSTO_SEM_ALLOCATION_NOVO_FLUXO",
+                titulo="Operação com custo sem allocation no novo fluxo",
+                severidade="RISCO_ECONOMICO",
+                origem="operacoes_agricolas",
+                total=1,
+                mensagem=(
+                    "Operação realizada com custo direto não conseguiu gerar "
+                    "CostAllocation automaticamente no novo fluxo."
+                ),
+                amostras=[str(operacao.id)],
+                meta={"operacao_id": str(operacao.id), "tipo_operacao": operacao.tipo},
+            )
+            await alertas_svc.registrar_e_aplicar_enforcement(
+                WorkflowGovernanceEvent(
+                    finding=finding,
+                    resource_id=str(operacao.id),
+                    action="lv_alloc_fail",
+                    notify=True,
+                    audit=True,
+                    origem_id=f"operacao:{operacao.id}:allocation_failed",
+                ),
+                allow_block=True,
+                error_message=(
+                    "Nao e possivel concluir a operacao com custo sem apropriacao economica. "
+                    "Revise ProductionUnit, execucao e insumos antes de marcar como realizada."
+                ),
+            )
+            return operacao_execucao, None
+
+        return operacao_execucao, allocation
+
     async def criar(self, dados: OperacaoAgricolaCreate) -> OperacaoAgricola:
         await OperacaoTipoFaseService(self.session).ensure_defaults()
         # 1. Valida tenant e contexto operacional das entidades base.
@@ -456,27 +671,11 @@ class OperacaoService(BaseService[OperacaoAgricola]):
 
             operacao_execucao = None
             if operacao.status == "REALIZADA":
-                unidade_ha_id = await self._get_area_unit_id()
-                if unidade_ha_id is not None:
-                    operacao_execucao = OperacaoExecucao(
-                        tenant_id=self.tenant_id,
-                        operacao_id=operacao.id,
-                        production_unit_id=operacao.production_unit_id,
-                        data_execucao=operacao.data_realizada,
-                        hora_execucao=operacao.hora_inicio,
-                        quantidade_planejada=operacao.area_aplicada_ha,
-                        quantidade_executada=operacao.area_aplicada_ha or 1,
-                        quantidade_devolvida=0,
-                        unidade_medida_id=unidade_ha_id,
-                        custo_real=custo_total_operacao,
-                        area_ha_executada=operacao.area_aplicada_ha,
-                        status="REALIZADA",
-                        operador_id=operacao.operador_id,
-                        observacoes=operacao.observacoes,
-                    )
-                    self.session.add(operacao_execucao)
-                    await self.session.flush()
-
+                operacao_execucao, _ = await self._garantir_execucao_e_allocation_leves(
+                    operacao,
+                    allow_create_execucao=True,
+                )
+                if operacao_execucao is not None:
                     for consumo_ledger in ledger_consumos:
                         await registrar_ledger_estoque(
                             self.session,
@@ -487,21 +686,6 @@ class OperacaoService(BaseService[OperacaoAgricola]):
                             operacao_execucao_id=operacao_execucao.id,
                             production_unit_id=operacao.production_unit_id,
                             **consumo_ledger,
-                        )
-
-                    if custo_total_operacao and operacao.production_unit_id:
-                        await registrar_cost_allocation(
-                            self.session,
-                            tenant_id=self.tenant_id,
-                            production_unit_id=operacao.production_unit_id,
-                            source="OPERATION_EXECUTION",
-                            source_id=operacao_execucao.id,
-                            operation_execution_id=operacao_execucao.id,
-                            cost_category="OUTROS",
-                            amount=custo_total_operacao,
-                            allocation_date=operacao_execucao.data_execucao,
-                            allocation_method="DIRECT",
-                            allocation_basis=operacao_execucao.area_ha_executada,
                         )
 
             # 4. Sincroniza custo na Safra
@@ -555,6 +739,12 @@ class OperacaoService(BaseService[OperacaoAgricola]):
                         origem_tipo="OPERACAO_AGRICOLA",
                     )
                     self.session.add(despesa)
+                    await self.session.flush()
+                    await AlertasAgricolasService(self.session, self.tenant_id).validar_despesa_origem_leve(
+                        despesa,
+                        origem_id_override=f"despesa:{despesa.id}:operacao_create",
+                        allow_block=True,
+                    )
 
             # Commit only if ALL operations succeeded (atomicity)
             # 6. TRIGGER: Se operação foi criada com status REALIZADA, cria entrada no caderno
@@ -661,6 +851,12 @@ class OperacaoService(BaseService[OperacaoAgricola]):
             logger.info(
                 f"Entrada automática no caderno: {operacao.tipo} → safra {operacao.safra_id}",
                 entrada_id=str(entrada.id),
+            )
+
+        if operacao.status == "REALIZADA":
+            await self._garantir_execucao_e_allocation_leves(
+                operacao,
+                allow_create_execucao=True,
             )
 
         return operacao

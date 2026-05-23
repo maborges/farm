@@ -9,6 +9,7 @@ from core.cadastros.equipamentos.alocacao_service import get_equipamento_unidade
 from core.cadastros.equipamentos.models import Equipamento as Maquinario
 from core.operational_context import validate_deposito_context, validate_lote_context, validate_operador_context
 from agricola.custos.allocation_service import registrar_cost_allocation
+from agricola.alertas.service import AlertasAgricolasService
 from operacional.models.frota import PlanoManutencao, OrdemServico, RegistroManutencao, ItemOrdemServico, JornadaEquipamento
 from operacional.schemas.frota import (
     PlanoManutencaoCreate, OrdemServicoCreate, OrdemServicoUpdate,
@@ -301,7 +302,7 @@ class FrotaService(BaseService[Maquinario]):
                 cultivo_id = (await self.session.execute(stmt_cultivo)).scalar() if os.safra_id else None
 
                 hoje = _date.today()
-                self.session.add(Despesa(
+                despesa = Despesa(
                     id=uuid.uuid4(),
                     tenant_id=self.tenant_id,
                     unidade_produtiva_id=unidade_operacional,
@@ -315,7 +316,14 @@ class FrotaService(BaseService[Maquinario]):
                     status="PAGO",
                     origem_id=os.id,
                     origem_tipo="ORDEM_SERVICO",
-                ))
+                )
+                self.session.add(despesa)
+                await self.session.flush()
+                await AlertasAgricolasService(self.session, self.tenant_id).validar_despesa_origem_leve(
+                    despesa,
+                    origem_id_override=f"despesa:{despesa.id}:os_close",
+                    allow_block=True,
+                )
 
         await self.session.commit()
         await self.session.refresh(os)

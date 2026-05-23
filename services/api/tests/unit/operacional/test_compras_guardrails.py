@@ -89,16 +89,28 @@ async def test_receber_pedido_usa_valor_do_pedido_como_custo_operacional(
         status="ABERTO",
     )
 
-    mock_session.get.return_value = pedido
-    mock_result = MagicMock()
-    mock_result.scalar_one_or_none.return_value = None
-    mock_session.execute.return_value = mock_result
+    async def _mock_get(model, _id):
+        if model is PedidoCompra:
+            return pedido
+        return None
 
-    with patch("operacional.services.compras_service.EstoqueService.registrar_entrada", new=AsyncMock()) as registrar_entrada, \
+    mock_session.get.side_effect = _mock_get
+    exec_results = []
+    for scalar_value in (None, None, SimpleNamespace(id=uuid.uuid4(), quantidade_atual=20.0)):
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = scalar_value
+        exec_results.append(mock_result)
+    mock_session.execute.side_effect = exec_results
+
+    lote_mock = SimpleNamespace(id=uuid.uuid4(), quantidade_atual=0.0)
+    movimento_mock = SimpleNamespace(id=uuid.uuid4())
+    with patch("operacional.services.compras_service.EstoqueService.criar_lote", new=AsyncMock(return_value=lote_mock)) as criar_lote, \
+         patch("operacional.services.compras_service.EstoqueService.registrar_entrada", new=AsyncMock(return_value=movimento_mock)) as registrar_entrada, \
          patch.object(compras_service, "_enriquecer_pedido", new=AsyncMock(return_value=pedido)):
         recebido = await compras_service.receber_pedido(pedido.id)
 
     assert recebido.status == "RECEBIDO"
+    criar_lote.assert_awaited_once()
     registrar_entrada.assert_awaited_once()
     entrada_req = registrar_entrada.await_args.args[0]
     assert entrada_req.custo_unitario == 37.5

@@ -99,6 +99,16 @@ class AlertasEngine:
             for alerta in alertas_gerados:
                 await svc.criar_e_push(alerta)
 
+            # Reusa o agregador oficial agrícola para observabilidade de workflow
+            from agricola.alertas.service import AlertasAgricolasService
+
+            governanca_svc = AlertasAgricolasService(session, tenant_id)
+            findings_total = await governanca_svc.verificar_governanca_operacional()
+            if findings_total:
+                logger.info(
+                    f"Tenant {tenant_id}: {findings_total} inconsistência(s) de workflow operacional observadas"
+                )
+
         return alertas_gerados
 
     async def _verificar_vencimentos(

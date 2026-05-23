@@ -7,6 +7,7 @@ from core.base_service import BaseService
 from core.exceptions import BusinessRuleError, EntityNotFoundError
 from core.cadastros.equipamentos.alocacao_service import get_equipamento_unidade_operacional
 from core.cadastros.equipamentos.models import Equipamento as Maquinario
+from agricola.alertas.service import AlertasAgricolasService
 from operacional.models.abastecimento import Abastecimento, LocalAbastecimento
 from operacional.models.frota import JornadaEquipamento
 from operacional.schemas.abastecimento import AbastecimentoCreate, AbastecimentoUpdate
@@ -117,6 +118,12 @@ class AbastecimentoService(BaseService[Abastecimento]):
                     status="PAGO",
                 )
                 self.session.add(despesa)
+                await self.session.flush()
+                await AlertasAgricolasService(self.session, self.tenant_id).validar_despesa_origem_leve(
+                    despesa,
+                    origem_id_override=f"despesa:{despesa.id}:abastecimento_externo",
+                    allow_block=True,
+                )
 
         await self.session.commit()
         await self.session.refresh(ab)

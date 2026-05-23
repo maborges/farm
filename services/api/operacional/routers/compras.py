@@ -211,18 +211,43 @@ async def get_pedido_pdf(
 @router.patch("/pedidos/{pedido_id}/receber", status_code=200)
 async def receber_pedido(
     pedido_id: uuid.UUID,
-    # Reaproveitando o esquema simplificado se necessário
+    data: RecebimentoCreate | None = None,
     tenant: Tenant = Depends(get_current_tenant),
     session: AsyncSession = Depends(get_session),
 ):
-    # Endpoint simplificado para o Step 150/151
-    pedido = await session.get(PedidoCompra, pedido_id)
-    if not pedido or pedido.tenant_id != tenant.id:
+    svc = ComprasService(session, tenant.id)
+    try:
+        pedido = await svc.receber_pedido(pedido_id, data=data)
+    except BusinessRuleError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    if not pedido:
         raise HTTPException(status_code=404, detail="Pedido não encontrado")
-    
-    pedido.status = "RECEBIDO"
+
     await session.commit()
-    return {"message": "Pedido marcado como recebido"}
+    return {"message": "Pedido marcado como recebido", "pedido_id": str(pedido.id), "status": pedido.status}
+
+
+async def atualizar_status_devolucao(
+    dev_id: uuid.UUID,
+    data: DevolucaoStatusUpdate,
+    tenant: Tenant,
+    session: AsyncSession,
+):
+    svc = ComprasService(session, tenant.id)
+    if data.status == "CONCLUIDA":
+        devolucao = await svc.concluir_devolucao(dev_id)
+        if not devolucao:
+            raise BusinessRuleError("Devolução não encontrada")
+        return devolucao
+
+    devolucao = await session.get(DevolucaoFornecedor, dev_id)
+    if not devolucao or devolucao.tenant_id != tenant.id:
+        raise BusinessRuleError("Devolução não encontrada")
+
+    devolucao.status = data.status
+    session.add(devolucao)
+    await session.flush()
+    return devolucao
 
 
 @router.get("/historico-precos")

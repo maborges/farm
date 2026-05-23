@@ -3,6 +3,10 @@ from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from core.exceptions import EntityNotFoundError, BusinessRuleError
+from agricola.alertas.service import (
+    AlertasAgricolasService,
+    WorkflowGovernanceEvent,
+)
 from agricola.tarefas.models import SafraTarefa
 from agricola.tarefas.schemas import TarefaCreate, TarefaUpdate
 
@@ -117,6 +121,7 @@ class TarefaService:
         tarefa.status = "CONCLUIDA"
         tarefa.concluida_em = datetime.utcnow()
         tarefa.updated_at = datetime.utcnow()
+        await self._validar_conclusao_manual_leve(tarefa)
         await self.session.flush()
         return tarefa
 
@@ -131,3 +136,127 @@ class TarefaService:
 
     async def get(self, tarefa_id: uuid.UUID) -> SafraTarefa:
         return await self._get(tarefa_id)
+
+    async def _validar_conclusao_manual_leve(self, tarefa: SafraTarefa) -> None:
+        alertas_svc = AlertasAgricolasService(self.session, self.tenant_id)
+        regra = alertas_svc.classificar_origem_tarefa(tarefa.tipo)
+
+        if regra.origem == "ADMINISTRATIVA" or regra.origem == "FINANCEIRA_COMERCIAL":
+            return
+
+        justificativa = (tarefa.obs or "").strip()
+        evidencia_minima = tarefa.operacao_id is not None or bool(justificativa)
+
+        if regra.origem == "AGRICOLA_OPERACIONAL":
+            if tarefa.operacao_id is not None:
+                return
+
+            if justificativa:
+                finding = alertas_svc.build_finding(
+                    codigo="TAREFA_OPERACIONAL_FECHADA_SEM_OPERACAO_COM_JUSTIFICATIVA",
+                    titulo="Tarefa operacional concluída sem operação, com justificativa",
+                    severidade="WARNING_LEVE",
+                    origem="safra_tarefas",
+                    total=1,
+                    mensagem=(
+                        "Tarefa operacional foi concluída manualmente sem operação vinculada, "
+                        "mas possui justificativa operacional registrada em observações."
+                    ),
+                    amostras=[str(tarefa.id)],
+                    meta={
+                        "tarefa_id": str(tarefa.id),
+                        "tipo_tarefa": tarefa.tipo,
+                        "classificacao_origem": regra.origem,
+                        "justificativa": justificativa,
+                    },
+                )
+                await alertas_svc.registrar_ocorrencia_governanca(
+                    WorkflowGovernanceEvent(
+                        finding=finding,
+                        resource_id=str(tarefa.id),
+                        action="manual_close_just",
+                        notify=False,
+                        audit=True,
+                        origem_id=f"tarefa:{tarefa.id}:manual_closure_with_justification",
+                    )
+                )
+                return
+
+            finding = alertas_svc.build_finding(
+                codigo="TAREFA_OPERACIONAL_FECHADA_SEM_OPERACAO_SEM_JUSTIFICATIVA",
+                titulo="Tarefa operacional concluída sem operação",
+                severidade="INCONSISTENCIA_MODERADA",
+                origem="safra_tarefas",
+                total=1,
+                mensagem=(
+                    "Tarefa operacional foi concluída manualmente sem operação vinculada e sem "
+                    "justificativa operacional em observações."
+                ),
+                amostras=[str(tarefa.id)],
+                meta={
+                    "tarefa_id": str(tarefa.id),
+                    "tipo_tarefa": tarefa.tipo,
+                    "classificacao_origem": regra.origem,
+                },
+            )
+            await alertas_svc.registrar_ocorrencia_governanca(
+                WorkflowGovernanceEvent(
+                    finding=finding,
+                    resource_id=str(tarefa.id),
+                    action="manual_close_warn",
+                    notify=True,
+                    audit=True,
+                    origem_id=f"tarefa:{tarefa.id}:manual_closure_without_operation",
+                )
+            )
+            return
+
+        if regra.warning_sem_evidencia and not evidencia_minima:
+            if regra.origem == "INSPECAO_MONITORAMENTO":
+                finding = alertas_svc.build_finding(
+                    codigo="TAREFA_INSPECAO_SEM_EVIDENCIA",
+                    titulo="Tarefa de inspeção/monitoramento sem evidência mínima",
+                    severidade="WARNING_LEVE",
+                    origem="safra_tarefas",
+                    total=1,
+                    mensagem=(
+                        "Tarefa de inspeção/monitoramento foi concluída sem operação, "
+                        "apontamento, checklist explícito ou justificativa operacional."
+                    ),
+                    amostras=[str(tarefa.id)],
+                    meta={"tarefa_id": str(tarefa.id), "tipo_tarefa": tarefa.tipo, "classificacao_origem": regra.origem},
+                )
+                await alertas_svc.registrar_ocorrencia_governanca(
+                    WorkflowGovernanceEvent(
+                        finding=finding,
+                        resource_id=str(tarefa.id),
+                        action="inspect_warn",
+                        notify=True,
+                        audit=True,
+                        origem_id=f"tarefa:{tarefa.id}:inspection_without_evidence",
+                    )
+                )
+            elif regra.origem == "MANUTENCAO_FROTA":
+                finding = alertas_svc.build_finding(
+                    codigo="TAREFA_MANUTENCAO_SEM_EVIDENCIA",
+                    titulo="Tarefa de manutenção/frota sem evidência mínima",
+                    severidade="INCONSISTENCIA_MODERADA",
+                    origem="safra_tarefas",
+                    total=1,
+                    mensagem=(
+                        "Tarefa de manutenção/frota foi concluída sem evidência mínima "
+                        "registrada em OS, jornada, checklist ou justificativa operacional."
+                    ),
+                    amostras=[str(tarefa.id)],
+                    meta={"tarefa_id": str(tarefa.id), "tipo_tarefa": tarefa.tipo, "classificacao_origem": regra.origem},
+                )
+                await alertas_svc.registrar_ocorrencia_governanca(
+                    WorkflowGovernanceEvent(
+                        finding=finding,
+                        resource_id=str(tarefa.id),
+                        action="maint_warn",
+                        notify=True,
+                        audit=True,
+                        origem_id=f"tarefa:{tarefa.id}:maintenance_without_evidence",
+                    )
+                )

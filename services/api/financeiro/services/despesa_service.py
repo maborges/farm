@@ -10,6 +10,7 @@ from loguru import logger
 from core.base_service import BaseService
 from core.exceptions import BusinessRuleError
 from core.models.unidade_produtiva import UnidadeProdutiva
+from agricola.alertas.service import AlertasAgricolasService
 from core.operational_context import (
     validate_area_in_tenant,
     validate_pessoa_tenant,
@@ -85,6 +86,20 @@ class DespesaService(BaseService[Despesa]):
                         area_id=rateio.talhao_id,
                     )
 
+    async def _validar_governanca_origem_leve(
+        self,
+        despesa: Despesa,
+        *,
+        origem_id_override: str | None = None,
+        allow_block: bool = False,
+    ) -> None:
+        alertas_svc = AlertasAgricolasService(self.session, self.tenant_id)
+        await alertas_svc.validar_despesa_origem_leve(
+            despesa,
+            origem_id_override=origem_id_override,
+            allow_block=allow_block,
+        )
+
     def _calcular_parcelas(self, valor_total: float, total_parcelas: int) -> list[float]:
         """
         Divide o valor total em parcelas com centavos corretos.
@@ -149,6 +164,11 @@ class DespesaService(BaseService[Despesa]):
                     await registrar_allocations_fin_rateio(self.session, rateio)
 
             await self.session.flush()
+            await self._validar_governanca_origem_leve(
+                db_despesa,
+                origem_id_override=f"despesa:{db_despesa.id}:create",
+                allow_block=True,
+            )
             await self.session.refresh(db_despesa)
             despesas_criadas.append(db_despesa)
 
@@ -222,5 +242,10 @@ class DespesaService(BaseService[Despesa]):
             setattr(despesa, field, value)
         self.session.add(despesa)
         await self.session.flush()
+        await self._validar_governanca_origem_leve(
+            despesa,
+            origem_id_override=f"despesa:{despesa.id}:update",
+            allow_block=False,
+        )
         await self.session.refresh(despesa)
         return despesa

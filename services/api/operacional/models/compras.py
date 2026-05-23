@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, date, timezone
 from sqlalchemy import String, Boolean, DateTime, Date, ForeignKey, JSON, Float, Integer
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym
 from sqlalchemy import Uuid as UUID
 from core.database import Base
 
@@ -44,6 +44,7 @@ class PedidoCompra(Base):
     # Dados do Item
     item_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("cadastros_produtos.id"), index=True)
     deposito_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("estoque_depositos.id"), index=True)
+    deposito_destino_id = synonym("deposito_id")
     
     quantidade: Mapped[float] = mapped_column(Float, nullable=False)
     unidade: Mapped[str] = mapped_column(String(20), nullable=False)

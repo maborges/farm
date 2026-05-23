@@ -1,14 +1,31 @@
 import uuid
+from datetime import datetime, timezone
 from typing import List, Optional
 from sqlalchemy import select, func, union_all, literal_column, cast, Numeric
 from sqlalchemy.ext.asyncio import AsyncSession
 from loguru import logger
 
-from operacional.models.compras import SolicitacaoCompra, CotacaoCompra, PedidoCompra
-from operacional.schemas.compras import SolicitacaoCompraCreate, CotacaoSolicitacaoCreate
+from agricola.alertas.service import AlertasAgricolasService, WorkflowGovernanceEvent
+from core.exceptions import BusinessRuleError
+from operacional.models.compras import (
+    SolicitacaoCompra,
+    CotacaoCompra,
+    PedidoCompra,
+    ItemPedidoCompra,
+    RecebimentoParcial,
+    ItemRecebimento,
+    DevolucaoFornecedor,
+    ItemDevolucao,
+)
+from operacional.schemas.compras import (
+    SolicitacaoCompraCreate,
+    CotacaoSolicitacaoCreate,
+    RecebimentoCreate,
+)
 from operacional.services.estoque_service import EstoqueService
-from operacional.schemas.estoque import EntradaEstoqueRequest
-from operacional.models.estoque import EstoqueMovimento
+from operacional.schemas.estoque import EntradaEstoqueRequest, LoteCreate, AjusteMovimentoRequest
+from operacional.models.estoque import EstoqueMovimento, LoteEstoque, SaldoEstoque
+from operacional.services.estoque_ledger import registrar_ledger_estoque
 
 class ComprasService:
     def __init__(self, session: AsyncSession, tenant_id: uuid.UUID):
@@ -22,6 +39,441 @@ class ComprasService:
         sem consultar nem reescrever `Produto.preco_medio`.
         """
         return float(pedido.valor_unitario)
+
+    async def _get_or_create_item_pedido_principal(self, pedido: PedidoCompra) -> ItemPedidoCompra:
+        stmt = (
+            select(ItemPedidoCompra)
+            .where(ItemPedidoCompra.pedido_id == pedido.id)
+            .order_by(ItemPedidoCompra.id.asc())
+            .limit(1)
+        )
+        item = (await self.session.execute(stmt)).scalar_one_or_none()
+        if item is not None:
+            return item
+
+        item = ItemPedidoCompra(
+            id=uuid.uuid4(),
+            pedido_id=pedido.id,
+            produto_id=pedido.item_id,
+            quantidade_solicitada=pedido.quantidade,
+            preco_estimado_unitario=pedido.valor_unitario,
+            quantidade_recebida=0.0,
+            preco_real_unitario=pedido.valor_unitario,
+            status_item="PENDENTE",
+        )
+        self.session.add(item)
+        await self.session.flush()
+        return item
+
+    def _build_recebimento_fallback(self, pedido: PedidoCompra, item_pedido: ItemPedidoCompra) -> RecebimentoCreate:
+        return RecebimentoCreate(
+            numero_nf=None,
+            chave_nfe=None,
+            observacoes="Recebimento materializado por compatibilidade no fluxo legado.",
+            itens=[
+                {
+                    "item_pedido_id": item_pedido.id,
+                    "quantidade_recebida": pedido.quantidade,
+                    "preco_real_unitario": self._resolver_custo_recebimento(pedido),
+                    "numero_lote_fornecedor": None,
+                    "lote_id": None,
+                }
+            ],
+        )
+
+    def _gerar_numero_lote_recebimento(
+        self,
+        pedido: PedidoCompra,
+        recebimento: RecebimentoCreate,
+        item_recebido,
+    ) -> str:
+        base_nf = (recebimento.numero_nf or "").strip()
+        lote_fornecedor = (getattr(item_recebido, "numero_lote_fornecedor", None) or "").strip()
+        if base_nf and lote_fornecedor:
+            return f"{base_nf}:{lote_fornecedor}"[:100]
+        if base_nf:
+            return base_nf[:100]
+        if lote_fornecedor:
+            return f"COMPRA-{str(pedido.id)[:8]}:{lote_fornecedor}"[:100]
+        return f"COMPRA-{str(pedido.id)[:8]}"
+
+    async def _registrar_evento_recebimento_critico(
+        self,
+        *,
+        pedido: PedidoCompra,
+        codigo: str,
+        titulo: str,
+        mensagem: str,
+        meta: dict | None = None,
+    ) -> None:
+        alertas_svc = AlertasAgricolasService(self.session, self.tenant_id)
+        finding = alertas_svc.build_finding(
+            codigo=codigo,
+            titulo=titulo,
+            severidade="RISCO_CRITICO",
+            origem="compras_recebimentos",
+            total=1,
+            mensagem=mensagem,
+            amostras=[str(pedido.id)],
+            meta={"pedido_id": str(pedido.id), **(meta or {})},
+        )
+        await alertas_svc.registrar_e_aplicar_enforcement(
+            WorkflowGovernanceEvent(
+                finding=finding,
+                resource_id=str(pedido.id),
+                action="recv_critical",
+                notify=True,
+                audit=True,
+                origem_id=f"pedido:{pedido.id}:{codigo.lower()}",
+            ),
+            allow_block=True,
+            error_message=mensagem,
+        )
+
+    async def _registrar_evento_reversao_critica(
+        self,
+        *,
+        devolucao: DevolucaoFornecedor,
+        codigo: str,
+        titulo: str,
+        mensagem: str,
+        meta: dict | None = None,
+    ) -> None:
+        alertas_svc = AlertasAgricolasService(self.session, self.tenant_id)
+        finding = alertas_svc.build_finding(
+            codigo=codigo,
+            titulo=titulo,
+            severidade="RISCO_CRITICO",
+            origem="compras_devolucoes",
+            total=1,
+            mensagem=mensagem,
+            amostras=[str(devolucao.id)],
+            meta={"devolucao_id": str(devolucao.id), **(meta or {})},
+        )
+        await alertas_svc.registrar_e_aplicar_enforcement(
+            WorkflowGovernanceEvent(
+                finding=finding,
+                resource_id=str(devolucao.id),
+                action="rev_critical",
+                notify=True,
+                audit=True,
+                origem_id=f"devolucao:{devolucao.id}:{codigo.lower()}",
+            ),
+            allow_block=True,
+            error_message=mensagem,
+        )
+
+    async def _materializar_item_recebimento(
+        self,
+        *,
+        pedido: PedidoCompra,
+        recebimento: RecebimentoCreate,
+        item_pedido: ItemPedidoCompra,
+        item_recebido,
+    ) -> tuple[uuid.UUID | None, EstoqueMovimento | None]:
+        quantidade = float(item_recebido.quantidade_recebida or 0.0)
+        custo_unitario = float(item_recebido.preco_real_unitario or 0.0) or self._resolver_custo_recebimento(pedido)
+        if quantidade <= 0 or custo_unitario <= 0:
+            await self._registrar_evento_recebimento_critico(
+                pedido=pedido,
+                codigo="RECEBIMENTO_COMPRA_SEM_VALUATION_NOVO_FLUXO",
+                titulo="Recebimento com itens sem valuation operacional",
+                mensagem=(
+                    "Nao e possivel materializar o recebimento sem quantidade e custo unitario validos. "
+                    "Revise os itens recebidos ou o valor do pedido."
+                ),
+                meta={
+                    "item_pedido_id": str(item_pedido.id),
+                    "quantidade_recebida": quantidade,
+                    "custo_unitario": custo_unitario,
+                },
+            )
+            return None, None
+
+        estoque_svc = EstoqueService(self.session, self.tenant_id)
+        lote_id = item_recebido.lote_id
+        lote = None
+        if lote_id is not None:
+            lote = await self.session.get(LoteEstoque, lote_id)
+        else:
+            lote = await estoque_svc.criar_lote(
+                LoteCreate(
+                    produto_id=pedido.item_id,
+                    deposito_id=pedido.deposito_id,
+                    numero_lote=self._gerar_numero_lote_recebimento(pedido, recebimento, item_recebido),
+                    quantidade_inicial=quantidade,
+                    custo_unitario=custo_unitario,
+                    nota_fiscal_ref=recebimento.numero_nf,
+                )
+            )
+            lote.quantidade_atual = 0.0
+            self.session.add(lote)
+            await self.session.flush()
+            lote_id = lote.id
+
+        try:
+            movimento = await estoque_svc.registrar_entrada(
+                EntradaEstoqueRequest(
+                    deposito_id=pedido.deposito_id,
+                    produto_id=pedido.item_id,
+                    quantidade=quantidade,
+                    custo_unitario=custo_unitario,
+                    motivo=f"Recebimento de Pedido {pedido.id}",
+                    origem_id=pedido.id,
+                    origem_tipo="COMPRA",
+                    lote_id=lote_id,
+                )
+            )
+        except BusinessRuleError as exc:
+            await self._registrar_evento_recebimento_critico(
+                pedido=pedido,
+                codigo="PEDIDO_RECEBIDO_SEM_MATERIALIZACAO_ESTOQUE_NOVO_FLUXO",
+                titulo="Pedido recebido sem materializacao completa de estoque",
+                mensagem=(
+                    "Nao e possivel marcar o pedido como recebido sem lote, movimento e saldo validos. "
+                    "Revise produto, deposito e lote do recebimento."
+                ),
+                meta={
+                    "item_pedido_id": str(item_pedido.id),
+                    "lote_id": str(lote_id) if lote_id else None,
+                    "erro": str(exc),
+                },
+            )
+            return lote_id, None
+
+        saldo = (
+            await self.session.execute(
+                select(SaldoEstoque).where(
+                    SaldoEstoque.deposito_id == pedido.deposito_id,
+                    SaldoEstoque.produto_id == pedido.item_id,
+                )
+            )
+        ).scalar_one_or_none()
+        if lote_id is None or movimento is None or saldo is None:
+            await self._registrar_evento_recebimento_critico(
+                pedido=pedido,
+                codigo="PEDIDO_RECEBIDO_SEM_LOTE_MOVIMENTO_SALDO_NOVO_FLUXO",
+                titulo="Pedido recebido sem materializacao completa de valuation",
+                mensagem=(
+                    "Nao e possivel marcar o pedido como recebido sem lote, movimento e saldo consistentes. "
+                    "Revise a materializacao do recebimento."
+                ),
+                meta={
+                    "item_pedido_id": str(item_pedido.id),
+                    "lote_id": str(lote_id) if lote_id else None,
+                    "movimento_id": str(movimento.id) if movimento else None,
+                    "saldo_encontrado": saldo is not None,
+                },
+            )
+            return lote_id, movimento
+
+        return lote_id, movimento
+
+    async def _buscar_movimento_recebimento_compra(
+        self,
+        *,
+        pedido_id: uuid.UUID | None,
+        produto_id: uuid.UUID,
+        deposito_id: uuid.UUID,
+        lote_id: uuid.UUID | None,
+    ) -> EstoqueMovimento | None:
+        stmt = (
+            select(EstoqueMovimento)
+            .where(
+                EstoqueMovimento.tenant_id == self.tenant_id,
+                EstoqueMovimento.origem == "COMPRA",
+                EstoqueMovimento.produto_id == produto_id,
+                EstoqueMovimento.deposito_id == deposito_id,
+            )
+            .order_by(EstoqueMovimento.created_at.asc())
+        )
+        if pedido_id is not None:
+            stmt = stmt.where(EstoqueMovimento.origem_id == pedido_id)
+        if lote_id is not None:
+            stmt = stmt.where(EstoqueMovimento.lote_id == lote_id)
+        stmt = stmt.limit(1)
+        return (await self.session.execute(stmt)).scalars().first()
+
+    async def _pedido_tem_reversao_operacional(self, pedido_id: uuid.UUID) -> bool:
+        original_stmt = select(EstoqueMovimento.id).where(
+            EstoqueMovimento.tenant_id == self.tenant_id,
+            EstoqueMovimento.origem == "COMPRA",
+            EstoqueMovimento.origem_id == pedido_id,
+        )
+        originals = list((await self.session.execute(original_stmt)).scalars().all())
+        if not originals:
+            return False
+        reversao_stmt = select(func.count(EstoqueMovimento.id)).where(
+            EstoqueMovimento.tenant_id == self.tenant_id,
+            EstoqueMovimento.origem == "AJUSTE",
+            EstoqueMovimento.ajuste_de.in_(originals),
+        )
+        return (await self.session.execute(reversao_stmt)).scalar_one() > 0
+
+    async def concluir_devolucao(self, devolucao_id: uuid.UUID) -> DevolucaoFornecedor | None:
+        devolucao = await self.session.get(DevolucaoFornecedor, devolucao_id)
+        if not devolucao or devolucao.tenant_id != self.tenant_id:
+            return None
+
+        if devolucao.status == "CONCLUIDA":
+            return devolucao
+
+        alertas_svc = AlertasAgricolasService(self.session, self.tenant_id)
+        permite_warning_only = not alertas_svc.deve_bloquear_severidade("RISCO_CRITICO")
+        itens = list(
+            (
+                await self.session.execute(
+                    select(ItemDevolucao).where(
+                        ItemDevolucao.devolucao_id == devolucao.id,
+                    )
+                )
+            ).scalars().all()
+        )
+        if not itens:
+                await self._registrar_evento_reversao_critica(
+                    devolucao=devolucao,
+                    codigo="DEVOLUCAO_SEM_ITENS",
+                    titulo="Devolução sem itens rastreáveis",
+                    mensagem=(
+                        "Nao e possivel concluir a devolucao sem itens vinculados. "
+                        "Revise o recebimento original e inclua o lote afetado."
+                    ),
+                )
+                if permite_warning_only:
+                    devolucao.status = "CONCLUIDA"
+                    self.session.add(devolucao)
+                    await self.session.flush()
+                    return devolucao
+                return devolucao
+
+        estoque_svc = EstoqueService(self.session, self.tenant_id)
+        reversoes_preparadas: list[dict] = []
+        pedido_referencia_id = devolucao.pedido_id
+        for item in itens:
+            if item.lote_id is None:
+                await self._registrar_evento_reversao_critica(
+                    devolucao=devolucao,
+                    codigo="DEVOLUCAO_SEM_LOTE_ORIGINAL",
+                    titulo="Devolução sem lote original",
+                    mensagem=(
+                        "Nao e possivel concluir a devolucao sem o lote original. "
+                        "Revise o item devolvido e associe o lote rastreavel."
+                    ),
+                    meta={"item_devolucao_id": str(item.id), "produto_id": str(item.produto_id)},
+                )
+                if permite_warning_only:
+                    devolucao.status = "CONCLUIDA"
+                    self.session.add(devolucao)
+                    await self.session.flush()
+                    return devolucao
+                return devolucao
+
+            original_mov = await self._buscar_movimento_recebimento_compra(
+                pedido_id=pedido_referencia_id,
+                produto_id=item.produto_id,
+                deposito_id=item.deposito_origem_id,
+                lote_id=item.lote_id,
+            )
+            if original_mov is None:
+                finding = alertas_svc.build_finding(
+                    codigo="DEVOLUCAO_SEM_MOVIMENTO_ORIGINAL",
+                    titulo="Devolução sem movimento original rastreável",
+                    severidade="INCONSISTENCIA_MODERADA",
+                    origem="compras_devolucoes",
+                    total=1,
+                    mensagem=(
+                        "A devolução será concluída com rastreabilidade parcial porque o movimento "
+                        "original de recebimento não foi localizado. Revise lote, produto e depósito."
+                    ),
+                    amostras=[str(devolucao.id)],
+                    meta={"item_devolucao_id": str(item.id), "lote_id": str(item.lote_id)},
+                )
+                await alertas_svc.registrar_e_aplicar_enforcement(
+                    WorkflowGovernanceEvent(
+                        finding=finding,
+                        resource_id=str(devolucao.id),
+                        action="rev_missing_origin",
+                        notify=True,
+                        audit=True,
+                        origem_id=f"devolucao:{devolucao.id}:missing_origin",
+                    ),
+                    allow_block=False,
+                )
+
+            lote = await self.session.get(LoteEstoque, item.lote_id)
+            custo_unitario = float(item.custo_unitario or 0.0) or float(original_mov.custo_unitario or 0.0) or float(
+                lote.custo_unitario if lote else 0.0
+            )
+            if custo_unitario <= 0:
+                await self._registrar_evento_reversao_critica(
+                    devolucao=devolucao,
+                    codigo="DEVOLUCAO_SEM_VALUATION",
+                    titulo="Devolução sem valuation rastreável",
+                    mensagem=(
+                        "Nao e possivel concluir a devolucao sem custo unitario rastreavel. "
+                        "Revise o custo do lote ou do recebimento original."
+                    ),
+                    meta={"item_devolucao_id": str(item.id), "lote_id": str(item.lote_id)},
+                )
+                if permite_warning_only:
+                    devolucao.status = "CONCLUIDA"
+                    self.session.add(devolucao)
+                    await self.session.flush()
+                    return devolucao
+                return devolucao
+
+            reversoes_preparadas.append(
+                {
+                    "item": item,
+                    "original_mov": original_mov,
+                    "lote": lote,
+                    "custo_unitario": custo_unitario,
+                }
+            )
+
+        for preparo in reversoes_preparadas:
+            item = preparo["item"]
+            original_mov = preparo["original_mov"]
+            lote = preparo["lote"]
+            custo_unitario = preparo["custo_unitario"]
+
+            movimento = await registrar_ledger_estoque(
+                self.session,
+                tenant_id=self.tenant_id,
+                produto_id=item.produto_id,
+                deposito_id=item.deposito_origem_id,
+                lote_id=item.lote_id,
+                tipo_movimento="AJUSTE",
+                quantidade=float(item.quantidade),
+                custo_unitario=custo_unitario,
+                origem="AJUSTE",
+                origem_id=devolucao.id,
+                ajuste_de=original_mov.id if original_mov else None,
+                observacoes=f"Devolucao fornecedor {devolucao.id}",
+            )
+
+            saldo = await estoque_svc._get_ou_criar_saldo(item.deposito_origem_id, item.produto_id)
+            saldo.quantidade_atual += float(item.quantidade)
+
+            if lote:
+                lote.quantidade_atual += float(item.quantidade)
+                if lote.status == "ESGOTADO" and lote.quantidade_atual > 0:
+                    lote.status = "ATIVO"
+
+            item.quantidade = float(item.quantidade)
+            self.session.add(item)
+            logger.info(
+                "devolucao_materializada",
+                tenant_id=str(self.tenant_id),
+                devolucao_id=str(devolucao.id),
+                movimento_id=str(movimento.id),
+                lote_id=str(item.lote_id),
+            )
+
+        devolucao.status = "CONCLUIDA"
+        self.session.add(devolucao)
+        await self.session.flush()
+        return devolucao
 
     async def criar_solicitacao(self, data: SolicitacaoCompraCreate) -> SolicitacaoCompra:
         """Cria uma nova solicitação de compra interna."""
@@ -286,17 +738,23 @@ class ComprasService:
             
         return items
 
-    async def receber_pedido(self, pedido_id: uuid.UUID) -> PedidoCompra:
-        """Marca o pedido como recebido e gera entrada automática no estoque."""
-        from core.exceptions import BusinessRuleError
-
+    async def receber_pedido(
+        self,
+        pedido_id: uuid.UUID,
+        data: RecebimentoCreate | None = None,
+        recebido_por_id: uuid.UUID | None = None,
+    ) -> PedidoCompra:
+        """Marca o pedido como recebido e materializa recebimento + estoque."""
         # 1. Buscar pedido
         pedido = await self.session.get(PedidoCompra, pedido_id)
         if not pedido or pedido.tenant_id != self.tenant_id:
             return None
 
         if pedido.status == "RECEBIDO":
-            return pedido # Já recebido, idempotente
+            return await self._enriquecer_pedido(pedido)  # Já recebido, idempotente
+
+        item_pedido = await self._get_or_create_item_pedido_principal(pedido)
+        recebimento_data = data or self._build_recebimento_fallback(pedido, item_pedido)
 
         # 2. Verificar se já existe movimentação para este pedido (idempotência extra)
         stmt_check = select(EstoqueMovimento).where(
@@ -305,21 +763,49 @@ class ComprasService:
             EstoqueMovimento.tenant_id == self.tenant_id
         )
         existing_mov = (await self.session.execute(stmt_check)).scalar_one_or_none()
-        
+
+        recebimento = RecebimentoParcial(
+            pedido_id=pedido.id,
+            data_recebimento=datetime.now(timezone.utc),
+            numero_nf=recebimento_data.numero_nf,
+            chave_nfe=recebimento_data.chave_nfe,
+            recebido_por_id=recebido_por_id,
+            observacoes=recebimento_data.observacoes,
+        )
+        self.session.add(recebimento)
+        await self.session.flush()
+
         if not existing_mov:
-            # 3. Gerar entrada no estoque
-            estoque_svc = EstoqueService(self.session, self.tenant_id)
-            entrada_req = EntradaEstoqueRequest(
-                deposito_id=pedido.deposito_id,
-                produto_id=pedido.item_id,
-                quantidade=pedido.quantidade,
-                custo_unitario=self._resolver_custo_recebimento(pedido),
-                motivo=f"Recebimento de Pedido {pedido.id}",
-                origem_id=pedido.id,
-                origem_tipo="COMPRA"
-            )
-            await estoque_svc.registrar_entrada(entrada_req)
-            logger.info(f"Entrada de estoque gerada para pedido {pedido.id}")
+            for item_data in recebimento_data.itens:
+                item_model = item_data if hasattr(item_data, "item_pedido_id") else type("ItemRecebimentoCompat", (), item_data)()
+                item_alvo = item_pedido
+                if getattr(item_model, "item_pedido_id", None):
+                    item_alvo = await self.session.get(ItemPedidoCompra, item_model.item_pedido_id) or item_pedido
+
+                lote_id, movimento = await self._materializar_item_recebimento(
+                    pedido=pedido,
+                    recebimento=recebimento_data,
+                    item_pedido=item_alvo,
+                    item_recebido=item_model,
+                )
+
+                item_recebimento = ItemRecebimento(
+                    recebimento_id=recebimento.id,
+                    item_pedido_id=item_alvo.id,
+                    quantidade_recebida=float(item_model.quantidade_recebida),
+                    preco_real_unitario=float(item_model.preco_real_unitario or 0.0) or self._resolver_custo_recebimento(pedido),
+                    numero_lote_fornecedor=getattr(item_model, "numero_lote_fornecedor", None),
+                    lote_id=lote_id,
+                )
+                self.session.add(item_recebimento)
+
+                item_alvo.quantidade_recebida = float(item_alvo.quantidade_recebida or 0.0) + float(item_model.quantidade_recebida)
+                item_alvo.preco_real_unitario = item_recebimento.preco_real_unitario
+                item_alvo.status_item = "COMPLETO" if item_alvo.quantidade_recebida >= float(item_alvo.quantidade_solicitada or 0.0) else "PARCIAL"
+                self.session.add(item_alvo)
+
+                if movimento is not None:
+                    logger.info(f"Entrada de estoque gerada para pedido {pedido.id}", movimento_id=str(movimento.id))
 
         # 4. Atualizar pedido
         pedido.status = "RECEBIDO"
@@ -336,7 +822,40 @@ class ComprasService:
         pedido = await self.session.get(PedidoCompra, pedido_id)
         if not pedido or pedido.tenant_id != self.tenant_id:
             return None
-            
+
+        if novo_status == "CANCELADO" and pedido.status == "RECEBIDO":
+            alertas_svc = AlertasAgricolasService(self.session, self.tenant_id)
+            reversao_existe = await self._pedido_tem_reversao_operacional(pedido.id)
+            if not reversao_existe:
+                finding = alertas_svc.build_finding(
+                    codigo="PEDIDO_RECEBIDO_CANCELADO_SEM_REVERSAO",
+                    titulo="Pedido recebido cancelado sem reversão operacional",
+                    severidade="RISCO_CRITICO",
+                    origem="compras_pedidos",
+                    total=1,
+                    mensagem=(
+                        "Nao e possivel cancelar um pedido ja recebido sem reversao operacional rastreavel. "
+                        "Registre devolucao ou ajuste antes do cancelamento."
+                    ),
+                    amostras=[str(pedido.id)],
+                    meta={"pedido_id": str(pedido.id), "status_atual": pedido.status},
+                )
+                await alertas_svc.registrar_e_aplicar_enforcement(
+                    WorkflowGovernanceEvent(
+                        finding=finding,
+                        resource_id=str(pedido.id),
+                        action="cancel_recv",
+                        notify=True,
+                        audit=True,
+                        origem_id=f"pedido:{pedido.id}:cancel_without_reversal",
+                    ),
+                    allow_block=True,
+                    error_message=(
+                        "Nao e possivel cancelar pedido recebido sem reversao operacional. "
+                        "Registre uma devolucao ou ajuste rastreavel antes do cancelamento."
+                    ),
+                )
+
         pedido.status = novo_status
         self.session.add(pedido)
         await self.session.flush()
