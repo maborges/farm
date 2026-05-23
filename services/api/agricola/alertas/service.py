@@ -299,6 +299,10 @@ class AlertasAgricolasService:
                 finding
                 for finding in [
                     await self._detectar_allocation_sem_reflexo_economico(),
+                    await self._detectar_cost_allocation_sem_origem_rastreavel(),
+                    await self._detectar_despesa_automatica_duplicada_mesma_origem(),
+                    await self._detectar_movimento_com_custo_sem_allocation(),
+                    await self._detectar_divergencia_valor_operacional_apropriado(),
                 ]
                 if finding is not None
             ]
@@ -875,6 +879,211 @@ class AlertasAgricolasService:
             meta={
                 "operacoes_sem_reflexo": len(op_rows),
                 "estoques_sem_lancamento": len(estoque_rows),
+            },
+        )
+
+    async def _detectar_cost_allocation_sem_origem_rastreavel(self) -> WorkflowGovernanceFinding | None:
+        stmt = (
+            select(
+                CostAllocation.id,
+                CostAllocation.source,
+                CostAllocation.source_id,
+                CostAllocation.production_unit_id,
+                CostAllocation.amount,
+            )
+            .where(
+                CostAllocation.tenant_id == self.tenant_id,
+                CostAllocation.source == "MANUAL",
+                CostAllocation.source_id.is_(None),
+                CostAllocation.amount > 0,
+            )
+            .order_by(CostAllocation.created_at.desc())
+        )
+        rows = list((await self.session.execute(stmt)).all())
+        if not rows:
+            return None
+        return self._build_finding(
+            codigo="COST_ALLOCATION_SEM_ORIGEM_RASTREAVEL",
+            titulo="Cost allocation sem origem rastreável",
+            severidade="INCONSISTENCIA_MODERADA",
+            origem="cost_allocations",
+            rows=rows,
+            mensagem=(
+                f"{len(rows)} cost allocation(s) manuais não possuem origem_id rastreável."
+            ),
+            meta={
+                "origens": sorted({row.source for row in rows if row.source}),
+            },
+        )
+
+    async def _detectar_despesa_automatica_duplicada_mesma_origem(self) -> WorkflowGovernanceFinding | None:
+        stmt = (
+            select(
+                Despesa.origem_tipo,
+                Despesa.origem_id,
+                func.count(Despesa.id).label("duplicidades"),
+                func.sum(Despesa.valor_total).label("valor_total"),
+            )
+            .where(
+                Despesa.tenant_id == self.tenant_id,
+                Despesa.origem_tipo.in_(TIPOS_DESPESA_AUTOMATICA),
+                Despesa.origem_id.is_not(None),
+            )
+            .group_by(Despesa.origem_tipo, Despesa.origem_id)
+            .having(func.count(Despesa.id) > 1)
+            .order_by(func.count(Despesa.id).desc())
+        )
+        rows = list((await self.session.execute(stmt)).all())
+        if not rows:
+            return None
+        return self._build_finding(
+            codigo="DESPESA_AUTOMATICA_DUPLICADA_MESMA_ORIGEM",
+            titulo="Despesa automática duplicada para a mesma origem",
+            severidade="RISCO_CRITICO",
+            origem="fin_despesas",
+            rows=rows,
+            mensagem=(
+                f"{len(rows)} origem(ns) automática(s) de despesa foram lançadas mais de uma vez."
+            ),
+            meta={
+                "maior_duplicidade": max(int(row.duplicidades or 0) for row in rows),
+                "origens": [f"{row.origem_tipo}:{row.origem_id}" for row in rows[:10]],
+            },
+        )
+
+    async def _detectar_movimento_com_custo_sem_allocation(self) -> WorkflowGovernanceFinding | None:
+        stmt = (
+            select(
+                EstoqueMovimento.id,
+                EstoqueMovimento.origem,
+                EstoqueMovimento.origem_id,
+                EstoqueMovimento.custo_total,
+                func.count(CostAllocation.id).label("allocations"),
+                func.count(LancamentoFinanceiro.id).label("lancamentos"),
+            )
+            .outerjoin(
+                CostAllocation,
+                and_(
+                    CostAllocation.tenant_id == self.tenant_id,
+                    CostAllocation.inventory_movement_id == EstoqueMovimento.id,
+                ),
+            )
+            .outerjoin(
+                LancamentoFinanceiro,
+                and_(
+                    LancamentoFinanceiro.tenant_id == self.tenant_id,
+                    LancamentoFinanceiro.origem == "ESTOQUE",
+                    LancamentoFinanceiro.origem_id == EstoqueMovimento.id,
+                ),
+            )
+            .where(
+                EstoqueMovimento.tenant_id == self.tenant_id,
+                EstoqueMovimento.custo_total.is_not(None),
+                EstoqueMovimento.custo_total > 0,
+                EstoqueMovimento.origem.in_(["COMPRA", "ORDEM_SERVICO", "OPERACAO_EXECUCAO"]),
+            )
+            .group_by(
+                EstoqueMovimento.id,
+                EstoqueMovimento.origem,
+                EstoqueMovimento.origem_id,
+                EstoqueMovimento.custo_total,
+            )
+            .having(
+                and_(
+                    func.count(CostAllocation.id) == 0,
+                    func.count(LancamentoFinanceiro.id) > 0,
+                )
+            )
+            .order_by(EstoqueMovimento.created_at.desc())
+        )
+        rows = list((await self.session.execute(stmt)).all())
+        if not rows:
+            return None
+        return self._build_finding(
+            codigo="MOVIMENTO_COM_CUSTO_SEM_ALLOCATION",
+            titulo="Movimento de estoque com custo sem apropriação",
+            severidade="RISCO_ECONOMICO",
+            origem="estoque_movimentos",
+            rows=rows,
+            mensagem=(
+                f"{len(rows)} movimento(s) de estoque possuem custo e reflexo financeiro, mas sem CostAllocation."
+            ),
+            meta={
+                "origens": sorted({row.origem for row in rows if row.origem}),
+            },
+        )
+
+    async def _detectar_divergencia_valor_operacional_apropriado(self) -> WorkflowGovernanceFinding | None:
+        op_stmt = (
+            select(
+                OperacaoAgricola.id.label("operacao_id"),
+                OperacaoAgricola.custo_total.label("valor_operacional"),
+                func.coalesce(func.sum(CostAllocation.amount), 0).label("valor_apropriado"),
+            )
+            .join(OperacaoExecucao, OperacaoExecucao.operacao_id == OperacaoAgricola.id)
+            .outerjoin(
+                CostAllocation,
+                and_(
+                    CostAllocation.tenant_id == self.tenant_id,
+                    CostAllocation.source == "OPERATION_EXECUTION",
+                    CostAllocation.operation_execution_id == OperacaoExecucao.id,
+                ),
+            )
+            .where(
+                OperacaoAgricola.tenant_id == self.tenant_id,
+                OperacaoAgricola.custo_total.is_not(None),
+                OperacaoAgricola.custo_total > 0,
+                OperacaoAgricola.status == "REALIZADA",
+            )
+            .group_by(OperacaoAgricola.id, OperacaoAgricola.custo_total)
+            .having(
+                func.abs(func.coalesce(func.sum(CostAllocation.amount), 0) - OperacaoAgricola.custo_total) > 0.01
+            )
+        )
+
+        mov_stmt = (
+            select(
+                EstoqueMovimento.id.label("movimento_id"),
+                EstoqueMovimento.custo_total.label("valor_operacional"),
+                func.coalesce(func.sum(CostAllocation.amount), 0).label("valor_apropriado"),
+            )
+            .outerjoin(
+                CostAllocation,
+                and_(
+                    CostAllocation.tenant_id == self.tenant_id,
+                    CostAllocation.source == "INVENTORY_MOVEMENT",
+                    CostAllocation.inventory_movement_id == EstoqueMovimento.id,
+                ),
+            )
+            .where(
+                EstoqueMovimento.tenant_id == self.tenant_id,
+                EstoqueMovimento.custo_total.is_not(None),
+                EstoqueMovimento.custo_total > 0,
+                EstoqueMovimento.origem.in_(["COMPRA", "ORDEM_SERVICO", "OPERACAO_EXECUCAO"]),
+            )
+            .group_by(EstoqueMovimento.id, EstoqueMovimento.custo_total)
+            .having(
+                func.abs(func.coalesce(func.sum(CostAllocation.amount), 0) - EstoqueMovimento.custo_total) > 0.01
+            )
+        )
+
+        op_rows = list((await self.session.execute(op_stmt)).all())
+        mov_rows = list((await self.session.execute(mov_stmt)).all())
+        if not op_rows and not mov_rows:
+            return None
+
+        return self._build_finding(
+            codigo="DIVERGENCIA_VALOR_OPERACIONAL_APROPRIADO",
+            titulo="Divergência entre custo operacional e valor apropriado",
+            severidade="RISCO_ECONOMICO",
+            origem="reconciliacao_economica",
+            rows=[*op_rows, *mov_rows],
+            mensagem=(
+                f"{len(op_rows) + len(mov_rows)} registro(s) apresentam diferença relevante entre custo operacional e valor apropriado."
+            ),
+            meta={
+                "operacoes_divergentes": len(op_rows),
+                "movimentos_divergentes": len(mov_rows),
             },
         )
 
