@@ -116,10 +116,17 @@ class AbastecimentoService(BaseService[Abastecimento]):
                     data_vencimento=hoje,
                     data_pagamento=hoje,
                     status="PAGO",
+                    origem_id=ab.id,
+                    origem_tipo="ABASTECIMENTO",
                 )
                 self.session.add(despesa)
                 await self.session.flush()
                 await AlertasAgricolasService(self.session, self.tenant_id).validar_despesa_origem_leve(
+                    despesa,
+                    origem_id_override=f"despesa:{despesa.id}:abastecimento_externo",
+                    allow_block=True,
+                )
+                await AlertasAgricolasService(self.session, self.tenant_id).validar_despesa_automatica_unica_origem(
                     despesa,
                     origem_id_override=f"despesa:{despesa.id}:abastecimento_externo",
                     allow_block=True,

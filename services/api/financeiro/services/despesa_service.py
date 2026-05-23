@@ -169,6 +169,12 @@ class DespesaService(BaseService[Despesa]):
                 origem_id_override=f"despesa:{db_despesa.id}:create",
                 allow_block=True,
             )
+            alertas_svc = AlertasAgricolasService(self.session, self.tenant_id)
+            await alertas_svc.validar_despesa_automatica_unica_origem(
+                db_despesa,
+                allow_block=True,
+                origem_id_override=f"despesa:{db_despesa.id}:duplicate",
+            )
             await self.session.refresh(db_despesa)
             despesas_criadas.append(db_despesa)
 

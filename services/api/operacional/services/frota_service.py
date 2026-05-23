@@ -324,6 +324,11 @@ class FrotaService(BaseService[Maquinario]):
                     origem_id_override=f"despesa:{despesa.id}:os_close",
                     allow_block=True,
                 )
+                await AlertasAgricolasService(self.session, self.tenant_id).validar_despesa_automatica_unica_origem(
+                    despesa,
+                    origem_id_override=f"despesa:{despesa.id}:os_close",
+                    allow_block=True,
+                )
 
         await self.session.commit()
         await self.session.refresh(os)

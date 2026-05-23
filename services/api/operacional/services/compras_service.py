@@ -378,12 +378,12 @@ class ComprasService:
                 finding = alertas_svc.build_finding(
                     codigo="DEVOLUCAO_SEM_MOVIMENTO_ORIGINAL",
                     titulo="Devolução sem movimento original rastreável",
-                    severidade="INCONSISTENCIA_MODERADA",
+                    severidade="RISCO_CRITICO",
                     origem="compras_devolucoes",
                     total=1,
                     mensagem=(
-                        "A devolução será concluída com rastreabilidade parcial porque o movimento "
-                        "original de recebimento não foi localizado. Revise lote, produto e depósito."
+                        "Nao e possivel concluir a devolucao sem o movimento original rastreavel. "
+                        "Revise lote, produto e deposito."
                     ),
                     amostras=[str(devolucao.id)],
                     meta={"item_devolucao_id": str(item.id), "lote_id": str(item.lote_id)},
@@ -397,7 +397,11 @@ class ComprasService:
                         audit=True,
                         origem_id=f"devolucao:{devolucao.id}:missing_origin",
                     ),
-                    allow_block=False,
+                    allow_block=True,
+                    error_message=(
+                        "Nao e possivel concluir a devolucao sem o movimento original rastreavel. "
+                        "Revise lote, produto e deposito."
+                    ),
                 )
 
             lote = await self.session.get(LoteEstoque, item.lote_id)

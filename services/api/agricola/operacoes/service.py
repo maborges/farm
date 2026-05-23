@@ -745,6 +745,11 @@ class OperacaoService(BaseService[OperacaoAgricola]):
                         origem_id_override=f"despesa:{despesa.id}:operacao_create",
                         allow_block=True,
                     )
+                    await AlertasAgricolasService(self.session, self.tenant_id).validar_despesa_automatica_unica_origem(
+                        despesa,
+                        origem_id_override=f"despesa:{despesa.id}:operacao_create",
+                        allow_block=True,
+                    )
 
             # Commit only if ALL operations succeeded (atomicity)
             # 6. TRIGGER: Se operação foi criada com status REALIZADA, cria entrada no caderno

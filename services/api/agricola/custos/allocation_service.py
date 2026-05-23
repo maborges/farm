@@ -5,6 +5,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from agricola.custos.models import CostAllocation
+from agricola.alertas.service import AlertasAgricolasService, WorkflowGovernanceEvent
 from agricola.operacoes.models import OperacaoExecucao  # noqa: F401 - registers FK target in metadata
 from agricola.production_units.models import ProductionUnit  # noqa: F401 - registers FK target in metadata
 from core.models.tenant import Tenant  # noqa: F401 - registers FK target in metadata
@@ -28,6 +29,7 @@ async def registrar_cost_allocation(
     allocation_method: str = "DIRECT",
     allocation_basis: float | None = None,
 ) -> CostAllocation:
+    alertas_svc = AlertasAgricolasService(session, tenant_id)
     allocation = CostAllocation(
         tenant_id=tenant_id,
         production_unit_id=production_unit_id,
@@ -41,6 +43,12 @@ async def registrar_cost_allocation(
         allocation_date=allocation_date,
         allocation_method=allocation_method,
         allocation_basis=allocation_basis,
+    )
+    await alertas_svc.validar_cost_allocation_unica_origem(
+        allocation,
+        allow_block=True,
+        include_pending=True,
+        origem_id_override=f"allocation:{source_id or operation_execution_id or inventory_movement_id or fin_rateio_id or 'manual'}:create",
     )
     session.add(allocation)
     return allocation

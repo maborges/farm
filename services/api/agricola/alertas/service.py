@@ -472,6 +472,150 @@ class AlertasAgricolasService:
             ),
         )
 
+    async def validar_cost_allocation_unica_origem(
+        self,
+        allocation: CostAllocation,
+        *,
+        allow_block: bool = False,
+        origem_id_override: str | None = None,
+        include_pending: bool = False,
+    ) -> None:
+        origin_key = allocation.operation_execution_id or allocation.inventory_movement_id or allocation.fin_rateio_id or allocation.source_id
+        if origin_key is None:
+            return
+
+        if allocation.source == "OPERATION_EXECUTION":
+            filtro_origem = CostAllocation.operation_execution_id == origin_key
+        elif allocation.source == "INVENTORY_MOVEMENT":
+            filtro_origem = CostAllocation.inventory_movement_id == origin_key
+        elif allocation.source == "FIN_RATEIO":
+            filtro_origem = CostAllocation.fin_rateio_id == origin_key
+        else:
+            filtro_origem = CostAllocation.source_id == origin_key
+
+        existentes_pendentes = 0
+        if include_pending:
+            for obj in self.session.new:
+                if not isinstance(obj, CostAllocation):
+                    continue
+                if obj is allocation:
+                    continue
+                if obj.tenant_id != self.tenant_id:
+                    continue
+                if obj.source != allocation.source or obj.production_unit_id != allocation.production_unit_id:
+                    continue
+                obj_origin_key = obj.operation_execution_id or obj.inventory_movement_id or obj.fin_rateio_id or obj.source_id
+                if obj_origin_key == origin_key:
+                    existentes_pendentes += 1
+
+        stmt = select(func.count(CostAllocation.id)).where(
+            CostAllocation.tenant_id == self.tenant_id,
+            CostAllocation.source == allocation.source,
+            CostAllocation.production_unit_id == allocation.production_unit_id,
+            filtro_origem,
+        )
+        existentes = existentes_pendentes + int((await self.session.execute(stmt)).scalar_one() or 0)
+        if existentes == 0:
+            return
+
+        finding = self.build_finding(
+            codigo="ALLOCATION_POTENCIALMENTE_DUPLICADA",
+            titulo="Cost allocation duplicada para a mesma origem",
+            severidade="RISCO_CRITICO",
+            origem="cost_allocations",
+            total=existentes,
+            mensagem=(
+                "Nao e possivel registrar cost allocation duplicada para a mesma origem "
+                "e unidade produtiva."
+            ),
+            amostras=[f"{allocation.source}:{origin_key}:{allocation.production_unit_id}"],
+            meta={
+                "source": allocation.source,
+                "source_id": str(origin_key),
+                "production_unit_id": str(allocation.production_unit_id) if allocation.production_unit_id else None,
+                "existentes": existentes,
+            },
+        )
+        await self.registrar_e_aplicar_enforcement(
+            WorkflowGovernanceEvent(
+                finding=finding,
+                resource_id=str(origin_key),
+                action="alloc_dup",
+                notify=True,
+                audit=True,
+                origem_id=origem_id_override or f"allocation:{origin_key}:duplicate",
+            ),
+            allow_block=allow_block,
+            error_message=(
+                "Nao e possivel registrar cost allocation duplicada para a mesma origem. "
+                "Revise a origem operacional e evite duplicidade de apropriação."
+            ),
+        )
+
+    async def validar_despesa_automatica_unica_origem(
+        self,
+        despesa: Despesa,
+        *,
+        allow_block: bool = False,
+        origem_id_override: str | None = None,
+    ) -> None:
+        if despesa.origem_tipo not in TIPOS_DESPESA_AUTOMATICA or despesa.origem_id is None:
+            return
+
+        stmt = (
+            select(func.count(Despesa.id))
+            .where(
+                Despesa.tenant_id == self.tenant_id,
+                Despesa.origem_tipo == despesa.origem_tipo,
+                Despesa.origem_id == despesa.origem_id,
+                Despesa.ativo == True,
+            )
+        )
+        if despesa.grupo_parcela_id is not None:
+            stmt = stmt.where(
+                or_(
+                    Despesa.grupo_parcela_id.is_(None),
+                    Despesa.grupo_parcela_id != despesa.grupo_parcela_id,
+                )
+            )
+
+        existentes = int((await self.session.execute(stmt)).scalar_one() or 0)
+        if existentes == 0:
+            return
+
+        finding = self.build_finding(
+            codigo="DESPESA_AUTOMATICA_DUPLICADA_MESMA_ORIGEM",
+            titulo="Despesa automática duplicada para a mesma origem",
+            severidade="RISCO_CRITICO",
+            origem="fin_despesas",
+            total=existentes,
+            mensagem=(
+                "Nao e possivel registrar despesa automatica duplicada para a mesma origem."
+            ),
+            amostras=[f"{despesa.origem_tipo}:{despesa.origem_id}"],
+            meta={
+                "origem_tipo": despesa.origem_tipo,
+                "origem_id": str(despesa.origem_id),
+                "grupo_parcela_id": str(despesa.grupo_parcela_id) if despesa.grupo_parcela_id else None,
+                "existentes": existentes,
+            },
+        )
+        await self.registrar_e_aplicar_enforcement(
+            WorkflowGovernanceEvent(
+                finding=finding,
+                resource_id=str(despesa.id) if getattr(despesa, "id", None) else None,
+                action="exp_dup",
+                notify=True,
+                audit=True,
+                origem_id=origem_id_override or f"despesa:{despesa.id}:duplicate",
+            ),
+            allow_block=allow_block,
+            error_message=(
+                "Nao e possivel registrar despesa automatica duplicada para a mesma origem. "
+                "Revise o fluxo financeiro e remova o lançamento duplicado."
+            ),
+        )
+
     def get_workflow_enforcement_mode(self) -> str:
         mode = (WORKFLOW_ENFORCEMENT_MODE or WORKFLOW_ENFORCEMENT_WARNING_ONLY).strip().upper()
         if mode not in WORKFLOW_ENFORCEMENT_BLOCKED_SEVERITIES:
@@ -922,6 +1066,7 @@ class AlertasAgricolasService:
                 Despesa.origem_tipo,
                 Despesa.origem_id,
                 func.count(Despesa.id).label("duplicidades"),
+                func.count(func.distinct(func.coalesce(Despesa.grupo_parcela_id, Despesa.id))).label("grupos_distintos"),
                 func.sum(Despesa.valor_total).label("valor_total"),
             )
             .where(
@@ -930,7 +1075,7 @@ class AlertasAgricolasService:
                 Despesa.origem_id.is_not(None),
             )
             .group_by(Despesa.origem_tipo, Despesa.origem_id)
-            .having(func.count(Despesa.id) > 1)
+            .having(func.count(func.distinct(func.coalesce(Despesa.grupo_parcela_id, Despesa.id))) > 1)
             .order_by(func.count(Despesa.id).desc())
         )
         rows = list((await self.session.execute(stmt)).all())
@@ -947,6 +1092,7 @@ class AlertasAgricolasService:
             ),
             meta={
                 "maior_duplicidade": max(int(row.duplicidades or 0) for row in rows),
+                "grupos_distintos": max(int(getattr(row, "grupos_distintos", 0) or 0) for row in rows),
                 "origens": [f"{row.origem_tipo}:{row.origem_id}" for row in rows[:10]],
             },
         )
@@ -1019,6 +1165,7 @@ class AlertasAgricolasService:
                 OperacaoAgricola.id.label("operacao_id"),
                 OperacaoAgricola.custo_total.label("valor_operacional"),
                 func.coalesce(func.sum(CostAllocation.amount), 0).label("valor_apropriado"),
+                (OperacaoAgricola.custo_total - func.coalesce(func.sum(CostAllocation.amount), 0)).label("diferenca"),
             )
             .join(OperacaoExecucao, OperacaoExecucao.operacao_id == OperacaoAgricola.id)
             .outerjoin(
@@ -1036,9 +1183,7 @@ class AlertasAgricolasService:
                 OperacaoAgricola.status == "REALIZADA",
             )
             .group_by(OperacaoAgricola.id, OperacaoAgricola.custo_total)
-            .having(
-                func.abs(func.coalesce(func.sum(CostAllocation.amount), 0) - OperacaoAgricola.custo_total) > 0.01
-            )
+            .having(func.abs(func.coalesce(func.sum(CostAllocation.amount), 0) - OperacaoAgricola.custo_total) > 0.01)
         )
 
         mov_stmt = (
@@ -1046,6 +1191,7 @@ class AlertasAgricolasService:
                 EstoqueMovimento.id.label("movimento_id"),
                 EstoqueMovimento.custo_total.label("valor_operacional"),
                 func.coalesce(func.sum(CostAllocation.amount), 0).label("valor_apropriado"),
+                (EstoqueMovimento.custo_total - func.coalesce(func.sum(CostAllocation.amount), 0)).label("diferenca"),
             )
             .outerjoin(
                 CostAllocation,
@@ -1062,9 +1208,7 @@ class AlertasAgricolasService:
                 EstoqueMovimento.origem.in_(["COMPRA", "ORDEM_SERVICO", "OPERACAO_EXECUCAO"]),
             )
             .group_by(EstoqueMovimento.id, EstoqueMovimento.custo_total)
-            .having(
-                func.abs(func.coalesce(func.sum(CostAllocation.amount), 0) - EstoqueMovimento.custo_total) > 0.01
-            )
+            .having(func.abs(func.coalesce(func.sum(CostAllocation.amount), 0) - EstoqueMovimento.custo_total) > 0.01)
         )
 
         op_rows = list((await self.session.execute(op_stmt)).all())
@@ -1072,10 +1216,22 @@ class AlertasAgricolasService:
         if not op_rows and not mov_rows:
             return None
 
+        maiores_diferencas = [
+            abs(float(row.diferenca or 0))
+            for row in [*op_rows, *mov_rows]
+        ]
+        maior_diferenca = max(maiores_diferencas) if maiores_diferencas else 0.0
+        if maior_diferenca <= 1.0:
+            severidade = "WARNING_LEVE"
+        elif maior_diferenca <= 5.0:
+            severidade = "INCONSISTENCIA_MODERADA"
+        else:
+            severidade = "RISCO_ECONOMICO"
+
         return self._build_finding(
             codigo="DIVERGENCIA_VALOR_OPERACIONAL_APROPRIADO",
             titulo="Divergência entre custo operacional e valor apropriado",
-            severidade="RISCO_ECONOMICO",
+            severidade=severidade,
             origem="reconciliacao_economica",
             rows=[*op_rows, *mov_rows],
             mensagem=(
@@ -1084,6 +1240,7 @@ class AlertasAgricolasService:
             meta={
                 "operacoes_divergentes": len(op_rows),
                 "movimentos_divergentes": len(mov_rows),
+                "maior_diferenca": round(maior_diferenca, 2),
             },
         )
 

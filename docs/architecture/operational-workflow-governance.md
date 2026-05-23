@@ -198,6 +198,15 @@ Camadas adicionadas no Step 08:
 - `MOVIMENTO_COM_CUSTO_SEM_ALLOCATION`
 - `DIVERGENCIA_VALOR_OPERACIONAL_APROPRIADO`
 
+Camadas adicionadas no Step 09:
+
+- bloqueio de novo `CostAllocation` duplicado por origem
+- bloqueio de despesa automática duplicada por origem
+- bloqueio de devolução sem movimento original rastreável
+- bloqueio de operação com custo sem apropriação quando a alocação não puder ser criada
+- divergência pequena entre valor operacional e apropriado permanece como warning
+- legado histórico continua apenas em observabilidade e correção manual
+
 ## Classificação de Severidade
 
 ### Warning leve
