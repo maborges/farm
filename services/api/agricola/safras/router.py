@@ -201,20 +201,6 @@ async def listar_talhoes_safra(
     """Retorna todos os talhões associados à safra."""
     svc = SafraService(session, tenant_id)
     talhoes = await svc.listar_talhoes(id)
-    # Se ainda não foi populado via sincronizar, retorna o talhao_id legado
-    if not talhoes:
-        safra = await svc.get_or_fail(id)
-        if not safra.talhao_id:
-            return []
-        from agricola.safras.models import SafraTalhao
-        import uuid as _uuid
-        placeholder = SafraTalhao()
-        placeholder.id = _uuid.uuid4()
-        placeholder.safra_id = safra.id
-        placeholder.area_id = safra.talhao_id
-        placeholder.principal = True
-        placeholder.area_ha = safra.area_plantada_ha
-        return [SafraTalhaoResponse.model_validate(placeholder)]
     return [SafraTalhaoResponse.model_validate(t) for t in talhoes]
 
 

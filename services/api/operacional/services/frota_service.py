@@ -368,7 +368,9 @@ class FrotaService(BaseService[Maquinario]):
 
         item.movimento_estoque_id = mov.id
         item.deposito_id = item.deposito_id or mov.deposito_id
-        item.custo_unitario = float(mov.custo_unitario or produto.preco_medio or 0.0)
+        item.custo_unitario = float(
+            mov.custo_unitario if mov.custo_unitario is not None else (produto.preco_medio or 0.0)
+        )
         item.custo_total = round(float(item.quantidade) * float(item.custo_unitario or 0.0), 2)
         item.preco_unitario_na_data = item.custo_unitario
         item.executado_por_id = usuario_id

@@ -24,17 +24,19 @@ class CatalogoProdutoService(BaseService[ProdutoCatalogo]):
         return list(result.scalars().all())
 
     async def criar(self, data: ProdutoCatalogoCreate) -> ProdutoCatalogo:
+        payload = data.model_dump()
+        payload.pop("estoque_minimo", None)
+        payload.pop("preco_ultima_compra", None)
         produto = ProdutoCatalogo(
             tenant_id=self.tenant_id,
-            nome=data.nome,
-            tipo=data.tipo,
-            unidade_medida=data.unidade_medida,
-            codigo_interno=data.codigo_interno,
-            sku=data.sku,
-            descricao=data.descricao,
-            estoque_minimo=data.estoque_minimo,
-            preco_medio=data.preco_medio,
-            ativo=data.ativo,
+            nome=payload["nome"],
+            tipo=payload["tipo"],
+            unidade_medida=payload["unidade_medida"],
+            codigo_interno=payload.get("codigo_interno"),
+            sku=payload.get("sku"),
+            descricao=payload.get("descricao"),
+            preco_medio=payload["preco_medio"],
+            ativo=payload["ativo"],
         )
         self.session.add(produto)
         await self.session.flush()
@@ -52,7 +54,10 @@ class CatalogoProdutoService(BaseService[ProdutoCatalogo]):
 
     async def atualizar(self, produto_id: uuid.UUID, data: ProdutoCatalogoUpdate) -> ProdutoCatalogo:
         produto = await self._get_or_fail(produto_id)
-        for field, value in data.model_dump(exclude_none=True, exclude={"detalhe_agricola", "detalhe_estoque"}).items():
+        for field, value in data.model_dump(
+            exclude_none=True,
+            exclude={"detalhe_agricola", "detalhe_estoque", "estoque_minimo", "preco_ultima_compra"},
+        ).items():
             setattr(produto, field, value)
 
         if data.detalhe_agricola is not None:

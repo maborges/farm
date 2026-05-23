@@ -10,7 +10,7 @@ from agricola.production_units.models import ProductionUnit, StatusConsorcioArea
 from agricola.production_units.schemas import ProductionUnitCreate, ProductionUnitUpdate
 from core.base_service import BaseService
 from core.cadastros.propriedades.models import AreaRural
-from agricola.cultivos.models import Cultivo
+from agricola.cultivos.models import Cultivo, CultivoArea
 from core.exceptions import EntityNotFoundError, BusinessRuleError
 
 
@@ -41,12 +41,30 @@ class ProductionUnitService(BaseService[ProductionUnit]):
         return result
 
     async def criar(self, safra_id: uuid.UUID, data: ProductionUnitCreate) -> dict:
+        existente_stmt = select(ProductionUnit.id).where(
+            and_(
+                ProductionUnit.tenant_id == self.tenant_id,
+                ProductionUnit.safra_id == safra_id,
+                ProductionUnit.area_id == data.area_id,
+            )
+        )
+        existente = (await self.session.execute(existente_stmt)).scalar_one_or_none()
+        if existente:
+            raise BusinessRuleError("Esta área já faz parte das unidades operacionais da safra.")
+
+        cultivo_area_id = await self._resolver_cultivo_area_id(
+            cultivo_id=data.cultivo_id,
+            area_id=data.area_id,
+            area_ha=data.area_ha,
+            cultivo_area_id=data.cultivo_area_id,
+        )
+
         obj = ProductionUnit(
             tenant_id=self.tenant_id,
             safra_id=safra_id,
             cultivo_id=data.cultivo_id,
             area_id=data.area_id,
-            cultivo_area_id=data.cultivo_area_id,
+            cultivo_area_id=cultivo_area_id,
             percentual_participacao=float(data.percentual_participacao),
             area_ha=float(data.area_ha),
             data_inicio=data.data_inicio,
@@ -106,6 +124,61 @@ class ProductionUnitService(BaseService[ProductionUnit]):
         if not pu:
             raise EntityNotFoundError(f"ProductionUnit {pu_id} não encontrada.")
         return pu
+
+    async def _resolver_cultivo_area_id(
+        self,
+        *,
+        cultivo_id: uuid.UUID,
+        area_id: uuid.UUID,
+        area_ha: Decimal,
+        cultivo_area_id: uuid.UUID | None,
+    ) -> uuid.UUID | None:
+        """
+        Resolve o vínculo CultivoArea usado como origem da unidade operacional.
+
+        A unidade operacional nasce do par (cultivo, área). Se a origem for
+        inequívoca, reaproveitamos o registro de cultivo_areas correspondente.
+        """
+        if cultivo_area_id is not None:
+            stmt = select(CultivoArea.id).where(
+                and_(
+                    CultivoArea.id == cultivo_area_id,
+                    CultivoArea.tenant_id == self.tenant_id,
+                    CultivoArea.cultivo_id == cultivo_id,
+                    CultivoArea.area_id == area_id,
+                )
+            )
+            existente = (await self.session.execute(stmt)).scalar_one_or_none()
+            if not existente:
+                raise BusinessRuleError(
+                    "O cultivo_area_id informado não corresponde ao cultivo e à área selecionados."
+                )
+            return cultivo_area_id
+
+        stmt = (
+            select(CultivoArea.id)
+            .where(
+                and_(
+                    CultivoArea.tenant_id == self.tenant_id,
+                    CultivoArea.cultivo_id == cultivo_id,
+                    CultivoArea.area_id == area_id,
+                )
+            )
+            .order_by(CultivoArea.created_at.asc(), CultivoArea.id.asc())
+        )
+        cultivo_area_id_resolvido = (await self.session.execute(stmt)).scalars().first()
+        if cultivo_area_id_resolvido:
+            return cultivo_area_id_resolvido
+
+        cultivo_area = CultivoArea(
+            tenant_id=self.tenant_id,
+            cultivo_id=cultivo_id,
+            area_id=area_id,
+            area_ha=float(area_ha),
+        )
+        self.session.add(cultivo_area)
+        await self.session.flush()
+        return cultivo_area.id
 
     async def _enrich(self, pu: ProductionUnit) -> dict:
         cultura = (

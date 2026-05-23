@@ -6,7 +6,7 @@ Versão derivada do workflow agrícola focada em café, cobrindo o ciclo operaci
 
 Documento base relacionado:
 
-- [workflow-atricultura.md](/opt/lampp/htdocs/farm/docs/guias/workflow-atricultura.md)
+- [workflow-agricultura.md](/opt/lampp/htdocs/farm/docs/guias/workflow-agricultura.md)
 
 ## Modelo de navegação esperado
 
@@ -139,7 +139,7 @@ Antes de clicar em `Nova Safra`, confirme estes cadastros. Sem eles, o usuário 
 | Talhões cadastrados | `Cadastros > Minha Propriedade > Georreferenciamento` | existem os talhões `Café A1`, `Café A2` e `Café B1`, todos como tipo `TALHAO` |
 | Área dos talhões | `Cadastros > Minha Propriedade > Georreferenciamento` | A1 tem `20,00 ha`, A2 tem `25,00 ha` e B1 tem `30,00 ha` |
 | Cultura cadastrada | `Agricultura > ① Planejamento da Safra > Culturas e Variedades` | existe a cultura `Café`; se houver variedade, usar `Catuaí 144` |
-| Produtos cadastrados | `Cadastros > Insumos & Ativos > Catálogo de Produtos` | existem fertilizantes, defensivos e demais insumos que serão usados no planejamento |
+| Produtos cadastrados | `Cadastros > Insumos & Ativos > Catálogo de Produtos` | existem fertilizantes, defensivos e demais insumos que serão usados no planejamento; a lista do catálogo é descritiva e não deve ser usada como fonte de valuation |
 | Pessoas cadastradas | `Cadastros > Pessoas & Parceiros > Pessoas e Parceiros` | existe ao menos um operador ou responsável técnico, se o fluxo de execução exigir |
 
 ## Estratégia do cenário
@@ -315,7 +315,7 @@ Depois de clicar em `Criar Safra`, confira:
 ### Resultado esperado
 
 - safra criada com status `PLANEJADA`
-- safra visível na listagem e no dashboard agrícola
+- safra visível na listagem e na visão global do módulo agrícola
 - safra aberta com subnav própria em `/agricola/safras/{id}`
 - talhões `Café A1`, `Café A2` e `Café B1` vinculados à safra
 - área total da safra igual a `75,00 ha`
@@ -641,14 +641,14 @@ Subtotal:
 - financeiro consolida custos e receitas
 - cenários e comparativo operam sem falha
 - dashboards mostram dados coerentes
-- sempre que houver IA, a funcionalidade destacar seu uso e explicar claramente como ela ajuda a decisão
+- sempre que houver IA, a funcionalidade deve destacar seu uso e explicar claramente como ela ajuda a decisão
 
 ## Matriz Final
 
 | Tela | Dado esperado | Regra validada |
 |---|---|---|
 | `/agricola/safras` | safra `Café 2025/26` criada e listada | cadastro de safra perene com talhões válidos |
-| `/agricola/dashboard` | safra de café no acompanhamento | dashboard global reflete fase atual |
+| `/agricola/dashboard` | visão global do módulo agrícola com a safra de café em acompanhamento | dashboard global reflete fase atual |
 | `/agricola/planejamento` | planejamento macro disponível | entrada global do planejamento |
 | `/agricola/safras/{id}/orcamento` | orçamento cafeeiro consolidado | cálculo previsto da safra |
 | `/agricola/operacoes` | operações consolidadas disponíveis | visão global do histórico operacional |

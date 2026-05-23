@@ -20,6 +20,7 @@ async def test_calculo_quantidade_sugerida_reposicao():
     saldo1 = MagicMock()
     saldo1.id = uuid4()
     saldo1.produto_id = uuid4()
+    saldo1.deposito_id = uuid4()
     saldo1.produto_nome = "Fertilizante A"
     saldo1.deposito_nome = "Depósito 1"
     saldo1.quantidade_atual = 50.0
@@ -32,6 +33,7 @@ async def test_calculo_quantidade_sugerida_reposicao():
     saldo2 = MagicMock()
     saldo2.id = uuid4()
     saldo2.produto_id = uuid4()
+    saldo2.deposito_id = uuid4()
     saldo2.produto_nome = "Semente B"
     saldo2.deposito_nome = "Depósito 1"
     saldo2.quantidade_atual = 150.0
@@ -45,6 +47,7 @@ async def test_calculo_quantidade_sugerida_reposicao():
     saldo3 = MagicMock()
     saldo3.id = uuid4()
     saldo3.produto_id = uuid4()
+    saldo3.deposito_id = uuid4()
     saldo3.produto_nome = "Defensivo C"
     saldo3.deposito_nome = "Depósito 2"
     saldo3.quantidade_atual = 100.0
@@ -70,3 +73,33 @@ async def test_calculo_quantidade_sugerida_reposicao():
     
     # Item 2 não deve estar nos alertas
     assert not any(a.produto_nome == "Semente B" for a in alertas)
+
+
+@pytest.mark.asyncio
+async def test_resolver_estoque_minimo_prioriza_saldo_sobre_catalogo():
+    session = AsyncMock()
+    svc = EstoqueService(session, uuid4())
+
+    saldo = MagicMock()
+    saldo.estoque_minimo = 60.0
+    produto = MagicMock()
+    produto.estoque_minimo = 100.0
+
+    minimo = await svc._resolver_estoque_minimo_contextual(saldo, produto)
+
+    assert minimo == 60.0
+
+
+@pytest.mark.asyncio
+async def test_resolver_estoque_minimo_usa_fallback_legado():
+    session = AsyncMock()
+    svc = EstoqueService(session, uuid4())
+
+    saldo = MagicMock()
+    saldo.estoque_minimo = None
+    produto = MagicMock()
+    produto.estoque_minimo = 80.0
+
+    minimo = await svc._resolver_estoque_minimo_contextual(saldo, produto)
+
+    assert minimo == 80.0

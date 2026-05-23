@@ -24,7 +24,7 @@ from typing import List
 from uuid import UUID
 from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, or_
+from sqlalchemy import select, and_, or_, func
 from core.database import async_session_maker
 from notificacoes.service import NotificacaoService
 from notificacoes.schemas import NotificacaoCreate
@@ -176,19 +176,21 @@ class AlertasEngine:
         self, session: AsyncSession, tenant_id: UUID
     ) -> List[NotificacaoCreate]:
         """Verifica produtos com estoque abaixo do mínimo."""
-        from operacional.models.estoque import Produto, SaldoEstoque
+        from core.cadastros.models import ProdutoCatalogo as Produto
+        from operacional.models.estoque import SaldoEstoque
 
         alertas = []
 
-        # Produtos com estoque abaixo do mínimo
+        # Prioriza mínimo contextual do saldo; fallback compatível para catálogo.
+        minimo_efetivo = func.coalesce(SaldoEstoque.estoque_minimo, Produto.estoque_minimo)
+
         stmt = (
             select(Produto, SaldoEstoque)
             .join(SaldoEstoque, SaldoEstoque.produto_id == Produto.id)
             .where(
                 Produto.tenant_id == tenant_id,
-                Produto.estoque_minimo > 0,
-                SaldoEstoque.quantidade < Produto.estoque_minimo,
-                SaldoEstoque.ativo == True,
+                minimo_efetivo > 0,
+                SaldoEstoque.quantidade_atual < minimo_efetivo,
             )
             .limit(10)
         )
@@ -197,7 +199,7 @@ class AlertasEngine:
 
         if produtos_baixo:
             itens = [
-                f"{p.Produto.nome}: {p.SaldoEstoque.quantidade}/{p.Produto.estoque_minimo} {p.Produto.unidade}"
+                f"{p.Produto.nome}: {p.SaldoEstoque.quantidade}/{(p.SaldoEstoque.estoque_minimo if p.SaldoEstoque.estoque_minimo is not None else p.Produto.estoque_minimo)} {p.Produto.unidade}"
                 for p in produtos_baixo
             ]
             alertas.append(
@@ -212,7 +214,11 @@ class AlertasEngine:
                                 "id": str(p.Produto.id),
                                 "nome": p.Produto.nome,
                                 "quantidade_atual": float(p.SaldoEstoque.quantidade),
-                                "estoque_minimo": float(p.Produto.estoque_minimo),
+                                "estoque_minimo": float(
+                                    p.SaldoEstoque.estoque_minimo
+                                    if p.SaldoEstoque.estoque_minimo is not None
+                                    else p.Produto.estoque_minimo
+                                ),
                                 "unidade": p.Produto.unidade,
                             }
                             for p in produtos_baixo

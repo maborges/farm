@@ -190,6 +190,9 @@ class ProdutoService(BaseService[Produto]):
 
     async def criar_produto(self, data) -> Produto:
         payload = data.model_dump(exclude={"detalhe_agricola", "detalhe_estoque", "detalhe_epi"})
+        # Guardrail: campos operacionais deixam de ser escritos pelo catálogo.
+        payload.pop("estoque_minimo", None)
+        payload.pop("preco_ultima_compra", None)
         produto = Produto(tenant_id=self.tenant_id, **payload)
         if data.detalhe_agricola:
             produto.detalhe_agricola = ProdutoAgricola(**data.detalhe_agricola.model_dump())
@@ -221,7 +224,8 @@ class ProdutoService(BaseService[Produto]):
         )).scalar_one_or_none()
         if not obj:
             raise EntityNotFoundError("Produto não encontrado")
-        for k, v in data.model_dump(exclude_none=True).items():
+        # Guardrail: atualização do catálogo não escreve campos operacionais.
+        for k, v in data.model_dump(exclude_none=True, exclude={"estoque_minimo", "preco_ultima_compra"}).items():
             setattr(obj, k, v)
         await self.session.flush()
         res = (await self.session.execute(

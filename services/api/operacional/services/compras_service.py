@@ -15,6 +15,14 @@ class ComprasService:
         self.session = session
         self.tenant_id = tenant_id
 
+    def _resolver_custo_recebimento(self, pedido: PedidoCompra) -> float:
+        """
+        Guardrail de valuation:
+        recebimento compra usa o valor do pedido como custo operacional,
+        sem consultar nem reescrever `Produto.preco_medio`.
+        """
+        return float(pedido.valor_unitario)
+
     async def criar_solicitacao(self, data: SolicitacaoCompraCreate) -> SolicitacaoCompra:
         """Cria uma nova solicitação de compra interna."""
         obj = SolicitacaoCompra(
@@ -113,7 +121,7 @@ class ComprasService:
         if solicitacao.status != "APROVADA":
             raise BusinessRuleError("Cotações só podem ser registradas para solicitações APROVADAS.")
 
-        # Lógica de Inteligência: Alerta de preço acima da média
+        # Guardrail: cotação usa histórico compatível; `Produto.preco_medio` não é fonte de verdade.
         stats = await self.get_historico_precos(solicitacao.produto_id)
         preco_medio = stats.get("preco_medio", 0)
         
@@ -305,7 +313,7 @@ class ComprasService:
                 deposito_id=pedido.deposito_id,
                 produto_id=pedido.item_id,
                 quantidade=pedido.quantidade,
-                custo_unitario=pedido.valor_unitario,
+                custo_unitario=self._resolver_custo_recebimento(pedido),
                 motivo=f"Recebimento de Pedido {pedido.id}",
                 origem_id=pedido.id,
                 origem_tipo="COMPRA"

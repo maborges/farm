@@ -4,6 +4,7 @@ from datetime import date
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from sqlalchemy import func
 from loguru import logger
 
 from core.base_service import BaseService
@@ -59,6 +60,85 @@ class EstoqueService(BaseService[SaldoEstoque]):
             )
             raise BusinessRuleError("Produto não localizado ou inacessível para o tenant.")
         return produto
+
+    async def _resolver_custo_unitario_contextual(
+        self,
+        produto_id: UUID,
+        deposito_id: UUID | None = None,
+        lote_id: UUID | None = None,
+    ) -> float | None:
+        """
+        Resolve custo operacional sem usar Produto.preco_medio como fonte primária.
+
+        Ordem de preferência:
+        1. lote explícito informado
+        2. média ponderada dos lotes ativos do contexto
+        3. custo médio dos movimentos já registrados no contexto
+        4. snapshot legado do produto
+        """
+        if lote_id is not None:
+            lote = await validate_lote_context(self.session, tenant_id=self.tenant_id, lote_id=lote_id)
+            if lote and lote.custo_unitario is not None and float(lote.custo_unitario) > 0:
+                return float(lote.custo_unitario)
+
+        lotes_stmt = (
+            select(LoteEstoque)
+            .join(Deposito, Deposito.id == LoteEstoque.deposito_id)
+            .where(
+                LoteEstoque.produto_id == produto_id,
+                LoteEstoque.status == "ATIVO",
+                LoteEstoque.quantidade_atual > 0,
+                Deposito.tenant_id == self.tenant_id,
+            )
+        )
+        if deposito_id is not None:
+            lotes_stmt = lotes_stmt.where(LoteEstoque.deposito_id == deposito_id)
+
+        lotes = list((await self.session.execute(lotes_stmt)).scalars().all())
+        quantidade_total = sum(float(l.quantidade_atual or 0.0) for l in lotes)
+        if quantidade_total > 0:
+            custo_total = sum(
+                float(l.quantidade_atual or 0.0) * float(l.custo_unitario or 0.0)
+                for l in lotes
+            )
+            if custo_total > 0:
+                return round(custo_total / quantidade_total, 4)
+
+        mov_stmt = select(func.avg(EstoqueMovimento.custo_unitario)).where(
+            EstoqueMovimento.tenant_id == self.tenant_id,
+            EstoqueMovimento.produto_id == produto_id,
+            EstoqueMovimento.custo_unitario.is_not(None),
+        )
+        if deposito_id is not None:
+            mov_stmt = mov_stmt.where(EstoqueMovimento.deposito_id == deposito_id)
+        mov_avg = (await self.session.execute(mov_stmt)).scalar_one_or_none()
+        if mov_avg is not None and float(mov_avg) > 0:
+            return float(mov_avg)
+
+        produto = await self._get_produto(produto_id)
+        if produto and produto.preco_medio is not None and float(produto.preco_medio) > 0:
+            return float(produto.preco_medio)
+        return None
+
+    async def _resolver_estoque_minimo_contextual(
+        self,
+        saldo: SaldoEstoque,
+        produto: ProdutoCatalogo | None = None,
+    ) -> float | None:
+        """
+        Resolve o estoque mínimo operacional com prioridade para o contexto do saldo.
+
+        Ordem de preferência:
+        1. SaldoEstoque.estoque_minimo
+        2. snapshot legado em ProdutoCatalogo.estoque_minimo
+        """
+        if saldo.estoque_minimo is not None:
+            return float(saldo.estoque_minimo)
+
+        if produto and produto.estoque_minimo is not None and float(produto.estoque_minimo) > 0:
+            return float(produto.estoque_minimo)
+
+        return None
 
     async def _validar_unidade_produtiva(self, unidade_produtiva_id: UUID) -> None:
         unidade = (
@@ -163,21 +243,28 @@ class EstoqueService(BaseService[SaldoEstoque]):
             
         saldos = (await self.session.execute(saldo_stmt)).scalars().all()
 
-        result = [SaldoResponse(
-            id=s.id,
-            deposito_id=s.deposito_id,
-            produto_id=s.produto_id,
-            produto_nome=produtos.get(s.produto_id).nome if produtos.get(s.produto_id) else "N/A",
-            deposito_nome=depositos.get(s.deposito_id).nome if depositos.get(s.deposito_id) else "N/A",
-            quantidade_atual=s.quantidade_atual,
-            quantidade_reservada=s.quantidade_reservada,
-            quantidade_disponivel=max(0.0, s.quantidade_atual - s.quantidade_reservada),
-            preco_medio=produtos.get(s.produto_id).preco_medio if produtos.get(s.produto_id) else 0.0,
-            unidade_medida=produtos.get(s.produto_id).unidade_medida if produtos.get(s.produto_id) else "",
-            estoque_minimo=s.estoque_minimo,
-            abaixo_minimo=max(0.0, s.quantidade_atual - s.quantidade_reservada) <= (s.estoque_minimo or 0) if s.estoque_minimo is not None else False,
-            ultima_atualizacao=s.ultima_atualizacao,
-        ) for s in saldos if s.deposito_id in depositos and s.produto_id in produtos]
+        result = []
+        for s in saldos:
+            produto = produtos.get(s.produto_id)
+            estoque_minimo = await self._resolver_estoque_minimo_contextual(s, produto)
+            disponivel = max(0.0, s.quantidade_atual - s.quantidade_reservada)
+            result.append(
+                SaldoResponse(
+                    id=s.id,
+                    deposito_id=s.deposito_id,
+                    produto_id=s.produto_id,
+                    produto_nome=produto.nome if produto else "N/A",
+                    deposito_nome=depositos.get(s.deposito_id).nome if depositos.get(s.deposito_id) else "N/A",
+                    quantidade_atual=s.quantidade_atual,
+                    quantidade_reservada=s.quantidade_reservada,
+                    quantidade_disponivel=disponivel,
+                    preco_medio=produto.preco_medio if produto else 0.0,
+                    unidade_medida=produto.unidade_medida if produto else "",
+                    estoque_minimo=estoque_minimo,
+                    abaixo_minimo=estoque_minimo is not None and disponivel <= estoque_minimo,
+                    ultima_atualizacao=s.ultima_atualizacao,
+                )
+            )
         return result
 
     async def atualizar_estoque_minimo(self, saldo_id: UUID, estoque_minimo: float) -> SaldoEstoque:
@@ -199,8 +286,8 @@ class EstoqueService(BaseService[SaldoEstoque]):
         saldos = await self.listar_saldos()
         alertas = []
         for s in saldos:
-            if s.abaixo_minimo:
-                minimo = s.estoque_minimo or 0
+            minimo = s.estoque_minimo or 0
+            if minimo > 0 and s.abaixo_minimo:
                 # Regra: repor até 20% acima do mínimo para dar margem operacional
                 sugerido = (minimo * 1.2) - s.quantidade_atual
                 alertas.append(AlertaEstoqueItem(
@@ -217,17 +304,20 @@ class EstoqueService(BaseService[SaldoEstoque]):
         return alertas
 
     async def _verificar_e_notificar_estoque_baixo(self, saldo: SaldoEstoque):
-        if saldo.estoque_minimo is not None:
+        from core.cadastros.models import ProdutoCatalogo
+
+        produto = await self._get_produto(saldo.produto_id)
+        estoque_minimo = await self._resolver_estoque_minimo_contextual(saldo, produto)
+        if estoque_minimo is not None:
             disponivel = max(0.0, saldo.quantidade_atual - saldo.quantidade_reservada)
-            if disponivel <= saldo.estoque_minimo:
+            if disponivel <= estoque_minimo:
                 from notificacoes.service import NotificacaoService
                 from notificacoes.schemas import NotificacaoCreate
-                from core.models.cadastros.produto import ProdutoCatalogo
-                
+
                 # Buscar nomes para a mensagem
                 dep_stmt = select(Deposito.nome).where(Deposito.id == saldo.deposito_id)
                 prod_stmt = select(ProdutoCatalogo.nome).where(ProdutoCatalogo.id == saldo.produto_id)
-                
+
                 dep_nome = (await self.session.execute(dep_stmt)).scalar() or "N/A"
                 prod_nome = (await self.session.execute(prod_stmt)).scalar() or "N/A"
 
@@ -364,7 +454,7 @@ class EstoqueService(BaseService[SaldoEstoque]):
 
     async def registrar_entrada(self, data: EntradaEstoqueRequest) -> EstoqueMovimento:
         await validate_deposito_context(self.session, tenant_id=self.tenant_id, deposito_id=data.deposito_id)
-        prod = await self._get_produto_or_fail(data.produto_id)
+        await self._get_produto_or_fail(data.produto_id)
         if data.lote_id:
             await validate_lote_context(
                 self.session,
@@ -375,19 +465,7 @@ class EstoqueService(BaseService[SaldoEstoque]):
             )
 
         saldo = await self._get_ou_criar_saldo(data.deposito_id, data.produto_id)
-        qtd_antes = saldo.quantidade_atual
         saldo.quantidade_atual += data.quantidade
-
-        # Atualiza preço médio ponderado
-        if data.custo_unitario and data.custo_unitario > 0:
-            if qtd_antes > 0:
-                prod.preco_medio = round(
-                    (qtd_antes * prod.preco_medio + data.quantidade * data.custo_unitario)
-                    / saldo.quantidade_atual, 4
-                )
-            else:
-                prod.preco_medio = data.custo_unitario
-            self.session.add(prod)
 
         # Atualiza saldo do lote se informado
         if data.lote_id:
@@ -396,12 +474,22 @@ class EstoqueService(BaseService[SaldoEstoque]):
             if lote:
                 lote.quantidade_atual += data.quantidade
 
+        custo_unitario = (
+            data.custo_unitario
+            if data.custo_unitario and data.custo_unitario > 0
+            else await self._resolver_custo_unitario_contextual(
+                data.produto_id,
+                deposito_id=data.deposito_id,
+                lote_id=data.lote_id,
+            )
+        )
+
         mov = await self._registrar_movimento(
             deposito_id=data.deposito_id,
             produto_id=data.produto_id,
             tipo="ENTRADA",
             quantidade=data.quantidade,
-            custo_unitario=data.custo_unitario or prod.preco_medio,
+            custo_unitario=custo_unitario,
             motivo=data.motivo or "Entrada manual",
             origem_id=data.origem_id,
             origem_tipo=data.origem_tipo or "MANUAL",
@@ -461,12 +549,16 @@ class EstoqueService(BaseService[SaldoEstoque]):
 
         saldo_sel.quantidade_atual -= quantidade
         prod = await self._get_produto(produto_id)
+        custo_unitario = await self._resolver_custo_unitario_contextual(
+            produto_id,
+            deposito_id=saldo_sel.deposito_id,
+        )
         mov = await self._registrar_movimento(
             deposito_id=saldo_sel.deposito_id,
             produto_id=produto_id,
             tipo="SAIDA",
             quantidade=quantidade,
-            custo_unitario=prod.preco_medio if prod else None,
+            custo_unitario=custo_unitario,
             motivo=motivo,
             origem_id=origem_id,
             origem_tipo=origem_tipo,
@@ -570,11 +662,15 @@ class EstoqueService(BaseService[SaldoEstoque]):
             if data.lote_id:
                 await self._descontar_lote(data.lote_id, data.quantidade)
             prod = await self._get_produto(data.produto_id)
-            custo_unit = prod.preco_medio if prod else 0.0
+            custo_unit = await self._resolver_custo_unitario_contextual(
+                data.produto_id,
+                deposito_id=data.deposito_id,
+                lote_id=data.lote_id,
+            )
             mov = await self._registrar_movimento(
                 deposito_id=data.deposito_id, produto_id=data.produto_id,
                 tipo="SAIDA", quantidade=data.quantidade,
-                custo_unitario=custo_unit or None,
+                custo_unitario=custo_unit,
                 motivo=data.motivo, origem_id=data.origem_id,
                 origem_tipo=data.origem_tipo or "MANUAL",
                 lote_id=data.lote_id,
@@ -601,7 +697,7 @@ class EstoqueService(BaseService[SaldoEstoque]):
             )
             if data.safra_id:
                 prod = await self._get_produto(data.produto_id)
-                custo_unit = prod.preco_medio if prod else 0.0
+                custo_unit = float(mov.custo_unitario or 0.0)
                 if custo_unit and custo_unit > 0:
                     await self._criar_lancamento_insumo(
                         safra_id=data.safra_id,
@@ -663,19 +759,22 @@ class EstoqueService(BaseService[SaldoEstoque]):
         saldo_dest = await self._get_ou_criar_saldo(data.deposito_destino_id, data.produto_id)
         saldo_dest.quantidade_atual += data.quantidade
 
-        prod = await self._get_produto(data.produto_id)
         motivo = data.motivo or "Transferência entre depósitos"
         transferencia_id = uuid.uuid4()
+        custo_unitario = await self._resolver_custo_unitario_contextual(
+            data.produto_id,
+            deposito_id=data.deposito_origem_id,
+        )
         mov_saida = await self._registrar_movimento(
             deposito_id=data.deposito_origem_id, produto_id=data.produto_id,
             tipo="TRANSFERENCIA", quantidade=-data.quantidade,
-            custo_unitario=prod.preco_medio if prod else None,
+            custo_unitario=custo_unitario,
             motivo=motivo, origem_id=transferencia_id, origem_tipo="TRANSFERENCIA",
         )
         mov_entrada = await self._registrar_movimento(
             deposito_id=data.deposito_destino_id, produto_id=data.produto_id,
             tipo="TRANSFERENCIA", quantidade=data.quantidade,
-            custo_unitario=prod.preco_medio if prod else None,
+            custo_unitario=custo_unitario,
             motivo=motivo, origem_id=transferencia_id, origem_tipo="TRANSFERENCIA",
         )
         await self.session.flush()
