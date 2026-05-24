@@ -62,6 +62,7 @@ def _fake_status_response(prioridade_id: str) -> PrioridadeAgricolaStatusRespons
             PrioridadeAgricolaHistoricoItem(
                 id=uuid4(),
                 prioridade_id=prioridade_id,
+                evento_tipo="STATUS",
                 status_anterior="NOVA",
                 status_novo="EM_ANALISE",
                 observacao="Observação curta",
@@ -69,6 +70,37 @@ def _fake_status_response(prioridade_id: str) -> PrioridadeAgricolaStatusRespons
                 responsavel_nome="Responsável",
                 alterado_em=datetime.now(timezone.utc),
             )
+        ],
+        sujeito_reconciliacao=True,
+    )
+
+
+def _fake_history_response(prioridade_id: str) -> PrioridadeAgricolaStatusResponse:
+    return PrioridadeAgricolaStatusResponse(
+        prioridade_id=prioridade_id,
+        prioridade_status_id=uuid4(),
+        status_atual="EM_ANALISE",
+        historico=[
+            PrioridadeAgricolaHistoricoItem(
+                id=uuid4(),
+                prioridade_id=prioridade_id,
+                evento_tipo="STATUS",
+                status_anterior="NOVA",
+                status_novo="EM_ANALISE",
+                observacao="Observação de campo",
+                responsavel_id=uuid4(),
+                responsavel_nome="Responsável",
+                alterado_em=datetime.now(timezone.utc),
+            ),
+            PrioridadeAgricolaHistoricoItem(
+                id=uuid4(),
+                prioridade_id=prioridade_id,
+                evento_tipo="COMENTARIO",
+                comentario="Comentário interno",
+                responsavel_id=uuid4(),
+                responsavel_nome="Responsável",
+                alterado_em=datetime.now(timezone.utc),
+            ),
         ],
         sujeito_reconciliacao=True,
     )
@@ -175,3 +207,102 @@ async def test_prioridades_v1_endpoint_atualiza_status_e_consulta_historico(
 
     assert history_response.status_code == 200, history_response.text
     assert history_response.json()["status_atual"] == "EM_ANALISE"
+
+
+@pytest.mark.asyncio
+async def test_prioridades_v1_endpoint_registra_comentario_e_consulta_historico_unificado(
+    client: AsyncClient,
+    headers_agricola: dict,
+):
+    fake_response = _fake_response()
+    prioridade_id = fake_response.prioridades[0].id
+    fake_history = _fake_history_response(prioridade_id)
+    captured: dict = {}
+
+    class FakeService:
+        def __init__(self, session, tenant_id):
+            captured["tenant_id"] = tenant_id
+
+        async def adicionar_comentario(self, **kwargs):
+            captured["comment_kwargs"] = kwargs
+            return fake_history
+
+        async def obter_historico(self, **kwargs):
+            captured["history_kwargs"] = kwargs
+            return fake_history
+
+    router_module = importlib.import_module("agricola.prioridades.router")
+
+    with patch.object(router_module, "PrioridadesAgricolasV1Service", FakeService):
+        response = await client.post(
+            f"/api/v1/agricola/prioridades/v1/{prioridade_id}/comentarios",
+            params={
+                "safra_id": str(fake_response.safra_id),
+                "production_unit_id": str(uuid4()),
+                "unidade_produtiva_id": str(uuid4()),
+            },
+            json={"comentario": "Comentário interno"},
+            headers=headers_agricola,
+        )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["status_atual"] == "EM_ANALISE"
+    assert captured["comment_kwargs"]["comentario"] == "Comentário interno"
+    assert captured["comment_kwargs"]["prioridade_id"] == prioridade_id
+
+    with patch.object(router_module, "PrioridadesAgricolasV1Service", FakeService):
+        history_response = await client.get(
+            f"/api/v1/agricola/prioridades/v1/{prioridade_id}/historico",
+            params={"safra_id": str(fake_response.safra_id)},
+            headers=headers_agricola,
+        )
+
+    assert history_response.status_code == 200, history_response.text
+    assert len(history_response.json()["historico"]) == 2
+
+
+@pytest.mark.asyncio
+async def test_prioridades_v1_endpoint_rejeita_comentario_vazio(
+    client: AsyncClient,
+    headers_agricola: dict,
+):
+    fake_response = _fake_response()
+    prioridade_id = fake_response.prioridades[0].id
+
+    response = await client.post(
+        f"/api/v1/agricola/prioridades/v1/{prioridade_id}/comentarios",
+        params={"safra_id": str(fake_response.safra_id)},
+        json={"comentario": ""},
+        headers=headers_agricola,
+    )
+
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_prioridades_v1_endpoint_retorna_404_para_prioridade_inexistente(
+    client: AsyncClient,
+    headers_agricola: dict,
+):
+    fake_response = _fake_response()
+    prioridade_id = fake_response.prioridades[0].id
+
+    class FakeService:
+        def __init__(self, session, tenant_id):
+            pass
+
+        async def adicionar_comentario(self, **kwargs):
+            raise LookupError("Prioridade agrícola não encontrada")
+
+    router_module = importlib.import_module("agricola.prioridades.router")
+
+    with patch.object(router_module, "PrioridadesAgricolasV1Service", FakeService):
+        response = await client.post(
+            f"/api/v1/agricola/prioridades/v1/{prioridade_id}/comentarios",
+            params={"safra_id": str(fake_response.safra_id)},
+            json={"comentario": "Comentário interno"},
+            headers=headers_agricola,
+        )
+
+    assert response.status_code == 404

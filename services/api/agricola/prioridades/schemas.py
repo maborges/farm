@@ -85,14 +85,20 @@ class PrioridadeAgricolaStatusUpdate(BaseModel):
     observacao: str | None = Field(default=None, max_length=240)
 
 
+class PrioridadeAgricolaComentarioCreate(BaseModel):
+    comentario: str = Field(..., min_length=1, max_length=240)
+
+
 class PrioridadeAgricolaHistoricoItem(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
     prioridade_id: str
+    evento_tipo: Literal["STATUS", "COMENTARIO"]
     status_anterior: Literal["NOVA", "VISUALIZADA", "EM_ANALISE", "RESOLVIDA", "IGNORADA"] | None = None
-    status_novo: Literal["NOVA", "VISUALIZADA", "EM_ANALISE", "RESOLVIDA", "IGNORADA"]
+    status_novo: Literal["NOVA", "VISUALIZADA", "EM_ANALISE", "RESOLVIDA", "IGNORADA"] | None = None
     observacao: str | None = None
+    comentario: str | None = None
     responsavel_id: UUID | None = None
     responsavel_nome: str | None = None
     alterado_em: datetime

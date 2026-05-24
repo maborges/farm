@@ -422,6 +422,23 @@ def _status_log(resource_id: uuid.UUID, prioridade_id: str, status_novo: str, ob
     )
 
 
+def _comment_log(resource_id: uuid.UUID, prioridade_id: str, comentario: str) -> SimpleNamespace:
+    return SimpleNamespace(
+        id=uuid.uuid4(),
+        tenant_id=uuid.uuid4(),
+        resource="agricola_prioridade_comment",
+        resource_id=resource_id,
+        payload_after={
+            "prioridade_id": prioridade_id,
+            "evento_tipo": "COMENTARIO",
+            "comentario": comentario,
+            "responsavel_id": str(uuid.uuid4()),
+            "responsavel_nome": "Responsável",
+        },
+        created_at=datetime.now(timezone.utc),
+    )
+
+
 @pytest.mark.asyncio
 async def test_prioridades_v1_service_consolida_fila_e_scoreia_sem_duplicar():
     tenant_id = uuid.uuid4()
@@ -747,7 +764,12 @@ async def test_prioridades_v1_service_registra_status_em_auditoria_e_retorna_his
 
     prioridade_id = f"RESULTADO_OPERACIONAL_NEGATIVO:SAFRA:{safra_id}"
     svc = PrioridadesAgricolasV1Service(session, tenant_id)
-    session.execute = AsyncMock(return_value=SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: [])))
+    session.execute = AsyncMock(
+        side_effect=[
+            SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: [])),
+            SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: [])),
+        ]
+    )
 
     historico_response = SimpleNamespace(
         prioridade_id=prioridade_id,
@@ -785,6 +807,235 @@ async def test_prioridades_v1_service_registra_status_em_auditoria_e_retorna_his
     assert kwargs["payload_after"]["status_novo"] == "RESOLVIDA"
     assert kwargs["payload_after"]["observacao"] == "Concluído em campo"
     obter_status_mock.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_prioridades_v1_service_registra_comentario_em_auditoria_e_retorna_historico():
+    tenant_id = uuid.uuid4()
+    safra_id = uuid.uuid4()
+    unidade_produtiva_id = uuid.uuid4()
+    pu_id = uuid.uuid4()
+    equipment_id = uuid.uuid4()
+    session = AsyncMock()
+    captured: dict[str, object] = {}
+
+    class FakeDreService:
+        def __init__(self, session, tenant_id):
+            pass
+
+        async def gerar(self, **kwargs):
+            return _dre_response(tenant_id=tenant_id, safra_id=safra_id, unidade_produtiva_id=unidade_produtiva_id)
+
+    class FakeRentabilidadeService:
+        def __init__(self, session, tenant_id):
+            pass
+
+        async def gerar(self, **kwargs):
+            return _rentabilidade_response(
+                tenant_id=tenant_id,
+                safra_id=safra_id,
+                unidade_produtiva_id=unidade_produtiva_id,
+                pu_id=pu_id,
+            )
+
+    class FakeEficienciaService:
+        def __init__(self, session, tenant_id):
+            pass
+
+        async def gerar(self, **kwargs):
+            return _eficiencia_response(
+                tenant_id=tenant_id,
+                safra_id=safra_id,
+                unidade_produtiva_id=unidade_produtiva_id,
+                pu_id=pu_id,
+                equipment_id=equipment_id,
+            )
+
+    class FakeBenchmarkService:
+        def __init__(self, session, tenant_id):
+            pass
+
+        async def gerar(self, **kwargs):
+            return _benchmark_response(
+                tenant_id=tenant_id,
+                safra_id=safra_id,
+                unidade_produtiva_id=unidade_produtiva_id,
+                pu_id=pu_id,
+            )
+
+    class FakeDiagnosticoService:
+        def __init__(self, session, tenant_id):
+            pass
+
+        async def gerar(self, **kwargs):
+            return _diagnostico_response(
+                tenant_id=tenant_id,
+                safra_id=safra_id,
+                unidade_produtiva_id=unidade_produtiva_id,
+                pu_id=pu_id,
+                equipment_id=equipment_id,
+            )
+
+    class FakeRecomendacoesService:
+        def __init__(self, session, tenant_id):
+            pass
+
+        async def gerar(self, **kwargs):
+            return _recomendacoes_response(
+                tenant_id=tenant_id,
+                safra_id=safra_id,
+                unidade_produtiva_id=unidade_produtiva_id,
+                pu_id=pu_id,
+                equipment_id=equipment_id,
+            )
+
+    prioridade_id = f"RESULTADO_OPERACIONAL_NEGATIVO:SAFRA:{safra_id}"
+    svc = PrioridadesAgricolasV1Service(session, tenant_id)
+    status_resource_id = svc._status_resource_id(prioridade_id)
+    session.execute = AsyncMock(
+        side_effect=[
+            SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: [])),
+            SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: [_comment_log(status_resource_id, prioridade_id, "Comentário interno")])),
+            SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: [_comment_log(status_resource_id, prioridade_id, "Comentário interno")])),
+        ]
+    )
+
+    with (
+        patch("agricola.prioridades.service.DREAgricolaV1Service", FakeDreService),
+        patch("agricola.prioridades.service.RentabilidadeAgricolaV1Service", FakeRentabilidadeService),
+        patch("agricola.prioridades.service.EficienciaOperacionalAgricolaV1Service", FakeEficienciaService),
+        patch("agricola.prioridades.service.BenchmarkAgricolaV1Service", FakeBenchmarkService),
+        patch("agricola.prioridades.service.DiagnosticoOperacionalEconomicoAgricolaV1Service", FakeDiagnosticoService),
+        patch("agricola.prioridades.service.RecomendacoesOperacionaisEconomicasAgricolaV1Service", FakeRecomendacoesService),
+        patch("agricola.prioridades.service.write_audit_log", new=AsyncMock()) as audit_mock,
+    ):
+        response = await svc.adicionar_comentario(
+            safra_id=safra_id,
+            prioridade_id=prioridade_id,
+            comentario="Comentário interno",
+            user_id=uuid.uuid4(),
+            responsavel_nome="Usuário Teste",
+            unidade_produtiva_id=unidade_produtiva_id,
+            production_unit_id=pu_id,
+        )
+
+    assert response.prioridade_id == prioridade_id
+    assert response.historico[0].evento_tipo == "COMENTARIO"
+    assert response.historico[0].comentario == "Comentário interno"
+    assert audit_mock.await_count == 1
+    _, kwargs = audit_mock.call_args
+    assert kwargs["resource"] == "agricola_prioridade_comment"
+    assert kwargs["payload_after"]["evento_tipo"] == "COMENTARIO"
+    assert kwargs["payload_after"]["comentario"] == "Comentário interno"
+
+
+@pytest.mark.asyncio
+async def test_prioridades_v1_service_obtem_historico_unificado_status_e_comentarios():
+    tenant_id = uuid.uuid4()
+    safra_id = uuid.uuid4()
+    unidade_produtiva_id = uuid.uuid4()
+    pu_id = uuid.uuid4()
+    equipment_id = uuid.uuid4()
+    session = AsyncMock()
+
+    class FakeDreService:
+        def __init__(self, session, tenant_id):
+            pass
+
+        async def gerar(self, **kwargs):
+            return _dre_response(tenant_id=tenant_id, safra_id=safra_id, unidade_produtiva_id=unidade_produtiva_id)
+
+    class FakeRentabilidadeService:
+        def __init__(self, session, tenant_id):
+            pass
+
+        async def gerar(self, **kwargs):
+            return _rentabilidade_response(
+                tenant_id=tenant_id,
+                safra_id=safra_id,
+                unidade_produtiva_id=unidade_produtiva_id,
+                pu_id=pu_id,
+            )
+
+    class FakeEficienciaService:
+        def __init__(self, session, tenant_id):
+            pass
+
+        async def gerar(self, **kwargs):
+            return _eficiencia_response(
+                tenant_id=tenant_id,
+                safra_id=safra_id,
+                unidade_produtiva_id=unidade_produtiva_id,
+                pu_id=pu_id,
+                equipment_id=equipment_id,
+            )
+
+    class FakeBenchmarkService:
+        def __init__(self, session, tenant_id):
+            pass
+
+        async def gerar(self, **kwargs):
+            return _benchmark_response(
+                tenant_id=tenant_id,
+                safra_id=safra_id,
+                unidade_produtiva_id=unidade_produtiva_id,
+                pu_id=pu_id,
+            )
+
+    class FakeDiagnosticoService:
+        def __init__(self, session, tenant_id):
+            pass
+
+        async def gerar(self, **kwargs):
+            return _diagnostico_response(
+                tenant_id=tenant_id,
+                safra_id=safra_id,
+                unidade_produtiva_id=unidade_produtiva_id,
+                pu_id=pu_id,
+                equipment_id=equipment_id,
+            )
+
+    class FakeRecomendacoesService:
+        def __init__(self, session, tenant_id):
+            pass
+
+        async def gerar(self, **kwargs):
+            return _recomendacoes_response(
+                tenant_id=tenant_id,
+                safra_id=safra_id,
+                unidade_produtiva_id=unidade_produtiva_id,
+                pu_id=pu_id,
+                equipment_id=equipment_id,
+            )
+
+    prioridade_id = f"RESULTADO_OPERACIONAL_NEGATIVO:SAFRA:{safra_id}"
+    status_resource_id = PrioridadesAgricolasV1Service(session, tenant_id)._status_resource_id(prioridade_id)
+    session.execute = AsyncMock(
+        side_effect=[
+            SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: [_status_log(status_resource_id, prioridade_id, "EM_ANALISE", "Observação de campo")])),
+            SimpleNamespace(scalars=lambda: SimpleNamespace(all=lambda: [_status_log(status_resource_id, prioridade_id, "EM_ANALISE", "Observação de campo"), _comment_log(status_resource_id, prioridade_id, "Comentário interno")]))
+        ]
+    )
+
+    with (
+        patch("agricola.prioridades.service.DREAgricolaV1Service", FakeDreService),
+        patch("agricola.prioridades.service.RentabilidadeAgricolaV1Service", FakeRentabilidadeService),
+        patch("agricola.prioridades.service.EficienciaOperacionalAgricolaV1Service", FakeEficienciaService),
+        patch("agricola.prioridades.service.BenchmarkAgricolaV1Service", FakeBenchmarkService),
+        patch("agricola.prioridades.service.DiagnosticoOperacionalEconomicoAgricolaV1Service", FakeDiagnosticoService),
+        patch("agricola.prioridades.service.RecomendacoesOperacionaisEconomicasAgricolaV1Service", FakeRecomendacoesService),
+    ):
+        response = await PrioridadesAgricolasV1Service(session, tenant_id).obter_historico(
+            safra_id=safra_id,
+            prioridade_id=prioridade_id,
+            unidade_produtiva_id=unidade_produtiva_id,
+            production_unit_id=pu_id,
+        )
+
+    assert response.status_atual == "EM_ANALISE"
+    assert len(response.historico) == 2
+    assert response.historico[0].evento_tipo == "STATUS"
+    assert response.historico[1].evento_tipo == "COMENTARIO"
 
 
 @pytest.mark.asyncio

@@ -46,6 +46,8 @@ def _tier_dependencies(route: APIRoute):
         ("agricola.prioridades.router", "/agricola/prioridades/v1", {"GET"}),
         ("agricola.prioridades.router", "/agricola/prioridades/v1/{prioridade_id}/status", {"GET"}),
         ("agricola.prioridades.router", "/agricola/prioridades/v1/{prioridade_id}/status", {"PATCH"}),
+        ("agricola.prioridades.router", "/agricola/prioridades/v1/{prioridade_id}/historico", {"GET"}),
+        ("agricola.prioridades.router", "/agricola/prioridades/v1/{prioridade_id}/comentarios", {"POST"}),
     ],
 )
 async def test_p1_endpoints_exigem_tier_profissional(router_path, path, methods):

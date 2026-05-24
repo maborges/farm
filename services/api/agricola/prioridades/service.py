@@ -69,6 +69,7 @@ TIPOS_RAZAO = {
 }
 
 PRIORIDADE_STATUS_RESOURCE = "agricola_prioridade_status"
+PRIORIDADE_COMMENT_RESOURCE = "agricola_prioridade_comment"
 PRIORIDADE_STATUS_NAMESPACE = uuid5(NAMESPACE_URL, "agrosaas:agricola:prioridades:status")
 
 
@@ -265,7 +266,30 @@ class PrioridadesAgricolasV1Service(BaseService[Safra]):
             data_fim=data_fim,
         )
 
+    async def _historico_status(self, prioridade_id: str) -> list[PrioridadeAgricolaHistoricoItem]:
+        historico = await self._historico_timeline(prioridade_id)
+        return [item for item in historico if item.evento_tipo == "STATUS"]
+
     async def obter_status(
+        self,
+        *,
+        safra_id: UUID,
+        prioridade_id: str,
+        unidade_produtiva_id: UUID | None = None,
+        production_unit_id: UUID | None = None,
+        data_inicio: date | None = None,
+        data_fim: date | None = None,
+    ) -> PrioridadeAgricolaStatusResponse:
+        return await self.obter_historico(
+            safra_id=safra_id,
+            prioridade_id=prioridade_id,
+            unidade_produtiva_id=unidade_produtiva_id,
+            production_unit_id=production_unit_id,
+            data_inicio=data_inicio,
+            data_fim=data_fim,
+        )
+
+    async def obter_historico(
         self,
         *,
         safra_id: UUID,
@@ -286,14 +310,73 @@ class PrioridadesAgricolasV1Service(BaseService[Safra]):
         if prioridade is None:
             raise LookupError("Prioridade agrícola não encontrada")
 
-        historico = await self._historico_status(prioridade_id)
-        status_atual = historico[0].status_novo if historico else prioridade.status
+        historico = await self._historico_timeline(prioridade_id)
+        status_atual = next(
+            (item.status_novo for item in historico if item.evento_tipo == "STATUS" and item.status_novo),
+            prioridade.status,
+        )
         return PrioridadeAgricolaStatusResponse(
             prioridade_id=prioridade_id,
             prioridade_status_id=self._status_resource_id(prioridade_id),
             status_atual=status_atual,
             historico=historico,
             sujeito_reconciliacao=prioridade.severidade != "INFO",
+        )
+
+    async def adicionar_comentario(
+        self,
+        *,
+        safra_id: UUID,
+        prioridade_id: str,
+        comentario: str,
+        user_id: UUID | None,
+        responsavel_nome: str | None,
+        unidade_produtiva_id: UUID | None = None,
+        production_unit_id: UUID | None = None,
+        data_inicio: date | None = None,
+        data_fim: date | None = None,
+    ) -> PrioridadeAgricolaStatusResponse:
+        texto = comentario.strip()
+        if not texto:
+            raise ValueError("Comentário não pode ser vazio")
+
+        prioridade = await self._localizar_prioridade(
+            safra_id=safra_id,
+            prioridade_id=prioridade_id,
+            unidade_produtiva_id=unidade_produtiva_id,
+            production_unit_id=production_unit_id,
+            data_inicio=data_inicio,
+            data_fim=data_fim,
+        )
+        if prioridade is None:
+            raise LookupError("Prioridade agrícola não encontrada")
+
+        now = datetime.now(timezone.utc)
+        await write_audit_log(
+            self.session,
+            tenant_id=self.tenant_id,
+            user_id=user_id,
+            action="create",
+            resource=PRIORIDADE_COMMENT_RESOURCE,
+            resource_id=self._status_resource_id(prioridade_id),
+            payload_before=None,
+            payload_after={
+                "prioridade_id": prioridade_id,
+                "evento_tipo": "COMENTARIO",
+                "comentario": texto,
+                "responsavel_id": str(user_id) if user_id else None,
+                "responsavel_nome": responsavel_nome,
+                "alterado_em": now.isoformat(),
+            },
+        )
+        await self.session.commit()
+        return await self.obter_historico(
+            safra_id=safra_id,
+            prioridade_id=prioridade_id,
+            unidade_produtiva_id=unidade_produtiva_id,
+            production_unit_id=production_unit_id,
+            data_inicio=data_inicio,
+            data_fim=data_fim,
         )
 
     def _montar_contexto(self, *, dre_kpis, rentabilidade, eficiencia, benchmark) -> dict[str, object]:
@@ -690,12 +773,12 @@ class PrioridadesAgricolasV1Service(BaseService[Safra]):
                 prioridade.status = str(atual["status"])
         return prioridades
 
-    async def _historico_status(self, prioridade_id: str) -> list[PrioridadeAgricolaHistoricoItem]:
+    async def _historico_timeline(self, prioridade_id: str) -> list[PrioridadeAgricolaHistoricoItem]:
         stmt = (
             select(TenantAuditLog)
             .where(
                 TenantAuditLog.tenant_id == self.tenant_id,
-                TenantAuditLog.resource == PRIORIDADE_STATUS_RESOURCE,
+                TenantAuditLog.resource.in_([PRIORIDADE_STATUS_RESOURCE, PRIORIDADE_COMMENT_RESOURCE]),
                 TenantAuditLog.resource_id == self._status_resource_id(prioridade_id),
             )
             .order_by(desc(TenantAuditLog.created_at))
@@ -705,12 +788,15 @@ class PrioridadesAgricolasV1Service(BaseService[Safra]):
         historico: list[PrioridadeAgricolaHistoricoItem] = []
         for log in logs:
             payload_after = log.payload_after or {}
+            evento_tipo = payload_after.get("evento_tipo") or ("STATUS" if log.resource == PRIORIDADE_STATUS_RESOURCE else "COMENTARIO")
             historico.append(PrioridadeAgricolaHistoricoItem(
                 id=log.id,
                 prioridade_id=payload_after.get("prioridade_id") or prioridade_id,
+                evento_tipo=evento_tipo,
                 status_anterior=payload_after.get("status_anterior"),
-                status_novo=payload_after.get("status_novo") or payload_after.get("status") or "NOVA",
+                status_novo=payload_after.get("status_novo") or payload_after.get("status"),
                 observacao=payload_after.get("observacao"),
+                comentario=payload_after.get("comentario"),
                 responsavel_id=self._parse_uuid(payload_after.get("responsavel_id")),
                 responsavel_nome=payload_after.get("responsavel_nome"),
                 alterado_em=log.created_at,
