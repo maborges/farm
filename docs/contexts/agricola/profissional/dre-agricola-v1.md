@@ -28,6 +28,8 @@ Documento técnico de governança e consolidação. Não define dashboard, expor
 
 A DRE agrícola v1 também alimenta a página financeira da safra em modo controlado. Nessa tela, os KPIs oficiais da DRE v1 aparecem como fonte primária e os indicadores financeiros legados permanecem apenas como referência secundária.
 
+A mesma base oficial também alimenta a visão de **Rentabilidade Agrícola v1**, acessível pelo card do hub agrícola principal. Essa visão deriva exclusivamente desta DRE e dos KPIs oficiais já existentes, sem recalcular receita ou custo fora da consolidação oficial. Quando houver inconsistências econômicas moderadas ou risco de reconciliação, a interface pode sinalizar que a rentabilidade está sujeita à reconciliação.
+
 ## Objetivo
 
 Documentar a janela temporal da DRE agrícola v1 e as regras de fallback por fonte para evitar dupla contagem entre receita, despesa, apropriação econômica, caixa e valuation operacional.
@@ -118,6 +120,7 @@ Este documento operacionaliza a matriz oficial descrita em:
 ## Próxima Evolução
 
 - Exposição controlada da DRE agrícola v1 para validação restrita.
+- Rentabilidade Agrícola v1 como visão oficial derivada da DRE agrícola v1, acessível pelo hub agrícola principal.
 - Consolidação futura de linhas contábeis e financeiras em camadas próprias, sem quebrar a precedência econômica oficial.
 - Expansão de relatórios por safra e unidade operacional com a mesma janela temporal.
 - Manutenção da página financeira da safra como superfície de consumo dos KPIs oficiais, com legado apenas como referência secundária.

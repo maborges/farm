@@ -2,7 +2,7 @@
 titulo: Índice Mestre de Documentação — AgroSaaS
 versao: 1.1
 data_criacao: 2026-04-01
-data_atualizacao: 2026-04-01
+data_atualizacao: 2026-05-23
 tipo: index
 ---
 
@@ -446,6 +446,6 @@ assinante_alvo: [pequeno produtor | fazenda média | grande operação | coopera
 
 ---
 
-**Última atualização:** 2026-04-01  
-**Próxima revisão:** 2026-05-01 (mensal)  
+**Última atualização:** 2026-05-23
+**Próxima revisão:** 2026-06-23 (mensal)
 **Responsável:** Documentation Team AgroSaaS
