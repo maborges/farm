@@ -350,6 +350,7 @@ from agricola.benchmark.router import router as router_benchmark_agricola_v1
 from agricola.diagnostico.router import router as router_diagnostico_agricola_v1
 from agricola.recomendacoes.router import router as router_recomendacoes_agricola_v1
 from agricola.prioridades.router import router as router_prioridades_agricola_v1
+from agricola.inteligencia_operacional.router import router as router_inteligencia_operacional_agricola_v1
 from agricola.dashboard.router import router as router_dashboard_agricola
 from agricola.operacoes.router import router as router_operacoes
 from agricola.monitoramento.router import router as router_monitoramentos
@@ -433,6 +434,7 @@ app.include_router(router_benchmark_agricola_v1, prefix="/api/v1")
 app.include_router(router_diagnostico_agricola_v1, prefix="/api/v1")
 app.include_router(router_recomendacoes_agricola_v1, prefix="/api/v1")
 app.include_router(router_prioridades_agricola_v1, prefix="/api/v1")
+app.include_router(router_inteligencia_operacional_agricola_v1, prefix="/api/v1")
 app.include_router(router_dashboard_agricola, prefix="/api/v1")
 app.include_router(router_operacoes, prefix="/api/v1")
 app.include_router(router_monitoramentos, prefix="/api/v1")
