@@ -36,6 +36,8 @@ A mesma base também alimenta a visão de **Benchmark Operacional e Econômico v
 
 A mesma base também alimenta a visão de **Diagnóstico Operacional e Econômico v1**, acessível pelo card do hub agrícola principal. Essa visão deriva exclusivamente da DRE agrícola v1, dos KPIs oficiais, da rentabilidade oficial, da eficiência operacional oficial e do benchmark oficial, sem criar IA generativa, engine paralela ou BI pesado. Quando houver desvios relevantes, warnings recorrentes ou inconsistências moderadas, os diagnósticos podem ser exibidos como sujeitos à reconciliação.
 
+A mesma base também alimenta a visão de **Recomendações Operacionais e Econômicas Assistidas v1**, acessível pelo card do hub agrícola principal. Essa visão deriva exclusivamente da DRE agrícola v1, dos KPIs oficiais, da rentabilidade oficial, da eficiência operacional oficial, do benchmark oficial e dos diagnósticos oficiais, sem criar IA autônoma, automação de execução ou engine paralela. Quando houver warnings relevantes ou reconciliação pendente, as recomendações podem ser exibidas como sujeitas à reconciliação.
+
 ## Objetivo
 
 Documentar a janela temporal da DRE agrícola v1 e as regras de fallback por fonte para evitar dupla contagem entre receita, despesa, apropriação econômica, caixa e valuation operacional.
@@ -130,6 +132,7 @@ Este documento operacionaliza a matriz oficial descrita em:
 - Eficiência Operacional Agrícola v1 como visão oficial derivada da DRE agrícola v1, acessível pelo hub agrícola principal.
 - Benchmark Operacional e Econômico v1 como visão oficial derivada da DRE agrícola v1, acessível pelo hub agrícola principal.
 - Diagnóstico Operacional e Econômico v1 como visão oficial derivada da DRE agrícola v1, acessível pelo hub agrícola principal.
+- Recomendações Operacionais e Econômicas Assistidas v1 como visão oficial derivada da DRE agrícola v1, acessível pelo hub agrícola principal.
 - Consolidação futura de linhas contábeis e financeiras em camadas próprias, sem quebrar a precedência econômica oficial.
 - Expansão de relatórios por safra e unidade operacional com a mesma janela temporal.
 - Manutenção da página financeira da safra como superfície de consumo dos KPIs oficiais, com legado apenas como referência secundária.

@@ -162,7 +162,7 @@ docs/
 **Overview:** [`agricola/_overview.md`](agricola/_overview.md)
 
 **Base oficial de visão econômica:** [`agricola/profissional/dre-agricola-v1.md`](agricola/profissional/dre-agricola-v1.md)
-Suporta a DRE agrícola v1, a Rentabilidade Agrícola v1, a Eficiência Operacional Agrícola v1, o Benchmark Operacional e Econômico v1 e o Diagnóstico Operacional e Econômico v1, sem fonte paralela de cálculo.
+Suporta a DRE agrícola v1, a Rentabilidade Agrícola v1, a Eficiência Operacional Agrícola v1, o Benchmark Operacional e Econômico v1, o Diagnóstico Operacional e Econômico v1 e as Recomendações Operacionais e Econômicas Assistidas v1, sem fonte paralela de cálculo.
 
 ---
 
