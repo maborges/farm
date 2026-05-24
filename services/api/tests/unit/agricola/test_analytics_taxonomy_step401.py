@@ -6,6 +6,7 @@ import pytest
 
 from agricola.alertas.service import AlertasAgricolasService
 from agricola.benchmark.service import BenchmarkAgricolaV1Service
+from agricola.dre.kpis_service import AgricolaDreKpiService
 from agricola.dre.schemas import DREWarning
 from core.services.analytics_request_cache import build_dre_kpi_cache_key
 
@@ -81,3 +82,44 @@ def test_classificar_tipo_relatorio_governanca_preservado():
     svc = AlertasAgricolasService(None, uuid.uuid4())
     assert svc._classificar_tipo_relatorio("MOVIMENTO_COM_CUSTO_SEM_ALLOCATION") == "ESTOQUE"
     assert svc._classificar_tipo_relatorio("ALLOCATION_POTENCIALMENTE_DUPLICADA") == "COST_ALLOCATION"
+
+
+def test_kpis_reconciliacao_normaliza_aliases():
+    dre = type(
+        "FakeDRE",
+        (),
+        {
+            "tenant_id": uuid.uuid4(),
+            "safra_id": uuid.uuid4(),
+            "production_unit_id": None,
+            "unidade_produtiva_id": None,
+            "data_inicio": None,
+            "data_fim": None,
+            "receita_liquida": 100.0,
+            "resultado_operacional": 10.0,
+            "margem_bruta": 10.0,
+            "custos_diretos": 0.0,
+            "custos_operacionais": 0.0,
+            "despesas_operacionais": 0.0,
+        },
+    )()
+    warnings = [
+        DREWarning(
+            codigo="MOVIMENTO_COM_CUSTO_SEM_ALLOCATION",
+            titulo="x",
+            severidade="INCONSISTENCIA_MODERADA",
+            mensagem="x",
+            origem="dre",
+        ),
+        DREWarning(
+            codigo="MOVIMENTO_COM_CUSTO_SEM_ALLOCATION",
+            titulo="x",
+            severidade="WARNING_LEVE",
+            mensagem="x",
+            origem="dre",
+        ),
+    ]
+
+    kpis = AgricolaDreKpiService.calcular(dre, area_total_ha=10.0, warnings=warnings)
+    assert kpis.sujeito_reconciliacao is True
+    assert kpis.warnings_relevantes == ["MOVIMENTO_COM_CUSTO_SEM_ALLOCATION"]

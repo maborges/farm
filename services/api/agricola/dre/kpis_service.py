@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from core.services.analytics_taxonomy import normalizar_severidade
 from core.services.analytics_request_cache import build_dre_kpi_cache_key, get_analytics_request_cache
 
 from .schemas import DREAgricolaKpis, DREAgricolaResponse, DREWarning
@@ -42,7 +43,7 @@ class AgricolaDreKpiService:
         warnings_relevantes = [
             warning.codigo
             for warning in warnings
-            if warning.severidade in {"INCONSISTENCIA_MODERADA", "RISCO_ECONOMICO"}
+            if normalizar_severidade(warning.severidade) in {"ATENCAO", "RISCO_ECONOMICO"}
         ]
         sujeito_reconciliacao = bool(warnings_relevantes)
 
