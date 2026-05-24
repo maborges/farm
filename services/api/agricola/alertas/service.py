@@ -35,6 +35,7 @@ from operacional.models.apontamento import ApontamentoUso
 from operacional.models.compras import DevolucaoFornecedor, ItemDevolucao, ItemRecebimento, PedidoCompra, RecebimentoParcial
 from operacional.models.estoque import EstoqueMovimento
 from core.exceptions import BusinessRuleError
+from core.services.analytics_taxonomy import classificar_tipo_relatorio, normalizar_severidade
 
 DIAS_FASE_PARADA = 10       # alerta se safra ficou X dias na mesma fase sem avançar
 DIAS_FENOLOGIA_VENCIDA = 14  # alerta se não há registro fenológico há X dias em DESENVOLVIMENTO
@@ -63,6 +64,8 @@ SEVERITY_NOTIFICATION_LEVEL = {
     "INCONSISTENCIA_MODERADA": "WARNING",
     "RISCO_ECONOMICO": "WARNING",
     "RISCO_CRITICO": "DANGER",
+    "ATENCAO": "WARNING",
+    "PRIORIDADE_CRITICA": "DANGER",
 }
 WORKFLOW_ENFORCEMENT_WARNING_ONLY = "WARNING_ONLY"
 WORKFLOW_ENFORCEMENT_BLOCK_CRITICAL = "BLOCK_CRITICAL"
@@ -70,8 +73,8 @@ WORKFLOW_ENFORCEMENT_BLOCK_ECONOMIC_AND_CRITICAL = "BLOCK_ECONOMIC_AND_CRITICAL"
 WORKFLOW_ENFORCEMENT_MODE = WORKFLOW_ENFORCEMENT_WARNING_ONLY
 WORKFLOW_ENFORCEMENT_BLOCKED_SEVERITIES = {
     WORKFLOW_ENFORCEMENT_WARNING_ONLY: set(),
-    WORKFLOW_ENFORCEMENT_BLOCK_CRITICAL: {"RISCO_CRITICO"},
-    WORKFLOW_ENFORCEMENT_BLOCK_ECONOMIC_AND_CRITICAL: {"RISCO_ECONOMICO", "RISCO_CRITICO"},
+    WORKFLOW_ENFORCEMENT_BLOCK_CRITICAL: {"RISCO_CRITICO", "PRIORIDADE_CRITICA"},
+    WORKFLOW_ENFORCEMENT_BLOCK_ECONOMIC_AND_CRITICAL: {"RISCO_ECONOMICO", "RISCO_CRITICO", "PRIORIDADE_CRITICA"},
 }
 
 
@@ -674,7 +677,9 @@ class AlertasAgricolasService:
 
     def deve_bloquear_severidade(self, severidade: str) -> bool:
         blocked = WORKFLOW_ENFORCEMENT_BLOCKED_SEVERITIES.get(self.get_workflow_enforcement_mode(), set())
-        return severidade in blocked
+        if severidade in blocked:
+            return True
+        return normalizar_severidade(severidade) in blocked
 
     async def registrar_e_aplicar_enforcement(
         self,
@@ -1329,23 +1334,7 @@ class AlertasAgricolasService:
         return str(row)
 
     def _classificar_tipo_relatorio(self, codigo: str) -> str:
-        if codigo.startswith("TAREFA_"):
-            return "TAREFA"
-        if codigo.startswith("OPERACAO_"):
-            return "OPERACAO"
-        if codigo.startswith("APONTAMENTO_"):
-            return "APONTAMENTO"
-        if codigo.startswith("PEDIDO_") or codigo.startswith("DEVOLUCAO_"):
-            return "COMPRAS"
-        if codigo.startswith("DESPESA_"):
-            return "DESPESA"
-        if codigo.startswith("ALLOCATION_") or codigo.startswith("COST_ALLOCATION_"):
-            return "COST_ALLOCATION"
-        if codigo.startswith("MOVIMENTO_") or codigo.startswith("ESTOQUE_"):
-            return "ESTOQUE"
-        if codigo.startswith("DIVERGENCIA_") or codigo.startswith("CUSTO_"):
-            return "ECONOMICO"
-        return "GERAL"
+        return classificar_tipo_relatorio(codigo)
 
     def _sugerir_correcao_relatorio(self, finding: WorkflowGovernanceFinding) -> str:
         sugestoes = {

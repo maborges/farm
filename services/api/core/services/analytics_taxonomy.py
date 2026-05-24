@@ -41,6 +41,7 @@ TIPO_RISCO_OPERACIONAL = "OPERACIONAL"
 TIPO_RISCO_MISTO = "MISTO"
 TIPO_RISCO_RECONCILIACAO = "RECONCILIACAO"
 TIPO_RISCO_GOVERNANCA = "GOVERNANCA"
+TIPO_RISCO_BENCHMARK = "BENCHMARK"
 
 TIPO_INCONSISTENCIA_RECONCILIACAO = "RECONCILIACAO_ECONOMICA"
 TIPO_INCONSISTENCIA_EFICIENCIA = "EFICIENCIA_OPERACIONAL"
@@ -148,6 +149,110 @@ ANALYTIC_CODE_REGISTRY: Final[dict[str, TaxonomiaAnalitica]] = {
         classificacao="OPERACIONAL",
         severidade_padrao="RISCO_OPERACIONAL",
     ),
+    "TAREFA_CONCLUIDA_SEM_OPERACAO": TaxonomiaAnalitica(
+        codigo="TAREFA_CONCLUIDA_SEM_OPERACAO",
+        categoria_analitica="GOVERNANCA",
+        tipo_risco=TIPO_RISCO_GOVERNANCA,
+        tipo_inconsistencia="TAREFA",
+        classificacao="OPERACIONAL",
+        severidade_padrao="ATENCAO",
+    ),
+    "OPERACAO_REALIZADA_SEM_EXECUCAO": TaxonomiaAnalitica(
+        codigo="OPERACAO_REALIZADA_SEM_EXECUCAO",
+        categoria_analitica="GOVERNANCA",
+        tipo_risco=TIPO_RISCO_GOVERNANCA,
+        tipo_inconsistencia="OPERACAO",
+        classificacao="OPERACIONAL",
+        severidade_padrao="ATENCAO",
+    ),
+    "OPERACAO_COM_CUSTO_SEM_ALLOCATION": TaxonomiaAnalitica(
+        codigo="OPERACAO_COM_CUSTO_SEM_ALLOCATION",
+        categoria_analitica="RECONCILIACAO",
+        tipo_risco=TIPO_RISCO_RECONCILIACAO,
+        tipo_inconsistencia=TIPO_INCONSISTENCIA_EFICIENCIA,
+        classificacao="OPERACIONAL",
+        severidade_padrao="RISCO_ECONOMICO",
+    ),
+    "APONTAMENTO_COM_CUSTO_SEM_CONTEXTO": TaxonomiaAnalitica(
+        codigo="APONTAMENTO_COM_CUSTO_SEM_CONTEXTO",
+        categoria_analitica="GOVERNANCA",
+        tipo_risco=TIPO_RISCO_GOVERNANCA,
+        tipo_inconsistencia="APONTAMENTO",
+        classificacao="OPERACIONAL",
+        severidade_padrao="ATENCAO",
+    ),
+    "PEDIDO_RECEBIDO_SEM_MOVIMENTO_OU_LOTE": TaxonomiaAnalitica(
+        codigo="PEDIDO_RECEBIDO_SEM_MOVIMENTO_OU_LOTE",
+        categoria_analitica="GOVERNANCA",
+        tipo_risco=TIPO_RISCO_GOVERNANCA,
+        tipo_inconsistencia="COMPRAS",
+        classificacao="OPERACIONAL",
+        severidade_padrao="PRIORIDADE_CRITICA",
+    ),
+    "DESPESA_AUTOMATICA_SEM_ORIGEM": TaxonomiaAnalitica(
+        codigo="DESPESA_AUTOMATICA_SEM_ORIGEM",
+        categoria_analitica="GOVERNANCA",
+        tipo_risco=TIPO_RISCO_GOVERNANCA,
+        tipo_inconsistencia="DESPESA",
+        classificacao="OPERACIONAL",
+        severidade_padrao="ATENCAO",
+    ),
+    "ALLOCATION_POTENCIALMENTE_DUPLICADA": TaxonomiaAnalitica(
+        codigo="ALLOCATION_POTENCIALMENTE_DUPLICADA",
+        categoria_analitica="RECONCILIACAO",
+        tipo_risco=TIPO_RISCO_RECONCILIACAO,
+        tipo_inconsistencia=TIPO_INCONSISTENCIA_RECONCILIACAO,
+        classificacao="ECONOMICO",
+        severidade_padrao="PRIORIDADE_CRITICA",
+    ),
+    "CUSTO_OPERACIONAL_SEM_REFLEXO_ECONOMICO": TaxonomiaAnalitica(
+        codigo="CUSTO_OPERACIONAL_SEM_REFLEXO_ECONOMICO",
+        categoria_analitica="RECONCILIACAO",
+        tipo_risco=TIPO_RISCO_RECONCILIACAO,
+        tipo_inconsistencia=TIPO_INCONSISTENCIA_RECONCILIACAO,
+        classificacao="ECONOMICO",
+        severidade_padrao="RISCO_ECONOMICO",
+    ),
+    "COST_ALLOCATION_SEM_ORIGEM_RASTREAVEL": TaxonomiaAnalitica(
+        codigo="COST_ALLOCATION_SEM_ORIGEM_RASTREAVEL",
+        categoria_analitica="RECONCILIACAO",
+        tipo_risco=TIPO_RISCO_RECONCILIACAO,
+        tipo_inconsistencia=TIPO_INCONSISTENCIA_RECONCILIACAO,
+        classificacao="ECONOMICO",
+        severidade_padrao="ATENCAO",
+    ),
+    "DESPESA_AUTOMATICA_DUPLICADA_MESMA_ORIGEM": TaxonomiaAnalitica(
+        codigo="DESPESA_AUTOMATICA_DUPLICADA_MESMA_ORIGEM",
+        categoria_analitica="RECONCILIACAO",
+        tipo_risco=TIPO_RISCO_RECONCILIACAO,
+        tipo_inconsistencia="DESPESA",
+        classificacao="ECONOMICO",
+        severidade_padrao="PRIORIDADE_CRITICA",
+    ),
+    "MOVIMENTO_COM_CUSTO_SEM_ALLOCATION": TaxonomiaAnalitica(
+        codigo="MOVIMENTO_COM_CUSTO_SEM_ALLOCATION",
+        categoria_analitica="RECONCILIACAO",
+        tipo_risco=TIPO_RISCO_RECONCILIACAO,
+        tipo_inconsistencia="ESTOQUE",
+        classificacao="ECONOMICO",
+        severidade_padrao="RISCO_ECONOMICO",
+    ),
+    "DIVERGENCIA_VALOR_OPERACIONAL_APROPRIADO": TaxonomiaAnalitica(
+        codigo="DIVERGENCIA_VALOR_OPERACIONAL_APROPRIADO",
+        categoria_analitica="RECONCILIACAO",
+        tipo_risco=TIPO_RISCO_RECONCILIACAO,
+        tipo_inconsistencia="ECONOMICO",
+        classificacao="ECONOMICO",
+        severidade_padrao="RISCO_ECONOMICO",
+    ),
+    "DEVOLUCAO_SEM_MOVIMENTO_ORIGINAL": TaxonomiaAnalitica(
+        codigo="DEVOLUCAO_SEM_MOVIMENTO_ORIGINAL",
+        categoria_analitica="GOVERNANCA",
+        tipo_risco=TIPO_RISCO_GOVERNANCA,
+        tipo_inconsistencia="COMPRAS",
+        classificacao="OPERACIONAL",
+        severidade_padrao="PRIORIDADE_CRITICA",
+    ),
 }
 
 
@@ -221,6 +326,30 @@ def tipo_risco(codigo: str) -> str:
 
 
 def tipo_inconsistencia(codigo: str) -> str:
+    taxonomia = obter_taxonomia(codigo)
+    if taxonomia is not None:
+        return taxonomia.tipo_inconsistencia
+    return "GERAL"
+
+
+def classificar_tipo_relatorio(codigo: str) -> str:
+    normalizado = codigo.upper()
+    if normalizado.startswith("TAREFA_"):
+        return "TAREFA"
+    if normalizado.startswith("OPERACAO_"):
+        return "OPERACAO"
+    if normalizado.startswith("APONTAMENTO_"):
+        return "APONTAMENTO"
+    if normalizado.startswith("PEDIDO_") or normalizado.startswith("DEVOLUCAO_"):
+        return "COMPRAS"
+    if normalizado.startswith("DESPESA_"):
+        return "DESPESA"
+    if normalizado.startswith("ALLOCATION_") or normalizado.startswith("COST_ALLOCATION_"):
+        return "COST_ALLOCATION"
+    if normalizado.startswith("MOVIMENTO_") or normalizado.startswith("ESTOQUE_"):
+        return "ESTOQUE"
+    if normalizado.startswith("DIVERGENCIA_") or normalizado.startswith("CUSTO_"):
+        return "ECONOMICO"
     taxonomia = obter_taxonomia(codigo)
     if taxonomia is not None:
         return taxonomia.tipo_inconsistencia

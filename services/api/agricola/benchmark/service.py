@@ -11,6 +11,7 @@ from agricola.eficiencia import EficienciaOperacionalAgricolaV1Service
 from agricola.rentabilidade import RentabilidadeAgricolaV1Service
 from agricola.safras.models import Safra
 from core.base_service import BaseService
+from core.services.analytics_taxonomy import normalizar_severidade
 from core.services.analytics_request_cache import (
     build_analytics_scope_key,
     build_analytics_value_key,
@@ -270,9 +271,9 @@ class BenchmarkAgricolaV1Service(BaseService[Safra]):
 
     @staticmethod
     def _dedupe_warnings(warnings: list[DREWarning]) -> list[DREWarning]:
-        deduped: dict[tuple[str, str], DREWarning] = {}
+        deduped: dict[tuple[str, str, str], DREWarning] = {}
         for warning in warnings:
-            deduped[(warning.codigo, warning.origem)] = warning
+            deduped[(warning.codigo, warning.origem, normalizar_severidade(warning.severidade))] = warning
         return list(deduped.values())
 
     @staticmethod

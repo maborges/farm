@@ -6,6 +6,8 @@ from typing import Any, Awaitable, Callable, TypeVar
 
 from loguru import logger
 
+from core.services.analytics_taxonomy import normalizar_severidade
+
 T = TypeVar("T")
 
 _ANALYTICS_CACHE: ContextVar[dict[str, Any] | None] = ContextVar("agrosaas_analytics_request_cache", default=None)
@@ -67,7 +69,7 @@ def build_analytics_value_key(service_name: str, scope_key: str, variant: str | 
 
 def build_dre_kpi_cache_key(dre, *, area_total_ha: float, warnings) -> str:
     warnings_key = ",".join(
-        sorted(f"{warning.codigo}:{warning.severidade}" for warning in warnings or [])
+        sorted(f"{warning.codigo}:{normalizar_severidade(warning.severidade)}" for warning in warnings or [])
     )
     scope_key = build_analytics_scope_key(
         dre.tenant_id,
