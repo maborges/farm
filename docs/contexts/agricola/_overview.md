@@ -100,6 +100,7 @@ O sistema possui os seguintes submódulos funcionais no frontend e/ou backend:
 
 - **Rentabilidade Agrícola v1**: visão oficial derivada exclusivamente da DRE agrícola v1, acessível pelo hub agrícola principal.
 - **Eficiência Operacional Agrícola v1**: visão oficial derivada exclusivamente da DRE agrícola v1, dos KPIs oficiais e dos registros operacionais, acessível pelo hub agrícola principal.
+- **Benchmark Operacional e Econômico v1**: visão oficial derivada exclusivamente da DRE agrícola v1, dos KPIs oficiais, da rentabilidade oficial e da eficiência operacional oficial, acessível pelo hub agrícola principal.
 
 ## Arquitetura de Níveis
 
@@ -152,6 +153,7 @@ Cada nível superior consome dados do nível inferior. Um produtor no plano Esse
 - [Profissional: Monitoramento NDVI](profissional/monitoramento-ndvi.md)
 - [Profissional: Custos de Produção](profissional/custos-producao.md)
 - [Profissional: DRE Agrícola v1](profissional/dre-agricola-v1.md) - base oficial da DRE, da rentabilidade agrícola v1 e da eficiência operacional agrícola v1
+- [Benchmark Operacional e Econômico v1](profissional/dre-agricola-v1.md) - base oficial do benchmark comparativo agrícola v1
 - [Enterprise: Rastreabilidade de Campo](enterprise/rastreabilidade-campo.md)
 - [Enterprise: Prescrições VRT](enterprise/prescricoes-vrt.md)
 - [Enterprise: Beneficiamento](enterprise/beneficiamento.md)

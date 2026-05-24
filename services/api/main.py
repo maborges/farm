@@ -346,6 +346,7 @@ from agricola.fenologia.router import router as router_fenologia
 from agricola.dre.router import router as router_dre_agricola_v1
 from agricola.rentabilidade.router import router as router_rentabilidade_agricola_v1
 from agricola.eficiencia.router import router as router_eficiencia_agricola_v1
+from agricola.benchmark.router import router as router_benchmark_agricola_v1
 from agricola.dashboard.router import router as router_dashboard_agricola
 from agricola.operacoes.router import router as router_operacoes
 from agricola.monitoramento.router import router as router_monitoramentos
@@ -425,6 +426,7 @@ app.include_router(router_fenologia, prefix="/api/v1")
 app.include_router(router_dre_agricola_v1, prefix="/api/v1")
 app.include_router(router_rentabilidade_agricola_v1, prefix="/api/v1")
 app.include_router(router_eficiencia_agricola_v1, prefix="/api/v1")
+app.include_router(router_benchmark_agricola_v1, prefix="/api/v1")
 app.include_router(router_dashboard_agricola, prefix="/api/v1")
 app.include_router(router_operacoes, prefix="/api/v1")
 app.include_router(router_monitoramentos, prefix="/api/v1")

@@ -32,6 +32,8 @@ A mesma base oficial também alimenta a visão de **Rentabilidade Agrícola v1**
 
 A mesma base também alimenta a visão de **Eficiência Operacional Agrícola v1**, acessível pelo card do hub agrícola principal. Essa visão deriva exclusivamente da DRE agrícola v1, dos KPIs oficiais e dos registros operacionais já existentes, sem criar engine analítica paralela nem recalcular economia fora da consolidação oficial. Quando houver inconsistências ou warnings relevantes, os indicadores podem ser exibidos como sujeitos à reconciliação.
 
+A mesma base também alimenta a visão de **Benchmark Operacional e Econômico v1**, acessível pelo card do hub agrícola principal. Essa visão deriva exclusivamente da DRE agrícola v1, dos KPIs oficiais, da rentabilidade oficial e da eficiência operacional oficial, sem criar cubo analítico paralelo, comparativo histórico massivo ou recálculo fora da consolidação oficial. Quando houver inconsistências ou warnings relevantes, o benchmark pode ser exibido como sujeito à reconciliação.
+
 ## Objetivo
 
 Documentar a janela temporal da DRE agrícola v1 e as regras de fallback por fonte para evitar dupla contagem entre receita, despesa, apropriação econômica, caixa e valuation operacional.
@@ -124,6 +126,7 @@ Este documento operacionaliza a matriz oficial descrita em:
 - Exposição controlada da DRE agrícola v1 para validação restrita.
 - Rentabilidade Agrícola v1 como visão oficial derivada da DRE agrícola v1, acessível pelo hub agrícola principal.
 - Eficiência Operacional Agrícola v1 como visão oficial derivada da DRE agrícola v1, acessível pelo hub agrícola principal.
+- Benchmark Operacional e Econômico v1 como visão oficial derivada da DRE agrícola v1, acessível pelo hub agrícola principal.
 - Consolidação futura de linhas contábeis e financeiras em camadas próprias, sem quebrar a precedência econômica oficial.
 - Expansão de relatórios por safra e unidade operacional com a mesma janela temporal.
 - Manutenção da página financeira da safra como superfície de consumo dos KPIs oficiais, com legado apenas como referência secundária.
