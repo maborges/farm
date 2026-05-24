@@ -23,6 +23,8 @@ Submódulo que consolida todos os lançamentos efetivados em uma visão temporal
 
 O fluxo de caixa opera em duas visões: **Realizado** (apenas lançamentos efetivados) e **Projetado** (realizado + previstos), permitindo ao produtor antecipar períodos de aperto financeiro e planejar investimentos.
 
+O fluxo de caixa opera sobre realização financeira. Ele não substitui a apropriação econômica oficial nem o valuation operacional descritos em [Matriz de Precedência Econômica Oficial](../../../architecture/economic-source-precedence.md).
+
 ## Personas — Quem usa este submódulo
 
 - **Produtor Rural (owner):** verifica diariamente se há saldo suficiente para compromissos; planeja compras de insumos com base na projeção.
@@ -50,6 +52,7 @@ O fluxo de caixa opera em duas visões: **Realizado** (apenas lançamentos efeti
 8. Exportação em PDF e CSV disponível para qualquer período/filtro.
 9. O fluxo respeita multi-tenancy: cada tenant vê apenas seus dados.
 10. Cache de 5 minutos para cálculos de períodos longos (> 1 ano); invalidado ao criar/editar lançamento.
+11. O fluxo de caixa reflete a realização financeira dos `LancamentoFinanceiro`/lançamentos efetivados; não deve ser usado como fonte oficial de receita operacional, despesa operacional ou apropriação econômica.
 
 ## Entidades de Dados Principais
 

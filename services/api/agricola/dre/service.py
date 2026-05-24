@@ -1,0 +1,841 @@
+from __future__ import annotations
+
+import uuid
+from collections import defaultdict
+from dataclasses import dataclass
+from datetime import datetime, date, timezone
+from decimal import Decimal
+from uuid import UUID
+
+from sqlalchemy import and_, func, or_, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from agricola.alertas.service import AlertasAgricolasService
+from agricola.custos.models import CostAllocation
+from agricola.operacoes.models import OperacaoAgricola, OperacaoExecucao
+from agricola.romaneios.models import RomaneioColheita
+from agricola.safras.models import Safra
+from agricola.production_units.models import ProductionUnit
+from agricola.colheita.models import ProdutoColhido
+from core.cadastros.equipamentos.alocacao_service import get_equipamento_unidade_operacional
+from core.cadastros.propriedades.models import AreaRural
+from financeiro.comercializacao.models import ComercializacaoCommodity
+from financeiro.models.despesa import Despesa
+from financeiro.models.lancamento import LancamentoFinanceiro
+from financeiro.models.rateio import Rateio
+from financeiro.models.receita import Receita
+from operacional.models.abastecimento import Abastecimento
+from operacional.models.estoque import EstoqueMovimento
+from operacional.models.frota import OrdemServico
+from core.base_service import BaseService
+
+from .schemas import (
+    DREAgricolaResponse,
+    DREAgricolaSection,
+    DREReconcilacaoMeta,
+    DRESourceItem,
+    DREWarning,
+)
+from .kpis_service import AgricolaDreKpiService
+
+
+@dataclass(slots=True)
+class _ScopedProductionUnit:
+    id: UUID
+    safra_id: UUID
+    cultura: str | None
+    area_id: UUID
+    unidade_produtiva_id: UUID
+    area_ha: float
+
+
+class DREAgricolaV1Service(BaseService[Safra]):
+    """Serviço interno e somente leitura para DRE agrícola v1."""
+
+    def __init__(self, session: AsyncSession, tenant_id: UUID):
+        super().__init__(Safra, session, tenant_id)
+
+    async def gerar(
+        self,
+        *,
+        safra_id: UUID | None = None,
+        unidade_produtiva_id: UUID | None = None,
+        production_unit_id: UUID | None = None,
+        production_unit_ids: list[UUID] | None = None,
+        cultura: str | None = None,
+        unidade_operacional_id: UUID | None = None,
+        data_inicio: date | None = None,
+        data_fim: date | None = None,
+    ) -> DREAgricolaResponse:
+        scope = await self._resolver_escopo(
+            safra_id=safra_id,
+            unidade_produtiva_id=unidade_produtiva_id,
+            production_unit_id=production_unit_id,
+            production_unit_ids=production_unit_ids,
+            cultura=cultura,
+            unidade_operacional_id=unidade_operacional_id,
+        )
+
+        if not scope["production_units"] and any(
+            value is not None
+            for value in (safra_id, unidade_produtiva_id, production_unit_id, production_unit_ids, cultura, unidade_operacional_id)
+        ):
+            return DREAgricolaResponse(
+                tenant_id=self.tenant_id,
+                gerado_em=datetime.now(timezone.utc),
+                safra_id=safra_id,
+                unidade_produtiva_id=unidade_produtiva_id,
+                production_unit_id=production_unit_id,
+                unidade_operacional_id=unidade_operacional_id,
+                cultura=cultura,
+                production_unit_ids=[],
+            )
+
+        scope["data_inicio"] = data_inicio
+        scope["data_fim"] = data_fim
+
+        receitas_section, deducoes, receitas_warnings, receitas_excluidas = await self._consolidar_receitas(
+            scope,
+            data_inicio=data_inicio,
+            data_fim=data_fim,
+        )
+        custos_diretos_section = await self._consolidar_costs(scope, direct=True, data_inicio=data_inicio, data_fim=data_fim)
+        custos_operacionais_section = await self._consolidar_costs(scope, direct=False, data_inicio=data_inicio, data_fim=data_fim)
+        despesas_section, despesas_excluidas = await self._consolidar_despesas(
+            scope,
+            custos_diretos_section,
+            custos_operacionais_section,
+            data_inicio=data_inicio,
+            data_fim=data_fim,
+        )
+        reconciliacao = await self._montar_reconciliacao(
+            scope,
+            receitas_excluidas,
+            despesas_excluidas,
+            data_inicio=data_inicio,
+            data_fim=data_fim,
+        )
+
+        receita_bruta = round(receitas_section.valor, 2)
+        deducoes_valor = round(deducoes, 2)
+        receita_liquida = round(receita_bruta - deducoes_valor, 2)
+        custos_diretos = round(custos_diretos_section.valor, 2)
+        custos_operacionais = round(custos_operacionais_section.valor, 2)
+        margem_bruta = round(receita_liquida - custos_diretos, 2)
+        despesas_operacionais = round(despesas_section.valor, 2)
+        resultado_operacional = round(margem_bruta - custos_operacionais - despesas_operacionais, 2)
+
+        warnings = await self._montar_warnings(
+            scope,
+            receitas_warnings,
+            despesas_excluidas,
+            data_inicio=data_inicio,
+            data_fim=data_fim,
+        )
+        base_response = DREAgricolaResponse(
+            tenant_id=self.tenant_id,
+            gerado_em=datetime.now(timezone.utc),
+            safra_id=safra_id,
+            unidade_produtiva_id=unidade_produtiva_id or scope["unidade_produtiva_id"],
+            production_unit_id=production_unit_id,
+            unidade_operacional_id=unidade_operacional_id,
+            cultura=scope["cultura"],
+            production_unit_ids=[pu.id for pu in scope["production_units"]],
+            receita_bruta=receita_bruta,
+            deducoes=deducoes_valor,
+            receita_liquida=receita_liquida,
+            custos_diretos=custos_diretos,
+            custos_operacionais=custos_operacionais,
+            margem_bruta=margem_bruta,
+            despesas_operacionais=despesas_operacionais,
+            resultado_operacional=resultado_operacional,
+            receita=receitas_section,
+            custos_diretos_detalhe=custos_diretos_section,
+            custos_operacionais_detalhe=custos_operacionais_section,
+            despesas_operacionais_detalhe=despesas_section,
+            warnings=warnings,
+            reconciliacao=reconciliacao,
+        )
+        area_total_ha = round(sum(float(pu.area_ha or 0) for pu in scope["production_units"]), 2)
+        kpis = AgricolaDreKpiService.calcular(
+            base_response,
+            area_total_ha=area_total_ha,
+            warnings=warnings,
+        )
+
+        return base_response.model_copy(update={"kpis": kpis})
+
+    async def _resolver_escopo(
+        self,
+        *,
+        safra_id: UUID | None,
+        unidade_produtiva_id: UUID | None,
+        production_unit_id: UUID | None,
+        production_unit_ids: list[UUID] | None,
+        cultura: str | None,
+        unidade_operacional_id: UUID | None,
+    ) -> dict:
+        unidade_operacional_resolvida = None
+        if unidade_operacional_id is not None:
+            contexto = await get_equipamento_unidade_operacional(
+                self.session,
+                tenant_id=self.tenant_id,
+                equipamento_id=unidade_operacional_id,
+            )
+            unidade_operacional_resolvida = contexto.unidade_produtiva_id
+            if unidade_produtiva_id is None:
+                unidade_produtiva_id = unidade_operacional_resolvida
+
+        stmt = select(
+            ProductionUnit.id,
+            ProductionUnit.safra_id,
+            Safra.cultura,
+            ProductionUnit.area_id,
+            ProductionUnit.area_ha,
+            AreaRural.unidade_produtiva_id,
+        ).join(
+            Safra,
+            and_(Safra.id == ProductionUnit.safra_id, Safra.tenant_id == self.tenant_id),
+        ).join(
+            AreaRural,
+            and_(AreaRural.id == ProductionUnit.area_id, AreaRural.tenant_id == self.tenant_id),
+        ).where(
+            ProductionUnit.tenant_id == self.tenant_id,
+            ProductionUnit.status != "CANCELADA",
+        )
+
+        if safra_id is not None:
+            stmt = stmt.where(ProductionUnit.safra_id == safra_id)
+        if unidade_produtiva_id is not None:
+            stmt = stmt.where(AreaRural.unidade_produtiva_id == unidade_produtiva_id)
+        if cultura:
+            stmt = stmt.where(func.lower(func.coalesce(Safra.cultura, "")) == cultura.strip().lower())
+        if production_unit_id is not None:
+            stmt = stmt.where(ProductionUnit.id == production_unit_id)
+        if production_unit_ids:
+            stmt = stmt.where(ProductionUnit.id.in_(production_unit_ids))
+
+        rows = (await self.session.execute(stmt.order_by(ProductionUnit.id))).all()
+        production_units = [
+            _ScopedProductionUnit(
+                id=row.id,
+                safra_id=row.safra_id,
+                cultura=row.cultura,
+                area_id=row.area_id,
+                unidade_produtiva_id=row.unidade_produtiva_id,
+                area_ha=float(row.area_ha or 0),
+            )
+            for row in rows
+        ]
+
+        if not production_units and production_unit_id is not None:
+            # Mantém o retorno estável mesmo quando o filtro aponta para uma PU inexistente.
+            production_units = []
+
+        safra_obj = None
+        if safra_id is not None:
+            safra_obj = await self.session.get(Safra, safra_id)
+
+        return {
+            "production_units": production_units,
+            "production_unit_ids": [pu.id for pu in production_units],
+            "safra_id": safra_id,
+            "safra": safra_obj,
+            "cultura": cultura or (safra_obj.cultura if safra_obj else None),
+            "unidade_produtiva_id": unidade_produtiva_id,
+            "unidade_operacional_id": unidade_operacional_id,
+            "unidade_operacional_resolvida": unidade_operacional_resolvida,
+        }
+
+    async def _consolidar_receitas(
+        self,
+        scope: dict,
+        *,
+        data_inicio: date | None = None,
+        data_fim: date | None = None,
+    ) -> tuple[DREAgricolaSection, float, list[DREWarning], int]:
+        pu_ids = [pu.id for pu in scope["production_units"]]
+        receitas_items: list[DRESourceItem] = []
+        warnings: list[DREWarning] = []
+        receita_excluida_total = 0
+        deducoes = 0.0
+
+        # Receita de comercialização tem precedência sobre romaneio na mesma PU.
+        stmt_comm = (
+            select(Receita, ComercializacaoCommodity, ProdutoColhido, ProductionUnit)
+            .join(ComercializacaoCommodity, Receita.origem_id == ComercializacaoCommodity.id)
+            .join(ProdutoColhido, ComercializacaoCommodity.produto_colhido_id == ProdutoColhido.id)
+            .join(
+                ProductionUnit,
+                and_(
+                    ProductionUnit.tenant_id == self.tenant_id,
+                    ProductionUnit.safra_id == ProdutoColhido.safra_id,
+                    ProductionUnit.area_id == ProdutoColhido.talhao_id,
+                ),
+            )
+            .where(
+                Receita.tenant_id == self.tenant_id,
+                Receita.ativo == True,
+                Receita.origem_tipo == "COMERCIALIZACAO",
+            )
+        )
+        stmt_comm = stmt_comm.where(
+            self._periodo_clause(func.coalesce(Receita.competencia, Receita.data_emissao), data_inicio=data_inicio, data_fim=data_fim)
+        )
+        if pu_ids:
+            stmt_comm = stmt_comm.where(ProductionUnit.id.in_(pu_ids))
+
+        comm_rows = (
+            await self.session.execute(
+                stmt_comm.order_by(func.coalesce(Receita.competencia, Receita.data_emissao), Receita.created_at)
+            )
+        ).all()
+
+        comm_por_pu: dict[UUID, list[DRESourceItem]] = defaultdict(list)
+        for receita, comercializacao, produto_colhido, pu in comm_rows:
+            item = DRESourceItem(
+                natureza="RECEITA_OPERACIONAL",
+                fonte_oficial="Receita",
+                origem_tipo="COMERCIALIZACAO",
+                origem_id=receita.origem_id,
+                production_unit_id=pu.id,
+                unidade_produtiva_id=scope["unidade_produtiva_id"],
+                safra_id=produto_colhido.safra_id,
+                valor=float(receita.valor_total or 0),
+                meta={
+                    "receita_id": str(receita.id),
+                    "comercializacao_id": str(comercializacao.id),
+                    "produto_colhido_id": str(produto_colhido.id),
+                    "romaneio_id": str(produto_colhido.romaneio_id) if produto_colhido.romaneio_id else None,
+                    "data_economica": str(receita.competencia or receita.data_emissao),
+                    "data_economica_fonte": "competencia" if receita.competencia else "data_emissao",
+                },
+            )
+            comm_por_pu[pu.id].append(item)
+
+        stmt_rom = (
+            select(Receita, RomaneioColheita, ProductionUnit, ProdutoColhido)
+            .join(RomaneioColheita, Receita.origem_id == RomaneioColheita.id)
+            .outerjoin(ProdutoColhido, ProdutoColhido.romaneio_id == RomaneioColheita.id)
+            .outerjoin(
+                ProductionUnit,
+                and_(
+                    ProductionUnit.tenant_id == self.tenant_id,
+                    or_(
+                        ProductionUnit.id == RomaneioColheita.production_unit_id,
+                        and_(
+                            ProductionUnit.safra_id == RomaneioColheita.safra_id,
+                            ProductionUnit.area_id == RomaneioColheita.talhao_id,
+                        ),
+                    ),
+                ),
+            )
+            .where(
+                Receita.tenant_id == self.tenant_id,
+                Receita.ativo == True,
+                Receita.origem_tipo == "ROMANEIO_COLHEITA",
+            )
+        )
+        stmt_rom = stmt_rom.where(
+            self._periodo_clause(func.coalesce(Receita.competencia, Receita.data_emissao), data_inicio=data_inicio, data_fim=data_fim)
+        )
+        if pu_ids:
+            stmt_rom = stmt_rom.where(or_(ProductionUnit.id.in_(pu_ids), ProductionUnit.id.is_(None)))
+
+        rom_rows = (
+            await self.session.execute(
+                stmt_rom.order_by(func.coalesce(Receita.competencia, Receita.data_emissao), Receita.created_at)
+            )
+        ).all()
+        rom_por_pu: dict[UUID, list[DRESourceItem]] = defaultdict(list)
+        romaneios_por_pu: dict[UUID, list[RomaneioColheita]] = defaultdict(list)
+        for receita, romaneio, pu, produto_colhido in rom_rows:
+            pu_id = pu.id if pu else None
+            if pu_id is None and pu_ids:
+                continue
+            if pu_id is None:
+                continue
+
+            romaneios_por_pu[pu_id].append(romaneio)
+            item = DRESourceItem(
+                natureza="RECEITA_OPERACIONAL",
+                fonte_oficial="Receita",
+                origem_tipo="ROMANEIO_COLHEITA",
+                origem_id=receita.origem_id,
+                production_unit_id=pu_id,
+                unidade_produtiva_id=scope["unidade_produtiva_id"],
+                safra_id=romaneio.safra_id,
+                valor=float(receita.valor_total or 0),
+                meta={
+                    "receita_id": str(receita.id),
+                    "romaneio_id": str(romaneio.id),
+                    "produto_colhido_id": str(produto_colhido.id) if produto_colhido else None,
+                    "data_economica": str(receita.competencia or receita.data_emissao),
+                    "data_economica_fonte": "competencia" if receita.competencia else "data_emissao",
+                },
+            )
+            rom_por_pu[pu_id].append(item)
+
+        for pu_id, items in comm_por_pu.items():
+            receitas_items.extend(items)
+
+        for pu_id, items in rom_por_pu.items():
+            if pu_id in comm_por_pu:
+                receita_excluida_total += len(items)
+                warnings.append(
+                    DREWarning(
+                        codigo="RECEITA_ROMANEIO_SUPERADA_POR_COMERCIALIZACAO",
+                        titulo="Receita de romaneio suprimida por comercialização",
+                        severidade="WARNING_LEVE",
+                        mensagem="Quando há receita de comercialização na mesma ProductionUnit, o romaneio é tratado como reflexo e não entra na DRE consolidada.",
+                        origem="dre_agricola_v1",
+                        amostras=[str(pu_id)],
+                        meta={
+                            "production_unit_id": str(pu_id),
+                            "receitas_romaneio_excluidas": len(items),
+                        },
+                    )
+                )
+                continue
+
+            for item in items:
+                receitas_items.append(item)
+                romaneio = next((r for r in romaneios_por_pu.get(pu_id, []) if str(r.id) == str(item.meta.get("romaneio_id"))), None)
+                if romaneio and romaneio.preco_saca and romaneio.sacas_60kg is not None:
+                    bruto_est = float(romaneio.peso_liquido_kg or 0) / 60.0 * float(romaneio.preco_saca or 0)
+                    deducoes += max(bruto_est - float(item.valor), 0.0)
+
+        valor_total = round(sum(item.valor for item in receitas_items), 2)
+        fontes = defaultdict(float)
+        for item in receitas_items:
+            fontes[item.origem_tipo or "OUTRO"] += item.valor
+
+        section = DREAgricolaSection(
+            valor=valor_total,
+            itens=receitas_items,
+            total_registros=len(receitas_items),
+            fontes={k: round(v, 2) for k, v in sorted(fontes.items())},
+        )
+        return section, deducoes, warnings, receita_excluida_total
+
+    async def _consolidar_costs(
+        self,
+        scope: dict,
+        *,
+        direct: bool,
+        data_inicio: date | None = None,
+        data_fim: date | None = None,
+    ) -> DREAgricolaSection:
+        pu_ids = [pu.id for pu in scope["production_units"]]
+        if not pu_ids:
+            return DREAgricolaSection()
+
+        source_direct = {"OPERATION_EXECUTION", "INVENTORY_MOVEMENT", "ESTOQUE"}
+        stmt = select(CostAllocation).where(
+            CostAllocation.tenant_id == self.tenant_id,
+            CostAllocation.production_unit_id.in_(pu_ids),
+        )
+        stmt = stmt.where(self._periodo_clause(CostAllocation.allocation_date, data_inicio=data_inicio, data_fim=data_fim))
+        rows = list((await self.session.execute(stmt.order_by(CostAllocation.allocation_date, CostAllocation.created_at))).scalars().all())
+
+        items: list[DRESourceItem] = []
+        fontes = defaultdict(float)
+        total = 0.0
+
+        for alloc in rows:
+            is_direct = alloc.source in source_direct
+            if direct != is_direct:
+                continue
+            valor = float(alloc.amount or 0)
+            total += valor
+            fontes[alloc.source] += valor
+            items.append(
+                DRESourceItem(
+                    natureza="CUSTO_DIRETO" if direct else "CUSTO_OPERACIONAL",
+                    fonte_oficial="CostAllocation",
+                    origem_tipo=alloc.source,
+                    origem_id=alloc.source_id,
+                    production_unit_id=alloc.production_unit_id,
+                    safra_id=scope["safra_id"],
+                    valor=valor,
+                    meta={
+                        "cost_allocation_id": str(alloc.id),
+                        "cost_category": alloc.cost_category,
+                        "allocation_method": alloc.allocation_method,
+                        "allocation_date": str(alloc.allocation_date),
+                        "data_economica": str(alloc.allocation_date),
+                        "data_economica_fonte": "allocation_date",
+                    },
+                )
+            )
+
+        return DREAgricolaSection(
+            valor=round(total, 2),
+            itens=items,
+            total_registros=len(items),
+            fontes={k: round(v, 2) for k, v in sorted(fontes.items())},
+        )
+
+    async def _consolidar_despesas(
+        self,
+        scope: dict,
+        custos_diretos_section: DREAgricolaSection,
+        custos_operacionais_section: DREAgricolaSection,
+        *,
+        data_inicio: date | None = None,
+        data_fim: date | None = None,
+    ) -> tuple[DREAgricolaSection, int]:
+        """Consolida despesas somente quando não há camada superior equivalente."""
+        pu_ids = [pu.id for pu in scope["production_units"]]
+        if not pu_ids and scope["unidade_produtiva_id"] is None:
+            return DREAgricolaSection(), 0
+
+        # Origens que já possuem apropriação econômica oficial.
+        alloc_op_ids = set(
+            row[0]
+            for row in (
+                await self.session.execute(
+                    select(func.distinct(OperacaoExecucao.operacao_id))
+                    .join(CostAllocation, CostAllocation.operation_execution_id == OperacaoExecucao.id)
+                    .where(
+                        CostAllocation.tenant_id == self.tenant_id,
+                        CostAllocation.production_unit_id.in_(pu_ids),
+                        self._periodo_clause(CostAllocation.allocation_date, data_inicio=data_inicio, data_fim=data_fim),
+                    )
+                )
+            ).all()
+            if row[0] is not None
+        )
+        alloc_mov_origin_ids = set(
+            row[0]
+            for row in (
+                await self.session.execute(
+                    select(func.distinct(EstoqueMovimento.origem_id))
+                    .join(CostAllocation, CostAllocation.inventory_movement_id == EstoqueMovimento.id)
+                    .where(
+                        CostAllocation.tenant_id == self.tenant_id,
+                        CostAllocation.production_unit_id.in_(pu_ids),
+                        self._periodo_clause(CostAllocation.allocation_date, data_inicio=data_inicio, data_fim=data_fim),
+                    )
+                )
+            ).all()
+            if row[0] is not None
+        )
+        alloc_rateio_ids = set(
+            row[0]
+            for row in (
+                await self.session.execute(
+                    select(func.distinct(CostAllocation.fin_rateio_id)).where(
+                        CostAllocation.tenant_id == self.tenant_id,
+                        CostAllocation.production_unit_id.in_(pu_ids),
+                        CostAllocation.fin_rateio_id.isnot(None),
+                        self._periodo_clause(CostAllocation.allocation_date, data_inicio=data_inicio, data_fim=data_fim),
+                    )
+                )
+            ).all()
+            if row[0] is not None
+        )
+
+        desp_stmt = select(Despesa).where(Despesa.tenant_id == self.tenant_id, Despesa.ativo == True)
+        if scope["unidade_produtiva_id"] is not None:
+            desp_stmt = desp_stmt.where(Despesa.unidade_produtiva_id == scope["unidade_produtiva_id"])
+        desp_stmt = desp_stmt.where(
+            self._periodo_clause(func.coalesce(Despesa.competencia, Despesa.data_emissao), data_inicio=data_inicio, data_fim=data_fim)
+        )
+
+        despesas = list(
+            (
+                await self.session.execute(
+                    desp_stmt.order_by(func.coalesce(Despesa.competencia, Despesa.data_emissao), Despesa.created_at)
+                )
+            ).scalars().all()
+        )
+        if not despesas:
+            return DREAgricolaSection(), 0
+
+        op_ids = [d.origem_id for d in despesas if d.origem_tipo == "OPERACAO_AGRICOLA" and d.origem_id is not None]
+        os_ids = [d.origem_id for d in despesas if d.origem_tipo == "ORDEM_SERVICO" and d.origem_id is not None]
+        ab_ids = [d.origem_id for d in despesas if d.origem_tipo == "ABASTECIMENTO" and d.origem_id is not None]
+        rateio_despesa_ids = [d.id for d in despesas if d.origem_tipo == "FIN_RATEIO"]
+
+        operacoes_map = {
+            row.id: row
+            for row in (await self.session.execute(select(OperacaoAgricola).where(OperacaoAgricola.id.in_(op_ids)))).scalars().all()
+        }
+        os_map = {
+            row.id: row
+            for row in (await self.session.execute(select(OrdemServico).where(OrdemServico.id.in_(os_ids)))).scalars().all()
+        }
+        abastecimentos_map = {
+            row.id: row
+            for row in (await self.session.execute(select(Abastecimento).where(Abastecimento.id.in_(ab_ids)))).scalars().all()
+        }
+        rateios_map = {
+            row.id: row
+            for row in (await self.session.execute(select(Rateio).where(Rateio.despesa_id.in_(rateio_despesa_ids)))).scalars().all()
+        }
+        rateios_por_despesa: dict[UUID, list[Rateio]] = defaultdict(list)
+        for rateio in rateios_map.values():
+            rateios_por_despesa[rateio.despesa_id].append(rateio)
+
+        items: list[DRESourceItem] = []
+        total = 0.0
+        excluidas = 0
+
+        for despesa in despesas:
+            if despesa.origem_tipo == "OPERACAO_AGRICOLA" and despesa.origem_id in alloc_op_ids:
+                excluidas += 1
+                continue
+            if despesa.origem_tipo in {"ORDEM_SERVICO", "ABASTECIMENTO"} and despesa.origem_id in alloc_mov_origin_ids:
+                excluidas += 1
+                continue
+            if despesa.origem_tipo == "FIN_RATEIO" and any(rateio.id in alloc_rateio_ids for rateio in rateios_por_despesa.get(despesa.id, [])):
+                excluidas += 1
+                continue
+
+            pu_id = None
+            if despesa.origem_tipo == "OPERACAO_AGRICOLA" and despesa.origem_id in operacoes_map:
+                pu_id = operacoes_map[despesa.origem_id].production_unit_id
+            elif despesa.origem_tipo == "ORDEM_SERVICO" and despesa.origem_id in os_map:
+                os_obj = os_map[despesa.origem_id]
+                pu_id = await self._resolver_pu_por_safra_talhao(os_obj.safra_id, os_obj.talhao_id, pu_ids)
+            elif despesa.origem_tipo == "ABASTECIMENTO" and despesa.origem_id in abastecimentos_map:
+                ab_obj = abastecimentos_map[despesa.origem_id]
+                pu_id = await self._resolver_pu_por_safra_talhao(ab_obj.safra_id, ab_obj.talhao_id, pu_ids)
+            elif despesa.origem_tipo == "FIN_RATEIO" and rateios_por_despesa.get(despesa.id):
+                rateio = rateios_por_despesa[despesa.id][0]
+                pu_id = await self._resolver_pu_por_safra_talhao(rateio.safra_id, rateio.talhao_id, pu_ids)
+
+            if pu_ids and pu_id is not None and pu_id not in pu_ids:
+                continue
+            if pu_ids and pu_id is None and scope["unidade_produtiva_id"] is None:
+                # Sem como atribuir ao PU escolhido, não entra na DRE filtrada por PU.
+                continue
+
+            valor = float(despesa.valor_total or 0)
+            total += valor
+            items.append(
+                DRESourceItem(
+                    natureza="DESPESA_OPERACIONAL",
+                    fonte_oficial="Despesa",
+                    origem_tipo=despesa.origem_tipo,
+                    origem_id=despesa.origem_id,
+                    production_unit_id=pu_id,
+                    unidade_produtiva_id=despesa.unidade_produtiva_id,
+                    safra_id=scope["safra_id"],
+                    valor=valor,
+                    meta={
+                        "despesa_id": str(despesa.id),
+                        "status": despesa.status,
+                        "data_emissao": str(despesa.data_emissao),
+                        "data_economica": str(despesa.competencia or despesa.data_emissao),
+                        "data_economica_fonte": "competencia" if despesa.competencia else "data_emissao",
+                        "plano_conta_id": str(despesa.plano_conta_id),
+                    },
+                )
+            )
+
+        return DREAgricolaSection(
+            valor=round(total, 2),
+            itens=items,
+            total_registros=len(items),
+            fontes={"DESPESA": round(total, 2)},
+        ), excluidas
+
+    async def _resolver_pu_por_safra_talhao(
+        self,
+        safra_id: UUID | None,
+        talhao_id: UUID | None,
+        scope_pu_ids: list[UUID],
+    ) -> UUID | None:
+        if safra_id is None or talhao_id is None:
+            return None
+        stmt = select(ProductionUnit.id).where(
+            ProductionUnit.tenant_id == self.tenant_id,
+            ProductionUnit.safra_id == safra_id,
+            ProductionUnit.area_id == talhao_id,
+        )
+        if scope_pu_ids:
+            stmt = stmt.where(ProductionUnit.id.in_(scope_pu_ids))
+        return (await self.session.execute(stmt.limit(1))).scalar_one_or_none()
+
+    async def _montar_reconciliacao(
+        self,
+        scope: dict,
+        receitas_excluidas: int,
+        despesas_excluidas: int,
+        *,
+        data_inicio: date | None = None,
+        data_fim: date | None = None,
+    ) -> DREReconcilacaoMeta:
+        pu_ids = [pu.id for pu in scope["production_units"]]
+        lancamentos = list(
+            (
+                await self.session.execute(
+                    select(LancamentoFinanceiro).where(
+                        LancamentoFinanceiro.tenant_id == self.tenant_id,
+                        LancamentoFinanceiro.safra_id == scope["safra_id"] if scope["safra_id"] is not None else True,
+                        self._periodo_clause(LancamentoFinanceiro.data, data_inicio=data_inicio, data_fim=data_fim),
+                    )
+                )
+            ).scalars().all()
+        )
+        lanc_receita = sum(float(l.valor or 0) for l in lancamentos if l.tipo == "RECEITA")
+        lanc_custo = sum(float(l.valor or 0) for l in lancamentos if l.tipo == "CUSTO")
+
+        movimentos = list(
+            (
+                await self.session.execute(
+                    select(EstoqueMovimento).where(
+                        EstoqueMovimento.tenant_id == self.tenant_id,
+                        EstoqueMovimento.production_unit_id.in_(pu_ids) if pu_ids else True,
+                        self._periodo_clause(EstoqueMovimento.data_movimento, data_inicio=data_inicio, data_fim=data_fim),
+                    )
+                )
+            ).scalars().all()
+        )
+        movimentos_com_custo = sum(1 for mov in movimentos if float(mov.custo_total or 0) > 0)
+
+        allocations_total = int(
+            (
+                await self.session.execute(
+                    select(func.count(CostAllocation.id)).where(
+                        CostAllocation.tenant_id == self.tenant_id,
+                        CostAllocation.production_unit_id.in_(pu_ids) if pu_ids else True,
+                        self._periodo_clause(CostAllocation.allocation_date, data_inicio=data_inicio, data_fim=data_fim),
+                    )
+                )
+            ).scalar_one()
+            or 0
+        )
+
+        return DREReconcilacaoMeta(
+            lancamentos_financeiros_receita=round(lanc_receita, 2),
+            lancamentos_financeiros_custo=round(lanc_custo, 2),
+            lancamentos_financeiros_total=round(lanc_receita - lanc_custo, 2),
+            estoque_movimentos_com_custo=movimentos_com_custo,
+            cost_allocations_total=allocations_total,
+            despesas_excluidas_por_precedencia=despesas_excluidas,
+            receitas_excluidas_por_precedencia=receitas_excluidas,
+            observacao=(
+                "LancamentoFinanceiro e EstoqueMovimento foram usados apenas como reconciliação. "
+                "A consolidação de DRE respeita a precedencia economica oficial."
+            ),
+            detalhes={
+                "production_unit_ids": [str(pu_id) for pu_id in pu_ids],
+                "lancamentos_financeiros": len(lancamentos),
+                "estoque_movimentos": len(movimentos),
+                "periodo": {
+                    "data_inicio": str(data_inicio) if data_inicio else None,
+                    "data_fim": str(data_fim) if data_fim else None,
+                },
+            },
+        )
+
+    async def _montar_warnings(
+        self,
+        scope: dict,
+        receitas_warnings: list[DREWarning],
+        despesas_excluidas: int,
+        *,
+        data_inicio: date | None = None,
+        data_fim: date | None = None,
+    ) -> list[DREWarning]:
+        warnings: list[DREWarning] = list(receitas_warnings)
+        if data_inicio is None and data_fim is None:
+            alertas = AlertasAgricolasService(self.session, self.tenant_id)
+            findings = await alertas.detectar_inconsistencias_reconciliacao_economica()
+            for finding in findings:
+                warnings.append(
+                    DREWarning(
+                        codigo=finding.codigo,
+                        titulo=finding.titulo,
+                        severidade=finding.severidade,
+                        mensagem=finding.mensagem,
+                        origem=finding.origem,
+                        amostras=[str(sample) for sample in finding.amostras],
+                        meta=finding.meta,
+                    )
+                )
+
+        if despesas_excluidas > 0:
+            warnings.append(
+                DREWarning(
+                    codigo="DESPESA_SUPRIMIDA_POR_PRECEDENCIA",
+                    titulo="Despesa excluída por camada econômica superior",
+                    severidade="WARNING_LEVE",
+                    mensagem="Algumas despesas foram excluídas da DRE porque já estavam representadas por CostAllocation ou outra camada superior.",
+                    origem="dre_agricola_v1",
+                    amostras=[str(despesas_excluidas)],
+                    meta={"quantidade_excluida": despesas_excluidas},
+                )
+            )
+
+        pu_ids = [pu.id for pu in scope["production_units"]]
+        if pu_ids and not any(w.codigo == "MOVIMENTO_COM_CUSTO_SEM_ALLOCATION" for w in warnings):
+            movimentos = list(
+                (
+                    await self.session.execute(
+                        select(EstoqueMovimento).where(
+                            EstoqueMovimento.tenant_id == self.tenant_id,
+                            EstoqueMovimento.production_unit_id.in_(pu_ids),
+                            EstoqueMovimento.custo_total.is_not(None),
+                            EstoqueMovimento.custo_total > 0,
+                            EstoqueMovimento.origem.in_(["COMPRA", "ORDEM_SERVICO", "OPERACAO_EXECUCAO"]),
+                            self._periodo_clause(EstoqueMovimento.data_movimento, data_inicio=data_inicio, data_fim=data_fim),
+                        )
+                    )
+                ).scalars().all()
+            )
+            if movimentos:
+                allocation_ids = set(
+                    row[0]
+                    for row in (
+                        await self.session.execute(
+                            select(func.distinct(CostAllocation.inventory_movement_id)).where(
+                                CostAllocation.tenant_id == self.tenant_id,
+                                CostAllocation.production_unit_id.in_(pu_ids),
+                                CostAllocation.inventory_movement_id.isnot(None),
+                                self._periodo_clause(CostAllocation.allocation_date, data_inicio=data_inicio, data_fim=data_fim),
+                            )
+                        )
+                    ).all()
+                    if row[0] is not None
+                )
+                sem_alloc = [m for m in movimentos if m.id not in allocation_ids]
+                if sem_alloc:
+                    warnings.append(
+                        DREWarning(
+                            codigo="MOVIMENTO_COM_CUSTO_SEM_ALLOCATION",
+                            titulo="Movimento de estoque com custo sem apropriação",
+                            severidade="RISCO_ECONOMICO",
+                            mensagem="Há movimento de estoque com custo e sem CostAllocation na unidade filtrada.",
+                            origem="estoque_movimentos",
+                            amostras=[str(m.id) for m in sem_alloc[:5]],
+                            meta={"quantidade": len(sem_alloc)},
+                    )
+                    )
+        return warnings
+
+    @staticmethod
+    def _normalizar_data(valor: date | datetime | None) -> date | None:
+        if valor is None:
+            return None
+        return valor.date() if isinstance(valor, datetime) else valor
+
+    @classmethod
+    def _periodo_clause(
+        cls,
+        coluna,
+        *,
+        data_inicio: date | None,
+        data_fim: date | None,
+    ):
+        clausulas = []
+        if data_inicio is not None:
+            clausulas.append(coluna >= data_inicio)
+        if data_fim is not None:
+            clausulas.append(coluna <= data_fim)
+        if not clausulas:
+            return True
+        return and_(*clausulas)

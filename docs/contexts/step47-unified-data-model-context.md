@@ -147,7 +147,7 @@ Regras:
 - `origem_tipo` deve aceitar `operacao_agricola`, `manejo_pecuario` e `uso_frota`.
 - A operação produtiva informa contexto, produto e quantidade consumida.
 - Estoque valida saldo, custo e gera a `movimentacao_estoque`.
-- Financeiro pode usar o custo da movimentação para apropriação econômica.
+- Financeiro pode usar o custo da movimentação como insumo de reconciliação, mas a apropriação econômica oficial segue `CostAllocation` e a matriz de precedência.
 
 ### Custo e Receita
 

@@ -23,6 +23,8 @@ Submódulo que gerencia obrigações financeiras futuras da propriedade rural �
 
 Diferente dos lançamentos básicos que registram o que já aconteceu, este submódulo foca no que está por vir, dando previsibilidade financeira ao produtor.
 
+Obrigações, parcelas e baixas pertencem à camada financeira. A leitura de DRE, custo e apropriação econômica deve obedecer a [Matriz de Precedência Econômica Oficial](../../../architecture/economic-source-precedence.md).
+
 ## Personas — Quem usa este submódulo
 
 - **Gestor Financeiro:** controla vencimentos diariamente; prioriza pagamentos; negocia prazos com fornecedores.
@@ -52,6 +54,7 @@ Diferente dos lançamentos básicos que registram o que já aconteceu, este subm
 10. Juros e multas por atraso podem ser informados manualmente na baixa (não calculados automaticamente na v1).
 11. Vinculação opcional a um fornecedor/cliente (`pessoa_id`).
 12. Alertas de vencimento: 7 dias antes, no dia, e 1 dia após o vencimento.
+13. A baixa financeira realiza o compromisso em caixa, mas não cria uma nova origem econômica de receita, despesa ou custo.
 
 ## Entidades de Dados Principais
 

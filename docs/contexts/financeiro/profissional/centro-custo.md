@@ -28,6 +28,8 @@ Submódulo que permite classificar e ratear custos e receitas por unidades de ne
 
 O centro de custo funciona como uma dimensão adicional de classificação, complementar às categorias. Um lançamento pode ser rateado entre múltiplos centros de custo com percentuais ou valores fixos.
 
+O centro de custo é uma dimensão de classificação/rateio. Ele não substitui `CostAllocation`, `Despesa`, `LancamentoFinanceiro` ou `EstoqueMovimento`. A precedência oficial está em [Matriz de Precedência Econômica Oficial](../../../architecture/economic-source-precedence.md).
+
 ## Personas — Quem usa este submódulo
 
 - **Gestor Financeiro:** configura centros de custo e analisa rentabilidade por unidade de negócio.
@@ -55,6 +57,7 @@ O centro de custo funciona como uma dimensão adicional de classificação, comp
 8. Relatórios de custo respeitam a hierarquia: custo de um grupo = soma dos custos dos filhos.
 9. Centro de custo com lançamentos vinculados não pode ser excluído; apenas desativado.
 10. Cada centro pertence a um `tenant_id`.
+11. Rateio é mecanismo de distribuição; a consolidação econômica oficial continua sendo feita nas camadas definidas pela matriz de precedência.
 
 ## Entidades de Dados Principais
 

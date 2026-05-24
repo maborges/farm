@@ -273,8 +273,15 @@ class RelatorioService:
         data_fim: date,
         unidade_produtiva_id: uuid.UUID | None = None,
     ) -> DREResponse:
-        """DRE simplificado: agrupa por categoria_rfb do plano de contas."""
-        # Reutiliza o livro_caixa com range de competência = período do DRE
+        """
+        DRE financeira simplificada: agrupa por categoria_rfb do plano de contas.
+
+        Observação de governança:
+        - esta visão permanece legada e financeira/contábil;
+        - a DRE agrícola oficial e consolidada vive em agricola.dre.service.DREAgricolaV1Service;
+        - não há apropriação econômica nova aqui, apenas leitura do livro-caixa.
+        """
+        # Reutiliza o livro_caixa com range de competência = período do DRE.
         lc = await self.livro_caixa(data_inicio, data_fim, unidade_produtiva_id)
 
         totais_rfb: dict[tuple, float] = defaultdict(float)

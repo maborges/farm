@@ -10,6 +10,7 @@ niveis:
     - planejamento-safra
     - monitoramento-ndvi
     - custos-producao
+    - dre-agricola-v1
   enterprise:
     - rastreabilidade-campo
     - prescricoes-vrt
@@ -145,6 +146,7 @@ Cada nível superior consome dados do nível inferior. Um produtor no plano Esse
 - [Profissional: Planejamento de Safra](profissional/planejamento-safra.md)
 - [Profissional: Monitoramento NDVI](profissional/monitoramento-ndvi.md)
 - [Profissional: Custos de Produção](profissional/custos-producao.md)
+- [Profissional: DRE Agrícola v1](profissional/dre-agricola-v1.md)
 - [Enterprise: Rastreabilidade de Campo](enterprise/rastreabilidade-campo.md)
 - [Enterprise: Prescrições VRT](enterprise/prescricoes-vrt.md)
 - [Enterprise: Beneficiamento](enterprise/beneficiamento.md)

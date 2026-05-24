@@ -31,6 +31,10 @@ Submódulo que apura o custo total de produção por safra e por talhão, consol
 
 Permite ao produtor saber exatamente quanto custou produzir cada saca/tonelada, comparar com o preço de venda e calcular a margem real de lucro por talhão, cultura e safra. É a ferramenta de decisão mais estratégica do módulo Financeiro.
 
+A leitura econômica oficial desse custo deve obedecer a [Matriz de Precedência Econômica Oficial](../../../architecture/economic-source-precedence.md). Em especial, `CostAllocation` é a camada oficial de apropriação econômica e `EstoqueMovimento` é valuation operacional/físico.
+
+Quando a análise precisar de consolidação técnica de resultado por janela temporal, a referência interna é [DRE Agrícola v1](../../../contexts/agricola/profissional/dre-agricola-v1.md). Ela consome `Receita`, `Despesa` e `CostAllocation` pela fonte econômica oficial e usa `LancamentoFinanceiro`/`EstoqueMovimento` apenas para reconciliação.
+
 ## Personas — Quem usa este submódulo
 
 - **Gestor de Agronegócio:** analisa custo por saca para negociar preço de venda; compara rentabilidade entre talhões.
@@ -66,6 +70,7 @@ Permite ao produtor saber exatamente quanto custou produzir cada saca/tonelada, 
 8. Período de apuração segue o ciclo da safra (plantio → colheita → venda), não o ano fiscal.
 9. Safra com produção zero (frustração): custo é registrado como perda.
 10. Rateio de custos indiretos segue critérios configuráveis: área (ha), produção estimada ou percentual fixo.
+11. A consolidação econômica oficial do custo por safra não deve duplicar consumo físico, despesa financeira e apropriação em camadas paralelas.
 
 ## Entidades de Dados Principais
 
@@ -139,6 +144,7 @@ Permite ao produtor saber exatamente quanto custou produzir cada saca/tonelada, 
 8. Sistema calcula custo por hectare e custo por unidade produzida.
 9. Ao registrar vendas da produção, sistema calcula margem bruta.
 10. Relatório comparativo mostra custo previsto vs. realizado e benchmarks entre talhões/safras.
+11. Quando necessário, a DRE agrícola v1 consolida o resultado por janela temporal oficial sem duplicar realização financeira ou valuation físico.
 
 ## Casos Extremos e Exceções
 

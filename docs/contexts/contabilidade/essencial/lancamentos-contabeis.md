@@ -24,6 +24,8 @@ assinante_alvo:
 
 O submódulo de Lançamentos Contábeis implementa a escrituração por partidas dobradas, garantindo que todo registro contábil tenha débitos e créditos equilibrados. Os lançamentos podem ser gerados automaticamente a partir do módulo financeiro (despesas pagas, receitas recebidas) ou inseridos manualmente pelo contador. Suporta lançamentos simples (1 débito, 1 crédito) e compostos (múltiplas partidas), com histórico detalhado e rastreabilidade completa.
 
+A escrituração contábil deve respeitar a [Matriz de Precedência Econômica Oficial](../../../architecture/economic-source-precedence.md): `LancamentoFinanceiro` é realização financeira, `CostAllocation` é apropriação econômica, `Despesa` é obrigação financeira e `EstoqueMovimento` é valuation operacional/físico.
+
 ## Personas
 
 - **Produtor Rural:** Visualiza lançamentos gerados automaticamente a partir das movimentações financeiras.
@@ -50,6 +52,7 @@ O submódulo de Lançamentos Contábeis implementa a escrituração por partidas
 8. **Numeração sequencial:** Lançamentos recebem numeração sequencial por exercício fiscal, sem gaps.
 9. **Histórico obrigatório:** Todo lançamento deve conter histórico descritivo.
 10. **Multi-fazenda:** Lançamentos podem ser filtrados e consolidados por fazenda.
+11. Lançamentos automáticos são espelhos contábeis de eventos financeiros e não redefinem a origem econômica oficial do fato.
 
 ## Entidades de Dados Principais
 

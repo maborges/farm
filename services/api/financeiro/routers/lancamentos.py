@@ -223,7 +223,10 @@ async def gerar_dre(
     tenant_id: uuid.UUID = Depends(get_tenant_id),
     session: AsyncSession = Depends(get_session),
 ):
-    """Gera o DRE Operacional da safra (Step 183)."""
+    """
+    Gera o DRE Operacional/financeira legada da safra (Step 183).
+    Não substitui a DRE agrícola v1 consolidada, que permanece interna.
+    """
     svc = LancamentoService(session, tenant_id)
     return await svc.gerar_dre(safra_id)
 
@@ -234,7 +237,7 @@ async def simular_dre(
     tenant_id: uuid.UUID = Depends(get_tenant_id),
     session: AsyncSession = Depends(get_session),
 ):
-    """Simula o resultado da safra com base em ajustes percentuais (Step 185)."""
+    """Simula a DRE operacional/financeira legada com base em ajustes percentuais (Step 185)."""
     svc = LancamentoService(session, tenant_id)
     return await svc.simular_dre(
         safra_id=payload.safra_id,

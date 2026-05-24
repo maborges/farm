@@ -22,6 +22,8 @@ assinante_alvo: grandes operações, cooperativas
 
 Submódulo que digitaliza o ciclo completo de compras de insumos: da requisição interna (gerada manual ou automaticamente por estoque mínimo) até a cotação com fornecedores, aprovação, pedido de compra, recebimento e conferência. Integra-se com Estoque (entrada automática) e Financeiro (contas a pagar).
 
+O ciclo de compras alimenta estoque e obrigações financeiras; não cria, por si só, uma linha de DRE. A leitura econômica oficial deve seguir [Matriz de Precedência Econômica Oficial](../../../architecture/economic-source-precedence.md).
+
 ## Personas — Quem usa este submódulo
 
 - **Gestor de Compras:** Cria cotações, compara fornecedores, emite pedidos
@@ -44,6 +46,7 @@ Submódulo que digitaliza o ciclo completo de compras de insumos: da requisiçã
 4. **RN-CI-004:** Pedido de compra gera número sequencial por fazenda/ano
 5. **RN-CI-005:** Recebimento parcial é permitido — sistema rastreia saldo pendente
 6. **RN-CI-006:** Ao confirmar recebimento, sistema cria automaticamente: movimentação de entrada no estoque + lançamento de conta a pagar
+7. O recebimento é materialização operacional e financeira do ciclo de compras; custo apropriado e DRE futura dependem das camadas oficiais superiores.
 
 ## Entidades de Dados Principais
 

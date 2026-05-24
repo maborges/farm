@@ -29,6 +29,8 @@ O submódulo de Custos de Produção consolida todos os gastos associados a uma 
 
 Este submódulo é crítico para a tomada de decisão: o produtor precisa saber se está tendo lucro ou prejuízo em cada talhão, e quais categorias de custo estão acima do esperado.
 
+Para a consolidação técnica da DRE agrícola v1, use [DRE Agrícola v1](dre-agricola-v1.md). Este documento é o canônico para janela temporal, fallback por fonte e regras de reconciliação; `Custos de Produção` continua focado em apuração analítica de custo.
+
 ### Contexto Brasileiro
 
 #### Estrutura de Custos da Agricultura Brasileira
@@ -90,7 +92,7 @@ Funcionalidades principais:
 
 - **Gerente de Fazenda**: Monitora custos por talhão para identificar ineficiências. Talhão com custo de defensivos 40% acima da média precisa de investigação.
 
-- **Controller/Financeiro**: Consolida custos para contabilidade e relatórios gerenciais. Prepara DRE (Demonstração de Resultado do Exercício) para banco.
+- **Controller/Financeiro**: Consolida custos para contabilidade e relatórios gerenciais. Para DRE agrícola v1, consulta [DRE Agrícola v1](dre-agricola-v1.md).
 
 - **Agrônomo**: Avalia custo-benefício de diferentes manejos e dosagens. Compara custo de aplicação de fungicida vs ganho de produtividade.
 
@@ -127,6 +129,7 @@ Funcionalidades principais:
 11. **Depreciação de máquinas**: Calcular depreciação por hora trabalhada (valor da máquina ÷ vida útil em horas)
 12. **Arrendamento**: Ratear valor anual de arrendamento por área cultivada
 13. Permissões: `agricola:custos:read`, `agricola:custos:create`, `agricola:custos:configure`
+14. **DRE agrícola v1**: consolida receita, custo apropriado, despesa e reconciliação por janela temporal oficial, sem duplicar `LancamentoFinanceiro` ou `EstoqueMovimento`.
 
 ## Entidades de Dados Principais
 

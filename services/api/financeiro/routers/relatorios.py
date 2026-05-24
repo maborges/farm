@@ -95,8 +95,9 @@ async def dre(
     db: AsyncSession = Depends(get_session),
 ):
     """
-    DRE simplificado: Receita da Atividade Rural - Custeio = Resultado da Atividade.
+    DRE financeira simplificada: Receita da Atividade Rural - Custeio = Resultado da Atividade.
     Agrupa por categoria RFB (custeio, investimento, não-dedutível).
+    Não é a DRE agrícola v1 consolidada; esta permanece no serviço interno AgricolaDREService.
     """
     svc = RelatorioService(db, tenant_id)
     return await svc.dre(data_inicio, data_fim, unidade_produtiva_id)

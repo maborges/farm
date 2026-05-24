@@ -23,6 +23,8 @@ assinante_alvo:
 
 Submódulo de registro de todas as movimentações de estoque: entradas (compra, produção, devolução de campo), saídas (consumo em operação, perda, devolução a fornecedor) e transferências entre almoxarifados. Cada movimentação é atômica, imutável e rastreável, formando a base do controle de saldo e custeio do estoque.
 
+`EstoqueMovimento` é ledger operacional/físico e base de valuation. Ele não entra sozinho na DRE e deve obedecer à [Matriz de Precedência Econômica Oficial](../../../architecture/economic-source-precedence.md).
+
 Suporta movimentações individuais e em lote, com possibilidade de vincular a origem (nota fiscal, ordem de serviço, manejo).
 
 ## Personas — Quem usa este submódulo
@@ -50,6 +52,7 @@ Suporta movimentações individuais e em lote, com possibilidade de vincular a o
 6. Toda movimentação registra: produto, quantidade, almoxarifado, responsável, data, motivo
 7. Movimentações podem ser vinculadas a documento de origem (NF, OS, manejo)
 8. Data da movimentação não pode ser futura; retroativa permitida até 30 dias
+9. Saída de estoque pode alimentar custo e apropriação, mas a consolidação econômica oficial é feita em camada superior.
 
 ## Entidades de Dados Principais
 

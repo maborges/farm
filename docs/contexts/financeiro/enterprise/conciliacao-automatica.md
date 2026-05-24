@@ -25,6 +25,8 @@ Submódulo que automatiza o processo de conciliação bancária através de regr
 
 Suporta importação automática de extratos via OFX agendado ou integração direta com APIs bancárias, eliminando o processo manual de download e upload de arquivos.
 
+Conciliação automática é uma camada de reflexo e matching financeiro. A fonte econômica oficial continua definida em [Matriz de Precedência Econômica Oficial](../../../architecture/economic-source-precedence.md).
+
 ## Personas — Quem usa este submódulo
 
 - **Gestor Financeiro corporativo:** configura regras de conciliação; monitora exceções; valida resultados.
@@ -55,6 +57,7 @@ Suporta importação automática de extratos via OFX agendado ou integração di
 8. Taxa de acerto mínima: se batch de conciliação tiver < 70% de match nível 1+2, alertar o gestor.
 9. Rollback em lote: é possível desfazer toda a conciliação de um período.
 10. Transações de valor acima de limite configurável sempre vão para revisão manual.
+11. Conciliação não cria nova origem econômica; ela apenas confirma, vincula ou corrige a realização financeira já existente.
 
 ## Entidades de Dados Principais
 

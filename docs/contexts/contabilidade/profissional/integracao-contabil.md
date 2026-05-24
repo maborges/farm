@@ -25,6 +25,8 @@ assinante_alvo:
 
 O submódulo de Integração Contábil permite exportar dados contábeis do AgroSaaS para sistemas de contabilidade externos e escritórios contábeis. Suporta múltiplos formatos de saída: layout SPED Contábil (ECD), CSV parametrizável, e formatos específicos de ERPs contábeis populares no Brasil (Domínio, Fortes, Questor, Prosoft). Também permite importação de plano de contas e lançamentos de sistemas externos para migração.
 
+As exportações devem respeitar a [Matriz de Precedência Econômica Oficial](../../../architecture/economic-source-precedence.md) e exportar apenas dados já consolidados nas camadas corretas, sem recontar `EstoqueMovimento`, `Rateio` ou eventos financeiros já refletidos em `LancamentoFinanceiro`.
+
 ## Personas
 
 - **Produtor Rural PJ:** Precisa enviar dados para o escritório de contabilidade externo mensalmente.
@@ -50,6 +52,7 @@ O submódulo de Integração Contábil permite exportar dados contábeis do Agro
 7. **De/Para de participantes:** Mapear fornecedores/clientes do AgroSaaS para códigos do sistema contábil externo.
 8. **Importação:** Suportar importação de plano de contas (CSV) e lançamentos (CSV/SPED) para migração inicial.
 9. **Agendamento:** Permitir exportação automática mensal via agendamento.
+10. Exportação contábil deve partir de dados aprovados e consolidados, não de camadas operacionais brutas.
 
 ## Entidades de Dados Principais
 

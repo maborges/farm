@@ -19,6 +19,10 @@ assinante_alvo:
 
 # Contabilidade — Visão Geral do Módulo
 
+## Governança Econômica
+
+As camadas contábeis deste módulo devem respeitar a [Matriz de Precedência Econômica Oficial](../../architecture/economic-source-precedence.md). Em especial, `LancamentoFinanceiro` é realização financeira, `CostAllocation` é apropriação econômica, `Despesa` é obrigação financeira e `EstoqueMovimento` é valuation operacional/físico.
+
 ## Descrição Funcional
 
 O módulo de Contabilidade do AgroSaaS oferece funcionalidades contábeis especializadas para o agronegócio brasileiro, desde a escrituração básica do LCDPR até a consolidação multi-empresa e geração automatizada de obrigações fiscais (SPED). O módulo é organizado em três tiers progressivos que acompanham a maturidade contábil do produtor rural.
@@ -59,6 +63,7 @@ O módulo de Contabilidade do AgroSaaS oferece funcionalidades contábeis especi
 3. O LCDPR é obrigatório para PF com receita bruta anual > R$ 56.000 (limite atualizado conforme legislação vigente).
 4. Lançamentos aprovados não podem ser excluídos, apenas estornados.
 5. O fechamento mensal trava lançamentos do período.
+6. Demonstrações e relatórios contábeis devem consumir as fontes oficiais já consolidadas; o documento de precedência econômica define o que é base, reflexão ou realização.
 
 ## Entidades de Dados Principais
 

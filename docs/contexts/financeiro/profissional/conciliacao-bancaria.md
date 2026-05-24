@@ -26,6 +26,8 @@ Submódulo que permite ao produtor importar extratos bancários (formato OFX/CSV
 
 Este é o processo manual de conciliação — a versão automatizada está disponível no nível Enterprise.
 
+A conciliação manual é uma camada de reflexo e validação financeira. A fonte econômica oficial permanece definida em [Matriz de Precedência Econômica Oficial](../../../architecture/economic-source-precedence.md).
+
 ## Personas — Quem usa este submódulo
 
 - **Gestor Financeiro:** realiza a conciliação semanal/mensal; identifica divergências e corrige lançamentos.
@@ -55,6 +57,7 @@ Este é o processo manual de conciliação — a versão automatizada está disp
 10. Período de conciliação é registrado; não é possível conciliar o mesmo período duas vezes sem desfazer a anterior.
 11. Saldo do extrato é comparado com o saldo calculado no sistema; divergência é exibida.
 12. Arquivos importados são armazenados para auditoria.
+13. Conciliação não cria nova origem econômica; ela apenas vincula, corrige ou confirma realização financeira já registrada.
 
 ## Entidades de Dados Principais
 

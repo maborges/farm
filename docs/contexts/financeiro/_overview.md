@@ -6,6 +6,10 @@ descricao: Visão geral do módulo Financeiro do AgroSaaS
 
 # Módulo Financeiro — Visão Geral
 
+## Governança Econômica
+
+A documentação financeira deste módulo deve ser lida em conjunto com [Matriz de Precedência Econômica Oficial](../../architecture/economic-source-precedence.md). Essa matriz define a fonte oficial de cada natureza econômica e evita dupla contagem entre receita, despesa, caixa, estoque e apropriação.
+
 ## Propósito
 
 O módulo Financeiro oferece gestão financeira completa para propriedades rurais, desde lançamentos básicos até conciliação automática e custeio de safra. Organizado em três níveis de assinatura (Essencial, Profissional e Enterprise), permite que pequenos produtores comecem com controle de caixa simples e escalem para ferramentas avançadas conforme a operação cresce.
@@ -58,5 +62,6 @@ categorias-contas ──► lancamentos-basicos ──► fluxo-caixa
 
 1. **Multi-tenancy obrigatório:** todo lançamento pertence a um `tenant_id`; isolamento via `BaseService`
 2. **Auditoria completa:** toda movimentação financeira gera log imutável
-3. **Competência vs. Caixa:** suporte a regime de competência e regime de caixa simultaneamente
+3. **Competência vs. Caixa:** suporte a regime de competência e regime de caixa simultaneamente, sem confundir realização financeira com reconhecimento econômico
 4. **Moeda:** BRL como padrão; valores em centavos (`integer`) para evitar arredondamento
+5. **Precedência econômica:** `Receita`, `Despesa`, `LancamentoFinanceiro`, `CostAllocation` e `EstoqueMovimento` têm papéis distintos e não devem ser somados como fatos independentes quando representam o mesmo evento

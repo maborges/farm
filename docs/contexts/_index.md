@@ -69,7 +69,8 @@ docs/
 │   │   ├── profissional/
 │   │   │   ├── planejamento-safra.md
 │   │   │   ├── monitoramento-ndvi.md
-│   │   │   └── custos-producao.md
+│   │   │   ├── custos-producao.md
+│   │   │   └── dre-agricola-v1.md
 │   │   └── enterprise/
 │   │       ├── rastreabilidade-campo.md
 │   │       ├── prescricoes-vrt.md
@@ -154,7 +155,7 @@ docs/
 | Nível | Submódulos | Complexidade | Status |
 |-------|-----------|--------------|--------|
 | Essencial | [`safras`](agricola/essencial/safras.md), [`operacoes-campo`](agricola/essencial/operacoes-campo.md), [`caderno-campo`](agricola/essencial/caderno-campo.md) | M | 📝 Pendente |
-| Profissional | [`planejamento-safra`](agricola/profissional/planejamento-safra.md), [`monitoramento-ndvi`](agricola/profissional/monitoramento-ndvi.md), [`custos-producao`](agricola/profissional/custos-producao.md) | L | 📝 Pendente |
+| Profissional | [`planejamento-safra`](agricola/profissional/planejamento-safra.md), [`monitoramento-ndvi`](agricola/profissional/monitoramento-ndvi.md), [`custos-producao`](agricola/profissional/custos-producao.md), [`dre-agricola-v1`](agricola/profissional/dre-agricola-v1.md) | L | 📝 Pendente |
 | Enterprise | [`rastreabilidade-campo`](agricola/enterprise/rastreabilidade-campo.md), [`prescricoes-vrt`](agricola/enterprise/prescricoes-vrt.md), [`beneficiamento`](agricola/enterprise/beneficiamento.md) | XL | 📝 Pendente |
 
 **Workflow:** [`agricola/_implantation-workflow.md`](agricola/_implantation-workflow.md)  

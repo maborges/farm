@@ -22,6 +22,8 @@ Submódulo responsável pelo registro de todas as movimentações financeiras da
 
 O submódulo opera em regime de caixa por padrão (data do efetivo pagamento/recebimento), mas armazena também a data de competência para relatórios futuros.
 
+Este submódulo registra eventos financeiros, não a origem econômica oficial do AgroSaaS. A semântica oficial entre receita, despesa, realização financeira, apropriação econômica e valuation deve seguir [Matriz de Precedência Econômica Oficial](../../../architecture/economic-source-precedence.md).
+
 ## Personas — Quem usa este submódulo
 
 - **Produtor Rural (owner):** registra receitas de vendas e despesas do dia a dia; precisa de visão rápida do que entrou e saiu.
@@ -49,6 +51,7 @@ O submódulo opera em regime de caixa por padrão (data do efetivo pagamento/rec
 8. Exclusão é lógica (`deleted_at`); nunca física.
 9. Anexos (notas fiscais, comprovantes) são opcionais; máximo 5 por lançamento, 10 MB cada.
 10. Campo `observacao` é texto livre, máximo 500 caracteres.
+11. `Receita` e `Despesa` são registros financeiros; não devem ser tratados como equivalentes diretos de `LancamentoFinanceiro`, `CostAllocation` ou `EstoqueMovimento`.
 
 ## Entidades de Dados Principais
 

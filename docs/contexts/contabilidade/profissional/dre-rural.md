@@ -26,6 +26,10 @@ assinante_alvo:
 
 O DRE Rural gera a Demonstração do Resultado do Exercício adaptada às especificidades da atividade rural brasileira. Permite visualizar o resultado por safra, por fazenda, por cultura ou consolidado, separando receitas de venda de produção, custos de custeio, investimentos, depreciações e resultado líquido. Suporta comparativo entre períodos e entre safras para análise de rentabilidade.
 
+Este documento descreve a intenção contábil do DRE futuro. A fonte oficial de precedência econômica está em [Matriz de Precedência Econômica Oficial](../../../architecture/economic-source-precedence.md) e deve ser usada para evitar dupla contagem entre receita, despesa, caixa, estoque e apropriação.
+
+Para a implementação técnica interna e somente leitura da versão agrícola consolidada, consulte [DRE Agrícola v1](../../../contexts/agricola/profissional/dre-agricola-v1.md). Ela documenta a janela temporal por fonte e o comportamento de fallback antes da exposição controlada em UI.
+
 ## Personas
 
 - **Gestor de Fazenda:** Analisa a rentabilidade de cada safra e cultura para tomar decisões de plantio.
@@ -51,6 +55,9 @@ O DRE Rural gera a Demonstração do Resultado do Exercício adaptada às especi
 6. **Análise vertical/horizontal:** Percentuais sobre receita líquida (vertical) e variação entre períodos (horizontal).
 7. **Ativos biológicos:** Segregar variação do valor justo de ativos biológicos conforme CPC 29.
 8. **Fechamento:** DRE só pode ser considerado definitivo após fechamento do período contábil.
+9. O DRE futuro deve consumir `Receita` consolidada, `CostAllocation` como apropriação econômica, `Despesa` como obrigação financeira e `LancamentoFinanceiro` apenas como realização financeira, quando aplicável.
+10. `EstoqueMovimento` não entra sozinho na DRE; ele atua como valuation operacional/físico e base de reconciliação.
+11. A janela temporal da DRE agrícola v1 segue `competencia` com fallback para `data_emissao` em `Receita` e `Despesa`, `allocation_date` em `CostAllocation` e `data`/`data_movimento` apenas para reconciliação.
 
 ## Entidades de Dados Principais
 

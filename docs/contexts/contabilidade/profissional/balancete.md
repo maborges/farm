@@ -23,6 +23,8 @@ assinante_alvo:
 
 O Balancete de Verificação apresenta os saldos de todas as contas contábeis em um determinado período, servindo como instrumento de conferência da escrituração contábil. Exibe saldo anterior, movimentação a débito, movimentação a crédito e saldo atual de cada conta, podendo ser emitido por período, fazenda ou centro de custo. É essencial para verificar a consistência dos lançamentos antes do fechamento e geração de demonstrações financeiras.
 
+O balancete é uma camada de conferência contábil. Ele não deve ser usado para duplamente reconhecer a mesma realidade econômica já consolidada em `Receita`, `Despesa`, `CostAllocation` ou `LancamentoFinanceiro`. A matriz oficial está em [Matriz de Precedência Econômica Oficial](../../../architecture/economic-source-precedence.md).
+
 ## Personas
 
 - **Contador Rural:** Utiliza o balancete como principal ferramenta de conferência mensal.
@@ -46,6 +48,7 @@ O Balancete de Verificação apresenta os saldos de todas as contas contábeis e
 6. **Filtros:** Por fazenda, centro de custo, grupo de contas.
 7. **Comparativo:** Balancete comparativo mostra saldos do período atual ao lado do período anterior e a variação.
 8. **Consistência com DRE:** Saldos de contas de resultado devem ser consistentes com o DRE do mesmo período.
+9. O balancete é instrumento de reconciliação contábil e não uma nova camada de origem econômica.
 
 ## Entidades de Dados Principais
 

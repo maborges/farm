@@ -190,6 +190,7 @@ class DashboardAgricolaService:
         - Cálculo de ROI, margem e produtividade
 
         Agrupa dados de múltiplas tabelas para visão financeira integrada.
+        Isso é um dashboard/margem financeira, não a DRE agrícola v1.
         """
         from financeiro.comercializacao.models import ComercializacaoCommodity
         from agricola.colheita.models import ProdutoColhido
@@ -320,6 +321,8 @@ class DashboardAgricolaService:
         - Margem bruta, margem por ha, ROI
         - Breakdown por talhão
         - Breakdown por tipo de operação
+
+        Não deve ser confundido com a DRE agrícola consolidada.
         """
         from financeiro.comercializacao.models import ComercializacaoCommodity
         from agricola.colheita.models import ProdutoColhido
@@ -464,4 +467,3 @@ class DashboardAgricolaService:
             por_talhao=por_talhao,
             breakdown_operacoes=breakdown_operacoes,
         )
-

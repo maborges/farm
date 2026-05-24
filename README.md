@@ -39,6 +39,7 @@ O projeto é dividido em um monorepo contendo:
 - **Análise de Solo Inteligente**: Motor de diagnóstico que converte laudos laboratoriais em recomendações de calagem e adubação, incluindo **estimativa automática de custos**.
 - **Automação de Tarefas**: Geração automática de ordens de serviço (SafraTarefa) baseada em prescrições técnicas com cálculo de investimento total.
 - **Financeiro Rural**: DRE, Contas a Pagar/Receber com foco em custeio de safra.
+- **DRE Agrícola v1**: serviço interno protegido para consolidação por safra, com Receita + CostAllocation como fontes oficiais e `LancamentoFinanceiro` + `EstoqueMovimento` apenas para reconciliação. Documento: [docs/contexts/agricola/profissional/dre-agricola-v1.md](docs/contexts/agricola/profissional/dre-agricola-v1.md)
 
 ### 3.1. Conceitos de Propriedade, Talhão e Unidade Produtiva
 - **Propriedade / Unidade Produtiva**: cadastro mestre da fazenda ou unidade rural. Concentra nome, tipo, documentos, endereço, áreas totais, coordenadas, geometria e logotipo.
@@ -128,6 +129,7 @@ O projeto é dividido em um monorepo contendo:
 - **Fluxo Funcional**: Botão "Registrar Receita" na tela de lançamentos abre um dialog para entrada de dados. Ao salvar, o sistema invalida os caches de resumo e listagem para atualização imediata dos KPIs.
 
 ### 14. DRE Operacional por Safra (Step 183)
+- **Governança Econômica:** toda futura consolidação de DRE, margem e resultado deve respeitar [Matriz de Precedência Econômica Oficial](docs/architecture/economic-source-precedence.md), evitando dupla contagem entre receita, despesa, estoque e apropriação.
 - **Visão Executiva**: Relatório consolidado que apresenta a performance financeira da safra em formato de DRE simplificado (Receita Bruta, Custos Operacionais, Resultado e Margem %).
 - **Breakdown por Categoria**: Detalhamento visual da composição de custos e receitas, permitindo identificar onde estão os maiores investimentos e entradas.
 - **Isolamento de Gestão**: Foco total em métricas operacionais de campo, sem interferência de provisões contábeis, impostos corporativos ou depreciação.

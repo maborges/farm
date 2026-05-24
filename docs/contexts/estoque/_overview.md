@@ -24,6 +24,8 @@ O módulo Estoque gerencia o controle de insumos, produtos e materiais utilizado
 
 O nível Essencial cobre cadastro de produtos, movimentações e consulta de saldo. O Profissional adiciona FIFO/custo médio, estoque mínimo com alertas e rastreabilidade de lotes. O Enterprise entrega compras integradas (requisição-cotação-pedido), inventário automatizado e integração fiscal.
 
+As regras de valuation e a leitura econômica oficial do estoque devem seguir [Matriz de Precedência Econômica Oficial](../../architecture/economic-source-precedence.md). `EstoqueMovimento` e `LoteEstoque` são a base do valuation operacional/físico; não são, por si só, DRE.
+
 ## Personas — Quem usa este submódulo
 
 - **Almoxarife:** controle diário de entradas e saídas, organização do estoque
@@ -47,6 +49,7 @@ O nível Essencial cobre cadastro de produtos, movimentações e consulta de sal
 3. Saldo não pode ficar negativo (configurável por tenant)
 4. Transferência entre almoxarifados gera saída na origem e entrada no destino
 5. Custeio padrão: FIFO; alternativa: custo médio ponderado (configurável)
+6. O estoque fornece valuation operacional/físico; apropriação econômica oficial e DRE futura devem ser consolidadas em camadas superiores.
 
 ## Entidades de Dados Principais
 

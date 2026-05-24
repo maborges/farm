@@ -564,6 +564,10 @@ class LancamentoService:
     async def gerar_dre(self, safra_id: uuid.UUID) -> DREOperacional:
         from financeiro.schemas.lancamento_schema import DREOperacional, CategoriaBreakdown
         
+        # DRE operacional/financeira legada:
+        # continua baseada somente em LancamentoFinanceiro para compatibilidade.
+        # A DRE agrícola v1 consolidada é provida separadamente por agricola.dre.service.
+
         # Valida safra
         safra = await self.session.get(Safra, safra_id)
         if not safra or safra.tenant_id != self.tenant_id:
@@ -618,6 +622,9 @@ class LancamentoService:
     ) -> "SimulacaoDREResponse":
         from financeiro.schemas.lancamento_schema import SimulacaoDREResponse
         
+        # Simulação legada da mesma DRE operacional/financeira.
+        # Não substitui a DRE agrícola v1 e não altera a precedência econômica oficial.
+
         # Obtém dados reais
         dre_real = await self.gerar_dre(safra_id)
         

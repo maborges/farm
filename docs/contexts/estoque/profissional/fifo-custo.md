@@ -25,6 +25,8 @@ assinante_alvo:
 
 Submódulo de custeio de estoque implementando os métodos FIFO (First In, First Out — Primeiro a Entrar, Primeiro a Sair) e Custo Médio Ponderado. Rastreia o custo de cada unidade em estoque com base na ordem de entrada, calcula o custo de saída conforme o método ativo e mantém histórico completo de custos para auditoria. Essencial para valoração precisa do estoque e cálculo correto do custo de produção.
 
+Este submódulo é valuation operacional/físico. Ele não substitui `CostAllocation` nem redefine a fonte oficial da DRE; a referência semântica é [Matriz de Precedência Econômica Oficial](../../../architecture/economic-source-precedence.md).
+
 ## Personas — Quem usa este submódulo
 
 - **Financeiro / Controller:** valoração de estoque, custo de produção, conciliação contábil
@@ -50,6 +52,7 @@ Submódulo de custeio de estoque implementando os métodos FIFO (First In, First
 6. Estorno de saída devolve unidades ao lote original com custo original
 7. Relatório de custo por período mostra custo médio de saída e variação
 8. Auditoria de custo: trilha completa de entrada > alocação > saída por lote
+9. O custo FIFO é base de valuation e reconciliação; não deve ser somado novamente como custo apropriado na DRE sem consolidação na camada oficial.
 
 ## Entidades de Dados Principais
 
