@@ -12,6 +12,7 @@ from agricola.dre.kpis_service import AgricolaDreKpiService
 from agricola.dre.schemas import DREAgricolaKpis, DREAgricolaResponse, DREAgricolaSection, DREReconcilacaoMeta, DREWarning
 from agricola.dre.service import DREAgricolaV1Service
 from agricola.rentabilidade.service import RentabilidadeAgricolaV1Service, _ScopedProductionUnit
+from financeiro.models.despesa import Despesa
 from core.services.analytics_request_cache import clear_analytics_request_cache
 
 
@@ -72,6 +73,20 @@ def _fake_dre_response(
             )
         ],
     )
+
+
+class _FakeResult:
+    def __init__(self, rows):
+        self._rows = rows
+
+    def all(self):
+        return self._rows
+
+    def scalars(self):
+        return self
+
+    def scalar_one(self):
+        return self._rows[0] if self._rows else 0
 
 
 @pytest.mark.asyncio
@@ -157,13 +172,16 @@ async def test_dre_cache_respeita_escopo_e_tenant(altered_kwargs):
         svc_a = DREAgricolaV1Service(session, tenant_a)
         resposta_1 = await svc_a.gerar(**base_args)
         resposta_2 = await svc_a.gerar(**base_args)
-        await svc_a.gerar(**{**base_args, **altered_kwargs})
+        resposta_3 = await svc_a.gerar(**{**base_args, **altered_kwargs})
 
         svc_b = DREAgricolaV1Service(session, tenant_b)
         await svc_b.gerar(**base_args)
 
     assert resposta_1.model_dump() == resposta_2.model_dump()
-    assert resolver_mock.await_count == 4
+    expected_resolver_calls = 2 if set(altered_kwargs) <= {"data_inicio", "data_fim"} else 3
+    assert resolver_mock.await_count == expected_resolver_calls
+    if set(altered_kwargs) <= {"data_inicio", "data_fim"}:
+        assert resposta_3 is not resposta_1
     assert receitas_mock.await_count == 3
     assert costs_mock.await_count == 6
     assert despesas_mock.await_count == 3
@@ -289,6 +307,78 @@ async def test_request_cache_nao_vaza_entre_requests():
         )
 
     assert resposta_1.model_dump(exclude={"gerado_em"}) == resposta_2.model_dump(exclude={"gerado_em"})
+
+
+@pytest.mark.asyncio
+async def test_consolidar_despesas_usa_mapa_local_de_production_unit():
+    session = AsyncMock(spec=AsyncSession)
+    tenant_id = uuid4()
+    safra_id = uuid4()
+    unidade_produtiva_id = uuid4()
+    production_unit_id = uuid4()
+    talhao_id = uuid4()
+    plano_conta_id = uuid4()
+    ordem_servico_id = uuid4()
+    despesa = Despesa(
+        tenant_id=tenant_id,
+        unidade_produtiva_id=unidade_produtiva_id,
+        plano_conta_id=plano_conta_id,
+        descricao="Despesa ordem de serviço",
+        valor_total=123.45,
+        data_emissao=date(2026, 1, 10),
+        data_vencimento=date(2026, 1, 10),
+        status="PAGO",
+        origem_tipo="ORDEM_SERVICO",
+        origem_id=ordem_servico_id,
+        ativo=True,
+    )
+    ordem_servico = SimpleNamespace(id=ordem_servico_id, safra_id=safra_id, talhao_id=talhao_id)
+    scope = {
+        "production_units": [SimpleNamespace(id=production_unit_id, safra_id=safra_id, area_id=talhao_id)],
+        "safra_id": safra_id,
+        "unidade_produtiva_id": unidade_produtiva_id,
+        "production_unit_lookup": {(safra_id, talhao_id): production_unit_id},
+    }
+
+    async def fake_execute(statement):
+        calls = fake_execute.calls
+        fake_execute.calls += 1
+        if calls == 0:
+            return _FakeResult([(None,)])
+        if calls == 1:
+            return _FakeResult([(None,)])
+        if calls == 2:
+            return _FakeResult([(None,)])
+        if calls == 3:
+            return _FakeResult([despesa])
+        if calls == 4:
+            return _FakeResult([])
+        if calls == 5:
+            return _FakeResult([ordem_servico])
+        if calls == 6:
+            return _FakeResult([])
+        if calls == 7:
+            return _FakeResult([])
+        raise AssertionError(f"Unexpected execute call #{calls}")
+
+    fake_execute.calls = 0
+    session.execute = AsyncMock(side_effect=fake_execute)
+
+    service = DREAgricolaV1Service(session, tenant_id)
+
+    with patch.object(DREAgricolaV1Service, "_resolver_pu_por_safra_talhao", side_effect=AssertionError("resolver_pu should not be called")):
+        section, excluidas = await service._consolidar_despesas(
+            scope,
+            DREAgricolaSection(),
+            DREAgricolaSection(),
+            data_inicio=date(2026, 1, 1),
+            data_fim=date(2026, 1, 31),
+        )
+
+    assert excluidas == 0
+    assert section.total_registros == 1
+    assert section.itens[0].production_unit_id == production_unit_id
+    assert fake_execute.calls == 8
 
 
 def test_dre_kpis_request_cache_reutiliza_mesmo_payload():

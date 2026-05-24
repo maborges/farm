@@ -28,11 +28,7 @@ from operacional.models.abastecimento import Abastecimento
 from operacional.models.estoque import EstoqueMovimento
 from operacional.models.frota import OrdemServico
 from core.base_service import BaseService
-from core.services.analytics_request_cache import (
-    build_analytics_scope_key,
-    build_analytics_value_key,
-    get_analytics_request_cache,
-)
+from core.services.analytics_request_cache import build_analytics_scope_key, build_analytics_value_key, get_analytics_request_cache
 
 from .schemas import (
     DREAgricolaResponse,
@@ -72,7 +68,8 @@ class DREAgricolaV1Service(BaseService[Safra]):
         data_inicio: date | None = None,
         data_fim: date | None = None,
     ) -> DREAgricolaResponse:
-        scope = await self._resolver_escopo(
+        cache = get_analytics_request_cache()
+        scope_variant = self._cache_variant(
             safra_id=safra_id,
             unidade_produtiva_id=unidade_produtiva_id,
             production_unit_id=production_unit_id,
@@ -80,26 +77,47 @@ class DREAgricolaV1Service(BaseService[Safra]):
             cultura=cultura,
             unidade_operacional_id=unidade_operacional_id,
         )
-        cache_variant_parts = [f"cultura={scope['cultura'] or '_'}"]
-        if production_unit_ids:
-            cache_variant_parts.append(
-                "production_unit_ids=" + ",".join(sorted(str(production_unit_id) for production_unit_id in production_unit_ids))
-            )
+        scope_cache_key = build_analytics_value_key(
+            "agricola.dre.scope.v1",
+            build_analytics_scope_key(
+                self.tenant_id,
+                safra_id,
+                production_unit_id,
+                unidade_produtiva_id,
+                None,
+                None,
+            ),
+            scope_variant,
+        )
         cache_key = build_analytics_value_key(
             "agricola.dre.v1",
             build_analytics_scope_key(
                 self.tenant_id,
-                scope["safra_id"],
+                safra_id,
                 production_unit_id,
-                scope["unidade_produtiva_id"],
+                unidade_produtiva_id,
                 data_inicio,
                 data_fim,
             ),
-            "|".join(cache_variant_parts),
+            scope_variant,
         )
-        cache = get_analytics_request_cache()
         if cache_key in cache:
             return cache[cache_key]
+
+        scope = cache.get(scope_cache_key)
+        if scope is None:
+            scope = await self._resolver_escopo(
+                safra_id=safra_id,
+                unidade_produtiva_id=unidade_produtiva_id,
+                production_unit_id=production_unit_id,
+                production_unit_ids=production_unit_ids,
+                cultura=cultura,
+                unidade_operacional_id=unidade_operacional_id,
+            )
+            scope = dict(scope)
+            cache[scope_cache_key] = scope
+        else:
+            scope = dict(scope)
 
         if not scope["production_units"] and any(
             value is not None
@@ -194,6 +212,27 @@ class DREAgricolaV1Service(BaseService[Safra]):
         cache[cache_key] = response
         return response
 
+    @staticmethod
+    def _cache_variant(
+        *,
+        safra_id: UUID | None,
+        unidade_produtiva_id: UUID | None,
+        production_unit_id: UUID | None,
+        production_unit_ids: list[UUID] | None,
+        cultura: str | None,
+        unidade_operacional_id: UUID | None,
+    ) -> str | None:
+        parts: list[str] = []
+        if cultura:
+            parts.append(f"cultura={cultura.strip().lower()}")
+        if production_unit_ids:
+            parts.append("production_unit_ids=" + ",".join(sorted(str(item) for item in production_unit_ids)))
+        if unidade_operacional_id is not None:
+            parts.append(f"unidade_operacional_id={unidade_operacional_id}")
+        if not parts:
+            return None
+        return "|".join(parts)
+
     async def _resolver_escopo(
         self,
         *,
@@ -256,6 +295,10 @@ class DREAgricolaV1Service(BaseService[Safra]):
             )
             for row in rows
         ]
+        production_unit_lookup = {
+            (pu.safra_id, pu.area_id): pu.id
+            for pu in production_units
+        }
 
         if not production_units and production_unit_id is not None:
             # Mantém o retorno estável mesmo quando o filtro aponta para uma PU inexistente.
@@ -274,6 +317,7 @@ class DREAgricolaV1Service(BaseService[Safra]):
             "unidade_produtiva_id": unidade_produtiva_id,
             "unidade_operacional_id": unidade_operacional_id,
             "unidade_operacional_resolvida": unidade_operacional_resolvida,
+            "production_unit_lookup": production_unit_lookup,
         }
 
     async def _consolidar_receitas(
@@ -627,13 +671,13 @@ class DREAgricolaV1Service(BaseService[Safra]):
                 pu_id = operacoes_map[despesa.origem_id].production_unit_id
             elif despesa.origem_tipo == "ORDEM_SERVICO" and despesa.origem_id in os_map:
                 os_obj = os_map[despesa.origem_id]
-                pu_id = await self._resolver_pu_por_safra_talhao(os_obj.safra_id, os_obj.talhao_id, pu_ids)
+                pu_id = scope["production_unit_lookup"].get((os_obj.safra_id, os_obj.talhao_id))
             elif despesa.origem_tipo == "ABASTECIMENTO" and despesa.origem_id in abastecimentos_map:
                 ab_obj = abastecimentos_map[despesa.origem_id]
-                pu_id = await self._resolver_pu_por_safra_talhao(ab_obj.safra_id, ab_obj.talhao_id, pu_ids)
+                pu_id = scope["production_unit_lookup"].get((ab_obj.safra_id, ab_obj.talhao_id))
             elif despesa.origem_tipo == "FIN_RATEIO" and rateios_por_despesa.get(despesa.id):
                 rateio = rateios_por_despesa[despesa.id][0]
-                pu_id = await self._resolver_pu_por_safra_talhao(rateio.safra_id, rateio.talhao_id, pu_ids)
+                pu_id = scope["production_unit_lookup"].get((rateio.safra_id, rateio.talhao_id))
 
             if pu_ids and pu_id is not None and pu_id not in pu_ids:
                 continue
