@@ -1,21 +1,21 @@
-# AgroSaaS - Matriz de Precedencia Economica Oficial
+# AgroSaaS - Matriz de Precedência Econômica Oficial
 
 ## Status
 
 Documento oficial de governanca. Nao altera schema, endpoints, calculos ou dashboards.
 
-## Nota De Infraestrutura Analitica
+## Nota De Infraestrutura Analítica
 
-A cadeia analitica oficial pode usar memoizacao `request-scoped` para reaproveitar DRE e derivados dentro da mesma requisicao.
+A cadeia analítica oficial pode usar memoização `request-scoped` para reaproveitar DRE e derivados dentro da mesma requisição.
 
-- O cache e temporario e vive apenas no contexto da request.
-- Nao e snapshot persistido.
-- Nao e cache distribuido.
-- Nao altera contratos, precedencia economica ou regras de consolidacao.
+- O cache é temporário e vive apenas no contexto da request.
+- Não é snapshot persistido.
+- Não é cache distribuído.
+- Não altera contratos, precedência econômica ou regras de consolidação.
 
 ## Objetivo
 
-Formalizar, de forma canonica, qual e a fonte oficial de cada natureza economica no AgroSaaS e qual camada apenas reflete, apropria, realiza, provisiona ou consolida.
+Formalizar, de forma canônica, qual é a fonte oficial de cada natureza econômica no AgroSaaS e qual camada apenas reflete, apropria, realiza, provisiona ou consolida.
 
 Este documento existe para evitar dupla contagem entre:
 
@@ -32,17 +32,17 @@ Este documento existe para evitar dupla contagem entre:
 - fluxos de compras
 - fluxos de frota e abastecimento
 
-## Premissas De Governanca
+## Premissas De Governança
 
-- A fonte oficial de um fato economico precisa ser unica.
-- Camadas diferentes podem representar o mesmo evento, mas nao podem competir entre si como verdade oficial.
-- Leitura gerencial, apropriaçao economica e realizacao financeira sao camadas distintas.
-- Estoque fisico, valuation operacional e caixa nao sao a mesma coisa.
-- Uma linha so entra direto na DRE futura quando estiver em sua camada oficial consolidada e sem duplicidade de origem.
+- A fonte oficial de um fato econômico precisa ser única.
+- Camadas diferentes podem representar o mesmo evento, mas não podem competir entre si como verdade oficial.
+- Leitura gerencial, apropriação econômica e realização financeira são camadas distintas.
+- Estoque físico, valuation operacional e caixa não são a mesma coisa.
+- Uma linha só entra direto na DRE futura quando estiver em sua camada oficial consolidada e sem duplicidade de origem.
 
 ## Documento Reaproveitado Como Base
 
-Este arquivo consolida e formaliza, sem substituir, os guardrails ja existentes em:
+Este arquivo consolida e formaliza, sem substituir, os guardrails já existentes em:
 
 - `docs/architecture/operational-workflow-governance.md`
 - `docs/architecture/agro-domain-governance.md`
@@ -56,19 +56,19 @@ Este arquivo consolida e formaliza, sem substituir, os guardrails ja existentes 
 
 | Entidade | Escreve | Consome | Apropria | Reflete | Realiza | Risco De Duplicidade |
 | --- | --- | --- | --- | --- | --- | --- |
-| `Receita` | `ReceitaService`, fluxos comerciais/operacionais | DRE futura, analises de resultado, alertas, relatórios de recebimento | Nao apropria custo; e fonte de receita | Pode ser refletida por `LancamentoFinanceiro` quando recebida | Nao realiza caixa sozinha | `LancamentoFinanceiro` pode repetir o mesmo fato se usado como receita primaria |
-| `Despesa` | `DespesaService`, abastecimento externo, operacoes, frota, compras com origem automatica | DRE futura, custo de safra, alertas, conciliacao | Nao apropria; e obrigacao financeira | Pode ser refletida por `Rateio` e `CostAllocation` | Pode ser liquidada por `LancamentoFinanceiro` | Duplicidade ao somar despesa + pagamento + rateio sem regra de precedencia |
-| `LancamentoFinanceiro` | `LancamentoService`, fluxos de recebimento/pagamento/caixa | Caixa, conciliacao, fluxo financeiro, DRE financeira futura | Nao apropria custo operacional por si so | Reflete receitas e despesas em caixa | Sim, e a realizacao financeira | Risco alto de dupla contagem se entrar como receita/despesa e tambem como liquidacao |
-| `CostAllocation` | `allocation_service`, regras de operacao, rateio financeiro convertido, reconciliation guards | Custo por PU, cenarios, analises economicas, alertas | Sim, e a apropriacao economica oficial | Pode refletir `EstoqueMovimento`, `Despesa` ou `Rateio` | Nao realiza caixa | Duplicidade critica se houver mais de uma alocacao para a mesma origem e PU |
-| `EstoqueMovimento` | `EstoqueService`, compras, operacoes, devolucoes, abastecimento interno, ajustes | Saldo, valuation, FIFO, reconciliação, alertas | Nao apropria sozinha | Reflete consumo/entrada fisica e valuation operacional | Nao realiza caixa | Risco alto se entrar direto na DRE ou se for transformada em custo por multiplas camadas |
-| `LoteEstoque` | `EstoqueService`, compras, recebimentos | FIFO, valuation, auditoria, rastreabilidade | Nao apropria | Reflete custo historico por lote | Nao realiza caixa | Risco moderado se o lote for tratado como custo realizado em vez de base de valuation |
-| `Rateio` | `DespesaService` | `allocation_service`, custo por PU, governanca economica | E a ponte do rateio financeiro para apropriacao | Reflete a distribuicao de uma despesa | Nao realiza caixa | Duplicidade se o mesmo rateio gerar mais de uma apropriacao para a mesma origem |
-| `OperacaoAgricola` | `OperacaoService`, operacao de campo | custos operacionais, estoque, DRE futura, alertas | Nao apropria diretamente; e origem operacional | Reflete a execucao real do manejo | Nao realiza caixa | Risco se custo, execucao e apropriação forem agregados sem filtro de origem |
-| `OperacaoExecucao` | `OperacaoService` | `CostAllocation`, estoque, alertas | Nao apropria sozinha | Reflete a evidência da execucao | Nao realiza caixa | Risco de duplicidade com `OperacaoAgricola` se ambos forem tratados como fatos independentes |
-| `RecebimentoParcial` | `ComprasService` | estoque, lote, valuation, devolucoes, alertas | Nao apropria | Reflete a materializacao do recebimento | Nao realiza caixa | Risco se o recebimento for lido como despesa ou receita |
-| `DevolucaoFornecedor` | `ComprasService` | estoque, reversao de valuation, alertas | Nao apropria | Reflete reversao operacional e fiscal | Nao realiza caixa | Risco alto se a devolucao nao apontar o movimento original |
-| `Compras`/`PedidoCompra` | `ComprasService` | recebimento, estoque, custo, economia de compra | Nao apropria | Reflete compromisso operacional de compra | Nao realiza caixa | Risco de somar pedido + recebimento + despesa sem precedencia |
-| `Frota`/`Abastecimento` | `AbastecimentoService`, servicos de frota | estoque de combustivel, despesa, custo operacional | Pode gerar apropriacao via despesa/allocacao, mas nao e a fonte primaria de DRE | Reflete consumo ou compra de combustivel | Pode realizar despesa quando externo | Risco de duplicar custo se combustivel interno, despesa externa e allocation forem somados sem regra |
+| `Receita` | `ReceitaService`, fluxos comerciais/operacionais | DRE futura, análises de resultado, alertas, relatórios de recebimento | Não apropria custo; é fonte de receita | Pode ser refletida por `LancamentoFinanceiro` quando recebida | Não realiza caixa sozinha | `LancamentoFinanceiro` pode repetir o mesmo fato se usado como receita primária |
+| `Despesa` | `DespesaService`, abastecimento externo, operações, frota, compras com origem automática | DRE futura, custo de safra, alertas, conciliação | Não apropria; é obrigação financeira | Pode ser refletida por `Rateio` e `CostAllocation` | Pode ser liquidada por `LancamentoFinanceiro` | Duplicidade ao somar despesa + pagamento + rateio sem regra de precedência |
+| `LancamentoFinanceiro` | `LancamentoService`, fluxos de recebimento/pagamento/caixa | Caixa, conciliação, fluxo financeiro, DRE financeira futura | Não apropria custo operacional por si só | Reflete receitas e despesas em caixa | Sim, é a realização financeira | Risco alto de dupla contagem se entrar como receita/despesa e também como liquidação |
+| `CostAllocation` | `allocation_service`, regras de operação, rateio financeiro convertido, reconciliation guards | Custo por PU, cenários, análises econômicas, alertas | Sim, é a apropriação econômica oficial | Pode refletir `EstoqueMovimento`, `Despesa` ou `Rateio` | Não realiza caixa | Duplicidade crítica se houver mais de uma alocação para a mesma origem e PU |
+| `EstoqueMovimento` | `EstoqueService`, compras, operações, devoluções, abastecimento interno, ajustes | Saldo, valuation, FIFO, reconciliação, alertas | Não apropria sozinha | Reflete consumo/entrada física e valuation operacional | Não realiza caixa | Risco alto se entrar direto na DRE ou se for transformada em custo por múltiplas camadas |
+| `LoteEstoque` | `EstoqueService`, compras, recebimentos | FIFO, valuation, auditoria, rastreabilidade | Não apropria | Reflete custo histórico por lote | Não realiza caixa | Risco moderado se o lote for tratado como custo realizado em vez de base de valuation |
+| `Rateio` | `DespesaService` | `allocation_service`, custo por PU, governança econômica | É a ponte do rateio financeiro para apropriação | Reflete a distribuição de uma despesa | Não realiza caixa | Duplicidade se o mesmo rateio gerar mais de uma apropriação para a mesma origem |
+| `OperacaoAgricola` | `OperacaoService`, operação de campo | custos operacionais, estoque, DRE futura, alertas | Não apropria diretamente; é origem operacional | Reflete a execução real do manejo | Não realiza caixa | Risco se custo, execução e apropriação forem agregados sem filtro de origem |
+| `OperacaoExecucao` | `OperacaoService` | `CostAllocation`, estoque, alertas | Não apropria sozinha | Reflete a evidência da execução | Não realiza caixa | Risco de duplicidade com `OperacaoAgricola` se ambos forem tratados como fatos independentes |
+| `RecebimentoParcial` | `ComprasService` | estoque, lote, valuation, devoluções, alertas | Não apropria | Reflete a materialização do recebimento | Não realiza caixa | Risco se o recebimento for lido como despesa ou receita |
+| `DevolucaoFornecedor` | `ComprasService` | estoque, reversão de valuation, alertas | Não apropria | Reflete reversão operacional e fiscal | Não realiza caixa | Risco alto se a devolução não apontar o movimento original |
+| `Compras`/`PedidoCompra` | `ComprasService` | recebimento, estoque, custo, economia de compra | Não apropria | Reflete compromisso operacional de compra | Não realiza caixa | Risco de somar pedido + recebimento + despesa sem precedência |
+| `Frota`/`Abastecimento` | `AbastecimentoService`, serviços de frota | estoque de combustível, despesa, custo operacional | Pode gerar apropriação via despesa/alocação, mas não é a fonte primária de DRE | Reflete consumo ou compra de combustível | Pode realizar despesa quando externo | Risco de duplicar custo se combustível interno, despesa externa e allocation forem somados sem regra |
 
 ## 2. Fontes Oficiais Por Natureza Economica
 
