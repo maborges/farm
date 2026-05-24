@@ -381,6 +381,58 @@ async def test_consolidar_despesas_usa_mapa_local_de_production_unit():
     assert fake_execute.calls == 8
 
 
+@pytest.mark.asyncio
+async def test_reconciliacao_e_warnings_compartilham_contexto_de_leitura():
+    session = AsyncMock(spec=AsyncSession)
+    tenant_id = uuid4()
+    safra_id = uuid4()
+    unidade_produtiva_id = uuid4()
+    production_unit_id = uuid4()
+    movimento_id = uuid4()
+    scope = {
+        "production_units": [SimpleNamespace(id=production_unit_id)],
+        "safra_id": safra_id,
+        "unidade_produtiva_id": unidade_produtiva_id,
+        "_cost_allocation_ids": {movimento_id},
+        "_cost_allocations_total": 1,
+    }
+
+    async def fake_execute(statement):
+        fake_execute.calls += 1
+        if fake_execute.calls == 1:
+            return _FakeResult([SimpleNamespace(tipo="RECEITA", valor=100.0)])
+        if fake_execute.calls == 2:
+            return _FakeResult([SimpleNamespace(id=movimento_id, custo_total=50.0)])
+        raise AssertionError(f"Unexpected execute call #{fake_execute.calls}")
+
+    fake_execute.calls = 0
+    session.execute = AsyncMock(side_effect=fake_execute)
+
+    service = DREAgricolaV1Service(session, tenant_id)
+
+    with patch.object(service, "_montar_warnings", wraps=service._montar_warnings) as warnings_mock:
+        reconciliacao = await service._montar_reconciliacao(
+            scope,
+            receitas_excluidas=0,
+            despesas_excluidas=0,
+            data_inicio=date(2026, 1, 1),
+            data_fim=date(2026, 1, 31),
+        )
+        warnings = await service._montar_warnings(
+            scope,
+            receitas_warnings=[],
+            despesas_excluidas=0,
+            data_inicio=date(2026, 1, 1),
+            data_fim=date(2026, 1, 31),
+        )
+
+    assert reconciliacao.lancamentos_financeiros_receita == 100.0
+    assert reconciliacao.estoque_movimentos_com_custo == 1
+    assert warnings == []
+    assert fake_execute.calls == 2
+    assert warnings_mock.call_count == 1
+
+
 def test_dre_kpis_request_cache_reutiliza_mesmo_payload():
     tenant_id = uuid4()
     safra_id = uuid4()

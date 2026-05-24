@@ -332,6 +332,7 @@ class DREAgricolaV1Service(BaseService[Safra]):
         warnings: list[DREWarning] = []
         receita_excluida_total = 0
         deducoes = 0.0
+        romaneios_lookup_por_pu: dict[UUID, dict[UUID, RomaneioColheita]] = defaultdict(dict)
 
         # Receita de comercialização tem precedência sobre romaneio na mesma PU.
         stmt_comm = (
@@ -430,6 +431,7 @@ class DREAgricolaV1Service(BaseService[Safra]):
                 continue
 
             romaneios_por_pu[pu_id].append(romaneio)
+            romaneios_lookup_por_pu[pu_id][romaneio.id] = romaneio
             item = DRESourceItem(
                 natureza="RECEITA_OPERACIONAL",
                 fonte_oficial="Receita",
@@ -473,7 +475,15 @@ class DREAgricolaV1Service(BaseService[Safra]):
 
             for item in items:
                 receitas_items.append(item)
-                romaneio = next((r for r in romaneios_por_pu.get(pu_id, []) if str(r.id) == str(item.meta.get("romaneio_id"))), None)
+                romaneio_id = item.meta.get("romaneio_id")
+                romaneio = None
+                if romaneio_id is not None:
+                    try:
+                        romaneio_uuid = UUID(str(romaneio_id))
+                    except Exception:
+                        romaneio_uuid = None
+                    if romaneio_uuid is not None:
+                        romaneio = romaneios_lookup_por_pu.get(pu_id, {}).get(romaneio_uuid)
                 if romaneio and romaneio.preco_saca and romaneio.sacas_60kg is not None:
                     bruto_est = float(romaneio.peso_liquido_kg or 0) / 60.0 * float(romaneio.preco_saca or 0)
                     deducoes += max(bruto_est - float(item.valor), 0.0)
@@ -510,6 +520,13 @@ class DREAgricolaV1Service(BaseService[Safra]):
         )
         stmt = stmt.where(self._periodo_clause(CostAllocation.allocation_date, data_inicio=data_inicio, data_fim=data_fim))
         rows = list((await self.session.execute(stmt.order_by(CostAllocation.allocation_date, CostAllocation.created_at))).scalars().all())
+        scope["_cost_allocations_rows"] = rows
+        scope["_cost_allocation_ids"] = {
+            alloc.inventory_movement_id
+            for alloc in rows
+            if alloc.inventory_movement_id is not None
+        }
+        scope["_cost_allocations_total"] = len(rows)
 
         items: list[DRESourceItem] = []
         fontes = defaultdict(float)
@@ -742,45 +759,17 @@ class DREAgricolaV1Service(BaseService[Safra]):
         data_fim: date | None = None,
     ) -> DREReconcilacaoMeta:
         pu_ids = [pu.id for pu in scope["production_units"]]
-        lancamentos = list(
-            (
-                await self.session.execute(
-                    select(LancamentoFinanceiro).where(
-                        LancamentoFinanceiro.tenant_id == self.tenant_id,
-                        LancamentoFinanceiro.safra_id == scope["safra_id"] if scope["safra_id"] is not None else True,
-                        self._periodo_clause(LancamentoFinanceiro.data, data_inicio=data_inicio, data_fim=data_fim),
-                    )
-                )
-            ).scalars().all()
+        contexto = await self._carregar_contexto_reconciliacao(
+            scope,
+            data_inicio=data_inicio,
+            data_fim=data_fim,
         )
+        lancamentos = contexto["lancamentos"]
         lanc_receita = sum(float(l.valor or 0) for l in lancamentos if l.tipo == "RECEITA")
         lanc_custo = sum(float(l.valor or 0) for l in lancamentos if l.tipo == "CUSTO")
-
-        movimentos = list(
-            (
-                await self.session.execute(
-                    select(EstoqueMovimento).where(
-                        EstoqueMovimento.tenant_id == self.tenant_id,
-                        EstoqueMovimento.production_unit_id.in_(pu_ids) if pu_ids else True,
-                        self._periodo_clause(EstoqueMovimento.data_movimento, data_inicio=data_inicio, data_fim=data_fim),
-                    )
-                )
-            ).scalars().all()
-        )
+        movimentos = contexto["movimentos"]
         movimentos_com_custo = sum(1 for mov in movimentos if float(mov.custo_total or 0) > 0)
-
-        allocations_total = int(
-            (
-                await self.session.execute(
-                    select(func.count(CostAllocation.id)).where(
-                        CostAllocation.tenant_id == self.tenant_id,
-                        CostAllocation.production_unit_id.in_(pu_ids) if pu_ids else True,
-                        self._periodo_clause(CostAllocation.allocation_date, data_inicio=data_inicio, data_fim=data_fim),
-                    )
-                )
-            ).scalar_one()
-            or 0
-        )
+        allocations_total = int(contexto["allocations_total"])
 
         return DREReconcilacaoMeta(
             lancamentos_financeiros_receita=round(lanc_receita, 2),
@@ -846,35 +835,14 @@ class DREAgricolaV1Service(BaseService[Safra]):
 
         pu_ids = [pu.id for pu in scope["production_units"]]
         if pu_ids and not any(w.codigo == "MOVIMENTO_COM_CUSTO_SEM_ALLOCATION" for w in warnings):
-            movimentos = list(
-                (
-                    await self.session.execute(
-                        select(EstoqueMovimento).where(
-                            EstoqueMovimento.tenant_id == self.tenant_id,
-                            EstoqueMovimento.production_unit_id.in_(pu_ids),
-                            EstoqueMovimento.custo_total.is_not(None),
-                            EstoqueMovimento.custo_total > 0,
-                            EstoqueMovimento.origem.in_(["COMPRA", "ORDEM_SERVICO", "OPERACAO_EXECUCAO"]),
-                            self._periodo_clause(EstoqueMovimento.data_movimento, data_inicio=data_inicio, data_fim=data_fim),
-                        )
-                    )
-                ).scalars().all()
+            contexto = await self._carregar_contexto_reconciliacao(
+                scope,
+                data_inicio=data_inicio,
+                data_fim=data_fim,
             )
+            movimentos = contexto["movimentos"]
             if movimentos:
-                allocation_ids = set(
-                    row[0]
-                    for row in (
-                        await self.session.execute(
-                            select(func.distinct(CostAllocation.inventory_movement_id)).where(
-                                CostAllocation.tenant_id == self.tenant_id,
-                                CostAllocation.production_unit_id.in_(pu_ids),
-                                CostAllocation.inventory_movement_id.isnot(None),
-                                self._periodo_clause(CostAllocation.allocation_date, data_inicio=data_inicio, data_fim=data_fim),
-                            )
-                        )
-                    ).all()
-                    if row[0] is not None
-                )
+                allocation_ids = contexto["allocation_ids"]
                 sem_alloc = [m for m in movimentos if m.id not in allocation_ids]
                 if sem_alloc:
                     warnings.append(
@@ -886,9 +854,66 @@ class DREAgricolaV1Service(BaseService[Safra]):
                             origem="estoque_movimentos",
                             amostras=[str(m.id) for m in sem_alloc[:5]],
                             meta={"quantidade": len(sem_alloc)},
-                    )
+                            )
                     )
         return warnings
+
+    async def _carregar_contexto_reconciliacao(
+        self,
+        scope: dict,
+        *,
+        data_inicio: date | None = None,
+        data_fim: date | None = None,
+    ) -> dict[str, object]:
+        cache_key = build_analytics_value_key(
+            "agricola.dre.reconciliacao.context.v1",
+            build_analytics_scope_key(
+                self.tenant_id,
+                scope.get("safra_id"),
+                None,
+                scope.get("unidade_produtiva_id"),
+                data_inicio,
+                data_fim,
+            ),
+        )
+        cache = get_analytics_request_cache()
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return cached
+
+        pu_ids = [pu.id for pu in scope["production_units"]]
+        lancamentos = list(
+            (
+                await self.session.execute(
+                    select(LancamentoFinanceiro).where(
+                        LancamentoFinanceiro.tenant_id == self.tenant_id,
+                        LancamentoFinanceiro.safra_id == scope["safra_id"] if scope["safra_id"] is not None else True,
+                        self._periodo_clause(LancamentoFinanceiro.data, data_inicio=data_inicio, data_fim=data_fim),
+                    )
+                )
+            ).scalars().all()
+        )
+        movimentos = list(
+            (
+                await self.session.execute(
+                    select(EstoqueMovimento).where(
+                        EstoqueMovimento.tenant_id == self.tenant_id,
+                        EstoqueMovimento.production_unit_id.in_(pu_ids) if pu_ids else True,
+                        self._periodo_clause(EstoqueMovimento.data_movimento, data_inicio=data_inicio, data_fim=data_fim),
+                    )
+                )
+            ).scalars().all()
+        )
+        allocation_ids = set(scope.get("_cost_allocation_ids") or [])
+        allocations_total = int(scope.get("_cost_allocations_total") or 0)
+        contexto = {
+            "lancamentos": lancamentos,
+            "movimentos": movimentos,
+            "allocation_ids": allocation_ids,
+            "allocations_total": allocations_total,
+        }
+        cache[cache_key] = contexto
+        return contexto
 
     @staticmethod
     def _normalizar_data(valor: date | datetime | None) -> date | None:
