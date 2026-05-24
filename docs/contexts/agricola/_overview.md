@@ -101,6 +101,7 @@ O sistema possui os seguintes submódulos funcionais no frontend e/ou backend:
 - **Rentabilidade Agrícola v1**: visão oficial derivada exclusivamente da DRE agrícola v1, acessível pelo hub agrícola principal.
 - **Eficiência Operacional Agrícola v1**: visão oficial derivada exclusivamente da DRE agrícola v1, dos KPIs oficiais e dos registros operacionais, acessível pelo hub agrícola principal.
 - **Benchmark Operacional e Econômico v1**: visão oficial derivada exclusivamente da DRE agrícola v1, dos KPIs oficiais, da rentabilidade oficial e da eficiência operacional oficial, acessível pelo hub agrícola principal.
+- **Diagnóstico Operacional e Econômico v1**: visão oficial derivada exclusivamente da DRE agrícola v1, dos KPIs oficiais, da rentabilidade oficial, da eficiência operacional oficial e do benchmark oficial, acessível pelo hub agrícola principal.
 
 ## Arquitetura de Níveis
 
@@ -154,6 +155,7 @@ Cada nível superior consome dados do nível inferior. Um produtor no plano Esse
 - [Profissional: Custos de Produção](profissional/custos-producao.md)
 - [Profissional: DRE Agrícola v1](profissional/dre-agricola-v1.md) - base oficial da DRE, da rentabilidade agrícola v1 e da eficiência operacional agrícola v1
 - [Benchmark Operacional e Econômico v1](profissional/dre-agricola-v1.md) - base oficial do benchmark comparativo agrícola v1
+- [Diagnóstico Operacional e Econômico v1](profissional/dre-agricola-v1.md) - base oficial do diagnóstico assistido agrícola v1
 - [Enterprise: Rastreabilidade de Campo](enterprise/rastreabilidade-campo.md)
 - [Enterprise: Prescrições VRT](enterprise/prescricoes-vrt.md)
 - [Enterprise: Beneficiamento](enterprise/beneficiamento.md)
@@ -162,3 +164,4 @@ Cada nível superior consome dados do nível inferior. Um produtor no plano Esse
 
 - [Rentabilidade Agrícola v1](profissional/dre-agricola-v1.md) deriva exclusivamente da DRE agrícola v1 e é acessível pelo hub agrícola principal.
 - [Eficiência Operacional Agrícola v1](profissional/dre-agricola-v1.md) deriva exclusivamente da DRE agrícola v1, dos KPIs oficiais e dos registros operacionais, e é acessível pelo hub agrícola principal.
+- [Diagnóstico Operacional e Econômico v1](profissional/dre-agricola-v1.md) deriva exclusivamente da DRE agrícola v1, dos KPIs oficiais, da rentabilidade oficial, da eficiência operacional oficial e do benchmark oficial, e é acessível pelo hub agrícola principal.

@@ -34,6 +34,8 @@ A mesma base também alimenta a visão de **Eficiência Operacional Agrícola v1
 
 A mesma base também alimenta a visão de **Benchmark Operacional e Econômico v1**, acessível pelo card do hub agrícola principal. Essa visão deriva exclusivamente da DRE agrícola v1, dos KPIs oficiais, da rentabilidade oficial e da eficiência operacional oficial, sem criar cubo analítico paralelo, comparativo histórico massivo ou recálculo fora da consolidação oficial. Quando houver inconsistências ou warnings relevantes, o benchmark pode ser exibido como sujeito à reconciliação.
 
+A mesma base também alimenta a visão de **Diagnóstico Operacional e Econômico v1**, acessível pelo card do hub agrícola principal. Essa visão deriva exclusivamente da DRE agrícola v1, dos KPIs oficiais, da rentabilidade oficial, da eficiência operacional oficial e do benchmark oficial, sem criar IA generativa, engine paralela ou BI pesado. Quando houver desvios relevantes, warnings recorrentes ou inconsistências moderadas, os diagnósticos podem ser exibidos como sujeitos à reconciliação.
+
 ## Objetivo
 
 Documentar a janela temporal da DRE agrícola v1 e as regras de fallback por fonte para evitar dupla contagem entre receita, despesa, apropriação econômica, caixa e valuation operacional.
@@ -127,6 +129,7 @@ Este documento operacionaliza a matriz oficial descrita em:
 - Rentabilidade Agrícola v1 como visão oficial derivada da DRE agrícola v1, acessível pelo hub agrícola principal.
 - Eficiência Operacional Agrícola v1 como visão oficial derivada da DRE agrícola v1, acessível pelo hub agrícola principal.
 - Benchmark Operacional e Econômico v1 como visão oficial derivada da DRE agrícola v1, acessível pelo hub agrícola principal.
+- Diagnóstico Operacional e Econômico v1 como visão oficial derivada da DRE agrícola v1, acessível pelo hub agrícola principal.
 - Consolidação futura de linhas contábeis e financeiras em camadas próprias, sem quebrar a precedência econômica oficial.
 - Expansão de relatórios por safra e unidade operacional com a mesma janela temporal.
 - Manutenção da página financeira da safra como superfície de consumo dos KPIs oficiais, com legado apenas como referência secundária.
