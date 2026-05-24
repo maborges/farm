@@ -29,6 +29,7 @@ from operacional.models.estoque import EstoqueMovimento
 from operacional.models.frota import OrdemServico
 from core.base_service import BaseService
 from core.services.analytics_request_cache import build_analytics_scope_key, build_analytics_value_key, get_analytics_request_cache
+from core.services.analytics_request_cache import record_analytics_cache_hit, record_analytics_cache_miss, record_analytics_service_call
 
 from .schemas import (
     DREAgricolaResponse,
@@ -68,6 +69,7 @@ class DREAgricolaV1Service(BaseService[Safra]):
         data_inicio: date | None = None,
         data_fim: date | None = None,
     ) -> DREAgricolaResponse:
+        record_analytics_service_call("agricola.dre.v1")
         cache = get_analytics_request_cache()
         scope_variant = self._cache_variant(
             safra_id=safra_id,
@@ -102,7 +104,9 @@ class DREAgricolaV1Service(BaseService[Safra]):
             scope_variant,
         )
         if cache_key in cache:
+            record_analytics_cache_hit("agricola.dre.v1")
             return cache[cache_key]
+        record_analytics_cache_miss("agricola.dre.v1")
 
         scope = cache.get(scope_cache_key)
         if scope is None:

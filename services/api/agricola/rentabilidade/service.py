@@ -17,6 +17,9 @@ from core.services.analytics_request_cache import (
     build_analytics_scope_key,
     build_analytics_value_key,
     get_analytics_request_cache,
+    record_analytics_cache_hit,
+    record_analytics_cache_miss,
+    record_analytics_service_call,
 )
 
 from .schemas import RentabilidadeAgricolaItem, RentabilidadeAgricolaResponse
@@ -51,6 +54,7 @@ class RentabilidadeAgricolaV1Service(BaseService[Safra]):
         data_inicio: date | None = None,
         data_fim: date | None = None,
     ) -> RentabilidadeAgricolaResponse:
+        record_analytics_service_call("agricola.rentabilidade.v1")
         cache_key = build_analytics_value_key(
             "agricola.rentabilidade.v1",
             build_analytics_scope_key(
@@ -64,7 +68,9 @@ class RentabilidadeAgricolaV1Service(BaseService[Safra]):
         )
         cache = get_analytics_request_cache()
         if cache_key in cache:
+            record_analytics_cache_hit("agricola.rentabilidade.v1")
             return cache[cache_key]
+        record_analytics_cache_miss("agricola.rentabilidade.v1")
 
         production_units = await self._listar_production_units(
             safra_id=safra_id,

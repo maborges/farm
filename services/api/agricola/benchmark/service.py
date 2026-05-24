@@ -16,6 +16,9 @@ from core.services.analytics_request_cache import (
     build_analytics_scope_key,
     build_analytics_value_key,
     get_analytics_request_cache,
+    record_analytics_cache_hit,
+    record_analytics_cache_miss,
+    record_analytics_service_call,
 )
 
 from .schemas import BenchmarkAgricolaDestaques, BenchmarkAgricolaItem, BenchmarkAgricolaResponse
@@ -36,6 +39,7 @@ class BenchmarkAgricolaV1Service(BaseService[Safra]):
         data_inicio: date | None = None,
         data_fim: date | None = None,
     ) -> BenchmarkAgricolaResponse:
+        record_analytics_service_call("agricola.benchmark.v1")
         cache_key = build_analytics_value_key(
             "agricola.benchmark.v1",
             build_analytics_scope_key(
@@ -49,7 +53,9 @@ class BenchmarkAgricolaV1Service(BaseService[Safra]):
         )
         cache = get_analytics_request_cache()
         if cache_key in cache:
+            record_analytics_cache_hit("agricola.benchmark.v1")
             return cache[cache_key]
+        record_analytics_cache_miss("agricola.benchmark.v1")
 
         dre = await DREAgricolaV1Service(self.session, self.tenant_id).gerar(
             safra_id=safra_id,

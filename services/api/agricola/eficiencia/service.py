@@ -21,6 +21,9 @@ from core.services.analytics_request_cache import (
     build_analytics_scope_key,
     build_analytics_value_key,
     get_analytics_request_cache,
+    record_analytics_cache_hit,
+    record_analytics_cache_miss,
+    record_analytics_service_call,
 )
 from operacional.models.apontamento import ApontamentoUso
 from operacional.models.frota import JornadaEquipamento
@@ -72,6 +75,7 @@ class EficienciaOperacionalAgricolaV1Service(BaseService[Safra]):
         data_inicio: date | None = None,
         data_fim: date | None = None,
     ) -> EficienciaOperacionalAgricolaResponse:
+        record_analytics_service_call("agricola.eficiencia.v1")
         cache_key = build_analytics_value_key(
             "agricola.eficiencia.v1",
             build_analytics_scope_key(
@@ -85,7 +89,9 @@ class EficienciaOperacionalAgricolaV1Service(BaseService[Safra]):
         )
         cache = get_analytics_request_cache()
         if cache_key in cache:
+            record_analytics_cache_hit("agricola.eficiencia.v1")
             return cache[cache_key]
+        record_analytics_cache_miss("agricola.eficiencia.v1")
 
         rentabilidade_svc = RentabilidadeAgricolaV1Service(self.session, self.tenant_id)
         rentabilidade = await rentabilidade_svc.gerar(

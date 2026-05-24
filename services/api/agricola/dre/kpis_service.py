@@ -3,7 +3,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from core.services.analytics_taxonomy import normalizar_severidade
-from core.services.analytics_request_cache import build_dre_kpi_cache_key, get_analytics_request_cache
+from core.services.analytics_request_cache import (
+    build_dre_kpi_cache_key,
+    get_analytics_request_cache,
+    record_analytics_cache_hit,
+    record_analytics_cache_miss,
+    record_analytics_service_call,
+)
 
 from .schemas import DREAgricolaKpis, DREAgricolaResponse, DREWarning
 
@@ -19,10 +25,13 @@ class AgricolaDreKpiService:
         area_total_ha: float,
         warnings: list[DREWarning],
     ) -> DREAgricolaKpis:
+        record_analytics_service_call("agricola.dre.kpi.v1")
         cache_key = build_dre_kpi_cache_key(dre, area_total_ha=area_total_ha, warnings=warnings)
         cache = get_analytics_request_cache()
         if cache_key in cache:
+            record_analytics_cache_hit("agricola.dre.kpi.v1")
             return cache[cache_key]
+        record_analytics_cache_miss("agricola.dre.kpi.v1")
 
         custo_operacional_total = round(
             float(dre.custos_diretos or 0)

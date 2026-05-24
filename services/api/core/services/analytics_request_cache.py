@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from contextvars import ContextVar, Token
 from datetime import date
+from copy import deepcopy
 from typing import Any, Awaitable, Callable, TypeVar
 
 from loguru import logger
@@ -11,10 +12,21 @@ from core.services.analytics_taxonomy import normalizar_severidade
 T = TypeVar("T")
 
 _ANALYTICS_CACHE: ContextVar[dict[str, Any] | None] = ContextVar("agrosaas_analytics_request_cache", default=None)
+_ANALYTICS_STATS: ContextVar[dict[str, Any] | None] = ContextVar("agrosaas_analytics_request_stats", default=None)
+
+
+def _nova_estrutura_stats() -> dict[str, Any]:
+    return {
+        "cache_hits": 0,
+        "cache_misses": 0,
+        "service_calls": 0,
+        "services": {},
+    }
 
 
 def activate_analytics_request_cache() -> Token[dict[str, Any] | None]:
     """Inicializa um cache novo para a request atual."""
+    _ANALYTICS_STATS.set(_nova_estrutura_stats())
     return _ANALYTICS_CACHE.set({})
 
 
@@ -22,13 +34,16 @@ def reset_analytics_request_cache(token: Token[dict[str, Any] | None] | None = N
     """Restaura o cache da request ou limpa o contexto corrente."""
     if token is not None:
         _ANALYTICS_CACHE.reset(token)
+        _ANALYTICS_STATS.set(None)
         return
     _ANALYTICS_CACHE.set(None)
+    _ANALYTICS_STATS.set(None)
 
 
 def clear_analytics_request_cache() -> None:
     """Limpa o cache corrente sem tentar restaurar estado anterior."""
     _ANALYTICS_CACHE.set(None)
+    _ANALYTICS_STATS.set(None)
 
 
 def get_analytics_request_cache() -> dict[str, Any]:
@@ -37,6 +52,39 @@ def get_analytics_request_cache() -> dict[str, Any]:
         cache = {}
         _ANALYTICS_CACHE.set(cache)
     return cache
+
+
+def _get_analytics_request_stats_mutable() -> dict[str, Any]:
+    stats = _ANALYTICS_STATS.get()
+    if stats is None:
+        stats = _nova_estrutura_stats()
+        _ANALYTICS_STATS.set(stats)
+    return stats
+
+
+def get_analytics_request_stats() -> dict[str, Any]:
+    return deepcopy(_get_analytics_request_stats_mutable())
+
+
+def record_analytics_service_call(service_name: str) -> None:
+    stats = _get_analytics_request_stats_mutable()
+    stats["service_calls"] += 1
+    service_stats = stats["services"].setdefault(service_name, {"calls": 0, "cache_hits": 0, "cache_misses": 0})
+    service_stats["calls"] += 1
+
+
+def record_analytics_cache_hit(service_name: str) -> None:
+    stats = _get_analytics_request_stats_mutable()
+    stats["cache_hits"] += 1
+    service_stats = stats["services"].setdefault(service_name, {"calls": 0, "cache_hits": 0, "cache_misses": 0})
+    service_stats["cache_hits"] += 1
+
+
+def record_analytics_cache_miss(service_name: str) -> None:
+    stats = _get_analytics_request_stats_mutable()
+    stats["cache_misses"] += 1
+    service_stats = stats["services"].setdefault(service_name, {"calls": 0, "cache_hits": 0, "cache_misses": 0})
+    service_stats["cache_misses"] += 1
 
 
 def build_analytics_scope_key(
@@ -90,9 +138,11 @@ async def memoize_request_async(
     cache = get_analytics_request_cache()
     cache_key = build_analytics_value_key(service_name, scope_key)
     if cache_key in cache:
+        record_analytics_cache_hit(service_name)
         logger.bind(component="analytics_cache", service=service_name, scope_key=scope_key).debug("analytics_cache_hit")
         return cache[cache_key]
 
+    record_analytics_cache_miss(service_name)
     logger.bind(component="analytics_cache", service=service_name, scope_key=scope_key).debug("analytics_cache_miss")
     value = await factory()
     cache[cache_key] = value
@@ -107,9 +157,11 @@ def memoize_request_value(
     cache = get_analytics_request_cache()
     cache_key = build_analytics_value_key(service_name, scope_key)
     if cache_key in cache:
+        record_analytics_cache_hit(service_name)
         logger.bind(component="analytics_cache", service=service_name, scope_key=scope_key).debug("analytics_cache_hit")
         return cache[cache_key]
 
+    record_analytics_cache_miss(service_name)
     logger.bind(component="analytics_cache", service=service_name, scope_key=scope_key).debug("analytics_cache_miss")
     value = factory()
     cache[cache_key] = value
