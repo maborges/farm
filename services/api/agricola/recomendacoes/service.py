@@ -11,6 +11,7 @@ from agricola.diagnostico import DiagnosticoOperacionalEconomicoAgricolaV1Servic
 from agricola.dre.schemas import DREWarning
 from agricola.safras.models import Safra
 from core.base_service import BaseService
+from core.services.analytics_taxonomy import severidade_ordem
 from core.services.analytics_request_cache import (
     build_analytics_scope_key,
     build_analytics_value_key,
@@ -18,13 +19,6 @@ from core.services.analytics_request_cache import (
 )
 
 from .schemas import RecomendacaoAgricolaItem, RecomendacaoAgricolaResponse, RecomendacaoAgricolaResumo
-
-SEVERIDADE_ORDEM = {
-    "RISCO_ECONOMICO": 0,
-    "RISCO_OPERACIONAL": 1,
-    "ATENCAO": 2,
-    "INFO": 3,
-}
 
 
 class RecomendacoesOperacionaisEconomicasAgricolaV1Service(BaseService[Safra]):
@@ -220,7 +214,7 @@ class RecomendacoesOperacionaisEconomicasAgricolaV1Service(BaseService[Safra]):
         ranked = sorted(
             items,
             key=lambda item: (
-                SEVERIDADE_ORDEM.get(item.severidade, 99),
+                severidade_ordem(item.severidade),
                 item.tipo,
                 item.label,
             ),

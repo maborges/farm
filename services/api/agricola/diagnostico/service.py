@@ -16,6 +16,7 @@ from agricola.eficiencia import EficienciaOperacionalAgricolaV1Service
 from agricola.rentabilidade import RentabilidadeAgricolaV1Service
 from agricola.safras.models import Safra
 from core.base_service import BaseService
+from core.services.analytics_taxonomy import classificar_codigo, severidade_ordem
 from core.services.analytics_request_cache import (
     build_analytics_scope_key,
     build_analytics_value_key,
@@ -23,14 +24,6 @@ from core.services.analytics_request_cache import (
 )
 
 from .schemas import DiagnosticoAgricolaItem, DiagnosticoAgricolaResponse, DiagnosticoAgricolaResumo
-
-
-SEVERIDADE_ORDEM = {
-    "RISCO_ECONOMICO": 0,
-    "RISCO_OPERACIONAL": 1,
-    "ATENCAO": 2,
-    "INFO": 3,
-}
 
 
 class DiagnosticoOperacionalEconomicoAgricolaV1Service(BaseService[Safra]):
@@ -420,12 +413,12 @@ class DiagnosticoOperacionalEconomicoAgricolaV1Service(BaseService[Safra]):
         economic_codes = [
             codigo
             for codigo, total in counter.items()
-            if total >= 2 and self._classificar_codigo(codigo) == "ECONOMICO"
+            if total >= 2 and classificar_codigo(codigo) == "ECONOMICO"
         ]
         operational_codes = [
             codigo
             for codigo, total in counter.items()
-            if total >= 2 and self._classificar_codigo(codigo) == "OPERACIONAL"
+            if total >= 2 and classificar_codigo(codigo) == "OPERACIONAL"
         ]
 
         if economic_codes:
@@ -464,7 +457,7 @@ class DiagnosticoOperacionalEconomicoAgricolaV1Service(BaseService[Safra]):
         ranked = sorted(
             items,
             key=lambda item: (
-                SEVERIDADE_ORDEM.get(item.severidade, 99),
+                severidade_ordem(item.severidade),
                 -(abs(item.desvio_pct or 0.0)),
                 item.label,
             ),
@@ -585,36 +578,4 @@ class DiagnosticoOperacionalEconomicoAgricolaV1Service(BaseService[Safra]):
             return "RISCO_ECONOMICO"
         if ratio >= 1.1:
             return "ATENCAO"
-        return "INFO"
-
-    @staticmethod
-    def _classificar_codigo(codigo: str) -> str:
-        normalizado = codigo.upper()
-        economic_keywords = (
-            "CUSTO",
-            "ALLOCATION",
-            "RECONCILI",
-            "DRE",
-            "MARGEM",
-            "RESULTADO",
-            "LANCAMENTO",
-            "LANCAMENTO",
-            "VALOR",
-        )
-        if any(keyword in normalizado for keyword in economic_keywords):
-            return "ECONOMICO"
-        operational_keywords = (
-            "OPERACAO",
-            "JORNADA",
-            "APONTAMENTO",
-            "WORKFLOW",
-            "TAREFA",
-            "FROTA",
-            "CHECKLIST",
-            "FENOLOG",
-            "EXECUCAO",
-            "MONITOR",
-        )
-        if any(keyword in normalizado for keyword in operational_keywords):
-            return "OPERACIONAL"
         return "INFO"

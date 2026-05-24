@@ -19,6 +19,12 @@ from agricola.rentabilidade import RentabilidadeAgricolaV1Service
 from agricola.safras.models import Safra
 from core.models.tenant_audit_log import TenantAuditLog
 from core.services.audit_service import write_audit_log
+from core.services.analytics_taxonomy import (
+    codigos_analiticos_registrados,
+    severidade_base,
+    severidade_compatibilidade_prioridade_warning,
+    severidade_ordem,
+)
 from core.services.analytics_request_cache import (
     build_analytics_scope_key,
     build_analytics_value_key,
@@ -33,24 +39,6 @@ from .schemas import (
     PrioridadeAgricolaResumo,
     PrioridadeAgricolaStatusResponse,
 )
-
-
-SEVERIDADE_ORDEM = {
-    "PRIORIDADE_CRITICA": 0,
-    "RISCO_ECONOMICO": 1,
-    "RISCO_OPERACIONAL": 2,
-    "ATENCAO": 3,
-    "INFO": 4,
-}
-
-SEVERIDADE_BASE = {
-    "INFO": 20,
-    "ATENCAO": 50,
-    "RISCO_OPERACIONAL": 72,
-    "RISCO_ECONOMICO": 88,
-    "PRIORIDADE_CRITICA": 100,
-}
-
 ORIGEM_PESO = {
     "DIAGNOSTICO": 12,
     "RECOMENDACAO": 10,
@@ -597,7 +585,7 @@ class PrioridadesAgricolasV1Service(BaseService[Safra]):
             items,
             key=lambda item: (
                 -item.score_prioridade,
-                SEVERIDADE_ORDEM.get(item.severidade, 99),
+                severidade_ordem(item.severidade),
                 -(item.impacto_estimado or 0.0),
                 item.tipo,
                 item.entidade_label,
@@ -633,14 +621,14 @@ class PrioridadesAgricolasV1Service(BaseService[Safra]):
             grupo,
             key=lambda sinal: (
                 ORIGEM_PESO.get(sinal.origem, 0),
-                SEVERIDADE_BASE.get(sinal.severidade, 0),
+                severidade_base(sinal.severidade),
                 abs(sinal.impacto_estimado or 0.0),
                 len(sinal.warnings_relevantes),
             ),
         )
 
     def _calcular_score(self, sinal: _SinalPrioridade, recorrencia: int) -> int:
-        base = SEVERIDADE_BASE.get(sinal.severidade, 20)
+        base = severidade_base(sinal.severidade)
         origem = ORIGEM_PESO.get(sinal.origem, 0)
         impacto = self._impacto_bonus(sinal.tipo, sinal.impacto_estimado)
         recorrencia_bonus = min(max(recorrencia - 1, 0) * 7, 21)
@@ -666,11 +654,7 @@ class PrioridadesAgricolasV1Service(BaseService[Safra]):
 
     @staticmethod
     def _severidade_warning(severidade: str) -> str:
-        if severidade == "RISCO_ECONOMICO":
-            return "RISCO_ECONOMICO"
-        if severidade in {"RISCO_OPERACIONAL", "INCONSISTENCIA_MODERADA"}:
-            return "RISCO_OPERACIONAL"
-        return "INFO"
+        return severidade_compatibilidade_prioridade_warning(severidade)
 
     @staticmethod
     def _severidade_por_desvio(desvio: float, *, base: str) -> str:
@@ -859,7 +843,7 @@ class PrioridadesAgricolasV1Service(BaseService[Safra]):
 
     @staticmethod
     def _tipos_validos() -> set[str]:
-        return {
+        return codigos_analiticos_registrados() & {
             "MARGEM_ABAIXO_MEDIA_TENANT",
             "CUSTO_HECTARE_ACIMA_MEDIA",
             "PRODUCTION_UNIT_BAIXA_EFICIENCIA",
@@ -867,6 +851,8 @@ class PrioridadesAgricolasV1Service(BaseService[Safra]):
             "JORNADA_BAIXA_PRODUTIVIDADE",
             "RESULTADO_OPERACIONAL_NEGATIVO",
             "RESULTADO_SAFRA_ABAIXO_BENCHMARK",
+            "RECEITA_LIQUIDA_HA_ABAIXO_MEDIA",
+            "OPERACAO_CUSTO_FORA_CURVA",
             "RECORRENCIA_WARNING_ECONOMICO",
             "RECORRENCIA_INCONSISTENCIA_OPERACIONAL",
         }
