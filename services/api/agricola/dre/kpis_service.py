@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from core.services.analytics_request_cache import build_dre_kpi_cache_key, get_analytics_request_cache
+
 from .schemas import DREAgricolaKpis, DREAgricolaResponse, DREWarning
 
 
@@ -16,6 +18,11 @@ class AgricolaDreKpiService:
         area_total_ha: float,
         warnings: list[DREWarning],
     ) -> DREAgricolaKpis:
+        cache_key = build_dre_kpi_cache_key(dre, area_total_ha=area_total_ha, warnings=warnings)
+        cache = get_analytics_request_cache()
+        if cache_key in cache:
+            return cache[cache_key]
+
         custo_operacional_total = round(
             float(dre.custos_diretos or 0)
             + float(dre.custos_operacionais or 0)
@@ -39,7 +46,7 @@ class AgricolaDreKpiService:
         ]
         sujeito_reconciliacao = bool(warnings_relevantes)
 
-        return DREAgricolaKpis(
+        kpis = DREAgricolaKpis(
             area_total_ha=round(area_total_ha, 2),
             receita_liquida=round(float(dre.receita_liquida or 0), 2),
             custo_operacional_total=custo_operacional_total,
@@ -53,3 +60,5 @@ class AgricolaDreKpiService:
             observacao_reconciliacao="Valores sujeitos à reconciliação." if sujeito_reconciliacao else None,
             warnings_relevantes=warnings_relevantes,
         )
+        cache[cache_key] = kpis
+        return kpis

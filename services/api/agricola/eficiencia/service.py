@@ -17,6 +17,11 @@ from agricola.safras.models import Safra
 from core.base_service import BaseService
 from core.cadastros.equipamentos.models import Equipamento
 from core.cadastros.propriedades.models import AreaRural
+from core.services.analytics_request_cache import (
+    build_analytics_scope_key,
+    build_analytics_value_key,
+    get_analytics_request_cache,
+)
 from operacional.models.apontamento import ApontamentoUso
 from operacional.models.frota import JornadaEquipamento
 
@@ -67,6 +72,21 @@ class EficienciaOperacionalAgricolaV1Service(BaseService[Safra]):
         data_inicio: date | None = None,
         data_fim: date | None = None,
     ) -> EficienciaOperacionalAgricolaResponse:
+        cache_key = build_analytics_value_key(
+            "agricola.eficiencia.v1",
+            build_analytics_scope_key(
+                self.tenant_id,
+                safra_id,
+                production_unit_id,
+                unidade_produtiva_id,
+                data_inicio,
+                data_fim,
+            ),
+        )
+        cache = get_analytics_request_cache()
+        if cache_key in cache:
+            return cache[cache_key]
+
         rentabilidade_svc = RentabilidadeAgricolaV1Service(self.session, self.tenant_id)
         rentabilidade = await rentabilidade_svc.gerar(
             safra_id=safra_id,
@@ -185,7 +205,7 @@ class EficienciaOperacionalAgricolaV1Service(BaseService[Safra]):
         )
         observacao = "indicadores sujeitos à reconciliação." if sujeito_reconciliacao else None
 
-        return EficienciaOperacionalAgricolaResponse(
+        response = EficienciaOperacionalAgricolaResponse(
             tenant_id=self.tenant_id,
             gerado_em=datetime.now(timezone.utc),
             safra_id=safra_id,
@@ -215,6 +235,8 @@ class EficienciaOperacionalAgricolaV1Service(BaseService[Safra]):
             sujeito_reconciliacao=sujeito_reconciliacao,
             observacao_reconciliacao=observacao,
         )
+        cache[cache_key] = response
+        return response
 
     async def _buscar_jornadas(
         self,

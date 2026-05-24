@@ -4,6 +4,15 @@
 
 Documento oficial de governanca. Nao altera schema, endpoints, calculos ou dashboards.
 
+## Nota De Infraestrutura Analitica
+
+A cadeia analitica oficial pode usar memoizacao `request-scoped` para reaproveitar DRE e derivados dentro da mesma requisicao.
+
+- O cache e temporario e vive apenas no contexto da request.
+- Nao e snapshot persistido.
+- Nao e cache distribuido.
+- Nao altera contratos, precedencia economica ou regras de consolidacao.
+
 ## Objetivo
 
 Formalizar, de forma canonica, qual e a fonte oficial de cada natureza economica no AgroSaaS e qual camada apenas reflete, apropria, realiza, provisiona ou consolida.
@@ -315,4 +324,3 @@ O AgroSaaS passa a operar sob uma governanca economica formal onde:
 - `LancamentoFinanceiro` e a realizacao financeira oficial;
 - `EstoqueMovimento` e o valuation operacional/fisico oficial;
 - a DRE futura devera consolidar, nao somar fatos paralelos.
-

@@ -19,6 +19,11 @@ from agricola.rentabilidade import RentabilidadeAgricolaV1Service
 from agricola.safras.models import Safra
 from core.models.tenant_audit_log import TenantAuditLog
 from core.services.audit_service import write_audit_log
+from core.services.analytics_request_cache import (
+    build_analytics_scope_key,
+    build_analytics_value_key,
+    get_analytics_request_cache,
+)
 from core.base_service import BaseService
 
 from .schemas import (
@@ -109,6 +114,21 @@ class PrioridadesAgricolasV1Service(BaseService[Safra]):
         data_inicio: date | None = None,
         data_fim: date | None = None,
     ) -> PrioridadeAgricolaResponse:
+        cache_key = build_analytics_value_key(
+            "agricola.prioridades.v1",
+            build_analytics_scope_key(
+                self.tenant_id,
+                safra_id,
+                production_unit_id,
+                unidade_produtiva_id,
+                data_inicio,
+                data_fim,
+            ),
+        )
+        cache = get_analytics_request_cache()
+        if cache_key in cache:
+            return cache[cache_key]
+
         dre = await DREAgricolaV1Service(self.session, self.tenant_id).gerar(
             safra_id=safra_id,
             unidade_produtiva_id=unidade_produtiva_id,
@@ -188,7 +208,7 @@ class PrioridadesAgricolasV1Service(BaseService[Safra]):
         sujeito_reconciliacao = bool(warnings or any(item.severidade != "INFO" for item in prioridades))
         observacao = "prioridades sujeitas à reconciliação." if sujeito_reconciliacao else None
 
-        return PrioridadeAgricolaResponse(
+        response = PrioridadeAgricolaResponse(
             tenant_id=self.tenant_id,
             gerado_em=datetime.now(timezone.utc),
             safra_id=safra_id,
@@ -202,6 +222,8 @@ class PrioridadesAgricolasV1Service(BaseService[Safra]):
             sujeito_reconciliacao=sujeito_reconciliacao,
             observacao_reconciliacao=observacao,
         )
+        cache[cache_key] = response
+        return response
 
     async def atualizar_status(
         self,

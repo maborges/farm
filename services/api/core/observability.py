@@ -1,10 +1,13 @@
-
 import time
 import uuid
-from fastapi import Request
-from starlette.middleware.base import BaseHTTPMiddleware
-from loguru import logger
 from datetime import datetime, timezone
+
+from fastapi import Request
+from loguru import logger
+from starlette.middleware.base import BaseHTTPMiddleware
+
+from core.services.analytics_request_cache import activate_analytics_request_cache, reset_analytics_request_cache
+
 
 class ObservabilityMiddleware(BaseHTTPMiddleware):
     """
@@ -15,43 +18,47 @@ class ObservabilityMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request, call_next):
         start_time = time.perf_counter()
-        
+
         # Identificador único da requisição (Traceability)
         request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
-        
-        # Contexto compartilhado para todos os logs da requisição
-        with logger.contextualize(request_id=request_id):
-            response = await call_next(request)
-            
-            process_time = time.perf_counter() - start_time
-            status_code = response.status_code
-            
-            # Extrai tenant_id se disponível
-            tenant_id = getattr(request.state, "rls_tenant_id", None)
-            
-            # Log estruturado (JSON quando serialize=True no logger)
-            logger.info(
-                "API_REQUEST",
-                method=request.method,
-                path=request.url.path,
-                status=status_code,
-                duration=round(process_time, 4),
-                tenant_id=str(tenant_id) if tenant_id else None,
-                user_agent=request.headers.get("user-agent"),
-                ip=request.client.host if request.client else None
-            )
+        cache_token = activate_analytics_request_cache()
 
-            # Alertas Críticos
-            if status_code >= 500:
-                logger.error(f"ALERT: SERVER_ERROR | {request.method} {request.url.path}")
-                
-            if process_time > 1.0:
-                logger.warning(f"ALERT: SLOW_REQUEST | {request.method} {request.url.path} | {process_time:.4f}s")
+        try:
+            # Contexto compartilhado para todos os logs da requisição
+            with logger.contextualize(request_id=request_id):
+                response = await call_next(request)
 
-            response.headers["X-Request-ID"] = request_id
-            response.headers["X-Process-Time"] = f"{process_time:.4f}s"
-            
-            return response
+                process_time = time.perf_counter() - start_time
+                status_code = response.status_code
+
+                # Extrai tenant_id se disponível
+                tenant_id = getattr(request.state, "rls_tenant_id", None)
+
+                # Log estruturado (JSON quando serialize=True no logger)
+                logger.info(
+                    "API_REQUEST",
+                    method=request.method,
+                    path=request.url.path,
+                    status=status_code,
+                    duration=round(process_time, 4),
+                    tenant_id=str(tenant_id) if tenant_id else None,
+                    user_agent=request.headers.get("user-agent"),
+                    ip=request.client.host if request.client else None,
+                )
+
+                # Alertas Críticos
+                if status_code >= 500:
+                    logger.error(f"ALERT: SERVER_ERROR | {request.method} {request.url.path}")
+
+                if process_time > 1.0:
+                    logger.warning(f"ALERT: SLOW_REQUEST | {request.method} {request.url.path} | {process_time:.4f}s")
+
+                response.headers["X-Request-ID"] = request_id
+                response.headers["X-Process-Time"] = f"{process_time:.4f}s"
+
+                return response
+        finally:
+            reset_analytics_request_cache(cache_token)
 
 async def check_db_health():
     """Verifica se a conexão com o banco de dados está ativa."""

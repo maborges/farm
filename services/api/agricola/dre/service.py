@@ -28,6 +28,11 @@ from operacional.models.abastecimento import Abastecimento
 from operacional.models.estoque import EstoqueMovimento
 from operacional.models.frota import OrdemServico
 from core.base_service import BaseService
+from core.services.analytics_request_cache import (
+    build_analytics_scope_key,
+    build_analytics_value_key,
+    get_analytics_request_cache,
+)
 
 from .schemas import (
     DREAgricolaResponse,
@@ -75,12 +80,32 @@ class DREAgricolaV1Service(BaseService[Safra]):
             cultura=cultura,
             unidade_operacional_id=unidade_operacional_id,
         )
+        cache_variant_parts = [f"cultura={scope['cultura'] or '_'}"]
+        if production_unit_ids:
+            cache_variant_parts.append(
+                "production_unit_ids=" + ",".join(sorted(str(production_unit_id) for production_unit_id in production_unit_ids))
+            )
+        cache_key = build_analytics_value_key(
+            "agricola.dre.v1",
+            build_analytics_scope_key(
+                self.tenant_id,
+                scope["safra_id"],
+                production_unit_id,
+                scope["unidade_produtiva_id"],
+                data_inicio,
+                data_fim,
+            ),
+            "|".join(cache_variant_parts),
+        )
+        cache = get_analytics_request_cache()
+        if cache_key in cache:
+            return cache[cache_key]
 
         if not scope["production_units"] and any(
             value is not None
             for value in (safra_id, unidade_produtiva_id, production_unit_id, production_unit_ids, cultura, unidade_operacional_id)
         ):
-            return DREAgricolaResponse(
+            response = DREAgricolaResponse(
                 tenant_id=self.tenant_id,
                 gerado_em=datetime.now(timezone.utc),
                 safra_id=safra_id,
@@ -90,6 +115,8 @@ class DREAgricolaV1Service(BaseService[Safra]):
                 cultura=cultura,
                 production_unit_ids=[],
             )
+            cache[cache_key] = response
+            return response
 
         scope["data_inicio"] = data_inicio
         scope["data_fim"] = data_fim
@@ -163,7 +190,9 @@ class DREAgricolaV1Service(BaseService[Safra]):
             warnings=warnings,
         )
 
-        return base_response.model_copy(update={"kpis": kpis})
+        response = base_response.model_copy(update={"kpis": kpis})
+        cache[cache_key] = response
+        return response
 
     async def _resolver_escopo(
         self,

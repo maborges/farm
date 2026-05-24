@@ -11,6 +11,11 @@ from agricola.eficiencia import EficienciaOperacionalAgricolaV1Service
 from agricola.rentabilidade import RentabilidadeAgricolaV1Service
 from agricola.safras.models import Safra
 from core.base_service import BaseService
+from core.services.analytics_request_cache import (
+    build_analytics_scope_key,
+    build_analytics_value_key,
+    get_analytics_request_cache,
+)
 
 from .schemas import BenchmarkAgricolaDestaques, BenchmarkAgricolaItem, BenchmarkAgricolaResponse
 
@@ -30,6 +35,21 @@ class BenchmarkAgricolaV1Service(BaseService[Safra]):
         data_inicio: date | None = None,
         data_fim: date | None = None,
     ) -> BenchmarkAgricolaResponse:
+        cache_key = build_analytics_value_key(
+            "agricola.benchmark.v1",
+            build_analytics_scope_key(
+                self.tenant_id,
+                safra_id,
+                production_unit_id,
+                unidade_produtiva_id,
+                data_inicio,
+                data_fim,
+            ),
+        )
+        cache = get_analytics_request_cache()
+        if cache_key in cache:
+            return cache[cache_key]
+
         dre = await DREAgricolaV1Service(self.session, self.tenant_id).gerar(
             safra_id=safra_id,
             unidade_produtiva_id=unidade_produtiva_id,
@@ -104,7 +124,7 @@ class BenchmarkAgricolaV1Service(BaseService[Safra]):
         )
         observacao = "benchmark sujeito à reconciliação." if sujeito_reconciliacao else None
 
-        return BenchmarkAgricolaResponse(
+        response = BenchmarkAgricolaResponse(
             tenant_id=self.tenant_id,
             gerado_em=datetime.now(timezone.utc),
             safra_id=safra_id,
@@ -120,6 +140,8 @@ class BenchmarkAgricolaV1Service(BaseService[Safra]):
             sujeito_reconciliacao=sujeito_reconciliacao,
             observacao_reconciliacao=observacao,
         )
+        cache[cache_key] = response
+        return response
 
     def _montar_item_safra(
         self,
