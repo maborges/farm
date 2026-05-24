@@ -2,7 +2,7 @@
 titulo: Índice Mestre de Documentação — AgroSaaS
 versao: 1.1
 data_criacao: 2026-04-01
-data_atualizacao: 2026-05-23
+data_atualizacao: 2026-05-24
 tipo: index
 ---
 
@@ -160,6 +160,9 @@ docs/
 
 **Workflow:** [`agricola/_implantation-workflow.md`](agricola/_implantation-workflow.md)  
 **Overview:** [`agricola/_overview.md`](agricola/_overview.md)
+
+**Base oficial de visão econômica:** [`agricola/profissional/dre-agricola-v1.md`](agricola/profissional/dre-agricola-v1.md)
+Suporta a DRE agrícola v1, a Rentabilidade Agrícola v1 e a Eficiência Operacional Agrícola v1, sem fonte paralela de cálculo.
 
 ---
 

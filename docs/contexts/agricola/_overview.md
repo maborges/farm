@@ -96,6 +96,11 @@ O sistema possui os seguintes submódulos funcionais no frontend e/ou backend:
 | 21 | Beneficiamento | Enterprise | `/agricola/beneficiamento` |
 | 22 | RAT (Relatório de Assistência Técnica) | Enterprise | `/dashboard/agricola/rat` |
 
+## Visões Oficiais Derivadas
+
+- **Rentabilidade Agrícola v1**: visão oficial derivada exclusivamente da DRE agrícola v1, acessível pelo hub agrícola principal.
+- **Eficiência Operacional Agrícola v1**: visão oficial derivada exclusivamente da DRE agrícola v1, dos KPIs oficiais e dos registros operacionais, acessível pelo hub agrícola principal.
+
 ## Arquitetura de Níveis
 
 ### Essencial (incluso no plano básico)
@@ -146,7 +151,7 @@ Cada nível superior consome dados do nível inferior. Um produtor no plano Esse
 - [Profissional: Planejamento de Safra](profissional/planejamento-safra.md)
 - [Profissional: Monitoramento NDVI](profissional/monitoramento-ndvi.md)
 - [Profissional: Custos de Produção](profissional/custos-producao.md)
-- [Profissional: DRE Agrícola v1](profissional/dre-agricola-v1.md) - base oficial da visão de Rentabilidade Agrícola v1
+- [Profissional: DRE Agrícola v1](profissional/dre-agricola-v1.md) - base oficial da DRE, da rentabilidade agrícola v1 e da eficiência operacional agrícola v1
 - [Enterprise: Rastreabilidade de Campo](enterprise/rastreabilidade-campo.md)
 - [Enterprise: Prescrições VRT](enterprise/prescricoes-vrt.md)
 - [Enterprise: Beneficiamento](enterprise/beneficiamento.md)
@@ -154,3 +159,4 @@ Cada nível superior consome dados do nível inferior. Um produtor no plano Esse
 ## Entradas Oficiais Derivadas
 
 - [Rentabilidade Agrícola v1](profissional/dre-agricola-v1.md) deriva exclusivamente da DRE agrícola v1 e é acessível pelo hub agrícola principal.
+- [Eficiência Operacional Agrícola v1](profissional/dre-agricola-v1.md) deriva exclusivamente da DRE agrícola v1, dos KPIs oficiais e dos registros operacionais, e é acessível pelo hub agrícola principal.
