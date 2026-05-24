@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date, datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
-from uuid import uuid4
+from uuid import NAMESPACE_URL, uuid4, uuid5
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,6 +12,7 @@ from agricola.diagnostico.schemas import DiagnosticoAgricolaItem, DiagnosticoAgr
 from agricola.inteligencia_operacional.service import InteligenciaOperacionalAgricolaV1Service
 from agricola.prioridades.schemas import PrioridadeAgricolaResponse
 from agricola.recomendacoes.schemas import RecomendacaoAgricolaResponse
+from core.exceptions import EntityNotFoundError
 from core.services.analytics_request_cache import clear_analytics_request_cache
 from agricola.dre.schemas import DREWarning
 
@@ -414,3 +415,95 @@ async def test_plano_operacional_cache_isola_tenant():
     assert diagnostico_mock.await_count == 2
     assert recomendacoes_mock.await_count == 2
     assert prioridades_mock.await_count == 2
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "altered_kwargs",
+    [
+        {"safra_id": uuid4()},
+        {"unidade_produtiva_id": uuid4()},
+        {"production_unit_id": uuid4()},
+        {"data_inicio": date(2026, 2, 1)},
+        {"data_fim": date(2026, 2, 28)},
+    ],
+)
+async def test_obter_plano_por_id_respeita_safra_pu_e_periodo(altered_kwargs):
+    session = AsyncMock(spec=AsyncSession)
+    tenant_id = uuid4()
+    base_safra_id = uuid4()
+    base_unidade_produtiva_id = uuid4()
+    base_production_unit_id = uuid4()
+    base_args = {
+        "safra_id": base_safra_id,
+        "unidade_produtiva_id": base_unidade_produtiva_id,
+        "production_unit_id": base_production_unit_id,
+        "data_inicio": date(2026, 1, 1),
+        "data_fim": date(2026, 1, 31),
+    }
+
+    def _suffix(kwargs: dict) -> str:
+        return ":".join(
+            [
+                str(kwargs["safra_id"]),
+                str(kwargs.get("unidade_produtiva_id")),
+                str(kwargs.get("production_unit_id")),
+                str(kwargs.get("data_inicio")),
+                str(kwargs.get("data_fim")),
+            ]
+        )
+
+    def _make_response(kwargs: dict):
+        suffix = _suffix(kwargs)
+        entity_id = uuid5(NAMESPACE_URL, f"agrosaas:inteligencia-operacional:test:{suffix}")
+        diagnostico_item = _diagnostico_item(
+            codigo="RESULTADO_OPERACIONAL_NEGATIVO",
+            scope="PRODUCTION_UNIT",
+            entidade_id=entity_id,
+            label=f"UP {suffix[:8]}",
+            severidade="RISCO_ECONOMICO",
+            sugestao="Revisar custos alocados e reconciliação.",
+        )
+        recomendacao_item = _recomendacao_item(
+            codigo="RESULTADO_OPERACIONAL_NEGATIVO",
+            scope="PRODUCTION_UNIT",
+            entidade_id=entity_id,
+            label=f"UP {suffix[:8]}",
+            severidade="RISCO_ECONOMICO",
+            acao_sugerida="Auditar custos alocados e confirmar receita oficial.",
+        )
+        prioridade_item = _prioridade_item(
+            codigo="RESULTADO_OPERACIONAL_NEGATIVO",
+            scope="PRODUCTION_UNIT",
+            entidade_id=entity_id,
+            label=f"UP {suffix[:8]}",
+            severidade="PRIORIDADE_CRITICA",
+            score=100,
+            acao_sugerida="Tratar imediatamente e validar reconciliação.",
+        )
+        return (
+            _diagnostico_response(diagnosticos=[diagnostico_item]),
+            _recomendacao_response(recomendacoes=[recomendacao_item]),
+            _prioridade_response(prioridades=[prioridade_item]),
+        )
+
+    async def diagnostico_side_effect(**kwargs):
+        return _make_response(kwargs)[0]
+
+    async def recomendacoes_side_effect(**kwargs):
+        return _make_response(kwargs)[1]
+
+    async def prioridades_side_effect(**kwargs):
+        return _make_response(kwargs)[2]
+
+    with (
+        patch("agricola.inteligencia_operacional.service.DiagnosticoOperacionalEconomicoAgricolaV1Service.gerar", new=AsyncMock(side_effect=diagnostico_side_effect)),
+        patch("agricola.inteligencia_operacional.service.RecomendacoesOperacionaisEconomicasAgricolaV1Service.gerar", new=AsyncMock(side_effect=recomendacoes_side_effect)),
+        patch("agricola.inteligencia_operacional.service.PrioridadesAgricolasV1Service.gerar", new=AsyncMock(side_effect=prioridades_side_effect)),
+    ):
+        service = InteligenciaOperacionalAgricolaV1Service(session, tenant_id)
+        base_response = await service.gerar(**base_args)
+        plano_id = base_response.planos[0].id
+
+        with pytest.raises(EntityNotFoundError):
+            await service.obter_plano_por_id(plano_id=plano_id, **{**base_args, **altered_kwargs})

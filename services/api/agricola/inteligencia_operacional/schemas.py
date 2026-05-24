@@ -80,3 +80,24 @@ class PlanoAcaoOperacionalAgricolaResponse(BaseModel):
     sujeito_reconciliacao: bool = False
     observacao_reconciliacao: str | None = None
 
+
+class PlanoAcaoOperacionalAgricolaConverterTarefaRequest(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    confirmado: Literal[True] = Field(..., description="Confirmação explícita do usuário")
+    titulo: str = Field(..., min_length=3, max_length=120)
+    descricao: str = Field(..., min_length=3, max_length=1000)
+    tipo: Literal[
+        "CALAGEM",
+        "ADUBACAO_FOSFORO",
+        "ADUBACAO_POTASSIO",
+        "ADUBACAO_NITROGENIO",
+        "GRADAGEM",
+        "PLANTIO",
+        "PULVERIZACAO",
+        "IRRIGACAO",
+        "COLHEITA",
+        "OUTRO",
+    ] = "OUTRO"
+    prioridade: Literal["BAIXA", "MEDIA", "ALTA", "URGENTE"] = "MEDIA"
+    data_prevista: date | None = None

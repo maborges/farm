@@ -10,6 +10,7 @@ from agricola.diagnostico import DiagnosticoOperacionalEconomicoAgricolaV1Servic
 from agricola.prioridades import PrioridadesAgricolasV1Service
 from agricola.recomendacoes import RecomendacoesOperacionaisEconomicasAgricolaV1Service
 from agricola.safras.models import Safra
+from core.exceptions import EntityNotFoundError
 from core.base_service import BaseService
 from core.services.analytics_request_cache import (
     build_analytics_scope_key,
@@ -145,6 +146,28 @@ class InteligenciaOperacionalAgricolaV1Service(BaseService[Safra]):
             data_inicio,
             data_fim,
         )
+
+    async def obter_plano_por_id(
+        self,
+        *,
+        plano_id: UUID,
+        safra_id: UUID,
+        unidade_produtiva_id: UUID | None = None,
+        production_unit_id: UUID | None = None,
+        data_inicio: date | None = None,
+        data_fim: date | None = None,
+    ) -> PlanoAcaoOperacionalAgricolaItem:
+        resposta = await self.gerar(
+            safra_id=safra_id,
+            unidade_produtiva_id=unidade_produtiva_id,
+            production_unit_id=production_unit_id,
+            data_inicio=data_inicio,
+            data_fim=data_fim,
+        )
+        for plano in resposta.planos:
+            if plano.id == plano_id:
+                return plano
+        raise EntityNotFoundError(f"Plano operacional assistido {plano_id} não encontrado.")
 
     def _construir_planos(
         self,
@@ -450,4 +473,47 @@ class InteligenciaOperacionalAgricolaV1Service(BaseService[Safra]):
             por_origem=dict(sorted(origens.items())),
             por_entidade_tipo=dict(sorted(entidades.items())),
             por_prazo=dict(sorted(prazos.items())),
+        )
+
+    @staticmethod
+    def criticidade_para_tarefa(severidade: str) -> str:
+        return "CRITICA" if normalizar_severidade(severidade) == "PRIORIDADE_CRITICA" else "NORMAL"
+
+    def montar_obs_conversion(
+        self,
+        *,
+        plano: PlanoAcaoOperacionalAgricolaItem,
+        titulo: str,
+        descricao: str,
+        tipo: str,
+        prioridade: str,
+        data_prevista: date | None,
+        aprovado_explicitamente: bool,
+        user_id: UUID | None,
+    ) -> str:
+        fontes = ", ".join(
+            f"{fonte.origem_analitica}:{fonte.codigo}"
+            for fonte in plano.fontes_analiticas
+        ) or "—"
+        acoes = " | ".join(plano.acoes_sugeridas) or "—"
+        prazo = data_prevista.isoformat() if data_prevista else "Não informado"
+        aprovador = str(user_id) if user_id else "—"
+        return "\n".join(
+            [
+                "Plano assistido convertido em tarefa real.",
+                f"Plano ID: {plano.id}",
+                f"Plano chave: {plano.chave}",
+                f"Origem primária: {plano.origem_primaria.origem_analitica}:{plano.origem_primaria.codigo}",
+                f"Severidade canônica: {plano.severidade}",
+                f"Contexto operacional original: {plano.contexto_operacional}",
+                f"Título aprovado: {titulo.strip()}",
+                f"Descrição detalhada: {descricao.strip()}",
+                f"Tipo selecionado: {tipo}",
+                f"Prioridade selecionada: {prioridade}",
+                f"Prazo previsto: {prazo}",
+                f"Aprovação humana explícita: {'SIM' if aprovado_explicitamente else 'NÃO'}",
+                f"Aprovado por: {aprovador}",
+                f"Fontes analíticas: {fontes}",
+                f"Ações sugeridas: {acoes}",
+            ]
         )
