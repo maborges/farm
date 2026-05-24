@@ -501,6 +501,7 @@ class InteligenciaOperacionalAgricolaV1Service(BaseService[Safra]):
         return "\n".join(
             [
                 "Plano assistido convertido em tarefa real.",
+                "Origem operacional: PLANO_ASSISTIDO",
                 f"Plano ID: {plano.id}",
                 f"Plano chave: {plano.chave}",
                 f"Origem primária: {plano.origem_primaria.origem_analitica}:{plano.origem_primaria.codigo}",

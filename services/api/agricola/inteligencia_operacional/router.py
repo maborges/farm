@@ -131,14 +131,20 @@ async def converter_plano_em_tarefa(
         resource="agricola_inteligencia_operacional_plano",
         resource_id=tarefa.id,
         payload_before={
+            "origem_operacional": "PLANO_ASSISTIDO",
             "plano_id": str(plano.id),
             "plano_chave": plano.chave,
+            "aprovado_explicitamente": dados.confirmado,
+            "aprovado_por": str(user_id) if user_id else None,
             "plano": plano.model_dump(mode="json"),
         },
         payload_after={
+            "origem_operacional": "PLANO_ASSISTIDO",
             "confirmado": dados.confirmado,
             "plano_id": str(plano.id),
             "plano_chave": plano.chave,
+            "aprovado_por": str(user_id) if user_id else None,
+            "aprovado_em": agora.isoformat(),
             "tarefa": tarefa_payload,
         },
     )

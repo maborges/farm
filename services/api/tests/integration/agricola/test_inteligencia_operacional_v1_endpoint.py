@@ -171,7 +171,12 @@ async def test_converter_plano_em_tarefa_cria_tarefa_e_registra_auditoria(
 
         def montar_obs_conversion(self, **kwargs):
             captured["obs_kwargs"] = kwargs
-            return "Plano assistido convertido em tarefa real."
+            return "\n".join(
+                [
+                    "Plano assistido convertido em tarefa real.",
+                    "Origem operacional: PLANO_ASSISTIDO",
+                ]
+            )
 
     class FakeTarefaService:
         def __init__(self, session, tenant_id):
@@ -225,12 +230,17 @@ async def test_converter_plano_em_tarefa_cria_tarefa_e_registra_auditoria(
     assert captured["criar_kwargs"]["dados"].origem == "MANUAL"
     assert captured["criar_kwargs"]["dados"].descricao == "Revisar reconciliação oficial"
     assert "Plano assistido convertido em tarefa real." in captured["criar_kwargs"]["dados"].obs
+    assert "Origem operacional: PLANO_ASSISTIDO" in captured["criar_kwargs"]["dados"].obs
     assert captured["criar_kwargs"]["dados"].production_unit_id == fake_plano.production_unit_id
     assert captured["criar_kwargs"]["user_id"] == USER_FIXO
     assert audit_mock.await_count == 1
     assert audit_mock.await_args.kwargs["action"] == "convert_to_task"
     assert audit_mock.await_args.kwargs["resource"] == "agricola_inteligencia_operacional_plano"
     assert audit_mock.await_args.kwargs["payload_after"]["confirmado"] is True
+    assert audit_mock.await_args.kwargs["payload_before"]["origem_operacional"] == "PLANO_ASSISTIDO"
+    assert audit_mock.await_args.kwargs["payload_before"]["aprovado_explicitamente"] is True
+    assert audit_mock.await_args.kwargs["payload_after"]["origem_operacional"] == "PLANO_ASSISTIDO"
+    assert audit_mock.await_args.kwargs["payload_after"]["aprovado_por"] == str(USER_FIXO)
 
 
 @pytest.mark.asyncio
