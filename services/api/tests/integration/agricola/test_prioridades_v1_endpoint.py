@@ -8,7 +8,13 @@ from uuid import uuid4
 import pytest
 from httpx import AsyncClient
 
-from agricola.prioridades.schemas import PrioridadeAgricolaItem, PrioridadeAgricolaResponse, PrioridadeAgricolaResumo
+from agricola.prioridades.schemas import (
+    PrioridadeAgricolaHistoricoItem,
+    PrioridadeAgricolaItem,
+    PrioridadeAgricolaResponse,
+    PrioridadeAgricolaResumo,
+    PrioridadeAgricolaStatusResponse,
+)
 
 
 def _fake_response() -> PrioridadeAgricolaResponse:
@@ -44,6 +50,27 @@ def _fake_response() -> PrioridadeAgricolaResponse:
         warnings=[],
         sujeito_reconciliacao=True,
         observacao_reconciliacao="prioridades sujeitas à reconciliação.",
+    )
+
+
+def _fake_status_response(prioridade_id: str) -> PrioridadeAgricolaStatusResponse:
+    return PrioridadeAgricolaStatusResponse(
+        prioridade_id=prioridade_id,
+        prioridade_status_id=uuid4(),
+        status_atual="EM_ANALISE",
+        historico=[
+            PrioridadeAgricolaHistoricoItem(
+                id=uuid4(),
+                prioridade_id=prioridade_id,
+                status_anterior="NOVA",
+                status_novo="EM_ANALISE",
+                observacao="Observação curta",
+                responsavel_id=uuid4(),
+                responsavel_nome="Responsável",
+                alterado_em=datetime.now(timezone.utc),
+            )
+        ],
+        sujeito_reconciliacao=True,
     )
 
 
@@ -95,3 +122,56 @@ async def test_prioridades_v1_endpoint_delega_servico_e_nao_usa_legado(
     legacy_report.assert_not_called()
     legacy_lancamento.assert_not_called()
 
+
+@pytest.mark.asyncio
+async def test_prioridades_v1_endpoint_atualiza_status_e_consulta_historico(
+    client: AsyncClient,
+    headers_agricola: dict,
+):
+    fake_response = _fake_response()
+    prioridade_id = fake_response.prioridades[0].id
+    fake_status = _fake_status_response(prioridade_id)
+    captured: dict = {}
+
+    class FakeService:
+        def __init__(self, session, tenant_id):
+            captured["tenant_id"] = tenant_id
+
+        async def atualizar_status(self, **kwargs):
+            captured["update_kwargs"] = kwargs
+            return fake_status
+
+        async def obter_status(self, **kwargs):
+            captured["history_kwargs"] = kwargs
+            return fake_status
+
+    router_module = importlib.import_module("agricola.prioridades.router")
+
+    with patch.object(router_module, "PrioridadesAgricolasV1Service", FakeService):
+        response = await client.patch(
+            f"/api/v1/agricola/prioridades/v1/{prioridade_id}/status",
+            params={
+                "safra_id": str(fake_response.safra_id),
+                "production_unit_id": str(uuid4()),
+                "unidade_produtiva_id": str(uuid4()),
+            },
+            json={"status": "EM_ANALISE", "observacao": "Em acompanhamento"},
+            headers=headers_agricola,
+        )
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["status_atual"] == "EM_ANALISE"
+    assert captured["update_kwargs"]["status"] == "EM_ANALISE"
+    assert captured["update_kwargs"]["observacao"] == "Em acompanhamento"
+    assert captured["update_kwargs"]["prioridade_id"] == prioridade_id
+
+    with patch.object(router_module, "PrioridadesAgricolasV1Service", FakeService):
+        history_response = await client.get(
+            f"/api/v1/agricola/prioridades/v1/{prioridade_id}/status",
+            params={"safra_id": str(fake_response.safra_id)},
+            headers=headers_agricola,
+        )
+
+    assert history_response.status_code == 200, history_response.text
+    assert history_response.json()["status_atual"] == "EM_ANALISE"

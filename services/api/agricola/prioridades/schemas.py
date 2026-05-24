@@ -79,3 +79,30 @@ class PrioridadeAgricolaResponse(BaseModel):
     sujeito_reconciliacao: bool = False
     observacao_reconciliacao: str | None = None
 
+
+class PrioridadeAgricolaStatusUpdate(BaseModel):
+    status: Literal["NOVA", "VISUALIZADA", "EM_ANALISE", "RESOLVIDA", "IGNORADA"]
+    observacao: str | None = Field(default=None, max_length=240)
+
+
+class PrioridadeAgricolaHistoricoItem(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    prioridade_id: str
+    status_anterior: Literal["NOVA", "VISUALIZADA", "EM_ANALISE", "RESOLVIDA", "IGNORADA"] | None = None
+    status_novo: Literal["NOVA", "VISUALIZADA", "EM_ANALISE", "RESOLVIDA", "IGNORADA"]
+    observacao: str | None = None
+    responsavel_id: UUID | None = None
+    responsavel_nome: str | None = None
+    alterado_em: datetime
+
+
+class PrioridadeAgricolaStatusResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    prioridade_id: str
+    prioridade_status_id: UUID
+    status_atual: Literal["NOVA", "VISUALIZADA", "EM_ANALISE", "RESOLVIDA", "IGNORADA"]
+    historico: list[PrioridadeAgricolaHistoricoItem] = Field(default_factory=list)
+    sujeito_reconciliacao: bool = False

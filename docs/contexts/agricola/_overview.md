@@ -103,7 +103,7 @@ O sistema possui os seguintes submódulos funcionais no frontend e/ou backend:
 - **Benchmark Operacional e Econômico v1**: visão oficial derivada exclusivamente da DRE agrícola v1, dos KPIs oficiais, da rentabilidade oficial e da eficiência operacional oficial, acessível pelo hub agrícola principal.
 - **Diagnóstico Operacional e Econômico v1**: visão oficial derivada exclusivamente da DRE agrícola v1, dos KPIs oficiais, da rentabilidade oficial, da eficiência operacional oficial e do benchmark oficial, acessível pelo hub agrícola principal.
 - **Recomendações Operacionais e Econômicas Assistidas v1**: visão oficial derivada exclusivamente da DRE agrícola v1, dos KPIs oficiais, da rentabilidade oficial, da eficiência operacional oficial, do benchmark oficial e dos diagnósticos oficiais, acessível pelo hub agrícola principal.
-- **Central Inteligente de Prioridades Agrícolas v1**: visão oficial derivada exclusivamente da DRE agrícola v1, dos KPIs oficiais, da rentabilidade oficial, da eficiência operacional oficial, do benchmark oficial, dos diagnósticos oficiais e das recomendações oficiais, acessível pelo hub agrícola principal.
+- **Central Inteligente de Prioridades Agrícolas v1**: visão oficial derivada exclusivamente da DRE agrícola v1, dos KPIs oficiais, da rentabilidade oficial, da eficiência operacional oficial, do benchmark oficial, dos diagnósticos oficiais e das recomendações oficiais, acessível pelo hub agrícola principal. O acompanhamento operacional usa status leves por prioridade com auditoria do tenant, sem workflow paralelo ou recálculo econômico.
 
 ## Arquitetura de Níveis
 

@@ -4,9 +4,10 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
 from typing import Iterable, Literal
-from uuid import UUID
+from uuid import UUID, NAMESPACE_URL, uuid5
 
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import desc, select
 
 from agricola.benchmark import BenchmarkAgricolaV1Service
 from agricola.diagnostico import DiagnosticoOperacionalEconomicoAgricolaV1Service
@@ -16,9 +17,17 @@ from agricola.eficiencia import EficienciaOperacionalAgricolaV1Service
 from agricola.recomendacoes import RecomendacoesOperacionaisEconomicasAgricolaV1Service
 from agricola.rentabilidade import RentabilidadeAgricolaV1Service
 from agricola.safras.models import Safra
+from core.models.tenant_audit_log import TenantAuditLog
+from core.services.audit_service import write_audit_log
 from core.base_service import BaseService
 
-from .schemas import PrioridadeAgricolaItem, PrioridadeAgricolaResponse, PrioridadeAgricolaResumo
+from .schemas import (
+    PrioridadeAgricolaHistoricoItem,
+    PrioridadeAgricolaItem,
+    PrioridadeAgricolaResponse,
+    PrioridadeAgricolaResumo,
+    PrioridadeAgricolaStatusResponse,
+)
 
 
 SEVERIDADE_ORDEM = {
@@ -58,6 +67,9 @@ TIPOS_RAZAO = {
     "RECORRENCIA_WARNING_ECONOMICO",
     "RECORRENCIA_INCONSISTENCIA_OPERACIONAL",
 }
+
+PRIORIDADE_STATUS_RESOURCE = "agricola_prioridade_status"
+PRIORIDADE_STATUS_NAMESPACE = uuid5(NAMESPACE_URL, "agrosaas:agricola:prioridades:status")
 
 
 @dataclass(slots=True)
@@ -162,6 +174,8 @@ class PrioridadesAgricolasV1Service(BaseService[Safra]):
         ]
         prioridades = self._consolidar(sinais)
         prioridades = self._rankear(prioridades)
+        status_map = await self._carregar_statuses(prioridades)
+        prioridades = self._aplicar_statuses(prioridades, status_map)
         resumo = self._resumo(prioridades)
 
         warnings = self._dedupe_warnings([
@@ -186,6 +200,100 @@ class PrioridadesAgricolasV1Service(BaseService[Safra]):
             warnings=warnings,
             sujeito_reconciliacao=sujeito_reconciliacao,
             observacao_reconciliacao=observacao,
+        )
+
+    async def atualizar_status(
+        self,
+        *,
+        safra_id: UUID,
+        prioridade_id: str,
+        status: str,
+        observacao: str | None,
+        user_id: UUID | None,
+        responsavel_nome: str | None,
+        unidade_produtiva_id: UUID | None = None,
+        production_unit_id: UUID | None = None,
+        data_inicio: date | None = None,
+        data_fim: date | None = None,
+    ) -> PrioridadeAgricolaStatusResponse:
+        prioridade = await self._localizar_prioridade(
+            safra_id=safra_id,
+            prioridade_id=prioridade_id,
+            unidade_produtiva_id=unidade_produtiva_id,
+            production_unit_id=production_unit_id,
+            data_inicio=data_inicio,
+            data_fim=data_fim,
+        )
+        if prioridade is None:
+            raise LookupError("Prioridade agrícola não encontrada")
+
+        prioridade_status_id = self._status_resource_id(prioridade_id)
+        status_atual = prioridade.status
+        historico_atual = await self._historico_status(prioridade_id)
+        status_anterior = historico_atual[0].status_novo if historico_atual else status_atual
+
+        await write_audit_log(
+            self.session,
+            tenant_id=self.tenant_id,
+            user_id=user_id,
+            action="update",
+            resource=PRIORIDADE_STATUS_RESOURCE,
+            resource_id=prioridade_status_id,
+            payload_before={
+                "prioridade_id": prioridade_id,
+                "status": status_anterior,
+                "observacao": historico_atual[0].observacao if historico_atual else None,
+            },
+            payload_after={
+                "prioridade_id": prioridade_id,
+                "status_anterior": status_anterior,
+                "status_novo": status,
+                "status": status,
+                "observacao": observacao,
+                "responsavel_id": str(user_id) if user_id else None,
+                "responsavel_nome": responsavel_nome,
+                "alterado_em": datetime.now(timezone.utc).isoformat(),
+            },
+        )
+        await self.session.commit()
+        return await self.obter_status(
+            safra_id=safra_id,
+            prioridade_id=prioridade_id,
+            unidade_produtiva_id=unidade_produtiva_id,
+            production_unit_id=production_unit_id,
+            data_inicio=data_inicio,
+            data_fim=data_fim,
+        )
+
+    async def obter_status(
+        self,
+        *,
+        safra_id: UUID,
+        prioridade_id: str,
+        unidade_produtiva_id: UUID | None = None,
+        production_unit_id: UUID | None = None,
+        data_inicio: date | None = None,
+        data_fim: date | None = None,
+    ) -> PrioridadeAgricolaStatusResponse:
+        prioridade = await self._localizar_prioridade(
+            safra_id=safra_id,
+            prioridade_id=prioridade_id,
+            unidade_produtiva_id=unidade_produtiva_id,
+            production_unit_id=production_unit_id,
+            data_inicio=data_inicio,
+            data_fim=data_fim,
+        )
+        if prioridade is None:
+            raise LookupError("Prioridade agrícola não encontrada")
+
+        historico = await self._historico_status(prioridade_id)
+        status_atual = historico[0].status_novo if historico else prioridade.status
+        return PrioridadeAgricolaStatusResponse(
+            prioridade_id=prioridade_id,
+            prioridade_status_id=self._status_resource_id(prioridade_id),
+            status_atual=status_atual,
+            historico=historico,
+            sujeito_reconciliacao=prioridade.severidade != "INFO",
         )
 
     def _montar_contexto(self, *, dre_kpis, rentabilidade, eficiencia, benchmark) -> dict[str, object]:
@@ -542,6 +650,104 @@ class PrioridadesAgricolasV1Service(BaseService[Safra]):
         for warning in warnings:
             deduped[warning.codigo] = warning
         return list(deduped.values())
+
+    async def _carregar_statuses(self, prioridades: list[PrioridadeAgricolaItem]) -> dict[str, dict[str, object]]:
+        if not prioridades:
+            return {}
+        resource_ids = [self._status_resource_id(item.id) for item in prioridades]
+        stmt = (
+            select(TenantAuditLog)
+            .where(
+                TenantAuditLog.tenant_id == self.tenant_id,
+                TenantAuditLog.resource == PRIORIDADE_STATUS_RESOURCE,
+                TenantAuditLog.resource_id.in_(resource_ids),
+            )
+            .order_by(desc(TenantAuditLog.created_at))
+        )
+        result = await self.session.execute(stmt)
+        logs = result.scalars().all()
+        prioridade_por_resource = {self._status_resource_id(item.id): item.id for item in prioridades}
+        status_map: dict[str, dict[str, object]] = {}
+        for log in logs:
+            prioridade_id = prioridade_por_resource.get(log.resource_id)
+            if not prioridade_id or prioridade_id in status_map:
+                continue
+            payload_after = log.payload_after or {}
+            status_map[prioridade_id] = {
+                "status": payload_after.get("status_novo") or payload_after.get("status") or "NOVA",
+                "log": log,
+            }
+        return status_map
+
+    def _aplicar_statuses(
+        self,
+        prioridades: list[PrioridadeAgricolaItem],
+        status_map: dict[str, dict[str, object]],
+    ) -> list[PrioridadeAgricolaItem]:
+        for prioridade in prioridades:
+            atual = status_map.get(prioridade.id)
+            if atual:
+                prioridade.status = str(atual["status"])
+        return prioridades
+
+    async def _historico_status(self, prioridade_id: str) -> list[PrioridadeAgricolaHistoricoItem]:
+        stmt = (
+            select(TenantAuditLog)
+            .where(
+                TenantAuditLog.tenant_id == self.tenant_id,
+                TenantAuditLog.resource == PRIORIDADE_STATUS_RESOURCE,
+                TenantAuditLog.resource_id == self._status_resource_id(prioridade_id),
+            )
+            .order_by(desc(TenantAuditLog.created_at))
+        )
+        result = await self.session.execute(stmt)
+        logs = result.scalars().all()
+        historico: list[PrioridadeAgricolaHistoricoItem] = []
+        for log in logs:
+            payload_after = log.payload_after or {}
+            historico.append(PrioridadeAgricolaHistoricoItem(
+                id=log.id,
+                prioridade_id=payload_after.get("prioridade_id") or prioridade_id,
+                status_anterior=payload_after.get("status_anterior"),
+                status_novo=payload_after.get("status_novo") or payload_after.get("status") or "NOVA",
+                observacao=payload_after.get("observacao"),
+                responsavel_id=self._parse_uuid(payload_after.get("responsavel_id")),
+                responsavel_nome=payload_after.get("responsavel_nome"),
+                alterado_em=log.created_at,
+            ))
+        return historico
+
+    async def _localizar_prioridade(
+        self,
+        *,
+        safra_id: UUID,
+        prioridade_id: str,
+        unidade_produtiva_id: UUID | None,
+        production_unit_id: UUID | None,
+        data_inicio: date | None,
+        data_fim: date | None,
+    ) -> PrioridadeAgricolaItem | None:
+        response = await self.gerar(
+            safra_id=safra_id,
+            unidade_produtiva_id=unidade_produtiva_id,
+            production_unit_id=production_unit_id,
+            data_inicio=data_inicio,
+            data_fim=data_fim,
+        )
+        for prioridade in response.prioridades:
+            if prioridade.id == prioridade_id:
+                return prioridade
+        return None
+
+    @staticmethod
+    def _parse_uuid(value) -> UUID | None:
+        try:
+            return UUID(str(value))
+        except Exception:
+            return None
+
+    def _status_resource_id(self, prioridade_id: str) -> UUID:
+        return uuid5(PRIORIDADE_STATUS_NAMESPACE, f"{self.tenant_id}:{prioridade_id}")
 
     @staticmethod
     def _tipos_validos() -> set[str]:
