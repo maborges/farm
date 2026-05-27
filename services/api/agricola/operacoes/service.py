@@ -3,13 +3,14 @@ import uuid
 from datetime import date, datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy import func, text
+from sqlalchemy import func, text, delete
 from loguru import logger
 from core.exceptions import BusinessRuleError, EntityNotFoundError
 from core.base_service import BaseService
 
 from agricola.operacoes.models import OperacaoAgricola, OperacaoExecucao, InsumoOperacao
 from agricola.operacoes.schemas import (
+    InsumoOperacaoCreate,
     OperacaoAgricolaCreate,
     OperacaoAgricolaUpdate,
     OperacaoPorFaseKPI,
@@ -24,9 +25,11 @@ from agricola.safras.models import Safra
 from agricola.models import OperacaoTipoFase
 from core.cadastros.produtos.models import Produto
 from core.cadastros.equipamentos.models import Equipamento
+from agricola.caderno.service import CadernoCampoService, ORIGEM_EVENTO_OPERACAO
 from operacional.services import EstoqueService
 from operacional.services.estoque_fifo import consumir_lotes_fifo, atualizar_saldo_apos_consumo
 from operacional.services.estoque_ledger import registrar_ledger_estoque
+from operacional.models.estoque import EstoqueMovimento, LoteEstoque
 from agricola.custos.allocation_service import registrar_cost_allocation
 from agricola.custos.models import CostAllocation
 from agricola.alertas.service import AlertasAgricolasService, WorkflowGovernanceEvent
@@ -216,6 +219,37 @@ class OperacaoService(BaseService[OperacaoAgricola]):
             )
         return unidade_ha_id
 
+    async def _get_unidade_produtiva_id_for_talhao(self, talhao_id: UUID) -> UUID:
+        area = await self.session.get(AreaRural, talhao_id)
+        if not area or area.tenant_id != self.tenant_id:
+            raise BusinessRuleError("Talhão não localizado ou inacessível para o tenant.")
+        return area.unidade_produtiva_id
+
+    async def _validar_area_aplicada(self, talhao_id: UUID, area_aplicada_ha: float | None) -> float:
+        if area_aplicada_ha is None:
+            raise BusinessRuleError("Área aplicada é obrigatória.")
+
+        area_aplicada = float(area_aplicada_ha)
+        if area_aplicada <= 0:
+            raise BusinessRuleError("Área aplicada deve ser maior que zero.")
+
+        area = await self.session.get(AreaRural, talhao_id)
+        if not area or area.tenant_id != self.tenant_id:
+            raise BusinessRuleError("Talhão não localizado ou inacessível para o tenant.")
+
+        area_talhao = area.area_hectares if area.area_hectares is not None else area.area_hectares_manual
+        if area_talhao is None:
+            raise BusinessRuleError("Talhão não possui área calculada ou informada cadastrada.")
+
+        area_talhao_float = float(area_talhao)
+        if area_aplicada > area_talhao_float:
+            raise BusinessRuleError(
+                f"Área aplicada ({area_aplicada:.4f} ha) não pode ser maior que a área do talhão "
+                f"({area_talhao_float:.4f} ha)."
+            )
+
+        return area_aplicada
+
     async def _resolve_production_unit_id(self, dados: OperacaoAgricolaCreate) -> UUID | None:
         """Resolve a valid production unit for the current safra/talhao.
 
@@ -267,6 +301,230 @@ class OperacaoService(BaseService[OperacaoAgricola]):
             .limit(1)
         )
         return (await self.session.execute(stmt)).scalars().first()
+
+    async def _buscar_despesa_existente(self, operacao_id: UUID) -> Despesa | None:
+        stmt = (
+            select(Despesa)
+            .where(
+                Despesa.tenant_id == self.tenant_id,
+                Despesa.origem_tipo == "OPERACAO_AGRICOLA",
+                Despesa.origem_id == operacao_id,
+                Despesa.ativo == True,
+            )
+            .order_by(Despesa.created_at.asc())
+            .limit(1)
+        )
+        return (await self.session.execute(stmt)).scalars().first()
+
+    async def _buscar_entrada_caderno_existente(self, operacao_id: UUID) -> CadernoCampoEntrada | None:
+        stmt = (
+            select(CadernoCampoEntrada)
+            .where(
+                CadernoCampoEntrada.tenant_id == self.tenant_id,
+                (
+                    (CadernoCampoEntrada.operacao_id == operacao_id)
+                    | (
+                        (CadernoCampoEntrada.origem_evento == ORIGEM_EVENTO_OPERACAO)
+                        & (CadernoCampoEntrada.origem_id == str(operacao_id))
+                    )
+                ),
+            )
+            .order_by(CadernoCampoEntrada.data_registro.asc())
+            .limit(1)
+        )
+        return (await self.session.execute(stmt)).scalars().first()
+
+    def _montar_descricao_caderno(self, operacao: OperacaoAgricola) -> str:
+        descricao = operacao.tipo
+        if operacao.area_aplicada_ha:
+            descricao += f"\nÁrea: {operacao.area_aplicada_ha} ha"
+        if operacao.custo_total:
+            descricao += f"\nCusto: R$ {operacao.custo_total:.2f}"
+        return descricao
+
+    async def _aplicar_insumos_na_operacao(
+        self,
+        operacao: OperacaoAgricola,
+        insumos_data: list[InsumoOperacaoCreate],
+        *,
+        unidade_produtiva_id: UUID,
+        area_base_ha: float,
+    ) -> tuple[float, list[dict]]:
+        custo_total_insumos = 0.0
+        ledger_consumos: list[dict] = []
+
+        for insumo in insumos_data:
+            quantidade_total = insumo.dose_por_ha * (insumo.area_aplicada or area_base_ha)
+
+            produto = await self.session.get(Produto, insumo.produto_id)
+            if not produto or (produto.tenant_id is not None and produto.tenant_id != self.tenant_id):
+                logger.warning(
+                    "multi_up_tenant_mismatch",
+                    resource="produto",
+                    tenant_id=str(self.tenant_id),
+                    produto_id=str(insumo.produto_id),
+                )
+                raise EntityNotFoundError("Produto/Insumo", insumo.produto_id)
+
+            consumo = await consumir_lotes_fifo(
+                session=self.session,
+                produto_id=insumo.produto_id,
+                quantidade_necessaria=quantidade_total,
+                tenant_id=self.tenant_id,
+            )
+
+            custo_item = consumo.custo_total
+
+            for lote_consumido in consumo.lotes_consumidos:
+                await validate_deposito_context(
+                    self.session,
+                    tenant_id=self.tenant_id,
+                    deposito_id=lote_consumido["deposito_id"],
+                    expected_unidade_produtiva_id=unidade_produtiva_id,
+                )
+                ledger_consumos.append({
+                    "produto_id": insumo.produto_id,
+                    "deposito_id": lote_consumido["deposito_id"],
+                    "lote_id": lote_consumido["lote_id"],
+                    "quantidade": lote_consumido["quantidade"],
+                    "custo_unitario": lote_consumido["custo_unitario"],
+                    "custo_total": lote_consumido["custo"],
+                    "observacoes": f"Aplicação em operação agrícola ({operacao.tipo})",
+                })
+
+            insumo_op = InsumoOperacao(
+                id=uuid.uuid4(),
+                operacao_id=operacao.id,
+                tenant_id=self.tenant_id,
+                produto_id=insumo.produto_id,
+                lote_insumo=insumo.lote_insumo,
+                lote_estoque_id=insumo.lote_estoque_id,
+                unidade_medida_id=insumo.unidade_medida_id,
+                dose_por_ha=insumo.dose_por_ha,
+                unidade=insumo.unidade,
+                area_aplicada=insumo.area_aplicada,
+                quantidade_total=quantidade_total,
+                custo_unitario=consumo.custo_total / quantidade_total if quantidade_total > 0 else 0.0,
+                custo_total=custo_item,
+            )
+            self.session.add(insumo_op)
+            custo_total_insumos += custo_item
+
+            await atualizar_saldo_apos_consumo(
+                session=self.session,
+                produto_id=insumo.produto_id,
+                quantidade_total=quantidade_total,
+            )
+
+        return custo_total_insumos, ledger_consumos
+
+    async def _reverter_movimentos_estoque_operacao(
+        self,
+        operacao_execucao: OperacaoExecucao | None,
+    ) -> None:
+        if operacao_execucao is None:
+            return
+
+        stmt = (
+            select(EstoqueMovimento)
+            .where(
+                EstoqueMovimento.tenant_id == self.tenant_id,
+                EstoqueMovimento.operacao_execucao_id == operacao_execucao.id,
+                EstoqueMovimento.tipo_movimento == "SAIDA",
+            )
+            .order_by(EstoqueMovimento.created_at.asc())
+        )
+        movimentos = list((await self.session.execute(stmt)).scalars().all())
+        produtos_recalculados: set[UUID] = set()
+
+        for movimento in movimentos:
+            if movimento.lote_id:
+                lote = await self.session.get(LoteEstoque, movimento.lote_id)
+                if lote:
+                    lote.quantidade_atual += abs(float(movimento.quantidade))
+                    if lote.status == "ESGOTADO" and lote.quantidade_atual > 0:
+                        lote.status = "ATIVO"
+                    self.session.add(lote)
+
+            await registrar_ledger_estoque(
+                self.session,
+                tenant_id=self.tenant_id,
+                tipo_movimento="DEVOLUCAO",
+                origem="OPERACAO_EXECUCAO",
+                origem_id=operacao_execucao.id,
+                operacao_execucao_id=operacao_execucao.id,
+                production_unit_id=movimento.production_unit_id,
+                produto_id=movimento.produto_id,
+                deposito_id=movimento.deposito_id,
+                lote_id=movimento.lote_id,
+                quantidade=abs(float(movimento.quantidade)),
+                custo_unitario=float(movimento.custo_unitario or 0.0),
+                custo_total=float(movimento.custo_total or 0.0),
+                ajuste_de=movimento.id,
+                observacoes=f"Estorno por edição da operação agrícola {operacao_execucao.operacao_id}",
+            )
+            produtos_recalculados.add(movimento.produto_id)
+
+        for produto_id in produtos_recalculados:
+            await atualizar_saldo_apos_consumo(
+                session=self.session,
+                produto_id=produto_id,
+                quantidade_total=0,
+            )
+
+    async def _sincronizar_efeitos_operacao(
+        self,
+        operacao: OperacaoAgricola,
+        *,
+        unidade_produtiva_id: UUID,
+        safra_desc: str,
+    ) -> None:
+        operacao_execucao = await self._buscar_execucao_existente(operacao.id)
+        allocation = None
+        if operacao.status == "REALIZADA":
+            operacao_execucao, allocation = await self._garantir_execucao_e_allocation_leves(
+                operacao,
+                allow_create_execucao=True,
+            )
+        if operacao_execucao is not None:
+            operacao_execucao.data_execucao = operacao.data_realizada
+            operacao_execucao.hora_execucao = operacao.hora_inicio
+            operacao_execucao.quantidade_planejada = operacao.area_aplicada_ha
+            operacao_execucao.quantidade_executada = operacao.area_aplicada_ha or 1
+            operacao_execucao.custo_real = float(operacao.custo_total or 0.0)
+            operacao_execucao.area_ha_executada = operacao.area_aplicada_ha
+            operacao_execucao.operador_id = operacao.operador_id
+            operacao_execucao.observacoes = operacao.observacoes
+            self.session.add(operacao_execucao)
+
+        allocation = allocation or await self._buscar_allocation_existente(
+            operacao_execucao_id=operacao_execucao.id if operacao_execucao else None,
+            production_unit_id=operacao.production_unit_id,
+        )
+        if allocation is not None:
+            allocation.amount = float(operacao.custo_total or 0.0)
+            allocation.allocation_basis = float(operacao.area_aplicada_ha or 0.0) or None
+            allocation.allocation_date = operacao.data_realizada
+            self.session.add(allocation)
+
+        despesa = await self._buscar_despesa_existente(operacao.id)
+        if despesa is not None:
+            despesa.descricao = f"{operacao.tipo} — {safra_desc} (fase {operacao.fase_safra or 'SEM_FASE'})"[:255]
+            despesa.valor_total = float(operacao.custo_total or 0.0)
+            despesa.valor_pago = float(operacao.custo_total or 0.0)
+            despesa.data_emissao = operacao.data_realizada
+            despesa.data_vencimento = operacao.data_realizada
+            despesa.data_pagamento = operacao.data_realizada
+            despesa.unidade_produtiva_id = unidade_produtiva_id
+            despesa.cultivo_id = operacao.cultivo_id
+            self.session.add(despesa)
+
+        if operacao.status == "REALIZADA":
+            caderno_svc = CadernoCampoService(self.session, self.tenant_id)
+            entrada = await caderno_svc.garantir_evento_operacao(operacao)
+            entrada.safra_id = operacao.safra_id
+            entrada.talhao_id = operacao.talhao_id
+            self.session.add(entrada)
 
     async def _buscar_allocation_existente(
         self,
@@ -525,6 +783,7 @@ class OperacaoService(BaseService[OperacaoAgricola]):
                     operacao_unidade_produtiva_id=str(unidade_produtiva_id),
                 )
         fase_safra = dados.fase_safra or safra_atual.status
+        area_aplicada_validada = await self._validar_area_aplicada(dados.talhao_id, dados.area_aplicada_ha)
 
         # 2.5. VALIDAÇÃO: Operação só permitida em fases específicas
         # Busca lookup table para tipo de operação
@@ -568,6 +827,7 @@ class OperacaoService(BaseService[OperacaoAgricola]):
         dados_dict = dados.model_dump(exclude={"insumos"})
         dados_dict["fase_safra"] = fase_safra
         dados_dict["production_unit_id"] = await self._resolve_production_unit_id(dados)
+        dados_dict["area_aplicada_ha"] = area_aplicada_validada
 
         custo_manual_informado = float(dados.custo_total or 0.0)
         custo_total_operacao = custo_manual_informado
@@ -752,29 +1012,12 @@ class OperacaoService(BaseService[OperacaoAgricola]):
                     )
 
             # Commit only if ALL operations succeeded (atomicity)
-            # 6. TRIGGER: Se operação foi criada com status REALIZADA, cria entrada no caderno
+            # 6. TRIGGER: Se operação foi criada com status REALIZADA, cria evento canônico no caderno
             if operacao.status == "REALIZADA":
-                SYSTEM_USER = UUID("00000000-0000-0000-0000-000000000000")
-                descricao = operacao.tipo
-                if operacao.area_aplicada_ha:
-                    descricao += f"\nÁrea: {operacao.area_aplicada_ha} ha"
-                if operacao.custo_total:
-                    descricao += f"\nCusto: R$ {operacao.custo_total:.2f}"
-
-                from agricola.caderno.models import CadernoCampoEntrada
-                entrada = CadernoCampoEntrada(
-                    tenant_id=self.tenant_id,
-                    safra_id=operacao.safra_id,
-                    talhao_id=operacao.talhao_id,
-                    tipo="OPERACAO_AUTO",
-                    descricao=descricao,
-                    data_registro=operacao.data_realizada,
-                    usuario_id=SYSTEM_USER,
-                    operacao_id=operacao.id,
-                )
-                self.session.add(entrada)
+                caderno_svc = CadernoCampoService(self.session, self.tenant_id)
+                entrada = await caderno_svc.garantir_evento_operacao(operacao)
                 logger.info(
-                    f"Entrada automática no caderno (criação): {operacao.tipo} → safra {operacao.safra_id}",
+                    f"Entrada canônica no caderno (criação): {operacao.tipo} → safra {operacao.safra_id}",
                     entrada_id=str(entrada.id),
                 )
 
@@ -816,53 +1059,116 @@ class OperacaoService(BaseService[OperacaoAgricola]):
         # 1. Busca estado atual antes de atualizar
         operacao_atual = await self.get_or_fail(obj_id)
         status_anterior = operacao_atual.status
+        insumos_anteriores = list(operacao_atual.insumos or [])
+        custo_insumos_anterior = sum(float(insumo.custo_total or 0.0) for insumo in insumos_anteriores)
+        operacao_execucao_existente = await self._buscar_execucao_existente(obj_id)
+        unidade_produtiva_id = await self._get_unidade_produtiva_id_for_talhao(operacao_atual.talhao_id)
 
         # 2. Aplica atualização
         dados_dict = dados.model_dump(exclude_unset=True)
+        insumos_payload = dados_dict.pop("insumos", None)
+        if "area_aplicada_ha" in dados_dict:
+            dados_dict["area_aplicada_ha"] = await self._validar_area_aplicada(
+                operacao_atual.talhao_id,
+                dados_dict["area_aplicada_ha"],
+            )
         if "custo_total" in dados_dict and dados_dict["custo_total"] is not None:
             dados_dict["custo_total"] = float(dados_dict["custo_total"])
         operacao = await super().update(obj_id, dados_dict)
 
-        if "custo_total" in dados_dict or "area_aplicada_ha" in dados_dict:
+        area_alterada = "area_aplicada_ha" in dados_dict
+        precisa_reprocessar_insumos = insumos_payload is not None or (area_alterada and len(insumos_anteriores) > 0)
+        if precisa_reprocessar_insumos:
+            await self._reverter_movimentos_estoque_operacao(operacao_execucao_existente)
+            if insumos_anteriores:
+                await self.session.execute(delete(InsumoOperacao).where(InsumoOperacao.operacao_id == operacao.id))
+                await self.session.flush()
+
+            if insumos_payload is None:
+                insumos_reaplicados = [
+                    InsumoOperacaoCreate(
+                        produto_id=insumo.produto_id,
+                        lote_insumo=insumo.lote_insumo,
+                        lote_estoque_id=insumo.lote_estoque_id,
+                        unidade_medida_id=insumo.unidade_medida_id,
+                        dose_por_ha=float(insumo.dose_por_ha),
+                        unidade=insumo.unidade,
+                        area_aplicada=float(insumo.area_aplicada) if insumo.area_aplicada is not None else None,
+                    )
+                    for insumo in insumos_anteriores
+                ]
+            else:
+                insumos_reaplicados = [
+                    item if isinstance(item, InsumoOperacaoCreate) else InsumoOperacaoCreate(**item)
+                    for item in insumos_payload
+                ]
+
+            base_manual = (
+                float(dados_dict["custo_total"])
+                if "custo_total" in dados_dict and dados_dict["custo_total"] is not None
+                else max(0.0, float(operacao_atual.custo_total or 0.0) - custo_insumos_anterior)
+            )
+            custo_insumos_novo, ledger_consumos = await self._aplicar_insumos_na_operacao(
+                operacao,
+                insumos_reaplicados,
+                unidade_produtiva_id=unidade_produtiva_id,
+                area_base_ha=float(operacao.area_aplicada_ha or 0.0),
+            )
+            operacao.custo_total = base_manual + custo_insumos_novo
+
+            operacao_execucao = operacao_execucao_existente
+            if operacao.status == "REALIZADA":
+                operacao_execucao, _ = await self._garantir_execucao_e_allocation_leves(
+                    operacao,
+                    allow_create_execucao=True,
+                )
+                if operacao_execucao is not None:
+                    for consumo_ledger in ledger_consumos:
+                        await registrar_ledger_estoque(
+                            self.session,
+                            tenant_id=self.tenant_id,
+                            tipo_movimento="SAIDA",
+                            origem="OPERACAO_EXECUCAO",
+                            origem_id=operacao_execucao.id,
+                            operacao_execucao_id=operacao_execucao.id,
+                            production_unit_id=operacao.production_unit_id,
+                            **consumo_ledger,
+                        )
+
+        if "custo_total" in dados_dict or "area_aplicada_ha" in dados_dict or precisa_reprocessar_insumos:
             custo_total = float(operacao.custo_total or 0.0)
             area_aplicada = float(operacao.area_aplicada_ha or 0.0)
             operacao.custo_por_ha = (custo_total / area_aplicada) if area_aplicada > 0 else 0.0
             self.session.add(operacao)
             await self.session.flush()
 
-        # 3. TRIGGER: Se status mudou para REALIZADA, cria entrada no caderno de campo
-        novo_status = dados_dict.get("status")
-        if novo_status == "REALIZADA" and status_anterior != "REALIZADA":
-            descricao = operacao.tipo
-            if operacao.area_aplicada_ha:
-                descricao += f"\nÁrea: {operacao.area_aplicada_ha} ha"
-            if operacao.custo_total:
-                descricao += f"\nCusto: R$ {operacao.custo_total:.2f}"
-
-            # UUID "zero" para indicar origem automática do sistema
-            SYSTEM_USER = UUID("00000000-0000-0000-0000-000000000000")
-
-            entrada = CadernoCampoEntrada(
-                tenant_id=self.tenant_id,
-                safra_id=operacao.safra_id,
-                talhao_id=operacao.talhao_id,
-                tipo="OPERACAO_AUTO",
-                descricao=descricao,
-                data_registro=operacao.data_realizada,
-                usuario_id=SYSTEM_USER,
-                operacao_id=operacao.id,
-            )
-            self.session.add(entrada)
-            logger.info(
-                f"Entrada automática no caderno: {operacao.tipo} → safra {operacao.safra_id}",
-                entrada_id=str(entrada.id),
-            )
+            # 3. TRIGGER: Se status mudou para REALIZADA, cria evento canônico no caderno de campo
+            novo_status = dados_dict.get("status")
+            if novo_status == "REALIZADA" and status_anterior != "REALIZADA":
+                caderno_svc = CadernoCampoService(self.session, self.tenant_id)
+                entrada = await caderno_svc.garantir_evento_operacao(operacao)
+                logger.info(
+                    f"Entrada canônica no caderno: {operacao.tipo} → safra {operacao.safra_id}",
+                    entrada_id=str(entrada.id),
+                )
 
         if operacao.status == "REALIZADA":
             await self._garantir_execucao_e_allocation_leves(
                 operacao,
                 allow_create_execucao=True,
             )
+
+        safra = await self.session.get(Safra, operacao.safra_id)
+        safra_desc = (
+            f"{safra.cultura} {safra.ano_safra}"
+            if safra is not None and getattr(safra, "cultura", None) is not None
+            else str(operacao.safra_id)[:8]
+        )
+        await self._sincronizar_efeitos_operacao(
+            operacao,
+            unidade_produtiva_id=unidade_produtiva_id,
+            safra_desc=safra_desc,
+        )
 
         return operacao
 

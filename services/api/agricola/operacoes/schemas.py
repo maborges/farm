@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 from uuid import UUID
 from datetime import date, time, datetime
 from typing import Optional, List
@@ -11,6 +11,11 @@ class InsumoOperacaoCreate(BaseModel):
     dose_por_ha: float = Field(..., gt=0)
     unidade: str = Field(..., min_length=1, max_length=20)
     area_aplicada: float | None = None
+
+    @field_validator("area_aplicada", mode="before")
+    @classmethod
+    def _blank_area_aplicada_to_none(cls, value):
+        return None if value == "" else value
 
 class InsumoOperacaoResponse(BaseModel):
     id: UUID
@@ -33,6 +38,7 @@ class InsumoOperacaoResponse(BaseModel):
 class OperacaoAgricolaCreate(BaseModel):
     safra_id: UUID
     talhao_id: UUID
+    cultivo_id: UUID | None = None
     production_unit_id: UUID | None = None
     tarefa_id: UUID | None = None
     tipo: str
@@ -43,7 +49,7 @@ class OperacaoAgricolaCreate(BaseModel):
     data_realizada: date
     hora_inicio: time | None = None
     hora_fim: time | None = None
-    area_aplicada_ha: float | None = Field(None, gt=0)
+    area_aplicada_ha: float = Field(..., gt=0)
     maquina_id: UUID | None = None
     implemento: str | None = None
     operador_id: UUID | None = None
@@ -53,7 +59,19 @@ class OperacaoAgricolaCreate(BaseModel):
     observacoes: str | None = None
     insumos: list[InsumoOperacaoCreate] = []
 
+    @field_validator(
+        "area_aplicada_ha",
+        "latitude",
+        "longitude",
+        "custo_total",
+        mode="before",
+    )
+    @classmethod
+    def _blank_numeric_to_none(cls, value):
+        return None if value == "" else value
+
 class OperacaoAgricolaUpdate(BaseModel):
+    cultivo_id: UUID | None = None
     tipo: str | None = None
     subtipo: str | None = None
     descricao: str | None = Field(None, min_length=3, max_length=500)
@@ -70,6 +88,16 @@ class OperacaoAgricolaUpdate(BaseModel):
     custo_total: float | None = Field(None, ge=0)
     status: str | None = None
     observacoes: str | None = None
+    insumos: list[InsumoOperacaoCreate] | None = None
+
+    @field_validator(
+        "area_aplicada_ha",
+        "custo_total",
+        mode="before",
+    )
+    @classmethod
+    def _blank_numeric_to_none(cls, value):
+        return None if value == "" else value
 
 
 class OperacaoPorFaseKPI(BaseModel):
@@ -113,6 +141,7 @@ class OperacaoAgricolaResponse(BaseModel):
     tenant_id: UUID
     safra_id: UUID
     talhao_id: UUID
+    cultivo_id: UUID | None
     talhao_nome: str | None = None
     production_unit_id: UUID | None = None
     tarefa_id: UUID | None = None

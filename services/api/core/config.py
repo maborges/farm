@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     # Pagamentos Webhook (mock/genérico)
     pagamentos_webhook_secret: str = ""
     frontend_url: str = "http://localhost:3000"
+    storage_public_base_url: str = ""
+    run_embedded_jobs: bool = True
     allow_origins: list[str] = [
         "http://localhost:3000",
         "http://localhost:3001",

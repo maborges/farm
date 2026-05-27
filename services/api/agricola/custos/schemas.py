@@ -14,6 +14,10 @@ class ReumoCustosSafraResponse(BaseModel):
     custo_realizado_por_ha: float
     orcamento_previsto_total: float | None
     desvio_orcamento_pct: float | None
+    fonte_orcamento_previsto: str
+    usou_fallback_orcamento: bool
+    fonte_apuracao: str
+    usou_fallback_operacional: bool
     breakdown: list[CustoBreakdown]
 
     model_config = ConfigDict(from_attributes=True)

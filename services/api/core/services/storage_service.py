@@ -10,7 +10,6 @@ Funções de rastreamento (increment_storage / decrement_storage) atualizam
 Tenant.storage_usado_mb no banco após cada operação de upload/deleção.
 Sempre chame commit() na camada acima após usar essas funções.
 """
-import os
 import uuid as _uuid_mod
 from pathlib import Path
 from loguru import logger
@@ -18,6 +17,18 @@ from core.config import settings
 
 
 class StorageService:
+    @staticmethod
+    def _backend_client():
+        import boto3
+
+        kwargs: dict = {
+            "aws_access_key_id": settings.s3_access_key,
+            "aws_secret_access_key": settings.s3_secret_key,
+            "region_name": settings.s3_region,
+        }
+        if settings.s3_endpoint_url:
+            kwargs["endpoint_url"] = settings.s3_endpoint_url
+        return boto3.client("s3", **kwargs)
 
     @staticmethod
     def _build_path(tenant_id: str, area_rural_id: str, filename: str) -> str:
@@ -25,6 +36,38 @@ class StorageService:
         unique = _uuid_mod.uuid4().hex[:8]
         safe_name = filename.replace(" ", "_")
         return f"geo/{tenant_id}/{area_rural_id}/{unique}_{safe_name}"
+
+    @staticmethod
+    def _write_local(storage_path: str, content: bytes) -> None:
+        full_path = Path(settings.storage_local_path) / storage_path
+        full_path.parent.mkdir(parents=True, exist_ok=True)
+        full_path.write_bytes(content)
+
+    @staticmethod
+    def save_blob(content: bytes, storage_path: str) -> str:
+        """
+        Salva um blob em um path explícito.
+
+        Use paths relativos como:
+          - static/avatars/<arquivo>
+          - static/logos/<arquivo>
+          - static/caderno_exports/<arquivo>
+          - geo/<tenant>/<area>/<arquivo>
+        """
+        backend = settings.storage_backend.lower()
+
+        if backend == "local":
+            StorageService._write_local(storage_path, content)
+            logger.info(f"[storage:local] saved {Path(settings.storage_local_path) / storage_path}")
+            return storage_path
+
+        if backend in ("s3", "minio"):
+            s3 = StorageService._backend_client()
+            s3.put_object(Bucket=settings.s3_bucket, Key=storage_path, Body=content)
+            logger.info(f"[storage:{backend}] uploaded s3://{settings.s3_bucket}/{storage_path}")
+            return storage_path
+
+        raise ValueError(f"storage_backend inválido: {backend}")
 
     @staticmethod
     def save(content: bytes, tenant_id: str, area_rural_id: str, filename: str) -> str:
@@ -35,29 +78,20 @@ class StorageService:
         path = StorageService._build_path(tenant_id, area_rural_id, filename)
         backend = settings.storage_backend.lower()
 
-        if backend == "local":
-            full_path = Path(settings.storage_local_path) / path
-            full_path.parent.mkdir(parents=True, exist_ok=True)
-            full_path.write_bytes(content)
-            logger.info(f"[storage:local] saved {full_path}")
-            return path
+        return StorageService.save_blob(content, path)
 
-        elif backend in ("s3", "minio"):
-            import boto3
-            kwargs: dict = {
-                "aws_access_key_id": settings.s3_access_key,
-                "aws_secret_access_key": settings.s3_secret_key,
-                "region_name": settings.s3_region,
-            }
-            if settings.s3_endpoint_url:
-                kwargs["endpoint_url"] = settings.s3_endpoint_url
-            s3 = boto3.client("s3", **kwargs)
-            s3.put_object(Bucket=settings.s3_bucket, Key=path, Body=content)
-            logger.info(f"[storage:{backend}] uploaded s3://{settings.s3_bucket}/{path}")
-            return path
+    @staticmethod
+    def public_url(storage_path: str) -> str:
+        """
+        Retorna URL pública do arquivo.
 
-        else:
-            raise ValueError(f"storage_backend inválido: {backend}")
+        - Se `storage_public_base_url` estiver configurada, retorna URL absoluta.
+        - Caso contrário, mantém caminho relativo para o frontend resolver.
+        """
+        base = settings.storage_public_base_url.strip().rstrip("/")
+        if base:
+            return f"{base}/{storage_path.lstrip('/')}"
+        return f"/{storage_path.lstrip('/')}"
 
     @staticmethod
     def delete(storage_path: str) -> None:
@@ -69,15 +103,7 @@ class StorageService:
                 if full_path.exists():
                     full_path.unlink()
             elif backend in ("s3", "minio"):
-                import boto3
-                kwargs: dict = {
-                    "aws_access_key_id": settings.s3_access_key,
-                    "aws_secret_access_key": settings.s3_secret_key,
-                    "region_name": settings.s3_region,
-                }
-                if settings.s3_endpoint_url:
-                    kwargs["endpoint_url"] = settings.s3_endpoint_url
-                s3 = boto3.client("s3", **kwargs)
+                s3 = StorageService._backend_client()
                 s3.delete_object(Bucket=settings.s3_bucket, Key=storage_path)
         except Exception as e:
             logger.warning(f"[storage] falha ao deletar {storage_path}: {e}")
@@ -90,15 +116,7 @@ class StorageService:
             full_path = Path(settings.storage_local_path) / storage_path
             return full_path.read_bytes()
         elif backend in ("s3", "minio"):
-            import boto3
-            kwargs: dict = {
-                "aws_access_key_id": settings.s3_access_key,
-                "aws_secret_access_key": settings.s3_secret_key,
-                "region_name": settings.s3_region,
-            }
-            if settings.s3_endpoint_url:
-                kwargs["endpoint_url"] = settings.s3_endpoint_url
-            s3 = boto3.client("s3", **kwargs)
+            s3 = StorageService._backend_client()
             resp = s3.get_object(Bucket=settings.s3_bucket, Key=storage_path)
             return resp["Body"].read()
         else:

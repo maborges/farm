@@ -10,6 +10,8 @@ import { executarTarefa } from "@/lib/task-factory";
 import { GpsWarning } from "@/components/campo/gps-warning";
 import { CameraCapture } from "@/components/campo/camera-capture";
 import { useSessionStore } from "@/lib/stores/session-store";
+import { CampoShell, CampoSurface, CampoButton, CampoSectionTitle } from "@/components/campo/ui";
+import { CampoPill } from "@/components/campo/ui";
 
 const PRIORIDADE_LABEL: Record<string, string> = {
   URGENTE: "🔴 Urgente",
@@ -109,32 +111,43 @@ export default function TarefaDetailPage() {
   }
 
   return (
-    <div className="flex flex-col gap-5 p-4 pb-10 min-h-dvh">
-      {/* Header */}
-      <div className="flex items-center gap-3 pt-2">
-        <button onClick={() => router.back()} className="text-neutral-400 text-xl">
-          ←
-        </button>
-        <h1 className="text-lg font-bold flex-1 truncate">
-          {task.titulo ?? formatTaskType(task.type)}
-        </h1>
-        <span
-          className={`text-xs font-semibold rounded-full px-2.5 py-1 ${
-            task.status_execucao === "CONCLUIDA"
-              ? "bg-green-900 text-green-300"
-              : task.status_execucao === "EM_EXECUCAO"
-              ? "bg-blue-900 text-blue-300"
-              : task.status_execucao === "CANCELADA"
-              ? "bg-neutral-700 text-neutral-400"
-              : "bg-amber-900 text-amber-300"
-          }`}
-        >
-          {STATUS_LABEL[task.status_execucao] ?? task.status_execucao}
-        </span>
-      </div>
+    <CampoShell className="gap-5">
+      <CampoSurface className="p-4 sm:p-5">
+        <div className="flex items-start gap-3">
+          <CampoButton variant="secondary" size="sm" onClick={() => router.back()}>
+            ←
+          </CampoButton>
+          <div className="min-w-0 flex-1">
+            <p className="text-[11px] uppercase tracking-[0.22em] text-emerald-300/80">Detalhe da tarefa</p>
+            <h1 className="truncate text-xl font-semibold sm:text-2xl">
+              {task.titulo ?? formatTaskType(task.type)}
+            </h1>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <CampoPill
+                className={`${
+                  task.status_execucao === "CONCLUIDA"
+                    ? "border-emerald-400/20 bg-emerald-400/12 text-emerald-100"
+                    : task.status_execucao === "EM_EXECUCAO"
+                    ? "border-sky-400/20 bg-sky-400/12 text-sky-100"
+                    : task.status_execucao === "CANCELADA"
+                    ? "border-white/10 bg-white/6 text-white/55"
+                    : "border-amber-400/20 bg-amber-400/12 text-amber-100"
+                }`}
+              >
+                {STATUS_LABEL[task.status_execucao] ?? task.status_execucao}
+              </CampoPill>
+              {task.origem === "PROGRAMADA" && !isMinhasTarefa && (
+                <CampoPill className="border-white/10 bg-white/6 text-white/55">
+                  Leitura apenas
+                </CampoPill>
+              )}
+            </div>
+          </div>
+        </div>
+      </CampoSurface>
 
       {/* Detalhes */}
-      <div className="bg-neutral-800 rounded-2xl p-4 flex flex-col gap-3 text-sm">
+      <CampoSurface className="flex flex-col gap-1 p-4 text-sm">
         <InfoRow label="Fazenda" value={fazenda?.nome ?? task.fazenda_id.slice(0, 8) + "…"} />
         {talhao && <InfoRow label="Talhão" value={talhao.nome} />}
         {lote && <InfoRow label="Lote" value={lote.identificacao} />}
@@ -150,16 +163,16 @@ export default function TarefaDetailPage() {
             Tarefa atribuída a outro operador — somente leitura
           </p>
         )}
-      </div>
+      </CampoSurface>
 
       {/* Dados da tarefa */}
       {Object.keys(task.dados).length > 0 && (
-        <div className="bg-neutral-800 rounded-2xl p-4 flex flex-col gap-2 text-sm">
-          <p className="text-xs text-neutral-500 uppercase tracking-wide mb-1">Instruções</p>
+        <CampoSurface className="flex flex-col gap-2 p-4 text-sm">
+          <p className="mb-1 text-[11px] uppercase tracking-[0.22em] text-emerald-300/80">Instruções</p>
           {Object.entries(task.dados).map(([k, v]) => (
             <InfoRow key={k} label={k} value={String(v)} />
           ))}
-        </div>
+        </CampoSurface>
       )}
 
       {/* Execução — só aparece se pode agir */}
@@ -167,13 +180,15 @@ export default function TarefaDetailPage() {
         <div className="flex flex-col gap-4">
           <GpsWarning status={gps.status} onRetry={gps.capture} />
 
-          <textarea
-            placeholder="Observação (opcional)"
-            value={obs}
-            onChange={(e) => setObs(e.target.value)}
-            rows={3}
-            className="bg-neutral-800 border border-neutral-700 rounded-2xl px-4 py-3 text-sm resize-none outline-none focus:border-green-500 placeholder:text-neutral-600"
-          />
+          <CampoSurface className="p-4">
+            <textarea
+              placeholder="Observação (opcional)"
+              value={obs}
+              onChange={(e) => setObs(e.target.value)}
+              rows={3}
+              className="min-h-[104px] w-full resize-none rounded-[22px] border border-white/10 bg-white/[0.04] px-4 py-3 text-sm outline-none transition-colors focus:border-emerald-400/50 focus:bg-white/[0.06] placeholder:text-white/30"
+            />
+          </CampoSurface>
 
           <CameraCapture
             fotos={cam.fotos}
@@ -202,41 +217,45 @@ export default function TarefaDetailPage() {
       {!isDone && isMinhasTarefa && (
         <div className="mt-auto flex flex-col gap-3 pt-4">
           {canStart && (
-            <button
+            <CampoButton
               onClick={handleIniciar}
               disabled={saving}
-              className="bg-blue-600 hover:bg-blue-500 disabled:opacity-50 rounded-2xl py-5 text-base font-bold transition-colors"
+              className="w-full"
+              size="lg"
+              variant="primary"
             >
               {saving ? "Aguarde..." : "▶ Iniciar Tarefa"}
-            </button>
+            </CampoButton>
           )}
           {canFinish && (
-            <button
+            <CampoButton
               onClick={handleConcluir}
               disabled={saving}
-              className="bg-green-600 hover:bg-green-500 disabled:opacity-50 rounded-2xl py-5 text-base font-bold transition-colors"
+              className="w-full"
+              size="lg"
+              variant="primary"
             >
               {saving ? "Salvando..." : "✅ Concluir Tarefa"}
-            </button>
+            </CampoButton>
           )}
           <button
             onClick={handleCancelar}
             disabled={saving}
-            className="text-red-400 text-sm underline text-center py-2"
+            className="rounded-2xl border border-white/10 bg-white/[0.04] py-3 text-sm font-medium text-rose-200 transition-all active:scale-[0.99]"
           >
             Cancelar tarefa
           </button>
         </div>
       )}
-    </div>
+    </CampoShell>
   );
 }
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex justify-between gap-4">
-      <span className="text-neutral-500 shrink-0">{label}</span>
-      <span className="font-medium text-right">{value}</span>
+    <div className="flex justify-between gap-4 border-b border-white/8 py-2 last:border-0">
+      <span className="shrink-0 text-white/45">{label}</span>
+      <span className="text-right font-medium text-white/85">{value}</span>
     </div>
   );
 }

@@ -72,6 +72,15 @@ async def client():
 async def _setup_tenants(session):
     from sqlalchemy import text
 
+    for ddl in [
+        "ALTER TABLE caderno_campo_entradas ADD COLUMN IF NOT EXISTS tipo_evento VARCHAR(30)",
+        "ALTER TABLE caderno_campo_entradas ADD COLUMN IF NOT EXISTS origem_evento VARCHAR(40)",
+        "ALTER TABLE caderno_campo_entradas ADD COLUMN IF NOT EXISTS origem_id VARCHAR(80)",
+        "ALTER TABLE caderno_campo_entradas ADD COLUMN IF NOT EXISTS origem_tecnica VARCHAR(40)",
+        "ALTER TABLE caderno_campo_entradas ADD COLUMN IF NOT EXISTS status_evento VARCHAR(30)",
+    ]:
+        await session.execute(text(ddl))
+
     # Plano base para assinaturas
     plano_base_id = "00000000-0000-0000-0000-000000000001"
     await session.execute(text("""
@@ -127,10 +136,20 @@ async def _setup_tenants(session):
         (SAFRA_B_ID, TENANT_B_ID, TALHAO_B_ID),
     ]:
         await session.execute(text("""
-            INSERT INTO safras (id, tenant_id, talhao_id, ano_safra, cultura, status, created_at, updated_at)
-            VALUES (:id, :tenant_id, :talhao_id, '2025/26', 'Soja', 'PLANEJADA', NOW(), NOW())
+            INSERT INTO safras (id, tenant_id, ano_safra, cultura, status, created_at, updated_at)
+            VALUES (:id, :tenant_id, '2025/26', 'Soja', 'PLANEJADA', NOW(), NOW())
             ON CONFLICT DO NOTHING
-        """), {"id": str(safra_id), "tenant_id": str(tenant_id), "talhao_id": str(talhao_id)})
+        """), {"id": str(safra_id), "tenant_id": str(tenant_id)})
+        await session.execute(text("""
+            INSERT INTO safra_talhoes (id, tenant_id, safra_id, area_id, area_ha, principal, created_at)
+            VALUES (:id, :tenant_id, :safra_id, :area_id, 50.0, true, NOW())
+            ON CONFLICT DO NOTHING
+        """), {
+            "id": str(uuid.uuid4()),
+            "tenant_id": str(tenant_id),
+            "safra_id": str(safra_id),
+            "area_id": str(talhao_id),
+        })
 
     await session.commit()
 

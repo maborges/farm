@@ -17,6 +17,7 @@ from core.schemas.auth_schemas import (
 )
 from core.services.auth_service import AuthService
 from core.services.login_rate_limit_service import LoginRateLimitService
+from core.services.storage_service import StorageService
 from core.models.auth import Usuario, TenantUsuario, UnidadeProdutivaUsuario as FazendaUsuario
 from core.models.billing import AssinaturaTenant, PlanoAssinatura
 from core.models.unidade_produtiva import UnidadeProdutiva as Fazenda
@@ -161,16 +162,9 @@ async def upload_avatar(
         "image/webp": ".webp",
     }.get(file.content_type, ".jpg")
 
-    # Salva em storage local (em produção: S3/Cloudinary)
-    from pathlib import Path
-    storage_dir = Path("/tmp/agrosaas_avatars")
-    storage_dir.mkdir(parents=True, exist_ok=True)
-
-    file_path = storage_dir / f"{filename_hash}{ext}"
-    file_path.write_bytes(content)
-
-    # URL pública (em produção: URL do S3/CDN)
-    avatar_url = f"/static/avatars/{file_path.name}"
+    storage_path = f"static/avatars/{filename_hash}{ext}"
+    StorageService.save_blob(content, storage_path)
+    avatar_url = StorageService.public_url(storage_path)
 
     # Atualiza usuário
     user_id = uuid.UUID(usuario["sub"])

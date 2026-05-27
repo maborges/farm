@@ -14,7 +14,7 @@ from core.models.tenant import Tenant
 from core.models.auth import Usuario
 
 # Configuração simplificada para teste
-DATABASE_URL = "postgresql+asyncpg://borgus:numsey01@192.168.0.2/farms"
+DATABASE_URL = "postgresql+asyncpg://borgus:numsey01@192.168.0.3/farms"
 engine = create_async_engine(DATABASE_URL)
 AsyncSessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 

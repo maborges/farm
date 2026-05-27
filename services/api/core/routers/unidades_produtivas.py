@@ -9,6 +9,7 @@ from core.schemas.unidade_produtiva_input import UnidadeProdutivaCreate, Unidade
 from core.schemas.unidade_produtiva_output import UnidadeProdutivaResponse
 from core.services.unidade_produtiva_service import UnidadeProdutivaService
 from core.services.geoprocessamento_service import GeoprocessamentoService
+from core.services.storage_service import StorageService
 
 router = APIRouter(prefix="/unidades-produtivas", tags=["Core — Unidades Produtivas"])
 
@@ -118,7 +119,6 @@ async def upload_logo(
         raise HTTPException(status_code=400, detail="Logo deve ter no máximo 2MB.")
 
     import hashlib as _hashlib
-    from pathlib import Path
     from sqlalchemy import select as _select
     from core.models.unidade_produtiva import UnidadeProdutiva as _UP
 
@@ -133,11 +133,9 @@ async def upload_logo(
     filename_hash = _hashlib.md5(content).hexdigest()[:12]
     filename = f"{filename_hash}{ext}"
 
-    storage_dir = Path("/tmp/agrosaas_logos")
-    storage_dir.mkdir(parents=True, exist_ok=True)
-    (storage_dir / filename).write_bytes(content)
-
-    logo_url = f"/static/logos/{filename}"
+    storage_path = f"static/logos/{filename}"
+    StorageService.save_blob(content, storage_path)
+    logo_url = StorageService.public_url(storage_path)
     unidade.logo_url = logo_url
     await session.commit()
 

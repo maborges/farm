@@ -1,97 +1,181 @@
-# Teleprompter - Base Territorial e Criação de Safra
+# Roteiro Teleprompter - Introdução à Plataforma
 
-Este roteiro foi preparado para leitura contínua durante a gravação. A ideia é falar de forma clara, comercial e técnica, sem precisar interromper a filmagem para consultar anotações.
-
-Nesta apresentação, o foco é a criação da safra e os conceitos que sustentam esse ciclo. Primeiro eu passo pela base territorial, depois pelo georreferenciamento e, em seguida, pela própria safra. Neste momento, eu não vou entrar em cadastros de apoio à gestão, como produtos, frota e compras.
+Este roteiro foi montado com base no conteúdo atual da landing page do AgroSaaS. A proposta aqui é apresentar a plataforma de forma clara, comercial e objetiva, explicando o problema que ela resolve, o que ela oferece e quais são os seus diferenciais.
 
 ---
 
-# Versão Curta - Base da Safra
+# Abertura
 
-Aqui eu estou na tela de cadastro de propriedades. Essa é a base de tudo no AgroSaaS.
+Hoje eu quero te apresentar o AgroSaaS.
 
-Antes de falar de safra, eu preciso organizar o produtor e as propriedades que ele administra. O produtor centraliza a gestão, assume os custos e acompanha o resultado. A propriedade é cada unidade produtiva que faz parte dessa operação.
+O AgroSaaS é uma plataforma premium para gestão rural, criada para operações que precisam fechar o número de verdade.
 
-Na prática, um produtor pode ter uma ou várias propriedades. E cada uma delas pode representar uma fazenda, um sítio, uma chácara, um arrendamento ou uma parceria.
+A proposta central da plataforma é integrar campo, estoque e financeiro em uma única base.
 
-Nesta tela, eu cadastro o nome da unidade, o tipo, os documentos, a localização, a área total, a área útil e as informações ambientais. Com isso, o sistema entende com precisão onde a operação acontece.
+Na prática, isso significa sair de uma rotina com planilhas desconectadas, retrabalho e baixa confiança no saldo, para uma operação em que o que acontece no campo conversa com o estoque, com o custo e com o resultado financeiro.
 
-Ou seja, eu não estou só guardando dados. Estou montando a base operacional da fazenda dentro do sistema. Quando essa estrutura está pronta, o AgroSaaS consegue organizar melhor os talhões, as safras, as operações e a rastreabilidade.
-
-Esse cadastro também ajuda quando o produtor trabalha com mais de uma unidade. Tudo fica centralizado em um só contexto, mas cada propriedade mantém sua própria identidade, sua documentação e sua área.
-
-Primeiro eu defino o produtor. Depois eu estruturo as propriedades. E aí a gestão passa a trabalhar com um contexto claro, confiável e pronto para crescer.
+O objetivo não é só digitalizar cadastro. O objetivo é transformar a execução operacional em informação confiável para tomada de decisão.
 
 ---
 
-# Versão Final - Georreferenciamento e Análise de Solo
+# Mensagem Central da Plataforma
 
-Depois que os talhões já estão definidos, eu avanço para o georreferenciamento. É aqui que a estrutura ganha forma real no mapa.
+Se eu tivesse que resumir a plataforma em uma frase, eu diria o seguinte:
 
-Nesse passo, eu informo o solo, o relevo e, quando existe, o sistema de irrigação. Esses dados mudam a leitura técnica do talhão e influenciam diretamente a análise de solo.
+o AgroSaaS integra campo, estoque e financeiro em uma única plataforma, com controle operacional, saldo confiável, origem financeira vinculada e visão por safra ou por unidade.
 
-Com isso, o sistema entende melhor a variabilidade da área e cruza a informação territorial com a operação real do campo.
+Esse é o valor central do sistema.
 
-Depois vem a análise de solo do talhão. A partir da estrutura georreferenciada e desses dados físicos, o AgroSaaS interpreta o potencial produtivo daquela área com muito mais precisão.
+A operação nasce no campo, consome o produto certo, atualiza o saldo, gera contexto de custo e chega ao resultado com rastreabilidade.
 
-Isso faz diferença porque um talhão irrigado, um talhão em relevo mais acentuado e um talhão com características de solo diferentes não devem receber a mesma leitura técnica.
-
-A partir dessa análise, o sistema gera uma prescrição técnica agronômica. Ou seja, ele transforma a informação do campo em orientação prática, indicando o que aplicar, em qual quantidade e com qual estratégia de manejo.
-
-Na prática, eu cadastro a propriedade, organizo os talhões, fecho o georreferenciamento e uso essas informações para transformar o cadastro em inteligência agronômica. Com essa base pronta, eu consigo entrar na criação da safra com muito mais clareza.
+Ou seja, a plataforma elimina a ruptura entre execução, estoque e fechamento financeiro.
 
 ---
 
-# Planejamento e Custeio
+# Dores que a Plataforma Resolve
 
-Agora que você entendeu como a safra é tratada dentro da plataforma, vem a etapa de planejamento. Antes de criar a safra, o produtor precisa olhar para três coisas: a análise do solo, o orçamento e o custeio agrícola.
+A landing deixa muito claro qual é a dor real que o produto resolve.
 
-A análise do solo mostra o potencial da área. O orçamento mostra quanto o ciclo deve exigir de investimento. E o custeio agrícola organiza os gastos previstos para cada etapa da operação.
+A primeira dor é a existência de planilhas desconectadas.
 
-Com isso, o produtor define o que pretende fazer, quanto pode investir e qual estrutura de custo vai sustentar a safra. Essa leitura evita improviso e dá mais segurança para começar.
+Em muitas operações, campo, compras e gestão seguem caminhos paralelos. Isso gera retrabalho diário, informação duplicada e perda de tempo para consolidar o que realmente aconteceu.
 
-Na prática, o planejamento conecta a base territorial, a leitura agronômica e o financeiro do ciclo. Antes da execução, o produtor já enxerga o impacto técnico e econômico da decisão. Com esse cenário pronto, eu consigo partir para a criação da safra com muito mais clareza.
+A segunda dor é o estoque que não fecha.
 
----
+Quando entrada, saída e consumo operacional não batem, o saldo perde credibilidade. E quando o saldo não é confiável, toda a gestão fica comprometida.
 
-# Criação de Safra
+A terceira dor é o custo por hectare estimado, e não apurado com origem real.
 
-Antes de seguir, vale reforçar o recorte desta parte da apresentação: aqui o foco é a safra em si e os conceitos que estruturam esse ciclo.
+Sem uma base operacional consolidada, custo e margem viram aproximação. O produtor até enxerga o número, mas não consegue confiar plenamente na origem dele.
 
-Com a base territorial e o planejamento prontos, agora eu entro na criação da safra. E aqui a ideia principal é simples: safra não é lugar. Safra é tempo.
+A quarta dor é o financeiro sem origem operacional.
 
-A unidade produtiva é onde a operação acontece. O talhão é a área executada dentro dessa unidade. Já a safra é o período em que tudo isso vai ser conduzido.
+Receitas e despesas até aparecem no relatório, mas muitas vezes não explicam qual safra, qual unidade, qual lote ou qual decisão gerou aquele resultado.
 
-Dentro da safra, eu também tenho o conceito de cultivo. O cultivo é a cultura que está sendo trabalhada naquele ciclo, como café, soja ou milho. Então, de forma prática, a safra responde “quando” e o cultivo responde “o que”.
-
-Isso é importante porque a mesma unidade produtiva pode ter várias safras ao longo do tempo, e o sistema precisa manter esse histórico organizado sem misturar área, cultura e período.
-
-Na criação da safra, eu informo o ano agrícola, seleciono a cultura e vinculo os talhões que vão participar daquele ciclo. É isso que transforma a estrutura física em uma operação acompanhada do início ao fim.
-
-Então fica assim: a propriedade é onde tudo acontece, o talhão é a área operacional, o cultivo é o que está plantado e a safra é o tempo dessa produção. Essa separação deixa a gestão muito mais clara e muito mais correta.
+Então a plataforma nasce exatamente para resolver esse conjunto de rupturas.
 
 ---
 
-# Fases, Controles e Encerramento
+# O que a Plataforma Oferece
 
-Depois que a safra é criada, eu acompanho o ciclo pelas fases. A jornada costuma passar por preparo do solo, plantio, desenvolvimento, colheita, pós-colheita e encerramento.
+O AgroSaaS oferece uma base única para operação rural, organizada em frentes conectadas.
 
-Cada fase mostra em que momento a operação está e quais controles fazem sentido naquele ponto do ciclo. Isso evita misturar atividades fora de contexto e mantém tudo coerente do início ao fim.
+Na agricultura, a plataforma entrega planejamento, caderno de campo, consumo por produto, rastreabilidade e visão por safra.
 
-É aqui que a gestão ganha ritmo. Eu consigo ver a evolução do ciclo, o que já foi executado, o que está pendente e o que merece atenção antes da próxima fase.
+Na pecuária, ela organiza rebanho, manejos, custos e integração com estoque e financeiro.
 
-Os controles também não ficam soltos. Linha do tempo, apontamentos de campo, tarefas, checklists, monitoramento, análises técnicas e registros de ocorrência conversam com o mesmo ciclo.
+No estoque, ela trabalha com ledger, lotes, saldos e rastreabilidade para insumos, materiais e consumo operacional.
 
-A cada atividade lançada, a visão da safra é atualizada. O resultado é menos improviso e mais clareza sobre o que já foi feito e o que ainda precisa de atenção.
+No financeiro, ela conecta receitas, despesas, centros de custo e origem operacional ao que realmente aconteceu no campo.
 
-Nesse ponto, a safra deixa de ser só um cadastro e vira um centro de decisão. O que acontece no campo e nas áreas de apoio vai sendo consolidado para dar rastreabilidade e contexto econômico.
+Na frota, a proposta é saber quanto cada máquina custa por hora, antecipar necessidade de manutenção e entender o impacto da frota por safra.
 
-Os relatórios de gestão entram aqui. Eles trazem leitura consolidada de custo, produtividade, desempenho por talhão, andamento das fases, comparativos e indicadores. Em vez de olhar dado por dado, o produtor enxerga a operação como negócio.
+E no CRM, a plataforma apoia oferta, conversão e expansão comercial com leitura mais clara do plano ideal para cada operação.
 
-A IA entra como uma camada extra de inteligência. Ela entrega resumos executivos, alertas, recomendações e insights para destacar risco, oportunidade e ponto de atenção antes que o problema aumente.
+Ou seja, não são módulos isolados. São frentes de valor conectadas na mesma base.
 
-Esses insights podem apontar aumento de custo, margem negativa, necessidade de revisar insumos, evolução de produtividade ou desvio operacional. Na prática, o produtor consegue agir antes, com mais segurança e menos perda.
+---
 
-No fim do ciclo, a safra é encerrada quando a operação já foi executada, consolidada e analisada. O sistema fecha o histórico, preserva os resultados e deixa a base pronta para comparação futura.
+# Provas de Valor
 
-Então o fluxo completo fica assim: eu cadastro a base, estruturo os talhões, gero o georreferenciamento, crio a safra, acompanho as fases, uso os controles, leio os relatórios, aproveito os insights de IA e chego ao encerramento com mais visibilidade da operação.
+Na landing, a plataforma reforça quatro provas principais de valor.
+
+A primeira é estoque confiável.
+
+A segunda é rastreabilidade por produto.
+
+A terceira é financeiro integrado.
+
+E a quarta é visão por safra e por unidade.
+
+Esses quatro pontos resumem bem o que o usuário passa a ganhar quando deixa de operar com controles dispersos e passa a trabalhar dentro de uma base única.
+
+---
+
+# Diferenciais da Plataforma
+
+Os diferenciais do AgroSaaS não estão apenas na interface. Eles estão na arquitetura operacional do produto.
+
+O primeiro diferencial é o ledger único de estoque.
+
+Isso significa que as movimentações físicas seguem uma única trilha operacional, sem ledgers paralelos separados por módulo. Com isso, o estoque ganha consistência e rastreabilidade real.
+
+O segundo diferencial é o produto canônico e rastreável.
+
+Campo, pecuária e estoque passam a falar a mesma linguagem. O produto, o lote e o consumo ficam vinculados dentro do mesmo contexto operacional.
+
+O terceiro diferencial é a origem financeira integrada.
+
+O lançamento financeiro nasce da operação certa, com vínculo real à origem. Isso reduz ajuste manual e melhora a leitura econômica da operação.
+
+O quarto diferencial é a comparação de cenários.
+
+A plataforma permite comparar safra, unidade e contexto operacional sem depender de planilhas externas para fechar análise. Isso fortalece a gestão recorrente e a tomada de decisão.
+
+Então o diferencial não é apenas ter módulos. O diferencial é fazer esses módulos conversarem com coerência operacional e financeira.
+
+---
+
+# Visão Executiva
+
+Outro ponto importante da landing é a ideia de visão executiva operacional.
+
+A proposta é transformar o que antes ficava espalhado em planilhas em uma leitura rápida, clara e gerencial.
+
+Essa visão executiva destaca indicadores como saldo confiável, operações rastreadas, origem financeira vinculada e comparação entre unidades.
+
+Na prática, isso significa que a plataforma não serve apenas para registrar dados. Ela serve para consolidar contexto e permitir leitura de gestão.
+
+---
+
+# Planos Comerciais
+
+Hoje a plataforma se apresenta em três ofertas comerciais.
+
+O plano Planejamento é a porta de entrada. Ele foi pensado para quem quer sair da planilha e organizar a operação base.
+
+O plano Profissional é o mais aderente para quem precisa operar com controle real de custo, estoque e rotina gerencial. É aqui que a proposta de campo, estoque e financeiro integrados aparece com mais força.
+
+E o plano Enterprise é voltado para grupos, multiunidade, governança e operações mais complexas, com implantação orientada e ajustes consultivos.
+
+Isso é importante porque mostra que a plataforma foi pensada para acompanhar a evolução da operação sem mudar a base do sistema.
+
+---
+
+# Encerramento
+
+Então, resumindo:
+
+o AgroSaaS é uma plataforma de gestão rural que integra operação de campo, estoque e financeiro em uma única base, resolve a dor de planilhas desconectadas, aumenta a confiança no saldo, dá origem real ao custo e melhora a leitura econômica da operação.
+
+Ela oferece agricultura, pecuária, estoque, financeiro, frota e CRM em uma estrutura conectada.
+
+E os grandes diferenciais estão no ledger único de estoque, no produto canônico e rastreável, na origem financeira integrada e na comparação de cenários com base operacional real.
+
+No fim, a promessa da plataforma é simples:
+
+trocar retrabalho por contexto, aproximar execução de resultado e transformar a rotina operacional em gestão confiável.
+
+---
+
+# Versão Curta - 60 a 90 segundos
+
+Hoje eu quero te apresentar o AgroSaaS.
+
+O AgroSaaS é uma plataforma de gestão rural criada para integrar campo, estoque e financeiro em uma única base.
+
+Na prática, ela resolve um problema muito comum no agro: planilhas desconectadas, estoque que não fecha, custo sem origem clara e financeiro que não explica o que realmente aconteceu na operação.
+
+Com o AgroSaaS, a operação nasce no campo, consome o produto certo, atualiza o estoque, gera contexto de custo e chega ao resultado financeiro com rastreabilidade.
+
+Isso dá mais controle operacional, mais confiança no saldo e uma visão muito mais clara por safra, unidade e contexto produtivo.
+
+A plataforma conecta agricultura, pecuária, estoque, financeiro, frota e CRM na mesma base.
+
+E os diferenciais principais estão em quatro pilares:
+
+ledger único de estoque, produto canônico e rastreável, origem financeira integrada e comparação de cenários sem depender de planilhas externas.
+
+Ou seja, não é só um sistema para registrar dados.
+
+É uma plataforma para transformar execução operacional em gestão confiável, com menos retrabalho, mais contexto e decisão mais segura.

@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { GpsBadge } from "./gps-badge";
+import { CampoButton, CampoPill, CampoSurface } from "./ui";
 
 interface TaskHeaderProps {
   title: string;
@@ -15,28 +16,44 @@ export function TaskHeader({ title, icon, gpsStatus, step, totalSteps }: TaskHea
   const router = useRouter();
 
   return (
-    <div className="flex flex-col gap-3 pt-2">
-      <div className="flex items-center gap-3">
-        <button onClick={() => router.back()} className="text-neutral-400 text-xl">←</button>
-        <div className="flex items-center gap-2 flex-1">
-          <span className="text-2xl">{icon}</span>
-          <h1 className="text-lg font-bold">{title}</h1>
+    <CampoSurface className="p-4 sm:p-5">
+      <div className="flex items-start gap-3">
+        <CampoButton variant="secondary" size="sm" onClick={() => router.back()}>
+          ←
+        </CampoButton>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-3">
+            <span className="flex size-12 shrink-0 items-center justify-center rounded-[18px] bg-white/[0.06] text-2xl">
+              {icon}
+            </span>
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.22em] text-emerald-300/80">Registro de campo</p>
+              <h1 className="text-xl font-semibold leading-tight sm:text-2xl">{title}</h1>
+            </div>
+          </div>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <GpsBadge status={gpsStatus} />
+            {step !== undefined && totalSteps !== undefined && (
+              <CampoPill className="border-white/10 bg-white/6 text-white/70">
+                Etapa {step}/{totalSteps}
+              </CampoPill>
+            )}
+          </div>
         </div>
-        <GpsBadge status={gpsStatus} />
       </div>
 
       {step !== undefined && totalSteps !== undefined && (
-        <div className="flex gap-1.5">
+        <div className="mt-4 flex gap-1.5">
           {Array.from({ length: totalSteps }).map((_, i) => (
             <div
               key={i}
-              className={`h-1 flex-1 rounded-full transition-colors ${
-                i < step ? "bg-green-500" : "bg-neutral-700"
+              className={`h-1.5 flex-1 rounded-full transition-colors ${
+                i < step ? "bg-gradient-to-r from-emerald-400 to-lime-300" : "bg-white/10"
               }`}
             />
           ))}
         </div>
       )}
-    </div>
+    </CampoSurface>
   );
 }

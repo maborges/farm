@@ -1,6 +1,7 @@
 "use client";
 
 import { useCamera } from "@/hooks/useCamera";
+import { CampoButton, CampoPill, CampoSurface } from "./ui";
 
 interface CameraCaptureProps {
   fotos: string[];
@@ -20,19 +21,24 @@ export function CameraCapture({
   onRemove,
 }: CameraCaptureProps) {
   return (
-    <div className="flex flex-col gap-2">
-      <label className="text-sm font-medium text-neutral-400">
-        Fotos ({fotos.length}/2)
-      </label>
-      <div className="flex gap-3 flex-wrap">
+    <CampoSurface className="flex flex-col gap-3 p-4 sm:p-5">
+      <div className="flex items-center justify-between gap-3">
+        <label className="text-sm font-semibold text-white/85">
+          Fotos
+        </label>
+        <CampoPill className="border-white/10 bg-white/6 text-white/65">
+          {fotos.length}/2
+        </CampoPill>
+      </div>
+      <div className="flex flex-wrap gap-3 sm:gap-4">
         {fotos.map((foto, i) => (
-          <div key={i} className="relative size-20 rounded-xl overflow-hidden">
+          <div key={i} className="relative size-24 overflow-hidden rounded-2xl border border-white/10 shadow-[0_12px_30px_rgba(0,0,0,0.2)] sm:size-28">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={foto} alt={`foto ${i + 1}`} className="w-full h-full object-cover" />
             <button
               type="button"
               onClick={() => onRemove(i)}
-              className="absolute top-0.5 right-0.5 size-5 bg-black/70 rounded-full text-xs flex items-center justify-center"
+              className="absolute right-1 top-1 flex size-6 items-center justify-center rounded-full border border-white/10 bg-black/60 text-xs text-white"
               aria-label="Remover foto"
             >
               ×
@@ -41,14 +47,15 @@ export function CameraCapture({
         ))}
 
         {canAddMore && (
-          <button
+          <CampoButton
             type="button"
             onClick={onOpen}
-            className="size-20 rounded-xl border-2 border-dashed border-neutral-600 flex flex-col items-center justify-center gap-1 text-neutral-500 hover:border-green-500 hover:text-green-400 transition-colors"
+            variant="secondary"
+            className="flex size-24 flex-col rounded-2xl border-dashed text-white/65 sm:size-28"
           >
             <span className="text-2xl">📷</span>
-            <span className="text-xs">Foto</span>
-          </button>
+            <span className="text-xs font-medium">Adicionar</span>
+          </CampoButton>
         )}
       </div>
 
@@ -60,6 +67,6 @@ export function CameraCapture({
         className="hidden"
         onChange={onFileChange}
       />
-    </div>
+    </CampoSurface>
   );
 }

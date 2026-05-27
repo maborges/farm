@@ -13,6 +13,8 @@ import { FieldSelect } from "@/components/campo/field-select";
 import { NumPad } from "@/components/campo/num-pad";
 import { CameraCapture } from "@/components/campo/camera-capture";
 import { GpsWarning } from "@/components/campo/gps-warning";
+import { CampoButton, CampoShell, CampoSurface } from "@/components/campo/ui";
+import { CampoStepNav, CampoSuccessScreen } from "@/components/campo/flow";
 
 type Step = "lote" | "vacina" | "confirmar";
 
@@ -69,19 +71,23 @@ export default function VacinacaoPage() {
 
   if (done) {
     return (
-      <SuccessScreen
-        onNew={() => { setDone(false); setStep("lote"); setLoteId(""); setVacinaId(""); setQuantidade(""); }}
-        onHome={() => router.replace("/home")}
+      <CampoSuccessScreen
+        icon="✅"
+        title="Vacinação registrada"
+        description="Salvo localmente e pronto para sincronizar quando houver conexão."
+        primaryLabel="Nova vacinação"
+        onPrimary={() => { setDone(false); setStep("lote"); setLoteId(""); setVacinaId(""); setQuantidade(""); }}
+        onSecondary={() => router.replace("/home")}
       />
     );
   }
 
   return (
-    <div className="flex flex-col gap-5 p-4 pb-10 min-h-dvh">
+    <CampoShell className="gap-5">
       <TaskHeader title="Vacinação" icon="💉" gpsStatus={gps.status} step={stepIndex + 1} totalSteps={3} />
 
       {step === "lote" && (
-        <div className="flex flex-col gap-5 flex-1">
+        <div className="flex flex-1 flex-col gap-5">
           <FieldSelect
             label="Lote de Animais"
             options={(lotes ?? []).map((l) => ({
@@ -93,16 +99,12 @@ export default function VacinacaoPage() {
             onChange={setLoteId}
             placeholder="Selecione o lote"
           />
-          <div className="flex gap-3 mt-auto">
-            <button onClick={() => router.back()} className="flex-1 bg-neutral-800 rounded-2xl py-4 font-semibold">← Voltar</button>
-            <button onClick={() => setStep("vacina")} disabled={!loteId}
-              className="flex-[2] bg-green-600 disabled:opacity-40 rounded-2xl py-4 font-semibold">Próximo →</button>
-          </div>
+          <CampoStepNav onBack={() => router.back()} onNext={() => setStep("vacina")} nextLabel="Próximo →" nextDisabled={!loteId} />
         </div>
       )}
 
       {step === "vacina" && (
-        <div className="flex flex-col gap-5 flex-1">
+        <div className="flex flex-1 flex-col gap-5">
           {(vacinas ?? []).length > 0 ? (
             <FieldSelect
               label="Vacina"
@@ -117,78 +119,59 @@ export default function VacinacaoPage() {
             />
           ) : (
             /* Fallback: digitar nome da vacina */
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium text-neutral-400">Nome da Vacina</label>
+            <CampoSurface className="flex flex-col gap-2 p-4">
+              <label className="text-sm font-semibold text-white/85">Nome da Vacina</label>
               <input
                 placeholder="Ex: Febre Aftosa, Brucelose..."
                 value={vacinaNome}
                 onChange={(e) => setVacinaNome(e.target.value)}
-                className="bg-neutral-800 border border-neutral-700 rounded-xl px-4 py-4 text-base outline-none focus:border-green-500"
+                className="rounded-[22px] border border-white/10 bg-white/[0.04] px-4 py-4 text-base outline-none transition-colors focus:border-emerald-400/50 focus:bg-white/[0.06] placeholder:text-white/30"
               />
-            </div>
+            </CampoSurface>
           )}
 
           <NumPad value={quantidade} onChange={setQuantidade} suffix="mL/animal" label="Dose por animal (mL)" />
 
-          <div className="flex gap-3 mt-auto">
-            <button onClick={() => setStep("lote")} className="flex-1 bg-neutral-800 rounded-2xl py-4 font-semibold">← Voltar</button>
-            <button onClick={() => setStep("confirmar")} disabled={!vacinaNome && !vacinaId}
-              className="flex-[2] bg-green-600 disabled:opacity-40 rounded-2xl py-4 font-semibold">Próximo →</button>
-          </div>
+          <CampoStepNav onBack={() => setStep("lote")} onNext={() => setStep("confirmar")} nextLabel="Próximo →" nextDisabled={!vacinaNome && !vacinaId} />
         </div>
       )}
 
       {step === "confirmar" && (
-        <div className="flex flex-col gap-5 flex-1">
+        <div className="flex flex-1 flex-col gap-5">
           <GpsWarning status={gps.status} onRetry={gps.capture} />
-          <div className="bg-neutral-800 rounded-2xl p-4 flex flex-col gap-2 text-sm">
+          <CampoSurface className="grid gap-3 p-4 text-sm md:grid-cols-2">
             <SummaryRow label="Lote" value={loteAtual?.identificacao ?? "—"} />
             <SummaryRow label="Animais" value={String(loteAtual?.quantidade_cabecas ?? "—")} />
             <SummaryRow label="Vacina" value={vacinaNome || (vacinas?.find((v) => v.id === vacinaId)?.nome ?? "—")} />
             {quantidade && <SummaryRow label="Dose" value={`${quantidade} mL/animal`} />}
-          </div>
+          </CampoSurface>
 
-          <textarea
-            placeholder="Observação (ex: lote do pasto 3, vermifugação junto)"
-            value={obs}
-            onChange={(e) => setObs(e.target.value)}
-            rows={3}
-            className="bg-neutral-800 border border-neutral-700 rounded-2xl px-4 py-3 text-sm resize-none outline-none focus:border-green-500 placeholder:text-neutral-600"
-          />
+          <CampoSurface className="p-4">
+            <textarea
+              placeholder="Observação (ex: lote do pasto 3, vermifugação junto)"
+              value={obs}
+              onChange={(e) => setObs(e.target.value)}
+              rows={3}
+              className="min-h-[104px] w-full resize-none rounded-[22px] border border-white/10 bg-white/[0.04] px-4 py-3 text-sm outline-none transition-colors focus:border-emerald-400/50 focus:bg-white/[0.06] placeholder:text-white/30"
+            />
+          </CampoSurface>
 
           <CameraCapture fotos={cam.fotos} inputRef={cam.inputRef} canAddMore={cam.canAddMore} onOpen={cam.openCamera} onFileChange={cam.handleFileChange} onRemove={cam.removePhoto} />
 
-          <button onClick={handleSalvar} disabled={saving}
-            className="mt-auto bg-green-600 hover:bg-green-500 disabled:opacity-50 rounded-2xl py-5 text-base font-bold">
+          <CampoButton onClick={handleSalvar} disabled={saving} className="mt-auto w-full" size="lg" variant="primary">
             {saving ? "Salvando..." : "✅ Salvar Vacinação"}
-          </button>
+          </CampoButton>
         </div>
       )}
-    </div>
+    </CampoShell>
   );
 }
 
 function SummaryRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex justify-between">
-      <span className="text-neutral-500">{label}</span>
-      <span className="font-semibold">{value}</span>
-    </div>
-  );
-}
-
-function SuccessScreen({ onNew, onHome }: { onNew: () => void; onHome: () => void }) {
-  return (
-    <div className="flex flex-col items-center justify-center gap-6 min-h-dvh p-6">
-      <div className="text-6xl">✅</div>
-      <div className="text-center">
-        <h2 className="text-xl font-bold">Vacinação Registrada!</h2>
-        <p className="text-sm text-neutral-400 mt-1">Salvo localmente. Será sincronizado quando online.</p>
-      </div>
-      <div className="flex flex-col gap-3 w-full max-w-sm">
-        <button onClick={onNew} className="bg-green-600 rounded-2xl py-4 font-semibold">Nova Vacinação</button>
-        <button onClick={onHome} className="bg-neutral-800 rounded-2xl py-4 font-semibold">← Voltar ao Início</button>
-      </div>
+    <div className="flex justify-between gap-4 border-b border-white/8 py-2 last:border-0">
+      <span className="text-white/45">{label}</span>
+      <span className="text-right font-semibold text-white/85">{value}</span>
     </div>
   );
 }

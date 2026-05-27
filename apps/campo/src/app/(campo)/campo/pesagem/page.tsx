@@ -13,6 +13,8 @@ import { FieldSelect } from "@/components/campo/field-select";
 import { NumPad } from "@/components/campo/num-pad";
 import { CameraCapture } from "@/components/campo/camera-capture";
 import { GpsWarning } from "@/components/campo/gps-warning";
+import { CampoButton, CampoShell, CampoSurface } from "@/components/campo/ui";
+import { CampoStepNav, CampoSuccessScreen } from "@/components/campo/flow";
 
 type Step = "lote" | "peso" | "confirmar";
 type TipoPesagem = "AMOSTRA" | "LOTE_BALANCA" | "INDIVIDUAL";
@@ -65,9 +67,13 @@ export default function PesagemPage() {
 
   if (done) {
     return (
-      <SuccessScreen
-        onNew={() => { setDone(false); setStep("lote"); setLoteId(""); setPesoMedio(""); setQtdAnimais(""); }}
-        onHome={() => router.replace("/home")}
+      <CampoSuccessScreen
+        icon="✅"
+        title="Pesagem registrada"
+        description="Salvo localmente e pronto para sincronizar quando houver conexão."
+        primaryLabel="Nova pesagem"
+        onPrimary={() => { setDone(false); setStep("lote"); setLoteId(""); setPesoMedio(""); setQtdAnimais(""); }}
+        onSecondary={() => router.replace("/home")}
       />
     );
   }
@@ -75,11 +81,11 @@ export default function PesagemPage() {
   const loteAtual = lotes?.find((l) => l.id === loteId);
 
   return (
-    <div className="flex flex-col gap-5 p-4 pb-10 min-h-dvh">
+    <CampoShell className="gap-5">
       <TaskHeader title="Pesagem" icon="⚖️" gpsStatus={gps.status} step={stepIndex + 1} totalSteps={3} />
 
       {step === "lote" && (
-        <div className="flex flex-col gap-5 flex-1">
+        <div className="flex flex-1 flex-col gap-5">
           <FieldSelect
             label="Lote de Animais"
             options={(lotes ?? []).map((l) => ({
@@ -94,28 +100,32 @@ export default function PesagemPage() {
           {/* Tipo de pesagem */}
           <div className="flex flex-col gap-2">
             <label className="text-sm font-medium text-neutral-400">Tipo</label>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
               {(["AMOSTRA", "LOTE_BALANCA", "INDIVIDUAL"] as TipoPesagem[]).map((t) => (
-                <button key={t} type="button" onClick={() => setTipo(t)}
-                  className={`rounded-xl py-4 text-xs font-semibold transition-colors ${tipo === t ? "bg-green-600" : "bg-neutral-800"}`}>
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setTipo(t)}
+                  className={`rounded-2xl py-4 text-xs font-semibold transition-all active:scale-[0.98] ${
+                    tipo === t
+                      ? "bg-emerald-400/18 text-emerald-100 ring-1 ring-emerald-300/25"
+                      : "border border-white/10 bg-white/[0.04] text-white/70 hover:bg-white/[0.07]"
+                  }`}
+                >
                   {t === "AMOSTRA" ? "Amostra" : t === "LOTE_BALANCA" ? "Balança" : "Individual"}
                 </button>
               ))}
             </div>
           </div>
-          <div className="flex gap-3 mt-auto">
-            <button onClick={() => router.back()} className="flex-1 bg-neutral-800 rounded-2xl py-4 font-semibold">← Voltar</button>
-            <button onClick={() => setStep("peso")} disabled={!loteId}
-              className="flex-[2] bg-green-600 disabled:opacity-40 rounded-2xl py-4 font-semibold">Próximo →</button>
-          </div>
+          <CampoStepNav onBack={() => router.back()} onNext={() => setStep("peso")} nextLabel="Próximo →" nextDisabled={!loteId} />
         </div>
       )}
 
       {step === "peso" && (
-        <div className="flex flex-col gap-5 flex-1">
+        <div className="flex flex-1 flex-col gap-5">
           <NumPad value={pesoMedio} onChange={setPesoMedio} suffix="kg" label="Peso médio (kg/animal)" />
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium text-neutral-400">
+          <CampoSurface className="flex flex-col gap-2 p-4">
+            <label className="text-sm font-semibold text-white/85">
               Nº de animais pesados (padrão: {loteAtual?.quantidade_cabecas ?? "—"})
             </label>
             <input
@@ -124,69 +134,50 @@ export default function PesagemPage() {
               placeholder={String(loteAtual?.quantidade_cabecas ?? "")}
               value={qtdAnimais}
               onChange={(e) => setQtdAnimais(e.target.value)}
-              className="bg-neutral-800 border border-neutral-700 rounded-xl px-4 py-3 text-base outline-none focus:border-green-500"
+              className="rounded-[22px] border border-white/10 bg-white/[0.04] px-4 py-3 text-base outline-none transition-colors focus:border-emerald-400/50 focus:bg-white/[0.06] placeholder:text-white/30"
             />
-          </div>
-          <div className="flex gap-3 mt-auto">
-            <button onClick={() => setStep("lote")} className="flex-1 bg-neutral-800 rounded-2xl py-4 font-semibold">← Voltar</button>
-            <button onClick={() => setStep("confirmar")} disabled={!pesoMedio || pesoMedio === "0"}
-              className="flex-[2] bg-green-600 disabled:opacity-40 rounded-2xl py-4 font-semibold">Próximo →</button>
-          </div>
+          </CampoSurface>
+          <CampoStepNav onBack={() => setStep("lote")} onNext={() => setStep("confirmar")} nextLabel="Próximo →" nextDisabled={!pesoMedio || pesoMedio === "0"} />
         </div>
       )}
 
       {step === "confirmar" && (
-        <div className="flex flex-col gap-5 flex-1">
+        <div className="flex flex-1 flex-col gap-5">
           <GpsWarning status={gps.status} onRetry={gps.capture} />
-          <div className="bg-neutral-800 rounded-2xl p-4 flex flex-col gap-2 text-sm">
+          <CampoSurface className="grid gap-3 p-4 text-sm md:grid-cols-2">
             <SummaryRow label="Lote" value={loteAtual?.identificacao ?? "—"} />
             <SummaryRow label="Tipo" value={tipo} />
             <SummaryRow label="Peso médio" value={`${pesoMedio} kg`} />
             <SummaryRow label="Animais" value={qtdAnimais || String(loteAtual?.quantidade_cabecas ?? "—")} />
             <SummaryRow label="Peso total est." value={`${((parseFloat(pesoMedio) || 0) * (parseInt(qtdAnimais) || loteAtual?.quantidade_cabecas || 1)).toFixed(0)} kg`} />
-          </div>
+          </CampoSurface>
 
-          <textarea
-            placeholder="Observação (opcional)"
-            value={obs}
-            onChange={(e) => setObs(e.target.value)}
-            rows={2}
-            className="bg-neutral-800 border border-neutral-700 rounded-2xl px-4 py-3 text-sm resize-none outline-none focus:border-green-500 placeholder:text-neutral-600"
-          />
+          <CampoSurface className="p-4">
+            <textarea
+              placeholder="Observação (opcional)"
+              value={obs}
+              onChange={(e) => setObs(e.target.value)}
+              rows={2}
+              className="min-h-[96px] w-full resize-none rounded-[22px] border border-white/10 bg-white/[0.04] px-4 py-3 text-sm outline-none transition-colors focus:border-emerald-400/50 focus:bg-white/[0.06] placeholder:text-white/30"
+            />
+          </CampoSurface>
 
           <CameraCapture fotos={cam.fotos} inputRef={cam.inputRef} canAddMore={cam.canAddMore} onOpen={cam.openCamera} onFileChange={cam.handleFileChange} onRemove={cam.removePhoto} />
 
-          <button onClick={handleSalvar} disabled={saving}
-            className="mt-auto bg-green-600 hover:bg-green-500 disabled:opacity-50 rounded-2xl py-5 text-base font-bold">
+          <CampoButton onClick={handleSalvar} disabled={saving} className="mt-auto w-full" size="lg" variant="primary">
             {saving ? "Salvando..." : "✅ Salvar Pesagem"}
-          </button>
+          </CampoButton>
         </div>
       )}
-    </div>
+    </CampoShell>
   );
 }
 
 function SummaryRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex justify-between">
-      <span className="text-neutral-500">{label}</span>
-      <span className="font-semibold">{value}</span>
-    </div>
-  );
-}
-
-function SuccessScreen({ onNew, onHome }: { onNew: () => void; onHome: () => void }) {
-  return (
-    <div className="flex flex-col items-center justify-center gap-6 min-h-dvh p-6">
-      <div className="text-6xl">✅</div>
-      <div className="text-center">
-        <h2 className="text-xl font-bold">Pesagem Registrada!</h2>
-        <p className="text-sm text-neutral-400 mt-1">Salvo localmente. Será sincronizado quando online.</p>
-      </div>
-      <div className="flex flex-col gap-3 w-full max-w-sm">
-        <button onClick={onNew} className="bg-green-600 rounded-2xl py-4 font-semibold">Nova Pesagem</button>
-        <button onClick={onHome} className="bg-neutral-800 rounded-2xl py-4 font-semibold">← Voltar ao Início</button>
-      </div>
+    <div className="flex justify-between gap-4 border-b border-white/8 py-2 last:border-0">
+      <span className="text-white/45">{label}</span>
+      <span className="text-right font-semibold text-white/85">{value}</span>
     </div>
   );
 }

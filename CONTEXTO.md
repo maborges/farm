@@ -101,6 +101,13 @@ Esse arquivo configura:
 - lifespan com jobs em background
 - registro de routers
 
+Execução operacional:
+
+- `run_embedded_jobs` controla se a API executa os jobs periódicos no mesmo processo
+- o worker separado fica em `services/api/background_worker.py`
+- storage local e S3/MinIO passam pelo mesmo contrato de `StorageService`
+- URLs públicas de mídia podem ser resolvidas por `storage_public_base_url`
+
 ### Organização por domínios
 
 Os módulos principais observados no backend são:

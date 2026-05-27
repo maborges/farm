@@ -19,7 +19,14 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="pt-BR">
-      <body className="bg-neutral-950 text-white antialiased" suppressHydrationWarning>{children}</body>
+      <body
+        className="antialiased text-white"
+        suppressHydrationWarning
+      >
+        <div className="fixed inset-0 -z-10 overflow-hidden bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.18),_transparent_32%),linear-gradient(180deg,_#05110d_0%,_#07130f_36%,_#040706_100%)]" />
+        <div className="fixed inset-0 -z-10 bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:32px_32px] opacity-20" />
+        {children}
+      </body>
     </html>
   );
 }

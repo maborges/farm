@@ -5,9 +5,9 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useRouter } from "next/navigation";
-import { db } from "@/lib/db";
 import { useSessionStore } from "@/lib/stores/session-store";
 import bcrypt from "bcryptjs";
+import { CampoButton, CampoPill, CampoSectionTitle, CampoSurface } from "@/components/campo/ui";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
 
@@ -78,70 +78,76 @@ export default function ActivatePage() {
   };
 
   return (
-    <main className="flex min-h-dvh flex-col items-center justify-center gap-8 p-6">
-      <div className="flex flex-col items-center gap-2">
-        <div className="size-16 rounded-2xl bg-green-600 flex items-center justify-center text-3xl">🌱</div>
-        <h1 className="text-2xl font-bold">Ativar Dispositivo</h1>
-        <p className="text-sm text-neutral-400 text-center">
-          Insira o código fornecido pelo seu gestor e crie seu PIN de acesso
-        </p>
-      </div>
-
-      <form onSubmit={handleSubmit(onSubmit)} className="w-full max-w-sm flex flex-col gap-4">
-        <div className="flex flex-col gap-1">
-          <label className="text-sm font-medium text-neutral-300">Código de Ativação</label>
-          <input
-            {...register("activation_code")}
-            placeholder="Ex: ABCD1234"
-            className="bg-neutral-800 border border-neutral-700 rounded-xl px-4 py-3 text-lg tracking-widest text-center uppercase outline-none focus:border-green-500"
-            autoComplete="off"
-            autoCapitalize="characters"
-          />
-          {errors.activation_code && (
-            <p className="text-xs text-red-400">{errors.activation_code.message}</p>
-          )}
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <label className="text-sm font-medium text-neutral-300">Criar PIN (4–6 dígitos)</label>
-          <input
-            {...register("pin")}
-            type="password"
-            inputMode="numeric"
-            placeholder="••••"
-            className="bg-neutral-800 border border-neutral-700 rounded-xl px-4 py-3 text-lg tracking-widest text-center outline-none focus:border-green-500"
-          />
-          {errors.pin && <p className="text-xs text-red-400">{errors.pin.message}</p>}
-        </div>
-
-        <div className="flex flex-col gap-1">
-          <label className="text-sm font-medium text-neutral-300">Confirmar PIN</label>
-          <input
-            {...register("pin_confirm")}
-            type="password"
-            inputMode="numeric"
-            placeholder="••••"
-            className="bg-neutral-800 border border-neutral-700 rounded-xl px-4 py-3 text-lg tracking-widest text-center outline-none focus:border-green-500"
-          />
-          {errors.pin_confirm && (
-            <p className="text-xs text-red-400">{errors.pin_confirm.message}</p>
-          )}
-        </div>
-
-        {error && (
-          <div className="bg-red-950 border border-red-800 rounded-xl px-4 py-3 text-sm text-red-300">
-            {error}
+    <main className="flex min-h-dvh items-center justify-center p-4 sm:p-6">
+      <CampoSurface className="w-full max-w-[440px] p-6 sm:p-7">
+        <div className="flex flex-col gap-4">
+          <CampoPill className="border-emerald-400/20 bg-emerald-400/12 text-emerald-100">
+            Campo offline-first
+          </CampoPill>
+          <div className="flex items-center gap-3">
+            <div className="flex size-14 items-center justify-center rounded-[20px] bg-gradient-to-br from-emerald-400 to-lime-300 text-3xl text-emerald-950 shadow-lg shadow-emerald-950/20">
+              🌱
+            </div>
+            <CampoSectionTitle
+              eyebrow="Acesso"
+              title="Ativar dispositivo"
+              description="Use o código do gestor e crie seu PIN de acesso."
+            />
           </div>
-        )}
+        </div>
 
-        <button
-          type="submit"
-          disabled={loading}
-          className="bg-green-600 hover:bg-green-500 disabled:opacity-50 rounded-xl py-4 text-base font-semibold transition-colors"
-        >
-          {loading ? "Ativando..." : "Ativar Dispositivo"}
-        </button>
-      </form>
+        <form onSubmit={handleSubmit(onSubmit)} className="mt-6 flex w-full flex-col gap-4">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-white/70">Código de ativação</label>
+            <input
+              {...register("activation_code")}
+              placeholder="Ex: ABCD1234"
+              className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3.5 text-lg tracking-[0.22em] text-center uppercase text-white outline-none transition-colors placeholder:text-white/20 focus:border-emerald-400/50 focus:bg-white/[0.06]"
+              autoComplete="off"
+              autoCapitalize="characters"
+            />
+            {errors.activation_code && (
+              <p className="text-xs text-rose-300">{errors.activation_code.message}</p>
+            )}
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-white/70">Criar PIN (4–6 dígitos)</label>
+            <input
+              {...register("pin")}
+              type="password"
+              inputMode="numeric"
+              placeholder="••••"
+              className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3.5 text-lg tracking-[0.28em] text-center text-white outline-none transition-colors placeholder:text-white/20 focus:border-emerald-400/50 focus:bg-white/[0.06]"
+            />
+            {errors.pin && <p className="text-xs text-rose-300">{errors.pin.message}</p>}
+          </div>
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-white/70">Confirmar PIN</label>
+            <input
+              {...register("pin_confirm")}
+              type="password"
+              inputMode="numeric"
+              placeholder="••••"
+              className="w-full rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3.5 text-lg tracking-[0.28em] text-center text-white outline-none transition-colors placeholder:text-white/20 focus:border-emerald-400/50 focus:bg-white/[0.06]"
+            />
+            {errors.pin_confirm && (
+              <p className="text-xs text-rose-300">{errors.pin_confirm.message}</p>
+            )}
+          </div>
+
+          {error && (
+            <div className="rounded-2xl border border-rose-400/20 bg-rose-400/12 px-4 py-3 text-sm text-rose-100">
+              {error}
+            </div>
+          )}
+
+          <CampoButton type="submit" disabled={loading} className="mt-1 w-full" size="lg">
+            {loading ? "Ativando..." : "Ativar dispositivo"}
+          </CampoButton>
+        </form>
+      </CampoSurface>
     </main>
   );
 }

@@ -100,7 +100,7 @@ class EmailService:
             nome_plano=plano,
             valor=f"{valor:.2f}",
             referência="Mensalidade AgroSaaS",
-            login_url="http://localhost:3000/login"
+            login_url=f"{settings.frontend_url}/login"
         )
         await self._send(email, "Pagamento Confirmado - AgroSaaS", html, tenant_id)
 
@@ -109,7 +109,7 @@ class EmailService:
         html = template.render(
             nome_cliente=nome,
             justificativa=justificativa,
-            billing_url="http://localhost:3000/settings/account"
+            billing_url=f"{settings.frontend_url}/settings/account"
         )
         await self._send(email, "⚠️ Ação Necessária: Problema no Pagamento", html, tenant_id)
 
@@ -119,7 +119,7 @@ class EmailService:
             nome_cliente=nome,
             nome_tenant=tenant_nome,
             username=username,
-            login_url="http://localhost:3000/login"
+            login_url=f"{settings.frontend_url}/login"
         )
         await self._send(email, "Bem-vindo ao AgroSaaS! 🚜", html, tenant_id)
 

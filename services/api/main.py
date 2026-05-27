@@ -71,6 +71,7 @@ from imoveis.routers.imovel import router as router_imoveis
 
 # Growth — Landing Tracking (público, sem autenticação)
 from growth import router as growth_router
+from core.background_jobs import run_background_jobs
 
 
 # -- Configuração Loguru Estruturado p/ Grafana/Loki Compatível
@@ -86,44 +87,22 @@ from contextlib import asynccontextmanager
 
 @asynccontextmanager
 async def lifespan(app):
-    """Startup/shutdown: inicia job periódico de suspensão de tenants vencidos."""
-    async def _job_suspender_vencidos():
-        from core.database import async_session_maker
-        from core.services.assinatura_service import suspender_vencidos, suspender_trials_expirados
-        while True:
-            try:
-                await asyncio.sleep(3600)  # roda a cada hora
-                async with async_session_maker() as session:
-                    n1 = await suspender_vencidos(session)
-                    n2 = await suspender_trials_expirados(session)
-                    if n1 or n2:
-                        logger.info(f"[job] suspendidos: {n1} vencidos, {n2} trials")
-            except asyncio.CancelledError:
-                break
-            except Exception as e:
-                logger.error(f"[job] suspender_vencidos erro: {e}")
+    """Startup/shutdown da API, com jobs embutidos opcionais por ambiente."""
+    tasks: list[asyncio.Task[None]] = []
+    if settings.run_embedded_jobs:
+        tasks = [
+            asyncio.create_task(run_background_jobs()),
+        ]
+        logger.info("Background jobs embutidos habilitados neste processo da API.")
+    else:
+        logger.info("Background jobs embutidos desabilitados. Use o worker separado.")
 
-    async def _job_resumo_diario():
-        from notificacoes.resumo_diario_envio_service import EnvioResumoDiarioService
-        while True:
-            try:
-                # Roda a cada minuto para checar se algum usuário tem envio agendado
-                await EnvioResumoDiarioService.enviar_resumos_agendados()
-                await asyncio.sleep(60) 
-            except asyncio.CancelledError:
-                break
-            except Exception as e:
-                logger.error(f"[job] resumo_diario erro: {e}")
-                await asyncio.sleep(60)
-
-    task_vencidos = asyncio.create_task(_job_suspender_vencidos())
-    task_resumo = asyncio.create_task(_job_resumo_diario())
     yield
     # Shutdown
-    task_vencidos.cancel()
-    task_resumo.cancel()
+    for task in tasks:
+        task.cancel()
     try:
-        await asyncio.gather(task_vencidos, task_resumo, return_exceptions=True)
+        await asyncio.gather(*tasks, return_exceptions=True)
     except asyncio.CancelledError:
         pass
     
@@ -140,15 +119,10 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Monta diretório de avatares como static files
-AVATAR_DIR = Path("/tmp/agrosaas_avatars")
-AVATAR_DIR.mkdir(parents=True, exist_ok=True)
-app.mount("/static/avatars", StaticFiles(directory=str(AVATAR_DIR)), name="avatars")
-
-# Monta diretório de logos de propriedades como static files
-LOGOS_DIR = Path("/tmp/agrosaas_logos")
-LOGOS_DIR.mkdir(parents=True, exist_ok=True)
-app.mount("/static/logos", StaticFiles(directory=str(LOGOS_DIR)), name="logos")
+# Monta storage local como static files quando o backend estiver em modo local.
+STATIC_DIR = Path(settings.storage_local_path) / "static"
+STATIC_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 # Middleware para atualizar o heartbeat da sessão ativa
 from starlette.middleware.base import BaseHTTPMiddleware

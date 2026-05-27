@@ -9,6 +9,7 @@ from agricola.safras.models import Safra, SafraTalhao
 from agricola.operacoes.models import OperacaoAgricola
 from agricola.production_units.models import ProductionUnit
 from agricola.custos.models import CostAllocation
+from agricola.a1_planejamento.models import ItemOrcamentoSafra
 from agricola.custos.schemas import ReumoCustosSafraResponse, CustoBreakdown
 
 class CustosService:
@@ -42,6 +43,8 @@ class CustosService:
         
         breakdowns = []
         custo_total = 0.0
+        fonte_apuracao = "COST_ALLOCATION"
+        usou_fallback_operacional = False
 
         stmt_alloc = (
             select(
@@ -58,6 +61,8 @@ class CustosService:
         items = (await self.session.execute(stmt_alloc)).all()
 
         if not items:
+            usou_fallback_operacional = True
+            fonte_apuracao = "OPERACAO_AGRICOLA_FALLBACK"
             stmt_ops = select(
                 OperacaoAgricola.tipo.label("categoria"),
                 func.sum(OperacaoAgricola.custo_total).label("total"),
@@ -84,11 +89,25 @@ class CustosService:
             
         orcamento = None
         desvio = None
-        custo_previsto_ha = getattr(safra, "custo_previsto_ha", None)
-        if custo_previsto_ha:
-            orcamento = float(custo_previsto_ha * area_ha)
-            if orcamento > 0:
-                desvio = round(((custo_total - orcamento) / orcamento) * 100, 2)
+        fonte_orcamento_previsto = "ORCAMENTO_SAFRA"
+        usou_fallback_orcamento = False
+        stmt_orcamento = select(
+            func.coalesce(func.sum(ItemOrcamentoSafra.custo_total), 0)
+        ).where(
+            ItemOrcamentoSafra.tenant_id == self.tenant_id,
+            ItemOrcamentoSafra.safra_id == safra_id,
+        )
+        orcamento_total = float((await self.session.execute(stmt_orcamento)).scalar_one() or 0)
+        if orcamento_total > 0:
+            orcamento = orcamento_total
+        else:
+            custo_previsto_ha = getattr(safra, "custo_previsto_ha", None)
+            if custo_previsto_ha:
+                usou_fallback_orcamento = True
+                fonte_orcamento_previsto = "SAFRA_CUSTO_PREVISTO_HA_FALLBACK"
+                orcamento = float(custo_previsto_ha * area_ha)
+        if orcamento is not None and orcamento > 0:
+            desvio = round(((custo_total - orcamento) / orcamento) * 100, 2)
                 
         return ReumoCustosSafraResponse(
             safra_id=safra_id,
@@ -97,5 +116,9 @@ class CustosService:
             custo_realizado_por_ha=custo_total / float(area_ha),
             orcamento_previsto_total=orcamento,
             desvio_orcamento_pct=desvio,
+            fonte_orcamento_previsto=fonte_orcamento_previsto,
+            usou_fallback_orcamento=usou_fallback_orcamento,
+            fonte_apuracao=fonte_apuracao,
+            usou_fallback_operacional=usou_fallback_operacional,
             breakdown=breakdowns
         )
