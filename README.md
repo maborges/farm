@@ -223,6 +223,69 @@ O projeto é dividido em um monorepo contendo:
 - **Problema**: O dialog "Criar Solicitação de Compra" consultava o endpoint inexistente `/estoque/produtos`, fazendo com que a listagem de itens no select de produto ficasse vazia.
 - **Comportamento Esperado**: Consulta ao catálogo oficial `/cadastros/produtos?ativo=true&incluir_sistema=true` para carregar e exibir corretamente todos os produtos ativos.
 
+## 🌐 Ambiente de Execução (WSL e AWS)
+
+A aplicação foi preparada para rodar com o mesmo código-base em dois perfis:
+
+### 1. Desenvolvimento local na WSL
+- Backend e frontend rodam localmente na máquina de aplicação.
+- PostgreSQL pode rodar em outra WSL/máquina na rede local.
+- Redis pode rodar localmente ou junto do backend.
+- `storage_backend=local` mantém uploads e arquivos gerados em disco.
+- `run_embedded_jobs=true` permite que a API execute os jobs em background no próprio processo.
+
+Exemplo de variáveis no backend:
+```env
+DATABASE_URL=postgresql+asyncpg://usuario:senha@IP_DO_WSL_DO_BANCO:5432/agrosaas
+REDIS_URL=redis://127.0.0.1:6379/0
+FRONTEND_URL=http://127.0.0.1:3000
+ALLOW_ORIGINS=["http://127.0.0.1:3000","http://localhost:3000"]
+storage_backend=local
+storage_local_path=/tmp/agrosaas_uploads
+run_embedded_jobs=true
+```
+
+### 2. Produção na AWS
+- Frontend e backend devem ser publicados separadamente.
+- Banco deve ser `RDS PostgreSQL`.
+- Redis deve ser `ElastiCache`.
+- Arquivos e uploads devem ir para `S3`.
+- O backend da API deve executar com `run_embedded_jobs=false`.
+- Os jobs devem rodar em um worker separado, evitando duplicação quando houver mais de uma réplica da API.
+- `storage_public_base_url` deve apontar para o domínio público dos arquivos, se houver CDN ou bucket público controlado.
+
+Exemplo de variáveis no backend:
+```env
+DATABASE_URL=postgresql+asyncpg://USER:PASSWORD@rds-endpoint:5432/agrosaas
+REDIS_URL=redis://elasticache-endpoint:6379/0
+FRONTEND_URL=https://app.seudominio.com
+ALLOW_ORIGINS=["https://app.seudominio.com"]
+storage_backend=s3
+storage_public_base_url=https://cdn.seudominio.com
+run_embedded_jobs=false
+```
+
+### 3. Regras de compatibilidade entre os ambientes
+- Não hardcode `localhost` em URLs de navegação, API ou e-mail.
+- Use `BACKEND_URL` no frontend e `FRONTEND_URL` no backend.
+- Mantenha o backend aceitando `local`, `s3` e `minio` via configuração.
+- Preserve `storage_backend=local` para desenvolvimento.
+- Use `/health` e `/health/ready` para health checks em qualquer ambiente.
+
+## 📘 Referência Oficial FIELD-CORE
+
+O documento consolidado oficial da arquitetura do Caderno de Campo é:
+
+- [FIELD-CORE Final Governance](docs/architecture/field-core-final-governance.md)
+
+Ele deve ser usado como referência para:
+
+- arquitetura canônica do Caderno de Campo
+- governança de status, aprovação e retificação
+- cadeia documental, exportação e assinatura técnica
+- papel oficial do PWA como extensão offline
+- auditoria, compliance e evolução futura do domínio
+
 ## 🛠️ Como Executar
 
 ### Backend

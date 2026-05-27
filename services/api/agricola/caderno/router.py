@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, status, Request, UploadFile, File, Form
-from fastapi.responses import FileResponse
+from fastapi.responses import Response
 from typing import List
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -7,7 +7,8 @@ from datetime import date
 from pathlib import Path
 
 from core.constants import PlanTier
-from core.dependencies import get_tenant_id, require_module, require_role, require_tier, get_session_with_tenant
+from core.dependencies import get_tenant_id, require_module, require_role, require_tier, get_session_with_tenant, get_current_user
+from core.exceptions import BusinessRuleError
 from agricola.caderno.models import CadernoExportacao
 from agricola.caderno.schemas import (
     EntradaCreate,
@@ -23,6 +24,8 @@ from agricola.caderno.schemas import (
     ExportacaoCreate,
     ExportacaoResponse,
     AssinarExportacaoRequest,
+    ReprocessarEntradaRequest,
+    StatusEventoUpdateRequest,
     TimelineItem,
 )
 from agricola.caderno.service import (
@@ -31,6 +34,8 @@ from agricola.caderno.service import (
     EPIEntregaService,
     CadernoExportacaoService,
 )
+from core.models.auth import Usuario
+from core.services.storage_service import StorageService
 
 router = APIRouter(prefix="/caderno", tags=["Caderno de Campo"])
 
@@ -141,7 +146,7 @@ async def criar_entrada(
     _: None = Depends(_MODULE),
     user: dict = Depends(require_role(["admin", "agronomo", "operador", "gerente"])),
 ):
-    svc = CadernoCampoService(session, tenant_id)
+    svc = CadernoCampoService(session, tenant_id, user_id=UUID(user["sub"]), ip_address=request.client.host if request.client else None)
     usuario_id = UUID(user["sub"])
     ip = request.client.host if request.client else None
     entrada = await svc.criar_entrada(dados, usuario_id=usuario_id, ip=ip)
@@ -170,8 +175,39 @@ async def atualizar_entrada(
     _: None = Depends(_MODULE),
     user: dict = Depends(require_role(["admin", "agronomo", "gerente"])),
 ):
-    svc = CadernoCampoService(session, tenant_id)
-    entrada = await svc.update(entrada_id, dados.model_dump(exclude_none=True))
+    svc = CadernoCampoService(session, tenant_id, user_id=UUID(user["sub"]))
+    entrada_atual = await svc.get_or_fail(entrada_id)
+    payload = dados.model_dump(exclude_none=True)
+    if "status_evento" in payload:
+        if payload["status_evento"] != entrada_atual.status_evento:
+            raise BusinessRuleError("Use o endpoint /entradas/{id}/status para alterar o status do evento.")
+        payload.pop("status_evento", None)
+    entrada = await svc.update(entrada_id, payload)
+    await session.commit()
+    await session.refresh(entrada)
+    return EntradaResponse.model_validate(entrada)
+
+
+@router.patch("/{entrada_id}/status", response_model=EntradaResponse)
+@router.patch("/entradas/{entrada_id}/status", response_model=EntradaResponse)
+async def alterar_status_entrada(
+    entrada_id: UUID,
+    body: StatusEventoUpdateRequest,
+    request: Request,
+    session: AsyncSession = Depends(get_session_with_tenant),
+    tenant_id: UUID = Depends(get_tenant_id),
+    _: None = Depends(_MODULE),
+    user: dict = Depends(require_role(["admin", "agronomo", "gerente"])),
+):
+    svc = CadernoCampoService(session, tenant_id, user_id=UUID(user["sub"]), ip_address=request.client.host if request.client else None)
+    entrada = await svc.alterar_status_evento(
+        entrada_id,
+        novo_status=body.status_evento,
+        justificativa=body.justificativa,
+        usuario_id=UUID(user["sub"]),
+        usuario_role=user.get("role"),
+        ip=request.client.host if request.client else None,
+    )
     await session.commit()
     await session.refresh(entrada)
     return EntradaResponse.model_validate(entrada)
@@ -186,9 +222,34 @@ async def deletar_entrada(
     _: None = Depends(_MODULE),
     user: dict = Depends(require_role(["admin", "agronomo"])),
 ):
-    svc = CadernoCampoService(session, tenant_id)
+    svc = CadernoCampoService(session, tenant_id, user_id=UUID(user["sub"]))
     await svc.soft_delete(entrada_id, body.motivo_exclusao)
     await session.commit()
+
+
+@router.post("/entradas/{entrada_id}/reprocessar", response_model=EntradaResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/{entrada_id}/reprocessar", response_model=EntradaResponse, status_code=status.HTTP_201_CREATED)
+async def reprocessar_entrada(
+    entrada_id: UUID,
+    body: ReprocessarEntradaRequest,
+    request: Request,
+    session: AsyncSession = Depends(get_session_with_tenant),
+    tenant_id: UUID = Depends(get_tenant_id),
+    _: None = Depends(_MODULE),
+    user: dict = Depends(require_role(["admin", "agronomo", "gerente"])),
+):
+    svc = CadernoCampoService(session, tenant_id, user_id=UUID(user["sub"]), ip_address=request.client.host if request.client else None)
+    entrada = await svc.reprocessar_entrada(
+        entrada_id,
+        motivo=body.motivo,
+        dados_corrigidos=body.dados_corrigidos,
+        usuario_id=UUID(user["sub"]),
+        usuario_role=user.get("role"),
+        ip=request.client.host if request.client else None,
+    )
+    await session.commit()
+    await session.refresh(entrada)
+    return EntradaResponse.model_validate(entrada)
 
 
 @router.post("/entradas/{entrada_id}/fotos", response_model=FotoResponse, status_code=status.HTTP_201_CREATED)
@@ -207,22 +268,17 @@ async def upload_foto_entrada(
     svc = CadernoCampoService(session, tenant_id)
     entrada = await svc.get_or_fail(entrada_id)
 
-    # Em produção: upload para S3/MinIO. Por enquanto: path local.
     import uuid as _uuid
-    from pathlib import Path
     from datetime import datetime as _dt
 
-    STORAGE_DIR = Path("/tmp/agrossa_fotos_caderno")
-    STORAGE_DIR.mkdir(parents=True, exist_ok=True)
-
+    from pathlib import Path
     ext = Path(file.filename or "").suffix or ".jpg"
     filename = f"{_uuid.uuid4()}{ext}"
-    file_path = STORAGE_DIR / filename
+    storage_path = f"static/fotos_caderno/{filename}"
 
     content = await file.read()
-    file_path.write_bytes(content)
-
-    url = f"/static/fotos_caderno/{filename}"
+    StorageService.save_blob(content, storage_path)
+    url = StorageService.public_url(storage_path)
 
     foto = await svc.adicionar_foto(
         entrada_id=entrada_id,
@@ -366,17 +422,27 @@ async def download_pdf(
     svc = CadernoExportacaoService(session, tenant_id)
     exportacao = await svc.get_or_fail(exportacao_id)
 
-    filename = exportacao.url_pdf.split("/")[-1]
-    file_path = Path("/tmp/agrossa_caderno_exports") / filename
-
-    if not file_path.exists():
+    from urllib.parse import urlparse
+    parsed = urlparse(exportacao.url_pdf)
+    storage_path = parsed.path.lstrip("/") if parsed.scheme else exportacao.url_pdf.lstrip("/")
+    if not storage_path:
         from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="PDF não encontrado. Gere novamente.")
 
-    return FileResponse(
-        path=str(file_path),
-        filename=f"Caderno_Campo_{exportacao.safra_id}.pdf",
+    try:
+        pdf_bytes = StorageService.read(storage_path)
+    except FileNotFoundError:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="PDF não encontrado. Gere novamente.")
+
+    return Response(
+        content=pdf_bytes,
         media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="Caderno_Campo_{exportacao.safra_id}.pdf"',
+            "X-Documental-Hash": exportacao.hash_documental or "",
+            "X-Documental-Mode": exportacao.modo_exportacao,
+        },
     )
 
 
@@ -384,16 +450,17 @@ async def download_pdf(
 async def assinar_exportacao(
     exportacao_id: UUID,
     body: AssinarExportacaoRequest,
+    request: Request,
     session: AsyncSession = Depends(get_session_with_tenant),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(_MODULE),
     _tier: None = Depends(require_tier(PlanTier.ENTERPRISE)),
-    user: dict = Depends(require_role(["admin", "agronomo"])),
+    user_claims: dict = Depends(require_role(["admin", "agronomo"])),
+    usuario: Usuario = Depends(get_current_user),
 ):
     """Registra assinatura do RT na exportação do caderno."""
     from datetime import date, timedelta
     svc = CadernoExportacaoService(session, tenant_id)
-    exportacao = await svc.get_or_fail(exportacao_id)
 
     # Validação do CREA: verifica se está vencido ou vencendo em 30 dias
     if body.crea_validade:
@@ -409,10 +476,23 @@ async def assinar_exportacao(
                 f"O CREA informado vence em {dias_para_vencer} dias ({body.crea_validade.strftime('%d/%m/%Y')}). "
                 "Renove o registro antes de assinar."
             )
+    if not body.crea_rt:
+        raise BusinessRuleError("Informe o CREA para assinar a exportação.")
 
-    exportacao.assinado_por = body.assinado_por
-    exportacao.crea_rt = body.crea_rt
-    exportacao.crea_validade = body.crea_validade
+    if body.responsavel_tecnico_id and body.responsavel_tecnico_id != usuario.id:
+        raise BusinessRuleError("O responsável técnico informado deve ser o usuário autenticado.")
+
+    exportacao = await svc.registrar_assinatura(
+        exportacao_id,
+        usuario=usuario,
+        responsavel_tecnico_id=body.responsavel_tecnico_id or usuario.id,
+        responsavel_tecnico_nome=body.responsavel_tecnico_nome or body.assinado_por,
+        crea_rt=body.crea_rt,
+        crea_validade=body.crea_validade,
+        observacao=body.observacao,
+        assinatura_origem="WEB_SESSION",
+        ip_address=request.client.host if request and request.client else None,
+    )
     await session.commit()
     await session.refresh(exportacao)
     return ExportacaoResponse.model_validate(exportacao)
@@ -420,38 +500,39 @@ async def assinar_exportacao(
 
 @router.post("/exportacoes/assinar-ultima", response_model=ExportacaoResponse)
 async def assinar_ultima_exportacao(
-    body: dict,
+    body: AssinarExportacaoRequest,
+    request: Request,
     session: AsyncSession = Depends(get_session_with_tenant),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(_MODULE),
     _tier: None = Depends(require_tier(PlanTier.ENTERPRISE)),
-    user: dict = Depends(require_role(["admin", "agronomo"])),
+    user_claims: dict = Depends(require_role(["admin", "agronomo"])),
+    usuario: Usuario = Depends(get_current_user),
 ):
     """Assina a última exportação de uma safra. Cria uma nova se não existir."""
-    from uuid import UUID as _UUID
-    from datetime import datetime as _dt, date as _date
+    from datetime import date as _date
     from agricola.caderno.schemas import ExportacaoCreate
 
-    safra_id = _UUID(body["safra_id"])
-    assinado_por = body["assinado_por"]
-    crea_rt = body["crea_rt"]
-    crea_validade = body.get("crea_validade")
+    if not body.safra_id:
+        raise BusinessRuleError("Informe a safra para assinar a última exportação.")
+    safra_id = body.safra_id
 
     # Validação do CREA: verifica se está vencido ou vencendo em 30 dias
-    if crea_validade:
-        cria_validade_date = _date.fromisoformat(crea_validade) if isinstance(crea_validade, str) else crea_validade
+    if body.crea_validade:
         hoje = _date.today()
-        dias_para_vencer = (cria_validade_date - hoje).days
+        dias_para_vencer = (body.crea_validade - hoje).days
         if dias_para_vencer < 0:
             raise BusinessRuleError(
-                f"O CREA informado está vencido desde {cria_validade_date.strftime('%d/%m/%Y')}. "
+                f"O CREA informado está vencido desde {body.crea_validade.strftime('%d/%m/%Y')}. "
                 "Renove o registro antes de assinar."
             )
         elif dias_para_vencer <= 30:
             raise BusinessRuleError(
-                f"O CREA informado vence em {dias_para_vencer} dias ({cria_validade_date.strftime('%d/%m/%Y')}). "
+                f"O CREA informado vence em {dias_para_vencer} dias ({body.crea_validade.strftime('%d/%m/%Y')}). "
                 "Renove o registro antes de assinar."
             )
+    if not body.crea_rt:
+        raise BusinessRuleError("Informe o CREA para assinar a exportação.")
 
     svc = CadernoExportacaoService(session, tenant_id)
     exportacoes = await svc.listar_por_safra(safra_id)
@@ -461,11 +542,19 @@ async def assinar_ultima_exportacao(
         exportacao = exportacoes[0]
     else:
         # Cria uma nova exportação placeholder
-        exportacao = await svc.gerar(ExportacaoCreate(safra_id=safra_id))
+        exportacao = await svc.gerar(ExportacaoCreate(safra_id=safra_id, modo_exportacao="OFICIAL"))
 
-    exportacao.assinado_por = assinado_por
-    exportacao.crea_rt = crea_rt
-    exportacao.crea_validade = cria_validade_date if crea_validade else None
+    exportacao = await svc.registrar_assinatura(
+        exportacao.id,
+        usuario=usuario,
+        responsavel_tecnico_id=body.responsavel_tecnico_id,
+        responsavel_tecnico_nome=body.responsavel_tecnico_nome or body.assinado_por,
+        crea_rt=body.crea_rt,
+        crea_validade=body.crea_validade,
+        observacao=body.observacao,
+        assinatura_origem="WEB_SESSION",
+        ip_address=request.client.host if request and request.client else None,
+    )
     await session.commit()
     await session.refresh(exportacao)
     return ExportacaoResponse.model_validate(exportacao)

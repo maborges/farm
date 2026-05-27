@@ -1,36 +1,469 @@
+import uuid
+import hashlib
+import json
 from uuid import UUID
 from datetime import date, datetime, timedelta
-from typing import Literal
+from typing import Any, Literal
+import unicodedata
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import and_, or_, func
+from sqlalchemy.orm import selectinload
 
 from core.base_service import BaseService
 from core.exceptions import BusinessRuleError
 from agricola.caderno.models import (
     CadernoCampoEntrada,
     CadernoCampoFoto,
+    CadernoEventoStatusHistorico,
     VisitaTecnica,
     EPIEntrega,
     CadernoExportacao,
 )
+from core.models.auth import Usuario
 from agricola.caderno.schemas import (
     EntradaCreate,
     EntradaUpdate,
+    ReprocessarEntradaRequest,
     VisitaTecnicaCreate,
     EPIEntregaCreate,
     ExportacaoCreate,
     TimelineItem,
+    TipoEventoCaderno,
+    OrigemEventoCaderno,
+    OrigemTecnicaCaderno,
+    StatusEventoCaderno,
+    StatusEventoUpdateRequest,
 )
 from agricola.operacoes.models import OperacaoAgricola
+from core.services.storage_service import StorageService
+from core.services.audit_service import _serialize, write_audit_log
 
 # Janela de edição livre sem aprovação do RT (configurável futuramente por tenant)
 JANELA_EDICAO_HORAS = 72
+ORIGEM_EVENTO_MANUAL = "WEB_MANUAL"
+ORIGEM_TECNICA_MANUAL = "MANUAL_DIGITAL"
+ORIGEM_EVENTO_OPERACAO = "OPERACAO_AGRICOLA"
+ORIGEM_TECNICA_OPERACAO = "OPERACAO_AUTO"
+STATUS_EVENTO_PADRAO: StatusEventoCaderno = "CONSOLIDADO"
+STATUS_EVENTO_VALIDOS: set[str] = {
+    "RASCUNHO",
+    "PENDENTE_SINCRONIZACAO",
+    "SINCRONIZADO",
+    "PENDENTE_APROVACAO",
+    "APROVADO",
+    "REJEITADO",
+    "CONSOLIDADO",
+    "CANCELADO",
+}
+ORIGEM_EVENTO_VALIDAS: set[str] = {
+    "OPERACAO_AGRICOLA",
+    "WEB_MANUAL",
+    "PWA_OFFLINE",
+    "IMPORTACAO",
+    "SISTEMA",
+}
+ORIGEM_TECNICA_VALIDAS: set[str] = {
+    "OPERACAO_AUTO",
+    "MANUAL_DIGITAL",
+    "SYNC_PWA",
+    "IMPORTACAO",
+    "SISTEMA",
+}
+
+TIPOS_EVENTO_VALIDOS: set[str] = {
+    "PLANTIO",
+    "PULVERIZACAO",
+    "APLICACAO",
+    "IRRIGACAO",
+    "COLHEITA",
+    "INSPECAO",
+    "OCORRENCIA",
+    "MANUTENCAO",
+    "ABASTECIMENTO",
+    "EXECUCAO_OPERACIONAL",
+    "MONITORAMENTO",
+    "VISITA_TECNICA",
+    "EPI_ENTREGA",
+    "OBSERVACAO",
+    "CLIMA",
+    "SOLO",
+}
+
+TIPOS_LEGACY_PARA_EVENTO: dict[str, str] = {
+    "PLANTIO_REGISTRO": "PLANTIO",
+    "PLANTIO": "PLANTIO",
+    "PULVERIZACAO": "PULVERIZACAO",
+    "PULVERIZAÇÃO": "PULVERIZACAO",
+    "APLICACAO": "APLICACAO",
+    "APLICAÇÃO": "APLICACAO",
+    "APLICACAO_DEFENSIVO": "PULVERIZACAO",
+    "APLICACAO_FERTILIZANTE": "APLICACAO",
+    "IRRIGACAO": "IRRIGACAO",
+    "IRRIGAÇÃO": "IRRIGACAO",
+    "IRRIGACAO_EVENTO": "IRRIGACAO",
+    "COLHEITA_REGISTRO": "COLHEITA",
+    "COLHEITA": "COLHEITA",
+    "MONITORAMENTO_PRAGA": "MONITORAMENTO",
+    "MONITORAMENTO": "MONITORAMENTO",
+    "AMOSTRAGEM_SOLO": "SOLO",
+    "PREPARO_SOLO": "SOLO",
+    "SOLO": "SOLO",
+    "INSPECAO_EQUIPAMENTO": "INSPECAO",
+    "INSPECAO": "INSPECAO",
+    "OCORRENCIA": "OCORRENCIA",
+    "MANUTENCAO_OCORRENCIA": "MANUTENCAO",
+    "MANUTENCAO": "MANUTENCAO",
+    "ABASTECIMENTO_MAQUINA": "ABASTECIMENTO",
+    "ABASTECIMENTO": "ABASTECIMENTO",
+    "VISITA_TECNICA": "VISITA_TECNICA",
+    "EPI_ENTREGA": "EPI_ENTREGA",
+    "OBSERVACAO": "OBSERVACAO",
+    "CLIMA": "CLIMA",
+    "EXECUCAO_OPERACIONAL": "EXECUCAO_OPERACIONAL",
+}
+
+TIPOS_EVENTO_QUE_EXIGEM_APROVACAO: set[str] = {
+    "APLICACAO",
+    "PULVERIZACAO",
+    "OCORRENCIA",
+    "VISITA_TECNICA",
+    "EPI_ENTREGA",
+}
+
+ORIGENS_EVENTO_QUE_EXIGEM_APROVACAO: set[str] = {
+    "PWA_OFFLINE",
+}
+
+STATUS_TRANSICOES_PERMITIDAS: dict[str, set[str]] = {
+    "RASCUNHO": {"PENDENTE_APROVACAO"},
+    "PENDENTE_SINCRONIZACAO": {"SINCRONIZADO", "PENDENTE_APROVACAO"},
+    "SINCRONIZADO": {"PENDENTE_APROVACAO", "CANCELADO"},
+    "PENDENTE_APROVACAO": {"APROVADO", "REJEITADO", "CANCELADO"},
+    "APROVADO": {"CONSOLIDADO", "CANCELADO"},
+    "REJEITADO": {"CANCELADO"},
+    "CONSOLIDADO": {"CANCELADO"},
+    "CANCELADO": set(),
+}
+
+STATUS_EVENTO_FINAIS: set[str] = {"REJEITADO", "CONSOLIDADO", "CANCELADO"}
+STATUS_EVENTO_GOVERNADOS: set[str] = set(STATUS_EVENTO_VALIDOS)
+CAMPOS_CORRIGIVEIS_CADERNO: set[str] = {
+    "descricao",
+    "tipo_evento",
+    "nivel_severidade",
+    "recomendacao",
+    "numero_receituario",
+    "data_registro",
+    "status_evento",
+}
+
+
+def _normalizar_chave(valor: str | None) -> str:
+    if not valor:
+        return ""
+    texto = unicodedata.normalize("NFKD", valor)
+    texto = texto.encode("ascii", "ignore").decode("ascii")
+    texto = texto.strip().upper().replace("-", "_").replace(" ", "_")
+    while "__" in texto:
+        texto = texto.replace("__", "_")
+    return texto
+
+
+def _validar_tipo_evento(tipo_evento: str) -> str:
+    tipo_normalizado = _normalizar_chave(tipo_evento)
+    if tipo_normalizado not in TIPOS_EVENTO_VALIDOS:
+        raise BusinessRuleError(f"Tipo de evento inválido: {tipo_evento}")
+    return tipo_normalizado
+
+
+def _validar_domino(valor: str | None, validos: set[str], nome_campo: str, default: str | None = None) -> str:
+    if valor is None:
+        if default is None:
+            raise BusinessRuleError(f"Campo obrigatório ausente: {nome_campo}")
+        return default
+    valor_normalizado = _normalizar_chave(valor)
+    if valor_normalizado not in validos:
+        raise BusinessRuleError(f"{nome_campo} inválido: {valor}")
+    return valor_normalizado
+
+
+def _status_flags(status_evento: str | None) -> dict[str, bool]:
+    status = _normalizar_chave(status_evento)
+    return {
+        "pendente_aprovacao": status in {"RASCUNHO", "PENDENTE_SINCRONIZACAO", "SINCRONIZADO", "PENDENTE_APROVACAO"},
+        "aprovado": status == "APROVADO",
+        "consolidado": status == "CONSOLIDADO",
+        "rejeitado": status == "REJEITADO",
+    }
+
+
+def _exige_aprovacao_por_contexto(
+    *,
+    tipo_evento: str,
+    origem_evento: str,
+    digitalizacao_retroativa: bool = False,
+) -> bool:
+    return (
+        origem_evento in ORIGENS_EVENTO_QUE_EXIGEM_APROVACAO
+        or tipo_evento in TIPOS_EVENTO_QUE_EXIGEM_APROVACAO
+        or digitalizacao_retroativa
+    )
+
+
+def validar_transicao_status_evento(
+    status_atual: str | None,
+    novo_status: str,
+    contexto: dict[str, Any],
+) -> str:
+    status_novo = _normalizar_chave(novo_status)
+    if status_novo not in STATUS_EVENTO_GOVERNADOS:
+        raise BusinessRuleError(f"Status de evento inválido: {novo_status}")
+
+    status_anterior = _normalizar_chave(status_atual) if status_atual else None
+    origem_evento = _normalizar_chave(contexto.get("origem_evento"))
+    tipo_evento = _normalizar_chave(contexto.get("tipo_evento"))
+    usuario_role = _normalizar_chave(contexto.get("usuario_role"))
+    justificativa = (contexto.get("justificativa") or "").strip()
+    digitalizacao_retroativa = bool(contexto.get("digitalizacao_retroativa"))
+    tem_evidencias = bool(contexto.get("tem_evidencias"))
+    is_system = bool(contexto.get("is_system"))
+
+    if status_novo in {"PENDENTE_SINCRONIZACAO", "SINCRONIZADO"} and origem_evento != "PWA_OFFLINE":
+        raise BusinessRuleError("Estados de sincronização são exclusivos do fluxo offline do PWA.")
+
+    if status_anterior is None:
+        if origem_evento == ORIGEM_EVENTO_OPERACAO:
+            if status_novo not in {"APROVADO", "CONSOLIDADO"}:
+                raise BusinessRuleError("Eventos automáticos de operação devem nascer aprovados ou consolidados.")
+            return status_novo
+
+        if origem_evento == "PWA_OFFLINE":
+            if status_novo not in {"RASCUNHO", "PENDENTE_SINCRONIZACAO", "SINCRONIZADO", "PENDENTE_APROVACAO"}:
+                raise BusinessRuleError("Eventos do PWA offline devem iniciar em estado de sincronização ou aprovação.")
+            return status_novo
+
+        if _exige_aprovacao_por_contexto(
+            tipo_evento=tipo_evento,
+            origem_evento=origem_evento,
+            digitalizacao_retroativa=digitalizacao_retroativa,
+        ):
+            if status_novo not in {"RASCUNHO", "PENDENTE_APROVACAO"}:
+                raise BusinessRuleError("Eventos que exigem validação devem iniciar como rascunho ou pendentes de aprovação.")
+        return status_novo
+
+    if status_anterior == status_novo:
+        return status_novo
+
+    permitidos = STATUS_TRANSICOES_PERMITIDAS.get(status_anterior, set())
+    if status_novo not in permitidos:
+        raise BusinessRuleError(f"Transição de status não permitida: {status_anterior} → {status_novo}")
+
+    exige_aprovacao = _exige_aprovacao_por_contexto(
+        tipo_evento=tipo_evento,
+        origem_evento=origem_evento,
+        digitalizacao_retroativa=digitalizacao_retroativa,
+    )
+    precisa_permissao = status_novo in {"APROVADO", "REJEITADO", "CONSOLIDADO", "CANCELADO"}
+    if precisa_permissao and not is_system and usuario_role not in {"ADMIN", "AGRONOMO", "GERENTE", "OWNER"}:
+        raise BusinessRuleError("Usuário não possui permissão para esta transição de status.")
+
+    if status_novo == "CANCELADO":
+        if not justificativa:
+            raise BusinessRuleError("Cancelamento exige justificativa.")
+        return status_novo
+
+    if status_novo in {"APROVADO", "CONSOLIDADO"}:
+        if exige_aprovacao and not tem_evidencias and origem_evento != ORIGEM_EVENTO_OPERACAO:
+            raise BusinessRuleError("Eventos que exigem evidência não podem ser consolidados sem evidências anexadas.")
+
+    if origem_evento == "PWA_OFFLINE" and status_novo == "CONSOLIDADO":
+        raise BusinessRuleError("Eventos do PWA offline precisam ser aprovados antes da consolidação.")
+
+    if status_novo == "REJEITADO" and not justificativa:
+        raise BusinessRuleError("Rejeição exige justificativa.")
+
+    return status_novo
+
+
+def _mapear_tipo_evento_legado(tipo: str, subtipo: str | None = None) -> str:
+    tipo_norm = _normalizar_chave(tipo)
+    subtipo_norm = _normalizar_chave(subtipo)
+    if tipo_norm == "OPERACAO_AUTO":
+        return "EXECUCAO_OPERACIONAL"
+    if tipo_norm == "APLICACAO" and "FERTIL" in subtipo_norm:
+        return "APLICACAO"
+    if tipo_norm == "APLICACAO" and "DEFENS" in subtipo_norm:
+        return "PULVERIZACAO"
+    if tipo_norm == "MONITORAMENTO" and "SOLO" in subtipo_norm:
+        return "SOLO"
+    return TIPOS_LEGACY_PARA_EVENTO.get(tipo_norm, tipo_norm if tipo_norm in TIPOS_EVENTO_VALIDOS else "EXECUCAO_OPERACIONAL")
+
+
+def mapear_operacao_para_evento_caderno(operacao: OperacaoAgricola) -> dict:
+    tipo_norm = _normalizar_chave(operacao.tipo)
+    subtipo_norm = _normalizar_chave(operacao.subtipo)
+    descricao_norm = _normalizar_chave(operacao.descricao)
+
+    if tipo_norm in {"PLANTIO", "PLANTIO_REGISTRO"}:
+        tipo_evento = "PLANTIO"
+    elif tipo_norm in {"COLHEITA", "COLHEITA_REGISTRO"}:
+        tipo_evento = "COLHEITA"
+    elif tipo_norm in {"IRRIGACAO", "IRRIGACAO_EVENTO"}:
+        tipo_evento = "IRRIGACAO"
+    elif tipo_norm in {"APLICACAO_FERTILIZANTE"}:
+        tipo_evento = "APLICACAO"
+    elif tipo_norm in {"APLICACAO_DEFENSIVO", "PULVERIZACAO"}:
+        tipo_evento = "PULVERIZACAO"
+    elif tipo_norm == "APLICACAO":
+        if "DEFENS" in subtipo_norm or "DEFENS" in descricao_norm:
+            tipo_evento = "PULVERIZACAO"
+        else:
+            tipo_evento = "APLICACAO"
+    elif tipo_norm in {"MONITORAMENTO", "MONITORAMENTO_PRAGA"}:
+        tipo_evento = "MONITORAMENTO"
+    elif tipo_norm in {"AMOSTRAGEM_SOLO", "PREPARO_SOLO", "SOLO"}:
+        tipo_evento = "SOLO"
+    elif tipo_norm in {"INSPECAO", "INSPECAO_EQUIPAMENTO"}:
+        tipo_evento = "INSPECAO"
+    elif tipo_norm in {"ABASTECIMENTO", "ABASTECIMENTO_MAQUINA"}:
+        tipo_evento = "ABASTECIMENTO"
+    elif tipo_norm in {"MANUTENCAO", "MANUTENCAO_OCORRENCIA"}:
+        tipo_evento = "MANUTENCAO"
+    else:
+        tipo_evento = "EXECUCAO_OPERACIONAL"
+
+    return {
+        "tipo": tipo_evento,
+        "tipo_evento": tipo_evento,
+        "descricao": mapear_descricao_operacao_para_caderno(operacao),
+        "data_registro": operacao.data_realizada,
+        "origem_evento": ORIGEM_EVENTO_OPERACAO,
+        "origem_id": str(operacao.id),
+        "origem_tecnica": ORIGEM_TECNICA_OPERACAO,
+        "status_evento": STATUS_EVENTO_PADRAO,
+        "nivel_severidade": None,
+        "recomendacao": None,
+        "numero_receituario": None,
+        "operacao_id": operacao.id,
+    }
+
+
+def mapear_descricao_operacao_para_caderno(operacao: OperacaoAgricola) -> str:
+    descricao = operacao.tipo
+    if operacao.subtipo:
+        descricao += f" / {operacao.subtipo}"
+    if operacao.area_aplicada_ha:
+        descricao += f"\nÁrea: {operacao.area_aplicada_ha} ha"
+    if operacao.custo_total:
+        descricao += f"\nCusto: R$ {operacao.custo_total:.2f}"
+    return descricao
 
 
 class CadernoCampoService(BaseService[CadernoCampoEntrada]):
-    def __init__(self, session: AsyncSession, tenant_id: UUID):
-        super().__init__(CadernoCampoEntrada, session, tenant_id)
+    def __init__(self, session: AsyncSession, tenant_id: UUID, user_id: UUID | None = None, ip_address: str | None = None):
+        super().__init__(CadernoCampoEntrada, session, tenant_id, user_id=user_id, ip_address=ip_address)
+
+    async def obter_por_origem(self, origem_evento: str, origem_id: str) -> CadernoCampoEntrada | None:
+        stmt = select(CadernoCampoEntrada).where(
+            CadernoCampoEntrada.tenant_id == self.tenant_id,
+            CadernoCampoEntrada.origem_evento == origem_evento,
+            CadernoCampoEntrada.origem_id == origem_id,
+        )
+        return (await self.session.execute(stmt)).scalars().first()
+
+    async def _registrar_historico_status(
+        self,
+        entrada: CadernoCampoEntrada,
+        status_anterior: str | None,
+        status_novo: str,
+        justificativa: str | None = None,
+        usuario_id: UUID | None = None,
+    ) -> CadernoEventoStatusHistorico:
+        historico = CadernoEventoStatusHistorico(
+            tenant_id=self.tenant_id,
+            caderno_entrada_id=entrada.id,
+            status_anterior=status_anterior,
+            status_novo=status_novo,
+            usuario_id=usuario_id or self.user_id,
+            justificativa=justificativa,
+        )
+        self.session.add(historico)
+        await self.session.flush()
+        return historico
+
+    @staticmethod
+    def _entrada_foi_retificada(entrada: CadernoCampoEntrada) -> bool:
+        return bool(entrada.retificado_por_evento_id)
+
+    @staticmethod
+    def _entrada_eh_retificadora(entrada: CadernoCampoEntrada) -> bool:
+        return bool(entrada.retifica_evento_id)
+
+    @staticmethod
+    def _entrada_eh_vigente(entrada: CadernoCampoEntrada) -> bool:
+        return (
+            not entrada.excluida
+            and not entrada.retificado_por_evento_id
+            and _normalizar_chave(entrada.status_evento) in {"APROVADO", "CONSOLIDADO"}
+        )
+
+    def _aplicar_dados_corrigidos(
+        self,
+        origem: CadernoCampoEntrada,
+        dados_corrigidos: dict[str, Any],
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "safra_id": origem.safra_id,
+            "talhao_id": origem.talhao_id,
+            "tipo": origem.tipo,
+            "tipo_evento": origem.tipo_evento,
+            "descricao": origem.descricao,
+            "data_registro": origem.data_registro,
+            "origem_evento": ORIGEM_EVENTO_MANUAL if origem.origem_evento != ORIGEM_EVENTO_OPERACAO else origem.origem_evento,
+            "origem_id": str(uuid.uuid4()),
+            "origem_tecnica": ORIGEM_TECNICA_MANUAL if origem.origem_evento != ORIGEM_EVENTO_OPERACAO else origem.origem_tecnica,
+            "status_evento": "PENDENTE_APROVACAO",
+            "nivel_severidade": origem.nivel_severidade,
+            "recomendacao": origem.recomendacao,
+            "numero_receituario": origem.numero_receituario,
+            "digitalizacao_retroativa": origem.digitalizacao_retroativa,
+            "justificativa_retroativa": origem.justificativa_retroativa,
+        }
+
+        for campo, valor in dados_corrigidos.items():
+            campo_norm = _normalizar_chave(campo).lower()
+            if campo_norm not in CAMPOS_CORRIGIVEIS_CADERNO:
+                continue
+            if campo_norm == "tipo_evento" and valor is not None:
+                valor = _validar_tipo_evento(str(valor))
+            elif campo_norm == "status_evento" and valor is not None:
+                valor = _validar_domino(str(valor), STATUS_EVENTO_VALIDOS, "status_evento", "PENDENTE_APROVACAO")
+            elif campo_norm == "data_registro" and valor is not None and isinstance(valor, str):
+                valor = date.fromisoformat(valor)
+            payload[campo_norm] = valor
+
+        if payload["tipo_evento"] is None:
+            payload["tipo_evento"] = origem.tipo_evento or _mapear_tipo_evento_legado(origem.tipo)
+        payload["tipo"] = payload["tipo_evento"]
+        if not payload.get("descricao"):
+            payload["descricao"] = origem.descricao
+        if payload.get("status_evento") not in {"PENDENTE_APROVACAO", "RASCUNHO", "PENDENTE_SINCRONIZACAO", "SINCRONIZADO"}:
+            payload["status_evento"] = "PENDENTE_APROVACAO"
+        return payload
+
+    def _status_inicial_padrao(self, tipo_evento: str, origem_evento: str, digitalizacao_retroativa: bool) -> str:
+        if origem_evento == ORIGEM_EVENTO_OPERACAO:
+            return "CONSOLIDADO"
+        if origem_evento == "PWA_OFFLINE":
+            return "PENDENTE_SINCRONIZACAO"
+        if _exige_aprovacao_por_contexto(
+            tipo_evento=tipo_evento,
+            origem_evento=origem_evento,
+            digitalizacao_retroativa=digitalizacao_retroativa,
+        ):
+            return "PENDENTE_APROVACAO"
+        return STATUS_EVENTO_PADRAO
 
     def _validar_edicao_retroativa(self, data_registro: date, justificativa: str | None) -> None:
         limite = datetime.utcnow() - timedelta(hours=JANELA_EDICAO_HORAS)
@@ -40,18 +473,101 @@ class CadernoCampoService(BaseService[CadernoCampoEntrada]):
                     f"Registros com mais de {JANELA_EDICAO_HORAS}h exigem justificativa de digitalização retroativa."
                 )
 
+    def _resolver_tipo_evento(self, dados: EntradaCreate) -> str:
+        if dados.tipo_evento:
+            return _validar_tipo_evento(dados.tipo_evento)
+        tipo_normalizado = _normalizar_chave(dados.tipo)
+        if tipo_normalizado in TIPOS_EVENTO_VALIDOS:
+            return tipo_normalizado
+        if tipo_normalizado in TIPOS_LEGACY_PARA_EVENTO:
+            return TIPOS_LEGACY_PARA_EVENTO[tipo_normalizado]
+        raise BusinessRuleError(f"Tipo de evento inválido: {dados.tipo}")
+
+    def _resolver_origem_evento(self, dados: EntradaCreate) -> str:
+        return _validar_domino(dados.origem_evento, ORIGEM_EVENTO_VALIDAS, "origem_evento", ORIGEM_EVENTO_MANUAL)
+
+    def _resolver_origem_tecnica(self, dados: EntradaCreate) -> str:
+        if dados.origem_tecnica:
+            return _validar_domino(dados.origem_tecnica, ORIGEM_TECNICA_VALIDAS, "origem_tecnica")
+        if self._resolver_origem_evento(dados) == ORIGEM_EVENTO_OPERACAO:
+            return ORIGEM_TECNICA_OPERACAO
+        return ORIGEM_TECNICA_MANUAL
+
+    async def garantir_evento_operacao(self, operacao: OperacaoAgricola) -> CadernoCampoEntrada:
+        existente = await self.obter_por_origem(ORIGEM_EVENTO_OPERACAO, str(operacao.id))
+        if existente:
+            return existente
+
+        payload = mapear_operacao_para_evento_caderno(operacao)
+        entrada = CadernoCampoEntrada(
+            tenant_id=self.tenant_id,
+            safra_id=operacao.safra_id,
+            talhao_id=operacao.talhao_id,
+            tipo=payload["tipo"],
+            tipo_evento=payload["tipo_evento"],
+            descricao=payload["descricao"],
+            data_registro=payload["data_registro"],
+            usuario_id=UUID("00000000-0000-0000-0000-000000000000"),
+            operacao_id=operacao.id,
+            origem_evento=payload["origem_evento"],
+            origem_id=payload["origem_id"],
+            origem_tecnica=payload["origem_tecnica"],
+            status_evento=payload["status_evento"],
+        )
+        self.session.add(entrada)
+        await self.session.flush()
+        await self._registrar_historico_status(
+            entrada,
+            status_anterior=None,
+            status_novo=entrada.status_evento,
+            usuario_id=operacao.operador_id,
+        )
+        return entrada
+
     async def criar_entrada(self, dados: EntradaCreate, usuario_id: UUID, ip: str | None = None) -> CadernoCampoEntrada:
         if dados.digitalizacao_retroativa:
             self._validar_edicao_retroativa(dados.data_registro, dados.justificativa_retroativa)
+
+        tipo_evento = self._resolver_tipo_evento(dados)
+        origem_evento = self._resolver_origem_evento(dados)
+        origem_tecnica = self._resolver_origem_tecnica(dados)
+        origem_id = dados.origem_id or str(uuid.uuid4())
+        status_evento = _validar_domino(dados.status_evento, STATUS_EVENTO_VALIDOS, "status_evento", self._status_inicial_padrao(
+            tipo_evento,
+            origem_evento,
+            dados.digitalizacao_retroativa,
+        ))
+        status_evento = validar_transicao_status_evento(
+            None,
+            status_evento,
+            {
+                "tipo_evento": tipo_evento,
+                "origem_evento": origem_evento,
+                "digitalizacao_retroativa": dados.digitalizacao_retroativa,
+                "tem_evidencias": False,
+                "usuario_role": "SYSTEM",
+                "is_system": True,
+            },
+        )
+
+        if dados.origem_evento and dados.origem_id:
+            existente = await self.obter_por_origem(origem_evento, origem_id)
+            if existente:
+                return existente
 
         entrada = CadernoCampoEntrada(
             tenant_id=self.tenant_id,
             safra_id=dados.safra_id,
             talhao_id=dados.talhao_id,
-            tipo=dados.tipo,
+            tipo=tipo_evento,
+            tipo_evento=tipo_evento,
             descricao=dados.descricao,
             data_registro=dados.data_registro,
             usuario_id=usuario_id,
+            origem_evento=origem_evento,
+            origem_id=origem_id,
+            origem_tecnica=origem_tecnica,
+            status_evento=status_evento,
             nivel_severidade=dados.nivel_severidade,
             recomendacao=dados.recomendacao,
             numero_receituario=dados.numero_receituario,
@@ -61,13 +577,184 @@ class CadernoCampoService(BaseService[CadernoCampoEntrada]):
         )
         self.session.add(entrada)
         await self.session.flush()
+        await self._registrar_historico_status(
+            entrada,
+            status_anterior=None,
+            status_novo=entrada.status_evento,
+            justificativa=dados.justificativa_retroativa,
+            usuario_id=usuario_id,
+        )
         return entrada
+
+    async def reprocessar_entrada(
+        self,
+        entrada_id: UUID,
+        *,
+        motivo: str,
+        dados_corrigidos: dict[str, Any],
+        usuario_id: UUID,
+        usuario_role: str | None = None,
+        ip: str | None = None,
+    ) -> CadernoCampoEntrada:
+        origem = await self.get_or_fail(entrada_id)
+        usuario_role_norm = _normalizar_chave(usuario_role)
+        if origem.retificado_por_evento_id:
+            raise BusinessRuleError("Este evento já foi retificado. Use a versão vigente para nova correção.")
+
+        if _normalizar_chave(origem.status_evento) == "CONSOLIDADO" and usuario_role_norm not in {"ADMIN", "AGRONOMO", "GERENTE", "OWNER"}:
+            raise BusinessRuleError("Evento consolidado exige permissão superior para retificação.")
+
+        payload = self._aplicar_dados_corrigidos(origem, dados_corrigidos)
+        if origem.tipo_evento in TIPOS_EVENTO_QUE_EXIGEM_APROVACAO or origem.origem_evento == "PWA_OFFLINE":
+            payload["status_evento"] = "PENDENTE_APROVACAO"
+        elif _normalizar_chave(origem.status_evento) in {"REJEITADO", "CANCELADO"}:
+            payload["status_evento"] = "PENDENTE_APROVACAO"
+
+        if payload["status_evento"] not in STATUS_EVENTO_VALIDOS:
+            payload["status_evento"] = "PENDENTE_APROVACAO"
+
+        nova_entrada = CadernoCampoEntrada(
+            tenant_id=self.tenant_id,
+            safra_id=payload["safra_id"],
+            talhao_id=payload["talhao_id"],
+            tipo=payload["tipo"],
+            tipo_evento=payload["tipo_evento"],
+            descricao=payload["descricao"],
+            data_registro=payload["data_registro"],
+            usuario_id=usuario_id,
+            operacao_id=origem.operacao_id,
+            origem_evento=payload["origem_evento"],
+            origem_id=payload["origem_id"],
+            origem_tecnica=payload["origem_tecnica"],
+            status_evento=payload["status_evento"],
+            nivel_severidade=payload["nivel_severidade"],
+            recomendacao=payload["recomendacao"],
+            numero_receituario=payload["numero_receituario"],
+            digitalizacao_retroativa=payload["digitalizacao_retroativa"],
+            justificativa_retroativa=payload["justificativa_retroativa"],
+            ip_dispositivo=ip,
+            retifica_evento_id=origem.id,
+            motivo_retificacao=motivo,
+        )
+        self.session.add(nova_entrada)
+        await self.session.flush()
+
+        payload_before = _serialize(origem)
+        origem.retificado_por_evento_id = nova_entrada.id
+        origem.retificado_em = datetime.utcnow()
+        origem.retificado_por_usuario_id = usuario_id
+        origem.motivo_retificacao = motivo
+        self.session.add(origem)
+        await self.session.flush()
+
+        await write_audit_log(
+            self.session,
+            tenant_id=self.tenant_id,
+            user_id=usuario_id,
+            action="retify",
+            resource="caderno_campo_entradas",
+            resource_id=origem.id,
+            payload_before=payload_before,
+            payload_after=_serialize(origem),
+            ip_address=ip,
+        )
+
+        await self._registrar_historico_status(
+            nova_entrada,
+            status_anterior=None,
+            status_novo=nova_entrada.status_evento,
+            justificativa=motivo,
+            usuario_id=usuario_id,
+        )
+
+        await write_audit_log(
+            self.session,
+            tenant_id=self.tenant_id,
+            user_id=usuario_id,
+            action="reprocess",
+            resource="caderno_campo_entradas",
+            resource_id=nova_entrada.id,
+            payload_before=payload_before,
+            payload_after=_serialize(nova_entrada),
+            ip_address=ip,
+        )
+        return nova_entrada
+
+    async def update(self, id: Any, obj_in: Any) -> CadernoCampoEntrada:
+        entrada = await self.get_or_fail(id)
+        if _normalizar_chave(entrada.status_evento) == "CONSOLIDADO" or entrada.retificado_por_evento_id:
+            raise BusinessRuleError("Eventos consolidados ou já retificados devem ser corrigidos via reprocessamento.")
+        return await super().update(id, obj_in)
 
     async def soft_delete(self, entrada_id: UUID, motivo: str) -> CadernoCampoEntrada:
         entrada = await self.get_or_fail(entrada_id)
+        status_anterior = entrada.status_evento
         entrada.excluida = True
         entrada.motivo_exclusao = motivo
+        if entrada.status_evento not in {"CANCELADO", "REJEITADO"}:
+            entrada.status_evento = "CANCELADO"
         await self.session.flush()
+        if entrada.status_evento != status_anterior:
+            await self._registrar_historico_status(
+                entrada,
+                status_anterior=status_anterior,
+                status_novo=entrada.status_evento,
+                justificativa=motivo,
+            )
+        return entrada
+
+    async def alterar_status_evento(
+        self,
+        entrada_id: UUID,
+        *,
+        novo_status: StatusEventoCaderno,
+        justificativa: str | None,
+        usuario_id: UUID,
+        usuario_role: str | None = None,
+        ip: str | None = None,
+    ) -> CadernoCampoEntrada:
+        entrada = await self.get_or_fail(entrada_id)
+        status_anterior = entrada.status_evento
+        status_normalizado = validar_transicao_status_evento(
+            status_anterior,
+            novo_status,
+            {
+                "tipo_evento": entrada.tipo_evento or entrada.tipo,
+                "origem_evento": entrada.origem_evento or ORIGEM_EVENTO_MANUAL,
+                "digitalizacao_retroativa": entrada.digitalizacao_retroativa,
+                "tem_evidencias": bool(entrada.fotos),
+                "usuario_role": usuario_role,
+                "justificativa": justificativa,
+                "is_system": False,
+            },
+        )
+        if status_normalizado == status_anterior:
+            return entrada
+
+        payload_before = _serialize(entrada)
+        entrada.status_evento = status_normalizado
+        self.session.add(entrada)
+        await self.session.flush()
+
+        await self._registrar_historico_status(
+            entrada,
+            status_anterior=status_anterior,
+            status_novo=status_normalizado,
+            justificativa=justificativa,
+            usuario_id=usuario_id,
+        )
+
+        await write_audit_log(
+            self.session,
+            tenant_id=self.tenant_id,
+            user_id=usuario_id,
+            action="update_status",
+            resource="caderno_campo_entradas",
+            resource_id=entrada.id,
+            payload_before=payload_before,
+            payload_after=_serialize(entrada),
+            ip_address=ip,
+        )
         return entrada
 
     async def adicionar_foto(
@@ -109,7 +796,10 @@ class CadernoCampoService(BaseService[CadernoCampoEntrada]):
         if talhao_id:
             stmt = stmt.where(CadernoCampoEntrada.talhao_id == talhao_id)
         if tipo:
-            stmt = stmt.where(CadernoCampoEntrada.tipo == tipo)
+            tipo_evento = _mapear_tipo_evento_legado(tipo)
+            stmt = stmt.where(
+                (CadernoCampoEntrada.tipo == tipo_evento) | (CadernoCampoEntrada.tipo_evento == tipo_evento)
+            )
         if data_inicio:
             stmt = stmt.where(CadernoCampoEntrada.data_registro >= data_inicio)
         if data_fim:
@@ -141,33 +831,68 @@ class CadernoCampoService(BaseService[CadernoCampoEntrada]):
         items: list[TimelineItem] = []
 
         for e in entradas:
+            tipo_evento = e.tipo_evento or _mapear_tipo_evento_legado(e.tipo)
+            status_flags = _status_flags(e.status_evento)
+            versao_vigente = self._entrada_eh_vigente(e)
             items.append(TimelineItem(
                 id=e.id,
-                tipo=e.tipo,
+                tipo=tipo_evento,
+                tipo_evento=tipo_evento,
+                subtipo=e.tipo if e.tipo != tipo_evento else None,
                 descricao=e.descricao,
                 data_registro=e.data_registro,
                 talhao_id=e.talhao_id,
+                status_evento=e.status_evento,
+                status_evento_atualizado_em=e.updated_at,
+                pendente_aprovacao=status_flags["pendente_aprovacao"],
+                aprovado=status_flags["aprovado"],
+                consolidado=status_flags["consolidado"],
+                rejeitado=status_flags["rejeitado"],
                 nivel_severidade=e.nivel_severidade,
                 fotos_count=len(e.fotos),
                 excluida=e.excluida,
                 origem="caderno",
+                origem_evento=e.origem_evento,
+                origem_id=e.origem_id,
+                origem_tecnica=e.origem_tecnica,
+                retifica_evento_id=e.retifica_evento_id,
+                retificado_por_evento_id=e.retificado_por_evento_id,
+                motivo_retificacao=e.motivo_retificacao,
+                retificado_em=e.retificado_em,
+                retificado_por_usuario_id=e.retificado_por_usuario_id,
+                versao_vigente=versao_vigente,
+                retificado=self._entrada_foi_retificada(e),
+                retificador=self._entrada_eh_retificadora(e),
             ))
 
         for op in operacoes:
             if op.id in op_ids_vinculados:
                 continue
-            if tipo and tipo != "OPERACAO_AUTO":
+            tipo_evento_op = mapear_operacao_para_evento_caderno(op)["tipo_evento"]
+            if tipo and _mapear_tipo_evento_legado(tipo) != tipo_evento_op:
                 continue
+            status_flags = _status_flags(STATUS_EVENTO_PADRAO)
             items.append(TimelineItem(
                 id=op.id,
-                tipo="OPERACAO_AUTO",
+                tipo=tipo_evento_op,
+                tipo_evento=tipo_evento_op,
                 subtipo=op.tipo,
                 descricao=op.descricao,
                 data_registro=op.data_realizada,
                 talhao_id=op.talhao_id,
+                status_evento=STATUS_EVENTO_PADRAO,
+                status_evento_atualizado_em=op.updated_at,
+                pendente_aprovacao=status_flags["pendente_aprovacao"],
+                aprovado=status_flags["aprovado"],
+                consolidado=status_flags["consolidado"],
+                rejeitado=status_flags["rejeitado"],
                 fotos_count=len(op.fotos) if op.fotos else 0,
                 excluida=False,
                 origem="operacao",
+                origem_evento=ORIGEM_EVENTO_OPERACAO,
+                origem_id=str(op.id),
+                origem_tecnica=ORIGEM_TECNICA_OPERACAO,
+                versao_vigente=True,
             ))
 
         # Ordena tudo por data desc
@@ -291,9 +1016,253 @@ class CadernoExportacaoService(BaseService[CadernoExportacao]):
     def __init__(self, session: AsyncSession, tenant_id: UUID):
         super().__init__(CadernoExportacao, session, tenant_id)
 
+    async def _listar_eventos_documentais(
+        self,
+        safra_id: UUID,
+        talhao_id: UUID | None,
+        modo_exportacao: str,
+    ) -> list[CadernoCampoEntrada]:
+        stmt = (
+            select(CadernoCampoEntrada)
+            .where(
+                CadernoCampoEntrada.tenant_id == self.tenant_id,
+                CadernoCampoEntrada.safra_id == safra_id,
+            )
+            .options(selectinload(CadernoCampoEntrada.fotos), selectinload(CadernoCampoEntrada.status_historico))
+            .order_by(CadernoCampoEntrada.data_registro.desc(), CadernoCampoEntrada.created_at.desc())
+        )
+        if talhao_id:
+            stmt = stmt.where(CadernoCampoEntrada.talhao_id == talhao_id)
+        if modo_exportacao == "OFICIAL":
+            stmt = stmt.where(CadernoCampoEntrada.excluida == False)
+            stmt = stmt.where(CadernoCampoEntrada.status_evento.in_(["APROVADO", "CONSOLIDADO"]))
+            stmt = stmt.where(CadernoCampoEntrada.retificado_por_evento_id.is_(None))
+        else:
+            stmt = stmt.where(CadernoCampoEntrada.status_evento.in_(list(STATUS_EVENTO_VALIDOS)))
+
+        return list((await self.session.execute(stmt)).scalars().all())
+
+    async def _listar_visitas_e_epis_documentais(
+        self,
+        safra_id: UUID,
+        talhao_id: UUID | None,
+    ) -> tuple[list[VisitaTecnica], list[EPIEntrega]]:
+        visitas_stmt = select(VisitaTecnica).where(
+            VisitaTecnica.tenant_id == self.tenant_id,
+            VisitaTecnica.safra_id == safra_id,
+        ).order_by(VisitaTecnica.data_visita.desc(), VisitaTecnica.created_at.desc())
+        if talhao_id:
+            visitas_stmt = visitas_stmt.where(VisitaTecnica.talhao_id == talhao_id)
+        visitas = list((await self.session.execute(visitas_stmt)).scalars().all())
+
+        epi_stmt = select(EPIEntrega).where(
+            EPIEntrega.tenant_id == self.tenant_id,
+        ).order_by(EPIEntrega.data_entrega.desc(), EPIEntrega.created_at.desc())
+        epis = list((await self.session.execute(epi_stmt)).scalars().all())
+        return visitas, epis
+
+    async def _listar_historico_status_documental(self, entrada_ids: list[UUID]) -> list[CadernoEventoStatusHistorico]:
+        if not entrada_ids:
+            return []
+        stmt = (
+            select(CadernoEventoStatusHistorico)
+            .where(
+                CadernoEventoStatusHistorico.tenant_id == self.tenant_id,
+                CadernoEventoStatusHistorico.caderno_entrada_id.in_(entrada_ids),
+            )
+            .order_by(CadernoEventoStatusHistorico.created_at.asc())
+        )
+        return list((await self.session.execute(stmt)).scalars().all())
+
+    def _snapshot_documental(
+        self,
+        *,
+        safra,
+        entradas: list[CadernoCampoEntrada],
+        visitas: list[VisitaTecnica],
+        epis: list[EPIEntrega],
+        historico_status: list[CadernoEventoStatusHistorico],
+        modelo: str,
+        modo_exportacao: str,
+        responsavel_tecnico_id: UUID | None = None,
+        responsavel_tecnico_nome: str | None = None,
+        responsavel_tecnico_crea: str | None = None,
+        observacao_assinatura: str | None = None,
+    ) -> dict[str, Any]:
+        def _foto_payload(foto: CadernoCampoFoto) -> dict[str, Any]:
+            return {
+                "id": str(foto.id),
+                "url": foto.url,
+                "latitude": float(foto.latitude) if foto.latitude is not None else None,
+                "longitude": float(foto.longitude) if foto.longitude is not None else None,
+                "data_captura": foto.data_captura.isoformat() if foto.data_captura else None,
+            }
+
+        def _entrada_payload(entrada: CadernoCampoEntrada) -> dict[str, Any]:
+            return {
+                "id": str(entrada.id),
+                "tipo": entrada.tipo,
+                "tipo_evento": entrada.tipo_evento,
+                "descricao": entrada.descricao,
+                "data_registro": entrada.data_registro.isoformat(),
+                "talhao_id": str(entrada.talhao_id),
+                "status_evento": entrada.status_evento,
+                "origem_evento": entrada.origem_evento,
+                "origem_id": entrada.origem_id,
+                "origem_tecnica": entrada.origem_tecnica,
+                "nivel_severidade": entrada.nivel_severidade,
+                "numero_receituario": entrada.numero_receituario,
+                "excluida": entrada.excluida,
+                "retifica_evento_id": str(entrada.retifica_evento_id) if entrada.retifica_evento_id else None,
+                "retificado_por_evento_id": str(entrada.retificado_por_evento_id) if entrada.retificado_por_evento_id else None,
+                "motivo_retificacao": entrada.motivo_retificacao,
+                "retificado_em": entrada.retificado_em.isoformat() if entrada.retificado_em else None,
+                "retificado_por_usuario_id": str(entrada.retificado_por_usuario_id) if entrada.retificado_por_usuario_id else None,
+                "versao_vigente": (
+                    not entrada.excluida
+                    and not entrada.retificado_por_evento_id
+                    and _normalizar_chave(entrada.status_evento) in {"APROVADO", "CONSOLIDADO"}
+                ),
+                "fotos": [_foto_payload(f) for f in entrada.fotos],
+                "status_historico": [
+                    {
+                        "status_anterior": h.status_anterior,
+                        "status_novo": h.status_novo,
+                        "usuario_id": str(h.usuario_id) if h.usuario_id else None,
+                        "justificativa": h.justificativa,
+                        "created_at": h.created_at.isoformat() if h.created_at else None,
+                    }
+                    for h in entrada.status_historico
+                ],
+            }
+
+        return {
+            "safra": {
+                "id": str(safra.id),
+                "ano_safra": safra.ano_safra,
+                "cultura": safra.cultura,
+                "status": safra.status,
+            },
+            "talhao_id": str(entradas[0].talhao_id) if entradas else None,
+            "modelo": modelo,
+            "modo_exportacao": modo_exportacao,
+            "eventos": [_entrada_payload(e) for e in entradas],
+            "visitas_tecnicas": [
+                {
+                    "id": str(v.id),
+                    "talhao_id": str(v.talhao_id),
+                    "data_visita": v.data_visita.isoformat(),
+                    "nome_rt": v.nome_rt,
+                    "crea": v.crea,
+                    "assinado": v.assinado,
+                    "data_assinatura": v.data_assinatura.isoformat() if v.data_assinatura else None,
+                    "observacoes": v.observacoes,
+                    "recomendacoes": v.recomendacoes,
+                }
+                for v in visitas
+            ],
+            "epi_entregas": [
+                {
+                    "id": str(e.id),
+                    "nome_trabalhador": e.nome_trabalhador,
+                    "epi_tipo": e.epi_tipo,
+                    "quantidade": e.quantidade,
+                    "data_entrega": e.data_entrega.isoformat(),
+                    "validade": e.validade.isoformat() if e.validade else None,
+                    "operacao_id": str(e.operacao_id) if e.operacao_id else None,
+                    "assinatura_url": e.assinatura_url,
+                }
+                for e in epis
+            ],
+            "historico_status": [
+                {
+                    "caderno_entrada_id": str(h.caderno_entrada_id),
+                    "status_anterior": h.status_anterior,
+                    "status_novo": h.status_novo,
+                    "usuario_id": str(h.usuario_id) if h.usuario_id else None,
+                    "justificativa": h.justificativa,
+                    "created_at": h.created_at.isoformat() if h.created_at else None,
+                }
+                for h in historico_status
+            ],
+            "assinatura": {
+                "responsavel_tecnico_id": str(responsavel_tecnico_id) if responsavel_tecnico_id else None,
+                "responsavel_tecnico_nome": responsavel_tecnico_nome,
+                "responsavel_tecnico_crea": responsavel_tecnico_crea,
+                "observacao": observacao_assinatura,
+            },
+        }
+
+    @staticmethod
+    def _hash_documental(snapshot: dict[str, Any]) -> str:
+        payload = json.dumps(snapshot, sort_keys=True, ensure_ascii=False, default=str).encode("utf-8")
+        return hashlib.sha256(payload).hexdigest()
+
+    async def registrar_assinatura(
+        self,
+        exportacao_id: UUID,
+        *,
+        usuario: Usuario,
+        responsavel_tecnico_id: UUID | None = None,
+        responsavel_tecnico_nome: str | None = None,
+        crea_rt: str | None = None,
+        crea_validade: date | None = None,
+        observacao: str | None = None,
+        assinatura_origem: str = "WEB_SESSION",
+        ip_address: str | None = None,
+    ) -> CadernoExportacao:
+        exportacao = await self.get_or_fail(exportacao_id)
+        if responsavel_tecnico_id and responsavel_tecnico_id != usuario.id:
+            raise BusinessRuleError("O responsável técnico informado deve ser o usuário autenticado.")
+
+        nome_rt = usuario.nome_completo or usuario.username or responsavel_tecnico_nome
+        exportacao.responsavel_tecnico_id = usuario.id
+        exportacao.responsavel_tecnico_nome = nome_rt
+        exportacao.responsavel_tecnico_crea = crea_rt or exportacao.responsavel_tecnico_crea
+        exportacao.assinado_por = nome_rt
+        exportacao.crea_rt = crea_rt or exportacao.crea_rt
+        exportacao.crea_validade = crea_validade or exportacao.crea_validade
+        exportacao.assinado_em = datetime.utcnow()
+        exportacao.assinatura_origem = assinatura_origem
+        exportacao.observacao_assinatura = observacao
+        if exportacao.hash_documental is None:
+            exportacao.hash_documental = self._hash_documental({
+                "exportacao_id": str(exportacao.id),
+                "safra_id": str(exportacao.safra_id),
+                "modo_exportacao": exportacao.modo_exportacao,
+                "modelo_certificacao": exportacao.modelo_certificacao,
+                "assinatura": {
+                    "responsavel_tecnico_id": str(usuario.id),
+                    "responsavel_tecnico_nome": nome_rt,
+                    "responsavel_tecnico_crea": exportacao.responsavel_tecnico_crea,
+                    "observacao": observacao,
+                    "assinatura_origem": assinatura_origem,
+                },
+            })
+        exportacao.assinatura_hash = exportacao.hash_documental
+
+        payload_before = _serialize(exportacao)
+        await self.session.flush()
+        await write_audit_log(
+            self.session,
+            tenant_id=self.tenant_id,
+            user_id=usuario.id,
+            action="sign",
+            resource="caderno_exportacoes",
+            resource_id=exportacao.id,
+            payload_before=payload_before,
+            payload_after=_serialize(exportacao),
+            ip_address=ip_address,
+        )
+        await self.session.flush()
+        return exportacao
+
     async def gerar(self, dados: ExportacaoCreate) -> CadernoExportacao:
         # Normaliza modelo: aceita "padrao", "globalgap", "organico", "mapa"
         modelo = dados.modelo
+        modo_exportacao = _normalizar_chave(dados.modo_exportacao or "OFICIAL")
+        if modo_exportacao not in {"OFICIAL", "AUDITORIA"}:
+            raise BusinessRuleError("Modo de exportação inválido.")
         # Suporte legado: se modelo_certificacao foi passado, mapeia
         if dados.modelo_certificacao:
             legado_map = {
@@ -311,13 +1280,24 @@ class CadernoExportacaoService(BaseService[CadernoExportacao]):
         if not safra:
             raise EntityNotFoundError("Safra", dados.safra_id)
 
-        # 2. Busca entradas do caderno
-        caderno_svc = CadernoCampoService(self.session, self.tenant_id)
-        entradas = await caderno_svc.timeline(
-            dados.safra_id,
-            talhao_id=dados.talhao_id,
-            incluir_excluidas=False,
+        # 2. Busca dados documentais do caderno
+        entradas = await self._listar_eventos_documentais(dados.safra_id, dados.talhao_id, modo_exportacao)
+        visitas, epis = await self._listar_visitas_e_epis_documentais(dados.safra_id, dados.talhao_id)
+        historico_status = await self._listar_historico_status_documental([e.id for e in entradas]) if modo_exportacao == "AUDITORIA" else []
+        snapshot = self._snapshot_documental(
+            safra=safra,
+            entradas=entradas,
+            visitas=visitas,
+            epis=epis,
+            historico_status=historico_status,
+            modelo=modelo,
+            modo_exportacao=modo_exportacao,
+            responsavel_tecnico_id=None,
+            responsavel_tecnico_nome=dados.assinado_por,
+            responsavel_tecnico_crea=dados.crea_rt,
+            observacao_assinatura=None,
         )
+        hash_documental = self._hash_documental(snapshot)
 
         # 3. Busca nome da fazenda e talhões
         from core.cadastros.propriedades.models import AreaRural
@@ -396,6 +1376,16 @@ class CadernoExportacaoService(BaseService[CadernoExportacao]):
 
         story = []
 
+        def _retificacao_texto(entrada: CadernoCampoEntrada) -> str:
+            partes: list[str] = []
+            if entrada.retifica_evento_id:
+                partes.append(f"Retifica evento: {str(entrada.retifica_evento_id)}")
+            if entrada.retificado_por_evento_id:
+                partes.append(f"Retificado por: {str(entrada.retificado_por_evento_id)}")
+            if entrada.motivo_retificacao:
+                partes.append(f"Motivo da retificação: {entrada.motivo_retificacao}")
+            return " | ".join(partes)
+
         # ═══════════════════════════════════════════════════════
         # LAYOUT POR MODELO
         # ═══════════════════════════════════════════════════════
@@ -456,6 +1446,14 @@ class CadernoExportacaoService(BaseService[CadernoExportacao]):
                 Paragraph("<b>Responsável:</b>", styles["SmallBold"]),
                 Paragraph(f"{dados.assinado_por} — CREA {dados.crea_rt or 'N/I'}", styles["BodyText2"]),
             ])
+        info_data.append([
+            Paragraph("<b>Modo de Exportação:</b>", styles["SmallBold"]),
+            Paragraph(modo_exportacao, styles["BodyText2"]),
+        ])
+        info_data.append([
+            Paragraph("<b>Hash Documental:</b>", styles["SmallBold"]),
+            Paragraph(hash_documental[:16] + "…", styles["BodyText2"]),
+        ])
 
         info_table = Table(info_data, colWidths=[4.5*cm, 10*cm])
         info_table.setStyle(TableStyle([
@@ -483,9 +1481,13 @@ class CadernoExportacaoService(BaseService[CadernoExportacao]):
                     op = (await self.session.execute(op_stmt)).scalar_one_or_none()
                     if op and op.insumos:
                         for ins in op.insumos:
+                            retificacao_info = _retificacao_texto(e)
+                            talhao_label = getattr(ins, "produto_nome", None) or str(ins.produto_id)
+                            if retificacao_info:
+                                talhao_label = f"{talhao_label}<br/>{retificacao_info}"
                             insumos_rows.append([
                                 Paragraph(e.data_registro.strftime("%d/%m/%Y"), styles["TableCell"]),
-                                Paragraph(getattr(ins, "produto_nome", None) or str(ins.produto_id), styles["TableCell"]),
+                                Paragraph(talhao_label, styles["TableCell"]),
                                 Paragraph(f"{ins.dose_por_ha or ''} {ins.unidade or ''}/ha", styles["TableCell"]),
                                 Paragraph(str(getattr(ins, "registro_mapa", "N/A")), styles["TableCell"]),
                             ])
@@ -494,10 +1496,12 @@ class CadernoExportacaoService(BaseService[CadernoExportacao]):
                 # Fallback: mostra entradas com dados básicos
                 for e in entradas:
                     talhao_nome = talhoes_map.get(str(e.talhao_id), f"Talhão {str(e.talhao_id)[:8]}")
+                    retificacao_info = _retificacao_texto(e)
+                    talhao_label = talhao_nome if not retificacao_info else f"{talhao_nome}<br/>{retificacao_info}"
                     insumos_rows.append([
                         Paragraph(e.data_registro.strftime("%d/%m/%Y") if hasattr(e.data_registro, 'strftime') else str(e.data_registro), styles["TableCell"]),
-                        Paragraph(talhao_nome, styles["TableCell"]),
-                        Paragraph(e.tipo, styles["TableCell"]),
+                        Paragraph(talhao_label, styles["TableCell"]),
+                        Paragraph(e.tipo_evento or e.tipo, styles["TableCell"]),
                         Paragraph("—", styles["TableCell"]),
                     ])
 
@@ -543,10 +1547,13 @@ class CadernoExportacaoService(BaseService[CadernoExportacao]):
             for e in entradas:
                 talhao_nome = talhoes_map.get(str(e.talhao_id), f"Talhão {str(e.talhao_id)[:8]}")
                 desc = (e.descricao or "")[:80]
+                retificacao_info = _retificacao_texto(e)
+                if retificacao_info:
+                    desc = f"{desc}<br/>{retificacao_info}"
                 organico_rows.append([
                     Paragraph(e.data_registro.strftime("%d/%m/%Y") if hasattr(e.data_registro, 'strftime') else str(e.data_registro), styles["TableCell"]),
                     Paragraph(talhao_nome, styles["TableCell"]),
-                    Paragraph(e.tipo, styles["TableCell"]),
+                    Paragraph(e.tipo_evento or e.tipo, styles["TableCell"]),
                     Paragraph(desc, styles["TableCell"]),
                     Paragraph("✓ Livre de agroquímicos", styles["TableCell"]),
                 ])
@@ -593,6 +1600,7 @@ class CadernoExportacaoService(BaseService[CadernoExportacao]):
                 # Busca operação para dose
                 dose_info = "—"
                 intervalo = "—"
+                retificacao_info = _retificacao_texto(e)
                 if hasattr(e, 'operacao_id') and e.operacao_id:
                     op_stmt = select(OperacaoAgricola).where(OperacaoAgricola.id == e.operacao_id)
                     op = (await self.session.execute(op_stmt)).scalar_one_or_none()
@@ -606,8 +1614,8 @@ class CadernoExportacaoService(BaseService[CadernoExportacao]):
                 mapa_rows.append([
                     Paragraph(e.data_registro.strftime("%d/%m/%Y") if hasattr(e.data_registro, 'strftime') else str(e.data_registro), styles["TableCell"]),
                     Paragraph(talhao_nome, styles["TableCell"]),
-                    Paragraph(e.tipo, styles["TableCell"]),
-                    Paragraph(dose_info, styles["TableCell"]),
+                    Paragraph(e.tipo_evento or e.tipo, styles["TableCell"]),
+                    Paragraph(f"{dose_info}<br/>{retificacao_info}" if retificacao_info else dose_info, styles["TableCell"]),
                     Paragraph(intervalo, styles["TableCell"]),
                     Paragraph(receituario or "—", styles["TableCell"]),
                 ])
@@ -648,28 +1656,33 @@ class CadernoExportacaoService(BaseService[CadernoExportacao]):
                 story.append(HRFlowable(width="100%", thickness=0.5, color=HexColor("#ccc"), spaceAfter=6))
 
                 for item in items:
+                    tipo_evento_item = (item.tipo_evento if hasattr(item, "tipo_evento") else item.get("tipo_evento", None)) or (
+                        item.tipo if hasattr(item, "tipo") else item.get("tipo", "")
+                    )
                     tipo_label = {
-                        "OPERACAO_AUTO": "⚙️ Operação",
                         "MONITORAMENTO": "🔍 Monitoramento",
                         "VISITA_TECNICA": "👨‍🔬 Visita Técnica",
                         "EPI_ENTREGA": "🦺 Entrega EPI",
                         "OBSERVACAO": "📝 Observação",
                         "CLIMA": "🌤️ Clima",
                         "SOLO": "🌱 Solo",
-                    }.get(item.tipo if hasattr(item, 'tipo') else item.get('tipo', ''), item.tipo if hasattr(item, 'tipo') else item.get('tipo', ''))
+                    }.get(tipo_evento_item, tipo_evento_item)
 
                     talhao_nome = talhoes_map.get(str(item.talhao_id), f"Talhão {str(item.talhao_id)[:8]}")
                     desc = item.descricao if hasattr(item, 'descricao') else item.get('descricao', '')
+                    retificacao_info = _retificacao_texto(item) if hasattr(item, "retifica_evento_id") else ""
                     severidade = item.nivel_severidade if hasattr(item, 'nivel_severidade') else item.get('nivel_severidade')
+                    status_evento = item.status_evento if hasattr(item, "status_evento") else item.get("status_evento")
+                    status_hist = item.status_historico if hasattr(item, "status_historico") else item.get("status_historico", [])
 
                     row_data = [
                         Paragraph(f"<b>{tipo_label}</b>", styles["SmallBold"]),
                         Paragraph(talhao_nome, styles["BodyText2"]),
+                        Paragraph(f"<b>Severidade:</b> {severidade}" if severidade else "—", styles["BodyText2"]),
+                        Paragraph(f"<b>Status:</b> {status_evento or '—'}", styles["BodyText2"]),
                     ]
-                    if severidade:
-                        row_data.append(Paragraph(f"<b>Severidade:</b> {severidade}", styles["BodyText2"]))
 
-                    entry_table = Table([row_data], colWidths=[3.5*cm, 3.5*cm, 4.5*cm])
+                    entry_table = Table([row_data], colWidths=[3*cm, 4*cm, 3.5*cm, 4*cm])
                     entry_table.setStyle(TableStyle([
                         ("VALIGN", (0, 0), (-1, -1), "TOP"),
                         ("BACKGROUND", (0, 0), (-1, 0), HexColor("#f5f5f5")),
@@ -680,12 +1693,21 @@ class CadernoExportacaoService(BaseService[CadernoExportacao]):
                     story.append(entry_table)
                     story.append(Spacer(1, 2))
                     story.append(Paragraph(desc.replace("\n", "<br/>"), styles["BodyText2"]))
+                    if retificacao_info:
+                        story.append(Paragraph(f"<b>Retificação:</b> {retificacao_info}", styles["BodyText2"]))
+                    if status_hist and modo_exportacao == "AUDITORIA":
+                        hist_txt = "<br/>".join(
+                            f"{(getattr(h, 'status_anterior', None) or '—')} → {getattr(h, 'status_novo', '—')} ({getattr(h, 'created_at', None).strftime('%d/%m/%Y %H:%M') if getattr(h, 'created_at', None) else '—'})"
+                            for h in status_hist
+                        )
+                        story.append(Spacer(1, 2))
+                        story.append(Paragraph(f"<b>Histórico:</b><br/>{hist_txt}", styles["BodyText2"]))
                     story.append(Spacer(1, 8))
 
         # ═══════════════════════════════════════════════════════
-        # Visitas técnicas (globalgap e organico)
+        # Visitas técnicas e EPI
         # ═══════════════════════════════════════════════════════
-        if modelo in ("globalgap", "organico") and visitas:
+        if visitas:
             story.append(Paragraph("Visitas Técnicas", styles["SectionHeader"]))
             story.append(HRFlowable(width="100%", thickness=0.5, color=HexColor("#ccc"), spaceAfter=6))
 
@@ -719,6 +1741,70 @@ class CadernoExportacaoService(BaseService[CadernoExportacao]):
             story.append(visitas_table)
             story.append(Spacer(1, 16))
 
+        if epis:
+            story.append(Paragraph("Entregas de EPI", styles["SectionHeader"]))
+            story.append(HRFlowable(width="100%", thickness=0.5, color=HexColor("#ccc"), spaceAfter=6))
+            epi_rows = []
+            for e in epis:
+                epi_rows.append([
+                    Paragraph(e.data_entrega.strftime("%d/%m/%Y"), styles["TableCell"]),
+                    Paragraph(e.nome_trabalhador, styles["TableCell"]),
+                    Paragraph(e.epi_tipo, styles["TableCell"]),
+                    Paragraph(str(e.quantidade), styles["TableCell"]),
+                    Paragraph(e.assinatura_url or "—", styles["TableCell"]),
+                ])
+            epi_header = [
+                Paragraph("<b>Data</b>", styles["TableHeader"]),
+                Paragraph("<b>Trabalhador</b>", styles["TableHeader"]),
+                Paragraph("<b>EPI</b>", styles["TableHeader"]),
+                Paragraph("<b>Qtd</b>", styles["TableHeader"]),
+                Paragraph("<b>Assinatura</b>", styles["TableHeader"]),
+            ]
+            epi_table = Table([epi_header] + epi_rows, colWidths=[2.5*cm, 4*cm, 4*cm, 1.5*cm, 4*cm])
+            epi_table.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, 0), HexColor("#1a5e1a")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), white),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("BOX", (0, 0), (-1, -1), 0.5, HexColor("#ccc")),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [HexColor("#f9f9f9"), white]),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                ("TOPPADDING", (0, 0), (-1, -1), 4),
+            ]))
+            story.append(epi_table)
+            story.append(Spacer(1, 16))
+
+        if modo_exportacao == "AUDITORIA" and historico_status:
+            story.append(Paragraph("Histórico de Status", styles["SectionHeader"]))
+            story.append(HRFlowable(width="100%", thickness=0.5, color=HexColor("#ccc"), spaceAfter=6))
+            historico_rows = []
+            for h in historico_status:
+                historico_rows.append([
+                    Paragraph(str(h.caderno_entrada_id)[:8], styles["TableCell"]),
+                    Paragraph(h.status_anterior or "—", styles["TableCell"]),
+                    Paragraph(h.status_novo, styles["TableCell"]),
+                    Paragraph(h.justificativa or "—", styles["TableCell"]),
+                    Paragraph(h.created_at.strftime("%d/%m/%Y %H:%M") if h.created_at else "—", styles["TableCell"]),
+                ])
+            historico_header = [
+                Paragraph("<b>Entrada</b>", styles["TableHeader"]),
+                Paragraph("<b>Anterior</b>", styles["TableHeader"]),
+                Paragraph("<b>Novo</b>", styles["TableHeader"]),
+                Paragraph("<b>Justificativa</b>", styles["TableHeader"]),
+                Paragraph("<b>Data</b>", styles["TableHeader"]),
+            ]
+            historico_table = Table([historico_header] + historico_rows, colWidths=[2.5*cm, 2.5*cm, 2.5*cm, 5*cm, 3*cm])
+            historico_table.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, 0), HexColor("#37474f")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), white),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("BOX", (0, 0), (-1, -1), 0.5, HexColor("#ccc")),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [HexColor("#f4f4f4"), white]),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                ("TOPPADDING", (0, 0), (-1, -1), 4),
+            ]))
+            story.append(historico_table)
+            story.append(Spacer(1, 16))
+
         # ── Rodapé com assinaturas ──
         story.append(PageBreak())
         story.append(Paragraph("Assinaturas", styles["SectionHeader"]))
@@ -749,27 +1835,33 @@ class CadernoExportacaoService(BaseService[CadernoExportacao]):
             f"Gerado em {datetime.now().strftime('%d/%m/%Y às %H:%M')}",
             ParagraphStyle("sigDate", fontSize=7, alignment=TA_CENTER, textColor=HexColor("#999"), fontName="Helvetica"),
         ))
+        story.append(Paragraph(
+            f"Protocolo documental: {hash_documental}",
+            ParagraphStyle("sigHash", fontSize=7, alignment=TA_CENTER, textColor=HexColor("#999"), fontName="Helvetica"),
+        ))
 
         doc.build(story)
         pdf_bytes = buffer.getvalue()
         buffer.close()
 
-        # 6. Salva arquivo
-        STORAGE_DIR = Path("/tmp/agrossa_caderno_exports")
-        STORAGE_DIR.mkdir(parents=True, exist_ok=True)
         filename = f"caderno_{modelo}_{dados.safra_id}_{_uuid.uuid4().hex[:8]}.pdf"
-        file_path = STORAGE_DIR / filename
-        file_path.write_bytes(pdf_bytes)
-
-        url_pdf = f"/static/caderno_exports/{filename}"
+        storage_path = f"static/caderno_exports/{filename}"
+        StorageService.save_blob(pdf_bytes, storage_path)
+        url_pdf = StorageService.public_url(storage_path)
 
         exportacao = CadernoExportacao(
             tenant_id=self.tenant_id,
             safra_id=dados.safra_id,
             talhao_id=dados.talhao_id,
             url_pdf=url_pdf,
+            modo_exportacao=modo_exportacao,
+            hash_documental=hash_documental,
+            assinatura_hash=None,
             assinado_por=dados.assinado_por,
             crea_rt=dados.crea_rt,
+            responsavel_tecnico_nome=dados.assinado_por,
+            responsavel_tecnico_crea=dados.crea_rt,
+            assinatura_origem="SYSTEM_GENERATED",
             modelo_certificacao=modelo,
         )
         self.session.add(exportacao)
