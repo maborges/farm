@@ -2,7 +2,9 @@
 
 import { pullSync } from "./pull";
 import { pushSync } from "./push";
+import { uploadEvidenciasPendentes } from "./evidence-upload";
 import { useSyncStore } from "@/lib/stores/sync-store";
+import { useSessionStore } from "@/lib/stores/session-store";
 import { db } from "@/lib/db";
 import { logger } from "@/lib/logger";
 
@@ -28,6 +30,17 @@ export async function runSync(): Promise<void> {
   try {
     await pushSync();
     logger.info("SyncWorker", "Push concluído");
+
+    // Etapa 2: upload de evidências pendentes (independente do sync do evento)
+    const session = useSessionStore.getState().session;
+    if (session) {
+      await uploadEvidenciasPendentes(session).catch((err: unknown) => {
+        const msg = err instanceof Error ? err.message : "Erro no upload de evidências";
+        logger.warn("SyncWorker", "Upload de evidências com falha parcial", { msg });
+        // Não propaga o erro — upload de evidências não bloqueia o pull
+      });
+      logger.info("SyncWorker", "Upload de evidências concluído");
+    }
 
     await pullSync();
     logger.info("SyncWorker", "Pull concluído", { ms: Date.now() - start });
@@ -90,8 +103,43 @@ export async function recoverInFlight(): Promise<void> {
   const stuck = await db.sync_queue.where("status").equals("IN_FLIGHT").toArray();
   if (stuck.length > 0) {
     logger.warn("SyncWorker", `Recuperando ${stuck.length} item(s) IN_FLIGHT`);
-    await db.sync_queue.bulkUpdate(
-      stuck.map((item) => ({ key: item.id, changes: { status: "PENDING" as const } }))
-    );
+    const now = new Date().toISOString();
+
+    await db.transaction("rw", [db.sync_queue, db.caderno_events], async () => {
+      await db.sync_queue.bulkUpdate(
+        stuck.map((item) => ({ key: item.id, changes: { status: "PENDING" as const } }))
+      );
+
+      const cadernoIds = stuck
+        .filter((item) => item.entity_type === "caderno_event")
+        .map((item) => item.entity_id);
+
+      if (cadernoIds.length > 0) {
+        await db.caderno_events.bulkUpdate(
+          cadernoIds.map((localId) => ({
+            key: localId,
+            changes: {
+              sync_status: "PENDING" as const,
+              last_sync_error: "Sincronização interrompida. O envio será retomado automaticamente.",
+              conflict_reason: null,
+              updated_at: now,
+            },
+          }))
+        );
+        // Recupera evidências ENVIANDO para PENDENTE_UPLOAD (crash durante upload)
+        for (const localId of cadernoIds) {
+          const evento = await db.caderno_events.get(localId);
+          if (!evento?.evidencias.some((ev) => ev.upload_status === "ENVIANDO")) continue;
+          await db.caderno_events.update(localId, {
+            evidencias: evento.evidencias.map((ev) =>
+              ev.upload_status === "ENVIANDO"
+                ? { ...ev, upload_status: "PENDENTE_UPLOAD" as const }
+                : ev
+            ),
+            updated_at: now,
+          });
+        }
+      }
+    });
   }
 }

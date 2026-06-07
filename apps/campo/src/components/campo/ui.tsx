@@ -10,7 +10,7 @@ type SurfaceProps = HTMLAttributes<HTMLDivElement>;
 
 export function CampoShell({ className, children }: SurfaceProps) {
   return (
-    <div className={cn("mx-auto flex min-h-dvh w-full max-w-[1080px] flex-col px-4 pb-8 pt-4 sm:px-6 lg:px-8", className)}>
+    <div className={cn("flex min-h-dvh w-full flex-col px-4 pb-8 pt-4 sm:px-6 lg:px-8", className)}>
       {children}
     </div>
   );
@@ -20,7 +20,7 @@ export function CampoSurface({ className, children }: SurfaceProps) {
   return (
     <div
       className={cn(
-        "relative overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.04] p-5 shadow-[0_20px_60px_rgba(0,0,0,0.35)] backdrop-blur-xl",
+        "relative overflow-hidden rounded-sm border border-border bg-card p-5 text-card-foreground shadow-sm",
         className
       )}
     >
@@ -44,12 +44,12 @@ export function CampoSectionTitle({
     <div className="flex items-end justify-between gap-4">
       <div className="min-w-0">
         {eyebrow && (
-          <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-emerald-300/80">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-primary">
             {eyebrow}
           </p>
         )}
-        <h2 className="mt-1 text-sm font-semibold text-white">{title}</h2>
-        {description && <p className="mt-1 text-xs leading-5 text-white/55">{description}</p>}
+        <h2 className="mt-1 text-sm font-semibold text-foreground">{title}</h2>
+        {description && <p className="mt-1 text-xs leading-5 text-muted-foreground">{description}</p>}
       </div>
       {action}
     </div>
@@ -75,20 +75,20 @@ export function CampoButton({
 
   const variantClasses = {
     primary:
-      "bg-gradient-to-r from-emerald-500 via-emerald-400 to-lime-300 text-emerald-950 shadow-[0_10px_25px_rgba(16,185,129,0.28)] hover:brightness-105",
+      "border border-primary bg-primary text-primary-foreground shadow-sm hover:bg-primary/90",
     secondary:
-      "border border-white/10 bg-white/[0.06] text-white hover:bg-white/[0.1]",
+      "border border-border bg-card text-foreground shadow-sm hover:bg-muted",
     ghost:
-      "bg-transparent text-white/75 hover:bg-white/6 hover:text-white",
+      "bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground",
     danger:
-      "bg-rose-500/90 text-white hover:bg-rose-500",
+      "border border-destructive bg-destructive text-white shadow-sm hover:bg-destructive/90",
   }[variant];
 
   return (
     <button
       {...props}
       className={cn(
-        "inline-flex items-center justify-center gap-2 rounded-2xl font-semibold transition-all active:scale-[0.98] disabled:pointer-events-none disabled:opacity-45",
+        "inline-flex items-center justify-center gap-2 rounded-sm font-semibold active:scale-[0.98] disabled:pointer-events-none disabled:opacity-45",
         sizeClasses,
         variantClasses,
         className
@@ -109,7 +109,7 @@ export function CampoPill({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/6 px-3 py-1 text-xs font-medium text-white/82",
+        "inline-flex items-center gap-1.5 rounded-full border border-border bg-muted px-3 py-1 text-xs font-medium text-muted-foreground",
         className
       )}
     >
@@ -122,22 +122,28 @@ export function CampoMetric({
   label,
   value,
   tone = "emerald",
+  compact = false,
 }: {
   label: string;
   value: string | number;
   tone?: "emerald" | "amber" | "sky" | "rose";
+  compact?: boolean;
 }) {
   const toneClasses = {
-    emerald: "from-emerald-400/18 to-emerald-500/6 text-emerald-100",
-    amber: "from-amber-400/18 to-amber-500/6 text-amber-100",
-    sky: "from-sky-400/18 to-sky-500/6 text-sky-100",
-    rose: "from-rose-400/18 to-rose-500/6 text-rose-100",
+    emerald: "border-green-200 bg-green-50 text-green-800 dark:border-green-900/60 dark:bg-green-950/30 dark:text-green-200",
+    amber: "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200",
+    sky: "border-sky-200 bg-sky-50 text-sky-800 dark:border-sky-900/60 dark:bg-sky-950/30 dark:text-sky-200",
+    rose: "border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-200",
   }[tone];
 
   return (
-    <div className={cn("rounded-3xl border border-white/10 bg-gradient-to-br p-4", toneClasses)}>
-      <p className="text-[11px] uppercase tracking-[0.18em] text-white/55">{label}</p>
-      <p className="mt-2 text-2xl font-semibold tabular-nums">{value}</p>
+    <div className={cn("rounded-sm border shadow-sm", compact ? "p-3" : "p-4", toneClasses)}>
+      <p className={cn("uppercase tracking-[0.16em] opacity-70", compact ? "text-[10px]" : "text-[11px]")}>
+        {label}
+      </p>
+      <p className={cn("font-semibold tabular-nums", compact ? "mt-1.5 text-xl" : "mt-2 text-2xl")}>
+        {value}
+      </p>
     </div>
   );
 }

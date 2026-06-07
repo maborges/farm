@@ -201,6 +201,7 @@ async def test_registro_novo_usuario(auth_service, mock_session):
         email="novo@fazenda.com",
         username="novo_fazendeiro",
         nome_completo="Novo Fazendeiro",
+        apelido="Novo",
         senha="Senha@456",
     )
 
@@ -233,6 +234,7 @@ async def test_registro_email_duplicado(auth_service, mock_session):
         email="fazendeiro@teste.com",
         username="outro_user",
         nome_completo="Outro",
+        apelido="Outro",
         senha="Senha@789",
     )
 

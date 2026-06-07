@@ -7,6 +7,7 @@ import { db } from "@/lib/db";
 import { useGps } from "@/hooks/useGps";
 import { useCamera } from "@/hooks/useCamera";
 import { executarTarefa } from "@/lib/task-factory";
+import { mapTaskTypeToCadernoTipo } from "@/lib/caderno-offline";
 import { GpsWarning } from "@/components/campo/gps-warning";
 import { CameraCapture } from "@/components/campo/camera-capture";
 import { useSessionStore } from "@/lib/stores/session-store";
@@ -54,6 +55,15 @@ export default function TarefaDetailPage() {
     [task?.fazenda_id]
   );
 
+  const activeFazenda = useLiveQuery(
+    async () => {
+      const fazendaId = session?.active_fazenda_id ?? session?.fazenda_ids?.[0];
+      if (!fazendaId) return undefined;
+      return db.fazendas.get(fazendaId);
+    },
+    [session?.active_fazenda_id, session?.fazenda_ids?.join("|")]
+  );
+
   if (!task) {
     return (
       <div className="flex items-center justify-center min-h-dvh">
@@ -64,11 +74,16 @@ export default function TarefaDetailPage() {
 
   const isMinhasTarefa =
     !task.operador_id || task.operador_id === session?.user_id;
+  const cadernoTipo = mapTaskTypeToCadernoTipo(task.type);
 
   const canStart = task.status_execucao === "PENDENTE" && isMinhasTarefa;
   const canFinish = task.status_execucao === "EM_EXECUCAO" && isMinhasTarefa;
   const isDone =
     task.status_execucao === "CONCLUIDA" || task.status_execucao === "CANCELADA";
+  const hasContextMismatch =
+    !!session?.active_fazenda_id &&
+    !!task.fazenda_id &&
+    task.fazenda_id !== session.active_fazenda_id;
 
   async function handleIniciar() {
     if (!canStart) return;
@@ -112,33 +127,43 @@ export default function TarefaDetailPage() {
 
   return (
     <CampoShell className="gap-5">
-      <CampoSurface className="p-4 sm:p-5">
+      <CampoSurface className="p-3.5 sm:p-4">
         <div className="flex items-start gap-3">
           <CampoButton variant="secondary" size="sm" onClick={() => router.back()}>
             ←
           </CampoButton>
           <div className="min-w-0 flex-1">
-            <p className="text-[11px] uppercase tracking-[0.22em] text-emerald-300/80">Detalhe da tarefa</p>
-            <h1 className="truncate text-xl font-semibold sm:text-2xl">
+            <p className="text-[10px] uppercase tracking-[0.16em] text-primary">Detalhe da tarefa</p>
+            <h1 className="truncate text-lg font-semibold sm:text-xl">
               {task.titulo ?? formatTaskType(task.type)}
             </h1>
-            <div className="mt-3 flex flex-wrap gap-2">
+            <div className="mt-2 flex flex-wrap gap-1.5">
               <CampoPill
                 className={`${
                   task.status_execucao === "CONCLUIDA"
-                    ? "border-emerald-400/20 bg-emerald-400/12 text-emerald-100"
+                    ? "border-green-200 bg-green-50 text-green-800 dark:border-green-900/60 dark:bg-green-950/30 dark:text-green-200"
                     : task.status_execucao === "EM_EXECUCAO"
-                    ? "border-sky-400/20 bg-sky-400/12 text-sky-100"
+                    ? "border-sky-200 bg-sky-50 text-sky-800 dark:border-sky-900/60 dark:bg-sky-950/30 dark:text-sky-200"
                     : task.status_execucao === "CANCELADA"
-                    ? "border-white/10 bg-white/6 text-white/55"
-                    : "border-amber-400/20 bg-amber-400/12 text-amber-100"
+                    ? "border-border bg-muted text-muted-foreground"
+                    : "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200"
                 }`}
               >
                 {STATUS_LABEL[task.status_execucao] ?? task.status_execucao}
               </CampoPill>
               {task.origem === "PROGRAMADA" && !isMinhasTarefa && (
-                <CampoPill className="border-white/10 bg-white/6 text-white/55">
+                <CampoPill className="border-border bg-muted text-muted-foreground">
                   Leitura apenas
+                </CampoPill>
+              )}
+              {hasContextMismatch && (
+                <CampoPill className="border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200">
+                  Outra unidade ativa
+                </CampoPill>
+              )}
+              {task.status_execucao === "CONCLUIDA" && (
+                <CampoPill className="border-border bg-muted text-muted-foreground">
+                  Esta tarefa já integra o histórico operacional.
                 </CampoPill>
               )}
             </div>
@@ -148,6 +173,10 @@ export default function TarefaDetailPage() {
 
       {/* Detalhes */}
       <CampoSurface className="flex flex-col gap-1 p-4 text-sm">
+        <InfoRow
+          label="Unidade ativa"
+          value={activeFazenda?.nome ?? (session?.active_fazenda_id ? `${session.active_fazenda_id.slice(0, 8)}…` : "—")}
+        />
         <InfoRow label="Fazenda" value={fazenda?.nome ?? task.fazenda_id.slice(0, 8) + "…"} />
         {talhao && <InfoRow label="Talhão" value={talhao.nome} />}
         {lote && <InfoRow label="Lote" value={lote.identificacao} />}
@@ -159,8 +188,13 @@ export default function TarefaDetailPage() {
         )}
         <InfoRow label="Prioridade" value={PRIORIDADE_LABEL[task.prioridade] ?? task.prioridade} />
         {task.origem === "PROGRAMADA" && !isMinhasTarefa && (
-          <p className="text-xs text-amber-400 mt-1">
+          <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
             Tarefa atribuída a outro operador — somente leitura
+          </p>
+        )}
+        {hasContextMismatch && (
+          <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+            Esta tarefa pertence a uma unidade produtiva diferente da unidade ativa selecionada no app.
           </p>
         )}
       </CampoSurface>
@@ -168,7 +202,7 @@ export default function TarefaDetailPage() {
       {/* Dados da tarefa */}
       {Object.keys(task.dados).length > 0 && (
         <CampoSurface className="flex flex-col gap-2 p-4 text-sm">
-          <p className="mb-1 text-[11px] uppercase tracking-[0.22em] text-emerald-300/80">Instruções</p>
+          <p className="mb-1 text-[11px] uppercase tracking-[0.18em] text-primary">Instruções</p>
           {Object.entries(task.dados).map(([k, v]) => (
             <InfoRow key={k} label={k} value={String(v)} />
           ))}
@@ -186,7 +220,7 @@ export default function TarefaDetailPage() {
               value={obs}
               onChange={(e) => setObs(e.target.value)}
               rows={3}
-              className="min-h-[104px] w-full resize-none rounded-[22px] border border-white/10 bg-white/[0.04] px-4 py-3 text-sm outline-none transition-colors focus:border-emerald-400/50 focus:bg-white/[0.06] placeholder:text-white/30"
+              className="min-h-[104px] w-full resize-none rounded-sm border border-border bg-card px-4 py-3 text-sm outline-none transition-colors focus:border-ring focus:bg-muted placeholder:text-muted-foreground/50"
             />
           </CampoSurface>
 
@@ -238,10 +272,20 @@ export default function TarefaDetailPage() {
               {saving ? "Salvando..." : "✅ Concluir Tarefa"}
             </CampoButton>
           )}
+          <CampoButton
+            variant="secondary"
+            onClick={() =>
+              router.push(
+                `/caderno?task_id=${encodeURIComponent(task.id)}&talhao_id=${encodeURIComponent(task.talhao_id ?? "")}&tipo_evento=${encodeURIComponent(cadernoTipo)}`
+              )
+            }
+          >
+            Registrar no Caderno
+          </CampoButton>
           <button
             onClick={handleCancelar}
             disabled={saving}
-            className="rounded-2xl border border-white/10 bg-white/[0.04] py-3 text-sm font-medium text-rose-200 transition-all active:scale-[0.99]"
+            className="rounded-sm border border-border bg-card py-3 text-sm font-medium text-destructive transition-all active:scale-[0.99]"
           >
             Cancelar tarefa
           </button>
@@ -253,9 +297,9 @@ export default function TarefaDetailPage() {
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex justify-between gap-4 border-b border-white/8 py-2 last:border-0">
-      <span className="shrink-0 text-white/45">{label}</span>
-      <span className="text-right font-medium text-white/85">{value}</span>
+    <div className="flex justify-between gap-4 border-b border-border py-2 last:border-0">
+      <span className="shrink-0 text-muted-foreground">{label}</span>
+      <span className="text-right font-medium text-foreground">{value}</span>
     </div>
   );
 }

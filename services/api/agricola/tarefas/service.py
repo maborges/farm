@@ -1,14 +1,21 @@
 import uuid
 from datetime import datetime
+from dataclasses import dataclass
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func, or_
 from core.exceptions import EntityNotFoundError, BusinessRuleError
 from agricola.alertas.service import (
     AlertasAgricolasService,
     WorkflowGovernanceEvent,
 )
+from agricola.caderno.models import CadernoCampoEntrada, CadernoCampoFoto
+from agricola.custos.models import CostAllocation
+from agricola.operacoes.models import OperacaoAgricola, OperacaoExecucao
 from agricola.tarefas.models import SafraTarefa
 from agricola.tarefas.schemas import TarefaCreate, TarefaUpdate
+from core.services.audit_service import _serialize, write_audit_log
+from financeiro.models.despesa import Despesa
+from operacional.models.estoque import EstoqueMovimento
 
 TRANSICOES = {
     "PENDENTE_APROVACAO": ["APROVADA", "CANCELADA"],
@@ -16,13 +23,33 @@ TRANSICOES = {
     "EM_EXECUCAO":        ["CONCLUIDA", "CANCELADA"],
     "CONCLUIDA":          [],
     "CANCELADA":          [],
+    "INVALIDADA":         [],
 }
+
+TASK_DELETE_BLOCKED_MESSAGE = (
+    "Esta tarefa já gerou registros operacionais e não pode ser excluída. "
+    "Utilize cancelamento ou invalidação."
+)
+
+
+@dataclass
+class TaskDeleteEvaluation:
+    allowed: bool
+    blockers: list[str]
 
 
 class TarefaService:
-    def __init__(self, session: AsyncSession, tenant_id: uuid.UUID):
+    def __init__(
+        self,
+        session: AsyncSession,
+        tenant_id: uuid.UUID,
+        user_id: uuid.UUID | None = None,
+        ip_address: str | None = None,
+    ):
         self.session = session
         self.tenant_id = tenant_id
+        self.user_id = user_id
+        self.ip_address = ip_address
 
     async def _get(self, tarefa_id: uuid.UUID) -> SafraTarefa:
         stmt = select(SafraTarefa).where(
@@ -74,35 +101,267 @@ class TarefaService:
         await self.session.flush()
         return tarefa
 
+    async def _write_audit(self, action: str, before: SafraTarefa | None, after: SafraTarefa | None) -> None:
+        await write_audit_log(
+            self.session,
+            tenant_id=self.tenant_id,
+            user_id=self.user_id,
+            action=action,
+            resource=SafraTarefa.__tablename__,
+            resource_id=(after or before).id if (after or before) else None,
+            payload_before=_serialize(before),
+            payload_after=_serialize(after),
+            ip_address=self.ip_address,
+        )
+
+    async def _related_operacao_ids(self, tarefa: SafraTarefa) -> list[uuid.UUID]:
+        clauses = [OperacaoAgricola.tarefa_id == tarefa.id]
+        if tarefa.operacao_id:
+            clauses.append(OperacaoAgricola.id == tarefa.operacao_id)
+        stmt = select(OperacaoAgricola.id).where(
+            OperacaoAgricola.tenant_id == self.tenant_id,
+            or_(*clauses),
+        )
+        return list((await self.session.execute(stmt)).scalars().all())
+
+    async def _related_caderno_entry_ids(
+        self,
+        tarefa: SafraTarefa,
+        operacao_ids: list[uuid.UUID],
+    ) -> list[uuid.UUID]:
+        clauses = []
+        if operacao_ids:
+            clauses.append(CadernoCampoEntrada.operacao_id.in_(operacao_ids))
+        clauses.append(CadernoCampoEntrada.payload_operacional["task_id"].as_string() == str(tarefa.id))
+        stmt = select(CadernoCampoEntrada.id).where(
+            CadernoCampoEntrada.tenant_id == self.tenant_id,
+            CadernoCampoEntrada.excluida.is_(False),
+            or_(*clauses),
+        )
+        return list((await self.session.execute(stmt)).scalars().all())
+
+    async def _avaliar_exclusao_tarefa(self, tarefa: SafraTarefa) -> TaskDeleteEvaluation:
+        blockers: list[str] = []
+
+        if tarefa.status != "PENDENTE_APROVACAO":
+            blockers.append(f"status:{tarefa.status}")
+
+        if tarefa.concluida_em is not None:
+            blockers.append("conclusao")
+
+        operacao_ids = await self._related_operacao_ids(tarefa)
+        if tarefa.operacao_id is not None or operacao_ids:
+            blockers.append("operacao_agricola")
+
+        caderno_entry_ids = await self._related_caderno_entry_ids(tarefa, operacao_ids)
+        if caderno_entry_ids:
+            blockers.append("caderno")
+
+        if caderno_entry_ids:
+            fotos_count = (
+                await self.session.execute(
+                    select(func.count(CadernoCampoFoto.id)).where(
+                        CadernoCampoFoto.entrada_id.in_(caderno_entry_ids)
+                    )
+                )
+            ).scalar_one()
+            if fotos_count:
+                blockers.append("evidencia")
+
+        if operacao_ids:
+            execucao_ids = list(
+                (
+                    await self.session.execute(
+                        select(OperacaoExecucao.id).where(
+                            OperacaoExecucao.tenant_id == self.tenant_id,
+                            OperacaoExecucao.operacao_id.in_(operacao_ids),
+                        )
+                    )
+                ).scalars().all()
+            )
+            if execucao_ids:
+                estoque_count = (
+                    await self.session.execute(
+                        select(func.count(EstoqueMovimento.id)).where(
+                            EstoqueMovimento.tenant_id == self.tenant_id,
+                            EstoqueMovimento.operacao_execucao_id.in_(execucao_ids),
+                        )
+                    )
+                ).scalar_one()
+                if estoque_count:
+                    blockers.append("estoque")
+
+                allocation_count = (
+                    await self.session.execute(
+                        select(func.count(CostAllocation.id)).where(
+                            CostAllocation.tenant_id == self.tenant_id,
+                            or_(
+                                CostAllocation.operation_execution_id.in_(execucao_ids),
+                                CostAllocation.source_id.in_(operacao_ids),
+                            ),
+                        )
+                    )
+                ).scalar_one()
+                if allocation_count:
+                    blockers.append("financeiro")
+
+            despesa_count = (
+                await self.session.execute(
+                    select(func.count(Despesa.id)).where(
+                        Despesa.tenant_id == self.tenant_id,
+                        Despesa.origem_tipo == "OPERACAO_AGRICOLA",
+                        Despesa.origem_id.in_(operacao_ids),
+                        Despesa.ativo.is_(True),
+                    )
+                )
+            ).scalar_one()
+            if despesa_count:
+                blockers.append("financeiro")
+
+        return TaskDeleteEvaluation(allowed=len(blockers) == 0, blockers=sorted(set(blockers)))
+
+    async def pode_excluir_tarefa(self, tarefa_id: uuid.UUID) -> bool:
+        tarefa = await self._get(tarefa_id)
+        return (await self._avaliar_exclusao_tarefa(tarefa)).allowed
+
+    async def excluir(self, tarefa_id: uuid.UUID) -> None:
+        tarefa = await self._get(tarefa_id)
+        avaliacao = await self._avaliar_exclusao_tarefa(tarefa)
+        if not avaliacao.allowed:
+            raise BusinessRuleError(TASK_DELETE_BLOCKED_MESSAGE)
+
+        payload_before = _serialize(tarefa)
+        await self.session.delete(tarefa)
+        await self.session.flush()
+        await write_audit_log(
+            self.session,
+            tenant_id=self.tenant_id,
+            user_id=self.user_id,
+            action="delete",
+            resource=SafraTarefa.__tablename__,
+            resource_id=tarefa.id,
+            payload_before=payload_before,
+            payload_after=None,
+            ip_address=self.ip_address,
+        )
+
     async def atualizar(self, tarefa_id: uuid.UUID, dados: TarefaUpdate) -> SafraTarefa:
         tarefa = await self._get(tarefa_id)
+        if tarefa.status in {"CANCELADA", "INVALIDADA", "CONCLUIDA"}:
+            raise BusinessRuleError("Não é permitido editar tarefa já concluída, cancelada ou invalidada.")
+        payload_before = _serialize(tarefa)
         for campo, valor in dados.model_dump(exclude_unset=True).items():
             setattr(tarefa, campo, valor)
         tarefa.updated_at = datetime.utcnow()
         await self.session.flush()
+        await write_audit_log(
+            self.session,
+            tenant_id=self.tenant_id,
+            user_id=self.user_id,
+            action="update",
+            resource=SafraTarefa.__tablename__,
+            resource_id=tarefa.id,
+            payload_before=payload_before,
+            payload_after=_serialize(tarefa),
+            ip_address=self.ip_address,
+        )
         return tarefa
 
     async def aprovar(self, tarefa_id: uuid.UUID, aprovador_id: uuid.UUID) -> SafraTarefa:
         tarefa = await self._get(tarefa_id)
         if "APROVADA" not in TRANSICOES.get(tarefa.status, []):
             raise BusinessRuleError(f"Tarefa com status '{tarefa.status}' não pode ser aprovada.")
+        payload_before = _serialize(tarefa)
         tarefa.status = "APROVADA"
         tarefa.aprovado_por = aprovador_id
         tarefa.aprovado_em = datetime.utcnow()
         tarefa.updated_at = datetime.utcnow()
         await self.session.flush()
+        await write_audit_log(
+            self.session,
+            tenant_id=self.tenant_id,
+            user_id=self.user_id or aprovador_id,
+            action="approve",
+            resource=SafraTarefa.__tablename__,
+            resource_id=tarefa.id,
+            payload_before=payload_before,
+            payload_after=_serialize(tarefa),
+            ip_address=self.ip_address,
+        )
         return tarefa
 
     async def rejeitar(self, tarefa_id: uuid.UUID, motivo: str | None = None, user_id: uuid.UUID | None = None) -> SafraTarefa:
         tarefa = await self._get(tarefa_id)
         if "CANCELADA" not in TRANSICOES.get(tarefa.status, []):
             raise BusinessRuleError(f"Tarefa com status '{tarefa.status}' não pode ser cancelada.")
+        motivo_limpo = (motivo or "").strip()
+        if not motivo_limpo:
+            raise BusinessRuleError("Motivo de cancelamento é obrigatório.")
+        payload_before = _serialize(tarefa)
         tarefa.status = "CANCELADA"
-        tarefa.motivo_cancelamento = motivo
+        tarefa.motivo_cancelamento = motivo_limpo
         tarefa.cancelado_por = user_id
         tarefa.cancelado_em = datetime.utcnow()
         tarefa.updated_at = datetime.utcnow()
         await self.session.flush()
+        await write_audit_log(
+            self.session,
+            tenant_id=self.tenant_id,
+            user_id=user_id or self.user_id,
+            action="cancel",
+            resource=SafraTarefa.__tablename__,
+            resource_id=tarefa.id,
+            payload_before=payload_before,
+            payload_after=_serialize(tarefa),
+            ip_address=self.ip_address,
+        )
+        return tarefa
+
+    async def invalidar(self, tarefa_id: uuid.UUID, motivo: str, user_id: uuid.UUID | None = None) -> SafraTarefa:
+        tarefa = await self._get(tarefa_id)
+        motivo_limpo = (motivo or "").strip()
+        if not motivo_limpo:
+            raise BusinessRuleError("Motivo de invalidação é obrigatório.")
+
+        avaliacao = await self._avaliar_exclusao_tarefa(tarefa)
+        if avaliacao.allowed:
+            raise BusinessRuleError("Tarefa sem fatos operacionais deve ser cancelada ou excluída, não invalidada.")
+        if tarefa.status in {"CANCELADA", "INVALIDADA"}:
+            raise BusinessRuleError(f"Tarefa com status '{tarefa.status}' não pode ser invalidada.")
+
+        payload_before = _serialize(tarefa)
+        tarefa.status = "INVALIDADA"
+        tarefa.invalidado_por = user_id
+        tarefa.invalidado_em = datetime.utcnow()
+        tarefa.motivo_invalidacao = motivo_limpo
+        tarefa.updated_at = datetime.utcnow()
+        await self.session.flush()
+        await write_audit_log(
+            self.session,
+            tenant_id=self.tenant_id,
+            user_id=user_id or self.user_id,
+            action="invalidate",
+            resource=SafraTarefa.__tablename__,
+            resource_id=tarefa.id,
+            payload_before=payload_before,
+            payload_after=_serialize(tarefa),
+            ip_address=self.ip_address,
+        )
+
+        operacao_ids = await self._related_operacao_ids(tarefa)
+        if tarefa.operacao_id and tarefa.operacao_id not in operacao_ids:
+            operacao_ids.append(tarefa.operacao_id)
+
+        from agricola.caderno.service import CadernoCampoService
+
+        caderno_svc = CadernoCampoService(self.session, self.tenant_id)
+        await caderno_svc.propagar_invalidacao_origem_operacional(
+            tarefa_id=tarefa.id,
+            motivo=motivo_limpo,
+            usuario_id=user_id or self.user_id,
+            operacao_ids=operacao_ids,
+            ip_address=self.ip_address,
+        )
         return tarefa
 
     async def iniciar(self, tarefa_id: uuid.UUID) -> SafraTarefa:
@@ -127,6 +386,8 @@ class TarefaService:
 
     async def concluir_via_operacao(self, tarefa_id: uuid.UUID, operacao_id: uuid.UUID) -> SafraTarefa:
         tarefa = await self._get(tarefa_id)
+        if tarefa.status in {"CANCELADA", "INVALIDADA"}:
+            raise BusinessRuleError(f"Tarefa com status '{tarefa.status}' não pode ser concluída via operação.")
         tarefa.status = "CONCLUIDA"
         tarefa.operacao_id = operacao_id
         tarefa.concluida_em = datetime.utcnow()

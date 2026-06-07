@@ -24,6 +24,7 @@ class AssinanteRegisterRequest(BaseModel):
     email: EmailStr
     username: str
     nome_completo: str
+    apelido: str
     senha: str
     cpf: Optional[str] = None
     telefone: Optional[str] = None

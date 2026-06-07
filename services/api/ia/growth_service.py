@@ -2530,7 +2530,7 @@ class IAGrowthService:
         
         stmt = (
             select(
-                IAGrowthExperimentoVariante.cta["tipo_abordagem"].astext.label("tipo"),
+                IAGrowthExperimentoVariante.cta["tipo_abordagem"].as_string().label("tipo"),
                 func.count().filter(IAGrowthExperimentoEvento.evento == "SHOWN").label("v"),
                 func.count().filter(IAGrowthExperimentoEvento.evento == "CLICKED").label("c"),
             )
@@ -2635,7 +2635,7 @@ class IAGrowthService:
         # Agrega performance por abordagem para este perfil
         stmt = (
             select(
-                IAGrowthExperimentoVariante.cta["tipo_abordagem"].astext.label("abordagem"),
+                IAGrowthExperimentoVariante.cta["tipo_abordagem"].as_string().label("abordagem"),
                 (cast(func.count(IAGrowthExperimentoEvento.id).filter(IAGrowthExperimentoEvento.evento == "CLICKED"), Float) /
                 func.nullif(cast(func.count(IAGrowthExperimentoEvento.id).filter(IAGrowthExperimentoEvento.evento == "SHOWN"), Float), 0))
                 .label("taxa_conversao")
@@ -2662,7 +2662,7 @@ class IAGrowthService:
         stmt = (
             select(
                 IAGrowthUserProfile.perfil,
-                IAGrowthExperimentoVariante.cta["tipo_abordagem"].astext.label("abordagem"),
+                IAGrowthExperimentoVariante.cta["tipo_abordagem"].as_string().label("abordagem"),
                 func.count(IAGrowthExperimentoEvento.id).filter(IAGrowthExperimentoEvento.evento == "CLICKED").label("cliques"),
                 func.count(IAGrowthExperimentoEvento.id).filter(IAGrowthExperimentoEvento.evento == "SHOWN").label("exibicoes")
             )
@@ -2730,7 +2730,7 @@ class IAGrowthService:
                 IAGrowthUserProfile.perfil,
                 IAGrowthExperimentoEvento.contexto,
                 IAGrowthExperimentoVariante.origem_copy,
-                IAGrowthExperimentoVariante.cta["tipo_abordagem"].astext.label("abordagem"),
+                IAGrowthExperimentoVariante.cta["tipo_abordagem"].as_string().label("abordagem"),
                 func.count(IAGrowthExperimentoEvento.id).filter(IAGrowthExperimentoEvento.evento == "SHOWN").label("exibicoes"),
                 func.count(IAGrowthExperimentoEvento.id).filter(IAGrowthExperimentoEvento.evento == "CLICKED").label("cliques")
             )
@@ -2812,7 +2812,7 @@ class IAGrowthService:
         timing_stmt = (
             select(
                 IAGrowthEvento.evento,
-                IAGrowthEvento.metadados["timing_decision"].astext.label("decision"),
+                IAGrowthEvento.metadados["timing_decision"].as_string().label("decision"),
                 func.count(IAGrowthEvento.id).label("total")
             )
             .where(
@@ -4412,7 +4412,7 @@ class IAGrowthService:
 
         perf_abordagem = (await db.execute(
             select(
-                IAGrowthExperimentoVariante.cta["tipo_abordagem"].astext.label("abordagem"),
+                IAGrowthExperimentoVariante.cta["tipo_abordagem"].as_string().label("abordagem"),
                 func.count().filter(IAGrowthExperimentoEvento.evento == "SHOWN").label("exibicoes"),
                 func.count().filter(IAGrowthExperimentoEvento.evento == "CLICKED").label("cliques"),
             )
@@ -4586,7 +4586,7 @@ class IAGrowthService:
 
         abordagem_rows = (await db.execute(
             select(
-                IAGrowthExperimentoVariante.cta["tipo_abordagem"].astext.label("chave"),
+                IAGrowthExperimentoVariante.cta["tipo_abordagem"].as_string().label("chave"),
                 func.count(IAGrowthExperimentoEvento.id).filter(IAGrowthExperimentoEvento.evento == "SHOWN").label("amostras"),
                 func.count(IAGrowthExperimentoEvento.id).filter(IAGrowthExperimentoEvento.evento == "CLICKED").label("conversoes"),
             )

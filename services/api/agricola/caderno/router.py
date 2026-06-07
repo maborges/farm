@@ -1,21 +1,25 @@
-from fastapi import APIRouter, Depends, status, Request, UploadFile, File, Form
+from fastapi import APIRouter, Depends, status, Request, UploadFile, File, Form, HTTPException
 from fastapi.responses import Response
 from typing import List
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
-from datetime import date
+from datetime import date, datetime
 from pathlib import Path
+from jose import jwt, JWTError
+from sqlalchemy import select
 
+from core.config import settings
 from core.constants import PlanTier
-from core.dependencies import get_tenant_id, require_module, require_role, require_tier, get_session_with_tenant, get_current_user
+from core.dependencies import get_tenant_id, require_module, require_role, require_tier, get_session_with_tenant, get_session, get_current_user
 from core.exceptions import BusinessRuleError
-from agricola.caderno.models import CadernoExportacao
+from agricola.caderno.models import CadernoExportacao, CadernoCampoFoto
 from agricola.caderno.schemas import (
     EntradaCreate,
     EntradaUpdate,
     EntradaDeleteRequest,
     EntradaResponse,
     FotoResponse,
+    EvidenciaUploadResponse,
     VisitaTecnicaCreate,
     VisitaTecnicaResponse,
     AssinarVisitaRequest,
@@ -24,6 +28,9 @@ from agricola.caderno.schemas import (
     ExportacaoCreate,
     ExportacaoResponse,
     AssinarExportacaoRequest,
+    EventoCadernoOfflinePayload,
+    EventoCadernoOfflineSyncRequest,
+    EventoCadernoOfflineSyncResult,
     ReprocessarEntradaRequest,
     StatusEventoUpdateRequest,
     TimelineItem,
@@ -34,12 +41,47 @@ from agricola.caderno.service import (
     EPIEntregaService,
     CadernoExportacaoService,
 )
+from campo.models import DispositivoCampo
 from core.models.auth import Usuario
 from core.services.storage_service import StorageService
 
 router = APIRouter(prefix="/caderno", tags=["Caderno de Campo"])
 
 _MODULE = require_module("A1_PLANEJAMENTO")
+
+
+async def _get_device_from_token(device_id: UUID, request: Request, session: AsyncSession) -> DispositivoCampo:
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Authorization header ausente")
+    token = auth.split(" ", 1)[1]
+
+    try:
+        payload = jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Token de dispositivo inválido")
+
+    if payload.get("type") != "device":
+        raise HTTPException(status_code=401, detail="Token não é de dispositivo de campo")
+
+    token_device_id = payload.get("device_id")
+    try:
+        token_uuid = UUID(token_device_id) if token_device_id else None
+    except ValueError:
+        raise HTTPException(status_code=401, detail="device_id inválido no token")
+    if not token_uuid or token_uuid != device_id:
+        raise HTTPException(status_code=403, detail="device_id não confere com o token")
+
+    result = await session.execute(select(DispositivoCampo).where(DispositivoCampo.id == device_id))
+    device = result.scalar_one_or_none()
+    if not device:
+        raise HTTPException(status_code=404, detail="Dispositivo não encontrado")
+    if device.status != "ATIVO":
+        raise HTTPException(status_code=403, detail="Dispositivo não está ativo")
+    if device.expires_at < datetime.utcnow():
+        raise HTTPException(status_code=403, detail="Token do dispositivo expirado")
+
+    return device
 
 
 # ─── Timeline ─────────────────────────────────────────────────────────────────
@@ -227,6 +269,26 @@ async def deletar_entrada(
     await session.commit()
 
 
+@router.post("/offline-sync", response_model=list[EventoCadernoOfflineSyncResult])
+async def offline_sync(
+    body: EventoCadernoOfflineSyncRequest,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    if not body.eventos:
+        raise HTTPException(status_code=400, detail="Nenhum evento para sincronizar.")
+
+    device = await _get_device_from_token(UUID(body.eventos[0].device_id), request, session)
+    svc = CadernoCampoService(session, device.tenant_id)
+    resultados = await svc.sincronizar_eventos_offline(
+        body.eventos,
+        device=device,
+        ip=request.client.host if request.client else None,
+    )
+    await session.commit()
+    return resultados
+
+
 @router.post("/entradas/{entrada_id}/reprocessar", response_model=EntradaResponse, status_code=status.HTTP_201_CREATED)
 @router.post("/{entrada_id}/reprocessar", response_model=EntradaResponse, status_code=status.HTTP_201_CREATED)
 async def reprocessar_entrada(
@@ -295,8 +357,92 @@ async def upload_foto_entrada(
     await session.commit()
     return FotoResponse.model_validate(foto)
 
+# ─── Upload de Evidência Offline ───────────────────────────────────────────────
+
+@router.post(
+    "/entradas/{entrada_id}/evidencias",
+    response_model=EvidenciaUploadResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def upload_evidencia_offline(
+    entrada_id: UUID,
+    request: Request,
+    file: UploadFile = File(...),
+    local_evidence_id: str = Form(...),
+    device_id: str = Form(...),
+    captured_at: str | None = Form(None),
+    latitude: float | None = Form(None),
+    longitude: float | None = Form(None),
+    mime_type: str | None = Form(None),
+    size_bytes: int | None = Form(None),
+    session: AsyncSession = Depends(get_session),
+):
+    """Upload de evidência offline para uma entrada do caderno.
+
+    Autenticação via device_token (Bearer). Idempotente por (entrada_id, local_evidence_id).
+    Usa StorageService existente. Não duplica se reenviado.
+    """
+    from datetime import datetime as _dt
+
+    # Autentica device via token
+    try:
+        device = await _get_device_from_token(UUID(device_id), request, session)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="device_id inválido.")
+
+    svc = CadernoCampoService(session, device.tenant_id)
+
+    captured_dt: _dt | None = None
+    if captured_at:
+        try:
+            captured_dt = _dt.fromisoformat(captured_at)
+        except ValueError:
+            captured_dt = None
+
+    content = await file.read()
+    effective_size = size_bytes if size_bytes is not None else len(content)
+    effective_mime = mime_type or (file.content_type if file.content_type else "image/jpeg")
+    effective_filename = file.filename or f"{local_evidence_id}.jpg"
+
+    # Verificação de idempotência antecipada para resposta rápida sem reprocessar o arquivo
+    from sqlalchemy import select as _select
+    stmt_check = _select(CadernoCampoFoto).where(
+        CadernoCampoFoto.entrada_id == entrada_id,
+        CadernoCampoFoto.device_local_id == local_evidence_id,
+    )
+    foto_existente = (await session.execute(stmt_check)).scalar_one_or_none()
+    if foto_existente:
+        return EvidenciaUploadResponse(
+            local_evidence_id=local_evidence_id,
+            server_file_id=foto_existente.id,
+            server_url=foto_existente.url,
+            status="ALREADY_EXISTS",
+        )
+
+    foto = await svc.upload_evidencia_offline(
+        entrada_id=entrada_id,
+        device=device,
+        local_evidence_id=local_evidence_id,
+        file_content=content,
+        filename=effective_filename,
+        mime_type=effective_mime,
+        size_bytes=effective_size,
+        captured_at=captured_dt,
+        latitude=latitude,
+        longitude=longitude,
+    )
+    await session.commit()
+
+    return EvidenciaUploadResponse(
+        local_evidence_id=local_evidence_id,
+        server_file_id=foto.id,
+        server_url=foto.url,
+        status="UPLOADED",
+    )
+
 
 # ─── Visitas Técnicas ─────────────────────────────────────────────────────────
+
 
 @router.post("/visitas", response_model=VisitaTecnicaResponse, status_code=status.HTTP_201_CREATED)
 async def criar_visita(
@@ -441,6 +587,8 @@ async def download_pdf(
         headers={
             "Content-Disposition": f'attachment; filename="Caderno_Campo_{exportacao.safra_id}.pdf"',
             "X-Documental-Hash": exportacao.hash_documental or "",
+            "X-Snapshot-Hash": exportacao.snapshot_hash or "",
+            "X-Documental-Protocol": exportacao.protocolo_documental or "",
             "X-Documental-Mode": exportacao.modo_exportacao,
         },
     )

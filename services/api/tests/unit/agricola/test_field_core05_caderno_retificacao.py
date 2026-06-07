@@ -1,12 +1,16 @@
 import uuid
-from datetime import date
+from datetime import date, datetime
+from unittest.mock import AsyncMock
 
 import pytest
 from sqlalchemy import text
 
 from core.exceptions import BusinessRuleError
+from agricola.tarefas.models import SafraTarefa
+from agricola.tarefas.service import TarefaService
 from agricola.caderno.schemas import EntradaCreate, ExportacaoCreate
 from agricola.caderno.service import CadernoCampoService, CadernoExportacaoService
+from agricola.operacoes.models import OperacaoAgricola
 from core.models.auth import TenantUsuario, Usuario
 
 
@@ -264,3 +268,98 @@ async def test_isolamento_por_tenant_com_retificacao(session):
     assert any(item.id == ret_b.id for item in lista_b)
     assert all(item.id != ret_b.id for item in lista_a)
     assert all(item.id != ret_a.id for item in lista_b)
+
+
+@pytest.mark.asyncio
+async def test_invalidez_de_tarefa_propaga_origem_documental_para_operacao_e_caderno(session):
+    tenant_id = uuid.uuid4()
+    safra_id, talhao_id, usuario = await _seed_tenant(session, tenant_id)
+    caderno_svc = CadernoCampoService(session, tenant_id)
+
+    tarefa = SafraTarefa(
+        id=uuid.uuid4(),
+        tenant_id=tenant_id,
+        safra_id=safra_id,
+        talhao_id=talhao_id,
+        origem="MANUAL",
+        tipo="PULVERIZACAO",
+        descricao="Aplicação concluída",
+        criticidade="NORMAL",
+        prioridade="MEDIA",
+        status="CONCLUIDA",
+        concluida_em=datetime.utcnow(),
+        created_by=usuario.id,
+    )
+    session.add(tarefa)
+    await session.flush()
+
+    operacao_id = uuid.uuid4()
+    await session.execute(
+        text(
+            """
+            INSERT INTO operacoes_agricolas (
+                id, tenant_id, safra_id, talhao_id, tarefa_id, tipo, subtipo, descricao,
+                data_realizada, custo_total, custo_por_ha, area_aplicada_ha, fotos, status, created_at, updated_at
+            )
+            VALUES (
+                :id, :tenant_id, :safra_id, :talhao_id, :tarefa_id, :tipo, :subtipo, :descricao,
+                :data_realizada, :custo_total, :custo_por_ha, :area_aplicada_ha, CAST('[]' AS json), 'REALIZADA', NOW(), NOW()
+            )
+            """
+        ),
+        {
+            "id": str(operacao_id),
+            "tenant_id": str(tenant_id),
+            "safra_id": str(safra_id),
+            "talhao_id": str(talhao_id),
+            "tarefa_id": str(tarefa.id),
+            "tipo": "APLICACAO_DEFENSIVO",
+            "subtipo": "Pulverização defensiva",
+            "descricao": "Aplicação concluída",
+            "data_realizada": date.today(),
+            "custo_total": 120.0,
+            "custo_por_ha": 12.0,
+            "area_aplicada_ha": 10.0,
+        },
+    )
+    await session.commit()
+
+    operacao = await session.get(OperacaoAgricola, operacao_id)
+    assert operacao is not None
+    entrada = await caderno_svc.garantir_evento_operacao(operacao)
+    await session.commit()
+
+    service = TarefaService(session, tenant_id, user_id=usuario.id, ip_address="127.0.0.1")
+    service._get = AsyncMock(return_value=tarefa)
+    service._related_operacao_ids = AsyncMock(return_value=[operacao_id])
+
+    tarefa_invalidada = await service.invalidar(
+        tarefa.id,
+        motivo="Execução concluída no contexto documental incorreto",
+        user_id=usuario.id,
+    )
+    await session.commit()
+
+    await session.refresh(tarefa_invalidada)
+    await session.refresh(operacao)
+    await session.refresh(entrada)
+
+    assert tarefa_invalidada.status == "INVALIDADA"
+    assert tarefa_invalidada.motivo_invalidacao == "Execução concluída no contexto documental incorreto"
+    assert operacao.origem_invalidada is True
+    assert operacao.motivo_invalidacao_origem == "Execução concluída no contexto documental incorreto"
+    assert entrada.origem_invalidada is True
+    assert entrada.motivo_invalidacao_origem == "Execução concluída no contexto documental incorreto"
+    assert entrada.documental_status == "ORIGEM_INVALIDADA"
+
+    timeline = await caderno_svc.timeline(safra_id)
+    op_item = next(item for item in timeline if item.origem_evento == "OPERACAO_AGRICOLA" and item.origem_id == str(operacao_id))
+    assert op_item.origem_invalidada is True
+    assert op_item.documental_status == "ORIGEM_INVALIDADA"
+    assert op_item.versao_vigente is False
+
+    export_svc = CadernoExportacaoService(session, tenant_id)
+    oficiais = await export_svc._listar_eventos_documentais(safra_id, talhao_id, "OFICIAL")
+    auditoria = await export_svc._listar_eventos_documentais(safra_id, talhao_id, "AUDITORIA")
+    assert entrada.id not in [e.id for e in oficiais]
+    assert entrada.id in [e.id for e in auditoria]

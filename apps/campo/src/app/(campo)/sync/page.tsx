@@ -41,12 +41,12 @@ export default function SyncPage() {
   );
 
   return (
-    <div className="flex flex-col gap-5 pb-32">
-      <CampoSurface className="p-5 sm:p-6">
-        <div className="flex items-start justify-between gap-4">
+    <div className="flex flex-col gap-4 pb-28">
+      <CampoSurface className="p-4 sm:p-5">
+        <div className="flex items-start justify-between gap-3">
           <button
             onClick={() => router.back()}
-            className="rounded-2xl border border-white/10 bg-white/[0.04] p-3 text-white/80 transition-transform active:scale-[0.97]"
+            className="rounded-sm border border-border bg-card px-3 py-2 text-sm text-foreground transition-transform active:scale-[0.97]"
           >
             ←
           </button>
@@ -54,40 +54,40 @@ export default function SyncPage() {
             <CampoSectionTitle
               eyebrow="Sincronização"
               title="Sincronização do campo"
-              description="Acompanhe o que já foi enviado e o que ainda aguarda conexão."
+              description="Veja a fila local e reenvie itens com falha."
             />
           </div>
           <CampoPill
-            className={`${isOnline ? "border-emerald-400/20 bg-emerald-400/12 text-emerald-100" : "border-white/10 bg-white/6 text-white/70"}`}
+            className={`${isOnline ? "border-green-200 bg-green-50 text-green-800 dark:border-green-900/60 dark:bg-green-950/30 dark:text-green-200" : "border-border bg-muted text-muted-foreground"}`}
           >
             {isOnline ? "Online" : "Offline"}
           </CampoPill>
         </div>
 
-        <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="mt-4 grid grid-cols-2 gap-2">
           <CampoMetric label="Na fila" value={pendingCount} tone="amber" />
           <CampoMetric label="Com erro" value={failedItems?.length ?? 0} tone="rose" />
         </div>
 
-        <div className="mt-4 flex flex-wrap items-center gap-2">
+        <div className="mt-3 flex flex-wrap items-center gap-2">
           <CampoPill
             className={
               status === "syncing"
-                ? "border-sky-400/20 bg-sky-400/12 text-sky-100"
-                : "border-white/10 bg-white/6 text-white/70"
+                ? "border-sky-200 bg-sky-50 text-sky-800 dark:border-sky-900/60 dark:bg-sky-950/30 dark:text-sky-200"
+                : "border-border bg-muted text-muted-foreground"
             }
           >
             {status === "syncing" ? "Sincronizando" : status === "error" ? "Erro" : "Pronto"}
           </CampoPill>
           {lastSyncAt && (
-            <CampoPill className="border-white/10 bg-white/6 text-white/70">
+            <CampoPill className="border-border bg-muted text-muted-foreground">
               Última sincronização: {new Date(lastSyncAt).toLocaleString("pt-BR")}
             </CampoPill>
           )}
         </div>
 
         {lastError && (
-          <div className="mt-4 rounded-2xl border border-rose-400/20 bg-rose-400/12 px-4 py-3 text-xs text-rose-100">
+          <div className="mt-3 rounded-sm border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-800 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-200">
             {lastError}
           </div>
         )}
@@ -95,14 +95,14 @@ export default function SyncPage() {
         <CampoButton
           onClick={() => runSync()}
           disabled={!isOnline || status === "syncing"}
-          className="mt-5 w-full"
-          size="lg"
+          className="mt-4 w-full"
+          size="md"
         >
           {status === "syncing" ? "Sincronizando..." : "Sincronizar agora"}
         </CampoButton>
       </CampoSurface>
 
-      <div className="grid gap-5 lg:grid-cols-2">
+      <div className="grid gap-4 lg:grid-cols-2">
         {failedItems && failedItems.length > 0 ? (
           <section className="flex flex-col gap-2">
             <CampoSectionTitle
@@ -114,21 +114,21 @@ export default function SyncPage() {
               {failedItems.map((item) => (
                 <div
                   key={item.id}
-                  className="rounded-[24px] border border-white/10 bg-white/[0.04] p-4 shadow-[0_16px_40px_rgba(0,0,0,0.16)]"
+                  className="rounded-sm border border-border bg-card p-3 shadow-sm"
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <p className="text-sm font-medium text-white">
+                      <p className="text-sm font-medium text-foreground">
                         {item.entity_type} — {item.operation}
                       </p>
-                      <p className="mt-1 text-xs text-rose-200/80">{item.last_error}</p>
-                      <p className="mt-0.5 text-xs text-white/35">
+                      <p className="mt-1 text-xs text-rose-700 dark:text-rose-300">{item.last_error}</p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">
                         {item.attempts} tentativas • {new Date(item.created_at).toLocaleString("pt-BR")}
                       </p>
                     </div>
                     <button
                       onClick={() => retryItem(item.id)}
-                      className="shrink-0 rounded-full border border-emerald-400/20 bg-emerald-400/12 px-3 py-1 text-xs font-semibold text-emerald-100 transition-transform active:scale-[0.97]"
+                      className="shrink-0 rounded-full border border-green-200 bg-green-50 px-2.5 py-1 text-[11px] font-semibold text-green-800 transition-transform active:scale-[0.97] dark:border-green-900/60 dark:bg-green-950/30 dark:text-green-200"
                     >
                       Reenviar
                     </button>
@@ -138,13 +138,13 @@ export default function SyncPage() {
             </div>
           </section>
         ) : (
-          <CampoSurface className="flex items-center gap-3 p-4 text-sm text-white/55">
-            <div className="flex size-12 shrink-0 items-center justify-center rounded-[18px] bg-emerald-400/12 text-emerald-100">
-              <CheckCircle2 className="size-5" />
+          <CampoSurface className="flex items-center gap-3 p-3 text-sm text-muted-foreground">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-green-200 bg-green-50 text-green-800 dark:border-green-900/60 dark:bg-green-950/30 dark:text-green-200">
+              <CheckCircle2 className="size-4.5" />
             </div>
             <div>
-              <p className="font-medium text-white/85">Sem falhas pendentes</p>
-              <p className="text-xs text-white/45">Os itens com erro aparecerão aqui para reprocessamento.</p>
+              <p className="font-medium text-foreground">Sem falhas pendentes</p>
+              <p className="text-xs text-muted-foreground">Os itens com erro aparecerão aqui para reprocessamento.</p>
             </div>
           </CampoSurface>
         )}
@@ -158,29 +158,29 @@ export default function SyncPage() {
             />
             <div className="flex flex-col gap-2">
               {conflictTasks.map((task) => (
-                <div key={task.id} className="rounded-[24px] border border-amber-400/20 bg-amber-400/12 p-4">
-                  <p className="text-sm font-medium text-white">{task.type}</p>
-                  <p className="mt-1 text-xs text-amber-100/80">{task.sync_conflict}</p>
+                <div key={task.id} className="rounded-sm border border-amber-200 bg-amber-50 p-3 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200">
+                  <p className="text-sm font-medium">{task.type}</p>
+                  <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">{task.sync_conflict}</p>
                 </div>
               ))}
             </div>
           </section>
         ) : (
-          <CampoSurface className="flex items-center gap-3 p-4 text-sm text-white/55">
-            <div className="flex size-12 shrink-0 items-center justify-center rounded-[18px] bg-amber-400/12 text-amber-100">
-              <AlertTriangle className="size-5" />
+          <CampoSurface className="flex items-center gap-3 p-3 text-sm text-muted-foreground">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200">
+              <AlertTriangle className="size-4.5" />
             </div>
             <div>
-              <p className="font-medium text-white/85">Sem conflitos detectados</p>
-              <p className="text-xs text-white/45">Se aparecerem, use esta área para revisar cada tarefa.</p>
+              <p className="font-medium text-foreground">Sem conflitos detectados</p>
+              <p className="text-xs text-muted-foreground">Se aparecerem, use esta área para revisar cada tarefa.</p>
             </div>
           </CampoSurface>
         )}
       </div>
 
       {/* Info do dispositivo */}
-      <CampoSurface className="p-4">
-        <h2 className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-white/45">
+      <CampoSurface className="p-3.5">
+        <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
           Dispositivo
         </h2>
         <InfoRow label="ID" value={session?.device_id?.slice(0, 8) + "..."} />
@@ -191,7 +191,7 @@ export default function SyncPage() {
       {/* Diagnósticos */}
       <button
         onClick={exportLogs}
-        className="w-full rounded-[24px] border border-white/10 bg-white/[0.04] py-3 text-sm text-white/70 transition-all hover:bg-white/[0.06] active:scale-[0.99]"
+        className="w-full rounded-sm border border-border bg-card py-2.5 text-sm text-muted-foreground shadow-sm transition-all hover:bg-muted active:scale-[0.99]"
       >
         Exportar diagnóstico
       </button>
@@ -201,9 +201,9 @@ export default function SyncPage() {
 
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between gap-4 border-b border-white/8 py-2 text-sm last:border-0">
-      <span className="text-white/45">{label}</span>
-      <span className="truncate font-mono text-xs text-white/80">{value}</span>
+    <div className="flex items-center justify-between gap-4 border-b border-border py-2 text-sm last:border-0">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="truncate font-mono text-xs text-foreground">{value}</span>
     </div>
   );
 }

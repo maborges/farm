@@ -56,6 +56,7 @@ class OperacaoAgricolaCreate(BaseModel):
     latitude: float | None = Field(None, ge=-90, le=90)
     longitude: float | None = Field(None, ge=-180, le=180)
     custo_total: float | None = Field(None, ge=0)
+    status: str = Field(default="REALIZADA", min_length=1, max_length=20)
     observacoes: str | None = None
     insumos: list[InsumoOperacaoCreate] = []
 
@@ -166,6 +167,11 @@ class OperacaoAgricolaResponse(BaseModel):
     fase_safra: str | None
     custo_total: float
     custo_por_ha: float
+    origem_invalidada: bool = False
+    origem_invalidada_em: datetime | None = None
+    origem_invalidada_por: UUID | None = None
+    motivo_invalidacao_origem: str | None = None
+    documental_status: str | None = None
     status: str
     observacoes: str | None
     fotos: list[str]

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Plus, House, RefreshCw, Sprout, Wheat, Scale, Syringe, type LucideIcon } from "lucide-react";
+import { Plus, House, RefreshCw, BookText, Sprout, Wheat, Scale, Syringe, type LucideIcon } from "lucide-react";
 import { useSessionStore } from "@/lib/stores/session-store";
 import { useSyncStore } from "@/lib/stores/sync-store";
 
@@ -21,6 +21,7 @@ type NavItem = {
 const BASE_ITEMS: NavItem[] = [
   { key: "home", label: "Início", href: "/home", icon: House },
   { key: "sync", label: "Sincronizar", href: "/sync", icon: RefreshCw },
+  { key: "caderno", label: "Caderno", href: "/caderno", icon: BookText },
 ];
 
 function getQuickItems(modules: string[]): NavItem[] {
@@ -56,7 +57,7 @@ export function CampoBottomNav() {
   const { session } = useSessionStore();
   const { isOnline, pendingCount, status } = useSyncStore();
 
-  const shouldShow = pathname === "/home" || pathname === "/sync";
+  const shouldShow = pathname === "/home" || pathname === "/sync" || pathname === "/caderno";
   const quickItems = getQuickItems(session?.modules ?? []);
   const items = [...BASE_ITEMS, ...quickItems];
   const [isRendered, setIsRendered] = useState(shouldShow);
@@ -91,12 +92,10 @@ export function CampoBottomNav() {
 
   const syncMeta =
     status === "syncing"
-      ? "Sincronizando"
-      : !isOnline
-      ? "Sem conexão"
+      ? "Sync"
       : pendingCount > 0
-      ? `${pendingCount} pendentes`
-      : "Pronto";
+      ? `${pendingCount}`
+      : "";
 
   return (
     <div
@@ -105,33 +104,31 @@ export function CampoBottomNav() {
         shouldShow ? "translate-y-0 opacity-100" : "translate-y-5 opacity-0"
       )}
     >
-      <div className="mx-auto max-w-[720px] px-4 pb-3">
+      <div className="w-full px-4">
         <div className="pointer-events-none relative">
           <Link
             href="/home#nova-atividade"
             onClick={handleTap}
             aria-label="Nova atividade manual"
             className={cn(
-              "pointer-events-auto absolute left-1/2 top-0 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1 rounded-full border border-emerald-300/25 bg-gradient-to-b from-emerald-400 via-emerald-300 to-lime-200 px-5 py-3 text-emerald-950 shadow-[0_16px_32px_rgba(16,185,129,0.24)] transition-all duration-200 ease-out active:scale-[0.96]",
-              hasScrolled ? "-translate-y-[54%] scale-[1.03] shadow-[0_18px_38px_rgba(16,185,129,0.28)]" : ""
+              "pointer-events-auto absolute left-1/2 top-0 flex -translate-x-1/2 -translate-y-1/2 items-center gap-1 rounded-full border border-primary bg-primary px-3 py-2 text-primary-foreground shadow-md transition-all duration-200 ease-out active:scale-[0.96]",
+              hasScrolled ? "-translate-y-[48%] scale-[1.02] shadow-lg" : ""
             )}
           >
-            <Plus className="size-5" />
-            <span className="text-[10px] font-semibold uppercase tracking-[0.16em]">Novo</span>
+            <Plus className="size-3.5" />
+            <span className="text-[9px] font-semibold uppercase tracking-[0.12em]">Novo</span>
           </Link>
         </div>
 
         <nav
           aria-label="Navegação principal"
           className={cn(
-            "animate-[campo-nav-in_240ms_cubic-bezier(0.16,1,0.3,1)] rounded-[28px] border border-white/10 bg-[#07110e]/95 p-2 pt-6 backdrop-blur-xl transition-shadow duration-200",
-            hasScrolled
-              ? "shadow-[0_-24px_54px_rgba(0,0,0,0.38)]"
-              : "shadow-[0_-18px_40px_rgba(0,0,0,0.3)]"
+            "animate-[campo-nav-in_240ms_cubic-bezier(0.16,1,0.3,1)] border-x border-t border-border/80 bg-card/95 p-1 pt-4 text-card-foreground shadow-lg backdrop-blur supports-[backdrop-filter]:bg-card/88 transition-shadow duration-200",
+            hasScrolled ? "shadow-xl" : "shadow-lg"
           )}
-          style={{ paddingBottom: "calc(0.5rem + env(safe-area-inset-bottom))" }}
+          style={{ paddingBottom: "calc(0.2rem + env(safe-area-inset-bottom))" }}
         >
-          <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}>
+          <div className="grid gap-1.5" style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}>
             {items.map((item) => {
               const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
               const Icon = item.icon;
@@ -143,54 +140,52 @@ export function CampoBottomNav() {
                   onClick={handleTap}
                   aria-current={active ? "page" : undefined}
                   className={cn(
-                    "group flex min-h-[68px] flex-col items-center justify-center gap-1 rounded-[22px] border px-2 py-2 text-center transition-all duration-200 ease-out active:scale-[0.96]",
+                    "group flex min-h-[54px] flex-col items-center justify-center gap-0.5 rounded-sm border px-1 py-1 text-center transition-all duration-200 ease-out active:scale-[0.96]",
                     active
-                      ? "border-emerald-300/30 bg-gradient-to-b from-emerald-400/18 to-emerald-400/8 text-emerald-50 shadow-[0_10px_24px_rgba(16,185,129,0.16)] translate-y-[-1px]"
-                      : "border-transparent text-white/62 hover:border-white/10 hover:bg-white/[0.05] hover:text-white"
+                      ? "translate-y-[-1px] border-primary/30 bg-accent text-accent-foreground shadow-sm"
+                      : "border-transparent text-muted-foreground hover:border-border hover:bg-muted hover:text-foreground"
                   )}
                 >
                   <span
                     className={cn(
-                      "h-1 w-8 rounded-full transition-all duration-200",
-                      active ? "bg-emerald-300/90 shadow-[0_0_0_1px_rgba(52,211,153,0.25)]" : "bg-transparent"
+                      "h-0.5 w-7 rounded-full transition-all duration-200",
+                      active ? "bg-primary" : "bg-transparent"
                     )}
                   />
-                  <Icon className={cn("size-5 transition-transform duration-200", active && "scale-105")} />
+                  <Icon className={cn("size-4.5 transition-transform duration-200", active && "scale-105")} />
                   <span
                     className={cn(
-                      "max-w-full truncate text-[11px] font-medium leading-none transition-colors duration-200",
-                      active ? "text-emerald-50" : "text-white/62"
+                      "max-w-full truncate text-[10px] font-medium leading-none transition-colors duration-200",
+                      active ? "text-accent-foreground" : "text-muted-foreground"
                     )}
                   >
                     {item.label}
                   </span>
                   {item.key === "sync" && (
-                    <span
-                      className={cn(
-                        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em]",
-                        status === "syncing"
-                          ? "bg-sky-400/18 text-sky-50 shadow-[0_0_0_1px_rgba(125,211,252,0.12)]"
-                          : !isOnline
-                          ? "bg-white/8 text-white/55"
-                          : pendingCount > 0
-                          ? "bg-amber-400/15 text-amber-100"
-                          : "bg-emerald-400/12 text-emerald-100"
-                      )}
-                    >
+                    syncMeta && (
                       <span
                         className={cn(
-                          "size-1.5 rounded-full",
+                          "inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em]",
                           status === "syncing"
-                            ? "animate-pulse bg-sky-200"
-                            : !isOnline
-                            ? "bg-white/40"
+                            ? "bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-200"
                             : pendingCount > 0
-                            ? "bg-amber-300"
-                            : "bg-emerald-300"
+                              ? "bg-amber-50 text-amber-800 dark:bg-amber-950/30 dark:text-amber-200"
+                              : "bg-muted text-muted-foreground"
                         )}
-                      />
-                      {syncMeta}
-                    </span>
+                      >
+                        <span
+                          className={cn(
+                            "size-1.5 rounded-full",
+                            status === "syncing"
+                              ? "animate-pulse bg-sky-200"
+                              : pendingCount > 0
+                                ? "bg-amber-500"
+                                : "bg-muted-foreground"
+                          )}
+                        />
+                        {syncMeta}
+                      </span>
+                    )
                   )}
                 </Link>
               );

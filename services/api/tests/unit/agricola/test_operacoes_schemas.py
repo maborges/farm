@@ -42,6 +42,20 @@ def test_operacao_create_aceita_cultivo_id():
     assert payload.cultivo_id == cultivo_id
 
 
+def test_operacao_create_aceita_status_informado():
+    payload = OperacaoAgricolaCreate(
+        safra_id=uuid.uuid4(),
+        talhao_id=uuid.uuid4(),
+        tipo="PULVERIZACAO",
+        descricao="Aplicacao foliar",
+        data_realizada="2026-05-24",
+        area_aplicada_ha=5,
+        status="EM_ANDAMENTO",
+    )
+
+    assert payload.status == "EM_ANDAMENTO"
+
+
 def test_insumo_create_aceita_area_aplicada_vazia_como_none():
     payload = InsumoOperacaoCreate(
         produto_id=uuid.uuid4(),

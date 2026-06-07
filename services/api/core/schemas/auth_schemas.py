@@ -77,6 +77,7 @@ class UsuarioMeResponse(BaseModel):
     cpf: Optional[str] = None
     telefone: Optional[str] = None
     nome_completo: Optional[str]
+    apelido: Optional[str] = None
     foto_perfil_url: Optional[str]
     is_superuser: bool
     tenants: List[TenantAcessoResponse]
@@ -85,6 +86,7 @@ class UserCreateRequest(BaseModel):
     email: EmailStr
     username: str
     nome_completo: str
+    apelido: str = Field(..., min_length=1, max_length=20)
     senha: str
     cpf: Optional[str] = Field(None, min_length=11, max_length=11, description="CPF sem formatação, 11 dígitos")
     telefone: Optional[str] = None
@@ -101,6 +103,7 @@ class UserCreateRequest(BaseModel):
 
 class UserUpdateRequest(BaseModel):
     nome_completo: Optional[str] = None
+    apelido: Optional[str] = Field(None, min_length=1, max_length=20)
     telefone: Optional[str] = None
     foto_perfil_url: Optional[str] = None
 

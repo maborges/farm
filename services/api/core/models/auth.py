@@ -15,6 +15,7 @@ class Usuario(Base):
     cpf: Mapped[str | None] = mapped_column(String(11), unique=True, index=True, nullable=True, comment="CPF sem formatação — único na plataforma")
     telefone: Mapped[str | None] = mapped_column(String(20), nullable=True)
     nome_completo: Mapped[str | None] = mapped_column(String(150))
+    apelido: Mapped[str | None] = mapped_column(String(20), nullable=True)
     foto_perfil_url: Mapped[str | None] = mapped_column(String(500))
     senha_hash: Mapped[str | None] = mapped_column(String(255)) # Pode ser None se usar SSO
     

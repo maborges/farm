@@ -10,12 +10,12 @@ export function SyncStatusBar() {
 
   const bgClass =
     !isOnline
-      ? "bg-neutral-700"
+      ? "bg-muted text-muted-foreground"
       : status === "syncing"
-      ? "bg-blue-900"
+      ? "border-sky-200 bg-sky-50 text-sky-800 dark:border-sky-900/60 dark:bg-sky-950/30 dark:text-sky-200"
       : status === "error"
-      ? "bg-red-900"
-      : "bg-neutral-900";
+      ? "border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-200"
+      : "bg-card text-foreground";
 
   const label =
     !isOnline
@@ -31,7 +31,7 @@ export function SyncStatusBar() {
   return (
     <button
       onClick={() => router.push("/sync")}
-      className={`mx-auto w-full max-w-[520px] rounded-[24px] border border-white/10 px-4 py-3 text-xs text-white/80 transition-colors ${bgClass}`}
+      className={`mx-auto w-full max-w-[520px] rounded-sm border border-border px-4 py-3 text-xs shadow-sm transition-colors ${bgClass}`}
     >
       <span className="flex items-center justify-between gap-3">
         <span
@@ -40,7 +40,7 @@ export function SyncStatusBar() {
           }`}
         />
         <span className="flex-1 text-left">{label}</span>
-        {pendingCount > 0 && <CampoPill className="border-white/10 bg-white/8">{pendingCount}</CampoPill>}
+        {pendingCount > 0 && <CampoPill className="border-border bg-muted">{pendingCount}</CampoPill>}
       </span>
     </button>
   );

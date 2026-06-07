@@ -59,6 +59,20 @@ class FotoResponse(BaseModel):
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     data_captura: Optional[datetime] = None
+    device_local_id: Optional[str] = None
+    mime_type: Optional[str] = None
+    size_bytes: Optional[int] = None
+
+    model_config = {"from_attributes": True}
+
+
+class EvidenciaUploadResponse(BaseModel):
+    """Resposta ao upload de evidência offline. Garante idempotência por local_evidence_id."""
+
+    local_evidence_id: str
+    server_file_id: UUID
+    server_url: str
+    status: Literal["UPLOADED", "ALREADY_EXISTS"]
 
     model_config = {"from_attributes": True}
 
@@ -114,6 +128,9 @@ class EntradaResponse(BaseModel):
     origem_evento: Optional[str] = None
     origem_id: Optional[str] = None
     origem_tecnica: Optional[str] = None
+    device_id: Optional[UUID] = None
+    client_created_at: Optional[datetime] = None
+    client_updated_at: Optional[datetime] = None
     status_evento: Optional[str] = None
     status_evento_atualizado_em: Optional[datetime] = Field(default=None, validation_alias="updated_at")
     nivel_severidade: Optional[str] = None
@@ -127,6 +144,11 @@ class EntradaResponse(BaseModel):
     motivo_retificacao: Optional[str] = None
     retificado_em: Optional[datetime] = None
     retificado_por_usuario_id: Optional[UUID] = None
+    origem_invalidada: bool = False
+    origem_invalidada_em: Optional[datetime] = None
+    origem_invalidada_por: Optional[UUID] = None
+    motivo_invalidacao_origem: Optional[str] = None
+    documental_status: Optional[str] = None
     fotos: list[FotoResponse] = []
     created_at: datetime
 
@@ -214,11 +236,14 @@ class ExportacaoResponse(BaseModel):
     url_pdf: str
     data_geracao: datetime
     modo_exportacao: str
+    snapshot_hash: Optional[str] = None
     hash_documental: Optional[str] = None
     assinatura_hash: Optional[str] = None
+    protocolo_documental: Optional[str] = None
     responsavel_tecnico_id: Optional[UUID] = None
     responsavel_tecnico_nome: Optional[str] = None
     responsavel_tecnico_crea: Optional[str] = None
+    usuario_assinatura_id: Optional[UUID] = None
     assinado_por: Optional[str] = None
     crea_rt: Optional[str] = None
     crea_validade: Optional[date] = None
@@ -268,6 +293,11 @@ class TimelineItem(BaseModel):
     motivo_retificacao: Optional[str] = None
     retificado_em: Optional[datetime] = None
     retificado_por_usuario_id: Optional[UUID] = None
+    origem_invalidada: bool = False
+    origem_invalidada_em: Optional[datetime] = None
+    origem_invalidada_por: Optional[UUID] = None
+    motivo_invalidacao_origem: Optional[str] = None
+    documental_status: Optional[str] = None
     versao_vigente: bool = False
     retificado: bool = False
     retificador: bool = False
@@ -285,16 +315,59 @@ class EvidenciaOfflinePayload(BaseModel):
 class EventoCadernoOfflinePayload(BaseModel):
     local_id: str
     tenant_id: UUID
+    unidade_produtiva_id: Optional[UUID] = None
     safra_id: UUID
-    talhao_id: UUID
+    talhao_id: Optional[UUID] = None
+    tarefa_id: Optional[UUID] = None
+    operacao_id: Optional[UUID] = None
     tipo_evento: TipoEventoCaderno
     status: StatusEventoCaderno = "PENDENTE_SINCRONIZACAO"
     client_created_at: datetime
+    client_updated_at: datetime
     device_id: str
+    usuario_id: Optional[UUID] = None
     origem_evento: OrigemEventoCaderno = "PWA_OFFLINE"
     origem_tecnica: OrigemTecnicaCaderno = "SYNC_PWA"
     evidencias: list[EvidenciaOfflinePayload] = Field(default_factory=list)
     payload_operacional: dict[str, Any] = Field(default_factory=dict)
+
+
+class EventoCadernoOfflineSyncRequest(BaseModel):
+    eventos: list[EventoCadernoOfflinePayload] = Field(default_factory=list)
+
+
+class EventoCadernoOfflineSyncResult(BaseModel):
+    local_id: str
+    server_id: Optional[UUID] = None
+    status: Literal["SYNCED", "ERROR"]
+    status_evento: Optional[str] = None
+    erro: Optional[str] = None
+
+
+class EventoCadernoOficialSync(BaseModel):
+    server_id: UUID
+    local_id: Optional[str] = None
+    device_id: Optional[str] = None
+    safra_id: UUID
+    talhao_id: UUID
+    tipo: str
+    tipo_evento: Optional[str] = None
+    descricao: str
+    data_registro: date
+    status_evento: str
+    documental_status: str
+    versao_vigente: bool = False
+    retificado: bool = False
+    retificador: bool = False
+    invalidado: bool = False
+    origem_invalidada: bool = False
+    motivo_invalidacao_origem: Optional[str] = None
+    motivo_retificacao: Optional[str] = None
+    retifica_evento_id: Optional[UUID] = None
+    retificado_por_evento_id: Optional[UUID] = None
+    justificativa: Optional[str] = None
+    updated_at: Optional[datetime] = None
+    created_at: Optional[datetime] = None
 
 
 class StatusEventoUpdateRequest(BaseModel):

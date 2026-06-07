@@ -1,6 +1,5 @@
 "use client";
 
-import { useCamera } from "@/hooks/useCamera";
 import { CampoButton, CampoPill, CampoSurface } from "./ui";
 
 interface CameraCaptureProps {
@@ -21,24 +20,23 @@ export function CameraCapture({
   onRemove,
 }: CameraCaptureProps) {
   return (
-    <CampoSurface className="flex flex-col gap-3 p-4 sm:p-5">
+    <CampoSurface className="flex flex-col gap-2.5 p-3.5 sm:p-4">
       <div className="flex items-center justify-between gap-3">
-        <label className="text-sm font-semibold text-white/85">
+        <label className="text-sm font-semibold text-foreground">
           Fotos
         </label>
-        <CampoPill className="border-white/10 bg-white/6 text-white/65">
+        <CampoPill>
           {fotos.length}/2
         </CampoPill>
       </div>
-      <div className="flex flex-wrap gap-3 sm:gap-4">
+      <div className="flex flex-wrap gap-2.5 sm:gap-3">
         {fotos.map((foto, i) => (
-          <div key={i} className="relative size-24 overflow-hidden rounded-2xl border border-white/10 shadow-[0_12px_30px_rgba(0,0,0,0.2)] sm:size-28">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
+          <div key={i} className="relative size-20 overflow-hidden rounded-lg border border-border shadow-sm sm:size-24">
             <img src={foto} alt={`foto ${i + 1}`} className="w-full h-full object-cover" />
             <button
               type="button"
               onClick={() => onRemove(i)}
-              className="absolute right-1 top-1 flex size-6 items-center justify-center rounded-full border border-white/10 bg-black/60 text-xs text-white"
+              className="absolute right-1 top-1 flex size-5 items-center justify-center rounded-full border border-border bg-card/90 text-[10px] text-foreground shadow-sm"
               aria-label="Remover foto"
             >
               ×
@@ -51,10 +49,10 @@ export function CameraCapture({
             type="button"
             onClick={onOpen}
             variant="secondary"
-            className="flex size-24 flex-col rounded-2xl border-dashed text-white/65 sm:size-28"
+            className="flex size-20 flex-col rounded-lg border-dashed text-muted-foreground sm:size-24"
           >
-            <span className="text-2xl">📷</span>
-            <span className="text-xs font-medium">Adicionar</span>
+            <span className="text-xl">📷</span>
+            <span className="text-[11px] font-medium">Adicionar</span>
           </CampoButton>
         )}
       </div>

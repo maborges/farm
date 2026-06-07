@@ -34,7 +34,7 @@ export default function PesagemPage() {
   const [saving, setSaving] = useState(false);
   const [done, setDone] = useState(false);
 
-  const fazendaId = session?.fazenda_ids?.[0] ?? "";
+  const fazendaId = session?.active_fazenda_id ?? session?.fazenda_ids?.[0] ?? "";
   const lotes = useLiveQuery(() => db.lotes.where("fazenda_id").equals(fazendaId).toArray(), [fazendaId]);
 
   const stepIndex = ["lote", "peso", "confirmar"].indexOf(step);
@@ -81,11 +81,11 @@ export default function PesagemPage() {
   const loteAtual = lotes?.find((l) => l.id === loteId);
 
   return (
-    <CampoShell className="gap-5">
+    <CampoShell className="gap-4">
       <TaskHeader title="Pesagem" icon="⚖️" gpsStatus={gps.status} step={stepIndex + 1} totalSteps={3} />
 
       {step === "lote" && (
-        <div className="flex flex-1 flex-col gap-5">
+        <div className="flex flex-1 flex-col gap-4">
           <FieldSelect
             label="Lote de Animais"
             options={(lotes ?? []).map((l) => ({
@@ -95,7 +95,7 @@ export default function PesagemPage() {
             }))}
             value={loteId}
             onChange={setLoteId}
-            placeholder="Selecione o lote"
+            placeholder={fazendaId ? "Selecione o lote" : "Selecione a unidade produtiva na barra superior"}
           />
           {/* Tipo de pesagem */}
           <div className="flex flex-col gap-2">
@@ -106,10 +106,10 @@ export default function PesagemPage() {
                   key={t}
                   type="button"
                   onClick={() => setTipo(t)}
-                  className={`rounded-2xl py-4 text-xs font-semibold transition-all active:scale-[0.98] ${
+                  className={`rounded-sm py-3 text-xs font-semibold transition-all active:scale-[0.98] ${
                     tipo === t
-                      ? "bg-emerald-400/18 text-emerald-100 ring-1 ring-emerald-300/25"
-                      : "border border-white/10 bg-white/[0.04] text-white/70 hover:bg-white/[0.07]"
+                      ? "border border-green-200 bg-green-50 text-green-800 ring-1 ring-green-200 dark:border-green-900/60 dark:bg-green-950/30 dark:text-green-200 dark:ring-green-900/50"
+                      : "border border-border bg-card text-muted-foreground hover:bg-muted"
                   }`}
                 >
                   {t === "AMOSTRA" ? "Amostra" : t === "LOTE_BALANCA" ? "Balança" : "Individual"}
@@ -122,10 +122,10 @@ export default function PesagemPage() {
       )}
 
       {step === "peso" && (
-        <div className="flex flex-1 flex-col gap-5">
+        <div className="flex flex-1 flex-col gap-4">
           <NumPad value={pesoMedio} onChange={setPesoMedio} suffix="kg" label="Peso médio (kg/animal)" />
-          <CampoSurface className="flex flex-col gap-2 p-4">
-            <label className="text-sm font-semibold text-white/85">
+          <CampoSurface className="flex flex-col gap-2 p-3.5">
+            <label className="text-sm font-semibold text-foreground">
               Nº de animais pesados (padrão: {loteAtual?.quantidade_cabecas ?? "—"})
             </label>
             <input
@@ -134,7 +134,8 @@ export default function PesagemPage() {
               placeholder={String(loteAtual?.quantidade_cabecas ?? "")}
               value={qtdAnimais}
               onChange={(e) => setQtdAnimais(e.target.value)}
-              className="rounded-[22px] border border-white/10 bg-white/[0.04] px-4 py-3 text-base outline-none transition-colors focus:border-emerald-400/50 focus:bg-white/[0.06] placeholder:text-white/30"
+              className="rounded-sm border border-border bg-card px-3.5 py-2.5 text-base outline-none transition-colors focus:border-ring focus:bg-muted placeholder:text-muted-foreground/50"
+              enterKeyHint="done"
             />
           </CampoSurface>
           <CampoStepNav onBack={() => setStep("lote")} onNext={() => setStep("confirmar")} nextLabel="Próximo →" nextDisabled={!pesoMedio || pesoMedio === "0"} />
@@ -142,9 +143,9 @@ export default function PesagemPage() {
       )}
 
       {step === "confirmar" && (
-        <div className="flex flex-1 flex-col gap-5">
+        <div className="flex flex-1 flex-col gap-4">
           <GpsWarning status={gps.status} onRetry={gps.capture} />
-          <CampoSurface className="grid gap-3 p-4 text-sm md:grid-cols-2">
+          <CampoSurface className="grid gap-2.5 p-3.5 text-sm md:grid-cols-2">
             <SummaryRow label="Lote" value={loteAtual?.identificacao ?? "—"} />
             <SummaryRow label="Tipo" value={tipo} />
             <SummaryRow label="Peso médio" value={`${pesoMedio} kg`} />
@@ -152,19 +153,19 @@ export default function PesagemPage() {
             <SummaryRow label="Peso total est." value={`${((parseFloat(pesoMedio) || 0) * (parseInt(qtdAnimais) || loteAtual?.quantidade_cabecas || 1)).toFixed(0)} kg`} />
           </CampoSurface>
 
-          <CampoSurface className="p-4">
+          <CampoSurface className="p-3.5">
             <textarea
               placeholder="Observação (opcional)"
               value={obs}
               onChange={(e) => setObs(e.target.value)}
               rows={2}
-              className="min-h-[96px] w-full resize-none rounded-[22px] border border-white/10 bg-white/[0.04] px-4 py-3 text-sm outline-none transition-colors focus:border-emerald-400/50 focus:bg-white/[0.06] placeholder:text-white/30"
+              className="min-h-[84px] w-full resize-none rounded-sm border border-border bg-card px-3.5 py-2.5 text-sm outline-none transition-colors focus:border-ring focus:bg-muted placeholder:text-muted-foreground/50"
             />
           </CampoSurface>
 
           <CameraCapture fotos={cam.fotos} inputRef={cam.inputRef} canAddMore={cam.canAddMore} onOpen={cam.openCamera} onFileChange={cam.handleFileChange} onRemove={cam.removePhoto} />
 
-          <CampoButton onClick={handleSalvar} disabled={saving} className="mt-auto w-full" size="lg" variant="primary">
+          <CampoButton onClick={handleSalvar} disabled={saving} className="mt-auto w-full" size="md" variant="primary">
             {saving ? "Salvando..." : "✅ Salvar Pesagem"}
           </CampoButton>
         </div>
@@ -175,9 +176,9 @@ export default function PesagemPage() {
 
 function SummaryRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex justify-between gap-4 border-b border-white/8 py-2 last:border-0">
-      <span className="text-white/45">{label}</span>
-      <span className="text-right font-semibold text-white/85">{value}</span>
+    <div className="flex justify-between gap-4 border-b border-border py-1.5 last:border-0">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="text-right font-semibold text-foreground">{value}</span>
     </div>
   );
 }

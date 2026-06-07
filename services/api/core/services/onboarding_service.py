@@ -73,6 +73,7 @@ class OnboardingService:
             email=data.email,
             username=data.username,
             nome_completo=data.nome_completo,
+            apelido=data.apelido,
             senha_hash=hashed_pw,
             cpf=data.cpf or None,
             telefone=data.telefone or None,

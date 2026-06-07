@@ -29,6 +29,52 @@ def _get_db_url():
         db_url = "postgresql+asyncpg://borgus:numsey01@192.168.0.3/farms"
     return db_url
 
+
+async def _ensure_documental_invalidacao_columns(conn) -> None:
+    await conn.execute(
+        text(
+            """
+            ALTER TABLE campo_tarefas
+            ADD COLUMN IF NOT EXISTS invalidado_em TIMESTAMP,
+            ADD COLUMN IF NOT EXISTS invalidado_por UUID,
+            ADD COLUMN IF NOT EXISTS motivo_invalidacao TEXT
+            """
+        )
+    )
+    await conn.execute(
+        text(
+            """
+            ALTER TABLE caderno_campo_entradas
+            ADD COLUMN IF NOT EXISTS origem_invalidada BOOLEAN NOT NULL DEFAULT FALSE,
+            ADD COLUMN IF NOT EXISTS origem_invalidada_em TIMESTAMP,
+            ADD COLUMN IF NOT EXISTS origem_invalidada_por UUID,
+            ADD COLUMN IF NOT EXISTS motivo_invalidacao_origem TEXT
+            """
+        )
+    )
+    await conn.execute(
+        text(
+            """
+            ALTER TABLE operacoes_agricolas
+            ADD COLUMN IF NOT EXISTS origem_invalidada BOOLEAN NOT NULL DEFAULT FALSE,
+            ADD COLUMN IF NOT EXISTS origem_invalidada_em TIMESTAMP,
+            ADD COLUMN IF NOT EXISTS origem_invalidada_por UUID,
+            ADD COLUMN IF NOT EXISTS motivo_invalidacao_origem TEXT
+            """
+        )
+    )
+    await conn.execute(
+        text(
+            """
+            ALTER TABLE caderno_exportacoes
+            ADD COLUMN IF NOT EXISTS snapshot_documental JSON,
+            ADD COLUMN IF NOT EXISTS snapshot_hash VARCHAR(128),
+            ADD COLUMN IF NOT EXISTS protocolo_documental VARCHAR(64),
+            ADD COLUMN IF NOT EXISTS usuario_assinatura_id UUID
+            """
+        )
+    )
+
 @pytest.fixture
 def tenant_id() -> uuid.UUID:
     return TENANT_A_ID
@@ -54,6 +100,7 @@ async def session():
     try:
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all, checkfirst=True)
+            await _ensure_documental_invalidacao_columns(conn)
     except Exception:
         pass
     
@@ -78,6 +125,7 @@ async def session_a():
     try:
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all, checkfirst=True)
+            await _ensure_documental_invalidacao_columns(conn)
     except Exception:
         pass
     async_session = async_sessionmaker(engine, expire_on_commit=False)
@@ -106,6 +154,7 @@ async def session_b():
     try:
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all, checkfirst=True)
+            await _ensure_documental_invalidacao_columns(conn)
     except Exception:
         pass
     async_session = async_sessionmaker(engine, expire_on_commit=False)

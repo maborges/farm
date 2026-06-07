@@ -2,7 +2,7 @@ import uuid
 import hashlib
 import json
 from uuid import UUID
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Any, Literal
 import unicodedata
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -34,8 +34,12 @@ from agricola.caderno.schemas import (
     OrigemTecnicaCaderno,
     StatusEventoCaderno,
     StatusEventoUpdateRequest,
+    EventoCadernoOfflinePayload,
+    EventoCadernoOfflineSyncResult,
+    EventoCadernoOficialSync,
 )
 from agricola.operacoes.models import OperacaoAgricola
+from campo.models import DispositivoCampo
 from core.services.storage_service import StorageService
 from core.services.audit_service import _serialize, write_audit_log
 
@@ -148,6 +152,8 @@ STATUS_TRANSICOES_PERMITIDAS: dict[str, set[str]] = {
 
 STATUS_EVENTO_FINAIS: set[str] = {"REJEITADO", "CONSOLIDADO", "CANCELADO"}
 STATUS_EVENTO_GOVERNADOS: set[str] = set(STATUS_EVENTO_VALIDOS)
+DOCUMENTAL_STATUS_VIGENTE = "VIGENTE"
+DOCUMENTAL_STATUS_ORIGEM_INVALIDADA = "ORIGEM_INVALIDADA"
 CAMPOS_CORRIGIVEIS_CADERNO: set[str] = {
     "descricao",
     "tipo_evento",
@@ -196,6 +202,14 @@ def _status_flags(status_evento: str | None) -> dict[str, bool]:
         "consolidado": status == "CONSOLIDADO",
         "rejeitado": status == "REJEITADO",
     }
+
+
+def _to_naive_utc(value: datetime | None) -> datetime | None:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value
+    return value.astimezone(timezone.utc).replace(tzinfo=None)
 
 
 def _exige_aprovacao_por_contexto(
@@ -393,6 +407,163 @@ class CadernoCampoService(BaseService[CadernoCampoEntrada]):
         return historico
 
     @staticmethod
+    def _documental_status(entrada: CadernoCampoEntrada) -> str:
+        return (
+            DOCUMENTAL_STATUS_ORIGEM_INVALIDADA
+            if entrada.origem_invalidada
+            else DOCUMENTAL_STATUS_VIGENTE
+        )
+
+    @staticmethod
+    def _aplicar_metadados_invalidacao_documental(
+        *,
+        payload: dict[str, Any] | None,
+        motivo: str,
+        usuario_id: UUID | None,
+        invalidado_em: datetime,
+    ) -> dict[str, Any]:
+        novo_payload = dict(payload or {})
+        novo_payload["origem_invalidada"] = True
+        novo_payload["origem_invalidada_em"] = invalidado_em.isoformat()
+        novo_payload["origem_invalidada_por"] = str(usuario_id) if usuario_id else None
+        novo_payload["motivo_invalidacao_origem"] = motivo
+        novo_payload["documental_status"] = DOCUMENTAL_STATUS_ORIGEM_INVALIDADA
+        return novo_payload
+
+    async def _marcar_invalidacao_documental_operacao(
+        self,
+        operacao: OperacaoAgricola,
+        *,
+        motivo: str,
+        usuario_id: UUID | None,
+        invalidado_em: datetime,
+        ip_address: str | None = None,
+    ) -> OperacaoAgricola | None:
+        if operacao.origem_invalidada:
+            return None
+
+        payload_before = _serialize(operacao)
+        operacao.origem_invalidada = True
+        operacao.origem_invalidada_em = invalidado_em
+        operacao.origem_invalidada_por = usuario_id
+        operacao.motivo_invalidacao_origem = motivo
+        self.session.add(operacao)
+        await self.session.flush()
+
+        await write_audit_log(
+            self.session,
+            tenant_id=self.tenant_id,
+            user_id=usuario_id,
+            action="invalidate_origin",
+            resource="operacoes_agricolas",
+            resource_id=operacao.id,
+            payload_before=payload_before,
+            payload_after=_serialize(operacao),
+            ip_address=ip_address,
+        )
+        return operacao
+
+    async def _marcar_invalidacao_documental_entrada(
+        self,
+        entrada: CadernoCampoEntrada,
+        *,
+        motivo: str,
+        usuario_id: UUID | None,
+        invalidado_em: datetime,
+        ip_address: str | None = None,
+    ) -> CadernoCampoEntrada | None:
+        if entrada.origem_invalidada:
+            return None
+
+        payload_before = _serialize(entrada)
+        entrada.origem_invalidada = True
+        entrada.origem_invalidada_em = invalidado_em
+        entrada.origem_invalidada_por = usuario_id
+        entrada.motivo_invalidacao_origem = motivo
+        entrada.payload_operacional = self._aplicar_metadados_invalidacao_documental(
+            payload=entrada.payload_operacional,
+            motivo=motivo,
+            usuario_id=usuario_id,
+            invalidado_em=invalidado_em,
+        )
+        self.session.add(entrada)
+        await self.session.flush()
+
+        await write_audit_log(
+            self.session,
+            tenant_id=self.tenant_id,
+            user_id=usuario_id,
+            action="invalidate_origin",
+            resource="caderno_campo_entradas",
+            resource_id=entrada.id,
+            payload_before=payload_before,
+            payload_after=_serialize(entrada),
+            ip_address=ip_address,
+        )
+        return entrada
+
+    async def propagar_invalidacao_origem_operacional(
+        self,
+        *,
+        tarefa_id: UUID,
+        motivo: str,
+        usuario_id: UUID | None,
+        operacao_ids: list[UUID] | None = None,
+        ip_address: str | None = None,
+    ) -> dict[str, list[UUID]]:
+        invalidado_em = datetime.utcnow()
+        operacao_ids_unicos = list(dict.fromkeys(operacao_ids or []))
+        ids_entrada: list[UUID] = []
+        ids_operacao: list[UUID] = []
+
+        if operacao_ids_unicos:
+            stmt_operacao = select(OperacaoAgricola).where(
+                OperacaoAgricola.tenant_id == self.tenant_id,
+                OperacaoAgricola.id.in_(operacao_ids_unicos),
+            )
+            operacoes = list((await self.session.execute(stmt_operacao)).scalars().all())
+            for operacao in operacoes:
+                if await self._marcar_invalidacao_documental_operacao(
+                    operacao,
+                    motivo=motivo,
+                    usuario_id=usuario_id,
+                    invalidado_em=invalidado_em,
+                    ip_address=ip_address,
+                ):
+                    ids_operacao.append(operacao.id)
+
+        clauses = [
+            CadernoCampoEntrada.payload_operacional["task_id"].as_string() == str(tarefa_id),
+        ]
+        if operacao_ids_unicos:
+            clauses.append(CadernoCampoEntrada.operacao_id.in_(operacao_ids_unicos))
+            clauses.append(
+                CadernoCampoEntrada.payload_operacional["operacao_id"].as_string().in_(
+                    [str(op_id) for op_id in operacao_ids_unicos]
+                )
+            )
+
+        entrada_stmt = select(CadernoCampoEntrada).where(
+            CadernoCampoEntrada.tenant_id == self.tenant_id,
+            or_(*clauses),
+        )
+        entradas = list((await self.session.execute(entrada_stmt)).scalars().all())
+        for entrada in entradas:
+            if await self._marcar_invalidacao_documental_entrada(
+                entrada,
+                motivo=motivo,
+                usuario_id=usuario_id,
+                invalidado_em=invalidado_em,
+                ip_address=ip_address,
+            ):
+                ids_entrada.append(entrada.id)
+
+        return {
+            "operacao_ids": ids_operacao,
+            "entrada_ids": ids_entrada,
+        }
+
+    @staticmethod
     def _entrada_foi_retificada(entrada: CadernoCampoEntrada) -> bool:
         return bool(entrada.retificado_por_evento_id)
 
@@ -405,6 +576,7 @@ class CadernoCampoService(BaseService[CadernoCampoEntrada]):
         return (
             not entrada.excluida
             and not entrada.retificado_por_evento_id
+            and not entrada.origem_invalidada
             and _normalizar_chave(entrada.status_evento) in {"APROVADO", "CONSOLIDADO"}
         )
 
@@ -514,6 +686,11 @@ class CadernoCampoService(BaseService[CadernoCampoEntrada]):
             origem_tecnica=payload["origem_tecnica"],
             status_evento=payload["status_evento"],
         )
+        if operacao.origem_invalidada:
+            entrada.origem_invalidada = True
+            entrada.origem_invalidada_em = operacao.origem_invalidada_em
+            entrada.origem_invalidada_por = operacao.origem_invalidada_por
+            entrada.motivo_invalidacao_origem = operacao.motivo_invalidacao_origem
         self.session.add(entrada)
         await self.session.flush()
         await self._registrar_historico_status(
@@ -523,6 +700,219 @@ class CadernoCampoService(BaseService[CadernoCampoEntrada]):
             usuario_id=operacao.operador_id,
         )
         return entrada
+
+    async def sincronizar_eventos_offline(
+        self,
+        eventos: list[EventoCadernoOfflinePayload],
+        *,
+        device: DispositivoCampo,
+        ip: str | None = None,
+    ) -> list[EventoCadernoOfflineSyncResult]:
+        from core.cadastros.propriedades.models import AreaRural
+        from agricola.safras.models import Safra
+
+        resultados: list[EventoCadernoOfflineSyncResult] = []
+
+        if not eventos:
+            return resultados
+
+        for evento in eventos:
+            try:
+                if evento.device_id != str(device.id):
+                    raise BusinessRuleError("device_id do evento não confere com o dispositivo autenticado.")
+                if evento.tenant_id != self.tenant_id:
+                    raise BusinessRuleError("tenant_id do evento não confere com o tenant autenticado.")
+
+                if not evento.talhao_id:
+                    raise BusinessRuleError("Evento offline exige talhão para sincronização inicial.")
+
+                safra = (await self.session.execute(
+                    select(Safra).where(Safra.id == evento.safra_id, Safra.tenant_id == self.tenant_id)
+                )).scalar_one_or_none()
+                if not safra:
+                    raise BusinessRuleError("Safra inválida para sincronização offline.")
+
+                talhao = (await self.session.execute(
+                    select(AreaRural).where(
+                        AreaRural.id == evento.talhao_id,
+                        AreaRural.tenant_id == self.tenant_id,
+                    )
+                )).scalar_one_or_none()
+                if not talhao:
+                    raise BusinessRuleError("Talhão inválido para sincronização offline.")
+
+                if talhao.unidade_produtiva_id not in device.fazenda_ids:
+                    raise BusinessRuleError("Talhão fora do escopo do dispositivo autenticado.")
+
+                existente = await self.obter_por_origem("PWA_OFFLINE", evento.local_id)
+                if existente:
+                    resultados.append(
+                        EventoCadernoOfflineSyncResult(
+                            local_id=evento.local_id,
+                            server_id=existente.id,
+                            status="SYNCED",
+                            status_evento=existente.status_evento,
+                            erro=None,
+                        )
+                    )
+                    continue
+
+                descricao = (
+                    str(evento.payload_operacional.get("descricao"))
+                    if evento.payload_operacional.get("descricao") is not None
+                    else evento.tipo_evento.replace("_", " ").title()
+                )
+                data_registro = evento.payload_operacional.get("data_registro")
+                if isinstance(data_registro, str):
+                    data_registro = date.fromisoformat(data_registro)
+                if not isinstance(data_registro, date):
+                    data_registro = evento.client_created_at.date()
+
+                status_evento = "PENDENTE_APROVACAO" if _exige_aprovacao_por_contexto(
+                    tipo_evento=evento.tipo_evento,
+                    origem_evento=evento.origem_evento,
+                    digitalizacao_retroativa=bool(evento.payload_operacional.get("digitalizacao_retroativa")),
+                ) else "SINCRONIZADO"
+
+                entrada = CadernoCampoEntrada(
+                    tenant_id=self.tenant_id,
+                    safra_id=evento.safra_id,
+                    talhao_id=evento.talhao_id,
+                    tipo=evento.tipo_evento,
+                    tipo_evento=evento.tipo_evento,
+                    descricao=descricao,
+                    data_registro=data_registro,
+                    usuario_id=evento.usuario_id or device.user_id,
+                    operacao_id=evento.operacao_id,
+                    origem_evento="PWA_OFFLINE",
+                    origem_id=evento.local_id,
+                    origem_tecnica="SYNC_PWA",
+                    device_id=device.id,
+                    unidade_produtiva_id=talhao.unidade_produtiva_id,
+                    client_created_at=_to_naive_utc(evento.client_created_at),
+                    client_updated_at=_to_naive_utc(evento.client_updated_at),
+                    payload_operacional={
+                        **evento.payload_operacional,
+                        "evidencias": [e.model_dump(mode="json") for e in evento.evidencias],
+                        "device_id": evento.device_id,
+                        "local_id": evento.local_id,
+                    },
+                    status_evento=status_evento,
+                    nivel_severidade=evento.payload_operacional.get("nivel_severidade"),
+                    recomendacao=evento.payload_operacional.get("recomendacao"),
+                    numero_receituario=evento.payload_operacional.get("numero_receituario"),
+                )
+                self.session.add(entrada)
+                await self.session.flush()
+                await self._registrar_historico_status(
+                    entrada,
+                    status_anterior=None,
+                    status_novo=entrada.status_evento,
+                    justificativa=evento.payload_operacional.get("justificativa"),
+                    usuario_id=evento.usuario_id or device.user_id,
+                )
+
+                resultados.append(
+                    EventoCadernoOfflineSyncResult(
+                        local_id=evento.local_id,
+                        server_id=entrada.id,
+                        status="SYNCED",
+                        status_evento=entrada.status_evento,
+                        erro=None,
+                    )
+                )
+            except Exception as exc:
+                resultados.append(
+                    EventoCadernoOfflineSyncResult(
+                        local_id=evento.local_id,
+                        server_id=None,
+                        status="ERROR",
+                        status_evento=None,
+                        erro=str(exc),
+                    )
+                )
+
+        return resultados
+
+    async def upload_evidencia_offline(
+        self,
+        *,
+        entrada_id: UUID,
+        device: "DispositivoCampo",
+        local_evidence_id: str,
+        file_content: bytes,
+        filename: str,
+        mime_type: str | None,
+        size_bytes: int | None,
+        captured_at: datetime | None,
+        latitude: float | None,
+        longitude: float | None,
+    ) -> "CadernoCampoFoto":
+        """Faz upload de evidência offline para uma entrada do caderno.
+
+        Args:
+            entrada_id: ID da entrada canônica do caderno.
+            device: Dispositivo de campo autenticado.
+            local_evidence_id: ID local da evidência (para idempotência).
+            file_content: Bytes do arquivo de imagem.
+            filename: Nome do arquivo.
+            mime_type: Tipo MIME do arquivo.
+            size_bytes: Tamanho em bytes.
+            captured_at: Timestamp de captura no campo.
+            latitude: Latitude do GPS no momento da captura.
+            longitude: Longitude do GPS no momento da captura.
+
+        Returns:
+            CadernoCampoFoto criada ou existente (idempotente).
+
+        Raises:
+            BusinessRuleError: Se entrada não pertencer ao tenant ou ao escopo do device.
+        """
+        from pathlib import Path as _Path
+        import uuid as _uuid_mod
+
+        # Verifica se entrada pertence ao tenant
+        entrada = await self.get_or_fail(entrada_id)
+
+        # Verifica se entrada pertence ao escopo do device
+        if entrada.unidade_produtiva_id and entrada.unidade_produtiva_id not in device.fazenda_ids:
+            raise BusinessRuleError("Entrada fora do escopo do dispositivo autenticado.")
+
+        # Idempotência: verifica se já existe foto com este local_evidence_id para esta entrada
+        stmt_existente = select(CadernoCampoFoto).where(
+            CadernoCampoFoto.entrada_id == entrada_id,
+            CadernoCampoFoto.device_local_id == local_evidence_id,
+        )
+        foto_existente = (await self.session.execute(stmt_existente)).scalar_one_or_none()
+        if foto_existente:
+            return foto_existente
+
+        # Gera path no storage usando convenção padrão do StorageService
+        ext = _Path(filename).suffix or ".jpg"
+        unique = _uuid_mod.uuid4().hex[:8]
+        storage_path = f"static/fotos_caderno/{entrada.tenant_id}/{unique}_{_uuid_mod.uuid4().hex[:8]}{ext}"
+
+        StorageService.save_blob(file_content, storage_path)
+        url = StorageService.public_url(storage_path)
+
+        from core.services.storage_service import increment_storage
+        await increment_storage(self.session, self.tenant_id, len(file_content))
+
+        foto = CadernoCampoFoto(
+            entrada_id=entrada_id,
+            url=url,
+            storage_path=storage_path,
+            device_local_id=local_evidence_id,
+            device_id=device.id,
+            mime_type=mime_type,
+            size_bytes=size_bytes,
+            latitude=latitude,
+            longitude=longitude,
+            data_captura=_to_naive_utc(captured_at),
+        )
+        self.session.add(foto)
+        await self.session.flush()
+        return foto
 
     async def criar_entrada(self, dados: EntradaCreate, usuario_id: UUID, ip: str | None = None) -> CadernoCampoEntrada:
         if dados.digitalizacao_retroativa:
@@ -855,11 +1245,19 @@ class CadernoCampoService(BaseService[CadernoCampoEntrada]):
                 origem_evento=e.origem_evento,
                 origem_id=e.origem_id,
                 origem_tecnica=e.origem_tecnica,
+                device_id=e.device_id,
+                client_created_at=e.client_created_at,
+                client_updated_at=e.client_updated_at,
                 retifica_evento_id=e.retifica_evento_id,
                 retificado_por_evento_id=e.retificado_por_evento_id,
                 motivo_retificacao=e.motivo_retificacao,
                 retificado_em=e.retificado_em,
                 retificado_por_usuario_id=e.retificado_por_usuario_id,
+                origem_invalidada=e.origem_invalidada,
+                origem_invalidada_em=e.origem_invalidada_em,
+                origem_invalidada_por=e.origem_invalidada_por,
+                motivo_invalidacao_origem=e.motivo_invalidacao_origem,
+                documental_status=self._documental_status(e),
                 versao_vigente=versao_vigente,
                 retificado=self._entrada_foi_retificada(e),
                 retificador=self._entrada_eh_retificadora(e),
@@ -892,12 +1290,111 @@ class CadernoCampoService(BaseService[CadernoCampoEntrada]):
                 origem_evento=ORIGEM_EVENTO_OPERACAO,
                 origem_id=str(op.id),
                 origem_tecnica=ORIGEM_TECNICA_OPERACAO,
-                versao_vigente=True,
+                origem_invalidada=op.origem_invalidada,
+                origem_invalidada_em=op.origem_invalidada_em,
+                origem_invalidada_por=op.origem_invalidada_por,
+                motivo_invalidacao_origem=op.motivo_invalidacao_origem,
+                documental_status=DOCUMENTAL_STATUS_ORIGEM_INVALIDADA if op.origem_invalidada else DOCUMENTAL_STATUS_VIGENTE,
+                versao_vigente=not op.origem_invalidada,
             ))
 
         # Ordena tudo por data desc
         items.sort(key=lambda x: x.data_registro, reverse=True)
         return items
+
+    async def listar_eventos_oficiais_para_sync(
+        self,
+        *,
+        unidade_produtiva_ids: list[UUID],
+        updated_after: datetime | None = None,
+    ) -> list[EventoCadernoOficialSync]:
+        from core.cadastros.propriedades.models import AreaRural
+
+        if not unidade_produtiva_ids:
+            return []
+        unidade_produtiva_ids_norm = {str(unidade_produtiva_id) for unidade_produtiva_id in unidade_produtiva_ids}
+
+        stmt = (
+            select(CadernoCampoEntrada)
+            .where(
+                CadernoCampoEntrada.tenant_id == self.tenant_id,
+            )
+            .order_by(CadernoCampoEntrada.data_registro.desc(), CadernoCampoEntrada.updated_at.desc())
+        )
+        if updated_after is not None:
+            stmt = stmt.where(
+                or_(
+                    CadernoCampoEntrada.updated_at >= updated_after,
+                    CadernoCampoEntrada.created_at >= updated_after,
+                    CadernoCampoEntrada.retificado_em >= updated_after,
+                    CadernoCampoEntrada.origem_invalidada_em >= updated_after,
+                )
+            )
+
+        entradas = list((await self.session.execute(stmt)).scalars().all())
+        if not entradas:
+            return []
+
+        talhao_ids = list({entrada.talhao_id for entrada in entradas})
+        area_stmt = select(AreaRural.id, AreaRural.unidade_produtiva_id).where(
+            AreaRural.tenant_id == self.tenant_id,
+            AreaRural.id.in_(talhao_ids),
+        )
+        areas = (await self.session.execute(area_stmt)).all()
+        area_por_talhao = {str(area_id): str(unidade_produtiva_id) for area_id, unidade_produtiva_id in areas}
+        historico_stmt = (
+            select(CadernoEventoStatusHistorico)
+            .where(
+                CadernoEventoStatusHistorico.tenant_id == self.tenant_id,
+                CadernoEventoStatusHistorico.caderno_entrada_id.in_([entrada.id for entrada in entradas]),
+            )
+            .order_by(
+                CadernoEventoStatusHistorico.caderno_entrada_id.asc(),
+                CadernoEventoStatusHistorico.created_at.desc(),
+            )
+        )
+        historicos = list((await self.session.execute(historico_stmt)).scalars().all())
+        ultimo_historico_por_entrada: dict[UUID, CadernoEventoStatusHistorico] = {}
+        for historico in historicos:
+            ultimo_historico_por_entrada.setdefault(historico.caderno_entrada_id, historico)
+
+        eventos: list[EventoCadernoOficialSync] = []
+        for entrada in entradas:
+            unidade_produtiva_id = (
+                str(entrada.unidade_produtiva_id) if entrada.unidade_produtiva_id is not None else area_por_talhao.get(str(entrada.talhao_id))
+            )
+            if unidade_produtiva_id not in unidade_produtiva_ids_norm:
+                continue
+            local_id = entrada.origem_id if entrada.origem_evento == "PWA_OFFLINE" else None
+            historico = ultimo_historico_por_entrada.get(entrada.id)
+            eventos.append(
+                EventoCadernoOficialSync(
+                    server_id=entrada.id,
+                    local_id=local_id,
+                    device_id=str(entrada.device_id) if entrada.device_id is not None else None,
+                    safra_id=entrada.safra_id,
+                    talhao_id=entrada.talhao_id,
+                    tipo=entrada.tipo,
+                    tipo_evento=entrada.tipo_evento,
+                    descricao=entrada.descricao,
+                    data_registro=entrada.data_registro,
+                    status_evento=entrada.status_evento,
+                    documental_status=self._documental_status(entrada),
+                    versao_vigente=self._entrada_eh_vigente(entrada),
+                    retificado=self._entrada_foi_retificada(entrada),
+                    retificador=self._entrada_eh_retificadora(entrada),
+                    invalidado=bool(entrada.origem_invalidada),
+                    origem_invalidada=bool(entrada.origem_invalidada),
+                    motivo_invalidacao_origem=entrada.motivo_invalidacao_origem,
+                    motivo_retificacao=entrada.motivo_retificacao,
+                    retifica_evento_id=entrada.retifica_evento_id,
+                    retificado_por_evento_id=entrada.retificado_por_evento_id,
+                    justificativa=historico.justificativa if historico is not None else None,
+                    updated_at=entrada.updated_at,
+                    created_at=entrada.created_at,
+                )
+            )
+        return eventos
 
     async def listar_safras_ativas(self, safra_id: UUID | None = None):
         from agricola.safras.models import Safra
@@ -1016,6 +1513,10 @@ class CadernoExportacaoService(BaseService[CadernoExportacao]):
     def __init__(self, session: AsyncSession, tenant_id: UUID):
         super().__init__(CadernoExportacao, session, tenant_id)
 
+    @staticmethod
+    def _protocolo_documental() -> str:
+        return f"CDOC-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}-{uuid.uuid4().hex[:10].upper()}"
+
     async def _listar_eventos_documentais(
         self,
         safra_id: UUID,
@@ -1037,6 +1538,7 @@ class CadernoExportacaoService(BaseService[CadernoExportacao]):
             stmt = stmt.where(CadernoCampoEntrada.excluida == False)
             stmt = stmt.where(CadernoCampoEntrada.status_evento.in_(["APROVADO", "CONSOLIDADO"]))
             stmt = stmt.where(CadernoCampoEntrada.retificado_por_evento_id.is_(None))
+            stmt = stmt.where(CadernoCampoEntrada.origem_invalidada == False)
         else:
             stmt = stmt.where(CadernoCampoEntrada.status_evento.in_(list(STATUS_EVENTO_VALIDOS)))
 
@@ -1099,6 +1601,9 @@ class CadernoExportacaoService(BaseService[CadernoExportacao]):
             }
 
         def _entrada_payload(entrada: CadernoCampoEntrada) -> dict[str, Any]:
+            documental_status = (
+                DOCUMENTAL_STATUS_ORIGEM_INVALIDADA if entrada.origem_invalidada else DOCUMENTAL_STATUS_VIGENTE
+            )
             return {
                 "id": str(entrada.id),
                 "tipo": entrada.tipo,
@@ -1118,9 +1623,15 @@ class CadernoExportacaoService(BaseService[CadernoExportacao]):
                 "motivo_retificacao": entrada.motivo_retificacao,
                 "retificado_em": entrada.retificado_em.isoformat() if entrada.retificado_em else None,
                 "retificado_por_usuario_id": str(entrada.retificado_por_usuario_id) if entrada.retificado_por_usuario_id else None,
+                "origem_invalidada": entrada.origem_invalidada,
+                "origem_invalidada_em": entrada.origem_invalidada_em.isoformat() if entrada.origem_invalidada_em else None,
+                "origem_invalidada_por": str(entrada.origem_invalidada_por) if entrada.origem_invalidada_por else None,
+                "motivo_invalidacao_origem": entrada.motivo_invalidacao_origem,
+                "documental_status": documental_status,
                 "versao_vigente": (
                     not entrada.excluida
                     and not entrada.retificado_por_evento_id
+                    and not entrada.origem_invalidada
                     and _normalizar_chave(entrada.status_evento) in {"APROVADO", "CONSOLIDADO"}
                 ),
                 "fotos": [_foto_payload(f) for f in entrada.fotos],
@@ -1212,36 +1723,47 @@ class CadernoExportacaoService(BaseService[CadernoExportacao]):
         ip_address: str | None = None,
     ) -> CadernoExportacao:
         exportacao = await self.get_or_fail(exportacao_id)
+        payload_before = _serialize(exportacao)
         if responsavel_tecnico_id and responsavel_tecnico_id != usuario.id:
             raise BusinessRuleError("O responsável técnico informado deve ser o usuário autenticado.")
 
         nome_rt = usuario.nome_completo or usuario.username or responsavel_tecnico_nome
+        snapshot_hash = exportacao.snapshot_hash or exportacao.hash_documental
+        if snapshot_hash is None and exportacao.snapshot_documental is not None:
+            snapshot_hash = self._hash_documental(exportacao.snapshot_documental)
+        protocolo_documental = exportacao.protocolo_documental or self._protocolo_documental()
+        assinado_em = datetime.utcnow()
+
         exportacao.responsavel_tecnico_id = usuario.id
         exportacao.responsavel_tecnico_nome = nome_rt
         exportacao.responsavel_tecnico_crea = crea_rt or exportacao.responsavel_tecnico_crea
+        exportacao.usuario_assinatura_id = usuario.id
         exportacao.assinado_por = nome_rt
         exportacao.crea_rt = crea_rt or exportacao.crea_rt
         exportacao.crea_validade = crea_validade or exportacao.crea_validade
-        exportacao.assinado_em = datetime.utcnow()
+        exportacao.assinado_em = assinado_em
         exportacao.assinatura_origem = assinatura_origem
         exportacao.observacao_assinatura = observacao
+        exportacao.protocolo_documental = protocolo_documental
+        exportacao.snapshot_hash = snapshot_hash
         if exportacao.hash_documental is None:
-            exportacao.hash_documental = self._hash_documental({
+            exportacao.hash_documental = snapshot_hash
+        exportacao.assinatura_hash = self._hash_documental(
+            {
                 "exportacao_id": str(exportacao.id),
-                "safra_id": str(exportacao.safra_id),
-                "modo_exportacao": exportacao.modo_exportacao,
-                "modelo_certificacao": exportacao.modelo_certificacao,
+                "protocolo_documental": protocolo_documental,
+                "snapshot_hash": snapshot_hash,
                 "assinatura": {
-                    "responsavel_tecnico_id": str(usuario.id),
+                    "usuario_id": str(usuario.id),
                     "responsavel_tecnico_nome": nome_rt,
                     "responsavel_tecnico_crea": exportacao.responsavel_tecnico_crea,
                     "observacao": observacao,
                     "assinatura_origem": assinatura_origem,
+                    "assinado_em": assinado_em.isoformat(),
                 },
-            })
-        exportacao.assinatura_hash = exportacao.hash_documental
+            }
+        )
 
-        payload_before = _serialize(exportacao)
         await self.session.flush()
         await write_audit_log(
             self.session,
@@ -1297,7 +1819,8 @@ class CadernoExportacaoService(BaseService[CadernoExportacao]):
             responsavel_tecnico_crea=dados.crea_rt,
             observacao_assinatura=None,
         )
-        hash_documental = self._hash_documental(snapshot)
+        snapshot_hash = self._hash_documental(snapshot)
+        protocolo_documental = self._protocolo_documental()
 
         # 3. Busca nome da fazenda e talhões
         from core.cadastros.propriedades.models import AreaRural
@@ -1386,6 +1909,18 @@ class CadernoExportacaoService(BaseService[CadernoExportacao]):
                 partes.append(f"Motivo da retificação: {entrada.motivo_retificacao}")
             return " | ".join(partes)
 
+        def _invalidacao_origem_texto(entrada: CadernoCampoEntrada) -> str:
+            if not entrada.origem_invalidada:
+                return ""
+            partes = ["⚠ Origem operacional invalidada"]
+            if entrada.origem_invalidada_em:
+                partes.append(f"em {entrada.origem_invalidada_em.strftime('%d/%m/%Y %H:%M')}")
+            if entrada.origem_invalidada_por:
+                partes.append(f"por {str(entrada.origem_invalidada_por)}")
+            if entrada.motivo_invalidacao_origem:
+                partes.append(f"motivo: {entrada.motivo_invalidacao_origem}")
+            return " | ".join(partes)
+
         # ═══════════════════════════════════════════════════════
         # LAYOUT POR MODELO
         # ═══════════════════════════════════════════════════════
@@ -1452,7 +1987,11 @@ class CadernoExportacaoService(BaseService[CadernoExportacao]):
         ])
         info_data.append([
             Paragraph("<b>Hash Documental:</b>", styles["SmallBold"]),
-            Paragraph(hash_documental[:16] + "…", styles["BodyText2"]),
+            Paragraph(snapshot_hash[:16] + "…", styles["BodyText2"]),
+        ])
+        info_data.append([
+            Paragraph("<b>Protocolo:</b>", styles["SmallBold"]),
+            Paragraph(protocolo_documental, styles["BodyText2"]),
         ])
 
         info_table = Table(info_data, colWidths=[4.5*cm, 10*cm])
@@ -1482,9 +2021,11 @@ class CadernoExportacaoService(BaseService[CadernoExportacao]):
                     if op and op.insumos:
                         for ins in op.insumos:
                             retificacao_info = _retificacao_texto(e)
+                            invalidacao_info = _invalidacao_origem_texto(e)
                             talhao_label = getattr(ins, "produto_nome", None) or str(ins.produto_id)
-                            if retificacao_info:
-                                talhao_label = f"{talhao_label}<br/>{retificacao_info}"
+                            extras = [texto for texto in [retificacao_info, invalidacao_info] if texto]
+                            if extras:
+                                talhao_label = f"{talhao_label}<br/>" + "<br/>".join(extras)
                             insumos_rows.append([
                                 Paragraph(e.data_registro.strftime("%d/%m/%Y"), styles["TableCell"]),
                                 Paragraph(talhao_label, styles["TableCell"]),
@@ -1497,7 +2038,9 @@ class CadernoExportacaoService(BaseService[CadernoExportacao]):
                 for e in entradas:
                     talhao_nome = talhoes_map.get(str(e.talhao_id), f"Talhão {str(e.talhao_id)[:8]}")
                     retificacao_info = _retificacao_texto(e)
-                    talhao_label = talhao_nome if not retificacao_info else f"{talhao_nome}<br/>{retificacao_info}"
+                    invalidacao_info = _invalidacao_origem_texto(e)
+                    extras = [texto for texto in [retificacao_info, invalidacao_info] if texto]
+                    talhao_label = talhao_nome if not extras else f"{talhao_nome}<br/>" + "<br/>".join(extras)
                     insumos_rows.append([
                         Paragraph(e.data_registro.strftime("%d/%m/%Y") if hasattr(e.data_registro, 'strftime') else str(e.data_registro), styles["TableCell"]),
                         Paragraph(talhao_label, styles["TableCell"]),
@@ -1548,8 +2091,10 @@ class CadernoExportacaoService(BaseService[CadernoExportacao]):
                 talhao_nome = talhoes_map.get(str(e.talhao_id), f"Talhão {str(e.talhao_id)[:8]}")
                 desc = (e.descricao or "")[:80]
                 retificacao_info = _retificacao_texto(e)
-                if retificacao_info:
-                    desc = f"{desc}<br/>{retificacao_info}"
+                invalidacao_info = _invalidacao_origem_texto(e)
+                extras = [texto for texto in [retificacao_info, invalidacao_info] if texto]
+                if extras:
+                    desc = f"{desc}<br/>" + "<br/>".join(extras)
                 organico_rows.append([
                     Paragraph(e.data_registro.strftime("%d/%m/%Y") if hasattr(e.data_registro, 'strftime') else str(e.data_registro), styles["TableCell"]),
                     Paragraph(talhao_nome, styles["TableCell"]),
@@ -1601,6 +2146,7 @@ class CadernoExportacaoService(BaseService[CadernoExportacao]):
                 dose_info = "—"
                 intervalo = "—"
                 retificacao_info = _retificacao_texto(e)
+                invalidacao_info = _invalidacao_origem_texto(e)
                 if hasattr(e, 'operacao_id') and e.operacao_id:
                     op_stmt = select(OperacaoAgricola).where(OperacaoAgricola.id == e.operacao_id)
                     op = (await self.session.execute(op_stmt)).scalar_one_or_none()
@@ -1615,7 +2161,10 @@ class CadernoExportacaoService(BaseService[CadernoExportacao]):
                     Paragraph(e.data_registro.strftime("%d/%m/%Y") if hasattr(e.data_registro, 'strftime') else str(e.data_registro), styles["TableCell"]),
                     Paragraph(talhao_nome, styles["TableCell"]),
                     Paragraph(e.tipo_evento or e.tipo, styles["TableCell"]),
-                    Paragraph(f"{dose_info}<br/>{retificacao_info}" if retificacao_info else dose_info, styles["TableCell"]),
+                    Paragraph(
+                        "<br/>".join([texto for texto in [dose_info, retificacao_info, invalidacao_info] if texto]),
+                        styles["TableCell"],
+                    ),
                     Paragraph(intervalo, styles["TableCell"]),
                     Paragraph(receituario or "—", styles["TableCell"]),
                 ])
@@ -1671,6 +2220,7 @@ class CadernoExportacaoService(BaseService[CadernoExportacao]):
                     talhao_nome = talhoes_map.get(str(item.talhao_id), f"Talhão {str(item.talhao_id)[:8]}")
                     desc = item.descricao if hasattr(item, 'descricao') else item.get('descricao', '')
                     retificacao_info = _retificacao_texto(item) if hasattr(item, "retifica_evento_id") else ""
+                    invalidacao_info = _invalidacao_origem_texto(item) if hasattr(item, "origem_invalidada") else ""
                     severidade = item.nivel_severidade if hasattr(item, 'nivel_severidade') else item.get('nivel_severidade')
                     status_evento = item.status_evento if hasattr(item, "status_evento") else item.get("status_evento")
                     status_hist = item.status_historico if hasattr(item, "status_historico") else item.get("status_historico", [])
@@ -1695,6 +2245,8 @@ class CadernoExportacaoService(BaseService[CadernoExportacao]):
                     story.append(Paragraph(desc.replace("\n", "<br/>"), styles["BodyText2"]))
                     if retificacao_info:
                         story.append(Paragraph(f"<b>Retificação:</b> {retificacao_info}", styles["BodyText2"]))
+                    if invalidacao_info:
+                        story.append(Paragraph(f"<b>Origem:</b> {invalidacao_info}", styles["BodyText2"]))
                     if status_hist and modo_exportacao == "AUDITORIA":
                         hist_txt = "<br/>".join(
                             f"{(getattr(h, 'status_anterior', None) or '—')} → {getattr(h, 'status_novo', '—')} ({getattr(h, 'created_at', None).strftime('%d/%m/%Y %H:%M') if getattr(h, 'created_at', None) else '—'})"
@@ -1836,7 +2388,7 @@ class CadernoExportacaoService(BaseService[CadernoExportacao]):
             ParagraphStyle("sigDate", fontSize=7, alignment=TA_CENTER, textColor=HexColor("#999"), fontName="Helvetica"),
         ))
         story.append(Paragraph(
-            f"Protocolo documental: {hash_documental}",
+            f"Protocolo documental: {protocolo_documental}",
             ParagraphStyle("sigHash", fontSize=7, alignment=TA_CENTER, textColor=HexColor("#999"), fontName="Helvetica"),
         ))
 
@@ -1854,9 +2406,12 @@ class CadernoExportacaoService(BaseService[CadernoExportacao]):
             safra_id=dados.safra_id,
             talhao_id=dados.talhao_id,
             url_pdf=url_pdf,
+            snapshot_documental=snapshot,
+            snapshot_hash=snapshot_hash,
             modo_exportacao=modo_exportacao,
-            hash_documental=hash_documental,
+            hash_documental=snapshot_hash,
             assinatura_hash=None,
+            protocolo_documental=protocolo_documental,
             assinado_por=dados.assinado_por,
             crea_rt=dados.crea_rt,
             responsavel_tecnico_nome=dados.assinado_por,

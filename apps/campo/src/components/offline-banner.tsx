@@ -13,10 +13,10 @@ export function OfflineBanner() {
 
   if (justReconnected) {
     return (
-      <div className="mx-auto w-full max-w-[520px] rounded-[24px] border border-emerald-400/20 bg-emerald-400/12 px-4 py-3 text-xs text-emerald-50 shadow-lg shadow-emerald-950/20">
+      <div className="w-full rounded-sm border border-green-200 bg-green-50 px-3 py-2 text-[11px] text-green-800 shadow-sm dark:border-green-900/60 dark:bg-green-950/30 dark:text-green-200">
         <div className="flex items-center justify-between gap-3">
           <span className="font-medium">Conexão restabelecida. Sincronizando agora.</span>
-          <CampoPill className="border-emerald-400/20 bg-emerald-400/10 text-emerald-100">
+          <CampoPill className="border-green-200 bg-green-100 text-green-800 dark:border-green-900/60 dark:bg-green-950/40 dark:text-green-200">
             {pendingCount} pendente{pendingCount !== 1 ? "s" : ""}
           </CampoPill>
         </div>
@@ -26,11 +26,11 @@ export function OfflineBanner() {
 
   if (!isOnline) {
     return (
-      <div className="mx-auto w-full max-w-[520px] rounded-[24px] border border-white/10 bg-white/[0.04] px-4 py-3 text-xs text-white/80 shadow-lg shadow-black/20 backdrop-blur-xl">
+      <div className="w-full rounded-sm border border-border bg-card px-3 py-2 text-[11px] text-foreground shadow-sm">
         <div className="flex items-center justify-between gap-3">
           <span className="font-medium">Sem conexão. Os registros ficam salvos no dispositivo.</span>
           {pendingCount > 0 && (
-            <CampoPill className="border-amber-400/20 bg-amber-400/12 text-amber-100">
+            <CampoPill className="border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200">
               {pendingCount} pendente{pendingCount !== 1 ? "s" : ""}
             </CampoPill>
           )}
@@ -41,9 +41,9 @@ export function OfflineBanner() {
 
   if (pendingCount > 0 && status !== "syncing") {
     return (
-      <div className="mx-auto w-full max-w-[520px] rounded-[24px] border border-amber-400/20 bg-amber-400/12 px-4 py-3 shadow-lg shadow-amber-950/20">
+      <div className="w-full rounded-sm border border-amber-200 bg-amber-50 px-3 py-2 text-amber-800 shadow-sm dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200">
         <div className="flex items-center justify-between gap-3">
-          <span className="text-xs font-medium text-amber-50">
+          <span className="text-[11px] font-medium">
             {pendingCount} registro{pendingCount !== 1 ? "s" : ""} aguardando envio
           </span>
           <CampoButton size="sm" variant="secondary" onClick={() => runSync()}>
@@ -56,7 +56,7 @@ export function OfflineBanner() {
 
   if (status === "syncing") {
     return (
-      <div className="mx-auto w-full max-w-[520px] rounded-[24px] border border-sky-400/20 bg-sky-400/12 px-4 py-3 text-center text-xs font-medium text-sky-50 shadow-lg shadow-sky-950/20">
+      <div className="w-full rounded-sm border border-sky-200 bg-sky-50 px-3 py-2 text-center text-[11px] font-medium text-sky-800 shadow-sm dark:border-sky-900/60 dark:bg-sky-950/30 dark:text-sky-200">
         Sincronizando registros do campo...
       </div>
     );
@@ -66,10 +66,10 @@ export function OfflineBanner() {
     return (
       <button
         onClick={() => router.push("/sync")}
-      className="mx-auto flex w-full max-w-[520px] items-center justify-between rounded-[24px] border border-rose-400/20 bg-rose-400/12 px-4 py-3 text-left text-xs font-medium text-rose-50 shadow-lg shadow-rose-950/20"
+      className="flex w-full items-center justify-between rounded-sm border border-rose-200 bg-rose-50 px-3 py-2 text-left text-[11px] font-medium text-rose-800 shadow-sm dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-200"
     >
         <span>Houve um erro na sincronização. Toque para revisar.</span>
-        <span className="text-rose-100/80">Ver detalhes →</span>
+        <span className="opacity-80">Ver detalhes →</span>
       </button>
     );
   }

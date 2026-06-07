@@ -65,6 +65,7 @@ class AuthService:
             email=user_data.email,
             username=user_data.username,
             nome_completo=user_data.nome_completo,
+            apelido=user_data.apelido,
             senha_hash=hashed_pw
         )
         self.session.add(db_user)
@@ -473,7 +474,10 @@ class AuthService:
             id=user.id,
             email=user.email,
             username=user.username,
+            cpf=user.cpf,
+            telefone=user.telefone,
             nome_completo=user.nome_completo,
+            apelido=user.apelido,
             foto_perfil_url=user.foto_perfil_url,
             is_superuser=user.is_superuser,
             tenants=tenants_response

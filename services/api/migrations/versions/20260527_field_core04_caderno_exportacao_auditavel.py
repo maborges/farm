@@ -11,6 +11,7 @@ from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy import inspect
 
 
 # revision identifiers, used by Alembic.
@@ -21,17 +22,31 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.add_column("caderno_exportacoes", sa.Column("modo_exportacao", sa.String(length=20), nullable=False, server_default=sa.text("'OFICIAL'")))
-    op.add_column("caderno_exportacoes", sa.Column("hash_documental", sa.String(length=128), nullable=True))
-    op.add_column("caderno_exportacoes", sa.Column("assinatura_hash", sa.String(length=128), nullable=True))
-    op.add_column("caderno_exportacoes", sa.Column("responsavel_tecnico_id", sa.Uuid(), nullable=True))
-    op.add_column("caderno_exportacoes", sa.Column("responsavel_tecnico_nome", sa.String(length=200), nullable=True))
-    op.add_column("caderno_exportacoes", sa.Column("responsavel_tecnico_crea", sa.String(length=30), nullable=True))
-    op.add_column("caderno_exportacoes", sa.Column("assinado_em", sa.DateTime(timezone=True), nullable=True))
-    op.add_column("caderno_exportacoes", sa.Column("assinatura_origem", sa.String(length=40), nullable=True))
-    op.add_column("caderno_exportacoes", sa.Column("observacao_assinatura", sa.Text(), nullable=True))
-
     bind = op.get_bind()
+    columns = {column["name"] for column in inspect(bind).get_columns("caderno_exportacoes")}
+
+    if "modo_exportacao" not in columns:
+        op.add_column(
+            "caderno_exportacoes",
+            sa.Column("modo_exportacao", sa.String(length=20), nullable=False, server_default=sa.text("'OFICIAL'")),
+        )
+    if "hash_documental" not in columns:
+        op.add_column("caderno_exportacoes", sa.Column("hash_documental", sa.String(length=128), nullable=True))
+    if "assinatura_hash" not in columns:
+        op.add_column("caderno_exportacoes", sa.Column("assinatura_hash", sa.String(length=128), nullable=True))
+    if "responsavel_tecnico_id" not in columns:
+        op.add_column("caderno_exportacoes", sa.Column("responsavel_tecnico_id", sa.Uuid(), nullable=True))
+    if "responsavel_tecnico_nome" not in columns:
+        op.add_column("caderno_exportacoes", sa.Column("responsavel_tecnico_nome", sa.String(length=200), nullable=True))
+    if "responsavel_tecnico_crea" not in columns:
+        op.add_column("caderno_exportacoes", sa.Column("responsavel_tecnico_crea", sa.String(length=30), nullable=True))
+    if "assinado_em" not in columns:
+        op.add_column("caderno_exportacoes", sa.Column("assinado_em", sa.DateTime(timezone=True), nullable=True))
+    if "assinatura_origem" not in columns:
+        op.add_column("caderno_exportacoes", sa.Column("assinatura_origem", sa.String(length=40), nullable=True))
+    if "observacao_assinatura" not in columns:
+        op.add_column("caderno_exportacoes", sa.Column("observacao_assinatura", sa.Text(), nullable=True))
+
     bind.execute(
         sa.text(
             """

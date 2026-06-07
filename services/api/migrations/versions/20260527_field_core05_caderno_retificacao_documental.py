@@ -11,6 +11,7 @@ from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy import inspect
 
 
 # revision identifiers, used by Alembic.
@@ -21,31 +22,46 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.add_column("caderno_campo_entradas", sa.Column("retifica_evento_id", sa.Uuid(), nullable=True))
-    op.add_column("caderno_campo_entradas", sa.Column("retificado_por_evento_id", sa.Uuid(), nullable=True))
-    op.add_column("caderno_campo_entradas", sa.Column("motivo_retificacao", sa.Text(), nullable=True))
-    op.add_column("caderno_campo_entradas", sa.Column("retificado_em", sa.DateTime(), nullable=True))
-    op.add_column("caderno_campo_entradas", sa.Column("retificado_por_usuario_id", sa.Uuid(), nullable=True))
+    bind = op.get_bind()
+    inspector = inspect(bind)
+    columns = {column["name"] for column in inspector.get_columns("caderno_campo_entradas")}
 
-    op.create_index("ix_caderno_campo_retifica_evento", "caderno_campo_entradas", ["retifica_evento_id"])
-    op.create_index("ix_caderno_campo_retificado_por_evento", "caderno_campo_entradas", ["retificado_por_evento_id"])
+    if "retifica_evento_id" not in columns:
+        op.add_column("caderno_campo_entradas", sa.Column("retifica_evento_id", sa.Uuid(), nullable=True))
+    if "retificado_por_evento_id" not in columns:
+        op.add_column("caderno_campo_entradas", sa.Column("retificado_por_evento_id", sa.Uuid(), nullable=True))
+    if "motivo_retificacao" not in columns:
+        op.add_column("caderno_campo_entradas", sa.Column("motivo_retificacao", sa.Text(), nullable=True))
+    if "retificado_em" not in columns:
+        op.add_column("caderno_campo_entradas", sa.Column("retificado_em", sa.DateTime(), nullable=True))
+    if "retificado_por_usuario_id" not in columns:
+        op.add_column("caderno_campo_entradas", sa.Column("retificado_por_usuario_id", sa.Uuid(), nullable=True))
 
-    op.create_foreign_key(
-        "fk_caderno_campo_retifica_evento",
-        "caderno_campo_entradas",
-        "caderno_campo_entradas",
-        ["retifica_evento_id"],
-        ["id"],
-        ondelete="SET NULL",
-    )
-    op.create_foreign_key(
-        "fk_caderno_campo_retificado_por_evento",
-        "caderno_campo_entradas",
-        "caderno_campo_entradas",
-        ["retificado_por_evento_id"],
-        ["id"],
-        ondelete="SET NULL",
-    )
+    indexes = {item["name"] for item in inspector.get_indexes("caderno_campo_entradas")}
+    if "ix_caderno_campo_retifica_evento" not in indexes:
+        op.create_index("ix_caderno_campo_retifica_evento", "caderno_campo_entradas", ["retifica_evento_id"])
+    if "ix_caderno_campo_retificado_por_evento" not in indexes:
+        op.create_index("ix_caderno_campo_retificado_por_evento", "caderno_campo_entradas", ["retificado_por_evento_id"])
+
+    fks = {item["name"] for item in inspector.get_foreign_keys("caderno_campo_entradas") if item.get("name")}
+    if "fk_caderno_campo_retifica_evento" not in fks:
+        op.create_foreign_key(
+            "fk_caderno_campo_retifica_evento",
+            "caderno_campo_entradas",
+            "caderno_campo_entradas",
+            ["retifica_evento_id"],
+            ["id"],
+            ondelete="SET NULL",
+        )
+    if "fk_caderno_campo_retificado_por_evento" not in fks:
+        op.create_foreign_key(
+            "fk_caderno_campo_retificado_por_evento",
+            "caderno_campo_entradas",
+            "caderno_campo_entradas",
+            ["retificado_por_evento_id"],
+            ["id"],
+            ondelete="SET NULL",
+        )
 
 
 def downgrade() -> None:

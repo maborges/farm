@@ -33,7 +33,7 @@ export default function AplicacaoPage() {
   const [saving, setSaving] = useState(false);
   const [done, setDone] = useState(false);
 
-  const fazendaId = session?.fazenda_ids?.[0] ?? "";
+  const fazendaId = session?.active_fazenda_id ?? session?.fazenda_ids?.[0] ?? "";
 
   const talhoes = useLiveQuery(() => db.talhoes.where("fazenda_id").equals(fazendaId).toArray(), [fazendaId]);
   const insumos = useLiveQuery(() => db.insumos.toArray(), []);
@@ -79,24 +79,24 @@ export default function AplicacaoPage() {
   }
 
   return (
-    <CampoShell className="gap-5">
+    <CampoShell className="gap-4">
       <TaskHeader title="Aplicação" icon="🌿" gpsStatus={gps.status} step={stepIndex + 1} totalSteps={4} />
 
       {step === "local" && (
-        <div className="flex flex-1 flex-col gap-5">
+        <div className="flex flex-1 flex-col gap-4">
           <FieldSelect
             label="Talhão"
             options={(talhoes ?? []).map((t) => ({ id: t.id, label: t.nome, sublabel: t.area_ha ? `${t.area_ha} ha` : undefined }))}
             value={talhaoId}
             onChange={setTalhaoId}
-            placeholder="Selecione o talhão"
+            placeholder={fazendaId ? "Selecione o talhão" : "Selecione a unidade produtiva na barra superior"}
           />
           <CampoStepNav onBack={() => router.back()} onNext={() => setStep("produto")} nextLabel="Próximo →" nextDisabled={!talhaoId} />
         </div>
       )}
 
       {step === "produto" && (
-        <div className="flex flex-1 flex-col gap-5">
+        <div className="flex flex-1 flex-col gap-4">
           <FieldSelect
             label="Produto / Insumo"
             options={(insumos ?? []).map((i) => ({ id: i.id, label: i.nome, sublabel: i.tipo }))}
@@ -109,7 +109,7 @@ export default function AplicacaoPage() {
       )}
 
       {step === "quantidade" && (
-        <div className="flex flex-1 flex-col gap-5">
+        <div className="flex flex-1 flex-col gap-4">
           {/* Unidade rápida */}
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
             {["L/ha", "kg/ha", "mL/ha", "g/ha"].map((u) => (
@@ -117,10 +117,10 @@ export default function AplicacaoPage() {
                 key={u}
                 type="button"
                 onClick={() => setUnidade(u)}
-                className={`flex-1 rounded-2xl py-3 text-sm font-semibold transition-all active:scale-[0.98] ${
+                className={`flex-1 rounded-sm py-2.5 text-sm font-semibold transition-all active:scale-[0.98] ${
                   unidade === u
-                    ? "bg-emerald-400/18 text-emerald-100 ring-1 ring-emerald-300/25"
-                    : "border border-white/10 bg-white/[0.04] text-white/70 hover:bg-white/[0.07]"
+                    ? "border border-green-200 bg-green-50 text-green-800 ring-1 ring-green-200 dark:border-green-900/60 dark:bg-green-950/30 dark:text-green-200 dark:ring-green-900/50"
+                    : "border border-border bg-card text-muted-foreground hover:bg-muted"
                 }`}
               >
                 {u}
@@ -133,23 +133,23 @@ export default function AplicacaoPage() {
       )}
 
       {step === "confirmar" && (
-        <div className="flex flex-1 flex-col gap-5">
+        <div className="flex flex-1 flex-col gap-4">
           <GpsWarning status={gps.status} onRetry={gps.capture} />
           {/* Resumo */}
-          <CampoSurface className="grid gap-3 p-4 text-sm md:grid-cols-2">
+          <CampoSurface className="grid gap-2.5 p-3.5 text-sm md:grid-cols-2">
             <SummaryRow label="Talhão" value={talhoes?.find((t) => t.id === talhaoId)?.nome ?? "—"} />
             <SummaryRow label="Produto" value={insumos?.find((i) => i.id === insumoId)?.nome ?? "—"} />
             <SummaryRow label="Quantidade" value={`${quantidade} ${unidade}`} />
           </CampoSurface>
 
           {/* Observação opcional */}
-          <CampoSurface className="p-4">
+          <CampoSurface className="p-3.5">
             <textarea
               placeholder="Observação (opcional)"
               value={obs}
               onChange={(e) => setObs(e.target.value)}
               rows={3}
-              className="min-h-[104px] w-full resize-none rounded-[22px] border border-white/10 bg-white/[0.04] px-4 py-3 text-sm outline-none transition-colors focus:border-emerald-400/50 focus:bg-white/[0.06] placeholder:text-white/30"
+              className="min-h-[88px] w-full resize-none rounded-sm border border-border bg-card px-3.5 py-2.5 text-sm outline-none transition-colors focus:border-ring focus:bg-muted placeholder:text-muted-foreground/50"
             />
           </CampoSurface>
 
@@ -159,7 +159,7 @@ export default function AplicacaoPage() {
             onClick={handleSalvar}
             disabled={saving}
             className="mt-auto w-full"
-            size="lg"
+            size="md"
             variant="primary"
           >
             {saving ? "Salvando..." : "✅ Salvar Aplicação"}
@@ -172,9 +172,9 @@ export default function AplicacaoPage() {
 
 function SummaryRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex justify-between gap-4 border-b border-white/8 py-2 last:border-0">
-      <span className="text-white/45">{label}</span>
-      <span className="text-right font-semibold text-white/85">{value}</span>
+    <div className="flex justify-between gap-4 border-b border-border py-1.5 last:border-0">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="text-right font-semibold text-foreground">{value}</span>
     </div>
   );
 }

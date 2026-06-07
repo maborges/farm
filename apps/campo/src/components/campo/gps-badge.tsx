@@ -8,9 +8,9 @@ interface GpsBadgeProps {
 
 export function GpsBadge({ status }: GpsBadgeProps) {
   const map = {
-    DISPONIVEL: { icon: "📍", label: "GPS disponível", cls: "border-emerald-400/20 bg-emerald-400/12 text-emerald-100" },
-    AGUARDANDO: { icon: "⏳", label: "Obtendo GPS", cls: "border-amber-400/20 bg-amber-400/12 text-amber-100" },
-    INDISPONIVEL: { icon: "📵", label: "Sem GPS", cls: "border-white/10 bg-white/6 text-white/70" },
+    DISPONIVEL: { icon: "📍", label: "GPS disponível", cls: "border-green-200 bg-green-50 text-green-800 dark:border-green-900/60 dark:bg-green-950/30 dark:text-green-200" },
+    AGUARDANDO: { icon: "⏳", label: "Obtendo GPS", cls: "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200" },
+    INDISPONIVEL: { icon: "📵", label: "Sem GPS", cls: "border-border bg-muted text-muted-foreground" },
   };
   const { icon, label, cls } = map[status];
   return (

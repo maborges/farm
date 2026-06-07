@@ -93,6 +93,9 @@ class TarefaCampo(Base):
 
     iniciada_em: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     concluida_em: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    invalidado_em: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    invalidado_por: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    motivo_invalidacao: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # Timestamps do cliente (para conflict resolution; nulo para tarefas programadas)
     client_created_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

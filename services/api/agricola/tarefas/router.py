@@ -42,8 +42,8 @@ async def criar_tarefa(
     _: None = Depends(require_module(MODULE)),
     user: dict = Depends(require_role(["agronomo", "admin", "gerente"])),
 ):
-    svc = TarefaService(session, tenant_id)
     user_id = UUID(user["sub"]) if user.get("sub") else None
+    svc = TarefaService(session, tenant_id, user_id=user_id)
     dados.origem = "MANUAL"
     tarefa = await svc.criar(safra_id, dados, user_id=user_id)
     await session.commit()
@@ -79,7 +79,8 @@ async def atualizar_tarefa(
     _: None = Depends(require_module(MODULE)),
     user: dict = Depends(require_role(["agronomo", "admin", "gerente"])),
 ):
-    svc = TarefaService(session, tenant_id)
+    user_id = UUID(user["sub"]) if user.get("sub") else None
+    svc = TarefaService(session, tenant_id, user_id=user_id)
     tarefa = await svc.atualizar(tarefa_id, dados)
     await session.commit()
     await session.refresh(tarefa)
@@ -98,8 +99,8 @@ async def aprovar_tarefa(
     _: None = Depends(require_module(MODULE)),
     user: dict = Depends(require_role(["agronomo", "admin", "gerente"])),
 ):
-    svc = TarefaService(session, tenant_id)
     aprovador_id = UUID(user["sub"]) if user.get("sub") else tenant_id
+    svc = TarefaService(session, tenant_id, user_id=aprovador_id)
     tarefa = await svc.aprovar(tarefa_id, aprovador_id)
     await session.commit()
     await session.refresh(tarefa)
@@ -113,15 +114,36 @@ async def aprovar_tarefa(
 )
 async def rejeitar_tarefa(
     tarefa_id: UUID,
-    motivo: Optional[str] = Query(None),
+    motivo: str = Query(..., min_length=3),
     session: AsyncSession = Depends(get_session_with_tenant),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module(MODULE)),
     user: dict = Depends(require_role(["agronomo", "admin", "gerente"])),
 ):
-    svc = TarefaService(session, tenant_id)
     user_id = UUID(user["sub"]) if user.get("sub") else None
+    svc = TarefaService(session, tenant_id, user_id=user_id)
     tarefa = await svc.rejeitar(tarefa_id, motivo=motivo, user_id=user_id)
+    await session.commit()
+    await session.refresh(tarefa)
+    return tarefa
+
+
+@router.patch(
+    "/tarefas/{tarefa_id}/invalidar",
+    response_model=TarefaResponse,
+    summary="Invalida tarefa que já integra o histórico operacional",
+)
+async def invalidar_tarefa(
+    tarefa_id: UUID,
+    motivo: str = Query(..., min_length=3),
+    session: AsyncSession = Depends(get_session_with_tenant),
+    tenant_id: UUID = Depends(get_tenant_id),
+    _: None = Depends(require_module(MODULE)),
+    user: dict = Depends(require_role(["agronomo", "admin", "gerente"])),
+):
+    user_id = UUID(user["sub"]) if user.get("sub") else None
+    svc = TarefaService(session, tenant_id, user_id=user_id)
+    tarefa = await svc.invalidar(tarefa_id, motivo=motivo, user_id=user_id)
     await session.commit()
     await session.refresh(tarefa)
     return tarefa
@@ -139,7 +161,8 @@ async def iniciar_tarefa(
     _: None = Depends(require_module(MODULE)),
     user: dict = Depends(require_role(["agronomo", "admin", "gerente", "operador"])),
 ):
-    svc = TarefaService(session, tenant_id)
+    user_id = UUID(user["sub"]) if user.get("sub") else None
+    svc = TarefaService(session, tenant_id, user_id=user_id)
     tarefa = await svc.iniciar(tarefa_id)
     await session.commit()
     await session.refresh(tarefa)
@@ -158,7 +181,8 @@ async def concluir_tarefa(
     _: None = Depends(require_module(MODULE)),
     user: dict = Depends(require_role(["agronomo", "admin", "gerente", "operador"])),
 ):
-    svc = TarefaService(session, tenant_id)
+    user_id = UUID(user["sub"]) if user.get("sub") else None
+    svc = TarefaService(session, tenant_id, user_id=user_id)
     tarefa = await svc.concluir(tarefa_id)
     await session.commit()
     await session.refresh(tarefa)
@@ -168,7 +192,7 @@ async def concluir_tarefa(
 @router.delete(
     "/tarefas/{tarefa_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="Cancela/remove tarefa",
+    summary="Exclui fisicamente tarefa apenas antes de gerar fatos operacionais",
 )
 async def cancelar_tarefa(
     tarefa_id: UUID,
@@ -177,6 +201,7 @@ async def cancelar_tarefa(
     _: None = Depends(require_module(MODULE)),
     user: dict = Depends(require_role(["agronomo", "admin"])),
 ):
-    svc = TarefaService(session, tenant_id)
-    await svc.rejeitar(tarefa_id)
+    user_id = UUID(user["sub"]) if user.get("sub") else None
+    svc = TarefaService(session, tenant_id, user_id=user_id)
+    await svc.excluir(tarefa_id)
     await session.commit()

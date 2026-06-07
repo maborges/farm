@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "@/lib/db";
@@ -32,8 +32,9 @@ export default function VacinacaoPage() {
   const [obs, setObs] = useState("");
   const [saving, setSaving] = useState(false);
   const [done, setDone] = useState(false);
+  const vacinaNomeInputRef = useRef<HTMLInputElement | null>(null);
 
-  const fazendaId = session?.fazenda_ids?.[0] ?? "";
+  const fazendaId = session?.active_fazenda_id ?? session?.fazenda_ids?.[0] ?? "";
   const lotes = useLiveQuery(() => db.lotes.where("fazenda_id").equals(fazendaId).toArray(), [fazendaId]);
   const vacinas = useLiveQuery(
     () => db.insumos.filter((i) => i.tipo === "VETERINARIO" || i.tipo === "VACINA" || i.nome.toLowerCase().includes("vacin")).toArray(),
@@ -42,6 +43,14 @@ export default function VacinacaoPage() {
 
   const stepIndex = ["lote", "vacina", "confirmar"].indexOf(step);
   const loteAtual = lotes?.find((l) => l.id === loteId);
+
+  useEffect(() => {
+    if (step !== "vacina" || (vacinas ?? []).length > 0) return;
+    const frame = requestAnimationFrame(() => {
+      vacinaNomeInputRef.current?.focus();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [step, vacinas]);
 
   const handleSalvar = async () => {
     setSaving(true);
@@ -83,11 +92,11 @@ export default function VacinacaoPage() {
   }
 
   return (
-    <CampoShell className="gap-5">
+    <CampoShell className="gap-4">
       <TaskHeader title="Vacinação" icon="💉" gpsStatus={gps.status} step={stepIndex + 1} totalSteps={3} />
 
       {step === "lote" && (
-        <div className="flex flex-1 flex-col gap-5">
+        <div className="flex flex-1 flex-col gap-4">
           <FieldSelect
             label="Lote de Animais"
             options={(lotes ?? []).map((l) => ({
@@ -97,14 +106,14 @@ export default function VacinacaoPage() {
             }))}
             value={loteId}
             onChange={setLoteId}
-            placeholder="Selecione o lote"
+            placeholder={fazendaId ? "Selecione o lote" : "Selecione a unidade produtiva na barra superior"}
           />
           <CampoStepNav onBack={() => router.back()} onNext={() => setStep("vacina")} nextLabel="Próximo →" nextDisabled={!loteId} />
         </div>
       )}
 
       {step === "vacina" && (
-        <div className="flex flex-1 flex-col gap-5">
+        <div className="flex flex-1 flex-col gap-4">
           {(vacinas ?? []).length > 0 ? (
             <FieldSelect
               label="Vacina"
@@ -119,13 +128,15 @@ export default function VacinacaoPage() {
             />
           ) : (
             /* Fallback: digitar nome da vacina */
-            <CampoSurface className="flex flex-col gap-2 p-4">
-              <label className="text-sm font-semibold text-white/85">Nome da Vacina</label>
+            <CampoSurface className="flex flex-col gap-2 p-3.5">
+              <label className="text-sm font-semibold text-foreground">Nome da Vacina</label>
               <input
+                ref={vacinaNomeInputRef}
                 placeholder="Ex: Febre Aftosa, Brucelose..."
                 value={vacinaNome}
                 onChange={(e) => setVacinaNome(e.target.value)}
-                className="rounded-[22px] border border-white/10 bg-white/[0.04] px-4 py-4 text-base outline-none transition-colors focus:border-emerald-400/50 focus:bg-white/[0.06] placeholder:text-white/30"
+                className="rounded-sm border border-border bg-card px-3.5 py-3 text-base outline-none transition-colors focus:border-ring focus:bg-muted placeholder:text-muted-foreground/50"
+                enterKeyHint="done"
               />
             </CampoSurface>
           )}
@@ -137,28 +148,28 @@ export default function VacinacaoPage() {
       )}
 
       {step === "confirmar" && (
-        <div className="flex flex-1 flex-col gap-5">
+        <div className="flex flex-1 flex-col gap-4">
           <GpsWarning status={gps.status} onRetry={gps.capture} />
-          <CampoSurface className="grid gap-3 p-4 text-sm md:grid-cols-2">
+          <CampoSurface className="grid gap-2.5 p-3.5 text-sm md:grid-cols-2">
             <SummaryRow label="Lote" value={loteAtual?.identificacao ?? "—"} />
             <SummaryRow label="Animais" value={String(loteAtual?.quantidade_cabecas ?? "—")} />
             <SummaryRow label="Vacina" value={vacinaNome || (vacinas?.find((v) => v.id === vacinaId)?.nome ?? "—")} />
             {quantidade && <SummaryRow label="Dose" value={`${quantidade} mL/animal`} />}
           </CampoSurface>
 
-          <CampoSurface className="p-4">
+          <CampoSurface className="p-3.5">
             <textarea
               placeholder="Observação (ex: lote do pasto 3, vermifugação junto)"
               value={obs}
               onChange={(e) => setObs(e.target.value)}
               rows={3}
-              className="min-h-[104px] w-full resize-none rounded-[22px] border border-white/10 bg-white/[0.04] px-4 py-3 text-sm outline-none transition-colors focus:border-emerald-400/50 focus:bg-white/[0.06] placeholder:text-white/30"
+              className="min-h-[88px] w-full resize-none rounded-sm border border-border bg-card px-3.5 py-2.5 text-sm outline-none transition-colors focus:border-ring focus:bg-muted placeholder:text-muted-foreground/50"
             />
           </CampoSurface>
 
           <CameraCapture fotos={cam.fotos} inputRef={cam.inputRef} canAddMore={cam.canAddMore} onOpen={cam.openCamera} onFileChange={cam.handleFileChange} onRemove={cam.removePhoto} />
 
-          <CampoButton onClick={handleSalvar} disabled={saving} className="mt-auto w-full" size="lg" variant="primary">
+          <CampoButton onClick={handleSalvar} disabled={saving} className="mt-auto w-full" size="md" variant="primary">
             {saving ? "Salvando..." : "✅ Salvar Vacinação"}
           </CampoButton>
         </div>
@@ -169,9 +180,9 @@ export default function VacinacaoPage() {
 
 function SummaryRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex justify-between gap-4 border-b border-white/8 py-2 last:border-0">
-      <span className="text-white/45">{label}</span>
-      <span className="text-right font-semibold text-white/85">{value}</span>
+    <div className="flex justify-between gap-4 border-b border-border py-1.5 last:border-0">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="text-right font-semibold text-foreground">{value}</span>
     </div>
   );
 }

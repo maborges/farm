@@ -311,3 +311,4 @@ async def deletar_operacao(
 ):
     svc = OperacaoService(session, tenant_id)
     await svc.hard_delete(id)
+    await session.commit()

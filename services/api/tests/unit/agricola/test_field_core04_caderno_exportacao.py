@@ -21,9 +21,13 @@ async def _ensure_caderno_export_schema(session) -> None:
         "ALTER TABLE caderno_exportacoes ADD COLUMN IF NOT EXISTS modo_exportacao VARCHAR(20)",
         "ALTER TABLE caderno_exportacoes ADD COLUMN IF NOT EXISTS hash_documental VARCHAR(128)",
         "ALTER TABLE caderno_exportacoes ADD COLUMN IF NOT EXISTS assinatura_hash VARCHAR(128)",
+        "ALTER TABLE caderno_exportacoes ADD COLUMN IF NOT EXISTS snapshot_documental JSON",
+        "ALTER TABLE caderno_exportacoes ADD COLUMN IF NOT EXISTS snapshot_hash VARCHAR(128)",
+        "ALTER TABLE caderno_exportacoes ADD COLUMN IF NOT EXISTS protocolo_documental VARCHAR(64)",
         "ALTER TABLE caderno_exportacoes ADD COLUMN IF NOT EXISTS responsavel_tecnico_id UUID",
         "ALTER TABLE caderno_exportacoes ADD COLUMN IF NOT EXISTS responsavel_tecnico_nome VARCHAR(200)",
         "ALTER TABLE caderno_exportacoes ADD COLUMN IF NOT EXISTS responsavel_tecnico_crea VARCHAR(30)",
+        "ALTER TABLE caderno_exportacoes ADD COLUMN IF NOT EXISTS usuario_assinatura_id UUID",
         "ALTER TABLE caderno_exportacoes ADD COLUMN IF NOT EXISTS assinado_em TIMESTAMP",
         "ALTER TABLE caderno_exportacoes ADD COLUMN IF NOT EXISTS assinatura_origem VARCHAR(40)",
         "ALTER TABLE caderno_exportacoes ADD COLUMN IF NOT EXISTS observacao_assinatura TEXT",
@@ -173,6 +177,9 @@ async def test_assinatura_gera_hash_e_auditoria(session):
     export_svc = CadernoExportacaoService(session, tenant_id)
     exportacao = await export_svc.gerar(ExportacaoCreate(safra_id=safra_id, modo_exportacao="OFICIAL"))
     assert exportacao.hash_documental
+    assert exportacao.snapshot_hash == exportacao.hash_documental
+    assert exportacao.snapshot_documental is not None
+    assert exportacao.protocolo_documental
     assert exportacao.assinado_em is None
 
     assinada = await export_svc.registrar_assinatura(
@@ -187,7 +194,10 @@ async def test_assinatura_gera_hash_e_auditoria(session):
 
     assert assinada.responsavel_tecnico_id == usuario.id
     assert assinada.responsavel_tecnico_nome == usuario.nome_completo
-    assert assinada.assinatura_hash == assinada.hash_documental
+    assert assinada.snapshot_hash == assinada.hash_documental
+    assert assinada.assinatura_hash
+    assert assinada.assinatura_hash != assinada.hash_documental
+    assert assinada.usuario_assinatura_id == usuario.id
     assert assinada.assinado_em is not None
 
     audit_count = (
@@ -205,6 +215,24 @@ async def test_assinatura_gera_hash_e_auditoria(session):
         )
     ).scalar_one()
     assert audit_count == 1
+
+    payload_before_assinado_em = (
+        await session.execute(
+            text(
+                """
+                SELECT payload_before->>'assinado_em'
+                  FROM tenant_audit_log
+                 WHERE tenant_id = :tenant_id
+                   AND resource = 'caderno_exportacoes'
+                   AND action = 'sign'
+                 ORDER BY created_at DESC
+                 LIMIT 1
+                """
+            ),
+            {"tenant_id": str(tenant_id)},
+        )
+    ).scalar_one()
+    assert payload_before_assinado_em is None
 
 
 @pytest.mark.asyncio

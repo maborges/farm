@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import String, Numeric, Boolean, Date, Time, Text, ForeignKey, text, JSON, Uuid
+from sqlalchemy import String, Numeric, Boolean, Date, DateTime, Time, Text, ForeignKey, text, JSON, Uuid, Index
 from uuid import UUID
 import uuid
 from datetime import datetime, date, time
@@ -47,6 +47,12 @@ class OperacaoAgricola(Base):
     custo_total: Mapped[float] = mapped_column(Numeric(15, 2), default=0)
     custo_por_ha: Mapped[float] = mapped_column(Numeric(12, 4), default=0)
 
+    # Invalidação documental da origem operacional
+    origem_invalidada: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    origem_invalidada_em: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    origem_invalidada_por: Mapped[UUID | None] = mapped_column(Uuid, nullable=True)
+    motivo_invalidacao_origem: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     fase_safra: Mapped[str | None] = mapped_column(String(30), nullable=True, index=True)
     status: Mapped[str] = mapped_column(String(20), default='REALIZADA')
     observacoes: Mapped[str | None] = mapped_column(Text)
@@ -58,6 +64,14 @@ class OperacaoAgricola(Base):
     # Relacionamentos
     insumos: Mapped[list["InsumoOperacao"]] = relationship(back_populates="operacao", cascade="all, delete-orphan", lazy="selectin")
     execucoes: Mapped[list["OperacaoExecucao"]] = relationship(back_populates="operacao", cascade="all, delete-orphan", lazy="selectin")
+
+    __table_args__ = (
+        Index("ix_operacoes_origem_invalidada", "tenant_id", "origem_invalidada"),
+    )
+
+    @property
+    def documental_status(self) -> str:
+        return "ORIGEM_INVALIDADA" if self.origem_invalidada else "VIGENTE"
 
 
 class OperacaoExecucao(Base):

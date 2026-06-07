@@ -3,6 +3,7 @@ import uuid
 from datetime import datetime, date
 from typing import Any, Literal
 from pydantic import BaseModel, Field, ConfigDict
+from agricola.caderno.schemas import EventoCadernoOficialSync
 
 
 # ---------------------------------------------------------------------------
@@ -11,7 +12,7 @@ from pydantic import BaseModel, Field, ConfigDict
 
 class DeviceCreate(BaseModel):
     nome: str = Field(..., max_length=100)
-    fazenda_ids: list[uuid.UUID]
+    fazenda_ids: list[uuid.UUID] = Field(..., min_length=1)
     modulos: list[str] = Field(default=["agricola"])
     user_id: uuid.UUID
     expires_days: int = Field(default=30, ge=1, le=365)
@@ -39,6 +40,7 @@ class DeviceActivateResponse(BaseModel):
     tenant_id: uuid.UUID
     user_id: uuid.UUID
     user_name: str
+    user_avatar_url: str | None = None
     fazenda_ids: list[uuid.UUID]
     modulos: list[str]
     expires_at: datetime
@@ -46,6 +48,12 @@ class DeviceActivateResponse(BaseModel):
 
 class DeviceRevokeRequest(BaseModel):
     device_id: uuid.UUID
+    motivo: str | None = None
+
+
+class DeviceReactivateRequest(BaseModel):
+    device_id: uuid.UUID
+    expires_days: int = Field(default=30, ge=1, le=365)
     motivo: str | None = None
 
 
@@ -60,6 +68,19 @@ class DeviceResponse(BaseModel):
     last_seen_at: datetime | None
     expires_at: datetime
     created_at: datetime
+
+
+class DeviceSelfResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
+    nome: str
+    status: str
+    user_id: uuid.UUID
+    user_name: str
+    user_avatar_url: str | None = None
+    fazenda_ids: list[uuid.UUID]
+    modulos: list[str]
+    expires_at: datetime
 
 
 # ---------------------------------------------------------------------------
@@ -96,9 +117,17 @@ class InsumoSync(BaseModel):
     unidade_medida: str | None
 
 
+class SafraSync(BaseModel):
+    id: uuid.UUID
+    ano_safra: str
+    cultura: str | None
+    status: str
+
+
 class TarefaPendenteSync(BaseModel):
     id: uuid.UUID
     client_id: str | None
+    dispositivo_id: uuid.UUID | None
     type: str
     module: str
     status: str
@@ -125,11 +154,13 @@ class SyncTombstonesPayload(BaseModel):
 
 class SyncPullResponse(BaseModel):
     sync_at: datetime
+    safras: list[SafraSync]
     fazendas: list[FazendaSync]
     talhoes: list[TalhaoSync]
     lotes: list[LoteSync]
     insumos: list[InsumoSync]
     tarefas_pendentes: list[TarefaPendenteSync]
+    eventos_caderno_oficiais: list[EventoCadernoOficialSync] = Field(default_factory=list)
     tombstones: SyncTombstonesPayload
 
 
@@ -184,6 +215,20 @@ class TarefaProgramadaCreate(BaseModel):
     dados: dict[str, Any] = Field(default_factory=dict)
 
 
+class TarefaProgramadaUpdate(BaseModel):
+    titulo: str | None = Field(default=None, max_length=200)
+    type: str | None = Field(default=None, max_length=50)
+    module: str | None = Field(default=None, max_length=20)
+    data_programada: date | None = None
+    prioridade: Literal["BAIXA", "NORMAL", "ALTA", "URGENTE"] | None = None
+    unidade_produtiva_id: uuid.UUID | None = None
+    area_rural_id: uuid.UUID | None = None
+    lote_id: uuid.UUID | None = None
+    operador_id: uuid.UUID | None = None
+    dispositivo_id: uuid.UUID | None = None
+    dados: dict[str, Any] | None = None
+
+
 class TarefaProgramadaResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: uuid.UUID
@@ -200,10 +245,18 @@ class TarefaProgramadaResponse(BaseModel):
     area_rural_id: uuid.UUID | None
     lote_id: uuid.UUID | None
     dados: dict[str, Any]
+    fotos: list[str]
     iniciada_em: datetime | None
     concluida_em: datetime | None
+    invalidado_em: datetime | None
+    invalidado_por: uuid.UUID | None
+    motivo_invalidacao: str | None
     created_at: datetime
     updated_at: datetime
+
+
+class TarefaProgramadaInvalidarRequest(BaseModel):
+    motivo: str = Field(..., min_length=10)
 
 
 class ExecucaoUpdate(BaseModel):

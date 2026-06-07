@@ -85,28 +85,36 @@ def _mapear_tipo_evento(tipo: str, subtipo: str | None = None) -> str:
 
 
 def upgrade() -> None:
-    op.add_column(
-        "caderno_campo_entradas",
-        sa.Column("tipo_evento", sa.String(length=30), nullable=True),
-    )
-    op.add_column(
-        "caderno_campo_entradas",
-        sa.Column("origem_evento", sa.String(length=40), nullable=True),
-    )
-    op.add_column(
-        "caderno_campo_entradas",
-        sa.Column("origem_id", sa.String(length=80), nullable=True),
-    )
-    op.add_column(
-        "caderno_campo_entradas",
-        sa.Column("origem_tecnica", sa.String(length=40), nullable=True),
-    )
-    op.add_column(
-        "caderno_campo_entradas",
-        sa.Column("status_evento", sa.String(length=30), nullable=True),
-    )
-
     bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    existing_columns = {column["name"] for column in inspector.get_columns("caderno_campo_entradas")}
+
+    if "tipo_evento" not in existing_columns:
+        op.add_column(
+            "caderno_campo_entradas",
+            sa.Column("tipo_evento", sa.String(length=30), nullable=True),
+        )
+    if "origem_evento" not in existing_columns:
+        op.add_column(
+            "caderno_campo_entradas",
+            sa.Column("origem_evento", sa.String(length=40), nullable=True),
+        )
+    if "origem_id" not in existing_columns:
+        op.add_column(
+            "caderno_campo_entradas",
+            sa.Column("origem_id", sa.String(length=80), nullable=True),
+        )
+    if "origem_tecnica" not in existing_columns:
+        op.add_column(
+            "caderno_campo_entradas",
+            sa.Column("origem_tecnica", sa.String(length=40), nullable=True),
+        )
+    if "status_evento" not in existing_columns:
+        op.add_column(
+            "caderno_campo_entradas",
+            sa.Column("status_evento", sa.String(length=30), nullable=True),
+        )
+
     rows = bind.execute(
         sa.text(
             """
@@ -162,11 +170,17 @@ def upgrade() -> None:
     op.alter_column("caderno_campo_entradas", "origem_tecnica", nullable=False)
     op.alter_column("caderno_campo_entradas", "status_evento", nullable=False)
 
-    op.create_unique_constraint(
-        "uq_caderno_campo_origem_evento",
-        "caderno_campo_entradas",
-        ["tenant_id", "origem_evento", "origem_id"],
-    )
+    existing_constraints = {
+        constraint["name"]
+        for constraint in inspector.get_unique_constraints("caderno_campo_entradas")
+        if constraint.get("name")
+    }
+    if "uq_caderno_campo_origem_evento" not in existing_constraints:
+        op.create_unique_constraint(
+            "uq_caderno_campo_origem_evento",
+            "caderno_campo_entradas",
+            ["tenant_id", "origem_evento", "origem_id"],
+        )
 
 
 def downgrade() -> None:

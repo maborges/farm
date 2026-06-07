@@ -32,6 +32,26 @@ export type TaskStatusExecucao = "PENDENTE" | "EM_EXECUCAO" | "CONCLUIDA" | "CAN
 export type TaskPrioridade = "BAIXA" | "NORMAL" | "ALTA" | "URGENTE";
 
 export type SyncQueueStatus = "PENDING" | "IN_FLIGHT" | "DONE" | "FAILED";
+export type CadernoOfflineSyncStatus = "PENDING" | "SYNCING" | "SYNCED" | "ERROR" | "CONFLICT";
+export type CadernoEvidenciaUploadStatus = "LOCAL" | "PENDENTE_UPLOAD" | "ENVIANDO" | "ENVIADA" | "ERRO_UPLOAD";
+
+export type CadernoEventoTipo =
+  | "PLANTIO"
+  | "PULVERIZACAO"
+  | "APLICACAO"
+  | "IRRIGACAO"
+  | "COLHEITA"
+  | "INSPECAO"
+  | "OCORRENCIA"
+  | "MANUTENCAO"
+  | "ABASTECIMENTO"
+  | "EXECUCAO_OPERACIONAL"
+  | "MONITORAMENTO"
+  | "VISITA_TECNICA"
+  | "EPI_ENTREGA"
+  | "OBSERVACAO"
+  | "CLIMA"
+  | "SOLO";
 
 export type LocalizacaoStatus = "DISPONIVEL" | "INDISPONIVEL";
 
@@ -47,9 +67,11 @@ export interface LocalSession {
   device_token: string;
   pin_hash: string;
   user_name: string;
+  user_avatar_url?: string;
   last_sync_at: string | null;
   modules: string[];
   fazenda_ids: string[];
+  active_fazenda_id?: string;
 }
 
 export interface LocalTask {
@@ -60,6 +82,7 @@ export interface LocalTask {
   fazenda_id: string;
   talhao_id?: string;
   lote_id?: string;
+  dispositivo_id?: string;
   operador_id?: string;
   status: TaskStatus;
   // Campos de tarefas programadas
@@ -94,6 +117,118 @@ export interface SyncQueueItem {
   status: SyncQueueStatus;
 }
 
+export interface CadernoEvidenciaOffline {
+  /** Identificador único local da evidência — gerado no dispositivo, usado para idempotência no upload */
+  local_evidence_id: string;
+  tipo: string;
+  upload_status: CadernoEvidenciaUploadStatus;
+  upload_attempts: number;
+  last_upload_error: string | null;
+  /** ID do arquivo no servidor após upload bem-sucedido */
+  server_file_id: string | null;
+  /** URL pública no servidor após upload bem-sucedido */
+  server_url: string | null;
+  local_uri?: string;
+  nome_arquivo?: string;
+  mime_type?: string;
+  tamanho?: number;
+  captured_at?: string;
+  url?: string;
+  latitude?: number;
+  longitude?: number;
+  data_captura?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface CampoEventoOffline {
+  local_id: string;
+  server_id?: string;
+  tenant_id: string;
+  safra_nome?: string | null;
+  talhao_nome?: string | null;
+  descricao: string;
+  unidade_produtiva_id?: string | null;
+  safra_id: string;
+  talhao_id?: string | null;
+  tarefa_id?: string | null;
+  operacao_id?: string | null;
+  tipo_evento: CadernoEventoTipo | string;
+  origem_evento: "PWA_OFFLINE";
+  origem_tecnica: "SYNC_PWA";
+  status_evento:
+    | "RASCUNHO"
+    | "PENDENTE_SINCRONIZACAO"
+    | "SYNCING"
+    | "SINCRONIZADO"
+    | "PENDENTE_APROVACAO"
+    | "APROVADO"
+    | "REJEITADO"
+    | "CONSOLIDADO"
+    | "CANCELADO";
+  client_created_at: string;
+  client_updated_at: string;
+  device_id: string;
+  usuario_id?: string | null;
+  payload_operacional: Record<string, unknown>;
+  evidencias: CadernoEvidenciaOffline[];
+  documental_status?: string | null;
+  origem_invalidada?: boolean;
+  motivo_invalidacao_origem?: string | null;
+  retifica_evento_id?: string | null;
+  retificado_por_evento_id?: string | null;
+  oficial_justificativa?: string | null;
+  reconciled_at?: string | null;
+  review_required?: boolean;
+  conflict_reason?: string | null;
+  sync_status: CadernoOfflineSyncStatus;
+  sync_attempts: number;
+  last_sync_error?: string | null;
+  synced_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CampoEventoOficial {
+  server_id: string;
+  local_id?: string | null;
+  device_id?: string | null;
+  safra_id: string;
+  talhao_id: string;
+  tipo: string;
+  tipo_evento?: string | null;
+  descricao: string;
+  data_registro: string;
+  status_evento: string;
+  documental_status: string;
+  versao_vigente: boolean;
+  retificado: boolean;
+  retificador: boolean;
+  invalidado: boolean;
+  origem_invalidada: boolean;
+  motivo_invalidacao_origem?: string | null;
+  motivo_retificacao?: string | null;
+  retifica_evento_id?: string | null;
+  retificado_por_evento_id?: string | null;
+  justificativa?: string | null;
+  updated_at?: string | null;
+  created_at?: string | null;
+}
+
+export interface CadernoDraft {
+  id: string;
+  task_id?: string | null;
+  user_id: string;
+  step: "contexto" | "registro" | "evidencias";
+  fazenda_id?: string | null;
+  safra_id?: string | null;
+  talhao_id?: string | null;
+  tipo_evento: CadernoEventoTipo | string;
+  descricao: string;
+  observacao: string;
+  fotos: string[];
+  updated_at: string;
+}
+
 // Entidades cacheadas do servidor (read-only local)
 export interface CachedFazenda {
   id: string;
@@ -125,6 +260,13 @@ export interface CachedInsumo {
   unidade_medida?: string;
 }
 
+export interface CachedSafra {
+  id: string;
+  ano_safra: string;
+  cultura?: string | null;
+  status: string;
+}
+
 // ---------------------------------------------------------------------------
 // Database
 // ---------------------------------------------------------------------------
@@ -133,10 +275,14 @@ export class CampoDatabase extends Dexie {
   session!: Table<LocalSession>;
   tasks!: Table<LocalTask>;
   sync_queue!: Table<SyncQueueItem>;
+  caderno_events!: Table<CampoEventoOffline>;
+  caderno_server_events!: Table<CampoEventoOficial>;
+  caderno_drafts!: Table<CadernoDraft>;
   fazendas!: Table<CachedFazenda>;
   talhoes!: Table<CachedTalhao>;
   lotes!: Table<CachedLote>;
   insumos!: Table<CachedInsumo>;
+  safras!: Table<CachedSafra>;
 
   constructor() {
     super("campo_db");
@@ -145,25 +291,154 @@ export class CampoDatabase extends Dexie {
       tasks:
         "id, server_id, type, module, fazenda_id, talhao_id, lote_id, status, synced, created_at",
       sync_queue: "id, entity_id, entity_type, status, created_at",
+      caderno_events: "local_id, server_id, tenant_id, safra_id, talhao_id, device_id, sync_status, created_at",
+      caderno_server_events: "server_id, local_id, safra_id, talhao_id, status_evento, documental_status, updated_at, data_registro",
+      caderno_drafts: "id, user_id, task_id, updated_at",
       fazendas: "id",
       talhoes: "id, fazenda_id",
       lotes: "id, fazenda_id",
       insumos: "id, categoria",
+      safras: "id, status",
     });
     this.version(2).stores({
       session: "id",
       tasks:
         "id, server_id, type, module, fazenda_id, talhao_id, lote_id, status, origem, status_execucao, data_programada, synced, created_at",
       sync_queue: "id, entity_id, entity_type, status, created_at",
+      caderno_events: "local_id, server_id, tenant_id, safra_id, talhao_id, device_id, sync_status, created_at",
+      caderno_server_events: "server_id, local_id, safra_id, talhao_id, status_evento, documental_status, updated_at, data_registro",
+      caderno_drafts: "id, user_id, task_id, updated_at",
       fazendas: "id",
       talhoes: "id, fazenda_id",
       lotes: "id, fazenda_id",
       insumos: "id, categoria",
+      safras: "id, status",
     }).upgrade((tx) =>
       tx.table("tasks").toCollection().modify((t) => {
         if (!t.origem) t.origem = "MANUAL";
         if (!t.status_execucao) t.status_execucao = "CONCLUIDA";
         if (!t.prioridade) t.prioridade = "NORMAL";
+      })
+    );
+    this.version(3).stores({
+      session: "id",
+      tasks:
+        "id, server_id, type, module, fazenda_id, talhao_id, lote_id, status, origem, status_execucao, data_programada, synced, created_at",
+      sync_queue: "id, entity_id, entity_type, status, created_at",
+      caderno_events: "local_id, server_id, tenant_id, safra_id, talhao_id, device_id, sync_status, created_at",
+      caderno_server_events: "server_id, local_id, safra_id, talhao_id, status_evento, documental_status, updated_at, data_registro",
+      caderno_drafts: "id, user_id, task_id, updated_at",
+      fazendas: "id",
+      talhoes: "id, fazenda_id",
+      lotes: "id, fazenda_id",
+      insumos: "id, categoria",
+      safras: "id, status",
+    });
+    this.version(4).stores({
+      session: "id",
+      tasks:
+        "id, server_id, type, module, fazenda_id, talhao_id, lote_id, status, origem, status_execucao, data_programada, synced, created_at",
+      sync_queue: "id, entity_id, entity_type, status, created_at",
+      caderno_events: "local_id, server_id, tenant_id, safra_id, talhao_id, device_id, sync_status, created_at",
+      caderno_server_events: "server_id, local_id, safra_id, talhao_id, status_evento, documental_status, updated_at, data_registro",
+      caderno_drafts: "id, user_id, task_id, updated_at",
+      fazendas: "id",
+      talhoes: "id, fazenda_id",
+      lotes: "id, fazenda_id",
+      insumos: "id, categoria",
+      safras: "id, status",
+    });
+    this.version(5).stores({
+      session: "id",
+      tasks:
+        "id, server_id, type, module, fazenda_id, talhao_id, lote_id, status, origem, status_execucao, data_programada, synced, created_at",
+      sync_queue: "id, entity_id, entity_type, status, created_at",
+      caderno_events: "local_id, server_id, tenant_id, safra_id, talhao_id, device_id, sync_status, created_at",
+      caderno_server_events: "server_id, local_id, safra_id, talhao_id, status_evento, documental_status, updated_at, data_registro",
+      caderno_drafts: "id, user_id, task_id, updated_at",
+      fazendas: "id",
+      talhoes: "id, fazenda_id",
+      lotes: "id, fazenda_id",
+      insumos: "id, categoria",
+      safras: "id, status",
+    });
+    this.version(6).stores({
+      session: "id",
+      tasks:
+        "id, server_id, type, module, fazenda_id, talhao_id, lote_id, status, origem, status_execucao, data_programada, synced, created_at",
+      sync_queue: "id, entity_id, entity_type, status, created_at",
+      caderno_events: "local_id, server_id, tenant_id, safra_id, talhao_id, device_id, sync_status, created_at",
+      caderno_server_events: "server_id, local_id, safra_id, talhao_id, status_evento, documental_status, updated_at, data_registro",
+      caderno_drafts: "id, user_id, task_id, updated_at",
+      fazendas: "id",
+      talhoes: "id, fazenda_id",
+      lotes: "id, fazenda_id",
+      insumos: "id, categoria",
+      safras: "id, status",
+    });
+    this.version(7).stores({
+      session: "id",
+      tasks:
+        "id, server_id, type, module, fazenda_id, talhao_id, lote_id, status, origem, status_execucao, data_programada, synced, created_at",
+      sync_queue: "id, entity_id, entity_type, status, created_at",
+      caderno_events: "local_id, server_id, tenant_id, safra_id, talhao_id, device_id, sync_status, review_required, created_at",
+      caderno_server_events:
+        "server_id, local_id, device_id, safra_id, talhao_id, status_evento, documental_status, updated_at, data_registro",
+      caderno_drafts: "id, user_id, task_id, updated_at",
+      fazendas: "id",
+      talhoes: "id, fazenda_id",
+      lotes: "id, fazenda_id",
+      insumos: "id, categoria",
+      safras: "id, status",
+    }).upgrade((tx) =>
+      tx.table("caderno_events").toCollection().modify((evento) => {
+        if (!evento.sync_status) evento.sync_status = "PENDING";
+        if (typeof evento.review_required !== "boolean") evento.review_required = false;
+        if (typeof evento.conflict_reason === "undefined") evento.conflict_reason = null;
+        if (typeof evento.documental_status === "undefined") evento.documental_status = null;
+        if (typeof evento.origem_invalidada === "undefined") evento.origem_invalidada = false;
+        if (typeof evento.reconciled_at === "undefined") evento.reconciled_at = null;
+        if (!Array.isArray(evento.evidencias)) {
+          evento.evidencias = [];
+          return;
+        }
+
+        evento.evidencias = evento.evidencias.map((evidencia: CadernoEvidenciaOffline) => ({
+          ...evidencia,
+          upload_status: evidencia.upload_status ?? (evidencia.url ? "ENVIADA" : "LOCAL"),
+        }));
+      })
+    );
+    this.version(8).stores({
+      session: "id",
+      tasks:
+        "id, server_id, type, module, fazenda_id, talhao_id, lote_id, status, origem, status_execucao, data_programada, synced, created_at",
+      sync_queue: "id, entity_id, entity_type, status, created_at",
+      caderno_events: "local_id, server_id, tenant_id, safra_id, talhao_id, device_id, sync_status, review_required, created_at",
+      caderno_server_events:
+        "server_id, local_id, device_id, safra_id, talhao_id, status_evento, documental_status, updated_at, data_registro",
+      caderno_drafts: "id, user_id, task_id, updated_at",
+      fazendas: "id",
+      talhoes: "id, fazenda_id",
+      lotes: "id, fazenda_id",
+      insumos: "id, categoria",
+      safras: "id, status",
+    }).upgrade((tx) =>
+      tx.table("caderno_events").toCollection().modify((evento) => {
+        if (!Array.isArray(evento.evidencias)) {
+          evento.evidencias = [];
+          return;
+        }
+        // Migra evidências existentes para o novo contrato com local_evidence_id e campos de upload
+        evento.evidencias = evento.evidencias.map((ev: Partial<CadernoEvidenciaOffline>) => ({
+          ...ev,
+          local_evidence_id: ev.local_evidence_id ?? crypto.randomUUID(),
+          upload_status: ev.upload_status ?? (ev.url ? "ENVIADA" : "LOCAL"),
+          upload_attempts: ev.upload_attempts ?? 0,
+          last_upload_error: ev.last_upload_error ?? null,
+          server_file_id: ev.server_file_id ?? null,
+          server_url: ev.server_url ?? ev.url ?? null,
+        }));
       })
     );
   }

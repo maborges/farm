@@ -19,6 +19,7 @@ Sempre que houver mudança relevante de arquitetura, stack, convenções ou orga
 
 O projeto é dividido em um monorepo contendo:
 - **apps/web**: Interface Next.js 16 com shadcn/ui e Zustand.
+- **apps/campo**: PWA de campo offline-first, usado como extensão oficial do Caderno de Campo.
 - **services/api**: Backend Python com FastAPI, SQLAlchemy e banco de dados PostgreSQL.
 - **packages/zod-schemas**: Definições de contratos compartilhados (Shared Schemas).
 
@@ -195,7 +196,19 @@ O projeto é dividido em um monorepo contendo:
 - **UX-06: Auto-Calibração de Thresholds**: O sistema recalibra dinamicamente os limites de classificação de perfil baseando-se em percentis da distribuição real de uso, garantindo que as definições de "Confiante" ou "Analítico" evoluam com a base de usuários.
 - **UX-07: Transparência e Explicabilidade**: Implementação de interfaces que explicam "por que" a IA se adaptou. Inclui badge de perfil no card essencial com tooltip educativo e uma nova seção na página de configurações detalhando métricas e thresholds.
 
-### 22. Manutenção Preventiva Inteligente (Step 04)
+### 24. FIELD-PWA-04: Evidências Offline Resilientes e Upload Confiável
+
+- **Evidências com identidade própria**: Cada foto capturada no campo recebe um `local_evidence_id` (UUID gerado no dispositivo), permitindo rastreamento individual, retry por evidência e idempotência no upload.
+- **Upload desacoplado do sync do evento**: O registro de campo sincroniza com o servidor independente das fotos. Uma vez que o evento recebe `server_id`, as evidências são automaticamente promovidas para `PENDENTE_UPLOAD` e processadas em etapa separada pelo worker.
+- **Endpoint idempotente de upload**: `POST /api/v1/agricola/caderno/entradas/{entrada_id}/evidencias` aceita upload multipart com autenticação por device_token. Usa `(entrada_id, device_local_id)` como chave de idempotência — reenvios retornam `ALREADY_EXISTS` sem duplicar.
+- **Worker com 3 etapas**: push eventos → upload evidências → pull reconciliação. Falha no upload não bloqueia a reconciliação.
+- **Ciclo de vida de evidência**: `LOCAL → PENDENTE_UPLOAD → ENVIANDO → ENVIADA` (ou `ERRO_UPLOAD`). Máximo de 5 tentativas por evidência; crash recovery recoloca `ENVIANDO` em `PENDENTE_UPLOAD`.
+- **UI informativa**: O Caderno exibe sumário por evento (N enviadas / N pendentes / N com erro), aviso "registro enviado — evidências aguardam conexão" e botão "Reenviar" por evidência individual com erro.
+- **StorageService reutilizado**: O upload usa `StorageService.save_blob()` + `increment_storage()` — sem storage paralelo, rastreamento de quota mantido.
+- **Fluxo**: Foto capturada → `buildEvidenceFromImage()` com `local_evidence_id` → evento salvo no IndexedDB → sync de evento via `POST /offline-sync` → `promoverEvidenciasParaUpload()` → worker faz `POST /entradas/{id}/evidencias` com FormData → `markEvidenciaUploaded()` atualiza IndexedDB.
+
+### Manutenção Preventiva Inteligente (Step 04)
+
 - **Planos de Manutenção Preventiva**: Criação e atualização de planos preventivos contendo categorias e checklists específicos para as inspeções.
 - **Cálculo Dinâmico de Vencimento**: Processamento inteligente de proximidade e vencimento de planos com base em dias corridos, quilometragem acumulada ou horas de horímetro, retornando os status `EM_DIA`, `PROXIMO_VENCIMENTO` ou `VENCIDO`.
 - **Geração Assistida de OS Preventiva**: Abertura de ordens de serviço preventivas, importando automaticamente o checklist preventivo padrão para o campo `checklist_aplicado` do maquinário, além de transicionar o status do equipamento para `EM_MANUTENCAO` e impedir ordens de serviço duplicadas para o mesmo plano preventivo em aberto.
@@ -272,6 +285,27 @@ run_embedded_jobs=false
 - Preserve `storage_backend=local` para desenvolvimento.
 - Use `/health` e `/health/ready` para health checks em qualquer ambiente.
 
+### 4. Como abrir o frontend e o PWA de campo
+- **Frontend web (`apps/web`)**: aplicação principal do painel administrativo e operacional.
+- **PWA de campo (`apps/campo`)**: interface mobile/tablet para uso em campo, offline-first.
+
+Passos rápidos:
+```bash
+# Frontend web
+cd apps/web
+pnpm dev
+
+# PWA de campo
+cd apps/campo
+pnpm dev
+```
+
+Rotas:
+- Frontend web: `http://localhost:3000`
+- PWA de campo: `http://localhost:3002`
+- PWA de campo abre em `/home` após autenticação/ativação do dispositivo.
+- Se precisar ativar um dispositivo pela primeira vez, use o fluxo do PWA em `/activate` e depois `/pin`.
+
 ## 📘 Referência Oficial FIELD-CORE
 
 O documento consolidado oficial da arquitetura do Caderno de Campo é:
@@ -314,6 +348,18 @@ No diretório raiz do projeto:
 
 cd apps/web
 pnpm run dev
+
+### PWA de Campo
+1. Navegue até `apps/campo`.
+2. Rode: `pnpm run dev`.
+
+cd apps/campo
+pnpm run dev
+
+O PWA fica em `http://localhost:3002` e redireciona para `/home` após a ativação do dispositivo.
+Se o dispositivo ainda não estiver ativado, use:
+- `/activate`
+- `/pin`
 
 
 ### Matar processo do servidor

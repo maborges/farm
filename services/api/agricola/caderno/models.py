@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import String, Boolean, Date, DateTime, Text, ForeignKey, text, Uuid, Numeric, JSON, UniqueConstraint
+from sqlalchemy import String, Boolean, Date, DateTime, Text, ForeignKey, text, Uuid, Numeric, JSON, UniqueConstraint, Index
 from uuid import UUID
 import uuid
 from datetime import datetime, date
@@ -15,6 +15,7 @@ class CadernoCampoEntrada(Base):
             "origem_id",
             name="uq_caderno_campo_origem_evento",
         ),
+        Index("ix_caderno_campo_origem_invalidada", "tenant_id", "origem_invalidada"),
     )
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
@@ -41,6 +42,11 @@ class CadernoCampoEntrada(Base):
     origem_evento: Mapped[str | None] = mapped_column(String(40), index=True)
     origem_id: Mapped[str | None] = mapped_column(String(80), index=True)
     origem_tecnica: Mapped[str | None] = mapped_column(String(40), index=True)
+    device_id: Mapped[UUID | None] = mapped_column(Uuid, nullable=True, index=True)
+    unidade_produtiva_id: Mapped[UUID | None] = mapped_column(Uuid, nullable=True, index=True)
+    client_created_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    client_updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    payload_operacional: Mapped[dict | None] = mapped_column(JSON, default=dict)
     status_evento: Mapped[str] = mapped_column(String(30), nullable=False, default="CONSOLIDADO")
     excluida: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     motivo_exclusao: Mapped[str | None] = mapped_column(Text)
@@ -62,6 +68,12 @@ class CadernoCampoEntrada(Base):
     retificado_em: Mapped[datetime | None] = mapped_column(DateTime)
     retificado_por_usuario_id: Mapped[UUID | None] = mapped_column(Uuid, nullable=True)
 
+    # Invalidação documental da origem operacional
+    origem_invalidada: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    origem_invalidada_em: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    origem_invalidada_por: Mapped[UUID | None] = mapped_column(Uuid, nullable=True)
+    motivo_invalidacao_origem: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     # Campos específicos por tipo
     nivel_severidade: Mapped[str | None] = mapped_column(String(20))  # BAIXO | MEDIO | ALTO | CRITICO
     recomendacao: Mapped[str | None] = mapped_column(Text)
@@ -74,6 +86,10 @@ class CadernoCampoEntrada(Base):
     def status_evento_atualizado_em(self) -> datetime | None:
         return self.updated_at
 
+    @property
+    def documental_status(self) -> str:
+        return "ORIGEM_INVALIDADA" if self.origem_invalidada else "VIGENTE"
+
     fotos: Mapped[list["CadernoCampoFoto"]] = relationship(
         back_populates="entrada", cascade="all, delete-orphan", lazy="selectin"
     )
@@ -84,6 +100,13 @@ class CadernoCampoEntrada(Base):
 
 class CadernoCampoFoto(Base):
     __tablename__ = "caderno_campo_fotos"
+    __table_args__ = (
+        UniqueConstraint(
+            "entrada_id",
+            "device_local_id",
+            name="uq_caderno_foto_device_local_id",
+        ),
+    )
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     entrada_id: Mapped[UUID] = mapped_column(
@@ -93,6 +116,13 @@ class CadernoCampoFoto(Base):
     latitude: Mapped[float | None] = mapped_column(Numeric(10, 7))
     longitude: Mapped[float | None] = mapped_column(Numeric(10, 7))
     data_captura: Mapped[datetime | None] = mapped_column(DateTime)
+    # Rastreamento de evidência offline — garante idempotência no upload
+    device_local_id: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
+    device_id: Mapped[UUID | None] = mapped_column(Uuid, nullable=True, index=True)
+    mime_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    size_bytes: Mapped[int | None] = mapped_column(nullable=True)
+    storage_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(server_default=text("(CURRENT_TIMESTAMP)"))
 
     entrada: Mapped["CadernoCampoEntrada"] = relationship(back_populates="fotos")
 
@@ -172,12 +202,16 @@ class CadernoExportacao(Base):
     url_pdf: Mapped[str] = mapped_column(String(500), nullable=False)
     data_geracao: Mapped[datetime] = mapped_column(server_default=text("(CURRENT_TIMESTAMP)"))
     modo_exportacao: Mapped[str] = mapped_column(String(20), default="OFICIAL")
+    snapshot_documental: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    snapshot_hash: Mapped[str | None] = mapped_column(String(128))
     hash_documental: Mapped[str | None] = mapped_column(String(128))
     assinatura_hash: Mapped[str | None] = mapped_column(String(128))
+    protocolo_documental: Mapped[str | None] = mapped_column(String(64), index=True)
 
     responsavel_tecnico_id: Mapped[UUID | None] = mapped_column(Uuid, nullable=True)
     responsavel_tecnico_nome: Mapped[str | None] = mapped_column(String(200))
     responsavel_tecnico_crea: Mapped[str | None] = mapped_column(String(30))
+    usuario_assinatura_id: Mapped[UUID | None] = mapped_column(Uuid, nullable=True)
     assinado_por: Mapped[str | None] = mapped_column(String(200))
     crea_rt: Mapped[str | None] = mapped_column(String(30))
     crea_validade: Mapped[date | None] = mapped_column(Date)

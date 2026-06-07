@@ -58,7 +58,7 @@ class SafraTarefa(Base):
     # Prioridade: BAIXA | MEDIA | ALTA | URGENTE
     prioridade: Mapped[str] = mapped_column(String(10), nullable=False, default="MEDIA")
 
-    # Status: PENDENTE_APROVACAO | APROVADA | EM_EXECUCAO | CONCLUIDA | CANCELADA
+    # Status: PENDENTE_APROVACAO | APROVADA | EM_EXECUCAO | CONCLUIDA | CANCELADA | INVALIDADA
     status: Mapped[str] = mapped_column(String(25), nullable=False, default="PENDENTE_APROVACAO", index=True)
 
     # Dados estimados (sugestão para pré-preencher a Operação)
@@ -82,6 +82,11 @@ class SafraTarefa(Base):
     cancelado_por: Mapped[uuid.UUID | None] = mapped_column(UUIDType, nullable=True)
     cancelado_em: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     motivo_cancelamento: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Invalidação pós-execução/documentação
+    invalidado_por: Mapped[uuid.UUID | None] = mapped_column(UUIDType, nullable=True)
+    invalidado_em: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    motivo_invalidacao: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     created_by: Mapped[uuid.UUID | None] = mapped_column(UUIDType, nullable=True)
     created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)

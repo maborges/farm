@@ -21,6 +21,7 @@ def test_email_invalido_schema():
             email="nao-e-email",
             username="testeemail",
             nome_completo="Teste",
+            apelido="Teste",
             senha="Senha@123",
         )
 
@@ -34,6 +35,7 @@ def test_email_sem_dominio_rejeitado():
             email="usuario@",
             username="testeemail2",
             nome_completo="Teste",
+            apelido="Teste",
             senha="Senha@123",
         )
 

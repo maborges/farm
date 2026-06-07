@@ -1,10 +1,12 @@
 import type { NextConfig } from "next";
 
+const enablePwaInDev = process.env.ENABLE_PWA_DEV === "true";
+
 const withPWA = require("next-pwa")({
   dest: "public",
   register: true,
   skipWaiting: true,
-  disable: process.env.NODE_ENV === "development",
+  disable: process.env.NODE_ENV === "development" && !enablePwaInDev,
   runtimeCaching: [
     {
       urlPattern: /^https?.*/,

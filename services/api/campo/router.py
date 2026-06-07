@@ -1,6 +1,6 @@
 from __future__ import annotations
 import uuid
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,18 +19,29 @@ from campo.schemas import (
     DeviceCreateResponse,
     DeviceActivateRequest,
     DeviceActivateResponse,
+    DeviceReactivateRequest,
     DeviceRevokeRequest,
     DeviceResponse,
+    DeviceSelfResponse,
     SyncPullResponse,
     SyncPushRequest,
     SyncPushResponse,
     TarefaProgramadaCreate,
+    TarefaProgramadaUpdate,
     TarefaProgramadaResponse,
+    TarefaProgramadaInvalidarRequest,
     ExecucaoUpdate,
 )
 
 router = APIRouter(prefix="/campo", tags=["Campo PWA"])
 sync_router = APIRouter(prefix="/sync", tags=["Sync Campo"])
+
+def _to_naive_utc(value: datetime | None) -> datetime:
+    if value is None:
+        return datetime.utcnow()
+    if value.tzinfo is None:
+        return value
+    return value.astimezone(timezone.utc).replace(tzinfo=None)
 
 
 # ---------------------------------------------------------------------------
@@ -67,7 +78,7 @@ async def _get_device_from_token(
         raise HTTPException(status_code=404, detail="Dispositivo não encontrado")
     if device.status != "ATIVO":
         raise HTTPException(status_code=403, detail="Dispositivo não está ativo")
-    if device.expires_at < datetime.utcnow():
+    if _to_naive_utc(device.expires_at) < datetime.utcnow():
         raise HTTPException(status_code=403, detail="Token do dispositivo expirado")
 
     return device
@@ -90,6 +101,9 @@ async def criar_dispositivo(
         await session.commit()
         await session.refresh(device)
         return device
+    except BusinessRuleError as exc:
+        await session.rollback()
+        raise HTTPException(status_code=422, detail=str(exc))
     except Exception as exc:
         await session.rollback()
         logger.error(f"[campo/devices] {exc}")
@@ -128,7 +142,8 @@ async def ativar_dispositivo(
             device_id=device.id,
             tenant_id=device.tenant_id,
             user_id=device.user_id,
-            user_name=user.nome_completo if user else "Operador",
+            user_name=(user.apelido or user.nome_completo or user.username) if user else "Operador",
+            user_avatar_url=user.foto_perfil_url if user else None,
             fazenda_ids=device.fazenda_ids,
             modulos=device.modulos,
             expires_at=device.expires_at,
@@ -157,6 +172,34 @@ async def revogar_dispositivo(
         raise HTTPException(status_code=404, detail=str(exc))
 
 
+@router.post("/devices/reactivate", response_model=DeviceCreateResponse)
+async def reativar_dispositivo(
+    req: DeviceReactivateRequest,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    user_id: uuid.UUID | None = Depends(get_user_id),
+    session: AsyncSession = Depends(get_session),
+):
+    svc = DispositivoService(session, tenant_id)
+    try:
+        device, activation_code = await svc.reativar(req)
+        await session.commit()
+        await session.refresh(device)
+        return DeviceCreateResponse(
+            id=device.id,
+            nome=device.nome,
+            activation_code=activation_code,
+            activation_code_expires_at=device.activation_code_expires_at,
+            expires_at=device.expires_at,
+            status=device.status,
+        )
+    except EntityNotFoundError as exc:
+        await session.rollback()
+        raise HTTPException(status_code=404, detail=str(exc))
+    except BusinessRuleError as exc:
+        await session.rollback()
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
 @router.get("/devices", response_model=list[DeviceResponse])
 async def listar_dispositivos(
     tenant_id: uuid.UUID = Depends(get_tenant_id),
@@ -164,6 +207,36 @@ async def listar_dispositivos(
 ):
     svc = DispositivoService(session, tenant_id)
     return await svc.listar()
+
+
+@router.get("/devices/me", response_model=DeviceSelfResponse)
+async def get_device_self(
+    request: Request,
+    device_id: uuid.UUID = Query(...),
+    session: AsyncSession = Depends(get_session),
+):
+    device = await _get_device_from_token(device_id, request, session)
+
+    from core.models.auth import Usuario
+
+    user_result = await session.execute(select(Usuario).where(Usuario.id == device.user_id))
+    user = user_result.scalar_one_or_none()
+
+    disp_svc = DispositivoService(session, device.tenant_id)
+    await disp_svc.atualizar_last_seen(device.id)
+    await session.commit()
+
+    return DeviceSelfResponse(
+        id=device.id,
+        nome=device.nome,
+        status=device.status,
+        user_id=device.user_id,
+        user_name=(user.apelido or user.nome_completo or user.username) if user else "Operador",
+        user_avatar_url=user.foto_perfil_url if user else None,
+        fazenda_ids=device.fazenda_ids,
+        modulos=device.modulos,
+        expires_at=device.expires_at,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -187,6 +260,28 @@ async def criar_tarefa_programada(
         await session.rollback()
         logger.error(f"[campo/tarefas] {exc}")
         raise HTTPException(status_code=500, detail=str(exc))
+
+
+@router.patch("/tarefas/{tarefa_id}", response_model=TarefaProgramadaResponse)
+async def atualizar_tarefa_programada(
+    tarefa_id: uuid.UUID,
+    data: TarefaProgramadaUpdate,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    session: AsyncSession = Depends(get_session),
+):
+    from core.exceptions import EntityNotFoundError, BusinessRuleError
+    svc = TarefaProgramadaService(session, tenant_id, uuid.uuid4())
+    try:
+        tarefa = await svc.atualizar(tarefa_id, data)
+        await session.commit()
+        await session.refresh(tarefa)
+        return tarefa
+    except EntityNotFoundError as exc:
+        await session.rollback()
+        raise HTTPException(status_code=404, detail=str(exc))
+    except BusinessRuleError as exc:
+        await session.rollback()
+        raise HTTPException(status_code=422, detail=str(exc))
 
 
 @router.get("/tarefas", response_model=list[TarefaProgramadaResponse])
@@ -263,6 +358,34 @@ async def cancelar_tarefa(
     except EntityNotFoundError as exc:
         await session.rollback()
         raise HTTPException(status_code=404, detail=str(exc))
+
+
+@router.post("/tarefas/{tarefa_id}/invalidar", response_model=TarefaProgramadaResponse)
+async def invalidar_tarefa(
+    tarefa_id: uuid.UUID,
+    body: TarefaProgramadaInvalidarRequest,
+    request: Request,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    user_id: uuid.UUID | None = Depends(get_user_id),
+    session: AsyncSession = Depends(get_session),
+):
+    from core.exceptions import EntityNotFoundError, BusinessRuleError
+
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Usuário não autenticado.")
+
+    svc = TarefaProgramadaService(session, tenant_id, user_id, request.client.host if request.client else None)
+    try:
+        tarefa = await svc.invalidar(tarefa_id, body.motivo)
+        await session.commit()
+        await session.refresh(tarefa)
+        return tarefa
+    except EntityNotFoundError as exc:
+        await session.rollback()
+        raise HTTPException(status_code=404, detail=str(exc))
+    except BusinessRuleError as exc:
+        await session.rollback()
+        raise HTTPException(status_code=422, detail=str(exc))
 
 
 # ---------------------------------------------------------------------------

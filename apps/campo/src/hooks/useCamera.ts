@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useCallback, useRef, useState } from "react";
 
 const MAX_FOTOS = 2;
 const MAX_WIDTH = 1280;
@@ -12,25 +12,42 @@ export function useCamera() {
 
   const canAddMore = fotos.length < MAX_FOTOS;
 
-  const openCamera = () => {
+  const openCamera = useCallback(() => {
     if (!canAddMore) return;
     inputRef.current?.click();
-  };
+  }, [canAddMore]);
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const compressed = await compressImage(file);
     setFotos((prev) => [...prev.slice(0, MAX_FOTOS - 1), compressed]);
     // Reset input para permitir mesma foto novamente
     e.target.value = "";
-  };
+  }, []);
 
-  const removePhoto = (idx: number) => {
+  const removePhoto = useCallback((idx: number) => {
     setFotos((prev) => prev.filter((_, i) => i !== idx));
-  };
+  }, []);
 
-  return { fotos, inputRef, canAddMore, openCamera, handleFileChange, removePhoto };
+  const clearPhotos = useCallback(() => {
+    setFotos([]);
+  }, []);
+
+  const restorePhotos = useCallback((images: string[]) => {
+    setFotos(images.slice(0, MAX_FOTOS));
+  }, []);
+
+  return {
+    fotos,
+    inputRef,
+    canAddMore,
+    openCamera,
+    handleFileChange,
+    removePhoto,
+    clearPhotos,
+    restorePhotos,
+  };
 }
 
 async function compressImage(file: File): Promise<string> {

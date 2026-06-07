@@ -66,6 +66,9 @@ class TarefaResponse(BaseModel):
     cancelado_por: Optional[UUID]
     cancelado_em: Optional[datetime]
     motivo_cancelamento: Optional[str]
+    invalidado_por: Optional[UUID]
+    invalidado_em: Optional[datetime]
+    motivo_invalidacao: Optional[str]
     created_by: Optional[UUID]
     created_at: datetime
     updated_at: datetime

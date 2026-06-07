@@ -197,6 +197,32 @@ def include_object(object, name, type_, reflected, compare_to):
     return True
 
 
+def _ensure_alembic_version_capacity(connection: Connection) -> None:
+    """Widen legacy alembic_version rows before long revision IDs are inserted."""
+    if "postgresql" not in DB_URL:
+        return
+
+    row = connection.execute(
+        text(
+            """
+            SELECT character_maximum_length
+            FROM information_schema.columns
+            WHERE table_schema = 'farms'
+              AND table_name = 'alembic_version'
+              AND column_name = 'version_num'
+            """
+        )
+    ).scalar_one_or_none()
+
+    if row is not None and row < 64:
+        connection.execute(
+            text(
+                "ALTER TABLE farms.alembic_version "
+                "ALTER COLUMN version_num TYPE VARCHAR(64)"
+            )
+        )
+
+
 def do_run_migrations(connection: Connection) -> None:
     # Define search_path ao nível de sessão (antes de qualquer transação)
     # para que todas as operações — incluindo UPDATE alembic_version — usem
@@ -204,6 +230,7 @@ def do_run_migrations(connection: Connection) -> None:
     if "postgresql" in DB_URL:
         connection.execute(text("CREATE SCHEMA IF NOT EXISTS farms"))
         connection.execute(text("SET search_path TO farms"))
+        _ensure_alembic_version_capacity(connection)
 
     context.configure(
         connection=connection,
@@ -221,14 +248,9 @@ async def run_async_migrations() -> None:
     and associate a connection with the context.
 
     """
-    # async_engine_from_config não repassa connect_args corretamente para asyncpg.
-    # Usamos create_async_engine diretamente com server_settings para garantir
-    # que search_path='farms' persista em TODAS as execuções da sessão.
-    engine_kwargs: dict = {"poolclass": pool.NullPool}
-    if "postgresql" in DB_URL:
-        engine_kwargs["connect_args"] = {"server_settings": {"search_path": "farms"}}
-
-    connectable = create_async_engine(DB_URL, **engine_kwargs)
+    # Neste ambiente o asyncpg expira ao abrir conexão com server_settings.
+    # O search_path continua sendo aplicado em do_run_migrations via SET explícito.
+    connectable = create_async_engine(DB_URL, poolclass=pool.NullPool)
 
     async with connectable.connect() as connection:
         await connection.run_sync(do_run_migrations)

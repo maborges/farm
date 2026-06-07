@@ -115,6 +115,8 @@ async def update_me(
 
     if dados.nome_completo is not None:
         usuario.nome_completo = dados.nome_completo
+    if dados.apelido is not None:
+        usuario.apelido = dados.apelido
     if dados.telefone is not None:
         usuario.telefone = dados.telefone
     if dados.foto_perfil_url is not None:

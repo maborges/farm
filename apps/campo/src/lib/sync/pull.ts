@@ -1,9 +1,15 @@
-import { db, type LocalTask, type TaskModule } from "@/lib/db";
+import { db, type CampoEventoOffline, type LocalTask, type TaskModule } from "@/lib/db";
 import { useSessionStore } from "@/lib/stores/session-store";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+const API_BASE = "/api/v1";
 
 interface SyncPullPayload {
+  safras?: Array<{
+    id: string;
+    ano_safra: string;
+    cultura?: string | null;
+    status: string;
+  }>;
   fazendas?: Array<{
     id: string;
     nome: string;
@@ -33,6 +39,7 @@ interface SyncPullPayload {
   tarefas_pendentes?: Array<{
     id: string;
     client_id?: string | null;
+    dispositivo_id?: string | null;
     type: string;
     module: string;
     status?: string;
@@ -49,6 +56,31 @@ interface SyncPullPayload {
     client_created_at?: string | null;
     client_updated_at?: string | null;
   }>;
+  eventos_caderno_oficiais?: Array<{
+    server_id: string;
+    local_id?: string | null;
+    device_id?: string | null;
+    safra_id: string;
+    talhao_id: string;
+    tipo: string;
+    tipo_evento?: string | null;
+    descricao: string;
+    data_registro: string;
+    status_evento: string;
+    documental_status: string;
+    versao_vigente: boolean;
+    retificado: boolean;
+    retificador: boolean;
+    invalidado: boolean;
+    origem_invalidada: boolean;
+    motivo_invalidacao_origem?: string | null;
+    motivo_retificacao?: string | null;
+    retifica_evento_id?: string | null;
+    retificado_por_evento_id?: string | null;
+    justificativa?: string | null;
+    updated_at?: string | null;
+    created_at?: string | null;
+  }>;
   tombstones?: {
     talhoes?: string[];
     lotes?: string[];
@@ -56,6 +88,41 @@ interface SyncPullPayload {
     insumos?: string[];
   };
   sync_at: string;
+}
+
+const TERMINAL_OFFICIAL_STATUSES = new Set(["APROVADO", "REJEITADO", "CONSOLIDADO", "CANCELADO"]);
+const CONFLICT_MESSAGE = "Este registro possui divergência entre aparelho e servidor. Revise no sistema.";
+
+function shouldReviewOfficialEvent(
+  statusEvento: string,
+  documentalStatus: string,
+  origemInvalidada: boolean,
+  retificado: boolean
+): boolean {
+  return statusEvento === "REJEITADO" || documentalStatus === "ORIGEM_INVALIDADA" || origemInvalidada || retificado;
+}
+
+function buildConflictReason(
+  local: CampoEventoOffline,
+  serverEvent: NonNullable<SyncPullPayload["eventos_caderno_oficiais"]>[number]
+): string | null {
+  if (local.server_id && local.server_id !== serverEvent.server_id) {
+    return CONFLICT_MESSAGE;
+  }
+
+  if (local.server_id && TERMINAL_OFFICIAL_STATUSES.has(serverEvent.status_evento) && local.status_evento !== serverEvent.status_evento) {
+    return CONFLICT_MESSAGE;
+  }
+
+  if (
+    (local.sync_status === "PENDING" || local.sync_status === "SYNCING" || local.sync_status === "ERROR") &&
+    TERMINAL_OFFICIAL_STATUSES.has(serverEvent.status_evento) &&
+    local.server_id
+  ) {
+    return CONFLICT_MESSAGE;
+  }
+
+  return null;
 }
 
 export async function pullSync(): Promise<void> {
@@ -79,7 +146,19 @@ export async function pullSync(): Promise<void> {
   const data = (await res.json()) as SyncPullPayload;
 
   // Atualiza caches no IndexedDB em transação
-  await db.transaction("rw", [db.fazendas, db.talhoes, db.lotes, db.insumos, db.tasks], async () => {
+  await db.transaction("rw", [db.fazendas, db.talhoes, db.lotes, db.insumos, db.safras, db.tasks, db.caderno_events, db.caderno_server_events], async () => {
+    // Safras
+    if (data.safras?.length) {
+      await db.safras.bulkPut(
+        data.safras.map((s) => ({
+          id: s.id,
+          ano_safra: s.ano_safra,
+          cultura: s.cultura ?? undefined,
+          status: s.status,
+        }))
+      );
+    }
+
     // Fazendas
     if (data.fazendas?.length) {
       await db.fazendas.bulkPut(data.fazendas);
@@ -127,6 +206,7 @@ export async function pullSync(): Promise<void> {
           fazenda_id: t.unidade_produtiva_id ?? "",
           talhao_id: t.area_rural_id ?? undefined,
           lote_id: t.lote_id ?? undefined,
+          dispositivo_id: t.dispositivo_id ?? undefined,
           operador_id: t.operador_id ?? undefined,
           status: (t.status ?? "PENDENTE") as LocalTask["status"],
           origem: (t.origem ?? "MANUAL") as LocalTask["origem"],
@@ -142,6 +222,68 @@ export async function pullSync(): Promise<void> {
           synced: true,
         }))
       );
+    }
+
+    if (data.eventos_caderno_oficiais?.length) {
+      await db.caderno_server_events.bulkPut(
+        data.eventos_caderno_oficiais.map((evento) => ({
+          ...evento,
+          local_id: evento.local_id ?? undefined,
+        }))
+      );
+
+      for (const evento of data.eventos_caderno_oficiais) {
+        if (!evento.local_id) continue;
+        const local = await db.caderno_events.get(evento.local_id);
+        if (!local) continue;
+        if (evento.device_id && local.device_id !== evento.device_id) continue;
+
+        const now = evento.updated_at ?? new Date().toISOString();
+        const conflictReason = buildConflictReason(local, evento);
+        const reviewRequired =
+          Boolean(conflictReason) ||
+          shouldReviewOfficialEvent(
+            evento.status_evento,
+            evento.documental_status,
+            evento.origem_invalidada,
+            evento.retificado
+          );
+
+        if (conflictReason) {
+          await db.caderno_events.update(evento.local_id, {
+            status_evento: evento.status_evento as CampoEventoOffline["status_evento"],
+            documental_status: evento.documental_status,
+            origem_invalidada: evento.origem_invalidada,
+            motivo_invalidacao_origem: evento.motivo_invalidacao_origem ?? null,
+            retifica_evento_id: evento.retifica_evento_id ?? null,
+            retificado_por_evento_id: evento.retificado_por_evento_id ?? null,
+            oficial_justificativa: evento.justificativa ?? null,
+            review_required: true,
+            sync_status: "CONFLICT",
+            conflict_reason: conflictReason,
+            reconciled_at: now,
+            updated_at: now,
+          });
+          continue;
+        }
+
+        await db.caderno_events.update(evento.local_id, {
+          server_id: evento.server_id,
+          status_evento: evento.status_evento as CampoEventoOffline["status_evento"],
+          documental_status: evento.documental_status,
+          origem_invalidada: evento.origem_invalidada,
+          motivo_invalidacao_origem: evento.motivo_invalidacao_origem ?? null,
+          retifica_evento_id: evento.retifica_evento_id ?? null,
+          retificado_por_evento_id: evento.retificado_por_evento_id ?? null,
+          oficial_justificativa: evento.justificativa ?? null,
+          review_required: reviewRequired,
+          sync_status: "SYNCED",
+          conflict_reason: null,
+          last_sync_error: null,
+          reconciled_at: now,
+          updated_at: now,
+        });
+      }
     }
 
     // Tombstones — remove entidades deletadas no servidor

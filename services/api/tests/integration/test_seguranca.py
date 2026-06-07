@@ -154,6 +154,7 @@ def test_cpf_invalido_schema():
             email="teste@cpf.com",
             username="testecpf",
             nome_completo="Teste CPF",
+            apelido="Teste",
             senha="Senha@123",
             cpf="00000000000",
         )
@@ -179,6 +180,7 @@ def test_email_invalido_schema():
             email="nao-e-email",
             username="testeemail",
             nome_completo="Teste",
+            apelido="Teste",
             senha="Senha@123",
         )
 
