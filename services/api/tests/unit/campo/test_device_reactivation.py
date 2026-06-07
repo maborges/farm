@@ -15,8 +15,8 @@ pytestmark = pytest.mark.asyncio
 async def test_device_reactivation_preserves_device_id_and_emits_new_code(session, tenant_id):
     user = Usuario(
         id=uuid.uuid4(),
-        email="operador@teste.com",
-        username="operador_teste",
+        email=f"operador-{uuid.uuid4().hex[:8]}@teste.com",
+        username=f"operador_teste_{uuid.uuid4().hex[:8]}",
         nome_completo="Operador Teste",
         senha_hash="hash",
         ativo=True,
