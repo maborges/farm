@@ -92,6 +92,7 @@ from operacional.models.checklist import (
     ChecklistOperacionalResposta,
 )
 from operacional.models.estoque import Deposito, SaldoEstoque, LoteEstoque, RequisicaoMaterial, ItemRequisicao, ReservaEstoque, EstoqueMovimento
+from operacional.models.estoque_implantacao import EstoqueImplantacaoSessao, EstoqueImplantacaoItem
 from operacional.models.documento_equipamento import DocumentoEquipamento
 from operacional.models.frota import PlanoManutencao, OrdemServico, ItemOrdemServico, RegistroManutencao, JornadaEquipamento
 

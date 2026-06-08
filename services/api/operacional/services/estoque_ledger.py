@@ -35,7 +35,7 @@ ORIGEM_ALIASES = {
     "DEVOLUCAO_FORNECEDOR": "AJUSTE",
     "OPERACAO_AGRICOLA": "MANUAL",
     "ORDEM_SERVICO": "MANUAL",
-    "INICIAL": "MANUAL",
+    "INICIAL": "IMPLANTACAO",
 }
 
 
@@ -47,7 +47,7 @@ def _normalizar_codigo_uom(codigo: str | None) -> str:
 def _normalizar_origem(origem: str | None) -> str:
     normalizada = (origem or "MANUAL").strip().upper()
     normalizada = ORIGEM_ALIASES.get(normalizada, normalizada)
-    if normalizada not in {"OPERACAO_EXECUCAO", "COMPRA", "COLHEITA", "AJUSTE", "MANUAL", "TRANSFERENCIA"}:
+    if normalizada not in {"OPERACAO_EXECUCAO", "COMPRA", "COLHEITA", "AJUSTE", "MANUAL", "TRANSFERENCIA", "IMPLANTACAO"}:
         return "MANUAL"
     return normalizada
 
@@ -102,6 +102,7 @@ async def registrar_ledger_estoque(
     production_unit_id: UUID | None = None,
     ajuste_de: UUID | None = None,
     observacoes: str | None = None,
+    numero_lote_legado: str | None = None,
 ) -> EstoqueMovimento:
     origem = _normalizar_origem(origem)
 
@@ -115,6 +116,8 @@ async def registrar_ledger_estoque(
     if lote_id:
         lote = await session.get(LoteEstoque, lote_id)
         numero_lote = lote.numero_lote if lote else None
+    elif numero_lote_legado:
+        numero_lote = numero_lote_legado
 
     if custo_total is None and custo_unitario is not None:
         custo_total = round(abs(float(quantidade)) * float(custo_unitario), 2)

@@ -510,6 +510,7 @@ class TenantPermissions:
             "pecuaria:*",
             "financeiro:*",
             "operacional:*",
+            "estoque:*",
             "rh:*",
             "ambiental:*",
         ],
@@ -523,6 +524,10 @@ class TenantPermissions:
             # Módulos baseados na área do gerente (deve ser customizado)
             "agricola:*",
             "pecuaria:view",
+            "estoque:implantacao_assistida:view",
+            "estoque:implantacao_assistida:list",
+            "estoque:implantacao_assistida:create",
+            "estoque:implantacao_assistida:edit",
         ],
 
         "agronomo": [
@@ -552,6 +557,8 @@ class TenantPermissions:
             # Operacional
             "operacional:frota:view",
             "operacional:ordens_servico:*",
+            "estoque:implantacao_assistida:view",
+            "estoque:implantacao_assistida:list",
         ],
 
         "consultor": [
@@ -561,6 +568,8 @@ class TenantPermissions:
             "pecuaria:view",
             "financeiro:view",
             "operacional:view",
+            "estoque:implantacao_assistida:view",
+            "estoque:implantacao_assistida:list",
         ],
 
         "financeiro": [

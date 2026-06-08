@@ -5,6 +5,7 @@ from datetime import date
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 from loguru import logger
 
 from core.base_service import BaseService
@@ -500,6 +501,71 @@ class EstoqueService(BaseService[SaldoEstoque]):
         await self._verificar_e_notificar_estoque_baixo(saldo)
         return mov
 
+    async def registrar_saldo_inicial_implantacao(
+        self,
+        *,
+        produto_id: UUID,
+        deposito_id: UUID,
+        quantidade: float,
+        origem_id: UUID,
+        observacao: str | None = None,
+        custo_unitario: float | None = None,
+        unidade_produtiva_id: UUID | None = None,
+        numero_lote_legado: str | None = None,
+        validade_legado: date | None = None,
+    ) -> EstoqueMovimento:
+        if quantidade <= 0:
+            raise BusinessRuleError("Saldo inicial exige quantidade maior que zero.")
+        if unidade_produtiva_id is not None:
+            await validate_deposito_context(
+                self.session,
+                tenant_id=self.tenant_id,
+                deposito_id=deposito_id,
+                expected_unidade_produtiva_id=unidade_produtiva_id,
+            )
+        else:
+            await validate_deposito_context(self.session, tenant_id=self.tenant_id, deposito_id=deposito_id)
+        await self._get_produto_or_fail(produto_id)
+
+        stmt_dup = select(EstoqueMovimento.id).where(
+            EstoqueMovimento.tenant_id == self.tenant_id,
+            EstoqueMovimento.produto_id == produto_id,
+            EstoqueMovimento.deposito_id == deposito_id,
+            EstoqueMovimento.tipo_movimento == "SALDO_INICIAL",
+        ).limit(1)
+        if (await self.session.execute(stmt_dup)).scalar_one_or_none():
+            raise BusinessRuleError("Ja existe SALDO_INICIAL para este produto e deposito.")
+
+        saldo = await self._get_ou_criar_saldo(deposito_id, produto_id)
+        saldo.quantidade_atual += quantidade
+
+        observacao_parts = [observacao] if observacao else []
+        if numero_lote_legado:
+            observacao_parts.append(f"Lote legado: {numero_lote_legado}")
+        if validade_legado:
+            observacao_parts.append(f"Validade legado: {validade_legado.isoformat()}")
+        observacao_final = " | ".join(part for part in observacao_parts if part) or "Saldo inicial por implantacao assistida"
+
+        try:
+            mov = await registrar_ledger_estoque(
+                self.session,
+                tenant_id=self.tenant_id,
+                produto_id=produto_id,
+                deposito_id=deposito_id,
+                tipo_movimento="SALDO_INICIAL",
+                quantidade=quantidade,
+                custo_unitario=custo_unitario,
+                origem="IMPLANTACAO",
+                origem_id=origem_id,
+                observacoes=observacao_final,
+                numero_lote_legado=numero_lote_legado,
+            )
+            await self.session.flush()
+            await self.session.refresh(mov)
+            return mov
+        except IntegrityError as exc:
+            raise BusinessRuleError("Nao foi possivel gravar SALDO_INICIAL. Verifique duplicidade da implantacao.") from exc
+
     async def registrar_saida_insumo(
         self,
         produto_id: UUID,
@@ -815,6 +881,8 @@ class EstoqueService(BaseService[SaldoEstoque]):
             mov_dict["produto_nome"] = p_nome
             mov_dict["deposito_nome"] = d_nome
             # Mapeia campos legados para o schema MovimentacaoResponse
+            mov_dict["tipo"] = mov.tipo_movimento
+            mov_dict["origem_tipo"] = mov.origem
             mov_dict["data_movimentacao"] = mov.data_movimento
             mov_dict["motivo"] = mov.observacoes
             result.append(mov_dict)
@@ -843,6 +911,8 @@ class EstoqueService(BaseService[SaldoEstoque]):
         mov_dict = {c.name: getattr(mov, c.name) for c in mov.__table__.columns}
         mov_dict["produto_nome"] = p_nome
         mov_dict["deposito_nome"] = d_nome
+        mov_dict["tipo"] = mov.tipo_movimento
+        mov_dict["origem_tipo"] = mov.origem
         mov_dict["data_movimentacao"] = mov.data_movimento
         mov_dict["motivo"] = mov.observacoes
         return mov_dict
