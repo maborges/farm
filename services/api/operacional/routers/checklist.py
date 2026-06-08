@@ -124,6 +124,58 @@ async def realizar_checklist(
         observacoes_gerais=data.observacoes_gerais,
     )
     session.add(obj)
+    await session.flush()
+
+    if liberado and ("sanit" in modelo.nome.lower() or "limpez" in modelo.nome.lower() or "higien" in modelo.nome.lower()):
+        from datetime import datetime
+        from core.cadastros.equipamentos.service import EquipamentoCalibracaoService
+        from agricola.caderno.models import CadernoCampoEntrada
+        from agricola.caderno.service import CadernoCampoService
+
+        eq_calib_svc = EquipamentoCalibracaoService(session, tenant_id)
+        safra_id, talhao_id, unidade_produtiva_id = await eq_calib_svc._obter_contexto_safra_talhao_para_equipamento(data.equipamento_id)
+
+        if safra_id and talhao_id:
+            from core.cadastros.equipamentos.models import Equipamento
+            eq = await session.get(Equipamento, data.equipamento_id)
+            eq_name = eq.nome if eq else "Equipamento"
+
+            respostas_resumo = ", ".join(f"{r.get('descricao')}: {r.get('status')}" for r in respostas[:4])
+            desc_completa = f"Liberação Sanitária aprovada para {eq_name}. Itens: {respostas_resumo}"
+
+            entrada = CadernoCampoEntrada(
+                tenant_id=tenant_id,
+                safra_id=safra_id,
+                talhao_id=talhao_id,
+                tipo="INSPECAO",
+                tipo_evento="INSPECAO",
+                descricao=desc_completa,
+                data_registro=obj.data_hora.date() if obj.data_hora else datetime.utcnow().date(),
+                usuario_id=data.operador_id or uuid.UUID("00000000-0000-0000-0000-000000000000"),
+                origem_evento="CHECKLIST_SANITARIO",
+                origem_id=str(obj.id),
+                origem_tecnica="CHECKLIST",
+                unidade_produtiva_id=unidade_produtiva_id,
+                status_evento="CONSOLIDADO",
+                payload_operacional={
+                    "equipamento_id": str(data.equipamento_id),
+                    "modelo_id": str(data.modelo_id),
+                    "respostas": respostas,
+                    "liberado_para_uso": True,
+                }
+            )
+            session.add(entrada)
+            await session.flush()
+
+            caderno_svc = CadernoCampoService(session, tenant_id)
+            await caderno_svc._registrar_historico_status(
+                entrada,
+                status_anterior=None,
+                status_novo="CONSOLIDADO",
+                justificativa="Registro automático de liberação sanitária",
+                usuario_id=data.operador_id,
+            )
+
     await session.commit()
     await session.refresh(obj)
     return obj

@@ -19,6 +19,7 @@ const ACTIVITIES: Activity[] = [
   { key: "caderno", label: "Caderno", icon: "📓", path: "/caderno", module: "agricola" },
   { key: "aplicacao", label: "Aplicação", icon: "🌿", path: "/campo/aplicacao", module: "agricola" },
   { key: "colheita", label: "Colheita", icon: "🌾", path: "/campo/colheita", module: "agricola" },
+  { key: "epi", label: "Entrega EPI", icon: "🦺", path: "/campo/epi", module: "agricola" },
   { key: "pesagem", label: "Pesagem", icon: "⚖️", path: "/campo/pesagem", module: "pecuaria" },
   { key: "vacinacao", label: "Vacinação", icon: "💉", path: "/campo/vacinacao", module: "pecuaria" },
 ];

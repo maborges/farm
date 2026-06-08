@@ -87,6 +87,12 @@ interface SyncPullPayload {
     tarefas?: string[];
     insumos?: string[];
   };
+  colaboradores?: Array<{
+    id: string;
+    nome: string;
+    cpf?: string | null;
+    cargo?: string | null;
+  }>;
   sync_at: string;
 }
 
@@ -146,7 +152,15 @@ export async function pullSync(): Promise<void> {
   const data = (await res.json()) as SyncPullPayload;
 
   // Atualiza caches no IndexedDB em transação
-  await db.transaction("rw", [db.fazendas, db.talhoes, db.lotes, db.insumos, db.safras, db.tasks, db.caderno_events, db.caderno_server_events], async () => {
+  await db.transaction("rw", [db.fazendas, db.talhoes, db.lotes, db.insumos, db.safras, db.tasks, db.caderno_events, db.caderno_server_events, db.colaboradores], async () => {
+    // Colaboradores
+    if (data.colaboradores) {
+      await db.colaboradores.clear();
+      if (data.colaboradores.length) {
+        await db.colaboradores.bulkPut(data.colaboradores);
+      }
+    }
+
     // Safras
     if (data.safras?.length) {
       await db.safras.bulkPut(

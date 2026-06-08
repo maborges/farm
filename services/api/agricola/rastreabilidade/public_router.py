@@ -1,7 +1,7 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Response
 
 from core.database import async_session_maker
-from agricola.rastreabilidade.service import RastreabilidadeService
+from agricola.rastreabilidade.service import RastreabilidadeService, LoteComercialService
 
 router = APIRouter(prefix="/public", tags=["Rastreabilidade Pública"])
 
@@ -26,3 +26,17 @@ async def track_lote_publico(codigo_lote: str):
         "data_geracao": lote.data_geracao.isoformat() if lote.data_geracao else None,
         "qr_code_url": lote.qr_code_url,
     }
+
+
+@router.get("/rastreabilidade/{token}")
+async def obter_rastreabilidade_publica(token: str, response: Response):
+    """Endpoint público que retorna o snapshot imutável do passaporte do lote."""
+    response.headers["X-Robots-Tag"] = "noindex, nofollow"
+
+    async with async_session_maker() as session:
+        lote = await LoteComercialService.buscar_por_token(session, token)
+
+    if not lote or lote.status != "ATIVO" or not lote.snapshot_json:
+        raise HTTPException(status_code=404, detail="Lote comercial não encontrado ou não publicado.")
+
+    return lote.snapshot_json

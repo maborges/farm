@@ -267,6 +267,13 @@ export interface CachedSafra {
   status: string;
 }
 
+export interface CachedColaborador {
+  id: string;
+  nome: string;
+  cpf?: string | null;
+  cargo?: string | null;
+}
+
 // ---------------------------------------------------------------------------
 // Database
 // ---------------------------------------------------------------------------
@@ -283,6 +290,7 @@ export class CampoDatabase extends Dexie {
   lotes!: Table<CachedLote>;
   insumos!: Table<CachedInsumo>;
   safras!: Table<CachedSafra>;
+  colaboradores!: Table<CachedColaborador>;
 
   constructor() {
     super("campo_db");
@@ -441,6 +449,22 @@ export class CampoDatabase extends Dexie {
         }));
       })
     );
+    this.version(9).stores({
+      session: "id",
+      tasks:
+        "id, server_id, type, module, fazenda_id, talhao_id, lote_id, status, origem, status_execucao, data_programada, synced, created_at",
+      sync_queue: "id, entity_id, entity_type, status, created_at",
+      caderno_events: "local_id, server_id, tenant_id, safra_id, talhao_id, device_id, sync_status, review_required, created_at",
+      caderno_server_events:
+        "server_id, local_id, device_id, safra_id, talhao_id, status_evento, documental_status, updated_at, data_registro",
+      caderno_drafts: "id, user_id, task_id, updated_at",
+      fazendas: "id",
+      talhoes: "id, fazenda_id",
+      lotes: "id, fazenda_id",
+      insumos: "id, categoria",
+      safras: "id, status",
+      colaboradores: "id",
+    });
   }
 }
 

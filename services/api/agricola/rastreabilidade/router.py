@@ -4,13 +4,15 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from fastapi.responses import Response
 from core.constants import PlanTier
-from core.dependencies import get_tenant_id, require_module, require_role, require_tier, get_session_with_tenant
+from core.dependencies import get_tenant_id, require_module, require_role, require_tier, get_session_with_tenant, get_current_user
 from agricola.rastreabilidade.schemas import (
     LoteRastreabilidadeCreate, LoteRastreabilidadeResponse,
-    CertificacaoCreate, CertificacaoResponse
+    CertificacaoCreate, CertificacaoResponse,
+    LoteComercialCreate, LoteComercialResponse
 )
-from agricola.rastreabilidade.service import RastreabilidadeService, CertificacaoService
+from agricola.rastreabilidade.service import RastreabilidadeService, CertificacaoService, LoteComercialService
 
 router = APIRouter(
     prefix="/rastreabilidade",
@@ -246,3 +248,35 @@ async def listar_certificacoes(
     filters = {}
     if unidade_produtiva_id: filters["unidade_produtiva_id"] = unidade_produtiva_id
     return await svc.list_all(**filters)
+
+
+@router.post("/lotes-comerciais", response_model=LoteComercialResponse, status_code=status.HTTP_201_CREATED)
+async def criar_lote_comercial(
+    dados: LoteComercialCreate,
+    session: AsyncSession = Depends(get_session_with_tenant),
+    tenant_id: UUID = Depends(get_tenant_id),
+):
+    svc = LoteComercialService(session, tenant_id)
+    return await svc.criar_lote_comercial(dados)
+
+
+@router.post("/lotes-comerciais/{id}/gerar-snapshot", response_model=LoteComercialResponse)
+async def gerar_snapshot_lote_comercial(
+    id: UUID,
+    usuario = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session_with_tenant),
+    tenant_id: UUID = Depends(get_tenant_id),
+):
+    svc = LoteComercialService(session, tenant_id)
+    return await svc.gerar_snapshot_passaporte(id, usuario.id)
+
+
+@router.get("/lotes-comerciais/{id}/qrcode")
+async def obter_qrcode_lote_comercial(
+    id: UUID,
+    session: AsyncSession = Depends(get_session_with_tenant),
+    tenant_id: UUID = Depends(get_tenant_id),
+):
+    svc = LoteComercialService(session, tenant_id)
+    svg_content = await svc.gerar_qrcode_svg(id)
+    return Response(content=svg_content, media_type="image/svg+xml")

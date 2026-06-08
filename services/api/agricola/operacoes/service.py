@@ -727,6 +727,51 @@ class OperacaoService(BaseService[OperacaoAgricola]):
 
         return operacao_execucao, allocation
 
+    async def _validar_calibracao_e_sanitario(
+        self, maquina_id: UUID | None, data_realizada: date
+    ) -> None:
+        if not maquina_id:
+            return
+
+        from core.cadastros.equipamentos.models import Equipamento, EquipamentoCalibracao
+        from operacional.models.checklist import ChecklistRealizado, ChecklistModelo
+        from sqlalchemy import func, Date
+
+        equipamento = await self.session.get(Equipamento, maquina_id)
+        if not equipamento or equipamento.tenant_id != self.tenant_id:
+            raise BusinessRuleError("Equipamento não localizado ou inacessível para o tenant.")
+
+        if equipamento.tipo == "PULVERIZADOR":
+            # 1. Verifica calibração vigente
+            calib_stmt = (
+                select(EquipamentoCalibracao)
+                .where(
+                    EquipamentoCalibracao.equipamento_id == maquina_id,
+                    EquipamentoCalibracao.tenant_id == self.tenant_id,
+                    EquipamentoCalibracao.data_calibracao <= data_realizada,
+                    EquipamentoCalibracao.validade_ate >= data_realizada,
+                )
+            )
+            calib_existe = (await self.session.execute(calib_stmt)).scalars().first()
+            if not calib_existe:
+                raise BusinessRuleError("Equipamento sem calibração válida.")
+
+            # 2. Verifica liberação sanitária aprovada no mesmo dia
+            chk_stmt = (
+                select(ChecklistRealizado)
+                .join(ChecklistModelo)
+                .where(
+                    ChecklistRealizado.equipamento_id == maquina_id,
+                    ChecklistRealizado.tenant_id == self.tenant_id,
+                    ChecklistRealizado.liberado_para_uso == True,
+                    func.cast(ChecklistRealizado.data_hora, Date) == data_realizada,
+                    (ChecklistModelo.nome.ilike("%sanit%") | ChecklistModelo.nome.ilike("%limpez%") | ChecklistModelo.nome.ilike("%higien%")),
+                )
+            )
+            chk_existe = (await self.session.execute(chk_stmt)).scalars().first()
+            if not chk_existe:
+                raise BusinessRuleError("Liberação sanitária pendente.")
+
     async def criar(self, dados: OperacaoAgricolaCreate) -> OperacaoAgricola:
         await OperacaoTipoFaseService(self.session).ensure_defaults()
         # 1. Valida tenant e contexto operacional das entidades base.
@@ -761,6 +806,7 @@ class OperacaoService(BaseService[OperacaoAgricola]):
         if dados.operador_id:
             await validate_pessoa_tenant(self.session, tenant_id=self.tenant_id, pessoa_id=dados.operador_id)
         if dados.maquina_id:
+            await self._validar_calibracao_e_sanitario(dados.maquina_id, dados.data_realizada)
             equipamento = (
                 await self.session.execute(
                     select(Equipamento).where(Equipamento.id == dados.maquina_id, Equipamento.tenant_id == self.tenant_id)
@@ -1063,6 +1109,12 @@ class OperacaoService(BaseService[OperacaoAgricola]):
         custo_insumos_anterior = sum(float(insumo.custo_total or 0.0) for insumo in insumos_anteriores)
         operacao_execucao_existente = await self._buscar_execucao_existente(obj_id)
         unidade_produtiva_id = await self._get_unidade_produtiva_id_for_talhao(operacao_atual.talhao_id)
+
+        # Validar calibração e liberação sanitária para atualização
+        dados_dict = dados.model_dump(exclude_unset=True)
+        maquina_id_final = dados_dict.get("maquina_id", operacao_atual.maquina_id)
+        data_realizada_final = dados_dict.get("data_realizada", operacao_atual.data_realizada)
+        await self._validar_calibracao_e_sanitario(maquina_id_final, data_realizada_final)
 
         # 2. Aplica atualização
         dados_dict = dados.model_dump(exclude_unset=True)

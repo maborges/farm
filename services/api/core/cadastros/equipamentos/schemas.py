@@ -84,3 +84,24 @@ class EquipamentoResponse(BaseModel):
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class EquipamentoCalibracaoCreate(BaseModel):
+    equipamento_id: uuid.UUID
+    data_calibracao: date
+    validade_ate: date
+    metodo: str
+    vazao: float
+    pressao: float
+    observacoes: Optional[str] = None
+
+
+class EquipamentoCalibracaoResponse(EquipamentoCalibracaoCreate):
+    id: uuid.UUID
+    tenant_id: uuid.UUID
+    hash_documental: str
+    criado_por: Optional[uuid.UUID] = None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}

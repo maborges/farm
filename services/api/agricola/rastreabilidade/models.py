@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import String, Boolean, Date, Text, ForeignKey, text, JSON
+from sqlalchemy import String, Boolean, Date, DateTime, Text, ForeignKey, text, JSON, Numeric, Integer
 from uuid import UUID
 import uuid
 from datetime import datetime
@@ -53,3 +53,28 @@ class CertificacaoPropriedade(Base):
     link_documento: Mapped[str | None] = mapped_column(String(255))
     
     created_at: Mapped[datetime] = mapped_column(server_default=text("(CURRENT_TIMESTAMP)"))
+
+
+class CadernoLoteComercial(Base):
+    __tablename__ = "caderno_lotes_comerciais"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[UUID] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
+    comercializacao_id: Mapped[UUID] = mapped_column(ForeignKey("financeiro_comercializacoes.id", ondelete="RESTRICT"), nullable=False, index=True)
+    produto_colhido_id: Mapped[UUID | None] = mapped_column(ForeignKey("agricola_produtos_colhidos.id", ondelete="SET NULL"), nullable=True, index=True)
+    lote_beneficiamento_id: Mapped[UUID | None] = mapped_column(ForeignKey("cafe_lotes_beneficiamento.id", ondelete="SET NULL"), nullable=True, index=True)
+
+    codigo_lote: Mapped[str] = mapped_column(String(100), nullable=False)
+    qr_code_token: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, index=True)
+    peso_liquido_kg: Mapped[float] = mapped_column(Numeric(14, 3), nullable=False)
+    quantidade_volumes: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="RASCUNHO") # RASCUNHO, ATIVO, REVOGADO
+
+    snapshot_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    snapshot_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    snapshot_gerado_em: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    assinado_por_usuario_id: Mapped[UUID | None] = mapped_column(ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True)
+    assinado_em: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(server_default=text("(CURRENT_TIMESTAMP)"))
+    updated_at: Mapped[datetime] = mapped_column(server_default=text("(CURRENT_TIMESTAMP)"), onupdate=datetime.utcnow)

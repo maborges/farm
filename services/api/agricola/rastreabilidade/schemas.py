@@ -45,3 +45,34 @@ class CertificacaoResponse(CertificacaoBase):
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class LoteComercialCreate(BaseModel):
+    comercializacao_id: UUID
+    codigo_lote: str
+    peso_liquido_kg: float
+    quantidade_volumes: int
+    produto_colhido_id: Optional[UUID] = None
+    lote_beneficiamento_id: Optional[UUID] = None
+
+
+class LoteComercialResponse(BaseModel):
+    id: UUID
+    tenant_id: UUID
+    comercializacao_id: UUID
+    produto_colhido_id: Optional[UUID] = None
+    lote_beneficiamento_id: Optional[UUID] = None
+    codigo_lote: str
+    qr_code_token: str
+    peso_liquido_kg: float
+    quantidade_volumes: int
+    status: str
+    snapshot_json: Optional[dict] = None
+    snapshot_hash: Optional[str] = None
+    snapshot_gerado_em: Optional[datetime] = None
+    assinado_por_usuario_id: Optional[UUID] = None
+    assinado_em: Optional[datetime] = None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)

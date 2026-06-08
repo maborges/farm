@@ -259,6 +259,16 @@ class SyncService:
         ).limit(500)
         insumos_rows = (await self.session.execute(stmt_i)).scalars().all()
 
+        # Colaboradores ativos do tenant
+        from rh.models import ColaboradorRH
+        stmt_c = select(ColaboradorRH).where(
+            and_(
+                ColaboradorRH.tenant_id == self.tenant_id,
+                ColaboradorRH.ativo == True,
+            )
+        )
+        colaboradores_rows = (await self.session.execute(stmt_c)).scalars().all()
+
         # Tarefas para este dispositivo:
         # 1. Manuais pendentes criadas pelo dispositivo
         # 2. Programadas para hoje/atrasadas nas fazendas autorizadas (status PENDENTE ou EM_EXECUCAO)
@@ -368,6 +378,15 @@ class SyncService:
                     "unidade_medida": i.unidade_medida if hasattr(i, "unidade_medida") else None,
                 }
                 for i in insumos_rows
+            ],
+            "colaboradores": [
+                {
+                    "id": str(c.id),
+                    "nome": c.nome,
+                    "cpf": c.cpf,
+                    "cargo": c.cargo,
+                }
+                for c in colaboradores_rows
             ],
             "tarefas_pendentes": [
                 {

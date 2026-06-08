@@ -52,7 +52,7 @@ from agricola.previsoes.models import PrevisaoProdutividade
 # Outras sub-áreas Agrícola
 from agricola.ndvi.models import ImagemNDVI
 from agricola.climatico.models import RegistroClima
-from agricola.rastreabilidade.models import LoteRastreabilidade, CertificacaoPropriedade
+from agricola.rastreabilidade.models import LoteRastreabilidade, CertificacaoPropriedade, CadernoLoteComercial
 from agricola.agronomo.models import ConversaAgronomo, RelatorioTecnico
 from agricola.cadastros.models import Cultura
 from agricola.caderno.models import CadernoCampoEntrada, CadernoCampoFoto, CadernoEventoStatusHistorico, VisitaTecnica, EPIEntrega, CadernoExportacao

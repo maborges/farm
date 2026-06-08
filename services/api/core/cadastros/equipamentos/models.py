@@ -1,6 +1,6 @@
 import uuid
-from datetime import datetime, timezone
-from sqlalchemy import String, Boolean, DateTime, Float, Integer, ForeignKey, Text, JSON
+from datetime import datetime, timezone, date
+from sqlalchemy import String, Boolean, DateTime, Date, Float, Integer, ForeignKey, Text, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy import Uuid as UUID
 from core.database import Base
@@ -147,3 +147,37 @@ class EquipamentoAlocacao(Base):
         UUID(as_uuid=True), ForeignKey("cadastros_pessoas.id", ondelete="SET NULL"), nullable=True, index=True
     )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+
+class EquipamentoCalibracao(Base):
+    """
+    Registro de calibração periódica de equipamentos (ex: pulverizadores).
+    """
+    __tablename__ = "cadastros_equipamentos_calibracoes"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    equipamento_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("cadastros_equipamentos.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    data_calibracao: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    validade_ate: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    metodo: Mapped[str] = mapped_column(String(200), nullable=False)
+    vazao: Mapped[float] = mapped_column(Float, nullable=False)
+    pressao: Mapped[float] = mapped_column(Float, nullable=False)
+    observacoes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    hash_documental: Mapped[str] = mapped_column(String(64), nullable=False)
+    criado_por: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
+
+    equipamento: Mapped["Equipamento"] = relationship(lazy="noload")

@@ -17,6 +17,8 @@ import agricola.cultivos.models  # noqa: F401
 import agricola.analises_solo.models  # noqa: F401
 import agricola.tarefas.models  # noqa: F401
 import agricola.production_units.models  # noqa: F401
+import agricola.romaneios.models  # noqa: F401
+import agricola.operacoes.models  # noqa: F401
 from core.config import settings
 
 # UUIDs fixos para garantir consistência entre importações do módulo

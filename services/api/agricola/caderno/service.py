@@ -744,7 +744,12 @@ class CadernoCampoService(BaseService[CadernoCampoEntrada]):
                 if talhao.unidade_produtiva_id not in device.fazenda_ids:
                     raise BusinessRuleError("Talhão fora do escopo do dispositivo autenticado.")
 
-                existente = await self.obter_por_origem("PWA_OFFLINE", evento.local_id)
+                existente = (
+                    await self.obter_por_origem("PWA_OFFLINE", evento.local_id)
+                    or await self.obter_por_origem("CALIBRACAO_EQUIPAMENTO", evento.local_id)
+                    or await self.obter_por_origem("CHECKLIST_SANITARIO", evento.local_id)
+                    or await self.obter_por_origem("EPI_ENTREGA", evento.local_id)
+                )
                 if existente:
                     resultados.append(
                         EventoCadernoOfflineSyncResult(
@@ -774,6 +779,105 @@ class CadernoCampoService(BaseService[CadernoCampoEntrada]):
                     digitalizacao_retroativa=bool(evento.payload_operacional.get("digitalizacao_retroativa")),
                 ) else "SINCRONIZADO"
 
+                origem_evento = "PWA_OFFLINE"
+                origem_id = evento.local_id
+                origem_tecnica = "SYNC_PWA"
+
+                p_calib = evento.payload_operacional.get("calibracao")
+                p_checklist = evento.payload_operacional.get("checklist")
+
+                if p_calib and isinstance(p_calib, dict):
+                    from core.cadastros.equipamentos.models import EquipamentoCalibracao
+                    import hashlib
+                    c_user = evento.usuario_id or device.user_id
+                    data_calib = date.fromisoformat(p_calib["data_calibracao"]) if isinstance(p_calib.get("data_calibracao"), str) else data_registro
+                    val_ate = date.fromisoformat(p_calib["validade_ate"]) if isinstance(p_calib.get("validade_ate"), str) else data_registro
+
+                    payload_str = f"{self.tenant_id}:{p_calib['equipamento_id']}:{data_calib}:{p_calib.get('metodo')}:{p_calib.get('vazao')}:{p_calib.get('pressao')}:{c_user}"
+                    hash_val = hashlib.sha256(payload_str.encode('utf-8')).hexdigest()
+
+                    calib_obj = EquipamentoCalibracao(
+                        id=UUID(evento.local_id),
+                        tenant_id=self.tenant_id,
+                        equipamento_id=UUID(p_calib["equipamento_id"]),
+                        data_calibracao=data_calib,
+                        validade_ate=val_ate,
+                        metodo=p_calib.get("metodo", "Manual"),
+                        vazao=float(p_calib.get("vazao", 0.0)),
+                        pressao=float(p_calib.get("pressao", 0.0)),
+                        observacoes=p_calib.get("observacoes"),
+                        hash_documental=hash_val,
+                        criado_por=c_user
+                    )
+                    self.session.add(calib_obj)
+                    await self.session.flush()
+
+                    origem_evento = "CALIBRACAO_EQUIPAMENTO"
+                    origem_id = str(calib_obj.id)
+                    origem_tecnica = "CALIBRACAO"
+
+                elif p_checklist and isinstance(p_checklist, dict):
+                    from operacional.models.checklist import ChecklistRealizado
+                    chk_lib = bool(p_checklist.get("liberado_para_uso", True))
+                    chk_respostas = p_checklist.get("respostas", [])
+
+                    chk_obj = ChecklistRealizado(
+                        id=UUID(evento.local_id),
+                        tenant_id=self.tenant_id,
+                        equipamento_id=UUID(p_checklist["equipamento_id"]),
+                        modelo_id=UUID(p_checklist["modelo_id"]),
+                        operador_id=evento.usuario_id or device.user_id,
+                        data_hora=evento.client_created_at,
+                        respostas=chk_respostas,
+                        liberado_para_uso=chk_lib,
+                        observacoes_gerais=p_checklist.get("observacoes_gerais")
+                    )
+                    self.session.add(chk_obj)
+                    await self.session.flush()
+
+                    origem_evento = "CHECKLIST_SANITARIO"
+                    origem_id = str(chk_obj.id)
+                    origem_tecnica = "CHECKLIST"
+
+                elif evento.tipo_evento == "EPI_ENTREGA":
+                    p_trabalhador_id = UUID(str(evento.payload_operacional.get("trabalhador_id"))) if evento.payload_operacional.get("trabalhador_id") else None
+                    p_nome_trabalhador = str(evento.payload_operacional.get("nome_trabalhador", ""))
+                    p_epi_tipo = str(evento.payload_operacional.get("epi_tipo", ""))
+                    p_quantidade = int(evento.payload_operacional.get("quantidade", 1))
+
+                    p_data_entrega = evento.payload_operacional.get("data_entrega")
+                    if isinstance(p_data_entrega, str):
+                        p_data_entrega = date.fromisoformat(p_data_entrega)
+                    if not isinstance(p_data_entrega, date):
+                        p_data_entrega = data_registro
+
+                    p_validade = evento.payload_operacional.get("validade")
+                    if isinstance(p_validade, str):
+                        p_validade = date.fromisoformat(p_validade)
+                    elif not isinstance(p_validade, date):
+                        p_validade = None
+
+                    p_operacao_id = UUID(str(evento.payload_operacional.get("operacao_id"))) if evento.payload_operacional.get("operacao_id") else None
+
+                    epi_obj = EPIEntrega(
+                        id=UUID(evento.local_id),
+                        tenant_id=self.tenant_id,
+                        trabalhador_id=p_trabalhador_id,
+                        nome_trabalhador=p_nome_trabalhador,
+                        epi_tipo=p_epi_tipo,
+                        quantidade=p_quantidade,
+                        data_entrega=p_data_entrega,
+                        validade=p_validade,
+                        operacao_id=p_operacao_id,
+                        assinatura_url=None,
+                    )
+                    self.session.add(epi_obj)
+                    await self.session.flush()
+
+                    origem_evento = "EPI_ENTREGA"
+                    origem_id = str(epi_obj.id)
+                    origem_tecnica = "SYNC_PWA"
+
                 entrada = CadernoCampoEntrada(
                     tenant_id=self.tenant_id,
                     safra_id=evento.safra_id,
@@ -784,9 +888,9 @@ class CadernoCampoService(BaseService[CadernoCampoEntrada]):
                     data_registro=data_registro,
                     usuario_id=evento.usuario_id or device.user_id,
                     operacao_id=evento.operacao_id,
-                    origem_evento="PWA_OFFLINE",
-                    origem_id=evento.local_id,
-                    origem_tecnica="SYNC_PWA",
+                    origem_evento=origem_evento,
+                    origem_id=origem_id,
+                    origem_tecnica=origem_tecnica,
                     device_id=device.id,
                     unidade_produtiva_id=talhao.unidade_produtiva_id,
                     client_created_at=_to_naive_utc(evento.client_created_at),
@@ -911,6 +1015,26 @@ class CadernoCampoService(BaseService[CadernoCampoEntrada]):
             data_captura=_to_naive_utc(captured_at),
         )
         self.session.add(foto)
+        await self.session.flush()
+
+        # Se for EPI_ENTREGA, atualiza o assinatura_url em EPIEntrega
+        if entrada.tipo == "EPI_ENTREGA":
+            if entrada.origem_id:
+                try:
+                    epi_id = UUID(entrada.origem_id)
+                    stmt_epi = select(EPIEntrega).where(
+                        and_(
+                            EPIEntrega.id == epi_id,
+                            EPIEntrega.tenant_id == entrada.tenant_id
+                        )
+                    )
+                    res = await self.session.execute(stmt_epi)
+                    epi_obj = res.scalar_one_or_none()
+                    if epi_obj:
+                        epi_obj.assinatura_url = url
+                except ValueError:
+                    pass
+
         await self.session.flush()
         return foto
 

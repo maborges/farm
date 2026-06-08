@@ -122,6 +122,7 @@ class CadernoCampoFoto(Base):
     mime_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
     size_bytes: Mapped[int | None] = mapped_column(nullable=True)
     storage_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    publica: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"), nullable=False)
     created_at: Mapped[datetime] = mapped_column(server_default=text("(CURRENT_TIMESTAMP)"))
 
     entrada: Mapped["CadernoCampoEntrada"] = relationship(back_populates="fotos")
