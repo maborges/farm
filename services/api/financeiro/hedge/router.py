@@ -28,7 +28,9 @@ from core.dependencies import (
     get_user_id,
     require_module,
     require_tenant_permission,
+    require_tier,
 )
+from core.constants import PlanTier
 from core.exceptions import EntityNotFoundError, BusinessRuleError
 
 from .schemas import (
@@ -242,6 +244,7 @@ async def calcular_exposicao_consolidada(
     "/exposicao/historico",
     response_model=list[ExposicaoHistoricoItem],
     summary="Série temporal de cobertura (ENTERPRISE)",
+    dependencies=[Depends(require_tier(PlanTier.ENTERPRISE))],
 )
 async def calcular_exposicao_historico(
     safra_id: Optional[uuid.UUID] = Query(None),

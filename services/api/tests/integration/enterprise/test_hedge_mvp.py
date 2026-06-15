@@ -216,9 +216,10 @@ async def test_exposicao_producao_estimada():
     """HedgeExposureService deve calcular produção estimada via query SQL."""
     session = _make_session()
 
-    # Mock da sequência de execuções: producao=5000, vendido=0, hedgeado=0
+    # Mock da sequência de execuções: producao=5000, estoque=0, vendido=0, hedgeado=0
     results = [
         MagicMock(scalar=MagicMock(return_value=5000.0)),  # producao
+        MagicMock(scalar=MagicMock(return_value=0.0)),     # estoque_fisico
         MagicMock(scalar=MagicMock(return_value=0.0)),     # vendido
         MagicMock(scalar=MagicMock(return_value=0.0)),     # hedgeado
     ]
@@ -245,6 +246,7 @@ async def test_exposicao_desconta_comercializacao():
 
     results = [
         MagicMock(scalar=MagicMock(return_value=10000.0)),  # producao
+        MagicMock(scalar=MagicMock(return_value=0.0)),      # estoque_fisico
         MagicMock(scalar=MagicMock(return_value=3000.0)),   # vendido
         MagicMock(scalar=MagicMock(return_value=0.0)),      # hedgeado
     ]
@@ -268,6 +270,7 @@ async def test_exposicao_desconta_hedge_registrado():
 
     results = [
         MagicMock(scalar=MagicMock(return_value=10000.0)),  # producao
+        MagicMock(scalar=MagicMock(return_value=0.0)),      # estoque_fisico
         MagicMock(scalar=MagicMock(return_value=2000.0)),   # vendido
         MagicMock(scalar=MagicMock(return_value=4000.0)),   # hedgeado
     ]
@@ -291,6 +294,7 @@ async def test_percentual_cobertura_correto():
 
     results = [
         MagicMock(scalar=MagicMock(return_value=10000.0)),  # producao
+        MagicMock(scalar=MagicMock(return_value=0.0)),      # estoque_fisico
         MagicMock(scalar=MagicMock(return_value=0.0)),      # vendido
         MagicMock(scalar=MagicMock(return_value=3000.0)),   # hedgeado
     ]

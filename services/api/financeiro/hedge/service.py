@@ -546,37 +546,37 @@ class HedgeExposureService:
         self,
         commodity: Optional[str],
     ) -> float:
-        """Calcula o estoque físico disponível de commodities agrícolas.
+        """Calcula o estoque físico atual disponível nos armazéns do tenant.
 
-        Consulta SaldoEstoque filtrando apenas produtos do tipo COMMODITY
-        (cadastros_produtos.tipo = 'COMMODITY' ou via vínculo com cadastros_commodities).
+        Busca os lotes de produtos colhidos que não estão vendidos nem em trânsito.
 
         Args:
-            commodity: Filtro por nome de commodity (case-insensitive).
+            commodity: Filtro por nome de commodity.
 
         Returns:
-            Total de estoque físico de commodities em sacas (quantidade_atual).
+            Soma do estoque físico em sacas.
         """
         from sqlalchemy import text as sa_text
 
         params: dict = {"tenant_id": str(self._tenant_id)}
 
-        # Filtra depósitos do tenant via unidade_produtiva → tenant
-        # e produtos que são commodities agrícolas
         commodity_filter = ""
         if commodity:
-            commodity_filter = " AND UPPER(p.nome) = :commodity"
+            commodity_filter = (
+                " AND EXISTS ("
+                " SELECT 1 FROM cadastros_commodities cc"
+                " WHERE cc.id = pc.commodity_id"
+                " AND UPPER(cc.nome) = :commodity"
+                ")"
+            )
             params["commodity"] = commodity.upper()
 
         stmt = sa_text(
             f"""
-            SELECT COALESCE(SUM(se.quantidade_atual), 0.0)
-            FROM estoque_saldos se
-            JOIN estoque_depositos d ON d.id = se.deposito_id
-            JOIN cadastros_produtos p ON p.id = se.produto_id
-            WHERE d.tenant_id = :tenant_id
-              AND se.quantidade_atual > 0
-              AND p.tipo IN ('COMMODITY', 'GRAOS', 'SEMENTE')
+            SELECT COALESCE(SUM(pc.quantidade), 0.0)
+            FROM agricola_produtos_colhidos pc
+            WHERE pc.tenant_id = :tenant_id
+              AND pc.status IN ('ARMAZENADO', 'RESERVADO')
               {commodity_filter}
             """
         )

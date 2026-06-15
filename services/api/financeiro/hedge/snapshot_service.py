@@ -395,7 +395,8 @@ class HedgeSnapshotService:
 
         # Alerta 3: Venda Sem Lastro Físico (ja_vendido > exposicao_bruta)
         if (
-            exposicao.ja_vendido_sc > exposicao.exposicao_bruta_sc > 0
+            exposicao.ja_vendido_sc > exposicao.exposicao_bruta_sc
+            and exposicao.ja_vendido_sc > 0
         ):
             excesso = exposicao.ja_vendido_sc - exposicao.exposicao_bruta_sc
             notif = await notif_svc.criar_sem_duplicar(NotificacaoCreate(
