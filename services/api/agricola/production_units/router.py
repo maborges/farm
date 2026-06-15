@@ -1,4 +1,5 @@
 from __future__ import annotations
+from core.dependencies import require_tenant_permission
 
 import uuid
 from typing import Any

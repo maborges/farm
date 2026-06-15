@@ -42,12 +42,17 @@ async def test_listar_lancamentos_com_filtros():
     session = AsyncMock()
     result_mock = MagicMock()
     result_mock.scalars.return_value.all.return_value = lancamentos
-    session.execute = AsyncMock(return_value=result_mock)
+    
+    count_mock = MagicMock()
+    count_mock.scalar.return_value = 2
+
+    session.execute = AsyncMock(side_effect=[count_mock, result_mock])
     
     svc = LancamentoService(session, tenant_id)
     result = await svc.listar(safra_id=safra_id, tipo="CUSTO")
     
-    assert len(result) == 2
+    assert len(result.items) == 2
+    assert result.total == 2
     # Verifica que o tenant_id foi usado na query (através do call_args)
     # Mas como usamos sqlalchemy expressions, é mais complexo verificar.
     # O importante é que a lógica de construção da query existe no service.

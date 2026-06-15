@@ -18,6 +18,10 @@ class LoteCreate(BaseModel):
     quantidade_inicial: float = Field(..., gt=0)
     custo_unitario: float = Field(0.0, ge=0)
     nota_fiscal_ref: Optional[str] = Field(None, max_length=100)
+    qualidade_laudo_id: Optional[uuid.UUID] = None
+    qualidade_status: Optional[str] = None
+    peso_desconto_qualidade_kg: float = Field(0.0, ge=0)
+    metadata_json: Optional[dict] = None
 
 
 class LoteUpdate(BaseModel):
@@ -37,6 +41,10 @@ class LoteResponse(BaseModel):
     quantidade_atual: float
     custo_unitario: float
     nota_fiscal_ref: Optional[str]
+    qualidade_laudo_id: Optional[uuid.UUID] = None
+    qualidade_status: Optional[str] = None
+    peso_desconto_qualidade_kg: float = 0.0
+    metadata_json: Optional[dict] = None
     status: str
     created_at: datetime
     model_config = ConfigDict(from_attributes=True)

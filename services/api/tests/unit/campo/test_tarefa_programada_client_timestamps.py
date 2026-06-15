@@ -9,7 +9,7 @@ from sqlalchemy import text
 from campo.models import DispositivoCampo, TarefaCampo
 from campo.schemas import SyncPushItem, TarefaProgramadaCreate
 from campo.service import SyncService, TarefaProgramadaService
-from core.models.auth import Usuario
+from core.models import Usuario
 
 
 pytestmark = pytest.mark.asyncio

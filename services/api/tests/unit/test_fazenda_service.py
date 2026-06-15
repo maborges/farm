@@ -35,7 +35,9 @@ class TestTenantIsolation:
         service_a = FazendaService(session=session_a, tenant_id=TENANT_A_ID)
         fazenda_a = await service_a.create_fazenda(FazendaCreate(nome="Mato Grosso Sul", area_total_ha=100))
 
-        service_b = FazendaService(session=session_b, tenant_id=TENANT_B_ID)
+        # Usa um UUID novo para simular um tenant limpo sem sujeira de DB
+        novo_tenant_id = uuid.uuid4()
+        service_b = FazendaService(session=session_b, tenant_id=novo_tenant_id)
 
         fazendas_do_b = await service_b.list_all()
         assert len(fazendas_do_b) == 0
@@ -44,4 +46,4 @@ class TestTenantIsolation:
             await service_b.get_or_fail(fazenda_a.id)
 
         with pytest.raises(EntityNotFoundError):
-            await service_b.update(fazenda_a.id, {"nome": "Tomei Posse", "tenant_id": str(TENANT_B_ID)})
+            await service_b.update(fazenda_a.id, {"nome": "Tomei Posse", "tenant_id": str(novo_tenant_id)})

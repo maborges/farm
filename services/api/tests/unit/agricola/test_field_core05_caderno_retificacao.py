@@ -11,7 +11,7 @@ from agricola.tarefas.service import TarefaService
 from agricola.caderno.schemas import EntradaCreate, ExportacaoCreate
 from agricola.caderno.service import CadernoCampoService, CadernoExportacaoService
 from agricola.operacoes.models import OperacaoAgricola
-from core.models.auth import TenantUsuario, Usuario
+from core.models import TenantUsuario, Usuario
 
 
 async def _ensure_caderno_retificacao_schema(session) -> None:

@@ -1,0 +1,2453 @@
+{
+  "total": 244,
+  "use_client": 199,
+  "server_components": 45,
+  "use_query": 164,
+  "use_effect": 33,
+  "multiple_queries": 103,
+  "recharts": 10,
+  "forms": 37,
+  "maps": 36,
+  "files": [
+    {
+      "path": "apps/web/src/app/page.tsx",
+      "is_client": false,
+      "queries": 0,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": true,
+      "lines": 879
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/page.tsx",
+      "is_client": true,
+      "queries": 4,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": true,
+      "lines": 436
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/rh/page.tsx",
+      "is_client": true,
+      "queries": 5,
+      "effect": false,
+      "recharts": false,
+      "forms": true,
+      "maps": false,
+      "lines": 581
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/rh/esocial/page.tsx",
+      "is_client": true,
+      "queries": 1,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 262
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/rh/empreitadas/page.tsx",
+      "is_client": true,
+      "queries": 2,
+      "effect": false,
+      "recharts": false,
+      "forms": true,
+      "maps": false,
+      "lines": 585
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/rh/ponto/page.tsx",
+      "is_client": true,
+      "queries": 2,
+      "effect": false,
+      "recharts": false,
+      "forms": true,
+      "maps": false,
+      "lines": 168
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/rh/folha-pagamento/page.tsx",
+      "is_client": true,
+      "queries": 4,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 119
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/rh/colaboradores/page.tsx",
+      "is_client": true,
+      "queries": 1,
+      "effect": false,
+      "recharts": false,
+      "forms": true,
+      "maps": false,
+      "lines": 153
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/rh/departamentos/page.tsx",
+      "is_client": true,
+      "queries": 1,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 257
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/ia/page.tsx",
+      "is_client": true,
+      "queries": 0,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 78
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/ia/plano-acao/page.tsx",
+      "is_client": true,
+      "queries": 0,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 36
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/ia/performance/page.tsx",
+      "is_client": true,
+      "queries": 4,
+      "effect": false,
+      "recharts": true,
+      "forms": false,
+      "maps": false,
+      "lines": 2129
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/ia/resumo/page.tsx",
+      "is_client": true,
+      "queries": 0,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 36
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/pecuaria/page.tsx",
+      "is_client": true,
+      "queries": 3,
+      "effect": false,
+      "recharts": true,
+      "forms": false,
+      "maps": true,
+      "lines": 389
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/pecuaria/piquetes/page.tsx",
+      "is_client": true,
+      "queries": 1,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": true,
+      "lines": 240
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/pecuaria/lotes/page.tsx",
+      "is_client": true,
+      "queries": 1,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 345
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/pecuaria/manejo/page.tsx",
+      "is_client": true,
+      "queries": 2,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 341
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/pecuaria/relatorios/page.tsx",
+      "is_client": true,
+      "queries": 1,
+      "effect": false,
+      "recharts": true,
+      "forms": false,
+      "maps": true,
+      "lines": 243
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/agricola/page.tsx",
+      "is_client": true,
+      "queries": 4,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 617
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/agricola/prioridades/page.tsx",
+      "is_client": true,
+      "queries": 4,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 889
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/agricola/analises-solo/page.tsx",
+      "is_client": false,
+      "queries": 0,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 22
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/agricola/mapa/page.tsx",
+      "is_client": true,
+      "queries": 3,
+      "effect": true,
+      "recharts": false,
+      "forms": false,
+      "maps": true,
+      "lines": 498
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/agricola/beneficiamento/page.tsx",
+      "is_client": true,
+      "queries": 3,
+      "effect": false,
+      "recharts": false,
+      "forms": true,
+      "maps": false,
+      "lines": 152
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/agricola/custos/page.tsx",
+      "is_client": true,
+      "queries": 2,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 116
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/agricola/timeline/page.tsx",
+      "is_client": true,
+      "queries": 3,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": true,
+      "lines": 466
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/agricola/operacoes/page.tsx",
+      "is_client": true,
+      "queries": 7,
+      "effect": true,
+      "recharts": false,
+      "forms": false,
+      "maps": true,
+      "lines": 637
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/agricola/rat/page.tsx",
+      "is_client": false,
+      "queries": 0,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 31
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/agricola/apontamentos/page.tsx",
+      "is_client": true,
+      "queries": 2,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 180
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/agricola/ndvi/page.tsx",
+      "is_client": true,
+      "queries": 0,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": true,
+      "lines": 194
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/agricola/cadastros/culturas/page.tsx",
+      "is_client": true,
+      "queries": 0,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 25
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/agricola/monitoramento/page.tsx",
+      "is_client": true,
+      "queries": 3,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": true,
+      "lines": 463
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/agricola/inteligencia-operacional/page.tsx",
+      "is_client": true,
+      "queries": 3,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 694
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/agricola/climatico/page.tsx",
+      "is_client": true,
+      "queries": 0,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": true,
+      "lines": 138
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/agricola/diagnostico/page.tsx",
+      "is_client": true,
+      "queries": 3,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 499
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/agricola/relatorios/page.tsx",
+      "is_client": true,
+      "queries": 4,
+      "effect": false,
+      "recharts": true,
+      "forms": false,
+      "maps": true,
+      "lines": 686
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/agricola/rentabilidade/page.tsx",
+      "is_client": true,
+      "queries": 3,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 616
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/agricola/dre/page.tsx",
+      "is_client": true,
+      "queries": 3,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 733
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/agricola/defensivos/page.tsx",
+      "is_client": true,
+      "queries": 3,
+      "effect": false,
+      "recharts": false,
+      "forms": true,
+      "maps": false,
+      "lines": 315
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/agricola/benchmark/page.tsx",
+      "is_client": true,
+      "queries": 3,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 558
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/agricola/rastreabilidade/page.tsx",
+      "is_client": true,
+      "queries": 3,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": true,
+      "lines": 522
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/agricola/talhoes/page.tsx",
+      "is_client": false,
+      "queries": 0,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 5
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/agricola/eficiencia/page.tsx",
+      "is_client": true,
+      "queries": 3,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 708
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/agricola/recomendacoes/page.tsx",
+      "is_client": true,
+      "queries": 3,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 483
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/agricola/prescricoes/page.tsx",
+      "is_client": true,
+      "queries": 4,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": true,
+      "lines": 487
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/agricola/analises_solo/page.tsx",
+      "is_client": true,
+      "queries": 0,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 128
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/agricola/fenologia/page.tsx",
+      "is_client": true,
+      "queries": 3,
+      "effect": false,
+      "recharts": false,
+      "forms": true,
+      "maps": false,
+      "lines": 168
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/operacional/manutencoes/page.tsx",
+      "is_client": true,
+      "queries": 2,
+      "effect": false,
+      "recharts": false,
+      "forms": true,
+      "maps": false,
+      "lines": 198
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/operacional/fornecedores/page.tsx",
+      "is_client": true,
+      "queries": 1,
+      "effect": true,
+      "recharts": false,
+      "forms": true,
+      "maps": false,
+      "lines": 322
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/operacional/estoque/page.tsx",
+      "is_client": true,
+      "queries": 4,
+      "effect": false,
+      "recharts": false,
+      "forms": true,
+      "maps": false,
+      "lines": 288
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/operacional/lotes/page.tsx",
+      "is_client": false,
+      "queries": 0,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 2
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/operacional/frota/page.tsx",
+      "is_client": true,
+      "queries": 6,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 1377
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/operacional/frota/consumo/page.tsx",
+      "is_client": true,
+      "queries": 1,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 362
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/operacional/frota/custos/page.tsx",
+      "is_client": true,
+      "queries": 1,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 373
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/operacional/frota/disponibilidade/page.tsx",
+      "is_client": true,
+      "queries": 1,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 379
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/operacional/frota/[equipamentoId]/page.tsx",
+      "is_client": true,
+      "queries": 6,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 1442
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/operacional/frota/agricultura/page.tsx",
+      "is_client": true,
+      "queries": 1,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": true,
+      "lines": 410
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/operacional/frota/inteligencia/page.tsx",
+      "is_client": true,
+      "queries": 1,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 443
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/operacional/frota/manutencao-preventiva/page.tsx",
+      "is_client": true,
+      "queries": 1,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 403
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/operacional/frota/jornadas/page.tsx",
+      "is_client": true,
+      "queries": 5,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 708
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/operacional/movimentacoes/page.tsx",
+      "is_client": true,
+      "queries": 1,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 105
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/operacional/compras/page.tsx",
+      "is_client": false,
+      "queries": 0,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 2
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/operacional/pedidos-compra/page.tsx",
+      "is_client": true,
+      "queries": 3,
+      "effect": false,
+      "recharts": false,
+      "forms": true,
+      "maps": false,
+      "lines": 266
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/operacional/campo/tarefas/page.tsx",
+      "is_client": true,
+      "queries": 1,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 367
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/operacional/campo/dispositivos/page.tsx",
+      "is_client": true,
+      "queries": 0,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 42
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/operacional/requisicoes/page.tsx",
+      "is_client": false,
+      "queries": 0,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 2
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/configuracoes/globais/page.tsx",
+      "is_client": false,
+      "queries": 0,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 62
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/configuracoes/frota/page.tsx",
+      "is_client": true,
+      "queries": 2,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 512
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/configuracoes/mapas/page.tsx",
+      "is_client": true,
+      "queries": 1,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": true,
+      "lines": 127
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/backoffice/cupons/page.tsx",
+      "is_client": true,
+      "queries": 1,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 476
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/backoffice/cadastros-auxiliares/unidades-conversoes/page.tsx",
+      "is_client": true,
+      "queries": 0,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 24
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/backoffice/cadastros-auxiliares/culturas/page.tsx",
+      "is_client": true,
+      "queries": 0,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 24
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/backoffice/cadastros-auxiliares/modelos/page.tsx",
+      "is_client": true,
+      "queries": 0,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 22
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/backoffice/cadastros-auxiliares/unidades-medida/page.tsx",
+      "is_client": true,
+      "queries": 0,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 24
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/backoffice/cadastros-auxiliares/categorias/page.tsx",
+      "is_client": true,
+      "queries": 0,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 22
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/backoffice/cadastros-auxiliares/marcas/page.tsx",
+      "is_client": true,
+      "queries": 0,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 22
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/backoffice/usuarios/page.tsx",
+      "is_client": true,
+      "queries": 1,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 421
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/backoffice/profiles/page.tsx",
+      "is_client": true,
+      "queries": 1,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 644
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/backoffice/admin-users/page.tsx",
+      "is_client": true,
+      "queries": 2,
+      "effect": false,
+      "recharts": false,
+      "forms": true,
+      "maps": false,
+      "lines": 552
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/backoffice/audit/page.tsx",
+      "is_client": true,
+      "queries": 2,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 428
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/backoffice/dashboard/page.tsx",
+      "is_client": true,
+      "queries": 1,
+      "effect": false,
+      "recharts": true,
+      "forms": false,
+      "maps": false,
+      "lines": 219
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/backoffice/sessions/page.tsx",
+      "is_client": true,
+      "queries": 2,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 339
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/backoffice/email-templates/page.tsx",
+      "is_client": true,
+      "queries": 2,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 513
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/backoffice/modules/page.tsx",
+      "is_client": true,
+      "queries": 1,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": true,
+      "lines": 306
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/backoffice/kb/page.tsx",
+      "is_client": true,
+      "queries": 1,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 852
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/backoffice/pipeline/page.tsx",
+      "is_client": true,
+      "queries": 1,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 311
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/backoffice/plans/page.tsx",
+      "is_client": true,
+      "queries": 1,
+      "effect": true,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 720
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/backoffice/billing/page.tsx",
+      "is_client": true,
+      "queries": 1,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 437
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/backoffice/configuracoes/page.tsx",
+      "is_client": true,
+      "queries": 1,
+      "effect": true,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 496
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/backoffice/assinantes/page.tsx",
+      "is_client": false,
+      "queries": 0,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 49
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/backoffice/crm/page.tsx",
+      "is_client": true,
+      "queries": 7,
+      "effect": true,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 1718
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/backoffice/bi/page.tsx",
+      "is_client": true,
+      "queries": 1,
+      "effect": false,
+      "recharts": true,
+      "forms": false,
+      "maps": false,
+      "lines": 256
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/backoffice/ia-creditos/page.tsx",
+      "is_client": true,
+      "queries": 2,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 363
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/backoffice/ia-creditos/solicitacoes/page.tsx",
+      "is_client": true,
+      "queries": 4,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 708
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/backoffice/ia-creditos/solicitacoes/fila/page.tsx",
+      "is_client": true,
+      "queries": 1,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 232
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/backoffice/ia-creditos/solicitacoes/kanban/page.tsx",
+      "is_client": true,
+      "queries": 1,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 251
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/backoffice/tenants/page.tsx",
+      "is_client": false,
+      "queries": 0,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 31
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/backoffice/support/page.tsx",
+      "is_client": true,
+      "queries": 2,
+      "effect": true,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 477
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/backoffice/ofertas/page.tsx",
+      "is_client": true,
+      "queries": 2,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 496
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/backoffice/tabelas/page.tsx",
+      "is_client": true,
+      "queries": 4,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 403
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/settings/propriedades/page.tsx",
+      "is_client": false,
+      "queries": 0,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 7
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/settings/propriedades/[id]/estrutura/page.tsx",
+      "is_client": true,
+      "queries": 2,
+      "effect": true,
+      "recharts": false,
+      "forms": true,
+      "maps": true,
+      "lines": 351
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/settings/sessoes/page.tsx",
+      "is_client": true,
+      "queries": 2,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 290
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/settings/account/page.tsx",
+      "is_client": true,
+      "queries": 0,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 324
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/settings/fazendas/page.tsx",
+      "is_client": false,
+      "queries": 0,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 6
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/settings/ia/page.tsx",
+      "is_client": false,
+      "queries": 0,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 28
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/settings/team/page.tsx",
+      "is_client": true,
+      "queries": 5,
+      "effect": false,
+      "recharts": false,
+      "forms": true,
+      "maps": false,
+      "lines": 853
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/settings/team/profiles/page.tsx",
+      "is_client": false,
+      "queries": 0,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 5
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/settings/roles/page.tsx",
+      "is_client": true,
+      "queries": 1,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": true,
+      "lines": 729
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/settings/seguranca/page.tsx",
+      "is_client": true,
+      "queries": 1,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 240
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/settings/kb/page.tsx",
+      "is_client": true,
+      "queries": 2,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 180
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/settings/billing/page.tsx",
+      "is_client": true,
+      "queries": 3,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 810
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/settings/smtp/page.tsx",
+      "is_client": true,
+      "queries": 1,
+      "effect": true,
+      "recharts": false,
+      "forms": true,
+      "maps": false,
+      "lines": 195
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/settings/grupos/page.tsx",
+      "is_client": true,
+      "queries": 0,
+      "effect": true,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 18
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/settings/support/page.tsx",
+      "is_client": true,
+      "queries": 2,
+      "effect": true,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 555
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/settings/tenant/page.tsx",
+      "is_client": true,
+      "queries": 2,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 541
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/ambiental/page.tsx",
+      "is_client": true,
+      "queries": 3,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": true,
+      "lines": 270
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/ambiental/car/areas/page.tsx",
+      "is_client": true,
+      "queries": 1,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 143
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/ambiental/car/importar/page.tsx",
+      "is_client": true,
+      "queries": 0,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 193
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/ambiental/car/lista/page.tsx",
+      "is_client": true,
+      "queries": 1,
+      "effect": true,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 268
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/ambiental/monitoramento/mapa/page.tsx",
+      "is_client": true,
+      "queries": 1,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": true,
+      "lines": 176
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/ambiental/monitoramento/historico/page.tsx",
+      "is_client": true,
+      "queries": 1,
+      "effect": true,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 189
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/ambiental/monitoramento/alertas/page.tsx",
+      "is_client": true,
+      "queries": 1,
+      "effect": true,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 289
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/ambiental/outorgas/page.tsx",
+      "is_client": true,
+      "queries": 1,
+      "effect": true,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 286
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/financeiro/page.tsx",
+      "is_client": true,
+      "queries": 4,
+      "effect": false,
+      "recharts": true,
+      "forms": false,
+      "maps": false,
+      "lines": 370
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/financeiro/carne-leao/page.tsx",
+      "is_client": true,
+      "queries": 0,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 133
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/financeiro/romaneios/page.tsx",
+      "is_client": true,
+      "queries": 3,
+      "effect": false,
+      "recharts": false,
+      "forms": true,
+      "maps": false,
+      "lines": 167
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/financeiro/nf-e/page.tsx",
+      "is_client": true,
+      "queries": 2,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 337
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/financeiro/lcdpr/page.tsx",
+      "is_client": true,
+      "queries": 0,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 106
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/financeiro/esocial/page.tsx",
+      "is_client": true,
+      "queries": 1,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 302
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/financeiro/contas-pagar/page.tsx",
+      "is_client": true,
+      "queries": 2,
+      "effect": false,
+      "recharts": false,
+      "forms": true,
+      "maps": false,
+      "lines": 153
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/financeiro/fluxo-caixa/page.tsx",
+      "is_client": true,
+      "queries": 1,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 138
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/financeiro/contas-bancarias/page.tsx",
+      "is_client": true,
+      "queries": 1,
+      "effect": false,
+      "recharts": false,
+      "forms": true,
+      "maps": false,
+      "lines": 129
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/financeiro/despesas/page.tsx",
+      "is_client": true,
+      "queries": 2,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 368
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/financeiro/conciliacao/page.tsx",
+      "is_client": true,
+      "queries": 3,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 497
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/financeiro/relatorios/page.tsx",
+      "is_client": true,
+      "queries": 3,
+      "effect": false,
+      "recharts": true,
+      "forms": false,
+      "maps": false,
+      "lines": 378
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/financeiro/receitas/page.tsx",
+      "is_client": true,
+      "queries": 2,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 367
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/financeiro/dre/page.tsx",
+      "is_client": true,
+      "queries": 7,
+      "effect": true,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 1018
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/financeiro/planos-conta/page.tsx",
+      "is_client": true,
+      "queries": 1,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 310
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/dashboard/financeiro/lancamentos/page.tsx",
+      "is_client": true,
+      "queries": 3,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 469
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/estoque/movimentacoes/[id]/page.tsx",
+      "is_client": true,
+      "queries": 2,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 469
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/cadastros/page.tsx",
+      "is_client": true,
+      "queries": 0,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": true,
+      "lines": 111
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/cadastros/propriedades/page.tsx",
+      "is_client": false,
+      "queries": 0,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 10
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/cadastros/propriedades/[id]/page.tsx",
+      "is_client": true,
+      "queries": 4,
+      "effect": true,
+      "recharts": false,
+      "forms": true,
+      "maps": true,
+      "lines": 868
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/cadastros/propriedades/talhoes/page.tsx",
+      "is_client": true,
+      "queries": 2,
+      "effect": true,
+      "recharts": false,
+      "forms": false,
+      "maps": true,
+      "lines": 734
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/cadastros/commodities/page.tsx",
+      "is_client": true,
+      "queries": 1,
+      "effect": false,
+      "recharts": false,
+      "forms": true,
+      "maps": true,
+      "lines": 731
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/cadastros/pessoas/page.tsx",
+      "is_client": true,
+      "queries": 1,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 212
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/cadastros/pessoas/[id]/page.tsx",
+      "is_client": true,
+      "queries": 2,
+      "effect": true,
+      "recharts": false,
+      "forms": true,
+      "maps": true,
+      "lines": 641
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/cadastros/tipos-relacionamento/page.tsx",
+      "is_client": true,
+      "queries": 1,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 306
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/cadastros/produtos/page.tsx",
+      "is_client": true,
+      "queries": 4,
+      "effect": true,
+      "recharts": false,
+      "forms": true,
+      "maps": false,
+      "lines": 797
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/cadastros/imoveis/page.tsx",
+      "is_client": true,
+      "queries": 2,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": true,
+      "lines": 620
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/cadastros/equipamentos/page.tsx",
+      "is_client": true,
+      "queries": 1,
+      "effect": false,
+      "recharts": false,
+      "forms": true,
+      "maps": false,
+      "lines": 597
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/cadastros/equipamentos/[id]/documentos/page.tsx",
+      "is_client": true,
+      "queries": 2,
+      "effect": false,
+      "recharts": false,
+      "forms": true,
+      "maps": false,
+      "lines": 723
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/cadastros/tabelas/modelos/page.tsx",
+      "is_client": false,
+      "queries": 0,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 5
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/cadastros/tabelas/categorias-produto/page.tsx",
+      "is_client": false,
+      "queries": 0,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 5
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/cadastros/tabelas/marcas/page.tsx",
+      "is_client": false,
+      "queries": 0,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 5
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/agricola/page.tsx",
+      "is_client": true,
+      "queries": 0,
+      "effect": true,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 10
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/agricola/caderno/page.tsx",
+      "is_client": true,
+      "queries": 4,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 275
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/agricola/romaneios/page.tsx",
+      "is_client": true,
+      "queries": 3,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 97
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/agricola/ajuda/page.tsx",
+      "is_client": true,
+      "queries": 0,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": true,
+      "lines": 558
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/agricola/analises-solo/page.tsx",
+      "is_client": false,
+      "queries": 0,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 35
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/agricola/mapa/page.tsx",
+      "is_client": false,
+      "queries": 0,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": true,
+      "lines": 5
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/agricola/beneficiamento/page.tsx",
+      "is_client": true,
+      "queries": 3,
+      "effect": false,
+      "recharts": false,
+      "forms": true,
+      "maps": false,
+      "lines": 482
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/agricola/custos/page.tsx",
+      "is_client": true,
+      "queries": 2,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 244
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/agricola/safras/page.tsx",
+      "is_client": true,
+      "queries": 1,
+      "effect": true,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 334
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/agricola/safras/[id]/page.tsx",
+      "is_client": true,
+      "queries": 6,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": true,
+      "lines": 607
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/agricola/safras/[id]/cenarios/page.tsx",
+      "is_client": true,
+      "queries": 2,
+      "effect": true,
+      "recharts": false,
+      "forms": true,
+      "maps": false,
+      "lines": 1074
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/agricola/safras/[id]/cenarios/comparativo/page.tsx",
+      "is_client": true,
+      "queries": 3,
+      "effect": true,
+      "recharts": true,
+      "forms": false,
+      "maps": false,
+      "lines": 604
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/agricola/safras/[id]/caderno/page.tsx",
+      "is_client": true,
+      "queries": 5,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 682
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/agricola/safras/[id]/romaneios/page.tsx",
+      "is_client": true,
+      "queries": 3,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 76
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/agricola/safras/[id]/analises-solo/page.tsx",
+      "is_client": true,
+      "queries": 5,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": true,
+      "lines": 131
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/agricola/safras/[id]/beneficiamento/page.tsx",
+      "is_client": true,
+      "queries": 3,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 108
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/agricola/safras/[id]/operacoes/page.tsx",
+      "is_client": true,
+      "queries": 9,
+      "effect": true,
+      "recharts": false,
+      "forms": true,
+      "maps": false,
+      "lines": 1175
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/agricola/safras/[id]/orcamento/page.tsx",
+      "is_client": true,
+      "queries": 1,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 52
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/agricola/safras/[id]/ndvi/page.tsx",
+      "is_client": true,
+      "queries": 2,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 118
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/agricola/safras/[id]/tarefas/page.tsx",
+      "is_client": false,
+      "queries": 0,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 49
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/agricola/safras/[id]/dashboard/page.tsx",
+      "is_client": true,
+      "queries": 4,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": true,
+      "lines": 1683
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/agricola/safras/[id]/estoque/page.tsx",
+      "is_client": true,
+      "queries": 1,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 52
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/agricola/safras/[id]/monitoramento/page.tsx",
+      "is_client": true,
+      "queries": 3,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 71
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/agricola/safras/[id]/checklist/page.tsx",
+      "is_client": true,
+      "queries": 1,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 53
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/agricola/safras/[id]/production-units/page.tsx",
+      "is_client": true,
+      "queries": 5,
+      "effect": false,
+      "recharts": false,
+      "forms": true,
+      "maps": false,
+      "lines": 886
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/agricola/safras/[id]/financeiro/page.tsx",
+      "is_client": true,
+      "queries": 2,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 167
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/agricola/safras/[id]/fenologia/page.tsx",
+      "is_client": true,
+      "queries": 3,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 86
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/agricola/timeline/page.tsx",
+      "is_client": true,
+      "queries": 2,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 185
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/agricola/operacoes/page.tsx",
+      "is_client": true,
+      "queries": 5,
+      "effect": false,
+      "recharts": false,
+      "forms": true,
+      "maps": false,
+      "lines": 645
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/agricola/ndvi/page.tsx",
+      "is_client": false,
+      "queries": 0,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 5
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/agricola/dashboard/page.tsx",
+      "is_client": true,
+      "queries": 1,
+      "effect": false,
+      "recharts": true,
+      "forms": false,
+      "maps": false,
+      "lines": 572
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/agricola/cadastros/culturas/page.tsx",
+      "is_client": false,
+      "queries": 0,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 5
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/agricola/monitoramento/page.tsx",
+      "is_client": true,
+      "queries": 1,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 98
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/agricola/climatico/page.tsx",
+      "is_client": false,
+      "queries": 0,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 5
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/agricola/relatorios/page.tsx",
+      "is_client": false,
+      "queries": 0,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 5
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/agricola/defensivos/page.tsx",
+      "is_client": false,
+      "queries": 0,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 5
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/agricola/rastreabilidade/page.tsx",
+      "is_client": true,
+      "queries": 1,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 68
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/agricola/talhoes/page.tsx",
+      "is_client": false,
+      "queries": 0,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 5
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/agricola/planejamento/page.tsx",
+      "is_client": true,
+      "queries": 5,
+      "effect": true,
+      "recharts": false,
+      "forms": true,
+      "maps": true,
+      "lines": 725
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/agricola/fenologia/page.tsx",
+      "is_client": true,
+      "queries": 3,
+      "effect": false,
+      "recharts": false,
+      "forms": true,
+      "maps": false,
+      "lines": 355
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/agricola/checklist-templates/page.tsx",
+      "is_client": true,
+      "queries": 1,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 305
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/operacional/page.tsx",
+      "is_client": false,
+      "queries": 0,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 114
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/operacional/estoque/page.tsx",
+      "is_client": false,
+      "queries": 0,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 2
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/operacional/relatorios/page.tsx",
+      "is_client": true,
+      "queries": 3,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 399
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/operacional/abastecimentos/page.tsx",
+      "is_client": false,
+      "queries": 0,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 34
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/operacional/patrimonio/page.tsx",
+      "is_client": true,
+      "queries": 1,
+      "effect": false,
+      "recharts": false,
+      "forms": true,
+      "maps": true,
+      "lines": 195
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/operacional/compras/page.tsx",
+      "is_client": false,
+      "queries": 0,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 2
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/operacional/compras/[id]/page.tsx",
+      "is_client": true,
+      "queries": 5,
+      "effect": false,
+      "recharts": false,
+      "forms": true,
+      "maps": false,
+      "lines": 385
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/operacional/oficina/page.tsx",
+      "is_client": true,
+      "queries": 2,
+      "effect": false,
+      "recharts": false,
+      "forms": true,
+      "maps": false,
+      "lines": 304
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/backoffice/tabelas/page.tsx",
+      "is_client": false,
+      "queries": 0,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 70
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/backoffice/tabelas/agro-templates/page.tsx",
+      "is_client": true,
+      "queries": 2,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 364
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/backoffice/tabelas/agro-templates/[id]/page.tsx",
+      "is_client": true,
+      "queries": 1,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 413
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/backoffice/tabelas/culturas/page.tsx",
+      "is_client": true,
+      "queries": 0,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 28
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/backoffice/tabelas/commodities/page.tsx",
+      "is_client": true,
+      "queries": 1,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 233
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/backoffice/tabelas/tipos-operacao/page.tsx",
+      "is_client": true,
+      "queries": 1,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 254
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/backoffice/tabelas/monitoramento-catalogo/page.tsx",
+      "is_client": true,
+      "queries": 1,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 209
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/backoffice/tabelas/checklist-templates/page.tsx",
+      "is_client": true,
+      "queries": 1,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 133
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/settings/notificacoes/page.tsx",
+      "is_client": false,
+      "queries": 0,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 15
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/suprimentos/page.tsx",
+      "is_client": true,
+      "queries": 4,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 172
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/suprimentos/estoque/page.tsx",
+      "is_client": true,
+      "queries": 7,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 1651
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/suprimentos/estoque/implantacao-assistida/page.tsx",
+      "is_client": false,
+      "queries": 0,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 5
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/suprimentos/estoque/implantacao-assistida/[id]/page.tsx",
+      "is_client": false,
+      "queries": 0,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 10
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/suprimentos/estoque/implantacao-assistida/[id]/auditoria/page.tsx",
+      "is_client": false,
+      "queries": 0,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 10
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/suprimentos/estoque/implantacao-assistida/nova/page.tsx",
+      "is_client": false,
+      "queries": 0,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 5
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/suprimentos/lotes/page.tsx",
+      "is_client": true,
+      "queries": 6,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 302
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/suprimentos/saldos/page.tsx",
+      "is_client": true,
+      "queries": 2,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 380
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/suprimentos/compras/page.tsx",
+      "is_client": false,
+      "queries": 0,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 21
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/suprimentos/compras/[id]/page.tsx",
+      "is_client": true,
+      "queries": 5,
+      "effect": false,
+      "recharts": false,
+      "forms": true,
+      "maps": false,
+      "lines": 385
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/suprimentos/compras/pedidos/page.tsx",
+      "is_client": false,
+      "queries": 0,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 5
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/suprimentos/compras/solicitacoes/page.tsx",
+      "is_client": false,
+      "queries": 0,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 19
+    },
+    {
+      "path": "apps/web/src/app/(dashboard)/suprimentos/requisicoes/page.tsx",
+      "is_client": true,
+      "queries": 6,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 469
+    },
+    {
+      "path": "apps/web/src/app/onboarding/sucesso/page.tsx",
+      "is_client": true,
+      "queries": 0,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 85
+    },
+    {
+      "path": "apps/web/src/app/onboarding/ativar/page.tsx",
+      "is_client": false,
+      "queries": 0,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 22
+    },
+    {
+      "path": "apps/web/src/app/onboarding/configurar/page.tsx",
+      "is_client": true,
+      "queries": 0,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 310
+    },
+    {
+      "path": "apps/web/src/app/onboarding/cancelado/page.tsx",
+      "is_client": true,
+      "queries": 0,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 33
+    },
+    {
+      "path": "apps/web/src/app/ia-diagnostico/page.tsx",
+      "is_client": true,
+      "queries": 0,
+      "effect": true,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 332
+    },
+    {
+      "path": "apps/web/src/app/(auth)/convite/aceitar/page.tsx",
+      "is_client": true,
+      "queries": 0,
+      "effect": true,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 431
+    },
+    {
+      "path": "apps/web/src/app/(auth)/login/page.tsx",
+      "is_client": false,
+      "queries": 0,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 19
+    },
+    {
+      "path": "apps/web/src/app/(auth)/forgot-password/page.tsx",
+      "is_client": true,
+      "queries": 0,
+      "effect": false,
+      "recharts": false,
+      "forms": true,
+      "maps": false,
+      "lines": 205
+    },
+    {
+      "path": "apps/web/src/app/(auth)/register/page.tsx",
+      "is_client": false,
+      "queries": 0,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 115
+    },
+    {
+      "path": "apps/web/src/app/(auth)/reset-password/page.tsx",
+      "is_client": true,
+      "queries": 0,
+      "effect": true,
+      "recharts": false,
+      "forms": true,
+      "maps": false,
+      "lines": 405
+    },
+    {
+      "path": "apps/web/src/app/frota/page.tsx",
+      "is_client": false,
+      "queries": 0,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 517
+    },
+    {
+      "path": "apps/web/src/app/integracoes/page.tsx",
+      "is_client": true,
+      "queries": 0,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 127
+    },
+    {
+      "path": "apps/web/src/app/integracoes/fortes/page.tsx",
+      "is_client": true,
+      "queries": 0,
+      "effect": true,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 223
+    },
+    {
+      "path": "apps/web/src/app/integracoes/sankhya/page.tsx",
+      "is_client": true,
+      "queries": 0,
+      "effect": true,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 412
+    },
+    {
+      "path": "apps/web/src/app/integracoes/dominio/page.tsx",
+      "is_client": true,
+      "queries": 0,
+      "effect": true,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 290
+    },
+    {
+      "path": "apps/web/src/app/integracoes/contmatic/page.tsx",
+      "is_client": true,
+      "queries": 0,
+      "effect": true,
+      "recharts": false,
+      "forms": false,
+      "maps": false,
+      "lines": 168
+    },
+    {
+      "path": "apps/web/src/app/track/[codigo]/page.tsx",
+      "is_client": true,
+      "queries": 1,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": true,
+      "lines": 176
+    },
+    {
+      "path": "apps/web/src/app/p/rastreabilidade/[token]/page.tsx",
+      "is_client": false,
+      "queries": 0,
+      "effect": false,
+      "recharts": false,
+      "forms": false,
+      "maps": true,
+      "lines": 395
+    }
+  ]
+}

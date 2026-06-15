@@ -347,6 +347,10 @@ class EstoqueService(BaseService[SaldoEstoque]):
             quantidade_atual=data.quantidade_inicial,
             custo_unitario=data.custo_unitario,
             nota_fiscal_ref=data.nota_fiscal_ref,
+            qualidade_laudo_id=data.qualidade_laudo_id,
+            qualidade_status=data.qualidade_status,
+            peso_desconto_qualidade_kg=data.peso_desconto_qualidade_kg,
+            metadata_json=data.metadata_json,
             status="ATIVO",
         )
         self.session.add(lote)

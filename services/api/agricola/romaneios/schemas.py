@@ -72,6 +72,10 @@ class RomaneioColheitaResponse(BaseModel):
     destino: str | None
     preco_saca: float | None
     receita_total: float | None
+    qualidade_laudo_id: UUID | None = None
+    qualidade_status: str | None = None
+    peso_desconto_qualidade_kg: float = 0.0
+    peso_liquido_comercial_kg: float | None = None
     observacoes: str | None
     created_at: datetime
     updated_at: datetime

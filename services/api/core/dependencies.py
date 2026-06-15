@@ -78,14 +78,14 @@ async def get_session(request: Request = None) -> AsyncGenerator[AsyncSession, N
             if tenant_id and "postgresql" in DB_URL:
                 await session.execute(text(f"SET LOCAL app.current_tenant_id = '{tenant_id}';"))
                 session.info["tenant_id"] = tenant_id
-            yield session
         except (asyncio.TimeoutError, OSError, SQLAlchemyError) as exc:
             logger.error(
-                "Falha ao abrir/usar sessão do banco",
+                "Falha ao adquirir sessão do banco de dados",
                 error_type=type(exc).__name__,
                 detail=str(exc),
                 path=str(request.url.path) if request else None,
             )
+            print(f"CRITICAL DB ERROR: {type(exc).__name__}: {exc}")
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="Banco de dados indisponível ou pool de conexões esgotado. Tente novamente em instantes.",
@@ -103,6 +103,7 @@ async def get_session(request: Request = None) -> AsyncGenerator[AsyncSession, N
                     detail="Banco de dados indisponível ou pool de conexões esgotado. Tente novamente em instantes.",
                 ) from exc
             raise
+        yield session
 
 def get_token(request: Request) -> str:
     authorization = request.headers.get("Authorization")
@@ -191,7 +192,6 @@ async def get_session_with_tenant(
                 await session.execute(
                     text(f"SET LOCAL app.current_tenant_id = '{tenant_id}';")
                 )
-            yield session
         except (asyncio.TimeoutError, OSError, SQLAlchemyError) as exc:
             logger.error(
                 "Falha ao abrir/usar sessão do banco com tenant",
@@ -216,6 +216,7 @@ async def get_session_with_tenant(
                     detail="Banco de dados indisponível ou pool de conexões esgotado. Tente novamente em instantes.",
                 ) from exc
             raise
+        yield session
 
 async def get_current_user(
     claims: dict = Depends(get_current_user_claims),

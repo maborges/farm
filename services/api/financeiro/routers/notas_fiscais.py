@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, status, Query
+from core.dependencies import require_tenant_permission
+from fastapi import APIRouter, Depends, status, Query, HTTPException
 from typing import List, Optional
 from uuid import UUID
 from datetime import datetime, date
@@ -8,6 +9,7 @@ from sqlalchemy import func
 from pydantic import BaseModel, ConfigDict
 
 from core.dependencies import get_tenant_id, get_session_with_tenant, require_module
+from core.schemas.pagination import PaginatedResponse
 from financeiro.models.nota_fiscal import NotaFiscal, TipoNF, StatusSEFAZ
 
 router = APIRouter(prefix="/notas-fiscais", tags=["Financeiro — NF-e / NFP-e"])
@@ -108,19 +110,21 @@ async def dashboard_nfe(
     }
 
 
-@router.get("", response_model=List[NotaFiscalResponse])
+@router.get("", response_model=PaginatedResponse[NotaFiscalResponse])
 async def listar_notas(
     tipo: Optional[str] = Query(None),
     status_sefaz: Optional[str] = Query(None),
     unidade_produtiva_id: Optional[UUID] = Query(None),
+    limit: int = Query(100, ge=1, le=200),
+    offset: int = Query(0, ge=0),
     session: AsyncSession = Depends(get_session_with_tenant),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module(MODULE)),
 ):
+    from sqlalchemy import func
     stmt = (
         select(NotaFiscal)
         .where(NotaFiscal.tenant_id == tenant_id)
-        .order_by(NotaFiscal.data_emissao.desc())
     )
     if tipo:
         stmt = stmt.where(NotaFiscal.tipo == tipo)
@@ -128,7 +132,23 @@ async def listar_notas(
         stmt = stmt.where(NotaFiscal.status_sefaz == status_sefaz)
     if unidade_produtiva_id:
         stmt = stmt.where(NotaFiscal.unidade_produtiva_id == unidade_produtiva_id)
-    return list((await session.execute(stmt)).scalars().all())
+
+    # Count total
+    count_stmt = select(func.count(NotaFiscal.id)).select_from(stmt.subquery())
+    total = (await session.execute(count_stmt)).scalar() or 0
+
+    # Paginate
+    stmt = stmt.order_by(NotaFiscal.data_emissao.desc())
+    stmt = stmt.limit(limit).offset(offset)
+    
+    items = list((await session.execute(stmt)).scalars().all())
+    
+    return PaginatedResponse(
+        items=items,
+        total=total,
+        limit=limit,
+        offset=offset
+    )
 
 
 @router.post("", response_model=NotaFiscalResponse, status_code=status.HTTP_201_CREATED)

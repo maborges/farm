@@ -9,6 +9,7 @@ from core.base_service import BaseService
 from sqlalchemy import func
 from agricola.romaneios.models import RomaneioColheita
 from agricola.romaneios.schemas import RomaneioColheitaCreate, RomaneioColheitaUpdate, RomaneioKPIs
+from agricola.qualidade_resolver import resolver_qualidade_efetiva
 
 class RomaneioService(BaseService[RomaneioColheita]):
     def __init__(self, session: AsyncSession, tenant_id: UUID):
@@ -159,6 +160,7 @@ class RomaneioService(BaseService[RomaneioColheita]):
 
             commodity = await self.session.get(Commodity, romaneio.commodity_id)
             unidade = commodity.unidade_padrao if commodity else "SACA_60KG"
+            qualidade = resolver_qualidade_efetiva(romaneio=romaneio)
 
             produto_colhido = ProdutoColhido(
                 tenant_id=self.tenant_id,
@@ -166,9 +168,13 @@ class RomaneioService(BaseService[RomaneioColheita]):
                 talhao_id=dados.talhao_id,
                 romaneio_id=romaneio.id,
                 commodity_id=romaneio.commodity_id,
+                qualidade_laudo_id=qualidade.qualidade_laudo_id,
+                qualidade_status=qualidade.qualidade_status,
                 quantidade=dados_dict.get("sacas_60kg") or 0,
                 unidade=unidade,
                 peso_liquido_kg=dados_dict.get("peso_liquido_padrao_kg") or romaneio.peso_liquido_kg or 0,
+                peso_desconto_qualidade_kg=dados_dict.get("peso_desconto_qualidade_kg") or qualidade.peso_desconto_qualidade_kg,
+                peso_liquido_comercial_kg=dados_dict.get("peso_liquido_comercial_kg") or qualidade.peso_liquido_comercial_kg,
                 umidade_pct=dados_dict.get("umidade_pct"),
                 impureza_pct=dados_dict.get("impureza_pct"),
                 avariados_pct=dados_dict.get("avariados_pct"),

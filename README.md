@@ -119,6 +119,8 @@ O projeto é dividido em um monorepo contendo:
 - **Benchmarks e Desempenho (FROTA-40)**: Comparação histórica de custos, ranking de eficiência por talhão e relatórios de impacto da automação na fazenda.
 - **Checklists e Disponibilidade**: Inspeções pré-operacionais e status de disponibilidade em tempo real.
 - **Consolidação de Custos Operacionais Reais (Step 03)**: Consolidação econômica confiável por equipamento, safra, unidade produtiva e operação/talhão. Utiliza rateio dinâmico baseado em jornadas concluídas, alocações ativas e fallbacks inteligentes. Fornece indicadores econômicos reais como custo por hora/km, disponibilidade operacional (%) e tempo parado para manutenção, com visualização unificada no dashboard da frota e endpoints de custos integrados.
+- **Quick Wins RSC (AUDIT-FIX-04.22)**: Migração das rotas de Consumo, Custos e Disponibilidade do módulo de Frota para o padrão React Server Components (RSC) Shell, otimizando o tempo de carregamento com pré-carregamento concorrente via `apiFetchServer` e mantendo mutations e queries condicionais por tier no cliente.
+
 
 
 ### 13. Receitas Operacionais Manuais (Step 182)
@@ -221,6 +223,12 @@ O projeto é dividido em um monorepo contendo:
   - No desktop, os módulos são organizados em 6 dropdowns temáticos de acesso rápido (Resumo, Planejamento, Execução, Monitoramento, Colheita, Gestão) e contam com breadcrumbs interativos.
   - Em telas menores/mobile, colapsa-se em um único botão "Módulos da Safra" super elegante que abre uma gaveta vertical completa dividida por categorias.
 - **Fluxo Funcional**: O componente cliente `SafraSubnav` é instanciado no `layout.tsx` dinâmico do painel de safras (`/agricola/safras/[id]`). Ele detecta dinamicamente a cultura cultivada (ex: se é café via `/safras/{id}/cultivos`) e o nível de plano contratado (`useHasTier`) para exibir apenas os módulos autorizados e contextualizados, como o módulo de "Beneficiamento" exclusivo para produtores profissionais de café.
+
+### 24. Gestão de Risco: Mark-to-Market V2 (Hedge)
+- **MTM Diário**: Cálculo oficial de PnL não realizado (Mark-to-Market) de contratos futuros agrícolas (Soja, Milho, etc) com base na cotação oficial diária (`CotacaoCommodity`).
+- **Idempotência e Resiliência**: O cálculo executa um UPSERT lógico por (tenant, contrato, data_referencia), usando fallback da cotação anterior (D-1) em caso de feriados. Não bloqueia a esteira caso não haja cotação.
+- **Isolamento Transacional**: O MTM é estritamente projetivo (snapshots) e **não** interfere no ledger contábil oficial, protegendo o DRE até a liquidação.
+- **Fluxo Funcional**: Job assíncrono processa posições ativas e gera a projeção de forma rastreável através do `TenantAuditLog`.
 
 ## 🐛 Correções de Layout e UX (Bugfixes)
 

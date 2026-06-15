@@ -10,9 +10,13 @@ class ProdutoColhidoCreate(BaseModel):
     romaneio_id: Optional[uuid.UUID] = None
     commodity_id: uuid.UUID
     classificacao_id: Optional[uuid.UUID] = None
+    qualidade_laudo_id: Optional[uuid.UUID] = None
+    qualidade_status: Optional[str] = None
     quantidade: float = Field(gt=0)
     unidade: str
     peso_liquido_kg: float = Field(gt=0)
+    peso_desconto_qualidade_kg: float = 0.0
+    peso_liquido_comercial_kg: Optional[float] = None
     umidade_pct: Optional[float] = None
     impureza_pct: Optional[float] = None
     avariados_pct: Optional[float] = None
@@ -29,6 +33,10 @@ class ProdutoColhidoCreate(BaseModel):
 
 class ProdutoColhidoUpdate(BaseModel):
     classificacao_id: Optional[uuid.UUID] = None
+    qualidade_laudo_id: Optional[uuid.UUID] = None
+    qualidade_status: Optional[str] = None
+    peso_desconto_qualidade_kg: Optional[float] = None
+    peso_liquido_comercial_kg: Optional[float] = None
     destino: Optional[str] = None
     armazem_id: Optional[uuid.UUID] = None
     data_saida_prevista: Optional[date] = None
@@ -44,9 +52,13 @@ class ProdutoColhidoResponse(BaseModel):
     romaneio_id: Optional[uuid.UUID]
     commodity_id: uuid.UUID
     classificacao_id: Optional[uuid.UUID]
+    qualidade_laudo_id: Optional[uuid.UUID]
+    qualidade_status: Optional[str]
     quantidade: float
     unidade: str
     peso_liquido_kg: float
+    peso_desconto_qualidade_kg: float
+    peso_liquido_comercial_kg: Optional[float]
     umidade_pct: Optional[float]
     impureza_pct: Optional[float]
     avariados_pct: Optional[float]

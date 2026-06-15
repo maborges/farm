@@ -1,3 +1,4 @@
+from core.dependencies import require_tenant_permission
 from fastapi import APIRouter, Depends, File, Query, status, UploadFile
 from fastapi.responses import StreamingResponse
 from typing import List, Literal

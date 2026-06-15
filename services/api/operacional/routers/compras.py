@@ -1,3 +1,4 @@
+from core.dependencies import require_tenant_permission
 from fastapi import APIRouter, Depends, HTTPException, status, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -232,7 +233,8 @@ async def atualizar_status_devolucao(
     data: DevolucaoStatusUpdate,
     tenant: Tenant,
     session: AsyncSession,
-):
+
+    _permission: None = Depends(require_tenant_permission("operacional:compras:list"))):
     svc = ComprasService(session, tenant.id)
     if data.status == "CONCLUIDA":
         devolucao = await svc.concluir_devolucao(dev_id)

@@ -15,6 +15,7 @@ from core.dependencies import (
     get_session_with_tenant, get_current_tenant
 )
 from core.models.billing import AssinaturaTenant, PlanoAssinatura
+from core.models.tenant import Tenant
 from core.models.solicitacoes_comerciais import SolicitacaoComercial
 from ia.usage_service import (
     consultar_uso_mensal, consultar_creditos, solicitar_creditos,
@@ -494,15 +495,15 @@ async def prever_risco_financeiro(
 async def get_simulacao_estresse(
     safra_id: Optional[uuid.UUID] = Query(None),
     db: AsyncSession = Depends(get_db),
-    tenant_id: uuid.UUID = Depends(get_current_tenant)
+    tenant: Tenant = Depends(get_current_tenant)
 ):
     """Retorna a simulação de estresse financeiro (Step 206)."""
     from ia.essential_service import IAEssentialService
-    safra_id = await IAEssentialService.resolve_safra_id(db, tenant_id, safra_id)
+    safra_id = await IAEssentialService.resolve_safra_id(db, tenant.id, safra_id)
     if not safra_id:
         raise HTTPException(status_code=422, detail="Safra não informada e nenhuma safra ativa encontrada.")
         
-    service = IAEstresseFinanceiroService(db, tenant_id)
+    service = IAEstresseFinanceiroService(db, tenant.id)
     return await service.simular_estresse_financeiro(safra_id)
 
 @router.get("/autopilot/metricas", response_model=IAAutopilotMetricsResponse)

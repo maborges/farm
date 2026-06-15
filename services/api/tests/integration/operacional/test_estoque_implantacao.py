@@ -34,7 +34,7 @@ def _headers_para_tenant(tenant_id: uuid.UUID, fazenda_id: uuid.UUID) -> dict[st
     }
 
 
-async def _garantir_suporte_implantacao(session, *, tenant_id: uuid.UUID, fazenda_id: uuid.UUID, deposito_id: uuid.UUID, produto_id: uuid.UUID, nome_produto: str = "Herbicida X") -> None:
+async def _garantir_suporte_implantacao(session, *, tenant_id: uuid.UUID, fazenda_id: uuid.UUID, deposito_id: uuid.UUID, produto_id: uuid.UUID, nome_produto: str = "Herbicida X", codigo_interno: str = "ABC123", nome_deposito: str = "Deposito Central") -> None:
     await session.execute(text("""
         DELETE FROM estoque_implantacao_itens WHERE tenant_id = :tenant_id
     """), {"tenant_id": str(tenant_id)})
@@ -96,23 +96,25 @@ async def _garantir_suporte_implantacao(session, *, tenant_id: uuid.UUID, fazend
 
     await session.execute(text("""
         INSERT INTO estoque_depositos (id, tenant_id, unidade_produtiva_id, nome, tipo, ativo)
-        VALUES (:id, :tenant_id, :unidade_produtiva_id, 'Deposito Central', 'ALMOXARIFADO', true)
+        VALUES (:id, :tenant_id, :unidade_produtiva_id, :nome_deposito, 'ALMOXARIFADO', true)
         ON CONFLICT (id) DO NOTHING
     """), {
         "id": str(deposito_id),
         "tenant_id": str(tenant_id),
         "unidade_produtiva_id": str(fazenda_id),
+        "nome_deposito": nome_deposito,
     })
 
     await session.execute(text("""
         INSERT INTO cadastros_produtos
             (id, tenant_id, nome, tipo, unidade_medida, estoque_minimo, preco_medio, ativo, codigo_interno)
-        VALUES (:id, :tenant_id, :nome, 'INSUMO', 'L', 0, 0.0, true, 'ABC123')
+        VALUES (:id, :tenant_id, :nome, 'INSUMO', 'L', 0, 0.0, true, :codigo_interno)
         ON CONFLICT (id) DO NOTHING
     """), {
         "id": str(produto_id),
         "tenant_id": str(tenant_id),
         "nome": nome_produto,
+        "codigo_interno": codigo_interno,
     })
 
     await garantir_assinatura(session, tenant_id)
@@ -191,6 +193,8 @@ async def test_fluxo_http_implantacao_cria_corrige_revalida_confirma(client, ses
         fazenda_id=FAZENDA_ID,
         deposito_id=deposito_id,
         produto_id=produto_id,
+        codigo_interno="UNIQUE123",
+        nome_deposito="Deposito Conf3"
     )
 
     csv_invalido = (
@@ -238,7 +242,9 @@ async def test_fluxo_http_implantacao_cria_corrige_revalida_confirma(client, ses
         f"/api/v1/estoque/implantacao-assistida/sessoes/{sessao_id}/revalidar",
         headers=headers_operacional,
     )
-    assert revalidar.status_code == 200, revalidar.text
+    assert revalidar.status_code == 200
+    aptidao = await client.get(f"/api/v1/estoque/implantacao-assistida/sessoes/{sessao_id}/aptidao-confirmacao", headers=headers_operacional)
+    print("APTIDAO:", aptidao.json()), revalidar.text
     assert revalidar.json()["status"] == "PRONTO_PARA_CONFIRMAR"
 
     aptidao = await client.get(
@@ -318,6 +324,8 @@ async def test_confirmacao_http_bloqueia_sessao_com_erro(client, session, header
         fazenda_id=FAZENDA_ID,
         deposito_id=deposito_id,
         produto_id=produto_id,
+        codigo_interno="UNIQUE123",
+        nome_deposito="Deposito Conf3"
     )
 
     csv_invalido = (
@@ -352,11 +360,13 @@ async def test_csv_duplicado_retorna_erro_controlado(client, session, headers_op
         fazenda_id=FAZENDA_ID,
         deposito_id=deposito_id,
         produto_id=produto_id,
+        codigo_interno="UNIQUE123",
+        nome_deposito="Deposito Conf3"
     )
 
     csv_valido = (
         "produto_codigo,produto_nome,deposito_nome,quantidade,custo_unitario\n"
-        "ABC123,Herbicida X,Deposito Central,5,10\n"
+        "UNIQUE123,Herbicida X,Deposito Conf3,5,10\\n"
     ).encode("utf-8")
 
     primeiro = await client.post(
@@ -380,17 +390,22 @@ async def test_confirmacao_http_bloqueia_segunda_confirmacao(client, session, he
     await _garantir_schema_confirmacao(session)
     deposito_id = uuid.uuid4()
     produto_id = uuid.uuid4()
+    sufixo = uuid.uuid4().hex[:8]
+    codigo_interno = f"UNIQUE123-{sufixo}"
+    nome_deposito = f"Deposito Conf4 {sufixo}"
     await _garantir_suporte_implantacao(
         session,
         tenant_id=TENANT_ID,
         fazenda_id=FAZENDA_ID,
         deposito_id=deposito_id,
         produto_id=produto_id,
+        codigo_interno=codigo_interno,
+        nome_deposito=nome_deposito
     )
 
     csv_valido = (
         "produto_codigo,produto_nome,deposito_nome,quantidade,custo_unitario\n"
-        "ABC123,Herbicida X,Deposito Central,5,10\n"
+        f"{codigo_interno},Herbicida X,{nome_deposito},5,10\\n"
     ).encode("utf-8")
 
     criar = await client.post(
@@ -400,6 +415,14 @@ async def test_confirmacao_http_bloqueia_segunda_confirmacao(client, session, he
     )
     assert criar.status_code == 201, criar.text
     sessao_id = criar.json()["id"]
+
+    revalidar = await client.post(
+        f"/api/v1/estoque/implantacao-assistida/sessoes/{sessao_id}/revalidar",
+        headers=headers_operacional,
+    )
+    assert revalidar.status_code == 200
+    aptidao = await client.get(f"/api/v1/estoque/implantacao-assistida/sessoes/{sessao_id}/aptidao-confirmacao", headers=headers_operacional)
+    print("APTIDAO:", aptidao.json())
 
     confirmar = await client.post(
         f"/api/v1/estoque/implantacao-assistida/sessoes/{sessao_id}/confirmar",
@@ -429,6 +452,8 @@ async def test_correcao_http_bloqueia_deposito_de_outra_unidade_produtiva(client
         fazenda_id=FAZENDA_ID,
         deposito_id=deposito_id,
         produto_id=produto_id,
+        codigo_interno="UNIQUE123",
+        nome_deposito="Deposito Conf3"
     )
     await session.execute(text("""
         INSERT INTO unidades_produtivas (id, tenant_id, nome, ativo, created_at, updated_at)
@@ -491,6 +516,8 @@ async def test_sessoes_implantacao_isoladas_por_tenant(client, session, headers_
         fazenda_id=FAZENDA_ID,
         deposito_id=deposito_id,
         produto_id=produto_id,
+        codigo_interno="UNIQUE123",
+        nome_deposito="Deposito Conf3"
     )
     await _garantir_suporte_implantacao(
         session,
@@ -503,7 +530,7 @@ async def test_sessoes_implantacao_isoladas_por_tenant(client, session, headers_
 
     csv_valido = (
         "produto_codigo,produto_nome,deposito_nome,quantidade,custo_unitario\n"
-        "ABC123,Herbicida X,Deposito Central,5,10\n"
+        "UNIQUE123,Herbicida X,Deposito Conf3,5,10\\n"
     ).encode("utf-8")
 
     criar = await client.post(

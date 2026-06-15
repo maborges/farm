@@ -1,11 +1,13 @@
 import uuid
 from uuid import UUID
 from datetime import date
+import json
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import func
 from core.base_service import BaseService
 from core.exceptions import BusinessRuleError, EntityNotFoundError
+from core.services.audit_service import write_audit_log
 
 from agricola.beneficiamento.models import LoteBeneficiamento
 from agricola.beneficiamento.schemas import (
@@ -17,8 +19,9 @@ from agricola.beneficiamento.schemas import (
     LoteFromRomaneiosRequest,
 )
 from agricola.beneficiamento.models import LoteBeneficiamentoRomaneio
+from agricola.colheita.models import ProdutoColhido
 from agricola.romaneios.models import RomaneioColheita
-from agricola.safras.models import Safra
+from agricola.qualidade_resolver import resolver_qualidade_efetiva
 
 # Fatores de redução esperados por método (referência para cálculo de perda)
 FATOR_ESPERADO = {
@@ -32,6 +35,95 @@ FATOR_ESPERADO = {
 class BeneficiamentoService(BaseService[LoteBeneficiamento]):
     def __init__(self, session: AsyncSession, tenant_id: UUID):
         super().__init__(LoteBeneficiamento, session, tenant_id)
+
+    @staticmethod
+    def _status_qualidade_produto(produto_colhido: ProdutoColhido | None, romaneio: RomaneioColheita) -> str | None:
+        return resolver_qualidade_efetiva(produto_colhido, romaneio).qualidade_status
+
+    @staticmethod
+    def _peso_entrada_produto(produto_colhido: ProdutoColhido | None, romaneio: RomaneioColheita) -> float:
+        qualidade = resolver_qualidade_efetiva(produto_colhido, romaneio)
+        if qualidade.peso_liquido_comercial_kg is not None:
+            return float(qualidade.peso_liquido_comercial_kg)
+
+        if produto_colhido:
+            if produto_colhido.peso_liquido_kg is not None:
+                return float(produto_colhido.peso_liquido_kg)
+
+        if romaneio.peso_liquido_padrao_kg is not None:
+            return float(romaneio.peso_liquido_padrao_kg)
+        return float(romaneio.peso_liquido_kg or 0)
+
+    async def _get_produto_colhido_por_romaneio(self, romaneio_id: UUID) -> ProdutoColhido | None:
+        stmt = select(ProdutoColhido).where(
+            ProdutoColhido.tenant_id == self.tenant_id,
+            ProdutoColhido.romaneio_id == romaneio_id,
+        )
+        return (await self.session.execute(stmt)).scalars().first()
+
+    @staticmethod
+    def _resolver_commodity_id(
+        romaneio: RomaneioColheita | None,
+        produto_colhido: ProdutoColhido | None,
+    ) -> UUID | None:
+        if romaneio and romaneio.commodity_id:
+            return romaneio.commodity_id
+        if produto_colhido and produto_colhido.commodity_id:
+            return produto_colhido.commodity_id
+        return None
+
+    @staticmethod
+    def _qualidade_estoque_metadata(
+        *,
+        lote_id: UUID,
+        romaneio_id: UUID,
+        qualidade_laudo_id: UUID | None,
+        qualidade_status: str | None,
+        peso_desconto_qualidade_kg: float,
+    ) -> dict:
+        return {
+            "lote_beneficiamento_id": str(lote_id),
+            "romaneio_id": str(romaneio_id),
+            "qualidade_laudo_id": str(qualidade_laudo_id) if qualidade_laudo_id else None,
+            "qualidade_status": qualidade_status,
+            "peso_desconto_qualidade_kg": float(peso_desconto_qualidade_kg),
+        }
+
+    @staticmethod
+    def _qualidade_estoque_observacao(metadata: dict) -> str:
+        return (
+            "Qualidade efetiva aplicada ao lote de estoque: "
+            f"{json.dumps(metadata, ensure_ascii=False, sort_keys=True)}"
+        )
+
+    async def _bloquear_se_reprovado(
+        self,
+        romaneio: RomaneioColheita,
+        produto_colhido: ProdutoColhido | None,
+        contexto: str,
+    ) -> None:
+        status = self._status_qualidade_produto(produto_colhido, romaneio)
+        if status != "REPROVADO":
+            return
+
+        payload = {
+            "romaneio_id": str(romaneio.id),
+            "produto_colhido_id": str(produto_colhido.id) if produto_colhido else None,
+            "qualidade_status": status,
+            "contexto": contexto,
+        }
+        await write_audit_log(
+            session=self.session,
+            tenant_id=self.tenant_id,
+            user_id=self.user_id,
+            action="block_quality_rejected",
+            resource="cafe_lotes_beneficiamento",
+            resource_id=None,
+            payload_before=None,
+            payload_after=payload,
+            ip_address=self.ip_address,
+        )
+        raise BusinessRuleError("Beneficiamento bloqueado: item com qualidade REPROVADO.")
 
     async def criar(self, dados: LoteBeneficiamentoCreate) -> LoteBeneficiamento:
         d = dados.model_dump()
@@ -125,6 +217,8 @@ class BeneficiamentoService(BaseService[LoteBeneficiamento]):
         romaneio = (await self.session.execute(stmt)).scalars().first()
         if not romaneio:
             raise EntityNotFoundError(f"Romaneio {romaneio_id} não encontrado.")
+        produto_colhido = await self._get_produto_colhido_por_romaneio(romaneio.id)
+        await self._bloquear_se_reprovado(romaneio, produto_colhido, "romaneio")
 
         # Cria número de lote automático (timestamp + parte do romaneio)
         numero_lote = f"BEN-{romaneio.numero_romaneio}" if romaneio.numero_romaneio else f"BEN-{uuid.uuid4().hex[:8]}"
@@ -138,7 +232,7 @@ class BeneficiamentoService(BaseService[LoteBeneficiamento]):
             numero_lote=numero_lote,
             metodo="NATURAL",  # Padrão: NATURAL (cereja), usuário pode alterar depois
             data_entrada=romaneio.data_colheita,
-            peso_entrada_kg=float(romaneio.peso_liquido_kg or romaneio.peso_liquido_padrao_kg or 0),
+            peso_entrada_kg=self._peso_entrada_produto(produto_colhido, romaneio),
             umidade_entrada_pct=float(romaneio.umidade_pct) if romaneio.umidade_pct else None,
         )
 
@@ -163,9 +257,16 @@ class BeneficiamentoService(BaseService[LoteBeneficiamento]):
             raise BusinessRuleError("Todos os romaneios devem ser da mesma safra.")
 
         safra_id = safra_ids.pop()
+        pesos_por_romaneio: dict[UUID, float] = {}
 
-        # Soma peso de entrada
-        peso_total = sum(float(r.peso_liquido_kg or r.peso_liquido_padrao_kg or 0) for r in romaneios)
+        # Soma peso de entrada e bloqueia itens reprovados
+        peso_total = 0.0
+        for romaneio in romaneios:
+            produto_colhido = await self._get_produto_colhido_por_romaneio(romaneio.id)
+            await self._bloquear_se_reprovado(romaneio, produto_colhido, "blend_romaneios")
+            peso_item = self._peso_entrada_produto(produto_colhido, romaneio)
+            pesos_por_romaneio[romaneio.id] = peso_item
+            peso_total += peso_item
 
         # Gera número de lote
         numero_lote = req.numero_lote or f"BEN-MULTI-{uuid.uuid4().hex[:6]}"
@@ -190,12 +291,11 @@ class BeneficiamentoService(BaseService[LoteBeneficiamento]):
 
         # Cria registros N:N para cada romaneio
         for romaneio in romaneios:
-            peso = float(romaneio.peso_liquido_kg or romaneio.peso_liquido_padrao_kg or 0)
             nm = LoteBeneficiamentoRomaneio(
                 tenant_id=self.tenant_id,
                 lote_id=lote.id,
                 romaneio_id=romaneio.id,
-                peso_entrada_kg=peso,
+                peso_entrada_kg=pesos_por_romaneio[romaneio.id],
             )
             self.session.add(nm)
 
@@ -216,24 +316,25 @@ class BeneficiamentoService(BaseService[LoteBeneficiamento]):
                 f"Apenas lotes com status ARMAZENADO podem gerar venda. Status atual: {lote.status}"
             )
 
-        # Busca safra para obter commodity_id
-        stmt_safra = select(Safra).where(
-            Safra.id == lote.safra_id,
-            Safra.tenant_id == self.tenant_id,
-        )
-        safra = (await self.session.execute(stmt_safra)).scalars().first()
-        if not safra or not safra.commodity_id:
-            raise BusinessRuleError(
-                "Safra deve ter commodity associada para gerar venda."
-            )
-
         # Importa ComercializacaoService dinamicamente para evitar circular imports
         from financeiro.comercializacao.service import ComercializacaoService
         from financeiro.comercializacao.schemas import ComercializacaoCommodityCreate
 
+        stmt_romaneio = select(RomaneioColheita).where(
+            RomaneioColheita.id == lote.romaneio_id,
+            RomaneioColheita.tenant_id == self.tenant_id,
+        )
+        romaneio = (await self.session.execute(stmt_romaneio)).scalars().first() if lote.romaneio_id else None
+        produto_colhido = await self._get_produto_colhido_por_romaneio(lote.romaneio_id) if lote.romaneio_id else None
+        commodity_id = self._resolver_commodity_id(romaneio, produto_colhido)
+        if not commodity_id:
+            raise BusinessRuleError(
+                "Romaneio deve ter commodity associada para gerar venda."
+            )
+
         # Cria dados da comercialização
         dados_venda = ComercializacaoCommodityCreate(
-            commodity_id=safra.commodity_id,
+            commodity_id=commodity_id,
             comprador_id=None,  # Será preenchido depois
             quantidade=float(lote.sacas_beneficiadas or 0),
             unidade="SC60",  # 60kg padrão
@@ -354,37 +455,58 @@ class BeneficiamentoService(BaseService[LoteBeneficiamento]):
         if not lote.armazem_id:
             raise BusinessRuleError("Lote deve ter armazem_id preenchido")
 
-        # Busca safra para commodity
-        stmt_safra = select(Safra).where(
-            Safra.id == lote.safra_id,
-            Safra.tenant_id == self.tenant_id,
+        # Resolve a commodity de origem a partir do romaneio/produto colhido.
+        stmt_romaneio = select(RomaneioColheita).where(
+            RomaneioColheita.id == lote.romaneio_id,
+            RomaneioColheita.tenant_id == self.tenant_id,
         )
-        safra = (await self.session.execute(stmt_safra)).scalars().first()
-        if not safra or not safra.commodity_id:
-            raise BusinessRuleError("Safra deve ter commodity associada")
+        romaneio = (await self.session.execute(stmt_romaneio)).scalars().first() if lote.romaneio_id else None
+        produto_colhido = await self._get_produto_colhido_por_romaneio(lote.romaneio_id) if lote.romaneio_id else None
+        qualidade = resolver_qualidade_efetiva(produto_colhido, romaneio)
+        if qualidade.qualidade_status == "REPROVADO":
+            raise BusinessRuleError("Lote com qualidade REPROVADO não pode ser armazenado no estoque.")
+        commodity_id = self._resolver_commodity_id(romaneio, produto_colhido)
+        if not commodity_id:
+            raise BusinessRuleError("Romaneio deve ter commodity associada.")
 
         # Importa EstoqueService dinamicamente
-        from operacional.estoque.service import EstoqueService
+        from operacional.services.estoque_service import EstoqueService
+        from operacional.schemas.estoque import LoteCreate
+
+        metadata_qualidade = self._qualidade_estoque_metadata(
+            lote_id=lote.id,
+            romaneio_id=(lote.romaneio_id or lote.id),
+            qualidade_laudo_id=qualidade.qualidade_laudo_id,
+            qualidade_status=qualidade.qualidade_status,
+            peso_desconto_qualidade_kg=qualidade.peso_desconto_qualidade_kg,
+        )
 
         # Cria LoteEstoque
         estoque_svc = EstoqueService(self.session, self.tenant_id)
         lote_estoque = await estoque_svc.criar_lote(
-            produto_id=safra.commodity_id,
-            numero_lote=lote.numero_lote,
-            deposito_id=lote.armazem_id,
-            quantidade=float(lote.sacas_beneficiadas),
-            lote_beneficiamento_id=lote.id,
+            LoteCreate(
+                produto_id=commodity_id,
+                numero_lote=lote.numero_lote,
+                deposito_id=lote.armazem_id,
+                quantidade_inicial=float(lote.sacas_beneficiadas),
+                custo_unitario=0.0,
+                qualidade_laudo_id=qualidade.qualidade_laudo_id,
+                qualidade_status=qualidade.qualidade_status,
+                peso_desconto_qualidade_kg=qualidade.peso_desconto_qualidade_kg,
+                metadata_json=metadata_qualidade,
+            )
         )
 
         # Registra movimento no ledger canônico de estoque
-        await estoque_svc.registrar_movimentacao(
-            tipo="ENTRADA",
-            origem_tipo="BENEFICIAMENTO",
-            origem_id=str(lote.id),
-            produto_id=safra.commodity_id,
-            quantidade=float(lote.sacas_beneficiadas),
+        await estoque_svc._registrar_movimento(
             deposito_id=lote.armazem_id,
+            produto_id=commodity_id,
+            tipo="ENTRADA",
+            quantidade=float(lote.sacas_beneficiadas),
+            origem_id=lote.id,
+            origem_tipo="BENEFICIAMENTO",
             lote_id=lote_estoque.id,
+            motivo=self._qualidade_estoque_observacao(metadata_qualidade),
         )
 
         # Atualiza lote com referência ao estoque

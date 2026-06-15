@@ -12,7 +12,7 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, text
 
-from core.models.auth import Usuario, TentativaLogin
+from core.models import Usuario, TentativaLogin
 from core.services.auth_service import hash_password
 
 

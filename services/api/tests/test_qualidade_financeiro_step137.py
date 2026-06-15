@@ -4,7 +4,8 @@ import pytest
 from datetime import date
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from financeiro.schemas.lancamento_schema import LancamentoCreate, CATEGORIAS_VALIDAS
+from financeiro.schemas.lancamento_schema import LancamentoCreate, CATEGORIAS_CUSTO, CATEGORIAS_RECEITA
+CATEGORIAS_VALIDAS = CATEGORIAS_CUSTO + CATEGORIAS_RECEITA
 from financeiro.models.lancamento import LancamentoFinanceiro
 
 
@@ -26,7 +27,7 @@ def test_categoria_invalida_rejeitada():
 
 
 def test_categoria_valida_normalizada():
-    for cat in CATEGORIAS_VALIDAS:
+    for cat in CATEGORIAS_CUSTO:
         lc = LancamentoCreate(descricao="Teste", valor=100, data=date.today(), tipo="CUSTO", categoria=cat.lower())
         assert lc.categoria == cat
 
@@ -37,7 +38,7 @@ def test_tipo_invalido_rejeitado():
 
 
 def test_tipo_receita_aceito():
-    lc = LancamentoCreate(descricao="Venda", valor=500, data=date.today(), tipo="RECEITA", categoria="OPERACOES")
+    lc = LancamentoCreate(descricao="Venda", valor=500, data=date.today(), tipo="RECEITA", categoria="VENDA_PRODUCAO")
     assert lc.tipo == "RECEITA"
 
 

@@ -8,7 +8,7 @@ import pytest
 import uuid
 from datetime import datetime, timedelta, timezone, date
 from sqlalchemy.ext.asyncio import AsyncSession
-from core.models.auth import Usuario
+from core.models import Usuario
 from core.models.tenant import Tenant
 from core.models.billing import PlanoAssinatura, AssinaturaTenant, Fatura
 # grupos_fazendas removed
@@ -100,7 +100,7 @@ async def test_create_tenant_for_user_trial_pago(db_session: AsyncSession):
     assert fatura.data_vencimento.date() == esperado_vencimento
 
     # Verificar TenantUsuario (owner)
-    from core.models.auth import TenantUsuario
+    from core.models import TenantUsuario
     tenants_usuario = (await db_session.execute(
         select(TenantUsuario).where(
             TenantUsuario.tenant_id == tenant.id,

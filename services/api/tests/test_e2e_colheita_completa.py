@@ -13,7 +13,7 @@ from datetime import date
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
-from operacional.models.estoque import LoteEstoque, Deposito, MovimentacaoEstoque
+from operacional.models.estoque import LoteEstoque, Deposito, EstoqueMovimento as MovimentacaoEstoque
 from core.cadastros.produtos.models import Produto
 from operacional.services.estoque_fifo import consumir_lotes_fifo
 from core.exceptions import BusinessRuleError
@@ -37,8 +37,8 @@ class TestE2EFIFOInventoryFlow:
         4. Validar custos históricos foram usados (não preço médio)
         5. Validar rastreabilidade via MovimentacaoEstoque
         """
-        tenant_uuid = UUID(tenant_id)
-        fazenda_uuid = UUID(unidade_produtiva_id)
+        tenant_uuid = tenant_id if isinstance(tenant_id, UUID) else UUID(tenant_id)
+        fazenda_uuid = unidade_produtiva_id if isinstance(unidade_produtiva_id, UUID) else UUID(unidade_produtiva_id)
         operacao_id = uuid4()
 
         # 1. Criar depósito
@@ -132,8 +132,8 @@ class TestE2EFIFOInventoryFlow:
         """
         Validar que FIFO falha graciosamente com estoque insuficiente.
         """
-        tenant_uuid = UUID(tenant_id)
-        fazenda_uuid = UUID(unidade_produtiva_id)
+        tenant_uuid = tenant_id if isinstance(tenant_id, UUID) else UUID(tenant_id)
+        fazenda_uuid = unidade_produtiva_id if isinstance(unidade_produtiva_id, UUID) else UUID(unidade_produtiva_id)
 
         # Setup: criar depósito, produto, lote pequeno
         deposito = Deposito(
@@ -194,9 +194,9 @@ class TestE2EFIFOInventoryFlow:
         """
         Validar isolamento de tenant: Tenant A estoque não afeta Tenant B.
         """
-        tenant_a = UUID(tenant_id)
-        tenant_b = UUID(outro_tenant_id)
-        fazenda_uuid = UUID(unidade_produtiva_id)
+        tenant_a = tenant_id if isinstance(tenant_id, UUID) else UUID(tenant_id)
+        tenant_b = outro_tenant_id if isinstance(outro_tenant_id, UUID) else UUID(outro_tenant_id)
+        fazenda_uuid = unidade_produtiva_id if isinstance(unidade_produtiva_id, UUID) else UUID(unidade_produtiva_id)
 
         # Tenant A cria estoque
         dep_a = Deposito(

@@ -10,7 +10,7 @@ from sqlalchemy import func, select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from fastapi import Depends
-from core.dependencies import get_session
+from core.dependencies import get_session, require_permission
 
 from growth.models import LandingEvento
 
@@ -129,6 +129,7 @@ _EVENTOS_CTA = {"cta_click", "cta_test_click", "cta_demo_click", "plan_select"}
 async def obter_metricas(
     periodo_dias: int = 30,
     session: AsyncSession = Depends(get_session),
+    _permission: dict = Depends(require_permission("backoffice:bi:view")),
 ) -> Any:
     desde = datetime.now(timezone.utc) - timedelta(days=periodo_dias)
 

@@ -1,3 +1,4 @@
+from core.dependencies import require_tenant_permission
 from datetime import date
 from fastapi import APIRouter, Depends, status, Query
 from pydantic import BaseModel

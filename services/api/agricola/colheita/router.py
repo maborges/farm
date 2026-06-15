@@ -1,3 +1,4 @@
+from core.dependencies import require_tenant_permission
 import uuid
 from typing import Optional
 from fastapi import APIRouter, Depends, Query

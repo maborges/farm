@@ -1,3 +1,4 @@
+from core.dependencies import require_tenant_permission
 from fastapi import APIRouter, HTTPException, Response
 
 from core.database import async_session_maker

@@ -1,3 +1,4 @@
+from core.dependencies import require_tenant_permission
 import uuid
 from datetime import date
 from fastapi import APIRouter, Depends, status, Query
@@ -76,7 +77,9 @@ async def listar_origens(
     return await svc.listar_origens(safra_id)
 
 
-@router.get("/", response_model=list[LancamentoResponse])
+from core.schemas.pagination import PaginatedResponse
+
+@router.get("", response_model=PaginatedResponse[LancamentoResponse])
 async def listar_lancamentos(
     safra_id: uuid.UUID | None = Query(None),
     tipo: str | None = Query(None, enum=["CUSTO", "RECEITA"]),
@@ -84,6 +87,8 @@ async def listar_lancamentos(
     origem: str | None = Query(None),
     data_inicio: date | None = Query(None),
     data_fim: date | None = Query(None),
+    limit: int = Query(100, ge=1, le=200),
+    offset: int = Query(0, ge=0),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
     session: AsyncSession = Depends(get_session),
 ):
@@ -95,6 +100,8 @@ async def listar_lancamentos(
         origem=origem,
         data_inicio=data_inicio,
         data_fim=data_fim,
+        limit=limit,
+        offset=offset
     )
 
 

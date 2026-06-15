@@ -1,3 +1,4 @@
+from core.dependencies import require_tenant_permission
 from fastapi import APIRouter, Depends, status, Request, UploadFile, File, Form, HTTPException
 from fastapi.responses import Response
 from typing import List

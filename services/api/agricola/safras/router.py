@@ -1,3 +1,4 @@
+from core.dependencies import require_tenant_permission
 from fastapi import APIRouter, Depends, status, Query, HTTPException
 from typing import List
 from uuid import UUID
@@ -182,7 +183,9 @@ async def historico_fases_safra(
     "/meta/fases",
     summary="Retorna as fases válidas e transições permitidas",
 )
-async def meta_fases():
+async def meta_fases(
+    _permission: None = Depends(require_tenant_permission("agricola:safras:create"))
+):
     return {
         "fases_ordem": SAFRA_FASES_ORDEM,
         "transicoes": SAFRA_TRANSICOES,

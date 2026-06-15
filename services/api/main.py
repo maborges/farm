@@ -48,6 +48,7 @@ from operacional.routers import frota
 from operacional.routers import estoque
 from operacional.routers import estoque_implantacao
 from operacional.routers import oficina
+from operacional.routers import qualidade as router_qualidade
 from operacional.routers import relatorios as operacional_relatorios
 from operacional.routers import compras
 from operacional.routers import apontamento as router_apontamento
@@ -392,6 +393,7 @@ from integracoes.regulatorias.router import router as regulatorias_router
 
 from financeiro.routers import despesas, receitas, planos_conta, relatorios as relatorios_fin, integracao as integracao_fin, conciliacao, notas_fiscais as notas_fiscais_router, lancamentos as lancamentos_router, plano_acoes as plano_acoes_router
 from financeiro.comercializacao.router import router as router_comercializacoes
+from financeiro.hedge.router import router as router_hedge
 from ambiental.router import router as router_ambiental
 from rh.router import router as router_rh
 from notificacoes.router import router as router_notificacoes
@@ -417,6 +419,7 @@ app.include_router(router_monitoramentos, prefix="/api/v1")
 app.include_router(router_romaneios, prefix="/api/v1")
 app.include_router(router_produtos_colhidos, prefix="/api/v1")
 app.include_router(router_beneficiamento, prefix="/api/v1")
+app.include_router(router_qualidade.router, prefix="/api/v1")
 app.include_router(router_previsoes, prefix="/api/v1")
 app.include_router(router_ndvi, prefix="/api/v1")
 app.include_router(router_climatico, prefix="/api/v1")
@@ -489,6 +492,7 @@ app.include_router(integracao_fin.router, prefix="/api/v1/financeiro")
 app.include_router(conciliacao.router, prefix="/api/v1/financeiro")
 app.include_router(notas_fiscais_router.router, prefix="/api/v1/financeiro")
 app.include_router(router_comercializacoes, prefix="/api/v1/financeiro")
+app.include_router(router_hedge, prefix="/api/v1/financeiro")
 app.include_router(lancamentos_router.router, prefix="/api/v1/financeiro")
 app.include_router(plano_acoes_router.router, prefix="/api/v1/financeiro")
 app.include_router(router_ambiental, prefix="/api/v1")
@@ -572,12 +576,13 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    from fastapi.encoders import jsonable_encoder
     request_id = request.headers.get("X-Request-ID", "unknown")
     logger.bind(request_id=request_id).warning(f"Validation Error: {exc.errors()}")
     return JSONResponse(
         status_code=422,
         content={
-            "detail": exc.errors(),
+            "detail": jsonable_encoder(exc.errors()),
             "request_id": request_id
         },
         headers={"X-Request-ID": request_id}

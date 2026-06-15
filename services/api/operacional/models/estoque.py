@@ -47,6 +47,10 @@ class LoteEstoque(Base):
     quantidade_atual: Mapped[float] = mapped_column(Float, default=0.0)
     custo_unitario: Mapped[float] = mapped_column(Float, default=0.0)
     nota_fiscal_ref: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    qualidade_laudo_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("operacional_qualidade_laudos.id", ondelete="SET NULL"), nullable=True, index=True)
+    qualidade_status: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    peso_desconto_qualidade_kg: Mapped[float] = mapped_column(Numeric(12, 3), default=0.0, nullable=False, server_default="0")
+    metadata_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     # ATIVO, VENCIDO, ESGOTADO, BLOQUEADO
     status: Mapped[str] = mapped_column(String(20), default="ATIVO")

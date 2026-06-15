@@ -3,6 +3,7 @@ from datetime import date
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, text
 from financeiro.models.lancamento import LancamentoFinanceiro
+from core.schemas.pagination import PaginatedResponse
 from financeiro.schemas.lancamento_schema import LancamentoCreate, LancamentoResumo, InsightDashboard, CategoriaBreakdown, SerieTemporal, AlertaSafra, RecomendacaoSafra, ResumoInteligente, ItemPlanoAcao, LancamentoOrigemItem, DREOperacional
 from agricola.safras.models import Safra
 from agricola.cenarios.models import SafraCenario
@@ -137,7 +138,10 @@ class LancamentoService:
         origem: str | None = None,
         data_inicio: date | None = None,
         data_fim: date | None = None,
-    ) -> list[LancamentoFinanceiro]:
+        limit: int = 100,
+        offset: int = 0,
+    ) -> PaginatedResponse[LancamentoFinanceiro]:
+        from sqlalchemy import func
         stmt = select(LancamentoFinanceiro).where(LancamentoFinanceiro.tenant_id == self.tenant_id)
 
         if safra_id:
@@ -153,9 +157,24 @@ class LancamentoService:
         if data_fim:
             stmt = stmt.where(LancamentoFinanceiro.data <= data_fim)
 
+        # Count
+        count_stmt = select(func.count(LancamentoFinanceiro.id)).select_from(stmt.subquery())
+        total = (await self.session.execute(count_stmt)).scalar() or 0
+
+        # Paginating
+        limit = min(limit, 200)
         stmt = stmt.order_by(LancamentoFinanceiro.data.desc(), LancamentoFinanceiro.created_at.desc())
+        stmt = stmt.limit(limit).offset(offset)
+        
         result = await self.session.execute(stmt)
-        return list(result.scalars().all())
+        items = list(result.scalars().all())
+
+        return PaginatedResponse(
+            items=items,
+            total=total,
+            limit=limit,
+            offset=offset
+        )
 
     async def resumo(self, safra_id: uuid.UUID | None = None) -> LancamentoResumo:
         stmt = select(

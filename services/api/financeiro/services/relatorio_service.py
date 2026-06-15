@@ -275,18 +275,54 @@ class RelatorioService:
     ) -> DREResponse:
         """
         DRE financeira simplificada: agrupa por categoria_rfb do plano de contas.
-
-        Observação de governança:
-        - esta visão permanece legada e financeira/contábil;
-        - a DRE agrícola oficial e consolidada vive em agricola.dre.service.DREAgricolaV1Service;
-        - não há apropriação econômica nova aqui, apenas leitura do livro-caixa.
+        Usa agregação SQL direta para evitar carregamento massivo de registros em memória.
         """
-        # Reutiliza o livro_caixa com range de competência = período do DRE.
-        lc = await self.livro_caixa(data_inicio, data_fim, unidade_produtiva_id)
+        from sqlalchemy import func
+
+        # Agregação Receitas
+        stmt_rec = select(
+            PlanoConta.categoria_rfb,
+            func.sum(func.coalesce(Receita.valor_recebido, Receita.valor_total)).label("total")
+        ).join(PlanoConta, Receita.plano_conta_id == PlanoConta.id).where(
+            Receita.tenant_id == self.tenant_id,
+            Receita.ativo == True,
+            Receita.status.in_(STATUS_REALIZADO_RECEITA)
+        )
+        if unidade_produtiva_id:
+            stmt_rec = stmt_rec.where(Receita.unidade_produtiva_id == unidade_produtiva_id)
+
+        data_ref_rec = func.coalesce(Receita.competencia, Receita.data_recebimento)
+        stmt_rec = stmt_rec.where(
+            data_ref_rec >= data_inicio,
+            data_ref_rec <= data_fim
+        ).group_by(PlanoConta.categoria_rfb)
+
+        # Agregação Despesas
+        stmt_desp = select(
+            PlanoConta.categoria_rfb,
+            func.sum(func.coalesce(Despesa.valor_pago, Despesa.valor_total)).label("total")
+        ).join(PlanoConta, Despesa.plano_conta_id == PlanoConta.id).where(
+            Despesa.tenant_id == self.tenant_id,
+            Despesa.ativo == True,
+            Despesa.status.in_(STATUS_REALIZADO_DESPESA)
+        )
+        if unidade_produtiva_id:
+            stmt_desp = stmt_desp.where(Despesa.unidade_produtiva_id == unidade_produtiva_id)
+
+        data_ref_desp = func.coalesce(Despesa.competencia, Despesa.data_pagamento)
+        stmt_desp = stmt_desp.where(
+            data_ref_desp >= data_inicio,
+            data_ref_desp <= data_fim
+        ).group_by(PlanoConta.categoria_rfb)
+
+        rec_rows = (await self.session.execute(stmt_rec)).fetchall()
+        desp_rows = (await self.session.execute(stmt_desp)).fetchall()
 
         totais_rfb: dict[tuple, float] = defaultdict(float)
-        for g in lc.grupos:
-            totais_rfb[(g.categoria_rfb, g.tipo)] += g.total
+        for row in rec_rows:
+            totais_rfb[(row.categoria_rfb or "SEM_CATEGORIA", "RECEITA")] += float(row.total or 0.0)
+        for row in desp_rows:
+            totais_rfb[(row.categoria_rfb or "SEM_CATEGORIA", "DESPESA")] += float(row.total or 0.0)
 
         receita_atividade = totais_rfb.get(("RECEITA_ATIVIDADE", "RECEITA"), 0.0)
         outras_receitas = totais_rfb.get(("RECEITA_FORA_ATIVIDADE", "RECEITA"), 0.0)

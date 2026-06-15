@@ -14,7 +14,7 @@ from agricola.caderno.models import CadernoCampoEntrada
 from agricola.caderno.service import CadernoCampoService
 from agricola.caderno.schemas import EventoCadernoOfflinePayload, EvidenciaOfflinePayload
 from campo.models import DispositivoCampo
-from core.models.auth import TenantUsuario, Usuario
+from core.models import TenantUsuario, Usuario
 
 # Helper functions to create required parent records in DB for the test
 async def _criar_safra_e_requisitos(session, tenant_id):

@@ -701,3 +701,12 @@ class TenantPermissions:
             if wildcard in perm_list:
                 return True
         return False
+
+# Qualidade Audit Actions
+QUALITY_CALC = "CALC_ADJUST"
+QUALITY_APPROVE = "APPROVE"
+QUALITY_REJECT = "REJECT"
+QUALITY_CREATE = "CREATE"
+QUALITY_UPDATE = "UPDATE"
+QUALITY_DELETE = "DELETE"
+QUALITY_APPLY_ROMANEIO = "APPLY_ROMANEIO"

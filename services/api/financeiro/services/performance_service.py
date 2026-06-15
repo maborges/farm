@@ -58,15 +58,43 @@ class PerformanceService:
             melhor_ganho = 0.0
             melhor_decisao_nome = "Nenhuma registrada"
 
-            svc_lancamento = LancamentoService(self.session, self.tenant_id)
+            safra_ids = [c.safra_id for c in cenarios_escolhidos if c.safra_id]
+            receitas_por_safra = {}
+            custos_por_safra = {}
+
+            if safra_ids:
+                from financeiro.models.lancamento import LancamentoFinanceiro
+                stmt_agrupado_rec = select(
+                    LancamentoFinanceiro.safra_id,
+                    func.sum(LancamentoFinanceiro.valor).label("total")
+                ).where(
+                    and_(
+                        LancamentoFinanceiro.tenant_id == self.tenant_id,
+                        LancamentoFinanceiro.safra_id.in_(safra_ids),
+                        LancamentoFinanceiro.tipo == "RECEITA"
+                    )
+                ).group_by(LancamentoFinanceiro.safra_id)
+                rec_rows = (await self.session.execute(stmt_agrupado_rec)).fetchall()
+                receitas_por_safra = {r[0]: float(r[1]) for r in rec_rows}
+
+                stmt_agrupado_custo = select(
+                    LancamentoFinanceiro.safra_id,
+                    func.sum(LancamentoFinanceiro.valor).label("total")
+                ).where(
+                    and_(
+                        LancamentoFinanceiro.tenant_id == self.tenant_id,
+                        LancamentoFinanceiro.safra_id.in_(safra_ids),
+                        LancamentoFinanceiro.tipo == "CUSTO"
+                    )
+                ).group_by(LancamentoFinanceiro.safra_id)
+                custo_rows = (await self.session.execute(stmt_agrupado_custo)).fetchall()
+                custos_por_safra = {r[0]: float(r[1]) for r in custo_rows}
 
             for c in cenarios_escolhidos:
                 try:
-                    dre = await svc_lancamento.gerar_dre(c.safra_id)
-                    if isinstance(dre, dict):
-                        resultado_real = float(dre.get("resultado_operacional", 0.0))
-                    else:
-                        resultado_real = float(getattr(dre, "resultado_operacional"))
+                    rec = receitas_por_safra.get(c.safra_id, 0.0)
+                    custo = custos_por_safra.get(c.safra_id, 0.0)
+                    resultado_real = rec - custo
                     resultado_simulado = float(c.resultado_simulado)
 
                     desvio_abs = abs(resultado_real - resultado_simulado)

@@ -5,7 +5,7 @@ import pytest
 from sqlalchemy import text
 
 from core.exceptions import BusinessRuleError
-from core.models.auth import TenantUsuario, Usuario
+from core.models import TenantUsuario, Usuario
 from campo.models import DispositivoCampo
 from agricola.caderno.schemas import EventoCadernoOfflinePayload, EvidenciaOfflinePayload
 from agricola.caderno.service import CadernoCampoService

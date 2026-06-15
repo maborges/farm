@@ -11,7 +11,7 @@ from financeiro.models.lancamento import LancamentoFinanceiro
 from ia.models import IAAlertaHistorico
 from core.models.tenant import Tenant
 # Usuario é o nome real da classe em core.models.auth
-from core.models.auth import Usuario
+from core.models import Usuario
 
 # Configuração simplificada para teste
 DATABASE_URL = "postgresql+asyncpg://borgus:numsey01@192.168.0.3/farms"

@@ -95,6 +95,7 @@ from operacional.models.estoque import Deposito, SaldoEstoque, LoteEstoque, Requ
 from operacional.models.estoque_implantacao import EstoqueImplantacaoSessao, EstoqueImplantacaoItem
 from operacional.models.documento_equipamento import DocumentoEquipamento
 from operacional.models.frota import PlanoManutencao, OrdemServico, ItemOrdemServico, RegistroManutencao, JornadaEquipamento
+from operacional.models.qualidade import QualidadeProtocolo, QualidadeCriterio, QualidadeLaudo, QualidadeResultado
 
 # Produtos (insumos / almoxarifado)
 from core.cadastros.produtos.models import (

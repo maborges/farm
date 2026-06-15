@@ -1,6 +1,6 @@
 from .tenant import Tenant
 from .unidade_produtiva import UnidadeProdutiva, UnidadeProdutiva as Fazenda
-from .auth import Usuario, PerfilAcesso, TenantUsuario, UnidadeProdutivaUsuario, UnidadeProdutivaUsuario as FazendaUsuario, ConviteAcesso
+from .auth import Usuario, PerfilAcesso, TenantUsuario, UnidadeProdutivaUsuario, UnidadeProdutivaUsuario as FazendaUsuario, ConviteAcesso, TentativaLogin
 from .billing import PlanoAssinatura, AssinaturaTenant, Fatura
 from .plan_changes import PlanoPricing, MudancaPlano, CobrancaAsaas, HistoricoBloqueio
 from .support import ChamadoSuporte, MensagemChamado

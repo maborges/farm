@@ -224,9 +224,31 @@ class ProdutoService(BaseService[Produto]):
         )).scalar_one_or_none()
         if not obj:
             raise EntityNotFoundError("Produto não encontrado")
-        # Guardrail: atualização do catálogo não escreve campos operacionais.
-        for k, v in data.model_dump(exclude_none=True, exclude={"estoque_minimo", "preco_ultima_compra"}).items():
+        payload = data.model_dump(exclude_none=True, exclude={"estoque_minimo", "preco_ultima_compra", "detalhe_agricola", "detalhe_estoque", "detalhe_epi"})
+        for k, v in payload.items():
             setattr(obj, k, v)
+
+        if data.detalhe_agricola is not None:
+            if obj.detalhe_agricola:
+                for ak, av in data.detalhe_agricola.model_dump(exclude_none=True).items():
+                    setattr(obj.detalhe_agricola, ak, av)
+            else:
+                obj.detalhe_agricola = ProdutoAgricola(**data.detalhe_agricola.model_dump(exclude_none=True))
+
+        if data.detalhe_estoque is not None:
+            if obj.detalhe_estoque:
+                for ek, ev in data.detalhe_estoque.model_dump(exclude_none=True).items():
+                    setattr(obj.detalhe_estoque, ek, ev)
+            else:
+                obj.detalhe_estoque = ProdutoEstoque(**data.detalhe_estoque.model_dump(exclude_none=True))
+
+        if data.detalhe_epi is not None:
+            if obj.detalhe_epi:
+                for pk, pv in data.detalhe_epi.model_dump(exclude_none=True).items():
+                    setattr(obj.detalhe_epi, pk, pv)
+            else:
+                obj.detalhe_epi = ProdutoEPI(**data.detalhe_epi.model_dump(exclude_none=True))
+
         await self.session.flush()
         res = (await self.session.execute(
             select(Produto).where(Produto.id == produto_id).options(*_PRODUTO_LOADS)

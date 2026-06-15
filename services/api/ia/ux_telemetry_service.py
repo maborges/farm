@@ -204,67 +204,30 @@ class IAUXTelemetryService:
             if not fim:
                 fim = datetime.now(timezone.utc) + timedelta(days=1)
 
-            # 1. Total de carregamentos (Essential View Loaded)
-            q_loaded = await db.execute(
-                select(func.count(IAUXTelemetria.id))
-                .where(and_(
-                    IAUXTelemetria.tenant_id == tenant_id,
-                    IAUXTelemetria.evento == "essential_view_loaded",
-                    IAUXTelemetria.created_at >= inicio,
-                    IAUXTelemetria.created_at < fim
-                ))
-            )
-            total_view_loaded = q_loaded.scalar() or 0
-
-            # 2. Total de cliques no CTA Essencial
-            q_cta = await db.execute(
-                select(func.count(IAUXTelemetria.id))
-                .where(and_(
-                    IAUXTelemetria.tenant_id == tenant_id,
-                    IAUXTelemetria.evento == "essential_cta_clicked",
-                    IAUXTelemetria.created_at >= inicio,
-                    IAUXTelemetria.created_at < fim
-                ))
-            )
-            total_cta_clicked = q_cta.scalar() or 0
-
-            # 3. Total de execuções (Essential Action Executed)
-            q_exec = await db.execute(
-                select(func.count(IAUXTelemetria.id))
-                .where(and_(
-                    IAUXTelemetria.tenant_id == tenant_id,
-                    IAUXTelemetria.evento == "essential_action_executed",
-                    IAUXTelemetria.created_at >= inicio,
-                    IAUXTelemetria.created_at < fim
-                ))
-            )
-            total_executed = q_exec.scalar() or 0
-
-            # 4. Total de aberturas do Modo Avançado
-            q_adv = await db.execute(
-                select(func.count(IAUXTelemetria.id))
-                .where(and_(
-                    IAUXTelemetria.tenant_id == tenant_id,
-                    IAUXTelemetria.evento == "advanced_mode_opened",
-                    IAUXTelemetria.created_at >= inicio,
-                    IAUXTelemetria.created_at < fim
-                ))
-            )
-            total_advanced_opened = q_adv.scalar() or 0
-
-            # 5. Tempo médio até decisão (time_to_action_ms nos metadados do essential_cta_clicked)
-            q_time = await db.execute(
+            # 1 a 5: Busca todas as métricas consolidadas em uma única query para não esgotar o pool
+            q_stats = await db.execute(
                 text("""
-                    SELECT AVG((metadados->>'time_to_action_ms')::float)
+                    SELECT 
+                        COUNT(CASE WHEN evento = 'essential_view_loaded' THEN 1 END) as total_view_loaded,
+                        COUNT(CASE WHEN evento = 'essential_cta_clicked' THEN 1 END) as total_cta_clicked,
+                        COUNT(CASE WHEN evento = 'essential_action_executed' THEN 1 END) as total_executed,
+                        COUNT(CASE WHEN evento = 'advanced_mode_opened' THEN 1 END) as total_advanced_opened,
+                        AVG(CASE WHEN evento = 'essential_cta_clicked' THEN (metadados->>'time_to_action_ms')::float ELSE NULL END) as tempo_medio_decisao
                     FROM ia_ux_telemetria
                     WHERE tenant_id = :tenant_id
-                    AND evento = 'essential_cta_clicked'
                     AND created_at >= :inicio AND created_at < :fim
-                    AND metadados->>'time_to_action_ms' IS NOT NULL
                 """),
                 {"tenant_id": tenant_id, "inicio": inicio, "fim": fim}
             )
-            tempo_medio_decisao = q_time.scalar() or 0
+            stats = q_stats.mappings().first()
+            if not stats:
+                stats = {"total_view_loaded": 0, "total_cta_clicked": 0, "total_executed": 0, "total_advanced_opened": 0, "tempo_medio_decisao": 0}
+
+            total_view_loaded = stats["total_view_loaded"] or 0
+            total_cta_clicked = stats["total_cta_clicked"] or 0
+            total_executed = stats["total_executed"] or 0
+            total_advanced_opened = stats["total_advanced_opened"] or 0
+            tempo_medio_decisao = stats["tempo_medio_decisao"] or 0
 
             # 6. Comparação Essencial vs Avançado (Execuções)
             q_comparativo = await db.execute(

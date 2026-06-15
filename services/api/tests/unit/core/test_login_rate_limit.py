@@ -13,7 +13,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.services.login_rate_limit_service import LoginRateLimitService
-from core.models.auth import TentativaLogin
+from core.models import TentativaLogin
 
 
 @pytest.fixture

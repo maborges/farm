@@ -52,11 +52,28 @@ class ProdutoColhido(Base):
         nullable=True, index=True,
         comment="Classificação de mercado atribuída (TIPO_1, PREMIUM, etc.)"
     )
+    qualidade_laudo_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("operacional_qualidade_laudos.id", ondelete="SET NULL"),
+        nullable=True, index=True,
+        comment="Laudo de qualidade aplicado ao produto colhido"
+    )
+    qualidade_status: Mapped[str | None] = mapped_column(
+        String(50), nullable=True,
+        comment="APROVADO | REPROVADO"
+    )
 
     # Quantidade
     quantidade: Mapped[float] = mapped_column(Numeric(14, 3), nullable=False, comment="Quantidade na unidade da commodity")
     unidade: Mapped[str] = mapped_column(String(20), nullable=False, comment="Unidade de medida (herdada da commodity)")
     peso_liquido_kg: Mapped[float] = mapped_column(Numeric(14, 3), nullable=False, comment="Peso líquido real em kg")
+    peso_desconto_qualidade_kg: Mapped[float] = mapped_column(
+        Numeric(14, 3), nullable=False, default=0, server_default="0",
+        comment="Desconto por qualidade aplicado sem alterar o ledger físico"
+    )
+    peso_liquido_comercial_kg: Mapped[float | None] = mapped_column(
+        Numeric(14, 3), nullable=True,
+        comment="Peso comercial após desconto de qualidade"
+    )
 
     # Qualidade medida no momento da entrada
     umidade_pct: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)

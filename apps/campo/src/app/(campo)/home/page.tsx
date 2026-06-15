@@ -104,7 +104,7 @@ export default function HomePage() {
             <div className="flex items-center justify-between gap-2">
               <h1 className="text-xl font-semibold tracking-tight">Taréfas</h1>
               <CampoPill className="ml-auto shrink-0">
-                {availableActivities.length} atalhos ativos
+                {availableActivities.length} talhões ativos
               </CampoPill>
             </div>
             <div>
@@ -291,16 +291,15 @@ export default function HomePage() {
                     <p className="text-xs text-muted-foreground">{formatDate(task.created_at)}</p>
                   </div>
                   <span
-                    className={`text-xs rounded-full px-2.5 py-1 font-medium ${
-                    task.synced
-                      ? "bg-green-50 text-green-800 dark:bg-green-950/30 dark:text-green-200"
-                      : task.sync_conflict
-                      ? "bg-rose-50 text-rose-800 dark:bg-rose-950/30 dark:text-rose-200"
-                      : "bg-amber-50 text-amber-800 dark:bg-amber-950/30 dark:text-amber-200"
-                  }`}
-                >
-                  {task.synced ? "✓ Sync" : task.sync_conflict ? "Conflito" : "Pendente"}
-                </span>
+                    className={`text-xs rounded-full px-2.5 py-1 font-medium ${task.synced
+                        ? "bg-green-50 text-green-800 dark:bg-green-950/30 dark:text-green-200"
+                        : task.sync_conflict
+                          ? "bg-rose-50 text-rose-800 dark:bg-rose-950/30 dark:text-rose-200"
+                          : "bg-amber-50 text-amber-800 dark:bg-amber-950/30 dark:text-amber-200"
+                      }`}
+                  >
+                    {task.synced ? "✓ Sync" : task.sync_conflict ? "Conflito" : "Pendente"}
+                  </span>
                 </div>
               </div>
             ))}
@@ -327,11 +326,10 @@ function TarefaCard({
   return (
     <button
       onClick={onClick}
-      className={`flex w-full items-start justify-between gap-3 rounded-sm border p-3.5 text-left shadow-sm transition-transform active:scale-[0.99] ${
-        highlight
+      className={`flex w-full items-start justify-between gap-3 rounded-sm border p-3.5 text-left shadow-sm transition-transform active:scale-[0.99] ${highlight
           ? "border-sky-200 bg-sky-50 dark:border-sky-900/60 dark:bg-sky-950/30"
           : "border-border bg-card"
-      }`}
+        }`}
     >
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <p className="truncate text-sm font-semibold text-foreground">
@@ -349,9 +347,8 @@ function TarefaCard({
         )}
       </div>
       <span
-        className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] ${
-          PRIORIDADE_COLOR[task.prioridade] ?? PRIORIDADE_COLOR.NORMAL
-        }`}
+        className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] ${PRIORIDADE_COLOR[task.prioridade] ?? PRIORIDADE_COLOR.NORMAL
+          }`}
       >
         {PRIORIDADE_LABEL[task.prioridade] ?? task.prioridade}
       </span>

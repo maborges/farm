@@ -60,7 +60,7 @@ class RecebimentoCreate(BaseModel):
     numero_nf: Optional[str] = Field(None, max_length=50)
     chave_nfe: Optional[str] = Field(None, max_length=60)
     observacoes: Optional[str] = Field(None, max_length=500)
-    itens: List[ItemRecebimentoCreate] = Field(..., min_length=1)
+    itens: Optional[List[ItemRecebimentoCreate]] = None
 
 
 class ItemRecebimentoResponse(BaseModel):

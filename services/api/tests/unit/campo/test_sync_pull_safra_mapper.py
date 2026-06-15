@@ -10,7 +10,7 @@ from agricola.caderno.schemas import EntradaCreate
 from agricola.caderno.service import CadernoCampoService
 from campo.models import DispositivoCampo, TarefaCampo
 from campo.service import SyncService
-from core.models.auth import Usuario
+from core.models import Usuario
 from core.cadastros.propriedades.models import AreaRural
 from sqlalchemy import text
 

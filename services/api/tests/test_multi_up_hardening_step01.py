@@ -11,7 +11,7 @@ from agricola.operacoes.schemas import OperacaoAgricolaCreate
 from agricola.operacoes.service import OperacaoService
 from agricola.safras.models import Safra, SafraTalhao
 from core.exceptions import BusinessRuleError
-from core.models.auth import TenantUsuario, UnidadeProdutivaUsuario, Usuario
+from core.models import TenantUsuario, UnidadeProdutivaUsuario, Usuario
 from core.operational_context import resolve_unidade_produtiva_context
 from financeiro.models.despesa import Despesa
 from financeiro.models.plano_conta import PlanoConta

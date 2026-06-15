@@ -21,7 +21,7 @@ from operacional.models.compras import (
     DevolucaoFornecedor, ItemDevolucao, Fornecedor,
 )
 from core.cadastros.produtos.models import Produto
-from core.models.auth import Usuario
+from core.models import Usuario
 from operacional.routers.compras import atualizar_status_devolucao
 from operacional.schemas.compras import DevolucaoStatusUpdate
 from operacional.services.estoque_fifo import consumir_lotes_fifo, atualizar_saldo_apos_consumo

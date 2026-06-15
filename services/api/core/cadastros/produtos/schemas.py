@@ -260,6 +260,9 @@ class ProdutoUpdate(BaseModel):
     preco_ultima_compra: Optional[float] = None
     dados_extras: Optional[dict[str, Any]] = None
     ativo: Optional[bool] = None
+    detalhe_agricola: Optional[ProdutoAgricolaCreate] = None
+    detalhe_estoque: Optional[ProdutoEstoqueCreate] = None
+    detalhe_epi: Optional[ProdutoEPICreate] = None
 
 
 class ProdutoResponse(BaseModel):

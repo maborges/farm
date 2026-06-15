@@ -27,7 +27,7 @@ class TestRequireFazendaAccess:
 
     def _make_fu(self, vigencia_inicio=None, vigencia_fim=None):
         """Helper: cria FazendaUsuario mock com vigência."""
-        from core.models.auth import FazendaUsuario
+        from core.models import FazendaUsuario
         fu = MagicMock(spec=FazendaUsuario)
         fu.vigencia_inicio = vigencia_inicio
         fu.vigencia_fim = vigencia_fim

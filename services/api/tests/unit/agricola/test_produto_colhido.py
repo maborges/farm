@@ -75,9 +75,13 @@ class TestProdutoColhidoCreate:
             safra_id=uuid.uuid4(),
             talhao_id=uuid.uuid4(),
             commodity_id=uuid.uuid4(),
+            qualidade_laudo_id=uuid.uuid4(),
+            qualidade_status="APROVADO",
             quantidade=500.0,
             unidade="SACA_60KG",
             peso_liquido_kg=30000.0,
+            peso_desconto_qualidade_kg=150.0,
+            peso_liquido_comercial_kg=29850.0,
             data_entrada=date(2026, 4, 12),
             umidade_pct=14.5,
             impureza_pct=1.2,
@@ -87,6 +91,8 @@ class TestProdutoColhidoCreate:
         )
         assert p.umidade_pct == 14.5
         assert p.impureza_pct == 1.2
+        assert p.qualidade_status == "APROVADO"
+        assert p.peso_liquido_comercial_kg == 29850.0
 
 
 # ===========================================================================

@@ -1,3 +1,4 @@
+from core.dependencies import require_tenant_permission
 """
 Router — ComercializacaoCommodity
 """

@@ -21,10 +21,11 @@ from core.services.login_rate_limit_service import LoginRateLimitService
 from core.services.email_service import email_service
 from core.utils.cpf_cnpj import normalizar_documento_opcional, validar_cpf_ou_cnpj
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+import bcrypt
 
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    salt = bcrypt.gensalt()
+    return bcrypt.hashpw(password.encode("utf-8"), salt).decode("utf-8")
 
 
 def _slugify_tenant_name(value: str) -> str:
@@ -37,10 +38,13 @@ class AuthService:
         self.session = session
         
     def verify_password(self, plain_password, hashed_password):
-        return pwd_context.verify(plain_password, hashed_password)
+        try:
+            return bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password.encode("utf-8"))
+        except ValueError:
+            return False
 
     def get_password_hash(self, password):
-        return pwd_context.hash(password)
+        return hash_password(password)
         
     def create_access_token(self, data: dict, expires_delta: Optional[timedelta] = None):
         to_encode = data.copy()

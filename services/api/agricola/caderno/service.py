@@ -401,6 +401,7 @@ class CadernoCampoService(BaseService[CadernoCampoEntrada]):
             status_novo=status_novo,
             usuario_id=usuario_id or self.user_id,
             justificativa=justificativa,
+            created_at=datetime.utcnow(),
         )
         self.session.add(historico)
         await self.session.flush()

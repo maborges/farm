@@ -46,6 +46,11 @@ class RomaneioColheita(Base):
     sacas_60kg: Mapped[float | None] = mapped_column(Numeric(12, 3))
     produtividade_sc_ha: Mapped[float | None] = mapped_column(Numeric(10, 3))
 
+    qualidade_laudo_id: Mapped[UUID | None] = mapped_column(ForeignKey("operacional_qualidade_laudos.id", ondelete="SET NULL"), nullable=True, index=True)
+    qualidade_status: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    peso_desconto_qualidade_kg: Mapped[float] = mapped_column(Numeric(12, 3), default=0, nullable=False, server_default="0")
+    peso_liquido_comercial_kg: Mapped[float | None] = mapped_column(Numeric(12, 3), nullable=True)
+
     destino: Mapped[str | None] = mapped_column(String(30)) # ARMAZEM, TERCESIRO...
     armazem_id: Mapped[UUID | None] = mapped_column(Uuid, nullable=True)
     nf_id: Mapped[UUID | None] = mapped_column(Uuid, nullable=True)

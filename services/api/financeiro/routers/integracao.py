@@ -1,3 +1,4 @@
+from core.dependencies import require_tenant_permission
 """
 Router de Integrações Financeiras:
   - Contas Bancárias + importação OFX

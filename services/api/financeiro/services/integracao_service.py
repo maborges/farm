@@ -105,16 +105,22 @@ class ConciliacaoService:
         importados = 0
         duplicados = 0
 
+        # LOTE: Extrair fitids válidos para uma query de deduplicação em batch
+        fitids_validos = [t["fitid"] for t in transacoes if t["fitid"]]
+        existentes_set = set()
+
+        if fitids_validos:
+            stmt_dup_lote = select(LancamentoBancario.id_ofx).where(
+                LancamentoBancario.conta_id == conta_id,
+                LancamentoBancario.id_ofx.in_(fitids_validos)
+            )
+            existentes_set = set((await self.session.execute(stmt_dup_lote)).scalars().all())
+
         for t in transacoes:
-            # Deduplicação por FITID
-            if t["fitid"]:
-                stmt_dup = select(LancamentoBancario.id).where(
-                    LancamentoBancario.conta_id == conta_id,
-                    LancamentoBancario.id_ofx == t["fitid"],
-                )
-                if (await self.session.execute(stmt_dup)).scalar():
-                    duplicados += 1
-                    continue
+            # Deduplicação em memória por FITID
+            if t["fitid"] and t["fitid"] in existentes_set:
+                duplicados += 1
+                continue
 
             lanc = LancamentoBancario(
                 id=uuid.uuid4(),

@@ -180,9 +180,8 @@ def test_senha_hash_bcrypt():
     assert hashed != senha
     assert hashed.startswith("$2b$") or hashed.startswith("$2a$")
 
-    from passlib.context import CryptContext
-    ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
-    assert ctx.verify(senha, hashed)
+    import bcrypt
+    assert bcrypt.checkpw(senha.encode('utf-8'), hashed.encode('utf-8'))
 
 
 # ---------------------------------------------------------------------------
@@ -209,7 +208,7 @@ async def test_registro_novo_usuario(auth_service, mock_session):
     added_objects = []
     mock_session.add.side_effect = lambda obj: added_objects.append(obj)
 
-    from core.models.auth import Usuario
+    from core.models import Usuario
     with patch.object(Usuario, "__init__", lambda self, **kw: self.__dict__.update(kw)):
         await auth_service.register_user(user_data)
 

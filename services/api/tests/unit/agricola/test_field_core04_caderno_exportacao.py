@@ -7,7 +7,7 @@ from sqlalchemy import text, select
 from agricola.caderno.schemas import EntradaCreate, ExportacaoCreate
 from agricola.caderno.service import CadernoCampoService, CadernoExportacaoService
 from agricola.caderno.models import CadernoExportacao
-from core.models.auth import Usuario, TenantUsuario
+from core.models import Usuario, TenantUsuario
 
 
 async def _ensure_caderno_export_schema(session) -> None:

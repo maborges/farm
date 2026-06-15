@@ -6,7 +6,7 @@ import pytest
 
 from campo.schemas import DeviceCreate, DeviceReactivateRequest
 from campo.service import DispositivoService
-from core.models.auth import Usuario
+from core.models import Usuario
 
 
 pytestmark = pytest.mark.asyncio

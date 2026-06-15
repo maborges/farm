@@ -13,6 +13,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from core.services.auth_service import AuthService
 from unittest.mock import MagicMock
+from sqlalchemy import text, select
+from core.database import async_session_maker
+from core.models.tenant import Tenant
+from core.models import Usuario
 
 
 # IDs fixos para facilitar rastreabilidade nos testes
@@ -22,6 +26,7 @@ TALHAO_ID = uuid.UUID("cccccccc-0000-0000-0000-000000000003")
 PRODUTO_ID = uuid.UUID("dddddddd-0000-0000-0000-000000000004")
 USER_ID    = uuid.UUID("eeeeeeee-0000-0000-0000-000000000005")
 
+# Setup script will insert mock data before pytest runs.
 
 def _gerar_token(tenant_id: uuid.UUID, modules: list[str], role: str = "admin") -> str:
     svc = AuthService(MagicMock())
