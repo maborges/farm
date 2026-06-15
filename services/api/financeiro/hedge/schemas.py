@@ -260,14 +260,16 @@ class ExposicaoConsolidadaResponse(BaseModel):
 
 
 class ExposicaoHistoricoItem(BaseModel):
-    """Ponto da série temporal de cobertura baseado em snapshots MTM."""
+    """Ponto da série temporal de cobertura baseado em snapshots MTM e exposição atual."""
 
     model_config = ConfigDict(from_attributes=True)
 
     data_referencia: str
-    quantidade_aberta_sc: float
+    exposicao_fisica_sc: float
+    protecao_financeira_sc: float
+    exposicao_aberta_sc: float
+    hedge_ratio: float
     pnl_nao_realizado: float
-    preco_medio_mercado: Optional[float] = None
 
 
 # ==============================================================================

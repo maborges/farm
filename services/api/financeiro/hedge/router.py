@@ -262,8 +262,8 @@ async def calcular_exposicao_historico(
 
     Disponível apenas no tier ENTERPRISE.
     """
-    svc = HedgeSnapshotService(session)
-    snapshots = await svc.listar_snapshots(
+    svc_snapshot = HedgeSnapshotService(session)
+    snapshots = await svc_snapshot.listar_snapshots(
         tenant_id=tenant_id,
         safra_id=safra_id,
         commodity_id=commodity_id,
@@ -271,15 +271,49 @@ async def calcular_exposicao_historico(
         data_fim=data_fim,
         limit=limit,
     )
-    return [
-        ExposicaoHistoricoItem(
-            data_referencia=str(s.data_referencia),
-            quantidade_aberta_sc=float(s.quantidade_aberta),
-            pnl_nao_realizado=float(s.pnl_nao_realizado),
-            preco_medio_mercado=float(s.preco_mercado) if s.preco_mercado else None,
+
+    # Obter a Exposição Física base atual (Exposição Líquida sem hedge)
+    commodity_name = None
+    if commodity_id:
+        from core.cadastros.commodities.models import Commodity
+        from sqlalchemy import select
+        c = await session.execute(select(Commodity).where(Commodity.id == commodity_id))
+        comm = c.scalar_one_or_none()
+        if comm:
+            commodity_name = comm.nome
+
+    svc_exp = HedgeExposureService(session, tenant_id)
+    exp_atual = await svc_exp.calcular_exposicao(safra_id=safra_id, commodity=commodity_name)
+    base_fisica = exp_atual.exposicao_liquida_sc
+
+    # Agrupar snapshots por data
+    from collections import defaultdict
+    agrupado = defaultdict(lambda: {"protecao": 0.0, "pnl": 0.0})
+    for s in snapshots:
+        data_str = str(s.data_referencia)
+        agrupado[data_str]["protecao"] += float(s.quantidade_aberta)
+        agrupado[data_str]["pnl"] += float(s.pnl_nao_realizado)
+        
+    resultado = []
+    for data_str in sorted(agrupado.keys()):
+        protecao = agrupado[data_str]["protecao"]
+        pnl = agrupado[data_str]["pnl"]
+        
+        aberta = base_fisica - protecao
+        hr = (protecao / base_fisica) if base_fisica > 0 else 0.0
+        
+        resultado.append(
+            ExposicaoHistoricoItem(
+                data_referencia=data_str,
+                exposicao_fisica_sc=base_fisica,
+                protecao_financeira_sc=protecao,
+                exposicao_aberta_sc=aberta,
+                hedge_ratio=hr,
+                pnl_nao_realizado=pnl,
+            )
         )
-        for s in snapshots
-    ]
+        
+    return resultado
 
 
 # ==============================================================================

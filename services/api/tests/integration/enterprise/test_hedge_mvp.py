@@ -280,7 +280,8 @@ async def test_exposicao_desconta_hedge_registrado():
     exposicao = await svc.calcular_exposicao()
 
     assert exposicao.ja_hedgeado_sc == 4000.0
-    assert exposicao.exposicao_liquida_sc == 4000.0  # 10000 - 2000 - 4000
+    assert exposicao.exposicao_aberta_sc == 4000.0  # 10000 - 2000 - 4000
+    assert exposicao.exposicao_liquida_sc == 8000.0
 
 
 # ==============================================================================
