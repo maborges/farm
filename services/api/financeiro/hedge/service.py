@@ -288,16 +288,23 @@ class HedgeService:
 
 
 class HedgeExposureService:
-    """Serviço de cálculo de exposição líquida de preço.
+    """Serviço de cálculo de exposição física e financeira de commodities.
 
-    Fórmula:
-        exposicao_bruta   = Σ (produtividade_meta_sc_ha × area_ha) por safra/commodity
-        ja_vendido        = Σ comercializacoes confirmadas/entregues/finalizadas
-        ja_hedgeado       = Σ contratos ABERTOS (quantidade total hedgeada)
-        exposicao_liquida = exposicao_bruta - ja_vendido - ja_hedgeado
-        perc_cobertura    = ja_hedgeado / exposicao_bruta × 100
+    Fórmula Oficial:
+        exposicao_bruta      = Σ (produtividade_meta_sc_ha × area_ha) + estoque_fisico
+        compromissos_fisicos = Σ comercializacoes confirmadas/entregues/finalizadas
+        exposicao_fisica_liq = exposicao_bruta - compromissos_fisicos
+        protecao_financeira  = Σ contratos futuros ABERTOS
+        exposicao_aberta     = exposicao_fisica_liq - protecao_financeira
+        percentual_cobertura = (protecao_financeira / exposicao_fisica_liq) × 100
+        hedge_ratio          = percentual_cobertura / 100
+        classificacao_risco  = DESCOBERTO | EQUILIBRADO | SOBREPROTEGIDO
 
-    Não persiste nada. Todos os dados vêm das fontes canônicas.
+    Não persiste nada. Todos os dados vêm das fontes canônicas:
+    - Cultivo + CultivoArea → produção estimada
+    - SaldoEstoque + cadastros_commodities → estoque físico de commodities
+    - ComercializacaoCommodity → compromissos físicos
+    - ContratoFuturo → proteção financeira
 
     Args:
         session: Sessão AsyncSession.
@@ -310,47 +317,189 @@ class HedgeExposureService:
         self._session = session
         self._tenant_id = tenant_id
 
+    # ------------------------------------------------------------------
+    # Classificação de Risco (função pura — sem I/O)
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _classificar_risco_cobertura(percentual_cobertura: float) -> str:
+        """Classifica o nível de risco de cobertura com base no percentual.
+
+        Args:
+            percentual_cobertura: Percentual de cobertura financeira sobre
+                a exposição física líquida (0–100+%).
+
+        Returns:
+            DESCOBERTO se < 70%, EQUILIBRADO se 70–110%, SOBREPROTEGIDO se > 110%.
+        """
+        from financeiro.hedge.schemas import (
+            CLASSIFICACAO_DESCOBERTO,
+            CLASSIFICACAO_EQUILIBRADO,
+            CLASSIFICACAO_SOBREPROTEGIDO,
+            LIMITE_COBERTURA_MINIMO,
+            LIMITE_COBERTURA_MAXIMO,
+        )
+        if percentual_cobertura < LIMITE_COBERTURA_MINIMO:
+            return CLASSIFICACAO_DESCOBERTO
+        if percentual_cobertura > LIMITE_COBERTURA_MAXIMO:
+            return CLASSIFICACAO_SOBREPROTEGIDO
+        return CLASSIFICACAO_EQUILIBRADO
+
+    # ------------------------------------------------------------------
+    # Cálculo Principal
+    # ------------------------------------------------------------------
+
     async def calcular_exposicao(
         self,
         safra_id: Optional[uuid.UUID] = None,
         commodity: Optional[str] = None,
+        unidade_produtiva_id: Optional[uuid.UUID] = None,
     ) -> HedgeExposicaoResponse:
-        """Calcula a exposição líquida de preço para o tenant.
+        """Calcula a exposição física e financeira completa para o tenant.
 
         Args:
-            safra_id: Filtro opcional por safra. Sem filtro: considera todas as safras.
-            commodity: Filtro opcional por nome de commodity.
+            safra_id: Filtro opcional por safra.
+            commodity: Filtro opcional por nome de commodity (case-insensitive).
+            unidade_produtiva_id: Filtro opcional por Unidade Produtiva (via talhão).
 
         Returns:
             HedgeExposicaoResponse com todos os componentes da fórmula.
         """
-        producao = await self._calcular_producao_estimada(safra_id, commodity)
+        producao = await self._calcular_producao_estimada(
+            safra_id, commodity, unidade_produtiva_id
+        )
+        estoque_fisico = await self._calcular_estoque_fisico(commodity)
         ja_vendido = await self._calcular_ja_vendido(safra_id, commodity)
         ja_hedgeado = await self._calcular_ja_hedgeado(safra_id, commodity)
 
-        exposicao = producao - ja_vendido - ja_hedgeado
-        percentual = (ja_hedgeado / producao * 100) if producao > 0 else 0.0
+        exposicao_bruta = producao + estoque_fisico
+        exposicao_liquida = exposicao_bruta - ja_vendido
+        exposicao_aberta = exposicao_liquida - ja_hedgeado
+
+        percentual = (
+            (ja_hedgeado / exposicao_liquida * 100) if exposicao_liquida > 0 else 0.0
+        )
+        hedge_ratio = percentual / 100.0
+        classificacao = self._classificar_risco_cobertura(percentual)
 
         return HedgeExposicaoResponse(
             tenant_id=self._tenant_id,
             safra_id=safra_id,
             commodity=commodity,
             producao_estimada_sc=producao,
+            estoque_fisico_sc=estoque_fisico,
+            exposicao_bruta_sc=exposicao_bruta,
             ja_vendido_sc=ja_vendido,
             ja_hedgeado_sc=ja_hedgeado,
-            exposicao_liquida_sc=exposicao,
+            exposicao_liquida_sc=exposicao_liquida,
+            exposicao_aberta_sc=exposicao_aberta,
             percentual_cobertura=round(percentual, 2),
+            hedge_ratio=round(hedge_ratio, 4),
+            classificacao_risco=classificacao,
         )
+
+    async def calcular_consolidado(self) -> "ExposicaoConsolidadaResponse":
+        """Calcula a visão consolidada multi-safra e multi-commodity.
+
+        Agrega todas as safras ativas do tenant agrupando por safra e cultura.
+        Retorna subtotais por grupo e totais globais.
+
+        Returns:
+            ExposicaoConsolidadaResponse com breakdown por safra/commodity.
+        """
+        from financeiro.hedge.schemas import (
+            ExposicaoConsolidadaResponse,
+            ExposicaoConsolidadaItemResponse,
+        )
+        from sqlalchemy import text as sa_text
+
+        # Consulta de produção estimada agrupada por safra e cultura
+        stmt = sa_text(
+            """
+            SELECT
+                c.safra_id,
+                s.ano_safra,
+                UPPER(c.cultura) AS commodity,
+                COALESCE(SUM(c.produtividade_meta_sc_ha * ca.area_ha), 0.0) AS producao
+            FROM cultivos c
+            JOIN cultivo_areas ca ON ca.cultivo_id = c.id
+            JOIN safras s ON s.id = c.safra_id
+            WHERE s.tenant_id = :tenant_id
+              AND c.produtividade_meta_sc_ha IS NOT NULL
+              AND ca.area_ha IS NOT NULL
+            GROUP BY c.safra_id, s.ano_safra, UPPER(c.cultura)
+            """
+        )
+        result = await self._session.execute(stmt, {"tenant_id": str(self._tenant_id)})
+        rows = result.fetchall()
+
+        itens: list[ExposicaoConsolidadaItemResponse] = []
+        total_bruta = 0.0
+        total_vendido = 0.0
+        total_hedgeado = 0.0
+
+        for row in rows:
+            safra_id_row = row[0]
+            ano_safra = row[1]
+            commodity_row = row[2]
+            producao = float(row[3])
+
+            vendido = await self._calcular_ja_vendido(safra_id_row, commodity_row)
+            hedgeado = await self._calcular_ja_hedgeado(safra_id_row, commodity_row)
+            exposicao_bruta = producao
+            exposicao_aberta = exposicao_bruta - vendido - hedgeado
+            perc = (hedgeado / (exposicao_bruta - vendido) * 100) if (exposicao_bruta - vendido) > 0 else 0.0
+
+            itens.append(ExposicaoConsolidadaItemResponse(
+                safra_id=safra_id_row,
+                ano_safra=ano_safra,
+                commodity=commodity_row,
+                exposicao_bruta_sc=round(exposicao_bruta, 2),
+                ja_vendido_sc=round(vendido, 2),
+                ja_hedgeado_sc=round(hedgeado, 2),
+                exposicao_aberta_sc=round(exposicao_aberta, 2),
+                percentual_cobertura=round(perc, 2),
+                classificacao_risco=self._classificar_risco_cobertura(perc),
+            ))
+            total_bruta += exposicao_bruta
+            total_vendido += vendido
+            total_hedgeado += hedgeado
+
+        total_liquida = total_bruta - total_vendido
+        total_aberta = total_liquida - total_hedgeado
+        perc_global = (total_hedgeado / total_liquida * 100) if total_liquida > 0 else 0.0
+
+        return ExposicaoConsolidadaResponse(
+            tenant_id=self._tenant_id,
+            total_exposicao_bruta_sc=round(total_bruta, 2),
+            total_compromissos_sc=round(total_vendido, 2),
+            total_protecao_sc=round(total_hedgeado, 2),
+            total_exposicao_aberta_sc=round(total_aberta, 2),
+            percentual_cobertura_global=round(perc_global, 2),
+            classificacao_risco_global=self._classificar_risco_cobertura(perc_global),
+            por_safra_commodity=itens,
+        )
+
+    # ------------------------------------------------------------------
+    # Métodos Privados de Cálculo
+    # ------------------------------------------------------------------
 
     async def _calcular_producao_estimada(
         self,
         safra_id: Optional[uuid.UUID],
         commodity: Optional[str],
+        unidade_produtiva_id: Optional[uuid.UUID] = None,
     ) -> float:
         """Calcula produção estimada somando produtividade_meta × área por cultivo.
 
         Usa Cultivo.produtividade_meta_sc_ha × CultivoArea.area_ha.
         Filtra pelo tenant via Safra.tenant_id.
+        Suporta filtro opcional por Unidade Produtiva via talhão → UP.
+
+        Args:
+            safra_id: Filtro por safra.
+            commodity: Filtro por nome de cultura/commodity.
+            unidade_produtiva_id: Filtro por Unidade Produtiva (via estoque_depositos.unidade_produtiva_id).
 
         Returns:
             Produção estimada total em sacas.
@@ -368,6 +517,17 @@ class HedgeExposureService:
             filters += " AND UPPER(c.cultura) = :commodity"
             params["commodity"] = commodity.upper()
 
+        if unidade_produtiva_id:
+            # Vínculo: CultivoArea.area_id → cadastros_areas_rurais.id → unidade_produtiva_id
+            filters += (
+                " AND EXISTS ("
+                " SELECT 1 FROM cadastros_areas_rurais ar"
+                " WHERE ar.id = ca.area_id"
+                " AND ar.unidade_produtiva_id = :unidade_produtiva_id"
+                ")"
+            )
+            params["unidade_produtiva_id"] = str(unidade_produtiva_id)
+
         stmt = sa_text(
             f"""
             SELECT COALESCE(SUM(c.produtividade_meta_sc_ha * ca.area_ha), 0.0)
@@ -382,6 +542,47 @@ class HedgeExposureService:
         result = await self._session.execute(stmt, params)
         return float(result.scalar() or 0.0)
 
+    async def _calcular_estoque_fisico(
+        self,
+        commodity: Optional[str],
+    ) -> float:
+        """Calcula o estoque físico disponível de commodities agrícolas.
+
+        Consulta SaldoEstoque filtrando apenas produtos do tipo COMMODITY
+        (cadastros_produtos.tipo = 'COMMODITY' ou via vínculo com cadastros_commodities).
+
+        Args:
+            commodity: Filtro por nome de commodity (case-insensitive).
+
+        Returns:
+            Total de estoque físico de commodities em sacas (quantidade_atual).
+        """
+        from sqlalchemy import text as sa_text
+
+        params: dict = {"tenant_id": str(self._tenant_id)}
+
+        # Filtra depósitos do tenant via unidade_produtiva → tenant
+        # e produtos que são commodities agrícolas
+        commodity_filter = ""
+        if commodity:
+            commodity_filter = " AND UPPER(p.nome) = :commodity"
+            params["commodity"] = commodity.upper()
+
+        stmt = sa_text(
+            f"""
+            SELECT COALESCE(SUM(se.quantidade_atual), 0.0)
+            FROM estoque_saldos se
+            JOIN estoque_depositos d ON d.id = se.deposito_id
+            JOIN cadastros_produtos p ON p.id = se.produto_id
+            WHERE d.tenant_id = :tenant_id
+              AND se.quantidade_atual > 0
+              AND p.tipo IN ('COMMODITY', 'GRAOS', 'SEMENTE')
+              {commodity_filter}
+            """
+        )
+        result = await self._session.execute(stmt, params)
+        return float(result.scalar() or 0.0)
+
     async def _calcular_ja_vendido(
         self,
         safra_id: Optional[uuid.UUID],
@@ -390,6 +591,10 @@ class HedgeExposureService:
         """Soma quantidade das comercializações confirmadas/entregues/finalizadas.
 
         Filtra pelo tenant e pelos status que representam venda efetiva.
+
+        Args:
+            safra_id: Filtro por safra (não aplicável diretamente; legado mantido).
+            commodity: Filtro por nome de commodity.
 
         Returns:
             Total vendido em sacas (ou unidade da comercialização).
@@ -445,3 +650,4 @@ class HedgeExposureService:
 
         result = await self._session.execute(stmt)
         return float(result.scalar() or 0.0)
+

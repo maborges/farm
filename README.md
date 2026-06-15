@@ -230,6 +230,26 @@ O projeto é dividido em um monorepo contendo:
 - **Isolamento Transacional**: O MTM é estritamente projetivo (snapshots) e **não** interfere no ledger contábil oficial, protegendo o DRE até a liquidação.
 - **Fluxo Funcional**: Job assíncrono processa posições ativas e gera a projeção de forma rastreável através do `TenantAuditLog`.
 
+### 25. Exposição Física × Exposição Financeira (EXECUTION-HEDGE-05)
+- **Descrição**: Módulo analítico para visão consolidada da exposição comercial de commodities agrícolas. Integra quatro fontes de dados já existentes — produção estimada (Cultivo), estoque físico (SaldoEstoque), compromisos físicos (ComercializacaoCommodity) e proteção financeira (ContratoFuturo) — sem criar novas tabelas.
+- **Fórmula Oficial**:
+  - `exposicao_bruta = Σ (produtividade_meta_sc_ha × area_ha) + estoque_fisico`
+  - `exposicao_liquida = exposicao_bruta - compromissos_fisicos_confirmados`
+  - `exposicao_aberta = exposicao_liquida - protecao_financeira_contratos_abertos`
+  - `percentual_cobertura = (protecao / exposicao_liquida) × 100`
+  - `classificacao_risco = DESCOBERTO (<70%) | EQUILIBRADO (70–110%) | SOBREPROTEGIDO (>110%)`
+- **Novos Endpoints**:
+  - `GET /hedge/exposicao` — fórmula completa com novos campos (`estoque_fisico_sc`, `exposicao_bruta_sc`, `exposicao_aberta_sc`, `hedge_ratio`, `classificacao_risco`). Aceita filtros por `safra_id`, `commodity` e `unidade_produtiva_id`.
+  - `GET /hedge/exposicao/consolidado` — agrega por safra e commodity gerando subtotais e risco global.
+  - `GET /hedge/exposicao/historico` — série temporal de MTM via snapshots (tier ENTERPRISE).
+- **Alertas Automáticos**: Três novos tipos de alerta integrados ao `AlertasEngine` via `HedgeSnapshotService.verificar_exposicao_comercial()`:
+  - `HEDGE_COBERTURA_INSUFICIENTE` (WARNING): cobertura < 70%
+  - `HEDGE_SOBRECOBERTURA` (INFO): cobertura > 110%
+  - `HEDGE_VENDA_SEM_LASTRO` (DANGER): vendas confirmadas > exposição física bruta
+- **Dashboard**: Nova tela `/dashboard/financeiro/hedge/exposicao` com gauge de cobertura, 8 KPIs divididos em grupos (Exposição Física / Proteção Financeira) e tabela analítica consolidada por safra e commodity.
+- **Fluxo**: Sidebar → "Exposição Física × Financeira" → RSC carrega `ExposicaoConsolidada` via `apiFetchServer` → `ExposicaoDashboardClient` combina duas queries paralelas (consolidado + detalhe) → KPIs + gauge + tabela.
+
+
 ## 🐛 Correções de Layout e UX (Bugfixes)
 
 ### 1. Padronização do Alinhamento das Páginas de Compras

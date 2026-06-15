@@ -1,16 +1,18 @@
 """
-Router — Hedge MVP (EXECUTION-HEDGE-01)
+Router — Hedge / Exposição Física × Financeira
 
 Prefixo: /hedge
 Módulo: F4_HEDGING (NÃO usa EXT_IA)
 
 Endpoints:
-  POST /hedge/contratos         — Cria instrumento futuro
-  GET  /hedge/contratos         — Lista instrumentos
-  POST /hedge/registros         — Registra operação de hedge
-  GET  /hedge/registros         — Lista operações
-  GET  /hedge/posicao           — Posição consolidada (projeção calculada)
-  GET  /hedge/exposicao         — Exposição líquida (serviço de cálculo)
+  POST /hedge/contratos              — Cria instrumento futuro
+  GET  /hedge/contratos              — Lista instrumentos
+  POST /hedge/registros              — Registra operação de hedge
+  GET  /hedge/registros              — Lista operações
+  GET  /hedge/posicao                — Posição consolidada (projeção calculada)
+  GET  /hedge/exposicao              — Exposição física × financeira completa
+  GET  /hedge/exposicao/consolidado  — Visão multi-safra/multi-commodity
+  GET  /hedge/exposicao/historico    — Série temporal MTM (ENTERPRISE)
 """
 import uuid
 from datetime import date
@@ -39,6 +41,8 @@ from .schemas import (
     HedgePositionSnapshotResponse,
     ReprocessarMtMRequest,
     ReprocessarMtMResponse,
+    ExposicaoConsolidadaResponse,
+    ExposicaoHistoricoItem,
 )
 from .service import HedgeService, HedgeExposureService
 from .snapshot_service import HedgeSnapshotService
@@ -183,28 +187,96 @@ async def calcular_posicao(
 @router.get(
     "/exposicao",
     response_model=HedgeExposicaoResponse,
-    summary="Exposição líquida de preço (serviço de cálculo)",
+    summary="Exposição física × financeira completa",
 )
 async def calcular_exposicao(
     safra_id: Optional[uuid.UUID] = Query(None),
-    commodity: Optional[str] = Query(None),
+    commodity: Optional[str] = Query(None, description="Filtro por commodity/cultura (ex: SOJA, MILHO)"),
+    unidade_produtiva_id: Optional[uuid.UUID] = Query(None, description="Filtro por Unidade Produtiva"),
     session: AsyncSession = Depends(get_session_with_tenant),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
-    """Calcula a exposição líquida de preço do tenant.
+    """Calcula a exposição física × financeira completa do tenant.
 
     Fórmula:
-        producao_estimada = Σ (produtividade_meta_sc_ha × area_ha)
-        ja_vendido        = Σ comercializações confirmadas/entregues/finalizadas
-        ja_hedgeado       = Σ contratos futuros ABERTOS
-        exposicao_liquida = producao_estimada - ja_vendido - ja_hedgeado
-        perc_cobertura    = ja_hedgeado / producao_estimada × 100
+        exposicao_bruta      = Σ (produtividade_meta_sc_ha × area_ha) + estoque_fisico
+        compromissos_fisicos = Σ comercializações confirmadas/entregues/finalizadas
+        protecao_financeira  = Σ contratos futuros ABERTOS
+        exposicao_aberta     = (exposicao_bruta - compromissos) - protecao
+        percentual_cobertura = protecao / (exposicao_bruta - compromissos) × 100
+        classificacao_risco  = DESCOBERTO (<70%) | EQUILIBRADO (70–110%) | SOBREPROTEGIDO (>110%)
 
-    Dados vêm de Cultivo, ComercializacaoCommodity e ContratoFuturo.
-    Não existe tabela hedge_exposure.
+    Dados vêm de Cultivo, SaldoEstoque, ComercializacaoCommodity e ContratoFuturo.
+    Nenhuma tabela nova criada — funcionalidade 100% analítica.
     """
     svc = HedgeExposureService(session, tenant_id)
-    return await svc.calcular_exposicao(safra_id=safra_id, commodity=commodity)
+    return await svc.calcular_exposicao(
+        safra_id=safra_id,
+        commodity=commodity,
+        unidade_produtiva_id=unidade_produtiva_id,
+    )
+
+
+@router.get(
+    "/exposicao/consolidado",
+    response_model=ExposicaoConsolidadaResponse,
+    summary="Exposição consolidada multi-safra e multi-commodity",
+)
+async def calcular_exposicao_consolidada(
+    session: AsyncSession = Depends(get_session_with_tenant),
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+):
+    """Retorna visão consolidada de exposição agrupada por safra e commodity.
+
+    Agrega todas as safras e commodities do tenant, exibindo subtotais por grupo
+    e totais globais com classificação de risco unificada.
+
+    Não existe tabela de consolidação — calculado em tempo real a partir
+    de Cultivo, ComercializacaoCommodity e ContratoFuturo.
+    """
+    svc = HedgeExposureService(session, tenant_id)
+    return await svc.calcular_consolidado()
+
+
+@router.get(
+    "/exposicao/historico",
+    response_model=list[ExposicaoHistoricoItem],
+    summary="Série temporal de cobertura (ENTERPRISE)",
+)
+async def calcular_exposicao_historico(
+    safra_id: Optional[uuid.UUID] = Query(None),
+    commodity_id: Optional[uuid.UUID] = Query(None),
+    data_inicio: Optional[date] = Query(None),
+    data_fim: Optional[date] = Query(None),
+    limit: int = Query(90, ge=1, le=365),
+    session: AsyncSession = Depends(get_session_with_tenant),
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+):
+    """Retorna a série temporal da posição de cobertura baseada nos snapshots MTM.
+
+    Utiliza os dados de hedge_position_snapshots_v2 já persistidos para
+    construir a evolução histórica. Nenhum dado novo é calculado.
+
+    Disponível apenas no tier ENTERPRISE.
+    """
+    svc = HedgeSnapshotService(session)
+    snapshots = await svc.listar_snapshots(
+        tenant_id=tenant_id,
+        safra_id=safra_id,
+        commodity_id=commodity_id,
+        data_inicio=data_inicio,
+        data_fim=data_fim,
+        limit=limit,
+    )
+    return [
+        ExposicaoHistoricoItem(
+            data_referencia=str(s.data_referencia),
+            quantidade_aberta_sc=float(s.quantidade_aberta),
+            pnl_nao_realizado=float(s.pnl_nao_realizado),
+            preco_medio_mercado=float(s.preco_mercado) if s.preco_mercado else None,
+        )
+        for s in snapshots
+    ]
 
 
 # ==============================================================================

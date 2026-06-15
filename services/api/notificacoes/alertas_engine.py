@@ -114,7 +114,38 @@ class AlertasEngine:
                     f"Tenant {tenant_id}: {reconciliacao_total} inconsistência(s) de reconciliação econômica observadas"
                 )
 
+            # 5. Exposição Comercial (Hedge) — apenas se módulo F4_HEDGING ativo
+            await self._verificar_exposicao_comercial(session, tenant_id)
+
         return alertas_gerados
+
+    async def _verificar_exposicao_comercial(
+        self, session: AsyncSession, tenant_id: UUID
+    ) -> None:
+        """Verifica e emite alertas de risco de cobertura comercial via HedgeSnapshotService.
+
+        Delega ao HedgeSnapshotService para manter a lógica centralizada no módulo F4.
+        Executado apenas para tenants que possuem contratos futuros ativos.
+
+        Args:
+            session: Sessão AsyncSession.
+            tenant_id: UUID do tenant.
+        """
+        from datetime import date as date_type
+        from financeiro.hedge.snapshot_service import HedgeSnapshotService
+
+        try:
+            snapshot_svc = HedgeSnapshotService(session)
+            hoje = date_type.today()
+            count = await snapshot_svc.verificar_exposicao_comercial(
+                tenant_id=tenant_id,
+                data_ref=hoje,
+            )
+            if count:
+                logger.info(f"Tenant {tenant_id}: {count} alerta(s) de exposição comercial gerado(s)")
+        except Exception as exc:
+            logger.warning(f"Tenant {tenant_id}: erro ao verificar exposição comercial — {exc}")
+
 
     async def _verificar_vencimentos(
         self, session: AsyncSession, tenant_id: UUID

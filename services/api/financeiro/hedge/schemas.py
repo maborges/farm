@@ -180,15 +180,27 @@ class HedgePosicaoResponse(BaseModel):
 # HedgeExposicao (serviço de cálculo — sem tabela)
 # ==============================================================================
 
+# Classificações canônicas de risco de cobertura
+CLASSIFICACAO_DESCOBERTO = "DESCOBERTO"
+CLASSIFICACAO_EQUILIBRADO = "EQUILIBRADO"
+CLASSIFICACAO_SOBREPROTEGIDO = "SOBREPROTEGIDO"
+
+LIMITE_COBERTURA_MINIMO = 70.0   # abaixo → DESCOBERTO
+LIMITE_COBERTURA_MAXIMO = 110.0  # acima → SOBREPROTEGIDO
+
+
 class HedgeExposicaoResponse(BaseModel):
-    """Resultado do cálculo de exposição líquida de preço.
+    """Resultado do cálculo completo de exposição física e financeira.
 
     Fórmula:
-        exposicao_bruta      = Σ (produtividade_meta_sc_ha × area_ha)
-        ja_vendido           = Σ comercializacoes confirmadas/entregues/finalizadas
-        ja_hedgeado          = Σ hedge_registros (tipo ABERTURA menos ENCERRAMENTO)
-        exposicao_liquida    = exposicao_bruta - ja_vendido - ja_hedgeado
-        percentual_cobertura = ja_hedgeado / exposicao_bruta × 100
+        exposicao_bruta      = Σ (produtividade_meta_sc_ha × area_ha) + estoque_fisico
+        compromissos_fisicos = Σ comercializacoes confirmadas/entregues/finalizadas
+        exposicao_fisica_liq = exposicao_bruta - compromissos_fisicos
+        protecao_financeira  = Σ contratos futuros ABERTOS (hedge)
+        exposicao_aberta     = exposicao_fisica_liq - protecao_financeira
+        percentual_cobertura = protecao_financeira / exposicao_fisica_liq × 100
+        hedge_ratio          = percentual_cobertura / 100
+        classificacao_risco  = DESCOBERTO (<70%) | EQUILIBRADO (70–110%) | SOBREPROTEGIDO (>110%)
     """
 
     model_config = ConfigDict(from_attributes=True)
@@ -196,11 +208,66 @@ class HedgeExposicaoResponse(BaseModel):
     tenant_id: uuid.UUID
     safra_id: Optional[uuid.UUID] = None
     commodity: Optional[str] = None
+
+    # Componentes da Exposição Física Bruta
     producao_estimada_sc: float
+    estoque_fisico_sc: float = 0.0
+    exposicao_bruta_sc: float = 0.0
+
+    # Compromissos e Proteção
+    ja_vendido_sc: float          # alias: compromissos_fisicos
+    ja_hedgeado_sc: float         # alias: protecao_financeira
+
+    # Resultados Calculados
+    exposicao_liquida_sc: float   # exposicao_bruta - compromissos_fisicos
+    exposicao_aberta_sc: float = 0.0  # exposicao_liquida - protecao_financeira
+    percentual_cobertura: float
+    hedge_ratio: float = 0.0
+
+    # Classificação de Risco
+    classificacao_risco: str = CLASSIFICACAO_DESCOBERTO
+
+
+class ExposicaoConsolidadaItemResponse(BaseModel):
+    """Item de exposição consolidada por safra e/ou commodity."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    safra_id: Optional[uuid.UUID] = None
+    ano_safra: Optional[str] = None
+    commodity: Optional[str] = None
+    exposicao_bruta_sc: float
     ja_vendido_sc: float
     ja_hedgeado_sc: float
-    exposicao_liquida_sc: float
+    exposicao_aberta_sc: float
     percentual_cobertura: float
+    classificacao_risco: str
+
+
+class ExposicaoConsolidadaResponse(BaseModel):
+    """Visão consolidada multi-safra e multi-commodity da exposição comercial."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    tenant_id: uuid.UUID
+    total_exposicao_bruta_sc: float
+    total_compromissos_sc: float
+    total_protecao_sc: float
+    total_exposicao_aberta_sc: float
+    percentual_cobertura_global: float
+    classificacao_risco_global: str
+    por_safra_commodity: list[ExposicaoConsolidadaItemResponse]
+
+
+class ExposicaoHistoricoItem(BaseModel):
+    """Ponto da série temporal de cobertura baseado em snapshots MTM."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    data_referencia: str
+    quantidade_aberta_sc: float
+    pnl_nao_realizado: float
+    preco_medio_mercado: Optional[float] = None
 
 
 # ==============================================================================

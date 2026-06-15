@@ -288,6 +288,148 @@ class HedgeSnapshotService:
 
         return alertas_gerados
 
+    async def verificar_exposicao_comercial(
+        self,
+        tenant_id: uuid.UUID,
+        data_ref: date,
+    ) -> int:
+        """Verifica e emite alertas de risco de cobertura comercial do tenant.
+
+        Verifica três condições de risco baseadas na fórmula de exposição:
+        - COBERTURA_INSUFICIENTE: percentual_cobertura < 70%
+        - SOBRECOBERTURA: percentual_cobertura > 110%
+        - VENDA_SEM_LASTRO: comercializações confirmadas > exposição física bruta
+
+        Usa criar_sem_duplicar() para garantir que o mesmo alerta não seja emitido
+        mais de uma vez por dia (deduplicação via origem_id).
+
+        Args:
+            tenant_id: UUID do tenant.
+            data_ref: Data de referência para o alerta (hoje).
+
+        Returns:
+            Número de alertas gerados.
+        """
+        from notificacoes.service import NotificacaoService
+        from notificacoes.schemas import NotificacaoCreate
+        from financeiro.hedge.service import HedgeExposureService
+        from financeiro.hedge.schemas import LIMITE_COBERTURA_MINIMO, LIMITE_COBERTURA_MAXIMO
+
+        notif_svc = NotificacaoService(self._session, tenant_id)
+        exp_svc = HedgeExposureService(self._session, tenant_id)
+        alertas_gerados = 0
+
+        try:
+            exposicao = await exp_svc.calcular_exposicao()
+        except Exception as exc:
+            logger.warning(f"Tenant {tenant_id}: erro ao calcular exposição para alertas — {exc}")
+            return 0
+
+        perc = exposicao.percentual_cobertura
+        data_str = data_ref.isoformat()
+
+        # Alerta 1: Cobertura Insuficiente
+        if perc < LIMITE_COBERTURA_MINIMO and exposicao.exposicao_liquida_sc > 0:
+            notif = await notif_svc.criar_sem_duplicar(NotificacaoCreate(
+                tipo="HEDGE_COBERTURA_INSUFICIENTE",
+                titulo=f"Risco: Cobertura Financeira Insuficiente ({perc:.1f}%)",
+                mensagem=(
+                    f"Apenas {perc:.1f}% da exposição física está coberta financeiramente. "
+                    f"Exposição aberta: {exposicao.exposicao_aberta_sc:,.0f} sc. "
+                    "Considere reforçar a proteção via contratos futuros."
+                ),
+                nivel="WARNING",
+                origem="hedge_exposicao_comercial",
+                origem_id=f"cobertura_insuficiente_{data_str}",
+                meta={
+                    "percentual_cobertura": perc,
+                    "exposicao_aberta_sc": exposicao.exposicao_aberta_sc,
+                    "classificacao_risco": exposicao.classificacao_risco,
+                },
+            ))
+            if notif:
+                alertas_gerados += 1
+                await write_audit_log(
+                    session=self._session,
+                    tenant_id=tenant_id,
+                    user_id=None,
+                    action="HEDGE_ALERT_CREATED",
+                    resource="hedge_exposicao_comercial",
+                    resource_id=None,
+                    payload_before=None,
+                    payload_after={"tipo": "HEDGE_COBERTURA_INSUFICIENTE", "percentual": perc},
+                )
+
+        # Alerta 2: Sobrecobertura
+        elif perc > LIMITE_COBERTURA_MAXIMO and exposicao.exposicao_liquida_sc > 0:
+            notif = await notif_svc.criar_sem_duplicar(NotificacaoCreate(
+                tipo="HEDGE_SOBRECOBERTURA",
+                titulo=f"Atenção: Sobrecobertura Financeira ({perc:.1f}%)",
+                mensagem=(
+                    f"A proteção financeira ({perc:.1f}%) excede a exposição física líquida. "
+                    f"Contratos hedgeados: {exposicao.ja_hedgeado_sc:,.0f} sc | "
+                    f"Exposição física: {exposicao.exposicao_liquida_sc:,.0f} sc. "
+                    "Avalie reduzir posição para evitar risco de base."
+                ),
+                nivel="INFO",
+                origem="hedge_exposicao_comercial",
+                origem_id=f"sobrecobertura_{data_str}",
+                meta={
+                    "percentual_cobertura": perc,
+                    "excesso_sc": exposicao.ja_hedgeado_sc - exposicao.exposicao_liquida_sc,
+                    "classificacao_risco": exposicao.classificacao_risco,
+                },
+            ))
+            if notif:
+                alertas_gerados += 1
+                await write_audit_log(
+                    session=self._session,
+                    tenant_id=tenant_id,
+                    user_id=None,
+                    action="HEDGE_ALERT_CREATED",
+                    resource="hedge_exposicao_comercial",
+                    resource_id=None,
+                    payload_before=None,
+                    payload_after={"tipo": "HEDGE_SOBRECOBERTURA", "percentual": perc},
+                )
+
+        # Alerta 3: Venda Sem Lastro Físico (ja_vendido > exposicao_bruta)
+        if (
+            exposicao.ja_vendido_sc > exposicao.exposicao_bruta_sc > 0
+        ):
+            excesso = exposicao.ja_vendido_sc - exposicao.exposicao_bruta_sc
+            notif = await notif_svc.criar_sem_duplicar(NotificacaoCreate(
+                tipo="HEDGE_VENDA_SEM_LASTRO",
+                titulo="Risco Crítico: Venda Sem Lastro Físico",
+                mensagem=(
+                    f"As comercializações confirmadas ({exposicao.ja_vendido_sc:,.0f} sc) "
+                    f"excedem a exposição física bruta ({exposicao.exposicao_bruta_sc:,.0f} sc) "
+                    f"em {excesso:,.0f} sc. Verifique os contratos de comercialização."
+                ),
+                nivel="DANGER",
+                origem="hedge_exposicao_comercial",
+                origem_id=f"venda_sem_lastro_{data_str}",
+                meta={
+                    "ja_vendido_sc": exposicao.ja_vendido_sc,
+                    "exposicao_bruta_sc": exposicao.exposicao_bruta_sc,
+                    "excesso_sc": excesso,
+                },
+            ))
+            if notif:
+                alertas_gerados += 1
+                await write_audit_log(
+                    session=self._session,
+                    tenant_id=tenant_id,
+                    user_id=None,
+                    action="HEDGE_ALERT_CREATED",
+                    resource="hedge_exposicao_comercial",
+                    resource_id=None,
+                    payload_before=None,
+                    payload_after={"tipo": "HEDGE_VENDA_SEM_LASTRO", "excesso_sc": excesso},
+                )
+
+        return alertas_gerados
+
     async def listar_snapshots(
         self,
         tenant_id: uuid.UUID,
