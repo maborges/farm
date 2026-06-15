@@ -35,10 +35,11 @@ async def tenant_isolado(session):
 
 @pytest.fixture
 async def commodity_mtm(session, tenant_mtm):
+    codigo = f"SOJA_MTM_{uuid.uuid4().hex[:6].upper()}"
     c = Commodity(
         tenant_id=tenant_mtm.id,
         nome="Soja MTM",
-        codigo="SOJA_MTM",
+        codigo=codigo,
         tipo="AGRICOLA",
         unidade_padrao="sc",
         possui_cotacao=True,

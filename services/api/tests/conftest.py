@@ -78,6 +78,15 @@ async def _ensure_documental_invalidacao_columns(conn) -> None:
         )
     )
 
+async def _ensure_global_mock_data(conn) -> None:
+    # Insere tenant base se não existir
+    await conn.execute(text("INSERT INTO tenants (id, nome, documento, ativo, storage_usado_mb, storage_limite_mb, idioma_padrao, created_at, updated_at) VALUES ('aaaaaaaa-0000-0000-0000-000000000001', 'Tenant Global', '00000000001', true, 0, 10240, 'pt-BR', now(), now()) ON CONFLICT DO NOTHING"))
+    # Insere usuario se não existir
+    await conn.execute(text("INSERT INTO usuarios (id, email, username, senha_hash, ativo, is_superuser, created_at, updated_at) VALUES ('eeeeeeee-0000-0000-0000-000000000005', 'admin@teste.com', 'admin_teste', 'xyz', true, true, now(), now()) ON CONFLICT DO NOTHING"))
+    # Insere pessoa para o usuario
+    await conn.execute(text("INSERT INTO cadastros_pessoas (id, tenant_id, tipo, nome_exibicao, base_legal, ativo, tags, dados_extras, created_at, updated_at) VALUES ('eeeeeeee-0000-0000-0000-000000000005', 'aaaaaaaa-0000-0000-0000-000000000001', 'PF', 'Admin Teste', 'LEGITIMO_INTERESSE', true, '[]'::jsonb, '{}'::jsonb, now(), now()) ON CONFLICT DO NOTHING"))
+
+
 @pytest.fixture
 def tenant_id() -> uuid.UUID:
     return TENANT_A_ID
@@ -104,6 +113,7 @@ async def session():
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all, checkfirst=True)
             await _ensure_documental_invalidacao_columns(conn)
+            await _ensure_global_mock_data(conn)
     except Exception:
         pass
     
@@ -129,6 +139,7 @@ async def session_a():
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all, checkfirst=True)
             await _ensure_documental_invalidacao_columns(conn)
+            await _ensure_global_mock_data(conn)
     except Exception:
         pass
     async_session = async_sessionmaker(engine, expire_on_commit=False)
@@ -158,6 +169,7 @@ async def session_b():
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all, checkfirst=True)
             await _ensure_documental_invalidacao_columns(conn)
+            await _ensure_global_mock_data(conn)
     except Exception:
         pass
     async_session = async_sessionmaker(engine, expire_on_commit=False)
