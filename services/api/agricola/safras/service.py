@@ -457,7 +457,7 @@ class SafraService(BaseService[Safra]):
                 LoteEstoque.produto_id,
                 Deposito.nome.label("deposito_nome"),
                 Produto.nome.label("produto_nome"),
-                Produto.unidade_estoque,
+                Produto.unidade_medida.label("unidade_medida"),
                 func.sum(LoteEstoque.quantidade_atual).label("quantidade_atual"),
                 func.count(LoteEstoque.id).label("num_lotes"),
             )
@@ -473,7 +473,7 @@ class SafraService(BaseService[Safra]):
                 LoteEstoque.produto_id,
                 Deposito.nome,
                 Produto.nome,
-                Produto.unidade_estoque,
+                Produto.unidade_medida,
             )
             .order_by(Deposito.nome, Produto.nome)
         )
@@ -496,7 +496,7 @@ class SafraService(BaseService[Safra]):
                 "produto_id": row.produto_id,
                 "produto_nome": row.produto_nome,
                 "quantidade_atual": float(row.quantidade_atual or 0),
-                "unidade": row.unidade_estoque,
+                "unidade": row.unidade_medida,
                 "num_lotes": row.num_lotes,
             })
 
