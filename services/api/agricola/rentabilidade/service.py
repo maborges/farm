@@ -102,6 +102,9 @@ class RentabilidadeAgricolaV1Service(BaseService[Safra]):
             safra_id=safra_id,
             production_unit_id=production_unit_id,
             unidade_produtiva_id=unidade_produtiva_id,
+            kpis_fisicos=self._montar_kpis_fisicos(
+                dre_safra, *(await self._calcular_volume_fisico(dre_safra.production_unit_ids))
+            ),
         )
 
         production_unit_items: list[RentabilidadeAgricolaItem] = []
@@ -128,6 +131,9 @@ class RentabilidadeAgricolaV1Service(BaseService[Safra]):
                     dre_unit,
                     scope_unit=scope_unit,
                     safra_id=safra_id,
+                    kpis_fisicos=self._montar_kpis_fisicos(
+                        dre_unit, *(await self._calcular_volume_fisico(dre_unit.production_unit_ids))
+                    ),
                 )
             )
 
@@ -247,6 +253,7 @@ class RentabilidadeAgricolaV1Service(BaseService[Safra]):
         safra_id: UUID,
         production_unit_id: UUID | None,
         unidade_produtiva_id: UUID | None,
+        kpis_fisicos=None,
     ) -> RentabilidadeAgricolaItem:
         kpis = dre.kpis or AgricolaDreKpiService.calcular(
             dre,
@@ -268,6 +275,7 @@ class RentabilidadeAgricolaV1Service(BaseService[Safra]):
             sujeito_reconciliacao=kpis.sujeito_reconciliacao,
             observacao_reconciliacao=kpis.observacao_reconciliacao,
             warnings_relevantes=kpis.warnings_relevantes,
+            kpis_fisicos=kpis_fisicos,
         )
 
     def _montar_item_production_unit(
@@ -276,6 +284,7 @@ class RentabilidadeAgricolaV1Service(BaseService[Safra]):
         *,
         scope_unit: _ScopedProductionUnit,
         safra_id: UUID,
+        kpis_fisicos=None,
     ) -> RentabilidadeAgricolaItem:
         kpis = dre.kpis or AgricolaDreKpiService.calcular(
             dre,
@@ -297,6 +306,7 @@ class RentabilidadeAgricolaV1Service(BaseService[Safra]):
             sujeito_reconciliacao=kpis.sujeito_reconciliacao,
             observacao_reconciliacao=kpis.observacao_reconciliacao,
             warnings_relevantes=kpis.warnings_relevantes,
+            kpis_fisicos=kpis_fisicos,
         )
 
     def _rankear(self, items: list[RentabilidadeAgricolaItem]) -> list[RentabilidadeAgricolaItem]:
@@ -332,3 +342,80 @@ class RentabilidadeAgricolaV1Service(BaseService[Safra]):
             for warning in response.warnings:
                 warnings[(warning.codigo, warning.origem)] = warning
         return list(warnings.values())
+
+    async def _calcular_volume_fisico(self, pu_ids: list[UUID]) -> tuple[float, str]:
+        if not pu_ids:
+            return 0.0, "INDISPONIVEL"
+            
+        from sqlalchemy import select, func
+        from agricola.production_units.models import ProductionUnit
+        from agricola.colheita.models import ProdutoColhido
+        from agricola.cultivos.models import Cultivo, CultivoArea
+        
+        pu_rows = (await self.session.execute(
+            select(ProductionUnit.id, ProductionUnit.safra_id, ProductionUnit.area_id)
+            .where(ProductionUnit.id.in_(pu_ids))
+        )).all()
+        
+        volume_real_total = 0.0
+        volume_estimado_total = 0.0
+        
+        for pu_row in pu_rows:
+            real_val = (await self.session.execute(
+                select(func.sum(func.coalesce(ProdutoColhido.peso_liquido_comercial_kg, ProdutoColhido.peso_liquido_kg)))
+                .where(
+                    ProdutoColhido.tenant_id == self.tenant_id,
+                    ProdutoColhido.safra_id == pu_row.safra_id,
+                    ProdutoColhido.talhao_id == pu_row.area_id
+                )
+            )).scalar()
+            
+            if real_val and real_val > 0:
+                volume_real_total += float(real_val) / 60.0
+            else:
+                est_row = (await self.session.execute(
+                    select(Cultivo.produtividade_meta_sc_ha, CultivoArea.area_ha)
+                    .join(CultivoArea, CultivoArea.cultivo_id == Cultivo.id)
+                    .where(
+                        Cultivo.tenant_id == self.tenant_id,
+                        Cultivo.safra_id == pu_row.safra_id,
+                        CultivoArea.area_id == pu_row.area_id
+                    )
+                    .limit(1)
+                )).first()
+                if est_row and est_row.produtividade_meta_sc_ha and est_row.area_ha:
+                    volume_estimado_total += float(est_row.produtividade_meta_sc_ha) * float(est_row.area_ha)
+                    
+        qtd_sacas = volume_real_total + volume_estimado_total
+        base_volume = "INDISPONIVEL"
+        if volume_real_total > 0:
+            base_volume = "REAL"
+        elif volume_estimado_total > 0:
+            base_volume = "ESTIMADO"
+            
+        return qtd_sacas, base_volume
+
+    def _montar_kpis_fisicos(self, dre: DREAgricolaResponse, qtd_sacas: float, base_volume: str):
+        from .schemas import RentabilidadeSacaKpis
+        if qtd_sacas <= 0:
+            return RentabilidadeSacaKpis(
+                quantidade_sacas=0.0,
+                base_volume="INDISPONIVEL",
+                custo_por_saca=None,
+                receita_por_saca=None,
+                margem_por_saca=None,
+                lucro_por_saca=None,
+                preco_equilibrio=None,
+            )
+            
+        custo_total = dre.custos_diretos + dre.custos_operacionais + dre.despesas_operacionais
+        
+        return RentabilidadeSacaKpis(
+            quantidade_sacas=round(qtd_sacas, 2),
+            base_volume=base_volume,
+            custo_por_saca=round(dre.custos_operacionais / qtd_sacas, 2) if dre.custos_operacionais else 0.0,
+            receita_por_saca=round(dre.receita_liquida / qtd_sacas, 2) if dre.receita_liquida else 0.0,
+            margem_por_saca=round(dre.margem_bruta / qtd_sacas, 2) if dre.margem_bruta else 0.0,
+            lucro_por_saca=round(dre.resultado_operacional / qtd_sacas, 2) if dre.resultado_operacional else 0.0,
+            preco_equilibrio=round(custo_total / qtd_sacas, 2) if custo_total else 0.0
+        )

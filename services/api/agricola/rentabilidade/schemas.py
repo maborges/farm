@@ -9,6 +9,19 @@ from pydantic import BaseModel, ConfigDict, Field
 from agricola.dre.schemas import DREWarning
 
 
+class RentabilidadeSacaKpis(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    quantidade_sacas: float = Field(0.0, description="Volume físico real ou estimado colhido (sacas de 60kg).")
+    base_volume: Literal["REAL", "ESTIMADO", "INDISPONIVEL"] = Field(..., description="REAL | ESTIMADO | INDISPONIVEL")
+    
+    custo_por_saca: float | None = Field(None, description="Custo Operacional Total / Quantidade de Sacas.")
+    receita_por_saca: float | None = Field(None, description="Receita Líquida / Quantidade de Sacas.")
+    margem_por_saca: float | None = Field(None, description="Margem Bruta / Quantidade de Sacas.")
+    lucro_por_saca: float | None = Field(None, description="Resultado Operacional / Quantidade de Sacas.")
+    preco_equilibrio: float | None = Field(None, description="Custo Total / Sacas.")
+
+
 class RentabilidadeAgricolaItem(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -27,6 +40,9 @@ class RentabilidadeAgricolaItem(BaseModel):
     observacao_reconciliacao: str | None = None
     warnings_relevantes: list[str] = Field(default_factory=list)
     posicao: int | None = None
+    
+    # Novos KPIs físicos
+    kpis_fisicos: RentabilidadeSacaKpis | None = None
 
 
 class RentabilidadeAgricolaResponse(BaseModel):

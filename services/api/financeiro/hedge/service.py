@@ -398,6 +398,87 @@ class HedgeExposureService:
             classificacao_risco=classificacao,
         )
 
+    async def simular_exposicao(
+        self, request: "SimulacaoExposicaoRequest"
+    ) -> "SimulacaoExposicaoResponse":
+        """Calcula um cenário simulado de exposição sem persistência.
+        
+        Aplica os deltas (variações) solicitados sobre a base de dados real
+        e retorna a comparação entre o cenário atual e o simulado.
+        """
+        from financeiro.hedge.schemas import SimulacaoExposicaoResponse, HedgeExposicaoResponse
+        from core.exceptions import BusinessRuleError
+
+        # 1. Calcula cenário atual
+        atual = await self.calcular_exposicao(
+            safra_id=request.safra_id,
+            commodity=request.commodity,
+            unidade_produtiva_id=request.unidade_produtiva_id,
+        )
+
+        # 2. Aplica deltas
+        prod_sim = atual.producao_estimada_sc + request.variacao_producao_sc
+        estq_sim = atual.estoque_fisico_sc + request.variacao_estoque_sc
+        vend_sim = atual.ja_vendido_sc + request.variacao_venda_sc
+        hedg_sim = atual.ja_hedgeado_sc + request.variacao_hedge_sc
+
+        # 3. Validações de Domínio de Simulação
+        if prod_sim < 0:
+            raise BusinessRuleError("A produção simulada não pode ser negativa.")
+        if estq_sim < 0:
+            raise BusinessRuleError("O estoque físico simulado não pode ser negativo.")
+        if vend_sim < 0:
+            raise BusinessRuleError("As vendas simuladas não podem ser negativas.")
+        if hedg_sim < 0:
+            raise BusinessRuleError("O volume hedgeado simulado não pode ser negativo.")
+
+        exposicao_bruta_sim = prod_sim + estq_sim
+        
+        if exposicao_bruta_sim == 0 and (vend_sim > 0 or hedg_sim > 0):
+            raise BusinessRuleError("Não é possível simular vendas ou hedge sem base física (Exposição Bruta zero).")
+
+        if vend_sim > exposicao_bruta_sim:
+            raise BusinessRuleError("A venda simulada excede o lastro físico (Exposição Bruta).")
+
+        exposicao_liquida_sim = exposicao_bruta_sim - vend_sim
+        
+        if hedg_sim > exposicao_liquida_sim:
+            raise BusinessRuleError("O hedge simulado excede a exposição real disponível (Exposição Líquida).")
+
+        exposicao_aberta_sim = exposicao_liquida_sim - hedg_sim
+
+        percentual_sim = (
+            (hedg_sim / exposicao_liquida_sim * 100) if exposicao_liquida_sim > 0 else 0.0
+        )
+        hedge_ratio_sim = percentual_sim / 100.0
+        classificacao_sim = self._classificar_risco_cobertura(percentual_sim)
+
+        simulado = HedgeExposicaoResponse(
+            tenant_id=atual.tenant_id,
+            safra_id=atual.safra_id,
+            commodity=atual.commodity,
+            producao_estimada_sc=prod_sim,
+            estoque_fisico_sc=estq_sim,
+            exposicao_bruta_sc=exposicao_bruta_sim,
+            ja_vendido_sc=vend_sim,
+            ja_hedgeado_sc=hedg_sim,
+            exposicao_liquida_sc=exposicao_liquida_sim,
+            exposicao_aberta_sc=exposicao_aberta_sim,
+            percentual_cobertura=round(percentual_sim, 2),
+            hedge_ratio=round(hedge_ratio_sim, 4),
+            classificacao_risco=classificacao_sim,
+        )
+
+        alertas = []
+        if classificacao_sim != atual.classificacao_risco:
+            alertas.append(f"Atenção: A simulação altera a classificação de risco de {atual.classificacao_risco} para {classificacao_sim}.")
+
+        return SimulacaoExposicaoResponse(
+            cenario_atual=atual,
+            cenario_simulado=simulado,
+            alertas=alertas
+        )
+
     async def calcular_consolidado(self) -> "ExposicaoConsolidadaResponse":
         """Calcula a visão consolidada multi-safra e multi-commodity.
 
@@ -650,4 +731,99 @@ class HedgeExposureService:
 
         result = await self._session.execute(stmt)
         return float(result.scalar() or 0.0)
+
+    async def gerar_recomendacoes(
+        self,
+        exposicao: "HedgeExposicaoResponse",
+    ) -> list["RecomendacaoComercial"]:
+        """Analisa a exposição e gera recomendações heurísticas (stateless)."""
+        from financeiro.hedge.schemas import RecomendacaoComercial, LIMITE_COBERTURA_MINIMO, LIMITE_COBERTURA_MAXIMO
+        from datetime import date, timedelta
+        
+        recs: list[RecomendacaoComercial] = []
+        
+        perc = exposicao.percentual_cobertura
+        aberta = exposicao.exposicao_aberta_sc
+
+        # 1. Venda Sem Lastro (PRIORIDADE: CRITICA)
+        if exposicao.ja_vendido_sc > exposicao.exposicao_bruta_sc and exposicao.ja_vendido_sc > 0:
+            recs.append(RecomendacaoComercial(
+                id_regra="VENDA_SEM_LASTRO",
+                titulo="Venda sem lastro identificada",
+                mensagem=f"O volume vendido ({exposicao.ja_vendido_sc:,.0f} sc) excede o lastro físico ({exposicao.exposicao_bruta_sc:,.0f} sc). Risco de default na entrega.",
+                prioridade="CRITICA",
+                acao_sugerida="Revisar contratos de venda e estoques."
+            ))
+
+        # 2. Safra Próxima da Colheita (Verificação no BD)
+        colheita_proxima = False
+        if exposicao.safra_id:
+            from sqlalchemy import select, and_
+            from agricola.cultivos.models import Cultivo
+            hoje = date.today()
+            limite_dias = hoje + timedelta(days=60)
+            
+            stmt = select(Cultivo.id).where(
+                and_(
+                    Cultivo.tenant_id == self._tenant_id,
+                    Cultivo.safra_id == exposicao.safra_id,
+                    Cultivo.data_colheita_prevista >= hoje,
+                    Cultivo.data_colheita_prevista <= limite_dias
+                )
+            ).limit(1)
+            result = await self._session.execute(stmt)
+            if result.first() is not None:
+                colheita_proxima = True
+
+        # 3. Cobertura Baixa vs Safra Próxima
+        if exposicao.exposicao_liquida_sc > 0:
+            if perc < LIMITE_COBERTURA_MINIMO:
+                if colheita_proxima:
+                    recs.append(RecomendacaoComercial(
+                        id_regra="SAFRA_PROXIMA_BAIXA_COBERTURA",
+                        titulo="Safra próxima da colheita sem proteção adequada",
+                        mensagem=f"A colheita inicia em <60 dias e a cobertura financeira está em apenas {perc:.1f}%. A margem está exposta à volatilidade de curtíssimo prazo.",
+                        prioridade="ALTA",
+                        acao_sugerida="Avaliar trava imediata via Opções de Venda (Put) ou Venda Física."
+                    ))
+                else:
+                    recs.append(RecomendacaoComercial(
+                        id_regra="COBERTURA_BAIXA",
+                        titulo="Exposição descoberta relevante",
+                        mensagem=f"A cobertura financeira de {perc:.1f}% está abaixo do limite de segurança ({LIMITE_COBERTURA_MINIMO}%). Avalie aumentar a proteção financeira.",
+                        prioridade="ALTA",
+                        acao_sugerida="Avaliar criação de novo Contrato Futuro."
+                    ))
+            elif perc <= 70.0:
+                # 4. Cobertura Moderada
+                recs.append(RecomendacaoComercial(
+                    id_regra="COBERTURA_MODERADA",
+                    titulo="Cobertura abaixo da zona recomendada",
+                    mensagem=f"A proteção atual ({perc:.1f}%) cobre mais da metade da exposição, mas ainda expõe a margem a choques de mercado. A meta conservadora é >70%.",
+                    prioridade="MEDIA",
+                    acao_sugerida="Aguardar momento ótimo de mercado para incrementar."
+                ))
+
+        # 5. Sobreproteção
+        if perc > LIMITE_COBERTURA_MAXIMO and exposicao.exposicao_liquida_sc > 0:
+            recs.append(RecomendacaoComercial(
+                id_regra="SOBREPROTECAO",
+                titulo="Posição financeira acima da exposição física",
+                mensagem=f"O volume hedgeado ({exposicao.ja_hedgeado_sc:,.0f} sc) excede a exposição ({exposicao.exposicao_liquida_sc:,.0f} sc). Você está especulando e sujeito a risco de base.",
+                prioridade="ALTA",
+                acao_sugerida="Avaliar recompra parcial de contratos (Short Covering)."
+            ))
+
+        # 6. Exposição Aberta Elevada
+        LIMITE_ABERTO_RELEVANTE = 50_000 # hardcoded para primeira heuristica
+        if aberta > LIMITE_ABERTO_RELEVANTE and perc >= LIMITE_COBERTURA_MINIMO and perc <= LIMITE_COBERTURA_MAXIMO:
+            recs.append(RecomendacaoComercial(
+                id_regra="EXPOSICAO_ABERTA_ELEVADA",
+                titulo="Exposição aberta relevante para o porte da operação",
+                mensagem=f"O volume descoberto absoluto é alto ({aberta:,.0f} sc), mesmo com o percentual de cobertura aceitável.",
+                prioridade="ALTA",
+                acao_sugerida="Analisar proteção via Opções Fora do Dinheiro (OTM) de baixo custo."
+            ))
+
+        return recs
 

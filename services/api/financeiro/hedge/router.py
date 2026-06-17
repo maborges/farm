@@ -45,6 +45,9 @@ from .schemas import (
     ReprocessarMtMResponse,
     ExposicaoConsolidadaResponse,
     ExposicaoHistoricoItem,
+    SimulacaoExposicaoRequest,
+    SimulacaoExposicaoResponse,
+    RecomendacaoComercial,
 )
 from .service import HedgeService, HedgeExposureService
 from .snapshot_service import HedgeSnapshotService
@@ -388,3 +391,62 @@ async def reprocessar_snapshots(
         return resultado
     except ValueError as exc:
         raise HTTPException(http_status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc))
+
+
+# ==============================================================================
+# Simulações (ENTERPRISE)
+# ==============================================================================
+
+@router.post(
+    "/exposicao/simular",
+    response_model=SimulacaoExposicaoResponse,
+    summary="Simula cenários de exposição sem alterar o banco de dados",
+    dependencies=[Depends(require_tier(PlanTier.ENTERPRISE))],
+)
+async def simular_exposicao(
+    request: SimulacaoExposicaoRequest,
+    session: AsyncSession = Depends(get_session_with_tenant),
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+):
+    """Calcula um cenário analítico com variações hipotéticas na exposição e no hedge.
+    
+    A execução é stateless (não altera o banco). Retorna a comparação do cenário atual vs. simulado.
+    Disponível apenas no plano ENTERPRISE.
+    """
+    svc = HedgeExposureService(session, tenant_id)
+    try:
+        return await svc.simular_exposicao(request)
+    except BusinessRuleError as e:
+        raise HTTPException(status_code=http_status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+
+
+@router.get(
+    "/exposicao/recomendacoes",
+    response_model=list[RecomendacaoComercial],
+    summary="Motor heurístico de recomendações de proteção",
+    dependencies=[Depends(require_tier(PlanTier.ENTERPRISE))],
+)
+async def obter_recomendacoes_comerciais(
+    safra_id: Optional[uuid.UUID] = Query(None),
+    commodity: Optional[str] = Query(None),
+    unidade_produtiva_id: Optional[uuid.UUID] = Query(None),
+    session: AsyncSession = Depends(get_session_with_tenant),
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+):
+    """Gera recomendações de ação determinísticas baseadas na fotografia atual da exposição.
+    
+    A execução é 100% heurística e baseada no cálculo da exposição instantânea.
+    Disponível apenas no plano ENTERPRISE.
+    """
+    svc = HedgeExposureService(session, tenant_id)
+    try:
+        exposicao = await svc.calcular_exposicao(
+            safra_id=safra_id,
+            commodity=commodity,
+            unidade_produtiva_id=unidade_produtiva_id,
+        )
+        return await svc.gerar_recomendacoes(exposicao)
+    except EntityNotFoundError as e:
+        raise HTTPException(status_code=http_status.HTTP_404_NOT_FOUND, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=http_status.HTTP_400_BAD_REQUEST, detail=str(e))

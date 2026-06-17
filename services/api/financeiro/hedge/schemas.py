@@ -298,3 +298,37 @@ class HedgePositionSnapshotResponse(BaseModel):
     calculado_em: datetime
     created_at: datetime
 
+
+# ==============================================================================
+# Simulacao de Exposicao
+# ==============================================================================
+
+class SimulacaoExposicaoRequest(BaseModel):
+    """Payload para simular variação de exposição física e financeira."""
+    safra_id: Optional[uuid.UUID] = None
+    commodity: Optional[str] = None
+    unidade_produtiva_id: Optional[uuid.UUID] = None
+    variacao_producao_sc: float = Field(0.0, description="Delta de produção estimada (pode ser negativo)")
+    variacao_estoque_sc: float = Field(0.0, description="Delta de estoque físico")
+    variacao_venda_sc: float = Field(0.0, description="Delta de vendas físicas")
+    variacao_hedge_sc: float = Field(0.0, description="Delta de contratos de hedge")
+
+
+class SimulacaoExposicaoResponse(BaseModel):
+    """Resposta com a comparação do cenário atual e simulado."""
+    cenario_atual: HedgeExposicaoResponse
+    cenario_simulado: HedgeExposicaoResponse
+    alertas: list[str] = Field(default_factory=list)
+
+
+# ==============================================================================
+# Recomendacoes Inteligentes
+# ==============================================================================
+
+class RecomendacaoComercial(BaseModel):
+    """Schema de recomendação para o motor heurístico de exposição."""
+    id_regra: str = Field(..., description="ID identificador da regra (ex: COBERTURA_BAIXA)")
+    titulo: str = Field(..., description="Título curto do alerta ou recomendação")
+    mensagem: str = Field(..., description="Texto detalhado sugerindo a ação")
+    prioridade: Literal["CRITICA", "ALTA", "MEDIA", "BAIXA"] = Field(..., description="Prioridade de atuação")
+    acao_sugerida: str = Field(..., description="Texto do CTA ou sugestão direta")
