@@ -4,7 +4,7 @@ from sqlalchemy import select, func
 from typing import List
 import uuid
 
-from core.dependencies import get_session, get_current_user, get_current_tenant, get_current_user_claims
+from core.dependencies import get_session, get_current_user, get_current_tenant, get_current_user_claims, get_tenant_id
 from core.models.tenant import Tenant
 from core.models.billing import AssinaturaTenant, PlanoAssinatura, Fatura
 from core.models.unidade_produtiva import UnidadeProdutiva as Fazenda
@@ -32,14 +32,17 @@ async def get_my_account(tenant: Tenant = Depends(get_current_tenant), session: 
     assinatura_data = None
     modulos_ativos = ["CORE"]
     max_usuarios = 2
+    max_categorias_plano = 0
     if row:
         assinatura, plano = row
+        max_categorias_plano = plano.max_categorias_plano
         assinatura_data = {
             "plano": plano.nome,
             "valor": float(plano.preco_mensal),
             "status": assinatura.status,
             "data_inicio": assinatura.data_inicio,
             "proximo_vencimento": assinatura.data_proxima_renovacao,
+            "max_categorias_plano": max_categorias_plano,
         }
         modulos_ativos = plano.modulos_inclusos or ["CORE"]
         max_usuarios = assinatura.usuarios_contratados or 2
@@ -52,6 +55,7 @@ async def get_my_account(tenant: Tenant = Depends(get_current_tenant), session: 
             "ativo": tenant.ativo,
             "modulos_ativos": modulos_ativos,
             "max_usuarios": max_usuarios,
+            "max_categorias_plano": max_categorias_plano,
             "created_at": tenant.created_at,
             "email_responsavel": tenant.email_responsavel,
             "telefone_responsavel": tenant.telefone_responsavel,
@@ -95,14 +99,17 @@ async def update_my_account(
     assinatura_data = None
     modulos_ativos = ["CORE"]
     max_usuarios = 2
+    max_categorias_plano = 0
     if row:
         assinatura, plano = row
+        max_categorias_plano = plano.max_categorias_plano
         assinatura_data = {
             "plano": plano.nome,
             "valor": float(plano.preco_mensal),
             "status": assinatura.status,
             "data_inicio": assinatura.data_inicio,
             "proximo_vencimento": assinatura.data_proxima_renovacao,
+            "max_categorias_plano": max_categorias_plano,
         }
         modulos_ativos = plano.modulos_inclusos or ["CORE"]
         max_usuarios = assinatura.usuarios_contratados or 2
@@ -116,6 +123,7 @@ async def update_my_account(
             "ativo": tenant.ativo,
             "modulos_ativos": modulos_ativos,
             "max_usuarios": max_usuarios,
+            "max_categorias_plano": max_categorias_plano,
             "created_at": tenant.created_at,
             "email_responsavel": tenant.email_responsavel,
             "telefone_responsavel": tenant.telefone_responsavel,
@@ -164,7 +172,7 @@ async def register_payment_proof(
     """Envia o comprovante de pagamento (mockando upload por enquanto)."""
     fatura = await session.get(Fatura, invoice_id)
     if not fatura or fatura.tenant_id != tenant.id:
-        raise HTTPException(status_code=404, detail="Fatura não encontrada")
+        raise HTTPException(status_code=404, detail="Fatura indisponível ou não encontrada.")
     
     if fatura.status == "PAGA":
         raise HTTPException(status_code=400, detail="Esta fatura já está paga.")
@@ -197,7 +205,10 @@ async def request_upgrade(
     """
     plan = await session.get(PlanoAssinatura, plan_id)
     if not plan or not plan.ativo:
-        raise HTTPException(status_code=404, detail="Plano não encontrado ou inativo")
+        raise HTTPException(
+            status_code=404,
+            detail="Plano indisponível ou inativo. Se necessário, escolha outro plano ou contate o suporte.",
+        )
         
     # Verifica se já está nesse plano
     stmt = select(AssinaturaTenant).where(AssinaturaTenant.tenant_id == tenant.id)
@@ -205,7 +216,7 @@ async def request_upgrade(
     assinatura = result.scalar_one_or_none()
     
     if assinatura and assinatura.plano_id == plan_id:
-        raise HTTPException(status_code=400, detail="Você já possui este plano.")
+        raise HTTPException(status_code=400, detail="Seu tenant já está nesse plano.")
 
     # Em uma implementação real, integraríamos com Stripe ou geraria fatura.
     # Aqui, vamos registrar a intenção e avisar o suporte.
@@ -218,18 +229,13 @@ async def request_upgrade(
 @router.get("/limits")
 async def get_tenant_limits(
     claims: dict = Depends(get_current_user_claims),
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
     session: AsyncSession = Depends(get_session)
 ):
     """
     Retorna status dos limites do tenant ativo.
     """
     from core.models.billing import AssinaturaTenant, PlanoAssinatura
-
-    tenant_id_str = claims.get("tenant_id")
-    if not tenant_id_str:
-        raise HTTPException(status_code=403, detail="Contexto de tenant ausente")
-
-    tenant_id = uuid.UUID(tenant_id_str)
 
     # Buscar assinatura ativa do tenant
     stmt = (

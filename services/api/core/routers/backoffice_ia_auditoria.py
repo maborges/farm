@@ -640,7 +640,7 @@ async def enviar_para_crm(
     )
     row = (await session.execute(stmt)).scalar_one_or_none()
     if row is None:
-        raise HTTPException(status_code=404, detail="Solicitação não encontrada.")
+        raise HTTPException(status_code=404, detail="Solicitação indisponível ou não encontrada.")
 
     tenant = await session.get(Tenant, row.tenant_id)
     tenant_nome = tenant.nome if tenant else str(row.tenant_id)
@@ -693,7 +693,7 @@ async def atualizar_status_solicitacao(
     if payload.status not in _STATUS_PERMITIDOS:
         raise HTTPException(
             status_code=422,
-            detail=f"Status inválido. Permitidos: {sorted(_STATUS_PERMITIDOS)}",
+            detail=f"Status inválido. Permitidos: {sorted(_STATUS_PERMITIDOS)}.",
         )
 
     stmt = select(SolicitacaoComercial).where(
@@ -702,7 +702,7 @@ async def atualizar_status_solicitacao(
     )
     row = (await session.execute(stmt)).scalar_one_or_none()
     if row is None:
-        raise HTTPException(status_code=404, detail="Solicitação não encontrada.")
+        raise HTTPException(status_code=404, detail="Solicitação indisponível ou não encontrada.")
 
     status_anterior = row.status
     obs_anterior = row.observacao_comercial
@@ -740,7 +740,7 @@ async def atribuir_responsavel(
     )
     row = (await session.execute(stmt)).scalar_one_or_none()
     if row is None:
-        raise HTTPException(status_code=404, detail="Solicitação não encontrada.")
+        raise HTTPException(status_code=404, detail="Solicitação indisponível ou não encontrada.")
 
     resp_anterior = str(row.responsavel_usuario_id) if row.responsavel_usuario_id else None
 
@@ -749,7 +749,7 @@ async def atribuir_responsavel(
             select(AdminUser).where(AdminUser.id == payload.responsavel_usuario_id)
         )).scalar_one_or_none()
         if admin is None:
-            raise HTTPException(status_code=404, detail="Usuário responsável não encontrado.")
+            raise HTTPException(status_code=404, detail="Usuário responsável indisponível ou não encontrado.")
         row.responsavel_usuario_id = payload.responsavel_usuario_id
         responsavel_nome = admin.nome
         resp_novo = str(payload.responsavel_usuario_id)
@@ -788,7 +788,7 @@ async def atualizar_followup(
     )
     row = (await session.execute(stmt)).scalar_one_or_none()
     if row is None:
-        raise HTTPException(status_code=404, detail="Solicitação não encontrada.")
+        raise HTTPException(status_code=404, detail="Solicitação indisponível ou não encontrada.")
 
     dt_str_old = row.proximo_followup_em.isoformat() if row.proximo_followup_em else None
     dt_str_new = payload.proximo_followup_em.isoformat() if payload.proximo_followup_em else None
@@ -831,7 +831,7 @@ async def listar_historico(
         )
     )).scalar_one_or_none()
     if sol is None:
-        raise HTTPException(status_code=404, detail="Solicitação não encontrada.")
+        raise HTTPException(status_code=404, detail="Solicitação indisponível ou não encontrada.")
 
     stmt = (
         select(SolicitacaoHistorico)

@@ -24,7 +24,7 @@ class ReceitaService(BaseService[Receita]):
         )
         plano = (await self.session.execute(stmt)).scalars().first()
         if not plano:
-            raise BusinessRuleError("Plano de contas não localizado ou inacessível.")
+            raise BusinessRuleError("Plano de contas indisponível ou inacessível.")
         return plano
 
     def _calcular_parcelas(self, valor_total: float, total_parcelas: int) -> list[float]:

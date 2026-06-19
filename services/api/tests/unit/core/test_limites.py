@@ -53,7 +53,7 @@ class TestRequireLimitMaxFazendas:
 
         # Assert: Deve bloquear com 402 (Payment Required)
         assert response.status_code == status.HTTP_402_PAYMENT_REQUIRED
-        assert "Limite de 5 fazendas atingido" in response.json()["detail"]
+        assert "Seu plano atingiu o limite de fazendas" in response.json()["detail"]
         assert response.headers["X-Limit-Type"] == "max_fazendas"
         assert response.headers["X-Limit-Max"] == "5"
         assert response.headers["X-Limit-Current"] == "5"
@@ -121,7 +121,7 @@ class TestRequireLimitMaxUsuarios:
 
         # Assert: Deve bloquear com 402
         assert response.status_code == status.HTTP_402_PAYMENT_REQUIRED
-        assert "Limite de 5 usuários atingido" in response.json()["detail"]
+        assert "Seu plano atingiu o limite de usuários" in response.json()["detail"]
 
 
 class TestGetLimits:

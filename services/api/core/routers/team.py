@@ -286,11 +286,11 @@ async def invite_team_member(
     try:
         perfil_uuid = uuid.UUID(data.perfil_id)
     except ValueError:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="perfil_id inválido")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Identificador de perfil inválido.")
 
     perfil = await session.get(PerfilAcesso, perfil_uuid)
     if not perfil:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Perfil não encontrado")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Perfil indisponível ou não encontrado.")
 
     # Verificar se já existe usuário com este email no tenant
     stmt = (
@@ -307,7 +307,7 @@ async def invite_team_member(
     if existing:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Usuário já faz parte da equipe"
+            detail="Este usuário já faz parte da equipe."
         )
 
     # Verificar se já existe convite pendente
@@ -324,7 +324,7 @@ async def invite_team_member(
     if existing_invite:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Já existe um convite pendente para este email"
+            detail="Já existe um convite pendente para este e-mail."
         )
 
     # Criar convite
@@ -429,24 +429,24 @@ async def update_member_role(
         tu_uuid = uuid.UUID(tenant_usuario_id)
         perfil_uuid = uuid.UUID(data.perfil_id)
     except ValueError:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="ID inválido")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Identificador inválido.")
 
     # Buscar TenantUsuario
     tenant_usuario = await session.get(TenantUsuario, tu_uuid)
     if not tenant_usuario or tenant_usuario.tenant_id != tenant_id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Membro não encontrado")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Membro indisponível ou não encontrado.")
 
     # Não permitir alterar perfil do owner
     if tenant_usuario.is_owner:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Não é possível alterar o perfil do proprietário"
+            detail="Não é possível alterar o perfil do proprietário da equipe."
         )
 
     # Verificar se perfil existe
     perfil = await session.get(PerfilAcesso, perfil_uuid)
     if not perfil:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Perfil não encontrado")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Perfil indisponível ou não encontrado.")
 
     # Atualizar
     tenant_usuario.perfil_id = perfil_uuid
@@ -466,17 +466,17 @@ async def remove_team_member(
     try:
         tu_uuid = uuid.UUID(tenant_usuario_id)
     except ValueError:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="ID inválido")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Identificador inválido.")
 
     tenant_usuario = await session.get(TenantUsuario, tu_uuid)
     if not tenant_usuario or tenant_usuario.tenant_id != tenant_id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Membro não encontrado")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Membro indisponível ou não encontrado.")
 
     # Não permitir remover owner
     if tenant_usuario.is_owner:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Não é possível remover o proprietário"
+            detail="Não é possível remover o proprietário da equipe."
         )
 
     await session.delete(tenant_usuario)
@@ -493,14 +493,14 @@ async def cancel_invite(
     try:
         inv_uuid = uuid.UUID(invite_id)
     except ValueError:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="ID inválido")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Identificador inválido.")
 
     convite = await session.get(ConviteAcesso, inv_uuid)
     if not convite or convite.tenant_id != tenant_id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Convite não encontrado")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Convite indisponível ou não encontrado.")
 
     if convite.status != "PENDENTE":
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Convite não está pendente")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="O convite precisa estar pendente.")
 
     convite.status = "CANCELADO"
     await session.commit()
@@ -517,16 +517,16 @@ async def resend_invite(
     try:
         inv_uuid = uuid.UUID(invite_id)
     except ValueError:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="ID inválido")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Identificador inválido.")
 
     convite = await session.get(ConviteAcesso, inv_uuid)
     if not convite or convite.tenant_id != tenant_id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Convite não encontrado")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Convite indisponível ou não encontrado.")
 
     if convite.status not in ["PENDENTE", "EXPIRADO"]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, 
-            detail=f"Não é possível reenviar um convite com status {convite.status}"
+            detail=f"Não é possível reenviar um convite com status {convite.status.lower()}."
         )
 
     # Renovar dados
@@ -651,23 +651,23 @@ async def _get_tenant_custom_role_or_404(
     try:
         rid = uuid.UUID(role_id)
     except ValueError:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="ID inválido")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Identificador inválido.")
 
     perfil = await session.get(PerfilAcesso, rid)
 
     if not perfil:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Perfil não encontrado")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Perfil indisponível ou não encontrado.")
 
     # Perfil padrão do sistema: tenant pode ver, mas não editar/deletar
     if perfil.tenant_id is None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Perfis padrão do sistema não podem ser modificados pelo tenant"
+            detail="Perfis padrão do sistema não podem ser modificados pelo tenant."
         )
 
     # Isolamento de tenant: garante que o perfil pertence ao tenant solicitante
     if perfil.tenant_id != tenant_id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Perfil não encontrado")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Perfil indisponível ou não encontrado.")
 
     return perfil
 
@@ -687,15 +687,15 @@ async def get_role(
     try:
         rid = uuid.UUID(role_id)
     except ValueError:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="ID inválido")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Identificador inválido.")
 
     perfil = await session.get(PerfilAcesso, rid)
     if not perfil:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Perfil não encontrado")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Perfil indisponível ou não encontrado.")
 
     # Somente pode acessar perfis globais ou do próprio tenant
     if perfil.tenant_id is not None and perfil.tenant_id != tenant_id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Perfil não encontrado")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Perfil indisponível ou não encontrado.")
 
     descricao = perfil.descricao
     if not descricao and not perfil.is_custom:
@@ -728,11 +728,11 @@ async def clone_role(
 
     origem = await session.get(PerfilAcesso, rid)
     if not origem:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Perfil de origem não encontrado")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Perfil de origem indisponível ou não encontrado.")
 
     # Somente pode clonar perfis globais ou do próprio tenant
     if origem.tenant_id is not None and origem.tenant_id != tenant_id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Perfil não encontrado")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Perfil indisponível ou não encontrado.")
 
     # Verificar nome duplicado
     existing = await session.execute(

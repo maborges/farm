@@ -25,6 +25,18 @@ except Exception:  # pragma: no cover - asyncpg may not be installed in sqlite-o
 _SESSION_CACHE: dict[str, tuple[bool, float]] = {}  # token_hash -> (is_valid, expires_at)
 _SESSION_CACHE_TTL = 30  # segundos
 _SESSION_CACHE_MAX = 2000
+TENANT_CONTEXT_ERROR = "Contexto de tenant ausente ou inválido. Refaça o login ou selecione o tenant ativo."
+PLAN_NOT_CONTRACTED_ERROR = "Seu plano atual não inclui este recurso. Faça upgrade do plano para continuar."
+PLAN_INSUFFICIENT_TIER_ERROR = "Seu plano atual não atende ao nível exigido. Faça upgrade do plano para continuar."
+PLAN_INACTIVE_ERROR = "Assinatura não encontrada ou inativa. Contrate ou reative um plano para continuar."
+PLAN_INVALID_ERROR = "Configuração de plano inválida. Verifique a assinatura contratada."
+
+def _limit_message(resource: str, limite: int | float, atual: int | float, extra: str | None = None) -> str:
+    suffix = f" {extra}" if extra else ""
+    return (
+        f"Seu plano atingiu o limite de {resource}. "
+        f"Você tem {atual} de {limite}{suffix}. Faça upgrade do plano para continuar."
+    )
 
 def _cache_get(token_hash: str) -> bool | None:
     entry = _SESSION_CACHE.get(token_hash)
@@ -163,11 +175,46 @@ async def get_tenant_id(
 ) -> uuid.UUID:
     """Recupera e garante que o usuário pertence ao Tenant que ele está tentando operar."""
     tenant_id_str = claims.get("tenant_id")
-    if not tenant_id_str:
-        logger.warning(f"Tentativa de requisição sem tenant no JWT. UserId: {claims.get('sub')}")
-        raise HTTPException(status_code=403, detail="Tenant context missing")
-    
-    return uuid.UUID(tenant_id_str)
+    if tenant_id_str:
+        return uuid.UUID(tenant_id_str)
+
+    user_id_str = claims.get("sub")
+    if not user_id_str:
+        logger.warning("Tentativa de requisição sem tenant e sem sub no JWT.")
+        raise HTTPException(status_code=403, detail=TENANT_CONTEXT_ERROR)
+
+    try:
+        user_id = uuid.UUID(user_id_str)
+    except ValueError:
+        raise HTTPException(status_code=403, detail="Token inválido: identificador de usuário malformado.")
+
+    from core.models.auth import TenantUsuario
+
+    async with async_session_maker() as session:
+        result = await session.execute(
+            select(TenantUsuario.tenant_id).where(
+                TenantUsuario.usuario_id == user_id,
+                TenantUsuario.status == "ATIVO",
+            ).distinct()
+        )
+        tenant_ids = list(result.scalars().all())
+
+    if len(tenant_ids) == 1:
+        resolved_tenant_id = tenant_ids[0]
+        logger.warning(
+            "JWT sem tenant_id resolvido pelo único tenant ativo do usuário.",
+            user_id=str(user_id),
+            tenant_id=str(resolved_tenant_id),
+        )
+        return resolved_tenant_id
+
+    if len(tenant_ids) > 1:
+        raise HTTPException(
+            status_code=403,
+            detail=TENANT_CONTEXT_ERROR,
+        )
+
+    raise HTTPException(status_code=403, detail=TENANT_CONTEXT_ERROR)
 
 async def get_user_id(
     claims: dict = Depends(get_current_user_claims)
@@ -244,13 +291,48 @@ async def get_current_tenant(
 ):
     """Retorna o objeto Tenant completo do banco."""
     from core.models.tenant import Tenant
+
     tenant_id_str = claims.get("tenant_id")
-    if not tenant_id_str:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Contexto de tenant ausente no token.")
-    try:
-        tenant_id = uuid.UUID(tenant_id_str)
-    except ValueError:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Token inválido: tenant ID malformado.")
+    tenant_id: uuid.UUID | None = None
+    if tenant_id_str:
+        try:
+            tenant_id = uuid.UUID(tenant_id_str)
+        except ValueError:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Token inválido: tenant ID malformado.")
+
+    if tenant_id is None:
+        user_id_str = claims.get("sub")
+        if not user_id_str:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=TENANT_CONTEXT_ERROR)
+
+        try:
+            user_id = uuid.UUID(user_id_str)
+        except ValueError:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Token inválido: identificador de usuário malformado.")
+
+        from core.models.auth import TenantUsuario
+        result = await session.execute(
+            select(TenantUsuario.tenant_id).where(
+                TenantUsuario.usuario_id == user_id,
+                TenantUsuario.status == "ATIVO",
+            ).distinct()
+        )
+        tenant_ids = list(result.scalars().all())
+
+        if len(tenant_ids) == 1:
+            tenant_id = tenant_ids[0]
+            logger.warning(
+                "JWT sem tenant_id resolvido pelo único tenant ativo do usuário.",
+                user_id=str(user_id),
+                tenant_id=str(tenant_id),
+            )
+        elif len(tenant_ids) > 1:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=TENANT_CONTEXT_ERROR,
+            )
+        else:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=TENANT_CONTEXT_ERROR)
 
     result = await session.execute(select(Tenant).where(Tenant.id == tenant_id))
     tenant = result.scalar_one_or_none()
@@ -344,7 +426,7 @@ def require_module(required_module: str):
         request_path = str(getattr(getattr(request, "url", None), "path", "")) if request else ""
         request_method = getattr(request, "method", "")
         if not tenant_id_str:
-            raise HTTPException(status_code=403, detail="Contexto de tenant ausente")
+            raise HTTPException(status_code=403, detail=TENANT_CONTEXT_ERROR)
 
         tenant_id = uuid.UUID(tenant_id_str)
         allowed_modules = await _get_modulos_do_tenant(tenant_id, session)
@@ -359,7 +441,7 @@ def require_module(required_module: str):
             modulo_nome = modulo_info.get("nome", required_module)
             raise HTTPException(
                 status_code=402,
-                detail=f"Módulo '{modulo_nome}' não contratado neste tenant. Faça upgrade do plano.",
+                detail=f"Este recurso ({modulo_nome}) não está incluído no plano atual. Faça upgrade do plano para continuar.",
                 headers={"X-Module-Required": required_module}
             )
 
@@ -389,7 +471,7 @@ def require_tier(minimum_tier: "PlanTier"):
         request_path = str(getattr(getattr(request, "url", None), "path", "")) if request else ""
         request_method = getattr(request, "method", "")
         if not tenant_id_str:
-            raise HTTPException(status_code=403, detail="Contexto de tenant ausente")
+            raise HTTPException(status_code=403, detail=TENANT_CONTEXT_ERROR)
 
         tenant_id = uuid.UUID(tenant_id_str)
         tier_str = claims.get("plan_tier")
@@ -420,7 +502,7 @@ def require_tier(minimum_tier: "PlanTier"):
                 method=request_method,
                 reason="missing_active_subscription",
             ).info("monetization_blocked")
-            raise HTTPException(status_code=402, detail="Sem assinatura ativa. Contate o suporte.")
+            raise HTTPException(status_code=402, detail=PLAN_INACTIVE_ERROR)
 
         try:
             tenant_tier = PlanTier(tier_str)
@@ -436,7 +518,7 @@ def require_tier(minimum_tier: "PlanTier"):
                 method=request_method,
                 reason="invalid_tier_configuration",
             ).info("monetization_blocked")
-            raise HTTPException(status_code=402, detail="Configuração de plano inválida.")
+            raise HTTPException(status_code=402, detail=PLAN_INVALID_ERROR)
 
         if tenant_tier < minimum_tier:
             logger.bind(
@@ -452,7 +534,7 @@ def require_tier(minimum_tier: "PlanTier"):
             ).info("monetization_blocked")
             raise HTTPException(
                 status_code=402,
-                detail=f"Esta funcionalidade requer o plano {minimum_tier.value}. Faça upgrade.",
+                detail=f"Este recurso exige o plano {minimum_tier.value} ou superior. Faça upgrade do plano para continuar.",
                 headers={"X-Tier-Required": minimum_tier.value, "X-Tier-Current": tenant_tier.value},
             )
         return tenant_tier
@@ -467,13 +549,13 @@ def require_any_module(*required_modules: str):
     ):
         tenant_id_str = claims.get("tenant_id")
         if not tenant_id_str:
-            raise HTTPException(status_code=403, detail="Contexto de tenant ausente")
+            raise HTTPException(status_code=403, detail=TENANT_CONTEXT_ERROR)
         tenant_id = uuid.UUID(tenant_id_str)
         allowed_modules = await _get_modulos_do_tenant(tenant_id, session)
         if not any(mod in allowed_modules for mod in required_modules):
             raise HTTPException(
                 status_code=402,
-                detail=f"Acesso negado. É necessário contratar um dos módulos: {', '.join(required_modules)}",
+                detail=f"Este recurso não está incluído no plano atual. Módulos necessários: {', '.join(required_modules)}. Faça upgrade do plano para continuar.",
             )
         return True
     return _dependency
@@ -487,14 +569,14 @@ def require_all_modules(*required_modules: str):
     ):
         tenant_id_str = claims.get("tenant_id")
         if not tenant_id_str:
-            raise HTTPException(status_code=403, detail="Contexto de tenant ausente")
+            raise HTTPException(status_code=403, detail=TENANT_CONTEXT_ERROR)
         tenant_id = uuid.UUID(tenant_id_str)
         allowed_modules = await _get_modulos_do_tenant(tenant_id, session)
         missing = [mod for mod in required_modules if mod not in allowed_modules]
         if missing:
             raise HTTPException(
                 status_code=402,
-                detail=f"Acesso negado. Você precisa dos módulos: {', '.join(missing)}",
+                detail=f"Este recurso requer os módulos: {', '.join(missing)}. Faça upgrade do plano para continuar.",
             )
         return True
     return _dependency
@@ -523,7 +605,7 @@ def require_grupo_access():
         tenant_id_str = claims.get("tenant_id")
         user_id_str = claims.get("sub")
         if not tenant_id_str or not user_id_str:
-            raise HTTPException(status_code=403, detail="Contexto de tenant/usuário ausente")
+            raise HTTPException(status_code=403, detail=TENANT_CONTEXT_ERROR)
 
         tenant_id = uuid.UUID(tenant_id_str)
         user_id = uuid.UUID(user_id_str)
@@ -721,7 +803,7 @@ def require_limit(limit_type: str):
 
         tenant_id_str = claims.get("tenant_id")
         if not tenant_id_str:
-            raise HTTPException(status_code=403, detail="Contexto de tenant ausente")
+            raise HTTPException(status_code=403, detail=TENANT_CONTEXT_ERROR)
 
         tenant_id = uuid.UUID(tenant_id_str)
 
@@ -744,7 +826,7 @@ def require_limit(limit_type: str):
             logger.warning(f"Tenant {tenant_id} sem assinatura ativa para validação de limites")
             raise HTTPException(
                 status_code=402,
-                detail="Assinatura não encontrada. Por favor, contrate um plano.",
+                detail=PLAN_INACTIVE_ERROR,
             )
 
         # Validar limite conforme tipo
@@ -762,7 +844,7 @@ def require_limit(limit_type: str):
             if atual >= limite:
                 raise HTTPException(
                     status_code=402,
-                    detail=f"Limite de {limite} fazendas atingido. Você tem {atual} fazenda(s) ativas. Faça upgrade do plano para adicionar mais.",
+                    detail=_limit_message("fazendas", limite, atual, "fazenda(s) ativas"),
                     headers={"X-Limit-Type": "max_fazendas", "X-Limit-Max": str(limite), "X-Limit-Current": str(atual)},
                 )
 
@@ -784,7 +866,7 @@ def require_limit(limit_type: str):
             if atual >= limite:
                 raise HTTPException(
                     status_code=402,
-                    detail=f"Limite de {limite} usuários atingido. Você tem {atual} usuário(s) ativo(s). Faça upgrade do plano para adicionar mais.",
+                    detail=_limit_message("usuários", limite, atual, "usuário(s) ativo(s)"),
                     headers={"X-Limit-Type": "max_usuarios", "X-Limit-Max": str(limite), "X-Limit-Current": str(atual)},
                 )
 
@@ -805,7 +887,7 @@ def require_limit(limit_type: str):
             if atual >= limite:
                 raise HTTPException(
                     status_code=402,
-                    detail=f"Limite de {limite} categorias atingido. Você tem {atual} categoria(s). Faça upgrade do plano para adicionar mais.",
+                    detail=_limit_message("categorias", limite, atual, "categoria(s)"),
                     headers={"X-Limit-Type": "max_categorias_plano", "X-Limit-Max": str(limite), "X-Limit-Current": str(atual)},
                 )
 
@@ -824,7 +906,7 @@ def require_limit(limit_type: str):
             if atual >= limite:
                 raise HTTPException(
                     status_code=402,
-                    detail=f"Limite de armazenamento atingido ({atual}/{limite} MB). Libere espaço ou faça upgrade do plano.",
+                    detail=_limit_message("armazenamento", limite, atual, f"({atual}/{limite} MB)"),
                     headers={"X-Limit-Type": "storage_limite_mb", "X-Limit-Max": str(limite), "X-Limit-Current": str(atual)},
                 )
 
@@ -952,7 +1034,7 @@ def require_fazenda_access(fazenda_id_param: str = "unidade_produtiva_id"):
         tenant_id_str = claims.get("tenant_id")
         user_id_str = claims.get("sub")
         if not tenant_id_str or not user_id_str:
-            raise HTTPException(status_code=403, detail="Contexto de tenant/usuário ausente")
+            raise HTTPException(status_code=403, detail=TENANT_CONTEXT_ERROR)
 
         tenant_id = uuid.UUID(tenant_id_str)
         user_id = uuid.UUID(user_id_str)

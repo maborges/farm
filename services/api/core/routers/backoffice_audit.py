@@ -218,6 +218,6 @@ async def get_audit_log(
     log = await session.get(AdminAuditLog, log_id)
     if not log:
         from fastapi import HTTPException
-        raise HTTPException(status_code=404, detail="Log não encontrado")
+        raise HTTPException(status_code=404, detail="Log indisponível ou não encontrado.")
 
     return AuditLogResponse.model_validate(log)

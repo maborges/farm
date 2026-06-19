@@ -219,7 +219,7 @@ class PlanoPricingService(BaseService[PlanoPricing]):
         plano = result.scalar_one_or_none()
 
         if not plano:
-            raise EntityNotFoundError(f"Plano {plano_id} não encontrado")
+            raise EntityNotFoundError("Plano não encontrado.")
 
         # Validar se faixa não sobrepõe existentes
         await self._validar_overlap_faixas(plano_id, faixa_inicio, faixa_fim)
@@ -261,16 +261,16 @@ class PlanoPricingService(BaseService[PlanoPricing]):
         plano = result.scalar_one_or_none()
 
         if not plano:
-            raise EntityNotFoundError(f"Plano {plano_id} não encontrado")
+            raise EntityNotFoundError("Plano não encontrado.")
 
         if not plano.ativo:
-            raise BusinessRuleError(f"Plano {plano.nome} está inativo")
+            raise BusinessRuleError("Plano indisponível ou inativo.")
 
         # Validar limites
         if quantidade_usuarios < plano.limite_usuarios_minimo:
             raise BusinessRuleError(
-                f"Plano {plano.nome} requer no mínimo {plano.limite_usuarios_minimo} usuários. "
-                f"Solicitado: {quantidade_usuarios}"
+                f"Este plano requer no mínimo {plano.limite_usuarios_minimo} usuário(s). "
+                f"Quantidade informada: {quantidade_usuarios}."
             )
 
         if plano.limite_usuarios_maximo and quantidade_usuarios > plano.limite_usuarios_maximo:

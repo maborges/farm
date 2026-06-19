@@ -35,7 +35,7 @@ class DespesaService(BaseService[Despesa]):
         )
         plano = (await self.session.execute(stmt)).scalars().first()
         if not plano:
-            raise BusinessRuleError("Plano de contas não localizado ou inacessível.")
+            raise BusinessRuleError("Plano de contas indisponível ou inacessível.")
         return plano
 
     async def _validar_unidade_produtiva(self, unidade_produtiva_id: uuid.UUID) -> None:
@@ -55,7 +55,7 @@ class DespesaService(BaseService[Despesa]):
                 tenant_id=str(self.tenant_id),
                 unidade_produtiva_id=str(unidade_produtiva_id),
             )
-            raise BusinessRuleError("Unidade produtiva da despesa não localizada ou inacessível.")
+            raise BusinessRuleError("Unidade produtiva da despesa indisponível ou inacessível.")
 
     async def _validar_rateios_contexto(self, obj_in: DespesaCreate) -> None:
         for rateio in obj_in.rateios:

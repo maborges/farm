@@ -128,7 +128,7 @@ async def create_admin(
     if data.role not in valid_roles:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Role inválida. Opções: {', '.join(valid_roles)}"
+            detail=f"Função inválida. Opções: {', '.join(valid_roles)}."
         )
 
     # Verificar se email já existe
@@ -136,7 +136,7 @@ async def create_admin(
     if existing:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email já cadastrado"
+            detail="Email já cadastrado no sistema."
         )
 
     # Hash da senha
@@ -182,11 +182,11 @@ async def update_admin(
     try:
         admin_uuid = uuid.UUID(admin_id)
     except ValueError:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="ID inválido")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Identificador inválido.")
 
     admin = await session.get(AdminUser, admin_uuid)
     if not admin:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Admin não encontrado")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Administrador indisponível ou não encontrado.")
 
     # Atualizar campos
     update_data = data.model_dump(exclude_unset=True)
@@ -196,7 +196,7 @@ async def update_admin(
         if update_data["role"] not in valid_roles:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Role inválida. Opções: {', '.join(valid_roles)}"
+                detail=f"Função inválida. Opções: {', '.join(valid_roles)}."
             )
 
     for field, value in update_data.items():
@@ -231,17 +231,17 @@ async def deactivate_admin(
     try:
         admin_uuid = uuid.UUID(admin_id)
     except ValueError:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="ID inválido")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Identificador inválido.")
 
     admin = await session.get(AdminUser, admin_uuid)
     if not admin:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Admin não encontrado")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Administrador indisponível ou não encontrado.")
 
     # Não permitir desativar super_admins
     if admin.role == "super_admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Não é possível desativar super_admin"
+            detail="Não é possível desativar um super_admin."
         )
 
     admin.ativo = False
@@ -272,11 +272,11 @@ async def reset_admin_password(
     try:
         admin_uuid = uuid.UUID(admin_id)
     except ValueError:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="ID inválido")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Identificador inválido.")
 
     admin = await session.get(AdminUser, admin_uuid)
     if not admin:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Admin não encontrado")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Administrador indisponível ou não encontrado.")
 
     # Hash da nova senha
     admin.senha_hash = pwd_context.hash(data.nova_senha)

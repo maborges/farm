@@ -176,7 +176,7 @@ async def criar_tenant(
             plano = result.scalar_one_or_none()
 
             if not plano or not plano.ativo:
-                raise EntityNotFoundError("Plano não encontrado ou inativo")
+                raise EntityNotFoundError("Plano indisponível ou inativo.")
 
             # 4. Validar quantidade de usuários
             pricing_service = PlanoPricingService(session)
@@ -556,7 +556,7 @@ async def converter_lead(
             # 4. Buscar plano (deve estar disponível no CRM)
             plano = await session.get(PlanoAssinatura, request.plano_id)
             if not plano or not plano.ativo:
-                raise EntityNotFoundError("Plano não encontrado ou inativo")
+                raise EntityNotFoundError("Plano indisponível ou inativo.")
             if not plano.disponivel_crm:
                 raise BusinessRuleError("Este plano não está disponível para comercialização via CRM")
 

@@ -20,7 +20,7 @@ class LancamentoService:
             safra = await self.session.get(Safra, data.safra_id)
             if safra is None or safra.tenant_id != self.tenant_id:
                 from fastapi import HTTPException
-                raise HTTPException(status_code=404, detail="Safra não encontrada para este tenant")
+                raise HTTPException(status_code=404, detail="Safra indisponível ou não encontrada para este tenant.")
 
         # Detecção de duplicata: mesmos tenant+safra+tipo+categoria+valor+data+descricao normalizada
         descricao_norm = data.descricao.strip().lower()
@@ -75,7 +75,7 @@ class LancamentoService:
         ).scalars().first()
 
         if lancamento is None:
-            raise HTTPException(status_code=404, detail="Lançamento não encontrado.")
+            raise HTTPException(status_code=404, detail="Lançamento indisponível ou não encontrado.")
 
         if lancamento.origem is not None and lancamento.origem != "MANUAL":
             raise HTTPException(
@@ -591,7 +591,7 @@ class LancamentoService:
         safra = await self.session.get(Safra, safra_id)
         if not safra or safra.tenant_id != self.tenant_id:
             from fastapi import HTTPException
-            raise HTTPException(status_code=404, detail="Safra não encontrada")
+            raise HTTPException(status_code=404, detail="Safra indisponível ou não encontrada.")
 
         # Soma Receitas por categoria
         stmt_rec = select(

@@ -58,7 +58,7 @@ async def webhook_asaas(request: Request):
         logger.error(f"Payload inválido no webhook Asaas: {e}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Payload inválido"
+            detail="Payload inválido."
         )
     except Exception as e:
         logger.error(f"Erro ao processar webhook Asaas: {e}", exc_info=True)

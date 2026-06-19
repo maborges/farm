@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 import uuid
 
-from core.dependencies import get_session, get_current_user_claims, get_current_user
+from core.dependencies import get_session, get_current_user_claims, get_current_user, get_tenant_id, TENANT_CONTEXT_ERROR
 from core.schemas.auth_schemas import LoginRequest, UserCreateRequest, UserUpdateRequest, TokenResponse, UsuarioMeResponse, CreateSubscriptionRequest, CreateSubscriptionResponse
 from core.schemas.auth_schemas import (
     LoginDesbloqueioRequest, LoginDesbloqueioResponse,
@@ -111,7 +111,7 @@ async def update_me(
     result = await session.execute(select(Usuario).where(Usuario.id == user_id))
     usuario = result.scalar_one_or_none()
     if not usuario:
-        raise HTTPException(status_code=404, detail="Usuário não encontrado")
+        raise HTTPException(status_code=404, detail="Usuário indisponível ou não encontrado.")
 
     if dados.nome_completo is not None:
         usuario.nome_completo = dados.nome_completo
@@ -173,7 +173,7 @@ async def upload_avatar(
     result = await session.execute(select(Usuario).where(Usuario.id == user_id))
     user_obj = result.scalar_one_or_none()
     if not user_obj:
-        raise HTTPException(status_code=404, detail="Usuário não encontrado")
+        raise HTTPException(status_code=404, detail="Usuário indisponível ou não encontrado.")
 
     user_obj.foto_perfil_url = avatar_url
     await session.commit()
@@ -227,7 +227,8 @@ async def switch_tenant(
 async def gestor_desbloquear_usuario(
     usuario_id: uuid.UUID,
     session: AsyncSession = Depends(get_session),
-    claims: dict = Depends(get_current_user_claims)
+    claims: dict = Depends(get_current_user_claims),
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     """
     Gestor do Tenant: Desbloqueia login de usuário do seu tenant.
@@ -240,19 +241,14 @@ async def gestor_desbloquear_usuario(
     - Bloqueio acidental por erro de digitação
     - Retorno de férias/afastamento
     """
-    tenant_id = claims.get("tenant_id")
     user_claims_id = claims.get("sub")
-    
-    if not tenant_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Usuário não está vinculado a nenhum tenant"
-        )
+    if not user_claims_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=TENANT_CONTEXT_ERROR)
     
     # Verifica se o usuário atual tem permissão de gestor no tenant
     stmt = select(TenantUsuario).where(
         TenantUsuario.usuario_id == uuid.UUID(user_claims_id),
-        TenantUsuario.tenant_id == uuid.UUID(tenant_id),
+        TenantUsuario.tenant_id == tenant_id,
         TenantUsuario.status == "ATIVO"
     )
     result = await session.execute(stmt)
@@ -261,7 +257,7 @@ async def gestor_desbloquear_usuario(
     if not tenant_usuario:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Usuário não tem acesso a este tenant"
+            detail="Acesso ao tenant negado."
         )
     
     # Verifica se é owner ou admin (perfil com permissão de gerenciar usuários)
@@ -284,7 +280,7 @@ async def gestor_desbloquear_usuario(
         if not pode_gerenciar_usuarios:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Usuário não tem permissão para desbloquear outros usuários"
+                detail="Permissão insuficiente para desbloquear usuários."
             )
     
     # Verifica se o usuário a ser desbloqueado pertence ao mesmo tenant
@@ -295,13 +291,13 @@ async def gestor_desbloquear_usuario(
     if not usuario_alvo:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Usuário não encontrado"
+            detail="Usuário indisponível ou não encontrado."
         )
     
     # Verifica se o usuário alvo está no mesmo tenant
     stmt_vinculo = select(TenantUsuario).where(
         TenantUsuario.usuario_id == usuario_id,
-        TenantUsuario.tenant_id == uuid.UUID(tenant_id)
+        TenantUsuario.tenant_id == tenant_id
     )
     result_vinculo = await session.execute(stmt_vinculo)
     vinculo = result_vinculo.scalar_one_or_none()
@@ -309,7 +305,7 @@ async def gestor_desbloquear_usuario(
     if not vinculo:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Usuário não pertence a este tenant"
+            detail="Usuário fora do tenant selecionado."
         )
     
     # Desbloqueia o login
@@ -319,7 +315,7 @@ async def gestor_desbloquear_usuario(
     if not desbloqueado:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Nenhum registro de bloqueio encontrado para este usuário"
+            detail="Nenhum bloqueio encontrado para este usuário."
         )
     
     return LoginDesbloqueioResponse(
@@ -333,20 +329,22 @@ async def gestor_desbloquear_usuario(
 async def gestor_ver_tentativas_usuario(
     usuario_id: uuid.UUID,
     session: AsyncSession = Depends(get_session),
-    claims: dict = Depends(get_current_user_claims)
+    claims: dict = Depends(get_current_user_claims),
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     """
     Gestor do Tenant: Visualiza tentativas de login de um usuário do tenant.
     
     Retorna informações sobre bloqueio e contador de tentativas.
     """
-    tenant_id = claims.get("tenant_id")
     user_claims_id = claims.get("sub")
+    if not user_claims_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=TENANT_CONTEXT_ERROR)
     
     # Verifica permissões (mesma lógica do desbloqueio)
     stmt = select(TenantUsuario).where(
         TenantUsuario.usuario_id == uuid.UUID(user_claims_id),
-        TenantUsuario.tenant_id == uuid.UUID(tenant_id),
+        TenantUsuario.tenant_id == tenant_id,
         TenantUsuario.status == "ATIVO"
     )
     result = await session.execute(stmt)
@@ -355,7 +353,7 @@ async def gestor_ver_tentativas_usuario(
     if not tenant_usuario:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Usuário não tem acesso a este tenant"
+            detail="Acesso ao tenant negado."
         )
     
     # Verifica se o usuário alvo pertence ao tenant
@@ -369,7 +367,7 @@ async def gestor_ver_tentativas_usuario(
     if not vinculo:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Usuário não pertence a este tenant"
+            detail="Usuário fora do tenant selecionado."
         )
     
     # Busca informações do usuário
@@ -380,7 +378,7 @@ async def gestor_ver_tentativas_usuario(
     if not usuario:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Usuário não encontrado"
+            detail="Usuário indisponível ou não encontrado."
         )
     
     rate_limit_svc = LoginRateLimitService(session)
@@ -389,7 +387,7 @@ async def gestor_ver_tentativas_usuario(
     if not info:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Nenhum registro de tentativas para {usuario.email}"
+            detail=f"Nenhuma tentativa encontrada para {usuario.email}."
         )
     
     return LoginTentativasInfoResponse(**info)

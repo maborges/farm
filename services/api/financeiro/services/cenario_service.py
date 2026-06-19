@@ -17,7 +17,7 @@ class CenarioFinanceiroService:
         # Valida safra
         safra = await self.session.get(Safra, data.safra_id)
         if not safra or safra.tenant_id != self.tenant_id:
-            raise HTTPException(status_code=404, detail="Safra não encontrada")
+            raise HTTPException(status_code=404, detail="Safra indisponível ou não encontrada.")
 
         cenario = FinanceiroSafraCenario(
             tenant_id=self.tenant_id,
@@ -63,7 +63,7 @@ class CenarioFinanceiroService:
         ).scalars().first()
 
         if not cenario:
-            raise HTTPException(status_code=404, detail="Cenário não encontrado")
+            raise HTTPException(status_code=404, detail="Cenário indisponível ou não encontrado.")
 
         # Desmarca todos os outros da mesma safra
         await self.session.execute(

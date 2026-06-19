@@ -71,7 +71,7 @@ async def get_ticket_details(
     chamado = result.scalar_one_or_none()
     
     if not chamado:
-        raise HTTPException(status_code=404, detail="Chamado não encontrado")
+        raise HTTPException(status_code=404, detail="Chamado indisponível ou não encontrado.")
     
     return chamado
 
@@ -86,7 +86,7 @@ async def reply_to_ticket(
     """Usuário envia uma nova mensagem no chamado."""
     chamado = await session.get(ChamadoSuporte, ticket_id)
     if not chamado or chamado.tenant_id != tenant.id:
-        raise HTTPException(status_code=404, detail="Chamado não encontrado")
+        raise HTTPException(status_code=404, detail="Chamado indisponível ou não encontrado.")
     
     if chamado.status == TicketStatus.CONCLUIDO:
         raise HTTPException(status_code=400, detail="Este chamado já foi concluído.")

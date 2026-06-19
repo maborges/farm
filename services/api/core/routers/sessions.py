@@ -127,7 +127,7 @@ async def revogar_minha_sessao(
 
     sessao = await db.get(SessaoAtiva, sessao_id)
     if not sessao or sessao.usuario_id != usuario_id:
-        raise HTTPException(status_code=404, detail="Sessão não encontrada")
+        raise HTTPException(status_code=404, detail="Sessão indisponível ou não encontrada.")
 
     sessao.status = "ENCERRADA"
     invalidate_session_cache(sessao.token_hash)
@@ -170,7 +170,7 @@ async def revogar_sessao_membro(
     """Owner/admin encerra a sessão de qualquer membro do tenant."""
     sessao = await db.get(SessaoAtiva, sessao_id)
     if not sessao or sessao.tenant_id != tenant_id:
-        raise HTTPException(status_code=404, detail="Sessão não encontrada")
+        raise HTTPException(status_code=404, detail="Sessão indisponível ou não encontrada.")
 
     sessao.status = "ENCERRADA"
     invalidate_session_cache(sessao.token_hash)
@@ -190,7 +190,7 @@ async def logout(
     """Encerra a sessão atual do usuário (logout)."""
     token_hash = _token_hash_from_request(request)
     if not token_hash:
-        raise HTTPException(status_code=400, detail="Token não encontrado")
+        raise HTTPException(status_code=400, detail="Token de sessão não encontrado.")
 
     result = await db.execute(
         select(SessaoAtiva).where(SessaoAtiva.token_hash == token_hash)

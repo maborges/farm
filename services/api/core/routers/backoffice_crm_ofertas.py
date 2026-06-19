@@ -208,7 +208,7 @@ async def criar_oferta_personalizada(
     lead_result = await session.execute(select(LeadCRM).where(LeadCRM.id == lead_id))
     lead = lead_result.scalar_one_or_none()
     if not lead:
-        raise HTTPException(status_code=404, detail="Lead não encontrado")
+        raise HTTPException(status_code=404, detail="Lead indisponível ou não encontrado.")
 
     vigencia_fim = datetime.now(timezone.utc) + timedelta(days=data.vigencia_dias)
 
@@ -258,7 +258,7 @@ async def atualizar_status_oferta(
     result = await session.execute(select(OfertaPersonalizada).where(OfertaPersonalizada.id == oferta_id))
     oferta = result.scalar_one_or_none()
     if not oferta:
-        raise HTTPException(status_code=404, detail="Oferta não encontrada")
+        raise HTTPException(status_code=404, detail="Oferta indisponível ou não encontrada.")
 
     oferta.status = novo_status
     await session.commit()

@@ -93,7 +93,7 @@ class PlanoContaService(BaseService[PlanoConta]):
         if obj_in.parent_id:
             pai = await self.get(obj_in.parent_id)
             if not pai:
-                raise BusinessRuleError("Conta pai não encontrada.")
+                raise BusinessRuleError("Conta pai indisponível ou não encontrada.")
             if pai.natureza == "ANALITICA":
                 raise BusinessRuleError("Conta analítica não pode ter filhos.")
             if pai.tipo != obj_in.tipo:

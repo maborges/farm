@@ -207,7 +207,10 @@ async def ativar_conta(
     usuario = result.scalar_one_or_none()
 
     if not usuario:
-        raise HTTPException(status_code=500, detail="Usuário owner não encontrado")
+        raise HTTPException(
+            status_code=500,
+            detail="Não foi possível localizar o responsável pela conta. Refaça a ativação ou contate o suporte.",
+        )
 
     # Atualizar dados do usuário
     auth_service = AuthService(session)
@@ -225,7 +228,10 @@ async def ativar_conta(
     assinatura = result.scalar_one_or_none()
 
     if not assinatura:
-        raise HTTPException(status_code=500, detail="Assinatura não encontrada")
+        raise HTTPException(
+            status_code=500,
+            detail="Não foi possível localizar a assinatura vinculada a esta conta. Refaça a ativação ou contate o suporte.",
+        )
 
     # Criar checkout Stripe
     from core.services.stripe_service import StripeService
@@ -345,23 +351,13 @@ class OnboardingStatusResponse(BaseModel):
 )
 async def onboarding_status(
     claims: dict = Depends(get_current_user_claims),
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
     session: AsyncSession = Depends(get_session),
 ):
     """
     Verifica quais etapas do onboarding foram concluídas.
     Usado pelo OnboardingGuard para redirecionar ao wizard se incompleto.
     """
-    tenant_id_str = claims.get("tenant_id")
-    if not tenant_id_str:
-        return OnboardingStatusResponse(
-            completo=False,
-            etapa1_produtor=False,
-            etapa2_propriedade=False,
-            etapa3_equipe=False,
-        )
-
-    tenant_id = uuid.UUID(tenant_id_str)
-
     # Etapa 1: Tenant existe e está ativo
     tenant = await session.get(Tenant, tenant_id)
     etapa1 = tenant is not None and tenant.ativo

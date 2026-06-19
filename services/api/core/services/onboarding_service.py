@@ -63,7 +63,7 @@ class OnboardingService:
             select(PlanoAssinatura).where(PlanoAssinatura.id == data.plano_id, PlanoAssinatura.ativo == True)
         )).scalar_one_or_none()
         if not plano:
-            raise HTTPException(status_code=404, detail="Plano não encontrado.")
+            raise HTTPException(status_code=404, detail="Plano indisponível ou inativo.")
 
         agora = datetime.now(timezone.utc)
 

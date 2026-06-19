@@ -177,7 +177,7 @@ async def ignorar_lancamento(
     )
     lanc = (await db.execute(stmt)).scalar_one_or_none()
     if not lanc:
-        raise HTTPException(status_code=404, detail="Lançamento não encontrado.")
+        raise HTTPException(status_code=404, detail="Lançamento indisponível ou não encontrado.")
     lanc.status_conciliacao = "IGNORADO"
     db.add(lanc)
     await db.commit()

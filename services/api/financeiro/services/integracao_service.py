@@ -99,7 +99,7 @@ class ConciliacaoService:
         conta = (await self.session.execute(stmt)).scalar_one_or_none()
         if not conta:
             from core.exceptions import EntityNotFoundError
-            raise EntityNotFoundError(f"Conta bancária {conta_id} não encontrada.")
+            raise EntityNotFoundError(f"Conta bancária {conta_id} indisponível ou não encontrada.")
 
         transacoes = _parse_ofx(ofx_content)
         importados = 0
@@ -172,7 +172,7 @@ class ConciliacaoService:
         lanc = (await self.session.execute(stmt)).scalar_one_or_none()
         if not lanc:
             from core.exceptions import EntityNotFoundError
-            raise EntityNotFoundError(f"Lançamento {lancamento_id} não encontrado.")
+            raise EntityNotFoundError(f"Lançamento {lancamento_id} indisponível ou não encontrado.")
 
         lanc.despesa_id = despesa_id
         lanc.receita_id = receita_id

@@ -72,7 +72,7 @@ async def _get_system_profile_or_404(profile_id: str, session: AsyncSession) -> 
     if not perfil or perfil.tenant_id is not None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Perfil padrão não encontrado"
+            detail="Perfil padrão indisponível ou não encontrado."
         )
     return perfil
 

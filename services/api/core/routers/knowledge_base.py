@@ -39,7 +39,7 @@ async def get_article_by_slug(slug: str, session: AsyncSession = Depends(get_ses
     artigo = result.scalar_one_or_none()
     
     if not artigo:
-        raise HTTPException(status_code=404, detail="Artigo não encontrado")
+        raise HTTPException(status_code=404, detail="Artigo indisponível ou não encontrado.")
     
     artigo.visualizacoes += 1
     await session.commit()
@@ -65,13 +65,13 @@ async def create_article(data: ConhecimentoArtigoCreate, session: AsyncSession =
         return art
     except Exception as e:
         await session.rollback()
-        raise HTTPException(status_code=400, detail="Erro ao criar artigo. Slug duplicado?")
+        raise HTTPException(status_code=400, detail="Não foi possível criar o artigo. Verifique se o slug já existe.")
 
 @router.patch("/articles/{article_id}", response_model=ConhecimentoArtigoResponse, dependencies=[Depends(get_current_admin)])
 async def update_article(article_id: uuid.UUID, data: ConhecimentoArtigoUpdate, session: AsyncSession = Depends(get_session)):
     art = await session.get(ConhecimentoArtigo, article_id)
     if not art:
-        raise HTTPException(status_code=404, detail="Artigo não encontrado")
+        raise HTTPException(status_code=404, detail="Artigo indisponível ou não encontrado.")
     
     for key, value in data.model_dump(exclude_unset=True).items():
         setattr(art, key, value)
@@ -84,7 +84,7 @@ async def update_article(article_id: uuid.UUID, data: ConhecimentoArtigoUpdate, 
 async def delete_article(article_id: uuid.UUID, session: AsyncSession = Depends(get_session)):
     art = await session.get(ConhecimentoArtigo, article_id)
     if not art:
-        raise HTTPException(status_code=404, detail="Artigo não encontrado")
+        raise HTTPException(status_code=404, detail="Artigo indisponível ou não encontrado.")
     
     await session.delete(art)
     await session.commit()

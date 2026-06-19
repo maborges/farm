@@ -48,6 +48,14 @@ class AuthService:
         
     def create_access_token(self, data: dict, expires_delta: Optional[timedelta] = None):
         to_encode = data.copy()
+        tenant_id = to_encode.get("tenant_id")
+        if not tenant_id:
+            tenant_contexts = to_encode.get("tenant_contexts") or []
+            if len(tenant_contexts) == 1:
+                context_tenant_id = tenant_contexts[0].get("id")
+                if context_tenant_id:
+                    to_encode["tenant_id"] = str(context_tenant_id)
+
         if expires_delta:
             expire = datetime.now(timezone.utc) + expires_delta
         else:

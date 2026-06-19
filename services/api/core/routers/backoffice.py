@@ -173,7 +173,7 @@ async def toggle_tenant_status(tenant_id: uuid.UUID, session: AsyncSession = Dep
     """Bloqueia ou desbloqueia um Tenant (corte total de acesso)."""
     tenant = await session.get(Tenant, tenant_id)
     if not tenant:
-        raise HTTPException(status_code=404, detail="Tenant não encontrado")
+        raise HTTPException(status_code=404, detail="Tenant indisponível ou não encontrado.")
     
     tenant.ativo = not tenant.ativo
     await session.commit()
@@ -210,7 +210,7 @@ async def update_plan(plan_id: uuid.UUID, plan_data: PlanoAssinaturaUpdate, sess
     """Atualiza um plano/pacote comercial."""
     plan = await session.get(PlanoAssinatura, plan_id)
     if not plan:
-        raise HTTPException(status_code=404, detail="Plano não encontrado")
+        raise HTTPException(status_code=404, detail="Plano indisponível ou não encontrado.")
 
     # Se estão marcando este plano como padrão, desmarcar os outros
     if plan_data.is_default is True:
@@ -248,7 +248,7 @@ async def toggle_plan_status(plan_id: uuid.UUID, session: AsyncSession = Depends
     """Ativa ou desativa um plano comercial."""
     plan = await session.get(PlanoAssinatura, plan_id)
     if not plan:
-        raise HTTPException(status_code=404, detail="Plano não encontrado")
+        raise HTTPException(status_code=404, detail="Plano indisponível ou não encontrado.")
     
     plan.ativo = not plan.ativo
     await session.commit()
@@ -283,7 +283,7 @@ async def assign_plan_to_tenant(
     plan = await session.get(PlanoAssinatura, plan_id)
     
     if not tenant or not plan:
-        raise HTTPException(status_code=404, detail="Tenant ou Plano não encontrado")
+        raise HTTPException(status_code=404, detail="Tenant ou plano indisponível ou não encontrado.")
     
     # Buscar assinatura atual
     stmt = select(AssinaturaTenant).where(AssinaturaTenant.tenant_id == tenant_id)
@@ -363,7 +363,7 @@ async def review_invoice(
     row = result.first()
     
     if not row:
-        raise HTTPException(status_code=404, detail="Fatura ou Proprietário não encontrados")
+        raise HTTPException(status_code=404, detail="Fatura ou proprietário indisponível ou não encontrado.")
     
     fatura, tenant, plano, owner_email, owner_nome = row
     
@@ -440,7 +440,7 @@ async def toggle_user_status(user_id: uuid.UUID, session: AsyncSession = Depends
     """Bloqueia ou desbloqueia um usuário globalmente."""
     user = await session.get(Usuario, user_id)
     if not user:
-        raise HTTPException(status_code=404, detail="Usuário não encontrado")
+        raise HTTPException(status_code=404, detail="Usuário indisponível ou não encontrado.")
 
     if user.is_superuser:
         raise HTTPException(status_code=400, detail="Não é possível desativar um superusuário por aqui.")
@@ -477,7 +477,7 @@ async def reset_user_password(
 
     user = await session.get(Usuario, user_id)
     if not user:
-        raise HTTPException(status_code=404, detail="Usuário não encontrado")
+        raise HTTPException(status_code=404, detail="Usuário indisponível ou não encontrado.")
 
     if user.is_superuser:
         raise HTTPException(status_code=400, detail="Não é possível resetar senha de superusuário por aqui.")
@@ -544,7 +544,7 @@ async def get_admin_ticket_details(ticket_id: uuid.UUID, session: AsyncSession =
     """Retorna detalhes de um chamado para o administrador."""
     chamado = await session.get(ChamadoSuporte, ticket_id)
     if not chamado:
-        raise HTTPException(status_code=404, detail="Chamado não encontrado")
+        raise HTTPException(status_code=404, detail="Chamado indisponível ou não encontrado.")
     return chamado
 
 @router.post("/tickets/{ticket_id}/reply", response_model=MensagemChamadoResponse, dependencies=[Depends(get_current_admin)])
@@ -557,7 +557,7 @@ async def admin_reply_to_ticket(
     """Administrador responde a um chamado."""
     chamado = await session.get(ChamadoSuporte, ticket_id)
     if not chamado:
-        raise HTTPException(status_code=404, detail="Chamado não encontrado")
+        raise HTTPException(status_code=404, detail="Chamado indisponível ou não encontrado.")
     
     msg = MensagemChamado(
         chamado_id=ticket_id,
@@ -579,7 +579,7 @@ async def close_ticket(ticket_id: uuid.UUID, session: AsyncSession = Depends(get
     """Finaliza um chamado de suporte."""
     chamado = await session.get(ChamadoSuporte, ticket_id)
     if not chamado:
-        raise HTTPException(status_code=404, detail="Chamado não encontrado")
+        raise HTTPException(status_code=404, detail="Chamado indisponível ou não encontrado.")
     
     chamado.status = TicketStatus.CONCLUIDO
     await session.commit()
@@ -602,7 +602,7 @@ async def reset_tenant_password(
     # Buscar tenant
     tenant = await session.get(Tenant, tenant_id)
     if not tenant:
-        raise HTTPException(status_code=404, detail="Tenant não encontrado")
+        raise HTTPException(status_code=404, detail="Tenant indisponível ou não encontrado.")
 
     # Gerar senha aleatória
     caracteres = string.ascii_letters + string.digits + "!@#$%&*"
@@ -621,7 +621,7 @@ async def reset_tenant_password(
     usuario = result.scalar_one_or_none()
 
     if not usuario:
-        raise HTTPException(status_code=404, detail="Usuário responsável não encontrado")
+        raise HTTPException(status_code=404, detail="Usuário responsável indisponível ou não encontrado.")
 
     # Atualizar senha
     usuario.senha_hash = hash_password(senha_temporaria)
@@ -670,12 +670,15 @@ async def change_tenant_plan(
     # Buscar tenant
     tenant = await session.get(Tenant, tenant_id)
     if not tenant:
-        raise HTTPException(status_code=404, detail="Tenant não encontrado")
+        raise HTTPException(status_code=404, detail="Tenant indisponível ou não encontrado.")
 
     # Buscar novo plano
     novo_plano = await session.get(PlanoAssinatura, novo_plano_id)
     if not novo_plano or not novo_plano.ativo:
-        raise HTTPException(status_code=404, detail="Plano não encontrado ou inativo")
+        raise HTTPException(
+            status_code=404,
+            detail="Plano indisponível ou inativo. Verifique se o cadastro do plano está ativo.",
+        )
 
     # Buscar assinatura atual
     stmt = select(AssinaturaTenant).where(AssinaturaTenant.tenant_id == tenant_id)
@@ -683,7 +686,10 @@ async def change_tenant_plan(
     assinatura = result.scalar_one_or_none()
 
     if not assinatura:
-        raise HTTPException(status_code=404, detail="Assinatura não encontrada")
+        raise HTTPException(
+            status_code=404,
+            detail="Assinatura não localizada. Verifique se o tenant possui uma assinatura ativa.",
+        )
 
     # Guardar dados antigos para audit log
     plano_anterior_id = assinatura.plano_id
@@ -736,7 +742,7 @@ async def get_tenant_details(tenant_id: uuid.UUID, session: AsyncSession = Depen
         # Buscar tenant
         tenant = await session.get(Tenant, tenant_id)
         if not tenant:
-            raise HTTPException(status_code=404, detail="Tenant não encontrado")
+            raise HTTPException(status_code=404, detail="Tenant indisponível ou não encontrado.")
 
         # Buscar TODAS as assinaturas do tenant
         stmt_assinaturas = (

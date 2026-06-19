@@ -246,7 +246,7 @@ async def atualizar_estagio(
     """Atualiza um estágio."""
     estagio = await session.get(PipelineEstagio, estagio_id)
     if not estagio:
-        raise HTTPException(status_code=404, detail="Estágio não encontrado")
+        raise HTTPException(status_code=404, detail="Estágio indisponível ou não encontrado.")
 
     update_data = data.model_dump(exclude_unset=True)
     for field, value in update_data.items():
@@ -459,7 +459,7 @@ async def get_lead(
     )
     lead = result.unique().scalar_one_or_none()
     if not lead:
-        raise HTTPException(status_code=404, detail="Lead não encontrado")
+        raise HTTPException(status_code=404, detail="Lead indisponível ou não encontrado.")
     return lead
 
 
@@ -478,7 +478,7 @@ async def criar_lead(
     # Verificar estágio existe
     estagio = await session.get(PipelineEstagio, data.estagio_id)
     if not estagio:
-        raise HTTPException(status_code=400, detail="Estágio não encontrado")
+        raise HTTPException(status_code=400, detail="Estágio indisponível ou não encontrado.")
 
     lead = LeadCRM(**data.model_dump())
     session.add(lead)
@@ -501,7 +501,7 @@ async def atualizar_lead(
     """Atualiza dados de um lead."""
     lead = await session.get(LeadCRM, lead_id)
     if not lead:
-        raise HTTPException(status_code=404, detail="Lead não encontrado")
+        raise HTTPException(status_code=404, detail="Lead indisponível ou não encontrado.")
 
     update_data = data.model_dump(exclude_unset=True)
     for field, value in update_data.items():
@@ -526,11 +526,11 @@ async def mover_lead(
     """Move lead para outro estágio (drag & drop do Kanban)."""
     lead = await session.get(LeadCRM, lead_id)
     if not lead:
-        raise HTTPException(status_code=404, detail="Lead não encontrado")
+        raise HTTPException(status_code=404, detail="Lead indisponível ou não encontrado.")
 
     estagio = await session.get(PipelineEstagio, data.estagio_id)
     if not estagio:
-        raise HTTPException(status_code=400, detail="Estágio não encontrado")
+        raise HTTPException(status_code=400, detail="Estágio indisponível ou não encontrado.")
 
     lead.estagio_id = data.estagio_id
     await session.commit()
@@ -552,7 +552,7 @@ async def converter_lead(
     """Marca lead como convertido."""
     lead = await session.get(LeadCRM, lead_id)
     if not lead:
-        raise HTTPException(status_code=404, detail="Lead não encontrado")
+        raise HTTPException(status_code=404, detail="Lead indisponível ou não encontrado.")
 
     lead.status = "convertido"
     lead.data_conversao = date.today()
@@ -578,7 +578,7 @@ async def perder_lead(
     """Marca lead como perdido."""
     lead = await session.get(LeadCRM, lead_id)
     if not lead:
-        raise HTTPException(status_code=404, detail="Lead não encontrado")
+        raise HTTPException(status_code=404, detail="Lead indisponível ou não encontrado.")
 
     lead.status = "perdido"
     lead.motivo_perda = data.motivo_perda
@@ -601,7 +601,7 @@ async def reabrir_lead(
     """Reabre um lead perdido ou convertido."""
     lead = await session.get(LeadCRM, lead_id)
     if not lead:
-        raise HTTPException(status_code=404, detail="Lead não encontrado")
+        raise HTTPException(status_code=404, detail="Lead indisponível ou não encontrado.")
 
     lead.status = "ativo"
     lead.motivo_perda = None
@@ -626,7 +626,7 @@ async def aprovar_lead(
     """Aprova um lead ativo, habilitando-o para conversão em tenant."""
     lead = await session.get(LeadCRM, lead_id)
     if not lead:
-        raise HTTPException(status_code=404, detail="Lead não encontrado")
+        raise HTTPException(status_code=404, detail="Lead indisponível ou não encontrado.")
     if lead.status != "ativo":
         raise HTTPException(status_code=422, detail=f"Somente leads com status 'ativo' podem ser aprovados. Status atual: '{lead.status}'")
 
@@ -669,7 +669,7 @@ async def criar_atividade(
     """Registra uma atividade no lead."""
     lead = await session.get(LeadCRM, lead_id)
     if not lead:
-        raise HTTPException(status_code=404, detail="Lead não encontrado")
+        raise HTTPException(status_code=404, detail="Lead indisponível ou não encontrado.")
 
     atividade = AtividadeCRM(
         lead_id=lead_id,

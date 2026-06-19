@@ -75,16 +75,16 @@ async def _resolve_user_from_token(token: str) -> tuple[str, bool]:
         user_id: str = payload.get("sub")
         tenant_id: str = payload.get("tenant_id")
         if not user_id:
-            raise HTTPException(status_code=401, detail="Token inválido.")
+            raise HTTPException(status_code=401, detail="Token inválido ou ausente.")
     except JWTError:
-        raise HTTPException(status_code=401, detail="Token inválido.")
+        raise HTTPException(status_code=401, detail="Token inválido ou ausente.")
 
     async with async_session_maker() as session:
         stmt = select(Usuario).where(Usuario.id == uuid.UUID(user_id))
         result = await session.execute(stmt)
         user = result.scalar_one_or_none()
         if not user or not user.ativo:
-            raise HTTPException(status_code=401, detail="Usuário não encontrado.")
+            raise HTTPException(status_code=401, detail="Usuário indisponível ou não encontrado.")
         return str(user.id), user.is_superuser, tenant_id
 
 
@@ -119,7 +119,7 @@ async def websocket_ticket_chat(
     try:
         user_id, is_admin, token_tenant_id = await _resolve_user_from_token(token)
     except HTTPException:
-        await websocket.close(code=4001, reason="Não autorizado")
+        await websocket.close(code=4001, reason="Autorização inválida ou ausente.")
         return
 
     ticket_uuid = uuid.UUID(ticket_id)
@@ -128,7 +128,7 @@ async def websocket_ticket_chat(
     async with async_session_maker() as session:
         chamado = await session.get(ChamadoSuporte, ticket_uuid)
         if not chamado:
-            await websocket.close(code=4004, reason="Chamado não encontrado")
+            await websocket.close(code=4004, reason="Chamado indisponível ou não encontrado.")
             return
 
         if not is_admin and str(chamado.tenant_id) != token_tenant_id:
@@ -153,7 +153,7 @@ async def websocket_ticket_chat(
             async with async_session_maker() as session:
                 chamado = await session.get(ChamadoSuporte, ticket_uuid)
                 if not chamado or chamado.status == TicketStatus.CONCLUIDO:
-                    await websocket.send_json({"error": "Chamado encerrado ou não encontrado."})
+                    await websocket.send_json({"error": "Chamado encerrado ou indisponível."})
                     continue
 
                 msg = MensagemChamado(

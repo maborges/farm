@@ -231,7 +231,7 @@ class MudancaPlanoService(BaseService[MudancaPlano]):
         mudanca = result.scalar_one_or_none()
 
         if not mudanca:
-            raise EntityNotFoundError(f"Mudança {mudanca_id} não encontrada")
+            raise EntityNotFoundError("Mudança de plano não encontrada.")
 
         if mudanca.status not in ["pendente_pagamento", "agendado"]:
             raise BusinessRuleError(
@@ -427,7 +427,7 @@ class MudancaPlanoService(BaseService[MudancaPlano]):
         assinatura = result.scalar_one_or_none()
 
         if not assinatura:
-            raise EntityNotFoundError("Assinatura não encontrada")
+            raise EntityNotFoundError("Assinatura do tenant não encontrada.")
 
         if assinatura.status == "BLOQUEADA":
             raise BusinessRuleError(
@@ -443,10 +443,10 @@ class MudancaPlanoService(BaseService[MudancaPlano]):
         plano = result.scalar_one_or_none()
 
         if not plano:
-            raise EntityNotFoundError(f"Plano {plano_id} não encontrado")
+            raise EntityNotFoundError("Plano não encontrado.")
 
         if not plano.ativo:
-            raise BusinessRuleError(f"Plano {plano.nome} não está mais disponível")
+            raise BusinessRuleError("Plano indisponível ou inativo.")
 
         return plano
 

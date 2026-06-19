@@ -168,7 +168,7 @@ async def _get_uom_or_404(session: AsyncSession, uom_id: uuid.UUID) -> UnidadeMe
     )
     uom = (await session.execute(stmt)).scalar_one_or_none()
     if not uom:
-        raise HTTPException(status_code=404, detail="Unidade de medida não encontrada.")
+        raise HTTPException(status_code=404, detail="Unidade de medida indisponível ou não encontrada.")
     return uom
 
 
@@ -178,7 +178,7 @@ async def _get_conversao_or_404(session: AsyncSession, conv_id: uuid.UUID) -> Un
     )
     conv = (await session.execute(stmt)).scalar_one_or_none()
     if not conv:
-        raise HTTPException(status_code=404, detail="Conversão não encontrada.")
+        raise HTTPException(status_code=404, detail="Conversão indisponível ou não encontrada.")
     return conv
 
 

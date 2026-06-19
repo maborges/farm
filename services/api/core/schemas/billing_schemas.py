@@ -10,6 +10,7 @@ class PlanoAssinaturaBase(BaseModel):
     limite_usuarios_minimo: int = 1
     limite_usuarios_maximo: Optional[int] = None
     limite_hectares: Optional[float] = None
+    max_categorias_plano: int = 10
     preco_mensal: float = 0.0
     preco_anual: float = 0.0
     ativo: bool = True
@@ -27,6 +28,7 @@ class PlanoAssinaturaUpdate(BaseModel):
     limite_usuarios_minimo: Optional[int] = None
     limite_usuarios_maximo: Optional[int] = None
     limite_hectares: Optional[float] = None
+    max_categorias_plano: Optional[int] = None
     preco_mensal: Optional[float] = None
     preco_anual: Optional[float] = None
     ativo: Optional[bool] = None

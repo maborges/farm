@@ -163,7 +163,7 @@ async def update_phase_checklist_item(
 ):
     stmt = select(PhaseTemplateChecklistItem).where(PhaseTemplateChecklistItem.id == item_id)
     item = (await db.execute(stmt)).scalar_one_or_none()
-    if not item: raise HTTPException(status_code=404, detail="Item não encontrado")
+    if not item: raise HTTPException(status_code=404, detail="Item indisponível ou não encontrado.")
     for key, val in dados.model_dump().items():
         setattr(item, key, val)
     await db.commit()
@@ -205,7 +205,7 @@ async def update_phase_task(
 ):
     stmt = select(PhaseTemplateTask).where(PhaseTemplateTask.id == item_id)
     item = (await db.execute(stmt)).scalar_one_or_none()
-    if not item: raise HTTPException(status_code=404, detail="Tarefa não encontrada")
+    if not item: raise HTTPException(status_code=404, detail="Tarefa indisponível ou não encontrada.")
     for key, val in dados.model_dump().items():
         setattr(item, key, val)
     await db.commit()
@@ -247,7 +247,7 @@ async def update_phase_gate_rule(
 ):
     stmt = select(PhaseGateRule).where(PhaseGateRule.id == item_id)
     item = (await db.execute(stmt)).scalar_one_or_none()
-    if not item: raise HTTPException(status_code=404, detail="Regra não encontrada")
+    if not item: raise HTTPException(status_code=404, detail="Regra indisponível ou não encontrada.")
     for key, val in dados.model_dump().items():
         setattr(item, key, val)
     await db.commit()
@@ -300,7 +300,7 @@ async def update_operation_item(
 ):
     stmt = select(OperationTemplateItem).where(OperationTemplateItem.id == item_id)
     item = (await db.execute(stmt)).scalar_one_or_none()
-    if not item: raise HTTPException(status_code=404, detail="Item operacional não encontrado")
+    if not item: raise HTTPException(status_code=404, detail="Item operacional indisponível ou não encontrado.")
     
     data = dados.model_dump()
     deps = data.pop("dependency_ids", [])

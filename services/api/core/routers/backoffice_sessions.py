@@ -109,7 +109,7 @@ async def encerrar_session(
     """Encerra (kill) uma sessão ativa."""
     sessao = await session.get(SessaoAtiva, session_id)
     if not sessao:
-        raise HTTPException(status_code=404, detail="Sessão não encontrada")
+        raise HTTPException(status_code=404, detail="Sessão indisponível ou não encontrada.")
 
     sessao.status = "ENCERRADA"
     await session.commit()

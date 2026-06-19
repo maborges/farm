@@ -57,7 +57,7 @@ async def criar_cupom(
     if result.scalar_one_or_none():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Código de cupom já existe"
+            detail="Este código de cupom já está em uso."
         )
 
     cupom = Cupom(
@@ -135,7 +135,7 @@ async def obter_cupom(
     """Retorna detalhes de um cupom."""
     cupom = await session.get(Cupom, cupom_id)
     if not cupom:
-        raise HTTPException(status_code=404, detail="Cupom não encontrado")
+        raise HTTPException(status_code=404, detail="Cupom indisponível ou não encontrado.")
 
     return CupomResponse(
         id=cupom.id,
@@ -164,17 +164,17 @@ async def validar_cupom(
     cupom = result.scalar_one_or_none()
 
     if not cupom:
-        return {"valido": False, "motivo": "Cupom não encontrado"}
+        return {"valido": False, "motivo": "Cupom indisponível ou não encontrado."}
 
     if not cupom.pode_ser_usado():
         motivos = []
         if not cupom.ativo:
-            motivos.append("Cupom inativo")
+            motivos.append("Cupom inativo.")
         if cupom.uso_atual >= cupom.uso_maximo:
-            motivos.append("Limite de uso atingido")
+            motivos.append("Limite de uso atingido.")
         hoje = date.today()
         if not (cupom.data_inicio <= hoje <= cupom.data_fim):
-            motivos.append("Cupom fora do período de validade")
+            motivos.append("Cupom fora do período de validade.")
 
         return {"valido": False, "motivo": ", ".join(motivos)}
 
@@ -205,7 +205,7 @@ async def desativar_cupom(
     """Desativa um cupom."""
     cupom = await session.get(Cupom, cupom_id)
     if not cupom:
-        raise HTTPException(status_code=404, detail="Cupom não encontrado")
+        raise HTTPException(status_code=404, detail="Cupom indisponível ou não encontrado.")
 
     cupom.ativo = False
     await session.commit()

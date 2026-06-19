@@ -43,8 +43,8 @@ class UnidadeProdutivaService(BaseService[UnidadeProdutiva]):
 
         if total >= max_unidades:
             raise BusinessRuleError(
-                f"Limite de {max_unidades} propriedade(s) atingido no plano contratado. "
-                "Faça upgrade para adicionar mais propriedades."
+                f"Seu plano atingiu o limite de propriedades. Você tem {total} de {max_unidades} propriedade(s) ativas. "
+                "Faça upgrade do plano para continuar."
             )
 
     async def create_unidade_produtiva(self, dados: UnidadeProdutivaCreate) -> UnidadeProdutiva:

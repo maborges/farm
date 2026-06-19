@@ -582,8 +582,9 @@ class CenariosService(BaseService[SafraCenario]):
         count = (await self.session.execute(stmt)).scalar_one()
         if count >= MAX_CENARIOS_ATIVOS:
             raise BusinessRuleError(
-                f"Limite de {MAX_CENARIOS_ATIVOS} cenários ativos atingido. "
-                "Arquive ou exclua cenários existentes."
+                f"Seu plano atingiu o limite de cenários ativos. "
+                f"Você tem {count} de {MAX_CENARIOS_ATIVOS} cenário(s) ativos. "
+                "Arquive ou exclua cenários existentes para continuar."
             )
 
     async def _assert_nome_unico(

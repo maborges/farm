@@ -126,7 +126,7 @@ async def atualizar_marca_sistema(
     )
     obj = result.scalar_one_or_none()
     if not obj:
-        raise EntityNotFoundError("Marca não encontrada")
+        raise EntityNotFoundError("Marca indisponível ou não encontrada.")
     for k, v in data.model_dump(exclude_none=True).items():
         setattr(obj, k, v)
     await session.commit()
@@ -146,7 +146,7 @@ async def remover_marca_sistema(
     )
     obj = result.scalar_one_or_none()
     if not obj:
-        raise EntityNotFoundError("Marca não encontrada")
+        raise EntityNotFoundError("Marca indisponível ou não encontrada.")
 
     # Verifica se há modelos vinculados
     modelos_count = await session.execute(
@@ -210,7 +210,7 @@ async def criar_modelo_sistema(
         select(Marca).where(Marca.id == data.marca_id, Marca.tenant_id.is_(None))
     )).scalar_one_or_none()
     if not marca:
-        raise EntityNotFoundError("Marca do sistema não encontrada")
+        raise EntityNotFoundError("Marca do sistema indisponível ou não encontrada.")
     obj = ModeloProduto(tenant_id=None, sistema=True, **data.model_dump())
     session.add(obj)
     await session.commit()
@@ -229,7 +229,7 @@ async def atualizar_modelo_sistema(
     )
     obj = result.scalar_one_or_none()
     if not obj:
-        raise EntityNotFoundError("Modelo não encontrado")
+        raise EntityNotFoundError("Modelo indisponível ou não encontrado.")
     for k, v in data.model_dump(exclude_none=True).items():
         setattr(obj, k, v)
     await session.commit()
@@ -247,7 +247,7 @@ async def remover_modelo_sistema(
     )
     obj = result.scalar_one_or_none()
     if not obj:
-        raise EntityNotFoundError("Modelo não encontrado")
+        raise EntityNotFoundError("Modelo indisponível ou não encontrado.")
     await session.delete(obj)
     await session.commit()
 
@@ -295,7 +295,7 @@ async def atualizar_categoria_sistema(
     )
     obj = result.scalar_one_or_none()
     if not obj:
-        raise EntityNotFoundError("Categoria não encontrada")
+        raise EntityNotFoundError("Categoria indisponível ou não encontrada.")
     for k, v in data.model_dump(exclude_none=True).items():
         setattr(obj, k, v)
     await session.commit()
@@ -313,7 +313,7 @@ async def remover_categoria_sistema(
     )
     obj = result.scalar_one_or_none()
     if not obj:
-        raise EntityNotFoundError("Categoria não encontrada")
+        raise EntityNotFoundError("Categoria indisponível ou não encontrada.")
     await session.delete(obj)
     await session.commit()
 
@@ -370,7 +370,7 @@ async def atualizar_cultura_sistema(
 ):
     obj = (await session.execute(select(ProdutoCultura).where(ProdutoCultura.id == cultura_id, ProdutoCultura.tenant_id.is_(None)))).scalar_one_or_none()
     if not obj:
-        raise EntityNotFoundError("Cultura não encontrada")
+        raise EntityNotFoundError("Cultura indisponível ou não encontrada.")
     for k, v in data.model_dump(exclude_none=True).items():
         setattr(obj, k, v)
     await session.commit(); await session.refresh(obj)
@@ -381,7 +381,7 @@ async def atualizar_cultura_sistema(
 async def remover_cultura_sistema(cultura_id: uuid.UUID, session: AsyncSession = Depends(get_session)):
     obj = (await session.execute(select(ProdutoCultura).where(ProdutoCultura.id == cultura_id, ProdutoCultura.tenant_id.is_(None)))).scalar_one_or_none()
     if not obj:
-        raise EntityNotFoundError("Cultura não encontrada")
+        raise EntityNotFoundError("Cultura indisponível ou não encontrada.")
     await session.delete(obj); await session.commit()
 
 
@@ -444,7 +444,7 @@ async def atualizar_commodity_sistema(
 ):
     obj = (await session.execute(select(Commodity).where(Commodity.id == commodity_id, Commodity.tenant_id.is_(None)))).scalar_one_or_none()
     if not obj:
-        raise EntityNotFoundError("Commodity não encontrada")
+        raise EntityNotFoundError("Commodity indisponível ou não encontrada.")
     for k, v in data.model_dump(exclude_none=True).items():
         setattr(obj, k, v)
     await session.commit(); await session.refresh(obj)
@@ -455,7 +455,7 @@ async def atualizar_commodity_sistema(
 async def remover_commodity_sistema(commodity_id: uuid.UUID, session: AsyncSession = Depends(get_session)):
     obj = (await session.execute(select(Commodity).where(Commodity.id == commodity_id, Commodity.tenant_id.is_(None)))).scalar_one_or_none()
     if not obj:
-        raise EntityNotFoundError("Commodity não encontrada")
+        raise EntityNotFoundError("Commodity indisponível ou não encontrada.")
     await session.delete(obj); await session.commit()
 
 
@@ -568,7 +568,7 @@ async def atualizar_checklist_template_sistema(
     result = await session.execute(stmt)
     obj = result.scalar_one_or_none()
     if not obj:
-        raise EntityNotFoundError("Template não encontrado")
+        raise EntityNotFoundError("Template indisponível ou não encontrado.")
     
     for k, v in data.model_dump(exclude_none=True).items():
         if hasattr(obj, k):
@@ -588,7 +588,7 @@ async def remover_checklist_template_sistema(template_id: uuid.UUID, session: As
     result = await session.execute(stmt)
     obj = result.scalar_one_or_none()
     if not obj:
-        raise EntityNotFoundError("Template não encontrado")
+        raise EntityNotFoundError("Template indisponível ou não encontrado.")
     await session.delete(obj)
     await session.commit()
 
@@ -651,7 +651,7 @@ async def atualizar_monitoramento_catalogo_sistema(
 ):
     obj = (await session.execute(select(MonitoramentoCatalogo).where(MonitoramentoCatalogo.id == catalogo_id, MonitoramentoCatalogo.tenant_id.is_(None)))).scalar_one_or_none()
     if not obj:
-        raise EntityNotFoundError("Entrada do catálogo não encontrada")
+        raise EntityNotFoundError("Entrada do catálogo indisponível ou não encontrada.")
     for k, v in data.model_dump(exclude_none=True).items():
         setattr(obj, k, v)
     await session.commit(); await session.refresh(obj)
@@ -662,7 +662,7 @@ async def atualizar_monitoramento_catalogo_sistema(
 async def remover_monitoramento_catalogo_sistema(catalogo_id: uuid.UUID, session: AsyncSession = Depends(get_session)):
     obj = (await session.execute(select(MonitoramentoCatalogo).where(MonitoramentoCatalogo.id == catalogo_id, MonitoramentoCatalogo.tenant_id.is_(None)))).scalar_one_or_none()
     if not obj:
-        raise EntityNotFoundError("Entrada do catálogo não encontrada")
+        raise EntityNotFoundError("Entrada do catálogo indisponível ou não encontrada.")
     await session.delete(obj); await session.commit()
 
 
@@ -703,7 +703,7 @@ async def atualizar_solo_param_sistema(
         )
     )).scalar_one_or_none()
     if not obj:
-        raise EntityNotFoundError("Parâmetro não encontrado")
+        raise EntityNotFoundError("Parâmetro indisponível ou não encontrado.")
     for k, v in data.model_dump(exclude_none=True).items():
         setattr(obj, k, v)
     await session.commit(); await session.refresh(obj)
@@ -722,5 +722,5 @@ async def remover_solo_param_sistema(
         )
     )).scalar_one_or_none()
     if not obj:
-        raise EntityNotFoundError("Parâmetro não encontrado")
+        raise EntityNotFoundError("Parâmetro indisponível ou não encontrado.")
     await session.delete(obj); await session.commit()
