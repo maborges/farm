@@ -4,7 +4,6 @@ from datetime import date
 from dateutil.relativedelta import relativedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import Date, func, literal, select, union_all
-from sqlalchemy.orm import joinedload
 
 from financeiro.models.despesa import Despesa
 from financeiro.models.receita import Receita
@@ -221,6 +220,33 @@ class RelatorioService:
             stmt = stmt.where(Despesa.unidade_produtiva_id == unidade_produtiva_id)
         return stmt.where(Despesa.data_vencimento >= data_inicio, Despesa.data_vencimento <= data_fim)
 
+    def _base_livro_caixa_query(
+        self,
+        model,
+        data_expr,
+        valor_expr,
+        tipo: str,
+    ):
+        return select(
+            func.coalesce(model.competencia, data_expr).label("data"),
+            model.descricao.label("descricao"),
+            literal(tipo).label("tipo"),
+            PlanoConta.categoria_rfb.label("categoria_rfb"),
+            PlanoConta.nome.label("plano_conta_nome"),
+            func.coalesce(valor_expr, model.valor_total).label("valor"),
+            (model.forma_recebimento if tipo == "RECEITA" else model.forma_pagamento).label("forma"),
+            model.numero_nf.label("documento"),
+        ).join(
+            PlanoConta,
+            model.plano_conta_id == PlanoConta.id,
+        ).where(
+            model.tenant_id == self.tenant_id,
+            model.ativo == True,
+        )
+
+    def _data_ref_livro_caixa(self, model, data_expr):
+        return func.coalesce(model.competencia, data_expr)
+
     async def livro_caixa(
         self,
         competencia_inicio: date,
@@ -232,67 +258,48 @@ class RelatorioService:
         Agrupa lançamentos realizados por categoria_rfb do plano de contas.
         Filtra por campo `competencia` quando preenchido, senão usa data_recebimento/data_pagamento.
         """
-        # Carrega planos de conta para lookup
-        pc_stmt = select(PlanoConta).where(PlanoConta.tenant_id == self.tenant_id)
-        planos = {
-            pc.id: pc
-            for pc in (await self.session.execute(pc_stmt)).scalars().all()
-        }
-
-        lancamentos: list[LivroCaixaLancamento] = []
-
-        # Receitas realizadas
-        rec_stmt = select(Receita).where(
-            Receita.tenant_id == self.tenant_id,
-            Receita.ativo == True,
+        receitas = self._base_livro_caixa_query(
+            Receita,
+            Receita.data_recebimento,
+            Receita.valor_recebido,
+            "RECEITA",
+        ).where(
             Receita.status.in_(STATUS_REALIZADO_RECEITA),
+            self._data_ref_livro_caixa(Receita, Receita.data_recebimento).is_not(None),
+            self._data_ref_livro_caixa(Receita, Receita.data_recebimento) >= competencia_inicio,
+            self._data_ref_livro_caixa(Receita, Receita.data_recebimento) <= competencia_fim,
         )
-        if unidade_produtiva_id:
-            rec_stmt = rec_stmt.where(Receita.unidade_produtiva_id == unidade_produtiva_id)
-
-        receitas = list((await self.session.execute(rec_stmt)).scalars().all())
-        for r in receitas:
-            # Usa competencia se preenchida, senão data_recebimento
-            data_ref = r.competencia or r.data_recebimento
-            if not data_ref or not (competencia_inicio <= data_ref <= competencia_fim):
-                continue
-            pc = planos.get(r.plano_conta_id)
-            lancamentos.append(LivroCaixaLancamento(
-                data=data_ref,
-                descricao=r.descricao,
-                tipo="RECEITA",
-                categoria_rfb=pc.categoria_rfb if pc else None,
-                plano_conta_nome=pc.nome if pc else "—",
-                valor=float(r.valor_recebido or r.valor_total),
-                forma=r.forma_recebimento,
-                documento=r.numero_nf,
-            ))
-
-        # Despesas realizadas
-        desp_stmt = select(Despesa).where(
-            Despesa.tenant_id == self.tenant_id,
-            Despesa.ativo == True,
+        despesas = self._base_livro_caixa_query(
+            Despesa,
+            Despesa.data_pagamento,
+            Despesa.valor_pago,
+            "DESPESA",
+        ).where(
             Despesa.status.in_(STATUS_REALIZADO_DESPESA),
+            self._data_ref_livro_caixa(Despesa, Despesa.data_pagamento).is_not(None),
+            self._data_ref_livro_caixa(Despesa, Despesa.data_pagamento) >= competencia_inicio,
+            self._data_ref_livro_caixa(Despesa, Despesa.data_pagamento) <= competencia_fim,
         )
         if unidade_produtiva_id:
-            desp_stmt = desp_stmt.where(Despesa.unidade_produtiva_id == unidade_produtiva_id)
+            receitas = receitas.where(Receita.unidade_produtiva_id == unidade_produtiva_id)
+            despesas = despesas.where(Despesa.unidade_produtiva_id == unidade_produtiva_id)
 
-        despesas = list((await self.session.execute(desp_stmt)).scalars().all())
-        for d in despesas:
-            data_ref = d.competencia or d.data_pagamento
-            if not data_ref or not (competencia_inicio <= data_ref <= competencia_fim):
-                continue
-            pc = planos.get(d.plano_conta_id)
-            lancamentos.append(LivroCaixaLancamento(
-                data=data_ref,
-                descricao=d.descricao,
-                tipo="DESPESA",
-                categoria_rfb=pc.categoria_rfb if pc else None,
-                plano_conta_nome=pc.nome if pc else "—",
-                valor=float(d.valor_pago or d.valor_total),
-                forma=d.forma_pagamento,
-                documento=d.numero_nf,
-            ))
+        combined = union_all(receitas, despesas)
+        lancamentos_rows = (await self.session.execute(combined)).mappings().all()
+
+        lancamentos: list[LivroCaixaLancamento] = [
+            LivroCaixaLancamento(
+                data=row["data"],
+                descricao=row["descricao"],
+                tipo=row["tipo"],
+                categoria_rfb=row["categoria_rfb"],
+                plano_conta_nome=row["plano_conta_nome"],
+                valor=float(row["valor"] or 0.0),
+                forma=row["forma"],
+                documento=row["documento"],
+            )
+            for row in lancamentos_rows
+        ]
 
         # Agrupa por (categoria_rfb, tipo)
         grupos_map: dict[tuple, list[LivroCaixaLancamento]] = defaultdict(list)
@@ -333,52 +340,40 @@ class RelatorioService:
         DRE financeira simplificada: agrupa por categoria_rfb do plano de contas.
         Usa agregação SQL direta para evitar carregamento massivo de registros em memória.
         """
-        from sqlalchemy import func
-
-        # Agregação Receitas
-        stmt_rec = select(
-            PlanoConta.categoria_rfb,
-            func.sum(func.coalesce(Receita.valor_recebido, Receita.valor_total)).label("total")
+        receita_stmt = select(
+            PlanoConta.categoria_rfb.label("categoria_rfb"),
+            literal("RECEITA").label("tipo"),
+            func.sum(func.coalesce(Receita.valor_recebido, Receita.valor_total)).label("total"),
         ).join(PlanoConta, Receita.plano_conta_id == PlanoConta.id).where(
             Receita.tenant_id == self.tenant_id,
             Receita.ativo == True,
-            Receita.status.in_(STATUS_REALIZADO_RECEITA)
+            Receita.status.in_(STATUS_REALIZADO_RECEITA),
+            func.coalesce(Receita.competencia, Receita.data_recebimento) >= data_inicio,
+            func.coalesce(Receita.competencia, Receita.data_recebimento) <= data_fim,
         )
         if unidade_produtiva_id:
-            stmt_rec = stmt_rec.where(Receita.unidade_produtiva_id == unidade_produtiva_id)
+            receita_stmt = receita_stmt.where(Receita.unidade_produtiva_id == unidade_produtiva_id)
+        receita_stmt = receita_stmt.group_by(PlanoConta.categoria_rfb)
 
-        data_ref_rec = func.coalesce(Receita.competencia, Receita.data_recebimento)
-        stmt_rec = stmt_rec.where(
-            data_ref_rec >= data_inicio,
-            data_ref_rec <= data_fim
-        ).group_by(PlanoConta.categoria_rfb)
-
-        # Agregação Despesas
-        stmt_desp = select(
-            PlanoConta.categoria_rfb,
-            func.sum(func.coalesce(Despesa.valor_pago, Despesa.valor_total)).label("total")
+        despesa_stmt = select(
+            PlanoConta.categoria_rfb.label("categoria_rfb"),
+            literal("DESPESA").label("tipo"),
+            func.sum(func.coalesce(Despesa.valor_pago, Despesa.valor_total)).label("total"),
         ).join(PlanoConta, Despesa.plano_conta_id == PlanoConta.id).where(
             Despesa.tenant_id == self.tenant_id,
             Despesa.ativo == True,
-            Despesa.status.in_(STATUS_REALIZADO_DESPESA)
+            Despesa.status.in_(STATUS_REALIZADO_DESPESA),
+            func.coalesce(Despesa.competencia, Despesa.data_pagamento) >= data_inicio,
+            func.coalesce(Despesa.competencia, Despesa.data_pagamento) <= data_fim,
         )
         if unidade_produtiva_id:
-            stmt_desp = stmt_desp.where(Despesa.unidade_produtiva_id == unidade_produtiva_id)
+            despesa_stmt = despesa_stmt.where(Despesa.unidade_produtiva_id == unidade_produtiva_id)
+        despesa_stmt = despesa_stmt.group_by(PlanoConta.categoria_rfb)
 
-        data_ref_desp = func.coalesce(Despesa.competencia, Despesa.data_pagamento)
-        stmt_desp = stmt_desp.where(
-            data_ref_desp >= data_inicio,
-            data_ref_desp <= data_fim
-        ).group_by(PlanoConta.categoria_rfb)
-
-        rec_rows = (await self.session.execute(stmt_rec)).fetchall()
-        desp_rows = (await self.session.execute(stmt_desp)).fetchall()
-
+        rows = (await self.session.execute(union_all(receita_stmt, despesa_stmt))).all()
         totais_rfb: dict[tuple, float] = defaultdict(float)
-        for row in rec_rows:
-            totais_rfb[(row.categoria_rfb or "SEM_CATEGORIA", "RECEITA")] += float(row.total or 0.0)
-        for row in desp_rows:
-            totais_rfb[(row.categoria_rfb or "SEM_CATEGORIA", "DESPESA")] += float(row.total or 0.0)
+        for row in rows:
+            totais_rfb[(row.categoria_rfb or "SEM_CATEGORIA", row.tipo)] += float(row.total or 0.0)
 
         receita_atividade = totais_rfb.get(("RECEITA_ATIVIDADE", "RECEITA"), 0.0)
         outras_receitas = totais_rfb.get(("RECEITA_FORA_ATIVIDADE", "RECEITA"), 0.0)

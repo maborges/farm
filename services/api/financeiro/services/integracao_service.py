@@ -194,49 +194,88 @@ class ConciliacaoService:
         )
         lancamentos = list((await self.session.execute(stmt)).scalars().all())
         sugestoes = []
+        tolerancia = timedelta(days=3)
 
-        for lanc in lancamentos:
-            tolerancia = timedelta(days=3)
-            if lanc.valor < 0:  # débito → despesa
-                stmt_desp = select(Despesa).where(
-                    Despesa.tenant_id == self.tenant_id,
-                    Despesa.valor_total == abs(lanc.valor),
-                    Despesa.data_vencimento >= lanc.data - tolerancia,
-                    Despesa.data_vencimento <= lanc.data + tolerancia,
-                    Despesa.status.in_(["A_PAGAR", "PAGO"]),
-                )
-                desp = (await self.session.execute(stmt_desp)).scalars().first()
-                if desp:
-                    sugestoes.append({
-                        "lancamento_id": lanc.id,
-                        "tipo": "DESPESA",
-                        "sugestao_id": desp.id,
-                        "descricao_lanc": lanc.descricao,
-                        "descricao_fin": desp.descricao,
-                        "valor": abs(lanc.valor),
-                        "data_lanc": lanc.data,
-                        "confianca": "ALTA" if lanc.data == desp.data_vencimento else "MEDIA",
-                    })
-            else:  # crédito → receita
-                stmt_rec = select(Receita).where(
-                    Receita.tenant_id == self.tenant_id,
-                    Receita.valor_total == lanc.valor,
-                    Receita.data_vencimento >= lanc.data - tolerancia,
-                    Receita.data_vencimento <= lanc.data + tolerancia,
-                    Receita.status.in_(["A_RECEBER", "RECEBIDO"]),
-                )
-                rec = (await self.session.execute(stmt_rec)).scalars().first()
-                if rec:
-                    sugestoes.append({
-                        "lancamento_id": lanc.id,
-                        "tipo": "RECEITA",
-                        "sugestao_id": rec.id,
-                        "descricao_lanc": lanc.descricao,
-                        "descricao_fin": rec.descricao,
-                        "valor": lanc.valor,
-                        "data_lanc": lanc.data,
-                        "confianca": "ALTA" if lanc.data == rec.data_vencimento else "MEDIA",
-                    })
+        def _indexar_por_valor(linhas):
+            indice: dict = {}
+            for linha in linhas:
+                indice.setdefault(linha.valor_total, []).append(linha)
+            return indice
+
+        def _buscar_match(lancamento, candidatos):
+            for candidato in candidatos:
+                if abs((candidato.data_vencimento - lancamento.data).days) <= 3:
+                    return candidato
+            return None
+
+        lancamentos_debito = [lanc for lanc in lancamentos if lanc.valor < 0]
+        lancamentos_credito = [lanc for lanc in lancamentos if lanc.valor >= 0]
+
+        despesas_por_valor = {}
+        if lancamentos_debito:
+            valores = {abs(lanc.valor) for lanc in lancamentos_debito}
+            menor_data = min(lanc.data for lanc in lancamentos_debito) - tolerancia
+            maior_data = max(lanc.data for lanc in lancamentos_debito) + tolerancia
+            stmt_desp = select(
+                Despesa.id,
+                Despesa.descricao,
+                Despesa.valor_total,
+                Despesa.data_vencimento,
+            ).where(
+                Despesa.tenant_id == self.tenant_id,
+                Despesa.valor_total.in_(valores),
+                Despesa.data_vencimento >= menor_data,
+                Despesa.data_vencimento <= maior_data,
+                Despesa.status.in_(["A_PAGAR", "PAGO"]),
+            )
+            despesas_por_valor = _indexar_por_valor((await self.session.execute(stmt_desp)).all())
+
+        receitas_por_valor = {}
+        if lancamentos_credito:
+            valores = {lanc.valor for lanc in lancamentos_credito}
+            menor_data = min(lanc.data for lanc in lancamentos_credito) - tolerancia
+            maior_data = max(lanc.data for lanc in lancamentos_credito) + tolerancia
+            stmt_rec = select(
+                Receita.id,
+                Receita.descricao,
+                Receita.valor_total,
+                Receita.data_vencimento,
+            ).where(
+                Receita.tenant_id == self.tenant_id,
+                Receita.valor_total.in_(valores),
+                Receita.data_vencimento >= menor_data,
+                Receita.data_vencimento <= maior_data,
+                Receita.status.in_(["A_RECEBER", "RECEBIDO"]),
+            )
+            receitas_por_valor = _indexar_por_valor((await self.session.execute(stmt_rec)).all())
+
+        for lanc in lancamentos_debito:
+            candidato = _buscar_match(lanc, despesas_por_valor.get(abs(lanc.valor), []))
+            if candidato:
+                sugestoes.append({
+                    "lancamento_id": lanc.id,
+                    "tipo": "DESPESA",
+                    "sugestao_id": candidato.id,
+                    "descricao_lanc": lanc.descricao,
+                    "descricao_fin": candidato.descricao,
+                    "valor": abs(lanc.valor),
+                    "data_lanc": lanc.data,
+                    "confianca": "ALTA" if lanc.data == candidato.data_vencimento else "MEDIA",
+                })
+
+        for lanc in lancamentos_credito:
+            candidato = _buscar_match(lanc, receitas_por_valor.get(lanc.valor, []))
+            if candidato:
+                sugestoes.append({
+                    "lancamento_id": lanc.id,
+                    "tipo": "RECEITA",
+                    "sugestao_id": candidato.id,
+                    "descricao_lanc": lanc.descricao,
+                    "descricao_fin": candidato.descricao,
+                    "valor": lanc.valor,
+                    "data_lanc": lanc.data,
+                    "confianca": "ALTA" if lanc.data == candidato.data_vencimento else "MEDIA",
+                })
 
         return sugestoes
 

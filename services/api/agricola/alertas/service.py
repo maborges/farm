@@ -10,7 +10,7 @@ Condições verificadas:
 """
 from __future__ import annotations
 
-from collections import Counter
+from collections import Counter, defaultdict
 from dataclasses import asdict, dataclass
 from datetime import date, datetime, timedelta, timezone
 from uuid import UUID
@@ -175,15 +175,28 @@ class AlertasAgricolasService:
         """Alerta quando há itens obrigatórios não concluídos na fase atual."""
         safras = await self._safras_ativas()
         total = 0
-        for safra in safras:
-            stmt = select(func.count(SafraChecklistItem.id)).where(
-                SafraChecklistItem.safra_id == safra.id,
+        if not safras:
+            return 0
+
+        stmt = (
+            select(
+                SafraChecklistItem.safra_id,
+                func.count(SafraChecklistItem.id).label("total"),
+            )
+            .where(
                 SafraChecklistItem.tenant_id == self.tenant_id,
-                SafraChecklistItem.fase == safra.status,
+                SafraChecklistItem.safra_id.in_([safra.id for safra in safras]),
                 SafraChecklistItem.obrigatorio == True,
                 SafraChecklistItem.concluido == False,
             )
-            pendentes = (await self.session.execute(stmt)).scalar() or 0
+            .group_by(SafraChecklistItem.safra_id)
+        )
+        pendentes_por_safra = {
+            safra_id: total
+            for safra_id, total in (await self.session.execute(stmt)).all()
+        }
+        for safra in safras:
+            pendentes = pendentes_por_safra.get(safra.id, 0)
             if pendentes > 0:
                 await self.notif_svc.criar_e_push(NotificacaoCreate(
                     tipo="ALERTA_AGRICOLA",
@@ -201,15 +214,31 @@ class AlertasAgricolasService:
         safras = await self._safras_ativas()
         total = 0
         limite = date.today() - timedelta(days=DIAS_FASE_PARADA)
-        for safra in safras:
-            # Busca a última transição de fase
-            stmt = select(SafraFaseHistorico).where(
-                SafraFaseHistorico.safra_id == safra.id,
+        if not safras:
+            return 0
+
+        stmt = (
+            select(
+                SafraFaseHistorico.safra_id,
+                func.max(SafraFaseHistorico.created_at).label("ultima_data"),
+            )
+            .where(
                 SafraFaseHistorico.tenant_id == self.tenant_id,
-            ).order_by(SafraFaseHistorico.created_at.desc()).limit(1)
-            ultimo = (await self.session.execute(stmt)).scalars().first()
-            if ultimo and ultimo.created_at.date() < limite:
-                dias = (date.today() - ultimo.created_at.date()).days
+                SafraFaseHistorico.safra_id.in_([safra.id for safra in safras]),
+            )
+            .group_by(SafraFaseHistorico.safra_id)
+        )
+        ultimo_por_safra: dict[UUID, date] = {}
+        for safra_id, ultima_data in (await self.session.execute(stmt)).all():
+            if isinstance(ultima_data, datetime):
+                ultimo_por_safra[safra_id] = ultima_data.date()
+            elif isinstance(ultima_data, date):
+                ultimo_por_safra[safra_id] = ultima_data
+
+        for safra in safras:
+            ultima_data = ultimo_por_safra.get(safra.id)
+            if ultima_data and ultima_data < limite:
+                dias = (date.today() - ultima_data).days
                 await self.notif_svc.criar_e_push(NotificacaoCreate(
                     tipo="ALERTA_AGRICOLA",
                     titulo="Safra parada na mesma fase",
@@ -230,12 +259,28 @@ class AlertasAgricolasService:
         safras = list((await self.session.execute(stmt)).scalars().all())
         total = 0
         limite = date.today() - timedelta(days=DIAS_FENOLOGIA_VENCIDA)
-        for safra in safras:
-            stmt_fen = select(func.max(SafraFenologiaRegistro.data_observacao)).where(
-                SafraFenologiaRegistro.safra_id == safra.id,
-                SafraFenologiaRegistro.tenant_id == self.tenant_id,
+        if not safras:
+            return 0
+
+        stmt_fen = (
+            select(
+                SafraFenologiaRegistro.safra_id,
+                func.max(SafraFenologiaRegistro.data_observacao).label("ultima_data"),
             )
-            ultimo = (await self.session.execute(stmt_fen)).scalar()
+            .where(
+                SafraFenologiaRegistro.tenant_id == self.tenant_id,
+                SafraFenologiaRegistro.safra_id.in_([safra.id for safra in safras]),
+            )
+            .group_by(SafraFenologiaRegistro.safra_id)
+        )
+        ultimo_por_safra = {
+            safra_id: ultima_data
+            for safra_id, ultima_data in (await self.session.execute(stmt_fen)).all()
+            if isinstance(ultima_data, date)
+        }
+
+        for safra in safras:
+            ultimo = ultimo_por_safra.get(safra.id)
             if not ultimo or ultimo < limite:
                 dias = (date.today() - ultimo).days if ultimo else "?"
                 await self.notif_svc.criar_e_push(NotificacaoCreate(
@@ -1405,41 +1450,62 @@ class AlertasAgricolasService:
         if not devolucoes:
             return None
 
+        devolucao_rows = [
+            (row.id, row.pedido_id) if hasattr(row, "id") else (row[0], row[1])
+            for row in devolucoes
+        ]
         problematics: list[tuple[str, str | None]] = []
-        for row in devolucoes:
-            itens = list(
-                (
-                    await self.session.execute(
-                        select(ItemDevolucao).where(ItemDevolucao.devolucao_id == row.id)
-                    )
-                ).scalars().all()
+        itens_stmt = select(ItemDevolucao).where(ItemDevolucao.devolucao_id.in_([row_id for row_id, _ in devolucao_rows]))
+        itens = list((await self.session.execute(itens_stmt)).scalars().all())
+        itens_por_devolucao: dict[UUID, list[ItemDevolucao]] = defaultdict(list)
+        for item in itens:
+            itens_por_devolucao[item.devolucao_id].append(item)
+
+        pedido_ids = [pedido_id for _, pedido_id in devolucao_rows if pedido_id is not None]
+        chaves_movimento = {
+            (pedido_id, item.produto_id, item.deposito_origem_id, item.lote_id)
+            for row_id, pedido_id in devolucao_rows
+            for item in itens_por_devolucao.get(row_id, [])
+            if pedido_id is not None and item.lote_id is not None
+        }
+        movimentos_encontrados: set[tuple[UUID | str | None, UUID | str | None, UUID | str | None, UUID | str | None]] = set()
+        if pedido_ids and chaves_movimento:
+            mov_stmt = select(
+                EstoqueMovimento.origem_id,
+                EstoqueMovimento.produto_id,
+                EstoqueMovimento.deposito_id,
+                EstoqueMovimento.lote_id,
+            ).where(
+                EstoqueMovimento.tenant_id == self.tenant_id,
+                EstoqueMovimento.origem == "COMPRA",
+                EstoqueMovimento.origem_id.in_(pedido_ids),
             )
-            if not itens:
+            movimentos_encontrados = {
+                (origem_id, produto_id, deposito_id, lote_id)
+                for origem_id, produto_id, deposito_id, lote_id in (await self.session.execute(mov_stmt)).all()
+            }
+
+        for row_id, pedido_id in devolucao_rows:
+            itens_row = itens_por_devolucao.get(row_id, [])
+            if not itens_row:
                 continue
 
             has_issue = False
-            for item in itens:
+            for item in itens_row:
                 if item.lote_id is None:
                     has_issue = True
                     break
-                original_mov = (
-                    await self.session.execute(
-                        select(EstoqueMovimento.id).where(
-                            EstoqueMovimento.tenant_id == self.tenant_id,
-                            EstoqueMovimento.origem == "COMPRA",
-                            EstoqueMovimento.origem_id == row.pedido_id,
-                            EstoqueMovimento.produto_id == item.produto_id,
-                            EstoqueMovimento.deposito_id == item.deposito_origem_id,
-                            EstoqueMovimento.lote_id == item.lote_id,
-                        )
-                    )
-                ).scalar_one_or_none()
-                if original_mov is None:
+                if pedido_id is None or (
+                    pedido_id,
+                    item.produto_id,
+                    item.deposito_origem_id,
+                    item.lote_id,
+                ) not in movimentos_encontrados:
                     has_issue = True
                     break
 
             if has_issue:
-                problematics.append((str(row.id), str(row.pedido_id) if row.pedido_id else None))
+                problematics.append((str(row_id), str(pedido_id) if pedido_id else None))
 
         if not problematics:
             return None

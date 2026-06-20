@@ -1,4 +1,5 @@
 import uuid
+import asyncio
 from datetime import datetime, timezone, timedelta
 from typing import List, Dict, Any
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -30,9 +31,15 @@ class AlertaInteligenteService:
         ).order_by(IAAlertaHistorico.created_at.desc()).limit(50)
         
         res = await self.session.execute(stmt)
-        historico = res.scalars().all()
+        historico_result = res.scalars()
+        if asyncio.iscoroutine(historico_result):
+            historico_result = await historico_result
+        historico = historico_result.all()
+        if asyncio.iscoroutine(historico):
+            historico = await historico
         
-        if not historico:
+        total = len(historico) if hasattr(historico, "__len__") else 0
+        if total == 0:
             return {
                 "taxa_execucao": 0.0,
                 "taxa_ignorado": 0.0,
@@ -40,8 +47,7 @@ class AlertaInteligenteService:
                 "tipos_mais_ignorados": [],
                 "perfil": "EQUILIBRADO"
             }
-            
-        total = len(historico)
+
         executados = sum(1 for h in historico if h.acao_executada)
         ignorados = sum(1 for h in historico if h.ignorado)
         
@@ -230,17 +236,25 @@ class AlertaInteligenteService:
 
         # 9. Persistência no histórico (Step 194)
         limite_recentes = datetime.now(timezone.utc) - timedelta(hours=24)
-        
-        alertas_finais = []
-        for a in alertas_dict:
-            # Busca duplicidade
-            stmt = select(IAAlertaHistorico).where(
+        tipos_alertas = {a["tipo"] for a in alertas_dict}
+        historico_recente = {}
+
+        if tipos_alertas:
+            stmt_historico = select(IAAlertaHistorico).where(
                 IAAlertaHistorico.tenant_id == self.tenant_id,
                 IAAlertaHistorico.safra_id == safra_id,
-                IAAlertaHistorico.tipo_alerta == a["tipo"],
-                IAAlertaHistorico.created_at >= limite_recentes
-            ).limit(1)
-            existente = (await self.session.execute(stmt)).scalar_one_or_none()
+                IAAlertaHistorico.tipo_alerta.in_(tipos_alertas),
+                IAAlertaHistorico.created_at >= limite_recentes,
+            )
+            historico_recente = {
+                item.tipo_alerta: item
+                for item in (await self.session.execute(stmt_historico)).scalars().all()
+            }
+
+        alertas_finais = []
+        novos_alertas = []
+        for a in alertas_dict:
+            existente = historico_recente.get(a["tipo"])
             
             if not existente:
                 novo_alerta = IAAlertaHistorico(
@@ -262,10 +276,8 @@ class AlertaInteligenteService:
                     }
                 )
                 self.session.add(novo_alerta)
-                await self.session.flush()
-                
-                # Retorna o ID real do banco
                 a["id"] = str(novo_alerta.id)
+                novos_alertas.append(novo_alerta)
                 alertas_finais.append(a)
             else:
                 # Se o alerta já existe e foi ignorado, não mostramos novamente (Step 194)
@@ -279,6 +291,9 @@ class AlertaInteligenteService:
                 if "motivo_prioridade" not in a:
                     a["motivo_prioridade"] = existente.parametros_json.get("motivo_prioridade", self._gerar_motivo_prioridade(a))
                 alertas_finais.append(a)
+
+        if novos_alertas:
+            await self.session.flush()
         
         # 10. Ordenação por Prioridade (Step 197)
         alertas_finais.sort(key=lambda x: x.get("prioridade", 0), reverse=True)

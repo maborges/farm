@@ -16,9 +16,8 @@ async def test_dre_financeira_simplificada_preserva_saida_e_nao_instancia_dre_ag
     tenant_id = uuid.uuid4()
     unidade_produtiva_id = uuid.uuid4()
     session = AsyncMock()
-
-    fake_livro_caixa = SimpleNamespace(
-        grupos=[
+    session.execute.return_value = SimpleNamespace(
+        all=lambda: [
             SimpleNamespace(categoria_rfb="RECEITA_ATIVIDADE", tipo="RECEITA", total=100.0),
             SimpleNamespace(categoria_rfb="RECEITA_FORA_ATIVIDADE", tipo="RECEITA", total=20.0),
             SimpleNamespace(categoria_rfb="CUSTEIO", tipo="DESPESA", total=70.0),
@@ -28,10 +27,6 @@ async def test_dre_financeira_simplificada_preserva_saida_e_nao_instancia_dre_ag
     )
 
     with (
-        patch(
-            "financeiro.services.relatorio_service.RelatorioService.livro_caixa",
-            new=AsyncMock(return_value=fake_livro_caixa),
-        ),
         patch("agricola.dre.service.DREAgricolaV1Service") as mock_agricola_dre,
     ):
         dre = await RelatorioService(session, tenant_id).dre(
@@ -40,6 +35,7 @@ async def test_dre_financeira_simplificada_preserva_saida_e_nao_instancia_dre_ag
             unidade_produtiva_id,
         )
 
+    assert session.execute.await_count == 1
     assert dre.receita_bruta == 100.0
     assert dre.total_custeio == 70.0
     assert dre.total_investimento == 15.0

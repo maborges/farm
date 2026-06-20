@@ -106,7 +106,15 @@ class LancamentoService:
 
     async def listar_origens(self, safra_id: uuid.UUID) -> list[LancamentoOrigemItem]:
         stmt = (
-            select(LancamentoFinanceiro)
+            select(
+                LancamentoFinanceiro.id,
+                LancamentoFinanceiro.descricao,
+                LancamentoFinanceiro.valor,
+                LancamentoFinanceiro.origem,
+                LancamentoFinanceiro.origem_id,
+                LancamentoFinanceiro.data,
+                LancamentoFinanceiro.categoria,
+            )
             .where(
                 and_(
                     LancamentoFinanceiro.tenant_id == self.tenant_id,
@@ -115,7 +123,7 @@ class LancamentoService:
             )
             .order_by(LancamentoFinanceiro.data.desc())
         )
-        rows = (await self.session.execute(stmt)).scalars().all()
+        rows = (await self.session.execute(stmt)).all()
         return [
             LancamentoOrigemItem(
                 lancamento_id=r.id,
@@ -130,20 +138,16 @@ class LancamentoService:
             for r in rows
         ]
 
-    async def listar(
+    def _aplicar_filtros_listagem(
         self,
-        safra_id: uuid.UUID | None = None,
-        tipo: str | None = None,
-        categoria: str | None = None,
-        origem: str | None = None,
-        data_inicio: date | None = None,
-        data_fim: date | None = None,
-        limit: int = 100,
-        offset: int = 0,
-    ) -> PaginatedResponse[LancamentoFinanceiro]:
-        from sqlalchemy import func
-        stmt = select(LancamentoFinanceiro).where(LancamentoFinanceiro.tenant_id == self.tenant_id)
-
+        stmt,
+        safra_id: uuid.UUID | None,
+        tipo: str | None,
+        categoria: str | None,
+        origem: str | None,
+        data_inicio: date | None,
+        data_fim: date | None,
+    ):
         if safra_id:
             stmt = stmt.where(LancamentoFinanceiro.safra_id == safra_id)
         if tipo:
@@ -156,9 +160,25 @@ class LancamentoService:
             stmt = stmt.where(LancamentoFinanceiro.data >= data_inicio)
         if data_fim:
             stmt = stmt.where(LancamentoFinanceiro.data <= data_fim)
+        return stmt
+
+    async def listar(
+        self,
+        safra_id: uuid.UUID | None = None,
+        tipo: str | None = None,
+        categoria: str | None = None,
+        origem: str | None = None,
+        data_inicio: date | None = None,
+        data_fim: date | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> PaginatedResponse[LancamentoFinanceiro]:
+        stmt = select(LancamentoFinanceiro).where(LancamentoFinanceiro.tenant_id == self.tenant_id)
+        stmt = self._aplicar_filtros_listagem(stmt, safra_id, tipo, categoria, origem, data_inicio, data_fim)
 
         # Count
-        count_stmt = select(func.count(LancamentoFinanceiro.id)).select_from(stmt.subquery())
+        count_stmt = select(func.count()).select_from(LancamentoFinanceiro).where(LancamentoFinanceiro.tenant_id == self.tenant_id)
+        count_stmt = self._aplicar_filtros_listagem(count_stmt, safra_id, tipo, categoria, origem, data_inicio, data_fim)
         total = (await self.session.execute(count_stmt)).scalar() or 0
 
         # Paginating
@@ -202,7 +222,6 @@ class LancamentoService:
 
     async def insight_dashboard(self) -> InsightDashboard:
         """Agrega lançamentos + cenário base da safra mais recente para o dashboard."""
-        # Resumo geral de lançamentos
         stmt_resumo = select(
             func.coalesce(func.sum(LancamentoFinanceiro.valor).filter(LancamentoFinanceiro.tipo == "CUSTO"), 0).label("total_custos"),
             func.count(LancamentoFinanceiro.id).label("quantidade"),
@@ -211,37 +230,44 @@ class LancamentoService:
         total_custos = float(row.total_custos)
         quantidade = int(row.quantidade)
 
-        # Safra mais recente do tenant
-        stmt_safra = (
-            select(Safra)
+        safra_sq = (
+            select(
+                Safra.id.label("safra_id"),
+                Safra.ano_safra.label("ano_safra"),
+            )
             .where(and_(Safra.tenant_id == self.tenant_id, Safra.status != "CANCELADA"))
             .order_by(Safra.created_at.desc())
             .limit(1)
-        )
-        safra = (await self.session.execute(stmt_safra)).scalar_one_or_none()
-
+        ).subquery()
+        safra_stmt = select(
+            safra_sq.c.safra_id,
+            safra_sq.c.ano_safra,
+            SafraCenario.custo_total,
+            SafraCenario.receita_bruta_total,
+        ).select_from(
+            safra_sq.outerjoin(
+                SafraCenario,
+                and_(
+                    SafraCenario.tenant_id == self.tenant_id,
+                    SafraCenario.safra_id == safra_sq.c.safra_id,
+                    SafraCenario.eh_base == True,
+                ),
+            )
+        ).limit(1)
+        safra_row = (await self.session.execute(safra_stmt)).first()
         cenario_custo = None
         cenario_receita = None
         cenario_margem = None
         safra_nome = None
 
-        if safra:
-            safra_nome = safra.ano_safra
-            stmt_cenario = (
-                select(SafraCenario)
-                .where(and_(
-                    SafraCenario.tenant_id == self.tenant_id,
-                    SafraCenario.safra_id == safra.id,
-                    SafraCenario.eh_base == True,
-                ))
-                .limit(1)
-            )
-            cenario = (await self.session.execute(stmt_cenario)).scalar_one_or_none()
-            if cenario:
-                cenario_custo = float(cenario.custo_total) if cenario.custo_total is not None else None
-                cenario_receita = float(cenario.receita_bruta_total) if cenario.receita_bruta_total is not None else None
-                if cenario_custo is not None and cenario_receita is not None:
-                    cenario_margem = cenario_receita - cenario_custo
+        if safra_row:
+            safra_nome = safra_row.ano_safra
+            if safra_row.custo_total is not None:
+                cenario_custo = float(safra_row.custo_total)
+            if safra_row.receita_bruta_total is not None:
+                cenario_receita = float(safra_row.receita_bruta_total)
+            if cenario_custo is not None and cenario_receita is not None:
+                cenario_margem = cenario_receita - cenario_custo
 
         # Gerar mensagem de insight
         mensagem = None
@@ -269,7 +295,7 @@ class LancamentoService:
         return InsightDashboard(
             total_custos=total_custos,
             quantidade_lancamentos=quantidade,
-            safra_id=safra.id if safra else None,
+            safra_id=safra_row.safra_id if safra_row else None,
             safra_nome=safra_nome,
             cenario_custo_total=cenario_custo,
             cenario_receita_total=cenario_receita,
@@ -278,10 +304,8 @@ class LancamentoService:
             categorias=categorias,
         )
 
-    async def gerar_alertas(self, safra_id: uuid.UUID) -> list[AlertaSafra]:
-        alertas: list[AlertaSafra] = []
-
-        # Total de custos na safra
+    async def _contexto_safra(self, safra_id: uuid.UUID) -> dict[str, object]:
+        """Carrega os agregados base usados por alertas, recomendações e resumo."""
         stmt_total = select(
             func.coalesce(func.sum(LancamentoFinanceiro.valor), 0).label("total"),
             func.count(LancamentoFinanceiro.id).label("qtd"),
@@ -290,10 +314,55 @@ class LancamentoService:
             LancamentoFinanceiro.safra_id == safra_id,
             LancamentoFinanceiro.tipo == "CUSTO",
         ))
-        row = (await self.session.execute(stmt_total)).one()
-        total_custos = float(row.total)
-        qtd = int(row.qtd)
+        stmt_cat = select(
+            LancamentoFinanceiro.categoria,
+            func.sum(LancamentoFinanceiro.valor).label("total"),
+        ).where(and_(
+            LancamentoFinanceiro.tenant_id == self.tenant_id,
+            LancamentoFinanceiro.safra_id == safra_id,
+            LancamentoFinanceiro.tipo == "CUSTO",
+        )).group_by(LancamentoFinanceiro.categoria).order_by(func.sum(LancamentoFinanceiro.valor).desc()).limit(1)
+        stmt_cenario = select(SafraCenario).where(and_(
+            SafraCenario.tenant_id == self.tenant_id,
+            SafraCenario.safra_id == safra_id,
+            SafraCenario.eh_base == True,
+        )).limit(1)
+        stmt_serie = select(
+            func.to_char(LancamentoFinanceiro.data, "YYYY-MM").label("periodo"),
+            func.sum(LancamentoFinanceiro.valor).label("total"),
+        ).where(and_(
+            LancamentoFinanceiro.tenant_id == self.tenant_id,
+            LancamentoFinanceiro.safra_id == safra_id,
+            LancamentoFinanceiro.tipo == "CUSTO",
+        )).group_by(text("periodo")).order_by(text("periodo ASC"))
 
+        total_row = (await self.session.execute(stmt_total)).one()
+        cat_row = (await self.session.execute(stmt_cat)).first()
+        cenario = (await self.session.execute(stmt_cenario)).scalar_one_or_none()
+        serie_rows = (await self.session.execute(stmt_serie)).fetchall()
+        serie = [SerieTemporal(periodo=r[0], total=float(r[1])) for r in serie_rows]
+
+        margem: float | None = None
+        if cenario and cenario.custo_total is not None and cenario.receita_bruta_total is not None:
+            margem = float(cenario.receita_bruta_total) - float(cenario.custo_total)
+
+        cat_dominante = None
+        if cat_row:
+            cat_dominante = str(cat_row[0] or "")
+
+        return {
+            "total_custos": float(total_row.total),
+            "quantidade": int(total_row.qtd),
+            "cat_dominante": cat_dominante,
+            "margem": margem,
+            "serie": serie,
+            "cenario": cenario,
+        }
+
+    def _alertas_do_contexto(self, contexto: dict[str, object]) -> list[AlertaSafra]:
+        alertas: list[AlertaSafra] = []
+        total_custos = float(contexto["total_custos"])
+        qtd = int(contexto["quantidade"])
         if total_custos > 0:
             alertas.append(AlertaSafra(
                 tipo="CUSTO_REGISTRADO",
@@ -301,28 +370,15 @@ class LancamentoService:
                 mensagem=f"Você possui {qtd} lançamento{'s' if qtd != 1 else ''} de custo registrado{'s' if qtd != 1 else ''} nesta safra.",
             ))
 
-        # Margem do cenário BASE
-        stmt_cenario = (
-            select(SafraCenario)
-            .where(and_(
-                SafraCenario.tenant_id == self.tenant_id,
-                SafraCenario.safra_id == safra_id,
-                SafraCenario.eh_base == True,
+        margem = contexto["margem"]
+        if margem is not None and margem < 0:
+            alertas.append(AlertaSafra(
+                tipo="MARGEM_NEGATIVA",
+                nivel="danger",
+                mensagem=f"Sua operação está com margem negativa de R$ {abs(margem):,.2f}. Revise os custos.",
             ))
-            .limit(1)
-        )
-        cenario = (await self.session.execute(stmt_cenario)).scalar_one_or_none()
-        if cenario and cenario.custo_total is not None and cenario.receita_bruta_total is not None:
-            margem = float(cenario.receita_bruta_total) - float(cenario.custo_total)
-            if margem < 0:
-                alertas.append(AlertaSafra(
-                    tipo="MARGEM_NEGATIVA",
-                    nivel="danger",
-                    mensagem=f"Sua operação está com margem negativa de R$ {abs(margem):,.2f}. Revise os custos.",
-                ))
 
-        # Variação de custo no último mês (> 20%)
-        serie = await self.serie_temporal(safra_id)
+        serie = contexto["serie"]
         if len(serie) >= 2:
             ultimo = serie[-1].total
             penultimo = serie[-2].total
@@ -334,8 +390,46 @@ class LancamentoService:
                         nivel="warning",
                         mensagem=f"Seus custos aumentaram {variacao_pct:.1f}% no último período ({serie[-2].periodo} → {serie[-1].periodo}).",
                     ))
-
         return alertas
+
+    def _recomendacoes_do_contexto(self, safra_id: uuid.UUID, contexto: dict[str, object]) -> list[RecomendacaoSafra]:
+        recomendacoes: list[RecomendacaoSafra] = []
+        safra_id_str = str(safra_id)
+        margem = contexto["margem"]
+        if margem is not None and margem < 0:
+            recomendacoes.append(RecomendacaoSafra(
+                tipo="REVISAR_CUSTOS",
+                mensagem="Revise seus custos operacionais. A margem atual está negativa.",
+                acao="Ver cenários",
+                rota=f"/agricola/safras/{safra_id_str}/cenarios",
+            ))
+
+        if str(contexto["cat_dominante"]).upper() == "INSUMOS":
+            recomendacoes.append(RecomendacaoSafra(
+                tipo="ANALISAR_INSUMOS",
+                mensagem="Custos com insumos estão elevados e lideram sua estrutura de custos.",
+                acao="Analisar por categoria",
+                rota=f"/agricola/safras/{safra_id_str}/cenarios",
+            ))
+
+        serie = contexto["serie"]
+        if len(serie) >= 2:
+            ultimo = serie[-1].total
+            penultimo = serie[-2].total
+            if penultimo > 0:
+                variacao_pct = (ultimo - penultimo) / penultimo * 100
+                if variacao_pct > 20:
+                    recomendacoes.append(RecomendacaoSafra(
+                        tipo="VER_EVOLUCAO",
+                        mensagem=f"Seus custos aumentaram {variacao_pct:.1f}% recentemente. Acompanhe a evolução.",
+                        acao="Ver evolução de custos",
+                        rota=f"/agricola/safras/{safra_id_str}/operacoes",
+                    ))
+        return recomendacoes
+
+    async def gerar_alertas(self, safra_id: uuid.UUID) -> list[AlertaSafra]:
+        contexto = await self._contexto_safra(safra_id)
+        return self._alertas_do_contexto(contexto)
 
     async def serie_temporal(self, safra_id: uuid.UUID) -> list[SerieTemporal]:
         stmt = select(
@@ -364,116 +458,20 @@ class LancamentoService:
         Returns:
             Lista de RecomendacaoSafra ordenada por prioridade (margem primeiro).
         """
-        recomendacoes: list[RecomendacaoSafra] = []
-        safra_id_str = str(safra_id)
-
-        # ------------------------------------------------------------------ #
-        # Regra 1: Margem negativa → revisar custos operacionais              #
-        # ------------------------------------------------------------------ #
-        stmt_cenario = (
-            select(SafraCenario)
-            .where(and_(
-                SafraCenario.tenant_id == self.tenant_id,
-                SafraCenario.safra_id == safra_id,
-                SafraCenario.eh_base == True,
-            ))
-            .limit(1)
-        )
-        cenario = (await self.session.execute(stmt_cenario)).scalar_one_or_none()
-        margem: float | None = None
-        if cenario and cenario.custo_total is not None and cenario.receita_bruta_total is not None:
-            margem = float(cenario.receita_bruta_total) - float(cenario.custo_total)
-
-        if margem is not None and margem < 0:
-            recomendacoes.append(RecomendacaoSafra(
-                tipo="REVISAR_CUSTOS",
-                mensagem="Revise seus custos operacionais. A margem atual está negativa.",
-                acao="Ver cenários",
-                rota=f"/agricola/safras/{safra_id_str}/cenarios",
-            ))
-
-        # ------------------------------------------------------------------ #
-        # Regra 2: INSUMOS é o maior custo → analisar categoria             #
-        # ------------------------------------------------------------------ #
-        stmt_cat = select(
-            LancamentoFinanceiro.categoria,
-            func.sum(LancamentoFinanceiro.valor).label("total"),
-        ).where(and_(
-            LancamentoFinanceiro.tenant_id == self.tenant_id,
-            LancamentoFinanceiro.safra_id == safra_id,
-            LancamentoFinanceiro.tipo == "CUSTO",
-        )).group_by(LancamentoFinanceiro.categoria).order_by(func.sum(LancamentoFinanceiro.valor).desc()).limit(1)
-
-        cat_row = (await self.session.execute(stmt_cat)).first()
-        if cat_row and str(cat_row[0]).upper() == "INSUMOS":
-            recomendacoes.append(RecomendacaoSafra(
-                tipo="ANALISAR_INSUMOS",
-                mensagem="Custos com insumos estão elevados e lideram sua estrutura de custos.",
-                acao="Analisar por categoria",
-                rota=f"/agricola/safras/{safra_id_str}/cenarios",
-            ))
-
-        # ------------------------------------------------------------------ #
-        # Regra 3: Aumento > 20% no último período → ver evolução        #
-        # ------------------------------------------------------------------ #
-        serie = await self.serie_temporal(safra_id)
-        if len(serie) >= 2:
-            ultimo = serie[-1].total
-            penultimo = serie[-2].total
-            if penultimo > 0:
-                variacao_pct = (ultimo - penultimo) / penultimo * 100
-                if variacao_pct > 20:
-                    recomendacoes.append(RecomendacaoSafra(
-                        tipo="VER_EVOLUCAO",
-                        mensagem=f"Seus custos aumentaram {variacao_pct:.1f}% recentemente. Acompanhe a evolução.",
-                        acao="Ver evolução de custos",
-                        rota=f"/agricola/safras/{safra_id_str}/operacoes",
-                    ))
-
-        return recomendacoes
+        contexto = await self._contexto_safra(safra_id)
+        return self._recomendacoes_do_contexto(safra_id, contexto)
 
     async def gerar_resumo_inteligente(self, safra_id: uuid.UUID) -> ResumoInteligente:
         LABEL_CAT = {"INSUMOS": "insumos", "MAO_OBRA": "mão de obra", "OPERACOES": "operações", "ADMINISTRATIVO": "administrativo"}
 
-        # Reutiliza dados já calculados
-        alertas = await self.gerar_alertas(safra_id)
-        serie = await self.serie_temporal(safra_id)
-        recomendacoes = await self.gerar_recomendacoes(safra_id)
-
-        # Totais e categoria dominante
-        stmt_total = select(
-            func.coalesce(func.sum(LancamentoFinanceiro.valor), 0).label("total"),
-            func.count(LancamentoFinanceiro.id).label("qtd"),
-        ).where(and_(
-            LancamentoFinanceiro.tenant_id == self.tenant_id,
-            LancamentoFinanceiro.safra_id == safra_id,
-            LancamentoFinanceiro.tipo == "CUSTO",
-        ))
-        row = (await self.session.execute(stmt_total)).one()
-        total_custos = float(row.total)
-        qtd = int(row.qtd)
-
-        stmt_cat = select(
-            LancamentoFinanceiro.categoria,
-            func.sum(LancamentoFinanceiro.valor).label("total"),
-        ).where(and_(
-            LancamentoFinanceiro.tenant_id == self.tenant_id,
-            LancamentoFinanceiro.safra_id == safra_id,
-            LancamentoFinanceiro.tipo == "CUSTO",
-        )).group_by(LancamentoFinanceiro.categoria).order_by(func.sum(LancamentoFinanceiro.valor).desc()).limit(1)
-        cat_row = (await self.session.execute(stmt_cat)).first()
-        cat_dominante = LABEL_CAT.get(cat_row[0] or "", cat_row[0] or "") if cat_row else None
-
-        # Margem do cenário BASE
-        stmt_cenario = select(SafraCenario).where(and_(
-            SafraCenario.tenant_id == self.tenant_id,
-            SafraCenario.safra_id == safra_id,
-            SafraCenario.eh_base == True,
-        )).limit(1)
-        cenario = (await self.session.execute(stmt_cenario)).scalar_one_or_none()
-        margem: float | None = None
-        if cenario and cenario.custo_total is not None and cenario.receita_bruta_total is not None:
-            margem = float(cenario.receita_bruta_total) - float(cenario.custo_total)
+        contexto = await self._contexto_safra(safra_id)
+        total_custos = contexto["total_custos"]
+        qtd = contexto["quantidade"]
+        cat_dominante = LABEL_CAT.get(str(contexto["cat_dominante"]) or "", str(contexto["cat_dominante"]) or "") if contexto["cat_dominante"] else None
+        margem = contexto["margem"]
+        serie = contexto["serie"]
+        alertas = self._alertas_do_contexto(contexto)
+        recomendacoes = self._recomendacoes_do_contexto(safra_id, contexto)
 
         # Monta resumo
         fmt = lambda v: f"R$ {v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")

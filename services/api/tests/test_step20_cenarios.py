@@ -353,6 +353,32 @@ class TestRegrasNegocio:
         with pytest.raises(BusinessRuleError, match="Limite"):
             await svc._assert_limite_cenarios(SAFRA_ID)
 
+    @pytest.mark.asyncio
+    async def test_create_cenario_usa_production_unit_em_lote(self):
+        """create_cenario deve usar o mapa de PUs já carregado, sem lookup extra por unidade."""
+        svc = _make_service()
+        pu = _make_pu(PU_ID_1)
+        linha = _make_linha(pu_id=PU_ID_1)
+
+        svc._assert_safra_nao_cancelada = AsyncMock()
+        svc._assert_limite_cenarios = AsyncMock()
+        svc._assert_nome_unico = AsyncMock()
+        svc._fetch_production_units_map = AsyncMock(return_value={PU_ID_1: pu})
+        svc._build_linha = AsyncMock(return_value=linha)
+        svc._recalculate_all = AsyncMock()
+
+        data = CenarioCreate(
+            nome="Cenário Batch",
+            unidades=[CenarioUnidadeInput(production_unit_id=PU_ID_1)],
+        )
+
+        cenario = await svc.create_cenario(SAFRA_ID, data)
+
+        svc._build_linha.assert_awaited_once()
+        assert svc._build_linha.await_args.args[1] is pu
+        assert cenario.unidades == [linha]
+        assert svc.session.execute.await_count == 0
+
 
 # ---------------------------------------------------------------------------
 # Isolamento multi-tenant

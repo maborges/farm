@@ -1,4 +1,5 @@
 import uuid
+from collections import defaultdict
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import func, and_
@@ -71,32 +72,56 @@ class CultivoService(BaseService[Cultivo]):
         if not areas_data:
             return
 
-        for area_data in areas_data:
-            # Buscar info do talhão
-            talhao_stmt = select(AreaRural).where(
-                AreaRural.id == area_data.area_id,
-                AreaRural.tenant_id == self.tenant_id,
-            )
-            talhao = (await self.session.execute(talhao_stmt)).scalars().first()
-            if not talhao or not talhao.area_hectares:
-                continue
+        area_ids = [area_data.area_id for area_data in areas_data]
+        talhoes_stmt = select(AreaRural).where(
+            AreaRural.tenant_id == self.tenant_id,
+            AreaRural.id.in_(area_ids),
+        )
+        talhoes = {
+            talhao.id: talhao
+            for talhao in (await self.session.execute(talhoes_stmt)).scalars().all()
+        }
 
-            # Subquery: cultivos que ocupam este talhão
-            cultivo_ids_stmt = select(CultivoArea.cultivo_id).where(
-                CultivoArea.area_id == area_data.area_id
-            ).distinct()
-
-            # Buscar cultivos existentes (ativos, nesta safra, neste talhão)
-            conditions = [
+        cultivos_stmt = (
+            select(CultivoArea.area_id, Cultivo)
+            .join(Cultivo, Cultivo.id == CultivoArea.cultivo_id)
+            .where(
+                CultivoArea.tenant_id == self.tenant_id,
+                CultivoArea.area_id.in_(area_ids),
                 Cultivo.safra_id == safra_id,
                 Cultivo.status.notin_(["CANCELADA", "ENCERRADA"]),
-                Cultivo.id.in_(cultivo_ids_stmt),
-            ]
-            if cultivo_id_exclui:
-                conditions.append(Cultivo.id != cultivo_id_exclui)
+            )
+        )
+        if cultivo_id_exclui:
+            cultivos_stmt = cultivos_stmt.where(Cultivo.id != cultivo_id_exclui)
+        cultivos_por_area: dict[uuid.UUID, list[Cultivo]] = defaultdict(list)
+        for area_id, cultivo in (await self.session.execute(cultivos_stmt)).all():
+            cultivos_por_area[area_id].append(cultivo)
 
-            cultivos_stmt = select(Cultivo).where(and_(*conditions))
-            cultivos = (await self.session.execute(cultivos_stmt)).scalars().all()
+        areas_cultivo_stmt = (
+            select(
+                CultivoArea.area_id,
+                CultivoArea.cultivo_id,
+                func.sum(CultivoArea.area_ha).label("area_total"),
+            )
+            .where(
+                CultivoArea.tenant_id == self.tenant_id,
+                CultivoArea.area_id.in_(area_ids),
+            )
+            .group_by(CultivoArea.area_id, CultivoArea.cultivo_id)
+        )
+        if cultivo_id_exclui:
+            areas_cultivo_stmt = areas_cultivo_stmt.where(CultivoArea.cultivo_id != cultivo_id_exclui)
+        areas_cultivo = {
+            (area_id, cultivo_id): float(area_total or 0)
+            for area_id, cultivo_id, area_total in (await self.session.execute(areas_cultivo_stmt)).all()
+        }
+
+        for area_data in areas_data:
+            talhao = talhoes.get(area_data.area_id)
+            if not talhao or not talhao.area_hectares:
+                continue
+            cultivos = cultivos_por_area.get(area_data.area_id, [])
 
             # REGRA 1: Se novo cultivo é CONSORCIADO
             if consorciado:
@@ -128,14 +153,7 @@ class CultivoService(BaseService[Cultivo]):
                     if not cultivo.consorciado and self._periodos_se_sobrepoe(
                         data_inicio, data_fim, cultivo.data_inicio, cultivo.data_fim
                     ):
-                        areas_cultivo = select(func.sum(CultivoArea.area_ha)).where(
-                            and_(
-                                CultivoArea.cultivo_id == cultivo.id,
-                                CultivoArea.area_id == area_data.area_id,
-                            )
-                        )
-                        area_cultivo = (await self.session.execute(areas_cultivo)).scalar() or 0.0
-                        total_area += float(area_cultivo)
+                        total_area += float(areas_cultivo.get((area_data.area_id, cultivo.id), 0.0))
 
                 # Validar se soma de não-consorciados excede capacidade
                 if total_area > float(talhao.area_hectares):

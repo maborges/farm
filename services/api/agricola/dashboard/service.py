@@ -1,4 +1,5 @@
 from uuid import UUID
+from collections import defaultdict
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import func
@@ -89,15 +90,30 @@ class DashboardAgricolaService:
 
         # ── Alertas de checklist ──────────────────────────────────────────────
         alertas_checklist: list[dict] = []
-        for s in safras_ativas:
-            stmt_pend = select(func.count(SafraChecklistItem.id)).where(
-                SafraChecklistItem.safra_id == s.id,
-                SafraChecklistItem.tenant_id == self.tenant_id,
-                SafraChecklistItem.fase == s.status,
-                SafraChecklistItem.obrigatorio == True,
-                SafraChecklistItem.concluido == False,
+        if safra_ids_ativas:
+            stmt_pend = (
+                select(
+                    SafraChecklistItem.safra_id,
+                    SafraChecklistItem.fase,
+                    func.count(SafraChecklistItem.id),
+                )
+                .where(
+                    SafraChecklistItem.tenant_id == self.tenant_id,
+                    SafraChecklistItem.safra_id.in_(safra_ids_ativas),
+                    SafraChecklistItem.obrigatorio == True,
+                    SafraChecklistItem.concluido == False,
+                )
+                .group_by(SafraChecklistItem.safra_id, SafraChecklistItem.fase)
             )
-            pendentes = (await self.session.execute(stmt_pend)).scalar() or 0
+            pendentes_por_safra = {
+                (safra_id, fase): int(total or 0)
+                for safra_id, fase, total in (await self.session.execute(stmt_pend)).all()
+            }
+        else:
+            pendentes_por_safra = {}
+
+        for s in safras_ativas:
+            pendentes = pendentes_por_safra.get((s.id, s.status), 0)
             if pendentes > 0:
                 alertas_checklist.append({
                     "safra_id": str(s.id),
@@ -138,18 +154,22 @@ class DashboardAgricolaService:
         # ── Fenologia atual por safra ─────────────────────────────────────────
         fenologia_atual: list[dict] = []
         safras_campo = [x for x in safras_ativas if x.status in ("PLANTIO", "DESENVOLVIMENTO", "COLHEITA")]
-        for s in safras_campo:
+        registros_por_safra: dict[UUID, SafraFenologiaRegistro] = {}
+        if safras_campo:
             stmt_fen = (
                 select(SafraFenologiaRegistro)
                 .options(joinedload(SafraFenologiaRegistro.escala))
                 .where(
-                    SafraFenologiaRegistro.safra_id == s.id,
                     SafraFenologiaRegistro.tenant_id == self.tenant_id,
+                    SafraFenologiaRegistro.safra_id.in_([s.id for s in safras_campo]),
                 )
-                .order_by(SafraFenologiaRegistro.data_observacao.desc())
-                .limit(1)
+                .order_by(SafraFenologiaRegistro.safra_id, SafraFenologiaRegistro.data_observacao.desc())
             )
-            reg = (await self.session.execute(stmt_fen)).scalars().first()
+            for reg in (await self.session.execute(stmt_fen)).scalars().all():
+                registros_por_safra.setdefault(reg.safra_id, reg)
+
+        for s in safras_campo:
+            reg = registros_por_safra.get(s.id)
             fenologia_atual.append({
                 "safra_id": str(s.id),
                 "safra": f"{s.cultura or 'Safra'} {s.ano_safra}",

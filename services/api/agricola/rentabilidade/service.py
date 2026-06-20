@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from uuid import UUID
 
-from sqlalchemy import and_, select
+from sqlalchemy import and_, select, func, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from agricola.dre import AgricolaDreKpiService, DREAgricolaV1Service
@@ -346,8 +346,7 @@ class RentabilidadeAgricolaV1Service(BaseService[Safra]):
     async def _calcular_volume_fisico(self, pu_ids: list[UUID]) -> tuple[float, str]:
         if not pu_ids:
             return 0.0, "INDISPONIVEL"
-            
-        from sqlalchemy import select, func
+
         from agricola.production_units.models import ProductionUnit
         from agricola.colheita.models import ProdutoColhido
         from agricola.cultivos.models import Cultivo, CultivoArea
@@ -359,30 +358,54 @@ class RentabilidadeAgricolaV1Service(BaseService[Safra]):
         
         volume_real_total = 0.0
         volume_estimado_total = 0.0
-        
-        for pu_row in pu_rows:
-            real_val = (await self.session.execute(
-                select(func.sum(func.coalesce(ProdutoColhido.peso_liquido_comercial_kg, ProdutoColhido.peso_liquido_kg)))
+        chaves_pu = {(pu_row.safra_id, pu_row.area_id) for pu_row in pu_rows}
+
+        real_por_pu = {}
+        if chaves_pu:
+            real_rows = (await self.session.execute(
+                select(
+                    ProdutoColhido.safra_id,
+                    ProdutoColhido.talhao_id,
+                    func.sum(func.coalesce(ProdutoColhido.peso_liquido_comercial_kg, ProdutoColhido.peso_liquido_kg)).label("total_kg"),
+                )
                 .where(
                     ProdutoColhido.tenant_id == self.tenant_id,
-                    ProdutoColhido.safra_id == pu_row.safra_id,
-                    ProdutoColhido.talhao_id == pu_row.area_id
+                    tuple_(ProdutoColhido.safra_id, ProdutoColhido.talhao_id).in_(chaves_pu),
                 )
-            )).scalar()
-            
-            if real_val and real_val > 0:
-                volume_real_total += float(real_val) / 60.0
+                .group_by(ProdutoColhido.safra_id, ProdutoColhido.talhao_id)
+            )).all()
+            real_por_pu = {
+                (row.safra_id, row.talhao_id): float(row.total_kg or 0)
+                for row in real_rows
+            }
+
+        estimado_por_pu = {}
+        if chaves_pu:
+            est_rows = (await self.session.execute(
+                select(
+                    Cultivo.safra_id,
+                    CultivoArea.area_id,
+                    Cultivo.produtividade_meta_sc_ha,
+                    CultivoArea.area_ha,
+                )
+                .join(CultivoArea, CultivoArea.cultivo_id == Cultivo.id)
+                .where(
+                    Cultivo.tenant_id == self.tenant_id,
+                    tuple_(Cultivo.safra_id, CultivoArea.area_id).in_(chaves_pu),
+                )
+            )).all()
+            for row in est_rows:
+                chave = (row.safra_id, row.area_id)
+                if chave not in estimado_por_pu:
+                    estimado_por_pu[chave] = row
+
+        for pu_row in pu_rows:
+            real_val = real_por_pu.get((pu_row.safra_id, pu_row.area_id), 0.0)
+
+            if real_val > 0:
+                volume_real_total += real_val / 60.0
             else:
-                est_row = (await self.session.execute(
-                    select(Cultivo.produtividade_meta_sc_ha, CultivoArea.area_ha)
-                    .join(CultivoArea, CultivoArea.cultivo_id == Cultivo.id)
-                    .where(
-                        Cultivo.tenant_id == self.tenant_id,
-                        Cultivo.safra_id == pu_row.safra_id,
-                        CultivoArea.area_id == pu_row.area_id
-                    )
-                    .limit(1)
-                )).first()
+                est_row = estimado_por_pu.get((pu_row.safra_id, pu_row.area_id))
                 if est_row and est_row.produtividade_meta_sc_ha and est_row.area_ha:
                     volume_estimado_total += float(est_row.produtividade_meta_sc_ha) * float(est_row.area_ha)
                     

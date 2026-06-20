@@ -54,6 +54,7 @@ def test_response_gerado_automaticamente_true():
         origem="ESTOQUE",
         origem_id=uuid.uuid4(),
         created_at=__import__("datetime").datetime.now(),
+        updated_at=__import__("datetime").datetime.now(),
     )
     assert r.gerado_automaticamente is True
 
@@ -71,6 +72,7 @@ def test_response_gerado_automaticamente_false():
         origem=None,
         origem_id=None,
         created_at=__import__("datetime").datetime.now(),
+        updated_at=__import__("datetime").datetime.now(),
     )
     assert r.gerado_automaticamente is False
 
@@ -100,7 +102,7 @@ async def test_listar_origens_retorna_lista():
     )
 
     result_mock = MagicMock()
-    result_mock.scalars.return_value.all.return_value = [lancamento]
+    result_mock.all.return_value = [lancamento]
 
     session = AsyncMock()
     session.execute = AsyncMock(return_value=result_mock)
@@ -136,7 +138,7 @@ async def test_listar_origens_manual_gerado_false():
     )
 
     result_mock = MagicMock()
-    result_mock.scalars.return_value.all.return_value = [lancamento]
+    result_mock.all.return_value = [lancamento]
 
     session = AsyncMock()
     session.execute = AsyncMock(return_value=result_mock)

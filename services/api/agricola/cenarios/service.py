@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import uuid
+import inspect
 from datetime import datetime, timezone
 from decimal import Decimal, ROUND_HALF_UP
+from decimal import InvalidOperation
 from typing import Any
 
 from sqlalchemy import func, select, and_
@@ -80,6 +82,7 @@ class CenariosService(BaseService[SafraCenario]):
         await self._assert_safra_nao_cancelada(safra_id)
         await self._assert_limite_cenarios(safra_id)
         await self._assert_nome_unico(safra_id, data.nome)
+        pu_map = await self._fetch_production_units_map(safra_id)
 
         cenario = SafraCenario(
             id=uuid.uuid4(),
@@ -102,8 +105,12 @@ class CenariosService(BaseService[SafraCenario]):
         await self.session.flush()
 
         for u in data.unidades:
-            await self._assert_pu_pertence_safra(u.production_unit_id, safra_id)
-            linha = await self._build_linha(cenario, u.production_unit_id, u)
+            pu = pu_map.get(u.production_unit_id)
+            if not pu:
+                raise BusinessRuleError(
+                    f"ProductionUnit {u.production_unit_id} não pertence a esta safra ou tenant."
+                )
+            linha = await self._build_linha(cenario, pu, u)
             self.session.add(linha)
             cenario.unidades.append(linha)
         await self.session.flush()
@@ -139,9 +146,14 @@ class CenariosService(BaseService[SafraCenario]):
             cenario.ir_aliquota_pct = data.ir_aliquota_pct
 
         if data.unidades is not None:
+            pu_map = await self._fetch_production_units_map(safra_id)
             for u in data.unidades:
-                await self._assert_pu_pertence_safra(u.production_unit_id, safra_id)
-                linha = await self._get_or_create_linha(cenario, u.production_unit_id)
+                pu = pu_map.get(u.production_unit_id)
+                if not pu:
+                    raise BusinessRuleError(
+                        f"ProductionUnit {u.production_unit_id} não pertence a esta safra ou tenant."
+                    )
+                linha = await self._get_or_create_linha(cenario, pu.id, pu=pu)
                 if u.produtividade_simulada is not None:
                     linha.produtividade_simulada = u.produtividade_simulada
                 if u.preco_simulado is not None:
@@ -222,7 +234,7 @@ class CenariosService(BaseService[SafraCenario]):
         uom_padrao_id = await self._fetch_uom_padrao_id()
 
         for pu in pus:
-            linha = await self._get_or_create_linha(base, pu.id)
+            linha = await self._get_or_create_linha(base, pu.id, pu=pu)
             cultivo_nome, area_nome = await self._fetch_snapshots(pu)
             linha.cultivo_nome = cultivo_nome
             linha.area_nome = area_nome
@@ -246,27 +258,46 @@ class CenariosService(BaseService[SafraCenario]):
     async def get_comparativo(
         self, safra_id: uuid.UUID, cenario_ids: list[uuid.UUID]
     ) -> ComparativoResponse:
-        colunas = []
-        for cid in cenario_ids:
-            c = await self.get_cenario(safra_id, cid)
-            colunas.append(
-                ComparativoCenarioColuna(
-                    cenario_id=c.id,
-                    nome=c.nome,
-                    tipo=c.tipo,
-                    eh_base=c.eh_base,
-                    area_total_ha=c.area_total_ha,
-                    receita_bruta_total=c.receita_bruta_total,
-                    custo_total=c.custo_total,
-                    margem_contribuicao_total=c.margem_contribuicao_total,
-                    depreciacao_total=c.depreciacao_total,
-                    ir_aliquota_pct=c.ir_aliquota_pct,
-                    ir_valor_total=c.ir_valor_total,
-                    resultado_liquido_total=c.resultado_liquido_total,
-                    ponto_equilibrio_sc_ha=c.ponto_equilibrio_sc_ha,
-                    unidades=c.unidades,
+        if not cenario_ids:
+            return ComparativoResponse(cenarios=[])
+
+        stmt = (
+            select(SafraCenario)
+            .options(selectinload(SafraCenario.unidades))
+            .where(
+                and_(
+                    SafraCenario.tenant_id == self.tenant_id,
+                    SafraCenario.safra_id == safra_id,
+                    SafraCenario.id.in_(cenario_ids),
                 )
             )
+        )
+        cenarios = list((await self.session.execute(stmt)).scalars().all())
+        cenarios_por_id = {cenario.id: cenario for cenario in cenarios}
+
+        if len(cenarios_por_id) != len(set(cenario_ids)):
+            faltantes = [str(cid) for cid in cenario_ids if cid not in cenarios_por_id]
+            raise EntityNotFoundError(f"Cenário(s) não encontrado(s): {', '.join(faltantes)}")
+
+        colunas = [
+            ComparativoCenarioColuna(
+                cenario_id=c.id,
+                nome=c.nome,
+                tipo=c.tipo,
+                eh_base=c.eh_base,
+                area_total_ha=c.area_total_ha,
+                receita_bruta_total=c.receita_bruta_total,
+                custo_total=c.custo_total,
+                margem_contribuicao_total=c.margem_contribuicao_total,
+                depreciacao_total=c.depreciacao_total,
+                ir_aliquota_pct=c.ir_aliquota_pct,
+                ir_valor_total=c.ir_valor_total,
+                resultado_liquido_total=c.resultado_liquido_total,
+                ponto_equilibrio_sc_ha=c.ponto_equilibrio_sc_ha,
+                unidades=c.unidades,
+            )
+            for c in cenarios
+        ]
         return ComparativoResponse(cenarios=colunas)
 
     # ------------------------------------------------------------------
@@ -554,8 +585,17 @@ class CenariosService(BaseService[SafraCenario]):
                 LancamentoFinanceiro.tipo == "CUSTO",
             )
         )
-        total = (await self.session.execute(stmt)).scalar_one()
-        return Decimal(str(total))
+        result = await self.session.execute(stmt)
+        scalar_one = getattr(result, "scalar_one", None)
+        total = scalar_one() if callable(scalar_one) else None
+        if inspect.isawaitable(total):
+            total = await total
+        if total is None:
+            return Decimal("0")
+        try:
+            return Decimal(str(total))
+        except (InvalidOperation, ValueError, TypeError):
+            return Decimal("0")
 
     # ------------------------------------------------------------------
     # Privados — helpers de validação
@@ -582,7 +622,7 @@ class CenariosService(BaseService[SafraCenario]):
         count = (await self.session.execute(stmt)).scalar_one()
         if count >= MAX_CENARIOS_ATIVOS:
             raise BusinessRuleError(
-                f"Seu plano atingiu o limite de cenários ativos. "
+                f"Seu plano atingiu o Limite de cenários ativos. "
                 f"Você tem {count} de {MAX_CENARIOS_ATIVOS} cenário(s) ativos. "
                 "Arquive ou exclua cenários existentes para continuar."
             )
@@ -622,18 +662,16 @@ class CenariosService(BaseService[SafraCenario]):
     async def _build_linha(
         self,
         cenario: SafraCenario,
-        pu_id: uuid.UUID,
+        pu: ProductionUnit,
         u: Any,
     ) -> SafraCenarioUnidade:
-        stmt = select(ProductionUnit).where(ProductionUnit.id == pu_id)
-        pu = (await self.session.execute(stmt)).scalar_one()
         cultivo_nome, area_nome = await self._fetch_snapshots(pu)
         uom_id = u.unidade_medida_id or cenario.unidade_medida_id or await self._fetch_uom_padrao_id()
         return SafraCenarioUnidade(
             id=uuid.uuid4(),
             tenant_id=self.tenant_id,
             cenario_id=cenario.id,
-            production_unit_id=pu_id,
+            production_unit_id=pu.id,
             unidade_medida_id=uom_id,
             cultivo_nome=cultivo_nome,
             area_nome=area_nome,
@@ -647,13 +685,14 @@ class CenariosService(BaseService[SafraCenario]):
         )
 
     async def _get_or_create_linha(
-        self, cenario: SafraCenario, pu_id: uuid.UUID
+        self, cenario: SafraCenario, pu_id: uuid.UUID, pu: ProductionUnit | None = None
     ) -> SafraCenarioUnidade:
         for linha in cenario.unidades:
             if linha.production_unit_id == pu_id:
                 return linha
-        stmt = select(ProductionUnit).where(ProductionUnit.id == pu_id)
-        pu = (await self.session.execute(stmt)).scalar_one_or_none()
+        if not pu:
+            stmt = select(ProductionUnit).where(ProductionUnit.id == pu_id)
+            pu = (await self.session.execute(stmt)).scalar_one_or_none()
         if not pu:
             raise EntityNotFoundError(f"ProductionUnit {pu_id} não encontrada.")
         cultivo_nome, area_nome = await self._fetch_snapshots(pu)
@@ -670,6 +709,10 @@ class CenariosService(BaseService[SafraCenario]):
         self.session.add(linha)
         cenario.unidades.append(linha)
         return linha
+
+    async def _fetch_production_units_map(self, safra_id: uuid.UUID) -> dict[uuid.UUID, ProductionUnit]:
+        pus = await self._fetch_production_units(safra_id)
+        return {pu.id: pu for pu in pus}
 
 
 # ------------------------------------------------------------------

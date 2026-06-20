@@ -4,6 +4,7 @@ Foco: cálculo automático de CTC/V%, classificações e recomendações.
 """
 import pytest
 import uuid
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 from decimal import Decimal
 
@@ -177,3 +178,23 @@ class TestRecomendacoes:
         rec_soja = await svc.gerar_recomendacoes(analise, cultura_nome="SOJA")
         rec_milho = await svc.gerar_recomendacoes(analise, cultura_nome="MILHO")
         assert rec_soja["nitrogenio"]["rec_n_kg_ha"] < rec_milho["nitrogenio"]["rec_n_kg_ha"]
+
+
+class TestParametrosHierarquicos:
+    async def test_get_parametros_usa_uma_consulta_e_respeita_prioridade(self):
+        session = AsyncMock()
+        rows = [
+            SimpleNamespace(tenant_id=TENANT_ID, regiao=None, parametro="ph", faixa_min=5.0, faixa_max=6.0),
+            SimpleNamespace(tenant_id=None, regiao=None, parametro="ph", faixa_min=4.0, faixa_max=5.0),
+            SimpleNamespace(tenant_id=TENANT_ID, regiao="CERRADO", parametro="ph", faixa_min=6.0, faixa_max=7.0),
+        ]
+        result = MagicMock()
+        result.scalars.return_value.all.return_value = rows
+        session.execute.return_value = result
+
+        svc = AnaliseSoloService(session=session, tenant_id=TENANT_ID)
+        parametros = await svc._get_parametros(uuid.uuid4(), "CERRADO")
+
+        assert session.execute.await_count == 1
+        assert len(parametros) == 1
+        assert parametros[0].regiao == "CERRADO"

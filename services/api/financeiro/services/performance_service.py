@@ -41,7 +41,12 @@ class PerformanceService:
                 logger.exception("Erro ao calcular economia total de compras para performance do usuário.")
 
             try:
-                stmt_decisoes = select(FinanceiroSafraCenario).where(
+                stmt_decisoes = select(
+                    FinanceiroSafraCenario.id,
+                    FinanceiroSafraCenario.safra_id,
+                    FinanceiroSafraCenario.resultado_simulado,
+                    FinanceiroSafraCenario.nome,
+                ).where(
                     and_(
                         FinanceiroSafraCenario.tenant_id == self.tenant_id,
                         FinanceiroSafraCenario.escolhido.is_(True)
@@ -49,7 +54,7 @@ class PerformanceService:
                 ).order_by(FinanceiroSafraCenario.escolhido_at.desc())
 
                 res_decisoes = await self.session.execute(stmt_decisoes)
-                cenarios_escolhidos = res_decisoes.scalars().all()
+                cenarios_escolhidos = res_decisoes.all()
             except Exception:
                 logger.exception("Erro ao listar cenários escolhidos para performance do usuário.")
 
@@ -64,31 +69,23 @@ class PerformanceService:
 
             if safra_ids:
                 from financeiro.models.lancamento import LancamentoFinanceiro
-                stmt_agrupado_rec = select(
+                stmt_agrupado = select(
                     LancamentoFinanceiro.safra_id,
+                    LancamentoFinanceiro.tipo,
                     func.sum(LancamentoFinanceiro.valor).label("total")
                 ).where(
                     and_(
                         LancamentoFinanceiro.tenant_id == self.tenant_id,
                         LancamentoFinanceiro.safra_id.in_(safra_ids),
-                        LancamentoFinanceiro.tipo == "RECEITA"
+                        LancamentoFinanceiro.tipo.in_(("RECEITA", "CUSTO"))
                     )
-                ).group_by(LancamentoFinanceiro.safra_id)
-                rec_rows = (await self.session.execute(stmt_agrupado_rec)).fetchall()
-                receitas_por_safra = {r[0]: float(r[1]) for r in rec_rows}
-
-                stmt_agrupado_custo = select(
-                    LancamentoFinanceiro.safra_id,
-                    func.sum(LancamentoFinanceiro.valor).label("total")
-                ).where(
-                    and_(
-                        LancamentoFinanceiro.tenant_id == self.tenant_id,
-                        LancamentoFinanceiro.safra_id.in_(safra_ids),
-                        LancamentoFinanceiro.tipo == "CUSTO"
-                    )
-                ).group_by(LancamentoFinanceiro.safra_id)
-                custo_rows = (await self.session.execute(stmt_agrupado_custo)).fetchall()
-                custos_por_safra = {r[0]: float(r[1]) for r in custo_rows}
+                ).group_by(LancamentoFinanceiro.safra_id, LancamentoFinanceiro.tipo)
+                rows = (await self.session.execute(stmt_agrupado)).fetchall()
+                for safra_id, tipo, total in rows:
+                    if tipo == "RECEITA":
+                        receitas_por_safra[safra_id] = float(total)
+                    elif tipo == "CUSTO":
+                        custos_por_safra[safra_id] = float(total)
 
             for c in cenarios_escolhidos:
                 try:
@@ -112,12 +109,15 @@ class PerformanceService:
                     continue
 
             try:
-                stmt_melhor_compra = select(PedidoCompra).where(
+                stmt_melhor_compra = select(
+                    PedidoCompra.economia_absoluta,
+                    PedidoCompra.fornecedor_nome,
+                ).where(
                     PedidoCompra.tenant_id == self.tenant_id
                 ).order_by(PedidoCompra.economia_absoluta.desc()).limit(1)
 
                 res_compra = await self.session.execute(stmt_melhor_compra)
-                melhor_compra = res_compra.scalar_one_or_none()
+                melhor_compra = res_compra.first()
 
                 melhor_compra_valor = float(melhor_compra.economia_absoluta or 0.0) if melhor_compra else 0.0
                 if melhor_compra and melhor_compra_valor > melhor_ganho:

@@ -1,6 +1,7 @@
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from collections import defaultdict
 
 from core.base_service import BaseService
 from core.exceptions import BusinessRuleError
@@ -23,13 +24,17 @@ class SafraTalhaoGrupoService(BaseService[SafraTalhaoGrupo]):
         result = await self.session.execute(stmt)
         grupos = list(result.scalars().all())
 
-        # Carrega itens de cada grupo
-        for grupo in grupos:
+        if grupos:
             stmt_itens = select(SafraTalhaoGrupoItem).where(
-                SafraTalhaoGrupoItem.tenant_id == grupo.id
+                SafraTalhaoGrupoItem.tenant_id == self.tenant_id,
+                SafraTalhaoGrupoItem.grupo_id.in_([grupo.id for grupo in grupos]),
             )
-            itens = (await self.session.execute(stmt_itens)).scalars().all()
-            grupo.itens = list(itens)
+            itens_por_grupo: dict[UUID, list[SafraTalhaoGrupoItem]] = defaultdict(list)
+            for item in (await self.session.execute(stmt_itens)).scalars().all():
+                itens_por_grupo[item.grupo_id].append(item)
+
+            for grupo in grupos:
+                grupo.itens = itens_por_grupo.get(grupo.id, [])
 
         return grupos
 
@@ -67,7 +72,10 @@ class SafraTalhaoGrupoService(BaseService[SafraTalhaoGrupo]):
         grupo = await self.get_or_fail(grupo_id)
 
         # Remove itens atuais
-        stmt_del = select(SafraTalhaoGrupoItem).where(SafraTalhaoGrupoItem.tenant_id == grupo_id)
+        stmt_del = select(SafraTalhaoGrupoItem).where(
+            SafraTalhaoGrupoItem.tenant_id == self.tenant_id,
+            SafraTalhaoGrupoItem.grupo_id == grupo_id,
+        )
         itens_atuais = (await self.session.execute(stmt_del)).scalars().all()
         for item in itens_atuais:
             await self.session.delete(item)

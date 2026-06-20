@@ -22,30 +22,33 @@ class AnaliseSoloService(BaseService[AnaliseSolo]):
     async def _get_parametros(self, cultura_id: UUID, regiao: str | None) -> list[SoloParametroCultura]:
         """
         Retorna faixas na hierarquia: tenant+região > tenant > sistema+região > sistema.
-        Cada nível é consultado; usa o primeiro que retornar resultados.
+        Consulta uma vez e aplica a prioridade de escopo em memória para evitar fan-out.
         """
-        candidatos = [
-            and_(SoloParametroCultura.tenant_id == self.tenant_id,
-                 SoloParametroCultura.regiao == regiao),
-            and_(SoloParametroCultura.tenant_id == self.tenant_id,
-                 SoloParametroCultura.regiao.is_(None)),
-            and_(SoloParametroCultura.tenant_id.is_(None),
-                 SoloParametroCultura.regiao == regiao),
-            and_(SoloParametroCultura.tenant_id.is_(None),
-                 SoloParametroCultura.regiao.is_(None)),
-        ]
-        # Filtra candidatos sem região quando regiao=None para evitar duplicatas
-        if not regiao:
-            candidatos = [candidatos[1], candidatos[3]]
-
-        for filtro in candidatos:
-            stmt = select(SoloParametroCultura).where(
-                and_(SoloParametroCultura.cultura_id == cultura_id, filtro)
+        scopes = (
+            [(True, regiao), (True, None), (False, regiao), (False, None)]
+            if regiao
+            else [(True, None), (False, None)]
+        )
+        stmt = select(SoloParametroCultura).where(
+            and_(
+                SoloParametroCultura.cultura_id == cultura_id,
+                or_(
+                    and_(SoloParametroCultura.tenant_id == self.tenant_id, SoloParametroCultura.regiao == regiao),
+                    and_(SoloParametroCultura.tenant_id == self.tenant_id, SoloParametroCultura.regiao.is_(None)),
+                    and_(SoloParametroCultura.tenant_id.is_(None), SoloParametroCultura.regiao == regiao),
+                    and_(SoloParametroCultura.tenant_id.is_(None), SoloParametroCultura.regiao.is_(None)),
+                ),
             )
-            result = await self.session.execute(stmt)
-            rows = result.scalars().all()
-            if rows:
-                return list(rows)
+        )
+        rows = list((await self.session.execute(stmt)).scalars().all())
+        for tenant_owned, scope_regiao in scopes:
+            selecionados = [
+                row
+                for row in rows
+                if (row.tenant_id is not None) == tenant_owned and row.regiao == scope_regiao
+            ]
+            if selecionados:
+                return selecionados
         return []
 
     async def _get_cultura(self, cultura_id: UUID | None, cultura_nome: str | None) -> ProdutoCultura | None:

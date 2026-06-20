@@ -717,6 +717,43 @@ class CadernoCampoService(BaseService[CadernoCampoEntrada]):
         if not eventos:
             return resultados
 
+        safra_ids = list({evento.safra_id for evento in eventos})
+        talhao_ids = list({evento.talhao_id for evento in eventos if evento.talhao_id})
+        local_ids = list({evento.local_id for evento in eventos if evento.local_id})
+
+        safras_por_id: dict[UUID, Safra] = {}
+        if safra_ids:
+            safra_rows = (await self.session.execute(
+                select(Safra).where(
+                    Safra.id.in_(safra_ids),
+                    Safra.tenant_id == self.tenant_id,
+                )
+            )).scalars().all()
+            safras_por_id = {safra.id: safra for safra in safra_rows}
+
+        talhoes_por_id: dict[UUID, AreaRural] = {}
+        if talhao_ids:
+            talhao_rows = (await self.session.execute(
+                select(AreaRural).where(
+                    AreaRural.id.in_(talhao_ids),
+                    AreaRural.tenant_id == self.tenant_id,
+                )
+            )).scalars().all()
+            talhoes_por_id = {talhao.id: talhao for talhao in talhao_rows}
+
+        existentes_por_chave: dict[tuple[str, str], CadernoCampoEntrada] = {}
+        if local_ids:
+            existentes = (await self.session.execute(
+                select(CadernoCampoEntrada).where(
+                    CadernoCampoEntrada.tenant_id == self.tenant_id,
+                    CadernoCampoEntrada.origem_evento.in_(["PWA_OFFLINE", "CALIBRACAO_EQUIPAMENTO", "CHECKLIST_SANITARIO", "EPI_ENTREGA"]),
+                    CadernoCampoEntrada.origem_id.in_(local_ids),
+                )
+            )).scalars().all()
+            for existente in existentes:
+                if existente.origem_evento and existente.origem_id:
+                    existentes_por_chave[(existente.origem_evento, existente.origem_id)] = existente
+
         for evento in eventos:
             try:
                 if evento.device_id != str(device.id):
@@ -727,18 +764,11 @@ class CadernoCampoService(BaseService[CadernoCampoEntrada]):
                 if not evento.talhao_id:
                     raise BusinessRuleError("Evento offline exige talhão para sincronização inicial.")
 
-                safra = (await self.session.execute(
-                    select(Safra).where(Safra.id == evento.safra_id, Safra.tenant_id == self.tenant_id)
-                )).scalar_one_or_none()
+                safra = safras_por_id.get(evento.safra_id)
                 if not safra:
                     raise BusinessRuleError("Safra inválida para sincronização offline.")
 
-                talhao = (await self.session.execute(
-                    select(AreaRural).where(
-                        AreaRural.id == evento.talhao_id,
-                        AreaRural.tenant_id == self.tenant_id,
-                    )
-                )).scalar_one_or_none()
+                talhao = talhoes_por_id.get(evento.talhao_id)
                 if not talhao:
                     raise BusinessRuleError("Talhão inválido para sincronização offline.")
 
@@ -746,10 +776,10 @@ class CadernoCampoService(BaseService[CadernoCampoEntrada]):
                     raise BusinessRuleError("Talhão fora do escopo do dispositivo autenticado.")
 
                 existente = (
-                    await self.obter_por_origem("PWA_OFFLINE", evento.local_id)
-                    or await self.obter_por_origem("CALIBRACAO_EQUIPAMENTO", evento.local_id)
-                    or await self.obter_por_origem("CHECKLIST_SANITARIO", evento.local_id)
-                    or await self.obter_por_origem("EPI_ENTREGA", evento.local_id)
+                    existentes_por_chave.get(("PWA_OFFLINE", evento.local_id))
+                    or existentes_por_chave.get(("CALIBRACAO_EQUIPAMENTO", evento.local_id))
+                    or existentes_por_chave.get(("CHECKLIST_SANITARIO", evento.local_id))
+                    or existentes_por_chave.get(("EPI_ENTREGA", evento.local_id))
                 )
                 if existente:
                     resultados.append(
@@ -1329,7 +1359,7 @@ class CadernoCampoService(BaseService[CadernoCampoEntrada]):
             OperacaoAgricola.tenant_id == self.tenant_id,
             OperacaoAgricola.safra_id == safra_id,
             OperacaoAgricola.status == "REALIZADA",
-        )
+        ).options(selectinload(OperacaoAgricola.insumos))
         if talhao_id:
             op_stmt = op_stmt.where(OperacaoAgricola.talhao_id == talhao_id)
         if data_inicio:
@@ -1538,19 +1568,44 @@ class CadernoCampoService(BaseService[CadernoCampoEntrada]):
         safras = await self.listar_safras_ativas(safra_id)
         alertas = []
         limite = date.today() - timedelta(days=dias_sem_registro)
+        safra_ids = [safra.id for safra in safras]
+        ultima_entrada_por_safra: dict[UUID, date | None] = {}
+        ultima_op_por_safra: dict[UUID, date | None] = {}
+
+        if safra_ids:
+            ultima_entrada_stmt = (
+                select(
+                    CadernoCampoEntrada.safra_id,
+                    func.max(CadernoCampoEntrada.data_registro).label("ultima_data"),
+                )
+                .where(
+                    CadernoCampoEntrada.tenant_id == self.tenant_id,
+                    CadernoCampoEntrada.safra_id.in_(safra_ids),
+                    CadernoCampoEntrada.excluida == False,
+                )
+                .group_by(CadernoCampoEntrada.safra_id)
+            )
+            for safra_id_row, ultima_data in (await self.session.execute(ultima_entrada_stmt)).all():
+                ultima_entrada_por_safra[safra_id_row] = ultima_data
+
+            ultima_op_stmt = (
+                select(
+                    OperacaoAgricola.safra_id,
+                    func.max(OperacaoAgricola.data_realizada).label("ultima_data"),
+                )
+                .where(
+                    OperacaoAgricola.tenant_id == self.tenant_id,
+                    OperacaoAgricola.safra_id.in_(safra_ids),
+                    OperacaoAgricola.status == "REALIZADA",
+                )
+                .group_by(OperacaoAgricola.safra_id)
+            )
+            for safra_id_row, ultima_op in (await self.session.execute(ultima_op_stmt)).all():
+                ultima_op_por_safra[safra_id_row] = ultima_op
+
         for safra in safras:
-            ultima_entrada_stmt = select(func.max(CadernoCampoEntrada.data_registro)).where(
-                CadernoCampoEntrada.tenant_id == self.tenant_id,
-                CadernoCampoEntrada.safra_id == safra.id,
-                CadernoCampoEntrada.excluida == False,
-            )
-            ultima_data = (await self.session.execute(ultima_entrada_stmt)).scalar_one_or_none()
-            ultima_op_stmt = select(func.max(OperacaoAgricola.data_realizada)).where(
-                OperacaoAgricola.tenant_id == self.tenant_id,
-                OperacaoAgricola.safra_id == safra.id,
-                OperacaoAgricola.status == "REALIZADA",
-            )
-            ultima_op = (await self.session.execute(ultima_op_stmt)).scalar_one_or_none()
+            ultima_data = ultima_entrada_por_safra.get(safra.id)
+            ultima_op = ultima_op_por_safra.get(safra.id)
             if ultima_data and ultima_op:
                 ultima_registro = max(ultima_data, ultima_op) if isinstance(ultima_data, date) and isinstance(ultima_op, date) else (ultima_data or ultima_op)
             else:
@@ -1687,6 +1742,19 @@ class CadernoExportacaoService(BaseService[CadernoExportacao]):
         ).order_by(EPIEntrega.data_entrega.desc(), EPIEntrega.created_at.desc())
         epis = list((await self.session.execute(epi_stmt)).scalars().all())
         return visitas, epis
+
+    async def _carregar_operacoes_documentais(self, entradas: list[CadernoCampoEntrada]) -> dict[UUID, OperacaoAgricola]:
+        operacao_ids = list({e.operacao_id for e in entradas if getattr(e, "operacao_id", None)})
+        if not operacao_ids:
+            return {}
+        op_stmt = select(OperacaoAgricola).where(
+            OperacaoAgricola.tenant_id == self.tenant_id,
+            OperacaoAgricola.id.in_(operacao_ids),
+        )
+        return {
+            op.id: op
+            for op in (await self.session.execute(op_stmt)).scalars().all()
+        }
 
     async def _listar_historico_status_documental(self, entrada_ids: list[UUID]) -> list[CadernoEventoStatusHistorico]:
         if not entrada_ids:
@@ -1931,6 +1999,9 @@ class CadernoExportacaoService(BaseService[CadernoExportacao]):
         entradas = await self._listar_eventos_documentais(dados.safra_id, dados.talhao_id, modo_exportacao)
         visitas, epis = await self._listar_visitas_e_epis_documentais(dados.safra_id, dados.talhao_id)
         historico_status = await self._listar_historico_status_documental([e.id for e in entradas]) if modo_exportacao == "AUDITORIA" else []
+        operacoes_por_id: dict[UUID, OperacaoAgricola] = {}
+        if modelo in {"globalgap", "mapa"}:
+            operacoes_por_id = await self._carregar_operacoes_documentais(entradas)
         snapshot = self._snapshot_documental(
             safra=safra,
             entradas=entradas,
@@ -2140,9 +2211,7 @@ class CadernoExportacaoService(BaseService[CadernoExportacao]):
             insumos_rows = []
             for e in entradas:
                 if hasattr(e, 'operacao_id') and e.operacao_id:
-                    # Busca operação para detalhes de insumos
-                    op_stmt = select(OperacaoAgricola).where(OperacaoAgricola.id == e.operacao_id)
-                    op = (await self.session.execute(op_stmt)).scalar_one_or_none()
+                    op = operacoes_por_id.get(e.operacao_id)
                     if op and op.insumos:
                         for ins in op.insumos:
                             retificacao_info = _retificacao_texto(e)
@@ -2273,8 +2342,7 @@ class CadernoExportacaoService(BaseService[CadernoExportacao]):
                 retificacao_info = _retificacao_texto(e)
                 invalidacao_info = _invalidacao_origem_texto(e)
                 if hasattr(e, 'operacao_id') and e.operacao_id:
-                    op_stmt = select(OperacaoAgricola).where(OperacaoAgricola.id == e.operacao_id)
-                    op = (await self.session.execute(op_stmt)).scalar_one_or_none()
+                    op = operacoes_por_id.get(e.operacao_id)
                     if op and op.insumos:
                         doses = []
                         for ins in op.insumos:

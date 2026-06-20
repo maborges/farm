@@ -1,5 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 from sqlalchemy.future import select
+from collections import defaultdict
 from uuid import UUID
 import sqlalchemy as sa
 from core.base_service import BaseService
@@ -46,6 +48,7 @@ class RastreabilidadeService(BaseService[LoteRastreabilidade]):
         # Operações agrícolas no talhão/safra (com insumos via selectin)
         stmt_ops = (
             select(OperacaoAgricola)
+            .options(selectinload(OperacaoAgricola.insumos))
             .where(
                 OperacaoAgricola.safra_id == lote.safra_id,
                 OperacaoAgricola.talhao_id == lote.talhao_id,
@@ -396,13 +399,17 @@ class LoteComercialService(BaseService[CadernoLoteComercial]):
         timeline_events = []
         fotos_publicas = []
 
-        for ev in events:
+        photos_por_evento: dict[UUID, list[CadernoCampoFoto]] = defaultdict(list)
+        if events:
             stmt_photos = select(CadernoCampoFoto).where(
-                CadernoCampoFoto.entrada_id == ev.id,
-                CadernoCampoFoto.publica == True
+                CadernoCampoFoto.entrada_id.in_([ev.id for ev in events]),
+                CadernoCampoFoto.publica == True,
             )
-            photos = (await self.session.execute(stmt_photos)).scalars().all()
+            for photo in (await self.session.execute(stmt_photos)).scalars().all():
+                photos_por_evento[photo.entrada_id].append(photo)
 
+        for ev in events:
+            photos = photos_por_evento.get(ev.id, [])
             ev_photos = []
             for p in photos:
                 photo_data = {

@@ -16,14 +16,13 @@ async def test_performance_usuario_calculo_correto():
     
     # Mock retorno decisões (cenários escolhidos)
     mock_cenario = MagicMock()
-    mock_cenario.tenant_id = tenant_id
     mock_cenario.safra_id = uuid.uuid4()
-    mock_cenario.escolhido = True
     mock_cenario.resultado_simulado = 50000.0
     mock_cenario.nome = "Cenário Teste"
+    mock_cenario.id = uuid.uuid4()
     
     mock_res_decisoes = MagicMock()
-    mock_res_decisoes.scalars.return_value.all.return_value = [mock_cenario]
+    mock_res_decisoes.all.return_value = [mock_cenario]
     
     # Mock retorno melhor compra
     mock_compra = MagicMock()
@@ -31,11 +30,18 @@ async def test_performance_usuario_calculo_correto():
     mock_compra.fornecedor_nome = "Fornecedor Top"
     
     mock_res_compra = MagicMock()
-    mock_res_compra.scalar_one_or_none.return_value = mock_compra
+    mock_res_compra.first.return_value = mock_compra
+
+    mock_res_lanc = MagicMock()
+    mock_res_lanc.fetchall.return_value = [
+        (mock_cenario.safra_id, "RECEITA", 52000.0),
+        (mock_cenario.safra_id, "CUSTO", 0.0),
+    ]
     
     session.execute.side_effect = [
         mock_res_economia, # Economia Total
         mock_res_decisoes, # Cenários Escolhidos
+        mock_res_lanc,     # Lançamentos agrupados
         mock_res_compra    # Melhor Compra
     ]
     
@@ -62,14 +68,18 @@ async def test_performance_usuario_sem_dados():
     mock_res_economia.scalar.return_value = 0
     
     mock_res_decisoes = MagicMock()
-    mock_res_decisoes.scalars.return_value.all.return_value = []
+    mock_res_decisoes.all.return_value = []
     
     mock_res_compra = MagicMock()
-    mock_res_compra.scalar_one_or_none.return_value = None
+    mock_res_compra.first.return_value = None
+
+    mock_res_lanc = MagicMock()
+    mock_res_lanc.fetchall.return_value = []
     
     session.execute.side_effect = [
         mock_res_economia,
         mock_res_decisoes,
+        mock_res_lanc,
         mock_res_compra
     ]
     
@@ -98,14 +108,21 @@ async def test_performance_usuario_aceita_dre_como_schema():
     mock_cenario.id = uuid.uuid4()
 
     mock_res_decisoes = MagicMock()
-    mock_res_decisoes.scalars.return_value.all.return_value = [mock_cenario]
+    mock_res_decisoes.all.return_value = [mock_cenario]
 
     mock_res_compra = MagicMock()
-    mock_res_compra.scalar_one_or_none.return_value = None
+    mock_res_compra.first.return_value = None
+
+    mock_res_lanc = MagicMock()
+    mock_res_lanc.fetchall.return_value = [
+        (mock_cenario.safra_id, "RECEITA", 30000.0),
+        (mock_cenario.safra_id, "CUSTO", 10000.0),
+    ]
 
     session.execute.side_effect = [
         mock_res_economia,
         mock_res_decisoes,
+        mock_res_lanc,
         mock_res_compra,
     ]
 
@@ -136,11 +153,15 @@ async def test_performance_usuario_faz_fallback_parcial_quando_consulta_falha():
     tenant_id = uuid.uuid4()
 
     mock_res_decisoes = MagicMock()
-    mock_res_decisoes.scalars.return_value.all.return_value = []
+    mock_res_decisoes.all.return_value = []
+
+    mock_res_lanc = MagicMock()
+    mock_res_lanc.fetchall.return_value = []
 
     session.execute.side_effect = [
         RuntimeError("compras indisponiveis"),
         mock_res_decisoes,
+        mock_res_lanc,
         RuntimeError("melhor compra indisponivel"),
     ]
 
