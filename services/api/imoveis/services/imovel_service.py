@@ -184,21 +184,21 @@ class ImovelService:
     
     async def get_imoveis_by_fazenda(
         self,
-        unidade_produtiva_id: uuid.UUID,
+        unidade_produtiva_id: Optional[uuid.UUID],
         tenant_id: uuid.UUID
     ) -> list[ImovelRural]:
-        """Busca todos imóveis de uma fazenda."""
-        result = await self.session.execute(
-            select(ImovelRural)
-            .where(
-                and_(
-                    ImovelRural.unidade_produtiva_id == unidade_produtiva_id,
-                    ImovelRural.tenant_id == tenant_id,
-                    ImovelRural.deleted_at.is_(None)
-                )
+        """Busca imóveis da fazenda informada ou todos os imóveis do tenant."""
+        stmt = select(ImovelRural).where(
+            and_(
+                ImovelRural.tenant_id == tenant_id,
+                ImovelRural.deleted_at.is_(None)
             )
-            .order_by(ImovelRural.nome)
         )
+
+        if unidade_produtiva_id:
+            stmt = stmt.where(ImovelRural.unidade_produtiva_id == unidade_produtiva_id)
+
+        result = await self.session.execute(stmt.order_by(ImovelRural.nome))
         return list(result.scalars().all())
     
     async def validar_nirf_unico(self, nirf: str, tenant_id: uuid.UUID, imovel_id: Optional[uuid.UUID] = None) -> tuple[bool, str]:
