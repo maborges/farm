@@ -3,7 +3,7 @@ from collections import defaultdict
 from datetime import date
 from dateutil.relativedelta import relativedelta
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import Date, func, literal, select, union_all
+from sqlalchemy import Date, func, literal, literal_column, select, union_all
 
 from financeiro.models.despesa import Despesa
 from financeiro.models.receita import Receita
@@ -45,7 +45,7 @@ def _meses_entre(inicio: date, fim: date) -> list[date]:
 
 
 def _periodo_mensal(coluna):
-    return func.date_trunc("month", coluna).cast(Date).label("periodo")
+    return func.date_trunc(literal_column("'month'"), coluna).cast(Date).label("periodo")
 
 
 class RelatorioService:

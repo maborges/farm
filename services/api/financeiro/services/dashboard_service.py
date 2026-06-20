@@ -121,14 +121,12 @@ class DashboardService:
         hoje = date.today()
         inicio_mes = hoje.replace(day=1)
 
-        rec_resumo, desp_resumo, rec_venc, desp_venc, top_rec, top_desp = await asyncio.gather(
-            self._agregados_receitas(inicio_mes, hoje, unidade_produtiva_id),
-            self._agregados_despesas(inicio_mes, hoje, unidade_produtiva_id),
-            self._vencimentos_receitas(hoje, unidade_produtiva_id),
-            self._vencimentos_despesas(hoje, unidade_produtiva_id),
-            self._top_receitas(inicio_mes, unidade_produtiva_id),
-            self._top_despesas(inicio_mes, unidade_produtiva_id),
-        )
+        rec_resumo = await self._agregados_receitas(inicio_mes, hoje, unidade_produtiva_id)
+        desp_resumo = await self._agregados_despesas(inicio_mes, hoje, unidade_produtiva_id)
+        rec_venc = await self._vencimentos_receitas(hoje, unidade_produtiva_id)
+        desp_venc = await self._vencimentos_despesas(hoje, unidade_produtiva_id)
+        top_rec = await self._top_receitas(inicio_mes, unidade_produtiva_id)
+        top_desp = await self._top_despesas(inicio_mes, unidade_produtiva_id)
 
         total_recebido_mes = float(rec_resumo.total_recebido_mes or 0.0)
         total_a_receber = float(rec_resumo.total_a_receber or 0.0)
