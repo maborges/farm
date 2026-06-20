@@ -108,6 +108,15 @@ class StatusParcela(str, enum.Enum):
     VENCIDA = "VENCIDA"
 
 
+class MetodoAvaliacaoImovel(str, enum.Enum):
+    """Métodos de avaliação patrimonial de imóveis rurais."""
+    MERCADO = "MERCADO"
+    CUSTO = "CUSTO"
+    RENDA = "RENDA"
+    DECLARADO = "DECLARADO"
+    LAUDO = "LAUDO"
+
+
 # ==================== MODELOS PRINCIPAIS ====================
 
 class Cartorio(Base):
@@ -226,6 +235,7 @@ class ImovelRural(Base):
     documentos = relationship("DocumentoLegal", back_populates="imovel", cascade="all, delete-orphan")
     contratos_arrendamento = relationship("ContratoArrendamento", back_populates="imovel", cascade="all, delete-orphan")
     benfeitorias = relationship("Benfeitoria", back_populates="imovel", cascade="all, delete-orphan")
+    avaliacoes = relationship("AvaliacaoImovel", back_populates="imovel", cascade="all, delete-orphan")
     
     def calcular_situacao(self) -> SituacaoImovel:
         """
@@ -559,3 +569,49 @@ class HistoricoReajuste(Base):
     
     # Relacionamentos
     contrato = relationship("ContratoArrendamento", back_populates="reajustes")
+
+
+# ==================== AVALIAÇÕES PATRIMONIAIS ====================
+
+class AvaliacaoImovel(Base):
+    """
+    Histórico de avaliações patrimoniais de um imóvel rural.
+
+    Cada registro representa um laudo ou avaliação em uma data específica.
+    O valor total e o valor por hectare podem ser usados para comparativos
+    de valorização, garantias e análises patrimoniais.
+    """
+    __tablename__ = "imoveis_avaliacoes"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), index=True
+    )
+    imovel_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("imoveis_rurais.id", ondelete="CASCADE"), index=True
+    )
+
+    data_avaliacao: Mapped[datetime] = mapped_column(DateTime, nullable=False, index=True)
+    metodo: Mapped[MetodoAvaliacaoImovel] = mapped_column(
+        SQLEnum(MetodoAvaliacaoImovel), nullable=False, default=MetodoAvaliacaoImovel.DECLARADO
+    )
+
+    valor_total: Mapped[Decimal] = mapped_column(Numeric(14, 2), nullable=False)
+    valor_por_hectare: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
+    valor_terra_nua: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
+    valor_benfeitorias: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
+    valor_lavoura_perene: Mapped[Decimal | None] = mapped_column(Numeric(14, 2))
+
+    moeda: Mapped[str] = mapped_column(String(3), default="BRL", nullable=False)
+    responsavel: Mapped[str | None] = mapped_column(String(200))
+    numero_laudo: Mapped[str | None] = mapped_column(String(100))
+    observacoes: Mapped[str | None] = mapped_column(Text)
+    anexos: Mapped[list | None] = mapped_column(JSON)
+
+    created_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("usuarios.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc)
+    )
+
+    imovel = relationship("ImovelRural", back_populates="avaliacoes")
