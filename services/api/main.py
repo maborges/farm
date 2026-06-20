@@ -408,6 +408,9 @@ from rh.router import router as router_rh
 from notificacoes.router import router as router_notificacoes
 from pecuaria.routers import lotes
 from pecuaria.routers import manejos as pecuaria_manejos
+from pecuaria.routers import genetica as pecuaria_genetica
+from pecuaria.routers import confinamento as pecuaria_confinamento
+from pecuaria.routers import leite as pecuaria_leite
 from operacional.routers import frota as frota_router
 app.include_router(router_safras, prefix="/api/v1")
 app.include_router(router_cultivos, prefix="/api/v1")
@@ -494,6 +497,9 @@ app.include_router(router_notificacoes, prefix="/api/v1")
 app.include_router(despesas.router, prefix="/api/v1/financeiro")
 app.include_router(lotes.router, prefix="/api/v1")
 app.include_router(pecuaria_manejos.router, prefix="/api/v1")
+app.include_router(pecuaria_genetica.router, prefix="/api/v1")
+app.include_router(pecuaria_confinamento.router, prefix="/api/v1")
+app.include_router(pecuaria_leite.router, prefix="/api/v1")
 app.include_router(receitas.router, prefix="/api/v1/financeiro")
 app.include_router(planos_conta.router, prefix="/api/v1/financeiro")
 app.include_router(relatorios_fin.router, prefix="/api/v1")

@@ -1,0 +1,221 @@
+from __future__ import annotations
+
+from datetime import date, datetime
+from typing import Optional
+
+from pydantic import BaseModel, ConfigDict, Field
+
+
+class PecuariaGeneticaCreate(BaseModel):
+    animal_id: int
+    brinco: Optional[str] = None
+    raca_id: Optional[int] = None
+    pai_id: Optional[int] = None
+    mae_id: Optional[int] = None
+    dep_ganho_peso: Optional[float] = None
+    dep_area_olho_lombo: Optional[float] = None
+    dep_gordura_subcutanea: Optional[float] = None
+    dep_maciez: Optional[float] = None
+    matriz: bool = False
+    reprodutor: bool = False
+
+
+class PecuariaGeneticaResponse(BaseModel):
+    id: int
+    tenant_id: str
+    animal_id: int
+    brinco: Optional[str]
+    raca_id: Optional[int]
+    pai_id: Optional[int]
+    mae_id: Optional[int]
+    dep_ganho_peso: Optional[float]
+    dep_area_olho_lombo: Optional[float]
+    dep_gordura_subcutanea: Optional[float]
+    dep_maciez: Optional[float]
+    matriz: bool
+    reprodutor: bool
+    created_at: Optional[datetime]
+    model_config = ConfigDict(from_attributes=True)
+
+
+class PecuariaSugestaoCreate(BaseModel):
+    matriz_id: int
+    reprodutor_id: int
+    dep_esperado: dict | None = None
+    score_complementaridade: float = Field(default=0)
+    realizado: bool = False
+    data_acasalamento: Optional[date] = None
+
+
+class PecuariaSugestaoResponse(BaseModel):
+    id: int
+    tenant_id: str
+    matriz_id: int
+    reprodutor_id: int
+    dep_esperado: dict | None
+    score_complementaridade: Optional[float]
+    realizado: bool
+    data_acasalamento: Optional[date]
+    created_at: Optional[datetime]
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ConfinamentoLoteCreate(BaseModel):
+    unidade_produtiva_id: Optional[int] = None
+    codigo: str
+    safra: Optional[str] = None
+    total_animais: int = Field(..., ge=0)
+    peso_inicial_kg: Optional[float] = None
+    peso_inicial_total_kg: Optional[float] = None
+    data_entrada: date
+    data_saida_prevista: Optional[date] = None
+    data_saida_real: Optional[date] = None
+    peso_saida_kg: Optional[float] = None
+    ganho_medio_diario: Optional[float] = None
+    conversao_alimentar: Optional[float] = None
+    status: str = "confinado"
+    observacoes: Optional[str] = None
+
+
+class ConfinamentoLoteResponse(BaseModel):
+    id: int
+    tenant_id: str
+    unidade_produtiva_id: Optional[int]
+    codigo: str
+    safra: Optional[str]
+    total_animais: Optional[int]
+    peso_inicial_kg: Optional[float]
+    peso_inicial_total_kg: Optional[float]
+    data_entrada: date
+    data_saida_prevista: Optional[date]
+    data_saida_real: Optional[date]
+    peso_saida_kg: Optional[float]
+    ganho_medio_diario: Optional[float]
+    conversao_alimentar: Optional[float]
+    status: str
+    observacoes: Optional[str]
+    created_at: Optional[datetime]
+    model_config = ConfigDict(from_attributes=True)
+
+
+class RacaoTMRCreate(BaseModel):
+    nome: str
+    codigo: Optional[str] = None
+    ingredientes: dict
+    proteina_bruta: Optional[float] = None
+    ndt: Optional[float] = None
+    energia_liquida: Optional[float] = None
+    custo_por_tonelada: Optional[float] = None
+    ativa: bool = True
+
+
+class RacaoTMRResponse(BaseModel):
+    id: int
+    tenant_id: str
+    nome: str
+    codigo: Optional[str]
+    ingredientes: dict | None
+    proteina_bruta: Optional[float]
+    ndt: Optional[float]
+    energia_liquida: Optional[float]
+    custo_por_tonelada: Optional[float]
+    ativa: bool
+    created_at: Optional[datetime]
+    model_config = ConfigDict(from_attributes=True)
+
+
+class CochoCreate(BaseModel):
+    lote_id: int
+    codigo: str
+    comprimento_m: Optional[float] = None
+    racao_fornecida_kg: Optional[float] = None
+    sobra_kg: Optional[float] = None
+    consumo_kg: Optional[float] = None
+    data: date
+    turno: Optional[str] = None
+
+
+class CochoResponse(BaseModel):
+    id: int
+    tenant_id: str
+    lote_id: int
+    codigo: str
+    comprimento_m: Optional[float]
+    racao_fornecida_kg: Optional[float]
+    sobra_kg: Optional[float]
+    consumo_kg: Optional[float]
+    data: date
+    turno: Optional[str]
+    created_at: Optional[datetime]
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ProducaoLeiteCreate(BaseModel):
+    unidade_produtiva_id: int
+    animal_id: Optional[int] = None
+    lote_id: Optional[int] = None
+    data: date
+    turno: str = "MANHA"
+    volume_litros: float = Field(..., gt=0)
+    temperatura_c: Optional[float] = None
+    gordura_pct: Optional[float] = None
+    proteina_pct: Optional[float] = None
+    ccs: Optional[int] = None
+    cbt: Optional[int] = None
+    lactose_pct: Optional[float] = None
+    esd_pct: Optional[float] = None
+    destino: Optional[str] = None
+    pessoa_destino_id: Optional[int] = None
+    preco_litro: Optional[float] = None
+    valor_total: Optional[float] = None
+    observacoes: Optional[str] = None
+    dados_extras: Optional[dict] = None
+
+
+class ProducaoLeiteResponse(BaseModel):
+    id: str
+    tenant_id: str
+    unidade_produtiva_id: int
+    animal_id: Optional[int]
+    lote_id: Optional[int]
+    data: date
+    turno: str
+    volume_litros: float
+    temperatura_c: Optional[float]
+    gordura_pct: Optional[float]
+    proteina_pct: Optional[float]
+    ccs: Optional[int]
+    cbt: Optional[int]
+    lactose_pct: Optional[float]
+    esd_pct: Optional[float]
+    destino: Optional[str]
+    pessoa_destino_id: Optional[int]
+    preco_litro: Optional[float]
+    valor_total: Optional[float]
+    observacoes: Optional[str]
+    created_at: Optional[datetime]
+    model_config = ConfigDict(from_attributes=True)
+
+
+class PecuariaGeneticaResumoResponse(BaseModel):
+    total_registros: int
+    total_matrizes: int
+    total_reprodutores: int
+    total_sugestoes: int
+
+
+class ConfinamentoResumoResponse(BaseModel):
+    total_lotes: int
+    total_animais: int
+    total_racoes: int
+    total_cochos: int
+    gmd_medio: float
+    conversao_media: float
+
+
+class ProducaoLeiteResumoResponse(BaseModel):
+    total_registros: int
+    volume_total_litros: float
+    media_volume_litros: float
+    media_gordura_pct: float
+    media_proteina_pct: float
