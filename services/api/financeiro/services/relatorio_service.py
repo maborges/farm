@@ -3,7 +3,7 @@ from collections import defaultdict
 from datetime import date
 from dateutil.relativedelta import relativedelta
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.future import select
+from sqlalchemy import Date, func, literal, select, union_all
 from sqlalchemy.orm import joinedload
 
 from financeiro.models.despesa import Despesa
@@ -45,51 +45,14 @@ def _meses_entre(inicio: date, fim: date) -> list[date]:
     return meses
 
 
+def _periodo_mensal(coluna):
+    return func.date_trunc("month", coluna).cast(Date).label("periodo")
+
+
 class RelatorioService:
     def __init__(self, session: AsyncSession, tenant_id: uuid.UUID):
         self.session = session
         self.tenant_id = tenant_id
-
-    async def _carregar_receitas(
-        self, data_inicio: date, data_fim: date, unidade_produtiva_id: uuid.UUID | None
-    ) -> list[Receita]:
-        stmt = select(Receita).where(
-            Receita.tenant_id == self.tenant_id,
-            Receita.ativo == True,
-        )
-        if unidade_produtiva_id:
-            stmt = stmt.where(Receita.unidade_produtiva_id == unidade_produtiva_id)
-        # Inclui tudo com recebimento OU vencimento dentro do período
-        stmt = stmt.where(
-            (
-                (Receita.data_recebimento >= data_inicio) &
-                (Receita.data_recebimento <= data_fim)
-            ) | (
-                (Receita.data_vencimento >= data_inicio) &
-                (Receita.data_vencimento <= data_fim)
-            )
-        )
-        return list((await self.session.execute(stmt)).scalars().all())
-
-    async def _carregar_despesas(
-        self, data_inicio: date, data_fim: date, unidade_produtiva_id: uuid.UUID | None
-    ) -> list[Despesa]:
-        stmt = select(Despesa).where(
-            Despesa.tenant_id == self.tenant_id,
-            Despesa.ativo == True,
-        )
-        if unidade_produtiva_id:
-            stmt = stmt.where(Despesa.unidade_produtiva_id == unidade_produtiva_id)
-        stmt = stmt.where(
-            (
-                (Despesa.data_pagamento >= data_inicio) &
-                (Despesa.data_pagamento <= data_fim)
-            ) | (
-                (Despesa.data_vencimento >= data_inicio) &
-                (Despesa.data_vencimento <= data_fim)
-            )
-        )
-        return list((await self.session.execute(stmt)).scalars().all())
 
     async def fluxo_caixa(
         self,
@@ -97,41 +60,30 @@ class RelatorioService:
         data_fim: date,
         unidade_produtiva_id: uuid.UUID | None = None,
     ) -> FluxoCaixaResponse:
-        receitas = await self._carregar_receitas(data_inicio, data_fim, unidade_produtiva_id)
-        despesas = await self._carregar_despesas(data_inicio, data_fim, unidade_produtiva_id)
-
         meses = _meses_entre(data_inicio, data_fim)
         periodos_map: dict[date, FluxoCaixaPeriodo] = {
             m: FluxoCaixaPeriodo(periodo=m) for m in meses
         }
 
-        # Processa receitas
-        for r in receitas:
-            # Realizado: registra no mês do recebimento efetivo
-            if r.status in STATUS_REALIZADO_RECEITA and r.data_recebimento:
-                mes = _primeiro_dia(r.data_recebimento)
-                if mes in periodos_map:
-                    valor = float(r.valor_recebido or r.valor_total)
-                    periodos_map[mes].receitas_realizadas += valor
+        consultas = self._consultas_fluxo_caixa(data_inicio, data_fim, unidade_produtiva_id)
+        stmt = union_all(*consultas).subquery()
+        agrupado = select(
+            stmt.c.periodo,
+            func.sum(stmt.c.receitas_realizadas).label("receitas_realizadas"),
+            func.sum(stmt.c.despesas_realizadas).label("despesas_realizadas"),
+            func.sum(stmt.c.receitas_previstas).label("receitas_previstas"),
+            func.sum(stmt.c.despesas_previstas).label("despesas_previstas"),
+        ).group_by(stmt.c.periodo).order_by(stmt.c.periodo)
 
-            # Previsto: registra no mês do vencimento
-            if r.status in STATUS_PREVISTO_RECEITA:
-                mes = _primeiro_dia(r.data_vencimento)
-                if mes in periodos_map:
-                    periodos_map[mes].receitas_previstas += float(r.valor_total)
-
-        # Processa despesas
-        for d in despesas:
-            if d.status in STATUS_REALIZADO_DESPESA and d.data_pagamento:
-                mes = _primeiro_dia(d.data_pagamento)
-                if mes in periodos_map:
-                    valor = float(d.valor_pago or d.valor_total)
-                    periodos_map[mes].despesas_realizadas += valor
-
-            if d.status in STATUS_PREVISTO_DESPESA:
-                mes = _primeiro_dia(d.data_vencimento)
-                if mes in periodos_map:
-                    periodos_map[mes].despesas_previstas += float(d.valor_total)
+        for row in (await self.session.execute(agrupado)).all():
+            periodo = _primeiro_dia(row.periodo)
+            if periodo not in periodos_map:
+                continue
+            item = periodos_map[periodo]
+            item.receitas_realizadas = float(row.receitas_realizadas or 0.0)
+            item.despesas_realizadas = float(row.despesas_realizadas or 0.0)
+            item.receitas_previstas = float(row.receitas_previstas or 0.0)
+            item.despesas_previstas = float(row.despesas_previstas or 0.0)
 
         # Calcula saldos e acumulado
         saldo_acumulado = 0.0
@@ -164,6 +116,110 @@ class RelatorioService:
             periodos=periodos,
             totais=totais,
         )
+
+    def _consultas_fluxo_caixa(
+        self,
+        data_inicio: date,
+        data_fim: date,
+        unidade_produtiva_id: uuid.UUID | None,
+    ) -> list:
+        consultas = [
+            self._receitas_realizadas_fluxo(data_inicio, data_fim, unidade_produtiva_id),
+            self._receitas_previstas_fluxo(data_inicio, data_fim, unidade_produtiva_id),
+            self._despesas_realizadas_fluxo(data_inicio, data_fim, unidade_produtiva_id),
+            self._despesas_previstas_fluxo(data_inicio, data_fim, unidade_produtiva_id),
+        ]
+        return consultas
+
+    def _base_fluxo_query(self, model, valor_coluna, periodo_coluna, statuses, label):
+        colunas = {
+            "receitas_realizadas": literal(0.0),
+            "despesas_realizadas": literal(0.0),
+            "receitas_previstas": literal(0.0),
+            "despesas_previstas": literal(0.0),
+        }
+        colunas[label] = func.coalesce(func.sum(valor_coluna), 0.0)
+        stmt = select(
+            _periodo_mensal(periodo_coluna),
+            colunas["receitas_realizadas"].label("receitas_realizadas"),
+            colunas["despesas_realizadas"].label("despesas_realizadas"),
+            colunas["receitas_previstas"].label("receitas_previstas"),
+            colunas["despesas_previstas"].label("despesas_previstas"),
+        ).where(
+            model.tenant_id == self.tenant_id,
+            model.ativo == True,
+            model.status.in_(statuses),
+            periodo_coluna.is_not(None),
+        )
+        return stmt.group_by(_periodo_mensal(periodo_coluna))
+
+    def _receitas_realizadas_fluxo(
+        self,
+        data_inicio: date,
+        data_fim: date,
+        unidade_produtiva_id: uuid.UUID | None,
+    ):
+        stmt = self._base_fluxo_query(
+            Receita,
+            func.coalesce(Receita.valor_recebido, Receita.valor_total),
+            Receita.data_recebimento,
+            STATUS_REALIZADO_RECEITA,
+            "receitas_realizadas",
+        )
+        if unidade_produtiva_id:
+            stmt = stmt.where(Receita.unidade_produtiva_id == unidade_produtiva_id)
+        return stmt.where(Receita.data_recebimento >= data_inicio, Receita.data_recebimento <= data_fim)
+
+    def _receitas_previstas_fluxo(
+        self,
+        data_inicio: date,
+        data_fim: date,
+        unidade_produtiva_id: uuid.UUID | None,
+    ):
+        stmt = self._base_fluxo_query(
+            Receita,
+            Receita.valor_total,
+            Receita.data_vencimento,
+            STATUS_PREVISTO_RECEITA,
+            "receitas_previstas",
+        )
+        if unidade_produtiva_id:
+            stmt = stmt.where(Receita.unidade_produtiva_id == unidade_produtiva_id)
+        return stmt.where(Receita.data_vencimento >= data_inicio, Receita.data_vencimento <= data_fim)
+
+    def _despesas_realizadas_fluxo(
+        self,
+        data_inicio: date,
+        data_fim: date,
+        unidade_produtiva_id: uuid.UUID | None,
+    ):
+        stmt = self._base_fluxo_query(
+            Despesa,
+            func.coalesce(Despesa.valor_pago, Despesa.valor_total),
+            Despesa.data_pagamento,
+            STATUS_REALIZADO_DESPESA,
+            "despesas_realizadas",
+        )
+        if unidade_produtiva_id:
+            stmt = stmt.where(Despesa.unidade_produtiva_id == unidade_produtiva_id)
+        return stmt.where(Despesa.data_pagamento >= data_inicio, Despesa.data_pagamento <= data_fim)
+
+    def _despesas_previstas_fluxo(
+        self,
+        data_inicio: date,
+        data_fim: date,
+        unidade_produtiva_id: uuid.UUID | None,
+    ):
+        stmt = self._base_fluxo_query(
+            Despesa,
+            Despesa.valor_total,
+            Despesa.data_vencimento,
+            STATUS_PREVISTO_DESPESA,
+            "despesas_previstas",
+        )
+        if unidade_produtiva_id:
+            stmt = stmt.where(Despesa.unidade_produtiva_id == unidade_produtiva_id)
+        return stmt.where(Despesa.data_vencimento >= data_inicio, Despesa.data_vencimento <= data_fim)
 
     async def livro_caixa(
         self,

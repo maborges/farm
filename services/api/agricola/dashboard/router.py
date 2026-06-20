@@ -82,15 +82,16 @@ async def margem_safra(
 )
 async def verificar_alertas(
     background_tasks: BackgroundTasks,
-    session: AsyncSession = Depends(get_session_with_tenant),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A1_PLANEJAMENTO")),
     _tier: None = Depends(require_tier(PlanTier.PROFISSIONAL)),
 ):
     async def _run():
-        svc = AlertasAgricolasService(session, tenant_id)
-        total = await svc.verificar_todas()
-        return total
+        from core.database import async_session_maker
+        async with async_session_maker() as session:
+            svc = AlertasAgricolasService(session, tenant_id)
+            total = await svc.verificar_todas()
+            return total
 
     background_tasks.add_task(_run)
     return {"message": "Verificação de alertas iniciada em background"}
