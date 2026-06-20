@@ -3,10 +3,17 @@ from datetime import date, timedelta
 from typing import Optional
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import func
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+from reportlab.lib.units import cm
+from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from core.base_service import BaseService
 from core.exceptions import EntityNotFoundError
 from .models import RegistroCAR, AlertaAmbiental, OutorgaHidrica, StatusCAR, StatusAlerta
+from iot_integracao.new_holland.models import CarbonoEmissao, CarbonoProjeto, CarbonoRelatorio
 
 
 class AmbientalService(BaseService[RegistroCAR]):
@@ -141,3 +148,217 @@ class AmbientalService(BaseService[RegistroCAR]):
         await self.session.flush()
         await self.session.refresh(obj)
         return obj
+
+    # ── Carbono / MRV ───────────────────────────────────────────────────────
+
+    def _carbono(self) -> "CarbonoService":
+        return CarbonoService(self.session, self.tenant_id)
+
+    async def dashboard_carbono(self) -> dict:
+        return await self._carbono().dashboard_carbono()
+
+    async def listar_emissoes_carbono(self, escopo: int | None = None) -> list[CarbonoEmissao]:
+        return await self._carbono().listar_emissoes_carbono(escopo=escopo)
+
+    async def registrar_emissao_carbono(self, dados: dict) -> CarbonoEmissao:
+        return await self._carbono().registrar_emissao_carbono(dados)
+
+    async def listar_projetos_carbono(self, status_filter: str | None = None) -> list[CarbonoProjeto]:
+        return await self._carbono().listar_projetos_carbono(status_filter=status_filter)
+
+    async def criar_projeto_carbono(self, dados: dict) -> CarbonoProjeto:
+        return await self._carbono().criar_projeto_carbono(dados)
+
+    async def listar_relatorios_carbono(self) -> list[CarbonoRelatorio]:
+        return await self._carbono().listar_relatorios_carbono()
+
+    async def gerar_relatorio_carbono(self, periodo_inicio: date, periodo_fim: date) -> CarbonoRelatorio:
+        return await self._carbono().gerar_relatorio_carbono(periodo_inicio, periodo_fim)
+
+    async def exportar_pdf_carbono(self, relatorio_id: int) -> bytes:
+        return await self._carbono().exportar_pdf_carbono(relatorio_id)
+
+
+class CarbonoService:
+    """Serviço async para gestão de carbono e MRV."""
+
+    FACTORES_PADRAO = {
+        "diesel": 2.68,
+        "gasolina": 2.31,
+        "energia_eletrica": 0.061,
+        "gas_natural": 2.0,
+    }
+
+    def __init__(self, session: AsyncSession, tenant_id: str):
+        self.session = session
+        self.tenant_id = str(tenant_id)
+
+    async def listar_emissoes(self, escopo: int | None = None) -> list[CarbonoEmissao]:
+        stmt = select(CarbonoEmissao).where(CarbonoEmissao.tenant_id == self.tenant_id)
+        if escopo is not None:
+            stmt = stmt.where(CarbonoEmissao.escopo == escopo)
+        stmt = stmt.order_by(CarbonoEmissao.data_referencia.desc(), CarbonoEmissao.created_at.desc())
+        return list((await self.session.execute(stmt)).scalars().all())
+
+    async def registrar_emissao(self, dados: dict) -> CarbonoEmissao:
+        categoria = str(dados.get("categoria", "")).lower()
+        fator = dados.get("fator_emissao")
+        if fator is None:
+            fator = self.FACTORES_PADRAO.get(categoria, 0)
+        total_co2e = float(dados["quantidade"]) * float(fator)
+
+        emissao = CarbonoEmissao(
+            tenant_id=self.tenant_id,
+            unidade_produtiva_id=dados.get("unidade_produtiva_id"),
+            escopo=int(dados["escopo"]),
+            categoria=dados["categoria"],
+            fonte=dados.get("fonte"),
+            atividade=dados.get("atividade"),
+            quantidade=float(dados["quantidade"]),
+            unidade=dados["unidade"],
+            fator_emissao=float(fator),
+            fator_emissao_referencia=dados.get("fator_emissao_referencia"),
+            total_co2e=total_co2e,
+            data_referencia=dados["data_referencia"],
+            observacoes=dados.get("observacoes"),
+            arquivo_comprovante=dados.get("arquivo_comprovante"),
+            created_by=dados.get("created_by"),
+        )
+        self.session.add(emissao)
+        await self.session.flush()
+        await self.session.refresh(emissao)
+        return emissao
+
+    async def listar_projetos(self, status: str | None = None) -> list[CarbonoProjeto]:
+        stmt = select(CarbonoProjeto).where(CarbonoProjeto.tenant_id == self.tenant_id)
+        if status:
+            stmt = stmt.where(CarbonoProjeto.status == status)
+        stmt = stmt.order_by(CarbonoProjeto.created_at.desc())
+        return list((await self.session.execute(stmt)).scalars().all())
+
+    async def criar_projeto(self, dados: dict) -> CarbonoProjeto:
+        projeto = CarbonoProjeto(tenant_id=self.tenant_id, **dados)
+        self.session.add(projeto)
+        await self.session.flush()
+        await self.session.refresh(projeto)
+        return projeto
+
+    async def listar_relatorios(self) -> list[CarbonoRelatorio]:
+        stmt = (
+            select(CarbonoRelatorio)
+            .where(CarbonoRelatorio.tenant_id == self.tenant_id)
+            .order_by(CarbonoRelatorio.created_at.desc())
+        )
+        return list((await self.session.execute(stmt)).scalars().all())
+
+    async def gerar_relatorio(self, periodo_inicio: date, periodo_fim: date) -> CarbonoRelatorio:
+        emiss = list((await self.session.execute(
+            select(CarbonoEmissao).where(
+                CarbonoEmissao.tenant_id == self.tenant_id,
+                func.date(CarbonoEmissao.data_referencia).between(periodo_inicio, periodo_fim),
+            )
+        )).scalars().all())
+        escopo_1 = sum(float(e.total_co2e or 0) for e in emiss if e.escopo == 1)
+        escopo_2 = sum(float(e.total_co2e or 0) for e in emiss if e.escopo == 2)
+        escopo_3 = sum(float(e.total_co2e or 0) for e in emiss if e.escopo == 3)
+
+        creditos_gerados = sum(float(p.creditos_verificados or 0) for p in await self.listar_projetos("certificado"))
+        rel = CarbonoRelatorio(
+            tenant_id=self.tenant_id,
+            periodo_inicio=periodo_inicio,
+            periodo_fim=periodo_fim,
+            escopo_1_total=escopo_1,
+            escopo_2_total=escopo_2,
+            escopo_3_total=escopo_3,
+            total_geral=escopo_1 + escopo_2 + escopo_3,
+            creditos_gerados=creditos_gerados,
+            saldo_liquido=(escopo_1 + escopo_2 + escopo_3) - creditos_gerados,
+            status="rascunho",
+        )
+        self.session.add(rel)
+        await self.session.flush()
+        await self.session.refresh(rel)
+        return rel
+
+    async def dashboard(self) -> dict:
+        emiss = await self.listar_emissoes()
+        projetos = await self.listar_projetos()
+        relatorios = await self.listar_relatorios()
+        total_emissoes = sum(float(e.total_co2e or 0) for e in emiss)
+        total_creditos = sum(float(p.creditos_verificados or 0) for p in projetos)
+        return {
+            "total_emissoes": total_emissoes,
+            "total_creditos": total_creditos,
+            "saldo_liquido": total_emissoes - total_creditos,
+            "total_emissoes_registradas": len(emiss),
+            "total_projetos": len(projetos),
+            "total_relatorios": len(relatorios),
+            "emissoes_escopo_1": sum(float(e.total_co2e or 0) for e in emiss if e.escopo == 1),
+            "emissoes_escopo_2": sum(float(e.total_co2e or 0) for e in emiss if e.escopo == 2),
+            "emissoes_escopo_3": sum(float(e.total_co2e or 0) for e in emiss if e.escopo == 3),
+        }
+
+    async def gerar_pdf_resumo(self, periodo_inicio: date, periodo_fim: date) -> bytes:
+        rel = await self.gerar_relatorio(periodo_inicio, periodo_fim)
+        buffer = __import__("io").BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=1.4 * cm, leftMargin=1.4 * cm, topMargin=1.4 * cm, bottomMargin=1.4 * cm)
+        styles = getSampleStyleSheet()
+        styles.add(ParagraphStyle(name="CarbonTitle", parent=styles["Title"], fontSize=16, leading=20, textColor=colors.HexColor("#047857")))
+        styles.add(ParagraphStyle(name="CarbonBody", parent=styles["BodyText"], fontSize=9, leading=12))
+        story = [
+            Paragraph("Relatório de Carbono e MRV", styles["CarbonTitle"]),
+            Spacer(1, 0.2 * cm),
+            Paragraph(f"Período: {rel.periodo_inicio:%d/%m/%Y} a {rel.periodo_fim:%d/%m/%Y}", styles["CarbonBody"]),
+            Paragraph(f"Total geral: {float(rel.total_geral or 0):,.2f} kgCO2e", styles["CarbonBody"]),
+            Paragraph(f"Créditos gerados: {float(rel.creditos_gerados or 0):,.2f} tCO2e", styles["CarbonBody"]),
+            Paragraph(f"Saldo líquido: {float(rel.saldo_liquido or 0):,.2f} kgCO2e", styles["CarbonBody"]),
+        ]
+        table = Table(
+            [
+                ["Escopo", "Total kgCO2e"],
+                ["1", f"{float(rel.escopo_1_total or 0):,.2f}"],
+                ["2", f"{float(rel.escopo_2_total or 0):,.2f}"],
+                ["3", f"{float(rel.escopo_3_total or 0):,.2f}"],
+            ]
+        )
+        table.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#047857")),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#a7f3d0")),
+        ]))
+        story.extend([Spacer(1, 0.25 * cm), table])
+        doc.build(story)
+        return buffer.getvalue()
+
+    async def dashboard_carbono(self) -> dict:
+        return await self.dashboard()
+
+    async def listar_emissoes_carbono(self, escopo: int | None = None) -> list[CarbonoEmissao]:
+        return await self.listar_emissoes(escopo=escopo)
+
+    async def registrar_emissao_carbono(self, dados: dict) -> CarbonoEmissao:
+        return await self.registrar_emissao(dados)
+
+    async def listar_projetos_carbono(self, status_filter: str | None = None) -> list[CarbonoProjeto]:
+        return await self.listar_projetos(status=status_filter)
+
+    async def criar_projeto_carbono(self, dados: dict) -> CarbonoProjeto:
+        return await self.criar_projeto(dados)
+
+    async def listar_relatorios_carbono(self) -> list[CarbonoRelatorio]:
+        return await self.listar_relatorios()
+
+    async def gerar_relatorio_carbono(self, periodo_inicio: date, periodo_fim: date) -> CarbonoRelatorio:
+        return await self.gerar_relatorio(periodo_inicio, periodo_fim)
+
+    async def exportar_pdf_carbono(self, relatorio_id: int) -> bytes:
+        stmt = select(CarbonoRelatorio).where(
+            CarbonoRelatorio.id == relatorio_id,
+            CarbonoRelatorio.tenant_id == self.tenant_id,
+        )
+        relatorio = (await self.session.execute(stmt)).scalar_one_or_none()
+        if not relatorio:
+            raise EntityNotFoundError("Relatório de carbono não encontrado.")
+        periodo_inicio = relatorio.periodo_inicio.date() if hasattr(relatorio.periodo_inicio, "date") else relatorio.periodo_inicio
+        periodo_fim = relatorio.periodo_fim.date() if hasattr(relatorio.periodo_fim, "date") else relatorio.periodo_fim
+        return await self.gerar_pdf_resumo(periodo_inicio, periodo_fim)
