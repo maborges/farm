@@ -96,6 +96,41 @@ class ArrendamentoService:
             .order_by(ContratoArrendamento.data_inicio.desc())
         )
         return list(result.scalars().all())
+
+    async def listar_contratos(
+        self,
+        tenant_id: uuid.UUID,
+        imovel_id: Optional[uuid.UUID] = None,
+        status: Optional[StatusContrato] = None,
+        apenas_ativos: bool = False
+    ) -> List[ContratoArrendamento]:
+        """Lista contratos do tenant com filtros opcionais."""
+        stmt = (
+            select(ContratoArrendamento)
+            .where(
+                and_(
+                    ContratoArrendamento.tenant_id == tenant_id,
+                    ContratoArrendamento.deleted_at.is_(None)
+                )
+            )
+            .options(
+                selectinload(ContratoArrendamento.imovel),
+                selectinload(ContratoArrendamento.parcelas),
+                selectinload(ContratoArrendamento.reajustes),
+            )
+            .order_by(ContratoArrendamento.data_inicio.desc())
+        )
+
+        if imovel_id:
+            stmt = stmt.where(ContratoArrendamento.imovel_id == imovel_id)
+
+        if status:
+            stmt = stmt.where(ContratoArrendamento.status == status)
+        elif apenas_ativos:
+            stmt = stmt.where(ContratoArrendamento.status == StatusContrato.ATIVO)
+
+        result = await self.session.execute(stmt)
+        return list(result.scalars().unique().all())
     
     def validar_prazo_minimo(
         self,

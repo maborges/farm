@@ -70,6 +70,7 @@ from core.cadastros.produtos.router import router as router_produtos
 
 # Imóveis Rurais
 from imoveis.routers.imovel import router as router_imoveis
+from imoveis.routers.arrendamento import router as router_arrendamentos
 
 # Growth — Landing Tracking (público, sem autenticação)
 from growth import router as growth_router
@@ -319,6 +320,7 @@ app.include_router(router_commodity_cotacoes, prefix="/api/v1")
 app.include_router(router_commodity_conversoes, prefix="/api/v1")
 app.include_router(router_produtos, prefix="/api/v1")
 app.include_router(router_imoveis, prefix="/api/v1")
+app.include_router(router_arrendamentos, prefix="/api/v1")
 app.include_router(unidades_produtivas.router, prefix="/api/v1")
 from agricola.safras.router import router as router_safras
 from agricola.cultivos.router import router as router_cultivos
