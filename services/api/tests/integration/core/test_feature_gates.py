@@ -152,6 +152,13 @@ async def test_fg03_financeiro_sem_modulo_retorna_402(client, gate_db, h_core):
     assert resp.status_code == 402
 
 
+async def test_fg03b_notas_fiscais_sem_modulo_retorna_402(client, gate_db, h_core):
+    """FG-03b: GET /financeiro/notas-fiscais sem F3_FISCAL retorna 402."""
+    resp = await client.get("/api/v1/financeiro/notas-fiscais", headers=h_core)
+    assert resp.status_code == 402
+    assert resp.headers.get("X-Module-Required") == "F3_FISCAL"
+
+
 async def test_fg04_estoque_sem_modulo_retorna_402(client, gate_db, h_core):
     """FG-04: GET /estoque/depositos sem O2_ESTOQUE retorna 402."""
     resp = await client.get("/api/v1/estoque/depositos", headers=h_core)
@@ -182,6 +189,12 @@ async def test_fg07_agricola_com_modulo_permite_acesso(client, gate_db, h_full):
 async def test_fg08_operacoes_com_a2_permite_acesso(client, gate_db, h_full):
     """FG-08: GET /operacoes com A2_CAMPO retorna 200."""
     resp = await client.get("/api/v1/operacoes/", headers=h_full)
+    assert resp.status_code == 200
+
+
+async def test_fg08b_notas_fiscais_com_modulo_permite_acesso(client, gate_db, h_full):
+    """FG-08b: GET /financeiro/notas-fiscais com F3_FISCAL retorna 200."""
+    resp = await client.get("/api/v1/financeiro/notas-fiscais", headers=h_full)
     assert resp.status_code == 200
 
 
