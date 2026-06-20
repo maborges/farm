@@ -14,7 +14,7 @@ from financeiro.models.nota_fiscal import NotaFiscal, TipoNF, StatusSEFAZ
 
 router = APIRouter(prefix="/notas-fiscais", tags=["Financeiro — NF-e / NFP-e"])
 
-MODULE = "FIN1_FISCAL"
+MODULE = "F3_FISCAL"
 
 
 # ── Schemas ───────────────────────────────────────────────────────────────────
