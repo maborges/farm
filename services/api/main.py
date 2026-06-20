@@ -398,7 +398,7 @@ from integracoes.regulatorias.router import router as regulatorias_router
 # from contabilidade.routers.exportacoes import router as contabilidade_exportacoes_router
 # from contabilidade.routers.lancamentos import router as contabilidade_lancamentos_router
 
-from financeiro.routers import despesas, receitas, planos_conta, relatorios as relatorios_fin, integracao as integracao_fin, conciliacao, notas_fiscais as notas_fiscais_router, lancamentos as lancamentos_router, plano_acoes as plano_acoes_router
+from financeiro.routers import despesas, receitas, planos_conta, relatorios as relatorios_fin, custos as custos_fin, integracao as integracao_fin, conciliacao, notas_fiscais as notas_fiscais_router, lancamentos as lancamentos_router, plano_acoes as plano_acoes_router
 from financeiro.comercializacao.router import router as router_comercializacoes
 from financeiro.hedge.router import router as router_hedge
 from ambiental.router import router as router_ambiental
@@ -495,6 +495,7 @@ app.include_router(pecuaria_manejos.router, prefix="/api/v1")
 app.include_router(receitas.router, prefix="/api/v1/financeiro")
 app.include_router(planos_conta.router, prefix="/api/v1/financeiro")
 app.include_router(relatorios_fin.router, prefix="/api/v1")
+app.include_router(custos_fin.router, prefix="/api/v1")
 app.include_router(integracao_fin.router, prefix="/api/v1/financeiro")
 app.include_router(conciliacao.router, prefix="/api/v1/financeiro")
 app.include_router(notas_fiscais_router.router, prefix="/api/v1/financeiro")
