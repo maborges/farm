@@ -5,7 +5,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.dependencies import get_tenant_id, require_module, require_role
-from core.dependencies import get_session_with_tenant
+from core.dependencies import get_session
 from agricola.romaneios.schemas import (
     RomaneioColheitaCreate,
     RomaneioColheitaUpdate,
@@ -19,7 +19,7 @@ router = APIRouter(prefix="/romaneios", tags=["Romaneios de Colheita"])
 @router.post("/", response_model=RomaneioColheitaResponse, status_code=status.HTTP_201_CREATED)
 async def criar_romaneio(
     dados: RomaneioColheitaCreate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A5_COLHEITA")),
     user: dict = Depends(require_role(["agronomo", "admin", "operador"])),
@@ -33,7 +33,7 @@ async def criar_romaneio(
 @router.get("/kpis", response_model=RomaneioKPIs)
 async def kpis_romaneios(
     safra_id: UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A5_COLHEITA")),
 ):
@@ -44,7 +44,7 @@ async def kpis_romaneios(
 async def listar_romaneios(
     safra_id: UUID | None = None,
     talhao_id: UUID | None = None,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A5_COLHEITA")),
 ):
@@ -61,7 +61,7 @@ async def listar_romaneios(
 @router.get("/{id}", response_model=RomaneioColheitaResponse)
 async def detalhar_romaneio(
     id: UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A5_COLHEITA")),
 ):
@@ -73,7 +73,7 @@ async def detalhar_romaneio(
 async def atualizar_romaneio(
     id: UUID,
     dados: RomaneioColheitaUpdate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A5_COLHEITA")),
     user: dict = Depends(require_role(["agronomo", "admin"])),
@@ -85,7 +85,7 @@ async def atualizar_romaneio(
 @router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
 async def excluir_romaneio(
     id: UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A5_COLHEITA")),
     user: dict = Depends(require_role(["admin"])),

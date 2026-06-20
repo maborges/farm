@@ -3,7 +3,7 @@ from typing import List, Optional
 import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.dependencies import get_session, get_session_with_tenant
+from core.dependencies import get_session
 from core.dependencies import get_tenant_id, require_module, require_role, require_limit
 from core.schemas.unidade_produtiva_input import UnidadeProdutivaCreate, UnidadeProdutivaUpdate
 from core.schemas.unidade_produtiva_output import UnidadeProdutivaResponse

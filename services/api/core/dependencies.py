@@ -82,7 +82,7 @@ async def get_session(request: Request = None) -> AsyncGenerator[AsyncSession, N
     """
     Dependency de sessão. Se o middleware TenantRLSMiddleware tiver extraído
     um tenant_id do JWT, ativa RLS automaticamente — mesmo em routers que
-    usam get_session em vez de get_session_with_tenant (fail-safe).
+    usam get_session diretamente (fail-safe).
     """
     async with async_session_maker() as session:
         tenant_id = getattr(request.state, "rls_tenant_id", None) if request else None
@@ -137,7 +137,6 @@ def get_token(request: Request) -> str:
 
 async def get_current_user_claims(
     token: str = Depends(get_token),
-    db: AsyncSession = Depends(get_session),
 ) -> dict:
     """Extrai as claims do JWT e valida se a sessão está ativa no banco."""
     try:
@@ -156,16 +155,40 @@ async def get_current_user_claims(
 
     if cached is None:
         from core.models.sessao import SessaoAtiva
-        result = await db.execute(
-            select(SessaoAtiva.status).where(SessaoAtiva.token_hash == token_hash)
-        )
-        sessao_status = result.scalar_one_or_none()
+        try:
+            async with async_session_maker() as db:
+                result = await db.execute(
+                    select(SessaoAtiva.status).where(SessaoAtiva.token_hash == token_hash)
+                )
+                sessao_status = result.scalar_one_or_none()
 
-        if sessao_status is not None and sessao_status != "ATIVA":
-            _cache_set(token_hash, False)
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Sessão encerrada ou revogada")
+                if sessao_status is not None and sessao_status != "ATIVA":
+                    _cache_set(token_hash, False)
+                    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Sessão encerrada ou revogada")
 
-        _cache_set(token_hash, True)
+                _cache_set(token_hash, True)
+        except (asyncio.TimeoutError, OSError, SQLAlchemyError) as exc:
+            logger.error(
+                "Falha ao validar sessão do usuário",
+                error_type=type(exc).__name__,
+                detail=str(exc),
+            )
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Banco de dados indisponível ou pool de conexões esgotado. Tente novamente em instantes.",
+            ) from exc
+        except Exception as exc:
+            if _is_connection_exhaustion_error(exc):
+                logger.warning(
+                    "Pool de conexões do Postgres esgotado ao validar sessão",
+                    error_type=type(exc).__name__,
+                    detail=str(exc),
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Banco de dados indisponível ou pool de conexões esgotado. Tente novamente em instantes.",
+                ) from exc
+            raise
 
     return payload
 
@@ -227,43 +250,6 @@ async def get_user_id(
         except (ValueError, AttributeError):
             pass
     return None
-
-async def get_session_with_tenant(
-    tenant_id: uuid.UUID = Depends(get_tenant_id)
-) -> AsyncGenerator[AsyncSession, None]:
-    """Dependency que abre conexão com postgres injetando a claim local para o RLS."""
-    async with async_session_maker() as session:
-        try:
-            session.info["tenant_id"] = tenant_id
-            if "postgresql" in DB_URL:
-                await session.execute(
-                    text(f"SET LOCAL app.current_tenant_id = '{tenant_id}';")
-                )
-        except (asyncio.TimeoutError, OSError, SQLAlchemyError) as exc:
-            logger.error(
-                "Falha ao abrir/usar sessão do banco com tenant",
-                error_type=type(exc).__name__,
-                detail=str(exc),
-                tenant_id=str(tenant_id),
-            )
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="Banco de dados indisponível ou pool de conexões esgotado. Tente novamente em instantes.",
-            ) from exc
-        except Exception as exc:
-            if _is_connection_exhaustion_error(exc):
-                logger.warning(
-                    "Pool de conexões do Postgres esgotado",
-                    error_type=type(exc).__name__,
-                    detail=str(exc),
-                    tenant_id=str(tenant_id),
-                )
-                raise HTTPException(
-                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                    detail="Banco de dados indisponível ou pool de conexões esgotado. Tente novamente em instantes.",
-                ) from exc
-            raise
-        yield session
 
 async def get_current_user(
     claims: dict = Depends(get_current_user_claims),

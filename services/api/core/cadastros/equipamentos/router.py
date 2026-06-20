@@ -3,7 +3,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.dependencies import get_session_with_tenant, get_tenant_id
+from core.dependencies import get_session, get_tenant_id
 from core.exceptions import EntityNotFoundError
 from .service import EquipamentoService, EquipamentoCalibracaoService
 from .schemas import (
@@ -23,7 +23,7 @@ async def listar(
     tipo: Optional[str] = Query(None),
     status_filter: Optional[str] = Query(None, alias="status"),
     unidade_produtiva_id: Optional[uuid.UUID] = Query(None),
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     svc = EquipamentoService(session, tenant_id)
@@ -34,7 +34,7 @@ async def listar(
 @router.post("", response_model=EquipamentoResponse, status_code=201)
 async def criar(
     data: EquipamentoCreate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     svc = EquipamentoService(session, tenant_id)
@@ -47,7 +47,7 @@ async def criar(
 @router.get("/{eq_id}", response_model=EquipamentoResponse)
 async def obter(
     eq_id: uuid.UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     svc = EquipamentoService(session, tenant_id)
@@ -61,7 +61,7 @@ async def obter(
 async def atualizar(
     eq_id: uuid.UUID,
     data: EquipamentoUpdate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     svc = EquipamentoService(session, tenant_id)
@@ -77,7 +77,7 @@ async def atualizar(
 @router.delete("/{eq_id}", status_code=204)
 async def remover(
     eq_id: uuid.UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     svc = EquipamentoService(session, tenant_id)
@@ -92,7 +92,7 @@ async def remover(
 @router.post("/calibracoes/", response_model=EquipamentoCalibracaoResponse, status_code=201)
 async def criar_calibracao(
     data: EquipamentoCalibracaoCreate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     svc = EquipamentoCalibracaoService(session, tenant_id)
@@ -105,7 +105,7 @@ async def criar_calibracao(
 @router.get("/calibracoes", response_model=list[EquipamentoCalibracaoResponse])
 @router.get("/calibracoes/", response_model=list[EquipamentoCalibracaoResponse])
 async def listar_calibracoes(
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     from sqlalchemy import select
@@ -118,7 +118,7 @@ async def listar_calibracoes(
 @router.get("/{eq_id}/calibracoes", response_model=list[EquipamentoCalibracaoResponse])
 async def obter_calibracoes_equipamento(
     eq_id: uuid.UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     svc_eq = EquipamentoService(session, tenant_id)

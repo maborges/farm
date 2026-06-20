@@ -4,7 +4,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.dependencies import get_session_with_tenant, get_tenant_id
+from core.dependencies import get_session, get_tenant_id
 from core.exceptions import EntityNotFoundError
 from .service import ProdutoColhidoService
 from .schemas import ProdutoColhidoCreate, ProdutoColhidoUpdate, ProdutoColhidoResponse, ResumoEstoqueResponse
@@ -16,7 +16,7 @@ router = APIRouter(prefix="/agricola/produtos-colhidos", tags=["Agrícola — Pr
 async def resumo_estoque(
     status: Optional[str] = Query(None),
     commodity_id: Optional[uuid.UUID] = Query(None),
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     service = ProdutoColhidoService(session, tenant_id)
@@ -28,7 +28,7 @@ async def listar(
     safra_id: Optional[uuid.UUID] = Query(None),
     commodity_id: Optional[uuid.UUID] = Query(None),
     status: Optional[str] = Query(None),
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     service = ProdutoColhidoService(session, tenant_id)
@@ -38,7 +38,7 @@ async def listar(
 @router.post("/", response_model=ProdutoColhidoResponse, status_code=201)
 async def criar(
     data: ProdutoColhidoCreate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     service = ProdutoColhidoService(session, tenant_id)
@@ -51,7 +51,7 @@ async def criar(
 @router.get("/{produto_id}", response_model=ProdutoColhidoResponse)
 async def obter(
     produto_id: uuid.UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     service = ProdutoColhidoService(session, tenant_id)
@@ -66,7 +66,7 @@ async def obter(
 async def atualizar(
     produto_id: uuid.UUID,
     data: ProdutoColhidoUpdate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     service = ProdutoColhidoService(session, tenant_id)
@@ -83,7 +83,7 @@ async def atualizar(
 @router.delete("/{produto_id}", status_code=204)
 async def remover(
     produto_id: uuid.UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     service = ProdutoColhidoService(session, tenant_id)

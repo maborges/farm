@@ -4,7 +4,7 @@ from uuid import UUID
 from datetime import date
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.dependencies import get_tenant_id, get_session_with_tenant, require_module
+from core.dependencies import get_tenant_id, get_session, require_module
 from rh.schemas import (
     EsocialEventoCreate, EsocialEventoUpdate, EsocialEventoResponse,
     DepartamentoCreate, DepartamentoUpdate, DepartamentoResponse,
@@ -27,7 +27,7 @@ async def listar_eventos_esocial(
     tipo_evento: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
     periodo: Optional[str] = Query(None),
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module(MODULE)),
 ):
@@ -38,7 +38,7 @@ async def listar_eventos_esocial(
 @router.post("/esocial/eventos", response_model=EsocialEventoResponse, status_code=status.HTTP_201_CREATED)
 async def registrar_evento_esocial(
     dados: EsocialEventoCreate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module(MODULE)),
 ):
@@ -53,7 +53,7 @@ async def registrar_evento_esocial(
 async def atualizar_evento_esocial(
     evento_id: UUID,
     dados: EsocialEventoUpdate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module(MODULE)),
 ):
@@ -68,7 +68,7 @@ async def atualizar_evento_esocial(
 
 @router.get("/departamentos", response_model=List[DepartamentoResponse])
 async def listar_departamentos(
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module(MODULE)),
 ):
@@ -79,7 +79,7 @@ async def listar_departamentos(
 @router.post("/departamentos", response_model=DepartamentoResponse, status_code=status.HTTP_201_CREATED)
 async def criar_departamento(
     dados: DepartamentoCreate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module(MODULE)),
 ):
@@ -94,7 +94,7 @@ async def criar_departamento(
 async def atualizar_departamento(
     departamento_id: UUID,
     dados: DepartamentoUpdate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module(MODULE)),
 ):
@@ -110,7 +110,7 @@ async def atualizar_departamento(
 @router.delete("/departamentos/{departamento_id}", status_code=200)
 async def desativar_departamento(
     departamento_id: UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module(MODULE)),
 ):
@@ -126,7 +126,7 @@ async def desativar_departamento(
 
 @router.get("/dashboard", response_model=DashboardRHResponse)
 async def dashboard_rh(
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module(MODULE)),
 ):
@@ -139,7 +139,7 @@ async def dashboard_rh(
 async def listar_colaboradores(
     ativo: Optional[bool] = Query(True),
     tipo_contrato: Optional[str] = Query(None),
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module(MODULE)),
 ):
@@ -155,7 +155,7 @@ async def listar_colaboradores(
 @router.post("/colaboradores", response_model=ColaboradorResponse, status_code=status.HTTP_201_CREATED)
 async def criar_colaborador(
     dados: ColaboradorCreate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module(MODULE)),
 ):
@@ -169,7 +169,7 @@ async def criar_colaborador(
 @router.delete("/colaboradores/{colaborador_id}", status_code=200)
 async def desativar_colaborador(
     colaborador_id: UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module(MODULE)),
 ):
@@ -186,7 +186,7 @@ async def listar_diarias(
     status: Optional[str] = Query(None),
     data_inicio: Optional[date] = Query(None),
     data_fim: Optional[date] = Query(None),
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module(MODULE)),
 ):
@@ -197,7 +197,7 @@ async def listar_diarias(
 @router.post("/diarias", response_model=DiariaResponse, status_code=status.HTTP_201_CREATED)
 async def lancar_diaria(
     dados: DiariaCreate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module(MODULE)),
 ):
@@ -211,7 +211,7 @@ async def lancar_diaria(
 @router.post("/diarias/pagar-lote", status_code=200)
 async def pagar_diarias(
     dados: PagarDiariasRequest,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module(MODULE)),
 ):
@@ -226,7 +226,7 @@ async def pagar_diarias(
 async def listar_empreitadas(
     colaborador_id: Optional[UUID] = Query(None),
     status_filter: Optional[str] = Query(None),
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module(MODULE)),
 ):
@@ -237,7 +237,7 @@ async def listar_empreitadas(
 @router.post("/empreitadas", response_model=EmpreitadaResponse, status_code=status.HTTP_201_CREATED)
 async def criar_empreitada(
     dados: EmpreitadaCreate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module(MODULE)),
 ):
@@ -252,7 +252,7 @@ async def criar_empreitada(
 async def concluir_empreitada(
     empreitada_id: UUID,
     dados: ConcluirEmpreitadaRequest,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module(MODULE)),
 ):
@@ -264,7 +264,7 @@ async def concluir_empreitada(
 async def pagar_empreitada(
     empreitada_id: UUID,
     data_pagamento: Optional[date] = Query(None),
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module(MODULE)),
 ):

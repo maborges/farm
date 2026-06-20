@@ -393,7 +393,7 @@ pytest tests/test_operacoes_validacao_fase.py \
 @router.get("/safras/{safra_id}/resumo-financeiro")
 async def resumo_financeiro_safra(
     safra_id: UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_tenant_permission("agricola:safras:view")),
 ):

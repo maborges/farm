@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, status
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.dependencies import get_tenant_id, require_module, require_role, get_session_with_tenant
+from core.dependencies import get_tenant_id, require_module, require_role, get_session
 from agricola.fenologia.schemas import (
     FenologiaEscalaCreate, FenologiaEscalaUpdate, FenologiaEscalaResponse,
     FenologiaRegistroCreate, FenologiaRegistroGrupoCreate, FenologiaRegistroResponse,
@@ -21,7 +21,7 @@ router = APIRouter(tags=["Fenologia Agrícola"])
 @router.get("/fenologia/escalas", response_model=list[FenologiaEscalaResponse])
 async def listar_escalas(
     cultura: str | None = None,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A1_PLANEJAMENTO")),
 ):
@@ -31,7 +31,7 @@ async def listar_escalas(
 @router.post("/fenologia/escalas", response_model=FenologiaEscalaResponse, status_code=status.HTTP_201_CREATED)
 async def criar_escala(
     dados: FenologiaEscalaCreate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A1_PLANEJAMENTO")),
     user: dict = Depends(require_role(["agronomo", "admin"])),
@@ -43,7 +43,7 @@ async def criar_escala(
 async def atualizar_escala(
     escala_id: UUID,
     dados: FenologiaEscalaUpdate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A1_PLANEJAMENTO")),
     user: dict = Depends(require_role(["agronomo", "admin"])),
@@ -56,7 +56,7 @@ async def atualizar_escala(
 @router.get("/safras/{safra_id}/grupos-talhoes", response_model=list[GrupoTalhaoResponse])
 async def listar_grupos(
     safra_id: UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A1_PLANEJAMENTO")),
 ):
@@ -67,7 +67,7 @@ async def listar_grupos(
 async def criar_grupo(
     safra_id: UUID,
     dados: GrupoTalhaoCreate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A1_PLANEJAMENTO")),
     user: dict = Depends(require_role(["agronomo", "admin"])),
@@ -80,7 +80,7 @@ async def atualizar_grupo(
     safra_id: UUID,
     grupo_id: UUID,
     dados: GrupoTalhaoUpdate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A1_PLANEJAMENTO")),
     user: dict = Depends(require_role(["agronomo", "admin"])),
@@ -99,7 +99,7 @@ async def sincronizar_talhoes_grupo(
     safra_id: UUID,
     grupo_id: UUID,
     dados: GrupoSincronizarTalhoes,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A1_PLANEJAMENTO")),
     user: dict = Depends(require_role(["agronomo", "admin"])),
@@ -111,7 +111,7 @@ async def sincronizar_talhoes_grupo(
 async def excluir_grupo(
     safra_id: UUID,
     grupo_id: UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A1_PLANEJAMENTO")),
     user: dict = Depends(require_role(["agronomo", "admin"])),
@@ -127,7 +127,7 @@ async def excluir_grupo(
 async def copiar_grupos_de_safra(
     safra_id: UUID,
     dados: CopiarGruposDeSafra,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A1_PLANEJAMENTO")),
     user: dict = Depends(require_role(["agronomo", "admin"])),
@@ -147,7 +147,7 @@ async def registrar_fenologia_talhao(
     safra_id: UUID,
     talhao_id: UUID,
     dados: FenologiaRegistroCreate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A1_PLANEJAMENTO")),
     user: dict = Depends(require_role(["agronomo", "admin", "operador"])),
@@ -168,7 +168,7 @@ async def registrar_fenologia_grupo(
     safra_id: UUID,
     grupo_id: UUID,
     dados: FenologiaRegistroCreate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A1_PLANEJAMENTO")),
     user: dict = Depends(require_role(["agronomo", "admin", "operador"])),
@@ -187,7 +187,7 @@ async def registrar_fenologia_grupo(
 async def historico_fenologia_talhao(
     safra_id: UUID,
     talhao_id: UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A1_PLANEJAMENTO")),
 ):
@@ -202,7 +202,7 @@ async def historico_fenologia_talhao(
 )
 async def historico_fenologia_safra(
     safra_id: UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A1_PLANEJAMENTO")),
 ):

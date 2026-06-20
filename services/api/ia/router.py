@@ -11,8 +11,8 @@ from pydantic import BaseModel, Field
 from loguru import logger
 
 from core.dependencies import (
-    get_session, get_tenant_id, get_current_user_claims, 
-    get_session_with_tenant, get_current_tenant
+    get_session, get_tenant_id, get_current_user_claims,
+    get_current_tenant
 )
 from core.models.billing import AssinaturaTenant, PlanoAssinatura
 from core.models.tenant import Tenant
@@ -1411,7 +1411,7 @@ async def registrar_feedback_recomendacao(
     rec_id: uuid.UUID,
     body: FeedbackRecomendacaoPayload,
     tenant_id: uuid.UUID = Depends(get_tenant_id),
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
 ):
     """Registra avaliação do usuário sobre a recomendação de IA (Step 170)."""
     from ia.models import IAComprasRecomendacao
@@ -2522,7 +2522,15 @@ async def registrar_acao_assistida(
     )
     
     await session.commit()
-    return {"id": acao.id, "status": "registrada"}
+    return {
+        "id": acao.id,
+        "tenant_id": acao.tenant_id,
+        "action_id": str(acao.id),
+        "tipo_acao": acao.tipo_acao,
+        "origem": acao.origem,
+        "concluida": acao.concluida,
+        "created_at": acao.created_at,
+    }
 
 
 @router.patch("/acoes-assistidas/{id}/concluir")

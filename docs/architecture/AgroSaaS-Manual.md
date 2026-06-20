@@ -851,11 +851,11 @@ async def set_tenant_context(session, transaction, connection):
         )
 
 # dependencies.py — como a session recebe o tenant
-async def get_session_with_tenant(
-    tenant_id: UUID = Depends(get_tenant_id),
-) -> AsyncGenerator[AsyncSession, None]:
+async def get_session(request: Request = None) -> AsyncGenerator[AsyncSession, None]:
     async with async_session_maker() as session:
-        session.info["tenant_id"] = tenant_id  # injeta no contexto
+        tenant_id = getattr(request.state, "rls_tenant_id", None) if request else None
+        if tenant_id:
+            session.info["tenant_id"] = tenant_id  # injeta no contexto
         yield session
 ```
 

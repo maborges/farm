@@ -3,7 +3,7 @@ from typing import List
 import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.dependencies import get_session_with_tenant, get_tenant_id, require_module
+from core.dependencies import get_session, get_tenant_id, require_module
 from pecuaria.schemas.piquete_schema import PiqueteCreate, PiqueteResponse
 from pecuaria.services.piquete_service import PiqueteService
 
@@ -18,7 +18,7 @@ router = APIRouter(
 async def listar_piquetes(
     unidade_produtiva_id: uuid.UUID | None = None,
     tenant_id: uuid.UUID = Depends(get_tenant_id),
-    db: AsyncSession = Depends(get_session_with_tenant),
+    db: AsyncSession = Depends(get_session),
 ):
     """Lista piquetes do tenant. Filtra por fazenda quando `unidade_produtiva_id` fornecido."""
     svc = PiqueteService(tenant_id)
@@ -32,7 +32,7 @@ async def listar_piquetes(
 async def criar_piquete(
     payload: PiqueteCreate,
     tenant_id: uuid.UUID = Depends(get_tenant_id),
-    db: AsyncSession = Depends(get_session_with_tenant),
+    db: AsyncSession = Depends(get_session),
 ):
     """Cadastra um novo piquete/pastagem na fazenda."""
     svc = PiqueteService(tenant_id)

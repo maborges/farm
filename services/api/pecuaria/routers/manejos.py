@@ -3,7 +3,7 @@ from typing import List
 import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.dependencies import get_session_with_tenant, get_tenant_id, require_module
+from core.dependencies import get_session, get_tenant_id, require_module
 from pecuaria.schemas.manejo_schema import ManejoLoteCreate, ManejoLoteResponse
 from pecuaria.services.manejo_service import ManejoLoteService
 
@@ -18,7 +18,7 @@ router = APIRouter(
 async def listar_manejos(
     lote_id: uuid.UUID | None = None,
     tenant_id: uuid.UUID = Depends(get_tenant_id),
-    db: AsyncSession = Depends(get_session_with_tenant),
+    db: AsyncSession = Depends(get_session),
 ):
     """Lista eventos de manejo. Filtra por lote quando `lote_id` for fornecido."""
     svc = ManejoLoteService(tenant_id)
@@ -32,7 +32,7 @@ async def listar_manejos(
 async def registrar_evento(
     payload: ManejoLoteCreate,
     tenant_id: uuid.UUID = Depends(get_tenant_id),
-    db: AsyncSession = Depends(get_session_with_tenant),
+    db: AsyncSession = Depends(get_session),
 ):
     """Registra um evento de manejo: nascimento, morte, pesagem, vacinação ou transferência."""
     svc = ManejoLoteService(tenant_id)

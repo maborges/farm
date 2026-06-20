@@ -5,7 +5,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.constants import PlanTier
-from core.dependencies import get_tenant_id, require_module, require_tier, get_session_with_tenant
+from core.dependencies import get_tenant_id, require_module, require_tier, get_session
 from agricola.prescricoes.schemas import PrescricaoVRACreate, PrescricaoVRAResponse
 from agricola.prescricoes.service import PrescricaoService
 
@@ -14,7 +14,7 @@ router = APIRouter(prefix="/prescricoes", tags=["Mapas de Prescrição (VRA)"])
 @router.post("/", response_model=PrescricaoVRAResponse, status_code=status.HTTP_201_CREATED)
 async def criar_prescricao(
     dados: PrescricaoVRACreate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A4_PRECISAO")),
     _tier: None = Depends(require_tier(PlanTier.ENTERPRISE)),
@@ -27,7 +27,7 @@ async def criar_prescricao(
 @router.get("/", response_model=List[PrescricaoVRAResponse])
 async def listar_prescricoes(
     talhao_id: UUID | None = None,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A4_PRECISAO")),
     _tier: None = Depends(require_tier(PlanTier.ENTERPRISE)),
@@ -40,7 +40,7 @@ async def listar_prescricoes(
 @router.get("/{id}", response_model=PrescricaoVRAResponse)
 async def detalhar_prescricao(
     id: UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A4_PRECISAO")),
     _tier: None = Depends(require_tier(PlanTier.ENTERPRISE)),

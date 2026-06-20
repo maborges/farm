@@ -228,7 +228,7 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.dependencies import (
-    get_session_with_tenant,
+    get_session,
     get_tenant_id,
     require_module,
     require_role,
@@ -243,7 +243,7 @@ router = APIRouter(prefix="/minha-entidade", tags=["Minha Entidade"])
 @router.get("/", response_model=List[MinhaEntidadeResponse])
 async def listar(
     fazenda_id: UUID | None = None,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A1_PLANEJAMENTO")),  # ajustar módulo
 ):
@@ -262,7 +262,7 @@ async def listar(
 )
 async def criar(
     dados: MinhaEntidadeCreate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A1_PLANEJAMENTO")),
     user: dict = Depends(require_role(["admin", "agronomo", "operador"])),
@@ -276,7 +276,7 @@ async def criar(
 @router.get("/{id}", response_model=MinhaEntidadeResponse)
 async def buscar(
     id: UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A1_PLANEJAMENTO")),
 ):
@@ -289,7 +289,7 @@ async def buscar(
 async def atualizar(
     id: UUID,
     dados: MinhaEntidadeUpdate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A1_PLANEJAMENTO")),
     user: dict = Depends(require_role(["admin", "agronomo"])),
@@ -303,7 +303,7 @@ async def atualizar(
 @router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
 async def deletar(
     id: UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A1_PLANEJAMENTO")),
     user: dict = Depends(require_role(["admin"])),
@@ -314,7 +314,7 @@ async def deletar(
 ```
 
 **Camadas de segurança por ordem:**
-1. `get_session_with_tenant` → valida JWT + abre sessão com tenant_id
+1. `get_session` → usa o tenant_id do middleware para ativar RLS
 2. `get_tenant_id` → extrai UUID do tenant do token
 3. `require_module(...)` → verifica se o plano tem o módulo contratado
 4. `require_role([...])` → verifica role do usuário na fazenda
@@ -414,7 +414,7 @@ Antes de considerar o módulo pronto, confirme:
 
 | Dependência | Uso | Retorna |
 |---|---|---|
-| `get_session_with_tenant` | Abre sessão com tenant_id injetado | `AsyncSession` |
+| `get_session` | Abre sessão e aplica o tenant_id do middleware | `AsyncSession` |
 | `get_tenant_id` | Extrai tenant_id do JWT | `UUID` |
 | `require_module("X")` | Bloqueia se módulo não contratado | `None` (ou 402) |
 | `require_any_module("X","Y")` | Libera se tiver pelo menos 1 | `None` (ou 402) |
@@ -442,7 +442,7 @@ POST /api/v1/minha-entidade
 Authorization: Bearer <JWT>
 
 1. main.py roteia para router_meu_modulo
-2. get_session_with_tenant → decodifica JWT, extrai tenant_id, abre sessão
+2. get_session → usa o tenant_id extraído pelo middleware e abre sessão
 3. get_tenant_id → retorna UUID do tenant
 4. require_module("A1_PLANEJAMENTO") → verifica plano (JWT cache → DB)
 5. require_role(["admin","agronomo"]) → verifica perfil na fazenda

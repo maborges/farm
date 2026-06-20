@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
 
-from core.dependencies import get_session_with_tenant, get_tenant_id
+from core.dependencies import get_session, get_tenant_id
 from core.exceptions import EntityNotFoundError, BusinessRuleError
 from .schemas import (
     MarcaCreate, MarcaUpdate, MarcaResponse,
@@ -46,7 +46,7 @@ def _enrich_produto(obj) -> dict:
 @router.get("/cadastros/marcas/", response_model=list[MarcaResponse])
 async def listar_marcas(
     ativo: Optional[bool] = Query(None),
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     return await ProdutoService(session, tenant_id).listar_marcas(ativo=ativo)
@@ -56,7 +56,7 @@ async def listar_marcas(
 @router.post("/cadastros/marcas/", response_model=MarcaResponse, status_code=201)
 async def criar_marca(
     data: MarcaCreate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     obj = await ProdutoService(session, tenant_id).criar_marca(data)
@@ -68,7 +68,7 @@ async def criar_marca(
 @router.get("/cadastros/marcas/{marca_id}", response_model=MarcaResponse)
 async def obter_marca(
     marca_id: uuid.UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     try:
@@ -81,7 +81,7 @@ async def obter_marca(
 async def atualizar_marca(
     marca_id: uuid.UUID,
     data: MarcaUpdate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     try:
@@ -96,7 +96,7 @@ async def atualizar_marca(
 @router.delete("/cadastros/marcas/{marca_id}", status_code=204)
 async def remover_marca(
     marca_id: uuid.UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     try:
@@ -118,7 +118,7 @@ async def listar_modelos(
     marca_id: Optional[uuid.UUID] = Query(None),
     tipo_produto: Optional[str] = Query(None),
     ativo: Optional[bool] = Query(None),
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     objs = await ProdutoService(session, tenant_id).listar_modelos(marca_id=marca_id, tipo_produto=tipo_produto, ativo=ativo)
@@ -129,7 +129,7 @@ async def listar_modelos(
 @router.post("/cadastros/modelos-produto/", response_model=ModeloProdutoComMarcaResponse, status_code=201)
 async def criar_modelo(
     data: ModeloProdutoCreate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     try:
@@ -144,7 +144,7 @@ async def criar_modelo(
 @router.get("/cadastros/modelos-produto/{modelo_id}", response_model=ModeloProdutoComMarcaResponse)
 async def obter_modelo(
     modelo_id: uuid.UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     try:
@@ -157,7 +157,7 @@ async def obter_modelo(
 async def atualizar_modelo(
     modelo_id: uuid.UUID,
     data: ModeloProdutoUpdate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     try:
@@ -172,7 +172,7 @@ async def atualizar_modelo(
 @router.delete("/cadastros/modelos-produto/{modelo_id}", status_code=204)
 async def remover_modelo(
     modelo_id: uuid.UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     try:
@@ -191,7 +191,7 @@ async def remover_modelo(
 async def listar_categorias(
     parent_id: Optional[uuid.UUID] = Query(None),
     ativo: Optional[bool] = Query(None),
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     return await ProdutoService(session, tenant_id).listar_categorias(parent_id=parent_id, ativo=ativo)
@@ -201,7 +201,7 @@ async def listar_categorias(
 @router.post("/cadastros/categorias-produto/", response_model=CategoriaProdutoResponse, status_code=201)
 async def criar_categoria(
     data: CategoriaProdutoCreate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     obj = await ProdutoService(session, tenant_id).criar_categoria(data)
@@ -213,7 +213,7 @@ async def criar_categoria(
 @router.get("/cadastros/categorias-produto/{cat_id}", response_model=CategoriaProdutoResponse)
 async def obter_categoria(
     cat_id: uuid.UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     try:
@@ -226,7 +226,7 @@ async def obter_categoria(
 async def atualizar_categoria(
     cat_id: uuid.UUID,
     data: CategoriaProdutoUpdate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     try:
@@ -241,7 +241,7 @@ async def atualizar_categoria(
 @router.delete("/cadastros/categorias-produto/{cat_id}", status_code=204)
 async def remover_categoria(
     cat_id: uuid.UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     try:
@@ -264,7 +264,7 @@ async def listar_produtos(
     ativo: Optional[bool] = Query(None),
     q: Optional[str] = Query(None),
     incluir_sistema: bool = Query(False),
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     objs = await ProdutoService(session, tenant_id).listar_produtos(
@@ -282,7 +282,7 @@ async def listar_produtos(
 @router.post("/cadastros/produtos/", response_model=ProdutoResponse, status_code=201)
 async def criar_produto(
     data: ProdutoCreate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     try:
@@ -298,7 +298,7 @@ async def criar_produto(
 @router.get("/cadastros/produtos/{produto_id}", response_model=ProdutoResponse)
 async def obter_produto(
     produto_id: uuid.UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     try:
@@ -311,7 +311,7 @@ async def obter_produto(
 async def atualizar_produto(
     produto_id: uuid.UUID,
     data: ProdutoUpdate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     try:
@@ -326,7 +326,7 @@ async def atualizar_produto(
 @router.delete("/cadastros/produtos/{produto_id}", status_code=204)
 async def remover_produto(
     produto_id: uuid.UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     try:
@@ -346,7 +346,7 @@ async def listar_culturas(
     grupo: Optional[str] = Query(None),
     ativa: Optional[bool] = Query(None),
     q: Optional[str] = Query(None),
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     return await ProdutoService(session, tenant_id).listar_culturas(grupo=grupo, ativa=ativa, q=q)
@@ -356,7 +356,7 @@ async def listar_culturas(
 @router.post("/cadastros/culturas/", response_model=ProdutoCulturaResponse, status_code=201)
 async def criar_cultura(
     data: ProdutoCulturaCreate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     obj = await ProdutoService(session, tenant_id).criar_cultura(data)
@@ -369,7 +369,7 @@ async def criar_cultura(
 async def atualizar_cultura(
     cultura_id: uuid.UUID,
     data: ProdutoCulturaUpdate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     try:
@@ -384,7 +384,7 @@ async def atualizar_cultura(
 @router.delete("/cadastros/culturas/{cultura_id}", status_code=204)
 async def remover_cultura(
     cultura_id: uuid.UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     try:
@@ -401,7 +401,7 @@ async def remover_cultura(
 @router.get("/cadastros/culturas/{cultura_id}/parametros-solo", response_model=list[SoloParametroCulturaResponse])
 async def listar_parametros_solo(
     cultura_id: uuid.UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     return await ProdutoService(session, tenant_id).listar_parametros_solo(cultura_id)
@@ -411,7 +411,7 @@ async def listar_parametros_solo(
 async def criar_parametro_solo(
     cultura_id: uuid.UUID,
     data: SoloParametroCulturaCreate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     try:
@@ -428,7 +428,7 @@ async def atualizar_parametro_solo(
     cultura_id: uuid.UUID,
     param_id: uuid.UUID,
     data: SoloParametroCulturaUpdate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     try:
@@ -444,7 +444,7 @@ async def atualizar_parametro_solo(
 async def deletar_parametro_solo(
     cultura_id: uuid.UUID,
     param_id: uuid.UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     try:

@@ -6,7 +6,7 @@ Detecta violações de padrão sem precisar de análise estática complexa.
 Retorna exit code 1 se encontrar violações.
 
 Regras:
-  R1  — Depends(get_session) em router fora de core/ (deve usar get_session_with_tenant)
+  R1  — Depends(get_session) em router fora de core/ (deve usar get_session)
   R2  — from sqlalchemy import select em */router.py (queries devem ir pelo service)
   R3  — StorageService.save( sem save_and_track( no mesmo arquivo (storage não rastreado)
   R4  — session.add( sem flush nem commit posterior no mesmo bloco de método (risco de perda)
@@ -71,7 +71,7 @@ _R1_PATTERN = re.compile(r"Depends\s*\(\s*get_session\s*\)")
 def check_r1():
     for f in _router_files():
         parts = f.parts
-        # core/ usa get_session internamente em gates — permitido
+        # core/ concentra a dependência base e os helpers de contexto — permitido
         if "core" in parts:
             continue
         rel = _rel(f)
@@ -79,10 +79,10 @@ def check_r1():
             continue  # legado — ignorar até ser corrigido
         text = f.read_text(encoding="utf-8")
         for lineno, line in enumerate(text.splitlines(), 1):
-            if _R1_PATTERN.search(line) and "get_session_with_tenant" not in line:
+            if _R1_PATTERN.search(line):
                 ERRORS.append(
                     f"[R1] {rel}:{lineno} — Depends(get_session) em router tenant-scoped. "
-                    f"Use Depends(get_session_with_tenant) para garantir RLS."
+                    f"Use Depends(get_session) e deixe o RLS ser aplicado pelo middleware."
                 )
 
 # ---------------------------------------------------------------------------

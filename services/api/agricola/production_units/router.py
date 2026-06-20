@@ -12,7 +12,7 @@ from agricola.production_units.schemas import (
     ProductionUnitUpdate,
 )
 from agricola.production_units.service import ProductionUnitService
-from core.dependencies import get_session_with_tenant, get_tenant_id, require_module
+from core.dependencies import get_session, get_tenant_id, require_module
 
 router = APIRouter(
     prefix="/safras/{safra_id}/production-units",
@@ -26,7 +26,7 @@ MODULE = "A1_PLANEJAMENTO"
 async def listar(
     safra_id: uuid.UUID,
     tenant_id: uuid.UUID = Depends(get_tenant_id),
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     _: None = Depends(require_module(MODULE)),
 ):
     svc = ProductionUnitService(session, tenant_id)
@@ -38,7 +38,7 @@ async def criar(
     safra_id: uuid.UUID,
     data: ProductionUnitCreate,
     tenant_id: uuid.UUID = Depends(get_tenant_id),
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     _: None = Depends(require_module(MODULE)),
 ):
     svc = ProductionUnitService(session, tenant_id)
@@ -51,7 +51,7 @@ async def criar(
 async def status_consorcio(
     safra_id: uuid.UUID,
     tenant_id: uuid.UUID = Depends(get_tenant_id),
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     _: None = Depends(require_module(MODULE)),
 ):
     svc = ProductionUnitService(session, tenant_id)
@@ -63,7 +63,7 @@ async def obter(
     safra_id: uuid.UUID,
     pu_id: uuid.UUID,
     tenant_id: uuid.UUID = Depends(get_tenant_id),
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     _: None = Depends(require_module(MODULE)),
 ):
     svc = ProductionUnitService(session, tenant_id)
@@ -76,7 +76,7 @@ async def atualizar(
     pu_id: uuid.UUID,
     data: ProductionUnitUpdate,
     tenant_id: uuid.UUID = Depends(get_tenant_id),
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     _: None = Depends(require_module(MODULE)),
 ):
     svc = ProductionUnitService(session, tenant_id)
@@ -90,7 +90,7 @@ async def encerrar(
     safra_id: uuid.UUID,
     pu_id: uuid.UUID,
     tenant_id: uuid.UUID = Depends(get_tenant_id),
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     _: None = Depends(require_module(MODULE)),
 ):
     svc = ProductionUnitService(session, tenant_id)

@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from core.dependencies import get_tenant_id, require_module, require_role
-from core.dependencies import get_session_with_tenant
+from core.dependencies import get_session
 from core.cadastros.propriedades.models import AreaRural
 from agricola.monitoramento.schemas import (
     MonitoramentoPragasCreate,
@@ -45,7 +45,7 @@ async def _enriquecer_talhao_nome(
 async def listar_catalogo(
     tipo: str | None = None,
     cultura: str | None = None,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A2_CAMPO")),
 ):
@@ -57,7 +57,7 @@ async def listar_catalogo(
 @router.post("/catalogo", response_model=MonitoramentoCatalogoResponse, status_code=status.HTTP_201_CREATED)
 async def criar_catalogo(
     dados: MonitoramentoCatalogoCreate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A2_CAMPO")),
     user: dict = Depends(require_role(["agronomo", "admin"])),
@@ -74,7 +74,7 @@ async def criar_catalogo(
 @router.post("/", response_model=MonitoramentoPragasResponse, status_code=status.HTTP_201_CREATED)
 async def criar_monitoramento(
     dados: MonitoramentoPragasCreate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A2_CAMPO")),
     user: dict = Depends(require_role(["agronomo", "admin", "operador"])),
@@ -94,7 +94,7 @@ async def listar_por_safra(
     safra_id: UUID,
     tipo: str | None = None,
     talhao_id: UUID | None = None,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A2_CAMPO")),
 ):
@@ -106,7 +106,7 @@ async def listar_por_safra(
 @router.get("/{id}", response_model=MonitoramentoPragasResponse)
 async def detalhar_monitoramento(
     id: UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A2_CAMPO")),
 ):
@@ -119,7 +119,7 @@ async def detalhar_monitoramento(
 async def atualizar_monitoramento(
     id: UUID,
     dados: MonitoramentoPragasUpdate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A2_CAMPO")),
     user: dict = Depends(require_role(["agronomo", "admin"])),
@@ -134,7 +134,7 @@ async def atualizar_monitoramento(
 @router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
 async def deletar_monitoramento(
     id: UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A2_CAMPO")),
     user: dict = Depends(require_role(["agronomo", "admin"])),
@@ -147,7 +147,7 @@ async def deletar_monitoramento(
 @router.post("/diagnosticar-avulso")
 async def diagnosticar_avulso(
     foto: UploadFile = File(...),
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A2_CAMPO")),
     user: dict = Depends(require_role(["agronomo", "admin", "operador"])),

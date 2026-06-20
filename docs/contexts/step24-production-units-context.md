@@ -19,7 +19,7 @@ Diagnóstico confirmado: `production_units/` tinha apenas `models.py` — sem se
 | # | Ponto | Status | Observação |
 |---|-------|--------|------------|
 | 1 | Rota `/safras/{id}/production-units` funcional | ✅ | Registrada em `main.py` linhas 303 + 380 |
-| 2 | Card respeita permissões do módulo agrícola | ✅ | `get_tenant_id` + `get_session_with_tenant` garantem isolamento multi-tenant; endpoints protegidos com `require_module("A1_PLANEJAMENTO")` |
+| 2 | Card respeita permissões do módulo agrícola | ✅ | `get_tenant_id` + `get_session` garantem isolamento multi-tenant; endpoints protegidos com `require_module("A1_PLANEJAMENTO")` |
 | 3 | Cenários refletem PUs criadas | ✅ | `cenarios/service._fetch_production_units()` filtra `status == "ATIVA"` automaticamente |
 | 4 | Sem backend ou tabela duplicada | ✅ | Única definição `__tablename__ = "production_units"` no codebase; reaproveitada migration step15 |
 
@@ -51,7 +51,7 @@ Diagnóstico confirmado: `production_units/` tinha apenas `models.py` — sem se
   - `GET /{pu_id}` — detalhe
   - `PATCH /{pu_id}` — atualizar
   - `POST /{pu_id}/encerrar` — encerrar
-- Todos usam `get_session_with_tenant` ✅ R1 OK
+- Todos usam `get_session` ✅ R1 OK
 - Nenhum `select()` no router ✅ R2 OK
 - Gate comercial aplicado com `require_module("A1_PLANEJAMENTO")`, seguindo o padrão de `cenarios/router.py`
 

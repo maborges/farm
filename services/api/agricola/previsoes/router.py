@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.constants import PlanTier
 from core.dependencies import get_tenant_id, require_module, require_role, require_tier
-from core.dependencies import get_session_with_tenant
+from core.dependencies import get_session
 from agricola.previsoes.schemas import PrevisaoProdutividadeResponse, PrevisaoProdutividadeCreate
 from agricola.previsoes.service import PrevisaoService
 
@@ -16,7 +16,7 @@ router = APIRouter(prefix="/previsoes", tags=["Previsão de Produtividade"])
 async def gerar_previsao_maquina(
     safra_id: UUID,
     talhao_id: UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A1_PLANEJAMENTO")),
     _tier: None = Depends(require_tier(PlanTier.PROFISSIONAL)),
@@ -30,7 +30,7 @@ async def gerar_previsao_maquina(
 async def listar_previsoes(
     safra_id: UUID | None = None,
     talhao_id: UUID | None = None,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A1_PLANEJAMENTO")),
     _tier: None = Depends(require_tier(PlanTier.PROFISSIONAL)),

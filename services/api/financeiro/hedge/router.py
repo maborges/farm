@@ -23,7 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.constants import Modulos
 from core.dependencies import (
-    get_session_with_tenant,
+    get_session,
     get_tenant_id,
     get_user_id,
     require_module,
@@ -71,7 +71,7 @@ router = APIRouter(
 )
 async def criar_contrato(
     data: ContratoFuturoCreate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
     user_id: Optional[uuid.UUID] = Depends(get_user_id),
 ):
@@ -101,7 +101,7 @@ async def listar_contratos(
     safra_id: Optional[uuid.UUID] = Query(None),
     commodity: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     """Lista contratos futuros do tenant com filtros opcionais."""
@@ -123,7 +123,7 @@ async def listar_contratos(
 )
 async def criar_registro(
     data: HedgeRegistroCreate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
     user_id: Optional[uuid.UUID] = Depends(get_user_id),
 ):
@@ -154,7 +154,7 @@ async def criar_registro(
 async def listar_registros(
     contrato_futuro_id: Optional[uuid.UUID] = Query(None),
     safra_id: Optional[uuid.UUID] = Query(None),
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     """Lista operações de hedge do tenant com filtros opcionais."""
@@ -177,7 +177,7 @@ async def listar_registros(
 async def calcular_posicao(
     safra_id: Optional[uuid.UUID] = Query(None),
     commodity: Optional[str] = Query(None),
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     """Retorna a posição de hedge consolidada.
@@ -198,7 +198,7 @@ async def calcular_exposicao(
     safra_id: Optional[uuid.UUID] = Query(None),
     commodity: Optional[str] = Query(None, description="Filtro por commodity/cultura (ex: SOJA, MILHO)"),
     unidade_produtiva_id: Optional[uuid.UUID] = Query(None, description="Filtro por Unidade Produtiva"),
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     """Calcula a exposição física × financeira completa do tenant.
@@ -228,7 +228,7 @@ async def calcular_exposicao(
     summary="Exposição consolidada multi-safra e multi-commodity",
 )
 async def calcular_exposicao_consolidada(
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     """Retorna visão consolidada de exposição agrupada por safra e commodity.
@@ -255,7 +255,7 @@ async def calcular_exposicao_historico(
     data_inicio: Optional[date] = Query(None),
     data_fim: Optional[date] = Query(None),
     limit: int = Query(90, ge=1, le=365),
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     """Retorna a série temporal da posição de cobertura baseada nos snapshots MTM.
@@ -336,7 +336,7 @@ async def listar_snapshots(
     data_fim: Optional[date] = Query(None),
     limit: int = Query(100, ge=1, le=1000),
     offset: int = Query(0, ge=0),
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     """Lista snapshots de Mark-to-Market de forma paginada e com filtros.
@@ -363,7 +363,7 @@ async def listar_snapshots(
 )
 async def reprocessar_snapshots(
     data: ReprocessarMtMRequest,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
     user_id: Optional[uuid.UUID] = Depends(get_user_id),
 ):
@@ -405,7 +405,7 @@ async def reprocessar_snapshots(
 )
 async def simular_exposicao(
     request: SimulacaoExposicaoRequest,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     """Calcula um cenário analítico com variações hipotéticas na exposição e no hedge.
@@ -430,7 +430,7 @@ async def obter_recomendacoes_comerciais(
     safra_id: Optional[uuid.UUID] = Query(None),
     commodity: Optional[str] = Query(None),
     unidade_produtiva_id: Optional[uuid.UUID] = Query(None),
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     """Gera recomendações de ação determinísticas baseadas na fotografia atual da exposição.

@@ -12,6 +12,7 @@ from notificacoes.email_service import enviar_email
 from financeiro.services.resumo_diario_service import ResumoDiarioService
 from core.models.auth import Usuario
 from ia.upgrade_recomendacao_service import IARecomendacaoUpgradeService
+from agricola.safras.models import Safra
 
 class EnvioResumoDiarioService:
     """Serviço responsável por agendar e enviar o resumo diário aos usuários (Step 199)."""
@@ -43,79 +44,117 @@ class EnvioResumoDiarioService:
             result = await session.execute(stmt)
             preferencias = result.all()
 
-            for pref, user in preferencias:
-                try:
-                    await cls.processar_envio_usuario(session, pref, user)
-                except Exception as e:
-                    logger.error(f"[ResumoDiario] Erro ao processar envio para usuário {user.id}: {e}")
+        for pref, user in preferencias:
+            try:
+                await cls.processar_envio_usuario(pref, user)
+            except Exception as e:
+                logger.error(f"[ResumoDiario] Erro ao processar envio para usuário {user.id}: {e}")
 
     @classmethod
-    async def processar_envio_usuario(cls, session: AsyncSession, pref: NotificacaoPreferencia, user: Usuario):
-        """Processa o conteúdo e envia para os canais ativos de um usuário."""
-        # Evitar envio duplicado no mesmo dia
-        hoje_inicio = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
-        
-        stmt_check = select(Notificacao).where(
-            Notificacao.tenant_id == pref.tenant_id,
-            Notificacao.usuario_id == user.id,
-            Notificacao.tipo == "RESUMO_DIARIO",
-            Notificacao.created_at >= hoje_inicio
+    async def _resolver_safra_id(cls, session: AsyncSession, tenant_id):
+        stmt = (
+            select(Safra.id)
+            .where(
+                Safra.tenant_id == tenant_id,
+                Safra.status.notin_(["ENCERRADA", "CANCELADA"]),
+            )
+            .order_by(Safra.created_at.desc())
+            .limit(1)
         )
-        existe = (await session.execute(stmt_check)).scalar_one_or_none()
-        if existe:
-            logger.info(f"[ResumoDiario] Resumo já enviado hoje para usuário {user.id}")
-            return
+        result = await session.execute(stmt)
+        return result.scalar_one_or_none()
 
-        # Step 204: Verificar recomendação comercial e cooldown
-        recomendacao = None
-        incluir_comercial = False
-        cooldown_dias = 7
-        data_limite_cooldown = datetime.now(timezone.utc) - timedelta(days=cooldown_dias)
+    @classmethod
+    async def processar_envio_usuario(cls, pref: NotificacaoPreferencia, user: Usuario):
+        """Processa o conteúdo e envia para os canais ativos de um usuário."""
+        async with async_session_maker() as session:
+            # Evitar envio duplicado no mesmo dia
+            hoje_inicio = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
 
-        # Verificar se houve recomendação recente
-        stmt_cooldown = select(Notificacao).where(
-            Notificacao.tenant_id == pref.tenant_id,
-            Notificacao.tipo == "RESUMO_DIARIO",
-            cast(Notificacao.meta["has_commercial_recommendation"], Boolean) == True,
-            Notificacao.created_at >= data_limite_cooldown
-        ).limit(1)
-        
-        recente = (await session.execute(stmt_cooldown)).scalar_one_or_none()
-        
-        if not recente:
-            # Consultar IARecomendacaoUpgradeService
-            recomendacao = await IARecomendacaoUpgradeService.get_recomendacao(session, pref.tenant_id)
-            if recomendacao.get("deve_recomendar"):
-                incluir_comercial = True
-                logger.info(f"[ResumoDiario] Incluindo recomendação comercial para tenant {pref.tenant_id}")
+            stmt_check = select(Notificacao).where(
+                Notificacao.tenant_id == pref.tenant_id,
+                Notificacao.usuario_id == user.id,
+                Notificacao.tipo == "RESUMO_DIARIO",
+                Notificacao.created_at >= hoje_inicio
+            )
+            existe = (await session.execute(stmt_check)).scalar_one_or_none()
+            if existe:
+                logger.info(f"[ResumoDiario] Resumo já enviado hoje para usuário {user.id}")
+                return
 
-        # Obter o resumo diário
-        resumo_svc = ResumoDiarioService(session, pref.tenant_id)
-        resumo_data = await resumo_svc.obter_resumo()
+            safra_id = await cls._resolver_safra_id(session, pref.tenant_id)
+            if not safra_id:
+                logger.info(f"[ResumoDiario] Nenhuma safra ativa para tenant {pref.tenant_id}")
+                return
 
-        # Formatar mensagem
-        titulo = f"📊 Seu Resumo Diário AgroSaaS — {datetime.now().strftime('%d/%m/%Y')}"
-        
-        corpo_texto = f"{resumo_data.resumo_ia}\n\n"
-        
-        if resumo_data.top_alertas:
-            corpo_texto += "🚨 *Alertas Principais:*\n"
-            for alerta in resumo_data.top_alertas[:3]:
-                corpo_texto += f"• {alerta.titulo}\n"
-            corpo_texto += "\n"
+            # Step 204: Verificar recomendação comercial e cooldown
+            recomendacao = None
+            incluir_comercial = False
+            cooldown_dias = 7
+            data_limite_cooldown = datetime.now(timezone.utc) - timedelta(days=cooldown_dias)
 
-        corpo_texto += f"📌 *Risco:* {resumo_data.risco_principal}\n"
-        corpo_texto += f"💡 *Oportunidade:* {resumo_data.oportunidade_principal}\n\n"
-        
-        if incluir_comercial and recomendacao:
-            corpo_texto += "🚀 *Recomendação de Crescimento:*\n"
-            corpo_texto += f"{recomendacao['mensagem']}\n"
-            cta_text = "Ver Planos" if recomendacao["tipo"] == "UPGRADE_PLANO" else "Solicitar Créditos"
-            corpo_texto += f"🔗 [{cta_text}]\n\n"
-            # Tracking (Step 204)
-            logger.info(f"Tracking: upgrade_intention_viewed, contexto=resumo_diario, tenant={pref.tenant_id}")
+            # Verificar se houve recomendação recente
+            stmt_cooldown = select(Notificacao).where(
+                Notificacao.tenant_id == pref.tenant_id,
+                Notificacao.tipo == "RESUMO_DIARIO",
+                cast(Notificacao.meta["has_commercial_recommendation"], Boolean) == True,
+                Notificacao.created_at >= data_limite_cooldown
+            ).limit(1)
 
-        corpo_texto += "Clique abaixo para ver a análise completa no Dashboard."
+            recente = (await session.execute(stmt_cooldown)).scalar_one_or_none()
+
+            if not recente:
+                # Consultar IARecomendacaoUpgradeService
+                recomendacao = await IARecomendacaoUpgradeService.get_recomendacao(session, pref.tenant_id)
+                if recomendacao.get("deve_recomendar"):
+                    incluir_comercial = True
+                    logger.info(f"[ResumoDiario] Incluindo recomendação comercial para tenant {pref.tenant_id}")
+
+            # Obter o resumo diário
+            resumo_svc = ResumoDiarioService(session, pref.tenant_id)
+            resumo_data = await resumo_svc.obter_resumo(safra_id)
+
+            # Formatar mensagem
+            titulo = f"📊 Seu Resumo Diário AgroSaaS — {datetime.now().strftime('%d/%m/%Y')}"
+
+            corpo_texto = f"{resumo_data.resumo_ia}\n\n"
+
+            if resumo_data.top_alertas:
+                corpo_texto += "🚨 *Alertas Principais:*\n"
+                for alerta in resumo_data.top_alertas[:3]:
+                    corpo_texto += f"• {alerta.titulo}\n"
+                corpo_texto += "\n"
+
+            corpo_texto += f"📌 *Risco:* {resumo_data.risco_principal}\n"
+            corpo_texto += f"💡 *Oportunidade:* {resumo_data.oportunidade_principal}\n\n"
+
+            if incluir_comercial and recomendacao:
+                corpo_texto += "🚀 *Recomendação de Crescimento:*\n"
+                corpo_texto += f"{recomendacao['mensagem']}\n"
+                cta_text = "Ver Planos" if recomendacao["tipo"] == "UPGRADE_PLANO" else "Solicitar Créditos"
+                corpo_texto += f"🔗 [{cta_text}]\n\n"
+                # Tracking (Step 204)
+                logger.info(f"Tracking: upgrade_intention_viewed, contexto=resumo_diario, tenant={pref.tenant_id}")
+
+            corpo_texto += "Clique abaixo para ver a análise completa no Dashboard."
+
+            # Registrar no histórico de notificações antes de liberar a sessão
+            nova_notif = Notificacao(
+                tenant_id=pref.tenant_id,
+                usuario_id=user.id,
+                tipo="RESUMO_DIARIO",
+                titulo=titulo,
+                mensagem=resumo_data.resumo_ia,
+                nivel="INFO",
+                meta={
+                    "resumo": corpo_texto,
+                    "canais": ["email" if pref.email_ativo else None, "whatsapp" if pref.whatsapp_ativo else None],
+                    "has_commercial_recommendation": incluir_comercial,
+                    "commercial_type": recomendacao.get("tipo") if recomendacao else None
+                }
+            )
+            session.add(nova_notif)
+            await session.commit()
 
         # 1. Enviar Email
         if pref.email_ativo:
@@ -130,21 +169,3 @@ class EnvioResumoDiarioService:
             # Aqui entraria a chamada para API do WhatsApp (ex: Twilio, WPPConnect, etc.)
             logger.info(f"[ResumoDiario] [SIMULAÇÃO] Enviando WhatsApp para {user.telefone}: {titulo}")
             # cls._enviar_whatsapp(user.telefone, corpo_texto)
-
-        # Registrar no histórico de notificações
-        nova_notif = Notificacao(
-            tenant_id=pref.tenant_id,
-            usuario_id=user.id,
-            tipo="RESUMO_DIARIO",
-            titulo=titulo,
-            mensagem=resumo_data.resumo_ia,
-            nivel="INFO",
-            meta={
-                "resumo": corpo_texto,
-                "canais": ["email" if pref.email_ativo else None, "whatsapp" if pref.whatsapp_ativo else None],
-                "has_commercial_recommendation": incluir_comercial,
-                "commercial_type": recomendacao.get("tipo") if recomendacao else None
-            }
-        )
-        session.add(nova_notif)
-        await session.commit()

@@ -3,7 +3,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.constants import PlanTier
-from core.dependencies import get_tenant_id, require_module, get_session_with_tenant, require_tenant_permission, require_tier
+from core.dependencies import get_tenant_id, require_module, get_session, require_tenant_permission, require_tier
 from agricola.dashboard.service import DashboardAgricolaService
 from agricola.dashboard.schemas import SafraResumoFinanceiro, SafraMargemCompleta
 from agricola.alertas.service import AlertasAgricolasService
@@ -13,7 +13,7 @@ router = APIRouter(prefix="/agricola/dashboard", tags=["Dashboard Agrícola"])
 
 @router.get("/", summary="Dashboard agrícola consolidado")
 async def dashboard_agricola(
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A1_PLANEJAMENTO")),
 ):
@@ -28,7 +28,7 @@ async def dashboard_agricola(
 )
 async def resumo_financeiro_safra(
     safra_id: UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _permission: None = Depends(require_tenant_permission("agricola:safras:view")),
     _tier: None = Depends(require_tier(PlanTier.PROFISSIONAL)),
@@ -56,7 +56,7 @@ async def resumo_financeiro_safra(
 )
 async def margem_safra(
     safra_id: UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _permission: None = Depends(require_tenant_permission("agricola:safras:view")),
     _tier: None = Depends(require_tier(PlanTier.PROFISSIONAL)),

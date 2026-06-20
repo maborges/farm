@@ -7,7 +7,7 @@ from sqlalchemy import select
 
 from core.constants import PlanTier
 from core.dependencies import get_tenant_id, require_module, get_current_user_claims, require_tier
-from core.dependencies import get_session_with_tenant
+from core.dependencies import get_session
 from core.cadastros.propriedades.models import AreaRural
 from agricola.agronomo.schemas import (
     MensagemCreate,
@@ -41,7 +41,7 @@ async def _enriquecer_talhao_nome(session: AsyncSession, rats: list):
 @router.post("/chat", response_model=RespostaIA)
 async def conversar_com_ia(
     dados: MensagemCreate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     claims: dict = Depends(get_current_user_claims),
     _: None = Depends(require_module("A2_CAMPO")),
@@ -54,7 +54,7 @@ async def conversar_com_ia(
 
 @router.get("/conversas", response_model=List[ConversaResponse])
 async def listar_conversas(
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     claims: dict = Depends(get_current_user_claims),
     _: None = Depends(require_module("A2_CAMPO")),
@@ -68,7 +68,7 @@ async def listar_conversas(
 @router.get("/rat", response_model=List[RelatorioTecnicoResponse])
 async def listar_rats(
     safra_id: UUID | None = None,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A2_CAMPO")),
     _tier: None = Depends(require_tier(PlanTier.PROFISSIONAL)),
@@ -83,7 +83,7 @@ async def listar_rats(
 @router.post("/rat", response_model=RelatorioTecnicoResponse, status_code=status.HTTP_201_CREATED)
 async def criar_rat(
     dados: RelatorioTecnicoCreate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     claims: dict = Depends(get_current_user_claims),
     _: None = Depends(require_module("A2_CAMPO")),
@@ -97,7 +97,7 @@ async def criar_rat(
 @router.get("/rat/{rat_id}", response_model=RelatorioTecnicoResponse)
 async def obter_rat(
     rat_id: UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A2_CAMPO")),
     _tier: None = Depends(require_tier(PlanTier.PROFISSIONAL)),
@@ -110,7 +110,7 @@ async def obter_rat(
 async def atualizar_rat(
     rat_id: UUID,
     dados: RelatorioTecnicoUpdate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A2_CAMPO")),
     _tier: None = Depends(require_tier(PlanTier.PROFISSIONAL)),

@@ -11,7 +11,7 @@ from sqlalchemy import select
 
 from core.config import settings
 from core.constants import PlanTier
-from core.dependencies import get_tenant_id, require_module, require_role, require_tier, get_session_with_tenant, get_session, get_current_user
+from core.dependencies import get_tenant_id, require_module, require_role, require_tier, get_session, get_current_user
 from core.exceptions import BusinessRuleError
 from agricola.caderno.models import CadernoExportacao, CadernoCampoFoto
 from agricola.caderno.schemas import (
@@ -95,7 +95,7 @@ async def timeline(
     data_inicio: date | None = None,
     data_fim: date | None = None,
     incluir_excluidas: bool = False,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(_MODULE),
 ):
@@ -118,7 +118,7 @@ async def timeline_global(
     data_inicio: date | None = None,
     data_fim: date | None = None,
     incluir_excluidas: bool = False,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(_MODULE),
 ):
@@ -169,7 +169,7 @@ async def timeline_global(
 async def caderno_alertas(
     safra_id: UUID | None = None,
     dias_sem_registro: int = 7,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(_MODULE),
 ):
@@ -184,7 +184,7 @@ async def caderno_alertas(
 async def criar_entrada(
     dados: EntradaCreate,
     request: Request,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(_MODULE),
     user: dict = Depends(require_role(["admin", "agronomo", "operador", "gerente"])),
@@ -201,7 +201,7 @@ async def criar_entrada(
 @router.get("/entradas/{entrada_id}", response_model=EntradaResponse)
 async def detalhar_entrada(
     entrada_id: UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(_MODULE),
 ):
@@ -213,7 +213,7 @@ async def detalhar_entrada(
 async def atualizar_entrada(
     entrada_id: UUID,
     dados: EntradaUpdate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(_MODULE),
     user: dict = Depends(require_role(["admin", "agronomo", "gerente"])),
@@ -237,7 +237,7 @@ async def alterar_status_entrada(
     entrada_id: UUID,
     body: StatusEventoUpdateRequest,
     request: Request,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(_MODULE),
     user: dict = Depends(require_role(["admin", "agronomo", "gerente"])),
@@ -260,7 +260,7 @@ async def alterar_status_entrada(
 async def deletar_entrada(
     entrada_id: UUID,
     body: EntradaDeleteRequest,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(_MODULE),
     user: dict = Depends(require_role(["admin", "agronomo"])),
@@ -296,7 +296,7 @@ async def reprocessar_entrada(
     entrada_id: UUID,
     body: ReprocessarEntradaRequest,
     request: Request,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(_MODULE),
     user: dict = Depends(require_role(["admin", "agronomo", "gerente"])),
@@ -321,7 +321,7 @@ async def upload_foto_entrada(
     file: UploadFile = File(...),
     latitude: float | None = Form(None),
     longitude: float | None = Form(None),
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(_MODULE),
     user: dict = Depends(require_role(["admin", "agronomo", "operador", "gerente"])),
@@ -448,7 +448,7 @@ async def upload_evidencia_offline(
 @router.post("/visitas", response_model=VisitaTecnicaResponse, status_code=status.HTTP_201_CREATED)
 async def criar_visita(
     dados: VisitaTecnicaCreate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(_MODULE),
     user: dict = Depends(require_role(["admin", "agronomo"])),
@@ -464,7 +464,7 @@ async def criar_visita(
 async def listar_visitas(
     safra_id: UUID,
     talhao_id: UUID | None = None,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(_MODULE),
 ):
@@ -476,7 +476,7 @@ async def listar_visitas(
 async def assinar_visita(
     visita_id: UUID,
     body: AssinarVisitaRequest,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(_MODULE),
     user: dict = Depends(require_role(["admin", "agronomo"])),
@@ -492,7 +492,7 @@ async def assinar_visita(
 @router.post("/epis", response_model=EPIEntregaResponse, status_code=status.HTTP_201_CREATED)
 async def registrar_epi(
     dados: EPIEntregaCreate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(_MODULE),
     user: dict = Depends(require_role(["admin", "agronomo", "gerente"])),
@@ -507,7 +507,7 @@ async def registrar_epi(
 @router.get("/epis", response_model=List[EPIEntregaResponse])
 async def listar_epis(
     operacao_id: UUID | None = None,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(_MODULE),
 ):
@@ -520,7 +520,7 @@ async def listar_epis(
 @router.post("/exportar", response_model=ExportacaoResponse, status_code=status.HTTP_201_CREATED)
 async def exportar_caderno(
     dados: ExportacaoCreate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(_MODULE),
     _tier: None = Depends(require_tier(PlanTier.ENTERPRISE)),
@@ -536,7 +536,7 @@ async def exportar_caderno(
 @router.get("/exportacoes/safra/{safra_id}", response_model=List[ExportacaoResponse])
 async def listar_exportacoes(
     safra_id: UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(_MODULE),
     _tier: None = Depends(require_tier(PlanTier.ENTERPRISE)),
@@ -547,7 +547,7 @@ async def listar_exportacoes(
 
 @router.get("/exportacoes", response_model=List[ExportacaoResponse])
 async def listar_exportacoes_global(
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(_MODULE),
     _tier: None = Depends(require_tier(PlanTier.ENTERPRISE)),
@@ -560,7 +560,7 @@ async def listar_exportacoes_global(
 @router.get("/exportacoes/{exportacao_id}/download")
 async def download_pdf(
     exportacao_id: UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(_MODULE),
     _tier: None = Depends(require_tier(PlanTier.ENTERPRISE)),
@@ -600,7 +600,7 @@ async def assinar_exportacao(
     exportacao_id: UUID,
     body: AssinarExportacaoRequest,
     request: Request,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(_MODULE),
     _tier: None = Depends(require_tier(PlanTier.ENTERPRISE)),
@@ -651,7 +651,7 @@ async def assinar_exportacao(
 async def assinar_ultima_exportacao(
     body: AssinarExportacaoRequest,
     request: Request,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(_MODULE),
     _tier: None = Depends(require_tier(PlanTier.ENTERPRISE)),

@@ -10,7 +10,7 @@ import traceback
 from pathlib import Path
 
 from core.dependencies import get_current_admin, get_current_user_claims, get_tenant_id, require_module, require_role
-from core.dependencies import get_session, get_session_with_tenant
+from core.dependencies import get_session
 from core.cadastros.propriedades.models import AreaRural
 from core.utils.pdf_generator import generate_caderno_campo_pdf
 from agricola.operacoes.schemas import (
@@ -56,7 +56,7 @@ def verificar_alertas_pos_operacao(operacao_id: UUID, tenant_id: UUID):
 )
 async def exportar_caderno_pdf(
     safra_id: UUID | None = Query(None),
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module(MODULE)),
 ):
@@ -95,7 +95,7 @@ async def exportar_caderno_pdf(
 async def criar_operacao(
     dados: OperacaoAgricolaCreate,
     background_tasks: BackgroundTasks,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module(MODULE)),
     user: dict = Depends(require_role(["agronomo", "admin", "operador"])),
@@ -136,7 +136,7 @@ async def listar_operacoes(
     tipo: str | None = Query(None),
     data_inicio: date | None = Query(None, description="YYYY-MM-DD"),
     data_fim: date | None = Query(None, description="YYYY-MM-DD"),
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module(MODULE)),
 ):
@@ -237,7 +237,7 @@ async def excluir_tipo_operacao(
 )
 async def operacoes_por_fase(
     safra_id: UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module(MODULE)),
 ):
@@ -253,7 +253,7 @@ async def operacoes_por_fase(
 async def operacoes_de_fase(
     safra_id: UUID,
     fase: str,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module(MODULE)),
 ):
@@ -269,7 +269,7 @@ async def operacoes_de_fase(
 )
 async def detalhar_operacao(
     id: UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module(MODULE)),
     ):
@@ -286,7 +286,7 @@ async def detalhar_operacao(
 async def atualizar_operacao(
     id: UUID,
     dados: OperacaoAgricolaUpdate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module(MODULE)),
     user: dict = Depends(require_role(["agronomo", "admin", "operador"])),
@@ -305,7 +305,7 @@ async def atualizar_operacao(
 )
 async def deletar_operacao(
     id: UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module(MODULE)),
     user: dict = Depends(require_role(["agronomo", "admin"])),

@@ -3,7 +3,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.dependencies import get_session_with_tenant, get_tenant_id
+from core.dependencies import get_session, get_tenant_id
 from core.exceptions import EntityNotFoundError, EntityAlreadyExistsError
 from .schemas import (
     CommodityCreate, CommodityUpdate, CommodityResponse, CommodityDetalhadaResponse,
@@ -26,7 +26,7 @@ async def listar(
     tipo: Optional[str] = Query(None),
     apenas_ativos: bool = Query(True),
     incluir_sistema: bool = Query(True),
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     return await CommodityService(session, tenant_id).listar(tipo=tipo, apenas_ativos=apenas_ativos, incluir_sistema=incluir_sistema)
@@ -36,7 +36,7 @@ async def listar(
 @router.post("", response_model=CommodityResponse, status_code=201)
 async def criar(
     data: CommodityCreate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     try:
@@ -53,7 +53,7 @@ async def obter(
     commodity_id: uuid.UUID,
     incluir_classificacoes: bool = Query(True),
     incluir_cotacao: bool = Query(True),
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     try:
@@ -66,7 +66,7 @@ async def obter(
 async def atualizar(
     commodity_id: uuid.UUID,
     data: CommodityUpdate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     try:
@@ -81,7 +81,7 @@ async def atualizar(
 @router.delete("/{commodity_id}", status_code=204)
 async def remover(
     commodity_id: uuid.UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     try:
@@ -94,7 +94,7 @@ async def remover(
 @router.post("/cotacoes/atualizar")
 async def atualizar_cotacoes(
     fonte: Optional[str] = Query(None),
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     svc = CotacaoService(session, tenant_id)
@@ -118,7 +118,7 @@ classif_router = APIRouter(
 async def listar_classificacoes(
     commodity_id: uuid.UUID,
     apenas_ativas: bool = Query(True),
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     try:
@@ -131,7 +131,7 @@ async def listar_classificacoes(
 async def criar_classificacao(
     commodity_id: uuid.UUID,
     data: CommodityClassificacaoCreate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     try:
@@ -147,7 +147,7 @@ async def criar_classificacao(
 async def obter_classificacao(
     commodity_id: uuid.UUID,
     classificacao_id: uuid.UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     try:
@@ -161,7 +161,7 @@ async def atualizar_classificacao(
     commodity_id: uuid.UUID,
     classificacao_id: uuid.UUID,
     data: CommodityClassificacaoUpdate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     try:
@@ -177,7 +177,7 @@ async def atualizar_classificacao(
 async def remover_classificacao(
     commodity_id: uuid.UUID,
     classificacao_id: uuid.UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     try:
@@ -203,7 +203,7 @@ async def listar_cotacoes(
     data_inicio: Optional[str] = Query(None),
     data_fim: Optional[str] = Query(None),
     fonte: Optional[str] = Query(None),
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     try:
@@ -216,7 +216,7 @@ async def listar_cotacoes(
 async def criar_cotacao(
     commodity_id: uuid.UUID,
     data: CotacaoCommodityCreate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     try:
@@ -232,7 +232,7 @@ async def criar_cotacao(
 async def ultima_cotacao(
     commodity_id: uuid.UUID,
     fonte: Optional[str] = Query(None),
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     try:
@@ -245,7 +245,7 @@ async def ultima_cotacao(
 async def remover_cotacao(
     commodity_id: uuid.UUID,
     cotacao_id: uuid.UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     try:
@@ -268,7 +268,7 @@ conversao_router = APIRouter(
 @conversao_router.get("/")
 async def listar_conversoes(
     commodity_id: uuid.UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     try:
@@ -281,7 +281,7 @@ async def listar_conversoes(
 async def criar_conversao(
     commodity_id: uuid.UUID,
     data: dict,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     try:
@@ -296,7 +296,7 @@ async def criar_conversao(
 async def calcular_conversao(
     commodity_id: uuid.UUID,
     data: dict,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     try:

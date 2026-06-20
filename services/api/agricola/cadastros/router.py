@@ -5,7 +5,7 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.dependencies import get_tenant_id, require_module, require_role
-from core.dependencies import get_session_with_tenant
+from core.dependencies import get_session
 from agricola.cadastros.schemas import CulturaCreate, CulturaUpdate, CulturaResponse
 from agricola.cadastros.service import CulturaService
 
@@ -14,7 +14,7 @@ router = APIRouter(prefix="/culturas", tags=["Cadastros Agrícolas"])
 @router.post("/", response_model=CulturaResponse, status_code=status.HTTP_201_CREATED)
 async def criar_cultura(
     dados: CulturaCreate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A1_PLANEJAMENTO")),
     user: dict = Depends(require_role(["agronomo", "admin", "operador"])),
@@ -26,7 +26,7 @@ async def criar_cultura(
 @router.get("/", response_model=List[CulturaResponse])
 async def listar_culturas(
     ativo: bool | None = None,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A1_PLANEJAMENTO")),
 ):
@@ -40,7 +40,7 @@ async def listar_culturas(
 @router.get("/{id}", response_model=CulturaResponse)
 async def detalhar_cultura(
     id: UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A1_PLANEJAMENTO")),
 ):
@@ -52,7 +52,7 @@ async def detalhar_cultura(
 async def atualizar_cultura(
     id: UUID,
     dados: CulturaUpdate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A1_PLANEJAMENTO")),
     user: dict = Depends(require_role(["agronomo", "admin", "operador"])),
@@ -64,7 +64,7 @@ async def atualizar_cultura(
 @router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
 async def remover_cultura(
     id: UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A1_PLANEJAMENTO")),
     user: dict = Depends(require_role(["agronomo", "admin"])),

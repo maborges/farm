@@ -3,7 +3,7 @@ from typing import List
 import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.dependencies import get_session_with_tenant, get_tenant_id, require_module
+from core.dependencies import get_session, get_tenant_id, require_module
 
 from pecuaria.schemas.lote_schema import LoteBovinoCreate, LoteBovinoResponse
 from pecuaria.services.lote_service import LoteBovinoService
@@ -20,7 +20,7 @@ async def listar_lotes(
     unidade_produtiva_id: uuid.UUID | None = None,
     categoria: str | None = None,
     tenant_id: uuid.UUID = Depends(get_tenant_id),
-    db: AsyncSession = Depends(get_session_with_tenant),
+    db: AsyncSession = Depends(get_session),
 ):
     """Lista Lotes de Animais na propriedade, filtrado por fazenda e/ou categoria."""
     svc = LoteBovinoService(tenant_id)
@@ -37,7 +37,7 @@ async def listar_lotes(
 async def criar_lote(
     payload: LoteBovinoCreate,
     tenant_id: uuid.UUID = Depends(get_tenant_id),
-    db: AsyncSession = Depends(get_session_with_tenant),
+    db: AsyncSession = Depends(get_session),
 ):
     """Registra a fundação de um novo Lote na fazenda (Compra ou Nascimento)."""
     svc = LoteBovinoService(tenant_id)

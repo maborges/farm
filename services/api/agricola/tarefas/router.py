@@ -4,7 +4,7 @@ from typing import List, Optional
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.dependencies import get_session_with_tenant, get_tenant_id, require_module, require_role
+from core.dependencies import get_session, get_tenant_id, require_module, require_role
 from agricola.tarefas.schemas import TarefaCreate, TarefaUpdate, TarefaResponse
 from agricola.tarefas.service import TarefaService
 
@@ -21,7 +21,7 @@ async def listar_tarefas(
     safra_id: UUID,
     status: Optional[str] = Query(None),
     talhao_id: Optional[UUID] = Query(None),
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module(MODULE)),
 ):
@@ -38,7 +38,7 @@ async def listar_tarefas(
 async def criar_tarefa(
     safra_id: UUID,
     dados: TarefaCreate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module(MODULE)),
     user: dict = Depends(require_role(["agronomo", "admin", "gerente"])),
@@ -59,7 +59,7 @@ async def criar_tarefa(
 )
 async def detalhar_tarefa(
     tarefa_id: UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module(MODULE)),
 ):
@@ -75,7 +75,7 @@ async def detalhar_tarefa(
 async def atualizar_tarefa(
     tarefa_id: UUID,
     dados: TarefaUpdate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module(MODULE)),
     user: dict = Depends(require_role(["agronomo", "admin", "gerente"])),
@@ -95,7 +95,7 @@ async def atualizar_tarefa(
 )
 async def aprovar_tarefa(
     tarefa_id: UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module(MODULE)),
     user: dict = Depends(require_role(["agronomo", "admin", "gerente"])),
@@ -116,7 +116,7 @@ async def aprovar_tarefa(
 async def rejeitar_tarefa(
     tarefa_id: UUID,
     motivo: str = Query(..., min_length=3),
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module(MODULE)),
     user: dict = Depends(require_role(["agronomo", "admin", "gerente"])),
@@ -137,7 +137,7 @@ async def rejeitar_tarefa(
 async def invalidar_tarefa(
     tarefa_id: UUID,
     motivo: str = Query(..., min_length=3),
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module(MODULE)),
     user: dict = Depends(require_role(["agronomo", "admin", "gerente"])),
@@ -157,7 +157,7 @@ async def invalidar_tarefa(
 )
 async def iniciar_tarefa(
     tarefa_id: UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module(MODULE)),
     user: dict = Depends(require_role(["agronomo", "admin", "gerente", "operador"])),
@@ -177,7 +177,7 @@ async def iniciar_tarefa(
 )
 async def concluir_tarefa(
     tarefa_id: UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module(MODULE)),
     user: dict = Depends(require_role(["agronomo", "admin", "gerente", "operador"])),
@@ -197,7 +197,7 @@ async def concluir_tarefa(
 )
 async def cancelar_tarefa(
     tarefa_id: UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module(MODULE)),
     user: dict = Depends(require_role(["agronomo", "admin"])),

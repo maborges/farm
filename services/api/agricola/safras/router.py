@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
 
 from core.dependencies import get_tenant_id, require_module, require_role
-from core.dependencies import get_session_with_tenant
+from core.dependencies import get_session
 from agricola.safras.schemas import (
     SafraCreate, SafraResponse, SafraUpdate,
     SafraAvancarFase, SafraFaseHistoricoResponse,
@@ -29,7 +29,7 @@ router = APIRouter(prefix="/safras", tags=["Safras"])
 )
 async def criar_safra(
     dados: SafraCreate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A1_PLANEJAMENTO")),
     user: dict = Depends(require_role(["agronomo", "admin", "operador"])),
@@ -50,7 +50,7 @@ async def listar_safras(
     ano_safra: str | None = None,
     cultura: str | None = None,
     status: str | None = None,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A1_PLANEJAMENTO")),
 ):
@@ -72,7 +72,7 @@ async def listar_safras(
 )
 async def detalhar_safra(
     id: UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A1_PLANEJAMENTO")),
 ):
@@ -88,7 +88,7 @@ async def detalhar_safra(
 )
 async def listar_cultivos_safra(
     id: UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A1_PLANEJAMENTO")),
 ):
@@ -105,7 +105,7 @@ async def listar_cultivos_safra(
 async def atualizar_safra(
     id: UUID,
     dados: SafraUpdate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A1_PLANEJAMENTO")),
 ):
@@ -120,7 +120,7 @@ async def atualizar_safra(
 )
 async def resumo_safra(
     id: UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A1_PLANEJAMENTO")),
 ):
@@ -141,7 +141,7 @@ async def avancar_fase_safra(
     id: UUID,
     nova_fase: str,
     dados: SafraAvancarFase,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A1_PLANEJAMENTO")),
     user: dict = Depends(require_role(["agronomo", "admin"])),
@@ -171,7 +171,7 @@ async def avancar_fase_safra(
 )
 async def historico_fases_safra(
     id: UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A1_PLANEJAMENTO")),
 ):
@@ -197,7 +197,7 @@ async def meta_fases(
 @router.get("/{id}/talhoes", response_model=list[SafraTalhaoResponse])
 async def listar_talhoes_safra(
     id: UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A1_PLANEJAMENTO")),
 ):
@@ -211,7 +211,7 @@ async def listar_talhoes_safra(
 async def sincronizar_talhoes_safra(
     id: UUID,
     dados: SafraTalhoesSincronizar,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A1_PLANEJAMENTO")),
     user: dict = Depends(require_role(["agronomo", "admin"])),
@@ -237,7 +237,7 @@ async def sincronizar_talhoes_safra(
 )
 async def get_estoque_saldo(
     id: UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A1_PLANEJAMENTO")),
 ):
@@ -262,7 +262,7 @@ async def get_estoque_historico(
     numero_lote: str | None = Query(None, description="Número do lote (busca parcial)"),
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A1_PLANEJAMENTO")),
 ):
@@ -292,7 +292,7 @@ async def get_estoque_historico(
 async def get_estoque_lotes(
     id: UUID,
     deposito_id: UUID | None = Query(None, description="Filtrar por depósito"),
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A1_PLANEJAMENTO")),
 ):

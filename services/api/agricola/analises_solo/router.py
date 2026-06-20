@@ -7,7 +7,7 @@ from sqlalchemy import select
 
 from core.constants import PlanTier
 from core.dependencies import get_tenant_id, require_module, require_role, require_tier
-from core.dependencies import get_session_with_tenant
+from core.dependencies import get_session
 from core.cadastros.propriedades.models import AreaRural
 from agricola.analises_solo.schemas import AnaliseSoloCreate, AnaliseSoloUpdate, AnaliseSoloResponse
 from agricola.analises_solo.service import AnaliseSoloService
@@ -17,7 +17,7 @@ router = APIRouter(prefix="/analises-solo", tags=["Análises de Solo"])
 
 @router.get("/culturas-disponiveis")
 async def listar_culturas_disponiveis(
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A1_PLANEJAMENTO")),
 ):
@@ -39,7 +39,7 @@ async def listar_culturas_disponiveis(
 @router.post("/", response_model=AnaliseSoloResponse, status_code=status.HTTP_201_CREATED)
 async def registrar_analise(
     dados: AnaliseSoloCreate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A1_PLANEJAMENTO")),
     user: dict = Depends(require_role(["agronomo", "admin"])),
@@ -55,7 +55,7 @@ async def registrar_analise(
 async def listar_analises(
     talhao_id: UUID | None = None,
     limit: int = Query(100, ge=1, le=100, description="Máximo de registros retornados"),
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A1_PLANEJAMENTO")),
 ):
@@ -84,7 +84,7 @@ async def listar_analises(
 @router.get("/{id}", response_model=AnaliseSoloResponse)
 async def detalhar_analise(
     id: UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A1_PLANEJAMENTO")),
 ):
@@ -97,7 +97,7 @@ async def detalhar_analise(
 async def atualizar_analise(
     id: UUID,
     dados: AnaliseSoloUpdate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A1_PLANEJAMENTO")),
     user: dict = Depends(require_role(["agronomo", "admin"])),
@@ -112,7 +112,7 @@ async def atualizar_analise(
 @router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
 async def deletar_analise(
     id: UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A1_PLANEJAMENTO")),
     user: dict = Depends(require_role(["agronomo", "admin"])),
@@ -129,7 +129,7 @@ async def recomendacoes_analise(
     cultura: Optional[str] = Query("SOJA", description="Nome da cultura (fallback se cultura_id não informado)"),
     regiao: Optional[str] = Query(None, description="CERRADO | SUL | NORDESTE | SUDESTE | NORTE"),
     v_meta: Optional[float] = Query(None, description="Saturação por bases alvo (%) — usa padrão da cultura se omitido"),
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A1_PLANEJAMENTO")),
     _tier: None = Depends(require_tier(PlanTier.PROFISSIONAL)),
@@ -148,7 +148,7 @@ async def recomendacoes_analise(
 @router.get("/{id}/inteligencia")
 async def analise_inteligente(
     id: UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A1_PLANEJAMENTO")),
     _tier: None = Depends(require_tier(PlanTier.PROFISSIONAL)),
@@ -161,7 +161,7 @@ async def analise_inteligente(
 async def gerar_tarefas_analise(
     id: UUID,
     safra_id: UUID = Query(..., description="ID da safra para vincular as tarefas"),
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     user: dict = Depends(require_role(["agronomo", "admin"])),
     _: None = Depends(require_module("A1_PLANEJAMENTO")),

@@ -6,7 +6,7 @@ from datetime import date, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.dependencies import get_tenant_id, require_module
-from core.dependencies import get_session_with_tenant
+from core.dependencies import get_session
 from agricola.climatico.schemas import ClimaResponse
 from agricola.climatico.service import ClimaService
 
@@ -15,7 +15,7 @@ router = APIRouter(prefix="/climatico", tags=["Clima e Pluviometria"])
 @router.post("/sincronizar/{unidade_produtiva_id}", status_code=status.HTTP_202_ACCEPTED)
 async def sincronizar_api_clima(
     unidade_produtiva_id: UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A1_PLANEJAMENTO")),
 ):
@@ -27,7 +27,7 @@ async def sincronizar_api_clima(
 async def historico_clima(
     unidade_produtiva_id: UUID,
     dias: int = 30,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A1_PLANEJAMENTO")),
 ):
@@ -41,7 +41,7 @@ async def historico_clima(
 async def acumulado_chuva(
     unidade_produtiva_id: UUID,
     dias: int = 30,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A1_PLANEJAMENTO")),
 ):

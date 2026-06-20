@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.constants import PlanTier
 from core.dependencies import get_tenant_id, get_user_id, require_module, require_tier
-from core.dependencies import get_session_with_tenant
+from core.dependencies import get_session
 from operacional.schemas.frota_dashboard_detail import FrotaDashboardDetalheResponse
 from operacional.schemas.frota_dashboard import FrotaDashboardResponse
 from operacional.schemas.frota_checklist import (
@@ -93,7 +93,7 @@ router = APIRouter(prefix="/frota", tags=["Frota — Maquinários"])
 )
 async def criar_checklist_operacional(
     dados: ChecklistOperacionalCreate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("O1_FROTA")),
     _tier: None = Depends(require_tier(PlanTier.PROFISSIONAL)),
@@ -111,7 +111,7 @@ async def listar_checklists_operacionais(
     tipo_jornada: str | None = None,
     skip: int = Query(0, ge=0),
     limit: int | None = Query(None, ge=1, le=200),
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("O1_FROTA")),
     _tier: None = Depends(require_tier(PlanTier.PROFISSIONAL)),
@@ -128,7 +128,7 @@ async def listar_checklists_operacionais(
 @router.post("/checklists/respostas", response_model=ChecklistOperacionalPreenchimentoResponse)
 async def registrar_respostas_checklist_operacional(
     dados: ChecklistOperacionalPreenchimentoCreate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     user_id: UUID | None = Depends(get_user_id),
     _: None = Depends(require_module("O1_FROTA")),
@@ -145,7 +145,7 @@ async def registrar_respostas_checklist_operacional(
 @router.get("/dashboard", response_model=FrotaDashboardResponse)
 async def obter_dashboard_executivo(
     unidade_produtiva_id: UUID | None = None,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("O1_FROTA"))
 ):
@@ -158,7 +158,7 @@ async def obter_detalhe_equipamento_dashboard(
     equipamento_id: UUID,
     periodo_dias: int | None = None,
     unidade_produtiva_id: UUID | None = None,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("O1_FROTA"))
 ):
@@ -173,7 +173,7 @@ async def obter_detalhe_equipamento_dashboard(
 @router.get("/manutencao-preventiva", response_model=FrotaPreventivaListResponse)
 async def listar_manutencao_preventiva(
     unidade_produtiva_id: UUID | None = None,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("O1_FROTA")),
     _tier: None = Depends(require_tier(PlanTier.PROFISSIONAL)),
@@ -189,7 +189,7 @@ async def listar_manutencao_preventiva(
 async def listar_manutencao_preventiva_por_equipamento(
     equipamento_id: UUID,
     unidade_produtiva_id: UUID | None = None,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("O1_FROTA")),
     _tier: None = Depends(require_tier(PlanTier.PROFISSIONAL)),
@@ -205,7 +205,7 @@ async def listar_manutencao_preventiva_por_equipamento(
 async def gerar_os_preventiva(
     plano_id: UUID,
     unidade_produtiva_id: UUID | None = None,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("O1_FROTA")),
     _tier: None = Depends(require_tier(PlanTier.PROFISSIONAL)),
@@ -220,7 +220,7 @@ async def gerar_os_preventiva(
 @router.get("/consumo", response_model=FrotaConsumoResponse)
 async def obter_resumo_consumo(
     unidade_produtiva_id: UUID | None = None,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("O1_FROTA")),
     _tier: None = Depends(require_tier(PlanTier.PROFISSIONAL)),
@@ -233,7 +233,7 @@ async def obter_resumo_consumo(
 async def obter_consumo_equipamento(
     equipamento_id: UUID,
     unidade_produtiva_id: UUID | None = None,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("O1_FROTA")),
     _tier: None = Depends(require_tier(PlanTier.PROFISSIONAL)),
@@ -248,7 +248,7 @@ async def obter_consumo_equipamento(
 @router.get("/consumo/ranking", response_model=FrotaConsumoRankingResponse)
 async def obter_ranking_eficiencia(
     unidade_produtiva_id: UUID | None = None,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("O1_FROTA")),
     _tier: None = Depends(require_tier(PlanTier.PROFISSIONAL)),
@@ -264,7 +264,7 @@ async def exportar_dados_frota(
     unidade_produtiva_id: UUID | None = None,
     periodo_dias: int | None = Query(None, ge=1, le=3650),
     tipo_equipamento: str | None = None,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("O1_FROTA")),
     _tier: None = Depends(require_tier(PlanTier.PROFISSIONAL)),
@@ -305,7 +305,7 @@ async def exportar_dados_frota(
 @router.get("/disponibilidade", response_model=FrotaDisponibilidadeResponse)
 async def obter_disponibilidade_operacional(
     unidade_produtiva_id: UUID | None = None,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("O1_FROTA")),
     _tier: None = Depends(require_tier(PlanTier.PROFISSIONAL)),
@@ -321,7 +321,7 @@ async def obter_disponibilidade_operacional(
 async def obter_disponibilidade_equipamento(
     equipamento_id: UUID,
     unidade_produtiva_id: UUID | None = None,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("O1_FROTA")),
     _tier: None = Depends(require_tier(PlanTier.PROFISSIONAL)),
@@ -341,7 +341,7 @@ async def bloquear_equipamento_operacional(
     equipamento_id: UUID,
     dados: FrotaDisponibilidadeBloqueioRequest,
     unidade_produtiva_id: UUID | None = None,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("O1_FROTA")),
     _tier: None = Depends(require_tier(PlanTier.PROFISSIONAL)),
@@ -361,7 +361,7 @@ async def bloquear_equipamento_operacional(
 async def liberar_equipamento_operacional(
     equipamento_id: UUID,
     unidade_produtiva_id: UUID | None = None,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("O1_FROTA")),
     _tier: None = Depends(require_tier(PlanTier.PROFISSIONAL)),
@@ -378,7 +378,7 @@ async def obter_custos_frota(
     periodo_dias: int | None = None,
     unidade_produtiva_id: UUID | None = None,
     tipo_equipamento: str | None = None,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("O1_FROTA")),
     _tier: None = Depends(require_tier(PlanTier.PROFISSIONAL)),
@@ -396,7 +396,7 @@ async def obter_custo_equipamento(
     equipamento_id: UUID,
     periodo_dias: int | None = None,
     unidade_produtiva_id: UUID | None = None,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("O1_FROTA")),
     _tier: None = Depends(require_tier(PlanTier.PROFISSIONAL)),
@@ -414,7 +414,7 @@ async def obter_ranking_custos(
     periodo_dias: int | None = None,
     unidade_produtiva_id: UUID | None = None,
     tipo_equipamento: str | None = None,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("O1_FROTA")),
     _tier: None = Depends(require_tier(PlanTier.PROFISSIONAL)),
@@ -435,7 +435,7 @@ async def listar_jornadas_frota(
     periodo_dias: int | None = None,
     skip: int = Query(0, ge=0),
     limit: int | None = Query(None, ge=1, le=500),
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("O1_FROTA")),
     _tier: None = Depends(require_tier(PlanTier.PROFISSIONAL)),
@@ -454,7 +454,7 @@ async def listar_jornadas_frota(
 @router.post("/jornadas", response_model=FrotaJornadaDetailResponse, status_code=status.HTTP_201_CREATED)
 async def criar_jornada_frota(
     dados: FrotaJornadaCreate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     user_id: UUID | None = Depends(get_user_id),
     _: None = Depends(require_module("O1_FROTA")),
@@ -469,7 +469,7 @@ async def criar_jornada_frota(
 @router.get("/jornadas/{jornada_id}", response_model=FrotaJornadaDetailResponse)
 async def detalhar_jornada_frota(
     jornada_id: UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("O1_FROTA")),
     _tier: None = Depends(require_tier(PlanTier.PROFISSIONAL)),
@@ -482,7 +482,7 @@ async def detalhar_jornada_frota(
 async def atualizar_jornada_frota(
     jornada_id: UUID,
     dados: FrotaJornadaUpdate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("O1_FROTA")),
     _tier: None = Depends(require_tier(PlanTier.PROFISSIONAL)),
@@ -495,7 +495,7 @@ async def atualizar_jornada_frota(
 async def finalizar_jornada_frota(
     jornada_id: UUID,
     dados: FrotaJornadaFinalizarRequest,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     user_id: UUID | None = Depends(get_user_id),
     _: None = Depends(require_module("O1_FROTA")),
@@ -511,7 +511,7 @@ async def finalizar_jornada_frota(
 async def cancelar_jornada_frota(
     jornada_id: UUID,
     dados: FrotaJornadaCancelarRequest | None = None,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("O1_FROTA")),
     _tier: None = Depends(require_tier(PlanTier.PROFISSIONAL)),
@@ -523,7 +523,7 @@ async def cancelar_jornada_frota(
 @router.get("/inteligencia", response_model=FrotaInteligenciaResponse)
 async def obter_inteligencia_frota(
     unidade_produtiva_id: UUID | None = None,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("O1_FROTA")),
     _tier: None = Depends(require_tier(PlanTier.ENTERPRISE)),
@@ -536,7 +536,7 @@ async def obter_inteligencia_frota(
 async def obter_inteligencia_equipamento_frota(
     equipamento_id: UUID,
     unidade_produtiva_id: UUID | None = None,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("O1_FROTA")),
     _tier: None = Depends(require_tier(PlanTier.ENTERPRISE)),
@@ -551,7 +551,7 @@ async def obter_inteligencia_equipamento_frota(
 @router.get("/agricultura/resumo", response_model=FrotaAgriculturaResponse)
 async def obter_resumo_frota_agricultura(
     unidade_produtiva_id: UUID | None = None,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("O1_FROTA")),
     _tier: None = Depends(require_tier(PlanTier.ENTERPRISE)),
@@ -564,7 +564,7 @@ async def obter_resumo_frota_agricultura(
 async def obter_frota_agricultura_equipamento(
     equipamento_id: UUID,
     unidade_produtiva_id: UUID | None = None,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("O1_FROTA")),
     _tier: None = Depends(require_tier(PlanTier.ENTERPRISE)),
@@ -580,7 +580,7 @@ async def obter_frota_agricultura_equipamento(
 async def obter_frota_agricultura_safra(
     safra_id: UUID,
     unidade_produtiva_id: UUID | None = None,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("O1_FROTA")),
     _tier: None = Depends(require_tier(PlanTier.ENTERPRISE)),
@@ -593,7 +593,7 @@ async def obter_frota_agricultura_safra(
 async def obter_frota_agricultura_talhao(
     talhao_id: UUID,
     unidade_produtiva_id: UUID | None = None,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("O1_FROTA")),
     _tier: None = Depends(require_tier(PlanTier.ENTERPRISE)),
@@ -605,7 +605,7 @@ async def obter_frota_agricultura_talhao(
 @router.get("/agricultura/operacoes", response_model=FrotaAgriculturaOperacoesResponse)
 async def obter_frota_agricultura_operacoes(
     unidade_produtiva_id: UUID | None = None,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("O1_FROTA")),
     _tier: None = Depends(require_tier(PlanTier.ENTERPRISE)),
@@ -616,7 +616,7 @@ async def obter_frota_agricultura_operacoes(
 @router.post("/", response_model=MaquinarioResponse, status_code=status.HTTP_201_CREATED)
 async def criar_maquinario(
     dados: MaquinarioCreate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("O1_FROTA"))
 ):
@@ -631,7 +631,7 @@ async def listar_maquinarios(
     unidade_produtiva_id: UUID | None = None,
     skip: int = Query(0, ge=0),
     limit: int | None = Query(None, ge=1, le=500),
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("O1_FROTA"))
 ):
@@ -643,7 +643,7 @@ async def listar_maquinarios(
 @router.get("/{id}", response_model=MaquinarioResponse)
 async def detalhar_maquinario(
     id: UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("O1_FROTA"))
 ):
@@ -654,7 +654,7 @@ async def detalhar_maquinario(
 async def atualizar_maquinario(
     id: UUID,
     dados: MaquinarioUpdate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("O1_FROTA"))
 ):
@@ -669,7 +669,7 @@ async def atualizar_maquinario(
 @router.post("/planos/", response_model=PlanoManutencaoResponse)
 async def criar_plano(
     dados: PlanoManutencaoCreate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("O1_FROTA")),
     _tier: None = Depends(require_tier(PlanTier.PROFISSIONAL)),
@@ -683,7 +683,7 @@ async def criar_plano(
 @router.get("/{maquinario_id}/planos", response_model=List[PlanoManutencaoResponse])
 async def listar_planos(
     maquinario_id: UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("O1_FROTA")),
     _tier: None = Depends(require_tier(PlanTier.PROFISSIONAL)),
@@ -696,7 +696,7 @@ async def listar_planos(
 @router.post("/os/", response_model=OrdemServicoResponse)
 async def abrir_ordem_servico(
     dados: OrdemServicoCreate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     user_id: UUID | None = Depends(get_user_id),
     _: None = Depends(require_module("O1_FROTA"))
@@ -708,7 +708,7 @@ async def abrir_ordem_servico(
 async def adicionar_peça_os(
     os_id: UUID,
     dados: ItemOrdemServicoCreate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     user_id: UUID | None = Depends(get_user_id),
     _: None = Depends(require_module("O1_FROTA"))
@@ -720,7 +720,7 @@ async def adicionar_peça_os(
 async def fechar_ordem_servico(
     os_id: UUID,
     dados: OrdemServicoUpdate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     user_id: UUID | None = Depends(get_user_id),
     _: None = Depends(require_module("O1_FROTA"))
@@ -733,7 +733,7 @@ async def fechar_ordem_servico(
 @router.post("/importar/abastecimentos", status_code=status.HTTP_200_OK)
 async def importar_abastecimentos(
     file: UploadFile = File(...),
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("O1_FROTA"))
 ):
@@ -745,7 +745,7 @@ async def importar_abastecimentos(
 @router.post("/importar/manutencoes", status_code=status.HTTP_200_OK)
 async def importar_manutencoes(
     file: UploadFile = File(...),
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("O1_FROTA"))
 ):
@@ -758,7 +758,7 @@ async def importar_manutencoes(
 
 @router.get("/inteligencia/regras", response_model=list[FrotaRegraInteligenteSchema])
 async def listar_regras_automacao(
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("O1_FROTA")),
     _tier: None = Depends(require_tier(PlanTier.ENTERPRISE)),
@@ -770,7 +770,7 @@ async def listar_regras_automacao(
 async def atualizar_regra_automacao(
     regra_id: UUID,
     dados: FrotaRegraInteligenteUpdate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("O1_FROTA")),
     _tier: None = Depends(require_tier(PlanTier.ENTERPRISE)),
@@ -780,7 +780,7 @@ async def atualizar_regra_automacao(
 
 @router.get("/inteligencia/automacoes/logs", response_model=list[FrotaLogAutomacaoSchema])
 async def listar_logs_automacao(
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("O1_FROTA")),
     _tier: None = Depends(require_tier(PlanTier.ENTERPRISE)),
@@ -800,7 +800,7 @@ async def listar_logs_automacao(
 
 @router.get("/inteligencia/automacoes/metricas")
 async def obter_metricas_automacao(
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("O1_FROTA")),
     _tier: None = Depends(require_tier(PlanTier.ENTERPRISE)),
@@ -813,7 +813,7 @@ async def obter_metricas_automacao(
 
 @router.get("/inteligencia/benchmark")
 async def obter_benchmark_frota(
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("O1_FROTA")),
     _tier: None = Depends(require_tier(PlanTier.ENTERPRISE)),

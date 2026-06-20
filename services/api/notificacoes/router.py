@@ -5,7 +5,7 @@ from typing import List, Optional
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.dependencies import get_tenant_id, get_session_with_tenant, get_current_admin
+from core.dependencies import get_tenant_id, get_session, get_current_admin
 from core.database import async_session_maker
 from notificacoes.models import Notificacao
 from notificacoes.schemas import NotificacaoCreate, NotificacaoResponse, MarcarLidasRequest, NotificacaoPreferenciaUpdate, NotificacaoPreferenciaResponse
@@ -23,7 +23,7 @@ router = APIRouter(prefix="/notificacoes", tags=["Notificações"])
 async def listar(
     lida: Optional[bool] = None,
     limit: int = 50,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
 ):
     svc = NotificacaoService(session, tenant_id)
@@ -32,7 +32,7 @@ async def listar(
 
 @router.get("/nao-lidas-count")
 async def count_nao_lidas(
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
 ):
     svc = NotificacaoService(session, tenant_id)
@@ -42,7 +42,7 @@ async def count_nao_lidas(
 @router.post("/marcar-lidas")
 async def marcar_lidas(
     dados: MarcarLidasRequest,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
 ):
     svc = NotificacaoService(session, tenant_id)
@@ -53,7 +53,7 @@ async def marcar_lidas(
 @router.post("/", response_model=NotificacaoResponse, status_code=status.HTTP_201_CREATED)
 async def criar(
     dados: NotificacaoCreate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
 ):
     svc = NotificacaoService(session, tenant_id)
@@ -62,7 +62,7 @@ async def criar(
 
 @router.get("/preferencias", response_model=List[NotificacaoPreferenciaResponse])
 async def listar_preferencias(
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     current_user: dict = Depends(get_current_user),
 ):
@@ -80,7 +80,7 @@ async def listar_preferencias(
 async def atualizar_preferencia(
     tipo: str,
     dados: NotificacaoPreferenciaUpdate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     current_user: dict = Depends(get_current_user),
 ):
@@ -124,7 +124,7 @@ async def atualizar_preferencia(
 
 @router.post("/demo")
 async def gerar_demo(
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
 ):
     """Cria notificações de demonstração para testar o sistema."""
@@ -163,7 +163,7 @@ async def gerar_demo(
 @router.post("/sincronizar", response_model=List[NotificacaoResponse])
 async def sincronizar_notificacoes(
     safra_id: UUID = Query(...),
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
 ):
     """Cria notificações a partir das ações pendentes do plano de ação da safra."""
@@ -174,7 +174,7 @@ async def sincronizar_notificacoes(
 @router.patch("/{notificacao_id}/lida", response_model=NotificacaoResponse)
 async def marcar_uma_lida(
     notificacao_id: UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
 ):
     svc = NotificacaoService(session, tenant_id)

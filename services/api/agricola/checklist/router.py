@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, status
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.dependencies import get_tenant_id, require_module, require_role, get_session_with_tenant
+from core.dependencies import get_tenant_id, require_module, require_role, get_session
 from agricola.checklist.schemas import (
     ChecklistTemplateCreate, ChecklistTemplateUpdate, ChecklistTemplateResponse,
     ChecklistItemConcluidoUpdate, ChecklistItemAdicionar,
@@ -25,7 +25,7 @@ router = APIRouter(tags=["Checklist Agrícola"])
 async def listar_templates(
     cultura: str | None = None,
     fase: str | None = None,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A1_PLANEJAMENTO")),
 ):
@@ -41,7 +41,7 @@ async def listar_templates(
 )
 async def criar_template(
     dados: ChecklistTemplateCreate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A1_PLANEJAMENTO")),
     user: dict = Depends(require_role(["agronomo", "admin"])),
@@ -61,7 +61,7 @@ async def criar_template(
 async def atualizar_template(
     template_id: UUID,
     dados: ChecklistTemplateUpdate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A1_PLANEJAMENTO")),
     user: dict = Depends(require_role(["agronomo", "admin"])),
@@ -77,7 +77,7 @@ async def atualizar_template(
 )
 async def desativar_template(
     template_id: UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A1_PLANEJAMENTO")),
     user: dict = Depends(require_role(["agronomo", "admin"])),
@@ -97,7 +97,7 @@ async def gerar_checklist_fase(
     safra_id: UUID,
     fase: str,
     cultura: str,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A1_PLANEJAMENTO")),
 ):
@@ -113,7 +113,7 @@ async def gerar_checklist_fase(
 async def status_checklist_fase(
     safra_id: UUID,
     fase: str,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A1_PLANEJAMENTO")),
 ):
@@ -127,7 +127,7 @@ async def status_checklist_fase(
 )
 async def status_checklist_completo(
     safra_id: UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A1_PLANEJAMENTO")),
 ):
@@ -147,7 +147,7 @@ async def marcar_item_checklist(
     safra_id: UUID,
     item_id: UUID,
     dados: ChecklistItemConcluidoUpdate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A1_PLANEJAMENTO")),
     user: dict = Depends(require_role(["agronomo", "admin", "operador"])),
@@ -175,7 +175,7 @@ async def adicionar_item_checklist(
     safra_id: UUID,
     fase: str,
     dados: ChecklistItemAdicionar,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A1_PLANEJAMENTO")),
     user: dict = Depends(require_role(["agronomo", "admin"])),

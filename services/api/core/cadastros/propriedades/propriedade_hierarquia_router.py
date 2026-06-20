@@ -13,7 +13,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.dependencies import get_session_with_tenant, get_tenant_id
+from core.dependencies import get_session, get_tenant_id
 from core.exceptions import EntityNotFoundError
 from core.cadastros.propriedades.schemas import (
     PropriedadeComHierarquiaResponse,
@@ -35,7 +35,7 @@ router = APIRouter(
 @router.get("/{propriedade_id}/hierarquia", response_model=PropriedadeComHierarquiaResponse)
 async def obter_propriedade_com_hierarquia(
     propriedade_id: uuid.UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     try:
@@ -49,7 +49,7 @@ async def listar_areas_por_fazenda(
     propriedade_id: uuid.UUID,
     unidade_produtiva_id: uuid.UUID,
     tipo: Optional[str] = Query(None),
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     return await HierarquiaService(session, tenant_id).listar_areas_por_fazenda(
@@ -62,7 +62,7 @@ async def criar_area_rural(
     propriedade_id: uuid.UUID,
     unidade_produtiva_id: uuid.UUID,
     data: AreaRuralCreate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     area = await HierarquiaService(session, tenant_id).criar_area_rural(propriedade_id, unidade_produtiva_id, data)
@@ -75,7 +75,7 @@ async def atualizar_area_rural(
     unidade_produtiva_id: uuid.UUID,
     area_id: uuid.UUID,
     data: AreaRuralUpdate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     areas_service = AreaRuralService(AreaRural, session, tenant_id)
@@ -86,7 +86,7 @@ async def atualizar_area_rural(
 async def remover_area_rural(
     unidade_produtiva_id: uuid.UUID,
     area_id: uuid.UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     areas_service = AreaRuralService(AreaRural, session, tenant_id)

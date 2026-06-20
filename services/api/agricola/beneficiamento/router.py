@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.constants import PlanTier
 from core.dependencies import get_tenant_id, require_module, require_role, require_tier
-from core.dependencies import get_session_with_tenant
+from core.dependencies import get_session
 from agricola.beneficiamento.schemas import (
     LoteBeneficiamentoCreate,
     LoteBeneficiamentoUpdate,
@@ -30,7 +30,7 @@ router = APIRouter(
 @router.post("/", response_model=LoteBeneficiamentoResponse, status_code=status.HTTP_201_CREATED)
 async def criar_lote(
     dados: LoteBeneficiamentoCreate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     user: dict = Depends(require_role(["agronomo", "admin", "operador"])),
 ):
@@ -44,7 +44,7 @@ async def criar_lote(
 @router.get("/kpis", response_model=BeneficiamentoKPIs)
 async def kpis_beneficiamento(
     safra_id: UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
 ):
     svc = BeneficiamentoService(session, tenant_id)
@@ -54,7 +54,7 @@ async def kpis_beneficiamento(
 @router.get("/relatorio-rendimento", response_model=BeneficiamentoRelatorioRendimento)
 async def relatorio_rendimento(
     safra_id: UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
 ):
     """Gera relatório de rendimento por método de beneficiamento."""
@@ -66,7 +66,7 @@ async def relatorio_rendimento(
 async def listar_lotes(
     safra_id: UUID | None = None,
     status: str | None = None,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
 ):
     svc = BeneficiamentoService(session, tenant_id)
@@ -82,7 +82,7 @@ async def listar_lotes(
 @router.post("/from-romaneio/{romaneio_id}", response_model=LoteBeneficiamentoResponse, status_code=status.HTTP_201_CREATED)
 async def criar_lote_from_romaneio(
     romaneio_id: UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     user: dict = Depends(require_role(["agronomo", "admin", "operador"])),
 ):
@@ -97,7 +97,7 @@ async def criar_lote_from_romaneio(
 @router.post("/from-romaneios", response_model=LoteBeneficiamentoResponse, status_code=status.HTTP_201_CREATED)
 async def criar_lote_from_romaneios(
     req: LoteFromRomaneiosRequest,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     user: dict = Depends(require_role(["agronomo", "admin", "operador"])),
 ):
@@ -110,7 +110,7 @@ async def criar_lote_from_romaneios(
 @router.post("/{id}/gerar-venda", response_model=dict)
 async def gerar_venda_from_lote(
     id: UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     user: dict = Depends(require_role(["agronomo", "admin"])),
 ):
@@ -123,7 +123,7 @@ async def gerar_venda_from_lote(
 @router.post("/{id}/armazenar", response_model=dict)
 async def armazenar_lote(
     id: UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     user: dict = Depends(require_role(["agronomo", "admin"])),
 ):
@@ -136,7 +136,7 @@ async def armazenar_lote(
 @router.get("/{id}", response_model=LoteBeneficiamentoResponse)
 async def detalhar_lote(
     id: UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
 ):
     svc = BeneficiamentoService(session, tenant_id)
@@ -148,7 +148,7 @@ async def detalhar_lote(
 async def atualizar_lote(
     id: UUID,
     dados: LoteBeneficiamentoUpdate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     user: dict = Depends(require_role(["agronomo", "admin"])),
 ):
@@ -160,7 +160,7 @@ async def atualizar_lote(
 @router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
 async def excluir_lote(
     id: UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     user: dict = Depends(require_role(["admin"])),
 ):

@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.constants import PlanTier
-from core.dependencies import get_tenant_id, get_session_with_tenant, require_module, require_tier
+from core.dependencies import get_tenant_id, get_session, require_module, require_tier
 from agricola.cenarios.schemas import (
     CenarioCreate,
     CenarioListItem,
@@ -25,7 +25,7 @@ MODULE = "A1_PLANEJAMENTO"
 @router.get("", response_model=List[CenarioListItem])
 async def list_cenarios(
     safra_id: UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module(MODULE)),
 ):
@@ -39,7 +39,7 @@ async def list_cenarios(
 async def create_cenario(
     safra_id: UUID,
     data: CenarioCreate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _module: None = Depends(require_module(MODULE)),
     _tier: None = Depends(require_tier(PlanTier.PROFISSIONAL)),
@@ -55,7 +55,7 @@ async def create_cenario(
 async def get_comparativo(
     safra_id: UUID,
     ids: List[UUID] = Query(..., description="IDs dos cenários a comparar"),
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _module: None = Depends(require_module(MODULE)),
     _tier: None = Depends(require_tier(PlanTier.PROFISSIONAL)),
@@ -67,7 +67,7 @@ async def get_comparativo(
 @router.post("/base/recalcular", response_model=CenarioResponse)
 async def recalcular_base(
     safra_id: UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module(MODULE)),
 ):
@@ -82,7 +82,7 @@ async def recalcular_base(
 async def get_cenario(
     safra_id: UUID,
     cenario_id: UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module(MODULE)),
 ):
@@ -95,7 +95,7 @@ async def update_cenario(
     safra_id: UUID,
     cenario_id: UUID,
     data: CenarioUpdate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module(MODULE)),
 ):
@@ -110,7 +110,7 @@ async def update_cenario(
 async def delete_cenario(
     safra_id: UUID,
     cenario_id: UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module(MODULE)),
 ):
@@ -124,7 +124,7 @@ async def duplicar_cenario(
     safra_id: UUID,
     cenario_id: UUID,
     data: DuplicarCenarioRequest,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _module: None = Depends(require_module(MODULE)),
     _tier: None = Depends(require_tier(PlanTier.PROFISSIONAL)),

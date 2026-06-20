@@ -5,7 +5,7 @@ from datetime import date, datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, ConfigDict
 
-from core.dependencies import get_tenant_id, get_session_with_tenant, require_module
+from core.dependencies import get_tenant_id, get_session, require_module
 from core.exceptions import EntityNotFoundError
 from ambiental.service import AmbientalService
 
@@ -167,8 +167,8 @@ class DashboardAmbientalResponse(BaseModel):
 
 @router.get("/dashboard", response_model=DashboardAmbientalResponse)
 async def dashboard_ambiental(
-    session: AsyncSession = Depends(get_session_with_tenant),
     tenant_id: UUID = Depends(get_tenant_id),
+    session: AsyncSession = Depends(get_session),
     _: None = Depends(require_module(MODULE)),
 ):
     svc = AmbientalService(session, tenant_id)
@@ -178,8 +178,8 @@ async def dashboard_ambiental(
 @router.get("/car", response_model=List[CARResponse])
 async def listar_cars(
     status_filter: Optional[str] = Query(None, alias="status"),
-    session: AsyncSession = Depends(get_session_with_tenant),
     tenant_id: UUID = Depends(get_tenant_id),
+    session: AsyncSession = Depends(get_session),
     _: None = Depends(require_module(MODULE)),
 ):
     svc = AmbientalService(session, tenant_id)
@@ -189,8 +189,8 @@ async def listar_cars(
 @router.post("/car", response_model=CARResponse, status_code=status.HTTP_201_CREATED)
 async def criar_car(
     dados: CARCreate,
-    session: AsyncSession = Depends(get_session_with_tenant),
     tenant_id: UUID = Depends(get_tenant_id),
+    session: AsyncSession = Depends(get_session),
     _: None = Depends(require_module(MODULE)),
 ):
     svc = AmbientalService(session, tenant_id)
@@ -204,8 +204,8 @@ async def criar_car(
 async def atualizar_car(
     car_id: UUID,
     dados: CARUpdate,
-    session: AsyncSession = Depends(get_session_with_tenant),
     tenant_id: UUID = Depends(get_tenant_id),
+    session: AsyncSession = Depends(get_session),
     _: None = Depends(require_module(MODULE)),
 ):
     svc = AmbientalService(session, tenant_id)
@@ -221,8 +221,8 @@ async def atualizar_car(
 @router.delete("/car/{car_id}", status_code=200)
 async def excluir_car(
     car_id: UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
     tenant_id: UUID = Depends(get_tenant_id),
+    session: AsyncSession = Depends(get_session),
     _: None = Depends(require_module(MODULE)),
 ):
     svc = AmbientalService(session, tenant_id)
@@ -241,8 +241,8 @@ async def listar_alertas(
     status_filter: Optional[str] = Query(None, alias="status"),
     severidade: Optional[str] = Query(None),
     tipo: Optional[str] = Query(None),
-    session: AsyncSession = Depends(get_session_with_tenant),
     tenant_id: UUID = Depends(get_tenant_id),
+    session: AsyncSession = Depends(get_session),
     _: None = Depends(require_module(MODULE)),
 ):
     svc = AmbientalService(session, tenant_id)
@@ -252,8 +252,8 @@ async def listar_alertas(
 @router.post("/alertas", response_model=AlertaResponse, status_code=status.HTTP_201_CREATED)
 async def criar_alerta(
     dados: AlertaCreate,
-    session: AsyncSession = Depends(get_session_with_tenant),
     tenant_id: UUID = Depends(get_tenant_id),
+    session: AsyncSession = Depends(get_session),
     _: None = Depends(require_module(MODULE)),
 ):
     svc = AmbientalService(session, tenant_id)
@@ -267,8 +267,8 @@ async def criar_alerta(
 async def atualizar_alerta(
     alerta_id: UUID,
     dados: AlertaUpdate,
-    session: AsyncSession = Depends(get_session_with_tenant),
     tenant_id: UUID = Depends(get_tenant_id),
+    session: AsyncSession = Depends(get_session),
     _: None = Depends(require_module(MODULE)),
 ):
     svc = AmbientalService(session, tenant_id)
@@ -286,8 +286,8 @@ async def atualizar_alerta(
 @router.get("/outorgas", response_model=List[OutorgaResponse])
 async def listar_outorgas(
     status_filter: Optional[str] = Query(None, alias="status"),
-    session: AsyncSession = Depends(get_session_with_tenant),
     tenant_id: UUID = Depends(get_tenant_id),
+    session: AsyncSession = Depends(get_session),
     _: None = Depends(require_module(MODULE)),
 ):
     svc = AmbientalService(session, tenant_id)
@@ -297,8 +297,8 @@ async def listar_outorgas(
 @router.post("/outorgas", response_model=OutorgaResponse, status_code=status.HTTP_201_CREATED)
 async def criar_outorga(
     dados: OutorgaCreate,
-    session: AsyncSession = Depends(get_session_with_tenant),
     tenant_id: UUID = Depends(get_tenant_id),
+    session: AsyncSession = Depends(get_session),
     _: None = Depends(require_module(MODULE)),
 ):
     svc = AmbientalService(session, tenant_id)
@@ -312,8 +312,8 @@ async def criar_outorga(
 async def atualizar_outorga(
     outorga_id: UUID,
     dados: OutorgaUpdate,
-    session: AsyncSession = Depends(get_session_with_tenant),
     tenant_id: UUID = Depends(get_tenant_id),
+    session: AsyncSession = Depends(get_session),
     _: None = Depends(require_module(MODULE)),
 ):
     svc = AmbientalService(session, tenant_id)

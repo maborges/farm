@@ -7,7 +7,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Query, HTTPException, status as http_status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.dependencies import get_session_with_tenant, get_tenant_id
+from core.dependencies import get_session, get_tenant_id
 from core.exceptions import EntityNotFoundError, BusinessRuleError
 from .schemas import ComercializacaoCreate, ComercializacaoUpdate, ComercializacaoResponse
 from .service import ComercializacaoService
@@ -20,7 +20,7 @@ async def listar(
     status: Optional[str] = Query(None),
     commodity_id: Optional[uuid.UUID] = Query(None),
     comprador_id: Optional[uuid.UUID] = Query(None),
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     svc = ComercializacaoService(session, tenant_id)
@@ -30,7 +30,7 @@ async def listar(
 @router.post("/", response_model=ComercializacaoResponse, status_code=201)
 async def criar(
     data: ComercializacaoCreate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     svc = ComercializacaoService(session, tenant_id)
@@ -46,7 +46,7 @@ async def criar(
 @router.get("/{comercializacao_id}", response_model=ComercializacaoResponse)
 async def obter(
     comercializacao_id: uuid.UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     svc = ComercializacaoService(session, tenant_id)
@@ -60,7 +60,7 @@ async def obter(
 async def atualizar(
     comercializacao_id: uuid.UUID,
     data: ComercializacaoUpdate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     svc = ComercializacaoService(session, tenant_id)
@@ -90,7 +90,7 @@ async def atualizar(
 @router.delete("/{comercializacao_id}", status_code=204)
 async def remover(
     comercializacao_id: uuid.UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     svc = ComercializacaoService(session, tenant_id)

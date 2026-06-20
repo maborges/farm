@@ -46,6 +46,7 @@ async def test_envio_resumo_agendado_logic():
     
     # Mock da sessão e do resultado da query
     mock_session = AsyncMock()
+    mock_session.add = MagicMock()
     mock_db.async_session_maker.return_value.__aenter__.return_value = mock_session
     
     pref = NotificacaoPreferencia(
@@ -61,12 +62,18 @@ async def test_envio_resumo_agendado_logic():
     # Mock do retorno do banco: (pref, user)
     mock_result = MagicMock()
     mock_result.all.return_value = [(pref, user)]
-    mock_session.execute.return_value = mock_result
-    
-    # Mock do check de duplicidade (não existe hoje)
+    mock_dup = MagicMock()
+    mock_dup.scalar_one_or_none.return_value = None
+    mock_safra = MagicMock()
+    mock_safra.scalar_one_or_none.return_value = uuid4()
+    mock_cooldown = MagicMock()
+    mock_cooldown.scalar_one_or_none.return_value = None
+
     mock_session.execute.side_effect = [
-        mock_result, # primeira chamada: busca agendados
-        MagicMock(scalar_one_or_none=MagicMock(return_value=None)) # segunda: check duplicidade
+        mock_result,   # primeira chamada: busca agendados
+        mock_dup,      # segunda: check duplicidade
+        mock_safra,    # terceira: resolve safra ativa
+        mock_cooldown,  # quarta: cooldown comercial
     ]
     
     # Mock do serviço de resumo
@@ -76,9 +83,11 @@ async def test_envio_resumo_agendado_logic():
     mock_resumo_data.risco_principal = "Risco"
     mock_resumo_data.oportunidade_principal = "Oportunidade"
     
-    with patch("notificacoes.resumo_diario_envio_service.ResumoDiarioService") as MockSvc:
+    with patch("notificacoes.resumo_diario_envio_service.ResumoDiarioService") as MockSvc, \
+         patch("notificacoes.resumo_diario_envio_service.IARecomendacaoUpgradeService") as MockRecSvc:
         instance = MockSvc.return_value
         instance.obter_resumo = AsyncMock(return_value=mock_resumo_data)
+        MockRecSvc.get_recomendacao = AsyncMock(return_value={"deve_recomendar": False})
         
         await EnvioResumoDiarioService.enviar_resumos_agendados()
         

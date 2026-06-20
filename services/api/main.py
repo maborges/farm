@@ -196,8 +196,7 @@ class TenantRLSMiddleware(BaseHTTPMiddleware):
     """
     Extrai tenant_id do JWT (sem verificar exp) e grava em request.state.rls_tenant_id.
     get_session() usa esse valor para ativar RLS automaticamente em PostgreSQL,
-    garantindo isolamento mesmo em routers que usam get_session em vez de
-    get_session_with_tenant.
+    garantindo isolamento mesmo em routers que usam get_session diretamente.
     """
     _SKIP_PATHS = ("/api/v1/auth/", "/docs", "/openapi", "/health", "/static")
 

@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from fastapi.responses import Response
 from core.constants import PlanTier
-from core.dependencies import get_tenant_id, require_module, require_role, require_tier, get_session_with_tenant, get_current_user
+from core.dependencies import get_tenant_id, require_module, require_role, require_tier, get_session, get_current_user
 from agricola.rastreabilidade.schemas import (
     LoteRastreabilidadeCreate, LoteRastreabilidadeResponse,
     CertificacaoCreate, CertificacaoResponse,
@@ -27,7 +27,7 @@ router = APIRouter(
 @router.post("/lotes", response_model=LoteRastreabilidadeResponse, status_code=status.HTTP_201_CREATED)
 async def criar_lote(
     dados: LoteRastreabilidadeCreate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
 ):
     svc = RastreabilidadeService(session, tenant_id)
@@ -36,7 +36,7 @@ async def criar_lote(
 @router.get("/lotes/{lote_id}/cadeia")
 async def cadeia_rastreabilidade(
     lote_id: UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
 ):
     """Retorna a cadeia completa: lote → safra → talhão → operações + insumos → romaneios."""
@@ -47,7 +47,7 @@ async def cadeia_rastreabilidade(
 @router.get("/lotes", response_model=List[LoteRastreabilidadeResponse])
 async def listar_lotes(
     safra_id: UUID | None = None,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
 ):
     svc = RastreabilidadeService(session, tenant_id)
@@ -59,7 +59,7 @@ async def listar_lotes(
 @router.get("/produto-colhido/{produto_colhido_id}")
 async def rastreabilidade_produto_colhido(
     produto_colhido_id: UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
 ):
     """
@@ -233,7 +233,7 @@ async def rastreabilidade_produto_colhido(
 @router.post("/certificacoes", response_model=CertificacaoResponse, status_code=status.HTTP_201_CREATED)
 async def criar_certificacao(
     dados: CertificacaoCreate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
 ):
     svc = CertificacaoService(session, tenant_id)
@@ -242,7 +242,7 @@ async def criar_certificacao(
 @router.get("/certificacoes", response_model=List[CertificacaoResponse])
 async def listar_certificacoes(
     unidade_produtiva_id: UUID | None = None,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
 ):
     svc = CertificacaoService(session, tenant_id)
@@ -254,7 +254,7 @@ async def listar_certificacoes(
 @router.post("/lotes-comerciais", response_model=LoteComercialResponse, status_code=status.HTTP_201_CREATED)
 async def criar_lote_comercial(
     dados: LoteComercialCreate,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
 ):
     svc = LoteComercialService(session, tenant_id)
@@ -265,7 +265,7 @@ async def criar_lote_comercial(
 async def gerar_snapshot_lote_comercial(
     id: UUID,
     usuario = Depends(get_current_user),
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
 ):
     svc = LoteComercialService(session, tenant_id)
@@ -275,7 +275,7 @@ async def gerar_snapshot_lote_comercial(
 @router.get("/lotes-comerciais/{id}/qrcode")
 async def obter_qrcode_lote_comercial(
     id: UUID,
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
 ):
     svc = LoteComercialService(session, tenant_id)

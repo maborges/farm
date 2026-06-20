@@ -32,7 +32,7 @@ versao: 1.0
 | `core/models/auth.py` | ✅ Completo | `Usuario`, `PerfilAcesso`, `TenantUsuario`, `FazendaUsuario`, `ConviteAcesso` |
 | `core/routers/auth.py` | ✅ Completo | Login, register, get-me |
 | `core/services/auth_service.py` | ✅ Existe | Autenticação JWT |
-| `core/dependencies.py` | ✅ Completo | `get_tenant_id`, `get_session_with_tenant`, `require_module` |
+| `core/dependencies.py` | ✅ Completo | `get_tenant_id`, `get_session`, `require_module` |
 | `core/constants.py` | ✅ Completo | `Modulos` enum, `PlanTier` |
 
 ### ⚠️ Gaps Identificados
@@ -113,7 +113,7 @@ PRIORIDADE BAIXA:
 
 | Gap | Especificação | Implementação Atual | Prioridade |
 |-----|---------------|---------------------|------------|
-| **Isolamento de dados por propriedade** | RLS no PostgreSQL | ⚠️ `get_session_with_tenant` seta `app.current_tenant_id` mas não confirma se RLS está ativo | Alta |
+| **Isolamento de dados por propriedade** | RLS no PostgreSQL | ⚠️ `get_session` aplica `app.current_tenant_id` via middleware, mas vale testar as policies de RLS | Alta |
 | **Painel consolidado entre propriedades** | Dashboard multi-fazenda | ❌ Não implementado | Média |
 | **Seletor de contexto de fazenda** | Frontend + API | ⚠️ Tem `FazendaUsuario` mas não tem endpoint para troca de contexto | Média |
 

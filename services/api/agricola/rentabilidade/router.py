@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.constants import Modulos, PlanTier
 from core.dependencies import (
-    get_session_with_tenant,
+    get_session,
     get_tenant_id,
     require_module,
     require_tenant_permission,
@@ -40,7 +40,7 @@ async def rentabilidade_agricola_v1(
     data_inicio: date | None = Query(None, description="Período opcional da visão de rentabilidade"),
     data_fim: date | None = Query(None, description="Período opcional da visão de rentabilidade"),
     tenant_id: UUID = Depends(get_tenant_id),
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     _: None = Depends(require_tenant_permission("agricola:safras:view")),
 ):
     svc = RentabilidadeAgricolaV1Service(session, tenant_id)

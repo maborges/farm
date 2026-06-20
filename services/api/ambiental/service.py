@@ -10,6 +10,8 @@ from .models import RegistroCAR, AlertaAmbiental, OutorgaHidrica, StatusCAR, Sta
 
 
 class AmbientalService(BaseService[RegistroCAR]):
+    def __init__(self, session: AsyncSession, tenant_id):
+        super().__init__(RegistroCAR, session, tenant_id)
 
     # ── Dashboard ─────────────────────────────────────────────────────────────
 

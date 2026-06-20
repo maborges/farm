@@ -350,7 +350,6 @@ class OnboardingStatusResponse(BaseModel):
     summary="Retorna status do wizard de onboarding para o tenant ativo"
 )
 async def onboarding_status(
-    claims: dict = Depends(get_current_user_claims),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
     session: AsyncSession = Depends(get_session),
 ):

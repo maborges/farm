@@ -10,7 +10,7 @@ from agricola.dre.service import DREAgricolaV1Service
 from agricola.dre.schemas import DREAgricolaResponse
 from core.constants import PlanTier, Modulos
 from core.dependencies import (
-    get_session_with_tenant,
+    get_session,
     get_tenant_id,
     require_module,
     require_tenant_permission,
@@ -39,7 +39,7 @@ async def dre_agricola_v1(
     data_inicio: date | None = Query(None, description="Período opcional reservado para futuras janelas"),
     data_fim: date | None = Query(None, description="Período opcional reservado para futuras janelas"),
     tenant_id: UUID = Depends(get_tenant_id),
-    session: AsyncSession = Depends(get_session_with_tenant),
+    session: AsyncSession = Depends(get_session),
     _: None = Depends(require_tenant_permission("agricola:safras:view")),
 ):
     """
