@@ -91,7 +91,7 @@ As regras de valuation e a leitura econômica oficial do estoque devem seguir [M
 - [ ] CRUD de Produto e Almoxarifado com isolamento tenant
 - [ ] Movimentações de entrada, saída e transferência
 - [ ] Consulta de saldo em tempo real
-- [ ] Testes de isolamento multi-tenant
+- [ ] Testes de isolamento multi-tenant validados
 - [ ] API documentada no Swagger
 
 ## Sugestões de Melhoria Futura

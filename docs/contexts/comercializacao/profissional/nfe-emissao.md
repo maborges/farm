@@ -115,7 +115,7 @@ Emissão de Nota Fiscal Eletrônica (NF-e) do produtor rural, modelo 55, diretam
 - [ ] Gerenciamento de certificado digital (upload, validade)
 - [ ] Modo contingência quando SEFAZ indisponível
 - [ ] Listagem com filtros (período, status, destinatário)
-- [ ] Isolamento por tenant e fazenda
+- [ ] Isolamento multi-tenant e fazenda validado
 - [ ] Testes com SEFAZ de homologação
 
 ## Sugestões de Melhoria Futura

@@ -104,7 +104,7 @@ Gestão de romaneios de entrega e pesagem da produção. O romaneio é o documen
 - [ ] Impressão de comprovante de romaneio
 - [ ] Filtros por venda, comprador, período, produto e status
 - [ ] Cancelamento com justificativa e estorno
-- [ ] Isolamento por tenant e fazenda
+- [ ] Isolamento multi-tenant e fazenda validado
 - [ ] Testes de integração para fluxo completo
 
 ## Sugestões de Melhoria Futura

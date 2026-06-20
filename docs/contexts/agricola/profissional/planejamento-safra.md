@@ -196,7 +196,7 @@ Funcionalidades principais:
 - [ ] Checklist templates com CRUD e instanciamento por safra
 - [ ] Validação ZARC integrada ao planejamento
 - [ ] Detecção de conflito de alocação de maquinário
-- [ ] Tenant isolation e RBAC testados
+- [ ] Isolamento multi-tenant e RBAC testados com `get_tenant_id()`/`get_session` e RLS
 - [ ] Geração de relatório para financiamento bancário
 - [ ] Benchmark de produtividade com dados CONAB
 

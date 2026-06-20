@@ -164,7 +164,7 @@ Funcionalidades principais:
 - [ ] Webhook de despesa disparado ao registrar custo
 - [ ] Filtros por tipo, safra, talhão, período e status
 - [ ] Apontamentos com foto e geolocalização funcionando no mobile
-- [ ] Tenant isolation testado em todas as rotas
+- [ ] Isolamento multi-tenant validado em todas as rotas via `get_tenant_id()`/`get_session` e RLS
 - [ ] Permissões RBAC: `agricola:operacoes:create/read/update/delete`
 - [ ] Validação de fase da safra vs tipo de operação (warning)
 - [ ] Validação de receituário agronômico para pulverizações

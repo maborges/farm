@@ -80,7 +80,7 @@ Checklist pre-operacao obrigatorio que o operador deve preencher antes de utiliz
 - [ ] Checklist imutavel apos submissao
 - [ ] Notificacao ao gestor quando equipamento bloqueado
 - [ ] Historico de checklists consultavel por equipamento e periodo
-- [ ] Isolamento por tenant
+- [ ] Isolamento multi-tenant validado
 
 ## Sugestoes de Melhoria Futura
 

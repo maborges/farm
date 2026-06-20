@@ -112,7 +112,7 @@ Gestão de contratos de venda futura da produção agropecuária. Permite regist
 - [ ] Upload de documentos do contrato
 - [ ] Dashboard de contratos com saldos e vencimentos
 - [ ] Relatório de posição comercial (contratado vs. entregue vs. estoque)
-- [ ] Isolamento por tenant e fazenda
+- [ ] Isolamento multi-tenant e fazenda validado
 - [ ] Testes de integração para fluxo completo
 
 ## Sugestões de Melhoria Futura

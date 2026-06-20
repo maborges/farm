@@ -23,7 +23,7 @@ Gestao completa de veiculos, maquinas agricolas e implementos, desde o cadastro 
 
 ## Dependencias Core
 
-- Identidade e Acesso (autenticacao, RBAC)
+- Identidade e Acesso (autorizacao, RBAC)
 - Cadastro da Propriedade (fazendas, talhoes)
 
 ## Integracao com Outros Modulos

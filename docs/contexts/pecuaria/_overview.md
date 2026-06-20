@@ -88,7 +88,7 @@ O nível Essencial cobre cadastro de rebanho, manejos básicos (pesagem, vacina�
 
 ## Critérios de Aceite (Definition of Done)
 
-- [ ] Todos os endpoints protegidos por tenant_id via BaseService
+- [ ] Todos os endpoints resolvem o tenant via `get_tenant_id()`/`get_session` e aplicam isolamento por `BaseService` + RLS
 - [ ] CRUD completo para Animal, Lote, Piquete, Manejo
 - [ ] Testes de isolamento multi-tenant para cada entidade
 - [ ] Dashboard com indicadores zootécnicos básicos

@@ -208,7 +208,7 @@ Funcionalidades principais:
 - [ ] Depreciação de máquinas por horas trabalhadas
 - [ ] Exportação de relatório de custos
 - [ ] Geração de DRE Rural para contador
-- [ ] Tenant isolation e RBAC testados
+- [ ] Isolamento multi-tenant e RBAC testados com `get_tenant_id()`/`get_session` e RLS
 - [ ] Tratamento de divisão por zero quando produção = 0
 
 ## Sugestões de Melhoria Futura

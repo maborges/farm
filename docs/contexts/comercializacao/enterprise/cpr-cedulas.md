@@ -110,7 +110,7 @@ Gestão de Cédulas do Produtor Rural (CPR), o principal título de crédito do 
 - [ ] Alerta de vencimento (30, 15, 7 dias antes)
 - [ ] Impressão de modelo de CPR para assinatura
 - [ ] Dashboard de CPRs ativas com saldos e vencimentos
-- [ ] Isolamento por tenant e fazenda
+- [ ] Isolamento multi-tenant e fazenda validado
 - [ ] Testes de integração
 
 ## Sugestões de Melhoria Futura

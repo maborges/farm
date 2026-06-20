@@ -87,7 +87,7 @@ Gestao completa da oficina mecanica propria da fazenda, incluindo cadastro de me
 - [ ] Movimentacao de pecas vinculada a OS
 - [ ] Alerta de estoque minimo para pecas criticas
 - [ ] Relatorio de produtividade por mecanico
-- [ ] Isolamento por tenant
+- [ ] Isolamento multi-tenant validado
 
 ## Sugestoes de Melhoria Futura
 

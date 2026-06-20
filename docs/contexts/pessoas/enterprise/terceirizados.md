@@ -112,7 +112,7 @@ Gestão completa de prestadores de serviço, empresas terceirizadas e safristas 
 - [ ] Registro de avaliação de prestadores
 - [ ] Cálculo de retenção INSS sobre notas fiscais
 - [ ] Relatório de custo de terceirização por fazenda/serviço
-- [ ] Isolamento por tenant
+- [ ] Isolamento multi-tenant validado
 - [ ] Testes de integração
 
 ## Sugestões de Melhoria Futura

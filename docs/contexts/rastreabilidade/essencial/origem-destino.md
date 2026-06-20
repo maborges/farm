@@ -51,7 +51,7 @@ O rastreio origem-destino é o elo que conecta "onde foi produzido" a "para onde
 4. **Nota fiscal vinculada:** O registro de destino deve vincular número da nota fiscal de saída quando disponível.
 5. **Rastreio reverso:** Dado um comprador, o sistema deve listar todos os lotes enviados. Dado um talhão, todos os destinos.
 6. **Imutabilidade:** Registros de origem e destino não podem ser alterados após confirmação — apenas complementados com observações.
-7. **Tenant isolation:** Toda consulta é filtrada por `tenant_id`.
+7. **Isolamento multi-tenant:** Toda consulta é filtrada por `tenant_id`, com contexto resolvido por `get_tenant_id()`/`get_session` e RLS.
 
 ## Entidades de Dados Principais
 

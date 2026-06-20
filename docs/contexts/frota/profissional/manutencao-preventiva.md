@@ -84,7 +84,7 @@ Gestao completa de manutencao preventiva da frota com planos configurados por ho
 - [ ] Registro de pecas e mao de obra na OS com calculo de custo total
 - [ ] Historico completo de OS por equipamento
 - [ ] OS corretiva vinculada a checklist quando aplicavel
-- [ ] Isolamento por tenant
+- [ ] Isolamento multi-tenant validado
 
 ## Sugestoes de Melhoria Futura
 

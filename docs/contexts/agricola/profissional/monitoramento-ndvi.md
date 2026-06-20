@@ -197,7 +197,7 @@ Funcionalidades principais:
 - [ ] Vinculação de anomalia com registro no caderno de campo
 - [ ] Configuração de limiares por tenant
 - [ ] Suporte a índices avançados (NDRE, EVI) quando módulo ativo
-- [ ] Tenant isolation em todas as leituras e configurações
+- [ ] Isolamento multi-tenant em todas as leituras e configurações via `get_tenant_id()`/`get_session` e RLS
 - [ ] Tratamento de erros de API externa com retry
 - [ ] Identificação de períodos de entressafra (não alertar)
 - [ ] Zonas de manejo baseadas em NDVI histórico

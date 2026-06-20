@@ -142,7 +142,7 @@ Conciliação automática é uma camada de reflexo e matching financeiro. A font
 - [ ] Log de auditoria com regra aplicada e nível de confiança.
 - [ ] Processamento assíncrono para volumes grandes.
 - [ ] Alertas de erro de sincronização e taxa de acerto baixa.
-- [ ] Tenant isolation em todos os endpoints e processos assíncronos.
+- [ ] Isolamento multi-tenant em todos os endpoints e processos assíncronos via `get_tenant_id()`/`get_session` e RLS.
 - [ ] Testes: matching por camada, regras, integração mock, rollback, tenant isolation.
 
 ## Sugestões de Melhoria Futura

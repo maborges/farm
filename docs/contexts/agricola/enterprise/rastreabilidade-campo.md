@@ -225,7 +225,7 @@ Funcionalidades principais:
 - [ ] Exportação de relatório de rastreabilidade (PDF e JSON)
 - [ ] Busca rápida por lote (insumo ou produção) com resultado em < 2 segundos
 - [ ] Imutabilidade: registros de rastreamento não podem ser editados, apenas complementados
-- [ ] Tenant isolation rigoroso em todas as consultas
+- [ ] Isolamento multi-tenant rigoroso em todas as consultas via `get_tenant_id()`/`get_session` e RLS
 - [ ] Geolocalização de talhões (polígono GPS) para EUDR
 - [ ] Geração de declaração Due Diligence para exportação UE
 - [ ] Integração com SISCOMEX para exportação

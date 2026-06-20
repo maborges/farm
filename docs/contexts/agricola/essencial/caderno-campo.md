@@ -169,7 +169,7 @@ Funcionalidades principais:
 - [ ] Proteção contra edição retroativa (regra de 72h configurável)
 - [ ] Soft delete com motivo para auditabilidade
 - [ ] Filtros por tipo, período e talhão
-- [ ] Tenant isolation testado
+- [ ] Isolamento multi-tenant validado via `get_tenant_id()`/`get_session` e RLS
 - [ ] Responsivo para uso em celular no campo
 - [ ] Modo offline funcional com sincronização
 - [ ] Registro de entrega de EPIs com assinatura

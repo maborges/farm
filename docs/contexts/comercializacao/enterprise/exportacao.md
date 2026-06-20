@@ -116,7 +116,7 @@ Gestão completa do processo de exportação de commodities agrícolas. Abrange 
 - [ ] Alerta de documentos a vencer e prazos de embarque
 - [ ] Conciliação de volumes (contratado vs. embarcado)
 - [ ] Cálculo de resultado da exportação em BRL
-- [ ] Isolamento por tenant e fazenda
+- [ ] Isolamento multi-tenant e fazenda validado
 - [ ] Testes de integração
 
 ## Sugestões de Melhoria Futura

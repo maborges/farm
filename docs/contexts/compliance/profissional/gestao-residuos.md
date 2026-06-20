@@ -114,7 +114,7 @@ Funcionalidades principais:
 - [ ] Gestao de residuos perigosos com MTR
 - [ ] Dashboard com taxa de devolucao e indicadores
 - [ ] Isolamento multi-tenant validado com testes de integracao
-- [ ] Permissoes RBAC aplicadas em todas as rotas
+- [ ] Autorização RBAC aplicada em todas as rotas
 
 ## Sugestoes de Melhoria Futura
 

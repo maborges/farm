@@ -108,7 +108,7 @@ Funcionalidades principais:
 - [ ] Historico de renovacoes com cadeia de rastreabilidade
 - [ ] Relatorio consolidado exportavel em PDF
 - [ ] Isolamento multi-tenant validado com testes de integracao
-- [ ] Permissoes RBAC aplicadas em todas as rotas
+- [ ] Autorização RBAC aplicada em todas as rotas
 - [ ] Soft delete para documentos com historico
 
 ## Sugestoes de Melhoria Futura

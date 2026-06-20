@@ -96,9 +96,9 @@ Cadastro centralizado de todos os clientes e compradores da produção agropecu�
 - [ ] Cadastro de múltiplos contatos por comprador
 - [ ] Condições comerciais padrão configuráveis
 - [ ] Listagem com filtros e paginação
-- [ ] Isolamento por tenant
+- [ ] Isolamento multi-tenant validado
 - [ ] Testes unitários e de integração
-- [ ] Testes de isolamento multi-tenant
+- [ ] Testes de isolamento multi-tenant validados
 
 ## Sugestões de Melhoria Futura
 

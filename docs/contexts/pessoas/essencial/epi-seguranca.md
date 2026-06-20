@@ -108,7 +108,7 @@ Gestão de Equipamentos de Proteção Individual (EPI) e conformidade com normas
 - [ ] Orientação para emissão de CAT em acidentes com afastamento
 - [ ] Registro de inspeções de segurança com não-conformidades
 - [ ] Ficha de EPI por colaborador (histórico completo de entregas)
-- [ ] Isolamento por tenant e fazenda
+- [ ] Isolamento multi-tenant e fazenda validado
 - [ ] Testes de integração
 
 ## Sugestões de Melhoria Futura

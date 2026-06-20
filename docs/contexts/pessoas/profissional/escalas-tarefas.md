@@ -106,7 +106,7 @@ Gestão de escalas de trabalho e atribuição de tarefas aos colaboradores da fa
 - [ ] Validação de treinamento para tarefas de risco
 - [ ] Painel de tarefas do dia por fazenda
 - [ ] Reagendamento de tarefas não concluídas
-- [ ] Isolamento por tenant e fazenda
+- [ ] Isolamento multi-tenant e fazenda validado
 - [ ] Testes de integração
 
 ## Sugestões de Melhoria Futura

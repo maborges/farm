@@ -103,7 +103,7 @@ Funcionalidades principais:
 - [ ] Historico de retificacoes com protocolo e status
 - [ ] Painel de status consolidado para todas as fazendas do tenant
 - [ ] Isolamento multi-tenant validado com testes de integracao
-- [ ] Permissoes RBAC aplicadas em todas as rotas
+- [ ] Autorização RBAC aplicada em todas as rotas
 - [ ] Soft delete implementado para registros de CAR
 
 ## Sugestoes de Melhoria Futura

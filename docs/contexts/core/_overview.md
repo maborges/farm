@@ -29,7 +29,7 @@ Este módulo implementa o modelo de dados central da plataforma, incluindo multi
 
 ## Princípios Arquiteturais
 
-1. **Multi-tenancy com Defense in Depth**: JWT carrega `tenant_id`; `BaseService` auto-injeta filtro de tenant em todas as queries; RLS no PostgreSQL como camada adicional de segurança.
+1. **Multi-tenancy com Defense in Depth**: JWT carrega `tenant_id`; `get_tenant_id()` resolve o contexto da requisição; `get_session` aplica o contexto na sessão; RLS no PostgreSQL fecha a camada adicional de segurança.
 
 2. **RBAC granular com contexto de fazenda**: Permissões por recurso e ação (`modulo:recurso:acao`), com override por fazenda via `FazendaUsuario.perfil_fazenda_id`. Flag `is_owner` concede bypass total (exceto billing).
 

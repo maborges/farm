@@ -76,7 +76,7 @@ Registro de todos os abastecimentos realizados nos equipamentos da frota, com ca
 - [ ] Alerta quando consumo desvia >30% da media
 - [ ] Horimetro/odometro do equipamento atualizado apos registro
 - [ ] Relatorio de abastecimentos por periodo e equipamento
-- [ ] Isolamento por tenant
+- [ ] Isolamento multi-tenant validado
 
 ## Sugestoes de Melhoria Futura
 

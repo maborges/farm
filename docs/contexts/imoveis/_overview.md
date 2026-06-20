@@ -73,7 +73,7 @@ avaliacao-patrimonial ──► gestao-multi-imovel
 
 ## Princípios de Design
 
-1. **Multi-tenancy obrigatório:** todo imóvel pertence a um `tenant_id`; isolamento via `BaseService` com filtro automático.
+1. **Multi-tenancy obrigatório:** todo imóvel pertence a um `tenant_id`; o contexto da request é resolvido por `get_tenant_id()`/`get_session`, com `BaseService` e RLS como defesa em profundidade.
 
 2. **Documentos imutáveis:** uploads de documentos legais não podem ser excluídos, apenas substituídos (versionamento). Audit trail completo de quem fez upload e quando.
 

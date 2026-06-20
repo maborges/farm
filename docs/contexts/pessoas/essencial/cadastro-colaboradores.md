@@ -102,7 +102,7 @@ Cadastro centralizado de todos os colaboradores da fazenda. Armazena dados pesso
 - [ ] Dados bancários criptografados em repouso
 - [ ] Cadastro de dependentes
 - [ ] Soft delete (colaborador desligado mantido no histórico)
-- [ ] Isolamento por tenant
+- [ ] Isolamento multi-tenant validado
 - [ ] Testes de integração e multi-tenant
 
 ## Sugestões de Melhoria Futura

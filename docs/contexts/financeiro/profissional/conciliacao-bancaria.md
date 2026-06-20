@@ -135,7 +135,7 @@ A conciliação manual é uma camada de reflexo e validação financeira. A font
 - [ ] Comparação de saldos (extrato vs. sistema).
 - [ ] Relatório de conciliação com status de cada transação.
 - [ ] Armazenamento do arquivo original para auditoria.
-- [ ] Tenant isolation em todos os endpoints.
+- [ ] Isolamento multi-tenant em todos os endpoints via `get_tenant_id()`/`get_session` e RLS.
 - [ ] Testes: importação OFX, importação CSV, matching, conciliação, duplicatas, tenant isolation.
 
 ## Sugestões de Melhoria Futura

@@ -75,7 +75,7 @@ Permite registrar e gerenciar todos os equipamentos da propriedade rural: maquin
 - [ ] Numero de serie unico por tenant validado no backend
 - [ ] Horimetro/odometro nao permite decremento sem justificativa
 - [ ] Soft-delete para equipamentos com historico
-- [ ] Isolamento por tenant validado em teste automatizado
+- [ ] Isolamento multi-tenant validado em teste automatizado
 
 ## Sugestoes de Melhoria Futura
 

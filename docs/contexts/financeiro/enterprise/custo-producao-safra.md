@@ -173,7 +173,7 @@ Quando a análise precisar de consolidação técnica de resultado por janela te
 - [ ] Suporte a apuração parcial (safra em andamento) e final (safra encerrada).
 - [ ] Tratamento de safra frustrada (produção zero).
 - [ ] Exportação de relatório em PDF e CSV.
-- [ ] Tenant isolation em todos os endpoints.
+- [ ] Isolamento multi-tenant em todos os endpoints via `get_tenant_id()`/`get_session` e RLS.
 - [ ] Testes: apuração, rateio, FIFO, margem, comparativos, safra frustrada, tenant isolation.
 
 ## Sugestões de Melhoria Futura

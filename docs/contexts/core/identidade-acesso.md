@@ -52,9 +52,9 @@ O sistema foi desenhado para atender a realidade do agronegócio brasileiro, ond
 
 ## Regras de Negócio
 
-1. **RN-IA-001:** Todo endpoint deve extrair `tenant_id` exclusivamente via `get_tenant_id()` dependency — nunca confiar em dados do frontend. Manipulação de JWT é detectada e logada como incidente.
+1. **RN-IA-001:** Todo endpoint deve extrair `tenant_id` via `get_tenant_id()` dependency ou resolver o contexto via `get_session` + middleware RLS. Nunca confiar em dados do frontend. Manipulação de JWT é detectada e logada como incidente.
 
-2. **RN-IA-002:** `BaseService` auto-injeta filtro de `tenant_id` em todas as queries. Queries raw em routers são proibidas. `TenantViolationError` retorna HTTP 403 e gera alerta de segurança.
+2. **RN-IA-002:** `BaseService` auto-injeta filtro de `tenant_id` em todas as queries. Routers não devem abrir sessão manualmente nem fazer queries raw. `TenantViolationError` retorna HTTP 403 e gera alerta de segurança.
 
 3. **RN-IA-003:** Flag `is_owner` concede bypass de todas as permissões de tenant, exceto operações de billing (Stripe Customer Portal). Owner não pode modificar sua própria assinatura sem passar pelo gateway.
 

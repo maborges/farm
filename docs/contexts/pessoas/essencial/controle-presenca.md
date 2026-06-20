@@ -103,7 +103,7 @@ Registro e controle de ponto (presença) dos colaboradores da fazenda. Permite r
 - [ ] Ajustes com justificativa obrigatória e log de auditoria
 - [ ] Resumo mensal por colaborador (horas normais, extras, faltas, DSR)
 - [ ] Banco de horas opcional com saldo acumulado
-- [ ] Isolamento por tenant e fazenda
+- [ ] Isolamento multi-tenant e fazenda validado
 - [ ] Testes de integração
 
 ## Sugestões de Melhoria Futura

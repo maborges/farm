@@ -87,7 +87,7 @@ Dashboard executivo com indicadores-chave de performance (KPIs) da frota: MTBF (
 - [ ] Metas configuraveis com alertas
 - [ ] Filtros por tipo, fazenda e periodo
 - [ ] Snapshot mensal consolidado da frota
-- [ ] Isolamento por tenant
+- [ ] Isolamento multi-tenant validado
 
 ## Sugestoes de Melhoria Futura
 

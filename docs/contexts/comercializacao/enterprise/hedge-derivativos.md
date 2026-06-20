@@ -110,7 +110,7 @@ Gestão de operações de hedge em bolsa de commodities e derivativos agrícolas
 - [ ] Dashboard de posição consolidada (físico + derivativos)
 - [ ] Controle de margem de garantia
 - [ ] Relatório de resultado total da comercialização por safra
-- [ ] Isolamento por tenant e fazenda
+- [ ] Isolamento multi-tenant e fazenda validado
 - [ ] Testes de integração com cálculos financeiros
 
 ## Sugestões de Melhoria Futura

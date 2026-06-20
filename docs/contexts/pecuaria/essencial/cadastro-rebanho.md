@@ -86,14 +86,14 @@ Suporta cadastro individual e importação em massa via CSV/planilha, facilitand
 
 ## Critérios de Aceite (Definition of Done)
 
-- [ ] CRUD completo de Animal com isolamento por tenant_id
+- [ ] CRUD completo de Animal com isolamento multi-tenant
 - [ ] CRUD de Lote com validação de fazenda_id
 - [ ] Importação CSV com validação e relatório de erros
 - [ ] Histórico de transferências entre lotes
 - [ ] Filtros por categoria, lote, raça, status
 - [ ] Dashboard com contagem por categoria e lote
 - [ ] Testes unitários e de integração para serviço e rotas
-- [ ] Teste de isolamento multi-tenant
+- [ ] Teste de isolamento multi-tenant validado
 
 ## Sugestões de Melhoria Futura
 

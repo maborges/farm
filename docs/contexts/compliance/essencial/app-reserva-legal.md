@@ -116,7 +116,7 @@ Funcionalidades principais:
 - [ ] Relatorio PDF de situacao ambiental por fazenda
 - [ ] Regras diferenciadas para propriedades ate 4 modulos fiscais
 - [ ] Testes de integracao com isolamento multi-tenant
-- [ ] Permissoes RBAC aplicadas em todas as rotas
+- [ ] Autorização RBAC aplicada em todas as rotas
 - [ ] Dashboard consolidado de conformidade
 
 ## Sugestoes de Melhoria Futura

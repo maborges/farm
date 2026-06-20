@@ -112,7 +112,7 @@ Integração completa com o eSocial para empregadores rurais (pessoa física e j
 - [ ] Configuração de ambiente (produção restrita para testes)
 - [ ] Relatório de conformidade com eventos obrigatórios pendentes
 - [ ] Retry automático para falhas de comunicação
-- [ ] Isolamento por tenant
+- [ ] Isolamento multi-tenant validado
 - [ ] Testes com ambiente de produção restrita do eSocial
 
 ## Sugestões de Melhoria Futura

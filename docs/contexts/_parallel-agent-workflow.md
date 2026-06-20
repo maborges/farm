@@ -61,7 +61,7 @@ docs/strategy/parallel-agent-workflow.md
 
 ```
 Agent-Core
-├── identidade-acesso (auth, RBAC, JWT, audit)
+├── identidade-acesso (autorizacao, RBAC, JWT, auditoria)
 ├── cadastro-propriedade (fazenda, talhão, geo)
 ├── multipropriedade (multi-tenant, seletor contexto)
 ├── configuracoes-globais (safra, unidades, categorias)
@@ -133,7 +133,7 @@ services/api/
 - Classes: `PascalCase` (`MovimentacaoEstoque`)
 - Rotas: `kebab-case` (`/estoque/movimentacoes`)
 - Serviços herdam de `BaseService[T]` — **nunca** queries raw em routers
-- Tenant isolation via `get_tenant_id()` — **nunca** confiar em dados do frontend
+- Isolamento multi-tenant via `get_tenant_id()`/`get_session` e RLS — **nunca** confiar em dados do frontend
 - Feature gates via `require_module("MODULO")` e `require_tenant_permission()`
 
 ### Frontend (TypeScript/React)
@@ -208,8 +208,8 @@ Quando dois agentes tocam na mesma entidade ou tabela:
 - [ ] Router com endpoints CRUD + específicos
 - [ ] Router registrado em `main.py`
 - [ ] Feature gate (`require_module`) configurado
-- [ ] Permissões RBAC definidas
-- [ ] Testes de isolamento multi-tenant
+- [ ] Autorização RBAC definida
+- [ ] Testes de isolamento multi-tenant validados
 - [ ] Testes unitários do Service (regras de negócio)
 - [ ] Testes de integração dos endpoints
 - [ ] Zod schemas em `packages/zod-schemas`
@@ -221,8 +221,8 @@ Quando dois agentes tocam na mesma entidade ou tabela:
 
 **Fase 1 (Core):**
 - [ ] Todos os 7 submódulos do Core implementados
-- [ ] Auth + RBAC testados end-to-end
-- [ ] Multi-tenant isolation comprovado
+- [ ] Auth + autorização RBAC testados end-to-end
+- [ ] Isolamento multi-tenant comprovado
 - [ ] Feature flags funcionais
 - [ ] Billing com Stripe/Asaas integrado
 

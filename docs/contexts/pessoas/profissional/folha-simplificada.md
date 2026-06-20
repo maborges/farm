@@ -111,7 +111,7 @@ Cálculo simplificado de folha de pagamento para colaboradores rurais. Calcula s
 - [ ] Fluxo de processamento com revisão e confirmação
 - [ ] Exportação de dados para contador (CSV/Excel)
 - [ ] Cálculo proporcional para admissão/desligamento no mês
-- [ ] Isolamento por tenant e fazenda
+- [ ] Isolamento multi-tenant e fazenda validado
 - [ ] Testes com cenários reais de cálculo
 
 ## Sugestões de Melhoria Futura

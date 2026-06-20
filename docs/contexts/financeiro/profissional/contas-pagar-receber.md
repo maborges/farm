@@ -133,7 +133,7 @@ Obrigações, parcelas e baixas pertencem à camada financeira. A leitura de DRE
 - [ ] Dashboard com resumo: total a pagar, total a receber, vencidos.
 - [ ] Baixa parcial funcional.
 - [ ] Registro de juros e descontos na baixa.
-- [ ] Tenant isolation em todos os endpoints.
+- [ ] Isolamento multi-tenant em todos os endpoints via `get_tenant_id()`/`get_session` e RLS.
 - [ ] Testes: criação, parcelamento, baixa, estorno, status calculado, tenant isolation.
 
 ## Sugestões de Melhoria Futura

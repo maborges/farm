@@ -60,7 +60,7 @@ categorias-contas ──► lancamentos-basicos ──► fluxo-caixa
 
 ## Princípios de Design
 
-1. **Multi-tenancy obrigatório:** todo lançamento pertence a um `tenant_id`; isolamento via `BaseService`
+1. **Multi-tenancy obrigatório:** todo lançamento pertence a um `tenant_id`; o contexto da request é resolvido por `get_tenant_id()`/`get_session`, com `BaseService` e RLS como defesa em profundidade
 2. **Auditoria completa:** toda movimentação financeira gera log imutável
 3. **Competência vs. Caixa:** suporte a regime de competência e regime de caixa simultaneamente, sem confundir realização financeira com reconhecimento econômico
 4. **Moeda:** BRL como padrão; valores em centavos (`integer`) para evitar arredondamento

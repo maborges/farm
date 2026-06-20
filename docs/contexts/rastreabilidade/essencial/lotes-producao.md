@@ -49,7 +49,7 @@ O sistema gera automaticamente lotes a partir de eventos de colheita, mas també
 4. **Fracionamento:** Um lote fechado pode ser fracionado em sublotes, mantendo rastreabilidade ao lote pai.
 5. **Mesclagem:** Lotes do mesmo produto/variedade/safra podem ser mesclados, gerando novo lote com referência aos lotes de origem. Requer justificativa obrigatória.
 6. **Quantidade:** A quantidade do lote deve ser compatível com a soma das colheitas vinculadas, com tolerância configurável (padrão: 2%).
-7. **Tenant isolation:** Lotes são isolados por `tenant_id`. Nenhuma consulta retorna lotes de outro tenant.
+7. **Isolamento multi-tenant:** Lotes são isolados por `tenant_id`. Nenhuma consulta retorna lotes de outro tenant; o contexto é resolvido por `get_tenant_id()`/`get_session` e RLS.
 8. **Soft delete:** Lotes não são deletados fisicamente. Recebem flag `cancelado` com motivo obrigatório.
 
 ## Entidades de Dados Principais

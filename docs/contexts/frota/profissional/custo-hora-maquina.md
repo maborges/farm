@@ -81,7 +81,7 @@ Calcula o custo operacional por hora de cada equipamento, considerando combustiv
 - [ ] Relatorio de custo/hora por equipamento e periodo
 - [ ] Relatorio de custo de mecanizacao por talhao
 - [ ] Recalculo automatico ao registrar abastecimento ou OS
-- [ ] Isolamento por tenant
+- [ ] Isolamento multi-tenant validado
 
 ## Sugestoes de Melhoria Futura
 

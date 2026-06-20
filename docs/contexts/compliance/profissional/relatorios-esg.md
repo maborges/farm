@@ -119,7 +119,7 @@ Funcionalidades principais:
 - [ ] Painel de gaps com sugestoes de melhoria
 - [ ] Versionamento de relatorios (imutaveis apos publicacao)
 - [ ] Isolamento multi-tenant validado com testes de integracao
-- [ ] Permissoes RBAC aplicadas em todas as rotas
+- [ ] Autorização RBAC aplicada em todas as rotas
 
 ## Sugestoes de Melhoria Futura
 

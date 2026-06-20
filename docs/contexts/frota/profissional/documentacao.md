@@ -76,7 +76,7 @@ Controle de documentos obrigatorios dos veiculos e maquinas da frota: IPVA, lice
 - [ ] Bloqueio de operacao para veiculos com documentos obrigatorios vencidos
 - [ ] Dashboard com visao consolidada de vencimentos
 - [ ] Historico de documentos por equipamento
-- [ ] Isolamento por tenant
+- [ ] Isolamento multi-tenant validado
 
 ## Sugestoes de Melhoria Futura
 

@@ -102,9 +102,9 @@ Submódulo responsável pelo registro completo de vendas da produção agropecu�
 - [ ] Listagem com totalizadores (quantidade total, valor total, valor pendente)
 - [ ] Cancelamento com justificativa e estorno de estoque
 - [ ] Registro de pagamentos parciais
-- [ ] Isolamento por tenant e fazenda
+- [ ] Isolamento multi-tenant e fazenda validado
 - [ ] Testes de integração cobrindo fluxo completo
-- [ ] Testes de isolamento multi-tenant
+- [ ] Testes de isolamento multi-tenant validados
 
 ## Sugestões de Melhoria Futura
 

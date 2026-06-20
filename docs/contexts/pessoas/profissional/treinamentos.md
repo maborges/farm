@@ -104,7 +104,7 @@ Gestão de treinamentos, capacitações e certificações dos colaboradores da f
 - [ ] Matriz de treinamentos obrigatórios por função/atividade
 - [ ] Upload de lista de presença assinada
 - [ ] Histórico completo de treinamentos por colaborador
-- [ ] Isolamento por tenant
+- [ ] Isolamento multi-tenant validado
 - [ ] Testes de integração
 
 ## Sugestões de Melhoria Futura

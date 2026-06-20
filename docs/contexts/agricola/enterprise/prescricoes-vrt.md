@@ -212,7 +212,7 @@ Funcionalidades principais:
 - [ ] Fluxo de aprovação com versionamento
 - [ ] Vinculação de prescrição à operação executada
 - [ ] Comparativo de custo VRT vs uniforme
-- [ ] Tenant isolation e RBAC testados
+- [ ] Isolamento multi-tenant e RBAC testados com `get_tenant_id()`/`get_session` e RLS
 - [ ] Validação de geometria (sem lacunas, sem sobreposição de zonas)
 - [ ] Suporte a múltiplos formatos (John Deere, Case IH, Trimble, ISO-XML)
 - [ ] Exclusão automática de zonas de preservação (APP, reserva legal)

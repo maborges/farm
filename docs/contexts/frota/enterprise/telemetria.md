@@ -92,7 +92,7 @@ Monitoramento em tempo real da frota via dispositivos GPS/telemetria instalados 
 - [ ] Horimetro automatico sincronizado com cadastro
 - [ ] Alertas de velocidade, horario e dispositivo offline
 - [ ] Historico de posicoes consultavel por periodo
-- [ ] Isolamento por tenant
+- [ ] Isolamento multi-tenant validado
 
 ## Sugestoes de Melhoria Futura
 

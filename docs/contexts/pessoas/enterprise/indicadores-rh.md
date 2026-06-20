@@ -105,7 +105,7 @@ Painel de indicadores (KPIs) de recursos humanos para gestão estratégica de pe
 - [ ] Exportação de relatório em PDF/Excel
 - [ ] Alertas quando indicador ultrapassa meta
 - [ ] Tratamento de edge cases (divisão por zero, dados incompletos)
-- [ ] Isolamento por tenant
+- [ ] Isolamento multi-tenant validado
 - [ ] Testes de cálculo com cenários reais
 
 ## Sugestões de Melhoria Futura

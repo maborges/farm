@@ -228,7 +228,7 @@ Funcionalidades principais:
 - [ ] Blending com rastreabilidade multi-origem e percentuais
 - [ ] Registro de saída com destino e nota fiscal
 - [ ] Atualização automática de estoque de produto beneficiado
-- [ ] Tenant isolation e RBAC testados
+- [ ] Isolamento multi-tenant e RBAC testados com `get_tenant_id()`/`get_session` e RLS
 - [ ] Componente frontend `beneficiamento-cafe.tsx` integrado
 - [ ] Tabelas de classificação MAPA integradas (café, soja, milho)
 - [ ] Custo de beneficiamento rateado por lote

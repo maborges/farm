@@ -56,7 +56,7 @@ O isolamento de dados é rigoroso: um colaborador vinculado apenas à Fazenda A 
 
 1. **RN-MP-001:** O número máximo de fazendas por tenant é definido pelo plano contratado (campo `max_fazendas` no plano). Plano Essencial: 3 fazendas, Profissional: 10 fazendas, Enterprise: ilimitado.
 
-2. **RN-MP-002:** Cada fazenda possui dados completamente isolados. Queries sempre incluem filtro `fazenda_id` além do `tenant_id`. `BaseService` injeta ambos automaticamente.
+2. **RN-MP-002:** Cada fazenda possui dados completamente isolados. O contexto é resolvido por `get_tenant_id()`/`get_session`; as queries sempre incluem filtro `fazenda_id` além do `tenant_id`, e o RLS fecha a defesa em profundidade.
 
 3. **RN-MP-003:** O seletor de fazendas no header mostra apenas fazendas em que o usuário tem vínculo (`FazendaUsuario`). Owner vê todas as fazendas ativas do tenant.
 

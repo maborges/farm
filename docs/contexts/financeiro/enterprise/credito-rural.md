@@ -147,7 +147,7 @@ O crédito rural tem regras complexas (carência, taxa controlada vs. livre, ind
 - [ ] Vinculação de lançamentos ao contrato para prestação de contas.
 - [ ] Alertas de vencimento e fim de carência.
 - [ ] Dashboard com resumo: total contratado, saldo devedor, próximos vencimentos.
-- [ ] Tenant isolation em todos os endpoints.
+- [ ] Isolamento multi-tenant em todos os endpoints via `get_tenant_id()`/`get_session` e RLS.
 - [ ] Testes: criação, parcelas, carência, baixa, saldo devedor, tenant isolation.
 
 ## Sugestões de Melhoria Futura

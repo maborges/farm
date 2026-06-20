@@ -58,7 +58,7 @@ Submódulo de cadastro e manutenção de insumos, produtos e materiais utilizado
 
 ## Integrações Necessárias
 
-- **Core/Tenants:** Isolamento por tenant
+- **Core/Tenants:** Isolamento multi-tenant
 - **Movimentações:** Produtos como item das movimentações
 - **NF-e (Enterprise):** Dados fiscais para importação automática
 - **Fornecedores:** Cadastro de fornecedores vinculados ao produto
