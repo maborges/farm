@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 from typing import Optional
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -151,9 +152,9 @@ class CochoResponse(BaseModel):
 
 
 class ProducaoLeiteCreate(BaseModel):
-    unidade_produtiva_id: int
-    animal_id: Optional[int] = None
-    lote_id: Optional[int] = None
+    unidade_produtiva_id: UUID
+    animal_id: Optional[UUID] = None
+    lote_id: Optional[UUID] = None
     data: date
     turno: str = "MANHA"
     volume_litros: float = Field(..., gt=0)
@@ -165,7 +166,7 @@ class ProducaoLeiteCreate(BaseModel):
     lactose_pct: Optional[float] = None
     esd_pct: Optional[float] = None
     destino: Optional[str] = None
-    pessoa_destino_id: Optional[int] = None
+    pessoa_destino_id: Optional[UUID] = None
     preco_litro: Optional[float] = None
     valor_total: Optional[float] = None
     observacoes: Optional[str] = None
@@ -173,11 +174,11 @@ class ProducaoLeiteCreate(BaseModel):
 
 
 class ProducaoLeiteResponse(BaseModel):
-    id: str
-    tenant_id: str
-    unidade_produtiva_id: int
-    animal_id: Optional[int]
-    lote_id: Optional[int]
+    id: UUID
+    tenant_id: UUID
+    unidade_produtiva_id: UUID
+    animal_id: Optional[UUID]
+    lote_id: Optional[UUID]
     data: date
     turno: str
     volume_litros: float
@@ -189,7 +190,7 @@ class ProducaoLeiteResponse(BaseModel):
     lactose_pct: Optional[float]
     esd_pct: Optional[float]
     destino: Optional[str]
-    pessoa_destino_id: Optional[int]
+    pessoa_destino_id: Optional[UUID]
     preco_litro: Optional[float]
     valor_total: Optional[float]
     observacoes: Optional[str]
