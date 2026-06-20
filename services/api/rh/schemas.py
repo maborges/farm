@@ -160,3 +160,71 @@ class DashboardRHResponse(BaseModel):
     total_pendente_diarias: float
     total_pendente_empreitadas: float
     empreitadas_abertas: int
+
+
+# ── Segurança do Trabalho ────────────────────────────────────────────────────
+
+class ItemSegurancaCreate(BaseModel):
+    nome: str
+    tipo: str = Field(default="EPI")
+    ca_numero: Optional[str] = None
+    validade_dias: Optional[int] = None
+    fornecedor: Optional[str] = None
+    observacoes: Optional[str] = None
+
+
+class ItemSegurancaResponse(ItemSegurancaCreate):
+    id: UUID
+    tenant_id: UUID
+    ativo: bool
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class EntregaSegurancaCreate(BaseModel):
+    colaborador_id: UUID
+    item_id: UUID
+    data_entrega: date
+    data_validade: Optional[date] = None
+    quantidade: float = 1.0
+    unidade_produtiva_id: Optional[UUID] = None
+    termo_assinado_url: Optional[str] = None
+    observacoes: Optional[str] = None
+
+
+class EntregaSegurancaResponse(EntregaSegurancaCreate):
+    id: UUID
+    tenant_id: UUID
+    status: str
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class DocumentoSSTCreate(BaseModel):
+    colaborador_id: Optional[UUID] = None
+    tipo: str
+    numero: Optional[str] = None
+    data_emissao: date
+    data_vencimento: Optional[date] = None
+    arquivo_url: Optional[str] = None
+    observacoes: Optional[str] = None
+
+
+class DocumentoSSTResponse(DocumentoSSTCreate):
+    id: UUID
+    tenant_id: UUID
+    status: str
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ResumoSegurancaResponse(BaseModel):
+    total_itens_ativos: int
+    total_entregas_ativas: int
+    total_documentos_ativos: int
+    documentos_vencendo_30d: int
+    documentos_vencidos: int

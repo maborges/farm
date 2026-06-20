@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, date, timezone
-from sqlalchemy import String, Boolean, Date, DateTime, Float, ForeignKey, Text
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import String, Boolean, Date, DateTime, Float, ForeignKey, Text, Integer, JSON
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy import Uuid as UUID
 from core.database import Base
 
@@ -171,3 +171,81 @@ class Empreitada(Base):
     data_pagamento: Mapped[date | None] = mapped_column(Date, nullable=True)
     observacoes: Mapped[str | None] = mapped_column(String(500), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+
+class ItemSegurancaRH(Base):
+    """Cadastro de EPIs, EPCs e itens de segurança do trabalho."""
+    __tablename__ = "rh_seguranca_itens"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    nome: Mapped[str] = mapped_column(String(160), nullable=False)
+    tipo: Mapped[str] = mapped_column(String(10), nullable=False, comment="EPI | EPC")
+    ca_numero: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)
+    validade_dias: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    fornecedor: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    observacoes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ativo: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
+
+    entregas = relationship("EntregaSegurancaRH", back_populates="item", cascade="all, delete-orphan")
+
+
+class EntregaSegurancaRH(Base):
+    """Registro de entrega de EPI/EPC por colaborador."""
+    __tablename__ = "rh_seguranca_entregas"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    colaborador_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("rh_colaboradores.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    item_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("rh_seguranca_itens.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    unidade_produtiva_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("unidades_produtivas.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    data_entrega: Mapped[date] = mapped_column(Date, nullable=False)
+    data_validade: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
+    quantidade: Mapped[float] = mapped_column(Float, default=1.0, nullable=False)
+    status: Mapped[str] = mapped_column(String(20), default="ATIVA", nullable=False)
+    termo_assinado_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    observacoes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    dados_extras: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+    colaborador = relationship("ColaboradorRH")
+    item = relationship("ItemSegurancaRH", back_populates="entregas")
+
+
+class DocumentoSST(Base):
+    """Documento de SST por colaborador ou geral do tenant."""
+    __tablename__ = "rh_seguranca_documentos"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    colaborador_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("rh_colaboradores.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    tipo: Mapped[str] = mapped_column(String(20), nullable=False, comment="PPP | PCMSO | LTCAT | NR31 | ASO | TREINAMENTO")
+    numero: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    data_emissao: Mapped[date] = mapped_column(Date, nullable=False)
+    data_vencimento: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
+    arquivo_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    status: Mapped[str] = mapped_column(String(20), default="ATIVO", nullable=False)
+    observacoes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+    colaborador = relationship("ColaboradorRH")

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status, Query
+from fastapi import APIRouter, Depends, status, Query, Response, HTTPException
 from typing import List, Optional
 from uuid import UUID
 from datetime import date
@@ -12,12 +12,21 @@ from rh.schemas import (
     DiariaCreate, DiariaResponse, PagarDiariasRequest,
     EmpreitadaCreate, EmpreitadaResponse, ConcluirEmpreitadaRequest,
     DashboardRHResponse,
+    ItemSegurancaCreate, ItemSegurancaResponse,
+    EntregaSegurancaCreate, EntregaSegurancaResponse,
+    DocumentoSSTCreate, DocumentoSSTResponse,
+    ResumoSegurancaResponse,
 )
-from rh.service import EsocialEventoService, DepartamentoService, ColaboradorService, DiariaService, EmpreitadaService, get_dashboard_rh
+from rh.service import (
+    EsocialEventoService, DepartamentoService, ColaboradorService,
+    DiariaService, EmpreitadaService, SegurancaTrabalhoService, get_dashboard_rh,
+)
 
 router = APIRouter(prefix="/rh", tags=["RH — Recursos Humanos"])
 
 MODULE = "RH1_REMUNERACAO"
+MODULE_SEGURANCA = "RH2_SEGURANCA"
+MODULE_DEPENDENCY = require_module(MODULE_SEGURANCA)
 
 
 # ── eSocial ───────────────────────────────────────────────────────────────────
@@ -258,6 +267,112 @@ async def concluir_empreitada(
 ):
     svc = EmpreitadaService(session, tenant_id)
     return await svc.concluir(empreitada_id, dados.quantidade_final, dados.data_fim)
+
+
+# ── Segurança do Trabalho ───────────────────────────────────────────────────
+
+@router.get("/seguranca/resumo", response_model=ResumoSegurancaResponse)
+async def resumo_seguranca(
+    session: AsyncSession = Depends(get_session),
+    tenant_id: UUID = Depends(get_tenant_id),
+    _: None = Depends(MODULE_DEPENDENCY),
+):
+    svc = SegurancaTrabalhoService(session, tenant_id)
+    return await svc.get_resumo()
+
+
+@router.get("/seguranca/itens", response_model=List[ItemSegurancaResponse])
+async def listar_itens_seguranca(
+    session: AsyncSession = Depends(get_session),
+    tenant_id: UUID = Depends(get_tenant_id),
+    _: None = Depends(MODULE_DEPENDENCY),
+):
+    svc = SegurancaTrabalhoService(session, tenant_id)
+    return await svc.listar_itens()
+
+
+@router.post("/seguranca/itens", response_model=ItemSegurancaResponse, status_code=status.HTTP_201_CREATED)
+async def criar_item_seguranca(
+    dados: ItemSegurancaCreate,
+    session: AsyncSession = Depends(get_session),
+    tenant_id: UUID = Depends(get_tenant_id),
+    _: None = Depends(MODULE_DEPENDENCY),
+):
+    svc = SegurancaTrabalhoService(session, tenant_id)
+    item = await svc.criar_item(dados)
+    await session.commit()
+    await session.refresh(item)
+    return item
+
+
+@router.get("/seguranca/entregas", response_model=List[EntregaSegurancaResponse])
+async def listar_entregas_seguranca(
+    colaborador_id: Optional[UUID] = Query(None),
+    item_id: Optional[UUID] = Query(None),
+    session: AsyncSession = Depends(get_session),
+    tenant_id: UUID = Depends(get_tenant_id),
+    _: None = Depends(MODULE_DEPENDENCY),
+):
+    svc = SegurancaTrabalhoService(session, tenant_id)
+    return await svc.listar_entregas(colaborador_id, item_id)
+
+
+@router.post("/seguranca/entregas", response_model=EntregaSegurancaResponse, status_code=status.HTTP_201_CREATED)
+async def registrar_entrega_seguranca(
+    dados: EntregaSegurancaCreate,
+    session: AsyncSession = Depends(get_session),
+    tenant_id: UUID = Depends(get_tenant_id),
+    _: None = Depends(MODULE_DEPENDENCY),
+):
+    svc = SegurancaTrabalhoService(session, tenant_id)
+    try:
+        entrega = await svc.registrar_entrega(dados)
+        await session.commit()
+        await session.refresh(entrega)
+        return entrega
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.get("/seguranca/documentos", response_model=List[DocumentoSSTResponse])
+async def listar_documentos_sst(
+    session: AsyncSession = Depends(get_session),
+    tenant_id: UUID = Depends(get_tenant_id),
+    _: None = Depends(require_module(MODULE_SEGURANCA)),
+):
+    svc = SegurancaTrabalhoService(session, tenant_id)
+    return await svc.listar_documentos()
+
+
+@router.post("/seguranca/documentos", response_model=DocumentoSSTResponse, status_code=status.HTTP_201_CREATED)
+async def registrar_documento_sst(
+    dados: DocumentoSSTCreate,
+    session: AsyncSession = Depends(get_session),
+    tenant_id: UUID = Depends(get_tenant_id),
+    _: None = Depends(require_module(MODULE_SEGURANCA)),
+):
+    svc = SegurancaTrabalhoService(session, tenant_id)
+    try:
+        doc = await svc.registrar_documento(dados)
+        await session.commit()
+        await session.refresh(doc)
+        return doc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.get("/seguranca/export/nr31.pdf", dependencies=[Depends(MODULE_DEPENDENCY)])
+async def exportar_relatorio_nr31(
+    session: AsyncSession = Depends(get_session),
+    tenant_id: UUID = Depends(get_tenant_id),
+):
+    svc = SegurancaTrabalhoService(session, tenant_id)
+    pdf = await svc.gerar_pdf_nr31()
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": 'attachment; filename="relatorio_nr31.pdf"'},
+    )
 
 
 @router.patch("/empreitadas/{empreitada_id}/pagar", response_model=EmpreitadaResponse)

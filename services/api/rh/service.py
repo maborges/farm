@@ -1,15 +1,28 @@
 import uuid as _uuid
 from uuid import UUID
 from collections import defaultdict
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
+from decimal import Decimal
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select as _select_func
 from sqlalchemy.future import select
 from sqlalchemy import func, and_
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+from reportlab.lib.units import cm
+from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from core.base_service import BaseService
-from rh.models import Departamento, EsocialEvento, ColaboradorRH, LancamentoDiaria, Empreitada
-from rh.schemas import DepartamentoCreate, DepartamentoUpdate, EsocialEventoCreate, EsocialEventoUpdate, ColaboradorCreate, DiariaCreate, EmpreitadaCreate
+from rh.models import (
+    Departamento, EsocialEvento, ColaboradorRH, LancamentoDiaria, Empreitada,
+    ItemSegurancaRH, EntregaSegurancaRH, DocumentoSST
+)
+from rh.schemas import (
+    DepartamentoCreate, DepartamentoUpdate, EsocialEventoCreate, EsocialEventoUpdate,
+    ColaboradorCreate, DiariaCreate, EmpreitadaCreate,
+    ItemSegurancaCreate, EntregaSegurancaCreate, DocumentoSSTCreate,
+)
 
 
 class EsocialEventoService(BaseService[EsocialEvento]):
@@ -337,3 +350,204 @@ async def get_dashboard_rh(session: AsyncSession, tenant_id: UUID) -> dict:
         "total_pendente_empreitadas": float(r_emp[1] or 0),
         "empreitadas_abertas": int(r_emp[0] or 0),
     }
+
+
+class SegurancaTrabalhoService:
+    def __init__(self, session: AsyncSession, tenant_id: UUID):
+        self.session = session
+        self.tenant_id = tenant_id
+
+    async def _get_colaborador(self, colaborador_id: UUID) -> ColaboradorRH | None:
+        stmt = select(ColaboradorRH).where(
+            ColaboradorRH.id == colaborador_id,
+            ColaboradorRH.tenant_id == self.tenant_id,
+        )
+        return (await self.session.execute(stmt)).scalar_one_or_none()
+
+    async def _get_item(self, item_id: UUID) -> ItemSegurancaRH | None:
+        stmt = select(ItemSegurancaRH).where(
+            ItemSegurancaRH.id == item_id,
+            ItemSegurancaRH.tenant_id == self.tenant_id,
+        )
+        return (await self.session.execute(stmt)).scalar_one_or_none()
+
+    async def listar_itens(self) -> list[ItemSegurancaRH]:
+        stmt = (
+            select(ItemSegurancaRH)
+            .where(ItemSegurancaRH.tenant_id == self.tenant_id)
+            .order_by(ItemSegurancaRH.tipo, ItemSegurancaRH.nome)
+        )
+        return list((await self.session.execute(stmt)).scalars().all())
+
+    async def criar_item(self, dados: ItemSegurancaCreate) -> ItemSegurancaRH:
+        item = ItemSegurancaRH(tenant_id=self.tenant_id, **dados.model_dump())
+        self.session.add(item)
+        return item
+
+    async def listar_entregas(
+        self,
+        colaborador_id: UUID | None = None,
+        item_id: UUID | None = None,
+    ) -> list[EntregaSegurancaRH]:
+        stmt = select(EntregaSegurancaRH).where(EntregaSegurancaRH.tenant_id == self.tenant_id)
+        if colaborador_id:
+            stmt = stmt.where(EntregaSegurancaRH.colaborador_id == colaborador_id)
+        if item_id:
+            stmt = stmt.where(EntregaSegurancaRH.item_id == item_id)
+        stmt = stmt.order_by(EntregaSegurancaRH.data_entrega.desc(), EntregaSegurancaRH.created_at.desc())
+        return list((await self.session.execute(stmt)).scalars().all())
+
+    async def registrar_entrega(self, dados: EntregaSegurancaCreate) -> EntregaSegurancaRH:
+        colaborador = await self._get_colaborador(dados.colaborador_id)
+        if not colaborador:
+            raise ValueError("Colaborador não encontrado")
+
+        item = await self._get_item(dados.item_id)
+        if not item:
+            raise ValueError("Item de segurança não encontrado")
+
+        data_validade = dados.data_validade
+        if data_validade is None and item.validade_dias:
+            data_validade = dados.data_entrega + timedelta(days=item.validade_dias)
+
+        entrega = EntregaSegurancaRH(
+            tenant_id=self.tenant_id,
+            colaborador_id=dados.colaborador_id,
+            item_id=dados.item_id,
+            unidade_produtiva_id=dados.unidade_produtiva_id or colaborador.unidade_produtiva_id,
+            data_entrega=dados.data_entrega,
+            data_validade=data_validade,
+            quantidade=dados.quantidade,
+            termo_assinado_url=dados.termo_assinado_url,
+            observacoes=dados.observacoes,
+            dados_extras={
+                "tipo_item": item.tipo,
+                "ca_numero": item.ca_numero,
+            },
+        )
+        self.session.add(entrega)
+        return entrega
+
+    async def listar_documentos(self) -> list[DocumentoSST]:
+        stmt = (
+            select(DocumentoSST)
+            .where(DocumentoSST.tenant_id == self.tenant_id)
+            .order_by(DocumentoSST.data_vencimento.is_(None), DocumentoSST.data_vencimento.asc(), DocumentoSST.data_emissao.desc())
+        )
+        return list((await self.session.execute(stmt)).scalars().all())
+
+    async def registrar_documento(self, dados: DocumentoSSTCreate) -> DocumentoSST:
+        if dados.colaborador_id:
+            colaborador = await self._get_colaborador(dados.colaborador_id)
+            if not colaborador:
+                raise ValueError("Colaborador não encontrado")
+
+        doc = DocumentoSST(tenant_id=self.tenant_id, **dados.model_dump())
+        self.session.add(doc)
+        return doc
+
+    async def get_resumo(self) -> dict:
+        hoje = date.today()
+        itens = await self.listar_itens()
+        entregas = await self.listar_entregas()
+        docs = await self.listar_documentos()
+
+        documentos_vencendo_30d = sum(
+            1 for doc in docs
+            if doc.data_vencimento and hoje <= doc.data_vencimento <= (hoje + timedelta(days=30))
+        )
+        documentos_vencidos = sum(
+            1 for doc in docs
+            if doc.data_vencimento and doc.data_vencimento < hoje and doc.status == "ATIVO"
+        )
+
+        return {
+            "total_itens_ativos": sum(1 for item in itens if item.ativo),
+            "total_entregas_ativas": sum(1 for entrega in entregas if entrega.status == "ATIVA"),
+            "total_documentos_ativos": sum(1 for doc in docs if doc.status == "ATIVO"),
+            "documentos_vencendo_30d": documentos_vencendo_30d,
+            "documentos_vencidos": documentos_vencidos,
+        }
+
+    async def gerar_pdf_nr31(self) -> bytes:
+        resumo = await self.get_resumo()
+        itens = await self.listar_itens()
+        entregas = await self.listar_entregas()
+        docs = await self.listar_documentos()
+
+        import io
+
+        buffer = io.BytesIO()
+        doc = SimpleDocTemplate(
+            buffer,
+            pagesize=A4,
+            rightMargin=1.4 * cm,
+            leftMargin=1.4 * cm,
+            topMargin=1.4 * cm,
+            bottomMargin=1.4 * cm,
+        )
+        styles = getSampleStyleSheet()
+        styles.add(ParagraphStyle(name="RHTitle", parent=styles["Title"], fontSize=16, leading=20, textColor=colors.HexColor("#c2410c")))
+        styles.add(ParagraphStyle(name="RHBody", parent=styles["BodyText"], fontSize=9, leading=12))
+
+        story = [
+            Paragraph("Relatório NR-31 - Segurança do Trabalho", styles["RHTitle"]),
+            Spacer(1, 0.2 * cm),
+            Paragraph(f"Itens ativos: {resumo['total_itens_ativos']}", styles["RHBody"]),
+            Paragraph(f"Entregas ativas: {resumo['total_entregas_ativas']}", styles["RHBody"]),
+            Paragraph(f"Documentos ativos: {resumo['total_documentos_ativos']}", styles["RHBody"]),
+            Paragraph(f"Documentos vencendo em 30 dias: {resumo['documentos_vencendo_30d']}", styles["RHBody"]),
+            Paragraph(f"Documentos vencidos: {resumo['documentos_vencidos']}", styles["RHBody"]),
+            Spacer(1, 0.3 * cm),
+        ]
+
+        def add_table(title: str, rows: list[list[str]]):
+            story.append(Paragraph(title, styles["Heading2"]))
+            table = Table(rows, repeatRows=1)
+            table.setStyle(TableStyle([
+                ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#c2410c")),
+                ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTSIZE", (0, 0), (-1, -1), 8),
+                ("GRID", (0, 0), (-1, -1), 0.25, colors.HexColor("#fdba74")),
+                ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#fff7ed")]),
+            ]))
+            story.append(table)
+            story.append(Spacer(1, 0.25 * cm))
+
+        if itens:
+            add_table(
+                "Itens de segurança",
+                [["Nome", "Tipo", "CA", "Validade (dias)"]] + [
+                    [item.nome, item.tipo, item.ca_numero or "-", str(item.validade_dias or "-")] for item in itens
+                ],
+            )
+        if entregas:
+            add_table(
+                "Entregas",
+                [["Data", "Colaborador", "Item", "Validade"]] + [
+                    [
+                        entrega.data_entrega.strftime("%d/%m/%Y"),
+                        str(entrega.colaborador_id),
+                        str(entrega.item_id),
+                        entrega.data_validade.strftime("%d/%m/%Y") if entrega.data_validade else "-",
+                    ]
+                    for entrega in entregas
+                ],
+            )
+        if docs:
+            add_table(
+                "Documentos SST",
+                [["Tipo", "Emissão", "Vencimento", "Status"]] + [
+                    [
+                        doc_item.tipo,
+                        doc_item.data_emissao.strftime("%d/%m/%Y"),
+                        doc_item.data_vencimento.strftime("%d/%m/%Y") if doc_item.data_vencimento else "-",
+                        doc_item.status,
+                    ]
+                    for doc_item in docs
+                ],
+            )
+
+        doc.build(story)
+        return buffer.getvalue()
