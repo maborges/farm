@@ -1,7 +1,7 @@
 # BL-23 — F2_CUSTOS_ABC
 
 **Módulo:** `F2_CUSTOS_ABC`  
-**Status atual:** Implementado  
+**Status atual:** Concluído
 **Prioridade:** Alta  
 **Dependências:** `CORE`, `F1_TESOURARIA`
 
