@@ -8,7 +8,8 @@ from sqlalchemy.orm import selectinload
 
 from core.database import get_db
 from certificacoes_esg.models import PassaporteRastreabilidade, StatusPassaporte
-from certificacoes_esg.schemas import PassaportePublicoResponse
+from certificacoes_esg.schemas import PassaportePublicoResponse, IntegridadeResponse
+from certificacoes_esg.service import CertificacoesESGPublicService
 
 router = APIRouter()
 
@@ -64,3 +65,21 @@ async def get_passaporte_publico(
 
     # O retorno mapeará para PassaportePublicoResponse que removerá o tenant_id
     return passaporte
+
+
+@router.get(
+    "/passaportes/{public_token}/verify",
+    response_model=IntegridadeResponse,
+    summary="Verifica a integridade criptográfica de um Passaporte de Rastreabilidade",
+)
+async def verify_passaporte_integridade(
+    public_token: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+) -> Any:
+    """
+    Endpoint público para validar se o snapshot_json do passaporte
+    corresponde exatamente ao snapshot_hash armazenado (SHA-256).
+    """
+    service = CertificacoesESGPublicService(session=db)
+    result = await service.verificar_integridade_passaporte(public_token)
+    return result

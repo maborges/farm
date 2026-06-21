@@ -3,6 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import date, datetime
 from typing import Any
+from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -26,6 +27,19 @@ FONTES_OFICIAIS_PROIBIDAS = {
     "SIGEF",
     "AREA_OPERACIONAL",
 }
+
+
+class StatusIntegridade(str, Enum):
+    VALIDA = "VALIDA"
+    INVALIDA = "INVALIDA"
+
+
+class IntegridadeResponse(BaseModel):
+    integridade: StatusIntegridade
+    algoritmo: str | None = None
+    hash: str | None = None
+    versao: int | None = None
+    publicado_em: datetime | None = None
 
 
 class EvidenciaCertificacaoCreate(BaseModel):

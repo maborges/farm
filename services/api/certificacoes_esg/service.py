@@ -27,6 +27,7 @@ from certificacoes_esg.models import (
     ProgramaCertificacao,
     StatusPlanoAcao,
 )
+from certificacoes_esg.integrity import calculate_snapshot_hash, verify_snapshot_hash
 from certificacoes_esg.schemas import (
     EvidenciaCertificacaoCreate,
     NaoConformidadeCertificacaoCreate,
@@ -524,17 +525,29 @@ class CertificacoesESGService:
         dados: RelatorioESGUpdateStatus,
     ) -> RelatorioESG:
         obj = await self._query_or_fail(RelatorioESG, relatorio_id, "Relatório ESG não encontrado.")
+        
+        # Regra de Imutabilidade
+        if obj.status == StatusRelatorioESG.PUBLICADO:
+            raise BusinessRuleError("Não é permitido alterar um Relatório ESG já publicado.")
+
         obj.status = dados.status
         if dados.snapshot_json is not None:
             obj.snapshot_json = dados.snapshot_json
-            obj.snapshot_hash = dados.snapshot_hash or obj.snapshot_hash
+            # Hash é ignorado no input se for PUBLICADO, pois será calculado de forma determinística
+            if dados.status != StatusRelatorioESG.PUBLICADO:
+                obj.snapshot_hash = dados.snapshot_hash or obj.snapshot_hash
+
         if dados.status == StatusRelatorioESG.PUBLICADO:
             if dados.publicado_em is not None:
                 obj.publicado_em = dados.publicado_em
             elif obj.publicado_em is None:
                 obj.publicado_em = self._agora()
-            if obj.snapshot_hash is None:
-                raise BusinessRuleError("snapshot_hash é obrigatório quando status for PUBLICADO.")
+            
+            if obj.snapshot_json is None:
+                raise BusinessRuleError("snapshot_json é obrigatório quando status for PUBLICADO.")
+            
+            # Cálculo automático do hash
+            obj.snapshot_hash = calculate_snapshot_hash(obj.snapshot_json)
         elif dados.status == StatusRelatorioESG.CANCELADO:
             if dados.cancelado_em is not None:
                 obj.cancelado_em = dados.cancelado_em
@@ -671,10 +684,16 @@ class CertificacoesESGService:
             passaporte_id,
             "Passaporte de rastreabilidade não encontrado.",
         )
+        
+        # Regra de Imutabilidade
+        if obj.status == StatusPassaporte.PUBLICADO and dados.status != StatusPassaporte.REVOGADO:
+            raise BusinessRuleError("Não é permitido alterar um Passaporte de Rastreabilidade já publicado.")
+
         obj.status = dados.status
         if dados.snapshot_json is not None:
             obj.snapshot_json = dados.snapshot_json
-            obj.snapshot_hash = dados.snapshot_hash or obj.snapshot_hash
+            if dados.status != StatusPassaporte.PUBLICADO:
+                obj.snapshot_hash = dados.snapshot_hash or obj.snapshot_hash
         
         if dados.publico is not None:
             obj.publico = dados.publico
@@ -684,8 +703,12 @@ class CertificacoesESGService:
                 obj.publicado_em = dados.publicado_em
             elif obj.publicado_em is None:
                 obj.publicado_em = self._agora()
-            if obj.snapshot_hash is None:
-                raise BusinessRuleError("snapshot_hash é obrigatório quando status for PUBLICADO.")
+            
+            if obj.snapshot_json is None:
+                raise BusinessRuleError("snapshot_json é obrigatório quando status for PUBLICADO.")
+                
+            # Cálculo automático do hash
+            obj.snapshot_hash = calculate_snapshot_hash(obj.snapshot_json)
             
             # Se for publicado e público, gerar token se não existir
             if obj.publico:
@@ -767,3 +790,46 @@ class CertificacoesESGService:
         )
         stmt = stmt.order_by(PassaporteRastreabilidadeEvidencia.created_at.desc())
         return list((await self.session.execute(stmt)).scalars().all())
+
+
+class CertificacoesESGPublicService:
+    """Serviços públicos de validação e leitura de certificações/ESG (não requerem tenant)."""
+
+    def __init__(self, session: AsyncSession):
+        self.session = session
+
+    def verificar_integridade_snapshot(self, snapshot_json: dict[str, Any], snapshot_hash: str) -> dict[str, Any]:
+        """
+        Realiza a validação pura matemática de um snapshot comparado ao hash.
+        """
+        is_valid = verify_snapshot_hash(snapshot_json, snapshot_hash)
+        if not is_valid:
+            return {"integridade": "INVALIDA"}
+            
+        return {
+            "integridade": "VALIDA",
+            "algoritmo": "SHA256",
+            "hash": snapshot_hash
+        }
+
+    async def verificar_integridade_passaporte(self, public_token: uuid.UUID) -> dict[str, Any]:
+        """
+        Busca um passaporte público pelo token e atesta sua integridade criptográfica.
+        """
+        stmt = select(PassaporteRastreabilidade).where(PassaporteRastreabilidade.public_token == public_token)
+        passaporte = (await self.session.execute(stmt)).scalars().first()
+
+        if not passaporte or passaporte.status != StatusPassaporte.PUBLICADO or not passaporte.publico:
+            return {"integridade": "INVALIDA"}
+            
+        if not passaporte.snapshot_json or not passaporte.snapshot_hash:
+            return {"integridade": "INVALIDA"}
+
+        result = self.verificar_integridade_snapshot(passaporte.snapshot_json, passaporte.snapshot_hash)
+        
+        if result["integridade"] == "VALIDA":
+            # Adiciona metadados adicionais em caso de sucesso
+            result["versao"] = passaporte.versao
+            result["publicado_em"] = passaporte.publicado_em
+
+        return result
