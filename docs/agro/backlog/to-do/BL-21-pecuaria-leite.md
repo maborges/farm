@@ -1,7 +1,7 @@
 # BL-21 — P4_LEITE
 
 **Módulo:** `P4_LEITE`  
-**Status atual:** Implementado  
+**Status atual:** Concluído
 **Prioridade:** Média  
 **Dependências:** `CORE`, `P1_REBANHO`
 
