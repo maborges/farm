@@ -1,7 +1,7 @@
 # BL-35 — EXT_ERP
 
 **Módulo:** `EXT_ERP`  
-**Status atual:** Implementado  
+**Status atual:** Concluído
 **Prioridade:** Baixa  
 **Dependências:** `CORE`
 
