@@ -1,7 +1,7 @@
 # BL-13 — A1_PLANEJAMENTO
 
 **Módulo:** `A1_PLANEJAMENTO`  
-**Status atual:** Implementado  
+**Status atual:** Concluído
 **Prioridade:** Alta  
 **Dependências:** `CORE`
 
@@ -20,21 +20,20 @@ Planejamento de safra, orçamento, fases e base para o ciclo agrícola.
 **Como** gestor, **quero** planejar safras por talhão, **para** organizar o ciclo produtivo.
 
 **Critérios de aceite:**
-- [ ] Criar e editar safra
-- [ ] Avançar fase com validação
-- [ ] Resumo planejado vs realizado
+- [x] Criar e editar safra
+- [x] Avançar fase com validação
+- [x] Resumo planejado vs realizado
 
 ### US-13.2 — Orçamento da safra
 **Como** gestor, **quero** associar orçamento à safra, **para** controlar desvio financeiro.
 
 **Critérios de aceite:**
-- [ ] Orçamento vinculado à safra
-- [ ] Integração com financeiro
-- [ ] Relatório de desvio
+- [x] Orçamento vinculado à safra
+- [x] Integração com financeiro
+- [x] Relatório de desvio
 
 ## Tarefas técnicas
 
-- [ ] Adicionar testes de transição de fase
-- [ ] Melhorar integração com custos e DRE
-- [ ] Revisar consistência dos templates agrícolas
-
+- [x] Adicionar testes de transição de fase
+- [x] Melhorar integração com custos e DRE
+- [x] Revisar consistência dos templates agrícolas

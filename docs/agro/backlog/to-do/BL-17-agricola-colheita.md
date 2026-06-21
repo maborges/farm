@@ -1,7 +1,7 @@
 # BL-17 — A5_COLHEITA
 
 **Módulo:** `A5_COLHEITA`  
-**Status atual:** Implementado  
+**Status atual:** Concluído
 **Prioridade:** Alta  
 **Dependências:** `CORE`, `A1_PLANEJAMENTO`
 
@@ -20,21 +20,20 @@ Colheita, romaneios, produtividade e rastreabilidade do lote.
 **Como** operador, **quero** registrar romaneios, **para** medir produtividade e receber produção.
 
 **Critérios de aceite:**
-- [ ] CRUD de romaneios
-- [ ] KPIs de colheita
-- [ ] Cálculo de produtividade
+- [x] CRUD de romaneios
+- [x] KPIs de colheita
+- [x] Cálculo de produtividade
 
 ### US-17.2 — Encadeamento com financeiro
 **Como** gestor, **quero** que a colheita gere dados financeiros, **para** fechar o ciclo operacional.
 
 **Critérios de aceite:**
-- [ ] Integração com receitas
-- [ ] Descontos de qualidade
-- [ ] Rastreabilidade por lote
+- [x] Integração com receitas
+- [x] Descontos de qualidade
+- [x] Rastreabilidade por lote
 
 ## Tarefas técnicas
 
-- [ ] Cobrir cenário de integração com financeiro
-- [ ] Refinar métricas de colheita
-- [ ] Padronizar telas de resumo
-
+- [x] Cobrir cenário de integração com financeiro
+- [x] Refinar métricas de colheita
+- [x] Padronizar telas de resumo

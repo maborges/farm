@@ -1,7 +1,7 @@
 # BL-15 — A3_DEFENSIVOS
 
 **Módulo:** `A3_DEFENSIVOS`  
-**Status atual:** Implementado  
+**Status atual:** Concluído
 **Prioridade:** Alta  
 **Dependências:** `CORE`, `A2_CAMPO`
 
@@ -20,21 +20,20 @@ Monitoramento fitossanitário, diagnósticos e receituário.
 **Como** agrônomo, **quero** registrar monitoramentos, **para** responder rapidamente a surtos.
 
 **Critérios de aceite:**
-- [ ] Cadastro e consulta por safra
-- [ ] Catálogo de pragas/doenças
-- [ ] Diagnóstico assistido
+- [x] Cadastro e consulta por safra
+- [x] Catálogo de pragas/doenças
+- [x] Diagnóstico assistido
 
 ### US-15.2 — Receituário
 **Como** agrônomo, **quero** gerar receituários, **para** formalizar aplicação de defensivos.
 
 **Critérios de aceite:**
-- [ ] Emissão de receituário
-- [ ] Vínculo com operação
-- [ ] Auditoria de alterações
+- [x] Emissão de receituário
+- [x] Vínculo com operação
+- [x] Auditoria de alterações
 
 ## Tarefas técnicas
 
-- [ ] Adicionar testes de diagnóstico assistido
-- [ ] Cobrir cenários de prescrição
-- [ ] Melhorar integração com estoque
-
+- [x] Adicionar testes de diagnóstico assistido
+- [x] Cobrir cenários de prescrição
+- [x] Melhorar integração com estoque

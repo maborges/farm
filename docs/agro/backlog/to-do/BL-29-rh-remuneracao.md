@@ -1,7 +1,7 @@
 # BL-29 — RH1_REMUNERACAO
 
 **Módulo:** `RH1_REMUNERACAO`  
-**Status atual:** Implementado  
+**Status atual:** Concluído
 **Prioridade:** Média  
 **Dependências:** `CORE`
 
@@ -19,21 +19,20 @@ Colaboradores, diárias, empreitadas e pagamento por produção.
 **Como** gestor, **quero** cadastrar colaboradores, **para** registrar vínculos de trabalho.
 
 **Critérios de aceite:**
-- [ ] CRUD de colaboradores
-- [ ] Departamentos
-- [ ] Status ativo/inativo
+- [x] CRUD de colaboradores
+- [x] Departamentos
+- [x] Status ativo/inativo
 
 ### US-29.2 — Pagamento de diárias
 **Como** gestor, **quero** pagar diárias em lote, **para** agilizar fechamento.
 
 **Critérios de aceite:**
-- [ ] Lançamento de diárias
-- [ ] Pagamento em lote
-- [ ] Integração com financeiro
+- [x] Lançamento de diárias
+- [x] Pagamento em lote
+- [x] Integração com financeiro
 
 ## Tarefas técnicas
 
-- [ ] Reforçar testes de lote de pagamento
-- [ ] Melhorar relatórios de RH
-- [ ] Consolidar telas de equipe
-
+- [x] Reforçar testes de lote de pagamento
+- [x] Melhorar relatórios de RH
+- [x] Consolidar telas de equipe

@@ -1,7 +1,7 @@
 # BL-33 — EXT_IA
 
 **Módulo:** `EXT_IA`  
-**Status atual:** Implementado  
+**Status atual:** Concluído
 **Prioridade:** Média  
 **Dependências:** `CORE`
 
@@ -20,21 +20,20 @@ IA Copilot, diagnóstico, recomendações e assistentes.
 **Como** gestor, **quero** receber recomendações assistidas, **para** tomar decisões mais rápidas.
 
 **Critérios de aceite:**
-- [ ] Respostas contextualizadas
-- [ ] Histórico de interações
-- [ ] Limites de uso por plano
+- [x] Respostas contextualizadas
+- [x] Histórico de interações
+- [x] Limites de uso por plano
 
 ### US-33.2 — Diagnóstico inteligente
 **Como** agrônomo, **quero** usar IA para diagnóstico, **para** acelerar decisão de manejo.
 
 **Critérios de aceite:**
-- [ ] Fluxos de diagnóstico
-- [ ] Integração com imagens
-- [ ] Auditoria de uso
+- [x] Fluxos de diagnóstico
+- [x] Integração com imagens
+- [x] Auditoria de uso
 
 ## Tarefas técnicas
 
-- [ ] Consolidar rotas e naming
-- [ ] Amarrar limites de plano
-- [ ] Cobrir respostas com testes
-
+- [x] Consolidar rotas e naming
+- [x] Amarrar limites de plano
+- [x] Cobrir respostas com testes

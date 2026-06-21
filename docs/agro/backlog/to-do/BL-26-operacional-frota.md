@@ -1,7 +1,7 @@
 # BL-26 — O1_FROTA
 
 **Módulo:** `O1_FROTA`  
-**Status atual:** Implementado  
+**Status atual:** Concluído
 **Prioridade:** Alta  
 **Dependências:** `CORE`, `O2_ESTOQUE`
 
@@ -19,21 +19,20 @@ Frota, manutenção, abastecimento e custos de máquinas.
 **Como** gestor, **quero** criar planos e ordens de serviço, **para** manter máquinas operacionais.
 
 **Critérios de aceite:**
-- [ ] Plano de manutenção
-- [ ] OS e itens de OS
-- [ ] Fechamento com custos
+- [x] Plano de manutenção
+- [x] OS e itens de OS
+- [x] Fechamento com custos
 
 ### US-26.2 — Uso e abastecimento
 **Como** gestor, **quero** registrar abastecimentos e uso, **para** medir consumo real.
 
 **Critérios de aceite:**
-- [ ] Controle de abastecimento
-- [ ] Apontamento de uso
-- [ ] Custo por hora/km
+- [x] Controle de abastecimento
+- [x] Apontamento de uso
+- [x] Custo por hora/km
 
 ## Tarefas técnicas
 
-- [ ] Ampliar cobertura de indicadores
-- [ ] Revisar relatórios de custo consolidado
-- [ ] Garantir integração estável com estoque
-
+- [x] Ampliar cobertura de indicadores
+- [x] Revisar relatórios de custo consolidado
+- [x] Garantir integração estável com estoque

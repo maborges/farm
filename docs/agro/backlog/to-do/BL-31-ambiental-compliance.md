@@ -1,7 +1,7 @@
 # BL-31 — AM1_COMPLIANCE
 
 **Módulo:** `AM1_COMPLIANCE`  
-**Status atual:** Implementado  
+**Status atual:** Concluído
 **Prioridade:** Média  
 **Dependências:** `CORE`
 
@@ -19,21 +19,20 @@ CAR, outorgas e alertas ambientais.
 **Como** gestor, **quero** controlar CAR e outorgas, **para** manter conformidade ambiental.
 
 **Critérios de aceite:**
-- [ ] CRUD de CAR
-- [ ] CRUD de outorgas
-- [ ] Dashboard de pendências
+- [x] CRUD de CAR
+- [x] CRUD de outorgas
+- [x] Dashboard de pendências
 
 ### US-31.2 — Alertas ambientais
 **Como** gestor, **quero** registrar alertas, **para** acompanhar riscos e resoluções.
 
 **Critérios de aceite:**
-- [ ] Status do alerta
-- [ ] Severidade
-- [ ] Histórico de resolução
+- [x] Status do alerta
+- [x] Severidade
+- [x] Histórico de resolução
 
 ## Tarefas técnicas
 
-- [ ] Melhorar regras de monitoramento
-- [ ] Reforçar testes de vencimento
-- [ ] Consolidar telas de auditoria
-
+- [x] Melhorar regras de monitoramento
+- [x] Reforçar testes de vencimento
+- [x] Consolidar telas de auditoria

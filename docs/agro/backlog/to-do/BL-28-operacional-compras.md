@@ -1,7 +1,7 @@
 # BL-28 — O3_COMPRAS
 
 **Módulo:** `O3_COMPRAS`  
-**Status atual:** Implementado  
+**Status atual:** Concluído
 **Prioridade:** Média  
 **Dependências:** `CORE`, `O2_ESTOQUE`
 
@@ -19,21 +19,20 @@ Compras, cotações, aprovação e recebimento.
 **Como** gestor, **quero** criar pedido e cotação, **para** adquirir insumos com controle.
 
 **Critérios de aceite:**
-- [ ] Pedido com itens
-- [ ] Cotações por fornecedor
-- [ ] Aprovação do pedido
+- [x] Pedido com itens
+- [x] Cotações por fornecedor
+- [x] Aprovação do pedido
 
 ### US-28.2 — Recebimento
 **Como** operador, **quero** registrar o recebimento, **para** dar entrada no estoque.
 
 **Critérios de aceite:**
-- [ ] Entrada no estoque
-- [ ] Integração com financeiro
-- [ ] Status do pedido
+- [x] Entrada no estoque
+- [x] Integração com financeiro
+- [x] Status do pedido
 
 ## Tarefas técnicas
 
-- [ ] Melhorar trilha de aprovação
-- [ ] Cobrir integração com estoque e despesas
-- [ ] Adicionar relatórios de lead time
-
+- [x] Melhorar trilha de aprovação
+- [x] Cobrir integração com estoque e despesas
+- [x] Adicionar relatórios de lead time

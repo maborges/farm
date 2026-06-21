@@ -1,7 +1,7 @@
 # BL-14 — A2_CAMPO
 
 **Módulo:** `A2_CAMPO`  
-**Status atual:** Implementado  
+**Status atual:** Concluído
 **Prioridade:** Alta  
 **Dependências:** `CORE`, `A1_PLANEJAMENTO`, `O2_ESTOQUE`
 
@@ -20,21 +20,20 @@ Caderno de campo, operações agrícolas, apontamentos e baixa de insumos.
 **Como** operador, **quero** registrar operações de campo, **para** manter o histórico agronômico.
 
 **Critérios de aceite:**
-- [ ] CRUD de operações
-- [ ] Baixa automática de estoque
-- [ ] Registro de custos
+- [x] CRUD de operações
+- [x] Baixa automática de estoque
+- [x] Registro de custos
 
 ### US-14.2 — Caderno de campo
 **Como** gestor, **quero** exportar o caderno de campo, **para** auditoria e controle.
 
 **Critérios de aceite:**
-- [ ] Exportação em PDF
-- [ ] Filtros por safra/fase
-- [ ] Histórico consultável
+- [x] Exportação em PDF
+- [x] Filtros por safra/fase
+- [x] Histórico consultável
 
 ## Tarefas técnicas
 
-- [ ] Cobrir cenários de baixa de estoque em testes
-- [ ] Revisar performance de listagens grandes
-- [ ] Padronizar mensagens de validação
-
+- [x] Cobrir cenários de baixa de estoque em testes
+- [x] Revisar performance de listagens grandes
+- [x] Padronizar mensagens de validação

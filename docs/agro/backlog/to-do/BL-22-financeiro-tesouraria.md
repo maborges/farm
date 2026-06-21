@@ -1,7 +1,7 @@
 # BL-22 — F1_TESOURARIA
 
 **Módulo:** `F1_TESOURARIA`  
-**Status atual:** Implementado  
+**Status atual:** Concluído
 **Prioridade:** Alta  
 **Dependências:** `CORE`
 
@@ -20,21 +20,20 @@ Contas a pagar e receber, plano de contas, conciliação e integrações finance
 **Como** gestor, **quero** registrar receitas e despesas, **para** controlar o caixa.
 
 **Critérios de aceite:**
-- [ ] CRUD de receitas e despesas
-- [ ] Parcelamento
-- [ ] Rateio por centro de custo
+- [x] CRUD de receitas e despesas
+- [x] Parcelamento
+- [x] Rateio por centro de custo
 
 ### US-22.2 — Conciliação bancária
 **Como** gestor, **quero** conciliar extrato com lançamentos, **para** manter caixa confiável.
 
 **Critérios de aceite:**
-- [ ] Importação OFX
-- [ ] Sugestões de conciliação
-- [ ] Aprovação manual
+- [x] Importação OFX
+- [x] Sugestões de conciliação
+- [x] Aprovação manual
 
 ## Tarefas técnicas
 
-- [ ] Revisar nomes de módulos fiscais correlatos
-- [ ] Ampliar cobertura de relatórios
-- [ ] Criar testes de integração de conciliação
-
+- [x] Revisar nomes de módulos fiscais correlatos
+- [x] Ampliar cobertura de relatórios
+- [x] Criar testes de integração de conciliação

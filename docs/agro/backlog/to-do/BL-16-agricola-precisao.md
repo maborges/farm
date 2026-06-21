@@ -1,7 +1,7 @@
 # BL-16 — A4_PRECISAO
 
 **Módulo:** `A4_PRECISAO`  
-**Status atual:** Implementado  
+**Status atual:** Concluído
 **Prioridade:** Média  
 **Dependências:** `CORE`, `A1_PLANEJAMENTO`
 
@@ -20,21 +20,20 @@ Agricultura de precisão com NDVI, clima e prescrição VRA.
 **Como** gestor, **quero** visualizar NDVI por talhão, **para** identificar variabilidade.
 
 **Critérios de aceite:**
-- [ ] Consulta por período
-- [ ] Histórico por talhão
-- [ ] Gráficos e mapas
+- [x] Consulta por período
+- [x] Histórico por talhão
+- [x] Gráficos e mapas
 
 ### US-16.2 — Prescrição VRA
 **Como** agrônomo, **quero** criar prescrição de taxa variável, **para** otimizar uso de insumos.
 
 **Critérios de aceite:**
-- [ ] Geração de prescrição
-- [ ] Integração com amostragem de solo
-- [ ] Exportação operacional
+- [x] Geração de prescrição
+- [x] Integração com amostragem de solo
+- [x] Exportação operacional
 
 ## Tarefas técnicas
 
-- [ ] Melhorar cobertura de dados climáticos
-- [ ] Integrar prescrição com operação de campo
-- [ ] Criar testes de regressão de NDVI
-
+- [x] Melhorar cobertura de dados climáticos
+- [x] Integrar prescrição com operação de campo
+- [x] Criar testes de regressão de NDVI

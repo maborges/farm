@@ -1,7 +1,7 @@
 # BL-34 — EXT_IOT
 
 **Módulo:** `EXT_IOT`  
-**Status atual:** Implementado  
+**Status atual:** Concluído
 **Prioridade:** Baixa  
 **Dependências:** `CORE`, `A4_PRECISAO`, `O1_FROTA`
 
@@ -19,21 +19,20 @@ Integração com telemetria, máquinas e sensores.
 **Como** gestor, **quero** integrar máquinas e sensores, **para** automatizar coleta de dados.
 
 **Critérios de aceite:**
-- [ ] Conectores específicos
-- [ ] Sincronização periódica
-- [ ] Monitoramento de falhas
+- [x] Conectores específicos
+- [x] Sincronização periódica
+- [x] Monitoramento de falhas
 
 ### US-34.2 — Alertas de telemetria
 **Como** operador, **quero** ver alertas de telemetria, **para** agir rápido.
 
 **Critérios de aceite:**
-- [ ] Alertas em tempo real
-- [ ] Histórico de eventos
-- [ ] Integração com frota e campo
+- [x] Alertas em tempo real
+- [x] Histórico de eventos
+- [x] Integração com frota e campo
 
 ## Tarefas técnicas
 
-- [ ] Revisar cobertura dos conectores
-- [ ] Padronizar contratos de integração
-- [ ] Melhorar observabilidade
-
+- [x] Revisar cobertura dos conectores
+- [x] Padronizar contratos de integração
+- [x] Melhorar observabilidade

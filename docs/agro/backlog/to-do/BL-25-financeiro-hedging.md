@@ -1,7 +1,7 @@
 # BL-25 — F4_HEDGING
 
 **Módulo:** `F4_HEDGING`  
-**Status atual:** Implementado  
+**Status atual:** Concluído
 **Prioridade:** Média  
 **Dependências:** `CORE`, `F1_TESOURARIA`
 
@@ -20,21 +20,20 @@ Contratos futuros, proteção de preço, exposição e visão de risco.
 **Como** gestor, **quero** registrar contrato futuro, **para** proteger preço de venda.
 
 **Critérios de aceite:**
-- [ ] CRUD de contratos
-- [ ] Registro de operações
-- [ ] Regras de status
+- [x] CRUD de contratos
+- [x] Registro de operações
+- [x] Regras de status
 
 ### US-25.2 — Exposição consolidada
 **Como** gestor, **quero** ver exposição física e financeira, **para** medir risco.
 
 **Critérios de aceite:**
-- [ ] Posição consolidada
-- [ ] Exposição por safra/commodity
-- [ ] Classificação de risco
+- [x] Posição consolidada
+- [x] Exposição por safra/commodity
+- [x] Classificação de risco
 
 ## Tarefas técnicas
 
-- [ ] Cobrir cenários de risco com testes
-- [ ] Revisar dependência de tiers
-- [ ] Melhorar documentação operacional
-
+- [x] Cobrir cenários de risco com testes
+- [x] Revisar dependência de tiers
+- [x] Melhorar documentação operacional
