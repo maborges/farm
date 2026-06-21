@@ -1,7 +1,7 @@
 # BL-19 — P2_GENETICA
 
 **Módulo:** `P2_GENETICA`  
-**Status atual:** Implementado  
+**Status atual:** Concluído
 **Prioridade:** Média  
 **Dependências:** `CORE`, `P1_REBANHO`
 
