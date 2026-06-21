@@ -1,7 +1,7 @@
 # BL-09 — CORE
 
 **Módulo:** `CORE`  
-**Status atual:** Implementado, com necessidade de estabilização  
+**Status atual:** Concluído
 **Prioridade:** Alta  
 **Dependências:** nenhuma
 
@@ -33,27 +33,27 @@ Este backlog serve para fechar lacunas de consistência e reduzir risco de regre
 **Como** administrador da plataforma, **quero** uma fonte única para módulos e pacotes, **para** evitar divergências entre frontend e backend.
 
 **Critérios de aceite:**
-- [ ] Catálogo único versionado
-- [ ] Validação automática de sincronismo entre backend e frontend
-- [ ] Seeds idempotentes para módulos e pacotes
-- [ ] Falha explícita quando houver divergência de chave ou código
+- [x] Catálogo único versionado
+- [x] Validação automática de sincronismo entre backend e frontend
+- [x] Seeds idempotentes para módulos e pacotes
+- [x] Falha explícita quando houver divergência de chave ou código
 
 ### US-09.2 — Feature gates consistentes
 **Como** sistema, **quero** aplicar gates iguais em toda a stack, **para** bloquear acesso inconsistente.
 
 **Critérios de aceite:**
-- [ ] `require_module()` padronizado em todos os routers
-- [ ] Testes cobrindo acesso permitido e negado
-- [ ] Mensagens de erro unificadas
-- [ ] Tratamento consistente para módulos e tiers
+- [x] `require_module()` padronizado em todos os routers
+- [x] Testes cobrindo acesso permitido e negado
+- [x] Mensagens de erro unificadas
+- [x] Tratamento consistente para módulos e tiers
 
 ### US-09.3 — Billing e onboarding previsíveis
 **Como** gestor da assinatura, **quero** um fluxo previsível de criação e atualização de plano, **para** iniciar uso sem inconsistência operacional.
 
 **Critérios de aceite:**
-- [ ] Plano inicial criado com módulos esperados
-- [ ] Onboarding não depende de ajuste manual
-- [ ] Limites refletidos no backend e frontend
+- [x] Plano inicial criado com módulos esperados
+- [x] Onboarding não depende de ajuste manual
+- [x] Limites refletidos no backend e frontend
 
 ## Escopo Inicial
 
@@ -66,25 +66,25 @@ Este backlog serve para fechar lacunas de consistência e reduzir risco de regre
 ## Tarefas Técnicas
 
 ### Backend
-- [ ] Consolidar catálogo de módulos em uma fonte canônica
-- [ ] Revisar divergências de nomenclatura entre módulos e pacotes
-- [ ] Validar a correspondência entre `Modulos`, `ModuloMetadata` e pacotes
-- [ ] Adicionar testes de contract para billing e onboarding
-- [ ] Cobrir `require_module()` com cenários de erro e sucesso
+- [x] Consolidar catálogo de módulos em uma fonte canônica
+- [x] Revisar divergências de nomenclatura entre módulos e pacotes
+- [x] Validar a correspondência entre `Modulos`, `ModuloMetadata` e pacotes
+- [x] Adicionar testes de contract para billing e onboarding
+- [x] Cobrir `require_module()` com cenários de erro e sucesso
 
 ### Frontend
-- [ ] Garantir que o catálogo do frontend use os mesmos códigos do backend
-- [ ] Revisar labels dos módulos em menus e telas administrativas
-- [ ] Validar estados vazios e de bloqueio por módulo
+- [x] Garantir que o catálogo do frontend use os mesmos códigos do backend
+- [x] Revisar labels dos módulos em menus e telas administrativas
+- [x] Validar estados vazios e de bloqueio por módulo
 
 ### Qualidade
-- [ ] Criar teste automatizado de sincronismo do catálogo
-- [ ] Criar teste automatizado para plano inicial e módulos inclusos
-- [ ] Criar teste automatizado para gates de acesso
+- [x] Criar teste automatizado de sincronismo do catálogo
+- [x] Criar teste automatizado para plano inicial e módulos inclusos
+- [x] Criar teste automatizado para gates de acesso
 
 ## Critério de Pronto
 
-- [ ] Catálogo único validado
-- [ ] Gates cobertos por testes
-- [ ] Seeds previsíveis
-- [ ] Sem divergências entre documentação e código para o CORE
+- [x] Catálogo único validado
+- [x] Gates cobertos por testes
+- [x] Seeds previsíveis
+- [x] Sem divergências entre documentação e código para o CORE
