@@ -285,24 +285,32 @@ class RomaneioService(BaseService[RomaneioColheita]):
         updated = await self.update(id, patch)
         return updated
 
-    async def kpis_safra(self, safra_id: UUID) -> RomaneioKPIs:
+    async def kpis_safra(self, safra_id: UUID, unidade_produtiva_id: UUID | None = None) -> RomaneioKPIs:
+        filters = [RomaneioColheita.tenant_id == self.tenant_id]
+        filters.append(RomaneioColheita.safra_id == safra_id)
+        if unidade_produtiva_id:
+            filters.append(RomaneioColheita.production_unit_id == unidade_produtiva_id)
+
         stmt = select(
             func.count(RomaneioColheita.id),
             func.coalesce(func.sum(RomaneioColheita.sacas_60kg), 0),
             func.coalesce(func.sum(RomaneioColheita.receita_total), 0),
-        ).where(
-            RomaneioColheita.tenant_id == self.tenant_id,
-            RomaneioColheita.safra_id == safra_id,
-        )
+        ).where(*filters)
         row = (await self.session.execute(stmt)).first()
         total_romaneios, total_sacas, receita_total = row
 
         # Produtividade média: soma sacas / soma área dos talhões
         from agricola.safras.models import SafraTalhao
-        stmt_area = select(func.sum(SafraTalhao.area_ha)).where(
-            SafraTalhao.tenant_id == self.tenant_id,
-            SafraTalhao.safra_id == safra_id,
-        )
+        area_filters = [SafraTalhao.tenant_id == self.tenant_id]
+        area_filters.append(SafraTalhao.safra_id == safra_id)
+        if unidade_produtiva_id:
+            from core.cadastros.propriedades.models import AreaRural
+            stmt_area = select(func.sum(SafraTalhao.area_ha)).join(
+                AreaRural, SafraTalhao.area_id == AreaRural.id
+            ).where(*area_filters, AreaRural.unidade_produtiva_id == unidade_produtiva_id)
+        else:
+            stmt_area = select(func.sum(SafraTalhao.area_ha)).where(*area_filters)
+
         area_total = (await self.session.execute(stmt_area)).scalar() or 0
         produtividade = float(total_sacas) / float(area_total) if area_total else None
 

@@ -33,12 +33,13 @@ async def criar_romaneio(
 @router.get("/kpis", response_model=RomaneioKPIs)
 async def kpis_romaneios(
     safra_id: UUID,
+    unidade_produtiva_id: UUID | None = None,
     session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A5_COLHEITA")),
 ):
     svc = RomaneioService(session, tenant_id)
-    return await svc.kpis_safra(safra_id)
+    return await svc.kpis_safra(safra_id=safra_id, unidade_produtiva_id=unidade_produtiva_id)
 
 @router.get("/", response_model=List[RomaneioColheitaResponse])
 async def listar_romaneios(

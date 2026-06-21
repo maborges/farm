@@ -194,7 +194,7 @@ async def get_current_user_claims(
 
 async def get_tenant_id(
     request: Request,
-    claims: dict = Depends(get_current_user_claims)
+    claims: dict = Depends(get_current_user_claims),
 ) -> uuid.UUID:
     """Recupera e garante que o usuário pertence ao Tenant que ele está tentando operar."""
     tenant_id_str = claims.get("tenant_id")
@@ -220,7 +220,7 @@ async def get_tenant_id(
                 TenantUsuario.status == "ATIVO",
             ).distinct()
         )
-        tenant_ids = list(result.scalars().all())
+    tenant_ids = list(result.scalars().all())
 
     if len(tenant_ids) == 1:
         resolved_tenant_id = tenant_ids[0]
