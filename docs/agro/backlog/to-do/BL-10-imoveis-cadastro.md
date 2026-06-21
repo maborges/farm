@@ -1,7 +1,7 @@
 # BL-10 — IMOVEIS_CADASTRO
 
 **Módulo:** `IMOVEIS_CADASTRO`  
-**Status atual:** Implementado e estabilizado nesta rodada  
+**Status atual:** Concluído
 **Prioridade:** Alta  
 **Dependências:** `CORE`
 
