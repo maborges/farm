@@ -1,7 +1,7 @@
 # BL-20 — P3_CONFINAMENTO
 
 **Módulo:** `P3_CONFINAMENTO`  
-**Status atual:** Implementado  
+**Status atual:** Concluído
 **Prioridade:** Média  
 **Dependências:** `CORE`, `P1_REBANHO`, `O2_ESTOQUE`
 
