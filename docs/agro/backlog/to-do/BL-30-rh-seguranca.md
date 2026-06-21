@@ -1,7 +1,7 @@
 # BL-30 — RH2_SEGURANCA
 
 **Módulo:** `RH2_SEGURANCA`  
-**Status atual:** Implementado  
+**Status atual:** Concluído
 **Prioridade:** Média  
 **Dependências:** `CORE`, `RH1_REMUNERACAO`
 
