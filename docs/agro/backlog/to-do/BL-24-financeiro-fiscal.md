@@ -1,7 +1,7 @@
 # BL-24 — F3_FISCAL
 
 **Módulo:** `F3_FISCAL`  
-**Status atual:** Implementado  
+**Status atual:** Concluído
 **Prioridade:** Alta  
 **Dependências:** `CORE`, `F1_TESOURARIA`
 
