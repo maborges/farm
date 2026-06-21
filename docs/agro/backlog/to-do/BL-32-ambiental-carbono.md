@@ -1,7 +1,7 @@
 # BL-32 — AM2_CARBONO
 
 **Módulo:** `AM2_CARBONO`  
-**Status atual:** Implementado  
+**Status atual:** Concluído
 **Prioridade:** Baixa  
 **Dependências:** `CORE`, `AM1_COMPLIANCE`
 
