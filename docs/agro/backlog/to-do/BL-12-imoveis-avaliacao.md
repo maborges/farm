@@ -1,7 +1,7 @@
 # BL-12 — IMOVEIS_AVALIACAO
 
 **Módulo:** `IMOVEIS_AVALIACAO`  
-**Status atual:** Implementado  
+**Status atual:** Concluído
 **Prioridade:** Média  
 **Dependências:** `CORE`, `IMOVEIS_CADASTRO`
 
