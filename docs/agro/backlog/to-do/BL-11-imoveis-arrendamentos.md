@@ -1,7 +1,7 @@
 # BL-11 — IMOVEIS_ARRENDAMENTOS
 
 **Módulo:** `IMOVEIS_ARRENDAMENTOS`  
-**Status atual:** Implementado  
+**Status atual:** Concluído
 **Prioridade:** Alta  
 **Dependências:** `CORE`, `IMOVEIS_CADASTRO`
 
