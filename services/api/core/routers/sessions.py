@@ -49,6 +49,7 @@ class SessaoResponse(BaseModel):
 
 class SessaoMembroResponse(SessaoResponse):
     usuario_id: uuid.UUID
+    usuario_apelido: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -148,13 +149,23 @@ async def listar_sessoes_equipe(
     db: AsyncSession = Depends(get_session),
 ):
     """Lista sessões ativas de todos os membros do tenant."""
+    from core.models.auth import Usuario
+    
     result = await db.execute(
-        select(SessaoAtiva)
+        select(SessaoAtiva, Usuario.apelido)
+        .outerjoin(Usuario, Usuario.id == SessaoAtiva.usuario_id)
         .where(SessaoAtiva.tenant_id == tenant_id, SessaoAtiva.status == "ATIVA")
         .order_by(SessaoAtiva.ultimo_heartbeat.desc())
         .limit(500)
     )
-    return result.scalars().all()
+    
+    out = []
+    for sessao, apelido in result.all():
+        data = SessaoMembroResponse.model_validate(sessao)
+        data.usuario_apelido = apelido
+        out.append(data)
+        
+    return out
 
 
 @router.delete(

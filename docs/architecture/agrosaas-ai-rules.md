@@ -29,6 +29,7 @@ As seguintes transgressões não são toleradas sob nenhuma circunstância:
 6. **NÃO QUEBRAR O RLS**: O banco de dados PostgreSQL roda em modo Row Level Security habilitado por `TenantRLSMiddleware`. Queries SQL diretos e APIs não podem ignorar as claims de autorização.
 7. **NÃO QUEBRAR A MÁQUINA DE SINCRONIZAÇÃO**: Toda rota e fluxo do `apps/campo` opera Offline First com Dexie.js. Alterar esse comportamento para chamadas em tempo real é falta gravíssima.
 8. **NÃO CRIAR NOVA ENTIDADE SEM VALIDAR**: Antes de gerar models SQLAlchemy, consulte o Data Model para garantir que a taxonomia/naming não fira o escopo global ou duplique algo existente (ex: criar `Worker` se já existir `Funcionario`).
+9. **NÃO ALTERAR DOMÍNIO TERRITORIAL/FUNDIÁRIO SEM CONSULTAR A NORMA**: Antes de qualquer alteração envolvendo propriedades, imóveis rurais, rastreabilidade, ESG ou certificações, consultar [AGRI-DOMAIN-001](/opt/lampp/htdocs/farm/docs/architecture/standards/AGRI-DOMAIN-001-territorial-fundiario.md).
 
 ---
 

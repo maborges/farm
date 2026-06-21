@@ -4,7 +4,7 @@ Sistema avançado para gestão de fazendas, focada em produtividade, isolamento 
 
 ## Leitura Inicial Obrigatória
 
-Antes de iniciar análise, implementação ou manutenção neste repositório, leia também `CONTEXTO.md` e `docs/architecture/ai-bootstrap.md`
+Antes de iniciar análise, implementação ou manutenção neste repositório, leia também `CONTEXTO.md`, 'SKILLS_INDEX.md' e `docs/architecture/ai-bootstrap.md`
 
 O arquivo `CONTEXTO.md` concentra o mapa operacional do projeto, incluindo:
 

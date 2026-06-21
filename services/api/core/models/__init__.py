@@ -31,9 +31,27 @@ from core.cadastros.pessoas.models import (
 from core.cadastros.propriedades.models import (
     AreaRural, MatriculaImovel, RegistroAmbiental,
 )
+from core.cadastros.propriedade_imovel.models import PropriedadeImovel
 
 # Cadastros — equipamentos
 from core.cadastros.equipamentos.models import Equipamento, EquipamentoAlocacao
+
+# Certificações / ESG
+from certificacoes_esg.models import (
+    AvaliacaoCertificacao,
+    ChecklistCertificacao,
+    CriterioCertificacao,
+    EvidenciaCertificacao,
+    NaoConformidadeCertificacao,
+    PassaporteRastreabilidade,
+    PassaporteRastreabilidadeEvidencia,
+    PassaporteRastreabilidadeEvento,
+    PlanoAcaoCertificacao,
+    RelatorioESG,
+    RelatorioESGEvidencia,
+    RelatorioESGIndicador,
+    ProgramaCertificacao,
+)
 
 # Cadastros — produtos (insumos / almoxarifado)
 from core.cadastros.produtos.models import (

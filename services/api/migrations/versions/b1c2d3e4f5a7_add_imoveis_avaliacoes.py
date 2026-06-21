@@ -1,6 +1,6 @@
 """add imoveis avaliacoes
 
-Revision ID: b1c2d3e4f5a6
+Revision ID: b1c2d3e4f5a7
 Revises: 43cdf769d080
 Create Date: 2026-06-20 12:00:00.000000
 
@@ -10,23 +10,28 @@ from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects.postgresql import ENUM as PGEnum
 
 # revision identifiers, used by Alembic.
-revision: str = "b1c2d3e4f5a6"
+revision: str = "b1c2d3e4f5a7"
 down_revision: Union[str, Sequence[str], None] = "43cdf769d080"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
+metodoavaliacaoimovel = PGEnum(
+    "MERCADO",
+    "CUSTO",
+    "RENDA",
+    "DECLARADO",
+    "LAUDO",
+    name="metodoavaliacaoimovel",
+    create_type=False,
+)
+
+
 def upgrade() -> None:
-    op.execute(
-        sa.text(
-            "DO $$ BEGIN "
-            "  CREATE TYPE metodoavaliacaoimovel AS ENUM ('MERCADO', 'CUSTO', 'RENDA', 'DECLARADO', 'LAUDO'); "
-            "EXCEPTION WHEN duplicate_object THEN NULL; "
-            "END $$;"
-        )
-    )
+    metodoavaliacaoimovel.create(op.get_bind(), checkfirst=True)
 
     op.create_table(
         "imoveis_avaliacoes",
@@ -34,7 +39,7 @@ def upgrade() -> None:
         sa.Column("tenant_id", sa.Uuid(as_uuid=True), nullable=False),
         sa.Column("imovel_id", sa.Uuid(as_uuid=True), nullable=False),
         sa.Column("data_avaliacao", sa.DateTime(), nullable=False),
-        sa.Column("metodo", sa.Enum("MERCADO", "CUSTO", "RENDA", "DECLARADO", "LAUDO", name="metodoavaliacaoimovel", create_type=False), nullable=False),
+        sa.Column("metodo", metodoavaliacaoimovel, nullable=False),
         sa.Column("valor_total", sa.Numeric(precision=14, scale=2), nullable=False),
         sa.Column("valor_por_hectare", sa.Numeric(precision=14, scale=2), nullable=True),
         sa.Column("valor_terra_nua", sa.Numeric(precision=14, scale=2), nullable=True),
@@ -63,4 +68,4 @@ def downgrade() -> None:
     op.drop_index(op.f("ix_imoveis_avaliacoes_imovel_id"), table_name="imoveis_avaliacoes")
     op.drop_index(op.f("ix_imoveis_avaliacoes_tenant_id"), table_name="imoveis_avaliacoes")
     op.drop_table("imoveis_avaliacoes")
-    op.execute(sa.text("DROP TYPE IF EXISTS metodoavaliacaoimovel"))
+    metodoavaliacaoimovel.drop(op.get_bind(), checkfirst=True)

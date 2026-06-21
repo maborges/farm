@@ -60,6 +60,8 @@ from core.cadastros.propriedades.propriedade_router import router as router_prop
 from core.cadastros.pessoas.router import router as router_pessoas, router_tipos as router_tipos_relacionamento
 from core.cadastros.equipamentos.router import router as router_equipamentos
 from core.cadastros.propriedades.router import router as router_areas_rurais
+from core.cadastros.propriedades.visao_router import router as router_visao_territorial
+from certificacoes_esg.router import router as router_certificacoes_esg
 from core.cadastros.commodities.router import (
     router as router_commodities,
     classif_router as router_commodity_classificacoes,
@@ -70,8 +72,12 @@ from core.cadastros.produtos.router import router as router_produtos
 
 # Imóveis Rurais
 from imoveis.routers.imovel import router as router_imoveis
+from imoveis.visao_router import router as router_visao_fundiaria
 from imoveis.routers.arrendamento import router as router_arrendamentos
 from imoveis.routers.avaliacao import router as router_avaliacoes
+
+# Vínculo canônico Propriedade x Imóvel Rural
+from core.cadastros.propriedade_imovel.router import router as router_propriedade_imovel
 
 # Growth — Landing Tracking (público, sem autenticação)
 from growth import router as growth_router
@@ -315,14 +321,18 @@ app.include_router(router_pessoas, prefix="/api/v1")
 app.include_router(router_tipos_relacionamento, prefix="/api/v1")
 app.include_router(router_equipamentos, prefix="/api/v1")
 app.include_router(router_areas_rurais, prefix="/api/v1")
+app.include_router(router_visao_territorial, prefix="/api/v1")
+app.include_router(router_certificacoes_esg, prefix="/api/v1")
 app.include_router(router_commodities, prefix="/api/v1")
 app.include_router(router_commodity_classificacoes, prefix="/api/v1")
 app.include_router(router_commodity_cotacoes, prefix="/api/v1")
 app.include_router(router_commodity_conversoes, prefix="/api/v1")
 app.include_router(router_produtos, prefix="/api/v1")
 app.include_router(router_imoveis, prefix="/api/v1")
+app.include_router(router_visao_fundiaria, prefix="/api/v1")
 app.include_router(router_arrendamentos, prefix="/api/v1")
 app.include_router(router_avaliacoes, prefix="/api/v1")
+app.include_router(router_propriedade_imovel, prefix="/api/v1")
 app.include_router(unidades_produtivas.router, prefix="/api/v1")
 from agricola.safras.router import router as router_safras
 from agricola.cultivos.router import router as router_cultivos
@@ -385,6 +395,7 @@ from iot_integracao.new_holland.routers import router as sprint26_router
 from core.api_publica.routers.keys import router as api_keys_router
 from core.api_publica.routers.logs import router as api_logs_router
 from core.api_publica.routers.versions import router as api_versions_router
+from certificacoes_esg.public_router import router as router_certificacoes_esg_publica
 
 # Enterprise (COMENTADO - Usa Session síncrono, requer migração para AsyncSession)
 # from enterprise.routers.sap import router as sap_router
@@ -477,6 +488,7 @@ app.include_router(sprint26_router, prefix="/api/v1")
 app.include_router(api_keys_router, prefix="/api/v1/api-publica")
 app.include_router(api_logs_router, prefix="/api/v1/api-publica")
 app.include_router(api_versions_router, prefix="/api/v1/api-publica")
+app.include_router(router_certificacoes_esg_publica, prefix="/api/v1/public")
 
 # Enterprise
 # Enterprise (COMENTADO)

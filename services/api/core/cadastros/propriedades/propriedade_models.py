@@ -50,6 +50,12 @@ class Propriedade(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     exploracoes: Mapped[list["ExploracaoRural"]] = relationship(back_populates="propriedade", lazy="noload", cascade="all, delete-orphan")
+    propriedade_imoveis: Mapped[list["PropriedadeImovel"]] = relationship(
+        "PropriedadeImovel",
+        back_populates="propriedade",
+        lazy="noload",
+        cascade="all, delete-orphan",
+    )
 
 
 class ExploracaoRural(Base):

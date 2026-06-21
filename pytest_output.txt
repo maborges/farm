@@ -1,0 +1,180 @@
+
+==================================== ERRORS ====================================
+_ ERROR collecting tests/integration/certificacoes_esg/test_relatorio_passaporte_router_integration.py _
+services/api/tests/integration/certificacoes_esg/test_relatorio_passaporte_router_integration.py:14: in <module>
+    from main import app
+services/api/main.py:404: in <module>
+    from enterprise.routers.sprints_27_33_router import router as sprints_27_33_router
+services/api/enterprise/routers/sprints_27_33_router.py:10: in <module>
+    from enterprise.services.sprints_27_33_service import (
+services/api/enterprise/services/sprints_27_33_service.py:7: in <module>
+    from enterprise.models.sprints_27_33 import (
+services/api/enterprise/models/sprints_27_33.py:106: in <module>
+    class ESGRelatorio(Base):
+services/api/.venv/lib/python3.10/site-packages/sqlalchemy/orm/decl_api.py:199: in __init__
+    _as_declarative(reg, cls, dict_)
+services/api/.venv/lib/python3.10/site-packages/sqlalchemy/orm/decl_base.py:245: in _as_declarative
+    return _MapperConfig.setup_mapping(registry, cls, dict_, None, {})
+services/api/.venv/lib/python3.10/site-packages/sqlalchemy/orm/decl_base.py:326: in setup_mapping
+    return _ClassScanMapperConfig(
+services/api/.venv/lib/python3.10/site-packages/sqlalchemy/orm/decl_base.py:577: in __init__
+    self._setup_table(table)
+services/api/.venv/lib/python3.10/site-packages/sqlalchemy/orm/decl_base.py:1762: in _setup_table
+    table_cls(
+<string>:2: in __new__
+    ???
+services/api/.venv/lib/python3.10/site-packages/sqlalchemy/util/deprecations.py:281: in warned
+    return fn(*args, **kwargs)  # type: ignore[no-any-return]
+services/api/.venv/lib/python3.10/site-packages/sqlalchemy/sql/schema.py:429: in __new__
+    return cls._new(*args, **kw)
+services/api/.venv/lib/python3.10/site-packages/sqlalchemy/sql/schema.py:461: in _new
+    raise exc.InvalidRequestError(
+E   sqlalchemy.exc.InvalidRequestError: Table 'esg_relatorios' is already defined for this MetaData instance.  Specify 'extend_existing=True' to redefine options and columns on an existing Table object.
+------------------------------- Captured stderr --------------------------------
+2026-06-21 17:29:38.445 | WARNING  | core.services.geoprocessamento_service:<module>:27 - Fiona/Shapely não disponíveis. Funcionalidades geoespaciais limitadas.
+=============================== warnings summary ===============================
+services/api/core/schemas/support_schemas.py:14
+  /opt/lampp/htdocs/farm/services/api/core/schemas/support_schemas.py:14: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class MensagemChamadoResponse(MensagemChamadoBase):
+
+services/api/core/schemas/support_schemas.py:32
+  /opt/lampp/htdocs/farm/services/api/core/schemas/support_schemas.py:32: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class ChamadoSuporteResponse(ChamadoSuporteBase):
+
+services/api/core/routers/backoffice_admins.py:46
+  /opt/lampp/htdocs/farm/services/api/core/routers/backoffice_admins.py:46: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class AdminUserResponse(BaseModel):
+
+services/api/core/routers/team.py:56
+  /opt/lampp/htdocs/farm/services/api/core/routers/team.py:56: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class PerfilResponse(BaseModel):
+
+services/api/core/routers/backoffice_profiles.py:42
+  /opt/lampp/htdocs/farm/services/api/core/routers/backoffice_profiles.py:42: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SystemProfileResponse(BaseModel):
+
+services/api/core/schemas/knowledge_base_schemas.py:14
+  /opt/lampp/htdocs/farm/services/api/core/schemas/knowledge_base_schemas.py:14: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class ConhecimentoCategoriaResponse(ConhecimentoCategoriaBase):
+
+services/api/core/schemas/knowledge_base_schemas.py:37
+  /opt/lampp/htdocs/farm/services/api/core/schemas/knowledge_base_schemas.py:37: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class ConhecimentoArtigoResponse(ConhecimentoArtigoBase):
+
+services/api/core/schemas/config_schemas.py:6
+  /opt/lampp/htdocs/farm/services/api/core/schemas/config_schemas.py:6: PydanticDeprecatedSince20: Using extra keyword arguments on `Field` is deprecated and will be removed. Use `json_schema_extra` instead. (Extra keys: 'example'). Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    host: str = Field(..., example="smtp.mailtrap.io")
+
+services/api/core/schemas/config_schemas.py:7
+  /opt/lampp/htdocs/farm/services/api/core/schemas/config_schemas.py:7: PydanticDeprecatedSince20: Using extra keyword arguments on `Field` is deprecated and will be removed. Use `json_schema_extra` instead. (Extra keys: 'example'). Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    port: int = Field(587, example=587)
+
+services/api/core/schemas/config_schemas.py:10
+  /opt/lampp/htdocs/farm/services/api/core/schemas/config_schemas.py:10: PydanticDeprecatedSince20: Using extra keyword arguments on `Field` is deprecated and will be removed. Use `json_schema_extra` instead. (Extra keys: 'example'). Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    mail_from: str = Field(..., alias="from", example="noreply@agrosaas.com.br")
+
+services/api/core/schemas/config_schemas.py:5
+  /opt/lampp/htdocs/farm/services/api/core/schemas/config_schemas.py:5: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SMTPConfig(BaseModel):
+
+services/api/core/schemas/config_schemas.py:26
+  /opt/lampp/htdocs/farm/services/api/core/schemas/config_schemas.py:26: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class TenantConfigResponse(BaseModel):
+
+services/api/core/schemas/config_schemas.py:106
+  /opt/lampp/htdocs/farm/services/api/core/schemas/config_schemas.py:106: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class CategoriaResponse(BaseModel):
+
+services/api/core/schemas/config_schemas.py:147
+  /opt/lampp/htdocs/farm/services/api/core/schemas/config_schemas.py:147: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class ConfiguracaoFazendaResponse(BaseModel):
+
+services/api/core/schemas/config_schemas.py:165
+  /opt/lampp/htdocs/farm/services/api/core/schemas/config_schemas.py:165: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HistoricoConfiguracaoItem(BaseModel):
+
+services/api/core/routers/cupons.py:29
+  /opt/lampp/htdocs/farm/services/api/core/routers/cupons.py:29: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class CupomResponse(BaseModel):
+
+services/api/core/routers/backoffice_audit.py:22
+  /opt/lampp/htdocs/farm/services/api/core/routers/backoffice_audit.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class AuditLogResponse(BaseModel):
+
+services/api/core/routers/backoffice_audit.py:54
+  /opt/lampp/htdocs/farm/services/api/core/routers/backoffice_audit.py:54: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SecurityIncidentResponse(BaseModel):
+
+services/api/core/routers/tenant_audit.py:21
+  /opt/lampp/htdocs/farm/services/api/core/routers/tenant_audit.py:21: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class TenantAuditLogResponse(BaseModel):
+
+services/api/core/routers/backoffice_email_templates.py:44
+  /opt/lampp/htdocs/farm/services/api/core/routers/backoffice_email_templates.py:44: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class EmailTemplateResponse(BaseModel):
+
+services/api/core/routers/backoffice_email_templates.py:63
+  /opt/lampp/htdocs/farm/services/api/core/routers/backoffice_email_templates.py:63: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class EmailLogResponse(BaseModel):
+
+services/api/core/routers/backoffice_sessions.py:21
+  /opt/lampp/htdocs/farm/services/api/core/routers/backoffice_sessions.py:21: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SessionResponse(BaseModel):
+
+services/api/core/routers/sessions.py:36
+  /opt/lampp/htdocs/farm/services/api/core/routers/sessions.py:36: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SessaoResponse(BaseModel):
+
+services/api/core/routers/backoffice_crm.py:38
+  /opt/lampp/htdocs/farm/services/api/core/routers/backoffice_crm.py:38: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class EstagioResponse(BaseModel):
+
+services/api/core/routers/backoffice_crm.py:111
+  /opt/lampp/htdocs/farm/services/api/core/routers/backoffice_crm.py:111: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class AtividadeResponse(BaseModel):
+
+services/api/core/routers/backoffice_crm.py:126
+  /opt/lampp/htdocs/farm/services/api/core/routers/backoffice_crm.py:126: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class LeadResponse(BaseModel):
+
+services/api/core/routers/backoffice_crm_ofertas.py:43
+  /opt/lampp/htdocs/farm/services/api/core/routers/backoffice_crm_ofertas.py:43: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class ProdutoResponse(BaseModel):
+
+services/api/core/routers/backoffice_crm_ofertas.py:77
+  /opt/lampp/htdocs/farm/services/api/core/routers/backoffice_crm_ofertas.py:77: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class PlanoComercialResponse(BaseModel):
+
+services/api/core/routers/backoffice_crm_ofertas.py:103
+  /opt/lampp/htdocs/farm/services/api/core/routers/backoffice_crm_ofertas.py:103: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class OfertaPersonalizadaResponse(BaseModel):
+
+services/api/operacional/routers/compras.py:50
+  /opt/lampp/htdocs/farm/services/api/operacional/routers/compras.py:50: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class FornecedorResponse(BaseModel):
+
+services/api/imoveis/routers/imovel.py:92
+  /opt/lampp/htdocs/farm/services/api/imoveis/routers/imovel.py:92: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class ImovelResponse(BaseModel):
+
+services/api/imoveis/routers/imovel.py:130
+  /opt/lampp/htdocs/farm/services/api/imoveis/routers/imovel.py:130: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class CartorioResponse(BaseModel):
+
+services/api/imoveis/routers/imovel.py:158
+  /opt/lampp/htdocs/farm/services/api/imoveis/routers/imovel.py:158: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class BenfeitoriaResponse(BaseModel):
+
+services/api/agricola/dashboard/schemas.py:37
+  /opt/lampp/htdocs/farm/services/api/agricola/dashboard/schemas.py:37: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SafraResumoFinanceiro(BaseModel):
+
+services/api/agricola/beneficiamento/schemas.py:23
+  /opt/lampp/htdocs/farm/services/api/agricola/beneficiamento/schemas.py:23: PydanticDeprecatedSince20: `min_items` is deprecated and will be removed, use `min_length` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    romaneio_ids: List[UUID] = Field(..., min_items=1, description="IDs dos romaneios a agrupar")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+ERROR services/api/tests/integration/certificacoes_esg/test_relatorio_passaporte_router_integration.py
+!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!
+35 warnings, 1 error in 8.34s

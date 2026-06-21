@@ -51,6 +51,23 @@ Implementados e isolados:
 
 ---
 
+## DOMÍNIO TERRITORIAL E FUNDIÁRIO
+
+O AgroSaaS reconhece oficialmente o domínio territorial e fundiário como uma fronteira arquitetural crítica.
+
+- `Propriedades` é o domínio operacional, territorial e produtivo.
+- `Imóveis Rurais` é o domínio jurídico, patrimonial, documental e fiscal.
+- A cardinalidade oficial entre ambos é `N:N`, com entidade de vínculo canônica `PropriedadeImovel`.
+- Nenhum dado territorial ou fundiário pode possuir duas fontes oficiais.
+
+### Norma obrigatória
+
+Antes de qualquer alteração envolvendo propriedades, imóveis rurais, rastreabilidade, ESG ou certificações, consultar:
+
+- [AGRI-DOMAIN-001](/opt/lampp/htdocs/farm/docs/architecture/standards/AGRI-DOMAIN-001-territorial-fundiario.md)
+
+---
+
 ## ROUTING MAP RESUMIDO
 - **Frontend Web**: Rotas canônicas em `/agricola`, `/financeiro`, `/estoque`.
 - **Frontend Campo**: Views de formulário off-line alimentando o Dexie.

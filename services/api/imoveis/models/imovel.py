@@ -236,6 +236,12 @@ class ImovelRural(Base):
     contratos_arrendamento = relationship("ContratoArrendamento", back_populates="imovel", cascade="all, delete-orphan")
     benfeitorias = relationship("Benfeitoria", back_populates="imovel", cascade="all, delete-orphan")
     avaliacoes = relationship("AvaliacaoImovel", back_populates="imovel", cascade="all, delete-orphan")
+    propriedade_imoveis = relationship(
+        "PropriedadeImovel",
+        back_populates="imovel_rural",
+        lazy="noload",
+        cascade="all, delete-orphan",
+    )
     
     def calcular_situacao(self) -> SituacaoImovel:
         """

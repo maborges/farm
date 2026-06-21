@@ -8,6 +8,77 @@ Este documento evita sobreposição entre domínio operacional, econômico, anal
 
 ## Domínios Oficiais
 
+### 0. Domínio Territorial
+
+Responsável por:
+
+- Propriedades
+- Glebas
+- Talhões
+- Pastagens
+- Estradas
+- Infraestrutura
+- Áreas Operacionais
+- Safras
+- Produção
+- Manejo
+- Custos Operacionais
+- Indicadores Produtivos
+
+Ownership oficial:
+
+- `Propriedades` é a fonte da verdade do território operacional.
+- `AGRI-DOMAIN-001` define a fronteira com o domínio fundiário.
+
+Pode fazer:
+
+- representar a operação rural;
+- consolidar a leitura territorial;
+- alimentar rastreabilidade operacional.
+
+Não deve fazer:
+
+- assumir titularidade legal;
+- duplicar CAR, CCIR, ITR, NIRF ou matrícula;
+- substituir o domínio fundiário.
+
+### 0.1 Domínio Fundiário
+
+Responsável por:
+
+- Proprietários
+- Condôminos
+- Representantes Legais
+- Procuradores
+- Matrículas
+- Cartórios
+- CAR
+- CCIR
+- ITR
+- NIRF
+- SIGEF
+- Contratos
+- Avaliações
+- Documentação Fundiária
+
+Ownership oficial:
+
+- `Imóveis Rurais` é a fonte da verdade da titularidade e comprovação legal do território.
+- `AGRI-DOMAIN-001` é a norma oficial de referência.
+
+Pode fazer:
+
+- representar a titularidade;
+- representar o registro;
+- representar a prova documental;
+- alimentar certificações e rastreabilidade fundiária.
+
+Não deve fazer:
+
+- substituir a operação;
+- duplicar talhões, glebas, safras ou produção;
+- impor workflow operacional.
+
 ### 1. Domínio Econômico
 
 Responsável por:
@@ -170,6 +241,7 @@ Não deve fazer:
 ## Dependências Permitidas
 
 ```text
+Territorial -> Fundiário (via vínculo canônico)
 Operacional -> Econômico
 Econômico -> Analítico
 Analítico -> Assistido
@@ -185,10 +257,14 @@ Governança -> transversal
 - Operacional não recalcula DRE.
 - Tarefa não substitui operação.
 - Operação não substitui custo.
+- Territorial não substitui Fundiário.
+- Fundiário não substitui Territorial.
 
 ## Ownership Por Conceito
 
 - `Safra`: domínio operacional.
+- `Propriedade`: domínio territorial.
+- `Imóvel Rural`: domínio fundiário.
 - `Tarefa`: planejamento operacional.
 - `Operação`: execução operacional.
 - `CostAllocation`: apropriação econômica.

@@ -30,6 +30,37 @@ Este documento lista e agrupa as rotas do Monolito Backend (FastAPI) e a estrutu
 
 **Tenant Aware**: Sim (RLS integral).
 
+### Territorial & Fundiário
+**Módulos**: Propriedades / Imóveis Rurais
+- `/api/v1/cadastros/areas-rurais`
+- `/api/v1/propriedades/{id}/visao-territorial`
+- `/api/v1/imoveis`
+- `/api/v1/imoveis-rurais/{id}/visao-fundiaria`
+- `/api/v1/imoveis/arrendamentos`
+- `/api/v1/imoveis/avaliacoes`
+
+**Cobertura funcional**
+- Propriedades: geometria, hierarquia territorial, infraestrutura, safras operacionais e áreas.
+- Imóveis Rurais: titularidade, matrícula, cartório, CAR, CCIR, ITR, NIRF, contratos e avaliações.
+- Visões agregadas: leitura consolidada read-only com dados operacionais, fundiários e de vínculo canônico.
+
+**Observação**
+- A relação entre os domínios deve seguir `AGRI-DOMAIN-001`.
+- A cardinalidade oficial é `N:N` via entidade de vínculo canônica.
+
+### Certificações & ESG
+**Módulo**: Domínio consumidor territorial/fundiário
+- `/api/v1/certificacoes-esg/evidencias`
+- `/api/v1/certificacoes-esg/nao-conformidades`
+- `/api/v1/certificacoes-esg/planos-acao`
+- `/api/v1/certificacoes-esg/relatorios-esg`
+- `/api/v1/certificacoes-esg/passaportes`
+
+**Características**
+- Escrita exclusiva de evidências, não conformidades e planos de ação do domínio de certificação.
+- Consumo somente leitura da base territorial/fundiária canônica.
+- Tenant-aware com isolamento via RLS e tenant atual extraído da sessão autenticada.
+
 ### Financeiro & Comercialização
 **Módulo**: Financeiro
 - `/api/v1/financeiro/despesas`, `/api/v1/financeiro/receitas`
@@ -67,6 +98,10 @@ Este documento lista e agrupa as rotas do Monolito Backend (FastAPI) e a estrutu
 ### `apps/web` (Painel Administrativo)
 - Baseado no App Router (`src/app/`).
 - **Páginas Base**: `/login`, `/dashboard`, `/agricola`, `/financeiro`. (Estrutura canônica baseada nas APIs).
+- **Visões consolidadas**:
+  - `/cadastros/propriedades/[id]/visao-territorial`
+  - `/cadastros/imoveis/[id]/visao-fundiaria`
+  - `/dashboard/certificacoes-esg`
 - **Origem dos dados**: Fetch server-side no `page.tsx` -> TanStack Query -> Client Components via `shadcn/ui`.
 - **Status**: RSC implementado como default.
 
@@ -89,6 +124,7 @@ Este documento lista e agrupa as rotas do Monolito Backend (FastAPI) e a estrutu
 | Módulo | Frontend | Backend | Permissões (RBAC) | Testes (TDD) | Status |
 |---|---|---|---|---|---|
 | Autenticação / Sessão | ✅ Sim | ✅ Sim | ✅ Global | ✅ Necessário | Produção |
+| Territorial / Fundiário | ✅ Sim | ✅ Sim | ✅ Sim (RLS) | ✅ Obrigatório | Operacional |
 | Financeiro | ✅ Parcial | ✅ Sim | ✅ Sim (RLS) | ✅ Obrigatório | Operacional |
 | Agrícola / Safra | ✅ Sim | ✅ Sim | ✅ Sim (RLS) | ✅ Obrigatório | Operacional |
 | Frota / Abastecimento | ✅ Sim | ✅ Sim | ✅ Sim (RLS) | ✅ Obrigatório | Operacional |

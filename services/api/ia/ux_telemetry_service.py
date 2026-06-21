@@ -283,11 +283,13 @@ class IAUXTelemetryService:
         usuario_id: Optional[uuid.UUID] = None,
         dias: int = 30,
         inicio: Optional[datetime] = None,
-        fim: Optional[datetime] = None
+        fim: Optional[datetime] = None,
+        metricas: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """Classifica o perfil do usuário baseado em comportamento de IA (Step UX-05)."""
         try:
-            metricas = await IAUXTelemetryService.obter_metricas(db, tenant_id, dias=dias, inicio=inicio, fim=fim)
+            if metricas is None:
+                metricas = await IAUXTelemetryService.obter_metricas(db, tenant_id, dias=dias, inicio=inicio, fim=fim)
 
             resumo = metricas["resumo_geral"]
             funil = metricas["funil"]
@@ -299,11 +301,17 @@ class IAUXTelemetryService:
             perfil = "NEUTRO"
             justificativa = "Comportamento equilibrado detectado."
 
-            confiante_abertura_max = await IAUXTelemetryService.get_threshold(db, "confiante_abertura_max", 15.0)
-            confiante_execucao_min = await IAUXTelemetryService.get_threshold(db, "confiante_execucao_min", 40.0)
-            analitico_abertura_min = await IAUXTelemetryService.get_threshold(db, "analitico_abertura_min", 30.0)
-            analitico_tempo_min = await IAUXTelemetryService.get_threshold(db, "analitico_tempo_min", 15000.0)
-            inseguro_execucao_max = await IAUXTelemetryService.get_threshold(db, "inseguro_execucao_max", 15.0)
+            q_th = await db.execute(select(IAUXThreshold).where(IAUXThreshold.chave.in_([
+                "confiante_abertura_max", "confiante_execucao_min", "analitico_abertura_min", 
+                "analitico_tempo_min", "inseguro_execucao_max"
+            ])))
+            th_dict = {t.chave: t.valor for t in q_th.scalars().all()}
+            
+            confiante_abertura_max = th_dict.get("confiante_abertura_max", 15.0)
+            confiante_execucao_min = th_dict.get("confiante_execucao_min", 40.0)
+            analitico_abertura_min = th_dict.get("analitico_abertura_min", 30.0)
+            analitico_tempo_min = th_dict.get("analitico_tempo_min", 15000.0)
+            inseguro_execucao_max = th_dict.get("inseguro_execucao_max", 15.0)
 
             if taxa_abertura < confiante_abertura_max and taxa_execucao > confiante_execucao_min:
                 perfil = "CONFIANTE"
@@ -639,8 +647,8 @@ class IAUXTelemetryService:
             inicio_anterior = hoje - timedelta(days=14)
             fim_anterior = inicio_atual
 
-            p_atual = await IAUXTelemetryService.obter_perfil_usuario_ia(db, tenant_id, usuario_id, inicio=inicio_atual)
             m_atual = await IAUXTelemetryService.obter_metricas(db, tenant_id, inicio=inicio_atual)
+            p_atual = await IAUXTelemetryService.obter_perfil_usuario_ia(db, tenant_id, usuario_id, inicio=inicio_atual, metricas=m_atual)
 
             q_roi_atual = await db.execute(
                 text("""
@@ -655,8 +663,8 @@ class IAUXTelemetryService:
             )
             roi_atual = q_roi_atual.scalar() or 0.0
 
-            p_anterior = await IAUXTelemetryService.obter_perfil_usuario_ia(db, tenant_id, usuario_id, inicio=inicio_anterior, fim=fim_anterior)
             m_anterior = await IAUXTelemetryService.obter_metricas(db, tenant_id, inicio=inicio_anterior, fim=fim_anterior)
+            p_anterior = await IAUXTelemetryService.obter_perfil_usuario_ia(db, tenant_id, usuario_id, inicio=inicio_anterior, fim=fim_anterior, metricas=m_anterior)
 
             q_roi_ant = await db.execute(
                 text("""

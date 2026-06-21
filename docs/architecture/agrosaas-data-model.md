@@ -14,6 +14,94 @@ As entidades listadas abaixo:
 3. `Pessoas` (Clientes, Fornecedores, Funcionários): Entidade base compartilhada entre CRM, Financeiro e RH.
 4. `Produtos` / `Commodities`: Base para Comercialização, Estoque e Planejamento Agrícola.
 5. `Propriedades` / `Áreas Rurais`: Central para o módulo Agrícola, Pecuária, Ambiental e Rastreabilidade.
+6. `Imóveis Rurais`: Base jurídica, patrimonial, documental e fiscal do território.
+
+---
+
+## NORMA TERRITORIAL E FUNDIÁRIA
+
+O modelo territorial e fundiário oficial do AgroSaaS é regido pela norma [AGRI-DOMAIN-001](/opt/lampp/htdocs/farm/docs/architecture/standards/AGRI-DOMAIN-001-territorial-fundiario.md).
+
+### Cardinalidade oficial
+
+- `Propriedade` ↔ `Imóvel Rural`: `N:N`
+- A entidade canônica de vínculo é `PropriedadeImovel`
+- `PropriedadeImovel` representa o relacionamento entre os domínios e não deve armazenar dados operacionais nem fundiários
+
+### Ownership dos domínios
+
+- `Propriedades`: domínio operacional, territorial e produtivo
+- `Imóveis Rurais`: domínio jurídico, patrimonial, documental e fiscal
+- `Compartilhado`: ESG, certificações, carbono, recuperação ambiental e licenciamento ambiental
+
+### Entidade canônica de vínculo
+
+- `PropriedadeImovel`: entidade de primeira classe responsável exclusivamente pelo vínculo entre `Propriedade` e `Imóvel Rural`
+- Cardinalidade oficial: `Propriedade` ↔ `Imóvel Rural` = `N:N`
+- `PropriedadeImovel` não é fonte de verdade para operação territorial nem para lastro fundiário
+- A entidade existe para registrar sobreposição, principalidade, vigência, origem documental e rastreabilidade histórica
+
+#### Campos mínimos esperados
+
+- `tenant_id` como isolamento multi-tenant obrigatório
+- `propriedade_id` como FK para `Propriedades`
+- `imovel_rural_id` como FK para `Imóveis Rurais`
+- `tipo_vinculo` como enum oficial
+- `ativo` como indicador de vigência atual
+- `data_inicio` como início obrigatório da vigência
+- `data_fim` como fim opcional da vigência
+- `origem_documental` como prova documental resumida do vínculo
+- `area_vinculada` como escopo de área vinculada
+- `percentual_vinculado` como representatividade percentual
+- `observacoes` como contexto de governança
+- `created_at` e `updated_at` como auditoria temporal
+
+#### Campos futuros
+
+- `vinculo_principal`
+- `status_documental`
+- `motivo_encerramento`
+- `versao_normativa`
+- `hash_documental`
+- `origem_geoespacial`
+- `score_confianca`
+
+#### Regras estruturais esperadas
+
+- Um vínculo principal ativo por propriedade e por janela de vigência
+- Histórico preservado quando o vínculo for encerrado
+- Sobreposição permitida somente quando o tipo de vínculo permitir
+- `area_vinculada` e `percentual_vinculado` devem ser coerentes quando ambos existirem
+- Dados espelhados não podem ser editados fora da origem oficial
+
+#### Constraints e índices esperados
+
+- PK em `id`
+- FK em `tenant_id`
+- FK em `propriedade_id`
+- FK em `imovel_rural_id`
+- Unique constraint para evitar vínculo principal ativo duplicado por propriedade e vigência
+- Check constraints para coerência de vigência
+- Index em `tenant_id`
+- Index composto em `tenant_id + propriedade_id`
+- Index composto em `tenant_id + imovel_rural_id`
+- Index em `tipo_vinculo`
+- Index em `ativo`
+- Index em `data_inicio` e `data_fim` para buscas históricas
+
+#### RLS esperado
+
+- `tenant_id` deve existir diretamente na tabela
+- A tabela futura deve ter `ENABLE ROW LEVEL SECURITY`
+- A tabela futura deve ter `CREATE POLICY` para `SELECT`, `INSERT`, `UPDATE` e `DELETE`
+- A política deve usar `app.current_tenant_id`
+- `FORCE ROW LEVEL SECURITY` é esperado para endurecimento do isolamento
+
+#### Fonte da verdade
+
+- `Propriedades`: fonte da verdade do território operacional
+- `Imóveis Rurais`: fonte da verdade fundiária, documental e fiscal
+- `PropriedadeImovel`: fonte da verdade do vínculo entre os dois domínios
 
 ---
 
