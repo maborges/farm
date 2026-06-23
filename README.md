@@ -4,16 +4,30 @@ Sistema avançado para gestão de fazendas, focada em produtividade, isolamento 
 
 ## Leitura Inicial Obrigatória
 
-Antes de iniciar análise, implementação ou manutenção neste repositório, leia também `CONTEXTO.md`, 'SKILLS_INDEX.md' e `docs/architecture/ai-bootstrap.md`
+Antes de iniciar análise, implementação ou manutenção neste repositório, siga esta ordem:
 
-O arquivo `CONTEXTO.md` concentra o mapa operacional do projeto, incluindo:
+1. `CONTEXTO.md`
+2. `docs/architecture/ai-bootstrap.md`
+3. `docs/architecture/architecture-inventory.md`
+4. `docs/architecture/agrosaas-master-context.md`
+5. `docs/architecture/agrosaas-domain-map.md`
+6. `docs/architecture/agrosaas-engineering-playbook.md`
+7. `SKILLS_INDEX.md`
 
-- estrutura real do monorepo
-- pontos de entrada de frontend e backend
-- convenções ativas
-- alertas sobre diretórios duplicados ou espelhados
+Função de cada documento:
 
-Sempre que houver mudança relevante de arquitetura, stack, convenções ou organização de diretórios, atualize `CONTEXTO.md` junto com a mudança.
+- `README.md`: porta de entrada do projeto e visão macro.
+- `CONTEXTO.md`: mapa operacional com caminhos ativos, convenções e alertas de duplicação.
+- `docs/architecture/ai-bootstrap.md`: ordem oficial de leitura para agentes.
+- `docs/architecture/architecture-inventory.md`: inventário técnico e stack real.
+- `docs/architecture/agrosaas-master-context.md`: visão executiva curta do sistema.
+- `docs/architecture/agrosaas-domain-map.md`: fronteiras e ownership dos domínios.
+- `docs/architecture/agrosaas-engineering-playbook.md`: regras de implementação.
+- `SKILLS_INDEX.md`: índice de skills por módulo.
+
+Sempre que houver mudança relevante de arquitetura, stack, convenções ou organização de diretórios, atualize `CONTEXTO.md` e os documentos de arquitetura afetados.
+
+Observação: cópias espelhadas em `apps/web/` existem para compatibilidade histórica. A fonte canônica fica na raiz do repositório.
 
 ## 🏗️ Arquitetura do Sistema
 

@@ -90,7 +90,7 @@ A plataforma encontra-se majoritariamente **IMPLEMENTADA** em escopo operacional
 ---
 
 ## LEITURA OBRIGATÓRIA (EM CASO DE DÚVIDA)
-- Detalhamento Frontend: `03-frontend-web.md`
+- Detalhamento Frontend: `frontend-rsc-pattern.md`
 - Detalhamento PWA: `CAMPO_PWA_01_ARQUITETURA_OFFLINE.md`
 - Regras Backend & RLS: `agrosaas-engineering-playbook.md`
 - Inventário Total: `architecture-inventory.md`

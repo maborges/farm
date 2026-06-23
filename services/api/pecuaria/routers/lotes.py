@@ -15,7 +15,7 @@ router = APIRouter(
     dependencies=[Depends(require_module("P1_REBANHO"))]
 )
 
-@router.get("/", response_model=List[LoteBovinoResponse])
+@router.get("", response_model=List[LoteBovinoResponse])
 async def listar_lotes(
     unidade_produtiva_id: uuid.UUID | None = None,
     categoria: str | None = None,
@@ -33,7 +33,7 @@ async def listar_lotes(
     return await svc.list_all(**filters)
 
 
-@router.post("/", response_model=LoteBovinoResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=LoteBovinoResponse, status_code=status.HTTP_201_CREATED)
 async def criar_lote(
     payload: LoteBovinoCreate,
     tenant_id: uuid.UUID = Depends(get_tenant_id),

@@ -2,6 +2,8 @@
 
 Este documento fornece acesso rápido às skills especializadas para cada módulo do AgroSaaS.
 
+Use este índice quando a tarefa for claramente ligada a um módulo de negócio. Para contexto geral, leia `README.md`, `CONTEXTO.md` e `docs/architecture/ai-bootstrap.md` primeiro.
+
 ## 📚 Skills Disponíveis
 
 ### 🔐 [Core Module Expert](.claude/skills/CORE_MODULE_EXPERT.md)
@@ -148,6 +150,12 @@ BACKOFFICE (Administração)
 
 - [README.md](README.md) - Visão geral do projeto
 - [CLAUDE.md](CLAUDE.md) - Guia completo de arquitetura
+- [CONTEXTO.md](CONTEXTO.md) - Mapa operacional ativo
+- [docs/architecture/ai-bootstrap.md](docs/architecture/ai-bootstrap.md) - Ordem oficial de leitura
+- [docs/architecture/architecture-inventory.md](docs/architecture/architecture-inventory.md) - Inventário técnico
+- [docs/architecture/agrosaas-master-context.md](docs/architecture/agrosaas-master-context.md) - Resumo executivo
+- [docs/architecture/agrosaas-domain-map.md](docs/architecture/agrosaas-domain-map.md) - Fronteiras de domínio
+- [docs/architecture/agrosaas-engineering-playbook.md](docs/architecture/agrosaas-engineering-playbook.md) - Regras de engenharia
 - [IMPLEMENTACAO_RBAC_MULTI_SUB.md](IMPLEMENTACAO_RBAC_MULTI_SUB.md) - Detalhes de RBAC
 - [API_REFERENCE_RBAC.md](API_REFERENCE_RBAC.md) - Referência API RBAC
 - [FRONTEND_MAINTENANCE_GUIDE.md](FRONTEND_MAINTENANCE_GUIDE.md) - Guia frontend

@@ -53,7 +53,7 @@ services/       # Serviços Backend
 - **Sistema de rotas**: App Router (evidência na estrutura `src/app/`).
 - **Estrutura de componentes**: Baseada em slots e layouts pré-moldados (evidência `src/components/auth/`).
 
-*Fonte das evidências*: `apps/web/package.json`, `03-frontend-web.md`.
+*Fonte das evidências*: `apps/web/package.json`, `docs/architecture/frontend-rsc-pattern.md`.
 
 ---
 
@@ -139,7 +139,7 @@ Documentos Encontrados em `docs/` e `docs/architecture/`:
 | Nome | Objetivo | Importância | Deve ser lido por IA? |
 |---|---|---|---|
 | `AgroSaaS-Dev-Rules.docx` | Regras de engenharia do time. | Alta | Sim (se em markdown) |
-| `03-frontend-web.md` e `04-workflow-quality.md` (Regras ativas) | Guidelines estritos de front, TDD e arquitetura. | Crítica | Sim |
+| `docs/architecture/frontend-rsc-pattern.md` e `docs/architecture/agrosaas-engineering-playbook.md` | Guidelines estritos de front, TDD e arquitetura. | Crítica | Sim |
 | `ADMIN_SAAS_ESTRUTURA.md` | Estrutura central do módulo backoffice. | Alta | Sim |
 | `CAMPO_PWA_01_ARQUITETURA_OFFLINE.md` | Detalhes sobre a arquitetura do IndexedDB e sincronização. | Alta | Sim |
 | `UI_DESIGN_SYSTEM.md` | Parâmetros de UI / Componentes. | Alta | Sim |

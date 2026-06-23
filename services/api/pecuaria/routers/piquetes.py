@@ -14,7 +14,7 @@ router = APIRouter(
 )
 
 
-@router.get("/", response_model=List[PiqueteResponse])
+@router.get("", response_model=List[PiqueteResponse])
 async def listar_piquetes(
     unidade_produtiva_id: uuid.UUID | None = None,
     tenant_id: uuid.UUID = Depends(get_tenant_id),
@@ -28,7 +28,7 @@ async def listar_piquetes(
     return await svc.list_all()
 
 
-@router.post("/", response_model=PiqueteResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=PiqueteResponse, status_code=status.HTTP_201_CREATED)
 async def criar_piquete(
     payload: PiqueteCreate,
     tenant_id: uuid.UUID = Depends(get_tenant_id),

@@ -4,6 +4,16 @@
 
 Este arquivo consolida o contexto operacional do AgroSaaS para evitar novo levantamento manual a cada sessão. Ele deve ser lido antes de alterações relevantes no projeto e atualizado sempre que a arquitetura, convenções ou pontos de entrada mudarem.
 
+## Documentos Canônicos Relacionados
+
+- `README.md`: porta de entrada do projeto.
+- `docs/architecture/ai-bootstrap.md`: ordem oficial de leitura para agentes.
+- `docs/architecture/architecture-inventory.md`: stack e inventário técnico.
+- `docs/architecture/agrosaas-master-context.md`: resumo executivo.
+- `docs/architecture/agrosaas-domain-map.md`: fronteiras de domínio.
+- `docs/architecture/agrosaas-engineering-playbook.md`: regras de engenharia.
+- `SKILLS_INDEX.md`: índice de skills por módulo.
+
 ## Resumo Executivo
 
 - Projeto: AgroSaaS
@@ -18,6 +28,7 @@ Este arquivo consolida o contexto operacional do AgroSaaS para evitar novo levan
 Na raiz do projeto:
 
 - `apps/web`: aplicação web principal em Next.js 16
+- `apps/campo`: PWA de campo offline-first em Next.js 16
 - `services/api`: API principal em FastAPI
 - `packages/zod-schemas`: contratos compartilhados
 - `packages/types`: tipos compartilhados
@@ -131,7 +142,7 @@ Os módulos principais observados no backend são:
 
 ## Convenções de Projeto Relevantes
 
-Com base em `README.md` e `CLAUDE.md`:
+Com base em `README.md`, `CLAUDE.md` e nos documentos de arquitetura canônicos:
 
 - idioma de trabalho: pt-BR
 - frontend deve preservar App Router e `page.tsx` como RSC sempre que aplicável
@@ -157,14 +168,15 @@ Esses caminhos não parecem ser a fonte primária da aplicação principal. Ante
 
 Antes de implementar mudanças:
 
-1. Ler `README.md`, `CLAUDE.md` e este `CONTEXTO.md`
+1. Ler `README.md`, `CONTEXTO.md` e `docs/architecture/ai-bootstrap.md`
 2. Confirmar o caminho ativo dos arquivos a serem alterados
 3. Validar se existe duplicação de diretórios antes de editar
+4. Consultar `docs/architecture/agrosaas-master-context.md` e `docs/architecture/agrosaas-domain-map.md` quando a mudança tocar domínio ou fronteira
 
 Após mudanças estruturais:
 
 1. Atualizar este `CONTEXTO.md` se houver alteração de stack, arquitetura, convenções ou pontos de entrada
-2. Ajustar o `README.md` se a orientação de leitura inicial precisar mudar
+2. Ajustar o `README.md` e `docs/architecture/ai-bootstrap.md` se a orientação de leitura inicial precisar mudar
 
 ## Quando Atualizar Este Arquivo
 
