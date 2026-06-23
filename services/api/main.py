@@ -422,6 +422,7 @@ from pecuaria.routers import manejos as pecuaria_manejos
 from pecuaria.routers import genetica as pecuaria_genetica
 from pecuaria.routers import confinamento as pecuaria_confinamento
 from pecuaria.routers import leite as pecuaria_leite
+from pecuaria.routers import piquetes
 from operacional.routers import frota as frota_router
 app.include_router(router_safras, prefix="/api/v1")
 app.include_router(router_cultivos, prefix="/api/v1")
@@ -512,6 +513,7 @@ app.include_router(pecuaria_manejos.router, prefix="/api/v1")
 app.include_router(pecuaria_genetica.router, prefix="/api/v1")
 app.include_router(pecuaria_confinamento.router, prefix="/api/v1")
 app.include_router(pecuaria_leite.router, prefix="/api/v1")
+app.include_router(piquetes.router, prefix="/api/v1")
 app.include_router(receitas.router, prefix="/api/v1/financeiro")
 app.include_router(planos_conta.router, prefix="/api/v1/financeiro")
 app.include_router(relatorios_fin.router, prefix="/api/v1")
@@ -591,11 +593,19 @@ async def global_exception_handler(request: Request, exc: Exception):
     # Log to a temporary file in the workspace
     with open("error_debug.log", "a") as f:
         f.write(f"\n--- {datetime.now()} [ReqID: {request_id}] ---\n{error_msg}\n")
-        
+
+    is_timeout = isinstance(exc, (asyncio.TimeoutError, TimeoutError)) or "timeout" in type(exc).__name__.lower()
+    status_code = 503 if is_timeout else 500
+    detail = (
+        "Banco de dados indisponível ou conexão expirada. Tente novamente em instantes."
+        if is_timeout
+        else "Internal Server Error"
+    )
+
     return JSONResponse(
-        status_code=500,
+        status_code=status_code,
         content={
-            "detail": "Internal Server Error",
+            "detail": detail,
             "error": str(exc),
             "request_id": request_id
         },

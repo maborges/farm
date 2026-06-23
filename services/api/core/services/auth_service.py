@@ -282,26 +282,32 @@ class AuthService:
         
         access_token = self.create_access_token(data=claims)
         
-        # Cria registro da sessão ativa no banco de dados
-        from core.models.sessao import SessaoAtiva
-        import hashlib
-        
-        token_hash = hashlib.sha256(access_token.encode()).hexdigest()
-        agora = datetime.now(timezone.utc)
-        
-        sessao_ativa = SessaoAtiva(
-            tenant_id=uuid.UUID(default_tenant_id) if default_tenant_id else None,
-            usuario_id=user.id,
-            token_hash=token_hash,
-            ip_address=ip_address,
-            user_agent=user_agent,
-            inicio=agora,
-            ultimo_heartbeat=agora,
-            expira_em=agora + timedelta(minutes=30),
-            status="ATIVA",
-        )
-        self.session.add(sessao_ativa)
-        await self.session.commit()
+        # Persistência de sessão depende de tenant_id porque a tabela legado
+        # ainda mantém a coluna como obrigatória no banco de dados.
+        if default_tenant_id:
+            from core.models.sessao import SessaoAtiva
+            import hashlib
+
+            token_hash = hashlib.sha256(access_token.encode()).hexdigest()
+            agora = datetime.now(timezone.utc)
+
+            self.session.add(SessaoAtiva(
+                tenant_id=uuid.UUID(default_tenant_id),
+                usuario_id=user.id,
+                token_hash=token_hash,
+                ip_address=ip_address,
+                user_agent=user_agent,
+                inicio=agora,
+                ultimo_heartbeat=agora,
+                expira_em=agora + timedelta(minutes=30),
+                status="ATIVA",
+            ))
+            await self.session.commit()
+        else:
+            logger.warning(
+                "Sessão ativa não persistida porque o usuário ainda não possui tenant ativo.",
+                user_id=str(user.id),
+            )
         
         return user, access_token
 

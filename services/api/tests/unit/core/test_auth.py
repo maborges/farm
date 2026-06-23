@@ -169,6 +169,44 @@ async def test_login_usuario_inativo(auth_service, mock_session):
 
 
 # ---------------------------------------------------------------------------
+# CORE-AUTH-05B: Login sem tenant ativo continua funcional
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_login_sem_tenant_ativo(auth_service, mock_session):
+    """CORE-AUTH-05B: Usuário sem tenant ativo ainda recebe token."""
+    user = make_mock_user()
+
+    user_result = MagicMock()
+    user_result.scalar_one_or_none.return_value = user
+
+    tenant_usuario_result = MagicMock()
+    tenant_usuario_result.scalar_one_or_none.return_value = None
+
+    tenant_links_result = MagicMock()
+    tenant_links_result.scalars.return_value.all.return_value = []
+
+    mock_session.execute.side_effect = [
+        user_result,
+        tenant_usuario_result,
+        tenant_links_result,
+    ]
+    mock_session.add = MagicMock()
+    mock_session.commit = AsyncMock()
+
+    login_data = LoginRequest(email=user.email, senha="Senha@123")
+
+    with patch("core.services.login_rate_limit_service.LoginRateLimitService.verificar_bloqueio", new=AsyncMock(return_value=(False, None))), \
+         patch("core.services.login_rate_limit_service.LoginRateLimitService.registrar_tentativa_sucesso", new=AsyncMock()):
+        returned_user, token = await auth_service.authenticate_user(login_data)
+
+    assert returned_user.id == user.id
+    assert token is not None
+    mock_session.add.assert_not_called()
+    mock_session.commit.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
 # CORE-AUTH-06: Senha hasheada com bcrypt
 # ---------------------------------------------------------------------------
 

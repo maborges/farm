@@ -10,7 +10,7 @@ from pecuaria.services.lote_service import LoteBovinoService
 
 # A Trava impeditiva "P1" - Licença do Módulo Pecuária
 router = APIRouter(
-    prefix="/lotes-bovinos",
+    prefix="/pecuaria/lotes",
     tags=["Pecuária - Rebanho (P1)"],
     dependencies=[Depends(require_module("P1_REBANHO"))]
 )
