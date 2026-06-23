@@ -187,6 +187,7 @@ class ImovelRural(Base):
     nirf: Mapped[str | None] = mapped_column(String(20), index=True)  # Receita Federal
     car_numero: Mapped[str | None] = mapped_column(String(50), index=True)  # CAR
     ccir_numero: Mapped[str | None] = mapped_column(String(50))  # INCRA
+    sigef_codigo: Mapped[str | None] = mapped_column(String(50), index=True)  # SIGEF
     
     # Áreas (em hectares, 4 casas decimais)
     area_total_ha: Mapped[Decimal] = mapped_column(Numeric(12, 4), nullable=False, default=Decimal('0.0000'))
@@ -222,12 +223,12 @@ class ImovelRural(Base):
     motivo_alteracao_area: Mapped[str | None] = mapped_column(Text)
     
     # Auditoria
-    created_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("usuarios.id"))
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+    created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("usuarios.id", ondelete="SET NULL"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc)
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc)
     )
-    deleted_at: Mapped[datetime | None] = mapped_column(DateTime, index=True)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
     
     # Relacionamentos
     fazenda = relationship("UnidadeProdutiva")

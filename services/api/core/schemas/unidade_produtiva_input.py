@@ -13,6 +13,7 @@ class UnidadeProdutivaCreate(BaseModel):
     nirf: Optional[str] = Field(None, max_length=20, description="Número do Imóvel na Receita Federal.")
     ccir: Optional[str] = Field(None, max_length=30, description="Certificado de Cadastro de Imóvel Rural.")
     sigef_codigo: Optional[str] = Field(None, max_length=50, description="Código SIGEF/INCRA.")
+    numero_matricula: Optional[str] = Field(None, max_length=100, description="Matrícula do imóvel.")
     # Localização
     cep: Optional[str] = Field(None, max_length=9)
     logradouro: Optional[str] = Field(None, max_length=255)
@@ -38,6 +39,7 @@ class UnidadeProdutivaUpdate(BaseModel):
     nirf: Optional[str] = Field(None, max_length=20)
     ccir: Optional[str] = Field(None, max_length=30)
     sigef_codigo: Optional[str] = Field(None, max_length=50)
+    numero_matricula: Optional[str] = Field(None, max_length=100)
     cep: Optional[str] = Field(None, max_length=9)
     logradouro: Optional[str] = Field(None, max_length=255)
     bairro: Optional[str] = Field(None, max_length=100)

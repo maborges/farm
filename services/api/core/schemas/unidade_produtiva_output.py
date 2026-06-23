@@ -16,6 +16,7 @@ class UnidadeProdutivaResponse(BaseModel):
     nirf: Optional[str] = None
     ccir: Optional[str] = None
     sigef_codigo: Optional[str] = None
+    numero_matricula: Optional[str] = None
     # Localização
     cep: Optional[str] = None
     logradouro: Optional[str] = None

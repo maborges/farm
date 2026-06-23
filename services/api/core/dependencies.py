@@ -139,6 +139,7 @@ async def get_current_user_claims(
     token: str = Depends(get_token),
 ) -> dict:
     """Extrai as claims do JWT e valida se a sessão está ativa no banco."""
+
     try:
         payload = jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
     except JWTError:

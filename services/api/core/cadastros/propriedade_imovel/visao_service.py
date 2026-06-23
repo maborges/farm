@@ -66,9 +66,16 @@ class VisaoTerritorialService:
         )
 
     async def _obter_propriedade(self, propriedade_id: uuid.UUID) -> Propriedade:
+        from sqlalchemy import or_
+        from core.cadastros.propriedades.propriedade_models import ExploracaoRural
+
         stmt = (
             select(Propriedade)
-            .where(Propriedade.id == propriedade_id, Propriedade.tenant_id == self.tenant_id)
+            .outerjoin(ExploracaoRural, Propriedade.id == ExploracaoRural.propriedade_id)
+            .where(
+                or_(Propriedade.id == propriedade_id, ExploracaoRural.unidade_produtiva_id == propriedade_id),
+                Propriedade.tenant_id == self.tenant_id
+            )
             .options(
                 selectinload(Propriedade.exploracoes),
                 selectinload(Propriedade.propriedade_imoveis)
@@ -83,7 +90,7 @@ class VisaoTerritorialService:
             )
         )
         result = await self.session.execute(stmt)
-        obj = result.scalar_one_or_none()
+        obj = result.scalars().first()
         if not obj:
             raise EntityNotFoundError("Propriedade não encontrada neste tenant.")
         return obj

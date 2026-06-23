@@ -15,8 +15,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_
 from sqlalchemy.orm import selectinload
 
+from core.cadastros.propriedade_imovel.models import TipoVinculoPropriedadeImovel
+from core.cadastros.propriedade_imovel.service import PropriedadeImovelService
 from imoveis.models.imovel import (
-    ImovelRural, Cartorio, MatriculaImovelRural, Benfeitoria,
+    ImovelRural, Cartorio, MatriculaImovelRural, Benfeitoria, DocumentoLegal,
     TipoImovel, SituacaoImovel, TipoDocumento, StatusDocumento
 )
 from core.models.unidade_produtiva import UnidadeProdutiva as Fazenda
@@ -177,10 +179,12 @@ class ImovelService:
             .options(
                 selectinload(ImovelRural.cartorio),
                 selectinload(ImovelRural.documentos),
-                selectinload(ImovelRural.benfeitorias)
+                selectinload(ImovelRural.benfeitorias),
+                selectinload(ImovelRural.propriedade_imoveis),
             )
         )
-        return result.scalar_one_or_none()
+        imovel = result.scalar_one_or_none()
+        return self._anotar_vinculos(imovel) if imovel is not None else None
     
     async def get_imoveis_by_fazenda(
         self,
@@ -198,8 +202,13 @@ class ImovelService:
         if unidade_produtiva_id:
             stmt = stmt.where(ImovelRural.unidade_produtiva_id == unidade_produtiva_id)
 
-        result = await self.session.execute(stmt.order_by(ImovelRural.nome))
-        return list(result.scalars().all())
+        result = await self.session.execute(
+            stmt.options(
+                selectinload(ImovelRural.propriedade_imoveis),
+                selectinload(ImovelRural.cartorio),
+            ).order_by(ImovelRural.nome)
+        )
+        return [self._anotar_vinculos(imovel) for imovel in result.scalars().all()]
     
     async def validar_nirf_unico(self, nirf: str, tenant_id: uuid.UUID, imovel_id: Optional[uuid.UUID] = None) -> tuple[bool, str]:
         """
@@ -356,6 +365,8 @@ class ImovelService:
         ccir_numero: Optional[str] = None,
         cartorio_id: Optional[uuid.UUID] = None,
         numero_matricula: Optional[str] = None,
+        propriedade_id: Optional[uuid.UUID] = None,
+        tipo_vinculo: Optional[TipoVinculoPropriedadeImovel] = None,
         tipo: TipoImovel = TipoImovel.RURAL,
         observacao: Optional[str] = None,
         created_by: Optional[uuid.UUID] = None
@@ -415,9 +426,102 @@ class ImovelService:
         
         self.session.add(imovel)
         await self.session.flush()  # Para gerar o ID
+
+        if propriedade_id:
+            await self._garantir_vinculo_propriedade_imovel(
+                propriedade_id=propriedade_id,
+                imovel=imovel,
+                tipo_vinculo=tipo_vinculo,
+                usuario_id=created_by,
+            )
         
         return imovel, alertas
-    
+
+    async def criar_imovel_sem_validacao(
+        self,
+        tenant_id: uuid.UUID,
+        unidade_produtiva_id: uuid.UUID,
+        nome: str,
+        municipio: str,
+        uf: str,
+        nirf: Optional[str] = None,
+        car_numero: Optional[str] = None,
+        ccir_numero: Optional[str] = None,
+        sigef_codigo: Optional[str] = None,
+        numero_matricula: Optional[str] = None,
+        propriedade_id: Optional[uuid.UUID] = None,
+        tipo_vinculo: Optional[TipoVinculoPropriedadeImovel] = None,
+        observacao: Optional[str] = None,
+        created_by: Optional[uuid.UUID] = None,
+    ) -> ImovelRural:
+        """Cria ImovelRural sem validações de formato/área — uso exclusivo do sync automático.
+
+        Ao contrário de `criar_imovel`, este método não valida formato de CAR, NIRF ou
+        consistência de área. É usado pelo auto-vínculo fundiário ao cadastrar Propriedade,
+        onde os dados podem estar em formatos livres e a área ainda não está disponível.
+
+        Identificadores que não passariam na validação de formato são omitidos do registro
+        (degradação segura): o imóvel é criado com os identificadores válidos disponíveis.
+
+        Args:
+            tenant_id: UUID do tenant.
+            unidade_produtiva_id: UUID da UnidadeProdutiva de origem.
+            nome: Nome do imóvel.
+            municipio: Município do imóvel.
+            uf: UF do imóvel.
+            nirf: NIRF — aceito mesmo sem validação de dígito verificador.
+            car_numero: CAR — aceito mesmo sem validação de formato SICAR.
+            ccir_numero: CCIR.
+            sigef_codigo: Código SIGEF/INCRA.
+            numero_matricula: Número da matrícula cartória.
+            observacao: Observação opcional.
+            created_by: UUID do usuário criador.
+
+        Returns:
+            ImovelRural criado e flushed na sessão.
+        """
+        # Detecta NIRF duplicado (global) sem validar formato — ignora se existente
+        nirf_final: Optional[str] = None
+        if nirf:
+            stmt_nirf = select(ImovelRural).where(
+                ImovelRural.tenant_id == tenant_id,
+                ImovelRural.nirf == nirf,
+                ImovelRural.deleted_at.is_(None),
+            ).limit(1)
+            existente = (await self.session.execute(stmt_nirf)).scalar_one_or_none()
+            nirf_final = None if existente else nirf
+
+        imovel = ImovelRural(
+            tenant_id=tenant_id,
+            unidade_produtiva_id=unidade_produtiva_id,
+            nome=nome,
+            municipio=municipio,
+            uf=uf,
+            area_total_ha=Decimal("0.0000"),  # Mínimo seguro; atualizado via ImovelRural próprio
+            nirf=nirf_final,
+            car_numero=car_numero,
+            ccir_numero=ccir_numero,
+            sigef_codigo=sigef_codigo,
+            numero_matricula=numero_matricula,
+            tipo=TipoImovel.RURAL,
+            situacao=SituacaoImovel.PENDENTE,
+            observacao=observacao or "Imóvel rural criado automaticamente a partir do cadastro operacional.",
+            created_by=created_by,
+        )
+
+        self.session.add(imovel)
+        await self.session.flush()
+
+        if propriedade_id:
+            await self._garantir_vinculo_propriedade_imovel(
+                propriedade_id=propriedade_id,
+                imovel=imovel,
+                tipo_vinculo=tipo_vinculo,
+                usuario_id=created_by,
+            )
+        return imovel
+
+
     async def atualizar_imovel(
         self,
         imovel: ImovelRural,
@@ -463,12 +567,41 @@ class ImovelService:
         for campo, valor in dados.items():
             if hasattr(imovel, campo):
                 setattr(imovel, campo, valor)
+
+        if dados.get("propriedade_id"):
+            await self._garantir_vinculo_propriedade_imovel(
+                propriedade_id=dados["propriedade_id"],
+                imovel=imovel,
+                tipo_vinculo=dados.get("tipo_vinculo"),
+                usuario_id=usuario_id,
+            )
         
         # Atualiza situação cadastral
         imovel.situacao = await self.calcular_situacao_cadastral(imovel)
         imovel.updated_at = func.now()
         
         return imovel, alertas
+
+    async def _garantir_vinculo_propriedade_imovel(
+        self,
+        propriedade_id: uuid.UUID,
+        imovel: ImovelRural,
+        tipo_vinculo: Optional[TipoVinculoPropriedadeImovel],
+        usuario_id: Optional[uuid.UUID],
+    ) -> None:
+        """Cria ou reaproveita o vínculo canônico sem duplicar registros."""
+        vinculo_service = PropriedadeImovelService(self.session, imovel.tenant_id)
+        await vinculo_service.garantir_vinculo_ativo(
+            propriedade_id=propriedade_id,
+            imovel_rural_id=imovel.id,
+            tipo_vinculo=tipo_vinculo or TipoVinculoPropriedadeImovel.PROPRIEDADE_PRINCIPAL,
+            usuario_id=usuario_id,
+            vinculo_principal=(
+                tipo_vinculo == TipoVinculoPropriedadeImovel.PROPRIEDADE_PRINCIPAL
+                if tipo_vinculo is not None
+                else None
+            ),
+        )
     
     async def excluir_imovel(self, imovel: ImovelRural) -> bool:
         """
@@ -506,6 +639,18 @@ class ImovelService:
         # Exclusão lógica
         imovel.deleted_at = func.now()
         return True
+
+    def _anotar_vinculos(self, imovel: ImovelRural) -> ImovelRural:
+        """Anota contadores relacionais usados na listagem sem alterar o contrato oficial."""
+        vinculos = list(getattr(imovel, "propriedade_imoveis", []) or [])
+        vinculados_ativos = [
+            vinculo
+            for vinculo in vinculos
+            if getattr(vinculo, "ativo", False) and getattr(vinculo, "data_fim", None) is None
+        ]
+        setattr(imovel, "propriedades_vinculadas_count", len(vinculados_ativos))
+        setattr(imovel, "vinculo_status", "VINCULADO" if vinculados_ativos else "NÃO VINCULADO")
+        return imovel
     
     async def get_cartorio_by_id(
         self,

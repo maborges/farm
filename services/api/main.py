@@ -328,11 +328,11 @@ app.include_router(router_commodity_classificacoes, prefix="/api/v1")
 app.include_router(router_commodity_cotacoes, prefix="/api/v1")
 app.include_router(router_commodity_conversoes, prefix="/api/v1")
 app.include_router(router_produtos, prefix="/api/v1")
-app.include_router(router_imoveis, prefix="/api/v1")
 app.include_router(router_visao_fundiaria, prefix="/api/v1")
 app.include_router(router_arrendamentos, prefix="/api/v1")
 app.include_router(router_avaliacoes, prefix="/api/v1")
 app.include_router(router_propriedade_imovel, prefix="/api/v1")
+app.include_router(router_imoveis, prefix="/api/v1")
 app.include_router(unidades_produtivas.router, prefix="/api/v1")
 from agricola.safras.router import router as router_safras
 from agricola.cultivos.router import router as router_cultivos

@@ -69,8 +69,8 @@ async def test_criar_vinculo_valido(service, session, tenant_id):
     assert resultado.imovel_rural_id == payload.imovel_rural_id
     assert resultado.tipo_vinculo == TipoVinculoPropriedadeImovel.ARRENDAMENTO.value
     session.add.assert_called_once()
-    session.commit.assert_awaited_once()
-    session.refresh.assert_awaited_once()
+    session.commit.assert_not_awaited()
+    session.refresh.assert_not_awaited()
 
 
 async def test_origem_documental_ausente_gera_erro(service):
@@ -170,3 +170,32 @@ async def test_vinculo_secundario_valido(service):
 
     assert resultado.vinculo_principal is False
     service._validar_principalidade.assert_awaited_once()
+
+
+async def test_garantir_vinculo_ativo_reaproveita_vinculo_existente(service, session):
+    propriedade_id = uuid.uuid4()
+    imovel_id = uuid.uuid4()
+    existente = SimpleNamespace(
+        id=uuid.uuid4(),
+        tenant_id=service.tenant_id,
+        propriedade_id=propriedade_id,
+        imovel_rural_id=imovel_id,
+        ativo=True,
+        data_fim=None,
+        data_inicio=date(2026, 1, 1),
+        tipo_vinculo=TipoVinculoPropriedadeImovel.PROPRIEDADE_PRINCIPAL.value,
+    )
+    mock_result = MagicMock()
+    mock_result.scalars.return_value.first.return_value = existente
+    session.execute = AsyncMock(return_value=mock_result)
+    service._validar_referencias = AsyncMock()
+
+    resultado = await service.garantir_vinculo_ativo(
+        propriedade_id=propriedade_id,
+        imovel_rural_id=imovel_id,
+        usuario_id=uuid.uuid4(),
+    )
+
+    assert resultado is existente
+    session.add.assert_not_called()
+    service._validar_referencias.assert_awaited_once_with(propriedade_id, imovel_id)

@@ -3,7 +3,7 @@ from typing import List, Optional
 import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.dependencies import get_session
+from core.dependencies import get_session, get_user_id
 from core.dependencies import get_tenant_id, require_module, require_role, require_limit
 from core.schemas.unidade_produtiva_input import UnidadeProdutivaCreate, UnidadeProdutivaUpdate
 from core.schemas.unidade_produtiva_output import UnidadeProdutivaResponse
@@ -51,9 +51,10 @@ async def criar_unidade_produtiva(
     dados: UnidadeProdutivaCreate,
     session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
+    user_id: uuid.UUID = Depends(get_user_id),
     _: None = Depends(require_module("CORE")),
 ):
-    svc = UnidadeProdutivaService(session, tenant_id)
+    svc = UnidadeProdutivaService(session, tenant_id, user_id)
     unidade = await svc.create_unidade_produtiva(dados)
     await session.flush()  # garante o id antes de criar filhos
 
@@ -88,11 +89,27 @@ async def atualizar_unidade_produtiva(
     dados: UnidadeProdutivaUpdate,
     session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
+    user_id: uuid.UUID = Depends(get_user_id),
 ):
-    svc = UnidadeProdutivaService(session, tenant_id)
+    svc = UnidadeProdutivaService(session, tenant_id, user_id)
     unidade = await svc.update(unidade_produtiva_id, dados)
     await session.commit()
     return unidade
+
+@router.delete(
+    "/{unidade_produtiva_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Remove uma unidade produtiva",
+)
+async def remover_unidade_produtiva(
+    unidade_produtiva_id: uuid.UUID,
+    session: AsyncSession = Depends(get_session),
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    user_id: uuid.UUID = Depends(get_user_id),
+):
+    svc = UnidadeProdutivaService(session, tenant_id, user_id)
+    await svc.hard_delete(unidade_produtiva_id)
+    await session.commit()
 
 
 # =============================================================================

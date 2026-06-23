@@ -22,6 +22,8 @@ from core.dependencies import (
 from core.models.tenant import Tenant
 from core.models.auth import Usuario
 from core.constants import Modulos
+from core.cadastros.propriedade_imovel.models import TipoVinculoPropriedadeImovel
+from core.exceptions import EntityNotFoundError
 from imoveis.models.imovel import (
     ImovelRural, Cartorio, Benfeitoria,
     TipoImovel, SituacaoImovel
@@ -46,6 +48,14 @@ class ImovelCreate(BaseModel):
     nirf: Optional[str] = Field(None, max_length=20, description="NIRF (Receita Federal)")
     car_numero: Optional[str] = Field(None, max_length=50, description="Número do CAR")
     ccir_numero: Optional[str] = Field(None, max_length=50, description="Número do CCIR")
+    propriedade_id: Optional[uuid.UUID] = Field(
+        None,
+        description="Propriedade existente para criar vínculo canônico com o Imóvel Rural",
+    )
+    tipo_vinculo: Optional[TipoVinculoPropriedadeImovel] = Field(
+        None,
+        description="Tipo canônico do vínculo com a Propriedade",
+    )
     
     # Áreas
     area_total_ha: Decimal = Field(..., description="Área total em hectares")
@@ -75,6 +85,8 @@ class ImovelUpdate(BaseModel):
     nirf: Optional[str] = Field(None, max_length=20)
     car_numero: Optional[str] = Field(None, max_length=50)
     ccir_numero: Optional[str] = Field(None, max_length=50)
+    propriedade_id: Optional[uuid.UUID] = None
+    tipo_vinculo: Optional[TipoVinculoPropriedadeImovel] = None
     area_total_ha: Optional[Decimal] = None
     area_aproveitavel_ha: Optional[Decimal] = None
     area_app_ha: Optional[Decimal] = None
@@ -111,6 +123,8 @@ class ImovelResponse(BaseModel):
     situacao: SituacaoImovel
     geometria: Optional[dict]
     observacao: Optional[str]
+    propriedades_vinculadas_count: int = 0
+    vinculo_status: str = "NÃO VINCULADO"
     
     class Config:
         from_attributes = True
@@ -174,6 +188,24 @@ class BenfeitoriaResponse(BaseModel):
 router = APIRouter(prefix="/imoveis", tags=["Imóveis Rurais"])
 
 
+def _parse_situacao_filtro(situacao: Optional[str]) -> SituacaoImovel | None:
+    """Normaliza o filtro de situação aceitando `all` como sinônimo de sem filtro."""
+    if situacao is None:
+        return None
+
+    situacao_normalizada = situacao.strip().lower()
+    if not situacao_normalizada or situacao_normalizada == "all":
+        return None
+
+    try:
+        return SituacaoImovel(situacao_normalizada)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="situação inválida. Use all, regular, pendente ou irregular.",
+        ) from exc
+
+
 # ==================== IMÓVEIS - CRUD ====================
 
 @router.get(
@@ -183,7 +215,7 @@ router = APIRouter(prefix="/imoveis", tags=["Imóveis Rurais"])
 )
 async def list_imoveis(
     unidade_produtiva_id: Optional[uuid.UUID] = Query(None, description="Filtrar por fazenda"),
-    situacao: Optional[SituacaoImovel] = Query(None, description="Filtrar por situação"),
+    situacao: Optional[str] = Query(None, description="Filtrar por situação"),
     tenant: Tenant = Depends(get_current_tenant),
     session: AsyncSession = Depends(get_session)
 ):
@@ -196,6 +228,7 @@ async def list_imoveis(
     Requer módulo: IMOVEIS_CADASTRO
     """
     service = ImovelService(session)
+    situacao_filtro = _parse_situacao_filtro(situacao)
     
     if unidade_produtiva_id:
         imoveis = await service.get_imoveis_by_fazenda(unidade_produtiva_id, tenant.id)
@@ -203,8 +236,8 @@ async def list_imoveis(
         # Lista todos do tenant
         imoveis = await service.get_imoveis_by_fazenda(None, tenant.id)  # Implementar método geral
     
-    if situacao:
-        imoveis = [i for i in imoveis if i.situacao == situacao]
+    if situacao_filtro:
+        imoveis = [i for i in imoveis if i.situacao == situacao_filtro]
     
     return imoveis
 
@@ -273,6 +306,8 @@ async def create_imovel(
             ccir_numero=data.ccir_numero,
             cartorio_id=data.cartorio_id,
             numero_matricula=data.numero_matricula,
+            propriedade_id=data.propriedade_id,
+            tipo_vinculo=data.tipo_vinculo,
             tipo=data.tipo,
             observacao=data.observacao,
             created_by=user.id
@@ -287,6 +322,8 @@ async def create_imovel(
         
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except EntityNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
 
 @router.patch(
@@ -327,6 +364,8 @@ async def update_imovel(
         
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except EntityNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
 
 
 @router.delete(

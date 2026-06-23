@@ -104,8 +104,82 @@ class PropriedadeImovelService:
             **payload,
         )
         self.session.add(vinculo)
-        await self.session.commit()
-        await self.session.refresh(vinculo)
+        await self.session.flush()
+        return vinculo
+
+    async def garantir_vinculo_ativo(
+        self,
+        propriedade_id: uuid.UUID,
+        imovel_rural_id: uuid.UUID,
+        *,
+        tipo_vinculo: TipoVinculoPropriedadeImovel = TipoVinculoPropriedadeImovel.PROPRIEDADE_PRINCIPAL,
+        origem_documental: str = "Vínculo criado automaticamente pelo cadastro de Imóvel Rural",
+        data_inicio: date | None = None,
+        usuario_id: uuid.UUID | None = None,
+        vinculo_principal: bool | None = None,
+    ) -> PropriedadeImovel:
+        """Garante um vínculo ativo e idempotente entre Propriedade e Imóvel Rural."""
+        await self._validar_referencias(propriedade_id, imovel_rural_id)
+
+        data_inicio = data_inicio or date.today()
+        tipo_vinculo_value = tipo_vinculo.value if isinstance(tipo_vinculo, TipoVinculoPropriedadeImovel) else str(tipo_vinculo)
+
+        stmt_existente = (
+            select(PropriedadeImovel)
+            .where(
+                PropriedadeImovel.tenant_id == self.tenant_id,
+                PropriedadeImovel.propriedade_id == propriedade_id,
+                PropriedadeImovel.imovel_rural_id == imovel_rural_id,
+            )
+            .order_by(
+                desc(PropriedadeImovel.ativo),
+                desc(PropriedadeImovel.data_inicio),
+                desc(PropriedadeImovel.created_at),
+            )
+        )
+        resultado = await self.session.execute(stmt_existente)
+        existente = resultado.scalars().first()
+        if existente:
+            if existente.ativo and existente.data_fim is None:
+                return existente
+
+            existente.ativo = True
+            existente.data_fim = None
+            existente.data_inicio = existente.data_inicio or data_inicio
+            existente.tipo_vinculo = tipo_vinculo_value
+            existente.origem_documental = origem_documental
+            existente.updated_by = usuario_id
+            existente.updated_at = datetime.now(timezone.utc)
+            await self.session.flush()
+            return existente
+
+        principal_ativo = await self._buscar_principal_ativo(propriedade_id)
+        usar_principal = (
+            vinculo_principal
+            if vinculo_principal is not None
+            else tipo_vinculo_value == TipoVinculoPropriedadeImovel.PROPRIEDADE_PRINCIPAL.value and principal_ativo is None
+        )
+
+        vinculo = PropriedadeImovel(
+            tenant_id=self.tenant_id,
+            propriedade_id=propriedade_id,
+            imovel_rural_id=imovel_rural_id,
+            tipo_vinculo=tipo_vinculo_value,
+            ativo=True,
+            data_inicio=data_inicio,
+            data_fim=None,
+            origem_documental=origem_documental,
+            observacoes=None,
+            area_vinculada=None,
+            percentual_vinculado=None,
+            vinculo_principal=usar_principal,
+            origem_referencia=None,
+            status_documental=None,
+            created_by=usuario_id,
+            updated_by=usuario_id,
+        )
+        self.session.add(vinculo)
+        await self.session.flush()
         return vinculo
 
     async def atualizar(
@@ -145,8 +219,7 @@ class PropriedadeImovelService:
             setattr(vinculo, campo, valor)
         vinculo.updated_by = usuario_id
         vinculo.updated_at = datetime.now(timezone.utc)
-        await self.session.commit()
-        await self.session.refresh(vinculo)
+        await self.session.flush()
         return vinculo
 
     async def inativar(self, vinculo_id: uuid.UUID, usuario_id: uuid.UUID | None = None) -> None:
@@ -157,7 +230,7 @@ class PropriedadeImovelService:
             vinculo.data_fim = date.today()
         vinculo.updated_by = usuario_id
         vinculo.updated_at = datetime.now(timezone.utc)
-        await self.session.commit()
+        await self.session.flush()
 
     async def _validar_referencias(self, propriedade_id: uuid.UUID, imovel_rural_id: uuid.UUID) -> None:
         """Garante que propriedade e imóvel existem no tenant atual."""
@@ -233,6 +306,18 @@ class PropriedadeImovelService:
         for existente in result.scalars().all():
             if self._periodos_sobrepostos(existente.data_inicio, existente.data_fim, data_inicio, data_fim):
                 raise BusinessRuleError("Já existe vínculo principal ativo sobreposto para esta propriedade.")
+
+    async def _buscar_principal_ativo(self, propriedade_id: uuid.UUID) -> PropriedadeImovel | None:
+        """Busca um vínculo principal ativo já existente para a propriedade."""
+        stmt = select(PropriedadeImovel).where(
+            PropriedadeImovel.tenant_id == self.tenant_id,
+            PropriedadeImovel.propriedade_id == propriedade_id,
+            PropriedadeImovel.ativo.is_(True),
+            PropriedadeImovel.vinculo_principal.is_(True),
+            PropriedadeImovel.data_fim.is_(None),
+        )
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
 
     @staticmethod
     def _periodos_sobrepostos(inicio_a: date, fim_a: date | None, inicio_b: date, fim_b: date | None) -> bool:

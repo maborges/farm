@@ -10,6 +10,7 @@ from agricola.fenologia.schemas import (
     FenologiaEscalaCreate, FenologiaEscalaUpdate,
     FenologiaRegistroCreate, FenologiaRegistroResponse,
 )
+from sqlalchemy.orm import selectinload
 
 
 class FenologiaEscalaService(BaseService[FenologiaEscala]):
@@ -102,6 +103,7 @@ class FenologiaRegistroService(BaseService[SafraFenologiaRegistro]):
                 SafraFenologiaRegistro.talhao_id == talhao_id,
                 SafraFenologiaRegistro.tenant_id == self.tenant_id,
             )
+            .options(selectinload(SafraFenologiaRegistro.escala))
             .order_by(SafraFenologiaRegistro.data_observacao)
         )
         return list((await self.session.execute(stmt)).scalars().all())
@@ -113,6 +115,7 @@ class FenologiaRegistroService(BaseService[SafraFenologiaRegistro]):
                 SafraFenologiaRegistro.safra_id == safra_id,
                 SafraFenologiaRegistro.tenant_id == self.tenant_id,
             )
+            .options(selectinload(SafraFenologiaRegistro.escala))
             .order_by(SafraFenologiaRegistro.talhao_id, SafraFenologiaRegistro.data_observacao)
         )
         return list((await self.session.execute(stmt)).scalars().all())

@@ -56,7 +56,10 @@ async def criar(
     """Cria um novo vínculo canônico."""
     service = PropriedadeImovelService(session, tenant_id)
     try:
-        return await service.criar(data, usuario_id=user.id)
+        vinculo = await service.criar(data, usuario_id=user.id)
+        await session.commit()
+        await session.refresh(vinculo)
+        return vinculo
     except EntityNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except BusinessRuleError as exc:
@@ -74,7 +77,10 @@ async def atualizar(
     """Atualiza um vínculo canônico existente."""
     service = PropriedadeImovelService(session, tenant_id)
     try:
-        return await service.atualizar(vinculo_id, data, usuario_id=user.id)
+        vinculo = await service.atualizar(vinculo_id, data, usuario_id=user.id)
+        await session.commit()
+        await session.refresh(vinculo)
+        return vinculo
     except EntityNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except BusinessRuleError as exc:
@@ -92,5 +98,6 @@ async def inativar(
     service = PropriedadeImovelService(session, tenant_id)
     try:
         await service.inativar(vinculo_id, usuario_id=user.id)
+        await session.commit()
     except EntityNotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc

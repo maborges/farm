@@ -155,6 +155,7 @@ async def registrar_fenologia_talhao(
     svc = FenologiaRegistroService(session, tenant_id)
     usuario_id = UUID(user["sub"]) if user.get("sub") else None
     r = await svc.registrar_por_talhao(safra_id, talhao_id, dados, usuario_id)
+    await session.commit()
     return svc._to_response(r)
 
 
@@ -176,6 +177,7 @@ async def registrar_fenologia_grupo(
     svc = FenologiaRegistroService(session, tenant_id)
     usuario_id = UUID(user["sub"]) if user.get("sub") else None
     registros = await svc.registrar_por_grupo(safra_id, grupo_id, dados, usuario_id)
+    await session.commit()
     return [svc._to_response(r) for r in registros]
 
 

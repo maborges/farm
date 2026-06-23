@@ -249,6 +249,15 @@ O projeto é dividido em um monorepo contendo:
 - **Dashboard**: Nova tela `/dashboard/financeiro/hedge/exposicao` com gauge de cobertura, 8 KPIs divididos em grupos (Exposição Física / Proteção Financeira) e tabela analítica consolidada por safra e commodity.
 - **Fluxo**: Sidebar → "Exposição Física × Financeira" → RSC carrega `ExposicaoConsolidada` via `apiFetchServer` → `ExposicaoDashboardClient` combina duas queries paralelas (consolidado + detalhe) → KPIs + gauge + tabela.
 
+### 26. Auto-Vínculo Canônico (Propriedade ↔ Imóvel Rural) — EXECUTION-37
+- **Consolidação Territorial/Fundiária**: O cadastro e edição de Propriedades (operacional) realiza a criação automática e idempotente de `ImovelRural` (fundiário/documental) e do vínculo canônico `PropriedadeImovel`.
+- **5 Identificadores Suportados**: A sincronização é acionada por qualquer um dos identificadores: CAR, NIRF, CCIR, SIGEF e Matrícula. Busca em OR-logic — reutiliza se encontrar, cria se não encontrar.
+- **Visão Territorial (Overlay de Leitura)**: O `GET` da Unidade Produtiva sobrepõe em memória os campos fundiários com os dados da fonte oficial (`ImovelRural`) quando há `PropriedadeImovel` ativo. Sem escrita dupla, sem espelhos.
+- **Orquestração RLS Segura**: Sincronização executada na camada de serviço com injeção do contexto de tenant (`SET app.current_tenant_id`) para garantir isolamento por RLS.
+- **Feedback na UI**: Formulário de Propriedades exibe o campo "Matrícula" e banner informativo de Convergência Territorial avisando que os dados fundiários serão vinculados automaticamente ao Imóvel Rural.
+- **Fluxo**: Usuário salva Propriedade com dados fundiários → `_sincronizar_vinculo_fundiario()` localiza ou cria `ImovelRural` → garante `PropriedadeImovel` canônico (idempotente) → `get()` aplica overlay territorial na leitura.
+
+
 
 ## 🐛 Correções de Layout e UX (Bugfixes)
 

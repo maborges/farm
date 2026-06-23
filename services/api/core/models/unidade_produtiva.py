@@ -32,6 +32,7 @@ class UnidadeProdutiva(Base):
     nirf: Mapped[str | None] = mapped_column(String(20), nullable=True, comment="Número do Imóvel na Receita Federal")
     ccir: Mapped[str | None] = mapped_column(String(30), nullable=True, comment="Certificado de Cadastro de Imóvel Rural (INCRA)")
     sigef_codigo: Mapped[str | None] = mapped_column(String(50), nullable=True, comment="Código SIGEF (INCRA georreferenciamento)")
+    numero_matricula: Mapped[str | None] = mapped_column(String(100), nullable=True, comment="Matrícula legada")
 
     # Localização
     cep: Mapped[str | None] = mapped_column(String(9), nullable=True)

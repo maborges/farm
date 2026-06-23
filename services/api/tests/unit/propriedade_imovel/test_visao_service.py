@@ -165,6 +165,26 @@ async def test_obter_visao_territorial_agrega_dados(service, tenant_id, session)
     service._obter_propriedade.assert_awaited_once_with(propriedade.id)
 
 
+async def test_obter_visao_territorial_agrega_multiplos_vinculos(service, tenant_id):
+    imovel_1 = _make_imovel(tenant_id)
+    imovel_2 = _make_imovel(tenant_id)
+    propriedade_id_1 = uuid.uuid4()
+    propriedade_id_2 = uuid.uuid4()
+    vinculo_1 = _make_vinculo(tenant_id, propriedade_id_1, imovel=imovel_1)
+    vinculo_2 = _make_vinculo(tenant_id, propriedade_id_2, imovel=imovel_2)
+    propriedade = _make_propriedade(tenant_id, vinculo=vinculo_1)
+    propriedade.propriedade_imoveis = [vinculo_1, vinculo_2]
+
+    service._obter_propriedade = AsyncMock(return_value=propriedade)
+    service._listar_areas_operacionais = AsyncMock(return_value=[])
+
+    visao = await service.obter_visao_territorial(propriedade.id)
+
+    assert len(visao.imoveis_rurais) == 2
+    assert {item.id for item in visao.imoveis_rurais} == {imovel_1.id, imovel_2.id}
+    assert len(visao.vinculos) == 2
+
+
 async def test_obter_visao_fundiaria_agrega_dados(service, tenant_id):
     imovel = _make_imovel(tenant_id)
     propriedade = _make_propriedade(tenant_id)
@@ -183,6 +203,24 @@ async def test_obter_visao_fundiaria_agrega_dados(service, tenant_id):
     assert visao.propriedades_vinculadas[0].nome == "Propriedade A"
     assert visao.vinculos[0].origem_documental == "Contrato validado"
     service._obter_imovel.assert_awaited_once_with(imovel.id)
+
+
+async def test_obter_visao_fundiaria_agrega_multiplas_propriedades(service, tenant_id):
+    imovel = _make_imovel(tenant_id)
+    propriedade_1 = _make_propriedade(tenant_id)
+    propriedade_2 = _make_propriedade(tenant_id)
+    vinculo_1 = _make_vinculo(tenant_id, propriedade_1.id, imovel=imovel)
+    vinculo_2 = _make_vinculo(tenant_id, propriedade_2.id, imovel=imovel)
+    imovel.propriedade_imoveis = [vinculo_1, vinculo_2]
+
+    service._obter_imovel = AsyncMock(return_value=imovel)
+    service._listar_matriculas = AsyncMock(return_value=[])
+
+    visao = await service.obter_visao_fundiaria(imovel.id)
+
+    assert len(visao.propriedades_vinculadas) == 2
+    assert {item.id for item in visao.propriedades_vinculadas} == {propriedade_1.id, propriedade_2.id}
+    assert len(visao.vinculos) == 2
 
 
 async def test_obter_propriedade_aplica_tenant_filter(service, tenant_id, session):
@@ -215,7 +253,7 @@ async def test_obter_imovel_aplica_tenant_filter(service, tenant_id, session):
 
 async def test_obter_propriedade_nao_encontrada_gera_erro(service, session):
     result = MagicMock()
-    result.scalar_one_or_none.return_value = None
+    result.scalars.return_value.first.return_value = None
     session.execute.return_value = result
 
     with pytest.raises(EntityNotFoundError):
