@@ -1,12 +1,14 @@
+import uuid
 from fastapi import APIRouter, Depends, status
 from typing import List
-import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.dependencies import get_session, get_tenant_id, require_module
 
 from pecuaria.schemas.lote_schema import LoteBovinoCreate, LoteBovinoResponse
 from pecuaria.services.lote_service import LoteBovinoService
+from pecuaria.schemas.lote_resumo_sanitario_schema import LoteResumoSanitarioResponse
+from pecuaria.services.lote_resumo_sanitario_service import LoteResumoSanitarioService
 
 # A Trava impeditiva "P1" - Licença do Módulo Pecuária
 router = APIRouter(
@@ -44,3 +46,14 @@ async def criar_lote(
     lote = await svc.create_lote(db, obj_in=payload)
     await db.commit()
     return lote
+
+
+@router.get("/{lote_id}/resumo-sanitario", response_model=LoteResumoSanitarioResponse)
+async def resumir_sanitario(
+    lote_id: uuid.UUID,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_session),
+):
+    """Resumo sanitário e econômico do lote com foco em vacinação."""
+    svc = LoteResumoSanitarioService(db, tenant_id)
+    return await svc.resumir(lote_id)

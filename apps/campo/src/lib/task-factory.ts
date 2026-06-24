@@ -1,5 +1,6 @@
 import { db, newLocalId, isoNow, type LocalTask, type TaskType, type TaskModule, type TaskStatusExecucao } from "./db";
 import { enqueueSync } from "./sync/push";
+import { requestSync } from "./sync/trigger";
 import { useSessionStore } from "./stores/session-store";
 
 export interface TaskPayload {
@@ -66,6 +67,7 @@ export async function createTask(payload: TaskPayload): Promise<string> {
     longitude: task.longitude,
     updated_at: now,
   });
+  requestSync();
 
   return id;
 }
@@ -77,6 +79,7 @@ export interface ExecucaoPayload {
   latitude?: number;
   longitude?: number;
   localizacao_status?: "DISPONIVEL" | "INDISPONIVEL";
+  dados?: Record<string, unknown>;
 }
 
 // Enfileira execução de tarefa programada para sync posterior
@@ -109,9 +112,14 @@ export async function executarTarefa(taskId: string, payload: ExecucaoPayload): 
     }
   }
 
+  if (payload.dados) {
+    changes.dados = payload.dados;
+  }
+
   await db.tasks.update(taskId, changes);
 
   await enqueueSync("UPDATE", "task", taskId, {
+    dados: changes.dados ?? task.dados,
     status_execucao: payload.status_execucao,
     obs: payload.obs,
     fotos: payload.fotos ?? [],
@@ -120,4 +128,14 @@ export async function executarTarefa(taskId: string, payload: ExecucaoPayload): 
     longitude: payload.longitude,
     updated_at: now,
   }, task.server_id);
+  requestSync();
+}
+
+export async function salvarDadosTarefa(taskId: string, dados: Record<string, unknown>): Promise<void> {
+  const now = isoNow();
+  await db.tasks.update(taskId, {
+    dados,
+    updated_at: now,
+    synced: false,
+  });
 }

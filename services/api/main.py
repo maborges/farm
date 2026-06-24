@@ -418,11 +418,13 @@ from ambiental.router import router as router_ambiental
 from rh.router import router as router_rh
 from notificacoes.router import router as router_notificacoes
 from pecuaria.routers import lotes
+from pecuaria.routers import animais as pecuaria_animais
 from pecuaria.routers import manejos as pecuaria_manejos
 from pecuaria.routers import genetica as pecuaria_genetica
 from pecuaria.routers import confinamento as pecuaria_confinamento
 from pecuaria.routers import leite as pecuaria_leite
 from pecuaria.routers import piquetes
+from pecuaria.routers import campo_sync
 from operacional.routers import frota as frota_router
 app.include_router(router_safras, prefix="/api/v1")
 app.include_router(router_cultivos, prefix="/api/v1")
@@ -509,11 +511,13 @@ app.include_router(router_rh, prefix="/api/v1")
 app.include_router(router_notificacoes, prefix="/api/v1")
 app.include_router(despesas.router, prefix="/api/v1/financeiro")
 app.include_router(lotes.router, prefix="/api/v1")
+app.include_router(pecuaria_animais.router, prefix="/api/v1")
 app.include_router(pecuaria_manejos.router, prefix="/api/v1")
 app.include_router(pecuaria_genetica.router, prefix="/api/v1")
 app.include_router(pecuaria_confinamento.router, prefix="/api/v1")
 app.include_router(pecuaria_leite.router, prefix="/api/v1")
 app.include_router(piquetes.router, prefix="/api/v1")
+app.include_router(campo_sync.router, prefix="/api/v1/pecuaria/campo", tags=["Pecuaria - Campo Sync"])
 app.include_router(receitas.router, prefix="/api/v1/financeiro")
 app.include_router(planos_conta.router, prefix="/api/v1/financeiro")
 app.include_router(relatorios_fin.router, prefix="/api/v1")

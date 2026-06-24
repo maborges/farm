@@ -424,4 +424,33 @@ async def sync_push(
     await disp_svc.atualizar_last_sync(device.id)
     await session.commit()
 
+    # Processamento Assíncrono Pecuária (pós-commit seguro)
+    if svc.tarefas_pecuaria_sync:
+        from pecuaria.services.manejo_sync_service import ManejoSyncService
+        for tarefa_id in svc.tarefas_pecuaria_sync:
+            try:
+                msvc = ManejoSyncService(session, device.tenant_id)
+                await msvc.processar_tarefa_campo(tarefa_id)
+                await session.commit()
+            except Exception as e:
+                # O erro não falha a sincronização, apenas gera log
+                logger.error(f"[sync/push] Erro ao materializar evento pecuario para tarefa {tarefa_id}: {e}")
+                await session.rollback()
+
+                # Falha catastrófica
+                try:
+                    tarefa = await session.get(TarefaCampo, tarefa_id)
+                    if tarefa:
+                        dados = dict(tarefa.dados or {})
+                        dados["sync_pecuaria"] = {
+                            "status": "ERROR",
+                            "total_processado": 0,
+                            "erros": [f"Erro interno: {str(e)}"],
+                            "data_processamento": datetime.utcnow().isoformat()
+                        }
+                        tarefa.dados = dados
+                        await session.commit()
+                except Exception:
+                    await session.rollback()
+
     return SyncPushResponse(processed_at=datetime.utcnow(), results=results)

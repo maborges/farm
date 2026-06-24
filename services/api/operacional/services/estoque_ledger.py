@@ -47,7 +47,16 @@ def _normalizar_codigo_uom(codigo: str | None) -> str:
 def _normalizar_origem(origem: str | None) -> str:
     normalizada = (origem or "MANUAL").strip().upper()
     normalizada = ORIGEM_ALIASES.get(normalizada, normalizada)
-    if normalizada not in {"OPERACAO_EXECUCAO", "COMPRA", "COLHEITA", "AJUSTE", "MANUAL", "TRANSFERENCIA", "IMPLANTACAO"}:
+    if normalizada not in {
+        "OPERACAO_EXECUCAO",
+        "COMPRA",
+        "COLHEITA",
+        "AJUSTE",
+        "MANUAL",
+        "TRANSFERENCIA",
+        "IMPLANTACAO",
+        "PECUARIA_VACINACAO",
+    }:
         return "MANUAL"
     return normalizada
 

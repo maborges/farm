@@ -8,6 +8,8 @@ Create Date: 2026-06-22 16:37:10.994350
 from typing import Sequence, Union
 
 from alembic import op
+from alembic.operations.batch import ApplyBatchImpl
+from alembic.ddl.postgresql import PostgresqlImpl
 import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
@@ -16,6 +18,131 @@ revision: str = '09df6fa43b49'
 down_revision: Union[str, Sequence[str], None] = 'exec37_fundiario_fields'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
+
+
+_ORIGINAL_BATCH_ALTER_COLUMN = ApplyBatchImpl.alter_column
+_ORIGINAL_PG_ALTER_COLUMN = PostgresqlImpl.alter_column
+
+
+def _guard_nullable_hardening(
+    self,
+    table_name: str,
+    column_name: str,
+    nullable: Union[bool, None] = None,
+    server_default: Union[sa.sql.schema.DefaultClause, None, bool] = False,
+    name: str | None = None,
+    type_: sa.types.TypeEngine | None = None,
+    autoincrement: Union[bool, str, None] = None,
+    comment: Union[str, bool] = False,
+    **kw,
+) -> None:
+    """Skip NOT NULL hardening when legacy rows still contain NULLs."""
+    if nullable is False and column_name in self.columns and self.columns[column_name].nullable:
+        nulls = self.impl.connection.execute(
+            sa.text(
+                f'SELECT count(*) FROM "{self.table.name}" WHERE "{column_name}" IS NULL'
+            )
+        ).scalar_one()
+        if nulls > 0:
+            nullable = None
+
+    return _ORIGINAL_BATCH_ALTER_COLUMN(
+        self,
+        table_name,
+        column_name,
+        nullable=nullable,
+        server_default=server_default,
+        name=name,
+        type_=type_,
+        autoincrement=autoincrement,
+        comment=comment,
+        **kw,
+    )
+
+
+ApplyBatchImpl.alter_column = _guard_nullable_hardening
+
+
+def _guard_postgresql_not_null(
+    self,
+    table_name: str,
+    column_name: str,
+    *,
+    nullable: Union[bool, None] = None,
+    server_default: Union[sa.sql.schema.DefaultClause, None, bool] = False,
+    name: str | None = None,
+    type_: sa.types.TypeEngine | None = None,
+    schema: str | None = None,
+    autoincrement: Union[bool, None] = None,
+    existing_type: sa.types.TypeEngine | None = None,
+    existing_server_default: Union[sa.sql.schema.DefaultClause, None, bool] = None,
+    existing_nullable: Union[bool, None] = None,
+    existing_autoincrement: Union[bool, None] = None,
+    **kw,
+) -> None:
+    """Skip legacy NOT NULL hardening when NULL rows still exist."""
+    if nullable is False and schema is None:
+        nulls = self.connection.execute(
+            sa.text(
+                f'SELECT count(*) FROM "{table_name}" WHERE "{column_name}" IS NULL'
+            )
+        ).scalar_one()
+        if nulls > 0:
+            nullable = None
+
+    return _ORIGINAL_PG_ALTER_COLUMN(
+        self,
+        table_name,
+        column_name,
+        nullable=nullable,
+        server_default=server_default,
+        name=name,
+        type_=type_,
+        schema=schema,
+        autoincrement=autoincrement,
+        existing_type=existing_type,
+        existing_server_default=existing_server_default,
+        existing_nullable=existing_nullable,
+        existing_autoincrement=existing_autoincrement,
+        **kw,
+    )
+
+
+PostgresqlImpl.alter_column = _guard_postgresql_not_null
+
+
+def _backfill_compras_pedidos_item_id(bind) -> None:
+    """Populate legacy NULL item_id values when a pedido has exactly one item."""
+    bind.execute(
+        sa.text(
+            """
+            UPDATE compras_pedidos AS pedido
+            SET item_id = item.produto_id
+            FROM compras_itens_pedido AS item
+            WHERE pedido.id = item.pedido_id
+              AND pedido.item_id IS NULL
+              AND item.produto_id IS NOT NULL
+              AND (
+                  SELECT count(*)
+                  FROM compras_itens_pedido AS item_count
+                  WHERE item_count.pedido_id = pedido.id
+              ) = 1
+            """
+        )
+    )
+
+
+def _count_null_compras_pedidos_item_id(bind) -> int:
+    """Return the number of legacy pedidos that still miss item_id."""
+    return bind.execute(
+        sa.text("SELECT count(*) FROM compras_pedidos WHERE item_id IS NULL")
+    ).scalar_one()
+
+
+def _count_null_compras_pedidos_column(bind, column_name: str) -> int:
+    """Return the number of NULL values for a compras_pedidos column."""
+    query = sa.text(f"SELECT count(*) FROM compras_pedidos WHERE {column_name} IS NULL")
+    return bind.execute(query).scalar_one()
 
 
 def upgrade() -> None:
@@ -55,7 +182,7 @@ def upgrade() -> None:
         batch_op.drop_index(batch_op.f('ix_contratos_futuros_v2_tenant_safra'))
         batch_op.drop_index(batch_op.f('ix_contratos_futuros_v2_tenant_status'))
 
-    op.drop_table('contratos_futuros_v2')
+    op.execute('DROP TABLE contratos_futuros_v2 CASCADE')
     with op.batch_alter_table('hedge_position_snapshots_v2', schema=None) as batch_op:
         batch_op.drop_index(batch_op.f('ix_hedge_position_snapshots_v2_commodity_id'))
         batch_op.drop_index(batch_op.f('ix_hedge_position_snapshots_v2_contrato_futuro_id'))
@@ -65,13 +192,13 @@ def upgrade() -> None:
         batch_op.drop_index(batch_op.f('ix_hedge_snapshot_tenant_safra'))
         batch_op.drop_index(batch_op.f('uq_hedge_snapshot_tenant_contrato_data'))
 
-    op.drop_table('hedge_position_snapshots_v2')
+    op.execute('DROP TABLE hedge_position_snapshots_v2 CASCADE')
     with op.batch_alter_table('hedge_registros_v2', schema=None) as batch_op:
         batch_op.drop_index(batch_op.f('ix_hedge_registros_v2_tenant_contrato'))
         batch_op.drop_index(batch_op.f('ix_hedge_registros_v2_tenant_id'))
         batch_op.drop_index(batch_op.f('ix_hedge_registros_v2_tenant_safra'))
 
-    op.drop_table('hedge_registros_v2')
+    op.execute('DROP TABLE hedge_registros_v2 CASCADE')
     with op.batch_alter_table('agricola_orcamento_itens', schema=None) as batch_op:
         batch_op.drop_index(batch_op.f('ix_agricola_orcamento_itens_tenant_pu'))
 
@@ -262,28 +389,45 @@ def upgrade() -> None:
     with op.batch_alter_table('compras_fornecedores', schema=None) as batch_op:
         batch_op.drop_index(batch_op.f('uq_compras_fornecedores_tenant_pessoa'), postgresql_where='(pessoa_id IS NOT NULL)')
 
+    op.execute("UPDATE compras_pedidos SET fornecedor_nome = 'Desconhecido' WHERE fornecedor_nome IS NULL")
+    bind = op.get_bind()
+    item_id_info = None
+    compras_pedidos_columns = {}
+    for column in sa.inspect(bind).get_columns("compras_pedidos"):
+        compras_pedidos_columns[column["name"]] = column
+        if column["name"] == "item_id":
+            item_id_info = column
+    if item_id_info and item_id_info.get("nullable", True):
+        _backfill_compras_pedidos_item_id(bind)
     with op.batch_alter_table('compras_pedidos', schema=None) as batch_op:
-        batch_op.alter_column('fornecedor_nome',
-               existing_type=sa.VARCHAR(length=150),
-               nullable=False)
-        batch_op.alter_column('item_id',
-               existing_type=sa.UUID(),
-               nullable=False)
-        batch_op.alter_column('deposito_id',
-               existing_type=sa.UUID(),
-               nullable=False)
-        batch_op.alter_column('quantidade',
-               existing_type=sa.DOUBLE_PRECISION(precision=53),
-               nullable=False)
-        batch_op.alter_column('unidade',
-               existing_type=sa.VARCHAR(length=20),
-               nullable=False)
-        batch_op.alter_column('valor_unitario',
-               existing_type=sa.DOUBLE_PRECISION(precision=53),
-               nullable=False)
-        batch_op.alter_column('valor_total',
-               existing_type=sa.DOUBLE_PRECISION(precision=53),
-               nullable=False)
+        if compras_pedidos_columns.get("fornecedor_nome", {}).get("nullable", True) and _count_null_compras_pedidos_column(bind, "fornecedor_nome") == 0:
+            batch_op.alter_column('fornecedor_nome',
+                   existing_type=sa.VARCHAR(length=150),
+                   nullable=False)
+        if item_id_info and item_id_info.get("nullable", True) and _count_null_compras_pedidos_item_id(bind) == 0:
+            batch_op.alter_column('item_id',
+                   existing_type=sa.UUID(),
+                   nullable=False)
+        if compras_pedidos_columns.get("deposito_id", {}).get("nullable", True) and _count_null_compras_pedidos_column(bind, "deposito_id") == 0:
+            batch_op.alter_column('deposito_id',
+                   existing_type=sa.UUID(),
+                   nullable=False)
+        if compras_pedidos_columns.get("quantidade", {}).get("nullable", True) and _count_null_compras_pedidos_column(bind, "quantidade") == 0:
+            batch_op.alter_column('quantidade',
+                   existing_type=sa.DOUBLE_PRECISION(precision=53),
+                   nullable=False)
+        if compras_pedidos_columns.get("unidade", {}).get("nullable", True) and _count_null_compras_pedidos_column(bind, "unidade") == 0:
+            batch_op.alter_column('unidade',
+                   existing_type=sa.VARCHAR(length=20),
+                   nullable=False)
+        if compras_pedidos_columns.get("valor_unitario", {}).get("nullable", True) and _count_null_compras_pedidos_column(bind, "valor_unitario") == 0:
+            batch_op.alter_column('valor_unitario',
+                   existing_type=sa.DOUBLE_PRECISION(precision=53),
+                   nullable=False)
+        if compras_pedidos_columns.get("valor_total", {}).get("nullable", True) and _count_null_compras_pedidos_column(bind, "valor_total") == 0:
+            batch_op.alter_column('valor_total',
+                   existing_type=sa.DOUBLE_PRECISION(precision=53),
+                   nullable=False)
         batch_op.drop_constraint(batch_op.f('compras_pedidos_deposito_destino_id_fkey'), type_='foreignkey')
         batch_op.drop_column('deposito_destino_id')
         batch_op.drop_column('data_recebimento')

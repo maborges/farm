@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { useSessionStore } from "@/lib/stores/session-store";
 import { useSyncStore } from "@/lib/stores/sync-store";
 import { CampoButton, CampoPill, CampoSectionTitle, CampoSurface } from "@/components/campo/ui";
+import { formatPecuariaTaskType } from "@/lib/pecuaria-tasks";
 
 interface Activity {
   key: string;
@@ -361,12 +362,14 @@ function formatTaskType(type: string): string {
     APLICACAO_DEFENSIVO: "Aplicação de Defensivo",
     APLICACAO_FERTILIZANTE: "Aplicação de Fertilizante",
     COLHEITA_REGISTRO: "Registro de Colheita",
+    PESAGEM: "Pesagem",
     PESAGEM_ANIMAL: "Pesagem de Animal",
+    VACINACAO: "Vacinação",
     VACINACAO_LOTE: "Vacinação de Lote",
     PARTO_REGISTRO: "Registro de Parto",
     MONITORAMENTO_PRAGA: "Monitoramento de Praga",
   };
-  return map[type] ?? type;
+  return map[type] ?? formatPecuariaTaskType(type);
 }
 
 function formatDate(iso: string): string {

@@ -1,0 +1,974 @@
+============================= test session starts ==============================
+platform linux -- Python 3.10.12, pytest-9.0.2, pluggy-1.6.0 -- /opt/lampp/htdocs/farm/services/api/.venv/bin/python3.10
+cachedir: .pytest_cache
+rootdir: /opt/lampp/htdocs/farm/services/api
+configfile: pyproject.toml
+plugins: asyncio-1.3.0, anyio-4.12.1, cov-7.1.0
+asyncio: mode=auto, debug=False, asyncio_default_fixture_loop_scope=session, asyncio_default_test_loop_scope=session
+collecting ... collected 2 items
+
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination FAILED [ 50%]
+tests/integration/pecuaria/test_campo_sync_status.py::test_reprocessar_tarefa FAILED [100%]
+
+=================================== FAILURES ===================================
+_________________ test_list_sync_status_filters_and_pagination _________________
+
+self = <sqlalchemy.dialects.postgresql.asyncpg.AsyncAdapt_asyncpg_cursor object at 0x7f8646b46260>
+operation = 'INSERT INTO campo_tarefas (id, tenant_id, dispositivo_id, user_id, operador_id, client_id, origem, status_execucao, t...UT TIME ZONE, $122::TIMESTAMP WITHOUT TIME ZONE, $123::TIMESTAMP WITHOUT TIME ZONE, $124::TIMESTAMP WITHOUT TIME ZONE)'
+parameters = (UUID('417358fb-ac34-4c20-8a9c-b613322755d9'), UUID('aaaaaaaa-0000-0000-0000-000000000010'), None, UUID('0b17a3b8-e244-44a1-8797-c578fab7af04'), None, 'f0915ede-0800-4d59-8c4d-4eb92c8bd7fd', ...)
+
+    async def _prepare_and_execute(self, operation, parameters):
+        adapt_connection = self._adapt_connection
+    
+        async with adapt_connection._execute_mutex:
+            if not adapt_connection._started:
+                await adapt_connection._start_transaction()
+    
+            if parameters is None:
+                parameters = ()
+    
+            try:
+                prepared_stmt, attributes = await adapt_connection._prepare(
+                    operation, self._invalidate_schema_cache_asof
+                )
+    
+                if attributes:
+                    self.description = [
+                        (
+                            attr.name,
+                            attr.type.oid,
+                            None,
+                            None,
+                            None,
+                            None,
+                            None,
+                        )
+                        for attr in attributes
+                    ]
+                else:
+                    self.description = None
+    
+                if self.server_side:
+                    self._cursor = await prepared_stmt.cursor(*parameters)
+                    self.rowcount = -1
+                else:
+>                   self._rows = deque(await prepared_stmt.fetch(*parameters))
+
+.venv/lib/python3.10/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py:550: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+.venv/lib/python3.10/site-packages/asyncpg/prepared_stmt.py:177: in fetch
+    data = await self.__bind_execute(args, 0, timeout)
+.venv/lib/python3.10/site-packages/asyncpg/prepared_stmt.py:268: in __bind_execute
+    data, status, _ = await self.__do_execute(
+.venv/lib/python3.10/site-packages/asyncpg/prepared_stmt.py:257: in __do_execute
+    return await executor(protocol)
+asyncpg/protocol/protocol.pyx:205: in bind_execute
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = None
+future = <Future finished exception=NotNullViolationError('null value in column "client_updated_at" of relation "campo_tarefas" violates not-null constraint')>
+
+    def __wakeup(self, future):
+        try:
+>           future.result()
+E           asyncpg.exceptions.NotNullViolationError: null value in column "client_updated_at" of relation "campo_tarefas" violates not-null constraint
+E           DETAIL:  Failing row contains (417358fb-ac34-4c20-8a9c-b613322755d9, aaaaaaaa-0000-0000-0000-000000000010, null, 0b17a3b8-e244-44a1-8797-c578fab7af04, f0915ede-0800-4d59-8c4d-4eb92c8bd7fd, PESAGEM, pecuaria, PENDENTE, {"animais": [{"peso_kg": 200, "animal_id": "11111111-1111-1111-1..., {}, null, null, null, INDISPONIVEL, null, null, 2026-06-23 21:06:08.92266, null, 2026-06-23 21:06:09.014208, 2026-06-23 21:06:09.014211, MANUAL, CONCLUIDA, null, NORMAL, null, null, null, null, null, null, null).
+
+/usr/lib/python3.10/asyncio/tasks.py:304: NotNullViolationError
+
+The above exception was the direct cause of the following exception:
+
+self = <sqlalchemy.engine.base.Connection object at 0x7f8644ab5060>
+dialect = <sqlalchemy.dialects.postgresql.asyncpg.PGDialect_asyncpg object at 0x7f8644eb2e90>
+context = <sqlalchemy.dialects.postgresql.asyncpg.PGExecutionContext_asyncpg object at 0x7f8644ab58d0>
+
+    def _exec_insertmany_context(
+        self,
+        dialect: Dialect,
+        context: ExecutionContext,
+    ) -> CursorResult[Any]:
+        """continue the _execute_context() method for an "insertmanyvalues"
+        operation, which will invoke DBAPI
+        cursor.execute() one or more times with individual log and
+        event hook calls.
+    
+        """
+    
+        if dialect.bind_typing is BindTyping.SETINPUTSIZES:
+            generic_setinputsizes = context._prepare_set_input_sizes()
+        else:
+            generic_setinputsizes = None
+    
+        cursor, str_statement, parameters = (
+            context.cursor,
+            context.statement,
+            context.parameters,
+        )
+    
+        effective_parameters = parameters
+    
+        engine_events = self._has_events or self.engine._has_events
+        if self.dialect._has_events:
+            do_execute_dispatch: Iterable[Any] = (
+                self.dialect.dispatch.do_execute
+            )
+        else:
+            do_execute_dispatch = ()
+    
+        if engine_events:
+            _WORKAROUND_ISSUE_13018 = getattr(
+                self, "_WORKAROUND_ISSUE_13018", False
+            )
+        else:
+            _WORKAROUND_ISSUE_13018 = False
+    
+        if self._echo:
+            stats = context._get_cache_stats() + " (insertmanyvalues)"
+    
+        preserve_rowcount = context.execution_options.get(
+            "preserve_rowcount", False
+        )
+        rowcount = 0
+    
+        for imv_batch in dialect._deliver_insertmanyvalues_batches(
+            self,
+            cursor,
+            str_statement,
+            effective_parameters,
+            generic_setinputsizes,
+            context,
+        ):
+            if imv_batch.processed_setinputsizes:
+                try:
+                    dialect.do_set_input_sizes(
+                        context.cursor,
+                        imv_batch.processed_setinputsizes,
+                        context,
+                    )
+                except BaseException as e:
+                    self._handle_dbapi_exception(
+                        e,
+                        sql_util._long_statement(imv_batch.replaced_statement),
+                        imv_batch.replaced_parameters,
+                        None,
+                        context,
+                        is_sub_exec=True,
+                    )
+    
+            sub_stmt = imv_batch.replaced_statement
+            sub_params = imv_batch.replaced_parameters
+    
+            if engine_events:
+                for fn in self.dispatch.before_cursor_execute:
+                    sub_stmt, sub_params = fn(
+                        self,
+                        cursor,
+                        sub_stmt,
+                        sub_params,
+                        context,
+                        True,
+                    )
+    
+            if self._echo:
+                self._log_info(sql_util._long_statement(sub_stmt))
+    
+                imv_stats = f""" {imv_batch.batchnum}/{
+                            imv_batch.total_batches
+                } ({
+                    'ordered'
+                    if imv_batch.rows_sorted else 'unordered'
+                }{
+                    '; batch not supported'
+                    if imv_batch.is_downgraded
+                    else ''
+                })"""
+    
+                if imv_batch.batchnum == 1:
+                    stats += imv_stats
+                else:
+                    stats = f"insertmanyvalues{imv_stats}"
+    
+                if not self.engine.hide_parameters:
+                    self._log_info(
+                        "[%s] %r",
+                        stats,
+                        sql_util._repr_params(
+                            sub_params,
+                            batches=10,
+                            ismulti=False,
+                        ),
+                    )
+                else:
+                    self._log_info(
+                        "[%s] [SQL parameters hidden due to "
+                        "hide_parameters=True]",
+                        stats,
+                    )
+    
+            try:
+                for fn in do_execute_dispatch:
+                    if fn(
+                        cursor,
+                        sub_stmt,
+                        sub_params,
+                        context,
+                    ):
+                        break
+                else:
+>                   dialect.do_execute(
+                        cursor,
+                        sub_stmt,
+                        sub_params,
+                        context,
+                    )
+
+.venv/lib/python3.10/site-packages/sqlalchemy/engine/base.py:2125: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+.venv/lib/python3.10/site-packages/sqlalchemy/engine/default.py:952: in do_execute
+    cursor.execute(statement, parameters)
+.venv/lib/python3.10/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py:585: in execute
+    self._adapt_connection.await_(
+.venv/lib/python3.10/site-packages/sqlalchemy/util/_concurrency_py3k.py:132: in await_only
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+.venv/lib/python3.10/site-packages/sqlalchemy/util/_concurrency_py3k.py:196: in greenlet_spawn
+    value = await result
+.venv/lib/python3.10/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py:563: in _prepare_and_execute
+    self._handle_exception(error)
+.venv/lib/python3.10/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py:513: in _handle_exception
+    self._adapt_connection._handle_exception(error)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <AdaptedConnection <asyncpg.connection.Connection object at 0x7f864658e2f0>>
+error = NotNullViolationError('null value in column "client_updated_at" of relation "campo_tarefas" violates not-null constraint')
+
+    def _handle_exception(self, error):
+        if self._connection.is_closed():
+            self._transaction = None
+            self._started = False
+    
+        if not isinstance(error, AsyncAdapt_asyncpg_dbapi.Error):
+            exception_mapping = self.dbapi._asyncpg_error_translate
+    
+            for super_ in type(error).__mro__:
+                if super_ in exception_mapping:
+                    translated_error = exception_mapping[super_](
+                        "%s: %s" % (type(error), error)
+                    )
+                    translated_error.pgcode = translated_error.sqlstate = (
+                        getattr(error, "sqlstate", None)
+                    )
+>                   raise translated_error from error
+E                   sqlalchemy.dialects.postgresql.asyncpg.AsyncAdapt_asyncpg_dbapi.IntegrityError: <class 'asyncpg.exceptions.NotNullViolationError'>: null value in column "client_updated_at" of relation "campo_tarefas" violates not-null constraint
+E                   DETAIL:  Failing row contains (417358fb-ac34-4c20-8a9c-b613322755d9, aaaaaaaa-0000-0000-0000-000000000010, null, 0b17a3b8-e244-44a1-8797-c578fab7af04, f0915ede-0800-4d59-8c4d-4eb92c8bd7fd, PESAGEM, pecuaria, PENDENTE, {"animais": [{"peso_kg": 200, "animal_id": "11111111-1111-1111-1..., {}, null, null, null, INDISPONIVEL, null, null, 2026-06-23 21:06:08.92266, null, 2026-06-23 21:06:09.014208, 2026-06-23 21:06:09.014211, MANUAL, CONCLUIDA, null, NORMAL, null, null, null, null, null, null, null).
+
+.venv/lib/python3.10/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py:797: IntegrityError
+
+The above exception was the direct cause of the following exception:
+
+client = <httpx.AsyncClient object at 0x7f864caeae00>
+token_admin = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJlZWVlZWVlZS0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMDUiLCJ0ZW5hbnRfaWQiOiJh...XNlciI6ZmFsc2UsInBsYW5fdGllciI6IlBST0ZJU1NJT05BTCIsImV4cCI6MTc4MjI1MjM2MH0.Gpk2tClIUBhP8fOeyKt3fu796HPJl8kCqUTly7U1w6E'
+tenant_id = UUID('aaaaaaaa-0000-0000-0000-000000000010')
+unidade_produtiva_id = UUID('5ee80f32-63e1-4850-b846-d2100ba31ac5')
+session = <sqlalchemy.ext.asyncio.session.AsyncSession object at 0x7f8644eef7f0>
+
+    @pytest.mark.asyncio
+    async def test_list_sync_status_filters_and_pagination(client: AsyncClient, token_admin: str, tenant_id: uuid.UUID, unidade_produtiva_id: uuid.UUID, session):
+        user_id = uuid.uuid4()
+        # 1. Create a few TarefasCampo
+        t1 = TarefaCampo(
+            tenant_id=tenant_id,
+            user_id=user_id,
+            client_id=str(uuid.uuid4()),
+            client_created_at=datetime.utcnow(),
+            type="PESAGEM",
+            module="pecuaria",
+            status_execucao="CONCLUIDA",
+            dados={
+                "animais": [{"animal_id": "11111111-1111-1111-1111-111111111111", "peso_kg": 200}],
+                "sync_pecuaria": {
+                    "status": "SUCCESS",
+                    "total_processado": 1,
+                    "erros": [],
+                    "data_processamento": datetime.utcnow().isoformat()
+                }
+            }
+        )
+    
+        t2 = TarefaCampo(
+            tenant_id=tenant_id,
+            user_id=user_id,
+            client_id=str(uuid.uuid4()),
+            client_created_at=datetime.utcnow(),
+            type="PESAGEM",
+            module="pecuaria",
+            status_execucao="CONCLUIDA",
+            dados={
+                "sync_pecuaria": {
+                    "status": "ERROR",
+                    "total_processado": 0,
+                    "erros": ["Animal não encontrado"],
+                    "data_processamento": datetime.utcnow().isoformat()
+                }
+            }
+        )
+    
+        t3 = TarefaCampo(
+            tenant_id=tenant_id,
+            user_id=user_id,
+            client_id=str(uuid.uuid4()),
+            client_created_at=datetime.utcnow(),
+            type="VACINACAO",
+            module="pecuaria",
+            status_execucao="CONCLUIDA",
+            dados={} # PENDENTE
+        )
+    
+        t4 = TarefaCampo(
+            tenant_id=tenant_id,
+            user_id=user_id,
+            client_id=str(uuid.uuid4()),
+            client_created_at=datetime.utcnow(),
+            type="PESAGEM",
+            module="agricola", # Agricola, should not be returned!
+            status_execucao="CONCLUIDA",
+            dados={}
+        )
+    
+        session.add_all([t1, t2, t3, t4])
+>       await session.commit()
+
+tests/integration/pecuaria/test_campo_sync_status.py:75: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+.venv/lib/python3.10/site-packages/sqlalchemy/ext/asyncio/session.py:1000: in commit
+    await greenlet_spawn(self.sync_session.commit)
+.venv/lib/python3.10/site-packages/sqlalchemy/util/_concurrency_py3k.py:203: in greenlet_spawn
+    result = context.switch(value)
+.venv/lib/python3.10/site-packages/sqlalchemy/orm/session.py:2030: in commit
+    trans.commit(_to_root=True)
+<string>:2: in commit
+    ???
+.venv/lib/python3.10/site-packages/sqlalchemy/orm/state_changes.py:137: in _go
+    ret_value = fn(self, *arg, **kw)
+.venv/lib/python3.10/site-packages/sqlalchemy/orm/session.py:1311: in commit
+    self._prepare_impl()
+<string>:2: in _prepare_impl
+    ???
+.venv/lib/python3.10/site-packages/sqlalchemy/orm/state_changes.py:137: in _go
+    ret_value = fn(self, *arg, **kw)
+.venv/lib/python3.10/site-packages/sqlalchemy/orm/session.py:1286: in _prepare_impl
+    self.session.flush()
+.venv/lib/python3.10/site-packages/sqlalchemy/orm/session.py:4331: in flush
+    self._flush(objects)
+.venv/lib/python3.10/site-packages/sqlalchemy/orm/session.py:4466: in _flush
+    with util.safe_reraise():
+.venv/lib/python3.10/site-packages/sqlalchemy/util/langhelpers.py:121: in __exit__
+    raise exc_value.with_traceback(exc_tb)
+.venv/lib/python3.10/site-packages/sqlalchemy/orm/session.py:4427: in _flush
+    flush_context.execute()
+.venv/lib/python3.10/site-packages/sqlalchemy/orm/unitofwork.py:466: in execute
+    rec.execute(self)
+.venv/lib/python3.10/site-packages/sqlalchemy/orm/unitofwork.py:642: in execute
+    util.preloaded.orm_persistence.save_obj(
+.venv/lib/python3.10/site-packages/sqlalchemy/orm/persistence.py:93: in save_obj
+    _emit_insert_statements(
+.venv/lib/python3.10/site-packages/sqlalchemy/orm/persistence.py:1143: in _emit_insert_statements
+    result = connection.execute(
+.venv/lib/python3.10/site-packages/sqlalchemy/engine/base.py:1419: in execute
+    return meth(
+.venv/lib/python3.10/site-packages/sqlalchemy/sql/elements.py:527: in _execute_on_connection
+    return connection._execute_clauseelement(
+.venv/lib/python3.10/site-packages/sqlalchemy/engine/base.py:1641: in _execute_clauseelement
+    ret = self._execute_context(
+.venv/lib/python3.10/site-packages/sqlalchemy/engine/base.py:1844: in _execute_context
+    return self._exec_insertmany_context(dialect, context)
+.venv/lib/python3.10/site-packages/sqlalchemy/engine/base.py:2133: in _exec_insertmany_context
+    self._handle_dbapi_exception(
+.venv/lib/python3.10/site-packages/sqlalchemy/engine/base.py:2363: in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+.venv/lib/python3.10/site-packages/sqlalchemy/engine/base.py:2125: in _exec_insertmany_context
+    dialect.do_execute(
+.venv/lib/python3.10/site-packages/sqlalchemy/engine/default.py:952: in do_execute
+    cursor.execute(statement, parameters)
+.venv/lib/python3.10/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py:585: in execute
+    self._adapt_connection.await_(
+.venv/lib/python3.10/site-packages/sqlalchemy/util/_concurrency_py3k.py:132: in await_only
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+.venv/lib/python3.10/site-packages/sqlalchemy/util/_concurrency_py3k.py:196: in greenlet_spawn
+    value = await result
+.venv/lib/python3.10/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py:563: in _prepare_and_execute
+    self._handle_exception(error)
+.venv/lib/python3.10/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py:513: in _handle_exception
+    self._adapt_connection._handle_exception(error)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <AdaptedConnection <asyncpg.connection.Connection object at 0x7f864658e2f0>>
+error = NotNullViolationError('null value in column "client_updated_at" of relation "campo_tarefas" violates not-null constraint')
+
+    def _handle_exception(self, error):
+        if self._connection.is_closed():
+            self._transaction = None
+            self._started = False
+    
+        if not isinstance(error, AsyncAdapt_asyncpg_dbapi.Error):
+            exception_mapping = self.dbapi._asyncpg_error_translate
+    
+            for super_ in type(error).__mro__:
+                if super_ in exception_mapping:
+                    translated_error = exception_mapping[super_](
+                        "%s: %s" % (type(error), error)
+                    )
+                    translated_error.pgcode = translated_error.sqlstate = (
+                        getattr(error, "sqlstate", None)
+                    )
+>                   raise translated_error from error
+E                   sqlalchemy.exc.IntegrityError: (sqlalchemy.dialects.postgresql.asyncpg.IntegrityError) <class 'asyncpg.exceptions.NotNullViolationError'>: null value in column "client_updated_at" of relation "campo_tarefas" violates not-null constraint
+E                   DETAIL:  Failing row contains (417358fb-ac34-4c20-8a9c-b613322755d9, aaaaaaaa-0000-0000-0000-000000000010, null, 0b17a3b8-e244-44a1-8797-c578fab7af04, f0915ede-0800-4d59-8c4d-4eb92c8bd7fd, PESAGEM, pecuaria, PENDENTE, {"animais": [{"peso_kg": 200, "animal_id": "11111111-1111-1111-1..., {}, null, null, null, INDISPONIVEL, null, null, 2026-06-23 21:06:08.92266, null, 2026-06-23 21:06:09.014208, 2026-06-23 21:06:09.014211, MANUAL, CONCLUIDA, null, NORMAL, null, null, null, null, null, null, null).
+E                   [SQL: INSERT INTO campo_tarefas (id, tenant_id, dispositivo_id, user_id, operador_id, client_id, origem, status_execucao, titulo, data_programada, prioridade, type, module, unidade_produtiva_id, area_rural_id, lote_id, status, dados, fotos, localizacao_sta ... 2315 characters truncated ... ::TIMESTAMP WITHOUT TIME ZONE, $123::TIMESTAMP WITHOUT TIME ZONE, $124::TIMESTAMP WITHOUT TIME ZONE)]
+E                   [parameters: (UUID('417358fb-ac34-4c20-8a9c-b613322755d9'), UUID('aaaaaaaa-0000-0000-0000-000000000010'), None, UUID('0b17a3b8-e244-44a1-8797-c578fab7af04'), None, 'f0915ede-0800-4d59-8c4d-4eb92c8bd7fd', 'MANUAL', 'CONCLUIDA', None, None, 'NORMAL', 'PESAGEM', 'pecuaria', None, None, None, 'PENDENTE', '{"animais": [{"animal_id": "11111111-1111-1111-1111-111111111111", "peso_kg": 200}], "sync_pecuaria": {"status": "SUCCESS", "total_processado": 1, "erros": [], "data_processamento": "2026-06-23T21:06:08.922662"}}', [], 'INDISPONIVEL', None, None, None, None, None, None, None, datetime.datetime(2026, 6, 23, 21, 6, 8, 922660), None, datetime.datetime(2026, 6, 23, 21, 6, 9, 14208), datetime.datetime(2026, 6, 23, 21, 6, 9, 14211), UUID('562ea401-4875-4d5b-98ae-5f0101ec5bfa'), UUID('aaaaaaaa-0000-0000-0000-000000000010'), None, UUID('0b17a3b8-e244-44a1-8797-c578fab7af04'), None, '2fee43ec-f529-480f-a51b-17c2eac1f7f0', 'MANUAL', 'CONCLUIDA', None, None, 'NORMAL', 'PESAGEM', 'pecuaria', None, None, None, 'PENDENTE', '{"sync_pecuaria": {"status": "ERROR", "total_processado": 0, "erros": ["Animal n\\u00e3o encontrado"], "data_processamento": "2026-06-23T21:06:08.998538"}}', [] ... 24 parameters truncated ... 'pecuaria', None, None, None, 'PENDENTE', '{}', [], 'INDISPONIVEL', None, None, None, None, None, None, None, datetime.datetime(2026, 6, 23, 21, 6, 8, 998570), None, datetime.datetime(2026, 6, 23, 21, 6, 9, 14218), datetime.datetime(2026, 6, 23, 21, 6, 9, 14218), UUID('c16e3361-2e0d-47df-bb16-ea7a652759c6'), UUID('aaaaaaaa-0000-0000-0000-000000000010'), None, UUID('0b17a3b8-e244-44a1-8797-c578fab7af04'), None, '791b7c8c-9dc9-4848-83cd-0e14ebb0f9a2', 'MANUAL', 'CONCLUIDA', None, None, 'NORMAL', 'PESAGEM', 'agricola', None, None, None, 'PENDENTE', '{}', [], 'INDISPONIVEL', None, None, None, None, None, None, None, datetime.datetime(2026, 6, 23, 21, 6, 8, 998587), None, datetime.datetime(2026, 6, 23, 21, 6, 9, 14221), datetime.datetime(2026, 6, 23, 21, 6, 9, 14221))]
+E                   (Background on this error at: https://sqlalche.me/e/20/gkpj)
+
+.venv/lib/python3.10/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py:797: IntegrityError
+---------------------------- Captured stderr setup -----------------------------
+2026-06-23 18:06:00.276 | WARNING  | core.services.geoprocessamento_service:<module>:27 - Fiona/Shapely não disponíveis. Funcionalidades geoespaciais limitadas.
+___________________________ test_reprocessar_tarefa ____________________________
+
+self = <sqlalchemy.dialects.postgresql.asyncpg.AsyncAdapt_asyncpg_cursor object at 0x7f8644eeb640>
+operation = 'INSERT INTO campo_tarefas (id, tenant_id, dispositivo_id, user_id, operador_id, client_id, origem, status_execucao, t...THOUT TIME ZONE, $29::TIMESTAMP WITHOUT TIME ZONE, $30::TIMESTAMP WITHOUT TIME ZONE, $31::TIMESTAMP WITHOUT TIME ZONE)'
+parameters = (UUID('06ffb5a9-818e-498a-8d0f-b918103d326c'), UUID('aaaaaaaa-0000-0000-0000-000000000010'), None, UUID('86661b4c-e6e4-4a9c-af65-acd4ecd1410d'), None, '21c81ce6-6468-4433-99e7-97ad78b16f51', ...)
+
+    async def _prepare_and_execute(self, operation, parameters):
+        adapt_connection = self._adapt_connection
+    
+        async with adapt_connection._execute_mutex:
+            if not adapt_connection._started:
+                await adapt_connection._start_transaction()
+    
+            if parameters is None:
+                parameters = ()
+    
+            try:
+                prepared_stmt, attributes = await adapt_connection._prepare(
+                    operation, self._invalidate_schema_cache_asof
+                )
+    
+                if attributes:
+                    self.description = [
+                        (
+                            attr.name,
+                            attr.type.oid,
+                            None,
+                            None,
+                            None,
+                            None,
+                            None,
+                        )
+                        for attr in attributes
+                    ]
+                else:
+                    self.description = None
+    
+                if self.server_side:
+                    self._cursor = await prepared_stmt.cursor(*parameters)
+                    self.rowcount = -1
+                else:
+>                   self._rows = deque(await prepared_stmt.fetch(*parameters))
+
+.venv/lib/python3.10/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py:550: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+.venv/lib/python3.10/site-packages/asyncpg/prepared_stmt.py:177: in fetch
+    data = await self.__bind_execute(args, 0, timeout)
+.venv/lib/python3.10/site-packages/asyncpg/prepared_stmt.py:268: in __bind_execute
+    data, status, _ = await self.__do_execute(
+.venv/lib/python3.10/site-packages/asyncpg/prepared_stmt.py:257: in __do_execute
+    return await executor(protocol)
+asyncpg/protocol/protocol.pyx:205: in bind_execute
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = None
+future = <Future finished exception=NotNullViolationError('null value in column "client_updated_at" of relation "campo_tarefas" violates not-null constraint')>
+
+    def __wakeup(self, future):
+        try:
+>           future.result()
+E           asyncpg.exceptions.NotNullViolationError: null value in column "client_updated_at" of relation "campo_tarefas" violates not-null constraint
+E           DETAIL:  Failing row contains (06ffb5a9-818e-498a-8d0f-b918103d326c, aaaaaaaa-0000-0000-0000-000000000010, null, 86661b4c-e6e4-4a9c-af65-acd4ecd1410d, 21c81ce6-6468-4433-99e7-97ad78b16f51, PESAGEM, pecuaria, PENDENTE, {"animais": [{"peso_kg": 350, "animal_id": "94f5019a-7a49-4270-a..., {}, null, null, null, INDISPONIVEL, null, null, 2026-06-23 21:06:15.404565, null, 2026-06-23 21:06:15.414577, 2026-06-23 21:06:15.414579, MANUAL, CONCLUIDA, null, NORMAL, null, null, null, null, null, null, null).
+
+/usr/lib/python3.10/asyncio/tasks.py:304: NotNullViolationError
+
+The above exception was the direct cause of the following exception:
+
+self = <sqlalchemy.engine.base.Connection object at 0x7f864441ba30>
+dialect = <sqlalchemy.dialects.postgresql.asyncpg.PGDialect_asyncpg object at 0x7f86441a3400>
+context = <sqlalchemy.dialects.postgresql.asyncpg.PGExecutionContext_asyncpg object at 0x7f864441a080>
+statement = <sqlalchemy.dialects.postgresql.asyncpg.PGCompiler_asyncpg object at 0x7f8644419f60>
+parameters = [(UUID('06ffb5a9-818e-498a-8d0f-b918103d326c'), UUID('aaaaaaaa-0000-0000-0000-000000000010'), None, UUID('86661b4c-e6e4-4a9c-af65-acd4ecd1410d'), None, '21c81ce6-6468-4433-99e7-97ad78b16f51', ...)]
+
+    def _exec_single_context(
+        self,
+        dialect: Dialect,
+        context: ExecutionContext,
+        statement: Union[str, Compiled],
+        parameters: Optional[_AnyMultiExecuteParams],
+    ) -> CursorResult[Any]:
+        """continue the _execute_context() method for a single DBAPI
+        cursor.execute() or cursor.executemany() call.
+    
+        """
+        if dialect.bind_typing is BindTyping.SETINPUTSIZES:
+            generic_setinputsizes = context._prepare_set_input_sizes()
+    
+            if generic_setinputsizes:
+                try:
+                    dialect.do_set_input_sizes(
+                        context.cursor, generic_setinputsizes, context
+                    )
+                except BaseException as e:
+                    self._handle_dbapi_exception(
+                        e, str(statement), parameters, None, context
+                    )
+    
+        cursor, str_statement, parameters = (
+            context.cursor,
+            context.statement,
+            context.parameters,
+        )
+    
+        effective_parameters: Optional[_AnyExecuteParams]
+    
+        if not context.executemany:
+            effective_parameters = parameters[0]
+        else:
+            effective_parameters = parameters
+    
+        if self._has_events or self.engine._has_events:
+            for fn in self.dispatch.before_cursor_execute:
+                str_statement, effective_parameters = fn(
+                    self,
+                    cursor,
+                    str_statement,
+                    effective_parameters,
+                    context,
+                    context.executemany,
+                )
+    
+        if self._echo:
+            self._log_info(str_statement)
+    
+            stats = context._get_cache_stats()
+    
+            if not self.engine.hide_parameters:
+                self._log_info(
+                    "[%s] %r",
+                    stats,
+                    sql_util._repr_params(
+                        effective_parameters,
+                        batches=10,
+                        ismulti=context.executemany,
+                    ),
+                )
+            else:
+                self._log_info(
+                    "[%s] [SQL parameters hidden due to hide_parameters=True]",
+                    stats,
+                )
+    
+        evt_handled: bool = False
+        try:
+            if context.execute_style is ExecuteStyle.EXECUTEMANY:
+                effective_parameters = cast(
+                    "_CoreMultiExecuteParams", effective_parameters
+                )
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_executemany:
+                        if fn(
+                            cursor,
+                            str_statement,
+                            effective_parameters,
+                            context,
+                        ):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+                    self.dialect.do_executemany(
+                        cursor,
+                        str_statement,
+                        effective_parameters,
+                        context,
+                    )
+            elif not effective_parameters and context.no_parameters:
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_execute_no_params:
+                        if fn(cursor, str_statement, context):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+                    self.dialect.do_execute_no_params(
+                        cursor, str_statement, context
+                    )
+            else:
+                effective_parameters = cast(
+                    "_CoreSingleExecuteParams", effective_parameters
+                )
+                if self.dialect._has_events:
+                    for fn in self.dialect.dispatch.do_execute:
+                        if fn(
+                            cursor,
+                            str_statement,
+                            effective_parameters,
+                            context,
+                        ):
+                            evt_handled = True
+                            break
+                if not evt_handled:
+>                   self.dialect.do_execute(
+                        cursor, str_statement, effective_parameters, context
+                    )
+
+.venv/lib/python3.10/site-packages/sqlalchemy/engine/base.py:1967: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+.venv/lib/python3.10/site-packages/sqlalchemy/engine/default.py:952: in do_execute
+    cursor.execute(statement, parameters)
+.venv/lib/python3.10/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py:585: in execute
+    self._adapt_connection.await_(
+.venv/lib/python3.10/site-packages/sqlalchemy/util/_concurrency_py3k.py:132: in await_only
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+.venv/lib/python3.10/site-packages/sqlalchemy/util/_concurrency_py3k.py:196: in greenlet_spawn
+    value = await result
+.venv/lib/python3.10/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py:563: in _prepare_and_execute
+    self._handle_exception(error)
+.venv/lib/python3.10/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py:513: in _handle_exception
+    self._adapt_connection._handle_exception(error)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <AdaptedConnection <asyncpg.connection.Connection object at 0x7f8644d4fd30>>
+error = NotNullViolationError('null value in column "client_updated_at" of relation "campo_tarefas" violates not-null constraint')
+
+    def _handle_exception(self, error):
+        if self._connection.is_closed():
+            self._transaction = None
+            self._started = False
+    
+        if not isinstance(error, AsyncAdapt_asyncpg_dbapi.Error):
+            exception_mapping = self.dbapi._asyncpg_error_translate
+    
+            for super_ in type(error).__mro__:
+                if super_ in exception_mapping:
+                    translated_error = exception_mapping[super_](
+                        "%s: %s" % (type(error), error)
+                    )
+                    translated_error.pgcode = translated_error.sqlstate = (
+                        getattr(error, "sqlstate", None)
+                    )
+>                   raise translated_error from error
+E                   sqlalchemy.dialects.postgresql.asyncpg.AsyncAdapt_asyncpg_dbapi.IntegrityError: <class 'asyncpg.exceptions.NotNullViolationError'>: null value in column "client_updated_at" of relation "campo_tarefas" violates not-null constraint
+E                   DETAIL:  Failing row contains (06ffb5a9-818e-498a-8d0f-b918103d326c, aaaaaaaa-0000-0000-0000-000000000010, null, 86661b4c-e6e4-4a9c-af65-acd4ecd1410d, 21c81ce6-6468-4433-99e7-97ad78b16f51, PESAGEM, pecuaria, PENDENTE, {"animais": [{"peso_kg": 350, "animal_id": "94f5019a-7a49-4270-a..., {}, null, null, null, INDISPONIVEL, null, null, 2026-06-23 21:06:15.404565, null, 2026-06-23 21:06:15.414577, 2026-06-23 21:06:15.414579, MANUAL, CONCLUIDA, null, NORMAL, null, null, null, null, null, null, null).
+
+.venv/lib/python3.10/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py:797: IntegrityError
+
+The above exception was the direct cause of the following exception:
+
+client = <httpx.AsyncClient object at 0x7f86441a1210>
+token_admin = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJlZWVlZWVlZS0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMDUiLCJ0ZW5hbnRfaWQiOiJh...XNlciI6ZmFsc2UsInBsYW5fdGllciI6IlBST0ZJU1NJT05BTCIsImV4cCI6MTc4MjI1MjM2MH0.Gpk2tClIUBhP8fOeyKt3fu796HPJl8kCqUTly7U1w6E'
+tenant_id = UUID('aaaaaaaa-0000-0000-0000-000000000010')
+unidade_produtiva_id = UUID('d3da1b8c-7065-420c-871b-3ce110d9820e')
+session = <sqlalchemy.ext.asyncio.session.AsyncSession object at 0x7f86441a0b50>
+
+    @pytest.mark.asyncio
+    async def test_reprocessar_tarefa(client: AsyncClient, token_admin: str, tenant_id: uuid.UUID, unidade_produtiva_id: uuid.UUID, session):
+        user_id = uuid.uuid4()
+        # Create animal
+        a1 = Animal(
+            tenant_id=tenant_id,
+            unidade_produtiva_id=unidade_produtiva_id,
+            numero_brinco="TEST-REPROCESS",
+            sexo="M",
+            raca=None,
+            categoria="BOI"
+        )
+        session.add(a1)
+        await session.commit()
+    
+        # Create task WITH ERROR
+        t1 = TarefaCampo(
+            tenant_id=tenant_id,
+            user_id=user_id,
+            client_id=str(uuid.uuid4()),
+            client_created_at=datetime.utcnow(),
+            type="PESAGEM",
+            module="pecuaria",
+            status_execucao="CONCLUIDA",
+            dados={
+                "animais": [{"animal_id": str(a1.id), "peso_kg": 350}],
+                "sync_pecuaria": {
+                    "status": "ERROR",
+                    "total_processado": 0,
+                    "erros": ["Some fake previous error"]
+                }
+            }
+        )
+        session.add(t1)
+>       await session.commit()
+
+tests/integration/pecuaria/test_campo_sync_status.py:157: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+.venv/lib/python3.10/site-packages/sqlalchemy/ext/asyncio/session.py:1000: in commit
+    await greenlet_spawn(self.sync_session.commit)
+.venv/lib/python3.10/site-packages/sqlalchemy/util/_concurrency_py3k.py:203: in greenlet_spawn
+    result = context.switch(value)
+.venv/lib/python3.10/site-packages/sqlalchemy/orm/session.py:2030: in commit
+    trans.commit(_to_root=True)
+<string>:2: in commit
+    ???
+.venv/lib/python3.10/site-packages/sqlalchemy/orm/state_changes.py:137: in _go
+    ret_value = fn(self, *arg, **kw)
+.venv/lib/python3.10/site-packages/sqlalchemy/orm/session.py:1311: in commit
+    self._prepare_impl()
+<string>:2: in _prepare_impl
+    ???
+.venv/lib/python3.10/site-packages/sqlalchemy/orm/state_changes.py:137: in _go
+    ret_value = fn(self, *arg, **kw)
+.venv/lib/python3.10/site-packages/sqlalchemy/orm/session.py:1286: in _prepare_impl
+    self.session.flush()
+.venv/lib/python3.10/site-packages/sqlalchemy/orm/session.py:4331: in flush
+    self._flush(objects)
+.venv/lib/python3.10/site-packages/sqlalchemy/orm/session.py:4466: in _flush
+    with util.safe_reraise():
+.venv/lib/python3.10/site-packages/sqlalchemy/util/langhelpers.py:121: in __exit__
+    raise exc_value.with_traceback(exc_tb)
+.venv/lib/python3.10/site-packages/sqlalchemy/orm/session.py:4427: in _flush
+    flush_context.execute()
+.venv/lib/python3.10/site-packages/sqlalchemy/orm/unitofwork.py:466: in execute
+    rec.execute(self)
+.venv/lib/python3.10/site-packages/sqlalchemy/orm/unitofwork.py:642: in execute
+    util.preloaded.orm_persistence.save_obj(
+.venv/lib/python3.10/site-packages/sqlalchemy/orm/persistence.py:93: in save_obj
+    _emit_insert_statements(
+.venv/lib/python3.10/site-packages/sqlalchemy/orm/persistence.py:1233: in _emit_insert_statements
+    result = connection.execute(
+.venv/lib/python3.10/site-packages/sqlalchemy/engine/base.py:1419: in execute
+    return meth(
+.venv/lib/python3.10/site-packages/sqlalchemy/sql/elements.py:527: in _execute_on_connection
+    return connection._execute_clauseelement(
+.venv/lib/python3.10/site-packages/sqlalchemy/engine/base.py:1641: in _execute_clauseelement
+    ret = self._execute_context(
+.venv/lib/python3.10/site-packages/sqlalchemy/engine/base.py:1846: in _execute_context
+    return self._exec_single_context(
+.venv/lib/python3.10/site-packages/sqlalchemy/engine/base.py:1986: in _exec_single_context
+    self._handle_dbapi_exception(
+.venv/lib/python3.10/site-packages/sqlalchemy/engine/base.py:2363: in _handle_dbapi_exception
+    raise sqlalchemy_exception.with_traceback(exc_info[2]) from e
+.venv/lib/python3.10/site-packages/sqlalchemy/engine/base.py:1967: in _exec_single_context
+    self.dialect.do_execute(
+.venv/lib/python3.10/site-packages/sqlalchemy/engine/default.py:952: in do_execute
+    cursor.execute(statement, parameters)
+.venv/lib/python3.10/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py:585: in execute
+    self._adapt_connection.await_(
+.venv/lib/python3.10/site-packages/sqlalchemy/util/_concurrency_py3k.py:132: in await_only
+    return current.parent.switch(awaitable)  # type: ignore[no-any-return,attr-defined] # noqa: E501
+.venv/lib/python3.10/site-packages/sqlalchemy/util/_concurrency_py3k.py:196: in greenlet_spawn
+    value = await result
+.venv/lib/python3.10/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py:563: in _prepare_and_execute
+    self._handle_exception(error)
+.venv/lib/python3.10/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py:513: in _handle_exception
+    self._adapt_connection._handle_exception(error)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <AdaptedConnection <asyncpg.connection.Connection object at 0x7f8644d4fd30>>
+error = NotNullViolationError('null value in column "client_updated_at" of relation "campo_tarefas" violates not-null constraint')
+
+    def _handle_exception(self, error):
+        if self._connection.is_closed():
+            self._transaction = None
+            self._started = False
+    
+        if not isinstance(error, AsyncAdapt_asyncpg_dbapi.Error):
+            exception_mapping = self.dbapi._asyncpg_error_translate
+    
+            for super_ in type(error).__mro__:
+                if super_ in exception_mapping:
+                    translated_error = exception_mapping[super_](
+                        "%s: %s" % (type(error), error)
+                    )
+                    translated_error.pgcode = translated_error.sqlstate = (
+                        getattr(error, "sqlstate", None)
+                    )
+>                   raise translated_error from error
+E                   sqlalchemy.exc.IntegrityError: (sqlalchemy.dialects.postgresql.asyncpg.IntegrityError) <class 'asyncpg.exceptions.NotNullViolationError'>: null value in column "client_updated_at" of relation "campo_tarefas" violates not-null constraint
+E                   DETAIL:  Failing row contains (06ffb5a9-818e-498a-8d0f-b918103d326c, aaaaaaaa-0000-0000-0000-000000000010, null, 86661b4c-e6e4-4a9c-af65-acd4ecd1410d, 21c81ce6-6468-4433-99e7-97ad78b16f51, PESAGEM, pecuaria, PENDENTE, {"animais": [{"peso_kg": 350, "animal_id": "94f5019a-7a49-4270-a..., {}, null, null, null, INDISPONIVEL, null, null, 2026-06-23 21:06:15.404565, null, 2026-06-23 21:06:15.414577, 2026-06-23 21:06:15.414579, MANUAL, CONCLUIDA, null, NORMAL, null, null, null, null, null, null, null).
+E                   [SQL: INSERT INTO campo_tarefas (id, tenant_id, dispositivo_id, user_id, operador_id, client_id, origem, status_execucao, titulo, data_programada, prioridade, type, module, unidade_produtiva_id, area_rural_id, lote_id, status, dados, fotos, localizacao_status, latitude, longitude, iniciada_em, concluida_em, invalidado_em, invalidado_por, motivo_invalidacao, client_created_at, client_updated_at, created_at, updated_at) VALUES ($1::UUID, $2::UUID, $3::UUID, $4::UUID, $5::UUID, $6::VARCHAR, $7::VARCHAR, $8::VARCHAR, $9::VARCHAR, $10::DATE, $11::VARCHAR, $12::VARCHAR, $13::VARCHAR, $14::UUID, $15::UUID, $16::UUID, $17::VARCHAR, $18::JSONB, $19::TEXT[], $20::VARCHAR, $21::NUMERIC(10, 7), $22::NUMERIC(10, 7), $23::TIMESTAMP WITHOUT TIME ZONE, $24::TIMESTAMP WITHOUT TIME ZONE, $25::TIMESTAMP WITHOUT TIME ZONE, $26::UUID, $27::VARCHAR, $28::TIMESTAMP WITHOUT TIME ZONE, $29::TIMESTAMP WITHOUT TIME ZONE, $30::TIMESTAMP WITHOUT TIME ZONE, $31::TIMESTAMP WITHOUT TIME ZONE)]
+E                   [parameters: (UUID('06ffb5a9-818e-498a-8d0f-b918103d326c'), UUID('aaaaaaaa-0000-0000-0000-000000000010'), None, UUID('86661b4c-e6e4-4a9c-af65-acd4ecd1410d'), None, '21c81ce6-6468-4433-99e7-97ad78b16f51', 'MANUAL', 'CONCLUIDA', None, None, 'NORMAL', 'PESAGEM', 'pecuaria', None, None, None, 'PENDENTE', '{"animais": [{"animal_id": "94f5019a-7a49-4270-a42b-98c69857f0b7", "peso_kg": 350}], "sync_pecuaria": {"status": "ERROR", "total_processado": 0, "erros": ["Some fake previous error"]}}', [], 'INDISPONIVEL', None, None, None, None, None, None, None, datetime.datetime(2026, 6, 23, 21, 6, 15, 404565), None, datetime.datetime(2026, 6, 23, 21, 6, 15, 414577), datetime.datetime(2026, 6, 23, 21, 6, 15, 414579))]
+E                   (Background on this error at: https://sqlalche.me/e/20/gkpj)
+
+.venv/lib/python3.10/site-packages/sqlalchemy/dialects/postgresql/asyncpg.py:797: IntegrityError
+=============================== warnings summary ===============================
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
+  /opt/lampp/htdocs/farm/services/api/core/schemas/support_schemas.py:14: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class MensagemChamadoResponse(MensagemChamadoBase):
+
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
+  /opt/lampp/htdocs/farm/services/api/core/schemas/support_schemas.py:32: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class ChamadoSuporteResponse(ChamadoSuporteBase):
+
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
+  /opt/lampp/htdocs/farm/services/api/core/routers/backoffice_admins.py:46: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class AdminUserResponse(BaseModel):
+
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
+  /opt/lampp/htdocs/farm/services/api/core/routers/team.py:56: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class PerfilResponse(BaseModel):
+
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
+  /opt/lampp/htdocs/farm/services/api/core/routers/backoffice_profiles.py:42: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SystemProfileResponse(BaseModel):
+
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
+  /opt/lampp/htdocs/farm/services/api/core/schemas/knowledge_base_schemas.py:14: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class ConhecimentoCategoriaResponse(ConhecimentoCategoriaBase):
+
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
+  /opt/lampp/htdocs/farm/services/api/core/schemas/knowledge_base_schemas.py:37: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class ConhecimentoArtigoResponse(ConhecimentoArtigoBase):
+
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
+  /opt/lampp/htdocs/farm/services/api/core/schemas/config_schemas.py:6: PydanticDeprecatedSince20: Using extra keyword arguments on `Field` is deprecated and will be removed. Use `json_schema_extra` instead. (Extra keys: 'example'). Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    host: str = Field(..., example="smtp.mailtrap.io")
+
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
+  /opt/lampp/htdocs/farm/services/api/core/schemas/config_schemas.py:7: PydanticDeprecatedSince20: Using extra keyword arguments on `Field` is deprecated and will be removed. Use `json_schema_extra` instead. (Extra keys: 'example'). Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    port: int = Field(587, example=587)
+
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
+  /opt/lampp/htdocs/farm/services/api/core/schemas/config_schemas.py:10: PydanticDeprecatedSince20: Using extra keyword arguments on `Field` is deprecated and will be removed. Use `json_schema_extra` instead. (Extra keys: 'example'). Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    mail_from: str = Field(..., alias="from", example="noreply@agrosaas.com.br")
+
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
+  /opt/lampp/htdocs/farm/services/api/core/schemas/config_schemas.py:5: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SMTPConfig(BaseModel):
+
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
+  /opt/lampp/htdocs/farm/services/api/core/schemas/config_schemas.py:26: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class TenantConfigResponse(BaseModel):
+
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
+  /opt/lampp/htdocs/farm/services/api/core/schemas/config_schemas.py:106: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class CategoriaResponse(BaseModel):
+
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
+  /opt/lampp/htdocs/farm/services/api/core/schemas/config_schemas.py:147: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class ConfiguracaoFazendaResponse(BaseModel):
+
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
+  /opt/lampp/htdocs/farm/services/api/core/schemas/config_schemas.py:165: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class HistoricoConfiguracaoItem(BaseModel):
+
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
+  /opt/lampp/htdocs/farm/services/api/core/routers/cupons.py:29: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class CupomResponse(BaseModel):
+
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
+  /opt/lampp/htdocs/farm/services/api/core/routers/backoffice_audit.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class AuditLogResponse(BaseModel):
+
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
+  /opt/lampp/htdocs/farm/services/api/core/routers/backoffice_audit.py:54: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SecurityIncidentResponse(BaseModel):
+
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
+  /opt/lampp/htdocs/farm/services/api/core/routers/tenant_audit.py:21: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class TenantAuditLogResponse(BaseModel):
+
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
+  /opt/lampp/htdocs/farm/services/api/core/routers/backoffice_email_templates.py:44: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class EmailTemplateResponse(BaseModel):
+
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
+  /opt/lampp/htdocs/farm/services/api/core/routers/backoffice_email_templates.py:63: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class EmailLogResponse(BaseModel):
+
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
+  /opt/lampp/htdocs/farm/services/api/core/routers/backoffice_sessions.py:21: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SessionResponse(BaseModel):
+
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
+  /opt/lampp/htdocs/farm/services/api/core/routers/sessions.py:36: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SessaoResponse(BaseModel):
+
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
+  /opt/lampp/htdocs/farm/services/api/core/routers/backoffice_crm.py:38: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class EstagioResponse(BaseModel):
+
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
+  /opt/lampp/htdocs/farm/services/api/core/routers/backoffice_crm.py:111: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class AtividadeResponse(BaseModel):
+
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
+  /opt/lampp/htdocs/farm/services/api/core/routers/backoffice_crm.py:126: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class LeadResponse(BaseModel):
+
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
+  /opt/lampp/htdocs/farm/services/api/core/routers/backoffice_crm_ofertas.py:43: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class ProdutoResponse(BaseModel):
+
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
+  /opt/lampp/htdocs/farm/services/api/core/routers/backoffice_crm_ofertas.py:77: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class PlanoComercialResponse(BaseModel):
+
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
+  /opt/lampp/htdocs/farm/services/api/core/routers/backoffice_crm_ofertas.py:103: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class OfertaPersonalizadaResponse(BaseModel):
+
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
+  /opt/lampp/htdocs/farm/services/api/operacional/routers/compras.py:50: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class FornecedorResponse(BaseModel):
+
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
+  /opt/lampp/htdocs/farm/services/api/imoveis/routers/imovel.py:104: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class ImovelResponse(BaseModel):
+
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
+  /opt/lampp/htdocs/farm/services/api/imoveis/routers/imovel.py:144: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class CartorioResponse(BaseModel):
+
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
+  /opt/lampp/htdocs/farm/services/api/imoveis/routers/imovel.py:172: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class BenfeitoriaResponse(BaseModel):
+
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
+  /opt/lampp/htdocs/farm/services/api/agricola/dashboard/schemas.py:37: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SafraResumoFinanceiro(BaseModel):
+
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
+  /opt/lampp/htdocs/farm/services/api/agricola/beneficiamento/schemas.py:23: PydanticDeprecatedSince20: `min_items` is deprecated and will be removed, use `min_length` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    romaneio_ids: List[UUID] = Field(..., min_items=1, description="IDs dos romaneios a agrupar")
+
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
+  /opt/lampp/htdocs/farm/services/api/integracoes/sankhya/schemas/__init__.py:15: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SankhyaConfigResponse(BaseModel):
+
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
+  /opt/lampp/htdocs/farm/services/api/integracoes/sankhya/schemas/__init__.py:31: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SankhyaSyncLogResponse(BaseModel):
+
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
+  /opt/lampp/htdocs/farm/services/api/integracoes/sankhya/schemas/__init__.py:48: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SankhyaPessoaResponse(BaseModel):
+
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
+  /opt/lampp/htdocs/farm/services/api/integracoes/sankhya/schemas/__init__.py:67: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SankhyaProdutoResponse(BaseModel):
+
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
+  /opt/lampp/htdocs/farm/services/api/integracoes/sankhya/schemas/__init__.py:83: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SankhyaNFEResponse(BaseModel):
+
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
+  /opt/lampp/htdocs/farm/services/api/integracoes/sankhya/schemas/__init__.py:100: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+    class SankhyaLancamentoFinanceiroResponse(BaseModel):
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
+FAILED tests/integration/pecuaria/test_campo_sync_status.py::test_reprocessar_tarefa
+======================= 2 failed, 41 warnings in 15.69s ========================

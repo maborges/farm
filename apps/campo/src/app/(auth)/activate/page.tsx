@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
+import type { FieldError, FieldErrors, Resolver } from "react-hook-form";
 import { z } from "zod";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useSessionStore } from "@/lib/stores/session-store";
@@ -19,12 +19,46 @@ const schema = z.object({
     .toUpperCase(),
   pin: z.string().length(6, "PIN deve ter 6 dígitos").regex(/^\d+$/, "PIN deve conter apenas números"),
   pin_confirm: z.string(),
-}).refine((d) => d.pin === d.pin_confirm, {
-  message: "PINs não conferem",
-  path: ["pin_confirm"],
 });
 
 type FormData = z.infer<typeof schema>;
+
+const resolver: Resolver<FormData> = async (values) => {
+  const parsed = schema.safeParse(values);
+  if (!parsed.success) {
+    const errors = parsed.error.issues.reduce<FieldErrors<FormData>>((acc, issue) => {
+      const fieldName = issue.path[0];
+      if (typeof fieldName !== "string") return acc;
+      acc[fieldName as keyof FormData] = {
+        type: issue.code,
+        message: issue.message,
+      } as FieldError;
+      return acc;
+    }, {});
+
+    return {
+      values: {},
+      errors,
+    };
+  }
+
+  if (parsed.data.pin !== parsed.data.pin_confirm) {
+    return {
+      values: {},
+      errors: {
+        pin_confirm: {
+          type: "validate",
+          message: "PINs não conferem",
+        },
+      },
+    };
+  }
+
+  return {
+    values: parsed.data,
+    errors: {},
+  };
+};
 
 function ActivateForm() {
   const router = useRouter();
@@ -43,12 +77,9 @@ function ActivateForm() {
         ? "A sessão local não é mais válida. Faça uma nova ativação."
         : null;
 
-  const { register, handleSubmit, formState: { errors } } = useForm<FormData>({
-    resolver: zodResolver(schema),
-  });
+  const { register, handleSubmit, formState: { errors } } = useForm<FormData>({ resolver });
   const activationCodeField = register("activation_code");
   const pinField = register("pin");
-  const pinConfirmField = register("pin_confirm");
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
@@ -197,7 +228,9 @@ function ActivateForm() {
               <div className="flex flex-col gap-1.5">
                 <label className="px-1 text-xs font-medium tracking-[0.01em] text-muted-foreground">Confirmar PIN</label>
                 <input
-                  {...pinConfirmField}
+                  {...register("pin_confirm", {
+                    validate: (value, formValues) => value === formValues.pin || "PINs não conferem",
+                  })}
                   type="password"
                   inputMode="numeric"
                   placeholder="••••••"

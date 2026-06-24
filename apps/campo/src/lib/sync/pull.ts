@@ -152,7 +152,7 @@ export async function pullSync(): Promise<void> {
   const data = (await res.json()) as SyncPullPayload;
 
   // Atualiza caches no IndexedDB em transação
-  await db.transaction("rw", [db.fazendas, db.talhoes, db.lotes, db.insumos, db.safras, db.tasks, db.caderno_events, db.caderno_server_events, db.colaboradores], async () => {
+  await db.transaction("rw", [db.fazendas, db.talhoes, db.lotes, db.insumos, db.safras, db.tasks, db.sync_queue, db.caderno_events, db.caderno_server_events, db.colaboradores], async () => {
     // Colaboradores
     if (data.colaboradores) {
       await db.colaboradores.clear();
@@ -211,9 +211,19 @@ export async function pullSync(): Promise<void> {
     // Tarefas programadas recebidas do servidor
     if (data.tarefas_pendentes?.length) {
       const now = new Date().toISOString();
-      await db.tasks.bulkPut(
-        data.tarefas_pendentes.map((t) => ({
-          id: t.client_id ?? String(t.id),
+      const pendingQueueItems = await db.sync_queue
+        .where("status")
+        .anyOf(["PENDING", "IN_FLIGHT"])
+        .filter((item) => item.entity_type === "task")
+        .toArray();
+      const pendingTaskIds = new Set(pendingQueueItems.map((item) => item.entity_id));
+      const mergedTasks: LocalTask[] = [];
+
+      for (const t of data.tarefas_pendentes) {
+        const localId = t.client_id ?? String(t.id);
+        const currentTask = await db.tasks.get(localId);
+        const serverTask: LocalTask = {
+          id: localId,
           server_id: String(t.id),
           type: t.type,
           module: (t.module === "pecuaria" ? "pecuaria" : "agricola") as TaskModule,
@@ -229,13 +239,32 @@ export async function pullSync(): Promise<void> {
           data_programada: t.data_programada ?? undefined,
           prioridade: (t.prioridade ?? "NORMAL") as LocalTask["prioridade"],
           dados: t.dados ?? {},
-          fotos: [],
-          localizacao_status: "INDISPONIVEL" as LocalTask["localizacao_status"],
+          fotos: currentTask?.fotos ?? [],
+          localizacao_status: currentTask?.localizacao_status ?? ("INDISPONIVEL" as LocalTask["localizacao_status"]),
+          latitude: currentTask?.latitude,
+          longitude: currentTask?.longitude,
+          iniciada_em: currentTask?.iniciada_em,
+          concluida_em: currentTask?.concluida_em,
           created_at: t.client_created_at ?? now,
           updated_at: t.client_updated_at ?? now,
           synced: true,
-        }))
-      );
+          sync_conflict: undefined,
+        };
+
+        if (currentTask && pendingTaskIds.has(localId)) {
+          mergedTasks.push({
+            ...serverTask,
+            ...currentTask,
+            server_id: String(t.id),
+            synced: false,
+          });
+          continue;
+        }
+
+        mergedTasks.push(serverTask);
+      }
+
+      await db.tasks.bulkPut(mergedTasks);
     }
 
     if (data.eventos_caderno_oficiais?.length) {

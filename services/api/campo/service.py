@@ -198,6 +198,7 @@ class SyncService:
         self.session = session
         self.tenant_id = tenant_id
         self.device = device
+        self.tarefas_pecuaria_sync: list[uuid.UUID] = []
 
     async def pull(self, last_sync_at: datetime | None) -> dict[str, Any]:
         from core.models.unidade_produtiva import UnidadeProdutiva
@@ -444,6 +445,7 @@ class SyncService:
 
     async def _process_task(self, item: SyncPushItem) -> SyncPushItemResult:
         payload = item.payload
+        tipo_pecuario = _normalizar_tipo_pecuaria(payload.get("type"))
 
         if item.operation == "CREATE":
             # Verificar duplicata por client_id
@@ -469,7 +471,7 @@ class SyncService:
                 client_id=item.local_id,
                 origem="MANUAL",
                 status_execucao="CONCLUIDA",
-                type=payload.get("type", ""),
+                type=tipo_pecuario or str(payload.get("type", "")),
                 module=payload.get("module", "agricola"),
                 status=payload.get("status", "PENDENTE"),
                 dados=payload.get("dados", {}),
@@ -485,6 +487,10 @@ class SyncService:
             )
             self.session.add(task)
             await self.session.flush()
+
+            if task.module == "pecuaria" and task.type in {"PESAGEM", "VACINACAO"} and task.status_execucao == "CONCLUIDA":
+                self.tarefas_pecuaria_sync.append(task.id)
+
             return SyncPushItemResult(local_id=item.local_id, status="CREATED", server_id=str(task.id))
 
         if item.operation == "UPDATE":
@@ -503,8 +509,16 @@ class SyncService:
             if not task:
                 return SyncPushItemResult(local_id=item.local_id, status="ERROR", error_message="Tarefa não encontrada")
 
-            # last-write-wins para tipo APLICACAO, server-wins para demais
-            if task.type.startswith("APLICACAO") or _to_naive_utc(item.client_updated_at) >= _to_naive_utc(task.updated_at):
+            tipo_existente = _normalizar_tipo_pecuaria(task.type)
+            if tipo_existente and task.type != tipo_existente:
+                task.type = tipo_existente
+
+            # Para mutações vindas do PWA, a ordenação correta é pelo relógio do cliente
+            # quando ele existe no servidor; `updated_at` inclui o tempo de processamento
+            # do backend e pode rejeitar transições válidas em sequência rápida
+            # (ex.: EM_EXECUCAO -> CONCLUIDA na mesma tarefa).
+            server_clock = task.client_updated_at or task.updated_at
+            if task.type.startswith("APLICACAO") or _to_naive_utc(item.client_updated_at) >= _to_naive_utc(server_clock):
                 task.status = payload.get("status", task.status)
                 task.dados = payload.get("dados", task.dados)
                 task.client_updated_at = _parse_dt(item.client_updated_at)
@@ -515,6 +529,10 @@ class SyncService:
                     _aplicar_status_execucao(task, novo_status_exec, payload)
 
                 await self.session.flush()
+
+                if task.module == "pecuaria" and task.type in {"PESAGEM", "VACINACAO"} and task.status_execucao == "CONCLUIDA":
+                    self.tarefas_pecuaria_sync.append(task.id)
+
                 return SyncPushItemResult(local_id=item.local_id, status="UPDATED", server_id=str(task.id))
             else:
                 # Conflito: servidor tem versão mais recente
@@ -589,6 +607,16 @@ def _aplicar_status_execucao(task: TarefaCampo, novo: str, payload: dict) -> Non
         if task.status_execucao not in {"PENDENTE", "EM_EXECUCAO"}:
             raise BusinessRuleError("Só é possível cancelar uma tarefa pendente ou em execução.")
         task.status_execucao = "CANCELADA"
+
+
+def _normalizar_tipo_pecuaria(tipo: object) -> str | None:
+    if not isinstance(tipo, str) or not tipo:
+        return None
+    if tipo == "PESAGEM_ANIMAL":
+        return "PESAGEM"
+    if tipo == "VACINACAO_LOTE":
+        return "VACINACAO"
+    return tipo
 
 
 class TarefaProgramadaService:

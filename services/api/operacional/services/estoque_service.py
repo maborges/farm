@@ -419,6 +419,7 @@ class EstoqueService(BaseService[SaldoEstoque]):
         origem_id: UUID | None = None,
         origem_tipo: str | None = None,
         lote_id: UUID | None = None,
+        production_unit_id: UUID | None = None,
     ) -> EstoqueMovimento:
         await validate_deposito_context(self.session, tenant_id=self.tenant_id, deposito_id=deposito_id)
         await self._get_produto_or_fail(produto_id)
@@ -441,6 +442,7 @@ class EstoqueService(BaseService[SaldoEstoque]):
             custo_unitario=custo_unitario,
             origem=origem_tipo or "MANUAL",
             origem_id=origem_id,
+            production_unit_id=production_unit_id,
             observacoes=motivo,
         )
 
@@ -579,6 +581,7 @@ class EstoqueService(BaseService[SaldoEstoque]):
         origem_tipo: str = "OPERACAO_AGRICOLA",
         motivo: str = "Uso em operação agrícola",
         deposito_id: UUID | None = None,
+        production_unit_id: UUID | None = None,
     ) -> EstoqueMovimento:
         await self._validar_unidade_produtiva(unidade_produtiva_id)
         await self._get_produto_or_fail(produto_id)
@@ -632,6 +635,7 @@ class EstoqueService(BaseService[SaldoEstoque]):
             motivo=motivo,
             origem_id=origem_id,
             origem_tipo=origem_tipo,
+            production_unit_id=production_unit_id,
         )
         await self.session.flush()
         await self.session.refresh(mov)
@@ -646,6 +650,7 @@ class EstoqueService(BaseService[SaldoEstoque]):
         origem_id: UUID,
         origem_tipo: str = "OPERACAO_AGRICOLA",
         motivo: str = "Uso em operação agrícola",
+        production_unit_id: UUID | None = None,
     ) -> EstoqueMovimento:
         """Busca o produto pelo nome e registra a saída."""
         stmt = select(ProdutoCatalogo).where(
@@ -664,7 +669,8 @@ class EstoqueService(BaseService[SaldoEstoque]):
             unidade_produtiva_id=unidade_produtiva_id,
             origem_id=origem_id,
             origem_tipo=origem_tipo,
-            motivo=motivo
+            motivo=motivo,
+            production_unit_id=production_unit_id,
         )
 
     async def _criar_lancamento_insumo(

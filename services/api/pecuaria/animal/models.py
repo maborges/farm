@@ -244,6 +244,12 @@ class EventoAnimal(Base):
     animal_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("pec_animais.id", ondelete="CASCADE"), nullable=False, index=True
     )
+    tarefa_campo_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("campo_tarefas.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    operador_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("cadastros_pessoas.id", ondelete="SET NULL"), nullable=True, index=True
+    )
 
     tipo: Mapped[str] = mapped_column(String(40), nullable=False, index=True)
     data_evento: Mapped[date] = mapped_column(Date, nullable=False, index=True)
@@ -277,3 +283,8 @@ class EventoAnimal(Base):
     criado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     animal: Mapped["Animal"] = relationship(back_populates="eventos", lazy="noload")
+
+    from sqlalchemy import Index, text
+    __table_args__ = (
+        Index("ix_uq_evento_animal_tarefa", "animal_id", "tarefa_campo_id", "tipo", unique=True, postgresql_where=text("tarefa_campo_id IS NOT NULL")),
+    )

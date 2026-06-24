@@ -9,12 +9,14 @@ import { db } from "@/lib/db";
 import { logger } from "@/lib/logger";
 
 let _syncInProgress = false;
+let _syncRequestedWhileBusy = false;
 let _onlineListener: (() => void) | null = null;
 let _offlineListener: (() => void) | null = null;
 
 export async function runSync(): Promise<void> {
   if (_syncInProgress) {
-    logger.debug("SyncWorker", "Sync já em andamento, ignorando");
+    _syncRequestedWhileBusy = true;
+    logger.debug("SyncWorker", "Sync já em andamento, reagendando execução");
     return;
   }
   if (!navigator.onLine) {
@@ -62,6 +64,11 @@ export async function runSync(): Promise<void> {
     useSyncStore.getState().setSyncStatus("error", msg);
   } finally {
     _syncInProgress = false;
+    if (_syncRequestedWhileBusy && navigator.onLine) {
+      _syncRequestedWhileBusy = false;
+      logger.debug("SyncWorker", "Executando sync reagendado");
+      void runSync();
+    }
   }
 }
 

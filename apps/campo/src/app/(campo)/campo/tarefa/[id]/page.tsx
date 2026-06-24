@@ -8,10 +8,12 @@ import { useGps } from "@/hooks/useGps";
 import { useCamera } from "@/hooks/useCamera";
 import { executarTarefa } from "@/lib/task-factory";
 import { mapTaskTypeToCadernoTipo } from "@/lib/caderno-offline";
+import { isPecuariaTaskType, formatPecuariaTaskType } from "@/lib/pecuaria-tasks";
 import { GpsWarning } from "@/components/campo/gps-warning";
 import { CameraCapture } from "@/components/campo/camera-capture";
+import { PecuariaTaskExecution } from "@/components/campo/pecuaria-task-execution";
 import { useSessionStore } from "@/lib/stores/session-store";
-import { CampoShell, CampoSurface, CampoButton, CampoSectionTitle } from "@/components/campo/ui";
+import { CampoShell, CampoSurface, CampoButton } from "@/components/campo/ui";
 import { CampoPill } from "@/components/campo/ui";
 
 const PRIORIDADE_LABEL: Record<string, string> = {
@@ -75,6 +77,7 @@ export default function TarefaDetailPage() {
   const isMinhasTarefa =
     !task.operador_id || task.operador_id === session?.user_id;
   const cadernoTipo = mapTaskTypeToCadernoTipo(task.type);
+  const pecuariaTask = isPecuariaTaskType(task.type);
 
   const canStart = task.status_execucao === "PENDENTE" && isMinhasTarefa;
   const canFinish = task.status_execucao === "EM_EXECUCAO" && isMinhasTarefa;
@@ -200,7 +203,7 @@ export default function TarefaDetailPage() {
       </CampoSurface>
 
       {/* Dados da tarefa */}
-      {Object.keys(task.dados).length > 0 && (
+      {Object.keys(task.dados).length > 0 && !pecuariaTask && (
         <CampoSurface className="flex flex-col gap-2 p-4 text-sm">
           <p className="mb-1 text-[11px] uppercase tracking-[0.18em] text-primary">Instruções</p>
           {Object.entries(task.dados).map(([k, v]) => (
@@ -210,7 +213,9 @@ export default function TarefaDetailPage() {
       )}
 
       {/* Execução — só aparece se pode agir */}
-      {canFinish && (
+      {pecuariaTask ? (
+        <PecuariaTaskExecution task={task} canInteract={isMinhasTarefa} />
+      ) : canFinish ? (
         <div className="flex flex-col gap-4">
           <GpsWarning status={gps.status} onRetry={gps.capture} />
 
@@ -233,7 +238,7 @@ export default function TarefaDetailPage() {
             onRemove={cam.removePhoto}
           />
         </div>
-      )}
+      ) : null}
 
       {/* Timestamps de execução */}
       {task.iniciada_em && (
@@ -248,7 +253,7 @@ export default function TarefaDetailPage() {
       )}
 
       {/* Ações */}
-      {!isDone && isMinhasTarefa && (
+      {!pecuariaTask && !isDone && isMinhasTarefa ? (
         <div className="mt-auto flex flex-col gap-3 pt-4">
           {canStart && (
             <CampoButton
@@ -290,7 +295,7 @@ export default function TarefaDetailPage() {
             Cancelar tarefa
           </button>
         </div>
-      )}
+      ) : null}
     </CampoShell>
   );
 }
@@ -309,10 +314,12 @@ function formatTaskType(type: string): string {
     APLICACAO_DEFENSIVO: "Aplicação de Defensivo",
     APLICACAO_FERTILIZANTE: "Aplicação de Fertilizante",
     COLHEITA_REGISTRO: "Registro de Colheita",
+    PESAGEM: "Pesagem",
     PESAGEM_ANIMAL: "Pesagem de Animal",
+    VACINACAO: "Vacinação",
     VACINACAO_LOTE: "Vacinação de Lote",
     PARTO_REGISTRO: "Registro de Parto",
     MONITORAMENTO_PRAGA: "Monitoramento de Praga",
   };
-  return map[type] ?? type;
+  return map[type] ?? formatPecuariaTaskType(type);
 }

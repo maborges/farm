@@ -7,316 +7,341 @@ plugins: asyncio-1.3.0, anyio-4.12.1, cov-7.1.0
 asyncio: mode=auto, debug=False, asyncio_default_fixture_loop_scope=session, asyncio_default_test_loop_scope=session
 collecting ... collected 2 items
 
-tests/integration/operacional/test_qualidade_ajustes.py::test_calculo_ajuste_desconto_e_idempotencia FAILED [ 50%]
-tests/integration/operacional/test_qualidade_ajustes.py::test_calculo_ajuste_cross_tenant_bloqueio FAILED [100%]
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination ERROR [ 50%]
+tests/integration/pecuaria/test_campo_sync_status.py::test_reprocessar_tarefa ERROR [100%]
 
-=================================== FAILURES ===================================
-_________________ test_calculo_ajuste_desconto_e_idempotencia __________________
+==================================== ERRORS ====================================
+________ ERROR at setup of test_list_sync_status_filters_and_pagination ________
+file /opt/lampp/htdocs/farm/services/api/tests/integration/pecuaria/test_campo_sync_status.py, line 9
+  @pytest.mark.asyncio
+  async def test_list_sync_status_filters_and_pagination(client: AsyncClient, admin_token: str, admin_user, tenant, session):
+      # 1. Create a few TarefasCampo
+      t1 = TarefaCampo(
+          tenant_id=tenant.id,
+          user_id=admin_user.id,
+          type="PESAGEM",
+          module="pecuaria",
+          status_execucao="CONCLUIDA",
+          dados={
+              "animais": [{"animal_id": "11111111-1111-1111-1111-111111111111", "peso_kg": 200}],
+              "sync_pecuaria": {
+                  "status": "SUCCESS",
+                  "total_processado": 1,
+                  "erros": [],
+                  "data_processamento": datetime.utcnow().isoformat()
+              }
+          }
+      )
 
-client = <httpx.AsyncClient object at 0x78234a9ac520>
-token_operacional = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJlZWVlZWVlZS0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMDUiLCJ0ZW5hbnRfaWQiOiJh...VzZXIiOmZhbHNlLCJwbGFuX3RpZXIiOiJQUk9GSVNTSU9OQUwiLCJleHAiOjE3ODEwMzcxMzV9.cB0NP_h7tvbezFtcWU6xqzKAhiqtkDQZzQNkFHPlHJ0'
-token_admin = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJlZWVlZWVlZS0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMDUiLCJ0ZW5hbnRfaWQiOiJh...XNlciI6ZmFsc2UsInBsYW5fdGllciI6IlBST0ZJU1NJT05BTCIsImV4cCI6MTc4MTAzNzEzNX0.DNxgfXyHvANzWsgbInCZ5gJ166O8heWNS4apEvU9nyM'
+      t2 = TarefaCampo(
+          tenant_id=tenant.id,
+          user_id=admin_user.id,
+          type="PESAGEM",
+          module="pecuaria",
+          status_execucao="CONCLUIDA",
+          dados={
+              "sync_pecuaria": {
+                  "status": "ERROR",
+                  "total_processado": 0,
+                  "erros": ["Animal não encontrado"],
+                  "data_processamento": datetime.utcnow().isoformat()
+              }
+          }
+      )
 
-    @pytest.mark.asyncio
-    async def test_calculo_ajuste_desconto_e_idempotencia(client: AsyncClient, token_operacional: str, token_admin: str):
-        headers = {"Authorization": f"Bearer {token_operacional}"}
-    
-        # 1. Create Protocol with adjustment rule
-        proto_payload = {
-            "nome": "Soja Especial",
-            "ativo": True,
-            "criterios": [
-                {
-                    "nome": "Umidade",
-                    "tipo_dado": "NUMERIC",
-                    "unidade": "%",
-                    "valor_padrao": 14.0,
-                    "regra_ajuste_json": {
-                        "type": "DISCOUNT_WEIGHT",
-                        "trigger": "ABOVE_STANDARD",
-                        "standard_value": 14.0,
-                        "rate_per_unit": 1.0,
-                        "unit": "%"
-                    }
-                }
-            ]
-        }
-    
-        res_proto = await client.post("/api/v1/qualidade/protocolos", json=proto_payload, headers=headers)
-        if res_proto.status_code != 201:
-            print(f"ERROR PROTOCOL: {res_proto.status_code} - {res_proto.text}")
-        assert res_proto.status_code == 201
-        proto = res_proto.json()
-        criterio_id = proto["criterios"][0]["id"]
-    
-        # 2. Create Laudo
-        laudo_payload = {
-            "protocolo_id": proto["id"],
-            "status": "RASCUNHO",
-            "resultados": [
-                {
-                    "criterio_id": criterio_id,
-                    "valor_numerico": 15.5 # diff = 1.5
-                }
-            ]
-        }
-    
-        res_laudo = await client.post("/api/v1/qualidade/laudos", json=laudo_payload, headers=headers)
-        assert res_laudo.status_code == 201
-        laudo_id = res_laudo.json()["id"]
-    
-        # 3. Try to calculate adjustments while RASCUNHO (should fail)
-        res_calc_err = await client.post(f"/api/v1/qualidade/laudos/{laudo_id}/calcular-ajustes", headers=headers)
-        assert res_calc_err.status_code == 400
-    
-        # 4. Approve laudo
-        res_approve = await client.patch(f"/api/v1/qualidade/laudos/{laudo_id}/status", json={"status": "APROVADO"}, headers=headers)
-        assert res_approve.status_code == 200
-    
-        # 5. Calculate adjustments
-        res_calc = await client.post(f"/api/v1/qualidade/laudos/{laudo_id}/calcular-ajustes", headers=headers)
->       assert res_calc.status_code == 201
-E       assert 503 == 201
-E        +  where 503 = <Response [503 Service Unavailable]>.status_code
+      t3 = TarefaCampo(
+          tenant_id=tenant.id,
+          user_id=admin_user.id,
+          type="VACINACAO",
+          module="pecuaria",
+          status_execucao="CONCLUIDA",
+          dados={} # PENDENTE
+      )
 
-tests/integration/operacional/test_qualidade_ajustes.py:62: AssertionError
+      t4 = TarefaCampo(
+          tenant_id=tenant.id,
+          user_id=admin_user.id,
+          type="PESAGEM",
+          module="agricola", # Agricola, should not be returned!
+          status_execucao="CONCLUIDA",
+          dados={}
+      )
+
+      session.add_all([t1, t2, t3, t4])
+      await session.commit()
+
+      headers = {"Authorization": f"Bearer {admin_token}"}
+
+      # List all pecuaria tasks
+      response = await client.get("/api/v1/pecuaria/campo/sync-status", headers=headers)
+      assert response.status_code == 200
+      data = response.json()
+      assert data["total"] >= 3 # t1, t2, t3 (plus any existing from other tests)
+
+      # Ensure agricola is not there
+      ids = [t["tarefa_campo_id"] for t in data["items"]]
+      assert str(t4.id) not in ids
+      assert str(t1.id) in ids
+      assert str(t2.id) in ids
+      assert str(t3.id) in ids
+
+      # Filter by SUCCESS
+      response = await client.get("/api/v1/pecuaria/campo/sync-status?status_processamento=SUCCESS", headers=headers)
+      assert response.status_code == 200
+      data = response.json()
+      ids = [t["tarefa_campo_id"] for t in data["items"]]
+      assert str(t1.id) in ids
+      assert str(t2.id) not in ids
+
+      # Filter by ERROR
+      response = await client.get("/api/v1/pecuaria/campo/sync-status?status_processamento=ERROR", headers=headers)
+      assert response.status_code == 200
+      data = response.json()
+      ids = [t["tarefa_campo_id"] for t in data["items"]]
+      assert str(t2.id) in ids
+      assert str(t1.id) not in ids
+
+      # Filter by PENDENTE
+      response = await client.get("/api/v1/pecuaria/campo/sync-status?status_processamento=PENDENTE", headers=headers)
+      assert response.status_code == 200
+      data = response.json()
+      ids = [t["tarefa_campo_id"] for t in data["items"]]
+      assert str(t3.id) in ids
+
+      # Filter by type
+      response = await client.get("/api/v1/pecuaria/campo/sync-status?type=VACINACAO", headers=headers)
+      assert response.status_code == 200
+      data = response.json()
+      ids = [t["tarefa_campo_id"] for t in data["items"]]
+      assert str(t3.id) in ids
+      assert str(t1.id) not in ids
+E       fixture 'admin_token' not found
+>       available fixtures: _class_scoped_runner, _function_scoped_runner, _module_scoped_runner, _package_scoped_runner, _session_scoped_runner, anyio_backend, anyio_backend_name, anyio_backend_options, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, client, cov, doctest_namespace, event_loop_policy, free_tcp_port, free_tcp_port_factory, free_udp_port, free_udp_port_factory, headers_admin, headers_agricola, headers_core_only, headers_financeiro, headers_operacional, headers_rh, monkeypatch, no_cover, outro_tenant_id, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, session, session_a, session_b, subtests, talhao_id, tenant_id, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, token_admin, token_agricola, token_core_only, token_financeiro, token_operacional, token_rh, unidade_produtiva_id, unused_tcp_port, unused_tcp_port_factory, unused_udp_port, unused_udp_port_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/opt/lampp/htdocs/farm/services/api/tests/integration/pecuaria/test_campo_sync_status.py:9
 ---------------------------- Captured stderr setup -----------------------------
-2026-06-09 16:32:15.409 | WARNING  | core.services.geoprocessamento_service:<module>:27 - Fiona/Shapely não disponíveis. Funcionalidades geoespaciais limitadas.
------------------------------ Captured stdout call -----------------------------
-{"text": "2026-06-09T04:32:22-03:00 | INFO | core.observability:dispatch:38 | API_REQUEST | {'request_id': '150f759a-1f0b-441f-aecb-00229c68bea3', 'method': 'POST', 'path': '/api/v1/qualidade/protocolos', 'status': 201, 'duration': 0.5484, 'tenant_id': 'aaaaaaaa-0000-0000-0000-000000000001', 'user_agent': 'python-httpx/0.28.1', 'ip': '127.0.0.1'}\n", "record": {"elapsed": {"repr": "0:00:08.097137", "seconds": 8.097137}, "exception": null, "extra": {"request_id": "150f759a-1f0b-441f-aecb-00229c68bea3", "method": "POST", "path": "/api/v1/qualidade/protocolos", "status": 201, "duration": 0.5484, "tenant_id": "aaaaaaaa-0000-0000-0000-000000000001", "user_agent": "python-httpx/0.28.1", "ip": "127.0.0.1"}, "file": {"name": "observability.py", "path": "/opt/lampp/htdocs/farm/services/api/core/observability.py"}, "function": "dispatch", "level": {"icon": "ℹ️", "name": "INFO", "no": 20}, "line": 38, "message": "API_REQUEST", "module": "observability", "name": "core.observability", "process": {"id": 8447, "name": "MainProcess"}, "thread": {"id": 132093060673984, "name": "MainThread"}, "time": {"repr": "2026-06-09 16:32:22.608095-03:00", "timestamp": 1781033542.608095}}}
-{"text": "2026-06-09T04:32:22-03:00 | INFO | core.observability:dispatch:38 | API_REQUEST | {'request_id': 'ce58c01f-2286-4fb7-88ca-a999fad7a691', 'method': 'POST', 'path': '/api/v1/qualidade/laudos', 'status': 201, 'duration': 0.2206, 'tenant_id': 'aaaaaaaa-0000-0000-0000-000000000001', 'user_agent': 'python-httpx/0.28.1', 'ip': '127.0.0.1'}\n", "record": {"elapsed": {"repr": "0:00:08.327208", "seconds": 8.327208}, "exception": null, "extra": {"request_id": "ce58c01f-2286-4fb7-88ca-a999fad7a691", "method": "POST", "path": "/api/v1/qualidade/laudos", "status": 201, "duration": 0.2206, "tenant_id": "aaaaaaaa-0000-0000-0000-000000000001", "user_agent": "python-httpx/0.28.1", "ip": "127.0.0.1"}, "file": {"name": "observability.py", "path": "/opt/lampp/htdocs/farm/services/api/core/observability.py"}, "function": "dispatch", "level": {"icon": "ℹ️", "name": "INFO", "no": 20}, "line": 38, "message": "API_REQUEST", "module": "observability", "name": "core.observability", "process": {"id": 8447, "name": "MainProcess"}, "thread": {"id": 132093060673984, "name": "MainThread"}, "time": {"repr": "2026-06-09 16:32:22.838166-03:00", "timestamp": 1781033542.838166}}}
-{"text": "2026-06-09T04:32:22-03:00 | INFO | core.observability:dispatch:38 | API_REQUEST | {'request_id': '078dcb13-870b-4a22-95ff-709855fb4271', 'method': 'POST', 'path': '/api/v1/qualidade/laudos/8d02d9c0-8244-4ca1-a0e1-60b642f47bb7/calcular-ajustes', 'status': 400, 'duration': 0.0776, 'tenant_id': 'aaaaaaaa-0000-0000-0000-000000000001', 'user_agent': 'python-httpx/0.28.1', 'ip': '127.0.0.1'}\n", "record": {"elapsed": {"repr": "0:00:08.412468", "seconds": 8.412468}, "exception": null, "extra": {"request_id": "078dcb13-870b-4a22-95ff-709855fb4271", "method": "POST", "path": "/api/v1/qualidade/laudos/8d02d9c0-8244-4ca1-a0e1-60b642f47bb7/calcular-ajustes", "status": 400, "duration": 0.0776, "tenant_id": "aaaaaaaa-0000-0000-0000-000000000001", "user_agent": "python-httpx/0.28.1", "ip": "127.0.0.1"}, "file": {"name": "observability.py", "path": "/opt/lampp/htdocs/farm/services/api/core/observability.py"}, "function": "dispatch", "level": {"icon": "ℹ️", "name": "INFO", "no": 20}, "line": 38, "message": "API_REQUEST", "module": "observability", "name": "core.observability", "process": {"id": 8447, "name": "MainProcess"}, "thread": {"id": 132093060673984, "name": "MainThread"}, "time": {"repr": "2026-06-09 16:32:22.923426-03:00", "timestamp": 1781033542.923426}}}
-{"text": "2026-06-09T04:32:23-03:00 | INFO | core.observability:dispatch:38 | API_REQUEST | {'request_id': '48ad1491-b9d9-466f-8cb6-933baa2f9177', 'method': 'PATCH', 'path': '/api/v1/qualidade/laudos/8d02d9c0-8244-4ca1-a0e1-60b642f47bb7/status', 'status': 200, 'duration': 0.4486, 'tenant_id': 'aaaaaaaa-0000-0000-0000-000000000001', 'user_agent': 'python-httpx/0.28.1', 'ip': '127.0.0.1'}\n", "record": {"elapsed": {"repr": "0:00:08.862529", "seconds": 8.862529}, "exception": null, "extra": {"request_id": "48ad1491-b9d9-466f-8cb6-933baa2f9177", "method": "PATCH", "path": "/api/v1/qualidade/laudos/8d02d9c0-8244-4ca1-a0e1-60b642f47bb7/status", "status": 200, "duration": 0.4486, "tenant_id": "aaaaaaaa-0000-0000-0000-000000000001", "user_agent": "python-httpx/0.28.1", "ip": "127.0.0.1"}, "file": {"name": "observability.py", "path": "/opt/lampp/htdocs/farm/services/api/core/observability.py"}, "function": "dispatch", "level": {"icon": "ℹ️", "name": "INFO", "no": 20}, "line": 38, "message": "API_REQUEST", "module": "observability", "name": "core.observability", "process": {"id": 8447, "name": "MainProcess"}, "thread": {"id": 132093060673984, "name": "MainThread"}, "time": {"repr": "2026-06-09 16:32:23.373487-03:00", "timestamp": 1781033543.373487}}}
-{"text": "2026-06-09T04:32:23-03:00 | ERROR | core.dependencies:get_session:83 | Falha ao adquirir sessão do banco de dados | {'request_id': '77eb0731-d9c0-49ab-9b8a-0ea4c6741981', 'error_type': 'IntegrityError', 'detail': '(sqlalchemy.dialects.postgresql.asyncpg.IntegrityError) <class \\'asyncpg.exceptions.ForeignKeyViolationError\\'>: insert or update on table \"operacional_qualidade_ajustes\" violates foreign key constraint \"operacional_qualidade_ajustes_created_by_fkey\"\\nDETAIL:  Key (created_by)=(eeeeeeee-0000-0000-0000-000000000005) is not present in table \"cadastros_pessoas\".\\n[SQL: INSERT INTO operacional_qualidade_ajustes (id, tenant_id, laudo_id, criterio_id, tipo, valor_numerico, valor_unidade, motivo, metadata_json, created_by) VALUES ($1::UUID, $2::UUID, $3::UUID, $4::UUID, $5::VARCHAR, $6::NUMERIC(12, 4), $7::VARCHAR, $8::VARCHAR, $9::JSON, $10::UUID) RETURNING operacional_qualidade_ajustes.created_at]\\n[parameters: (UUID(\\'d1687764-5c5e-4e11-bc28-6a0808a9822e\\'), UUID(\\'aaaaaaaa-0000-0000-0000-000000000001\\'), UUID(\\'8d02d9c0-8244-4ca1-a0e1-60b642f47bb7\\'), UUID(\\'bc2a1d00-0b3f-4713-ab1d-af81076a3290\\'), \\'DISCOUNT_WEIGHT\\', 1.5, \\'%\\', \\'Ajuste aplicado pois o valor (15.5) foi ABOVE_STANDARD do padrão (14.0)\\', \\'{\"diff_aplicada\": 1.5}\\', UUID(\\'eeeeeeee-0000-0000-0000-000000000005\\'))]\\n(Background on this error at: https://sqlalche.me/e/20/gkpj)', 'path': '/api/v1/qualidade/laudos/8d02d9c0-8244-4ca1-a0e1-60b642f47bb7/calcular-ajustes'}\n", "record": {"elapsed": {"repr": "0:00:09.055630", "seconds": 9.05563}, "exception": null, "extra": {"request_id": "77eb0731-d9c0-49ab-9b8a-0ea4c6741981", "error_type": "IntegrityError", "detail": "(sqlalchemy.dialects.postgresql.asyncpg.IntegrityError) <class 'asyncpg.exceptions.ForeignKeyViolationError'>: insert or update on table \"operacional_qualidade_ajustes\" violates foreign key constraint \"operacional_qualidade_ajustes_created_by_fkey\"\nDETAIL:  Key (created_by)=(eeeeeeee-0000-0000-0000-000000000005) is not present in table \"cadastros_pessoas\".\n[SQL: INSERT INTO operacional_qualidade_ajustes (id, tenant_id, laudo_id, criterio_id, tipo, valor_numerico, valor_unidade, motivo, metadata_json, created_by) VALUES ($1::UUID, $2::UUID, $3::UUID, $4::UUID, $5::VARCHAR, $6::NUMERIC(12, 4), $7::VARCHAR, $8::VARCHAR, $9::JSON, $10::UUID) RETURNING operacional_qualidade_ajustes.created_at]\n[parameters: (UUID('d1687764-5c5e-4e11-bc28-6a0808a9822e'), UUID('aaaaaaaa-0000-0000-0000-000000000001'), UUID('8d02d9c0-8244-4ca1-a0e1-60b642f47bb7'), UUID('bc2a1d00-0b3f-4713-ab1d-af81076a3290'), 'DISCOUNT_WEIGHT', 1.5, '%', 'Ajuste aplicado pois o valor (15.5) foi ABOVE_STANDARD do padrão (14.0)', '{\"diff_aplicada\": 1.5}', UUID('eeeeeeee-0000-0000-0000-000000000005'))]\n(Background on this error at: https://sqlalche.me/e/20/gkpj)", "path": "/api/v1/qualidade/laudos/8d02d9c0-8244-4ca1-a0e1-60b642f47bb7/calcular-ajustes"}, "file": {"name": "dependencies.py", "path": "/opt/lampp/htdocs/farm/services/api/core/dependencies.py"}, "function": "get_session", "level": {"icon": "❌", "name": "ERROR", "no": 40}, "line": 83, "message": "Falha ao adquirir sessão do banco de dados", "module": "dependencies", "name": "core.dependencies", "process": {"id": 8447, "name": "MainProcess"}, "thread": {"id": 132093060673984, "name": "MainThread"}, "time": {"repr": "2026-06-09 16:32:23.566588-03:00", "timestamp": 1781033543.566588}}}
-CRITICAL DB ERROR: IntegrityError: (sqlalchemy.dialects.postgresql.asyncpg.IntegrityError) <class 'asyncpg.exceptions.ForeignKeyViolationError'>: insert or update on table "operacional_qualidade_ajustes" violates foreign key constraint "operacional_qualidade_ajustes_created_by_fkey"
-DETAIL:  Key (created_by)=(eeeeeeee-0000-0000-0000-000000000005) is not present in table "cadastros_pessoas".
-[SQL: INSERT INTO operacional_qualidade_ajustes (id, tenant_id, laudo_id, criterio_id, tipo, valor_numerico, valor_unidade, motivo, metadata_json, created_by) VALUES ($1::UUID, $2::UUID, $3::UUID, $4::UUID, $5::VARCHAR, $6::NUMERIC(12, 4), $7::VARCHAR, $8::VARCHAR, $9::JSON, $10::UUID) RETURNING operacional_qualidade_ajustes.created_at]
-[parameters: (UUID('d1687764-5c5e-4e11-bc28-6a0808a9822e'), UUID('aaaaaaaa-0000-0000-0000-000000000001'), UUID('8d02d9c0-8244-4ca1-a0e1-60b642f47bb7'), UUID('bc2a1d00-0b3f-4713-ab1d-af81076a3290'), 'DISCOUNT_WEIGHT', 1.5, '%', 'Ajuste aplicado pois o valor (15.5) foi ABOVE_STANDARD do padrão (14.0)', '{"diff_aplicada": 1.5}', UUID('eeeeeeee-0000-0000-0000-000000000005'))]
-(Background on this error at: https://sqlalche.me/e/20/gkpj)
-{"text": "2026-06-09T04:32:23-03:00 | INFO | core.observability:dispatch:38 | API_REQUEST | {'request_id': '77eb0731-d9c0-49ab-9b8a-0ea4c6741981', 'method': 'POST', 'path': '/api/v1/qualidade/laudos/8d02d9c0-8244-4ca1-a0e1-60b642f47bb7/calcular-ajustes', 'status': 503, 'duration': 0.1928, 'tenant_id': 'aaaaaaaa-0000-0000-0000-000000000001', 'user_agent': 'python-httpx/0.28.1', 'ip': '127.0.0.1'}\n", "record": {"elapsed": {"repr": "0:00:09.063398", "seconds": 9.063398}, "exception": null, "extra": {"request_id": "77eb0731-d9c0-49ab-9b8a-0ea4c6741981", "method": "POST", "path": "/api/v1/qualidade/laudos/8d02d9c0-8244-4ca1-a0e1-60b642f47bb7/calcular-ajustes", "status": 503, "duration": 0.1928, "tenant_id": "aaaaaaaa-0000-0000-0000-000000000001", "user_agent": "python-httpx/0.28.1", "ip": "127.0.0.1"}, "file": {"name": "observability.py", "path": "/opt/lampp/htdocs/farm/services/api/core/observability.py"}, "function": "dispatch", "level": {"icon": "ℹ️", "name": "INFO", "no": 20}, "line": 38, "message": "API_REQUEST", "module": "observability", "name": "core.observability", "process": {"id": 8447, "name": "MainProcess"}, "thread": {"id": 132093060673984, "name": "MainThread"}, "time": {"repr": "2026-06-09 16:32:23.574356-03:00", "timestamp": 1781033543.574356}}}
-{"text": "2026-06-09T04:32:23-03:00 | ERROR | core.observability:dispatch:51 | ALERT: SERVER_ERROR | POST /api/v1/qualidade/laudos/8d02d9c0-8244-4ca1-a0e1-60b642f47bb7/calcular-ajustes | {'request_id': '77eb0731-d9c0-49ab-9b8a-0ea4c6741981'}\n", "record": {"elapsed": {"repr": "0:00:09.063769", "seconds": 9.063769}, "exception": null, "extra": {"request_id": "77eb0731-d9c0-49ab-9b8a-0ea4c6741981"}, "file": {"name": "observability.py", "path": "/opt/lampp/htdocs/farm/services/api/core/observability.py"}, "function": "dispatch", "level": {"icon": "❌", "name": "ERROR", "no": 40}, "line": 51, "message": "ALERT: SERVER_ERROR | POST /api/v1/qualidade/laudos/8d02d9c0-8244-4ca1-a0e1-60b642f47bb7/calcular-ajustes", "module": "observability", "name": "core.observability", "process": {"id": 8447, "name": "MainProcess"}, "thread": {"id": 132093060673984, "name": "MainThread"}, "time": {"repr": "2026-06-09 16:32:23.574727-03:00", "timestamp": 1781033543.574727}}}
-__________________ test_calculo_ajuste_cross_tenant_bloqueio ___________________
+2026-06-23 18:00:19.959 | WARNING  | core.services.geoprocessamento_service:<module>:27 - Fiona/Shapely não disponíveis. Funcionalidades geoespaciais limitadas.
+__________________ ERROR at setup of test_reprocessar_tarefa ___________________
+file /opt/lampp/htdocs/farm/services/api/tests/integration/pecuaria/test_campo_sync_status.py, line 112
+  @pytest.mark.asyncio
+  async def test_reprocessar_tarefa(client: AsyncClient, admin_token: str, admin_user, tenant, session):
+      # Create animal
+      a1 = Animal(
+          tenant_id=tenant.id,
+          identificacao="TEST-REPROCESS",
+          sexo="M",
+          raca_id=None,
+          categoria_id=None
+      )
+      session.add(a1)
+      await session.commit()
 
-client = <httpx.AsyncClient object at 0x782341f93a00>
-token_operacional = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJlZWVlZWVlZS0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMDUiLCJ0ZW5hbnRfaWQiOiJh...VzZXIiOmZhbHNlLCJwbGFuX3RpZXIiOiJQUk9GSVNTSU9OQUwiLCJleHAiOjE3ODEwMzcxMzV9.cB0NP_h7tvbezFtcWU6xqzKAhiqtkDQZzQNkFHPlHJ0'
-token_admin = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJlZWVlZWVlZS0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMDUiLCJ0ZW5hbnRfaWQiOiJh...XNlciI6ZmFsc2UsInBsYW5fdGllciI6IlBST0ZJU1NJT05BTCIsImV4cCI6MTc4MTAzNzEzNX0.DNxgfXyHvANzWsgbInCZ5gJ166O8heWNS4apEvU9nyM'
+      # Create task WITH ERROR
+      t1 = TarefaCampo(
+          tenant_id=tenant.id,
+          user_id=admin_user.id,
+          type="PESAGEM",
+          module="pecuaria",
+          status_execucao="CONCLUIDA",
+          dados={
+              "animais": [{"animal_id": str(a1.id), "peso_kg": 350}],
+              "sync_pecuaria": {
+                  "status": "ERROR",
+                  "total_processado": 0,
+                  "erros": ["Some fake previous error"]
+              }
+          }
+      )
+      session.add(t1)
+      await session.commit()
 
-    @pytest.mark.asyncio
-    async def test_calculo_ajuste_cross_tenant_bloqueio(client: AsyncClient, token_operacional: str, token_admin: str):
-        # Setup Protocol in Tenant 1 (token_operacional)
-        h1 = {"Authorization": f"Bearer {token_operacional}"}
-        proto_res = await client.post("/api/v1/qualidade/protocolos", json={
-            "nome": "Cafe T1",
-            "criterios": [
-                {
-                    "nome": "Broca",
-                    "tipo_dado": "NUMERIC",
-                    "regra_ajuste_json": {
-                        "type": "REJECTION",
-                        "trigger": "ABOVE_STANDARD",
-                        "standard_value": 3.0
-                    }
-                }
-            ]
-        }, headers=h1)
-        proto_id = proto_res.json()["id"]
-        crit_id = proto_res.json()["criterios"][0]["id"]
-    
-        laudo_res = await client.post("/api/v1/qualidade/laudos", json={
-            "protocolo_id": proto_id,
-            "status": "RASCUNHO",
-            "resultados": [{"criterio_id": crit_id, "valor_numerico": 5.0}]
-        }, headers=h1)
-        laudo_id = laudo_res.json()["id"]
-        await client.patch(f"/api/v1/qualidade/laudos/{laudo_id}/status", json={"status": "APROVADO"}, headers=h1)
-    
-        # Try to calculate from Tenant 2 (token_admin)
-        h2 = {"Authorization": f"Bearer {token_admin}"}
-        res_calc_cross = await client.post(f"/api/v1/qualidade/laudos/{laudo_id}/calcular-ajustes", headers=h2)
->       assert res_calc_cross.status_code in (403, 404) # Will be 404 because get_laudo won't find it for tenant 2
-E       assert 503 in (403, 404)
-E        +  where 503 = <Response [503 Service Unavailable]>.status_code
+      headers = {"Authorization": f"Bearer {admin_token}"}
 
-tests/integration/operacional/test_qualidade_ajustes.py:113: AssertionError
------------------------------ Captured stdout call -----------------------------
-{"text": "2026-06-09T04:32:23-03:00 | INFO | core.observability:dispatch:38 | API_REQUEST | {'request_id': 'a0a726cf-a9a8-4038-a92b-af010dd8eb00', 'method': 'POST', 'path': '/api/v1/qualidade/protocolos', 'status': 201, 'duration': 0.1264, 'tenant_id': 'aaaaaaaa-0000-0000-0000-000000000001', 'user_agent': 'python-httpx/0.28.1', 'ip': '127.0.0.1'}\n", "record": {"elapsed": {"repr": "0:00:09.315259", "seconds": 9.315259}, "exception": null, "extra": {"request_id": "a0a726cf-a9a8-4038-a92b-af010dd8eb00", "method": "POST", "path": "/api/v1/qualidade/protocolos", "status": 201, "duration": 0.1264, "tenant_id": "aaaaaaaa-0000-0000-0000-000000000001", "user_agent": "python-httpx/0.28.1", "ip": "127.0.0.1"}, "file": {"name": "observability.py", "path": "/opt/lampp/htdocs/farm/services/api/core/observability.py"}, "function": "dispatch", "level": {"icon": "ℹ️", "name": "INFO", "no": 20}, "line": 38, "message": "API_REQUEST", "module": "observability", "name": "core.observability", "process": {"id": 8447, "name": "MainProcess"}, "thread": {"id": 132093060673984, "name": "MainThread"}, "time": {"repr": "2026-06-09 16:32:23.826217-03:00", "timestamp": 1781033543.826217}}}
-{"text": "2026-06-09T04:32:24-03:00 | INFO | core.observability:dispatch:38 | API_REQUEST | {'request_id': '0bbfadf5-1edd-4ee0-b3ef-1aaf112d6cbf', 'method': 'POST', 'path': '/api/v1/qualidade/laudos', 'status': 201, 'duration': 0.1765, 'tenant_id': 'aaaaaaaa-0000-0000-0000-000000000001', 'user_agent': 'python-httpx/0.28.1', 'ip': '127.0.0.1'}\n", "record": {"elapsed": {"repr": "0:00:09.501764", "seconds": 9.501764}, "exception": null, "extra": {"request_id": "0bbfadf5-1edd-4ee0-b3ef-1aaf112d6cbf", "method": "POST", "path": "/api/v1/qualidade/laudos", "status": 201, "duration": 0.1765, "tenant_id": "aaaaaaaa-0000-0000-0000-000000000001", "user_agent": "python-httpx/0.28.1", "ip": "127.0.0.1"}, "file": {"name": "observability.py", "path": "/opt/lampp/htdocs/farm/services/api/core/observability.py"}, "function": "dispatch", "level": {"icon": "ℹ️", "name": "INFO", "no": 20}, "line": 38, "message": "API_REQUEST", "module": "observability", "name": "core.observability", "process": {"id": 8447, "name": "MainProcess"}, "thread": {"id": 132093060673984, "name": "MainThread"}, "time": {"repr": "2026-06-09 16:32:24.012722-03:00", "timestamp": 1781033544.012722}}}
-{"text": "2026-06-09T04:32:24-03:00 | INFO | core.observability:dispatch:38 | API_REQUEST | {'request_id': '68dc1e9c-d6d0-4c54-a46a-c6f189386bd1', 'method': 'PATCH', 'path': '/api/v1/qualidade/laudos/51fc1fc8-8e92-444e-806b-293295064c61/status', 'status': 200, 'duration': 0.1364, 'tenant_id': 'aaaaaaaa-0000-0000-0000-000000000001', 'user_agent': 'python-httpx/0.28.1', 'ip': '127.0.0.1'}\n", "record": {"elapsed": {"repr": "0:00:09.646435", "seconds": 9.646435}, "exception": null, "extra": {"request_id": "68dc1e9c-d6d0-4c54-a46a-c6f189386bd1", "method": "PATCH", "path": "/api/v1/qualidade/laudos/51fc1fc8-8e92-444e-806b-293295064c61/status", "status": 200, "duration": 0.1364, "tenant_id": "aaaaaaaa-0000-0000-0000-000000000001", "user_agent": "python-httpx/0.28.1", "ip": "127.0.0.1"}, "file": {"name": "observability.py", "path": "/opt/lampp/htdocs/farm/services/api/core/observability.py"}, "function": "dispatch", "level": {"icon": "ℹ️", "name": "INFO", "no": 20}, "line": 38, "message": "API_REQUEST", "module": "observability", "name": "core.observability", "process": {"id": 8447, "name": "MainProcess"}, "thread": {"id": 132093060673984, "name": "MainThread"}, "time": {"repr": "2026-06-09 16:32:24.157393-03:00", "timestamp": 1781033544.157393}}}
-{"text": "2026-06-09T04:32:24-03:00 | ERROR | core.dependencies:get_session:83 | Falha ao adquirir sessão do banco de dados | {'request_id': '4c38b2ec-2fac-4ecb-be45-ed6e45424f3a', 'error_type': 'IntegrityError', 'detail': '(sqlalchemy.dialects.postgresql.asyncpg.IntegrityError) <class \\'asyncpg.exceptions.ForeignKeyViolationError\\'>: insert or update on table \"operacional_qualidade_ajustes\" violates foreign key constraint \"operacional_qualidade_ajustes_created_by_fkey\"\\nDETAIL:  Key (created_by)=(eeeeeeee-0000-0000-0000-000000000005) is not present in table \"cadastros_pessoas\".\\n[SQL: INSERT INTO operacional_qualidade_ajustes (id, tenant_id, laudo_id, criterio_id, tipo, valor_numerico, valor_unidade, motivo, metadata_json, created_by) VALUES ($1::UUID, $2::UUID, $3::UUID, $4::UUID, $5::VARCHAR, $6::NUMERIC(12, 4), $7::VARCHAR, $8::VARCHAR, $9::JSON, $10::UUID) RETURNING operacional_qualidade_ajustes.created_at]\\n[parameters: (UUID(\\'bf129a32-5cbe-4907-9682-4138083bd275\\'), UUID(\\'aaaaaaaa-0000-0000-0000-000000000001\\'), UUID(\\'51fc1fc8-8e92-444e-806b-293295064c61\\'), UUID(\\'4bd271a6-1534-45d2-bdc1-7bce7086e5c1\\'), \\'REJECTION\\', 5.0, None, \\'Ajuste aplicado pois o valor (5.0) foi ABOVE_STANDARD do padrão (3.0)\\', \\'{\"diff_aplicada\": 2.0}\\', UUID(\\'eeeeeeee-0000-0000-0000-000000000005\\'))]\\n(Background on this error at: https://sqlalche.me/e/20/gkpj)', 'path': '/api/v1/qualidade/laudos/51fc1fc8-8e92-444e-806b-293295064c61/calcular-ajustes'}\n", "record": {"elapsed": {"repr": "0:00:09.822803", "seconds": 9.822803}, "exception": null, "extra": {"request_id": "4c38b2ec-2fac-4ecb-be45-ed6e45424f3a", "error_type": "IntegrityError", "detail": "(sqlalchemy.dialects.postgresql.asyncpg.IntegrityError) <class 'asyncpg.exceptions.ForeignKeyViolationError'>: insert or update on table \"operacional_qualidade_ajustes\" violates foreign key constraint \"operacional_qualidade_ajustes_created_by_fkey\"\nDETAIL:  Key (created_by)=(eeeeeeee-0000-0000-0000-000000000005) is not present in table \"cadastros_pessoas\".\n[SQL: INSERT INTO operacional_qualidade_ajustes (id, tenant_id, laudo_id, criterio_id, tipo, valor_numerico, valor_unidade, motivo, metadata_json, created_by) VALUES ($1::UUID, $2::UUID, $3::UUID, $4::UUID, $5::VARCHAR, $6::NUMERIC(12, 4), $7::VARCHAR, $8::VARCHAR, $9::JSON, $10::UUID) RETURNING operacional_qualidade_ajustes.created_at]\n[parameters: (UUID('bf129a32-5cbe-4907-9682-4138083bd275'), UUID('aaaaaaaa-0000-0000-0000-000000000001'), UUID('51fc1fc8-8e92-444e-806b-293295064c61'), UUID('4bd271a6-1534-45d2-bdc1-7bce7086e5c1'), 'REJECTION', 5.0, None, 'Ajuste aplicado pois o valor (5.0) foi ABOVE_STANDARD do padrão (3.0)', '{\"diff_aplicada\": 2.0}', UUID('eeeeeeee-0000-0000-0000-000000000005'))]\n(Background on this error at: https://sqlalche.me/e/20/gkpj)", "path": "/api/v1/qualidade/laudos/51fc1fc8-8e92-444e-806b-293295064c61/calcular-ajustes"}, "file": {"name": "dependencies.py", "path": "/opt/lampp/htdocs/farm/services/api/core/dependencies.py"}, "function": "get_session", "level": {"icon": "❌", "name": "ERROR", "no": 40}, "line": 83, "message": "Falha ao adquirir sessão do banco de dados", "module": "dependencies", "name": "core.dependencies", "process": {"id": 8447, "name": "MainProcess"}, "thread": {"id": 132093060673984, "name": "MainThread"}, "time": {"repr": "2026-06-09 16:32:24.333761-03:00", "timestamp": 1781033544.333761}}}
-CRITICAL DB ERROR: IntegrityError: (sqlalchemy.dialects.postgresql.asyncpg.IntegrityError) <class 'asyncpg.exceptions.ForeignKeyViolationError'>: insert or update on table "operacional_qualidade_ajustes" violates foreign key constraint "operacional_qualidade_ajustes_created_by_fkey"
-DETAIL:  Key (created_by)=(eeeeeeee-0000-0000-0000-000000000005) is not present in table "cadastros_pessoas".
-[SQL: INSERT INTO operacional_qualidade_ajustes (id, tenant_id, laudo_id, criterio_id, tipo, valor_numerico, valor_unidade, motivo, metadata_json, created_by) VALUES ($1::UUID, $2::UUID, $3::UUID, $4::UUID, $5::VARCHAR, $6::NUMERIC(12, 4), $7::VARCHAR, $8::VARCHAR, $9::JSON, $10::UUID) RETURNING operacional_qualidade_ajustes.created_at]
-[parameters: (UUID('bf129a32-5cbe-4907-9682-4138083bd275'), UUID('aaaaaaaa-0000-0000-0000-000000000001'), UUID('51fc1fc8-8e92-444e-806b-293295064c61'), UUID('4bd271a6-1534-45d2-bdc1-7bce7086e5c1'), 'REJECTION', 5.0, None, 'Ajuste aplicado pois o valor (5.0) foi ABOVE_STANDARD do padrão (3.0)', '{"diff_aplicada": 2.0}', UUID('eeeeeeee-0000-0000-0000-000000000005'))]
-(Background on this error at: https://sqlalche.me/e/20/gkpj)
-{"text": "2026-06-09T04:32:24-03:00 | INFO | core.observability:dispatch:38 | API_REQUEST | {'request_id': '4c38b2ec-2fac-4ecb-be45-ed6e45424f3a', 'method': 'POST', 'path': '/api/v1/qualidade/laudos/51fc1fc8-8e92-444e-806b-293295064c61/calcular-ajustes', 'status': 503, 'duration': 0.1744, 'tenant_id': 'aaaaaaaa-0000-0000-0000-000000000001', 'user_agent': 'python-httpx/0.28.1', 'ip': '127.0.0.1'}\n", "record": {"elapsed": {"repr": "0:00:09.830569", "seconds": 9.830569}, "exception": null, "extra": {"request_id": "4c38b2ec-2fac-4ecb-be45-ed6e45424f3a", "method": "POST", "path": "/api/v1/qualidade/laudos/51fc1fc8-8e92-444e-806b-293295064c61/calcular-ajustes", "status": 503, "duration": 0.1744, "tenant_id": "aaaaaaaa-0000-0000-0000-000000000001", "user_agent": "python-httpx/0.28.1", "ip": "127.0.0.1"}, "file": {"name": "observability.py", "path": "/opt/lampp/htdocs/farm/services/api/core/observability.py"}, "function": "dispatch", "level": {"icon": "ℹ️", "name": "INFO", "no": 20}, "line": 38, "message": "API_REQUEST", "module": "observability", "name": "core.observability", "process": {"id": 8447, "name": "MainProcess"}, "thread": {"id": 132093060673984, "name": "MainThread"}, "time": {"repr": "2026-06-09 16:32:24.341527-03:00", "timestamp": 1781033544.341527}}}
-{"text": "2026-06-09T04:32:24-03:00 | ERROR | core.observability:dispatch:51 | ALERT: SERVER_ERROR | POST /api/v1/qualidade/laudos/51fc1fc8-8e92-444e-806b-293295064c61/calcular-ajustes | {'request_id': '4c38b2ec-2fac-4ecb-be45-ed6e45424f3a'}\n", "record": {"elapsed": {"repr": "0:00:09.831029", "seconds": 9.831029}, "exception": null, "extra": {"request_id": "4c38b2ec-2fac-4ecb-be45-ed6e45424f3a"}, "file": {"name": "observability.py", "path": "/opt/lampp/htdocs/farm/services/api/core/observability.py"}, "function": "dispatch", "level": {"icon": "❌", "name": "ERROR", "no": 40}, "line": 51, "message": "ALERT: SERVER_ERROR | POST /api/v1/qualidade/laudos/51fc1fc8-8e92-444e-806b-293295064c61/calcular-ajustes", "module": "observability", "name": "core.observability", "process": {"id": 8447, "name": "MainProcess"}, "thread": {"id": 132093060673984, "name": "MainThread"}, "time": {"repr": "2026-06-09 16:32:24.341987-03:00", "timestamp": 1781033544.341987}}}
+      # Reprocess
+      resp = await client.post(f"/api/v1/pecuaria/campo/tarefas/{t1.id}/processar", headers=headers)
+      assert resp.status_code == 200
+      res_data = resp.json()
+      assert res_data["status"] == "SUCCESS"
+      assert res_data["total_processado"] == 1
+
+      # Ensure it updated the sync_pecuaria on TarefaCampo
+      await session.refresh(t1)
+      assert t1.dados["sync_pecuaria"]["status"] == "SUCCESS"
+      assert t1.dados["sync_pecuaria"]["total_processado"] == 1
+      assert t1.dados["sync_pecuaria"]["erros"] == []
+E       fixture 'admin_token' not found
+>       available fixtures: _class_scoped_runner, _function_scoped_runner, _module_scoped_runner, _package_scoped_runner, _session_scoped_runner, anyio_backend, anyio_backend_name, anyio_backend_options, cache, capfd, capfdbinary, caplog, capsys, capsysbinary, capteesys, client, cov, doctest_namespace, event_loop_policy, free_tcp_port, free_tcp_port_factory, free_udp_port, free_udp_port_factory, headers_admin, headers_agricola, headers_core_only, headers_financeiro, headers_operacional, headers_rh, monkeypatch, no_cover, outro_tenant_id, pytestconfig, record_property, record_testsuite_property, record_xml_attribute, recwarn, session, session_a, session_b, subtests, talhao_id, tenant_id, tmp_path, tmp_path_factory, tmpdir, tmpdir_factory, token_admin, token_agricola, token_core_only, token_financeiro, token_operacional, token_rh, unidade_produtiva_id, unused_tcp_port, unused_tcp_port_factory, unused_udp_port, unused_udp_port_factory
+>       use 'pytest --fixtures [testpath]' for help on them.
+
+/opt/lampp/htdocs/farm/services/api/tests/integration/pecuaria/test_campo_sync_status.py:112
 =============================== warnings summary ===============================
-tests/integration/operacional/test_qualidade_ajustes.py::test_calculo_ajuste_desconto_e_idempotencia
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
   /opt/lampp/htdocs/farm/services/api/core/schemas/support_schemas.py:14: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
     class MensagemChamadoResponse(MensagemChamadoBase):
 
-tests/integration/operacional/test_qualidade_ajustes.py::test_calculo_ajuste_desconto_e_idempotencia
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
   /opt/lampp/htdocs/farm/services/api/core/schemas/support_schemas.py:32: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
     class ChamadoSuporteResponse(ChamadoSuporteBase):
 
-tests/integration/operacional/test_qualidade_ajustes.py::test_calculo_ajuste_desconto_e_idempotencia
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
   /opt/lampp/htdocs/farm/services/api/core/routers/backoffice_admins.py:46: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
     class AdminUserResponse(BaseModel):
 
-tests/integration/operacional/test_qualidade_ajustes.py::test_calculo_ajuste_desconto_e_idempotencia
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
   /opt/lampp/htdocs/farm/services/api/core/routers/team.py:56: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
     class PerfilResponse(BaseModel):
 
-tests/integration/operacional/test_qualidade_ajustes.py::test_calculo_ajuste_desconto_e_idempotencia
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
   /opt/lampp/htdocs/farm/services/api/core/routers/backoffice_profiles.py:42: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
     class SystemProfileResponse(BaseModel):
 
-tests/integration/operacional/test_qualidade_ajustes.py::test_calculo_ajuste_desconto_e_idempotencia
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
   /opt/lampp/htdocs/farm/services/api/core/schemas/knowledge_base_schemas.py:14: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
     class ConhecimentoCategoriaResponse(ConhecimentoCategoriaBase):
 
-tests/integration/operacional/test_qualidade_ajustes.py::test_calculo_ajuste_desconto_e_idempotencia
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
   /opt/lampp/htdocs/farm/services/api/core/schemas/knowledge_base_schemas.py:37: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
     class ConhecimentoArtigoResponse(ConhecimentoArtigoBase):
 
-tests/integration/operacional/test_qualidade_ajustes.py::test_calculo_ajuste_desconto_e_idempotencia
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
   /opt/lampp/htdocs/farm/services/api/core/schemas/config_schemas.py:6: PydanticDeprecatedSince20: Using extra keyword arguments on `Field` is deprecated and will be removed. Use `json_schema_extra` instead. (Extra keys: 'example'). Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
     host: str = Field(..., example="smtp.mailtrap.io")
 
-tests/integration/operacional/test_qualidade_ajustes.py::test_calculo_ajuste_desconto_e_idempotencia
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
   /opt/lampp/htdocs/farm/services/api/core/schemas/config_schemas.py:7: PydanticDeprecatedSince20: Using extra keyword arguments on `Field` is deprecated and will be removed. Use `json_schema_extra` instead. (Extra keys: 'example'). Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
     port: int = Field(587, example=587)
 
-tests/integration/operacional/test_qualidade_ajustes.py::test_calculo_ajuste_desconto_e_idempotencia
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
   /opt/lampp/htdocs/farm/services/api/core/schemas/config_schemas.py:10: PydanticDeprecatedSince20: Using extra keyword arguments on `Field` is deprecated and will be removed. Use `json_schema_extra` instead. (Extra keys: 'example'). Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
     mail_from: str = Field(..., alias="from", example="noreply@agrosaas.com.br")
 
-tests/integration/operacional/test_qualidade_ajustes.py::test_calculo_ajuste_desconto_e_idempotencia
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
   /opt/lampp/htdocs/farm/services/api/core/schemas/config_schemas.py:5: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
     class SMTPConfig(BaseModel):
 
-tests/integration/operacional/test_qualidade_ajustes.py::test_calculo_ajuste_desconto_e_idempotencia
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
   /opt/lampp/htdocs/farm/services/api/core/schemas/config_schemas.py:26: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
     class TenantConfigResponse(BaseModel):
 
-tests/integration/operacional/test_qualidade_ajustes.py::test_calculo_ajuste_desconto_e_idempotencia
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
   /opt/lampp/htdocs/farm/services/api/core/schemas/config_schemas.py:106: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
     class CategoriaResponse(BaseModel):
 
-tests/integration/operacional/test_qualidade_ajustes.py::test_calculo_ajuste_desconto_e_idempotencia
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
   /opt/lampp/htdocs/farm/services/api/core/schemas/config_schemas.py:147: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
     class ConfiguracaoFazendaResponse(BaseModel):
 
-tests/integration/operacional/test_qualidade_ajustes.py::test_calculo_ajuste_desconto_e_idempotencia
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
   /opt/lampp/htdocs/farm/services/api/core/schemas/config_schemas.py:165: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
     class HistoricoConfiguracaoItem(BaseModel):
 
-tests/integration/operacional/test_qualidade_ajustes.py::test_calculo_ajuste_desconto_e_idempotencia
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
   /opt/lampp/htdocs/farm/services/api/core/routers/cupons.py:29: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
     class CupomResponse(BaseModel):
 
-tests/integration/operacional/test_qualidade_ajustes.py::test_calculo_ajuste_desconto_e_idempotencia
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
   /opt/lampp/htdocs/farm/services/api/core/routers/backoffice_audit.py:22: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
     class AuditLogResponse(BaseModel):
 
-tests/integration/operacional/test_qualidade_ajustes.py::test_calculo_ajuste_desconto_e_idempotencia
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
   /opt/lampp/htdocs/farm/services/api/core/routers/backoffice_audit.py:54: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
     class SecurityIncidentResponse(BaseModel):
 
-tests/integration/operacional/test_qualidade_ajustes.py::test_calculo_ajuste_desconto_e_idempotencia
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
   /opt/lampp/htdocs/farm/services/api/core/routers/tenant_audit.py:21: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
     class TenantAuditLogResponse(BaseModel):
 
-tests/integration/operacional/test_qualidade_ajustes.py::test_calculo_ajuste_desconto_e_idempotencia
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
   /opt/lampp/htdocs/farm/services/api/core/routers/backoffice_email_templates.py:44: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
     class EmailTemplateResponse(BaseModel):
 
-tests/integration/operacional/test_qualidade_ajustes.py::test_calculo_ajuste_desconto_e_idempotencia
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
   /opt/lampp/htdocs/farm/services/api/core/routers/backoffice_email_templates.py:63: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
     class EmailLogResponse(BaseModel):
 
-tests/integration/operacional/test_qualidade_ajustes.py::test_calculo_ajuste_desconto_e_idempotencia
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
   /opt/lampp/htdocs/farm/services/api/core/routers/backoffice_sessions.py:21: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
     class SessionResponse(BaseModel):
 
-tests/integration/operacional/test_qualidade_ajustes.py::test_calculo_ajuste_desconto_e_idempotencia
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
   /opt/lampp/htdocs/farm/services/api/core/routers/sessions.py:36: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
     class SessaoResponse(BaseModel):
 
-tests/integration/operacional/test_qualidade_ajustes.py::test_calculo_ajuste_desconto_e_idempotencia
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
   /opt/lampp/htdocs/farm/services/api/core/routers/backoffice_crm.py:38: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
     class EstagioResponse(BaseModel):
 
-tests/integration/operacional/test_qualidade_ajustes.py::test_calculo_ajuste_desconto_e_idempotencia
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
   /opt/lampp/htdocs/farm/services/api/core/routers/backoffice_crm.py:111: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
     class AtividadeResponse(BaseModel):
 
-tests/integration/operacional/test_qualidade_ajustes.py::test_calculo_ajuste_desconto_e_idempotencia
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
   /opt/lampp/htdocs/farm/services/api/core/routers/backoffice_crm.py:126: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
     class LeadResponse(BaseModel):
 
-tests/integration/operacional/test_qualidade_ajustes.py::test_calculo_ajuste_desconto_e_idempotencia
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
   /opt/lampp/htdocs/farm/services/api/core/routers/backoffice_crm_ofertas.py:43: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
     class ProdutoResponse(BaseModel):
 
-tests/integration/operacional/test_qualidade_ajustes.py::test_calculo_ajuste_desconto_e_idempotencia
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
   /opt/lampp/htdocs/farm/services/api/core/routers/backoffice_crm_ofertas.py:77: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
     class PlanoComercialResponse(BaseModel):
 
-tests/integration/operacional/test_qualidade_ajustes.py::test_calculo_ajuste_desconto_e_idempotencia
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
   /opt/lampp/htdocs/farm/services/api/core/routers/backoffice_crm_ofertas.py:103: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
     class OfertaPersonalizadaResponse(BaseModel):
 
-tests/integration/operacional/test_qualidade_ajustes.py::test_calculo_ajuste_desconto_e_idempotencia
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
   /opt/lampp/htdocs/farm/services/api/operacional/routers/compras.py:50: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
     class FornecedorResponse(BaseModel):
 
-tests/integration/operacional/test_qualidade_ajustes.py::test_calculo_ajuste_desconto_e_idempotencia
-  /opt/lampp/htdocs/farm/services/api/imoveis/routers/imovel.py:92: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
+  /opt/lampp/htdocs/farm/services/api/imoveis/routers/imovel.py:104: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
     class ImovelResponse(BaseModel):
 
-tests/integration/operacional/test_qualidade_ajustes.py::test_calculo_ajuste_desconto_e_idempotencia
-  /opt/lampp/htdocs/farm/services/api/imoveis/routers/imovel.py:130: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
+  /opt/lampp/htdocs/farm/services/api/imoveis/routers/imovel.py:144: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
     class CartorioResponse(BaseModel):
 
-tests/integration/operacional/test_qualidade_ajustes.py::test_calculo_ajuste_desconto_e_idempotencia
-  /opt/lampp/htdocs/farm/services/api/imoveis/routers/imovel.py:158: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
+  /opt/lampp/htdocs/farm/services/api/imoveis/routers/imovel.py:172: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
     class BenfeitoriaResponse(BaseModel):
 
-tests/integration/operacional/test_qualidade_ajustes.py::test_calculo_ajuste_desconto_e_idempotencia
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
   /opt/lampp/htdocs/farm/services/api/agricola/dashboard/schemas.py:37: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
     class SafraResumoFinanceiro(BaseModel):
 
-tests/integration/operacional/test_qualidade_ajustes.py::test_calculo_ajuste_desconto_e_idempotencia
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
   /opt/lampp/htdocs/farm/services/api/agricola/beneficiamento/schemas.py:23: PydanticDeprecatedSince20: `min_items` is deprecated and will be removed, use `min_length` instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
     romaneio_ids: List[UUID] = Field(..., min_items=1, description="IDs dos romaneios a agrupar")
 
-tests/integration/operacional/test_qualidade_ajustes.py::test_calculo_ajuste_desconto_e_idempotencia
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
   /opt/lampp/htdocs/farm/services/api/integracoes/sankhya/schemas/__init__.py:15: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
     class SankhyaConfigResponse(BaseModel):
 
-tests/integration/operacional/test_qualidade_ajustes.py::test_calculo_ajuste_desconto_e_idempotencia
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
   /opt/lampp/htdocs/farm/services/api/integracoes/sankhya/schemas/__init__.py:31: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
     class SankhyaSyncLogResponse(BaseModel):
 
-tests/integration/operacional/test_qualidade_ajustes.py::test_calculo_ajuste_desconto_e_idempotencia
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
   /opt/lampp/htdocs/farm/services/api/integracoes/sankhya/schemas/__init__.py:48: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
     class SankhyaPessoaResponse(BaseModel):
 
-tests/integration/operacional/test_qualidade_ajustes.py::test_calculo_ajuste_desconto_e_idempotencia
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
   /opt/lampp/htdocs/farm/services/api/integracoes/sankhya/schemas/__init__.py:67: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
     class SankhyaProdutoResponse(BaseModel):
 
-tests/integration/operacional/test_qualidade_ajustes.py::test_calculo_ajuste_desconto_e_idempotencia
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
   /opt/lampp/htdocs/farm/services/api/integracoes/sankhya/schemas/__init__.py:83: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
     class SankhyaNFEResponse(BaseModel):
 
-tests/integration/operacional/test_qualidade_ajustes.py::test_calculo_ajuste_desconto_e_idempotencia
+tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
   /opt/lampp/htdocs/farm/services/api/integracoes/sankhya/schemas/__init__.py:100: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/
     class SankhyaLancamentoFinanceiroResponse(BaseModel):
 
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
 =========================== short test summary info ============================
-FAILED tests/integration/operacional/test_qualidade_ajustes.py::test_calculo_ajuste_desconto_e_idempotencia
-FAILED tests/integration/operacional/test_qualidade_ajustes.py::test_calculo_ajuste_cross_tenant_bloqueio
-======================== 2 failed, 41 warnings in 9.09s ========================
+ERROR tests/integration/pecuaria/test_campo_sync_status.py::test_list_sync_status_filters_and_pagination
+ERROR tests/integration/pecuaria/test_campo_sync_status.py::test_reprocessar_tarefa
+======================== 41 warnings, 2 errors in 7.39s ========================

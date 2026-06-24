@@ -9,6 +9,7 @@ import {
   type CadernoEventoTipo,
 } from "./db";
 import { enqueueSync } from "./sync/push";
+import { requestSync } from "./sync/trigger";
 import { useSessionStore } from "./stores/session-store";
 
 export interface CreateOfflineCadernoEventPayload {
@@ -53,6 +54,10 @@ const TASK_TO_CADERNO_TYPE: Record<string, CadernoEventoTipo> = {
   MONITORAMENTO_PRAGA: "MONITORAMENTO",
   AMOSTRAGEM_SOLO: "INSPECAO",
   CHECKLIST_CAMPO: "INSPECAO",
+  PESAGEM: "OBSERVACAO",
+  PESAGEM_ANIMAL: "OBSERVACAO",
+  VACINACAO: "OBSERVACAO",
+  VACINACAO_LOTE: "OBSERVACAO",
 };
 
 /**
@@ -182,6 +187,7 @@ export async function createOfflineCadernoEvent(payload: CreateOfflineCadernoEve
       evidencias: event.evidencias.map(toBackendEvidence),
     },
   } as unknown as OfflineQueuePayload);
+  requestSync();
 
   return localId;
 }
@@ -235,6 +241,7 @@ export async function retryOfflineCadernoEvent(localId: string): Promise<void> {
       evidencias: (event.evidencias ?? []).map(toBackendEvidence),
     },
   } as unknown as OfflineQueuePayload);
+  requestSync();
 }
 
 export async function markOfflineCadernoEventSyncResult(
