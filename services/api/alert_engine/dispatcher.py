@@ -18,25 +18,7 @@ from alert_engine.generators import (
 )
 from alert_engine.generators.base import BaseAlertGenerator
 from alert_engine.models import Domain
-
-
-class AlertDomainEvent(BaseModel):
-    """Canonical post-commit domain event envelope for the Alert Engine."""
-
-    event_id: UUID = Field(default_factory=uuid4)
-    tenant_id: UUID
-    unidade_produtiva_id: UUID | None = None
-    domain: Domain
-    event_type: str = Field(min_length=1, max_length=120)
-    source_type: str = Field(min_length=1, max_length=120)
-    entity_type: str | None = Field(default=None, max_length=80)
-    entity_id: UUID | None = None
-    occurred_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))  # noqa: UP017
-    correlation_id: UUID | None = None
-    causation_id: UUID | None = None
-    metadata: dict[str, Any] = Field(default_factory=dict)
-
-    model_config = ConfigDict(extra="allow", populate_by_name=True)
+from events.base import DomainEvent as AlertDomainEvent
 
 
 class AlertDispatchExecution(BaseModel):
