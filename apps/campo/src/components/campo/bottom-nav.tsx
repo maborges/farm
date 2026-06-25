@@ -32,6 +32,7 @@ function getQuickItems(modules: string[]): NavItem[] {
     return [
       { key: "aplicacao", label: "Aplicação", href: "/campo/aplicacao", icon: Sprout },
       { key: "pesagem", label: "Pesagem", href: "/campo/pesagem", icon: Scale },
+      { key: "vacinacao", label: "Vacinação", href: "/campo/vacinacao", icon: Syringe },
     ];
   }
 

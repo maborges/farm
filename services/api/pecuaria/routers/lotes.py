@@ -9,6 +9,8 @@ from pecuaria.schemas.lote_schema import LoteBovinoCreate, LoteBovinoResponse
 from pecuaria.services.lote_service import LoteBovinoService
 from pecuaria.schemas.lote_resumo_sanitario_schema import LoteResumoSanitarioResponse
 from pecuaria.services.lote_resumo_sanitario_service import LoteResumoSanitarioService
+from pecuaria.schemas.lote_indicadores_schema import LoteIndicadoresResponse
+from pecuaria.services.lote_indicadores_service import LoteIndicadoresService
 
 # A Trava impeditiva "P1" - Licença do Módulo Pecuária
 router = APIRouter(
@@ -56,4 +58,15 @@ async def resumir_sanitario(
 ):
     """Resumo sanitário e econômico do lote com foco em vacinação."""
     svc = LoteResumoSanitarioService(db, tenant_id)
+    return await svc.resumir(lote_id)
+
+
+@router.get("/{lote_id}/indicadores", response_model=LoteIndicadoresResponse)
+async def indicadores(
+    lote_id: uuid.UUID,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_session),
+):
+    """Indicadores zootécnicos e econômicos consolidados do lote."""
+    svc = LoteIndicadoresService(db, tenant_id)
     return await svc.resumir(lote_id)

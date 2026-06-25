@@ -2,7 +2,9 @@
 
 import { useRouter } from "next/navigation";
 import { GpsBadge } from "./gps-badge";
+import { TaskDomainBadge } from "./task-domain-badge";
 import { CampoButton, CampoPill, CampoSurface } from "./ui";
+import type { TaskDomain } from "@/lib/task-domain";
 
 interface TaskHeaderProps {
   title: string;
@@ -10,9 +12,10 @@ interface TaskHeaderProps {
   gpsStatus: "DISPONIVEL" | "INDISPONIVEL" | "AGUARDANDO";
   step?: number;
   totalSteps?: number;
+  domain?: TaskDomain;
 }
 
-export function TaskHeader({ title, icon, gpsStatus, step, totalSteps }: TaskHeaderProps) {
+export function TaskHeader({ title, icon, gpsStatus, step, totalSteps, domain }: TaskHeaderProps) {
   const router = useRouter();
 
   return (
@@ -33,6 +36,7 @@ export function TaskHeader({ title, icon, gpsStatus, step, totalSteps }: TaskHea
           </div>
           <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
             <GpsBadge status={gpsStatus} />
+            {domain && <TaskDomainBadge domain={domain} />}
             {step !== undefined && totalSteps !== undefined && (
               <CampoPill className="border-border bg-muted text-muted-foreground">
                 Etapa {step}/{totalSteps}

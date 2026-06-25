@@ -50,11 +50,13 @@ from operacional.routers import estoque_implantacao
 from operacional.routers import oficina
 from operacional.routers import qualidade as router_qualidade
 from operacional.routers import relatorios as operacional_relatorios
+from operacional.routers import dashboard as operacional_dashboard
 from operacional.routers import compras
 from operacional.routers import apontamento as router_apontamento
 from operacional.routers import abastecimento as router_abastecimento
 from operacional.routers import checklist as router_checklist
 from operacional.routers import documento_equipamento as router_doc_equipamento
+from alert_engine.router import router as alert_engine_router
 from core.cadastros.router import router as router_core_cadastros
 from core.cadastros.propriedades.propriedade_router import router as router_propriedades_econ
 from core.cadastros.pessoas.router import router as router_pessoas, router_tipos as router_tipos_relacionamento
@@ -425,6 +427,7 @@ from pecuaria.routers import confinamento as pecuaria_confinamento
 from pecuaria.routers import leite as pecuaria_leite
 from pecuaria.routers import piquetes
 from pecuaria.routers import campo_sync
+from pecuaria.routers import dashboard as pecuaria_dashboard
 from operacional.routers import frota as frota_router
 app.include_router(router_safras, prefix="/api/v1")
 app.include_router(router_cultivos, prefix="/api/v1")
@@ -508,9 +511,11 @@ app.include_router(regulatorias_router, prefix="/api/v1/integracoes/regulatorias
 # app.include_router(contabilidade_exportacoes_router, prefix="/api/v1/contabilidade")
 # app.include_router(contabilidade_lancamentos_router, prefix="/api/v1/contabilidade")
 app.include_router(router_rh, prefix="/api/v1")
+app.include_router(alert_engine_router, prefix="/api/v1")
 app.include_router(router_notificacoes, prefix="/api/v1")
 app.include_router(despesas.router, prefix="/api/v1/financeiro")
 app.include_router(lotes.router, prefix="/api/v1")
+app.include_router(pecuaria_dashboard.router, prefix="/api/v1")
 app.include_router(pecuaria_animais.router, prefix="/api/v1")
 app.include_router(pecuaria_manejos.router, prefix="/api/v1")
 app.include_router(pecuaria_genetica.router, prefix="/api/v1")
@@ -521,6 +526,7 @@ app.include_router(campo_sync.router, prefix="/api/v1/pecuaria/campo", tags=["Pe
 app.include_router(receitas.router, prefix="/api/v1/financeiro")
 app.include_router(planos_conta.router, prefix="/api/v1/financeiro")
 app.include_router(relatorios_fin.router, prefix="/api/v1")
+app.include_router(operacional_dashboard.router, prefix="/api/v1")
 app.include_router(custos_fin.router, prefix="/api/v1")
 app.include_router(integracao_fin.router, prefix="/api/v1/financeiro")
 app.include_router(conciliacao.router, prefix="/api/v1/financeiro")

@@ -82,7 +82,7 @@ export default function PesagemPage() {
 
   return (
     <CampoShell className="gap-4">
-      <TaskHeader title="Pesagem" icon="⚖️" gpsStatus={gps.status} step={stepIndex + 1} totalSteps={3} />
+      <TaskHeader title="Pesagem" icon="⚖️" gpsStatus={gps.status} step={stepIndex + 1} totalSteps={3} domain="PECUARIA" />
 
       {step === "lote" && (
         <div className="flex flex-1 flex-col gap-4">

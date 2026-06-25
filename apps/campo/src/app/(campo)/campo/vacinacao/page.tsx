@@ -93,7 +93,7 @@ export default function VacinacaoPage() {
 
   return (
     <CampoShell className="gap-4">
-      <TaskHeader title="Vacinação" icon="💉" gpsStatus={gps.status} step={stepIndex + 1} totalSteps={3} />
+      <TaskHeader title="Vacinação" icon="💉" gpsStatus={gps.status} step={stepIndex + 1} totalSteps={3} domain="PECUARIA" />
 
       {step === "lote" && (
         <div className="flex flex-1 flex-col gap-4">

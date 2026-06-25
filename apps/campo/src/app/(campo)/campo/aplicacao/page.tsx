@@ -80,7 +80,7 @@ export default function AplicacaoPage() {
 
   return (
     <CampoShell className="gap-4">
-      <TaskHeader title="Aplicação" icon="🌿" gpsStatus={gps.status} step={stepIndex + 1} totalSteps={4} />
+      <TaskHeader title="Aplicação" icon="🌿" gpsStatus={gps.status} step={stepIndex + 1} totalSteps={4} domain="AGRICULTURA" />
 
       {step === "local" && (
         <div className="flex flex-1 flex-col gap-4">

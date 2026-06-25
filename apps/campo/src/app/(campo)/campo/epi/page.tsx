@@ -111,7 +111,7 @@ export default function EntregaEpiPage() {
 
   return (
     <CampoShell className="gap-4">
-      <TaskHeader title="Entrega de EPI" icon="🦺" gpsStatus={gps.status} step={stepIndex + 1} totalSteps={5} />
+      <TaskHeader title="Entrega de EPI" icon="🦺" gpsStatus={gps.status} step={stepIndex + 1} totalSteps={5} domain="AGRICULTURA" />
 
       {step === "colaborador" && (
         <div className="flex flex-1 flex-col gap-4">

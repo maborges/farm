@@ -123,6 +123,13 @@ from ia.models import (
     IAUXThreshold, IAGrowthExperimento, IAGrowthExperimentoVariante, IAGrowthExperimentoEvento,
     IAGrowthCopyCache
 )
+from alert_engine.models import (
+    AlertEvent,
+    AlertIndicator,
+    OperationalAlert,
+    AlertInsight,
+    AlertLifecycleEvent,
+)
 from automacoes.models import AutomacaoConfiguracao, AutomacaoExecucao
 
 # Billing / Solicitacoes

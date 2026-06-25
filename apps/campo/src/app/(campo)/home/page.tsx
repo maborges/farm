@@ -2,11 +2,15 @@
 
 import { useLiveQuery } from "dexie-react-hooks";
 import { useRouter } from "next/navigation";
-import { db } from "@/lib/db";
+import { useMemo, useState } from "react";
+import { type LucideIcon } from "lucide-react";
+import { db, type LocalTask } from "@/lib/db";
 import { useSessionStore } from "@/lib/stores/session-store";
 import { useSyncStore } from "@/lib/stores/sync-store";
 import { CampoButton, CampoPill, CampoSectionTitle, CampoSurface } from "@/components/campo/ui";
+import { TaskDomainBadge } from "@/components/campo/task-domain-badge";
 import { formatPecuariaTaskType } from "@/lib/pecuaria-tasks";
+import { formatTaskDomainLabel, resolveTaskDomain, type TaskDomain } from "@/lib/task-domain";
 
 interface Activity {
   key: string;
@@ -39,12 +43,19 @@ const PRIORIDADE_LABEL: Record<string, string> = {
   BAIXA: "Baixa",
 };
 
+type DomainFilter = "ALL" | TaskDomain;
+
 export default function HomePage() {
   const router = useRouter();
   const { session } = useSessionStore();
   const { pendingCount } = useSyncStore();
+  const [domainFilter, setDomainFilter] = useState<DomainFilter>("ALL");
 
   const hoje = new Date().toISOString().slice(0, 10);
+
+  const talhoes = useLiveQuery(() => db.talhoes.toArray(), []);
+  const lotes = useLiveQuery(() => db.lotes.toArray(), []);
+  const safras = useLiveQuery(() => db.safras.toArray(), []);
 
   const tarefasPendentes = useLiveQuery(
     () =>
@@ -76,26 +87,73 @@ export default function HomePage() {
     []
   );
 
-  const availableActivities = ACTIVITIES.filter(
-    (a) => session?.modules?.includes(a.module)
-  );
+  const availableActivities = ACTIVITIES.filter((a) => session?.modules?.includes(a.module));
 
-  const emExecucaoCount = (tarefasEmExecucao?.length ?? 0);
-  const tarefasAtribuidas = (tarefasPendentes ?? []).filter(
-    (t) => t.dispositivo_id === session?.device_id
-  );
+  const talhoesById = useMemo(() => new Map((talhoes ?? []).map((item) => [item.id, item])), [talhoes]);
+  const lotesById = useMemo(() => new Map((lotes ?? []).map((item) => [item.id, item])), [lotes]);
+  const safrasById = useMemo(() => new Map((safras ?? []).map((item) => [item.id, item])), [safras]);
+
+  const emExecucaoCount = tarefasEmExecucao?.length ?? 0;
+  const tarefasAtribuidas = (tarefasPendentes ?? []).filter((t) => t.dispositivo_id === session?.device_id);
   const tarefasHoje = (tarefasPendentes ?? []).filter(
     (t) => t.dispositivo_id !== session?.device_id && t.data_programada === hoje
   );
   const tarefasAtrasadas = (tarefasPendentes ?? []).filter(
-    (t) =>
-      t.dispositivo_id !== session?.device_id &&
-      !!t.data_programada &&
-      t.data_programada < hoje
+    (t) => t.dispositivo_id !== session?.device_id && !!t.data_programada && t.data_programada < hoje
   );
   const atribuidasCount = tarefasAtribuidas.length;
   const hojeCount = tarefasHoje.length;
   const atrasadasCount = tarefasAtrasadas.length;
+
+  const pendingByDomain = useMemo(() => {
+    const counts: Record<TaskDomain, number> = { AGRICULTURA: 0, PECUARIA: 0 };
+    for (const task of tarefasPendentes ?? []) {
+      counts[resolveTaskDomain(task)] += 1;
+    }
+    return counts;
+  }, [tarefasPendentes]);
+
+  const operationalTasks = useMemo(() => {
+    const merged = new Map<string, LocalTask>();
+    for (const task of [...(tarefasPendentes ?? []), ...(tarefasEmExecucao ?? [])]) {
+      merged.set(task.id, task);
+    }
+    return [...merged.values()].sort(sortTaskCard);
+  }, [tarefasPendentes, tarefasEmExecucao]);
+
+  const filteredOperationalTasks = useMemo(
+    () =>
+      domainFilter === "ALL"
+        ? operationalTasks
+        : operationalTasks.filter((task) => resolveTaskDomain(task) === domainFilter),
+    [domainFilter, operationalTasks]
+  );
+
+  const operationalGroups = useMemo(() => {
+    const groups: Array<{ domain: TaskDomain; tasks: LocalTask[] }> = [];
+    for (const domain of ["AGRICULTURA", "PECUARIA"] as TaskDomain[]) {
+      const tasks = filteredOperationalTasks.filter((task) => resolveTaskDomain(task) === domain);
+      if (tasks.length > 0) {
+        groups.push({ domain, tasks });
+      }
+    }
+    return groups;
+  }, [filteredOperationalTasks]);
+
+  const historyTasks = useMemo(() => {
+    const items = (recentTasks ?? []).filter((task) =>
+      domainFilter === "ALL" ? true : resolveTaskDomain(task) === domainFilter
+    );
+    return items.sort(sortTaskCard);
+  }, [domainFilter, recentTasks]);
+
+  const summaryCards = useMemo(() => {
+    const items = [
+      { domain: "AGRICULTURA" as TaskDomain, count: pendingByDomain.AGRICULTURA },
+      { domain: "PECUARIA" as TaskDomain, count: pendingByDomain.PECUARIA },
+    ];
+    return items.filter((item) => item.count > 0 || domainFilter === item.domain);
+  }, [domainFilter, pendingByDomain]);
 
   return (
     <div className="flex flex-col gap-4 pb-28">
@@ -103,19 +161,17 @@ export default function HomePage() {
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <div className="flex items-center justify-between gap-2">
-              <h1 className="text-xl font-semibold tracking-tight">Taréfas</h1>
-              <CampoPill className="ml-auto shrink-0">
-                {availableActivities.length} talhões ativos
-              </CampoPill>
+              <h1 className="text-xl font-semibold tracking-tight">Tarefas</h1>
+              <CampoPill className="ml-auto shrink-0">{availableActivities.length} atalhos ativos</CampoPill>
             </div>
-            <div>
-              <p className="mt-0.5 text-xs text-muted-foreground">Tudo pronto para registrar o dia no campo.</p>
-            </div>
+            <p className="mt-0.5 text-xs text-muted-foreground">Tudo pronto para registrar o dia no campo.</p>
           </div>
           {pendingCount > 0 && (
             <CampoButton variant="secondary" size="sm" onClick={() => router.push("/sync")}>
               Sync
-              <span className="ml-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] text-amber-800 dark:bg-amber-950/30 dark:text-amber-200">{pendingCount}</span>
+              <span className="ml-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] text-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
+                {pendingCount}
+              </span>
             </CampoButton>
           )}
         </div>
@@ -138,107 +194,107 @@ export default function HomePage() {
               {pendingCount} itens aguardando sync
             </CampoPill>
           )}
+          <CampoPill className="border-border bg-muted text-muted-foreground">
+            Filtro atual: {domainFilter === "ALL" ? "Todas" : formatTaskDomainLabel(domainFilter)}
+          </CampoPill>
         </div>
       </CampoSurface>
 
-      {/* Tarefas atribuídas ao dispositivo */}
-      {atribuidasCount > 0 && (
-        <section className="flex flex-col gap-2">
-          <CampoSectionTitle
-            eyebrow="Dispositivo"
-            title="Atribuídas a este aparelho"
-            description="Tarefas já liberadas para este dispositivo, inclusive as futuras."
-            action={<CampoPill className="border-violet-200 bg-violet-50 text-violet-800 dark:border-violet-900/60 dark:bg-violet-950/30 dark:text-violet-200">{atribuidasCount}</CampoPill>}
-          />
-          <div className="flex flex-col gap-2">
-            {tarefasAtribuidas.map((t) => (
-              <TarefaCard
-                key={t.id}
-                task={t}
-                activeFazendaId={session?.active_fazenda_id}
-                onClick={() => router.push(`/campo/tarefa/${t.id}`)}
-              />
-            ))}
-          </div>
-        </section>
-      )}
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        {summaryCards.map((item) => (
+          <CampoSurface
+            key={item.domain}
+            className={`p-4 ${
+              item.domain === "PECUARIA"
+                ? "border-sky-200 bg-sky-50/60 dark:border-sky-900/60 dark:bg-sky-950/20"
+                : "border-green-200 bg-green-50/60 dark:border-green-900/60 dark:bg-green-950/20"
+            }`}
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <TaskDomainBadge domain={item.domain} />
+                <p className="mt-2 text-lg font-semibold text-foreground">
+                  {item.count} tarefa{item.count === 1 ? "" : "s"} pendente{item.count === 1 ? "" : "s"}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {item.domain === "AGRICULTURA"
+                    ? "Operações agrícolas em andamento"
+                    : "Manejos pecuários em andamento"}
+                </p>
+              </div>
+              <div className="rounded-sm border border-border bg-card px-3 py-2 text-right">
+                <p className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Status</p>
+                <p className="mt-1 text-sm font-semibold text-foreground">
+                  {item.domain === "AGRICULTURA" ? "Agrícola" : "Pecuário"}
+                </p>
+              </div>
+            </div>
+          </CampoSurface>
+        ))}
+      </div>
 
-      {/* Em execução — destaque máximo */}
-      {emExecucaoCount > 0 && (
-        <section className="flex flex-col gap-2">
-          <CampoSectionTitle
-            eyebrow="Prioridade"
-            title="Em execução"
-            description="Tarefas que estão sendo conduzidas neste momento."
-            action={<CampoPill className="border-sky-200 bg-sky-50 text-sky-800 dark:border-sky-900/60 dark:bg-sky-950/30 dark:text-sky-200">{emExecucaoCount}</CampoPill>}
-          />
-          <div className="flex flex-col gap-2">
-            {tarefasEmExecucao?.map((t) => (
-              <TarefaCard
-                key={t.id}
-                task={t}
-                activeFazendaId={session?.active_fazenda_id}
-                onClick={() => router.push(`/campo/tarefa/${t.id}`)}
-                highlight
-              />
-            ))}
-          </div>
-        </section>
-      )}
+      <div className="flex flex-wrap gap-2">
+        {(["ALL", "AGRICULTURA", "PECUARIA"] as DomainFilter[]).map((filter) => {
+          const active = domainFilter === filter;
+          const label = filter === "ALL" ? "Todas" : filter === "AGRICULTURA" ? "Agricultura" : "Pecuária";
+          return (
+            <CampoButton
+              key={filter}
+              type="button"
+              variant={active ? "primary" : "secondary"}
+              size="sm"
+              onClick={() => setDomainFilter(filter)}
+            >
+              {label}
+            </CampoButton>
+          );
+        })}
+      </div>
 
-      {/* Tarefas atrasadas */}
-      {atrasadasCount > 0 && (
-        <section className="flex flex-col gap-2">
-          <CampoSectionTitle
-            eyebrow="Atenção"
-            title="Atrasadas"
-            description="Pendências que já passaram da data programada."
-            action={<CampoPill className="border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-200">{atrasadasCount}</CampoPill>}
-          />
-          <div className="flex flex-col gap-2">
-            {tarefasAtrasadas?.map((t) => (
-              <TarefaCard
-                key={t.id}
-                task={t}
-                activeFazendaId={session?.active_fazenda_id}
-                onClick={() => router.push(`/campo/tarefa/${t.id}`)}
+      {operationalGroups.length > 0 ? (
+        <section className="flex flex-col gap-4">
+          {operationalGroups.map(({ domain, tasks }) => (
+            <div key={domain} className="flex flex-col gap-2">
+              <CampoSectionTitle
+                eyebrow={domain}
+                title={formatTaskDomainLabel(domain)}
+                description={
+                  domain === "AGRICULTURA"
+                    ? "Plantio, aplicação e colheita aparecem agrupados no mesmo contexto."
+                    : "Pesagem, vacinação e demais manejos pecuários ficam concentrados aqui."
+                }
+                action={
+                  <CampoPill className="border-border bg-muted text-muted-foreground">
+                    {tasks.length} item{tasks.length === 1 ? "" : "s"}
+                  </CampoPill>
+                }
               />
-            ))}
-          </div>
+              <div className="flex flex-col gap-2">
+                {tasks.map((task) => (
+                  <TarefaCard
+                    key={task.id}
+                    task={task}
+                    domain={resolveTaskDomain(task)}
+                    activeFazendaId={session?.active_fazenda_id}
+                    talhoesById={talhoesById}
+                    lotesById={lotesById}
+                    safrasById={safrasById}
+                    onClick={() => router.push(`/campo/tarefa/${task.id}`)}
+                    highlight={task.status_execucao === "EM_EXECUCAO"}
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
         </section>
-      )}
-
-      {/* Tarefas de hoje */}
-      {hojeCount > 0 && (
-        <section className="flex flex-col gap-2">
-          <CampoSectionTitle
-            eyebrow="Agenda"
-            title="Para hoje"
-            description="Tarefas programadas para executar ainda hoje."
-            action={<CampoPill className="border-green-200 bg-green-50 text-green-800 dark:border-green-900/60 dark:bg-green-950/30 dark:text-green-200">{hojeCount}</CampoPill>}
-          />
-          <div className="flex flex-col gap-2">
-            {tarefasHoje?.map((t) => (
-              <TarefaCard
-                key={t.id}
-                task={t}
-                activeFazendaId={session?.active_fazenda_id}
-                onClick={() => router.push(`/campo/tarefa/${t.id}`)}
-              />
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* Sem tarefas programadas */}
-      {hojeCount === 0 && atrasadasCount === 0 && emExecucaoCount === 0 && atribuidasCount === 0 && (
+      ) : (
         <CampoSurface className="p-4 text-center text-sm text-muted-foreground">
           <div className="mx-auto flex size-12 items-center justify-center rounded-sm border border-border bg-muted text-xl">
             🌤️
           </div>
-          <p className="mt-3 text-sm font-medium text-foreground">Nenhuma tarefa programada para hoje.</p>
+          <p className="mt-3 text-sm font-medium text-foreground">Nenhuma tarefa encontrada para este filtro.</p>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">
-            Você pode iniciar uma nova atividade manual ou revisar a sincronização do dispositivo.
+            Você pode alternar o filtro acima ou revisar a sincronização do dispositivo.
           </p>
           <div className="mt-4 flex flex-col gap-2 sm:flex-row">
             <CampoButton variant="secondary" className="flex-1" onClick={() => router.push("/sync")}>
@@ -251,7 +307,30 @@ export default function HomePage() {
         </CampoSurface>
       )}
 
-      {/* Nova Atividade Manual */}
+      {historyTasks.length > 0 && (
+        <section className="flex flex-col gap-2">
+          <CampoSectionTitle
+            eyebrow="Histórico"
+            title="Registros offline recentes"
+            description="Itens salvos localmente aguardando a próxima sincronização."
+          />
+          <div className="flex flex-col gap-2">
+            {historyTasks.map((task) => (
+              <TarefaCard
+                key={task.id}
+                task={task}
+                domain={resolveTaskDomain(task)}
+                activeFazendaId={session?.active_fazenda_id}
+                talhoesById={talhoesById}
+                lotesById={lotesById}
+                safrasById={safrasById}
+                onClick={() => router.push(`/campo/tarefa/${task.id}`)}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+
       <section id="nova-atividade" className="flex scroll-mt-24 flex-col gap-2.5">
         <CampoSectionTitle
           eyebrow="Entrada rápida"
@@ -271,42 +350,6 @@ export default function HomePage() {
           ))}
         </div>
       </section>
-
-      {/* Registros offline recentes */}
-      {recentTasks && recentTasks.length > 0 && (
-        <section className="flex flex-col gap-2">
-          <CampoSectionTitle
-            eyebrow="Histórico"
-            title="Registros offline recentes"
-            description="Itens salvos localmente aguardando a próxima sincronização."
-          />
-          <div className="flex flex-col gap-2">
-            {recentTasks.map((task) => (
-              <div
-                key={task.id}
-                className="rounded-sm border border-border bg-card px-3.5 py-3 shadow-sm"
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-medium text-foreground">{formatTaskType(task.type)}</p>
-                    <p className="text-xs text-muted-foreground">{formatDate(task.created_at)}</p>
-                  </div>
-                  <span
-                    className={`text-xs rounded-full px-2.5 py-1 font-medium ${task.synced
-                        ? "bg-green-50 text-green-800 dark:bg-green-950/30 dark:text-green-200"
-                        : task.sync_conflict
-                          ? "bg-rose-50 text-rose-800 dark:bg-rose-950/30 dark:text-rose-200"
-                          : "bg-amber-50 text-amber-800 dark:bg-amber-950/30 dark:text-amber-200"
-                      }`}
-                  >
-                    {task.synced ? "✓ Sync" : task.sync_conflict ? "Conflito" : "Pendente"}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
     </div>
   );
 }
@@ -314,31 +357,60 @@ export default function HomePage() {
 function TarefaCard({
   task,
   activeFazendaId,
+  domain,
+  talhoesById,
+  lotesById,
+  safrasById,
   onClick,
   highlight,
 }: {
-  task: { id: string; titulo?: string; type: string; data_programada?: string; prioridade: string; fazenda_id?: string; talhao_id?: string; lote_id?: string; operador_id?: string };
+  task: LocalTask;
   activeFazendaId?: string;
+  domain: TaskDomain;
+  talhoesById: Map<string, { nome: string }>;
+  lotesById: Map<string, { identificacao: string }>;
+  safrasById: Map<string, { ano_safra: string }>;
   onClick: () => void;
   highlight?: boolean;
 }) {
   const hasContextMismatch = !!activeFazendaId && !!task.fazenda_id && task.fazenda_id !== activeFazendaId;
+  const contextLines = getTaskContextLines(task, domain, talhoesById, lotesById, safrasById);
 
   return (
     <button
       onClick={onClick}
       className={`flex w-full items-start justify-between gap-3 rounded-sm border p-3.5 text-left shadow-sm transition-transform active:scale-[0.99] ${highlight
           ? "border-sky-200 bg-sky-50 dark:border-sky-900/60 dark:bg-sky-950/30"
-          : "border-border bg-card"
+        : "border-border bg-card"
         }`}
     >
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <p className="truncate text-sm font-semibold text-foreground">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <TaskDomainBadge domain={domain} />
+          <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] ${getTaskStatusTone(task)}`}>
+            {getTaskStatusLabel(task)}
+          </span>
+        </div>
+        <p className="mt-1 truncate text-sm font-semibold text-foreground">
           {task.titulo ?? formatTaskType(task.type)}
         </p>
-        {task.data_programada && (
+        {contextLines.length > 0 && (
+          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
+            {contextLines.map((line) => (
+              <span key={line} className="text-[11px] text-muted-foreground">
+                {line}
+              </span>
+            ))}
+          </div>
+        )}
+        {task.data_programada || task.created_at ? (
+          <p className="mt-1 text-xs text-muted-foreground">
+            {formatDate(task.data_programada ? `${task.data_programada}T00:00:00` : task.created_at)}
+          </p>
+        ) : null}
+        {task.status_execucao === "CONCLUIDA" && task.concluida_em && (
           <p className="text-xs text-muted-foreground">
-            {new Date(task.data_programada + "T00:00:00").toLocaleDateString("pt-BR")}
+            Concluída em {new Date(task.concluida_em).toLocaleString("pt-BR")}
           </p>
         )}
         {hasContextMismatch && (
@@ -370,6 +442,92 @@ function formatTaskType(type: string): string {
     MONITORAMENTO_PRAGA: "Monitoramento de Praga",
   };
   return map[type] ?? formatPecuariaTaskType(type);
+}
+
+function sortTaskCard(a: LocalTask, b: LocalTask): number {
+  const statusRank: Record<LocalTask["status_execucao"], number> = {
+    EM_EXECUCAO: 0,
+    PENDENTE: 1,
+    CONCLUIDA: 2,
+    CANCELADA: 3,
+  };
+  const priorityRank: Record<string, number> = {
+    URGENTE: 0,
+    ALTA: 1,
+    NORMAL: 2,
+    BAIXA: 3,
+  };
+  const statusDelta = statusRank[a.status_execucao] - statusRank[b.status_execucao];
+  if (statusDelta !== 0) return statusDelta;
+  const priorityDelta = (priorityRank[a.prioridade] ?? 99) - (priorityRank[b.prioridade] ?? 99);
+  if (priorityDelta !== 0) return priorityDelta;
+  return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+}
+
+function getTaskStatusLabel(task: LocalTask): string {
+  if (task.status_execucao === "EM_EXECUCAO") return "Em execução";
+  if (task.status_execucao === "CONCLUIDA") return "Concluída";
+  if (task.status_execucao === "CANCELADA") return "Cancelada";
+  return "Pendente";
+}
+
+function getTaskStatusTone(task: LocalTask): string {
+  if (task.status_execucao === "EM_EXECUCAO") {
+    return "border-sky-200 bg-sky-50 text-sky-800 dark:border-sky-900/60 dark:bg-sky-950/30 dark:text-sky-200";
+  }
+  if (task.status_execucao === "CONCLUIDA") {
+    return "border-green-200 bg-green-50 text-green-800 dark:border-green-900/60 dark:bg-green-950/30 dark:text-green-200";
+  }
+  if (task.status_execucao === "CANCELADA") {
+    return "border-border bg-muted text-muted-foreground";
+  }
+  return "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200";
+}
+
+function getTaskContextLines(
+  task: LocalTask,
+  domain: TaskDomain,
+  talhoesById: Map<string, { nome: string }>,
+  lotesById: Map<string, { identificacao: string }>,
+  safrasById: Map<string, { ano_safra: string }>
+): string[] {
+  const dados = task.dados ?? {};
+
+  if (domain === "AGRICULTURA") {
+    const lines: string[] = [];
+    const talhao = task.talhao_id ? talhoesById.get(task.talhao_id) : undefined;
+    const cultura =
+      typeof dados.cultura_nome === "string"
+        ? dados.cultura_nome
+        : typeof dados.cultura === "string"
+          ? dados.cultura
+          : undefined;
+    const safraId = typeof dados.safra_id === "string" ? dados.safra_id : undefined;
+    const safra = safraId ? safrasById.get(safraId) : undefined;
+
+    if (talhao?.nome) lines.push(`Talhão: ${talhao.nome}`);
+    if (cultura) lines.push(`Cultura: ${cultura}`);
+    if (safra?.ano_safra) lines.push(`Safra: ${safra.ano_safra}`);
+    return lines;
+  }
+
+  const lines: string[] = [];
+  const lote = task.lote_id ? lotesById.get(task.lote_id) : undefined;
+  const animaisIds = Array.isArray(dados.animais_ids)
+    ? dados.animais_ids.filter((item): item is string => typeof item === "string" && item.length > 0)
+    : [];
+  const quantidadeAnimais =
+    animaisIds.length > 0
+      ? animaisIds.length
+      : typeof dados.quantidade_animais === "number"
+        ? dados.quantidade_animais
+        : undefined;
+  const areaId = typeof dados.area_id === "string" ? dados.area_id : undefined;
+
+  if (lote?.identificacao) lines.push(`Lote: ${lote.identificacao}`);
+  if (areaId) lines.push(`Piquete: ${areaId.slice(0, 8)}…`);
+  if (quantidadeAnimais !== undefined) lines.push(`Animais: ${quantidadeAnimais}`);
+  return lines;
 }
 
 function formatDate(iso: string): string {

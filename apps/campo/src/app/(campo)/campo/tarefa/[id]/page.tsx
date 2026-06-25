@@ -9,12 +9,14 @@ import { useCamera } from "@/hooks/useCamera";
 import { executarTarefa } from "@/lib/task-factory";
 import { mapTaskTypeToCadernoTipo } from "@/lib/caderno-offline";
 import { isPecuariaTaskType, formatPecuariaTaskType } from "@/lib/pecuaria-tasks";
+import { TaskDomainBadge } from "@/components/campo/task-domain-badge";
 import { GpsWarning } from "@/components/campo/gps-warning";
 import { CameraCapture } from "@/components/campo/camera-capture";
 import { PecuariaTaskExecution } from "@/components/campo/pecuaria-task-execution";
 import { useSessionStore } from "@/lib/stores/session-store";
 import { CampoShell, CampoSurface, CampoButton } from "@/components/campo/ui";
 import { CampoPill } from "@/components/campo/ui";
+import { resolveTaskDomain } from "@/lib/task-domain";
 
 const PRIORIDADE_LABEL: Record<string, string> = {
   URGENTE: "🔴 Urgente",
@@ -47,6 +49,8 @@ export default function TarefaDetailPage() {
     [task?.talhao_id]
   );
 
+  const safras = useLiveQuery(() => db.safras.toArray(), []);
+
   const lote = useLiveQuery(
     async () => task?.lote_id ? db.lotes.get(task.lote_id) : undefined,
     [task?.lote_id]
@@ -78,6 +82,24 @@ export default function TarefaDetailPage() {
     !task.operador_id || task.operador_id === session?.user_id;
   const cadernoTipo = mapTaskTypeToCadernoTipo(task.type);
   const pecuariaTask = isPecuariaTaskType(task.type);
+  const taskDomain = resolveTaskDomain(task);
+  const taskDados = task.dados ?? {};
+  const safraId = typeof taskDados.safra_id === "string" ? taskDados.safra_id : undefined;
+  const safra = safras?.find((item) => item.id === safraId);
+  const animaisIds = Array.isArray(taskDados.animais_ids)
+    ? taskDados.animais_ids.filter((item): item is string => typeof item === "string" && item.length > 0)
+    : [];
+  const pecuariaQuantidade = animaisIds.length > 0
+    ? animaisIds.length
+    : typeof taskDados.quantidade_animais === "number"
+      ? taskDados.quantidade_animais
+      : undefined;
+  const pecuariaAreaId = typeof taskDados.area_id === "string" ? taskDados.area_id : undefined;
+  const cultura = typeof taskDados.cultura_nome === "string"
+    ? taskDados.cultura_nome
+    : typeof taskDados.cultura === "string"
+      ? taskDados.cultura
+      : undefined;
 
   const canStart = task.status_execucao === "PENDENTE" && isMinhasTarefa;
   const canFinish = task.status_execucao === "EM_EXECUCAO" && isMinhasTarefa;
@@ -169,9 +191,28 @@ export default function TarefaDetailPage() {
                   Esta tarefa já integra o histórico operacional.
                 </CampoPill>
               )}
+              <TaskDomainBadge domain={taskDomain} />
             </div>
           </div>
         </div>
+      </CampoSurface>
+
+      {/* Contexto */}
+      <CampoSurface className="flex flex-col gap-1 p-4 text-sm">
+        <p className="mb-1 text-[11px] uppercase tracking-[0.18em] text-primary">Contexto operacional</p>
+        {taskDomain === "AGRICULTURA" ? (
+          <>
+            <InfoRow label="Talhão" value={talhao?.nome ?? (task.talhao_id ? `${task.talhao_id.slice(0, 8)}…` : "—")} />
+            <InfoRow label="Cultura" value={cultura ?? "—"} />
+            <InfoRow label="Safra" value={safra?.ano_safra ?? (safraId ? `${safraId.slice(0, 8)}…` : "—")} />
+          </>
+        ) : (
+          <>
+            <InfoRow label="Lote" value={lote?.identificacao ?? (task.lote_id ? `${task.lote_id.slice(0, 8)}…` : "—")} />
+            <InfoRow label="Piquete" value={pecuariaAreaId ? `${pecuariaAreaId.slice(0, 8)}…` : "—"} />
+            <InfoRow label="Animais" value={pecuariaQuantidade !== undefined ? String(pecuariaQuantidade) : "—"} />
+          </>
+        )}
       </CampoSurface>
 
       {/* Detalhes */}
