@@ -58,6 +58,16 @@ class AlertGeneratorRegistry:
             if self._is_scheduled(generator_cls)
         )
 
+    def find_by_event_type(self, event_type: str) -> tuple[type[BaseAlertGenerator], ...]:
+        """Return generators mapped to a specific domain event."""
+
+        normalized = self._normalize_event_type(event_type)
+        return tuple(
+            generator_cls
+            for generator_cls in self._generators.values()
+            if normalized in self._event_types(generator_cls)
+        )
+
     @staticmethod
     def _resolve_name(generator_cls: type[BaseAlertGenerator]) -> str:
         generator_name = getattr(generator_cls, "generator_name", None)
@@ -77,6 +87,15 @@ class AlertGeneratorRegistry:
     def _is_scheduled(generator_cls: type[BaseAlertGenerator]) -> bool:
         modes = getattr(generator_cls, "execution_modes", ())
         return any(mode in {"scheduled", "hybrid"} for mode in modes)
+
+    @staticmethod
+    def _normalize_event_type(event_type: str) -> str:
+        return event_type.strip().lower()
+
+    @staticmethod
+    def _event_types(generator_cls: type[BaseAlertGenerator]) -> tuple[str, ...]:
+        values = getattr(generator_cls, "event_types", ())
+        return tuple(str(value).strip().lower() for value in values if str(value).strip())
 
 
 alert_generator_registry = AlertGeneratorRegistry()

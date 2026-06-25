@@ -1,5 +1,12 @@
 """Alert Engine canonic models, schemas, and generators."""
 
+from .dispatcher import (
+    AlertDispatcherResult,
+    AlertDispatcherService,
+    AlertDispatchExecution,
+    AlertDomainEvent,
+    dispatch_alert_event,
+)
 from .generators import (
     AlertGeneratorContext,
     AlertGeneratorRegistry,
@@ -60,6 +67,9 @@ __all__ = [
     "AlertGeneratorRegistry",
     "AlertGeneratorResult",
     "AlertGeneratorRunner",
+    "AlertDispatchExecution",
+    "AlertDispatcherResult",
+    "AlertDispatcherService",
     "AlertSchedulerExecution",
     "AlertSchedulerResult",
     "AlertSchedulerService",
@@ -69,6 +79,7 @@ __all__ = [
     "AlertInsight",
     "AlertInsightCreate",
     "AlertInsightResponse",
+    "AlertDomainEvent",
     "AlertLifecycleEvent",
     "AlertLifecycleEventCreate",
     "AlertLifecycleEventResponse",
@@ -94,6 +105,7 @@ __all__ = [
     "Severity",
     "TriggerType",
     "alert_generator_registry",
+    "dispatch_alert_event",
     "register_alert_generator",
     "run_scheduled_alerts",
 ]

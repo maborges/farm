@@ -37,6 +37,10 @@ class CampoAlertGenerator(BaseAlertGenerator):
     generator_name = "campo"
     domain = Domain.FIELD
     category = Category.OPERACIONAL
+    event_types = (
+        "campo.tarefa.invalidada",
+        "campo.sync.falha",
+    )
     ACTION_URL = "/dashboard/operacional/campo/tarefas"
 
     async def run(self, context: AlertGeneratorContext) -> AlertGeneratorResult:

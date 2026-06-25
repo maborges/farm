@@ -19,6 +19,7 @@ class BaseAlertGenerator(ABC):
     domain: ClassVar[Domain | None] = None
     category: ClassVar[Category | None] = None
     execution_modes: ClassVar[tuple[str, ...]] = ("scheduled", "hybrid")
+    event_types: ClassVar[tuple[str, ...]] = ()
 
     def __init__(self, session: AsyncSession, tenant_id: UUID | None = None) -> None:
         self.session = session

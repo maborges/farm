@@ -40,6 +40,10 @@ class PecuariaAlertGenerator(BaseAlertGenerator):
     generator_name = "pecuaria"
     domain = Domain.LIVESTOCK
     category = Category.PRODUCAO
+    event_types = (
+        "pecuaria.vacinacao.registrada",
+        "pecuaria.planejamento.sanitario.atualizado",
+    )
     ACTION_URL_LOTE = "/dashboard/pecuaria/lotes"
     ACTION_URL_MANEJO = "/dashboard/pecuaria/manejo"
 
