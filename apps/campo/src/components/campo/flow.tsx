@@ -1,5 +1,7 @@
 "use client";
 
+import { type LucideIcon } from "lucide-react";
+import { type ReactNode } from "react";
 import { CampoButton, CampoSurface } from "./ui";
 
 export function CampoStepNav({
@@ -11,9 +13,9 @@ export function CampoStepNav({
 }: {
   onBack: () => void;
   onNext: () => void;
-  nextLabel: string;
+  nextLabel: ReactNode;
   nextDisabled?: boolean;
-  backLabel?: string;
+  backLabel?: ReactNode;
 }) {
   return (
     <div className="sticky bottom-0 mt-auto grid grid-cols-[1fr_1.35fr] gap-2.5 rounded-sm border border-border bg-card p-2.5 shadow-md">
@@ -28,7 +30,7 @@ export function CampoStepNav({
 }
 
 export function CampoSuccessScreen({
-  icon,
+  icon: Icon,
   title,
   description,
   primaryLabel,
@@ -36,7 +38,7 @@ export function CampoSuccessScreen({
   secondaryLabel = "Voltar ao Início",
   onSecondary,
 }: {
-  icon: string;
+  icon: LucideIcon;
   title: string;
   description: string;
   primaryLabel: string;
@@ -47,8 +49,8 @@ export function CampoSuccessScreen({
   return (
     <div className="flex min-h-[calc(100dvh-2rem)] items-center justify-center p-4">
       <CampoSurface className="w-full max-w-[400px] p-5 text-center">
-        <div className="mx-auto flex size-16 items-center justify-center rounded-sm border border-primary/20 bg-accent text-3xl text-accent-foreground shadow-sm">
-          {icon}
+        <div className="mx-auto flex size-16 items-center justify-center rounded-sm border border-primary/20 bg-primary/10 text-primary shadow-sm">
+          <Icon className="size-8" strokeWidth={1.5} />
         </div>
         <h2 className="mt-4 text-xl font-semibold">{title}</h2>
         <p className="mt-2 text-sm leading-5 text-muted-foreground">{description}</p>

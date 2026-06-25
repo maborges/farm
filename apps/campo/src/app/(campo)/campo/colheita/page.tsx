@@ -13,6 +13,7 @@ import { FieldSelect } from "@/components/campo/field-select";
 import { NumPad } from "@/components/campo/num-pad";
 import { CameraCapture } from "@/components/campo/camera-capture";
 import { GpsWarning } from "@/components/campo/gps-warning";
+import { Wheat, Check, CheckCircle2, ArrowRight } from "lucide-react";
 import { CampoButton, CampoShell, CampoSurface } from "@/components/campo/ui";
 import { CampoStepNav, CampoSuccessScreen } from "@/components/campo/flow";
 
@@ -68,8 +69,8 @@ export default function ColheitaPage() {
   if (done) {
     return (
       <CampoSuccessScreen
-        icon="✅"
-        title="Colheita registrada"
+        icon={CheckCircle2}
+        title="Colheita Registrada"
         description="Salvo localmente e pronto para sincronizar quando houver conexão."
         primaryLabel="Nova colheita"
         onPrimary={() => { setDone(false); setStep("local"); setTalhaoId(""); setQuantidade(""); }}
@@ -80,7 +81,7 @@ export default function ColheitaPage() {
 
   return (
     <CampoShell className="gap-4">
-      <TaskHeader title="Colheita" icon="🌾" gpsStatus={gps.status} step={stepIndex + 1} totalSteps={3} domain="AGRICULTURA" />
+      <TaskHeader title="Colheita" icon={Wheat} gpsStatus={gps.status} step={stepIndex + 1} totalSteps={3} domain="AGRICULTURA" />
 
       {step === "local" && (
         <div className="flex flex-1 flex-col gap-4">
@@ -91,7 +92,7 @@ export default function ColheitaPage() {
             onChange={setTalhaoId}
             placeholder={fazendaId ? "Selecione o talhão" : "Selecione a unidade produtiva na barra superior"}
           />
-          <CampoStepNav onBack={() => router.back()} onNext={() => setStep("quantidade")} nextLabel="Próximo →" nextDisabled={!talhaoId} />
+          <CampoStepNav onBack={() => router.back()} onNext={() => setStep("quantidade")} nextLabel={<>Próximo <ArrowRight className="size-4 ml-1 inline" /></>} nextDisabled={!talhaoId} />
         </div>
       )}
 
@@ -129,7 +130,7 @@ export default function ColheitaPage() {
             />
           </CampoSurface>
 
-          <CampoStepNav onBack={() => setStep("local")} onNext={() => setStep("confirmar")} nextLabel="Próximo →" nextDisabled={!quantidade || quantidade === "0"} />
+          <CampoStepNav onBack={() => setStep("local")} onNext={() => setStep("confirmar")} nextLabel={<>Próximo <ArrowRight className="size-4 ml-1 inline" /></>} nextDisabled={!quantidade || quantidade === "0"} />
         </div>
       )}
 
@@ -155,7 +156,7 @@ export default function ColheitaPage() {
           <CameraCapture fotos={cam.fotos} inputRef={cam.inputRef} canAddMore={cam.canAddMore} onOpen={cam.openCamera} onFileChange={cam.handleFileChange} onRemove={cam.removePhoto} />
 
           <CampoButton onClick={handleSalvar} disabled={saving} className="mt-auto w-full" size="md" variant="primary">
-            {saving ? "Salvando..." : "✅ Salvar Colheita"}
+            {saving ? "Salvando..." : <><Check className="size-4 shrink-0" /> Salvar Colheita</>}
           </CampoButton>
         </div>
       )}

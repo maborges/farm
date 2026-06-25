@@ -12,6 +12,7 @@ import { FieldSelect } from "@/components/campo/field-select";
 import { NumPad } from "@/components/campo/num-pad";
 import { SignaturePad } from "@/components/campo/signature-pad";
 import { GpsWarning } from "@/components/campo/gps-warning";
+import { ShieldHalf, Check, ArrowRight } from "lucide-react";
 import { CampoButton, CampoShell, CampoSurface } from "@/components/campo/ui";
 import { CampoStepNav, CampoSuccessScreen } from "@/components/campo/flow";
 
@@ -91,7 +92,7 @@ export default function EntregaEpiPage() {
   if (done) {
     return (
       <CampoSuccessScreen
-        icon="🦺"
+        icon={ShieldHalf}
         title="Entrega de EPI Registrada"
         description="Salvo localmente com assinatura. Será sincronizado automaticamente ao restabelecer a conexão."
         primaryLabel="Nova Entrega"
@@ -111,7 +112,7 @@ export default function EntregaEpiPage() {
 
   return (
     <CampoShell className="gap-4">
-      <TaskHeader title="Entrega de EPI" icon="🦺" gpsStatus={gps.status} step={stepIndex + 1} totalSteps={5} domain="AGRICULTURA" />
+      <TaskHeader title="Entrega de EPI" icon={ShieldHalf} gpsStatus={gps.status} step={stepIndex + 1} totalSteps={5} domain="AGRICULTURA" />
 
       {step === "colaborador" && (
         <div className="flex flex-1 flex-col gap-4">
@@ -129,7 +130,7 @@ export default function EntregaEpiPage() {
           <CampoStepNav
             onBack={() => router.back()}
             onNext={() => setStep("equipamento")}
-            nextLabel="Próximo →"
+            nextLabel={<>Próximo <ArrowRight className="size-4 ml-1 inline" /></>}
             nextDisabled={!colaboradorId}
           />
         </div>
@@ -151,7 +152,7 @@ export default function EntregaEpiPage() {
           <CampoStepNav
             onBack={() => setStep("colaborador")}
             onNext={() => setStep("quantidade")}
-            nextLabel="Próximo →"
+            nextLabel={<>Próximo <ArrowRight className="size-4 ml-1 inline" /></>}
             nextDisabled={!insumoId}
           />
         </div>
@@ -168,7 +169,7 @@ export default function EntregaEpiPage() {
           <CampoStepNav
             onBack={() => setStep("equipamento")}
             onNext={() => setStep("assinatura")}
-            nextLabel="Próximo →"
+            nextLabel={<>Próximo <ArrowRight className="size-4 ml-1 inline" /></>}
             nextDisabled={!quantidade || parseFloat(quantidade) <= 0}
           />
         </div>
@@ -183,7 +184,7 @@ export default function EntregaEpiPage() {
           <CampoStepNav
             onBack={() => setStep("quantidade")}
             onNext={() => setStep("confirmar")}
-            nextLabel="Próximo →"
+            nextLabel={<>Próximo <ArrowRight className="size-4 ml-1 inline" /></>}
             nextDisabled={!assinaturaBase64}
           />
         </div>
@@ -228,7 +229,7 @@ export default function EntregaEpiPage() {
             size="md"
             variant="primary"
           >
-            {saving ? "Registrando..." : "✅ Confirmar e Salvar Entrega"}
+            {saving ? "Registrando..." : <><Check className="size-4 shrink-0" /> Confirmar e Salvar Entrega</>}
           </CampoButton>
         </div>
       )}

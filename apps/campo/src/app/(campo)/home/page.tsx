@@ -3,7 +3,7 @@
 import { useLiveQuery } from "dexie-react-hooks";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { type LucideIcon } from "lucide-react";
+import { type LucideIcon, BookText, Sprout, Wheat, ShieldHalf, Scale, Syringe, CloudSun } from "lucide-react";
 import { db, type LocalTask } from "@/lib/db";
 import { useSessionStore } from "@/lib/stores/session-store";
 import { useSyncStore } from "@/lib/stores/sync-store";
@@ -15,18 +15,18 @@ import { formatTaskDomainLabel, resolveTaskDomain, type TaskDomain } from "@/lib
 interface Activity {
   key: string;
   label: string;
-  icon: string;
+  icon: LucideIcon;
   path: string;
   module: "agricola" | "pecuaria";
 }
 
 const ACTIVITIES: Activity[] = [
-  { key: "caderno", label: "Caderno", icon: "📓", path: "/caderno", module: "agricola" },
-  { key: "aplicacao", label: "Aplicação", icon: "🌿", path: "/campo/aplicacao", module: "agricola" },
-  { key: "colheita", label: "Colheita", icon: "🌾", path: "/campo/colheita", module: "agricola" },
-  { key: "epi", label: "Entrega EPI", icon: "🦺", path: "/campo/epi", module: "agricola" },
-  { key: "pesagem", label: "Pesagem", icon: "⚖️", path: "/campo/pesagem", module: "pecuaria" },
-  { key: "vacinacao", label: "Vacinação", icon: "💉", path: "/campo/vacinacao", module: "pecuaria" },
+  { key: "caderno", label: "Caderno", icon: BookText, path: "/caderno", module: "agricola" },
+  { key: "aplicacao", label: "Aplicação", icon: Sprout, path: "/campo/aplicacao", module: "agricola" },
+  { key: "colheita", label: "Colheita", icon: Wheat, path: "/campo/colheita", module: "agricola" },
+  { key: "epi", label: "Entrega EPI", icon: ShieldHalf, path: "/campo/epi", module: "agricola" },
+  { key: "pesagem", label: "Pesagem", icon: Scale, path: "/campo/pesagem", module: "pecuaria" },
+  { key: "vacinacao", label: "Vacinação", icon: Syringe, path: "/campo/vacinacao", module: "pecuaria" },
 ];
 
 const PRIORIDADE_COLOR: Record<string, string> = {
@@ -289,8 +289,8 @@ export default function HomePage() {
         </section>
       ) : (
         <CampoSurface className="p-4 text-center text-sm text-muted-foreground">
-          <div className="mx-auto flex size-12 items-center justify-center rounded-sm border border-border bg-muted text-xl">
-            🌤️
+          <div className="mx-auto flex size-12 items-center justify-center rounded-full border border-border bg-muted">
+            <CloudSun className="size-6 text-muted-foreground" strokeWidth={1.5} />
           </div>
           <p className="mt-3 text-sm font-medium text-foreground">Nenhuma tarefa encontrada para este filtro.</p>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">
@@ -338,16 +338,21 @@ export default function HomePage() {
           description="Abra um registro manual com acesso rápido."
         />
         <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-          {availableActivities.map((act) => (
-            <button
-              key={act.key}
-              onClick={() => router.push(act.path)}
-              className="group rounded-sm border border-border bg-card p-4 text-left shadow-sm transition-all hover:border-primary/30 hover:bg-muted active:scale-[0.98]"
-            >
-              <span className="text-2xl transition-transform group-hover:scale-105">{act.icon}</span>
-              <span className="mt-1.5 block text-sm font-semibold">{act.label}</span>
-            </button>
-          ))}
+          {availableActivities.map((act) => {
+            const Icon = act.icon;
+            return (
+              <button
+                key={act.key}
+                onClick={() => router.push(act.path)}
+                className="group flex flex-col items-start rounded-sm border border-border bg-card p-4 text-left shadow-sm transition-all hover:border-primary/30 hover:bg-muted active:scale-[0.98]"
+              >
+                <div className="flex size-10 items-center justify-center rounded-full bg-primary/10 text-primary transition-transform group-hover:scale-110">
+                  <Icon className="size-5" strokeWidth={2} />
+                </div>
+                <span className="mt-3 block text-sm font-semibold">{act.label}</span>
+              </button>
+            );
+          })}
         </div>
       </section>
     </div>

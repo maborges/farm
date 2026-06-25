@@ -1,5 +1,6 @@
 "use client";
 
+import { Camera, X } from "lucide-react";
 import { CampoButton, CampoPill, CampoSurface } from "./ui";
 
 interface CameraCaptureProps {
@@ -36,10 +37,10 @@ export function CameraCapture({
             <button
               type="button"
               onClick={() => onRemove(i)}
-              className="absolute right-1 top-1 flex size-5 items-center justify-center rounded-full border border-border bg-card/90 text-[10px] text-foreground shadow-sm"
+              className="absolute right-1 top-1 flex size-5 items-center justify-center rounded-full border border-border bg-card/90 text-foreground shadow-sm hover:bg-destructive hover:text-destructive-foreground transition-colors"
               aria-label="Remover foto"
             >
-              ×
+              <X className="size-3" />
             </button>
           </div>
         ))}
@@ -51,7 +52,7 @@ export function CameraCapture({
             variant="secondary"
             className="flex size-20 flex-col rounded-lg border-dashed text-muted-foreground sm:size-24"
           >
-            <span className="text-xl">📷</span>
+            <Camera className="size-5 mb-1" strokeWidth={1.5} />
             <span className="text-[11px] font-medium">Adicionar</span>
           </CampoButton>
         )}

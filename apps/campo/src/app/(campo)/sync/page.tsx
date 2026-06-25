@@ -2,7 +2,7 @@
 
 import { useLiveQuery } from "dexie-react-hooks";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, CheckCircle2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ArrowLeft } from "lucide-react";
 import { db } from "@/lib/db";
 import { useSyncStore } from "@/lib/stores/sync-store";
 import { useSessionStore } from "@/lib/stores/session-store";
@@ -44,12 +44,9 @@ export default function SyncPage() {
     <div className="flex flex-col gap-4 pb-28">
       <CampoSurface className="p-4 sm:p-5">
         <div className="flex items-start justify-between gap-3">
-          <button
-            onClick={() => router.back()}
-            className="rounded-sm border border-border bg-card px-3 py-2 text-sm text-foreground transition-transform active:scale-[0.97]"
-          >
-            ←
-          </button>
+          <CampoButton variant="secondary" size="sm" onClick={() => router.back()} className="size-10 px-0 shrink-0 border-border bg-card shadow-sm flex items-center justify-center">
+            <ArrowLeft className="size-5 text-muted-foreground" />
+          </CampoButton>
           <div className="flex-1">
             <CampoSectionTitle
               eyebrow="Sincronização"

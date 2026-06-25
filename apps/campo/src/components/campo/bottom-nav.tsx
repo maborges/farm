@@ -106,13 +106,13 @@ export function CampoBottomNav() {
       )}
     >
       <div className="w-full px-4">
-        <div className="pointer-events-none relative">
+        <div className="pointer-events-none relative z-10">
           <Link
             href="/home#nova-atividade"
             onClick={handleTap}
             aria-label="Nova atividade manual"
             className={cn(
-              "pointer-events-auto absolute left-1/2 top-0 flex -translate-x-1/2 -translate-y-1/2 items-center gap-1 rounded-full border border-primary bg-primary px-3 py-2 text-primary-foreground shadow-md transition-all duration-200 ease-out active:scale-[0.96]",
+              "pointer-events-auto absolute left-1/2 top-0 flex -translate-x-1/2 -translate-y-1/2 items-center gap-1 rounded-full border border-primary bg-primary px-3 py-2 text-primary-foreground shadow-md transition-all duration-150 ease-out active:scale-95 active:opacity-90",
               hasScrolled ? "-translate-y-[48%] scale-[1.02] shadow-lg" : ""
             )}
           >
@@ -141,10 +141,10 @@ export function CampoBottomNav() {
                   onClick={handleTap}
                   aria-current={active ? "page" : undefined}
                   className={cn(
-                    "group flex min-h-[54px] flex-col items-center justify-center gap-0.5 rounded-sm border px-1 py-1 text-center transition-all duration-200 ease-out active:scale-[0.96]",
+                    "group flex min-h-[54px] flex-col items-center justify-center gap-0.5 rounded-sm border px-1 py-1 text-center transition-all duration-150 ease-out active:scale-95",
                     active
                       ? "translate-y-[-1px] border-primary/30 bg-accent text-accent-foreground shadow-sm"
-                      : "border-transparent text-muted-foreground hover:border-border hover:bg-muted hover:text-foreground"
+                      : "border-transparent text-muted-foreground active:bg-black/5 dark:active:bg-white/10"
                   )}
                 >
                   <span

@@ -384,6 +384,13 @@ source .venv/bin/activate
 
 uvicorn main:app --reload
 
+tá travado:
+lista os processos:
+sudo lsof -i :8000
+
+mata o processo:
+sudo kill -9 PID
+
 ### Worker de Automações (scheduler)
 
 No diretório raiz do projeto:

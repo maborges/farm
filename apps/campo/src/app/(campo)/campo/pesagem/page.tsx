@@ -13,6 +13,7 @@ import { FieldSelect } from "@/components/campo/field-select";
 import { NumPad } from "@/components/campo/num-pad";
 import { CameraCapture } from "@/components/campo/camera-capture";
 import { GpsWarning } from "@/components/campo/gps-warning";
+import { Scale, Check, CheckCircle2, ArrowRight } from "lucide-react";
 import { CampoButton, CampoShell, CampoSurface } from "@/components/campo/ui";
 import { CampoStepNav, CampoSuccessScreen } from "@/components/campo/flow";
 
@@ -68,7 +69,7 @@ export default function PesagemPage() {
   if (done) {
     return (
       <CampoSuccessScreen
-        icon="✅"
+        icon={CheckCircle2}
         title="Pesagem registrada"
         description="Salvo localmente e pronto para sincronizar quando houver conexão."
         primaryLabel="Nova pesagem"
@@ -82,7 +83,7 @@ export default function PesagemPage() {
 
   return (
     <CampoShell className="gap-4">
-      <TaskHeader title="Pesagem" icon="⚖️" gpsStatus={gps.status} step={stepIndex + 1} totalSteps={3} domain="PECUARIA" />
+      <TaskHeader title="Pesagem" icon={Scale} gpsStatus={gps.status} step={stepIndex + 1} totalSteps={3} domain="PECUARIA" />
 
       {step === "lote" && (
         <div className="flex flex-1 flex-col gap-4">
@@ -117,7 +118,7 @@ export default function PesagemPage() {
               ))}
             </div>
           </div>
-          <CampoStepNav onBack={() => router.back()} onNext={() => setStep("peso")} nextLabel="Próximo →" nextDisabled={!loteId} />
+          <CampoStepNav onBack={() => router.back()} onNext={() => setStep("peso")} nextLabel={<>Próximo <ArrowRight className="size-4 ml-1 inline" /></>} nextDisabled={!loteId} />
         </div>
       )}
 
@@ -138,7 +139,7 @@ export default function PesagemPage() {
               enterKeyHint="done"
             />
           </CampoSurface>
-          <CampoStepNav onBack={() => setStep("lote")} onNext={() => setStep("confirmar")} nextLabel="Próximo →" nextDisabled={!pesoMedio || pesoMedio === "0"} />
+          <CampoStepNav onBack={() => setStep("lote")} onNext={() => setStep("confirmar")} nextLabel={<>Próximo <ArrowRight className="size-4 ml-1 inline" /></>} nextDisabled={!pesoMedio || pesoMedio === "0"} />
         </div>
       )}
 
@@ -166,7 +167,7 @@ export default function PesagemPage() {
           <CameraCapture fotos={cam.fotos} inputRef={cam.inputRef} canAddMore={cam.canAddMore} onOpen={cam.openCamera} onFileChange={cam.handleFileChange} onRemove={cam.removePhoto} />
 
           <CampoButton onClick={handleSalvar} disabled={saving} className="mt-auto w-full" size="md" variant="primary">
-            {saving ? "Salvando..." : "✅ Salvar Pesagem"}
+            {saving ? "Salvando..." : <><Check className="size-4 shrink-0" /> Salvar Pesagem</>}
           </CampoButton>
         </div>
       )}

@@ -13,6 +13,7 @@ import { FieldSelect } from "@/components/campo/field-select";
 import { NumPad } from "@/components/campo/num-pad";
 import { CameraCapture } from "@/components/campo/camera-capture";
 import { GpsWarning } from "@/components/campo/gps-warning";
+import { Sprout, Check, CheckCircle2, ArrowRight } from "lucide-react";
 import { CampoButton, CampoShell, CampoSurface } from "@/components/campo/ui";
 import { CampoStepNav, CampoSuccessScreen } from "@/components/campo/flow";
 
@@ -68,7 +69,7 @@ export default function AplicacaoPage() {
   if (done) {
     return (
       <CampoSuccessScreen
-        icon="✅"
+        icon={CheckCircle2}
         title="Aplicação registrada"
         description="Salvo localmente e pronto para sincronizar quando houver conexão."
         primaryLabel="Nova aplicação"
@@ -80,7 +81,7 @@ export default function AplicacaoPage() {
 
   return (
     <CampoShell className="gap-4">
-      <TaskHeader title="Aplicação" icon="🌿" gpsStatus={gps.status} step={stepIndex + 1} totalSteps={4} domain="AGRICULTURA" />
+      <TaskHeader title="Aplicação" icon={Sprout} gpsStatus={gps.status} step={stepIndex + 1} totalSteps={4} domain="AGRICULTURA" />
 
       {step === "local" && (
         <div className="flex flex-1 flex-col gap-4">
@@ -91,7 +92,7 @@ export default function AplicacaoPage() {
             onChange={setTalhaoId}
             placeholder={fazendaId ? "Selecione o talhão" : "Selecione a unidade produtiva na barra superior"}
           />
-          <CampoStepNav onBack={() => router.back()} onNext={() => setStep("produto")} nextLabel="Próximo →" nextDisabled={!talhaoId} />
+          <CampoStepNav onBack={() => router.back()} onNext={() => setStep("produto")} nextLabel={<>Próximo <ArrowRight className="size-4 ml-1 inline" /></>} nextDisabled={!talhaoId} />
         </div>
       )}
 
@@ -104,7 +105,7 @@ export default function AplicacaoPage() {
             onChange={setInsumoId}
             placeholder="Selecione o produto"
           />
-          <CampoStepNav onBack={() => setStep("local")} onNext={() => setStep("quantidade")} nextLabel="Próximo →" nextDisabled={!insumoId} />
+          <CampoStepNav onBack={() => setStep("local")} onNext={() => setStep("quantidade")} nextLabel={<>Próximo <ArrowRight className="size-4 ml-1 inline" /></>} nextDisabled={!insumoId} />
         </div>
       )}
 
@@ -128,7 +129,7 @@ export default function AplicacaoPage() {
             ))}
           </div>
           <NumPad value={quantidade} onChange={setQuantidade} suffix={unidade} label="Quantidade" />
-          <CampoStepNav onBack={() => setStep("produto")} onNext={() => setStep("confirmar")} nextLabel="Próximo →" nextDisabled={!quantidade || quantidade === "0"} />
+          <CampoStepNav onBack={() => setStep("produto")} onNext={() => setStep("confirmar")} nextLabel={<>Próximo <ArrowRight className="size-4 ml-1 inline" /></>} nextDisabled={!quantidade || quantidade === "0"} />
         </div>
       )}
 
@@ -162,7 +163,7 @@ export default function AplicacaoPage() {
             size="md"
             variant="primary"
           >
-            {saving ? "Salvando..." : "✅ Salvar Aplicação"}
+            {saving ? "Salvando..." : <><Check className="size-4 shrink-0" /> Salvar Aplicação</>}
           </CampoButton>
         </div>
       )}

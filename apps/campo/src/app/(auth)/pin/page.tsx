@@ -3,7 +3,8 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useSessionStore } from "@/lib/stores/session-store";
-import { CampoPill, CampoSectionTitle, CampoSurface } from "@/components/campo/ui";
+import { CampoPill } from "@/components/campo/ui";
+import { Sprout, Delete } from "lucide-react";
 
 const PIN_LENGTH = 6;
 
@@ -85,8 +86,8 @@ export default function PinPage() {
   const keys = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "⌫"];
 
   return (
-    <main className="flex min-h-dvh items-center justify-center p-4 sm:p-5">
-      <CampoSurface className="relative w-full max-w-[400px] p-5 sm:p-6">
+    <main className="flex min-h-dvh flex-col items-center justify-center p-4 sm:p-5 bg-background">
+      <div className="relative w-full max-w-[340px] flex flex-col items-center">
         <input
           ref={pinInputRef}
           type="password"
@@ -98,69 +99,72 @@ export default function PinPage() {
           className="pointer-events-none absolute left-0 top-0 h-px w-px opacity-0"
           aria-label="PIN do dispositivo"
         />
-        <div className="flex flex-col gap-3">
-          <CampoPill className="border-primary/20 bg-accent text-accent-foreground">
-            Dispositivo ativado
-          </CampoPill>
-          <div className="flex items-center gap-2.5">
-            <div className="flex size-11 items-center justify-center rounded-sm border border-primary/20 bg-accent text-2xl text-accent-foreground shadow-sm">
-              🌱
-            </div>
-            <CampoSectionTitle
-              eyebrow="Acesso"
-              title={`Bem-vindo, ${session?.user_name ?? "Operador"}`}
-              description="Digite seu PIN para entrar no app."
-            />
+        
+        <CampoPill className="mb-6 border-primary/20 bg-primary/5 text-primary">
+          Dispositivo ativado
+        </CampoPill>
+
+        <div className="flex flex-col items-center text-center gap-4">
+          <div className="flex size-16 items-center justify-center rounded-full bg-primary/10 text-primary">
+            <Sprout className="size-8" strokeWidth={1.5} />
+          </div>
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground">
+              Olá, {session?.user_name?.split(" ")[0] ?? "Operador"}
+            </h1>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Digite seu PIN para acessar.
+            </p>
           </div>
         </div>
 
-      <button
-        type="button"
-        className="mt-5 flex w-full justify-center gap-2.5"
-        onClick={() => pinInputRef.current?.focus()}
-      >
-        {Array.from({ length: PIN_LENGTH }).map((_, i) => (
-          <div
-            key={i}
-            className={`size-3.5 rounded-full border-2 transition-colors ${
-              i < digits.length
-                ? "border-emerald-400 bg-emerald-400"
-                : "border-border bg-transparent"
-            }`}
-          />
-        ))}
-      </button>
-
-      {error && (
-        <p className="mt-4 rounded-sm border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-200">
-          {error}
-        </p>
-      )}
-
-      <div className="mt-5 grid w-full grid-cols-3 gap-2.5">
-        {keys.map((key, i) => {
-          if (key === "") return <div key={i} />;
-          const isDelete = key === "⌫";
-          return (
-            <button
+        <button
+          type="button"
+          className="mt-8 mb-6 flex w-full justify-center gap-4"
+          onClick={() => pinInputRef.current?.focus()}
+        >
+          {Array.from({ length: PIN_LENGTH }).map((_, i) => (
+            <div
               key={i}
-              onClick={() => (isDelete ? handleDelete() : handleDigit(key))}
-              disabled={loading}
-              className={`
-                h-14 rounded-sm border text-lg font-semibold transition-all active:scale-95
-                ${isDelete
-                  ? "border-border bg-muted text-muted-foreground hover:bg-secondary"
-                  : "border-border bg-card text-foreground shadow-sm hover:bg-muted"
-                }
-                disabled:opacity-50
-              `}
-            >
-              {key}
-            </button>
-          );
-        })}
+              className={`size-4 rounded-full transition-colors ${
+                i < digits.length
+                  ? "bg-primary"
+                  : "bg-primary/20"
+              }`}
+            />
+          ))}
+        </button>
+
+        {error && (
+          <p className="mb-4 text-center text-sm font-medium text-destructive animate-in fade-in slide-in-from-top-1">
+            {error}
+          </p>
+        )}
+
+        <div className="grid w-full grid-cols-3 gap-x-6 gap-y-4 justify-items-center">
+          {keys.map((key, i) => {
+            if (key === "") return <div key={i} />;
+            const isDelete = key === "⌫";
+            return (
+              <button
+                key={i}
+                onClick={() => (isDelete ? handleDelete() : handleDigit(key))}
+                disabled={loading}
+                className={`
+                  flex items-center justify-center size-16 sm:size-20 rounded-full text-2xl sm:text-3xl font-normal transition-all active:scale-90
+                  ${isDelete
+                    ? "bg-transparent text-muted-foreground"
+                    : "bg-secondary/40 text-foreground hover:bg-secondary/60"
+                  }
+                  disabled:opacity-50
+                `}
+              >
+                {isDelete ? <Delete className="size-7 sm:size-8" strokeWidth={1.5} /> : key}
+              </button>
+            );
+          })}
+        </div>
       </div>
-      </CampoSurface>
     </main>
   );
 }

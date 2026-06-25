@@ -10,7 +10,7 @@ type SurfaceProps = HTMLAttributes<HTMLDivElement>;
 
 export function CampoShell({ className, children }: SurfaceProps) {
   return (
-    <div className={cn("flex min-h-dvh w-full flex-col px-4 pb-8 pt-4 sm:px-6 lg:px-8", className)}>
+    <div className={cn("flex w-full flex-col", className)}>
       {children}
     </div>
   );
@@ -20,7 +20,7 @@ export function CampoSurface({ className, children }: SurfaceProps) {
   return (
     <div
       className={cn(
-        "relative overflow-hidden rounded-sm border border-border bg-card p-5 text-card-foreground shadow-sm",
+        "relative overflow-hidden rounded-sm border border-border bg-card p-4 sm:p-5 text-card-foreground shadow-sm",
         className
       )}
     >

@@ -13,6 +13,7 @@ import { FieldSelect } from "@/components/campo/field-select";
 import { NumPad } from "@/components/campo/num-pad";
 import { CameraCapture } from "@/components/campo/camera-capture";
 import { GpsWarning } from "@/components/campo/gps-warning";
+import { Syringe, Check, CheckCircle2, ArrowRight } from "lucide-react";
 import { CampoButton, CampoShell, CampoSurface } from "@/components/campo/ui";
 import { CampoStepNav, CampoSuccessScreen } from "@/components/campo/flow";
 
@@ -81,7 +82,7 @@ export default function VacinacaoPage() {
   if (done) {
     return (
       <CampoSuccessScreen
-        icon="✅"
+        icon={CheckCircle2}
         title="Vacinação registrada"
         description="Salvo localmente e pronto para sincronizar quando houver conexão."
         primaryLabel="Nova vacinação"
@@ -93,7 +94,7 @@ export default function VacinacaoPage() {
 
   return (
     <CampoShell className="gap-4">
-      <TaskHeader title="Vacinação" icon="💉" gpsStatus={gps.status} step={stepIndex + 1} totalSteps={3} domain="PECUARIA" />
+      <TaskHeader title="Vacinação" icon={Syringe} gpsStatus={gps.status} step={stepIndex + 1} totalSteps={3} domain="PECUARIA" />
 
       {step === "lote" && (
         <div className="flex flex-1 flex-col gap-4">
@@ -108,7 +109,7 @@ export default function VacinacaoPage() {
             onChange={setLoteId}
             placeholder={fazendaId ? "Selecione o lote" : "Selecione a unidade produtiva na barra superior"}
           />
-          <CampoStepNav onBack={() => router.back()} onNext={() => setStep("vacina")} nextLabel="Próximo →" nextDisabled={!loteId} />
+          <CampoStepNav onBack={() => router.back()} onNext={() => setStep("vacina")} nextLabel={<>Próximo <ArrowRight className="size-4 ml-1 inline" /></>} nextDisabled={!loteId} />
         </div>
       )}
 
@@ -143,7 +144,7 @@ export default function VacinacaoPage() {
 
           <NumPad value={quantidade} onChange={setQuantidade} suffix="mL/animal" label="Dose por animal (mL)" />
 
-          <CampoStepNav onBack={() => setStep("lote")} onNext={() => setStep("confirmar")} nextLabel="Próximo →" nextDisabled={!vacinaNome && !vacinaId} />
+          <CampoStepNav onBack={() => setStep("lote")} onNext={() => setStep("confirmar")} nextLabel={<>Próximo <ArrowRight className="size-4 ml-1 inline" /></>} nextDisabled={!vacinaNome && !vacinaId} />
         </div>
       )}
 
@@ -170,7 +171,7 @@ export default function VacinacaoPage() {
           <CameraCapture fotos={cam.fotos} inputRef={cam.inputRef} canAddMore={cam.canAddMore} onOpen={cam.openCamera} onFileChange={cam.handleFileChange} onRemove={cam.removePhoto} />
 
           <CampoButton onClick={handleSalvar} disabled={saving} className="mt-auto w-full" size="md" variant="primary">
-            {saving ? "Salvando..." : "✅ Salvar Vacinação"}
+            {saving ? "Salvando..." : <><Check className="size-4 shrink-0" /> Salvar Vacinação</>}
           </CampoButton>
         </div>
       )}

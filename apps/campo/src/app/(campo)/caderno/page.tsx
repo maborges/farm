@@ -37,6 +37,7 @@ import { CampoStepNav } from "@/components/campo/flow";
 import { FieldSelect } from "@/components/campo/field-select";
 import { CameraCapture } from "@/components/campo/camera-capture";
 import { GpsWarning } from "@/components/campo/gps-warning";
+import { ArrowLeft, ArrowRight } from "lucide-react";
 
 const EVENT_LABELS: Record<CadernoEventoTipo, string> = {
   MONITORAMENTO: "Monitoramento",
@@ -543,8 +544,8 @@ export default function CadernoPage() {
               O aplicativo conduz o operador por contexto, registro e evidências antes do envio.
             </p>
           </div>
-          <CampoButton variant="secondary" size="sm" onClick={() => router.back()}>
-            ← Voltar
+          <CampoButton variant="secondary" size="sm" onClick={() => router.back()} className="size-10 px-0 shrink-0 border-border bg-card shadow-sm flex items-center justify-center">
+            <ArrowLeft className="size-5 text-muted-foreground" />
           </CampoButton>
         </div>
 
@@ -1174,10 +1175,10 @@ export default function CadernoPage() {
         onNext={goNext}
         nextLabel={
           step === "contexto"
-            ? "Continuar para o registro →"
+            ? <><span className="hidden sm:inline">Continuar para o </span>registro <ArrowRight className="size-4 ml-1 inline" /></>
             : step === "registro"
-              ? "Revisar evidências →"
-              : "Ver sincronização →"
+              ? <><span className="hidden sm:inline">Revisar </span>evidências <ArrowRight className="size-4 ml-1 inline" /></>
+              : <><span className="hidden sm:inline">Ver </span>sincronização <ArrowRight className="size-4 ml-1 inline" /></>
         }
         nextDisabled={step === "contexto" && !contextReady}
         backLabel={step === "contexto" ? "Voltar" : "Etapa anterior"}

@@ -18,11 +18,13 @@ import { CampoShell, CampoSurface, CampoButton } from "@/components/campo/ui";
 import { CampoPill } from "@/components/campo/ui";
 import { resolveTaskDomain } from "@/lib/task-domain";
 
+import { ArrowLeft, Play, Check } from "lucide-react";
+
 const PRIORIDADE_LABEL: Record<string, string> = {
-  URGENTE: "🔴 Urgente",
-  ALTA: "🟠 Alta",
-  NORMAL: "🟡 Normal",
-  BAIXA: "⚪ Baixa",
+  URGENTE: "Urgente",
+  ALTA: "Alta",
+  NORMAL: "Normal",
+  BAIXA: "Baixa",
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -154,8 +156,8 @@ export default function TarefaDetailPage() {
     <CampoShell className="gap-5">
       <CampoSurface className="p-3.5 sm:p-4">
         <div className="flex items-start gap-3">
-          <CampoButton variant="secondary" size="sm" onClick={() => router.back()}>
-            ←
+          <CampoButton variant="secondary" size="sm" onClick={() => router.back()} className="size-10 px-0 shrink-0 border-border bg-card shadow-sm flex items-center justify-center">
+            <ArrowLeft className="size-5 text-muted-foreground" />
           </CampoButton>
           <div className="min-w-0 flex-1">
             <p className="text-[10px] uppercase tracking-[0.16em] text-primary">Detalhe da tarefa</p>
@@ -304,7 +306,7 @@ export default function TarefaDetailPage() {
               size="lg"
               variant="primary"
             >
-              {saving ? "Aguarde..." : "▶ Iniciar Tarefa"}
+              {saving ? "Aguarde..." : <><Play className="size-4 shrink-0 fill-current" /> Iniciar Tarefa</>}
             </CampoButton>
           )}
           {canFinish && (
@@ -315,7 +317,7 @@ export default function TarefaDetailPage() {
               size="lg"
               variant="primary"
             >
-              {saving ? "Salvando..." : "✅ Concluir Tarefa"}
+              {saving ? "Salvando..." : <><Check className="size-4 shrink-0" /> Concluir Tarefa</>}
             </CampoButton>
           )}
           <CampoButton
