@@ -4,16 +4,22 @@ import uuid
 from dataclasses import dataclass
 from datetime import date
 
-from sqlalchemy import select, text
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 from alert_engine.models import AlertStatus, Category, Domain, Priority, Severity, TriggerType
 from alert_engine.schemas import OperationalAlertCreate
 from alert_engine.service import AlertLifecycleService
+from campo.models import TarefaCampo
 from pecuaria.animal.models import LoteAnimal
 from pecuaria.schemas.lote_indicadores_schema import LoteIndicadoresResponse
 from pecuaria.services.lote_indicadores_service import LoteIndicadoresService
-from campo.models import TarefaCampo
+
+from ._support import has_active_alert, set_rls_context
+from .base import BaseAlertGenerator
+from .context import AlertGeneratorContext
+from .registry import register_alert_generator
+from .result import AlertGeneratorResult
+from .runner import AlertGeneratorRunner
 
 
 @dataclass(slots=True)
@@ -27,15 +33,58 @@ class PecuariaAlertGenerationResult:
         return self.lotes_sem_pesagem + self.vacinacoes_atrasadas + self.custos_sanitarios_altos
 
 
-class PecuariaAlertGenerator:
+@register_alert_generator
+class PecuariaAlertGenerator(BaseAlertGenerator):
     """Generates canonical livestock alerts from existing pecuaria signals."""
 
+    generator_name = "pecuaria"
+    domain = Domain.LIVESTOCK
+    category = Category.PRODUCAO
     ACTION_URL_LOTE = "/dashboard/pecuaria/lotes"
     ACTION_URL_MANEJO = "/dashboard/pecuaria/manejo"
 
-    def __init__(self, session: AsyncSession, tenant_id: uuid.UUID):
-        self.session = session
-        self.tenant_id = tenant_id
+    async def run(self, context: AlertGeneratorContext) -> AlertGeneratorResult:
+        """Execute the canonical Pecuaria generator contract."""
+
+        await set_rls_context(self.session, context.tenant_id)
+        dias_sem_pesagem = int(context.metadata.get("dias_sem_pesagem", 45))
+        limite_custo = float(context.metadata.get("limite_custo_sanitario_por_cabeca", 50.0))
+        counters = {
+            "lotes_sem_pesagem": 0,
+            "vacinacoes_atrasadas": 0,
+            "custos_sanitarios_altos": 0,
+        }
+        result = AlertGeneratorResult(
+            generator_name=self.generator_name, metadata={"rule_counters": counters}
+        )
+        for lote in await self._lotes_ativos(context.tenant_id, context.unidade_produtiva_id):
+            resumo = await self._resumo_lote(context.tenant_id, lote.id)
+            if self._deve_alertar_pesagem(resumo, dias_sem_pesagem):
+                created = await self._emitir_alerta_sem_pesagem(
+                    context.tenant_id, lote, resumo, dias_sem_pesagem
+                )
+                result.created += created
+                result.updated += 1 - created
+                counters["lotes_sem_pesagem"] += 1
+            if self._deve_alertar_custo(resumo, limite_custo):
+                created = await self._emitir_alerta_custo_sanitario(
+                    context.tenant_id,
+                    lote,
+                    resumo,
+                    limite_custo,
+                )
+                result.created += created
+                result.updated += 1 - created
+                counters["custos_sanitarios_altos"] += 1
+        for tarefa in await self._vacinacoes_atrasadas(
+            context.tenant_id, context.unidade_produtiva_id
+        ):
+            created = await self._emitir_alerta_vacinacao_atrasada(context.tenant_id, tarefa)
+            result.created += created
+            result.updated += 1 - created
+            counters["vacinacoes_atrasadas"] += 1
+        result.metadata = {"rule_counters": counters}
+        return result
 
     async def gerar_alertas_pecuaria(
         self,
@@ -43,39 +92,33 @@ class PecuariaAlertGenerator:
         dias_sem_pesagem: int = 45,
         limite_custo_sanitario_por_cabeca: float = 50.0,
     ) -> PecuariaAlertGenerationResult:
-        """Scan livestock data and materialize canonical alerts.
+        """Compatibility wrapper that preserves the legacy return type."""
 
-        Args:
-            unidade_produtiva_id: Optional production-unit scope.
-            dias_sem_pesagem: Threshold in days to flag missing recent weighing.
-            limite_custo_sanitario_por_cabeca: Threshold for per-head sanitary cost alerts.
-
-        Returns:
-            Counters for each alert family generated in this run.
-        """
-        await self._set_rls_context()
-        result = PecuariaAlertGenerationResult()
-        for lote in await self._lotes_ativos(unidade_produtiva_id):
-            resumo = await self._resumo_lote(lote.id)
-            if self._deve_alertar_pesagem(resumo, dias_sem_pesagem):
-                await self._emitir_alerta_sem_pesagem(lote, resumo, dias_sem_pesagem)
-                result.lotes_sem_pesagem += 1
-            if self._deve_alertar_custo(resumo, limite_custo_sanitario_por_cabeca):
-                await self._emitir_alerta_custo_sanitario(lote, resumo, limite_custo_sanitario_por_cabeca)
-                result.custos_sanitarios_altos += 1
-        for tarefa in await self._vacinacoes_atrasadas(unidade_produtiva_id):
-            await self._emitir_alerta_vacinacao_atrasada(tarefa)
-            result.vacinacoes_atrasadas += 1
-        return result
+        context = self._legacy_context(
+            unidade_produtiva_id=unidade_produtiva_id,
+            dias_sem_pesagem=dias_sem_pesagem,
+            limite_custo_sanitario_por_cabeca=limite_custo_sanitario_por_cabeca,
+        )
+        result = await AlertGeneratorRunner().execute(self, context)
+        counters = result.metadata.get("rule_counters", {})
+        return PecuariaAlertGenerationResult(
+            lotes_sem_pesagem=int(counters.get("lotes_sem_pesagem", 0)),
+            vacinacoes_atrasadas=int(counters.get("vacinacoes_atrasadas", 0)),
+            custos_sanitarios_altos=int(counters.get("custos_sanitarios_altos", 0)),
+        )
 
     async def _emitir_alerta_sem_pesagem(
         self,
+        tenant_id: uuid.UUID,
         lote: LoteAnimal,
         resumo: LoteIndicadoresResponse,
         dias_sem_pesagem: int,
-    ) -> None:
-        ultima = resumo.ultima_pesagem.isoformat() if resumo.ultima_pesagem else "sem pesagem registrada"
-        await self._create_alert(
+    ) -> int:
+        ultima = (
+            resumo.ultima_pesagem.isoformat() if resumo.ultima_pesagem else "sem pesagem registrada"
+        )
+        return await self._create_alert(
+            tenant_id=tenant_id,
             title="Lote sem pesagem recente",
             message=(
                 f"O lote '{lote.identificacao}' possui {resumo.quantidade_animais} animais ativos "
@@ -99,8 +142,11 @@ class PecuariaAlertGenerator:
             },
         )
 
-    async def _emitir_alerta_vacinacao_atrasada(self, tarefa: TarefaCampo) -> None:
-        await self._create_alert(
+    async def _emitir_alerta_vacinacao_atrasada(
+        self, tenant_id: uuid.UUID, tarefa: TarefaCampo
+    ) -> int:
+        return await self._create_alert(
+            tenant_id=tenant_id,
             title="Vacinação planejada atrasada",
             message=(
                 f"A vacinação '{tarefa.titulo or tarefa.type}' do lote "
@@ -125,11 +171,13 @@ class PecuariaAlertGenerator:
 
     async def _emitir_alerta_custo_sanitario(
         self,
+        tenant_id: uuid.UUID,
         lote: LoteAnimal,
         resumo: LoteIndicadoresResponse,
         limite_custo_sanitario_por_cabeca: float,
-    ) -> None:
-        await self._create_alert(
+    ) -> int:
+        return await self._create_alert(
+            tenant_id=tenant_id,
             title="Custo sanitário elevado",
             message=(
                 f"O lote '{lote.identificacao}' está com custo sanitário por cabeça de "
@@ -157,6 +205,7 @@ class PecuariaAlertGenerator:
     async def _create_alert(
         self,
         *,
+        tenant_id: uuid.UUID,
         title: str,
         message: str,
         severity: Severity,
@@ -169,10 +218,11 @@ class PecuariaAlertGenerator:
         action_url: str,
         unidade_produtiva_id: uuid.UUID | None,
         context: dict[str, object],
-    ) -> None:
-        service = AlertLifecycleService(self.session, self.tenant_id)
+    ) -> int:
+        service = AlertLifecycleService(self.session, tenant_id)
+        was_update = await has_active_alert(self.session, tenant_id, dedupe_key)
         payload = OperationalAlertCreate(
-            tenant_id=self.tenant_id,
+            tenant_id=tenant_id,
             unidade_produtiva_id=unidade_produtiva_id,
             domain=Domain.LIVESTOCK,
             category=self._category_for_source(source_type),
@@ -192,20 +242,31 @@ class PecuariaAlertGenerator:
             context=context,
         )
         await service.create_or_update_alert(payload)
+        return 0 if was_update else 1
 
-    async def _lotes_ativos(self, unidade_produtiva_id: uuid.UUID | None) -> list[LoteAnimal]:
-        stmt = select(LoteAnimal).where(LoteAnimal.tenant_id == self.tenant_id, LoteAnimal.ativo == True)
+    async def _lotes_ativos(
+        self,
+        tenant_id: uuid.UUID,
+        unidade_produtiva_id: uuid.UUID | None,
+    ) -> list[LoteAnimal]:
+        stmt = select(LoteAnimal).where(LoteAnimal.tenant_id == tenant_id, LoteAnimal.ativo)
         if unidade_produtiva_id is not None:
             stmt = stmt.where(LoteAnimal.unidade_produtiva_id == unidade_produtiva_id)
         rows = await self.session.execute(stmt.order_by(LoteAnimal.identificacao.asc()))
         return list(rows.scalars().all())
 
-    async def _resumo_lote(self, lote_id: uuid.UUID) -> LoteIndicadoresResponse:
-        return await LoteIndicadoresService(self.session, self.tenant_id).resumir(lote_id)
+    async def _resumo_lote(
+        self, tenant_id: uuid.UUID, lote_id: uuid.UUID
+    ) -> LoteIndicadoresResponse:
+        return await LoteIndicadoresService(self.session, tenant_id).resumir(lote_id)
 
-    async def _vacinacoes_atrasadas(self, unidade_produtiva_id: uuid.UUID | None) -> list[TarefaCampo]:
+    async def _vacinacoes_atrasadas(
+        self,
+        tenant_id: uuid.UUID,
+        unidade_produtiva_id: uuid.UUID | None,
+    ) -> list[TarefaCampo]:
         stmt = select(TarefaCampo).where(
-            TarefaCampo.tenant_id == self.tenant_id,
+            TarefaCampo.tenant_id == tenant_id,
             TarefaCampo.module == "pecuaria",
             TarefaCampo.type == "VACINACAO",
             TarefaCampo.status_execucao.in_(("PENDENTE", "EM_EXECUCAO")),
@@ -214,7 +275,9 @@ class PecuariaAlertGenerator:
         )
         if unidade_produtiva_id is not None:
             stmt = stmt.where(TarefaCampo.unidade_produtiva_id == unidade_produtiva_id)
-        rows = await self.session.execute(stmt.order_by(TarefaCampo.data_programada.asc(), TarefaCampo.created_at.asc()))
+        rows = await self.session.execute(
+            stmt.order_by(TarefaCampo.data_programada.asc(), TarefaCampo.created_at.asc())
+        )
         return list(rows.scalars().all())
 
     @staticmethod
@@ -237,9 +300,25 @@ class PecuariaAlertGenerator:
             return Category.ECONOMICO
         return Category.PRODUCAO
 
-    async def _set_rls_context(self) -> None:
-        await self.session.execute(text(f"SET LOCAL app.current_tenant_id = '{self.tenant_id}';"))
-
     @staticmethod
     def _format_date(value: date | None) -> str:
         return value.isoformat() if value else "sem data"
+
+    def _legacy_context(
+        self,
+        *,
+        unidade_produtiva_id: uuid.UUID | None,
+        dias_sem_pesagem: int,
+        limite_custo_sanitario_por_cabeca: float,
+    ) -> AlertGeneratorContext:
+        tenant_id = self.tenant_id
+        if tenant_id is None:
+            raise ValueError("tenant_id must be provided for legacy Pecuaria execution.")
+        return AlertGeneratorContext(
+            tenant_id=tenant_id,
+            unidade_produtiva_id=unidade_produtiva_id,
+            metadata={
+                "dias_sem_pesagem": dias_sem_pesagem,
+                "limite_custo_sanitario_por_cabeca": limite_custo_sanitario_por_cabeca,
+            },
+        )

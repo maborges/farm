@@ -4,13 +4,19 @@ import uuid
 from dataclasses import dataclass
 from datetime import date
 
-from sqlalchemy import select, text
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 from alert_engine.models import AlertStatus, Category, Domain, Priority, Severity, TriggerType
 from alert_engine.schemas import OperationalAlertCreate
 from alert_engine.service import AlertLifecycleService
 from campo.models import TarefaCampo
+
+from ._support import has_active_alert, set_rls_context
+from .base import BaseAlertGenerator
+from .context import AlertGeneratorContext
+from .registry import register_alert_generator
+from .result import AlertGeneratorResult
+from .runner import AlertGeneratorRunner
 
 
 @dataclass(slots=True)
@@ -24,42 +30,64 @@ class CampoAlertGenerationResult:
         return self.tarefas_atrasadas + self.tarefas_invalidas + self.sync_falhas
 
 
-class CampoAlertGenerator:
+@register_alert_generator
+class CampoAlertGenerator(BaseAlertGenerator):
     """Generates canonical field-origin alerts for Campo/Operational tasks."""
 
+    generator_name = "campo"
+    domain = Domain.FIELD
+    category = Category.OPERACIONAL
     ACTION_URL = "/dashboard/operacional/campo/tarefas"
 
-    def __init__(self, session: AsyncSession, tenant_id: uuid.UUID):
-        self.session = session
-        self.tenant_id = tenant_id
+    async def run(self, context: AlertGeneratorContext) -> AlertGeneratorResult:
+        """Execute the canonical Campo generator contract."""
 
-    async def gerar_alertas_campo(self, unidade_produtiva_id: uuid.UUID | None = None) -> CampoAlertGenerationResult:
-        """Scan Campo tasks and materialize canonical operational alerts.
-
-        Args:
-            unidade_produtiva_id: Optional production unit scope.
-
-        Returns:
-            Generation counters by rule family.
-
-        Raises:
-            BusinessRuleError / TenantViolationError: Propagated from the Alert Engine service.
-        """
-        await self._set_rls_context()
-        result = CampoAlertGenerationResult()
-        for tarefa in await self._tarefas_atrasadas(unidade_produtiva_id):
-            await self._emitir_alerta_atraso(tarefa)
-            result.tarefas_atrasadas += 1
-        for tarefa in await self._tarefas_invalidas(unidade_produtiva_id):
-            await self._emitir_alerta_invalido(tarefa)
-            result.tarefas_invalidas += 1
-        for tarefa in await self._tarefas_sync_falha(unidade_produtiva_id):
-            await self._emitir_alerta_sync_falha(tarefa)
-            result.sync_falhas += 1
+        await set_rls_context(self.session, context.tenant_id)
+        counters = {"tarefas_atrasadas": 0, "tarefas_invalidas": 0, "sync_falhas": 0}
+        result = AlertGeneratorResult(
+            generator_name=self.generator_name, metadata={"rule_counters": counters}
+        )
+        for tarefa in await self._tarefas_atrasadas(
+            context.tenant_id, context.unidade_produtiva_id
+        ):
+            created = await self._emitir_alerta_atraso(context.tenant_id, tarefa)
+            result.created += created
+            result.updated += 1 - created
+            counters["tarefas_atrasadas"] += 1
+        for tarefa in await self._tarefas_invalidas(
+            context.tenant_id, context.unidade_produtiva_id
+        ):
+            created = await self._emitir_alerta_invalido(context.tenant_id, tarefa)
+            result.created += created
+            result.updated += 1 - created
+            counters["tarefas_invalidas"] += 1
+        for tarefa in await self._tarefas_sync_falha(
+            context.tenant_id, context.unidade_produtiva_id
+        ):
+            created = await self._emitir_alerta_sync_falha(context.tenant_id, tarefa)
+            result.created += created
+            result.updated += 1 - created
+            counters["sync_falhas"] += 1
+        result.metadata = {"rule_counters": counters}
         return result
 
-    async def _emitir_alerta_atraso(self, tarefa: TarefaCampo) -> None:
-        await self._create_alert(
+    async def gerar_alertas_campo(
+        self, unidade_produtiva_id: uuid.UUID | None = None
+    ) -> CampoAlertGenerationResult:
+        """Compatibility wrapper that preserves the legacy return type."""
+
+        context = self._legacy_context(unidade_produtiva_id)
+        result = await AlertGeneratorRunner().execute(self, context)
+        counters = result.metadata.get("rule_counters", {})
+        return CampoAlertGenerationResult(
+            tarefas_atrasadas=int(counters.get("tarefas_atrasadas", 0)),
+            tarefas_invalidas=int(counters.get("tarefas_invalidas", 0)),
+            sync_falhas=int(counters.get("sync_falhas", 0)),
+        )
+
+    async def _emitir_alerta_atraso(self, tenant_id: uuid.UUID, tarefa: TarefaCampo) -> int:
+        return await self._create_alert(
+            tenant_id=tenant_id,
             tarefa=tarefa,
             title="Tarefa atrasada",
             message=self._build_atraso_message(tarefa),
@@ -70,8 +98,9 @@ class CampoAlertGenerator:
             source_label=str(tarefa.id),
         )
 
-    async def _emitir_alerta_invalido(self, tarefa: TarefaCampo) -> None:
-        await self._create_alert(
+    async def _emitir_alerta_invalido(self, tenant_id: uuid.UUID, tarefa: TarefaCampo) -> int:
+        return await self._create_alert(
+            tenant_id=tenant_id,
             tarefa=tarefa,
             title="Tarefa inválida",
             message=self._build_invalida_message(tarefa),
@@ -82,8 +111,9 @@ class CampoAlertGenerator:
             source_label=str(tarefa.id),
         )
 
-    async def _emitir_alerta_sync_falha(self, tarefa: TarefaCampo) -> None:
-        await self._create_alert(
+    async def _emitir_alerta_sync_falha(self, tenant_id: uuid.UUID, tarefa: TarefaCampo) -> int:
+        return await self._create_alert(
+            tenant_id=tenant_id,
             tarefa=tarefa,
             title="Falha de sincronização",
             message=self._build_sync_falha_message(tarefa),
@@ -97,6 +127,7 @@ class CampoAlertGenerator:
     async def _create_alert(
         self,
         *,
+        tenant_id: uuid.UUID,
         tarefa: TarefaCampo,
         title: str,
         message: str,
@@ -105,10 +136,11 @@ class CampoAlertGenerator:
         source_type: str,
         dedupe_key: str,
         source_label: str,
-    ) -> None:
-        service = AlertLifecycleService(self.session, self.tenant_id)
+    ) -> int:
+        service = AlertLifecycleService(self.session, tenant_id)
+        was_update = await has_active_alert(self.session, tenant_id, dedupe_key)
         payload = OperationalAlertCreate(
-            tenant_id=self.tenant_id,
+            tenant_id=tenant_id,
             unidade_produtiva_id=tarefa.unidade_produtiva_id,
             domain=Domain.FIELD,
             category=Category.OPERACIONAL,
@@ -133,22 +165,33 @@ class CampoAlertGenerator:
             },
         )
         await service.create_or_update_alert(payload)
+        return 0 if was_update else 1
 
-    async def _tarefas_atrasadas(self, unidade_produtiva_id: uuid.UUID | None) -> list[TarefaCampo]:
+    async def _tarefas_atrasadas(
+        self,
+        tenant_id: uuid.UUID,
+        unidade_produtiva_id: uuid.UUID | None,
+    ) -> list[TarefaCampo]:
         stmt = select(TarefaCampo).where(
-            TarefaCampo.tenant_id == self.tenant_id,
+            TarefaCampo.tenant_id == tenant_id,
             TarefaCampo.status_execucao.in_(("PENDENTE", "EM_EXECUCAO")),
             TarefaCampo.data_programada.is_not(None),
             TarefaCampo.data_programada < date.today(),
         )
         if unidade_produtiva_id is not None:
             stmt = stmt.where(TarefaCampo.unidade_produtiva_id == unidade_produtiva_id)
-        result = await self.session.execute(stmt.order_by(TarefaCampo.data_programada.asc(), TarefaCampo.created_at.asc()))
+        result = await self.session.execute(
+            stmt.order_by(TarefaCampo.data_programada.asc(), TarefaCampo.created_at.asc())
+        )
         return list(result.scalars().all())
 
-    async def _tarefas_invalidas(self, unidade_produtiva_id: uuid.UUID | None) -> list[TarefaCampo]:
+    async def _tarefas_invalidas(
+        self,
+        tenant_id: uuid.UUID,
+        unidade_produtiva_id: uuid.UUID | None,
+    ) -> list[TarefaCampo]:
         stmt = select(TarefaCampo).where(
-            TarefaCampo.tenant_id == self.tenant_id,
+            TarefaCampo.tenant_id == tenant_id,
             TarefaCampo.status_execucao == "INVALIDADA",
         )
         if unidade_produtiva_id is not None:
@@ -156,9 +199,13 @@ class CampoAlertGenerator:
         result = await self.session.execute(stmt.order_by(TarefaCampo.updated_at.asc()))
         return list(result.scalars().all())
 
-    async def _tarefas_sync_falha(self, unidade_produtiva_id: uuid.UUID | None) -> list[TarefaCampo]:
+    async def _tarefas_sync_falha(
+        self,
+        tenant_id: uuid.UUID,
+        unidade_produtiva_id: uuid.UUID | None,
+    ) -> list[TarefaCampo]:
         stmt = select(TarefaCampo).where(
-            TarefaCampo.tenant_id == self.tenant_id,
+            TarefaCampo.tenant_id == tenant_id,
             TarefaCampo.module == "pecuaria",
             TarefaCampo.status_execucao == "CONCLUIDA",
         )
@@ -178,7 +225,9 @@ class CampoAlertGenerator:
 
     @staticmethod
     def _build_atraso_message(tarefa: TarefaCampo) -> str:
-        data_programada = tarefa.data_programada.isoformat() if tarefa.data_programada else "sem data"
+        data_programada = (
+            tarefa.data_programada.isoformat() if tarefa.data_programada else "sem data"
+        )
         titulo = tarefa.titulo or tarefa.type
         return f"A tarefa '{titulo}' está programada para {data_programada} e continua em aberto."
 
@@ -196,6 +245,8 @@ class CampoAlertGenerator:
         titulo = tarefa.titulo or tarefa.type
         return f"A tarefa '{titulo}' apresentou falha no processamento de sincronização: {detalhe}"
 
-    async def _set_rls_context(self) -> None:
-        await self.session.execute(text(f"SET LOCAL app.current_tenant_id = '{self.tenant_id}';"))
-
+    def _legacy_context(self, unidade_produtiva_id: uuid.UUID | None) -> AlertGeneratorContext:
+        tenant_id = self.tenant_id
+        if tenant_id is None:
+            raise ValueError("tenant_id must be provided for legacy Campo execution.")
+        return AlertGeneratorContext(tenant_id=tenant_id, unidade_produtiva_id=unidade_produtiva_id)
