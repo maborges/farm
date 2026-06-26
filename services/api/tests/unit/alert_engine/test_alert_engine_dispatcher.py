@@ -141,6 +141,23 @@ class SpyRunner(AlertGeneratorRunner):
         return await super().execute(generator, context)
 
 
+class LoggerSpy:
+    def __init__(self) -> None:
+        self.bind_calls: list[dict[str, object]] = []
+        self.info_messages: list[str] = []
+        self.exception_messages: list[str] = []
+
+    def bind(self, **kwargs: object) -> LoggerSpy:
+        self.bind_calls.append(kwargs)
+        return self
+
+    def info(self, message: str) -> None:
+        self.info_messages.append(message)
+
+    def exception(self, message: str) -> None:
+        self.exception_messages.append(message)
+
+
 def _registry(*generator_classes: type[BaseAlertGenerator]) -> AlertGeneratorRegistry:
     registry = AlertGeneratorRegistry()
     for generator_cls in generator_classes:
@@ -169,6 +186,30 @@ def test_dispatcher_uses_default_registry_and_runner(session) -> None:
     assert {
         cls.generator_name for cls in service.registry.find_by_event_type("campo.tarefa.invalidada")
     } >= {"campo"}
+
+
+@pytest.mark.asyncio
+async def test_dispatcher_logs_canonical_context(monkeypatch: pytest.MonkeyPatch, session) -> None:
+    logger_spy = LoggerSpy()
+    monkeypatch.setattr("alert_engine.dispatcher.logger", logger_spy)
+    service = AlertDispatcherService(session, registry=_registry())
+    event = AlertDomainEvent(
+        tenant_id=uuid.uuid4(),
+        unidade_produtiva_id=uuid.uuid4(),
+        domain=Domain.FIELD,
+        event_type="campo.tarefa.invalidada",
+        source_type="CAMPO_TAREFA_INVALIDADA",
+        entity_type="tarefa_campo",
+        entity_id=uuid.uuid4(),
+        correlation_id=uuid.uuid4(),
+        causation_id=uuid.uuid4(),
+    )
+
+    await service.dispatch(event)
+
+    assert logger_spy.info_messages[0] == "alert_dispatcher_started"
+    assert logger_spy.bind_calls[0]["correlation_id"] == str(event.correlation_id)
+    assert logger_spy.bind_calls[0]["causation_id"] == str(event.causation_id)
 
 
 @pytest.mark.asyncio

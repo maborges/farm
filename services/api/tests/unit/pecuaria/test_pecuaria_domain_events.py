@@ -108,7 +108,26 @@ async def test_planejamento_sanitario_publica_evento(monkeypatch: pytest.MonkeyP
     assert event.event_type == "pecuaria.planejamento.sanitario.atualizado"
     assert event.domain == Domain.LIVESTOCK
     assert event.unidade_produtiva_id == unidade_produtiva_id
+    assert event.tenant_id == tenant_id
+    assert event.entity_type == "planejamento_sanitario"
+    assert event.entity_id == planejamento.tarefa_campo_id
+    assert event.correlation_id is None
+    assert event.causation_id is None
     assert event.metadata["lote_id"] == str(lote_id)
+    assert set(event.metadata).issubset(
+        {
+            "tipo",
+            "lote_id",
+            "lote_identificacao",
+            "operador_id",
+            "produto_id",
+            "dose",
+            "unidade_medida",
+            "data_programada",
+            "quantidade_animais",
+            "observacoes",
+        }
+    )
     assert captured["session_commits"] == 1
 
 
@@ -176,6 +195,23 @@ async def test_vacinacao_registrada_publica_evento(monkeypatch: pytest.MonkeyPat
     assert event.entity_type == "tarefa_campo"
     assert event.tenant_id == tenant_id
     assert event.unidade_produtiva_id == unidade_produtiva_id
+    assert event.entity_id == tarefa.id
+    assert event.correlation_id == uuid.UUID(tarefa.client_id)
+    assert event.causation_id is None
+    assert set(event.metadata).issubset(
+        {
+            "tarefa_campo_id",
+            "lote_id",
+            "animal_id",
+            "animal_count",
+            "produto_id",
+            "produto_nome",
+            "dose",
+            "unidade_medida",
+            "via_aplicacao",
+            "data_aplicacao",
+        }
+    )
 
 
 @pytest.mark.asyncio

@@ -31,6 +31,8 @@ async def publish_domain_event_safe(
         "unidade_produtiva_id": str(event.unidade_produtiva_id)
         if event.unidade_produtiva_id
         else None,
+        "correlation_id": str(event.correlation_id) if event.correlation_id else None,
+        "causation_id": str(event.causation_id) if event.causation_id else None,
         "entity_type": event.entity_type,
         "entity_id": str(event.entity_id) if event.entity_id else None,
     }

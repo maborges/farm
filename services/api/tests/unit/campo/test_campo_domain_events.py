@@ -93,7 +93,13 @@ async def test_invalidar_tarefa_publica_evento_pos_commit(monkeypatch: pytest.Mo
     assert event.entity_id == task.id
     assert event.tenant_id == task.tenant_id
     assert event.unidade_produtiva_id == task.unidade_produtiva_id
+    assert event.correlation_id == uuid.UUID(task.client_id)
+    assert event.causation_id is None
     assert event.metadata["status_novo"] == "INVALIDADA"
+    assert event.metadata["status_anterior"] == "CONCLUIDA"
+    assert set(event.metadata).issubset(
+        {"status_anterior", "status_novo", "motivo", "tarefa_id", "module", "type"}
+    )
     assert captured["session_commits"] == 1
 
 
@@ -190,6 +196,13 @@ async def test_sync_failure_publica_evento(monkeypatch: pytest.MonkeyPatch) -> N
     event = publish_spy.await_args.args[0]
     assert event.event_type == "campo.sync.falha"
     assert event.entity_id == task.id
+    assert event.tenant_id == task.tenant_id
+    assert event.unidade_produtiva_id == task.unidade_produtiva_id
+    assert event.correlation_id == uuid.UUID(task.client_id)
+    assert event.entity_type == "sync_campo"
+    assert set(event.metadata).issubset(
+        {"sync_status", "error_type", "error_message", "origin", "tarefa_id", "module", "type"}
+    )
 
 
 @pytest.mark.asyncio
@@ -238,6 +251,11 @@ async def test_sync_failure_result_publica_evento(monkeypatch: pytest.MonkeyPatc
     assert event.entity_id == tarefa.id
     assert event.tenant_id == tenant_id
     assert event.unidade_produtiva_id == unidade_produtiva_id
+    assert event.correlation_id == uuid.UUID(tarefa.client_id)
+    assert event.causation_id is None
+    assert set(event.metadata).issubset(
+        {"error_type", "error_message", "origin", "local_id", "status"}
+    )
 
 
 def test_campo_nao_importa_dispatcher_diretamente() -> None:

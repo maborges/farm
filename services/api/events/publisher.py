@@ -83,6 +83,8 @@ class EventPublisher:
             unidade_produtiva_id=str(event.unidade_produtiva_id)
             if event.unidade_produtiva_id
             else None,
+            correlation_id=str(event.correlation_id) if event.correlation_id else None,
+            causation_id=str(event.causation_id) if event.causation_id else None,
         )
         bound_logger.info("event_publisher_started")
         for subscriber_cls in subscribers:
@@ -119,6 +121,12 @@ class EventPublisher:
                 component="event_publisher",
                 event_id=str(event.event_id),
                 event_type=event.event_type,
+                tenant_id=str(event.tenant_id),
+                unidade_produtiva_id=str(event.unidade_produtiva_id)
+                if event.unidade_produtiva_id
+                else None,
+                correlation_id=str(event.correlation_id) if event.correlation_id else None,
+                causation_id=str(event.causation_id) if event.causation_id else None,
                 subscriber_name=getattr(subscriber_cls, "subscriber_name", subscriber_cls.__name__),
             ).exception("event_subscriber_failed")
             finished_at = datetime.now(timezone.utc)  # noqa: UP017

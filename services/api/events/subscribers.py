@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
+from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from alert_engine.dispatcher import (
@@ -38,9 +39,19 @@ class AlertEngineEventSubscriber(EventSubscriber):
         """Translate a domain event and invoke the Alert Dispatcher."""
 
         started_at = datetime.now(timezone.utc)  # noqa: UP017
+        bound_logger = self._logger(event)
+        bound_logger.info("alert_engine_event_subscriber_started")
         alert_event = self._to_alert_event(event)
         dispatcher_result = await self._dispatch(alert_event)
-        return self._to_result(event, dispatcher_result, started_at)
+        result = self._to_result(event, dispatcher_result, started_at)
+        bound_logger.bind(
+            status=result.status,
+            duration_ms=result.duration_ms,
+            warnings=result.warnings,
+            errors=result.errors,
+            dispatch_id=result.metadata.get("dispatch_id"),
+        ).info("alert_engine_event_subscriber_finished")
+        return result
 
     async def _dispatch(self, event: AlertDomainEvent) -> AlertDispatcherResult:
         if self.dispatcher is not None:
@@ -52,6 +63,22 @@ class AlertEngineEventSubscriber(EventSubscriber):
     @staticmethod
     def _to_alert_event(event: DomainEvent) -> AlertDomainEvent:
         return AlertDomainEvent.model_validate(event.model_dump())
+
+    @staticmethod
+    def _logger(event: DomainEvent):
+        return logger.bind(
+            component="alert_engine_event_subscriber",
+            event_id=str(event.event_id),
+            event_type=event.event_type,
+            tenant_id=str(event.tenant_id),
+            unidade_produtiva_id=(
+                str(event.unidade_produtiva_id) if event.unidade_produtiva_id else None
+            ),
+            correlation_id=str(event.correlation_id) if event.correlation_id else None,
+            causation_id=str(event.causation_id) if event.causation_id else None,
+            entity_type=event.entity_type,
+            entity_id=str(event.entity_id) if event.entity_id else None,
+        )
 
     @staticmethod
     def _to_result(

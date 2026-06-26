@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import uuid
+from pathlib import Path
+from typing import Any, cast
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -23,6 +26,9 @@ from events import (
     EventSubscriberResult,
     publish_domain_event,
 )
+from events import helpers as events_helpers_module
+from events import publisher as events_publisher_module
+from events import subscribers as events_subscribers_module
 from events.subscribers import AlertEngineEventSubscriber
 
 
@@ -83,6 +89,23 @@ class RunnerSpy(AlertGeneratorRunner):
     ) -> AlertGeneratorResult:
         self.calls.append((generator.generator_name, context))
         return await super().execute(generator, context)
+
+
+class LoggerSpy:
+    def __init__(self) -> None:
+        self.bind_calls: list[dict[str, object]] = []
+        self.info_messages: list[str] = []
+        self.exception_messages: list[str] = []
+
+    def bind(self, **kwargs: object) -> LoggerSpy:
+        self.bind_calls.append(kwargs)
+        return self
+
+    def info(self, message: str) -> None:
+        self.info_messages.append(message)
+
+    def exception(self, message: str) -> None:
+        self.exception_messages.append(message)
 
 
 def test_domain_event_defaults_and_extensibility() -> None:
@@ -224,7 +247,7 @@ async def test_alert_engine_subscriber_calls_dispatcher() -> None:
                 alerts_created=1,
             )
 
-    subscriber = AlertEngineEventSubscriber(dispatcher=DispatcherSpy())
+    subscriber = AlertEngineEventSubscriber(dispatcher=cast(Any, DispatcherSpy()))
     event = DomainEvent(
         tenant_id=uuid.uuid4(),
         unidade_produtiva_id=uuid.uuid4(),
@@ -300,3 +323,124 @@ async def test_full_chain_publisher_to_dispatcher_runner_and_generator(
     assert runner.calls[0][0] == "chain-generator"
     assert runner.calls[0][1].event_id == event.event_id
     assert runner.calls[0][1].metadata["origin"] == "unit-test"
+
+
+@pytest.mark.asyncio
+async def test_publish_domain_event_safe_swallows_failures(monkeypatch: pytest.MonkeyPatch) -> None:
+    logger_spy = LoggerSpy()
+    event = DomainEvent(
+        tenant_id=uuid.uuid4(),
+        unidade_produtiva_id=uuid.uuid4(),
+        domain=Domain.FIELD,
+        event_type="campo.tarefa.invalidada",
+        source_type="CAMPO_TAREFA_INVALIDADA",
+        entity_type="tarefa_campo",
+        entity_id=uuid.uuid4(),
+        correlation_id=uuid.uuid4(),
+        causation_id=uuid.uuid4(),
+        metadata={"origin": "unit-test"},
+    )
+    monkeypatch.setattr(events_helpers_module, "logger", logger_spy)
+    monkeypatch.setattr(
+        events_helpers_module,
+        "publish_domain_event",
+        AsyncMock(side_effect=RuntimeError("publisher boom")),
+    )
+
+    result = await events_helpers_module.publish_domain_event_safe(event)
+
+    assert result is None
+    assert logger_spy.info_messages[0] == "domain_event_publish_started"
+    assert logger_spy.exception_messages[-1] == "domain_event_publish_failed"
+    assert logger_spy.bind_calls[0]["correlation_id"] == str(event.correlation_id)
+    assert logger_spy.bind_calls[0]["causation_id"] == str(event.causation_id)
+
+
+@pytest.mark.asyncio
+async def test_event_publisher_logs_canonical_context(monkeypatch: pytest.MonkeyPatch) -> None:
+    logger_spy = LoggerSpy()
+    registry = EventSubscriberRegistry()
+    monkeypatch.setattr(events_publisher_module, "logger", logger_spy)
+    publisher = EventPublisher(registry=registry)
+    event = DomainEvent(
+        tenant_id=uuid.uuid4(),
+        unidade_produtiva_id=uuid.uuid4(),
+        domain=Domain.FIELD,
+        event_type="campo.tarefa.invalidada",
+        source_type="CAMPO_TAREFA_INVALIDADA",
+        entity_type="tarefa_campo",
+        entity_id=uuid.uuid4(),
+        correlation_id=uuid.uuid4(),
+        causation_id=uuid.uuid4(),
+    )
+
+    await publisher.publish(event)
+
+    assert logger_spy.info_messages[0] == "event_publisher_started"
+    assert logger_spy.bind_calls[0]["correlation_id"] == str(event.correlation_id)
+    assert logger_spy.bind_calls[0]["causation_id"] == str(event.causation_id)
+
+
+@pytest.mark.asyncio
+async def test_alert_engine_subscriber_logs_canonical_context(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    logger_spy = LoggerSpy()
+
+    class DispatcherSpy:
+        async def dispatch(self, event: AlertDomainEvent) -> AlertDispatcherResult:
+            return AlertDispatcherResult(
+                dispatch_id=uuid.uuid4(),
+                event_id=event.event_id,
+                alerts_created=1,
+            )
+
+    monkeypatch.setattr(events_subscribers_module, "logger", logger_spy)
+    subscriber = AlertEngineEventSubscriber(dispatcher=cast(Any, DispatcherSpy()))
+    event = DomainEvent(
+        tenant_id=uuid.uuid4(),
+        unidade_produtiva_id=uuid.uuid4(),
+        domain=Domain.FIELD,
+        event_type="campo.tarefa.invalidada",
+        source_type="CAMPO_TAREFA_INVALIDADA",
+        entity_type="tarefa_campo",
+        entity_id=uuid.uuid4(),
+        correlation_id=uuid.uuid4(),
+        causation_id=uuid.uuid4(),
+    )
+
+    await subscriber.handle(event)
+
+    assert logger_spy.info_messages[0] == "alert_engine_event_subscriber_started"
+    assert logger_spy.bind_calls[0]["correlation_id"] == str(event.correlation_id)
+    assert logger_spy.bind_calls[0]["causation_id"] == str(event.causation_id)
+    assert logger_spy.exception_messages == []
+
+
+def test_domain_services_do_not_import_dispatcher_internals() -> None:
+    project_root = Path(__file__).resolve().parents[5]
+    campo_source = (project_root / "services/api/campo/router.py").read_text(encoding="utf-8")
+    pecuaria_router_source = (
+        project_root / "services/api/pecuaria/routers/manejos.py"
+    ).read_text(encoding="utf-8")
+    pecuaria_service_source = (
+        project_root / "services/api/pecuaria/services/manejo_sync_service.py"
+    ).read_text(encoding="utf-8")
+
+    forbidden = (
+        "AlertDispatcherService",
+        "dispatch_alert_event",
+        "AlertGeneratorRegistry",
+        "AlertGeneratorRunner",
+        "CampoAlertGenerator",
+        "PecuariaAlertGenerator",
+    )
+    allowed = (
+        "DomainEvent",
+        "publish_domain_event",
+        "publish_domain_event_safe",
+    )
+
+    for source in (campo_source, pecuaria_router_source, pecuaria_service_source):
+        assert any(token in source for token in allowed)
+        assert all(token not in source for token in forbidden)
