@@ -1,8 +1,10 @@
 """Alert Engine canonical generators and execution infrastructure."""
 
+from .agricultura_generator import AgriculturaAlertGenerator  # noqa: F401
 from .base import BaseAlertGenerator  # noqa: F401
 from .campo_generator import CampoAlertGenerationResult, CampoAlertGenerator  # noqa: F401
 from .context import AlertGeneratorContext  # noqa: F401
+from .financeiro_generator import FinanceiroAlertGenerator  # noqa: F401
 from .pecuaria_generator import PecuariaAlertGenerationResult, PecuariaAlertGenerator  # noqa: F401
 from .registry import (  # noqa: F401
     AlertGeneratorRegistry,
@@ -17,9 +19,11 @@ __all__ = [
     "AlertGeneratorRegistry",
     "AlertGeneratorResult",
     "AlertGeneratorRunner",
+    "AgriculturaAlertGenerator",
     "BaseAlertGenerator",
     "CampoAlertGenerationResult",
     "CampoAlertGenerator",
+    "FinanceiroAlertGenerator",
     "PecuariaAlertGenerationResult",
     "PecuariaAlertGenerator",
     "alert_generator_registry",
