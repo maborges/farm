@@ -5,6 +5,11 @@ from .outbox_relay import DomainEventOutboxRelay, DomainEventOutboxRelayResult
 from .outbox_service import DomainEventOutboxService
 from .outbox_worker import (
     OutboxWorkerRunResult,
+    OutboxWorkerStatsResult,
+    OutboxWorkerStatusResult,
+    build_parser,
+    collect_outbox_stats,
+    collect_outbox_status,
     run_outbox_relay_once,
 )
 from .outbox_worker import (
@@ -30,6 +35,8 @@ __all__ = [
     "DomainEventOutboxService",
     "DomainEventOutboxStatus",
     "OutboxWorkerRunResult",
+    "OutboxWorkerStatusResult",
+    "OutboxWorkerStatsResult",
     "EventPublisher",
     "EventPublisherResult",
     "EventSubscriber",
@@ -42,5 +49,8 @@ __all__ = [
     "publish_domain_event",
     "publish_domain_event_safe",
     "register_event_subscriber",
+    "build_parser",
+    "collect_outbox_stats",
+    "collect_outbox_status",
     "run_outbox_relay_once",
 ]
