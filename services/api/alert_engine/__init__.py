@@ -1,5 +1,20 @@
 """Alert Engine canonic models, schemas, and generators."""
 
+from .models import (
+    AlertEvent,
+    AlertIndicator,
+    AlertInsight,
+    AlertLifecycleEvent,
+    AlertStatus,
+    Category,
+    Domain,
+    InsightGeneratedBy,
+    LifecycleActionType,
+    OperationalAlert,
+    Priority,
+    Severity,
+    TriggerType,
+)
 from .dispatcher import (
     AlertDispatcherResult,
     AlertDispatcherService,
@@ -18,21 +33,6 @@ from .generators import (
     PecuariaAlertGenerator,
     alert_generator_registry,
     register_alert_generator,
-)
-from .models import (
-    AlertEvent,
-    AlertIndicator,
-    AlertInsight,
-    AlertLifecycleEvent,
-    AlertStatus,
-    Category,
-    Domain,
-    InsightGeneratedBy,
-    LifecycleActionType,
-    OperationalAlert,
-    Priority,
-    Severity,
-    TriggerType,
 )
 from .scheduler import (
     AlertSchedulerExecution,

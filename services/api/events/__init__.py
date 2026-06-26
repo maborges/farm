@@ -1,5 +1,8 @@
 from .base import DomainEvent, EventSubscriber, EventSubscriberResult
-from .helpers import publish_domain_event_safe
+from .helpers import enqueue_domain_event, publish_domain_event_safe
+from .outbox_model import DomainEventOutbox, DomainEventOutboxStatus
+from .outbox_relay import DomainEventOutboxRelay, DomainEventOutboxRelayResult
+from .outbox_service import DomainEventOutboxService
 from .publisher import (
     EventPublisher,
     EventPublisherResult,
@@ -14,6 +17,11 @@ from .registry import (
 
 __all__ = [
     "DomainEvent",
+    "DomainEventOutbox",
+    "DomainEventOutboxRelay",
+    "DomainEventOutboxRelayResult",
+    "DomainEventOutboxService",
+    "DomainEventOutboxStatus",
     "EventPublisher",
     "EventPublisherResult",
     "EventSubscriber",
@@ -21,6 +29,7 @@ __all__ = [
     "EventSubscriberRegistry",
     "EventSubscriberResult",
     "event_subscriber_registry",
+    "enqueue_domain_event",
     "publish_domain_event",
     "publish_domain_event_safe",
     "register_event_subscriber",

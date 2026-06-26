@@ -8,8 +8,26 @@ from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .base import DomainEvent
-from .publisher import EventPublisherResult, publish_domain_event
+from .outbox_service import DomainEventOutboxService
+from .publisher import publish_domain_event
 from .registry import EventSubscriberRegistry
+
+try:
+    from datetime import UTC
+except ImportError:  # pragma: no cover - Python < 3.11 compatibility
+    UTC = timezone.utc  # noqa: UP017
+
+
+async def enqueue_domain_event(
+    event: DomainEvent,
+    session: AsyncSession,
+    *,
+    commit: bool = True,
+) -> Any:
+    """Persist a canonical domain event into the Outbox."""
+
+    service = DomainEventOutboxService(session=session)
+    return await service.enqueue(event, commit=commit)
 
 
 async def publish_domain_event_safe(
@@ -18,11 +36,12 @@ async def publish_domain_event_safe(
     registry: EventSubscriberRegistry | None = None,
     *,
     logger_context: dict[str, Any] | None = None,
-) -> EventPublisherResult | None:
-    """Publish a domain event and swallow non-fatal failures with structured logs."""
+    use_outbox: bool = True,
+) -> Any | None:
+    """Persist a domain event in the Outbox or publish directly when requested."""
 
     start = perf_counter()
-    started_at = datetime.now(timezone.utc)  # noqa: UP017
+    started_at = datetime.now(UTC)
     context: dict[str, Any] = {
         "component": "domain_event_publisher",
         "event_id": str(event.event_id),
@@ -40,9 +59,18 @@ async def publish_domain_event_safe(
     bound_logger = logger.bind(**context)
     bound_logger.info("domain_event_publish_started")
     try:
+        if session is not None and use_outbox:
+            outbox_row = await enqueue_domain_event(event, session=session, commit=True)
+            bound_logger.bind(
+                status="enqueued",
+                outbox_id=str(outbox_row.id),
+                idempotency_key=outbox_row.idempotency_key,
+                duration_ms=int((perf_counter() - start) * 1000),
+            ).info("domain_event_publish_finished")
+            return outbox_row
         result = await publish_domain_event(event, session=session, registry=registry)
     except Exception as exc:  # pragma: no cover - defensive isolation
-        finished_at = datetime.now(timezone.utc)  # noqa: UP017
+        finished_at = datetime.now(UTC)
         bound_logger.bind(
             status="failed",
             errors=1,

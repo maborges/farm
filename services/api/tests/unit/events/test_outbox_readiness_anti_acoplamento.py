@@ -43,11 +43,25 @@ def test_alert_engine_does_not_import_notification_dispatcher_directly() -> None
         assert "NotificationDispatcher" not in source
 
 
+def test_outbox_does_not_import_alert_engine_or_notification_dispatcher() -> None:
+    files = (
+        _read("services/api/events/outbox_model.py"),
+        _read("services/api/events/outbox_service.py"),
+        _read("services/api/events/outbox_relay.py"),
+    )
+
+    for source in files:
+        assert "AlertLifecycleService" not in source
+        assert "NotificationDispatcher" not in source
+        assert "AlertDispatcherService" not in source
+
+
 def test_event_publisher_remains_common_integration_point() -> None:
     helpers_source = _read("services/api/events/helpers.py")
     publisher_source = _read("services/api/events/publisher.py")
 
     assert "publish_domain_event(" in helpers_source
+    assert "enqueue_domain_event(" in helpers_source
     assert "EventPublisher(" in publisher_source
     assert "AlertDispatcherService" not in helpers_source
     assert "NotificationDispatcher" not in helpers_source

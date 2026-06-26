@@ -8,16 +8,14 @@ from uuid import UUID, uuid4
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from alert_engine.models import Domain
 
-
-class DomainEvent(BaseModel):
+class DomainEvent(BaseModel):  # type: ignore[misc]
     """Canonical in-memory domain event envelope."""
 
     event_id: UUID = Field(default_factory=uuid4)
     tenant_id: UUID
     unidade_produtiva_id: UUID | None = None
-    domain: Domain
+    domain: Any
     event_type: str = Field(min_length=1, max_length=120)
     source_type: str = Field(min_length=1, max_length=120)
     entity_type: str | None = Field(default=None, max_length=80)
@@ -44,7 +42,7 @@ class EventSubscriber(ABC):
         """Handle a domain event and return a canonical subscriber result."""
 
 
-class EventSubscriberResult(BaseModel):
+class EventSubscriberResult(BaseModel):  # type: ignore[misc]
     """Canonical result returned by a subscriber execution."""
 
     event_id: UUID

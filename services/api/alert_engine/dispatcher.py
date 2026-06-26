@@ -21,7 +21,7 @@ from alert_engine.models import Domain
 from events.base import DomainEvent as AlertDomainEvent
 
 
-class AlertDispatchExecution(BaseModel):
+class AlertDispatchExecution(BaseModel):  # type: ignore[misc]
     """Per-generator execution summary for a dispatched domain event."""
 
     tenant_id: UUID
@@ -42,7 +42,7 @@ class AlertDispatchExecution(BaseModel):
     model_config = ConfigDict(extra="allow", populate_by_name=True)
 
 
-class AlertDispatcherResult(BaseModel):
+class AlertDispatcherResult(BaseModel):  # type: ignore[misc]
     """Aggregate result for a single Alert Domain Event dispatch."""
 
     dispatch_id: UUID
@@ -156,9 +156,13 @@ class AlertDispatcherService:
         )
 
     @staticmethod
-    def _matches_domain(generator_cls: type[BaseAlertGenerator], domain: Domain) -> bool:
+    def _matches_domain(generator_cls: type[BaseAlertGenerator], domain: Domain | str) -> bool:
         generator_domain = getattr(generator_cls, "domain", None)
-        return generator_domain is None or generator_domain == domain
+        if generator_domain is None:
+            return True
+        generator_value = AlertDispatcherService._domain_value(generator_domain)
+        event_value = AlertDispatcherService._domain_value(domain)
+        return generator_value == event_value
 
     @staticmethod
     def _build_context(
@@ -182,6 +186,12 @@ class AlertDispatcherService:
             reason="event_dispatch",
             metadata=metadata,
         )
+
+    @staticmethod
+    def _domain_value(domain: Domain | str | None) -> str | None:
+        if domain is None:
+            return None
+        return domain.value if hasattr(domain, "value") else str(domain)
 
     @staticmethod
     def _to_execution(
@@ -245,7 +255,7 @@ class AlertDispatcherService:
         result.executions.append(execution)
 
     @staticmethod
-    def _logger(event: AlertDomainEvent, dispatch_id: UUID):
+    def _logger(event: AlertDomainEvent, dispatch_id: UUID) -> Any:
         return logger.bind(
             component="alert_dispatcher_service",
             dispatch_id=str(dispatch_id),
@@ -256,12 +266,12 @@ class AlertDispatcherService:
             unidade_produtiva_id=(
                 str(event.unidade_produtiva_id) if event.unidade_produtiva_id else None
             ),
-            domain=event.domain.value,
+            domain=AlertDispatcherService._domain_value(event.domain),
             event_type=event.event_type,
         )
 
     @staticmethod
-    def _log_execution(bound_logger, execution: AlertDispatchExecution) -> None:
+    def _log_execution(bound_logger: Any, execution: AlertDispatchExecution) -> None:
         bound_logger.bind(
             tenant_id=str(execution.tenant_id),
             unidade_produtiva_id=(
