@@ -8,7 +8,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from agricola.custos.models import CostAllocation
 from campo.models import TarefaCampo
-from core.cadastros.produtos.models import Produto
 from core.exceptions import EntityNotFoundError
 from operacional.models.estoque import EstoqueMovimento
 from pecuaria.animal.models import Animal, EventoAnimal, LoteAnimal
@@ -27,6 +26,7 @@ class LoteIndicadoresService:
         gmd_medio = await self._calcular_gmd_medio(lote_id)
         ultima_pesagem = await self._buscar_ultima_pesagem(lote_id)
         custo_total = await self._buscar_custo_sanitario_total(lote_id)
+        custo_aquisicao_total = await self._buscar_custo_aquisicao_total(lote_id)
         return self._montar_resposta(
             lote,
             quantidade_animais,
@@ -35,11 +35,14 @@ class LoteIndicadoresService:
             gmd_medio,
             ultima_pesagem,
             custo_total,
+            custo_aquisicao_total,
         )
 
     async def _buscar_lote(self, lote_id: uuid.UUID) -> LoteAnimal:
         lote = await self.session.scalar(
-            select(LoteAnimal).where(LoteAnimal.id == lote_id, LoteAnimal.tenant_id == self.tenant_id)
+            select(LoteAnimal).where(
+                LoteAnimal.id == lote_id, LoteAnimal.tenant_id == self.tenant_id
+            )
         )
         if not lote:
             raise EntityNotFoundError(f"Lote {lote_id} não encontrado")
@@ -68,7 +71,10 @@ class LoteIndicadoresService:
     async def _calcular_gmd_medio(self, lote_id: uuid.UUID) -> float | None:
         stmt = (
             select(EventoAnimal.animal_id, EventoAnimal.data_evento, EventoAnimal.peso_kg)
-            .join(Animal, and_(Animal.id == EventoAnimal.animal_id, Animal.tenant_id == self.tenant_id))
+            .join(
+                Animal,
+                and_(Animal.id == EventoAnimal.animal_id, Animal.tenant_id == self.tenant_id),
+            )
             .where(
                 EventoAnimal.tenant_id == self.tenant_id,
                 Animal.lote_id == lote_id,
@@ -86,7 +92,10 @@ class LoteIndicadoresService:
     async def _buscar_ultima_pesagem(self, lote_id: uuid.UUID) -> date | None:
         stmt = (
             select(func.max(EventoAnimal.data_evento))
-            .join(Animal, and_(Animal.id == EventoAnimal.animal_id, Animal.tenant_id == self.tenant_id))
+            .join(
+                Animal,
+                and_(Animal.id == EventoAnimal.animal_id, Animal.tenant_id == self.tenant_id),
+            )
             .where(
                 EventoAnimal.tenant_id == self.tenant_id,
                 Animal.lote_id == lote_id,
@@ -126,6 +135,15 @@ class LoteIndicadoresService:
         )
         return float((await self.session.execute(stmt)).scalar_one() or 0)
 
+    async def _buscar_custo_aquisicao_total(self, lote_id: uuid.UUID) -> float:
+        stmt = select(func.coalesce(func.sum(Animal.valor_aquisicao), 0)).where(
+            Animal.tenant_id == self.tenant_id,
+            Animal.lote_id == lote_id,
+            Animal.status == "ATIVO",
+            Animal.valor_aquisicao.is_not(None),
+        )
+        return float((await self.session.execute(stmt)).scalar_one() or 0)
+
     def _montar_resposta(
         self,
         lote: LoteAnimal,
@@ -135,6 +153,7 @@ class LoteIndicadoresService:
         gmd_medio: float | None,
         ultima_pesagem: date | None,
         custo_total: float,
+        custo_aquisicao_total: float,
     ) -> LoteIndicadoresResponse:
         peso_medio = peso_total / quantidade_com_peso if quantidade_com_peso else 0.0
         custo_por_cabeca = round(custo_total / quantidade_animais, 4) if quantidade_animais else 0.0
@@ -152,6 +171,7 @@ class LoteIndicadoresService:
             custo_sanitario_por_cabeca=float(custo_por_cabeca),
             custo_sanitario_por_kg=float(custo_por_kg),
             custo_sanitario_por_arroba=float(custo_por_arroba),
+            custo_aquisicao_total=float(custo_aquisicao_total),
         )
 
     def _extrair_gmds(self, rows: list[tuple[uuid.UUID, date, float | None]]) -> list[float]:
