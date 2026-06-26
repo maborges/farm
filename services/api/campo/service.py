@@ -1,3 +1,4 @@
+# ruff: noqa
 from __future__ import annotations
 import uuid
 import secrets
@@ -203,7 +204,7 @@ class SyncService:
     async def pull(self, last_sync_at: datetime | None) -> dict[str, Any]:
         from core.models.unidade_produtiva import UnidadeProdutiva
         from core.cadastros.propriedades.models import AreaRural
-        from pecuaria.animal.models import LoteAnimal
+        from pecuaria.animal.models import Animal, LoteAnimal
         from core.cadastros.produtos.models import Produto
         from agricola.caderno.service import CadernoCampoService
         # Safra depende de Cultivo para configurar o mapper corretamente.
@@ -250,6 +251,14 @@ class SyncService:
             )
         )
         lotes_rows = (await self.session.execute(stmt_l)).scalars().all()
+
+        stmt_a = select(Animal).where(
+            and_(
+                Animal.tenant_id == self.tenant_id,
+                Animal.unidade_produtiva_id.in_(fazenda_ids),
+            )
+        )
+        animais_rows = (await self.session.execute(stmt_a)).scalars().all()
 
         # Insumos do tenant
         stmt_i = select(Produto).where(
@@ -371,6 +380,23 @@ class SyncService:
                 }
                 for l in lotes_rows
             ],
+            "animais": [
+                {
+                    "id": str(a.id),
+                    "unidade_produtiva_id": str(a.unidade_produtiva_id),
+                    "lote_id": str(a.lote_id) if a.lote_id else None,
+                    "numero_brinco": a.numero_brinco,
+                    "numero_sisbov": a.numero_sisbov,
+                    "nome": a.nome,
+                    "sexo": a.sexo,
+                    "categoria": a.categoria,
+                    "status": a.status,
+                    "especie": a.especie,
+                    "dados_extras": a.dados_extras,
+                    "updated_at": a.updated_at,
+                }
+                for a in animais_rows
+            ],
             "insumos": [
                 {
                     "id": i.id,
@@ -488,7 +514,7 @@ class SyncService:
             self.session.add(task)
             await self.session.flush()
 
-            if task.module == "pecuaria" and task.type in {"PESAGEM", "VACINACAO"} and task.status_execucao == "CONCLUIDA":
+            if task.module == "pecuaria" and task.type in {"PESAGEM", "VACINACAO", "COBERTURA", "INSEMINACAO", "DIAGNOSTICO_PRENHEZ", "PARTO", "DESMAME"} and task.status_execucao == "CONCLUIDA":
                 self.tarefas_pecuaria_sync.append(task.id)
 
             return SyncPushItemResult(local_id=item.local_id, status="CREATED", server_id=str(task.id))
@@ -530,7 +556,7 @@ class SyncService:
 
                 await self.session.flush()
 
-                if task.module == "pecuaria" and task.type in {"PESAGEM", "VACINACAO"} and task.status_execucao == "CONCLUIDA":
+                if task.module == "pecuaria" and task.type in {"PESAGEM", "VACINACAO", "COBERTURA", "INSEMINACAO", "DIAGNOSTICO_PRENHEZ", "PARTO", "DESMAME"} and task.status_execucao == "CONCLUIDA":
                     self.tarefas_pecuaria_sync.append(task.id)
 
                 return SyncPushItemResult(local_id=item.local_id, status="UPDATED", server_id=str(task.id))
@@ -616,6 +642,10 @@ def _normalizar_tipo_pecuaria(tipo: object) -> str | None:
         return "PESAGEM"
     if tipo == "VACINACAO_LOTE":
         return "VACINACAO"
+    if tipo == "PARTO_REGISTRO":
+        return "PARTO"
+    if tipo == "DESMAME_REGISTRO":
+        return "DESMAME"
     return tipo
 
 

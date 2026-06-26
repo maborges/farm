@@ -27,7 +27,16 @@ export function resolveTaskDomain(task: Pick<LocalTask, "module" | "type"> | { m
   }
 
   const type = (task.type ?? "").toUpperCase();
-  if (resolvePecuariaTaskKind(type) || type === "PESAGEM_ANIMAL" || type === "VACINACAO_LOTE") {
+  if (
+    resolvePecuariaTaskKind(type) ||
+    type === "PESAGEM_ANIMAL" ||
+    type === "VACINACAO_LOTE" ||
+    type === "COBERTURA" ||
+    type === "DIAGNOSTICO_PRENHEZ" ||
+    type === "DESMAME" ||
+    type === "PARTO" ||
+    type === "PARTO_REGISTRO"
+  ) {
     return "PECUARIA";
   }
 
@@ -41,4 +50,3 @@ export function resolveTaskDomain(task: Pick<LocalTask, "module" | "type"> | { m
 export function formatTaskDomainLabel(domain: TaskDomain): string {
   return domain === "PECUARIA" ? "Pecuária" : "Agricultura";
 }
-

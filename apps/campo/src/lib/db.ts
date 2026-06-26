@@ -17,8 +17,12 @@ export type TaskType =
   | "PESAGEM_ANIMAL"
   | "VACINACAO"
   | "VACINACAO_LOTE"
+  | "COBERTURA"
+  | "DIAGNOSTICO_PRENHEZ"
+  | "DESMAME"
   | "MEDICACAO_ANIMAL"
   | "MOVIMENTACAO_LOTE"
+  | "PARTO"
   | "PARTO_REGISTRO"
   | "MORTE_REGISTRO"
   | "INSEMINACAO"
@@ -255,6 +259,21 @@ export interface CachedLote {
   fazenda_id: string;
 }
 
+export interface CachedAnimal {
+  id: string;
+  unidade_produtiva_id: string;
+  lote_id?: string | null;
+  numero_brinco?: string | null;
+  numero_sisbov?: string | null;
+  nome?: string | null;
+  sexo?: string | null;
+  categoria?: string | null;
+  status?: string | null;
+  especie?: string | null;
+  dados_extras?: Record<string, unknown> | null;
+  updated_at?: string;
+}
+
 export interface CachedInsumo {
   id: string;
   nome: string;
@@ -290,6 +309,7 @@ export class CampoDatabase extends Dexie {
   fazendas!: Table<CachedFazenda>;
   talhoes!: Table<CachedTalhao>;
   lotes!: Table<CachedLote>;
+  animais!: Table<CachedAnimal>;
   insumos!: Table<CachedInsumo>;
   safras!: Table<CachedSafra>;
   colaboradores!: Table<CachedColaborador>;
@@ -463,6 +483,23 @@ export class CampoDatabase extends Dexie {
       fazendas: "id",
       talhoes: "id, fazenda_id",
       lotes: "id, fazenda_id",
+      insumos: "id, categoria",
+      safras: "id, status",
+      colaboradores: "id",
+    });
+    this.version(10).stores({
+      session: "id",
+      tasks:
+        "id, server_id, type, module, fazenda_id, talhao_id, lote_id, status, origem, status_execucao, data_programada, synced, created_at",
+      sync_queue: "id, entity_id, entity_type, status, created_at",
+      caderno_events: "local_id, server_id, tenant_id, safra_id, talhao_id, device_id, sync_status, review_required, created_at",
+      caderno_server_events:
+        "server_id, local_id, device_id, safra_id, talhao_id, status_evento, documental_status, updated_at, data_registro",
+      caderno_drafts: "id, user_id, task_id, updated_at",
+      fazendas: "id",
+      talhoes: "id, fazenda_id",
+      lotes: "id, fazenda_id",
+      animais: "id, unidade_produtiva_id, lote_id, numero_brinco, nome, categoria, sexo, status",
       insumos: "id, categoria",
       safras: "id, status",
       colaboradores: "id",

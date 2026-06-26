@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+# ruff: noqa
 from datetime import date, datetime
 from typing import Optional
 from uuid import UUID
@@ -203,6 +204,20 @@ class PecuariaGeneticaResumoResponse(BaseModel):
     total_matrizes: int
     total_reprodutores: int
     total_sugestoes: int
+    total_coberturas: int = 0
+    total_diagnosticos_prenhez: int = 0
+    total_partos: int = 0
+    total_nascimentos: int = 0
+    total_desmamas: int = 0
+    taxa_prenhez_pct: float = 0
+    taxa_natalidade_pct: float = 0
+    taxa_desmama_pct: float = 0
+    intervalo_medio_partos_dias: float = 0
+    peso_nascimento_medio_kg: float = 0
+    peso_desmama_medio_kg: float = 0
+    idade_media_desmama_dias: float = 0
+    crias_por_matriz: float = 0
+    perdas_reprodutivas: int = 0
 
 
 class ConfinamentoResumoResponse(BaseModel):

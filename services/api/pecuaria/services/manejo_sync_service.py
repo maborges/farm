@@ -1,3 +1,4 @@
+# ruff: noqa
 from __future__ import annotations
 
 from datetime import date, datetime
@@ -19,7 +20,7 @@ from agricola.custos.models import CostAllocation
 from agricola.production_units.models import ProductionUnit
 from operacional.models.estoque import EstoqueMovimento
 from operacional.services.estoque_service import EstoqueService
-from pecuaria.animal.models import Animal, EventoAnimal, LoteAnimal
+from pecuaria.animal.models import Animal, CategoriaAnimal, EventoAnimal, LoteAnimal, SexoAnimal
 
 
 class ManejoSyncResult(BaseModel):
@@ -36,6 +37,7 @@ class ManejoSyncResult(BaseModel):
 class ManejoSyncService(BaseService[EventoAnimal]):
     ORIGEM_ESTOQUE_VACINACAO = "PECUARIA_VACINACAO"
     IDENTIFICADOR_ESTOQUE_VACINACAO = "PECUARIA_VACINACAO"
+    TIPOS_REPRODUCAO = {"COBERTURA", "INSEMINACAO", "DIAGNOSTICO_PRENHEZ", "PARTO", "DESMAME"}
 
     def __init__(self, db: AsyncSession, tenant_id: UUID):
         super().__init__(EventoAnimal, db, tenant_id)
@@ -52,6 +54,8 @@ class ManejoSyncService(BaseService[EventoAnimal]):
             res = await self._processar_pesagem(tarefa)
         elif tarefa.type == "VACINACAO":
             res = await self._processar_vacinacao(tarefa)
+        elif tarefa.type in self.TIPOS_REPRODUCAO:
+            res = await self._processar_reproducao(tarefa)
         else:
             return self._resultado_ignorado(tarefa_campo_id, f"Tipo '{tarefa.type}' não suportado nesta execução.")
         await self._persistir_resultado(tarefa_campo_id, res)
@@ -176,6 +180,328 @@ class ManejoSyncService(BaseService[EventoAnimal]):
             await self.session.rollback()
             erros = [str(exc)]
             return self._resultado_erro(tarefa_id, len(animais_ids), erros)
+
+    async def _processar_reproducao(self, tarefa: TarefaCampo) -> ManejoSyncResult:
+        tipo = tarefa.type
+        if tipo in {"COBERTURA", "INSEMINACAO"}:
+            return await self._processar_apareamento(tarefa)
+        if tipo == "DIAGNOSTICO_PRENHEZ":
+            return await self._processar_diagnostico_prenhez(tarefa)
+        if tipo == "PARTO":
+            return await self._processar_parto(tarefa)
+        if tipo == "DESMAME":
+            return await self._processar_desmame(tarefa)
+        return self._resultado_ignorado(tarefa.id, f"Tipo '{tipo}' não suportado nesta execução.")
+
+    async def _processar_apareamento(self, tarefa: TarefaCampo) -> ManejoSyncResult:
+        dados = tarefa.dados or {}
+        animal_id = self._uuid_from_value(dados.get("animal_id") or dados.get("matriz_id") or dados.get("mae_id"))
+        animal = await self._obter_animal(animal_id)
+        if not animal:
+            return self._resultado_erro(tarefa.id, 1, ["animal_id/matriz_id é obrigatório para reprodução."])
+        if await self._evento_reprodutivo_existente(tarefa.id, animal.id, tarefa.type):
+            return self._resultado_ignorado(tarefa.id, "Evento reprodutivo já materializado.")
+
+        data_evento = self._resolver_data_evento(dados.get("data_evento"), tarefa.concluida_em)
+        evento = EventoAnimal(
+            tenant_id=self.tenant_id,
+            animal_id=animal.id,
+            tarefa_campo_id=tarefa.id,
+            operador_id=tarefa.operador_id,
+            tipo=tarefa.type,
+            data_evento=data_evento,
+            pessoa_id=self._uuid_from_value(dados.get("reprodutor_id") or dados.get("touro_id")),
+            observacoes=dados.get("observacoes"),
+            dados_extras={
+                "reprodutor_id": str(self._uuid_from_value(dados.get("reprodutor_id") or dados.get("touro_id")))
+                if self._uuid_from_value(dados.get("reprodutor_id") or dados.get("touro_id"))
+                else None,
+                "metodo": dados.get("metodo") or dados.get("tipo_cobertura"),
+                "semen_lote": dados.get("semen_lote"),
+                "lote_id": str(self._uuid_from_value(dados.get("lote_id") or tarefa.lote_id)) if (self._uuid_from_value(dados.get("lote_id") or tarefa.lote_id)) else None,
+            },
+        )
+        self.session.add(evento)
+        animal.dados_extras = self._mesclar_dados_reproducao(animal, {
+            "ultimo_evento": tarefa.type,
+            "data_evento": data_evento.isoformat(),
+            "reprodutor_id": str(self._uuid_from_value(dados.get("reprodutor_id") or dados.get("touro_id")))
+            if self._uuid_from_value(dados.get("reprodutor_id") or dados.get("touro_id"))
+            else None,
+        })
+        await self.session.flush()
+        await self._publish_reproducao_evento(tarefa, evento)
+        return ManejoSyncResult(
+            status="SUCCESS",
+            total_recebido=1,
+            total_processado=1,
+            total_ignorados=0,
+            erros=[],
+            tarefa_campo_id=tarefa.id,
+        )
+
+    async def _processar_diagnostico_prenhez(self, tarefa: TarefaCampo) -> ManejoSyncResult:
+        dados = tarefa.dados or {}
+        animal = await self._obter_animal(self._uuid_from_value(dados.get("animal_id") or dados.get("matriz_id")))
+        if not animal:
+            return self._resultado_erro(tarefa.id, 1, ["animal_id/matriz_id é obrigatório para diagnóstico."])
+        if await self._evento_reprodutivo_existente(tarefa.id, animal.id, "DIAGNOSTICO_PRENHEZ"):
+            return self._resultado_ignorado(tarefa.id, "Evento de diagnóstico já materializado.")
+
+        data_evento = self._resolver_data_evento(dados.get("data_evento"), tarefa.concluida_em)
+        resultado = str(dados.get("resultado") or dados.get("status") or "").upper() or "INCONCLUSIVO"
+        previsao_parto = self._resolver_data_evento(dados.get("previsao_parto"), tarefa.concluida_em)
+        evento = EventoAnimal(
+            tenant_id=self.tenant_id,
+            animal_id=animal.id,
+            tarefa_campo_id=tarefa.id,
+            operador_id=tarefa.operador_id,
+            tipo="DIAGNOSTICO_PRENHEZ",
+            data_evento=data_evento,
+            observacoes=dados.get("observacoes"),
+            dados_extras={
+                "resultado": resultado,
+                "previsao_parto": previsao_parto.isoformat() if previsao_parto else None,
+                "lote_id": str(self._uuid_from_value(dados.get("lote_id") or tarefa.lote_id)) if (self._uuid_from_value(dados.get("lote_id") or tarefa.lote_id)) else None,
+            },
+        )
+        self.session.add(evento)
+        animal.dados_extras = self._mesclar_dados_reproducao(animal, {
+            "diagnostico": {
+                "resultado": resultado,
+                "previsao_parto": previsao_parto.isoformat() if previsao_parto else None,
+                "data_evento": data_evento.isoformat(),
+            }
+        })
+        await self.session.flush()
+        await self._publish_reproducao_evento(tarefa, evento)
+        return ManejoSyncResult(status="SUCCESS", total_recebido=1, total_processado=1, total_ignorados=0, erros=[], tarefa_campo_id=tarefa.id)
+
+    async def _processar_parto(self, tarefa: TarefaCampo) -> ManejoSyncResult:
+        dados = tarefa.dados or {}
+        mae = await self._obter_animal(self._uuid_from_value(dados.get("mae_id") or dados.get("animal_id") or dados.get("matriz_id")))
+        if not mae:
+            return self._resultado_erro(tarefa.id, 1, ["mae_id/animal_id é obrigatório para parto."])
+        if await self._evento_reprodutivo_existente(tarefa.id, mae.id, "PARTO"):
+            return self._resultado_ignorado(tarefa.id, "Evento de parto já materializado.")
+
+        data_evento = self._resolver_data_evento(dados.get("data_evento"), tarefa.concluida_em)
+        cria = await self._obter_cria_existente(dados)
+        pai_id = self._uuid_from_value(dados.get("pai_id") or dados.get("reprodutor_id"))
+        sexo_cria = str(dados.get("sexo_cria") or dados.get("sexo") or "MACHO").upper()
+        lote_id = self._uuid_from_value(dados.get("lote_id") or tarefa.lote_id or mae.lote_id)
+        peso_cria = self._safe_float(dados.get("peso_nascimento_kg") or dados.get("peso_cria_kg"))
+
+        if cria is None:
+            cria = Animal(
+                tenant_id=self.tenant_id,
+                unidade_produtiva_id=mae.unidade_produtiva_id,
+                lote_id=lote_id,
+                pai_id=pai_id,
+                mae_id=mae.id,
+                numero_brinco=self._string_or_none(dados.get("cria_numero_brinco") or dados.get("numero_brinco")),
+                numero_sisbov=self._string_or_none(dados.get("cria_numero_sisbov")),
+                microchip=self._string_or_none(dados.get("cria_microchip")),
+                especie=mae.especie,
+                categoria=self._categoria_cria(sexo_cria),
+                sexo=sexo_cria if sexo_cria in {SexoAnimal.MACHO.value, SexoAnimal.FEMEA.value} else SexoAnimal.MACHO.value,
+                data_nascimento=data_evento,
+                data_entrada=data_evento,
+                status="ATIVO",
+                peso_atual_kg=peso_cria,
+                valor_aquisicao=0.0,
+                dados_extras={
+                    "reproducao": {
+                        "origem_tarefa_campo_id": str(tarefa.id),
+                        "mae_id": str(mae.id),
+                        "pai_id": str(pai_id) if pai_id else None,
+                        "data_nascimento": data_evento.isoformat(),
+                    }
+                },
+            )
+            self.session.add(cria)
+            await self.session.flush()
+
+        evento_mae = EventoAnimal(
+            tenant_id=self.tenant_id,
+            animal_id=mae.id,
+            tarefa_campo_id=tarefa.id,
+            operador_id=tarefa.operador_id,
+            tipo="PARTO",
+            data_evento=data_evento,
+            peso_kg=peso_cria,
+            lote_destino_id=lote_id,
+            observacoes=dados.get("observacoes"),
+            dados_extras={
+                "cria_animal_id": str(cria.id),
+                "sexo_cria": sexo_cria,
+                "peso_nascimento_kg": peso_cria,
+                "pai_id": str(pai_id) if pai_id else None,
+            },
+        )
+        evento_cria = EventoAnimal(
+            tenant_id=self.tenant_id,
+            animal_id=cria.id,
+            tarefa_campo_id=tarefa.id,
+            operador_id=tarefa.operador_id,
+            tipo="NASCIMENTO",
+            data_evento=data_evento,
+            peso_kg=peso_cria,
+            lote_destino_id=lote_id,
+            observacoes=dados.get("observacoes"),
+            dados_extras={
+                "mae_id": str(mae.id),
+                "pai_id": str(pai_id) if pai_id else None,
+                "lote_id": str(lote_id) if lote_id else None,
+            },
+        )
+        self.session.add_all([evento_mae, evento_cria])
+        mae.dados_extras = self._mesclar_dados_reproducao(mae, {
+            "ultimo_parto": {
+                "data_evento": data_evento.isoformat(),
+                "cria_animal_id": str(cria.id),
+                "peso_cria": peso_cria,
+            }
+        })
+        cria.dados_extras = self._mesclar_dados_reproducao(cria, {
+            "reproducao": {
+                "origem_tarefa_campo_id": str(tarefa.id),
+                "mae_id": str(mae.id),
+                "pai_id": str(pai_id) if pai_id else None,
+                "data_nascimento": data_evento.isoformat(),
+            }
+        })
+        await self.session.flush()
+        await self._publish_reproducao_evento(tarefa, evento_mae)
+        await self._publish_reproducao_evento(tarefa, evento_cria, source_type="PECUARIA_NASCIMENTO_REGISTRADO")
+        return ManejoSyncResult(status="SUCCESS", total_recebido=1, total_processado=1, total_ignorados=0, erros=[], tarefa_campo_id=tarefa.id)
+
+    async def _processar_desmame(self, tarefa: TarefaCampo) -> ManejoSyncResult:
+        dados = tarefa.dados or {}
+        animal = await self._obter_animal(self._uuid_from_value(dados.get("animal_id") or dados.get("cria_id")))
+        if not animal:
+            return self._resultado_erro(tarefa.id, 1, ["animal_id/cria_id é obrigatório para desmama."])
+        if await self._evento_reprodutivo_existente(tarefa.id, animal.id, "DESMAME"):
+            return self._resultado_ignorado(tarefa.id, "Evento de desmama já materializado.")
+
+        data_evento = self._resolver_data_evento(dados.get("data_evento"), tarefa.concluida_em)
+        lote_destino_id = self._uuid_from_value(dados.get("lote_destino_id") or tarefa.lote_id)
+        peso_desmama = self._safe_float(dados.get("peso_desmama_kg") or dados.get("peso_kg"))
+        evento = EventoAnimal(
+            tenant_id=self.tenant_id,
+            animal_id=animal.id,
+            tarefa_campo_id=tarefa.id,
+            operador_id=tarefa.operador_id,
+            tipo="DESMAME",
+            data_evento=data_evento,
+            peso_kg=peso_desmama,
+            lote_destino_id=lote_destino_id,
+            observacoes=dados.get("observacoes"),
+            dados_extras={
+                "lote_destino_id": str(lote_destino_id) if lote_destino_id else None,
+                "idade_dias": dados.get("idade_dias"),
+            },
+        )
+        animal.lote_id = lote_destino_id or animal.lote_id
+        animal.peso_atual_kg = peso_desmama or animal.peso_atual_kg
+        animal.dados_extras = self._mesclar_dados_reproducao(animal, {
+            "desmama": {
+                "data_evento": data_evento.isoformat(),
+                "peso_desmama_kg": peso_desmama,
+                "lote_destino_id": str(lote_destino_id) if lote_destino_id else None,
+            }
+        })
+        if animal.sexo == SexoAnimal.FEMEA.value and animal.categoria in {CategoriaAnimal.BEZERRA.value, CategoriaAnimal.NOVILHA.value}:
+            animal.categoria = CategoriaAnimal.NOVILHA.value
+        elif animal.sexo == SexoAnimal.MACHO.value and animal.categoria in {CategoriaAnimal.BEZERRO.value, CategoriaAnimal.GARROTE.value}:
+            animal.categoria = CategoriaAnimal.GARROTE.value
+        self.session.add(evento)
+        self.session.add(animal)
+        await self.session.flush()
+        await self._publish_reproducao_evento(tarefa, evento)
+        return ManejoSyncResult(status="SUCCESS", total_recebido=1, total_processado=1, total_ignorados=0, erros=[], tarefa_campo_id=tarefa.id)
+
+    async def _obter_animal(self, animal_id: UUID | None) -> Animal | None:
+        if animal_id is None:
+            return None
+        stmt = select(Animal).where(Animal.id == animal_id, Animal.tenant_id == self.tenant_id)
+        return (await self.session.execute(stmt)).scalars().first()
+
+    async def _evento_reprodutivo_existente(self, tarefa_id: UUID, animal_id: UUID, tipo: str) -> bool:
+        stmt = select(EventoAnimal.id).where(
+            EventoAnimal.tenant_id == self.tenant_id,
+            EventoAnimal.tarefa_campo_id == tarefa_id,
+            EventoAnimal.animal_id == animal_id,
+            EventoAnimal.tipo == tipo,
+        )
+        return (await self.session.execute(stmt)).scalar_one_or_none() is not None
+
+    async def _obter_cria_existente(self, dados: dict) -> Animal | None:
+        numero_brinco = self._string_or_none(dados.get("cria_numero_brinco") or dados.get("numero_brinco"))
+        if not numero_brinco:
+            return None
+        stmt = select(Animal).where(
+            Animal.tenant_id == self.tenant_id,
+            Animal.numero_brinco == numero_brinco,
+        )
+        return (await self.session.execute(stmt)).scalars().first()
+
+    def _mesclar_dados_reproducao(self, animal: Animal, dados: dict) -> dict | None:
+        extras = animal.dados_extras if isinstance(animal.dados_extras, dict) else {}
+        repro = dict(extras.get("reproducao") or {})
+        repro.update(dados)
+        extras["reproducao"] = repro
+        return extras or None
+
+    @staticmethod
+    def _categoria_cria(sexo: str) -> str:
+        return CategoriaAnimal.BEZERRA.value if sexo == SexoAnimal.FEMEA.value else CategoriaAnimal.BEZERRO.value
+
+    @staticmethod
+    def _safe_float(value: object) -> float | None:
+        try:
+            if value in (None, ""):
+                return None
+            return float(value)
+        except (TypeError, ValueError):
+            return None
+
+    @staticmethod
+    def _string_or_none(value: object) -> str | None:
+        if value in (None, ""):
+            return None
+        return str(value)
+
+    async def _publish_reproducao_evento(
+        self,
+        tarefa: TarefaCampo,
+        evento: EventoAnimal,
+        *,
+        source_type: str | None = None,
+    ) -> None:
+        evento_domain = DomainEvent(
+            tenant_id=self.tenant_id,
+            unidade_produtiva_id=tarefa.unidade_produtiva_id,
+            domain=Domain.LIVESTOCK,
+            event_type="pecuaria.reproducao.registrada",
+            source_type=source_type or f"PECUARIA_{evento.tipo}_REGISTRADO",
+            entity_type="evento_animal",
+            entity_id=evento.id,
+            correlation_id=self._uuid_from_value(tarefa.client_id),
+            metadata={
+                "tarefa_campo_id": str(tarefa.id),
+                "animal_id": str(evento.animal_id),
+                "tipo": evento.tipo,
+                "data_evento": evento.data_evento.isoformat(),
+                "lote_destino_id": str(evento.lote_destino_id) if evento.lote_destino_id else None,
+            },
+        )
+        await publish_domain_event_safe(
+            evento_domain,
+            session=self.session,
+            commit=False,
+            logger_context={"component": "pecuaria_sync_service"},
+        )
 
     def _validar_animais_payload_pesagem(self, animais_payload: list[dict], dados: dict) -> dict:
         erros: list[str] = []

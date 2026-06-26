@@ -184,9 +184,23 @@ export function PecuariaTaskExecution({ task, canInteract }: PecuariaTaskExecuti
         <CampoSectionTitle
           eyebrow="Pecuária"
           title={formatPecuariaTaskType(task.type)}
-          description={kind === "PESAGEM" ? "Informe o peso individual de cada animal." : "Confirme a aplicação da vacina para o lote."}
+          description={
+            kind === "PESAGEM"
+              ? "Informe o peso individual de cada animal."
+              : kind === "VACINACAO"
+                ? "Confirme a aplicação da vacina para o lote."
+                : "Confirme o evento reprodutivo para sincronização."
+          }
           action={
-            <CampoPill className={kind === "PESAGEM" ? "border-sky-200 bg-sky-50 text-sky-800" : "border-rose-200 bg-rose-50 text-rose-700"}>
+            <CampoPill
+              className={
+                kind === "PESAGEM"
+                  ? "border-sky-200 bg-sky-50 text-sky-800"
+                  : kind === "VACINACAO"
+                    ? "border-rose-200 bg-rose-50 text-rose-700"
+                    : "border-emerald-200 bg-emerald-50 text-emerald-700"
+              }
+            >
               {kind}
             </CampoPill>
           }
@@ -202,6 +216,16 @@ export function PecuariaTaskExecution({ task, canInteract }: PecuariaTaskExecuti
               <SummaryRow label="Dose" value={dose} />
               <SummaryRow label="Unidade" value={unidadeMedida} />
               <SummaryRow label="Via" value={viaAplicacao} />
+            </>
+          )}
+          {kind === "REPRODUCAO" && (
+            <>
+              <SummaryRow label="Animal / matriz" value={formatValue(taskDados.animal_id ?? taskDados.mae_id ?? taskDados.matriz_id)} />
+              <SummaryRow label="Reprodutor" value={formatValue(taskDados.reprodutor_id ?? taskDados.touro_id)} />
+              <SummaryRow label="Resultado" value={formatValue(taskDados.resultado ?? taskDados.status)} />
+              <SummaryRow label="Previsão parto" value={formatValue(taskDados.previsao_parto)} />
+              <SummaryRow label="Cria" value={formatValue(taskDados.cria_numero_brinco ?? taskDados.numero_brinco)} />
+              <SummaryRow label="Peso cria" value={formatValue(taskDados.peso_nascimento_kg ?? taskDados.peso_desmama_kg)} />
             </>
           )}
         </div>
@@ -353,6 +377,15 @@ export function PecuariaTaskExecution({ task, canInteract }: PecuariaTaskExecuti
             {saving ? "Concluindo..." : "Concluir vacinação"}
           </CampoButton>
         </>
+      )}
+
+      {canInteract && task.status_execucao === "EM_EXECUCAO" && kind === "REPRODUCAO" && (
+        <CampoSurface className="flex flex-col gap-2 p-4 text-sm">
+          <p className="text-xs uppercase tracking-[0.18em] text-primary">Reprodução</p>
+          <p className="text-muted-foreground">
+            Esta tarefa já foi materializada no momento da criação. Revise os dados e conclua para sincronizar.
+          </p>
+        </CampoSurface>
       )}
     </div>
   );

@@ -27,10 +27,20 @@ class PecuariaAlertGenerationResult:
     lotes_sem_pesagem: int = 0
     vacinacoes_atrasadas: int = 0
     custos_sanitarios_altos: int = 0
+    diagnosticos_pendentes: int = 0
+    partos_previstos: int = 0
+    desmamas_pendentes: int = 0
 
     @property
     def total_alertas(self) -> int:
-        return self.lotes_sem_pesagem + self.vacinacoes_atrasadas + self.custos_sanitarios_altos
+        return (
+            self.lotes_sem_pesagem
+            + self.vacinacoes_atrasadas
+            + self.custos_sanitarios_altos
+            + self.diagnosticos_pendentes
+            + self.partos_previstos
+            + self.desmamas_pendentes
+        )
 
 
 @register_alert_generator
@@ -43,6 +53,10 @@ class PecuariaAlertGenerator(BaseAlertGenerator):
     event_types = (
         "pecuaria.vacinacao.registrada",
         "pecuaria.planejamento.sanitario.atualizado",
+        "pecuaria.reproducao.registrada",
+        "pecuaria.reproducao.diagnostico.pendente",
+        "pecuaria.reproducao.parto.previsto",
+        "pecuaria.reproducao.desmama.pendente",
     )
     ACTION_URL_LOTE = "/dashboard/pecuaria/lotes"
     ACTION_URL_MANEJO = "/dashboard/pecuaria/manejo"
@@ -57,6 +71,9 @@ class PecuariaAlertGenerator(BaseAlertGenerator):
             "lotes_sem_pesagem": 0,
             "vacinacoes_atrasadas": 0,
             "custos_sanitarios_altos": 0,
+            "diagnosticos_pendentes": 0,
+            "partos_previstos": 0,
+            "desmamas_pendentes": 0,
         }
         result = AlertGeneratorResult(
             generator_name=self.generator_name, metadata={"rule_counters": counters}
@@ -87,6 +104,27 @@ class PecuariaAlertGenerator(BaseAlertGenerator):
             result.created += created
             result.updated += 1 - created
             counters["vacinacoes_atrasadas"] += 1
+        for tarefa in await self._diagnosticos_pendentes(
+            context.tenant_id, context.unidade_produtiva_id
+        ):
+            created = await self._emitir_alerta_diagnostico_pendente(context.tenant_id, tarefa)
+            result.created += created
+            result.updated += 1 - created
+            counters["diagnosticos_pendentes"] += 1
+        for tarefa in await self._partos_previstos(
+            context.tenant_id, context.unidade_produtiva_id
+        ):
+            created = await self._emitir_alerta_parto_previsto(context.tenant_id, tarefa)
+            result.created += created
+            result.updated += 1 - created
+            counters["partos_previstos"] += 1
+        for tarefa in await self._desmamas_pendentes(
+            context.tenant_id, context.unidade_produtiva_id
+        ):
+            created = await self._emitir_alerta_desmama_pendente(context.tenant_id, tarefa)
+            result.created += created
+            result.updated += 1 - created
+            counters["desmamas_pendentes"] += 1
         result.metadata = {"rule_counters": counters}
         return result
 
@@ -163,6 +201,87 @@ class PecuariaAlertGenerator(BaseAlertGenerator):
             source_id=str(tarefa.id),
             dedupe_key=f"pecuaria:vacinacao_atrasada:{tarefa.id}",
             action_label="Ver manejo",
+            action_url=self.ACTION_URL_MANEJO,
+            unidade_produtiva_id=tarefa.unidade_produtiva_id,
+            context={
+                "tarefa_campo_id": str(tarefa.id),
+                "lote_id": str(tarefa.lote_id) if tarefa.lote_id else None,
+                "data_programada": self._format_date(tarefa.data_programada),
+                "status_execucao": tarefa.status_execucao,
+            },
+        )
+
+    async def _emitir_alerta_diagnostico_pendente(
+        self, tenant_id: uuid.UUID, tarefa: TarefaCampo
+    ) -> int:
+        return await self._create_alert(
+            tenant_id=tenant_id,
+            title="Diagnóstico de prenhez pendente",
+            message=(
+                f"O diagnóstico de prenhez '{tarefa.titulo or tarefa.type}' do lote "
+                f"{tarefa.lote_id} está pendente desde {self._format_date(tarefa.data_programada)}."
+            ),
+            severity=Severity.WARNING,
+            priority=Priority.HIGH,
+            trigger_type=TriggerType.RULE,
+            source_type="PECUARIA_REPRODUCAO_DIAGNOSTICO_PENDENTE",
+            source_id=str(tarefa.id),
+            dedupe_key=f"pecuaria:reproducao_diagnostico_pendente:{tarefa.id}",
+            action_label="Ver tarefa",
+            action_url=self.ACTION_URL_MANEJO,
+            unidade_produtiva_id=tarefa.unidade_produtiva_id,
+            context={
+                "tarefa_campo_id": str(tarefa.id),
+                "lote_id": str(tarefa.lote_id) if tarefa.lote_id else None,
+                "data_programada": self._format_date(tarefa.data_programada),
+                "status_execucao": tarefa.status_execucao,
+            },
+        )
+
+    async def _emitir_alerta_parto_previsto(
+        self, tenant_id: uuid.UUID, tarefa: TarefaCampo
+    ) -> int:
+        return await self._create_alert(
+            tenant_id=tenant_id,
+            title="Parto previsto",
+            message=(
+                f"O parto '{tarefa.titulo or tarefa.type}' do lote {tarefa.lote_id} "
+                f"está previsto para {self._format_date(tarefa.data_programada)}."
+            ),
+            severity=Severity.INFO,
+            priority=Priority.NORMAL,
+            trigger_type=TriggerType.RULE,
+            source_type="PECUARIA_REPRODUCAO_PARTO_PREVISTO",
+            source_id=str(tarefa.id),
+            dedupe_key=f"pecuaria:reproducao_parto_previsto:{tarefa.id}",
+            action_label="Ver tarefa",
+            action_url=self.ACTION_URL_MANEJO,
+            unidade_produtiva_id=tarefa.unidade_produtiva_id,
+            context={
+                "tarefa_campo_id": str(tarefa.id),
+                "lote_id": str(tarefa.lote_id) if tarefa.lote_id else None,
+                "data_programada": self._format_date(tarefa.data_programada),
+                "status_execucao": tarefa.status_execucao,
+            },
+        )
+
+    async def _emitir_alerta_desmama_pendente(
+        self, tenant_id: uuid.UUID, tarefa: TarefaCampo
+    ) -> int:
+        return await self._create_alert(
+            tenant_id=tenant_id,
+            title="Desmama pendente",
+            message=(
+                f"A desmama '{tarefa.titulo or tarefa.type}' do lote {tarefa.lote_id} "
+                f"está pendente desde {self._format_date(tarefa.data_programada)}."
+            ),
+            severity=Severity.WARNING,
+            priority=Priority.NORMAL,
+            trigger_type=TriggerType.RULE,
+            source_type="PECUARIA_REPRODUCAO_DESMAMA_PENDENTE",
+            source_id=str(tarefa.id),
+            dedupe_key=f"pecuaria:reproducao_desmama_pendente:{tarefa.id}",
+            action_label="Ver tarefa",
             action_url=self.ACTION_URL_MANEJO,
             unidade_produtiva_id=tarefa.unidade_produtiva_id,
             context={
@@ -273,6 +392,66 @@ class PecuariaAlertGenerator(BaseAlertGenerator):
             TarefaCampo.tenant_id == tenant_id,
             TarefaCampo.module == "pecuaria",
             TarefaCampo.type == "VACINACAO",
+            TarefaCampo.status_execucao.in_(("PENDENTE", "EM_EXECUCAO")),
+            TarefaCampo.data_programada.is_not(None),
+            TarefaCampo.data_programada < date.today(),
+        )
+        if unidade_produtiva_id is not None:
+            stmt = stmt.where(TarefaCampo.unidade_produtiva_id == unidade_produtiva_id)
+        rows = await self.session.execute(
+            stmt.order_by(TarefaCampo.data_programada.asc(), TarefaCampo.created_at.asc())
+        )
+        return list(rows.scalars().all())
+
+    async def _diagnosticos_pendentes(
+        self,
+        tenant_id: uuid.UUID,
+        unidade_produtiva_id: uuid.UUID | None,
+    ) -> list[TarefaCampo]:
+        stmt = select(TarefaCampo).where(
+            TarefaCampo.tenant_id == tenant_id,
+            TarefaCampo.module == "pecuaria",
+            TarefaCampo.type == "DIAGNOSTICO_PRENHEZ",
+            TarefaCampo.status_execucao.in_(("PENDENTE", "EM_EXECUCAO")),
+            TarefaCampo.data_programada.is_not(None),
+            TarefaCampo.data_programada < date.today(),
+        )
+        if unidade_produtiva_id is not None:
+            stmt = stmt.where(TarefaCampo.unidade_produtiva_id == unidade_produtiva_id)
+        rows = await self.session.execute(
+            stmt.order_by(TarefaCampo.data_programada.asc(), TarefaCampo.created_at.asc())
+        )
+        return list(rows.scalars().all())
+
+    async def _partos_previstos(
+        self,
+        tenant_id: uuid.UUID,
+        unidade_produtiva_id: uuid.UUID | None,
+    ) -> list[TarefaCampo]:
+        stmt = select(TarefaCampo).where(
+            TarefaCampo.tenant_id == tenant_id,
+            TarefaCampo.module == "pecuaria",
+            TarefaCampo.type == "PARTO",
+            TarefaCampo.status_execucao.in_(("PENDENTE", "EM_EXECUCAO")),
+            TarefaCampo.data_programada.is_not(None),
+            TarefaCampo.data_programada <= date.today(),
+        )
+        if unidade_produtiva_id is not None:
+            stmt = stmt.where(TarefaCampo.unidade_produtiva_id == unidade_produtiva_id)
+        rows = await self.session.execute(
+            stmt.order_by(TarefaCampo.data_programada.asc(), TarefaCampo.created_at.asc())
+        )
+        return list(rows.scalars().all())
+
+    async def _desmamas_pendentes(
+        self,
+        tenant_id: uuid.UUID,
+        unidade_produtiva_id: uuid.UUID | None,
+    ) -> list[TarefaCampo]:
+        stmt = select(TarefaCampo).where(
+            TarefaCampo.tenant_id == tenant_id,
+            TarefaCampo.module == "pecuaria",
+            TarefaCampo.type == "DESMAME",
             TarefaCampo.status_execucao.in_(("PENDENTE", "EM_EXECUCAO")),
             TarefaCampo.data_programada.is_not(None),
             TarefaCampo.data_programada < date.today(),

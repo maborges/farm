@@ -3,7 +3,7 @@
 import { useLiveQuery } from "dexie-react-hooks";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { type LucideIcon, BookText, Sprout, Wheat, ShieldHalf, Scale, Syringe, CloudSun } from "lucide-react";
+import { type LucideIcon, BookText, Sprout, Wheat, ShieldHalf, Scale, Syringe, CloudSun, Dna, HeartPulse, Baby, Scissors } from "lucide-react";
 import { db, type LocalTask } from "@/lib/db";
 import { useSessionStore } from "@/lib/stores/session-store";
 import { useSyncStore } from "@/lib/stores/sync-store";
@@ -27,6 +27,10 @@ const ACTIVITIES: Activity[] = [
   { key: "epi", label: "Entrega EPI", icon: ShieldHalf, path: "/campo/epi", module: "agricola" },
   { key: "pesagem", label: "Pesagem", icon: Scale, path: "/campo/pesagem", module: "pecuaria" },
   { key: "vacinacao", label: "Vacinação", icon: Syringe, path: "/campo/vacinacao", module: "pecuaria" },
+  { key: "cobertura", label: "Cobertura", icon: Dna, path: "/campo/reproducao/cobertura", module: "pecuaria" },
+  { key: "diagnostico", label: "Diagnóstico", icon: HeartPulse, path: "/campo/reproducao/diagnostico-prenhez", module: "pecuaria" },
+  { key: "parto", label: "Parto", icon: Baby, path: "/campo/reproducao/parto", module: "pecuaria" },
+  { key: "desmama", label: "Desmama", icon: Scissors, path: "/campo/reproducao/desmama", module: "pecuaria" },
 ];
 
 const PRIORIDADE_COLOR: Record<string, string> = {

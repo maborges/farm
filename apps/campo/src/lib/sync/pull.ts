@@ -30,6 +30,20 @@ interface SyncPullPayload {
     quantidade_cabecas: number;
     unidade_produtiva_id: string;
   }>;
+  animais?: Array<{
+    id: string;
+    unidade_produtiva_id: string;
+    lote_id?: string | null;
+    numero_brinco?: string | null;
+    numero_sisbov?: string | null;
+    nome?: string | null;
+    sexo?: string | null;
+    categoria?: string | null;
+    status?: string | null;
+    especie?: string | null;
+    dados_extras?: Record<string, unknown> | null;
+    updated_at?: string;
+  }>;
   insumos?: Array<{
     id: string;
     nome: string;
@@ -152,7 +166,7 @@ export async function pullSync(): Promise<void> {
   const data = (await res.json()) as SyncPullPayload;
 
   // Atualiza caches no IndexedDB em transação
-  await db.transaction("rw", [db.fazendas, db.talhoes, db.lotes, db.insumos, db.safras, db.tasks, db.sync_queue, db.caderno_events, db.caderno_server_events, db.colaboradores], async () => {
+  await db.transaction("rw", [db.fazendas, db.talhoes, db.lotes, db.animais, db.insumos, db.safras, db.tasks, db.sync_queue, db.caderno_events, db.caderno_server_events, db.colaboradores], async () => {
     // Colaboradores
     if (data.colaboradores) {
       await db.colaboradores.clear();
@@ -194,6 +208,11 @@ export async function pullSync(): Promise<void> {
     // Lotes
     if (data.lotes?.length) {
       await db.lotes.bulkPut(data.lotes.map((l) => ({ ...l, fazenda_id: l.unidade_produtiva_id })));
+    }
+
+    // Animais
+    if (data.animais?.length) {
+      await db.animais.bulkPut(data.animais);
     }
 
     // Insumos
