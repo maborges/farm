@@ -21,11 +21,6 @@ from events import (
     DomainEventOutboxStatus,
 )
 
-try:
-    from datetime import UTC
-except ImportError:  # pragma: no cover - Python < 3.11 compatibility
-    UTC = timezone.utc  # noqa: UP017
-
 
 class _FakeDialect:
     name = "sqlite"
@@ -90,7 +85,7 @@ class _FakeOutboxSession:
 
     async def execute(self, statement: Any) -> _FakeQueryResult:
         if isinstance(statement, tuple) and statement and statement[0] == "due":
-            _, batch_size, tenant_id = statement
+            _, batch_size, tenant_id, event_type = statement
             rows = [
                 row
                 for row in self.rows
@@ -98,8 +93,9 @@ class _FakeOutboxSession:
                     DomainEventOutboxStatus.PENDING.value,
                     DomainEventOutboxStatus.FAILED.value,
                 )
-                and row.next_attempt_at <= datetime.now(UTC)
+                and row.next_attempt_at <= datetime.now(timezone.utc)  # noqa: UP017
                 and (tenant_id is None or row.tenant_id == tenant_id)
+                and (event_type is None or row.event_type == event_type)
             ]
             rows.sort(key=lambda row: (row.next_attempt_at, row.created_at))
             return _FakeQueryResult(rows[:batch_size])
@@ -125,8 +121,13 @@ def _service_and_store() -> tuple[DomainEventOutboxService, _FakeOutboxSession]:
     session = _FakeOutboxSession()
     service = DomainEventOutboxService(session=session)
 
-    def _due_statement(*, batch_size: int, tenant_id: UUID | None) -> tuple[str, int, UUID | None]:
-        return ("due", batch_size, tenant_id)
+    def _due_statement(
+        *,
+        batch_size: int,
+        tenant_id: UUID | None,
+        event_type: str | None = None,
+    ) -> tuple[str, int, UUID | None, str | None]:
+        return ("due", batch_size, tenant_id, event_type)
 
     service._due_statement = _due_statement  # type: ignore[method-assign]
     return service, session
@@ -215,7 +216,7 @@ async def test_failed_row_updates_retry_window(tenant_id: UUID) -> None:
 
     assert failed.status == DomainEventOutboxStatus.FAILED.value
     assert failed.attempts == 1
-    assert failed.next_attempt_at > datetime.now(UTC)
+    assert failed.next_attempt_at > datetime.now(timezone.utc)  # noqa: UP017
     assert "RuntimeError" in (failed.last_error or "")
 
 
@@ -303,7 +304,7 @@ async def test_relay_marks_failed_and_requeues(
     assert result.failed == 1
     assert store.rows[0].status == DomainEventOutboxStatus.FAILED.value
     assert store.rows[0].attempts == 1
-    assert store.rows[0].next_attempt_at > datetime.now(UTC)
+    assert store.rows[0].next_attempt_at > datetime.now(timezone.utc)  # noqa: UP017
 
 
 @pytest.mark.asyncio
@@ -348,3 +349,19 @@ async def test_list_pending_respects_tenant_isolation(
     assert len(other_rows) == 1
     assert tenant_rows[0].tenant_id == tenant_id
     assert other_rows[0].tenant_id == outro_tenant_id
+
+
+@pytest.mark.asyncio
+async def test_list_pending_can_filter_by_event_type(tenant_id: UUID) -> None:
+    service, _ = _service_and_store()
+    await service.enqueue(
+        _event(tenant_id, "campo.tarefa.invalidada", "CAMPO_TAREFA_INVALIDADA", uuid.uuid4())
+    )
+    await service.enqueue(
+        _event(tenant_id, "campo.sync.falha", "CAMPO_SYNC_FALHA", uuid.uuid4())
+    )
+
+    rows = await service.list_pending(tenant_id=tenant_id, event_type="campo.sync.falha")
+
+    assert len(rows) == 1
+    assert rows[0].event_type == "campo.sync.falha"

@@ -14,11 +14,6 @@ from .outbox_service import DomainEventOutboxService
 from .publisher import EventPublisherResult, publish_domain_event
 from .registry import EventSubscriberRegistry, event_subscriber_registry
 
-try:
-    from datetime import UTC
-except ImportError:  # pragma: no cover - Python < 3.11 compatibility
-    UTC = timezone.utc  # noqa: UP017
-
 
 class DomainEventOutboxRelayResult(BaseModel):  # type: ignore[misc]
     """Canonical summary for a relay execution."""
@@ -53,17 +48,19 @@ class DomainEventOutboxRelay:
         self,
         batch_size: int = 50,
         tenant_id: UUID | None = None,
-        relay_id: UUID | None = None,
+        relay_id: UUID | str | None = None,
+        event_type: str | None = None,
     ) -> DomainEventOutboxRelayResult:
         """Claim and process a single batch of due outbox rows."""
 
-        started_at = datetime.now(UTC)
+        started_at = datetime.now(timezone.utc)  # noqa: UP017
         start = perf_counter()
-        relay_uuid = relay_id or uuid4()
+        relay_uuid = relay_id if isinstance(relay_id, UUID) else uuid4()
+        relay_ref = str(relay_id or relay_uuid)
         result = DomainEventOutboxRelayResult(relay_id=relay_uuid, started_at=started_at)
         bound_logger = logger.bind(
             component="domain_event_outbox_relay",
-            relay_id=str(relay_uuid),
+            relay_id=relay_ref,
             tenant_id=str(tenant_id) if tenant_id else None,
         )
         bound_logger.info("domain_event_outbox_relay_started")
@@ -71,7 +68,8 @@ class DomainEventOutboxRelay:
             claimed = await self.service.claim_batch(
                 batch_size=batch_size,
                 tenant_id=tenant_id,
-                relay_id=str(relay_uuid),
+                relay_id=relay_ref,
+                event_type=event_type,
             )
             result.total_claimed = len(claimed)
             for row in claimed:
@@ -93,7 +91,7 @@ class DomainEventOutboxRelay:
             raise
 
         result.duration_ms = int((perf_counter() - start) * 1000)
-        result.finished_at = datetime.now(UTC)
+        result.finished_at = datetime.now(timezone.utc)  # noqa: UP017
         bound_logger.bind(
             total_claimed=result.total_claimed,
             processed=result.processed,
@@ -105,7 +103,7 @@ class DomainEventOutboxRelay:
 
     async def _process_row(self, row: DomainEventOutbox) -> dict[str, Any]:
         event = self.service.rebuild_domain_event(row)
-        started_at = datetime.now(UTC)
+        started_at = datetime.now(timezone.utc)  # noqa: UP017
         try:
             publisher_result = await publish_domain_event(
                 event,
@@ -131,7 +129,7 @@ class DomainEventOutboxRelay:
         publisher_result: EventPublisherResult | None,
         exc: Exception | None = None,
     ) -> dict[str, Any]:
-        finished_at = datetime.now(UTC)
+        finished_at = datetime.now(timezone.utc)  # noqa: UP017
         return {
             "outbox_id": str(row.id),
             "tenant_id": str(row.tenant_id),

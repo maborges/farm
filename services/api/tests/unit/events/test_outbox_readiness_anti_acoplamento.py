@@ -25,6 +25,7 @@ def test_notifications_do_not_import_alert_lifecycle_service() -> None:
         _read("services/api/notifications/dispatcher.py"),
         _read("services/api/notifications/adapters.py"),
         _read("services/api/notifications/subscribers.py"),
+        _read("services/api/events/outbox_worker.py"),
     )
 
     for source in files:
@@ -48,6 +49,7 @@ def test_outbox_does_not_import_alert_engine_or_notification_dispatcher() -> Non
         _read("services/api/events/outbox_model.py"),
         _read("services/api/events/outbox_service.py"),
         _read("services/api/events/outbox_relay.py"),
+        _read("services/api/events/outbox_worker.py"),
     )
 
     for source in files:

@@ -12,11 +12,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from .base import DomainEvent
 from .outbox_model import DomainEventOutbox, DomainEventOutboxStatus
 
-try:
-    from datetime import UTC
-except ImportError:  # pragma: no cover - Python < 3.11 compatibility
-    UTC = timezone.utc  # noqa: UP017
-
 
 class DomainEventOutboxService:
     """Service responsible for persisting and managing domain-event outbox rows."""
@@ -68,13 +63,18 @@ class DomainEventOutboxService:
         self,
         batch_size: int = 100,
         tenant_id: UUID | None = None,
+        event_type: str | None = None,
     ) -> list[DomainEventOutbox]:
         """List outbox rows that are due for processing."""
 
         effective_tenant_id = self._effective_tenant_id(tenant_id)
         if effective_tenant_id is not None:
             await self._set_rls_context(effective_tenant_id)
-        stmt = self._due_statement(batch_size=batch_size, tenant_id=effective_tenant_id)
+        stmt = self._due_statement(
+            batch_size=batch_size,
+            tenant_id=effective_tenant_id,
+            event_type=event_type,
+        )
         rows = await self.session.execute(stmt)
         return list(rows.scalars().all())
 
@@ -83,17 +83,22 @@ class DomainEventOutboxService:
         batch_size: int = 50,
         tenant_id: UUID | None = None,
         relay_id: str | None = None,
+        event_type: str | None = None,
     ) -> list[DomainEventOutbox]:
         """Claim a batch of due rows for processing."""
 
         effective_tenant_id = self._effective_tenant_id(tenant_id)
         if effective_tenant_id is not None:
             await self._set_rls_context(effective_tenant_id)
-        stmt = self._due_statement(batch_size=batch_size, tenant_id=effective_tenant_id)
+        stmt = self._due_statement(
+            batch_size=batch_size,
+            tenant_id=effective_tenant_id,
+            event_type=event_type,
+        )
         if self._supports_skip_locked():
             stmt = stmt.with_for_update(skip_locked=True)
         rows = list((await self.session.execute(stmt)).scalars().all())
-        now = datetime.now(UTC)
+        now = datetime.now(timezone.utc)  # noqa: UP017
         for row in rows:
             row.status = DomainEventOutboxStatus.PROCESSING.value
             row.attempts += 1
@@ -105,7 +110,7 @@ class DomainEventOutboxService:
     async def mark_processed(self, row: DomainEventOutbox) -> DomainEventOutbox:
         """Mark an outbox row as processed."""
 
-        now = datetime.now(UTC)
+        now = datetime.now(timezone.utc)  # noqa: UP017
         row.status = DomainEventOutboxStatus.PROCESSED.value
         row.processed_at = now
         row.failed_at = None
@@ -121,7 +126,7 @@ class DomainEventOutboxService:
     ) -> DomainEventOutbox:
         """Mark an outbox row as failed or dead letter after retries."""
 
-        now = datetime.now(UTC)
+        now = datetime.now(timezone.utc)  # noqa: UP017
         row.failed_at = now
         row.last_error = self._error_message(error)
         row.locked_at = None
@@ -146,6 +151,7 @@ class DomainEventOutboxService:
         *,
         batch_size: int,
         tenant_id: UUID | None,
+        event_type: str | None = None,
     ) -> Any:
         stmt = select(DomainEventOutbox).where(
             DomainEventOutbox.status.in_(
@@ -154,10 +160,12 @@ class DomainEventOutboxService:
                     DomainEventOutboxStatus.FAILED.value,
                 )
             ),
-            DomainEventOutbox.next_attempt_at <= datetime.now(UTC),
+            DomainEventOutbox.next_attempt_at <= datetime.now(timezone.utc),  # noqa: UP017
         )
         if tenant_id is not None:
             stmt = stmt.where(DomainEventOutbox.tenant_id == tenant_id)
+        if event_type is not None:
+            stmt = stmt.where(DomainEventOutbox.event_type == event_type)
         return stmt.order_by(
             DomainEventOutbox.next_attempt_at.asc(), DomainEventOutbox.created_at.asc()
         ).limit(batch_size)
