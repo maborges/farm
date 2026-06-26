@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, cast
 from unittest.mock import AsyncMock
 
@@ -354,6 +355,40 @@ async def test_publish_domain_event_safe_swallows_failures(monkeypatch: pytest.M
     assert logger_spy.exception_messages[-1] == "domain_event_publish_failed"
     assert logger_spy.bind_calls[0]["correlation_id"] == str(event.correlation_id)
     assert logger_spy.bind_calls[0]["causation_id"] == str(event.causation_id)
+
+
+@pytest.mark.asyncio
+async def test_publish_domain_event_safe_routes_to_outbox_without_forcing_commit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    logger_spy = LoggerSpy()
+    event = DomainEvent(
+        tenant_id=uuid.uuid4(),
+        unidade_produtiva_id=uuid.uuid4(),
+        domain=Domain.FIELD,
+        event_type="campo.tarefa.invalidada",
+        source_type="CAMPO_TAREFA_INVALIDADA",
+        entity_type="tarefa_campo",
+        entity_id=uuid.uuid4(),
+        correlation_id=uuid.uuid4(),
+        causation_id=uuid.uuid4(),
+        metadata={"origin": "unit-test"},
+    )
+    enqueue_spy = AsyncMock(return_value=SimpleNamespace(id=uuid.uuid4(), idempotency_key="k"))
+    monkeypatch.setattr(events_helpers_module, "logger", logger_spy)
+    monkeypatch.setattr(events_helpers_module, "enqueue_domain_event", enqueue_spy)
+
+    result = await events_helpers_module.publish_domain_event_safe(
+        event,
+        session=object(),
+        commit=False,
+    )
+
+    assert result is not None
+    enqueue_spy.assert_awaited_once()
+    assert enqueue_spy.await_args is not None
+    assert enqueue_spy.await_args.kwargs["commit"] is False
+    assert logger_spy.exception_messages == []
 
 
 @pytest.mark.asyncio

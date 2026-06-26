@@ -80,9 +80,10 @@ async def test_planejamento_sanitario_publica_evento(monkeypatch: pytest.MonkeyP
 
     captured: dict[str, Any] = {}
 
-    async def publish_spy(event: DomainEvent, session=None, logger_context=None):  # noqa: ANN001
+    async def publish_spy(event: DomainEvent, session=None, logger_context=None, commit=None):  # noqa: ANN001
         captured["event"] = event
         captured["session_commits"] = session.commit_count
+        captured["commit"] = commit
         return None
 
     monkeypatch.setattr(pecuaria_manejos, "ManejoPlanejamentoService", StubService)
@@ -128,7 +129,8 @@ async def test_planejamento_sanitario_publica_evento(monkeypatch: pytest.MonkeyP
             "observacoes",
         }
     )
-    assert captured["session_commits"] == 1
+    assert captured["session_commits"] == 0
+    assert captured["commit"] is False
 
 
 @pytest.mark.asyncio
@@ -179,18 +181,19 @@ async def test_vacinacao_registrada_publica_evento(monkeypatch: pytest.MonkeyPat
     monkeypatch.setattr(service, "_registrar_estoque_vacinacao", AsyncMock(return_value=None))
     monkeypatch.setattr(service, "_registrar_custo_vacinacao", AsyncMock(return_value=None))
 
-    publish_spy = AsyncMock(
+    enqueue_spy = AsyncMock(
         return_value=SimpleNamespace(errors=0, executions=[], warnings=0)
     )
-    monkeypatch.setattr("events.helpers.publish_domain_event", publish_spy)
+    monkeypatch.setattr("events.helpers.enqueue_domain_event", enqueue_spy)
 
     result = await service._processar_vacinacao(tarefa)
 
     assert result.status == "SUCCESS"
     assert session.commit_count == 1
-    assert publish_spy.await_count == 1
-    assert publish_spy.await_args is not None
-    event = publish_spy.await_args.args[0]
+    assert enqueue_spy.await_count == 1
+    assert enqueue_spy.await_args is not None
+    assert enqueue_spy.await_args.kwargs["commit"] is False
+    event = enqueue_spy.await_args.args[0]
     assert event.event_type == "pecuaria.vacinacao.registrada"
     assert event.entity_type == "tarefa_campo"
     assert event.tenant_id == tenant_id
@@ -212,6 +215,7 @@ async def test_vacinacao_registrada_publica_evento(monkeypatch: pytest.MonkeyPat
             "data_aplicacao",
         }
     )
+    assert session.commit_count == 1
 
 
 @pytest.mark.asyncio
@@ -244,7 +248,7 @@ async def test_publicacao_falha_nao_quebra_fluxo_principal(monkeypatch: pytest.M
 
     monkeypatch.setattr(pecuaria_manejos, "ManejoPlanejamentoService", StubService)
     monkeypatch.setattr(
-        "events.helpers.publish_domain_event",
+        "events.helpers.enqueue_domain_event",
         AsyncMock(side_effect=RuntimeError("publisher boom")),
     )
 

@@ -64,6 +64,7 @@ async def _publish_pecuaria_event(
     await publish_domain_event_safe(
         event,
         session=session,
+        commit=False,
         logger_context={"component": "pecuaria_router"},
     )
 
@@ -107,7 +108,6 @@ async def planejar_manejo(
     svc = ManejoPlanejamentoService(db, tenant_id)
     try:
         planejamento = await svc.planejar(payload, current_user.id)
-        await db.commit()
         if payload.tipo == "VACINACAO":
             lote = await db.get(LoteAnimal, payload.lote_id)
             await _publish_pecuaria_event(
@@ -119,6 +119,7 @@ async def planejar_manejo(
                     payload=payload,
                 ),
             )
+        await db.commit()
         return planejamento
     except EntityNotFoundError as exc:
         await db.rollback()

@@ -62,6 +62,7 @@ class ManejoSyncService(BaseService[EventoAnimal]):
                 origem="processar_tarefa_campo",
                 status=res.status,
             )
+        await self.session.commit()
         return res
 
     async def _buscar_tarefa(self, tarefa_campo_id: UUID) -> TarefaCampo | None:
@@ -155,7 +156,6 @@ class ManejoSyncService(BaseService[EventoAnimal]):
                 quantidade_animais=total_processado,
             )
             await self._registrar_custo_vacinacao(tarefa, movimento, total_processado)
-            await self.session.commit()
             await self._publish_vacinacao_registrada_event(
                 tarefa=tarefa,
                 dados=dados,
@@ -163,6 +163,7 @@ class ManejoSyncService(BaseService[EventoAnimal]):
                 produto=produto,
                 dose=dose,
             )
+            await self.session.commit()
             return ManejoSyncResult(
                 status="SUCCESS",
                 total_recebido=len(animais_ids),
@@ -557,6 +558,7 @@ class ManejoSyncService(BaseService[EventoAnimal]):
         await publish_domain_event_safe(
             evento,
             session=self.session,
+            commit=False,
             logger_context={"component": "pecuaria_sync_service"},
         )
 
@@ -594,6 +596,7 @@ class ManejoSyncService(BaseService[EventoAnimal]):
         await publish_domain_event_safe(
             evento,
             session=self.session,
+            commit=False,
             logger_context={"component": "pecuaria_sync_service"},
         )
 
@@ -619,6 +622,6 @@ class ManejoSyncService(BaseService[EventoAnimal]):
                     "data_processamento": datetime.utcnow().isoformat(),
                 }
                 tarefa_banco.dados = d
-                await self.session.commit()
+                await self.session.flush()
         except Exception:
             await self.session.rollback()

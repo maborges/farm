@@ -12,11 +12,6 @@ from .outbox_service import DomainEventOutboxService
 from .publisher import publish_domain_event
 from .registry import EventSubscriberRegistry
 
-try:
-    from datetime import UTC
-except ImportError:  # pragma: no cover - Python < 3.11 compatibility
-    UTC = timezone.utc  # noqa: UP017
-
 
 async def enqueue_domain_event(
     event: DomainEvent,
@@ -36,12 +31,13 @@ async def publish_domain_event_safe(
     registry: EventSubscriberRegistry | None = None,
     *,
     logger_context: dict[str, Any] | None = None,
+    commit: bool = True,
     use_outbox: bool = True,
 ) -> Any | None:
     """Persist a domain event in the Outbox or publish directly when requested."""
 
     start = perf_counter()
-    started_at = datetime.now(UTC)
+    started_at = datetime.now(timezone.utc)  # noqa: UP017
     context: dict[str, Any] = {
         "component": "domain_event_publisher",
         "event_id": str(event.event_id),
@@ -60,7 +56,7 @@ async def publish_domain_event_safe(
     bound_logger.info("domain_event_publish_started")
     try:
         if session is not None and use_outbox:
-            outbox_row = await enqueue_domain_event(event, session=session, commit=True)
+            outbox_row = await enqueue_domain_event(event, session=session, commit=commit)
             bound_logger.bind(
                 status="enqueued",
                 outbox_id=str(outbox_row.id),
@@ -70,7 +66,7 @@ async def publish_domain_event_safe(
             return outbox_row
         result = await publish_domain_event(event, session=session, registry=registry)
     except Exception as exc:  # pragma: no cover - defensive isolation
-        finished_at = datetime.now(UTC)
+        finished_at = datetime.now(timezone.utc)  # noqa: UP017
         bound_logger.bind(
             status="failed",
             errors=1,

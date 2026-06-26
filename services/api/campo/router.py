@@ -64,6 +64,7 @@ async def _publish_campo_event(
     await publish_domain_event_safe(
         event,
         session=session,
+        commit=False,
         logger_context={
             "component": "campo_router",
             "status": status,
@@ -450,13 +451,13 @@ async def invalidar_tarefa(
     svc = TarefaProgramadaService(session, tenant_id, user_id, request.client.host if request.client else None)
     try:
         tarefa = await svc.invalidar(tarefa_id, body.motivo)
-        await session.commit()
-        await session.refresh(tarefa)
         await _publish_campo_event(
             session=session,
             event=_build_tarefa_invalidada_event(tarefa, body.motivo),
             status="published",
         )
+        await session.commit()
+        await session.refresh(tarefa)
         return tarefa
     except EntityNotFoundError as exc:
         await session.rollback()
@@ -527,12 +528,12 @@ async def sync_push(
                             "data_processamento": datetime.utcnow().isoformat()
                         }
                         tarefa.dados = dados
-                        await session.commit()
                         await _publish_campo_event(
                             session=session,
                             event=_build_sync_failure_event(tarefa, e, status="ERROR"),
                             status="published",
                         )
+                        await session.commit()
                 except Exception:
                     await session.rollback()
 

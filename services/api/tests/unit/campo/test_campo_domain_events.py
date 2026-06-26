@@ -67,9 +67,10 @@ async def test_invalidar_tarefa_publica_evento_pos_commit(monkeypatch: pytest.Mo
 
     captured: dict[str, Any] = {}
 
-    async def publish_spy(event, session=None, logger_context=None):  # noqa: ANN001
+    async def publish_spy(event, session=None, logger_context=None, commit=None):  # noqa: ANN001
         captured["event"] = event
         captured["session_commits"] = session.commit_count
+        captured["commit"] = commit
         captured["logger_context"] = logger_context
         return None
 
@@ -100,7 +101,8 @@ async def test_invalidar_tarefa_publica_evento_pos_commit(monkeypatch: pytest.Mo
     assert set(event.metadata).issubset(
         {"status_anterior", "status_novo", "motivo", "tarefa_id", "module", "type"}
     )
-    assert captured["session_commits"] == 1
+    assert captured["session_commits"] == 0
+    assert captured["commit"] is False
 
 
 @pytest.mark.asyncio
@@ -161,7 +163,9 @@ async def test_sync_failure_publica_evento(monkeypatch: pytest.MonkeyPatch) -> N
         async def processar_tarefa_campo(self, tarefa_id: uuid.UUID) -> None:  # noqa: ARG002
             raise RuntimeError("sync failure")
 
-    publish_spy = AsyncMock(side_effect=RuntimeError("publisher boom"))
+    enqueue_spy = AsyncMock(
+        return_value=SimpleNamespace(id=uuid.uuid4(), idempotency_key="k")
+    )
     monkeypatch.setattr(campo_router, "_get_device_from_token", AsyncMock(return_value=fake_device))
     monkeypatch.setattr(campo_router, "SyncService", StubSyncService)
     monkeypatch.setattr(campo_router, "DispositivoService", StubDispositivoService)
@@ -169,7 +173,7 @@ async def test_sync_failure_publica_evento(monkeypatch: pytest.MonkeyPatch) -> N
         "pecuaria.services.manejo_sync_service.ManejoSyncService",
         StubManejoSyncService,
     )
-    monkeypatch.setattr("events.helpers.publish_domain_event", publish_spy)
+    monkeypatch.setattr("events.helpers.enqueue_domain_event", enqueue_spy)
 
     response = await campo_router.sync_push(
         request=SimpleNamespace(),
@@ -191,9 +195,10 @@ async def test_sync_failure_publica_evento(monkeypatch: pytest.MonkeyPatch) -> N
 
     assert response.results[0].status == "UPDATED"
     assert session.commit_count >= 2
-    assert publish_spy.await_count == 1
-    assert publish_spy.await_args is not None
-    event = publish_spy.await_args.args[0]
+    assert enqueue_spy.await_count == 1
+    assert enqueue_spy.await_args is not None
+    assert enqueue_spy.await_args.kwargs["commit"] is False
+    event = enqueue_spy.await_args.args[0]
     assert event.event_type == "campo.sync.falha"
     assert event.entity_id == task.id
     assert event.tenant_id == task.tenant_id
@@ -236,17 +241,19 @@ async def test_sync_failure_result_publica_evento(monkeypatch: pytest.MonkeyPatc
     )
     persist_spy = AsyncMock()
     monkeypatch.setattr(service, "_persistir_resultado", persist_spy)
-    publish_spy = AsyncMock(
+    enqueue_spy = AsyncMock(
         return_value=SimpleNamespace(errors=0, executions=[], warnings=0)
     )
-    monkeypatch.setattr("events.helpers.publish_domain_event", publish_spy)
+    monkeypatch.setattr("events.helpers.enqueue_domain_event", enqueue_spy)
 
     result = await service.processar_tarefa_campo(tarefa.id)
 
     assert result.status == "ERROR"
     assert persist_spy.await_count == 1
-    assert publish_spy.await_count == 1
-    event = publish_spy.await_args.args[0]
+    assert enqueue_spy.await_count == 1
+    assert enqueue_spy.await_args is not None
+    assert enqueue_spy.await_args.kwargs["commit"] is False
+    event = enqueue_spy.await_args.args[0]
     assert event.event_type == "campo.sync.falha"
     assert event.entity_id == tarefa.id
     assert event.tenant_id == tenant_id
