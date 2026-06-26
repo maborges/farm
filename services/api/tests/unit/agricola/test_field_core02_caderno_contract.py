@@ -1,5 +1,6 @@
 import uuid
 from datetime import date
+from types import SimpleNamespace
 
 import pytest
 from sqlalchemy import text
@@ -10,6 +11,7 @@ from agricola.caderno.schemas import EntradaCreate
 from agricola.caderno.service import (
     CadernoCampoService,
     _mapear_tipo_evento_legado,
+    mapear_operacao_para_evento_caderno,
 )
 from agricola.operacoes.models import OperacaoAgricola
 
@@ -151,3 +153,21 @@ async def test_operacao_gera_evento_canonico_idempotente(session, tenant_id, uni
 @pytest.mark.asyncio
 async def test_compatibilidade_tipo_legado_operacao_auto():
     assert _mapear_tipo_evento_legado("OPERACAO_AUTO") == "EXECUCAO_OPERACIONAL"
+
+
+def test_operacao_plantio_gera_evento_caderno_de_plantio():
+    operacao = SimpleNamespace(
+        id=uuid.uuid4(),
+        tipo="PLANTIO",
+        subtipo=None,
+        descricao="Plantio de soja",
+        data_realizada=date.today(),
+        area_aplicada_ha=10.0,
+        custo_total=0,
+    )
+
+    evento = mapear_operacao_para_evento_caderno(operacao)
+
+    assert evento["tipo"] == "PLANTIO"
+    assert evento["tipo_evento"] == "PLANTIO"
+    assert evento["origem_evento"] == "OPERACAO_AGRICOLA"

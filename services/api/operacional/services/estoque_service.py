@@ -4,13 +4,18 @@ from datetime import date
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.exc import IntegrityError
 from loguru import logger
 
 from core.base_service import BaseService
 from core.exceptions import BusinessRuleError, EntityNotFoundError
 from core.models.unidade_produtiva import UnidadeProdutiva
+from core.cadastros.propriedades.models import AreaRural
+from agricola.cultivos.models import Cultivo, CultivoArea
+from agricola.operacoes.models import OperacaoAgricola
+from agricola.safras.models import Safra
+from agricola.tarefas.models import SafraTarefa
 from core.operational_context import (
     validate_deposito_context,
     validate_lote_context,
@@ -708,6 +713,53 @@ class EstoqueService(BaseService[SaldoEstoque]):
         )
         self.session.add(lancamento)
 
+    async def _resolver_safra_contexto_requisicao(self, requisicao: RequisicaoMaterial) -> UUID | None:
+        origem_tipo = (requisicao.origem_tipo or "").upper()
+        origem_id = requisicao.origem_id
+
+        if origem_id is not None and origem_tipo in {"ORDEM_SERVICO", "OPERACAO_AGRICOLA"}:
+            stmt_operacao = (
+                select(OperacaoAgricola.safra_id)
+                .where(
+                    OperacaoAgricola.id == origem_id,
+                    OperacaoAgricola.tenant_id == self.tenant_id,
+                )
+                .limit(1)
+            )
+            safra_id = (await self.session.execute(stmt_operacao)).scalar_one_or_none()
+            if safra_id is not None:
+                return safra_id
+
+            stmt_tarefa = (
+                select(SafraTarefa.safra_id)
+                .where(
+                    SafraTarefa.tenant_id == self.tenant_id,
+                    or_(
+                        SafraTarefa.id == origem_id,
+                        SafraTarefa.operacao_id == origem_id,
+                    ),
+                )
+                .limit(1)
+            )
+            safra_id = (await self.session.execute(stmt_tarefa)).scalar_one_or_none()
+            if safra_id is not None:
+                return safra_id
+
+        stmt_safra = (
+            select(Safra.id)
+            .join(Cultivo, Cultivo.safra_id == Safra.id)
+            .join(CultivoArea, CultivoArea.cultivo_id == Cultivo.id)
+            .join(AreaRural, AreaRural.id == CultivoArea.area_id)
+            .where(
+                Safra.tenant_id == self.tenant_id,
+                AreaRural.unidade_produtiva_id == requisicao.unidade_produtiva_id,
+                Safra.status.notin_(["ENCERRADA", "CANCELADA"]),
+            )
+            .order_by(Safra.created_at.desc())
+            .limit(1)
+        )
+        return (await self.session.execute(stmt_safra)).scalar_one_or_none()
+
     async def registrar_saida(self, data: SaidaEstoqueRequest) -> EstoqueMovimento:
         await self._get_produto_or_fail(data.produto_id)
         if data.safra_id:
@@ -1121,6 +1173,7 @@ class EstoqueService(BaseService[SaldoEstoque]):
         if req.status not in ("APROVADA", "SEPARANDO"):
             raise BusinessRuleError(f"Requisição não pode ser entregue no status '{req.status}'.")
 
+        safra_id = await self._resolver_safra_contexto_requisicao(req)
         item_map = {i.item_id: i for i in data.itens}
         stmt_itens = select(ItemRequisicao).where(ItemRequisicao.requisicao_id == req_id)
         itens = (await self.session.execute(stmt_itens)).scalars().all()
@@ -1142,6 +1195,7 @@ class EstoqueService(BaseService[SaldoEstoque]):
                 origem_id=req_id,
                 origem_tipo="REQUISICAO",
                 lote_id=upd.lote_id,
+                safra_id=safra_id,
             )
             await self.registrar_saida(saida)
             item.quantidade_entregue = qtd

@@ -17,6 +17,7 @@ class RateioCreate(BaseModel):
 class DespesaCreate(BaseModel):
     unidade_produtiva_id: uuid.UUID
     plano_conta_id: uuid.UUID
+    cultivo_id: Optional[uuid.UUID] = None
     descricao: str = Field(..., min_length=3, max_length=255)
     valor_total: float = Field(..., gt=0)
 
@@ -41,6 +42,8 @@ class DespesaCreate(BaseModel):
     serie_nf: Optional[str] = Field(None, max_length=5)
     chave_nfe: Optional[str] = Field(None, max_length=44)
     nota_fiscal: Optional[str] = Field(None, max_length=100, description="Legado")
+    origem_id: Optional[uuid.UUID] = None
+    origem_tipo: Optional[str] = Field(None, max_length=40)
 
     observacoes: Optional[str] = None
     rateios: List[RateioCreate] = Field(default_factory=list)

@@ -1,4 +1,6 @@
 import uuid
+import re
+from datetime import date, timedelta
 from datetime import datetime, timezone
 from typing import List, Optional
 from sqlalchemy import select, func, union_all, literal_column, cast, Numeric
@@ -22,9 +24,16 @@ from operacional.schemas.compras import (
     CotacaoSolicitacaoCreate,
     RecebimentoCreate,
 )
+from core.cadastros.produtos.models import Produto
+from financeiro.models.despesa import Despesa
+from financeiro.models.plano_conta import PlanoConta
+from financeiro.schemas.despesa_schema import DespesaCreate
+from financeiro.services.despesa_service import DespesaService
 from operacional.services.estoque_service import EstoqueService
 from operacional.schemas.estoque import EntradaEstoqueRequest, LoteCreate, AjusteMovimentoRequest
-from operacional.models.estoque import EstoqueMovimento, LoteEstoque, SaldoEstoque
+from operacional.models.estoque import Deposito, EstoqueMovimento, LoteEstoque, SaldoEstoque
+from operacional.models.compras import Fornecedor
+from operacional.services.fornecedores_service import vincular_fornecedor_a_pessoa_canonica
 from operacional.services.estoque_ledger import registrar_ledger_estoque
 
 class ComprasService:
@@ -39,6 +48,161 @@ class ComprasService:
         sem consultar nem reescrever `Produto.preco_medio`.
         """
         return float(pedido.valor_unitario)
+
+    def _parse_condicoes_pagamento_em_dias(self, condicoes_pagamento: str | None) -> int | None:
+        if not condicoes_pagamento:
+            return None
+        match = re.search(r"(\d+)", condicoes_pagamento)
+        if not match:
+            return None
+        dias = int(match.group(1))
+        return dias if dias >= 0 else None
+
+    async def _buscar_ultimo_recebimento(self, pedido_id: uuid.UUID) -> RecebimentoParcial | None:
+        stmt = (
+            select(RecebimentoParcial)
+            .where(RecebimentoParcial.pedido_id == pedido_id)
+            .order_by(RecebimentoParcial.data_recebimento.desc())
+            .limit(1)
+        )
+        return (await self.session.execute(stmt)).scalar_one_or_none()
+
+    async def _resolver_fornecedor_financeiro(
+        self,
+        pedido: PedidoCompra,
+    ) -> tuple[uuid.UUID | None, str | None, Fornecedor | None]:
+        stmt = (
+            select(Fornecedor)
+            .where(
+                Fornecedor.tenant_id == self.tenant_id,
+                Fornecedor.nome_fantasia == pedido.fornecedor_nome,
+            )
+            .limit(1)
+        )
+        fornecedor = (await self.session.execute(stmt)).scalar_one_or_none()
+        if fornecedor is None:
+            return None, pedido.fornecedor_nome, None
+
+        if fornecedor.pessoa_id is None:
+            pessoa = await vincular_fornecedor_a_pessoa_canonica(self.session, fornecedor)
+            fornecedor.pessoa_id = pessoa.id
+            self.session.add(fornecedor)
+            await self.session.flush()
+
+        return fornecedor.pessoa_id, fornecedor.nome_fantasia or pedido.fornecedor_nome, fornecedor
+
+    async def _resolver_plano_conta_compra(self, produto: Produto) -> uuid.UUID | None:
+        codigo_por_tipo = {
+            "SEMENTE": "3.01",
+            "INOCULANTE": "3.01",
+            "FERTILIZANTE": "3.02",
+            "DEFENSIVO": "3.03",
+            "ADJUVANTE": "3.03",
+            "COMBUSTIVEL": "3.04",
+            "LUBRIFICANTE": "3.04",
+            "PECA": "3.06",
+            "RACAO": "3.12",
+            "MINERAL": "3.12",
+            "MEDICAMENTO": "3.13",
+            "VACINA": "3.13",
+            "SERVICO": "3.14",
+        }
+        codigo = codigo_por_tipo.get((produto.tipo or "").upper())
+
+        if codigo:
+            stmt = (
+                select(PlanoConta.id)
+                .where(
+                    PlanoConta.tenant_id == self.tenant_id,
+                    PlanoConta.codigo == codigo,
+                    PlanoConta.tipo == "DESPESA",
+                    PlanoConta.natureza == "ANALITICA",
+                    PlanoConta.ativo == True,
+                )
+                .limit(1)
+            )
+            plano_id = (await self.session.execute(stmt)).scalar_one_or_none()
+            if plano_id is not None:
+                return plano_id
+
+        stmt_fallback = (
+            select(PlanoConta.id)
+            .where(
+                PlanoConta.tenant_id == self.tenant_id,
+                PlanoConta.tipo == "DESPESA",
+                PlanoConta.categoria_rfb == "CUSTEIO",
+                PlanoConta.natureza == "ANALITICA",
+                PlanoConta.ativo == True,
+            )
+            .order_by(PlanoConta.codigo.asc())
+            .limit(1)
+        )
+        return (await self.session.execute(stmt_fallback)).scalar_one_or_none()
+
+    async def _garantir_despesa_financeira_compra(
+        self,
+        pedido: PedidoCompra,
+        *,
+        recebimento: RecebimentoParcial | None = None,
+    ) -> Despesa | None:
+        existente = (
+            await self.session.execute(
+                select(Despesa).where(
+                    Despesa.tenant_id == self.tenant_id,
+                    Despesa.origem_tipo == "COMPRA",
+                    Despesa.origem_id == pedido.id,
+                    Despesa.ativo == True,
+                ).limit(1)
+            )
+        ).scalar_one_or_none()
+        if existente is not None:
+            return existente
+
+        deposito = await self.session.get(Deposito, pedido.deposito_id)
+        produto = await self.session.get(Produto, pedido.item_id)
+        if not deposito or deposito.tenant_id != self.tenant_id:
+            raise BusinessRuleError("Deposito do pedido indisponível para integração financeira da compra.")
+        if not produto or produto.tenant_id != self.tenant_id:
+            raise BusinessRuleError("Produto do pedido indisponível para integração financeira da compra.")
+
+        plano_conta_id = await self._resolver_plano_conta_compra(produto)
+        if plano_conta_id is None:
+            raise BusinessRuleError("Nenhum plano de contas de despesa analítica foi encontrado para integrar a compra.")
+
+        recebimento = recebimento or await self._buscar_ultimo_recebimento(pedido.id)
+        data_base = (
+            recebimento.data_recebimento.date()
+            if recebimento is not None and recebimento.data_recebimento is not None
+            else date.today()
+        )
+
+        pessoa_id, fornecedor_nome, fornecedor = await self._resolver_fornecedor_financeiro(pedido)
+        dias_pagamento = self._parse_condicoes_pagamento_em_dias(
+            fornecedor.condicoes_pagamento if fornecedor is not None else None
+        )
+        data_vencimento = data_base + timedelta(days=dias_pagamento or 0)
+
+        payload = DespesaCreate(
+            unidade_produtiva_id=deposito.unidade_produtiva_id,
+            plano_conta_id=plano_conta_id,
+            descricao=f"Compra de {produto.nome}",
+            valor_total=float(pedido.valor_total or 0.0),
+            data_emissao=data_base,
+            data_vencimento=data_vencimento,
+            competencia=data_base.replace(day=1),
+            status="A_PAGAR",
+            pessoa_id=pessoa_id,
+            fornecedor=fornecedor_nome or pedido.fornecedor_nome,
+            numero_nf=recebimento.numero_nf if recebimento is not None else None,
+            chave_nfe=recebimento.chave_nfe if recebimento is not None else None,
+            nota_fiscal=recebimento.numero_nf if recebimento is not None else None,
+            origem_id=pedido.id,
+            origem_tipo="COMPRA",
+            observacoes=f"Despesa automática do recebimento do pedido {pedido.id}.",
+            rateios=[],
+        )
+        despesas = await DespesaService(self.session, self.tenant_id).create_with_rateio(payload)
+        return despesas[0] if despesas else None
 
     async def _get_or_create_item_pedido_principal(self, pedido: PedidoCompra) -> ItemPedidoCompra:
         stmt = (
@@ -755,6 +919,7 @@ class ComprasService:
             return None
 
         if pedido.status == "RECEBIDO":
+            await self._garantir_despesa_financeira_compra(pedido)
             return await self._enriquecer_pedido(pedido)  # Já recebido, idempotente
 
         item_pedido = await self._get_or_create_item_pedido_principal(pedido)
@@ -815,6 +980,7 @@ class ComprasService:
         pedido.status = "RECEBIDO"
         self.session.add(pedido)
         await self.session.flush()
+        await self._garantir_despesa_financeira_compra(pedido, recebimento=recebimento)
         
         return await self._enriquecer_pedido(pedido)
 

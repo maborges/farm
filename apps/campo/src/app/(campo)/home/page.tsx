@@ -438,6 +438,7 @@ function formatTaskType(type: string): string {
   const map: Record<string, string> = {
     APLICACAO_DEFENSIVO: "Aplicação de Defensivo",
     APLICACAO_FERTILIZANTE: "Aplicação de Fertilizante",
+    PLANTIO_REGISTRO: "Plantio",
     COLHEITA_REGISTRO: "Registro de Colheita",
     PESAGEM: "Pesagem",
     PESAGEM_ANIMAL: "Pesagem de Animal",

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import date, timedelta
 
 import pytest
 from sqlalchemy import func, select
@@ -8,9 +9,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 import agricola.alertas.service as alertas_module
 from core.cadastros.produtos.models import Produto
+from financeiro.models.despesa import Despesa
+from financeiro.models.plano_conta import PlanoConta
+from financeiro.services.relatorio_service import RelatorioService
 from notificacoes.models import Notificacao
-from operacional.models.compras import ItemRecebimento, PedidoCompra, RecebimentoParcial
+from operacional.models.compras import Fornecedor, ItemRecebimento, PedidoCompra, RecebimentoParcial
 from operacional.models.estoque import Deposito, EstoqueMovimento, LoteEstoque, SaldoEstoque
+from operacional.schemas.compras import RecebimentoCreate
+from tests.integration.helpers import garantir_assinatura
 from operacional.services.compras_service import ComprasService
 from test_operational_workflow_governance_step03 import _criar_unidade_produtiva, _garantir_tenant
 from core.exceptions import BusinessRuleError
@@ -45,6 +51,43 @@ async def _criar_deposito(session: AsyncSession, tenant_id: uuid.UUID, unidade_p
     await session.commit()
     await session.refresh(deposito)
     return deposito
+
+
+async def _criar_plano_conta(session: AsyncSession, tenant_id: uuid.UUID, *, codigo: str, nome: str) -> PlanoConta:
+    plano = PlanoConta(
+        id=uuid.uuid4(),
+        tenant_id=tenant_id,
+        codigo=codigo,
+        nome=nome,
+        tipo="DESPESA",
+        natureza="ANALITICA",
+        categoria_rfb="CUSTEIO",
+        ativo=True,
+    )
+    session.add(plano)
+    await session.commit()
+    await session.refresh(plano)
+    return plano
+
+
+async def _criar_fornecedor(
+    session: AsyncSession,
+    tenant_id: uuid.UUID,
+    *,
+    nome: str = "Fornecedor Step05",
+    condicoes_pagamento: str = "28 dias",
+) -> Fornecedor:
+    fornecedor = Fornecedor(
+        id=uuid.uuid4(),
+        tenant_id=tenant_id,
+        nome_fantasia=nome,
+        condicoes_pagamento=condicoes_pagamento,
+        email="financeiro@step05.test",
+    )
+    session.add(fornecedor)
+    await session.commit()
+    await session.refresh(fornecedor)
+    return fornecedor
 
 
 async def _criar_pedido(
@@ -133,6 +176,130 @@ async def test_recebimento_novo_gera_lote_movimento_saldo_step05(session: AsyncS
     assert float(movimento.custo_unitario) == 42.0
     assert float(saldo.quantidade_atual) == 25.0
     assert produto.preco_medio == 99.0
+
+
+@pytest.mark.asyncio
+async def test_recebimento_gera_conta_a_pagar_step05(session: AsyncSession, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(
+        alertas_module,
+        "WORKFLOW_ENFORCEMENT_MODE",
+        alertas_module.WORKFLOW_ENFORCEMENT_WARNING_ONLY,
+    )
+
+    tenant_id = uuid.uuid4()
+    await _garantir_tenant(session, tenant_id)
+    await garantir_assinatura(session, tenant_id)
+    unidade_id = await _criar_unidade_produtiva(session, tenant_id)
+    produto = await _criar_produto(session, tenant_id, preco_medio=120.0)
+    produto.tipo = "FERTILIZANTE"
+    session.add(produto)
+    await session.commit()
+    deposito = await _criar_deposito(session, tenant_id, unidade_id)
+    await _criar_plano_conta(session, tenant_id, codigo="3.02", nome="Fertilizantes e Corretivos")
+    fornecedor = await _criar_fornecedor(session, tenant_id)
+    pedido = await _criar_pedido(session, tenant_id, produto.id, deposito.id, quantidade=10.0, valor_unitario=55.0)
+
+    await ComprasService(session, tenant_id).receber_pedido(
+        pedido.id,
+        data=RecebimentoCreate(
+            numero_nf="NF-STEP05-001",
+            chave_nfe="12345678901234567890123456789012345678901234",
+        ),
+    )
+    await session.commit()
+
+    despesa = (
+        await session.execute(
+            select(Despesa).where(
+                Despesa.tenant_id == tenant_id,
+                Despesa.origem_tipo == "COMPRA",
+                Despesa.origem_id == pedido.id,
+            )
+        )
+    ).scalars().first()
+    await session.refresh(fornecedor)
+
+    assert despesa is not None
+    assert despesa.status == "A_PAGAR"
+    assert float(despesa.valor_total) == 550.0
+    assert despesa.unidade_produtiva_id == unidade_id
+    assert despesa.pessoa_id == fornecedor.pessoa_id
+    assert despesa.numero_nf == "NF-STEP05-001"
+    assert despesa.data_vencimento == despesa.data_emissao + timedelta(days=28)
+
+
+@pytest.mark.asyncio
+async def test_recebimento_financeiro_idempotente_step05(session: AsyncSession, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(
+        alertas_module,
+        "WORKFLOW_ENFORCEMENT_MODE",
+        alertas_module.WORKFLOW_ENFORCEMENT_WARNING_ONLY,
+    )
+
+    tenant_id = uuid.uuid4()
+    await _garantir_tenant(session, tenant_id)
+    await garantir_assinatura(session, tenant_id)
+    unidade_id = await _criar_unidade_produtiva(session, tenant_id)
+    produto = await _criar_produto(session, tenant_id)
+    produto.tipo = "FERTILIZANTE"
+    session.add(produto)
+    await session.commit()
+    deposito = await _criar_deposito(session, tenant_id, unidade_id)
+    await _criar_plano_conta(session, tenant_id, codigo="3.02", nome="Fertilizantes e Corretivos")
+    await _criar_fornecedor(session, tenant_id)
+    pedido = await _criar_pedido(session, tenant_id, produto.id, deposito.id)
+
+    svc = ComprasService(session, tenant_id)
+    await svc.receber_pedido(pedido.id)
+    await session.commit()
+    await svc.receber_pedido(pedido.id)
+    await session.commit()
+
+    total_despesas = (
+        await session.execute(
+            select(func.count(Despesa.id)).where(
+                Despesa.tenant_id == tenant_id,
+                Despesa.origem_tipo == "COMPRA",
+                Despesa.origem_id == pedido.id,
+            )
+        )
+    ).scalar_one()
+
+    assert total_despesas == 1
+
+
+@pytest.mark.asyncio
+async def test_recebimento_compra_atualiza_fluxo_previsto_step05(session: AsyncSession, monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setattr(
+        alertas_module,
+        "WORKFLOW_ENFORCEMENT_MODE",
+        alertas_module.WORKFLOW_ENFORCEMENT_WARNING_ONLY,
+    )
+
+    tenant_id = uuid.uuid4()
+    await _garantir_tenant(session, tenant_id)
+    await garantir_assinatura(session, tenant_id)
+    unidade_id = await _criar_unidade_produtiva(session, tenant_id)
+    produto = await _criar_produto(session, tenant_id)
+    produto.tipo = "FERTILIZANTE"
+    session.add(produto)
+    await session.commit()
+    deposito = await _criar_deposito(session, tenant_id, unidade_id)
+    await _criar_plano_conta(session, tenant_id, codigo="3.02", nome="Fertilizantes e Corretivos")
+    await _criar_fornecedor(session, tenant_id, condicoes_pagamento="0 dias")
+    pedido = await _criar_pedido(session, tenant_id, produto.id, deposito.id, quantidade=5.0, valor_unitario=80.0)
+
+    await ComprasService(session, tenant_id).receber_pedido(pedido.id)
+    await session.commit()
+
+    hoje = date.today()
+    fluxo = await RelatorioService(session, tenant_id).fluxo_caixa(
+        hoje.replace(day=1),
+        date(hoje.year, 12, 31),
+        unidade_id,
+    )
+
+    assert fluxo.totais.total_despesas_previstas >= 400.0
 
 
 @pytest.mark.asyncio

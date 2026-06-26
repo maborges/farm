@@ -1,25 +1,28 @@
 """
 Service — ComercializacaoCommodity
 """
+
 import uuid
 from datetime import date
-from typing import Optional
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.exceptions import BusinessRuleError, EntityNotFoundError
-from .models import ComercializacaoCommodity
 
+from .models import ComercializacaoCommodity
 
 # Transições permitidas de status
 TRANSICOES = {
-    "RASCUNHO":     ["CONFIRMADO", "CANCELADO"],
-    "CONFIRMADO":   ["EM_TRANSITO", "CANCELADO"],
-    "EM_TRANSITO":  ["ENTREGUE", "CANCELADO"],
-    "ENTREGUE":     ["FINALIZADO"],
-    "FINALIZADO":   [],
-    "CANCELADO":    [],
+    "RASCUNHO": ["CONFIRMADO", "CANCELADO"],
+    "CONFIRMADO": ["EM_TRANSITO", "CANCELADO"],
+    "EM_TRANSITO": ["ENTREGUE", "CANCELADO"],
+    "ENTREGUE": ["FINALIZADO"],
+    "FINALIZADO": [],
+    "CANCELADO": [],
 }
+
+FORMAS_RECEBIMENTO_IMEDIATO = {"A_VISTA", "PIX", "TRANSFERENCIA"}
 
 
 class ComercializacaoService:
@@ -29,9 +32,9 @@ class ComercializacaoService:
 
     async def listar(
         self,
-        status: Optional[str] = None,
-        commodity_id: Optional[uuid.UUID] = None,
-        comprador_id: Optional[uuid.UUID] = None,
+        status: str | None = None,
+        commodity_id: uuid.UUID | None = None,
+        comprador_id: uuid.UUID | None = None,
     ) -> list[ComercializacaoCommodity]:
         stmt = select(ComercializacaoCommodity).where(
             ComercializacaoCommodity.tenant_id == self.tenant_id,
@@ -42,34 +45,42 @@ class ComercializacaoService:
             stmt = stmt.where(ComercializacaoCommodity.commodity_id == commodity_id)
         if comprador_id:
             stmt = stmt.where(ComercializacaoCommodity.comprador_id == comprador_id)
-        return list((await self.session.execute(stmt.order_by(ComercializacaoCommodity.created_at.desc()))).scalars().all())
+        return list(
+            (await self.session.execute(stmt.order_by(ComercializacaoCommodity.created_at.desc())))
+            .scalars()
+            .all()
+        )
 
     async def criar(self, data) -> ComercializacaoCommodity:
         from sqlalchemy import or_
+
         from core.cadastros.commodities.models import Commodity
         from core.cadastros.pessoas.models import Pessoa
         from core.exceptions import EntityNotFoundError
 
         stmt_c = select(Commodity).where(
             Commodity.id == data.commodity_id,
-            or_(Commodity.tenant_id == self.tenant_id, Commodity.sistema == True),
+            or_(Commodity.tenant_id == self.tenant_id, Commodity.sistema.is_(True)),
         )
         if not (await self.session.execute(stmt_c)).scalar_one_or_none():
             raise EntityNotFoundError("Commodity não encontrada")
 
-        stmt_p = select(Pessoa).where(Pessoa.id == data.comprador_id, Pessoa.tenant_id == self.tenant_id)
+        stmt_p = select(Pessoa).where(
+            Pessoa.id == data.comprador_id, Pessoa.tenant_id == self.tenant_id
+        )
         if not (await self.session.execute(stmt_p)).scalar_one_or_none():
             raise EntityNotFoundError("Comprador não encontrado")
 
         valor_total = round(data.quantidade * data.preco_unitario, 2)
-        obj = ComercializacaoCommodity(tenant_id=self.tenant_id, valor_total=valor_total, **data.model_dump())
+        obj = ComercializacaoCommodity(
+            tenant_id=self.tenant_id, valor_total=valor_total, **data.model_dump()
+        )
         self.session.add(obj)
         await self.session.flush()
         await self.session.refresh(obj)
         return obj
 
     async def obter(self, comercializacao_id: uuid.UUID) -> ComercializacaoCommodity:
-        from core.exceptions import EntityNotFoundError
         stmt = select(ComercializacaoCommodity).where(
             ComercializacaoCommodity.id == comercializacao_id,
             ComercializacaoCommodity.tenant_id == self.tenant_id,
@@ -81,16 +92,19 @@ class ComercializacaoService:
 
     async def remover(self, comercializacao_id: uuid.UUID) -> None:
         from core.exceptions import BusinessRuleError
+
         obj = await self.obter(comercializacao_id)
         if obj.status not in ("RASCUNHO", "CANCELADO"):
-            raise BusinessRuleError("Só é possível excluir comercializações em RASCUNHO ou CANCELADO")
+            raise BusinessRuleError(
+                "Só é possível excluir comercializações em RASCUNHO ou CANCELADO"
+            )
         await self.session.delete(obj)
 
     async def transicionar_status(
         self,
         comercializacao: ComercializacaoCommodity,
         novo_status: str,
-        data_entrega_real: Optional[date] = None,
+        data_entrega_real: date | None = None,
     ) -> ComercializacaoCommodity:
         """
         Transiciona o status da comercialização e executa efeitos colaterais:
@@ -115,6 +129,7 @@ class ComercializacaoService:
                 comercializacao.data_entrega_real = data_entrega_real
             elif not comercializacao.data_entrega_real:
                 from datetime import date as _date_mod
+
                 comercializacao.data_entrega_real = _date_mod.today()
 
         if novo_status == "FINALIZADO":
@@ -131,6 +146,7 @@ class ComercializacaoService:
         # 1. Reservar ProdutoColhido
         if comercializacao.produto_colhido_id:
             from agricola.colheita.models import ProdutoColhido
+
             pc = await self.session.get(ProdutoColhido, comercializacao.produto_colhido_id)
             if pc and pc.status == "ARMAZENADO":
                 pc.status = "RESERVADO"
@@ -142,22 +158,45 @@ class ComercializacaoService:
         """Ao finalizar: libera ProdutoColhido como VENDIDO."""
         if comercializacao.produto_colhido_id:
             from agricola.colheita.models import ProdutoColhido
+
             pc = await self.session.get(ProdutoColhido, comercializacao.produto_colhido_id)
             if pc and pc.status == "RESERVADO":
                 pc.status = "VENDIDO"
+        await self._auto_receber_receita(comercializacao)
+
+    async def _auto_receber_receita(self, comercializacao: ComercializacaoCommodity) -> None:
+        """Baixa a receita automaticamente para formas de pagamento imediatas."""
+        if comercializacao.forma_pagamento not in FORMAS_RECEBIMENTO_IMEDIATO:
+            return
+        if not comercializacao.receita_id:
+            return
+
+        from financeiro.models.receita import Receita
+
+        receita = await self.session.get(Receita, comercializacao.receita_id)
+        if not receita or receita.status == "RECEBIDO":
+            return
+
+        receita.valor_recebido = float(receita.valor_total or comercializacao.valor_total or 0)
+        receita.data_recebimento = receita.data_recebimento or date.today()
+        receita.forma_recebimento = receita.forma_recebimento or comercializacao.forma_pagamento
+        receita.status = "RECEBIDO"
+        comercializacao.data_pagamento = comercializacao.data_pagamento or receita.data_recebimento
 
     async def _gerar_receita(self, comercializacao: ComercializacaoCommodity):
         """Gera Receita (contas a receber) vinculada à comercialização."""
-        from financeiro.models.receita import Receita
         from financeiro.models.plano_conta import PlanoConta
+        from financeiro.models.receita import Receita
 
         # Buscar unidade_produtiva via ProdutoColhido → SafraTalhao → AreaRural
         unidade_produtiva_id = None
         if comercializacao.produto_colhido_id:
             from agricola.colheita.models import ProdutoColhido
+
             pc = await self.session.get(ProdutoColhido, comercializacao.produto_colhido_id)
             if pc:
                 from core.cadastros.propriedades.models import AreaRural
+
                 area = await self.session.get(AreaRural, pc.talhao_id)
                 if area and area.unidade_produtiva_id:
                     unidade_produtiva_id = area.unidade_produtiva_id
@@ -165,9 +204,12 @@ class ComercializacaoService:
         # Fallback: buscar qualquer unidade do tenant
         if not unidade_produtiva_id:
             from core.models import Fazenda
-            faz = (await self.session.execute(
-                select(Fazenda).where(Fazenda.tenant_id == self.tenant_id).limit(1)
-            )).scalar_one_or_none()
+
+            faz = (
+                await self.session.execute(
+                    select(Fazenda).where(Fazenda.tenant_id == self.tenant_id).limit(1)
+                )
+            ).scalar_one_or_none()
             if faz:
                 unidade_produtiva_id = faz.id
 
@@ -178,7 +220,7 @@ class ComercializacaoService:
                 PlanoConta.tenant_id == self.tenant_id,
                 PlanoConta.categoria_rfb == "RECEITA_ATIVIDADE",
                 PlanoConta.natureza == "ANALITICA",
-                PlanoConta.ativo == True,
+                PlanoConta.ativo.is_(True),
             )
             .limit(1)
         )
@@ -191,12 +233,14 @@ class ComercializacaoService:
 
         # Obter nome da commodity para descrição
         from core.cadastros.commodities.models import Commodity
+
         commodity = await self.session.get(Commodity, comercializacao.commodity_id)
         commodity_nome = commodity.nome if commodity else "Commodity"
 
         descricao = (
-            f"Venda de {commodity_nome} — {comercializacao.quantidade:.3f} {comercializacao.unidade} "
-            f"× {comercializacao.preco_unitario:.2f} {comercializacao.moeda}"
+            f"Venda de {commodity_nome} — {comercializacao.quantidade:.3f} "
+            f"{comercializacao.unidade} × {comercializacao.preco_unitario:.2f} "
+            f"{comercializacao.moeda}"
         )
 
         # Datas
@@ -211,7 +255,11 @@ class ComercializacaoService:
             "PIX": "PIX",
             "TRANSFERENCIA": "TRANSFERENCIA",
         }
-        forma_receb = forma_map.get(comercializacao.forma_pagamento) if comercializacao.forma_pagamento else None
+        forma_receb = (
+            forma_map.get(comercializacao.forma_pagamento)
+            if comercializacao.forma_pagamento
+            else None
+        )
 
         rec = Receita(
             id=uuid.uuid4(),
