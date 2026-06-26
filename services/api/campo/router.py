@@ -11,8 +11,10 @@ from sqlalchemy import select, and_
 from core.config import settings
 from core.dependencies import get_session, get_tenant_id, get_user_id
 from core.exceptions import EntityNotFoundError, BusinessRuleError, TenantViolationError
+from alert_engine.models import Domain
+from events import DomainEvent, publish_domain_event_safe
 
-from campo.models import DispositivoCampo
+from campo.models import DispositivoCampo, TarefaCampo
 from campo.service import DispositivoService, SyncService, TarefaProgramadaService
 from campo.schemas import (
     DeviceCreate,
@@ -42,6 +44,77 @@ def _to_naive_utc(value: datetime | None) -> datetime:
     if value.tzinfo is None:
         return value
     return value.astimezone(timezone.utc).replace(tzinfo=None)
+
+
+def _uuid_from_string(value: str | None) -> uuid.UUID | None:
+    if not value:
+        return None
+    try:
+        return uuid.UUID(str(value))
+    except (TypeError, ValueError):
+        return None
+
+
+async def _publish_campo_event(
+    *,
+    session: AsyncSession,
+    event: DomainEvent,
+    status: str,
+) -> None:
+    await publish_domain_event_safe(
+        event,
+        session=session,
+        logger_context={
+            "component": "campo_router",
+            "status": status,
+        },
+    )
+
+
+def _build_tarefa_invalidada_event(tarefa, motivo: str) -> DomainEvent:
+    return DomainEvent(
+        tenant_id=tarefa.tenant_id,
+        unidade_produtiva_id=tarefa.unidade_produtiva_id,
+        domain=Domain.FIELD,
+        event_type="campo.tarefa.invalidada",
+        source_type="CAMPO_TAREFA_INVALIDADA",
+        entity_type="tarefa_campo",
+        entity_id=tarefa.id,
+        correlation_id=_uuid_from_string(getattr(tarefa, "client_id", None)),
+        metadata={
+            "status_anterior": "CONCLUIDA",
+            "status_novo": "INVALIDADA",
+            "motivo": motivo,
+            "tarefa_id": str(tarefa.id),
+            "module": tarefa.module,
+            "type": tarefa.type,
+        },
+    )
+
+
+def _build_sync_failure_event(tarefa, error: Exception, *, status: str) -> DomainEvent:
+    sync_meta = dict((tarefa.dados or {}).get("sync_pecuaria") or {})
+    sync_meta.setdefault("status", status)
+    sync_meta.setdefault("erros", [str(error)])
+    return DomainEvent(
+        tenant_id=tarefa.tenant_id,
+        unidade_produtiva_id=tarefa.unidade_produtiva_id,
+        domain=Domain.FIELD,
+        event_type="campo.sync.falha",
+        source_type="CAMPO_SYNC_FALHA",
+        entity_type="sync_campo",
+        entity_id=tarefa.id,
+        correlation_id=_uuid_from_string(getattr(tarefa, "client_id", None)),
+        metadata={
+            "sync_status": sync_meta.get("status"),
+            "error_type": error.__class__.__name__,
+            "error_message": str(error),
+            "origin": "sync_push",
+            "tarefa_id": str(tarefa.id),
+            "module": tarefa.module,
+            "type": tarefa.type,
+        },
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -379,6 +452,11 @@ async def invalidar_tarefa(
         tarefa = await svc.invalidar(tarefa_id, body.motivo)
         await session.commit()
         await session.refresh(tarefa)
+        await _publish_campo_event(
+            session=session,
+            event=_build_tarefa_invalidada_event(tarefa, body.motivo),
+            status="published",
+        )
         return tarefa
     except EntityNotFoundError as exc:
         await session.rollback()
@@ -450,6 +528,11 @@ async def sync_push(
                         }
                         tarefa.dados = dados
                         await session.commit()
+                        await _publish_campo_event(
+                            session=session,
+                            event=_build_sync_failure_event(tarefa, e, status="ERROR"),
+                            status="published",
+                        )
                 except Exception:
                     await session.rollback()
 

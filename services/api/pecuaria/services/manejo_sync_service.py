@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime
-from typing import List
+from typing import Any, cast
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
@@ -11,12 +11,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.base_service import BaseService
 from core.exceptions import BusinessRuleError
 from core.cadastros.produtos.models import Produto, TipoProduto
+from alert_engine.models import Domain
+from events import DomainEvent, publish_domain_event_safe
 from campo.models import TarefaCampo
 from agricola.custos.allocation_service import registrar_cost_allocation
 from agricola.custos.models import CostAllocation
 from agricola.production_units.models import ProductionUnit
 from operacional.models.estoque import EstoqueMovimento
-from operacional.schemas.estoque import SaidaEstoqueRequest
 from operacional.services.estoque_service import EstoqueService
 from pecuaria.animal.models import Animal, EventoAnimal, LoteAnimal
 
@@ -26,7 +27,7 @@ class ManejoSyncResult(BaseModel):
     total_recebido: int
     total_processado: int
     total_ignorados: int
-    erros: List[str]
+    erros: list[str]
     tarefa_campo_id: UUID
 
     model_config = ConfigDict(from_attributes=True)
@@ -54,6 +55,13 @@ class ManejoSyncService(BaseService[EventoAnimal]):
         else:
             return self._resultado_ignorado(tarefa_campo_id, f"Tipo '{tarefa.type}' não suportado nesta execução.")
         await self._persistir_resultado(tarefa_campo_id, res)
+        if res.status == "ERROR":
+            await self._publish_sync_failure_event(
+                tarefa=tarefa,
+                erro=res.erros[0] if res.erros else "Falha não especificada.",
+                origem="processar_tarefa_campo",
+                status=res.status,
+            )
         return res
 
     async def _buscar_tarefa(self, tarefa_campo_id: UUID) -> TarefaCampo | None:
@@ -148,6 +156,13 @@ class ManejoSyncService(BaseService[EventoAnimal]):
             )
             await self._registrar_custo_vacinacao(tarefa, movimento, total_processado)
             await self.session.commit()
+            await self._publish_vacinacao_registrada_event(
+                tarefa=tarefa,
+                dados=dados,
+                animais_ids=animais_ids,
+                produto=produto,
+                dose=dose,
+            )
             return ManejoSyncResult(
                 status="SUCCESS",
                 total_recebido=len(animais_ids),
@@ -337,7 +352,7 @@ class ManejoSyncService(BaseService[EventoAnimal]):
 
     def _validar_dose_vacinacao(self, value: object) -> float:
         try:
-            dose = float(value)
+            dose = float(cast(Any, value))
         except (TypeError, ValueError):
             raise ValueError("dose é obrigatória para vacinação.")
         if dose <= 0:
@@ -513,6 +528,74 @@ class ManejoSyncService(BaseService[EventoAnimal]):
         if fallback:
             return fallback.date()
         return date.today()
+
+    async def _publish_sync_failure_event(
+        self,
+        *,
+        tarefa: TarefaCampo,
+        erro: str,
+        origem: str,
+        status: str,
+    ) -> None:
+        evento = DomainEvent(
+            tenant_id=self.tenant_id,
+            unidade_produtiva_id=tarefa.unidade_produtiva_id,
+            domain=Domain.FIELD,
+            event_type="campo.sync.falha",
+            source_type="CAMPO_SYNC_FALHA",
+            entity_type="sync_campo",
+            entity_id=tarefa.id,
+            correlation_id=self._uuid_from_value(tarefa.client_id),
+            metadata={
+                "error_type": "SYNC_PROCESSING_ERROR",
+                "error_message": erro,
+                "origin": origem,
+                "local_id": str(tarefa.id),
+                "status": status,
+            },
+        )
+        await publish_domain_event_safe(
+            evento,
+            session=self.session,
+            logger_context={"component": "pecuaria_sync_service"},
+        )
+
+    async def _publish_vacinacao_registrada_event(
+        self,
+        *,
+        tarefa: TarefaCampo,
+        dados: dict,
+        animais_ids: list[UUID],
+        produto: Produto,
+        dose: float,
+    ) -> None:
+        evento = DomainEvent(
+            tenant_id=self.tenant_id,
+            unidade_produtiva_id=tarefa.unidade_produtiva_id,
+            domain=Domain.LIVESTOCK,
+            event_type="pecuaria.vacinacao.registrada",
+            source_type="PECUARIA_VACINACAO_REGISTRADA",
+            entity_type="tarefa_campo",
+            entity_id=tarefa.id,
+            correlation_id=self._uuid_from_value(tarefa.client_id),
+            metadata={
+                "tarefa_campo_id": str(tarefa.id),
+                "lote_id": str(self._uuid_from_value(dados.get("lote_id"))) if self._uuid_from_value(dados.get("lote_id")) else None,
+                "animal_id": str(animais_ids[0]) if animais_ids else None,
+                "animal_count": len(animais_ids),
+                "produto_id": str(produto.id),
+                "produto_nome": getattr(produto, "nome", None),
+                "dose": dose,
+                "unidade_medida": dados.get("unidade_medida"),
+                "via_aplicacao": dados.get("via_aplicacao"),
+                "data_aplicacao": self._resolver_data_evento(dados.get("data_evento"), tarefa.concluida_em).isoformat(),
+            },
+        )
+        await publish_domain_event_safe(
+            evento,
+            session=self.session,
+            logger_context={"component": "pecuaria_sync_service"},
+        )
 
     def _resultado_erro(self, tarefa_campo_id: UUID, total_recebido: int, erros: list[str]) -> ManejoSyncResult:
         return ManejoSyncResult(

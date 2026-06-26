@@ -1,12 +1,14 @@
 from datetime import date
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from typing import List
 import uuid
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.dependencies import get_current_user, get_session, get_tenant_id, require_module
 from core.models.auth import Usuario
 from core.exceptions import BusinessRuleError, EntityNotFoundError
+from alert_engine.models import Domain
+from events import DomainEvent, publish_domain_event_safe
+from pecuaria.animal.models import LoteAnimal
 from pecuaria.schemas.manejo_schema import ManejoLoteCreate, ManejoLoteResponse
 from pecuaria.services.manejo_service import ManejoLoteService
 from pecuaria.schemas.manejo_planejamento_schema import (
@@ -24,7 +26,49 @@ router = APIRouter(
 )
 
 
-@router.get("/", response_model=List[ManejoLoteResponse])
+def _build_planejamento_sanitario_atualizado_event(
+    *,
+    tenant_id: uuid.UUID,
+    unidade_produtiva_id: uuid.UUID | None,
+    planejamento: ManejoPlanejamentoResponse,
+    payload: ManejoPlanejamentoCreate,
+) -> DomainEvent:
+    return DomainEvent(
+        tenant_id=tenant_id,
+        unidade_produtiva_id=unidade_produtiva_id,
+        domain=Domain.LIVESTOCK,
+        event_type="pecuaria.planejamento.sanitario.atualizado",
+        source_type="PECUARIA_PLANEJAMENTO_SANITARIO_ATUALIZADO",
+        entity_type="planejamento_sanitario",
+        entity_id=planejamento.tarefa_campo_id,
+        metadata={
+            "tipo": payload.tipo,
+            "lote_id": str(planejamento.lote.id),
+            "lote_identificacao": planejamento.lote.identificacao,
+            "operador_id": str(payload.operador_id) if payload.operador_id else None,
+            "produto_id": str(payload.produto_id) if payload.produto_id else None,
+            "dose": payload.dose,
+            "unidade_medida": payload.unidade_medida,
+            "data_programada": str(planejamento.data_programada),
+            "quantidade_animais": planejamento.quantidade_animais,
+            "observacoes": planejamento.observacoes,
+        },
+    )
+
+
+async def _publish_pecuaria_event(
+    *,
+    session: AsyncSession,
+    event: DomainEvent,
+) -> None:
+    await publish_domain_event_safe(
+        event,
+        session=session,
+        logger_context={"component": "pecuaria_router"},
+    )
+
+
+@router.get("/", response_model=list[ManejoLoteResponse])
 async def listar_manejos(
     lote_id: uuid.UUID | None = None,
     tenant_id: uuid.UUID = Depends(get_tenant_id),
@@ -64,6 +108,17 @@ async def planejar_manejo(
     try:
         planejamento = await svc.planejar(payload, current_user.id)
         await db.commit()
+        if payload.tipo == "VACINACAO":
+            lote = await db.get(LoteAnimal, payload.lote_id)
+            await _publish_pecuaria_event(
+                session=db,
+                event=_build_planejamento_sanitario_atualizado_event(
+                    tenant_id=tenant_id,
+                    unidade_produtiva_id=lote.unidade_produtiva_id if lote else None,
+                    planejamento=planejamento,
+                    payload=payload,
+                ),
+            )
         return planejamento
     except EntityNotFoundError as exc:
         await db.rollback()

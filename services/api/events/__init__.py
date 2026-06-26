@@ -1,4 +1,5 @@
 from .base import DomainEvent, EventSubscriber, EventSubscriberResult
+from .helpers import publish_domain_event_safe
 from .publisher import (
     EventPublisher,
     EventPublisherResult,
@@ -21,5 +22,6 @@ __all__ = [
     "EventSubscriberResult",
     "event_subscriber_registry",
     "publish_domain_event",
+    "publish_domain_event_safe",
     "register_event_subscriber",
 ]

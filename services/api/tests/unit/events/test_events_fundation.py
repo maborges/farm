@@ -4,8 +4,16 @@ import uuid
 
 import pytest
 
+from alert_engine import dispatcher as alert_dispatcher_module
 from alert_engine.dispatcher import AlertDispatcherResult, AlertDomainEvent
-from alert_engine.models import Domain
+from alert_engine.generators import (
+    AlertGeneratorContext,
+    AlertGeneratorRegistry,
+    AlertGeneratorResult,
+    AlertGeneratorRunner,
+    BaseAlertGenerator,
+)
+from alert_engine.models import Category, Domain
 from events import (
     DomainEvent,
     EventPublisher,
@@ -52,6 +60,29 @@ class FailingSubscriber(EventSubscriber):
 
     async def handle(self, event: DomainEvent) -> EventSubscriberResult:
         raise RuntimeError(f"boom:{event.event_type}")
+
+
+class ChainGenerator(BaseAlertGenerator):
+    generator_name = "chain-generator"
+    domain = Domain.FIELD
+    category = Category.OPERACIONAL
+    event_types = ("campo.tarefa.invalidada",)
+
+    async def run(self, context: AlertGeneratorContext) -> AlertGeneratorResult:
+        return AlertGeneratorResult(created=1, generator_name=self.generator_name)
+
+
+class RunnerSpy(AlertGeneratorRunner):
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, AlertGeneratorContext]] = []
+
+    async def execute(
+        self,
+        generator: BaseAlertGenerator,
+        context: AlertGeneratorContext,
+    ) -> AlertGeneratorResult:
+        self.calls.append((generator.generator_name, context))
+        return await super().execute(generator, context)
 
 
 def test_domain_event_defaults_and_extensibility() -> None:
@@ -236,3 +267,36 @@ async def test_publish_domain_event_helper_uses_registry(session) -> None:
     assert result.executed == 1
     assert result.succeeded == 1
     assert result.event_id == event.event_id
+
+
+@pytest.mark.asyncio
+async def test_full_chain_publisher_to_dispatcher_runner_and_generator(
+    session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    registry = AlertGeneratorRegistry()
+    registry.register(ChainGenerator)
+    runner = RunnerSpy()
+    monkeypatch.setattr(alert_dispatcher_module, "alert_generator_registry", registry)
+    monkeypatch.setattr(alert_dispatcher_module, "AlertGeneratorRunner", lambda: runner)
+
+    event = DomainEvent(
+        tenant_id=uuid.uuid4(),
+        unidade_produtiva_id=uuid.uuid4(),
+        domain=Domain.FIELD,
+        event_type="campo.tarefa.invalidada",
+        source_type="CAMPO_TAREFA_INVALIDADA",
+        entity_type="tarefa_campo",
+        entity_id=uuid.uuid4(),
+        correlation_id=uuid.uuid4(),
+        causation_id=uuid.uuid4(),
+        metadata={"origin": "unit-test"},
+    )
+
+    result = await publish_domain_event(event, session=session)
+
+    assert result.executed == 1
+    assert result.succeeded == 1
+    assert result.errors == 0
+    assert runner.calls[0][0] == "chain-generator"
+    assert runner.calls[0][1].event_id == event.event_id
+    assert runner.calls[0][1].metadata["origin"] == "unit-test"
