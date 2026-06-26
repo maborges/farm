@@ -9,6 +9,7 @@ from .base import (  # noqa: F401
     NotificationStatus,
 )
 from .dispatcher import NotificationDispatcher  # noqa: F401
+from .email_adapter import EmailNotificationAdapter  # noqa: F401
 from .notification_deduplication import NotificationDeduplicationStore  # noqa: F401
 from .notification_policy import (  # noqa: F401
     DefaultNotificationPolicy,
@@ -47,6 +48,7 @@ __all__ = [
     "NotificationDeduplicationStore",
     "NotificationEvent",
     "NotificationEventSubscriber",
+    "EmailNotificationAdapter",
     "NotificationPolicy",
     "NotificationPolicyRegistry",
     "NotificationPolicyResult",

@@ -9,6 +9,7 @@ import pytest
 import notifications.adapters as notifications_adapters_module
 import notifications.dispatcher as notifications_dispatcher_module
 from notifications import (
+    EmailNotificationAdapter,
     LogNotificationAdapter,
     NoopNotificationAdapter,
     NotificationAdapter,
@@ -59,14 +60,15 @@ def test_registry_registers_and_resolves_channels() -> None:
     registry = NotificationAdapterRegistry()
     registry.register(LogNotificationAdapter)
     registry.register(NoopNotificationAdapter)
+    registry.register(EmailNotificationAdapter)
 
     assert registry.resolve(NotificationChannel.LOG) is LogNotificationAdapter
-    assert registry.resolve(NotificationChannel.EMAIL) is NoopNotificationAdapter
+    assert registry.resolve(NotificationChannel.EMAIL) is EmailNotificationAdapter
     assert set(registry.list_supported_channels()) == {
         NotificationChannel.LOG,
         NotificationChannel.NOOP,
-        NotificationChannel.IN_APP,
         NotificationChannel.EMAIL,
+        NotificationChannel.IN_APP,
         NotificationChannel.WHATSAPP,
         NotificationChannel.PUSH,
     }

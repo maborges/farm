@@ -59,7 +59,7 @@ class NotificationDispatcher:
                 adapter_name = delivery.metadata.get("adapter_name")
             else:
                 deliveries = await self._deliver(event, policy_result)
-                primary_delivery = deliveries[0]
+                primary_delivery = self._primary_delivery(deliveries)
                 result = self._to_result(
                     event,
                     primary_delivery,
@@ -198,7 +198,9 @@ class NotificationDispatcher:
     ) -> list[NotificationDeliveryResult]:
         deliveries: list[NotificationDeliveryResult] = []
         for channel in self._normalize_channels(policy_result.channels, event):
-            deliveries.append(await self._deliver_channel(event, policy_result, channel))
+            deliveries.append(
+                await self._deliver_channel(event, policy_result, channel)
+            )
         if deliveries:
             return deliveries
         return [self._suppressed_delivery(event, policy_result)]
@@ -209,23 +211,28 @@ class NotificationDispatcher:
         policy_result: NotificationPolicyResult,
         channel: NotificationChannel,
     ) -> NotificationDeliveryResult:
-        adapter_cls = self.registry.resolve(channel)
-        channel_event = event.model_copy(
-            update={
-                "channel": channel,
-                "priority": self._priority_from(policy_result),
-            }
-        )
-        delivery = await adapter_cls().send(channel_event)
-        return delivery.model_copy(
-            update={
-                "priority": self._priority_from(policy_result),
-                "metadata": {
-                    **delivery.metadata,
-                    "policy": policy_result.model_dump(),
-                },
-            }
-        )
+        try:
+            adapter_cls = self.registry.resolve(channel)
+            channel_event = self._channel_event(event, policy_result, channel)
+            delivery = await adapter_cls().send(channel_event)
+            return delivery.model_copy(
+                update={
+                    "priority": self._priority_from(policy_result),
+                    "metadata": {
+                        **delivery.metadata,
+                        "policy": policy_result.model_dump(),
+                    },
+                }
+            )
+        except NotificationAdapterNotRegisteredError as exc:
+            return self._not_implemented_delivery(event, str(exc))
+        except Exception as exc:  # pragma: no cover - defensive isolation
+            return self._failed_channel_delivery(
+                event,
+                policy_result,
+                channel,
+                exc,
+            )
 
     @staticmethod
     def _normalize_channels(
@@ -248,8 +255,67 @@ class NotificationDispatcher:
         return channels[0]
 
     @staticmethod
+    def _primary_delivery(
+        deliveries: list[NotificationDeliveryResult],
+    ) -> NotificationDeliveryResult:
+        for delivery in deliveries:
+            if delivery.delivered and not delivery.failed:
+                return delivery
+        return deliveries[0]
+
+    @staticmethod
     def _priority_from(policy_result: NotificationPolicyResult) -> NotificationPriority:
         return NotificationPriority[policy_result.priority.strip().upper()]
+
+    def _channel_event(
+        self,
+        event: NotificationEvent,
+        policy_result: NotificationPolicyResult,
+        channel: NotificationChannel,
+    ) -> NotificationEvent:
+        return event.model_copy(
+            update={
+                "channel": channel,
+                "priority": self._priority_from(policy_result),
+                "metadata": {
+                    **event.metadata,
+                    "policy": policy_result.model_dump(),
+                    "resolved_recipients": policy_result.recipients,
+                    "resolved_channels": policy_result.channels,
+                },
+            }
+        )
+
+    def _failed_channel_delivery(
+        self,
+        event: NotificationEvent,
+        policy_result: NotificationPolicyResult,
+        channel: NotificationChannel,
+        exc: Exception,
+    ) -> NotificationDeliveryResult:
+        logger.bind(
+            component="notification_dispatcher",
+            notification_id=str(event.notification_id),
+            tenant_id=str(event.tenant_id),
+            channel=channel.value,
+            event_type=policy_result.event_type,
+            exception_type=exc.__class__.__name__,
+        ).exception("notification_channel_delivery_failed")
+        return NotificationDeliveryResult(
+            notification_id=event.notification_id,
+            channel=channel,
+            status=NotificationStatus.FAILED,
+            priority=self._priority_from(policy_result),
+            correlation_id=event.correlation_id,
+            causation_id=event.causation_id,
+            failed=True,
+            error=f"{exc.__class__.__name__}: {exc}",
+            metadata={
+                "adapter_name": "policy",
+                "exception_type": exc.__class__.__name__,
+                "policy": policy_result.model_dump(),
+            },
+        )
 
     @staticmethod
     def _logger(event: NotificationEvent) -> Any:

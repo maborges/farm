@@ -11,6 +11,7 @@ from .base import (
     NotificationEvent,
     NotificationStatus,
 )
+from .email_adapter import EmailNotificationAdapter  # noqa: F401
 from .registry import register_notification_adapter
 
 
@@ -80,7 +81,6 @@ class NoopNotificationAdapter(NotificationAdapter):
     supported_channels = (
         NotificationChannel.NOOP,
         NotificationChannel.IN_APP,
-        NotificationChannel.EMAIL,
         NotificationChannel.WHATSAPP,
         NotificationChannel.PUSH,
     )

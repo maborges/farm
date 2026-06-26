@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import asyncio
 import uuid
 from collections.abc import Sequence
+from datetime import datetime
 from types import SimpleNamespace
 from typing import cast
 
@@ -328,3 +330,237 @@ def test_main_invokes_run_handler_when_no_command(monkeypatch: pytest.MonkeyPatc
     assert exit_code == 0
     assert cast(dict[str, object], captured["kwargs"])["batch_size"] == 3
     assert cast(dict[str, object], captured["kwargs"])["dry_run"] is True
+
+
+def test_worker_stats_updates_runtime_counters() -> None:
+    started_at = outbox_worker_module.datetime.now(outbox_worker_module.UTC)
+    stats = outbox_worker_module.WorkerStats(started_at=started_at)
+    cycle = outbox_worker_module.OutboxWorkerRunResult(
+        worker_run_id=uuid.uuid4(),
+        total_batches=2,
+        total_processed=5,
+    )
+
+    stats.mark_cycle(cycle)
+    stats.mark_error("boom")
+
+    assert stats.cycles == 2
+    assert stats.batches_processed == 2
+    assert stats.events_processed == 5
+    assert stats.errors == 1
+    assert stats.last_success is not None
+    assert stats.last_error == "boom"
+
+
+@pytest.mark.asyncio
+async def test_worker_loop_runs_multiple_cycles_and_respects_interval(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sleeps: list[int] = []
+    calls = 0
+
+    async def fake_run_outbox_relay_once(
+        **kwargs: object,
+    ) -> outbox_worker_module.OutboxWorkerRunResult:
+        nonlocal calls
+        calls += 1
+        return outbox_worker_module.OutboxWorkerRunResult(
+            worker_run_id=uuid.uuid4(),
+            total_batches=1,
+            total_claimed=2,
+            total_processed=2,
+            total_failed=0,
+            total_dead_letter=0,
+        )
+
+    runtime_checks = 0
+
+    def fake_max_runtime_reached(started_at: datetime, max_runtime: int | None) -> bool:
+        nonlocal runtime_checks
+        runtime_checks += 1
+        return runtime_checks >= 6
+
+    async def fake_sleep(
+        seconds: int,
+        started_at: datetime,
+        max_runtime: int | None,
+        stop_event: asyncio.Event,
+    ) -> None:
+        sleeps.append(seconds)
+
+    heartbeats: list[dict[str, object]] = []
+
+    snapshot = SimpleNamespace(current_backlog=4, retries_seen=1)
+
+    def fake_heartbeat(logger_ctx: object, stats: object, metrics: object) -> None:
+        heartbeats.append(cast(dict[str, object], metrics.to_dict()))
+
+    monkeypatch.setattr(outbox_worker_module, "run_outbox_relay_once", fake_run_outbox_relay_once)
+    monkeypatch.setattr(outbox_worker_module, "_sleep_with_timeout", fake_sleep)
+    monkeypatch.setattr(outbox_worker_module, "_log_heartbeat", fake_heartbeat)
+    monkeypatch.setattr(outbox_worker_module, "_max_runtime_reached", fake_max_runtime_reached)
+    async def fake_snapshot(*args: object, **kwargs: object) -> SimpleNamespace:  # noqa: ARG001
+        return snapshot
+
+    monkeypatch.setattr(outbox_worker_module, "_collect_backlog_snapshot", fake_snapshot)
+
+    result = await outbox_worker_module.run_outbox_worker_loop(
+        interval=7,
+        heartbeat=0,
+    )
+
+    assert calls == 3
+    assert sleeps == [7, 7]
+    assert heartbeats
+    assert heartbeats[0]["current_backlog"] == 4
+    assert "throughput_per_minute" in heartbeats[0]
+    assert result.exit_code == outbox_worker_module.EXIT_OK
+    assert result.total_batches == 3
+    assert result.total_processed == 6
+
+
+@pytest.mark.asyncio
+async def test_worker_loop_backoff_grows_and_resets(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sleeps: list[int] = []
+    calls = 0
+
+    async def fake_run_outbox_relay_once(
+        **kwargs: object,
+    ) -> outbox_worker_module.OutboxWorkerRunResult:
+        nonlocal calls
+        calls += 1
+        if calls == 1 or calls == 3:
+            raise RuntimeError("boom")
+        return outbox_worker_module.OutboxWorkerRunResult(
+            worker_run_id=uuid.uuid4(),
+            total_batches=1,
+            total_claimed=1,
+            total_processed=1,
+            total_failed=0,
+            total_dead_letter=0,
+        )
+
+    runtime_checks = 0
+
+    def fake_max_runtime_reached(started_at: datetime, max_runtime: int | None) -> bool:
+        nonlocal runtime_checks
+        runtime_checks += 1
+        return runtime_checks >= 5
+
+    async def fake_sleep(
+        seconds: int,
+        started_at: datetime,
+        max_runtime: int | None,
+        stop_event: asyncio.Event,
+    ) -> None:
+        sleeps.append(seconds)
+
+    monkeypatch.setattr(outbox_worker_module, "run_outbox_relay_once", fake_run_outbox_relay_once)
+    monkeypatch.setattr(outbox_worker_module, "_sleep_with_timeout", fake_sleep)
+    monkeypatch.setattr(outbox_worker_module, "_max_runtime_reached", fake_max_runtime_reached)
+    async def fake_snapshot(*args: object, **kwargs: object) -> SimpleNamespace:  # noqa: ARG001
+        return SimpleNamespace(current_backlog=2, retries_seen=5)
+
+    monkeypatch.setattr(outbox_worker_module, "_collect_backlog_snapshot", fake_snapshot)
+
+    result = await outbox_worker_module.run_outbox_worker_loop(
+        interval=2,
+        backoff=5,
+        max_backoff=60,
+    )
+
+    assert sleeps == [5, 2, 5]
+    assert result.errors[0] == "RuntimeError: boom"
+    assert result.exit_code == outbox_worker_module.EXIT_OK
+    assert result.status == "stopped"
+
+
+def test_worker_loop_keyboard_interrupt_returns_130(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def boom(**kwargs: object) -> outbox_worker_module.OutboxWorkerRunResult:
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(outbox_worker_module, "run_outbox_worker_loop", boom)
+
+    exit_code = outbox_worker_module.main(["run", "--loop"])
+
+    assert exit_code == outbox_worker_module.EXIT_INTERRUPTED
+
+
+def test_worker_loop_sigterm_sets_graceful_exit(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_install(loop: object, stop_event: asyncio.Event) -> list[object]:
+        stop_event.set()
+        return []
+
+    async def fake_run_outbox_relay_once(
+        **kwargs: object,
+    ) -> outbox_worker_module.OutboxWorkerRunResult:
+        return outbox_worker_module.OutboxWorkerRunResult(
+            worker_run_id=uuid.uuid4(),
+            total_batches=1,
+            total_claimed=1,
+            total_processed=1,
+            total_failed=0,
+            total_dead_letter=0,
+        )
+
+    monkeypatch.setattr(
+        outbox_worker_module,
+        "_install_signal_handlers",
+        fake_install,
+    )
+    monkeypatch.setattr(
+        outbox_worker_module,
+        "run_outbox_relay_once",
+        fake_run_outbox_relay_once,
+    )
+
+    exit_code = outbox_worker_module.main(["run", "--loop"])
+
+    assert exit_code == outbox_worker_module.EXIT_INTERRUPTED
+
+
+@pytest.mark.asyncio
+async def test_worker_loop_stops_on_max_runtime(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    max_runtime_calls = 0
+
+    async def fake_run_outbox_relay_once(
+        **kwargs: object,
+    ) -> outbox_worker_module.OutboxWorkerRunResult:
+        return outbox_worker_module.OutboxWorkerRunResult(
+            worker_run_id=uuid.uuid4(),
+            total_batches=1,
+            total_claimed=1,
+            total_processed=1,
+            total_failed=0,
+            total_dead_letter=0,
+        )
+
+    def fake_max_runtime_reached(started_at: datetime, max_runtime: int | None) -> bool:
+        nonlocal max_runtime_calls
+        max_runtime_calls += 1
+        return max_runtime_calls >= 2
+
+    async def fake_sleep(
+        seconds: int,
+        started_at: datetime,
+        max_runtime: int | None,
+        stop_event: asyncio.Event,
+    ) -> None:
+        return None
+
+    monkeypatch.setattr(outbox_worker_module, "run_outbox_relay_once", fake_run_outbox_relay_once)
+    monkeypatch.setattr(outbox_worker_module, "_max_runtime_reached", fake_max_runtime_reached)
+    monkeypatch.setattr(outbox_worker_module, "_sleep_with_timeout", fake_sleep)
+
+    result = await outbox_worker_module.run_outbox_worker_loop(max_runtime=1)
+
+    assert result.warnings == ["max_runtime_reached"]
+    assert result.exit_code == outbox_worker_module.EXIT_OK
