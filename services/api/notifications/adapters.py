@@ -78,6 +78,7 @@ class NoopNotificationAdapter(NotificationAdapter):
 
     adapter_name = "noop"
     supported_channels = (
+        NotificationChannel.NOOP,
         NotificationChannel.IN_APP,
         NotificationChannel.EMAIL,
         NotificationChannel.WHATSAPP,

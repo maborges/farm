@@ -3,19 +3,17 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Final
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
-try:  # Python 3.11+
-    from datetime import UTC
-except ImportError:  # Python 3.10 compatibility in the test environment.
-    UTC = timezone.utc  # noqa: UP017
+UTC: Final = timezone.utc  # noqa: UP017
 
 
 class NotificationChannel(str, Enum):
     LOG = "LOG"
+    NOOP = "NOOP"
     IN_APP = "IN_APP"
     EMAIL = "EMAIL"
     WHATSAPP = "WHATSAPP"

@@ -64,6 +64,7 @@ def test_registry_registers_and_resolves_channels() -> None:
     assert registry.resolve(NotificationChannel.EMAIL) is NoopNotificationAdapter
     assert set(registry.list_supported_channels()) == {
         NotificationChannel.LOG,
+        NotificationChannel.NOOP,
         NotificationChannel.IN_APP,
         NotificationChannel.EMAIL,
         NotificationChannel.WHATSAPP,
@@ -167,11 +168,12 @@ async def test_dispatcher_consolidates_result_and_preserves_metadata() -> None:
 
     assert isinstance(result, NotificationDispatchResult)
     assert result.status == NotificationStatus.DELIVERED
-    assert result.priority == NotificationPriority.CRITICAL
+    assert result.priority == NotificationPriority.NORMAL
     assert result.correlation_id == correlation_id
     assert result.causation_id == causation_id
     assert result.delivered is True
     assert result.metadata["origin"] == "test"
+    assert result.metadata["policy"]["priority"] == "NORMAL"
 
 
 def test_dispatcher_and_adapters_do_not_know_alert_engine() -> None:
