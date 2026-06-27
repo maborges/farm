@@ -629,6 +629,10 @@ class DREAgricolaV1Service(BaseService[Safra]):
             ).all()
             if row[0] is not None
         )
+        alloc_source_ids: dict[str, set[UUID]] = defaultdict(set)
+        for allocation in scope.get("_cost_allocations_rows", []):
+            if allocation.source_id is not None:
+                alloc_source_ids[allocation.source].add(allocation.source_id)
 
         desp_stmt = select(Despesa).where(Despesa.tenant_id == self.tenant_id, Despesa.ativo == True)
         if scope["unidade_produtiva_id"] is not None:
@@ -686,6 +690,9 @@ class DREAgricolaV1Service(BaseService[Safra]):
             if despesa.origem_tipo == "FIN_RATEIO" and any(rateio.id in alloc_rateio_ids for rateio in rateios_por_despesa.get(despesa.id, [])):
                 excluidas += 1
                 continue
+            if self._despesa_tem_allocation_canonica(despesa, alloc_source_ids):
+                excluidas += 1
+                continue
 
             pu_id = None
             if despesa.origem_tipo == "OPERACAO_AGRICOLA" and despesa.origem_id in operacoes_map:
@@ -735,6 +742,23 @@ class DREAgricolaV1Service(BaseService[Safra]):
             total_registros=len(items),
             fontes={"DESPESA": round(total, 2)},
         ), excluidas
+
+    @staticmethod
+    def _despesa_tem_allocation_canonica(
+        despesa: Despesa,
+        alloc_source_ids: dict[str, set[UUID]],
+    ) -> bool:
+        """Aplica precedência econômica para novas origens operacionais canônicas."""
+        if despesa.origem_id is None:
+            return False
+        source_map = {
+            "ABASTECIMENTO": {"FROTA_COMBUSTIVEL"},
+            "ORDEM_SERVICO": {"FROTA_PECAS", "FROTA_MANUTENCAO"},
+            "RH_DIARIA": {"RH_DIARIA"},
+            "RH_EMPREITADA": {"RH_EMPREITADA"},
+        }
+        fontes = source_map.get(despesa.origem_tipo or "", set())
+        return any(despesa.origem_id in alloc_source_ids.get(source, set()) for source in fontes)
 
     async def _resolver_pu_por_safra_talhao(
         self,

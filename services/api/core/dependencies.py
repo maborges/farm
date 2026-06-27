@@ -23,7 +23,7 @@ except Exception:  # pragma: no cover - asyncpg may not be installed in sqlite-o
 # Cache simples TTL para validação de sessão (evita query por request)
 # ---------------------------------------------------------------------------
 _SESSION_CACHE: dict[str, tuple[bool, float]] = {}  # token_hash -> (is_valid, expires_at)
-_SESSION_CACHE_TTL = 30  # segundos
+_SESSION_CACHE_TTL = settings.session_cache_ttl_seconds
 _SESSION_CACHE_MAX = 2000
 TENANT_CONTEXT_ERROR = "Contexto de tenant ausente ou inválido. Refaça o login ou selecione o tenant ativo."
 PLAN_NOT_CONTRACTED_ERROR = "Seu plano atual não inclui este recurso. Faça upgrade do plano para continuar."
@@ -137,6 +137,7 @@ def get_token(request: Request) -> str:
 
 async def get_current_user_claims(
     token: str = Depends(get_token),
+    session: AsyncSession = Depends(get_session),
 ) -> dict:
     """Extrai as claims do JWT e valida se a sessão está ativa no banco."""
 
@@ -157,17 +158,16 @@ async def get_current_user_claims(
     if cached is None:
         from core.models.sessao import SessaoAtiva
         try:
-            async with async_session_maker() as db:
-                result = await db.execute(
-                    select(SessaoAtiva.status).where(SessaoAtiva.token_hash == token_hash)
-                )
-                sessao_status = result.scalar_one_or_none()
+            result = await session.execute(
+                select(SessaoAtiva.status).where(SessaoAtiva.token_hash == token_hash)
+            )
+            sessao_status = result.scalar_one_or_none()
 
-                if sessao_status is not None and sessao_status != "ATIVA":
-                    _cache_set(token_hash, False)
-                    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Sessão encerrada ou revogada")
+            if sessao_status is not None and sessao_status != "ATIVA":
+                _cache_set(token_hash, False)
+                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Sessão encerrada ou revogada")
 
-                _cache_set(token_hash, True)
+            _cache_set(token_hash, True)
         except (asyncio.TimeoutError, OSError, SQLAlchemyError) as exc:
             logger.error(
                 "Falha ao validar sessão do usuário",
@@ -196,6 +196,7 @@ async def get_current_user_claims(
 async def get_tenant_id(
     request: Request,
     claims: dict = Depends(get_current_user_claims),
+    session: AsyncSession = Depends(get_session),
 ) -> uuid.UUID:
     """Recupera e garante que o usuário pertence ao Tenant que ele está tentando operar."""
     tenant_id_str = claims.get("tenant_id")
@@ -214,13 +215,12 @@ async def get_tenant_id(
 
     from core.models.auth import TenantUsuario
 
-    async with async_session_maker() as session:
-        result = await session.execute(
-            select(TenantUsuario.tenant_id).where(
-                TenantUsuario.usuario_id == user_id,
-                TenantUsuario.status == "ATIVO",
-            ).distinct()
-        )
+    result = await session.execute(
+        select(TenantUsuario.tenant_id).where(
+            TenantUsuario.usuario_id == user_id,
+            TenantUsuario.status == "ATIVO",
+        ).distinct()
+    )
     tenant_ids = list(result.scalars().all())
 
     if len(tenant_ids) == 1:

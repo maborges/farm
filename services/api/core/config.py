@@ -11,6 +11,10 @@ class Settings(BaseSettings):
 
     database_url: str = "sqlite+aiosqlite:///./agrosaas.db"
     redis_url: str = "redis://localhost:6379/0"
+    db_pool_size: int = 3
+    db_max_overflow: int = 2
+    db_pool_timeout: int = 15
+    session_cache_ttl_seconds: int = 300
 
     jwt_secret_key: str = "super_secret_for_development_change_in_production"
     jwt_algorithm: str = "HS256"

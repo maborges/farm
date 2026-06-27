@@ -1,14 +1,14 @@
 import uuid
-from typing import List, Optional
-from datetime import datetime
+from typing import List
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from core.base_service import BaseService
 from core.exceptions import BusinessRuleError, EntityNotFoundError
+from agricola.custos.operational_cost_service import OperationalCostAllocationService, OperationalCostInput
 from core.cadastros.equipamentos.alocacao_service import get_equipamento_unidade_operacional
 from core.cadastros.equipamentos.models import Equipamento as Maquinario
 from agricola.alertas.service import AlertasAgricolasService
-from operacional.models.abastecimento import Abastecimento, LocalAbastecimento
+from operacional.models.abastecimento import Abastecimento
 from operacional.models.frota import JornadaEquipamento
 from operacional.schemas.abastecimento import AbastecimentoCreate, AbastecimentoUpdate
 from operacional.services.estoque_service import EstoqueService
@@ -84,53 +84,40 @@ class AbastecimentoService(BaseService[Abastecimento]):
                 )
         
         # 4. Integração Financeira (se for EXTERNO)
-        if dados.local == "EXTERNO" and custo_total > 0:
-            from financeiro.models.despesa import Despesa
-            from financeiro.models.plano_conta import PlanoConta
-            from datetime import date
-            
-            # Busca plano de conta padrão para combustíveis
-            stmt_pc = (
-                select(PlanoConta.id)
-                .where(
-                    PlanoConta.tenant_id == self.tenant_id,
-                    PlanoConta.nome.ilike("%Combustível%"),
-                    PlanoConta.natureza == "ANALITICA"
-                )
-                .limit(1)
+        if unidade_operacional is None and dados.local == "EXTERNO" and custo_total > 0:
+            raise BusinessRuleError("Equipamento sem unidade produtiva operacional para despesa de abastecimento.")
+
+        custo_service = OperationalCostAllocationService(self.session, self.tenant_id)
+        resultado = await custo_service.process(
+            OperationalCostInput(
+                tenant_id=self.tenant_id,
+                unidade_produtiva_id=unidade_operacional,
+                safra_id=ab.safra_id,
+                talhao_id=ab.talhao_id,
+                origem_tipo="ABASTECIMENTO",
+                origem_id=ab.id,
+                categoria="COMBUSTIVEL",
+                valor=custo_total,
+                quantidade=dados.litros,
+                unidade="L",
+                data_competencia=ab.data.date(),
+                descricao=f"Abastecimento {'Externo' if dados.local == 'EXTERNO' else 'Interno'} — {maquina.nome} ({dados.litros}L)",
+                criar_despesa=dados.local == "EXTERNO",
+                metadata={"local": dados.local, "equipamento_id": str(maquina.id)},
             )
-            plano_id = (await self.session.execute(stmt_pc)).scalar()
-            
-            if plano_id:
-                if unidade_operacional is None:
-                    raise BusinessRuleError("Equipamento sem unidade produtiva operacional para despesa de abastecimento.")
-                hoje = date.today()
-                despesa = Despesa(
-                    id=uuid.uuid4(),
-                    tenant_id=self.tenant_id,
-                    unidade_produtiva_id=unidade_operacional,
-                    plano_conta_id=plano_id,
-                    descricao=f"Abastecimento Externo — {maquina.nome} ({dados.litros}L)",
-                    valor_total=custo_total,
-                    data_emissao=hoje,
-                    data_vencimento=hoje,
-                    data_pagamento=hoje,
-                    status="PAGO",
-                    origem_id=ab.id,
-                    origem_tipo="ABASTECIMENTO",
-                )
-                self.session.add(despesa)
-                await self.session.flush()
-                await AlertasAgricolasService(self.session, self.tenant_id).validar_despesa_origem_leve(
-                    despesa,
-                    origem_id_override=f"despesa:{despesa.id}:abastecimento_externo",
-                    allow_block=True,
-                )
-                await AlertasAgricolasService(self.session, self.tenant_id).validar_despesa_automatica_unica_origem(
-                    despesa,
-                    origem_id_override=f"despesa:{despesa.id}:abastecimento_externo",
-                    allow_block=True,
-                )
+        )
+
+        if resultado.despesa is not None:
+            await AlertasAgricolasService(self.session, self.tenant_id).validar_despesa_origem_leve(
+                resultado.despesa,
+                origem_id_override=f"despesa:{resultado.despesa.id}:abastecimento_canonico",
+                allow_block=True,
+            )
+            await AlertasAgricolasService(self.session, self.tenant_id).validar_despesa_automatica_unica_origem(
+                resultado.despesa,
+                origem_id_override=f"despesa:{resultado.despesa.id}:abastecimento_canonico",
+                allow_block=True,
+            )
 
         await self.session.commit()
         await self.session.refresh(ab)

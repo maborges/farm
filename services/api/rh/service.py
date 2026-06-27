@@ -1,18 +1,17 @@
-import uuid as _uuid
 from uuid import UUID
-from collections import defaultdict
 from datetime import date, datetime, timedelta
-from decimal import Decimal
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select as _select_func
 from sqlalchemy.future import select
-from sqlalchemy import func, and_
+from sqlalchemy import func
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import cm
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
+from agricola.alertas.service import AlertasAgricolasService
+from agricola.custos.operational_cost_service import OperationalCostAllocationService, OperationalCostInput
 from core.base_service import BaseService
 from rh.models import (
     Departamento, EsocialEvento, ColaboradorRH, LancamentoDiaria, Empreitada,
@@ -144,7 +143,7 @@ class DiariaService(BaseService[LancamentoDiaria]):
         from sqlalchemy import update
         dp = data_pagamento or date.today()
 
-        # Busca diarias + unidade_produtiva_id antes do update para integração financeira
+        # Busca diarias + contexto antes do update para integração financeira/econômica
         stmt_fetch = (
             select(LancamentoDiaria, ColaboradorRH.unidade_produtiva_id)
             .join(ColaboradorRH, LancamentoDiaria.colaborador_id == ColaboradorRH.id)
@@ -155,42 +154,36 @@ class DiariaService(BaseService[LancamentoDiaria]):
             )
         )
         rows = list((await self.session.execute(stmt_fetch)).all())
-
-        # Agrupa total por unidade_produtiva_id
-        por_fazenda: dict[UUID | None, float] = defaultdict(float)
+        custo_service = OperationalCostAllocationService(self.session, self.tenant_id)
         for diaria, unidade_produtiva_id in rows:
-            por_fazenda[unidade_produtiva_id] += float(diaria.valor_diaria or 0)
-
-        # Cria Despesas por fazenda
-        if rows:
-            from financeiro.models.despesa import Despesa
-            from financeiro.models.plano_conta import PlanoConta
-            stmt_pc = (
-                select(PlanoConta.id)
-                .where(
-                    PlanoConta.tenant_id == self.tenant_id,
-                    PlanoConta.categoria_rfb == "CUSTEIO",
-                    PlanoConta.natureza == "ANALITICA",
-                    PlanoConta.ativo == True,
+            unidade_contexto = diaria.unidade_produtiva_id or unidade_produtiva_id
+            resultado = await custo_service.process(
+                OperationalCostInput(
+                    tenant_id=self.tenant_id,
+                    unidade_produtiva_id=unidade_contexto,
+                    safra_id=diaria.safra_id,
+                    origem_tipo="RH_DIARIA",
+                    origem_id=diaria.id,
+                    categoria="DIARIA",
+                    valor=float(diaria.valor_diaria or 0.0),
+                    quantidade=float(diaria.horas_trabalhadas or 0.0),
+                    unidade="HORA",
+                    data_competencia=dp,
+                    descricao=f"RH — Diária: {diaria.atividade}",
+                    criar_despesa=unidade_contexto is not None,
                 )
-                .limit(1)
             )
-            plano_id = (await self.session.execute(stmt_pc)).scalar()
-            if plano_id:
-                for unidade_produtiva_id, total in por_fazenda.items():
-                    if unidade_produtiva_id and total > 0:
-                        self.session.add(Despesa(
-                            id=_uuid.uuid4(),
-                            tenant_id=self.tenant_id,
-                            unidade_produtiva_id=unidade_produtiva_id,
-                            plano_conta_id=plano_id,
-                            descricao=f"RH — Pagamento de Diárias ({len(ids)} lançamentos)",
-                            valor_total=round(total, 2),
-                            data_emissao=dp,
-                            data_vencimento=dp,
-                            data_pagamento=dp,
-                            status="PAGO",
-                        ))
+            if resultado.despesa is not None:
+                await AlertasAgricolasService(self.session, self.tenant_id).validar_despesa_origem_leve(
+                    resultado.despesa,
+                    origem_id_override=f"despesa:{resultado.despesa.id}:rh_diaria",
+                    allow_block=True,
+                )
+                await AlertasAgricolasService(self.session, self.tenant_id).validar_despesa_automatica_unica_origem(
+                    resultado.despesa,
+                    origem_id_override=f"despesa:{resultado.despesa.id}:rh_diaria",
+                    allow_block=True,
+                )
 
         stmt = (
             update(LancamentoDiaria)
@@ -260,37 +253,36 @@ class EmpreitadaService(BaseService[Empreitada]):
         emp.data_pagamento = data_pagamento or date.today()
         dp = emp.data_pagamento
         self.session.add(emp)
-
-        # Integração Financeira: Despesa de Empreitada
         stmt_faz = select(ColaboradorRH.unidade_produtiva_id).where(ColaboradorRH.id == emp.colaborador_id)
         unidade_produtiva_id = (await self.session.execute(stmt_faz)).scalar()
-        if unidade_produtiva_id and emp.valor_total and float(emp.valor_total) > 0:
-            from financeiro.models.despesa import Despesa
-            from financeiro.models.plano_conta import PlanoConta
-            stmt_pc = (
-                select(PlanoConta.id)
-                .where(
-                    PlanoConta.tenant_id == self.tenant_id,
-                    PlanoConta.categoria_rfb == "CUSTEIO",
-                    PlanoConta.natureza == "ANALITICA",
-                    PlanoConta.ativo == True,
-                )
-                .limit(1)
+        unidade_contexto = emp.unidade_produtiva_id or unidade_produtiva_id
+        resultado = await OperationalCostAllocationService(self.session, self.tenant_id).process(
+            OperationalCostInput(
+                tenant_id=self.tenant_id,
+                unidade_produtiva_id=unidade_contexto,
+                safra_id=emp.safra_id,
+                origem_tipo="RH_EMPREITADA",
+                origem_id=emp.id,
+                categoria="EMPREITADA",
+                valor=float(emp.valor_total or 0.0),
+                quantidade=float(emp.quantidade or 0.0),
+                unidade=emp.unidade,
+                data_competencia=dp,
+                descricao=f"RH — Empreitada: {emp.descricao}",
+                criar_despesa=unidade_contexto is not None,
             )
-            plano_id = (await self.session.execute(stmt_pc)).scalar()
-            if plano_id:
-                self.session.add(Despesa(
-                    id=_uuid.uuid4(),
-                    tenant_id=self.tenant_id,
-                    unidade_produtiva_id=unidade_produtiva_id,
-                    plano_conta_id=plano_id,
-                    descricao=f"RH — Empreitada: {emp.descricao}",
-                    valor_total=round(float(emp.valor_total), 2),
-                    data_emissao=dp,
-                    data_vencimento=dp,
-                    data_pagamento=dp,
-                    status="PAGO",
-                ))
+        )
+        if resultado.despesa is not None:
+            await AlertasAgricolasService(self.session, self.tenant_id).validar_despesa_origem_leve(
+                resultado.despesa,
+                origem_id_override=f"despesa:{resultado.despesa.id}:rh_empreitada",
+                allow_block=True,
+            )
+            await AlertasAgricolasService(self.session, self.tenant_id).validar_despesa_automatica_unica_origem(
+                resultado.despesa,
+                origem_id_override=f"despesa:{resultado.despesa.id}:rh_empreitada",
+                allow_block=True,
+            )
 
         await self.session.commit()
         await self.session.refresh(emp)

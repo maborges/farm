@@ -58,6 +58,8 @@ TIPOS_DESPESA_AUTOMATICA = {
     "ORDEM_SERVICO",
     "ABASTECIMENTO",
     "COMPRA",
+    "RH_DIARIA",
+    "RH_EMPREITADA",
 }
 SEVERITY_NOTIFICATION_LEVEL = {
     "WARNING_LEVE": "INFO",
@@ -506,6 +508,11 @@ class AlertasAgricolasService:
         if origem in {"OPERACAO_AGRICOLA", "ABASTECIMENTO", "ORDEM_SERVICO", "COMPRA"}:
             return WorkflowOriginRule(
                 origem="AGRICOLA_OPERACIONAL" if origem == "OPERACAO_AGRICOLA" else "MANUTENCAO_FROTA",
+                exige_origem_rastreavel=True,
+            )
+        if origem in {"RH_DIARIA", "RH_EMPREITADA"}:
+            return WorkflowOriginRule(
+                origem="RH_OPERACIONAL",
                 exige_origem_rastreavel=True,
             )
         if origem == "FIN_RATEIO":

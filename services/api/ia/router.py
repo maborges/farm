@@ -1187,7 +1187,7 @@ async def track_click_experimento(
 async def get_plano_acao(
     safra_id: Optional[uuid.UUID] = Query(None),
     db: AsyncSession = Depends(get_db),
-    tenant_id: uuid.UUID = Depends(get_current_tenant)
+    tenant_id: uuid.UUID = Depends(get_tenant_id)
 ):
     """Retorna o plano de ação automático para recuperação financeira (Step 207)."""
     from ia.essential_service import IAEssentialService

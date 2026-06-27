@@ -7,8 +7,8 @@ from datetime import date, datetime
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from agricola.custos.allocation_service import registrar_cost_allocation
 from agricola.operacoes.models import OperacaoAgricola
+from agricola.custos.operational_cost_service import OperationalCostAllocationService, OperationalCostInput
 from agricola.production_units.models import ProductionUnit
 from core.cadastros.equipamentos.models import Equipamento
 from core.exceptions import BusinessRuleError, EntityNotFoundError
@@ -103,6 +103,7 @@ class FrotaApontamentoService:
             combustivel_consumido_l=dados.combustivel_consumido_l,
             observacoes=dados.observacoes,
         )
+        apontamento.custo_total = self._resolver_custo_total(dados)
         self.session.add(apontamento)
         await self.session.flush()
 
@@ -283,19 +284,28 @@ class FrotaApontamentoService:
     async def _registrar_allocacao_economica(self, apontamento: ApontamentoUso) -> None:
         if apontamento.custo_total is None or apontamento.custo_total <= 0:
             return
-        if apontamento.production_unit_id is None:
-            return
-        if apontamento.safra_id is None:
-            return
-        await registrar_cost_allocation(
-            self.session,
-            tenant_id=self.tenant_id,
-            production_unit_id=apontamento.production_unit_id,
-            source="MANUAL",
-            source_id=apontamento.id,
-            amount=float(apontamento.custo_total),
-            allocation_date=apontamento.data.date() if isinstance(apontamento.data, datetime) else date.today(),
-            cost_category="OUTROS",
-            allocation_method="DIRECT",
-            allocation_basis=float(apontamento.area_ha_trabalhada or 0.0) if apontamento.area_ha_trabalhada is not None else None,
+        await OperationalCostAllocationService(self.session, self.tenant_id).process(
+            OperationalCostInput(
+                tenant_id=self.tenant_id,
+                unidade_produtiva_id=apontamento.unidade_produtiva_id,
+                safra_id=apontamento.safra_id,
+                talhao_id=apontamento.talhao_id,
+                production_unit_id=apontamento.production_unit_id,
+                origem_tipo="APONTAMENTO_FROTA",
+                origem_id=apontamento.id,
+                categoria="MAQUINA",
+                valor=float(apontamento.custo_total),
+                quantidade=float(apontamento.area_ha_trabalhada or 0.0) or None,
+                unidade="HA",
+                data_competencia=apontamento.data.date() if isinstance(apontamento.data, datetime) else date.today(),
+                descricao="Apontamento operacional de máquina",
+            )
         )
+
+    def _resolver_custo_total(self, dados: ApontamentoUsoCreate) -> float | None:
+        """Deriva custo total quando há base econômica suficiente no apontamento."""
+        if dados.custo_total is not None:
+            return dados.custo_total
+        if dados.custo_por_ha is not None and dados.area_ha_trabalhada is not None:
+            return round(float(dados.custo_por_ha) * float(dados.area_ha_trabalhada), 2)
+        return None

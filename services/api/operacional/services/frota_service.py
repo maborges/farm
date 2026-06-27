@@ -8,8 +8,8 @@ from core.exceptions import BusinessRuleError
 from core.cadastros.equipamentos.alocacao_service import get_equipamento_unidade_operacional
 from core.cadastros.equipamentos.models import Equipamento as Maquinario
 from core.operational_context import validate_deposito_context, validate_lote_context, validate_operador_context
-from agricola.custos.allocation_service import registrar_cost_allocation
 from agricola.alertas.service import AlertasAgricolasService
+from agricola.custos.operational_cost_service import OperationalCostAllocationService, OperationalCostInput
 from operacional.models.frota import PlanoManutencao, OrdemServico, RegistroManutencao, ItemOrdemServico, JornadaEquipamento
 from operacional.schemas.frota import (
     PlanoManutencaoCreate, OrdemServicoCreate, OrdemServicoUpdate,
@@ -273,62 +273,73 @@ class FrotaService(BaseService[Maquinario]):
                 plano.ultimo_registro_horas = os.horimetro_na_abertura
                 plano.ultimo_registro_km = os.km_na_abertura
 
-        # 5. Integração Financeira: Despesa de Manutenção na UP operacional ativa
-        if unidade_operacional is not None and custo_os > 0:
-            from datetime import date as _date
-            from financeiro.models.despesa import Despesa
-            from financeiro.models.plano_conta import PlanoConta
-            stmt_pc = (
-                select(PlanoConta.id)
-                .where(
-                    PlanoConta.tenant_id == self.tenant_id,
-                    PlanoConta.categoria_rfb == "CUSTEIO",
-                    PlanoConta.natureza == "ANALITICA",
-                    PlanoConta.ativo == True,
-                )
-                .limit(1)
-            )
-            plano_id = (await self.session.execute(stmt_pc)).scalar()
-            if plano_id:
-                from agricola.cultivos.models import Cultivo
-                stmt_cultivo = (
-                    select(Cultivo.id)
-                    .where(
-                        Cultivo.tenant_id == self.tenant_id,
-                        Cultivo.safra_id == os.safra_id,
-                    )
-                    .limit(1)
-                )
-                cultivo_id = (await self.session.execute(stmt_cultivo)).scalar() if os.safra_id else None
-
-                hoje = _date.today()
-                despesa = Despesa(
-                    id=uuid.uuid4(),
+        custo_service = OperationalCostAllocationService(self.session, self.tenant_id)
+        descricao_os = f"Manutenção — {os.numero_os}: {maquina.nome if maquina else str(os.equipamento_id)}"
+        custo_pecas = round(float(os.custo_total_pecas or 0.0), 2)
+        custo_mao_obra = round(float(os.custo_mao_obra or 0.0), 2)
+        if custo_pecas > 0:
+            await custo_service.process(
+                OperationalCostInput(
                     tenant_id=self.tenant_id,
                     unidade_produtiva_id=unidade_operacional,
-                    plano_conta_id=plano_id,
-                    cultivo_id=cultivo_id,
-                    descricao=f"Manutenção — {os.numero_os}: {maquina.nome if maquina else str(os.equipamento_id)}",
-                    valor_total=round(custo_os, 2),
-                    data_emissao=hoje,
-                    data_vencimento=hoje,
-                    data_pagamento=hoje,
-                    status="PAGO",
-                    origem_id=os.id,
+                    safra_id=os.safra_id,
+                    talhao_id=os.talhao_id,
                     origem_tipo="ORDEM_SERVICO",
+                    origem_id=os.id,
+                    categoria="PECAS",
+                    valor=custo_pecas,
+                    data_competencia=os.data_conclusao.date(),
+                    descricao=descricao_os,
+                    criar_despesa=custo_os > 0,
+                    despesa_valor=round(custo_os, 2),
                 )
-                self.session.add(despesa)
-                await self.session.flush()
-                await AlertasAgricolasService(self.session, self.tenant_id).validar_despesa_origem_leve(
-                    despesa,
-                    origem_id_override=f"despesa:{despesa.id}:os_close",
-                    allow_block=True,
+            )
+        despesa_result = None
+        if custo_mao_obra > 0:
+            despesa_result = await custo_service.process(
+                OperationalCostInput(
+                    tenant_id=self.tenant_id,
+                    unidade_produtiva_id=unidade_operacional,
+                    safra_id=os.safra_id,
+                    talhao_id=os.talhao_id,
+                    origem_tipo="ORDEM_SERVICO",
+                    origem_id=os.id,
+                    categoria="MANUTENCAO",
+                    valor=custo_mao_obra,
+                    data_competencia=os.data_conclusao.date(),
+                    descricao=descricao_os,
+                    criar_despesa=custo_os > 0,
+                    despesa_valor=round(custo_os, 2),
                 )
-                await AlertasAgricolasService(self.session, self.tenant_id).validar_despesa_automatica_unica_origem(
-                    despesa,
-                    origem_id_override=f"despesa:{despesa.id}:os_close",
-                    allow_block=True,
+            )
+        if custo_pecas > 0 and despesa_result is None:
+            despesa_result = await custo_service.process(
+                OperationalCostInput(
+                    tenant_id=self.tenant_id,
+                    unidade_produtiva_id=unidade_operacional,
+                    safra_id=os.safra_id,
+                    talhao_id=os.talhao_id,
+                    origem_tipo="ORDEM_SERVICO",
+                    origem_id=os.id,
+                    categoria="PECAS",
+                    valor=custo_pecas,
+                    data_competencia=os.data_conclusao.date(),
+                    descricao=descricao_os,
+                    criar_despesa=True,
+                    despesa_valor=round(custo_os, 2),
                 )
+            )
+        if despesa_result and despesa_result.despesa is not None:
+            await AlertasAgricolasService(self.session, self.tenant_id).validar_despesa_origem_leve(
+                despesa_result.despesa,
+                origem_id_override=f"despesa:{despesa_result.despesa.id}:os_close_canonico",
+                allow_block=True,
+            )
+            await AlertasAgricolasService(self.session, self.tenant_id).validar_despesa_automatica_unica_origem(
+                despesa_result.despesa,
+                origem_id_override=f"despesa:{despesa_result.despesa.id}:os_close_canonico",
+                allow_block=True,
+            )
 
         await self.session.commit()
         await self.session.refresh(os)
@@ -394,20 +405,3 @@ class FrotaService(BaseService[Maquinario]):
         if item.lote_id is None:
             item.lote_id = mov.lote_id
         self.session.add(item)
-
-        if os.safra_id and item.custo_total > 0:
-            if unidade_operacional is None:
-                return
-            await registrar_cost_allocation(
-                self.session,
-                tenant_id=self.tenant_id,
-                production_unit_id=unidade_operacional,
-                source="ESTOQUE",
-                amount=item.custo_total,
-                allocation_date=datetime.now(timezone.utc).date(),
-                cost_category="PECAS_MANUTENCAO",
-                source_id=mov.id,
-                inventory_movement_id=mov.id,
-                allocation_method="DIRECT",
-                allocation_basis=float(item.quantidade),
-            )

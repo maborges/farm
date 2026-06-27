@@ -294,7 +294,7 @@ async def test_apontamento_valido_cria_allocacao_e_rastreabilidade(session: Asyn
         await session.execute(
             select(CostAllocation).where(
                 CostAllocation.tenant_id == tenant_id,
-                CostAllocation.source == "MANUAL",
+                CostAllocation.source == "FROTA_APONTAMENTO",
                 CostAllocation.source_id == apontamento.id,
             )
         )
@@ -310,6 +310,53 @@ async def test_apontamento_valido_cria_allocacao_e_rastreabilidade(session: Asyn
     assert resumo.apontamentos_por_operacao[0].tipo_operacao == "PULVERIZACAO"
     assert resumo.apontamentos_por_operador[0].operador_nome == "Operador Step08"
     assert resumo.equipamentos_por_apontamento[0].equipamento_nome == "Trator Step08"
+
+
+@pytest.mark.asyncio
+async def test_apontamento_deriva_custo_por_ha_sem_custo_total_manual(session: AsyncSession, tenant_id: uuid.UUID):
+    await _garantir_tenant(session, tenant_id)
+    up_id = await _criar_up(session, tenant_id, "UP Step08-D")
+    safra = await _criar_safra(session, tenant_id)
+    area_id = await _criar_area(session, tenant_id, up_id, "Talhão Step08-D")
+    cultivo_id = await _criar_cultivo(session, tenant_id, safra.id)
+    pu = await _criar_production_unit(session, tenant_id, safra.id, cultivo_id, area_id)
+    operador = await _criar_operador(session, tenant_id, up_id, "Operador Derivado")
+    equipamento = await _criar_equipamento(session, tenant_id, up_id, "Trator Derivado")
+    jornada_id = await _criar_jornada_raw(session, tenant_id, equipamento.id, up_id, operador.id, safra.id, area_id)
+    operacao = await _criar_operacao(session, tenant_id, safra.id, area_id, pu.id, operador.id, equipamento.id)
+
+    apontamento = await FrotaApontamentoService(session, tenant_id).criar(
+        ApontamentoUsoCreate(
+            equipamento_id=equipamento.id,
+            operador_id=operador.id,
+            jornada_id=jornada_id,
+            data=datetime.now(timezone.utc),
+            turno="INTEGRAL",
+            horimetro_inicio=100.0,
+            horimetro_fim=104.0,
+            unidade_produtiva_id=up_id,
+            safra_id=safra.id,
+            production_unit_id=pu.id,
+            talhao_id=area_id,
+            operacao_id=operacao.id,
+            area_ha_trabalhada=5.0,
+            custo_por_ha=42.0,
+        )
+    )
+    await session.commit()
+
+    await session.refresh(apontamento)
+    assert float(apontamento.custo_total or 0.0) == 210.0
+    allocation = (
+        await session.execute(
+            select(CostAllocation).where(
+                CostAllocation.tenant_id == tenant_id,
+                CostAllocation.source == "FROTA_APONTAMENTO",
+                CostAllocation.source_id == apontamento.id,
+            )
+        )
+    ).scalar_one()
+    assert float(allocation.amount) == 210.0
 
 
 @pytest.mark.asyncio
