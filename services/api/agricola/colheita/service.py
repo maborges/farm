@@ -11,6 +11,16 @@ from .schemas import ProdutoColhidoCreate, ProdutoColhidoUpdate
 
 class ProdutoColhidoService(BaseService[ProdutoColhido]):
 
+    def __init__(
+        self,
+        session: AsyncSession,
+        tenant_id: uuid.UUID,
+        user_id: uuid.UUID | None = None,
+        ip_address: str | None = None,
+    ):
+        super().__init__(ProdutoColhido, session, tenant_id, user_id, ip_address)
+
+
     async def listar(
         self,
         safra_id: Optional[uuid.UUID] = None,

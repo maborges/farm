@@ -98,6 +98,11 @@ Este documento lista e agrupa as rotas do Monolito Backend (FastAPI) e a estrutu
 ### `apps/web` (Painel Administrativo)
 - Baseado no App Router (`src/app/`).
 - **Páginas Base**: `/login`, `/dashboard`, `/agricola`, `/financeiro`. (Estrutura canônica baseada nas APIs).
+- **Visões financeiras Hedge**:
+  - `/dashboard/financeiro/hedge/contratos`
+  - `/dashboard/financeiro/hedge/registros`
+  - `/dashboard/financeiro/hedge/mtm`
+  - `/dashboard/financeiro/hedge/exposicao`
 - **Visões consolidadas**:
   - `/cadastros/propriedades/[id]/visao-territorial`
   - `/cadastros/imoveis/[id]/visao-fundiaria`

@@ -2189,6 +2189,7 @@ class RecomendacaoCenarioResponse(BaseModel):
     fonte: str
     ia_disponivel: bool
     limite_atingido: bool
+    motivo_fallback: Optional[str] = None
 
 
 class SafraIDPayload(BaseModel):
@@ -2278,7 +2279,7 @@ async def recomendar_cenario_endpoint(
 
     # 2. Obtém cenários salvos
     cen_svc = CenarioFinanceiroService(session, tenant_id)
-    cenarios_lista = await cen_svc.listar_cenarios(payload.safra_id)
+    cenarios_lista = await cen_svc.listar(payload.safra_id)
     
     cenarios_contexto = [
         {
@@ -2336,6 +2337,18 @@ async def recomendar_cenario_endpoint(
             logger.warning(f"ID de cenário recomendado inválido: {resultado.cenario_recomendado_id}")
 
     await session.commit()
+    
+    return RecomendacaoCenarioResponse(
+        cenario_recomendado_id=resultado.cenario_recomendado_id,
+        resumo=resultado.resumo,
+        justificativas=resultado.justificativas,
+        pontos_risco=resultado.pontos_risco,
+        nivel_confianca=resultado.nivel_confianca,
+        fonte=resultado.fonte,
+        ia_disponivel=resultado.ia_disponivel,
+        limite_atingido=resultado.limite_atingido,
+        motivo_fallback=resultado.motivo_fallback
+    )
 
 class ScoreIAResponse(BaseModel):
     total_decisoes: int

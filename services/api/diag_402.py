@@ -9,7 +9,7 @@ import json
 DB_CONFIG = {
     "user": "borgus",
     "password": "numsey01",
-    "host": "192.168.0.3",
+    "host": "192.168.0.2",
     "database": "farms",
 }
 

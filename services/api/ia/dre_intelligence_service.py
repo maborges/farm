@@ -418,6 +418,7 @@ class RecomendacaoCenarioIA:
     fonte: str           # IA | DETERMINISTICO
     ia_disponivel: bool = False
     limite_atingido: bool = False
+    motivo_fallback: str | None = None
 
 async def _calcular_score_ia(tenant_id: uuid.UUID, session: AsyncSession) -> dict:
     """Calcula a taxa de acerto das recomendações da IA baseada no desvio real."""
@@ -646,9 +647,16 @@ async def recomendar_cenario_safra(
     tier_value = (await session.execute(stmt)).scalar_one_or_none()
     
     # 3. Checks de disponibilidade
-    if not await tenant_tem_ia(tenant_id, session) or not _ia_globalmente_habilitada():
+    if not _ia_globalmente_habilitada():
         res = _recomendacao_deterministica(ctx)
         res.ia_disponivel = False
+        res.motivo_fallback = "SISTEMA_OFFLINE"
+        return res
+
+    if not await tenant_tem_ia(tenant_id, session):
+        res = _recomendacao_deterministica(ctx)
+        res.ia_disponivel = False
+        res.motivo_fallback = "PLANO_INADEQUADO"
         return res
 
     # 4. Verifica limites

@@ -69,7 +69,7 @@ SHOW log_min_duration_statement;
 **Como executar:**
 ```bash
 # Opção 1: Via linha de comando
-psql -h 192.168.0.3 -U postgres -d farms -f scripts/sprint35_dba_setup.sql
+psql -h 192.168.0.2 -U postgres -d farms -f scripts/sprint35_dba_setup.sql
 
 # Opção 2: Via pgAdmin ou outro GUI
 # Copiar conteúdo do arquivo e executar no SQL Editor

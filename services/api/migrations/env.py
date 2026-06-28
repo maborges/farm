@@ -58,6 +58,9 @@ from agricola.cadastros.models import Cultura
 from agricola.caderno.models import CadernoCampoEntrada, CadernoCampoFoto, CadernoEventoStatusHistorico, VisitaTecnica, EPIEntrega, CadernoExportacao
 from agricola.colheita.models import ProdutoColhido
 
+# Financeiro
+from financeiro.hedge.models import *
+
 # Cultura migrada para cadastros/produtos (verificar redundância)
 from agricola.a1_planejamento.models import ItemOrcamentoSafra
 from agricola.custos.models import CostAllocation

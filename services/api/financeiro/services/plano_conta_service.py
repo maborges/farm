@@ -6,6 +6,7 @@ from sqlalchemy.future import select
 from core.base_service import BaseService
 from core.exceptions import BusinessRuleError, EntityNotFoundError
 from financeiro.models.plano_conta import PlanoConta
+from financeiro.models.lancamento import LancamentoFinanceiro
 from financeiro.schemas.plano_conta_schema import PlanoContaCreate, PlanoContaUpdate, PlanoContaNode
 
 
@@ -94,10 +95,12 @@ class PlanoContaService(BaseService[PlanoConta]):
             pai = await self.get(obj_in.parent_id)
             if not pai:
                 raise BusinessRuleError("Conta pai indisponível ou não encontrada.")
-            if pai.natureza == "ANALITICA":
-                raise BusinessRuleError("Conta analítica não pode ter filhos.")
             if pai.tipo != obj_in.tipo:
                 raise BusinessRuleError("Conta filha deve ter o mesmo tipo da conta pai.")
+            if pai.natureza == "ANALITICA":
+                # Quando um nó passa a ter filhos, ele se torna um agrupador sintético.
+                pai.natureza = "SINTETICA"
+                self.session.add(pai)
 
         # Código único por tenant
         stmt = select(PlanoConta).where(

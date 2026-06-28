@@ -23,7 +23,7 @@ router = APIRouter(
 )
 
 
-@router.get("/", response_model=List[PlanoContaResponse])
+@router.get("", response_model=List[PlanoContaResponse])
 async def listar_planos(
     tipo: Optional[str] = Query(None, description="RECEITA | DESPESA"),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
@@ -63,7 +63,7 @@ async def seed_categorias_padrao(
     return {"criados": criados, "mensagem": f"{criados} categorias adicionadas ao plano de contas."}
 
 
-@router.post("/", response_model=PlanoContaResponse, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=PlanoContaResponse, status_code=status.HTTP_201_CREATED)
 async def criar_plano(
     payload: PlanoContaCreate,
     tenant_id: uuid.UUID = Depends(get_tenant_id),
