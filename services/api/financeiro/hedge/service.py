@@ -8,11 +8,14 @@ from __future__ import annotations
 
 import uuid
 from datetime import date
+import unicodedata
 from typing import Optional
 
-from sqlalchemy import select, func
+from sqlalchemy import select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from agricola.safras.models import Safra
+from core.cadastros.commodities.models import Commodity
 from core.exceptions import EntityNotFoundError, BusinessRuleError
 from core.services.audit_service import write_audit_log
 
@@ -60,10 +63,11 @@ class HedgeService:
         Raises:
             BusinessRuleError: Se os dados violam regras de negócio.
         """
+        commodity_id = await self._validar_e_resolver_commodity(data)
         contrato = ContratoFuturo(
             tenant_id=self._tenant_id,
             safra_id=data.safra_id,
-            commodity_id=data.commodity_id,
+            commodity_id=data.commodity_id or commodity_id,
             commodity=data.commodity,
             mercado=data.mercado,
             codigo_contrato=data.codigo_contrato,
@@ -92,6 +96,88 @@ class HedgeService:
             },
         )
         return contrato
+
+    def _normalizar_texto(self, value: str) -> str:
+        """Normaliza textos para comparação de commodity/cultura.
+
+        Args:
+            value: Texto de entrada.
+
+        Returns:
+            Texto normalizado em caixa alta e sem acentos.
+        """
+        texto = unicodedata.normalize("NFD", value or "")
+        texto = "".join(ch for ch in texto if not unicodedata.combining(ch))
+        return "".join(ch for ch in texto if ch.isalnum()).upper()
+
+    async def _resolver_commodity_da_safra(
+        self, safra_id: uuid.UUID
+    ) -> tuple[str | None, uuid.UUID | None]:
+        """Resolve a commodity canônica associada à safra.
+
+        Args:
+            safra_id: Identificador da safra do tenant.
+
+        Returns:
+            Tuple com nome e id da commodity resolvida, ou (None, None).
+        """
+        cultura_result = await self._session.execute(
+            select(Safra.cultura).where(
+                Safra.id == safra_id,
+                Safra.tenant_id == self._tenant_id,
+            )
+        )
+        cultura = cultura_result.scalar_one_or_none()
+        if not cultura:
+            return None, None
+
+        commodity_result = await self._session.execute(
+            select(Commodity.id, Commodity.nome).where(
+                or_(Commodity.tenant_id.is_(None), Commodity.tenant_id == self._tenant_id),
+                Commodity.ativo.is_(True),
+                or_(
+                    func.upper(Commodity.nome) == cultura.strip().upper(),
+                    func.upper(Commodity.codigo) == cultura.strip().upper(),
+                ),
+            )
+        )
+        commodity = commodity_result.first()
+        if commodity is None:
+            return None, None
+        return str(commodity[1]), commodity[0]
+
+    async def _validar_e_resolver_commodity(
+        self, data: ContratoFuturoCreate
+    ) -> uuid.UUID | None:
+        """Valida a commodity informada contra a safra selecionada.
+
+        Args:
+            data: Payload de criação do contrato.
+
+        Returns:
+            commodity_id resolvido da safra, quando existir.
+
+        Raises:
+            BusinessRuleError: Quando a commodity informada diverge da safra.
+        """
+        if data.safra_id is None:
+            return None
+
+        commodity_safra, commodity_id = await self._resolver_commodity_da_safra(data.safra_id)
+        if not commodity_safra:
+            return None
+
+        if self._normalizar_texto(data.commodity) != self._normalizar_texto(commodity_safra):
+            raise BusinessRuleError(
+                "Commodity do contrato não corresponde à commodity da safra selecionada."
+            )
+
+        if data.commodity_id is not None and commodity_id is not None and data.commodity_id != commodity_id:
+            raise BusinessRuleError(
+                "Commodity do contrato não corresponde à commodity da safra selecionada."
+            )
+
+        return commodity_id
 
     async def listar_contratos(
         self,
@@ -826,4 +912,3 @@ class HedgeExposureService:
             ))
 
         return recs
-

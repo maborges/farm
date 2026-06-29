@@ -32,7 +32,7 @@ async def criar_romaneio(
 
 @router.get("/kpis", response_model=RomaneioKPIs)
 async def kpis_romaneios(
-    safra_id: UUID,
+    safra_id: UUID | None = None,
     unidade_produtiva_id: UUID | None = None,
     session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),

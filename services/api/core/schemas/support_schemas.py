@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 import uuid
 from datetime import datetime
 from typing import List, Optional
@@ -41,4 +41,4 @@ class ChamadoSuporteResponse(ChamadoSuporteBase):
         from_attributes = True
 
 class ChamadoDetalheResponse(ChamadoSuporteResponse):
-    mensagens: List[MensagemChamadoResponse] = []
+    mensagens: List[MensagemChamadoResponse] = Field(default_factory=list)

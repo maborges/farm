@@ -82,6 +82,26 @@ async def test_criar_receita(client, session, headers_financeiro):
 
 
 # ---------------------------------------------------------------------------
+# FIN-REC-02: plano_conta_id deve ser UUID válido
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_receita_plano_conta_texto_livre_rejeitado(client, session, headers_financeiro):
+    """FIN-REC-02: plano_conta_id em texto livre retorna 422."""
+    plano_id = await _garantir_plano_conta(session)
+
+    payload = _payload_receita(plano_id, plano_conta_id="Venda de produção")
+
+    response = await client.post(
+        "/api/v1/financeiro/receitas/",
+        json=payload,
+        headers=headers_financeiro,
+    )
+
+    assert response.status_code == 422, response.text
+
+
+# ---------------------------------------------------------------------------
 # FIN-REC-03: Parcelar receita
 # ---------------------------------------------------------------------------
 

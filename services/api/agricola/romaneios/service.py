@@ -285,9 +285,10 @@ class RomaneioService(BaseService[RomaneioColheita]):
         updated = await self.update(id, patch)
         return updated
 
-    async def kpis_safra(self, safra_id: UUID, unidade_produtiva_id: UUID | None = None) -> RomaneioKPIs:
+    async def kpis_safra(self, safra_id: UUID | None = None, unidade_produtiva_id: UUID | None = None) -> RomaneioKPIs:
         filters = [RomaneioColheita.tenant_id == self.tenant_id]
-        filters.append(RomaneioColheita.safra_id == safra_id)
+        if safra_id:
+            filters.append(RomaneioColheita.safra_id == safra_id)
         if unidade_produtiva_id:
             filters.append(RomaneioColheita.production_unit_id == unidade_produtiva_id)
 
@@ -302,7 +303,8 @@ class RomaneioService(BaseService[RomaneioColheita]):
         # Produtividade média: soma sacas / soma área dos talhões
         from agricola.safras.models import SafraTalhao
         area_filters = [SafraTalhao.tenant_id == self.tenant_id]
-        area_filters.append(SafraTalhao.safra_id == safra_id)
+        if safra_id:
+            area_filters.append(SafraTalhao.safra_id == safra_id)
         if unidade_produtiva_id:
             from core.cadastros.propriedades.models import AreaRural
             stmt_area = select(func.sum(SafraTalhao.area_ha)).join(

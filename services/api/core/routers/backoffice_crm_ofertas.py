@@ -6,6 +6,8 @@ Endpoints para:
 - Criar/editar planos
 - Gerar ofertas personalizadas para leads
 """
+import json
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
@@ -155,6 +157,36 @@ async def criar_produto(
 
 # ==================== ENDPOINTS - PLANOS ====================
 
+
+def _normalizar_modulos_inclusos(valor: object) -> list[str]:
+    """Garante que `modulos_inclusos` volte sempre como lista de strings."""
+    if valor is None:
+        return []
+
+    if isinstance(valor, str):
+        try:
+            valor = json.loads(valor)
+        except json.JSONDecodeError:
+            return [valor]
+
+    if isinstance(valor, (list, tuple, set)):
+        return [str(item) for item in valor if item is not None]
+
+    return [str(valor)]
+
+
+def _serializar_plano(plano: PlanoComercial) -> dict:
+    return {
+        "id": plano.id,
+        "nome": plano.nome,
+        "slug": plano.slug,
+        "tipo_oferta": plano.tipo_oferta,
+        "modulos_inclusos": _normalizar_modulos_inclusos(getattr(plano, "modulos_inclusos", None)),
+        "preco_mensal_padrao": float(plano.preco_mensal_padrao) if plano.preco_mensal_padrao is not None else None,
+        "preco_anual_padrao": float(plano.preco_anual_padrao) if plano.preco_anual_padrao is not None else None,
+        "ativo": plano.ativo,
+    }
+
 @router.get("/planos", response_model=List[PlanoComercialResponse])
 async def listar_planos(
     ativo_apenas: bool = True,
@@ -167,7 +199,7 @@ async def listar_planos(
         stmt = stmt.where(PlanoComercial.ativo == True)
 
     result = await session.execute(stmt)
-    return result.scalars().all()
+    return [_serializar_plano(plano) for plano in result.scalars().all()]
 
 
 @router.post("/planos", response_model=PlanoComercialResponse, dependencies=[Depends(require_permission("backoffice:crm:edit"))])
@@ -191,7 +223,7 @@ async def criar_plano(
     session.add(plano)
     await session.commit()
     await session.refresh(plano)
-    return plano
+    return _serializar_plano(plano)
 
 
 # ==================== ENDPOINTS - OFERTAS PERSONALIZADAS ====================

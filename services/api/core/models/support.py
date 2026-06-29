@@ -64,7 +64,13 @@ class ChamadoSuporte(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     # Relacionamentos
-    mensagens: Mapped[list["MensagemChamado"]] = relationship("MensagemChamado", back_populates="chamado", cascade="all, delete-orphan", order_by="MensagemChamado.created_at")
+    mensagens: Mapped[list["MensagemChamado"]] = relationship(
+        "MensagemChamado",
+        back_populates="chamado",
+        cascade="all, delete-orphan",
+        order_by="MensagemChamado.created_at",
+        lazy="selectin",
+    )
     atendente: Mapped["Usuario"] = relationship("Usuario", foreign_keys=[atendente_id])
 
 class MensagemChamado(Base):

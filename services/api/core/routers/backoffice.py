@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
+from sqlalchemy.orm import selectinload
 from typing import List
 import uuid
 from loguru import logger
@@ -542,7 +543,13 @@ async def list_all_tickets(session: AsyncSession = Depends(get_session)):
 @router.get("/tickets/{ticket_id}", response_model=ChamadoDetalheResponse, dependencies=[Depends(get_current_admin)])
 async def get_admin_ticket_details(ticket_id: uuid.UUID, session: AsyncSession = Depends(get_session)):
     """Retorna detalhes de um chamado para o administrador."""
-    chamado = await session.get(ChamadoSuporte, ticket_id)
+    stmt = (
+        select(ChamadoSuporte)
+        .options(selectinload(ChamadoSuporte.mensagens))
+        .where(ChamadoSuporte.id == ticket_id)
+    )
+    result = await session.execute(stmt)
+    chamado = result.scalar_one_or_none()
     if not chamado:
         raise HTTPException(status_code=404, detail="Chamado indisponível ou não encontrado.")
     return chamado
@@ -551,17 +558,26 @@ async def get_admin_ticket_details(ticket_id: uuid.UUID, session: AsyncSession =
 async def admin_reply_to_ticket(
     ticket_id: uuid.UUID,
     data: MensagemChamadoCreate,
-    admin: Usuario = Depends(get_current_admin),
+    admin_claims: dict = Depends(get_current_admin),
     session: AsyncSession = Depends(get_session)
 ):
     """Administrador responde a um chamado."""
     chamado = await session.get(ChamadoSuporte, ticket_id)
     if not chamado:
         raise HTTPException(status_code=404, detail="Chamado indisponível ou não encontrado.")
+
+    admin_id_str = admin_claims.get("sub")
+    if not admin_id_str:
+        raise HTTPException(status_code=403, detail="Acesso restrito ao Backoffice administrativo.")
+
+    try:
+        admin_id = uuid.UUID(admin_id_str)
+    except ValueError:
+        raise HTTPException(status_code=403, detail="Token administrativo inválido.")
     
     msg = MensagemChamado(
         chamado_id=ticket_id,
-        usuario_id=admin.id,
+        usuario_id=admin_id,
         conteudo=data.conteudo,
         anexo_url=data.anexo_url,
         is_admin_reply=True

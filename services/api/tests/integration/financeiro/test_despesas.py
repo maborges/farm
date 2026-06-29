@@ -83,6 +83,26 @@ async def test_criar_despesa(client, session, headers_financeiro):
 
 
 # ---------------------------------------------------------------------------
+# FIN-DES-02: plano_conta_id deve ser UUID válido
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_despesa_plano_conta_texto_livre_rejeitado(client, session, headers_financeiro):
+    """FIN-DES-02: plano_conta_id em texto livre retorna 422."""
+    await _garantir_suporte(session)
+
+    payload = _payload_despesa(plano_conta_id="Insumos")
+
+    response = await client.post(
+        "/api/v1/financeiro/despesas/",
+        json=payload,
+        headers=headers_financeiro,
+    )
+
+    assert response.status_code == 422, response.text
+
+
+# ---------------------------------------------------------------------------
 # FIN-DES-03: Despesa sem custo (valor <= 0) não cria
 # ---------------------------------------------------------------------------
 
