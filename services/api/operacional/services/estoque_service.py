@@ -690,6 +690,9 @@ class EstoqueService(BaseService[SaldoEstoque]):
         if valor <= 0:
             return
 
+        # Compatibilidade legada. Não usar LancamentoFinanceiro de estoque como
+        # fonte canônica de DRE operacional nova; novos fluxos devem apropriar
+        # custo em CostAllocation pela porta operacional oficial.
         # Idempotência: não duplicar se já existe lançamento para este movimento
         if movimentacao_id is not None:
             stmt_dup = select(LancamentoFinanceiro.id).where(

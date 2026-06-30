@@ -583,6 +583,7 @@ class LancamentoService:
         
         # DRE operacional/financeira legada:
         # continua baseada somente em LancamentoFinanceiro para compatibilidade.
+        # Compatibilidade legada. Não usar como fonte canônica em novos fluxos.
         # A DRE agrícola v1 consolidada é provida separadamente por agricola.dre.service.
 
         # Valida safra

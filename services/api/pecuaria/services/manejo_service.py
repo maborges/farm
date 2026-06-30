@@ -96,6 +96,8 @@ class ManejoLoteService(BaseService[ManejoLote]):
         data_ev = db_manejo.data_evento
 
         if tipo in TIPOS_DESPESA and (obj_in.custo_total or 0) > 0:
+            # Compatibilidade legada. Não usar este atalho como fonte canônica
+            # de custo operacional em novos fluxos; preferir CostAllocation.
             from financeiro.models.despesa import Despesa
             from financeiro.models.plano_conta import PlanoConta
             stmt_pc = (
@@ -125,6 +127,8 @@ class ManejoLoteService(BaseService[ManejoLote]):
                 db.add(despesa)
 
         elif tipo in TIPOS_RECEITA and (obj_in.valor_venda or 0) > 0:
+            # Compatibilidade legada. Não usar este atalho como fonte canônica
+            # de receita em novos fluxos; preferir Receita com precedência oficial.
             from financeiro.models.receita import Receita
             from financeiro.models.plano_conta import PlanoConta
             stmt_pc = (

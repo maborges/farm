@@ -188,6 +188,8 @@ class RomaneioService(BaseService[RomaneioColheita]):
         # ── Integração com Financeiro: Receita de Venda de Grãos ──────────
         receita_total = dados_dict.get("receita_total") or 0.0
         if receita_total > 0:
+            # Compatibilidade legada. Não usar romaneio como fonte canônica de
+            # receita em novos fluxos; a fonte oficial permanece sendo Receita.
             from financeiro.models.receita import Receita
             from financeiro.models.plano_conta import PlanoConta
             from core.cadastros.propriedades.models import AreaRural

@@ -61,6 +61,8 @@ class CustosService:
         items = (await self.session.execute(stmt_alloc)).all()
 
         if not items:
+            # Compatibilidade legada. Não usar OperacaoAgricola.custo_total como
+            # fonte canônica em novos fluxos quando CostAllocation estiver disponível.
             usou_fallback_operacional = True
             fonte_apuracao = "OPERACAO_AGRICOLA_FALLBACK"
             stmt_ops = select(
