@@ -24,6 +24,8 @@ class Cultivo(Base):
     tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
     safra_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("safras.id", ondelete="CASCADE"), nullable=False, index=True)
 
+    # Compatibilidade legada. Não usar como fonte canônica em novos fluxos.
+    # A cultura canônica do cultivo deve ser resolvida por cultivar_id -> ProdutoCultura.
     # Identificação do cultivo
     cultura: Mapped[str] = mapped_column(String(50), nullable=False)
     cultivar_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("cadastros_culturas.id", ondelete="SET NULL"), nullable=True)

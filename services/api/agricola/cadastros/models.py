@@ -6,6 +6,10 @@ from datetime import datetime
 from core.database import Base
 
 class Cultura(Base):
+    """
+    Compatibilidade legada. Não usar como fonte canônica em novos fluxos.
+    A cultura canônica atual pertence a ProdutoCultura / cadastros_culturas.
+    """
     __tablename__ = "culturas"
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid.uuid4)

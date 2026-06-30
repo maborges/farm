@@ -71,6 +71,8 @@ class ContratoFuturo(Base):
         index=True,
     )
 
+    # Compatibilidade legada. Não usar como fonte canônica em novos fluxos.
+    # O vínculo canônico de mercado permanece em commodity_id.
     # Identificação do instrumento
     commodity: Mapped[str] = mapped_column(String(50), nullable=False)
     mercado: Mapped[str | None] = mapped_column(String(50), nullable=True)

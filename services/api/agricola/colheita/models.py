@@ -23,6 +23,7 @@ class ProdutoColhido(Base):
 
     Representa a entrada real em estoque/armazém após a colheita,
     com qualidade medida e classificação de mercado atribuída.
+    Não usar Produto como substituto desta camada em novos fluxos agrícolas.
     """
     __tablename__ = "agricola_produtos_colhidos"
 

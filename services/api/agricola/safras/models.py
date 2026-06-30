@@ -48,6 +48,8 @@ class Safra(Base):
     tenant_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
 
     ano_safra: Mapped[str] = mapped_column(String(10), nullable=False)
+    # Compatibilidade legada. Não usar como fonte canônica em novos fluxos.
+    # A cultura canônica deve ser resolvida via Cultivo.cultivar_id -> ProdutoCultura.
     cultura: Mapped[str | None] = mapped_column(String(100), nullable=True)  # legado: cultura principal
     status: Mapped[str] = mapped_column(String(20), nullable=False, default='PLANEJADA')
     observacoes: Mapped[str | None] = mapped_column(Text, nullable=True)
