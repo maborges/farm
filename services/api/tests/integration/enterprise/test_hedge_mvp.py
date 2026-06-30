@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import date
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -105,35 +106,79 @@ async def test_criar_contrato_futuro_com_dados_validos():
     assert contrato.commodity == "SOJA"
     assert contrato.status == "ABERTO"
     assert float(contrato.quantidade) == 1000.0
+    assert contrato.commodity_id is None
     session.add.assert_called_once_with(contrato)
     session.flush.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_resolver_commodity_da_safra_prioriza_cultivo():
+    """A commodity da safra deve ser derivada primeiro do cultivo."""
+    session = _make_session()
+    commodity_id = uuid.uuid4()
+    result = MagicMock()
+    result.all.return_value = [(commodity_id, "SOJA")]
+    session.execute = AsyncMock(return_value=result)
+
+    svc = HedgeService(session, TENANT_A)
+    commodity_nome, resolved_id = await svc._resolver_commodity_da_safra(uuid.uuid4())
+
+    assert commodity_nome == "SOJA"
+    assert resolved_id == commodity_id
+
+
+@pytest.mark.asyncio
+async def test_resolver_commodity_da_safra_usa_resolver_central_no_fallback():
+    """Sem commodity no cultivo, o hedge deve usar a camada central de cultura."""
+    session = _make_session()
+    cultivo_result = MagicMock()
+    cultivo_result.all.return_value = []
+    commodity_id = uuid.uuid4()
+    commodity_result = MagicMock()
+    commodity_result.first.return_value = (commodity_id, "SOJA")
+    session.execute = AsyncMock(side_effect=[cultivo_result, commodity_result])
+
+    svc = HedgeService(session, TENANT_A)
+    with patch.object(
+        svc._cultura_resolver,
+        "resolve_by_safra",
+        new=AsyncMock(
+            return_value=SimpleNamespace(
+                resolved=True,
+                nome="SOJA",
+            )
+        ),
+    ) as resolve_mock:
+        commodity_nome, resolved_id = await svc._resolver_commodity_da_safra(uuid.uuid4())
+
+    resolve_mock.assert_awaited_once()
+    assert commodity_nome == "SOJA"
+    assert resolved_id == commodity_id
 
 
 @pytest.mark.asyncio
 async def test_criar_contrato_deriva_commodity_da_safra():
     """Quando a safra resolve a commodity, o contrato deve herdar o vínculo."""
     session = _make_session()
-    safra_id = uuid.uuid4()
     commodity_id = uuid.uuid4()
-    session.execute = AsyncMock(
-        side_effect=[
-            _mock_scalar_result("SOJA"),
-            _mock_row_result((commodity_id, "SOJA")),
-        ]
-    )
 
     with patch("financeiro.hedge.service.write_audit_log", new_callable=AsyncMock):
         svc = HedgeService(session, TENANT_A)
-        data = ContratoFuturoCreate(
-            safra_id=safra_id,
-            commodity="SOJA",
-            tipo_posicao="VENDA",
-            quantidade=1000.0,
-            preco_contratado=120.0,
-        )
-        contrato = await svc.criar_contrato(data)
+        with patch.object(
+            svc,
+            "_resolver_commodity_da_safra",
+            new=AsyncMock(return_value=("SOJA", commodity_id)),
+        ):
+            data = ContratoFuturoCreate(
+                safra_id=uuid.uuid4(),
+                commodity="SOJA",
+                tipo_posicao="VENDA",
+                quantidade=1000.0,
+                preco_contratado=120.0,
+            )
+            contrato = await svc.criar_contrato(data)
 
-    assert contrato.safra_id == safra_id
+    assert contrato.safra_id is not None
     assert contrato.commodity == "SOJA"
     assert contrato.commodity_id == commodity_id
 
@@ -142,24 +187,26 @@ async def test_criar_contrato_deriva_commodity_da_safra():
 async def test_criar_contrato_rejeita_commodity_divergente_da_safra():
     """Commodity divergente da safra selecionada deve ser bloqueada."""
     session = _make_session()
-    session.execute = AsyncMock(
-        side_effect=[
-            _mock_scalar_result("SOJA"),
-            _mock_row_result((uuid.uuid4(), "SOJA")),
-        ]
-    )
 
     with patch("financeiro.hedge.service.write_audit_log", new_callable=AsyncMock):
         svc = HedgeService(session, TENANT_A)
-        data = ContratoFuturoCreate(
-            safra_id=uuid.uuid4(),
-            commodity="MILHO",
-            tipo_posicao="VENDA",
-            quantidade=1000.0,
-        )
+        with patch.object(
+            svc,
+            "_resolver_commodity_da_safra",
+            new=AsyncMock(return_value=("SOJA", uuid.uuid4())),
+        ):
+            data = ContratoFuturoCreate(
+                safra_id=uuid.uuid4(),
+                commodity="MILHO",
+                tipo_posicao="VENDA",
+                quantidade=1000.0,
+            )
 
-        with pytest.raises(BusinessRuleError, match="não corresponde"):
-            await svc.criar_contrato(data)
+            with pytest.raises(
+                BusinessRuleError,
+                match="Commodity incompatível com a Safra selecionada",
+            ):
+                await svc.criar_contrato(data)
 
 
 # ==============================================================================

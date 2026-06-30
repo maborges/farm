@@ -8,6 +8,9 @@ interface SyncPullPayload {
     id: string;
     ano_safra: string;
     cultura?: string | null;
+    cultura_id?: string | null;
+    cultura_nome?: string | null;
+    cultura_source?: string | null;
     status: string;
   }>;
   fazendas?: Array<{
@@ -182,6 +185,9 @@ export async function pullSync(): Promise<void> {
           id: s.id,
           ano_safra: s.ano_safra,
           cultura: s.cultura ?? undefined,
+          cultura_id: s.cultura_id ?? undefined,
+          cultura_nome: s.cultura_nome ?? undefined,
+          cultura_source: s.cultura_source ?? undefined,
           status: s.status,
         }))
       );

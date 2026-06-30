@@ -285,6 +285,9 @@ export interface CachedSafra {
   id: string;
   ano_safra: string;
   cultura?: string | null;
+  cultura_id?: string | null;
+  cultura_nome?: string | null;
+  cultura_source?: string | null;
   status: string;
 }
 

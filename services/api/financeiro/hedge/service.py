@@ -14,9 +14,10 @@ from typing import Optional
 from sqlalchemy import select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from agricola.safras.models import Safra
+from agricola.cultivos.models import Cultivo
 from core.cadastros.commodities.models import Commodity
 from core.exceptions import EntityNotFoundError, BusinessRuleError
+from core.services.cultura_resolution_service import CulturaResolutionService
 from core.services.audit_service import write_audit_log
 
 from .models import ContratoFuturo, HedgeRegistro
@@ -41,6 +42,7 @@ class HedgeService:
     def __init__(self, session: AsyncSession, tenant_id: uuid.UUID) -> None:
         self._session = session
         self._tenant_id = tenant_id
+        self._cultura_resolver = CulturaResolutionService(session, tenant_id)
 
     # ------------------------------------------------------------------
     # ContratoFuturo
@@ -121,13 +123,39 @@ class HedgeService:
         Returns:
             Tuple com nome e id da commodity resolvida, ou (None, None).
         """
-        cultura_result = await self._session.execute(
-            select(Safra.cultura).where(
-                Safra.id == safra_id,
-                Safra.tenant_id == self._tenant_id,
+        cultivo_result = await self._session.execute(
+            select(Cultivo.commodity_id, Commodity.nome).join(
+                Commodity, Commodity.id == Cultivo.commodity_id, isouter=True
+            ).where(
+                Cultivo.safra_id == safra_id,
+                Cultivo.tenant_id == self._tenant_id,
+                Cultivo.commodity_id.is_not(None),
             )
         )
-        cultura = cultura_result.scalar_one_or_none()
+        commodities_cultivo = cultivo_result.all()
+        commodity_ids = {
+            commodity_id for commodity_id, _ in commodities_cultivo if commodity_id is not None
+        }
+        if len(commodity_ids) == 1:
+            commodity_id = next(iter(commodity_ids))
+            commodity_nome = next(
+                (
+                    nome
+                    for atual_id, nome in commodities_cultivo
+                    if atual_id == commodity_id and nome
+                ),
+                None,
+            )
+            if commodity_nome:
+                return str(commodity_nome), commodity_id
+            commodity_obj = await self._session.get(Commodity, commodity_id)
+            if commodity_obj is not None:
+                return commodity_obj.nome, commodity_obj.id
+            return None, None
+        if len(commodity_ids) > 1:
+            return None, None
+
+        cultura = await self._resolver_cultura_da_safra(safra_id)
         if not cultura:
             return None, None
 
@@ -145,6 +173,18 @@ class HedgeService:
         if commodity is None:
             return None, None
         return str(commodity[1]), commodity[0]
+
+    async def _resolver_cultura_da_safra(self, safra_id: uuid.UUID) -> str | None:
+        """Resolve o nome de cultura da safra via camada canônica.
+
+        Args:
+            safra_id: Identificador da safra.
+
+        Returns:
+            Nome da cultura resolvida, ou None quando não houver resolução.
+        """
+        result = await self._cultura_resolver.resolve_by_safra(safra_id)
+        return result.nome if result.resolved else None
 
     async def _validar_e_resolver_commodity(
         self, data: ContratoFuturoCreate
@@ -169,12 +209,16 @@ class HedgeService:
 
         if self._normalizar_texto(data.commodity) != self._normalizar_texto(commodity_safra):
             raise BusinessRuleError(
-                "Commodity do contrato não corresponde à commodity da safra selecionada."
+                "Commodity incompatível com a Safra selecionada."
             )
 
-        if data.commodity_id is not None and commodity_id is not None and data.commodity_id != commodity_id:
+        if (
+            data.commodity_id is not None
+            and commodity_id is not None
+            and data.commodity_id != commodity_id
+        ):
             raise BusinessRuleError(
-                "Commodity do contrato não corresponde à commodity da safra selecionada."
+                "Commodity incompatível com a Safra selecionada."
             )
 
         return commodity_id
