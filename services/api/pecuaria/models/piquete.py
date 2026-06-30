@@ -7,7 +7,8 @@ from core.database import Base
 
 class Piquete(Base):
     """
-    Subdivisão da fazenda destinada ao pastejo (semelhante ao Talhão).
+    Compatibilidade legada. Não usar como fonte canônica em novos fluxos.
+    Novos piquetes devem usar AreaRural.tipo = PIQUETE.
     """
     __tablename__ = "pec_piquetes"
 

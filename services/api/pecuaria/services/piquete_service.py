@@ -9,7 +9,8 @@ from pecuaria.schemas.piquete_schema import PiqueteCreate
 
 class PiqueteService(BaseService[Piquete]):
     """
-    Service de CRUD para Piquetes/Pastagens da fazenda.
+    Compatibilidade legada. Não usar como fonte canônica em novos fluxos.
+    Novos fluxos pecuários territoriais devem usar AreaRural.tipo = PIQUETE.
 
     Args:
         tenant_id: ID do tenant para isolamento de dados.

@@ -19,6 +19,7 @@ class AgricolaTalhaoService:
         """
         Lista todos os talhões e anexa informações do cultivo ATIVO (se houver).
         """
+        # Fonte canônica: talhão é AreaRural.tipo = TALHAO, não model/tabela paralela.
         # 1. Buscar talhões base
         areas = await self.area_svc.listar(
             unidade_produtiva_id=unidade_produtiva_id,

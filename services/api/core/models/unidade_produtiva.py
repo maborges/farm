@@ -28,6 +28,8 @@ class UnidadeProdutiva(Base):
 
     cpf_cnpj: Mapped[str | None] = mapped_column(String(18), nullable=True, comment="CPF (11 dígitos) ou CNPJ (14 dígitos) do proprietário")
     inscricao_estadual: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    # Compatibilidade legada. Não usar como fonte canônica em novos fluxos.
+    # Novos dados fundiários/documentais pertencem a ImovelRural.
     codigo_car: Mapped[str | None] = mapped_column(String(50), nullable=True, comment="Código CAR no formato SICAR: UF-XXXXXXXXXXXXXXX")
     nirf: Mapped[str | None] = mapped_column(String(20), nullable=True, comment="Número do Imóvel na Receita Federal")
     ccir: Mapped[str | None] = mapped_column(String(30), nullable=True, comment="Certificado de Cadastro de Imóvel Rural (INCRA)")
@@ -63,5 +65,6 @@ class UnidadeProdutiva(Base):
     )
 
 
-# Alias for backward compatibility during migration
+# Compatibilidade legada. Não usar como fonte canônica em novos fluxos.
+# "Fazenda" permanece apenas como alias histórico de UnidadeProdutiva.
 Fazenda = UnidadeProdutiva
