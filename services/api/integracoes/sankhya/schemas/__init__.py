@@ -38,7 +38,8 @@ class SankhyaSyncLogResponse(BaseModel):
     registros_sucesso: int
     registros_erro: int
     tempo_execucao_ms: Optional[float]
-    started_at: datetime
+    created_at: datetime
+    started_at: Optional[datetime]
     completed_at: Optional[datetime]
 
     class Config:
