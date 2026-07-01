@@ -84,6 +84,7 @@ from core.cadastros.propriedade_imovel.router import router as router_propriedad
 # Growth — Landing Tracking (público, sem autenticação)
 from growth import router as growth_router
 from core.background_jobs import run_background_jobs
+from wizard.router import router as wizard_router
 
 
 # -- Configuração Loguru Estruturado p/ Grafana/Loki Compatível
@@ -336,6 +337,7 @@ app.include_router(router_avaliacoes, prefix="/api/v1")
 app.include_router(router_propriedade_imovel, prefix="/api/v1")
 app.include_router(router_imoveis, prefix="/api/v1")
 app.include_router(unidades_produtivas.router, prefix="/api/v1")
+app.include_router(wizard_router, prefix="/api/v1")
 from agricola.safras.router import router as router_safras
 from agricola.cultivos.router import router as router_cultivos
 from agricola.talhoes.router import router as router_agricola_talhoes

@@ -134,6 +134,13 @@ from alert_engine.models import (
     AlertLifecycleEvent,
 )
 from automacoes.models import AutomacaoConfiguracao, AutomacaoExecucao
+from wizard.models import (
+    ImplantacaoChecklistItem,
+    ImplantacaoEtapa,
+    ImplantacaoHistorico,
+    ImplantacaoOperacional,
+    ImplantacaoPendencia,
+)
 
 # Billing / Solicitacoes
 from core.models.solicitacoes_comerciais import SolicitacaoComercial
