@@ -28,6 +28,23 @@ SESSION_DEP = Depends(get_session)
 TENANT_DEP = Depends(get_tenant_id)
 CURRENT_USER_DEP = Depends(get_current_user)
 
+_LEGACY_TEXT_REPLACEMENTS = {
+    "nao habilitada para esta implantacao": "não está habilitada nesta implantação",
+    "nao habilitado para esta implantacao": "não está habilitado nesta implantação",
+    "não habilitada para esta implantação": "não está habilitada nesta implantação",
+    "não habilitado para esta implantação": "não está habilitado nesta implantação",
+    "implantacao": "implantação",
+    "AreaRural": "Área Rural",
+    "Talhao": "Talhão",
+    "Pecuaria": "Pecuária",
+    "Deposito": "Depósito",
+    "Catalogo": "Catálogo",
+    "catalogo": "catálogo",
+    "Maquinas": "Máquinas",
+    "Revisao": "Revisão",
+    "Estabilizacao": "Estabilização",
+}
+
 
 def _merge_payload(
     payload_snapshot: dict[str, object] | None,
@@ -37,6 +54,15 @@ def _merge_payload(
     if motivo:
         payload["motivo"] = motivo
     return payload
+
+
+def _normalize_user_text(value: str | None) -> str | None:
+    if value is None:
+        return None
+    normalized = value
+    for old, new in _LEGACY_TEXT_REPLACEMENTS.items():
+        normalized = normalized.replace(old, new)
+    return normalized
 
 
 async def _get_implantacao_ativa(
@@ -122,7 +148,7 @@ async def _build_resumo(
         itens_checklist_faltantes=[
             WizardResumoChecklistPendenteResponse(
                 codigo_item=item.codigo_item,
-                descricao=item.descricao,
+                descricao=_normalize_user_text(item.descricao) or item.descricao,
                 obrigatorio=item.obrigatorio,
                 status=item.status,
                 severidade=item.severidade,
@@ -133,7 +159,7 @@ async def _build_resumo(
             WizardResumoPendenciaCriticaResponse(
                 id=pendencia.id,
                 titulo=pendencia.titulo,
-                descricao=pendencia.descricao,
+                descricao=_normalize_user_text(pendencia.descricao) or pendencia.descricao,
                 status=pendencia.status,
                 severidade=pendencia.severidade,
             )
@@ -167,7 +193,14 @@ async def _build_checklist_response(
         checklist_minimo_satisfeito=checklist_minimo_satisfeito,
         pendencias_criticas_abertas=pendencias_criticas_abertas,
         itens=[
-            WizardChecklistItemResponse.model_validate(item, from_attributes=True)
+            WizardChecklistItemResponse.model_validate(
+                item,
+                from_attributes=True,
+            ).model_copy(
+                update={
+                    "descricao": _normalize_user_text(item.descricao) or item.descricao,
+                }
+            )
             for item in itens
         ],
     )
@@ -265,7 +298,15 @@ async def listar_etapas(
     implantacao = await _get_implantacao_ativa(service, tenant_id)
     etapas = await service.etapa_service.listar_etapas(implantacao.id)
     return [
-        WizardEtapaResponse.model_validate(etapa, from_attributes=True)
+        WizardEtapaResponse.model_validate(
+            etapa,
+            from_attributes=True,
+        ).model_copy(
+            update={
+                "nome": _normalize_user_text(etapa.nome) or etapa.nome,
+                "observacoes": _normalize_user_text(etapa.observacoes),
+            }
+        )
         for etapa in etapas
     ]
 
@@ -307,7 +348,15 @@ async def listar_pendencias(
     implantacao = await _get_implantacao_ativa(service, tenant_id)
     pendencias = await service.pendencia_service.listar_pendencias(implantacao.id)
     return [
-        WizardPendenciaResponse.model_validate(pendencia, from_attributes=True)
+        WizardPendenciaResponse.model_validate(
+            pendencia,
+            from_attributes=True,
+        ).model_copy(
+            update={
+                "titulo": _normalize_user_text(pendencia.titulo) or pendencia.titulo,
+                "descricao": _normalize_user_text(pendencia.descricao) or pendencia.descricao,
+            }
+        )
         for pendencia in pendencias
     ]
 

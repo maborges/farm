@@ -67,7 +67,7 @@ def test_transicoes_oficiais_validas_funcionam() -> None:
 def test_transicao_invalida_e_bloqueada() -> None:
     implantacao = _make_implantacao("NOT_STARTED")
 
-    with pytest.raises(WizardTransitionError, match="nao permitida"):
+    with pytest.raises(WizardTransitionError, match="não permitida"):
         transicionar_implantacao(implantacao, "GO_LIVE")
 
 
@@ -81,14 +81,14 @@ def test_estados_finais_nao_transicionam() -> None:
 def test_blocked_nao_vai_direto_para_ready_for_go_live() -> None:
     implantacao = _make_implantacao("BLOCKED", unidade_produtiva_id=uuid4())
 
-    with pytest.raises(WizardTransitionError, match="nao permitida"):
+    with pytest.raises(WizardTransitionError, match="não permitida"):
         transicionar_implantacao(implantacao, "READY_FOR_GO_LIVE")
 
 
 def test_blocked_nao_vai_direto_para_go_live() -> None:
     implantacao = _make_implantacao("BLOCKED", unidade_produtiva_id=uuid4())
 
-    with pytest.raises(WizardTransitionError, match="nao permitida"):
+    with pytest.raises(WizardTransitionError, match="não permitida"):
         transicionar_implantacao(implantacao, "GO_LIVE")
 
 
@@ -114,7 +114,7 @@ def test_statuses_criticos_exigem_unidade_produtiva(
 def test_pendencia_critica_aberta_bloqueia_prontidao() -> None:
     implantacao = _make_implantacao("IN_PROGRESS", unidade_produtiva_id=uuid4())
 
-    with pytest.raises(WizardTransitionError, match="pendencia critica aberta"):
+    with pytest.raises(WizardTransitionError, match="pendência crítica aberta"):
         transicionar_implantacao(
             implantacao,
             "READY_FOR_GO_LIVE",
@@ -125,7 +125,7 @@ def test_pendencia_critica_aberta_bloqueia_prontidao() -> None:
 def test_checklist_minimo_falso_bloqueia_prontidao() -> None:
     implantacao = _make_implantacao("IN_PROGRESS", unidade_produtiva_id=uuid4())
 
-    with pytest.raises(WizardTransitionError, match="checklist minimo satisfeito"):
+    with pytest.raises(WizardTransitionError, match="checklist mínimo satisfeito"):
         transicionar_implantacao(
             implantacao,
             "READY_FOR_GO_LIVE",

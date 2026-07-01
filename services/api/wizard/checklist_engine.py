@@ -102,7 +102,7 @@ class ChecklistEngine:
     ) -> list[ChecklistEvaluation]:
         implantacao = await self.implantacao_service.get_active_implantacao(tenant_id)
         if implantacao is None:
-            raise EntityNotFoundError("Implantacao ativa nao encontrada para o tenant.")
+            raise EntityNotFoundError("Implantação ativa não encontrada para o tenant.")
         return await self.avaliar_implantacao(implantacao)
 
     async def avaliar_item(
@@ -339,13 +339,13 @@ class ChecklistEngine:
         if unidade_id is None:
             return self._missing(
                 "CHECK_UNIDADE_PRODUTIVA",
-                "Nenhuma UnidadeProdutiva ativa encontrada para a implantacao.",
+                "Nenhuma Unidade Produtiva ativa encontrada para a implantação.",
                 severidade=PendenciaSeverity.CRITICA.value,
             )
         return self._validated(
             "CHECK_UNIDADE_PRODUTIVA",
-            "UnidadeProdutiva ativa encontrada.",
-            entidade="UnidadeProdutiva",
+            "Unidade Produtiva ativa encontrada.",
+            entidade="Unidade Produtiva",
             entidade_id=unidade_id,
         )
 
@@ -357,12 +357,12 @@ class ChecklistEngine:
         if area_id is None:
             return self._missing(
                 "CHECK_ESTRUTURA_TERRITORIAL",
-                "Nenhuma AreaRural ativa encontrada.",
+                "Nenhuma Área Rural ativa encontrada.",
             )
         return self._validated(
             "CHECK_ESTRUTURA_TERRITORIAL",
-            "AreaRural ativa encontrada.",
-            entidade="AreaRural",
+            "Área Rural ativa encontrada.",
+            entidade="Área Rural",
             entidade_id=area_id,
         )
 
@@ -373,20 +373,20 @@ class ChecklistEngine:
         if not self._module_enabled(implantacao, "agricultura"):
             return self._dispensed(
                 "CHECK_AGRICULTURA_TALHAO",
-                "Agricultura nao habilitada para esta implantacao.",
+                "Agricultura não está habilitada nesta implantação.",
             )
         talhao_id = await self._find_area_by_tipo(implantacao, TipoArea.TALHAO.value)
         if talhao_id is None:
             return self._missing(
                 "CHECK_AGRICULTURA_TALHAO",
-                "Agricultura habilitada sem Talhao cadastrado.",
+                "Agricultura habilitada sem talhão cadastrado.",
                 status=ChecklistItemStatus.FALHOU.value,
                 severidade=PendenciaSeverity.CRITICA.value,
             )
         return self._validated(
             "CHECK_AGRICULTURA_TALHAO",
-            "Talhao encontrado para o modulo agricultura.",
-            entidade="AreaRural",
+            "Talhão encontrado para o módulo Agricultura.",
+            entidade="Área Rural",
             entidade_id=talhao_id,
         )
 
@@ -397,20 +397,20 @@ class ChecklistEngine:
         if not self._module_enabled(implantacao, "pecuaria"):
             return self._dispensed(
                 "CHECK_PECUARIA_PIQUETE",
-                "Pecuaria nao habilitada para esta implantacao.",
+                "Pecuária não está habilitada nesta implantação.",
             )
         piquete_id = await self._find_area_by_tipo(implantacao, TipoArea.PIQUETE.value)
         if piquete_id is None:
             return self._missing(
                 "CHECK_PECUARIA_PIQUETE",
-                "Pecuaria habilitada sem Piquete cadastrado.",
+                "Pecuária habilitada sem piquete cadastrado.",
                 status=ChecklistItemStatus.FALHOU.value,
                 severidade=PendenciaSeverity.CRITICA.value,
             )
         return self._validated(
             "CHECK_PECUARIA_PIQUETE",
-            "Piquete encontrado para o modulo pecuaria.",
-            entidade="AreaRural",
+            "Piquete encontrado para o módulo Pecuária.",
+            entidade="Área Rural",
             entidade_id=piquete_id,
         )
 
@@ -421,18 +421,18 @@ class ChecklistEngine:
         if not self._module_enabled(implantacao, "estoque"):
             return self._dispensed(
                 "CHECK_ESTOQUE_DEPOSITO",
-                "Estoque nao habilitado para esta implantacao.",
+                "Estoque não está habilitado nesta implantação.",
             )
         deposito_id = await self._find_deposito(implantacao)
         if deposito_id is None:
             return self._missing(
                 "CHECK_ESTOQUE_DEPOSITO",
-                "Estoque habilitado sem Deposito ativo cadastrado.",
+                "Estoque habilitado sem depósito ativo cadastrado.",
             )
         return self._validated(
             "CHECK_ESTOQUE_DEPOSITO",
-            "Deposito ativo encontrado para o modulo estoque.",
-            entidade="Deposito",
+            "Depósito ativo encontrado para o módulo Estoque.",
+            entidade="Depósito",
             entidade_id=deposito_id,
         )
 
@@ -443,18 +443,18 @@ class ChecklistEngine:
         if not self._module_enabled(implantacao, "financeiro"):
             return self._dispensed(
                 "CHECK_FINANCEIRO_PLANO_CONTA",
-                "Financeiro nao habilitado para esta implantacao.",
+                "Financeiro não está habilitado nesta implantação.",
             )
         plano_conta_id = await self._find_plano_conta(implantacao)
         if plano_conta_id is None:
             return self._missing(
                 "CHECK_FINANCEIRO_PLANO_CONTA",
-                "Financeiro habilitado sem PlanoConta ativo.",
+                "Financeiro habilitado sem plano de contas ativo.",
             )
         return self._validated(
             "CHECK_FINANCEIRO_PLANO_CONTA",
-            "PlanoConta ativo encontrado.",
-            entidade="PlanoConta",
+            "Plano de contas ativo encontrado.",
+            entidade="Plano de Contas",
             entidade_id=plano_conta_id,
         )
 
@@ -468,17 +468,17 @@ class ChecklistEngine:
         ):
             return self._dispensed(
                 "CHECK_PRODUTO_CATALOGO",
-                "Catalogo de produtos nao exigido para esta implantacao.",
+                "Catálogo de produtos não exigido para esta implantação.",
             )
         produto_id = await self._find_produto(implantacao)
         if produto_id is None:
             return self._missing(
                 "CHECK_PRODUTO_CATALOGO",
-                "Nenhum Produto ativo encontrado no catalogo minimo.",
+                "Nenhum produto ativo encontrado no catálogo mínimo.",
             )
         return self._validated(
             "CHECK_PRODUTO_CATALOGO",
-            "Produto ativo encontrado no catalogo minimo.",
+            "Produto ativo encontrado no catálogo mínimo.",
             entidade="Produto",
             entidade_id=produto_id,
         )
@@ -490,13 +490,13 @@ class ChecklistEngine:
         if not self._module_enabled(implantacao, "frota", "maquinas"):
             return self._dispensed(
                 "CHECK_EQUIPAMENTO_CADASTRO",
-                "Frota/maquinas nao habilitada para esta implantacao.",
+                "Frota/Máquinas não está habilitada nesta implantação.",
             )
         equipamento_id = await self._find_equipamento(implantacao)
         if equipamento_id is None:
             return self._missing(
                 "CHECK_EQUIPAMENTO_CADASTRO",
-                "Nenhum Equipamento ativo encontrado.",
+                "Nenhum equipamento ativo encontrado.",
             )
         return self._validated(
             "CHECK_EQUIPAMENTO_CADASTRO",

@@ -88,7 +88,7 @@ _EVENTOS_TRANSICAO = {
 
 
 class WizardTransitionError(BusinessRuleError):
-    """Violacao da maquina de estados do Wizard."""
+    """Violação da máquina de estados do Wizard."""
 
 
 @dataclass(frozen=True)
@@ -104,13 +104,13 @@ def _status_value(status: str | WizardStatus) -> str:
 
 def _ensure_status_oficial(status: str) -> None:
     if status not in _TRANSICOES:
-        raise WizardTransitionError(f"Status '{status}' nao pertence ao Wizard oficial.")
+        raise WizardTransitionError(f"Status '{status}' não pertence ao Wizard oficial.")
 
 
 def _allowed_targets(status_atual: str) -> set[str]:
     permitidos = _TRANSICOES.get(status_atual)
     if permitidos is None:
-        raise WizardTransitionError(f"Status atual '{status_atual}' nao esta mapeado.")
+        raise WizardTransitionError(f"Status atual '{status_atual}' não está mapeado.")
     return permitidos
 
 
@@ -120,10 +120,10 @@ def _ensure_transition_allowed(status_atual: str, novo_status: str) -> None:
         return
     if status_atual in FINAL_WIZARD_STATUSES:
         raise WizardTransitionError(
-            f"Status final '{status_atual}' e terminal e nao permite transicoes."
+            f"Status final '{status_atual}' é terminal e não permite transições."
         )
     raise WizardTransitionError(
-        f"Transicao '{status_atual}' -> '{novo_status}' nao permitida. "
+        f"Transição '{status_atual}' -> '{novo_status}' não permitida. "
         f"Permitidos: {sorted(permitidos) or 'nenhum'}."
     )
 
@@ -134,7 +134,7 @@ def _ensure_unidade_produtiva(implantacao: ImplantacaoOperacional, novo_status: 
     if implantacao.unidade_produtiva_id is not None:
         return
     raise WizardTransitionError(
-        f"Transicao para '{novo_status}' exige unidade_produtiva_id."
+        f"Transição para '{novo_status}' exige unidade_produtiva_id."
     )
 
 
@@ -148,11 +148,11 @@ def _ensure_prontidao(
         return
     if has_open_critical_blockers:
         raise WizardTransitionError(
-            f"Transicao para '{novo_status}' bloqueada por pendencia critica aberta."
+            f"Transição para '{novo_status}' bloqueada por pendência crítica aberta."
         )
     if not minimum_checklist_satisfied:
         raise WizardTransitionError(
-            f"Transicao para '{novo_status}' exige checklist minimo satisfeito."
+            f"Transição para '{novo_status}' exige checklist mínimo satisfeito."
         )
 
 

@@ -6,6 +6,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from wizard.models import (
@@ -14,6 +15,7 @@ from wizard.models import (
     ImplantacaoChecklistItem,
     ImplantacaoEtapa,
     ImplantacaoOperacional,
+    ImplantacaoPendencia,
     WizardEtapaStatus,
     WizardStatus,
 )
@@ -35,6 +37,7 @@ def _make_session() -> AsyncSession:
     session.add = MagicMock()
     session.delete = AsyncMock()
     session.flush = AsyncMock()
+    session.rollback = AsyncMock()
     return session
 
 
@@ -184,7 +187,7 @@ async def test_nao_e_possivel_pular_etapa_obrigatoria_sem_regra() -> None:
     etapa = _make_etapa("DIAGNOSTICO", obrigatoria=True)
     service.etapa_service._buscar_etapa = AsyncMock(return_value=etapa)
 
-    with pytest.raises(Exception, match="etapa obrigatoria"):
+    with pytest.raises(Exception, match="etapa obrigatória"):
         await service.etapa_service.pular_etapa(implantacao, "DIAGNOSTICO")
 
 
@@ -194,13 +197,75 @@ async def test_item_obrigatorio_de_checklist_exige_evidencia() -> None:
     item = _make_checklist_item("CHECK_UNIDADE_PRODUTIVA", obrigatorio=True)
     service.checklist_service._buscar_item = AsyncMock(return_value=item)
 
-    with pytest.raises(Exception, match="exige evidencia"):
+    with pytest.raises(Exception, match="exige evidência"):
         await service.checklist_service.marcar_item_atendido(
             item.implantacao_id,
             item.codigo_item,
             checked_by_usuario_id=uuid.uuid4(),
             evidencia_ref_id=None,
         )
+
+
+async def test_listar_itens_recupera_uuid_vazio_legado() -> None:
+    session = _make_session()
+    service = ImplantacaoService(session)
+    item = _make_checklist_item("CHECK_UNIDADE_PRODUTIVA")
+    db_error = DBAPIError(
+        "SELECT wizard_implantacoes_checklist_itens",
+        None,
+        Exception('invalid input syntax for type uuid: ""'),
+    )
+    result = MagicMock()
+    result.scalars.return_value.all.return_value = [item]
+    session.execute = AsyncMock(side_effect=[db_error, result])
+    service.checklist_service._sanitize_legacy_nullable_uuid_columns = AsyncMock()  # type: ignore[method-assign]
+
+    itens = await service.checklist_service.listar_itens(item.implantacao_id)
+
+    assert itens == [item]
+    service.checklist_service._sanitize_legacy_nullable_uuid_columns.assert_awaited_once()  # type: ignore[attr-defined]
+    session.rollback.assert_awaited_once()
+    assert session.execute.await_count == 2
+
+
+async def test_listar_pendencias_recupera_uuid_vazio_legado() -> None:
+    session = _make_session()
+    service = ImplantacaoService(session)
+    pendencia = ImplantacaoPendencia(
+        implantacao_id=uuid.uuid4(),
+        tipo="BLOQUEIO",
+        severidade="CRITICA",
+        status="ABERTA",
+        titulo="WIZARD::CHECK_UNIDADE_PRODUTIVA",
+        descricao="Pendência crítica",
+    )
+    db_error = DBAPIError(
+        "SELECT wizard_implantacoes_pendencias",
+        None,
+        Exception('invalid input syntax for type uuid: ""'),
+    )
+    result = MagicMock()
+    result.scalars.return_value.all.return_value = [pendencia]
+    session.execute = AsyncMock(side_effect=[db_error, result])
+    service.pendencia_service.session = session  # explicit for clarity
+    original_sanitize = service.pendencia_service.listar_pendencias.__globals__[
+        "sanitize_legacy_wizard_nullable_uuid_columns"
+    ]
+    service.pendencia_service.listar_pendencias.__globals__[
+        "sanitize_legacy_wizard_nullable_uuid_columns"
+    ] = AsyncMock()
+
+    itens = await service.pendencia_service.listar_pendencias(pendencia.implantacao_id)
+
+    assert itens == [pendencia]
+    session.rollback.assert_awaited_once()
+    assert session.execute.await_count == 2
+    service.pendencia_service.listar_pendencias.__globals__[
+        "sanitize_legacy_wizard_nullable_uuid_columns"
+    ].assert_awaited_once_with(session)
+    service.pendencia_service.listar_pendencias.__globals__[
+        "sanitize_legacy_wizard_nullable_uuid_columns"
+    ] = original_sanitize
 
 
 async def test_checklist_minimo_falso_bloqueia_ready_for_go_live() -> None:
@@ -213,7 +278,7 @@ async def test_checklist_minimo_falso_bloqueia_ready_for_go_live() -> None:
     service.checklist_service.minimum_checklist_satisfied = AsyncMock(return_value=False)
     service.pendencia_service.has_open_critical_blockers = AsyncMock(return_value=False)
 
-    with pytest.raises(Exception, match="checklist minimo satisfeito"):
+    with pytest.raises(Exception, match="checklist mínimo satisfeito"):
         await service.aplicar_transicao_estado(
             implantacao,
             WizardStatus.READY_FOR_GO_LIVE.value,
@@ -231,7 +296,7 @@ async def test_pendencia_critica_aberta_bloqueia_ready_for_go_live() -> None:
     service.checklist_service.minimum_checklist_satisfied = AsyncMock(return_value=True)
     service.pendencia_service.has_open_critical_blockers = AsyncMock(return_value=True)
 
-    with pytest.raises(Exception, match="pendencia critica aberta"):
+    with pytest.raises(Exception, match="pendência crítica aberta"):
         await service.aplicar_transicao_estado(
             implantacao,
             WizardStatus.READY_FOR_GO_LIVE.value,
@@ -296,7 +361,7 @@ async def test_blocked_so_desbloqueia_para_in_progress() -> None:
     service.checklist_service.minimum_checklist_satisfied = AsyncMock(return_value=True)
     service.pendencia_service.has_open_critical_blockers = AsyncMock(return_value=False)
 
-    with pytest.raises(Exception, match="nao permitida"):
+    with pytest.raises(Exception, match="não permitida"):
         await service.aplicar_transicao_estado(
             implantacao,
             WizardStatus.READY_FOR_GO_LIVE.value,
@@ -332,7 +397,7 @@ async def test_recalculo_basico_de_progresso() -> None:
         ImplantacaoEtapa(
             implantacao_id=implantacao.id,
             codigo_etapa="DIAGNOSTICO",
-            nome="Diagnostico",
+            nome="Diagnóstico",
             obrigatoria=True,
             ordem=1,
             percentual_peso=10,

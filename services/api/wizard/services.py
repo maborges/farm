@@ -5,7 +5,8 @@ from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import column, func, select, table, text, update
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.exceptions import BusinessRuleError, EntityNotFoundError
@@ -56,25 +57,25 @@ class WizardChecklistDefinition:
 
 
 STAGE_DEFINITIONS: tuple[WizardStageDefinition, ...] = (
-    WizardStageDefinition("DIAGNOSTICO", "Diagnostico", 1, True, 10),
+    WizardStageDefinition("DIAGNOSTICO", "Diagnóstico", 1, True, 10),
     WizardStageDefinition("UNIDADE_PRODUTIVA", "Unidade Produtiva", 2, True, 15),
-    WizardStageDefinition("TERRITORIO", "Territorio", 3, True, 10),
+    WizardStageDefinition("TERRITORIO", "Território", 3, True, 10),
     WizardStageDefinition("ATIVIDADES", "Atividades", 4, True, 5),
     WizardStageDefinition("AGRICULTURA", "Agricultura", 5, True, 10),
-    WizardStageDefinition("PECUARIA", "Pecuaria", 6, True, 10),
+    WizardStageDefinition("PECUARIA", "Pecuária", 6, True, 10),
     WizardStageDefinition("ESTOQUE", "Estoque", 7, True, 10),
     WizardStageDefinition("FINANCEIRO", "Financeiro", 8, True, 10),
-    WizardStageDefinition("MAQUINAS", "Maquinas", 9, True, 5),
+    WizardStageDefinition("MAQUINAS", "Máquinas", 9, True, 5),
     WizardStageDefinition("EQUIPE", "Equipe", 10, False, 0),
-    WizardStageDefinition("REVISAO", "Revisao", 11, True, 5),
+    WizardStageDefinition("REVISAO", "Revisão", 11, True, 5),
     WizardStageDefinition("GO_LIVE", "Go-live", 12, True, 5),
-    WizardStageDefinition("ESTABILIZACAO", "Estabilizacao", 13, True, 5),
+    WizardStageDefinition("ESTABILIZACAO", "Estabilização", 13, True, 5),
 )
 
 CHECKLIST_DEFINITIONS: tuple[WizardChecklistDefinition, ...] = (
     WizardChecklistDefinition(
         "CHECK_UNIDADE_PRODUTIVA",
-        "Existe ao menos uma UnidadeProdutiva ativa para a implantacao",
+        "Existe ao menos uma Unidade Produtiva ativa para a implantação",
         True,
         ChecklistItemSeverity.CRITICO.value,
         ChecklistEvidenceType.AUTOMATICA.value,
@@ -82,7 +83,7 @@ CHECKLIST_DEFINITIONS: tuple[WizardChecklistDefinition, ...] = (
     ),
     WizardChecklistDefinition(
         "CHECK_ESTRUTURA_TERRITORIAL",
-        "Existe ao menos uma AreaRural ativa",
+        "Existe ao menos uma Área Rural ativa",
         True,
         ChecklistItemSeverity.ATENCAO.value,
         ChecklistEvidenceType.AUTOMATICA.value,
@@ -90,7 +91,7 @@ CHECKLIST_DEFINITIONS: tuple[WizardChecklistDefinition, ...] = (
     ),
     WizardChecklistDefinition(
         "CHECK_AGRICULTURA_TALHAO",
-        "Quando agricultura estiver habilitada deve existir ao menos um Talhao",
+        "Quando Agricultura estiver habilitada, deve existir ao menos um talhão",
         True,
         ChecklistItemSeverity.CRITICO.value,
         ChecklistEvidenceType.AUTOMATICA.value,
@@ -98,7 +99,7 @@ CHECKLIST_DEFINITIONS: tuple[WizardChecklistDefinition, ...] = (
     ),
     WizardChecklistDefinition(
         "CHECK_PECUARIA_PIQUETE",
-        "Quando pecuaria estiver habilitada deve existir ao menos um Piquete",
+        "Quando Pecuária estiver habilitada, deve existir ao menos um piquete",
         True,
         ChecklistItemSeverity.CRITICO.value,
         ChecklistEvidenceType.AUTOMATICA.value,
@@ -106,7 +107,7 @@ CHECKLIST_DEFINITIONS: tuple[WizardChecklistDefinition, ...] = (
     ),
     WizardChecklistDefinition(
         "CHECK_ESTOQUE_DEPOSITO",
-        "Quando estoque estiver habilitado deve existir ao menos um Deposito ativo",
+        "Quando Estoque estiver habilitado, deve existir ao menos um depósito ativo",
         True,
         ChecklistItemSeverity.ATENCAO.value,
         ChecklistEvidenceType.AUTOMATICA.value,
@@ -114,7 +115,7 @@ CHECKLIST_DEFINITIONS: tuple[WizardChecklistDefinition, ...] = (
     ),
     WizardChecklistDefinition(
         "CHECK_FINANCEIRO_PLANO_CONTA",
-        "Quando financeiro estiver habilitado deve existir plano de contas minimo",
+        "Quando Financeiro estiver habilitado, deve existir um plano de contas mínimo",
         True,
         ChecklistItemSeverity.ATENCAO.value,
         ChecklistEvidenceType.AUTOMATICA.value,
@@ -123,8 +124,8 @@ CHECKLIST_DEFINITIONS: tuple[WizardChecklistDefinition, ...] = (
     WizardChecklistDefinition(
         "CHECK_PRODUTO_CATALOGO",
         (
-            "Quando agricultura ou estoque estiverem habilitados deve existir "
-            "catalogo minimo de Produto"
+            "Quando Agricultura ou Estoque estiverem habilitados, deve existir "
+            "um catálogo mínimo de produtos"
         ),
         True,
         ChecklistItemSeverity.ATENCAO.value,
@@ -133,7 +134,7 @@ CHECKLIST_DEFINITIONS: tuple[WizardChecklistDefinition, ...] = (
     ),
     WizardChecklistDefinition(
         "CHECK_EQUIPAMENTO_CADASTRO",
-        "Quando frota estiver habilitada deve existir ao menos um equipamento cadastrado",
+        "Quando Frota estiver habilitada, deve existir ao menos um equipamento cadastrado",
         True,
         ChecklistItemSeverity.ATENCAO.value,
         ChecklistEvidenceType.AUTOMATICA.value,
@@ -153,6 +154,73 @@ DONE_ETAPA_STATUSES = {
 
 def _utcnow() -> datetime:
     return datetime.now(UTC)
+
+
+def _is_legacy_empty_uuid_error(exc: DBAPIError) -> bool:
+    message = str(exc).lower()
+    return "invalid input syntax for type uuid" in message and '""' in message
+
+
+async def _sanitize_legacy_nullable_uuid_columns_for_model(
+    session: AsyncSession,
+    *,
+    model: type[BaseException] | Any,
+    column_names: tuple[str, ...],
+) -> None:
+    table_name = model.__table__.name
+    schema_result = await session.execute(text("SELECT current_schema()"))
+    schema_name = schema_result.scalar_one()
+    for column_name in column_names:
+        column_meta = await session.execute(
+            text(
+                """
+                SELECT data_type
+                FROM information_schema.columns
+                WHERE table_schema = :schema_name
+                  AND table_name = :table_name
+                  AND column_name = :column_name
+                """
+            ),
+            {
+                "schema_name": schema_name,
+                "table_name": table_name,
+                "column_name": column_name,
+            },
+        )
+        data_type = column_meta.scalar_one_or_none()
+        if data_type not in {"text", "character varying", "character"}:
+            continue
+        legacy_table = table(
+            table_name,
+            column(column_name),
+            schema=schema_name,
+        )
+        await session.execute(
+            update(legacy_table)
+            .values({column_name: None})
+            .where(func.btrim(func.coalesce(getattr(legacy_table.c, column_name), "")) == "")
+        )
+    await session.flush()
+
+
+async def sanitize_legacy_wizard_nullable_uuid_columns(
+    session: AsyncSession,
+) -> None:
+    await _sanitize_legacy_nullable_uuid_columns_for_model(
+        session,
+        model=ImplantacaoChecklistItem,
+        column_names=("etapa_id", "checked_by_usuario_id"),
+    )
+    await _sanitize_legacy_nullable_uuid_columns_for_model(
+        session,
+        model=ImplantacaoPendencia,
+        column_names=("etapa_id", "responsavel_usuario_id"),
+    )
+    await _sanitize_legacy_nullable_uuid_columns_for_model(
+        session,
+        model=ImplantacaoHistorico,
+        column_names=("ator_usuario_id",),
+    )
 
 
 class HistoricoService:
@@ -255,9 +323,9 @@ class EtapaService:
     ) -> ImplantacaoEtapa:
         etapa = await self._buscar_etapa(implantacao.id, codigo_etapa)
         if etapa is None:
-            raise EntityNotFoundError(f"Etapa '{codigo_etapa}' nao encontrada.")
+            raise EntityNotFoundError(f"Etapa '{codigo_etapa}' não encontrada.")
         if etapa.status in DONE_ETAPA_STATUSES:
-            raise BusinessRuleError("Nao e permitido iniciar etapa ja finalizada.")
+            raise BusinessRuleError("Não é permitido iniciar uma etapa já finalizada.")
         instante = now or _utcnow()
         etapa.status = WizardEtapaStatus.IN_PROGRESS.value
         etapa.started_at = etapa.started_at or instante
@@ -290,7 +358,7 @@ class EtapaService:
     ) -> ImplantacaoEtapa:
         etapa = await self._buscar_etapa(implantacao.id, codigo_etapa)
         if etapa is None:
-            raise EntityNotFoundError(f"Etapa '{codigo_etapa}' nao encontrada.")
+            raise EntityNotFoundError(f"Etapa '{codigo_etapa}' não encontrada.")
         instante = now or _utcnow()
         etapa.status = WizardEtapaStatus.COMPLETED.value
         etapa.started_at = etapa.started_at or instante
@@ -324,9 +392,9 @@ class EtapaService:
     ) -> ImplantacaoEtapa:
         etapa = await self._buscar_etapa(implantacao.id, codigo_etapa)
         if etapa is None:
-            raise EntityNotFoundError(f"Etapa '{codigo_etapa}' nao encontrada.")
+            raise EntityNotFoundError(f"Etapa '{codigo_etapa}' não encontrada.")
         if etapa.obrigatoria:
-            raise BusinessRuleError("Nao e permitido pular etapa obrigatoria.")
+            raise BusinessRuleError("Não é permitido pular uma etapa obrigatória.")
         instante = now or _utcnow()
         etapa.status = WizardEtapaStatus.SKIPPED.value
         etapa.started_at = etapa.started_at or instante
@@ -354,6 +422,9 @@ class ChecklistService:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
+    async def _sanitize_legacy_nullable_uuid_columns(self) -> None:
+        await sanitize_legacy_wizard_nullable_uuid_columns(self.session)
+
     async def listar_itens(
         self,
         implantacao_id: uuid.UUID,
@@ -363,7 +434,15 @@ class ChecklistService:
             .where(ImplantacaoChecklistItem.implantacao_id == implantacao_id)
             .order_by(ImplantacaoChecklistItem.codigo_item.asc())
         )
-        return list((await self.session.execute(stmt)).scalars().all())
+        try:
+            result = await self.session.execute(stmt)
+        except DBAPIError as exc:
+            if not _is_legacy_empty_uuid_error(exc):
+                raise
+            await self.session.rollback()
+            await self._sanitize_legacy_nullable_uuid_columns()
+            result = await self.session.execute(stmt)
+        return list(result.scalars().all())
 
     async def _buscar_item(
         self,
@@ -374,7 +453,14 @@ class ChecklistService:
             ImplantacaoChecklistItem.implantacao_id == implantacao_id,
             ImplantacaoChecklistItem.codigo_item == codigo_item,
         )
-        result = await self.session.execute(stmt)
+        try:
+            result = await self.session.execute(stmt)
+        except DBAPIError as exc:
+            if not _is_legacy_empty_uuid_error(exc):
+                raise
+            await self.session.rollback()
+            await self._sanitize_legacy_nullable_uuid_columns()
+            result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
     async def criar_checklist_base_idempotente(
@@ -420,10 +506,10 @@ class ChecklistService:
     ) -> ImplantacaoChecklistItem:
         item = await self._buscar_item(implantacao_id, codigo_item)
         if item is None:
-            raise EntityNotFoundError(f"Checklist '{codigo_item}' nao encontrado.")
+            raise EntityNotFoundError(f"Checklist '{codigo_item}' não encontrado.")
         if item.obrigatorio and not evidencia_ref_id:
             raise BusinessRuleError(
-                "Item obrigatorio de checklist exige evidencia antes de ser atendido."
+                "Item obrigatório de checklist exige evidência antes de ser atendido."
             )
         instante = now or _utcnow()
         item.status = ChecklistItemStatus.ATENDIDO.value
@@ -474,7 +560,14 @@ class PendenciaService:
         )
         if status is not None:
             stmt = stmt.where(ImplantacaoPendencia.status == status)
-        result = await self.session.execute(stmt)
+        try:
+            result = await self.session.execute(stmt)
+        except DBAPIError as exc:
+            if not _is_legacy_empty_uuid_error(exc):
+                raise
+            await self.session.rollback()
+            await sanitize_legacy_wizard_nullable_uuid_columns(self.session)
+            result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
     async def criar_pendencia(
@@ -518,7 +611,14 @@ class PendenciaService:
             .order_by(ImplantacaoPendencia.created_at.desc())
             .limit(1)
         )
-        result = await self.session.execute(stmt)
+        try:
+            result = await self.session.execute(stmt)
+        except DBAPIError as exc:
+            if not _is_legacy_empty_uuid_error(exc):
+                raise
+            await self.session.rollback()
+            await sanitize_legacy_wizard_nullable_uuid_columns(self.session)
+            result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
     async def criar_ou_manter_pendencia(
@@ -688,7 +788,7 @@ class ImplantacaoService:
     ) -> ImplantacaoOperacional:
         implantacao = await self.get_active_implantacao(tenant_id)
         if implantacao is None:
-            raise EntityNotFoundError("Implantacao ativa nao encontrada para o tenant.")
+            raise EntityNotFoundError("Implantação ativa não encontrada para o tenant.")
         await self.etapa_service.inicializar_etapas_canonicas(implantacao)
         etapas = await self.etapa_service.listar_etapas(implantacao.id)
         await self.checklist_service.criar_checklist_base_idempotente(implantacao, etapas)

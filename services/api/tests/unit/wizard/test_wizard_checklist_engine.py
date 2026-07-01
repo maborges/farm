@@ -76,7 +76,7 @@ async def test_unidade_produtiva_valida_automaticamente() -> None:
 
     assert result.status == ChecklistItemStatus.ATENDIDO.value
     assert result.evidencia is not None
-    assert result.evidencia.entidade == "UnidadeProdutiva"
+    assert result.evidencia.entidade == "Unidade Produtiva"
     assert result.evidencia.entidade_id == str(unidade_id)
     engine.implantacao_service.historico_service.registrar.assert_awaited_once()
 
@@ -123,7 +123,7 @@ async def test_area_rural_existente_valida_estrutura_territorial() -> None:
 
     assert result.status == ChecklistItemStatus.ATENDIDO.value
     assert result.evidencia is not None
-    assert result.evidencia.entidade == "AreaRural"
+    assert result.evidencia.entidade == "Área Rural"
 
 
 async def test_agricultura_sem_talhao_falha_com_pendencia_critica() -> None:

@@ -328,7 +328,7 @@ def test_pronto_go_live_bloqueia_sem_unidade_produtiva() -> None:
     engine.avaliar_implantacao = AsyncMock(return_value=[])
     service.aplicar_transicao_estado = AsyncMock(
         side_effect=BusinessRuleError(
-            "Transicao para 'READY_FOR_GO_LIVE' exige unidade_produtiva_id."
+            "Transição para 'READY_FOR_GO_LIVE' exige unidade_produtiva_id."
         )
     )
 
@@ -353,7 +353,7 @@ def test_pronto_go_live_bloqueia_com_checklist_minimo_falso() -> None:
     engine.avaliar_implantacao = AsyncMock(return_value=[])
     service.aplicar_transicao_estado = AsyncMock(
         side_effect=BusinessRuleError(
-            "Transicao para 'READY_FOR_GO_LIVE' exige checklist minimo satisfeito."
+            "Transição para 'READY_FOR_GO_LIVE' exige checklist mínimo satisfeito."
         )
     )
 
@@ -365,7 +365,7 @@ def test_pronto_go_live_bloqueia_com_checklist_minimo_falso() -> None:
         response = client.post("/api/v1/wizard/pronto-go-live", json={})
 
     assert response.status_code == 400
-    assert "checklist minimo satisfeito" in response.json()["detail"]
+    assert "checklist mínimo satisfeito" in response.json()["detail"]
 
 
 def test_pronto_go_live_bloqueia_com_pendencia_critica() -> None:
@@ -379,7 +379,7 @@ def test_pronto_go_live_bloqueia_com_pendencia_critica() -> None:
     engine.avaliar_implantacao = AsyncMock(return_value=[])
     service.aplicar_transicao_estado = AsyncMock(
         side_effect=BusinessRuleError(
-            "Transicao para 'READY_FOR_GO_LIVE' bloqueada por pendencia critica aberta."
+            "Transição para 'READY_FOR_GO_LIVE' bloqueada por pendência crítica aberta."
         )
     )
 
@@ -391,7 +391,7 @@ def test_pronto_go_live_bloqueia_com_pendencia_critica() -> None:
         response = client.post("/api/v1/wizard/pronto-go-live", json={})
 
     assert response.status_code == 400
-    assert "pendencia critica aberta" in response.json()["detail"]
+    assert "pendência crítica aberta" in response.json()["detail"]
 
 
 def test_go_live_bloqueia_sem_ready_for_go_live() -> None:
@@ -404,7 +404,7 @@ def test_go_live_bloqueia_sem_ready_for_go_live() -> None:
     engine.avaliar_implantacao = AsyncMock(return_value=[])
     service.aplicar_transicao_estado = AsyncMock(
         side_effect=BusinessRuleError(
-            "Transicao 'IN_PROGRESS' -> 'GO_LIVE' nao permitida."
+            "Transição 'IN_PROGRESS' -> 'GO_LIVE' não permitida."
         )
     )
 
