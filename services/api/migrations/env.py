@@ -141,6 +141,16 @@ from wizard.models import (
     ImplantacaoOperacional,
     ImplantacaoPendencia,
 )
+from integracoes.models import (
+    IntegrationCredential,
+    IntegrationFeature,
+    IntegrationHealth,
+    IntegrationJob,
+    IntegrationSyncPolicy,
+    IntegrationVersion,
+    MarketplaceIntegracao,
+    TenantIntegracao,
+)
 
 # Billing / Solicitacoes
 from core.models.solicitacoes_comerciais import SolicitacaoComercial

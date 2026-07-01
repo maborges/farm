@@ -17,6 +17,7 @@ class Domain(str, Enum):
     FINANCE = "FINANCE"
     OPERATIONS = "OPERATIONS"
     FIELD = "FIELD"
+    INTEGRATIONS = "INTEGRATIONS"
     SYSTEM = "SYSTEM"
 
 

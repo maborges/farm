@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     frontend_url: str = "http://localhost:3000"
     storage_public_base_url: str = ""
     run_embedded_jobs: bool = True
+    integrations_secret_key: str = ""
     allow_origins: list[str] = [
         "http://localhost:3000",
         "http://localhost:3001",

@@ -1,0 +1,373 @@
+"""Modelos canônicos persistentes do domínio de Integrações."""
+
+from __future__ import annotations
+
+import uuid
+from datetime import datetime
+from enum import Enum
+
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    Column,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+)
+from sqlalchemy import Uuid as UUIDType
+from sqlalchemy.orm import relationship, synonym
+
+from core.database import Base
+
+
+class IntegrationScope(str, Enum):
+    """Escopos oficiais de configuração de integração."""
+
+    PLATFORM = "PLATFORM"
+    TENANT = "TENANT"
+    ESTABELECIMENTO = "ESTABELECIMENTO"
+    USUARIO = "USUARIO"
+
+
+class IntegrationStatus(str, Enum):
+    """Estados oficiais do lifecycle de integração."""
+
+    NOT_CONFIGURED = "NOT_CONFIGURED"
+    CONFIGURED = "CONFIGURED"
+    VALIDATING = "VALIDATING"
+    VALID = "VALID"
+    INVALID = "INVALID"
+    ACTIVE = "ACTIVE"
+    SYNCING = "SYNCING"
+    PARTIALLY_DEGRADED = "PARTIALLY_DEGRADED"
+    DEGRADED = "DEGRADED"
+    SUSPENDED = "SUSPENDED"
+    DISABLED = "DISABLED"
+    REVOKED = "REVOKED"
+    REMOVED = "REMOVED"
+
+
+class IntegrationSyncMode(str, Enum):
+    """Modos oficiais de sincronização por feature."""
+
+    MANUAL = "MANUAL"
+    AGENDADO = "AGENDADO"
+    EVENTO = "EVENTO"
+    WEBHOOK = "WEBHOOK"
+    PULL = "PULL"
+    PUSH = "PUSH"
+
+
+class IntegrationPolicyPriority(str, Enum):
+    """Prioridade operacional da política de sync."""
+
+    LOW = "LOW"
+    NORMAL = "NORMAL"
+    HIGH = "HIGH"
+    URGENT = "URGENT"
+
+
+class IntegrationJobStatus(str, Enum):
+    """Estados operacionais de execução de sync."""
+
+    PENDING = "PENDING"
+    RUNNING = "RUNNING"
+    SUCCESS = "SUCCESS"
+    FAILED = "FAILED"
+    CANCELLED = "CANCELLED"
+    RETRYING = "RETRYING"
+
+
+class IntegrationJobTrigger(str, Enum):
+    """Origem de disparo do job."""
+
+    MANUAL = "MANUAL"
+    SCHEDULED = "SCHEDULED"
+    EVENT = "EVENT"
+    WEBHOOK = "WEBHOOK"
+    PULL = "PULL"
+    PUSH = "PUSH"
+
+
+class IntegrationHealthStatus(str, Enum):
+    """Estados persistidos do health de integração."""
+
+    CONNECTED = "CONNECTED"
+    DISCONNECTED = "DISCONNECTED"
+    DEGRADED = "DEGRADED"
+    AUTH_ERROR = "AUTH_ERROR"
+    CONFIG_ERROR = "CONFIG_ERROR"
+    PARTIAL_FAILURE = "PARTIAL_FAILURE"
+    RATE_LIMITED = "RATE_LIMITED"
+
+
+class MarketplaceIntegracao(Base):
+    """Catálogo oficial de providers de integração."""
+
+    __tablename__ = "marketplace_integracoes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    nome = Column(String(100), nullable=False)
+    slug = Column(String(100), unique=True, nullable=False)
+    descricao = Column(Text)
+    descricao_curta = Column(String(200))
+    categoria = Column(String(50))
+    subcategoria = Column(String(50))
+    fornecedor = Column(String(100))
+    fornecedor_logo = Column(String(500))
+    site_fornecedor = Column(String(500))
+    suporte_email = Column(String(200))
+    ativa = Column(Boolean, default=True)
+    oficial = Column(Boolean, default=False)
+    versao = Column(String(20))
+    requisitos = Column(JSON)
+    configuracoes = Column(JSON)
+    total_instalacoes = Column(Integer, default=0)
+    avaliacao_media = Column(Float, default=0)
+    total_avaliacoes = Column(Integer, default=0)
+    logo_url = Column(String(500))
+    screenshots = Column(JSON)
+    documentacao_url = Column(String(500))
+    provider_type = Column(String(50), nullable=False, default="GENERIC")
+    provider_definition = Column(JSON)
+    connection_schema = Column(JSON)
+    credential_schema = Column(JSON)
+    feature_schema = Column(JSON)
+    sync_schema = Column(JSON)
+    health_schema = Column(JSON)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class TenantIntegracao(Base):
+    """Configuração canônica de integração por tenant/escopo."""
+
+    __tablename__ = "tenant_integracoes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(String(50), nullable=False, index=True)
+    integracao_id = Column(Integer, ForeignKey("marketplace_integracoes.id"), nullable=False)
+    status = Column(String(50), default="ativa")
+    configuracoes = Column(JSON, default={})
+    credenciais = Column(JSON)
+    webhook_url = Column(String(500))
+    webhook_secret = Column(String(200))
+    ultima_sincronizacao = Column(DateTime)
+    total_sincronizacoes = Column(Integer, default=0)
+    installed_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    scope_type = Column(String(30), nullable=False, default=IntegrationScope.TENANT.value)
+    scope_id = Column(String(50))
+    lifecycle_state = Column(
+        String(30),
+        nullable=False,
+        default=IntegrationStatus.CONFIGURED.value,
+    )
+    connection_payload = Column(JSON)
+    credential_ref_id = Column(Integer, ForeignKey("integration_credentials.id"))
+    deleted_at = Column(DateTime)
+
+    integracao = relationship("MarketplaceIntegracao")
+    credential = relationship("IntegrationCredential", foreign_keys=[credential_ref_id])
+
+    provider_id = synonym("integracao_id")
+
+
+class IntegrationCredential(Base):
+    """Credencial canônica de integração com segredo criptografado."""
+
+    __tablename__ = "integration_credentials"
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "provider_id",
+            "scope_type",
+            "scope_id",
+            "version_number",
+            name="uq_integration_credentials_version_scope",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(String(50), nullable=False, index=True)
+    provider_id = Column(Integer, ForeignKey("marketplace_integracoes.id"), nullable=False)
+    scope_type = Column(String(30), nullable=False, default=IntegrationScope.TENANT.value)
+    scope_id = Column(String(50))
+    segredo_criptografado = Column(Text, nullable=False)
+    mask_metadata = Column(JSON)
+    version_number = Column(Integer, nullable=False, default=1)
+    ativo = Column(Boolean, nullable=False, default=True)
+    created_by_usuario_id = Column(String(50))
+    rotated_at = Column(DateTime)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    deleted_at = Column(DateTime)
+
+    provider = relationship("MarketplaceIntegracao")
+
+
+class IntegrationVersion(Base):
+    """Snapshot versionado e mascarado da configuração canônica."""
+
+    __tablename__ = "integration_versions"
+    __table_args__ = (
+        UniqueConstraint(
+            "config_id",
+            "version_number",
+            name="uq_integration_versions_config_version",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(String(50), nullable=False, index=True)
+    config_id = Column(Integer, ForeignKey("tenant_integracoes.id"), nullable=False)
+    credential_ref_id = Column(Integer, ForeignKey("integration_credentials.id"))
+    version_number = Column(Integer, nullable=False, default=1)
+    snapshot_mascarado = Column(JSON, nullable=False)
+    motivo = Column(String(200))
+    autor_usuario_id = Column(String(50))
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    config = relationship("TenantIntegracao", foreign_keys=[config_id])
+    credential = relationship("IntegrationCredential", foreign_keys=[credential_ref_id])
+
+
+class IntegrationFeature(Base):
+    """Capacidade canônica habilitada por configuração de integração."""
+
+    __tablename__ = "integration_features"
+    __table_args__ = (
+        UniqueConstraint(
+            "config_id",
+            "codigo",
+            name="uq_integration_features_config_codigo",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(String(50), nullable=False, index=True)
+    config_id = Column(Integer, ForeignKey("tenant_integracoes.id"), nullable=False)
+    provider_id = Column(Integer, ForeignKey("marketplace_integracoes.id"), nullable=False)
+    codigo = Column(String(80), nullable=False)
+    nome = Column(String(120), nullable=False)
+    descricao = Column(Text)
+    habilitada = Column(Boolean, nullable=False, default=True)
+    obrigatoria = Column(Boolean, nullable=False, default=False)
+    settings_payload = Column(JSON)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    deleted_at = Column(DateTime)
+
+    config = relationship("TenantIntegracao", foreign_keys=[config_id])
+    provider = relationship("MarketplaceIntegracao", foreign_keys=[provider_id])
+
+
+class IntegrationSyncPolicy(Base):
+    """Política operacional canônica de sincronização por feature."""
+
+    __tablename__ = "integration_sync_policies"
+    __table_args__ = (
+        UniqueConstraint(
+            "feature_id",
+            name="uq_integration_sync_policies_feature_id",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(String(50), nullable=False, index=True)
+    config_id = Column(Integer, ForeignKey("tenant_integracoes.id"), nullable=False)
+    feature_id = Column(Integer, ForeignKey("integration_features.id"), nullable=False)
+    provider_id = Column(Integer, ForeignKey("marketplace_integracoes.id"), nullable=False)
+    mode = Column(String(30), nullable=False, default=IntegrationSyncMode.MANUAL.value)
+    prioridade = Column(String(20), nullable=False, default=IntegrationPolicyPriority.NORMAL.value)
+    retry_ativo = Column(Boolean, nullable=False, default=True)
+    retry_limite = Column(Integer, nullable=False, default=3)
+    batch_size = Column(Integer, nullable=False, default=100)
+    backoff_seconds = Column(Integer, nullable=False, default=30)
+    timeout_seconds = Column(Integer, nullable=False, default=300)
+    idempotencia_ativa = Column(Boolean, nullable=False, default=True)
+    trigger_expression = Column(String(120))
+    settings_payload = Column(JSON)
+    ativa = Column(Boolean, nullable=False, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    deleted_at = Column(DateTime)
+
+    config = relationship("TenantIntegracao", foreign_keys=[config_id])
+    feature = relationship("IntegrationFeature", foreign_keys=[feature_id])
+    provider = relationship("MarketplaceIntegracao", foreign_keys=[provider_id])
+
+
+class IntegrationJob(Base):
+    """Execução operacional de sincronização sem substituir o Outbox."""
+
+    __tablename__ = "integration_jobs"
+
+    id = Column(UUIDType(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(String(50), nullable=False, index=True)
+    config_id = Column(Integer, ForeignKey("tenant_integracoes.id"), nullable=False)
+    feature_id = Column(Integer, ForeignKey("integration_features.id"))
+    sync_policy_id = Column(Integer, ForeignKey("integration_sync_policies.id"))
+    provider_id = Column(Integer, ForeignKey("marketplace_integracoes.id"), nullable=False)
+    status = Column(String(20), nullable=False, default=IntegrationJobStatus.PENDING.value)
+    trigger_type = Column(String(20), nullable=False, default=IntegrationJobTrigger.MANUAL.value)
+    outbox_event_id = Column(UUIDType(as_uuid=True), ForeignKey("domain_event_outbox.id"))
+    correlation_id = Column(UUIDType(as_uuid=True))
+    causation_id = Column(UUIDType(as_uuid=True))
+    started_at = Column(DateTime(timezone=True))
+    finished_at = Column(DateTime(timezone=True))
+    retry_count = Column(Integer, nullable=False, default=0)
+    processados = Column(Integer, nullable=False, default=0)
+    sucessos = Column(Integer, nullable=False, default=0)
+    erros = Column(Integer, nullable=False, default=0)
+    error_message = Column(Text)
+    request_payload = Column(JSON)
+    result_payload = Column(JSON)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    config = relationship("TenantIntegracao", foreign_keys=[config_id])
+    feature = relationship("IntegrationFeature", foreign_keys=[feature_id])
+    sync_policy = relationship("IntegrationSyncPolicy", foreign_keys=[sync_policy_id])
+    provider = relationship("MarketplaceIntegracao", foreign_keys=[provider_id])
+
+
+class IntegrationHealth(Base):
+    """Snapshot operacional persistente do health da integração."""
+
+    __tablename__ = "integration_health_snapshots"
+    __table_args__ = (
+        UniqueConstraint(
+            "config_id",
+            name="uq_integration_health_config_id",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(String(50), nullable=False, index=True)
+    config_id = Column(Integer, ForeignKey("tenant_integracoes.id"), nullable=False)
+    provider_id = Column(Integer, ForeignKey("marketplace_integracoes.id"), nullable=False)
+    last_job_id = Column(UUIDType(as_uuid=True), ForeignKey("integration_jobs.id"))
+    status = Column(
+        String(30),
+        nullable=False,
+        default=IntegrationHealthStatus.DISCONNECTED.value,
+    )
+    summary = Column(String(200))
+    details_payload = Column(JSON)
+    latency_ms = Column(Integer)
+    consecutive_failures = Column(Integer, nullable=False, default=0)
+    last_success_at = Column(DateTime(timezone=True))
+    last_failure_at = Column(DateTime(timezone=True))
+    rate_limited_until = Column(DateTime(timezone=True))
+    checked_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    config = relationship("TenantIntegracao", foreign_keys=[config_id])
+    provider = relationship("MarketplaceIntegracao", foreign_keys=[provider_id])
+    last_job = relationship("IntegrationJob", foreign_keys=[last_job_id])

@@ -1,447 +1,455 @@
 """Routers para integração com ERP Sankhya."""
+# ruff: noqa: B008
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
-from typing import List, Optional
+from __future__ import annotations
+
 import time
-from datetime import date, timedelta
+import uuid
+from datetime import date
 
-from core.database import get_db
-from core.dependencies import get_current_tenant
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from core.dependencies import get_session, get_tenant_id, require_tenant_permission
 from integracoes.sankhya.schemas import (
-    SankhyaConfigCreate, SankhyaConfigResponse,
-    SankhyaSyncLogResponse, SankhyaPessoaResponse,
-    SankhyaProdutoResponse, SankhyaTestConnectionResponse,
-    SankhyaSyncStatusResponse, SankhyaNFEResponse,
-    SankhyaLancamentoFinanceiroResponse
-)
-from integracoes.sankhya.models import (
-    SankhyaConfig, SankhyaSyncLog, SankhyaPessoa, SankhyaProduto,
-    SankhyaNFe, SankhyaLancamentoFinanceiro
+    SankhyaConfigCreate,
+    SankhyaConfigResponse,
+    SankhyaHealthResponse,
+    SankhyaIntegrationJobResponse,
+    SankhyaLancamentoFinanceiroResponse,
+    SankhyaNFEResponse,
+    SankhyaOperationalDiagnosisResponse,
+    SankhyaPessoaResponse,
+    SankhyaProdutoResponse,
+    SankhyaSyncLogResponse,
+    SankhyaSyncStatusResponse,
+    SankhyaTestConnectionResponse,
+    SankhyaTimelineItemResponse,
 )
 from integracoes.sankhya.services import (
-    SankhyaSyncService, SankhyaPessoaService, SankhyaProdutoService,
-    SankhyaNFeService, SankhyaFinanceiroService
+    SankhyaFinanceiroService,
+    SankhyaNFeService,
+    SankhyaPessoaService,
+    SankhyaProdutoService,
+    SankhyaSyncService,
 )
+from integracoes.sankhya.services.sync_service import SankhyaConfigSerializer
 
 router = APIRouter(prefix="/sankhya", tags=["Integração Sankhya"])
 
 
-def get_sync_service(db: Session = Depends(get_db)) -> SankhyaSyncService:
+def get_sync_service(db: AsyncSession = Depends(get_session)) -> SankhyaSyncService:
     return SankhyaSyncService(db)
 
 
-def get_pessoa_service(db: Session = Depends(get_db)) -> SankhyaPessoaService:
+def get_pessoa_service(db: AsyncSession = Depends(get_session)) -> SankhyaPessoaService:
     return SankhyaPessoaService(db)
 
 
-def get_produto_service(db: Session = Depends(get_db)) -> SankhyaProdutoService:
+def get_produto_service(db: AsyncSession = Depends(get_session)) -> SankhyaProdutoService:
     return SankhyaProdutoService(db)
 
 
-def get_nfe_service(db: Session = Depends(get_db)) -> SankhyaNFeService:
+def get_nfe_service(db: AsyncSession = Depends(get_session)) -> SankhyaNFeService:
     return SankhyaNFeService(db)
 
 
-def get_financeiro_service(db: Session = Depends(get_db)) -> SankhyaFinanceiroService:
+def get_financeiro_service(db: AsyncSession = Depends(get_session)) -> SankhyaFinanceiroService:
     return SankhyaFinanceiroService(db)
 
 
-# ============================================
-# CONFIGURAÇÃO
-# ============================================
-
-@router.post("/config", response_model=SankhyaConfigResponse, status_code=201)
-def configurar_sankhya(
+@router.post(
+    "/config",
+    response_model=SankhyaConfigResponse,
+    status_code=201,
+    dependencies=[Depends(require_tenant_permission("integrations:configure"))],
+)
+async def configurar_sankhya(
     config: SankhyaConfigCreate,
-    tenant_id: str = Depends(get_current_tenant),
-    sync_service: SankhyaSyncService = Depends(get_sync_service)
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    sync_service: SankhyaSyncService = Depends(get_sync_service),
 ):
-    """Configura integração com Sankhya."""
-    existing = sync_service.get_config(tenant_id)
+    """Configura integração com Sankhya no escopo do tenant."""
+    tenant_scope = str(tenant_id)
+    existing = await sync_service.get_config(tenant_scope)
 
     if existing:
-        existing.ws_url = config.ws_url
-        existing.username = config.username
-        existing.password = config.password
-        existing.sync_interval = config.sync_interval
-        sync_service.db.commit()
-        sync_service.db.refresh(existing)
-        return existing
-    else:
-        return sync_service.criar_config(
-            tenant_id=tenant_id,
+        updated = await sync_service.atualizar_config(
+            existing,
             ws_url=config.ws_url,
             username=config.username,
             password=config.password,
-            sync_interval=config.sync_interval
+            sync_interval=config.sync_interval,
+        )
+        return SankhyaConfigSerializer.to_response(updated)
+
+    if not config.password:
+        raise HTTPException(
+            status_code=422,
+            detail="Senha é obrigatória na criação da configuração.",
         )
 
+    created = await sync_service.criar_config(
+        tenant_id=tenant_scope,
+        ws_url=config.ws_url,
+        username=config.username,
+        password=config.password,
+        sync_interval=config.sync_interval,
+    )
+    return SankhyaConfigSerializer.to_response(created)
 
-@router.get("/config", response_model=SankhyaConfigResponse)
-def obter_config_sankhya(
-    tenant_id: str = Depends(get_current_tenant),
-    sync_service: SankhyaSyncService = Depends(get_sync_service)
+
+@router.get(
+    "/config",
+    response_model=SankhyaConfigResponse,
+    dependencies=[Depends(require_tenant_permission("integrations:view"))],
+)
+async def obter_config_sankhya(
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    sync_service: SankhyaSyncService = Depends(get_sync_service),
 ):
-    """Obtém configuração Sankhya do tenant."""
-    config = sync_service.get_config(tenant_id)
+    config = await sync_service.get_config(str(tenant_id))
     if not config:
         raise HTTPException(status_code=404, detail="Sankhya não configurado")
-    return config
+    return SankhyaConfigSerializer.to_response(config)
 
 
-@router.post("/config/testar-conexao", response_model=SankhyaTestConnectionResponse)
-def testar_conexao_sankhya(
-    tenant_id: str = Depends(get_current_tenant),
-    sync_service: SankhyaSyncService = Depends(get_sync_service)
-):
-    """Testa conexão com Sankhya."""
-    return sync_service.testar_conexao(tenant_id)
-
-
-@router.get("/status", response_model=SankhyaSyncStatusResponse)
-def obter_status_sankhya(
-    tenant_id: str = Depends(get_current_tenant),
-    sync_service: SankhyaSyncService = Depends(get_sync_service)
-):
-    """Obtém status da integração Sankhya."""
-    config = sync_service.get_config(tenant_id)
-
-    if not config:
-        return {
-            "configurado": False,
-            "ativo": False,
-            "ultimo_sync": None,
-            "proximo_sync": None,
-            "status_conexao": "nao_configurado"
-        }
-
-    proximo_sync = None
-    if config.ultimo_sync:
-        proximo_sync = config.ultimo_sync + timedelta(seconds=config.sync_interval)
-
-    return {
-        "configurado": True,
-        "ativo": config.ativo,
-        "ultimo_sync": config.ultimo_sync,
-        "proximo_sync": proximo_sync,
-        "status_conexao": config.teste_status or "desconhecido"
-    }
-
-
-# ============================================
-# SINCRONIZAÇÃO
-# ============================================
-
-@router.post("/sync/pessoas", response_model=None)
-def sincronizar_pessoas(
-    tenant_id: str = Depends(get_current_tenant),
+@router.post(
+    "/config/testar-conexao",
+    response_model=SankhyaTestConnectionResponse,
+    dependencies=[Depends(require_tenant_permission("integrations:test"))],
+)
+async def testar_conexao_sankhya(
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
     sync_service: SankhyaSyncService = Depends(get_sync_service),
-    pessoa_service: SankhyaPessoaService = Depends(get_pessoa_service)
 ):
-    """Sincroniza pessoas do Sankhya."""
-    import asyncio
+    return await sync_service.testar_conexao(str(tenant_id))
 
-    log = sync_service.iniciar_sync_log(tenant_id, "pessoas", "import")
+
+@router.get(
+    "/status",
+    response_model=SankhyaSyncStatusResponse,
+    dependencies=[Depends(require_tenant_permission("integrations:view"))],
+)
+async def obter_status_sankhya(
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    sync_service: SankhyaSyncService = Depends(get_sync_service),
+):
+    # Compatibilidade: mantém os campos legados `status_conexao` e `ultimo_sync`.
+    return await sync_service.obter_status_detalhado(str(tenant_id))
+
+
+@router.get(
+    "/health",
+    response_model=SankhyaHealthResponse,
+    dependencies=[Depends(require_tenant_permission("integrations:view"))],
+)
+async def obter_health_sankhya(
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    sync_service: SankhyaSyncService = Depends(get_sync_service),
+):
+    return await sync_service.obter_health_detalhado(str(tenant_id))
+
+
+@router.post(
+    "/sync/pessoas",
+    dependencies=[Depends(require_tenant_permission("integrations:sync"))],
+)
+async def sincronizar_pessoas(
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    sync_service: SankhyaSyncService = Depends(get_sync_service),
+    pessoa_service: SankhyaPessoaService = Depends(get_pessoa_service),
+):
+    tenant_scope = str(tenant_id)
+    log = await sync_service.iniciar_sync_log(tenant_scope, "pessoas", "import")
 
     try:
         start_time = time.time()
-
-        importados = asyncio.run(
-            pessoa_service.importar_pessoas(tenant_id, log.id)
-        )
-
+        importados = await pessoa_service.importar_pessoas(tenant_scope, log.id)
         tempo_ms = (time.time() - start_time) * 1000
-
-        sync_service.finalizar_sync_log(
-            log.id, True, importados, 0, None, tempo_ms
-        )
-
+        await sync_service.finalizar_sync_log(log.id, True, importados, 0, None, tempo_ms)
         return {
             "sucesso": True,
             "mensagem": f"{importados} pessoas sincronizadas",
-            "tempo_ms": tempo_ms
+            "tempo_ms": tempo_ms,
         }
-
-    except Exception as e:
-        sync_service.finalizar_sync_log(
-            log.id, False, 0, 0, str(e), 0
-        )
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as exc:
+        await sync_service.finalizar_sync_log(log.id, False, 0, 0, str(exc), 0)
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
-@router.post("/sync/produtos", response_model=None)
-def sincronizar_produtos(
-    tenant_id: str = Depends(get_current_tenant),
+@router.post(
+    "/sync/produtos",
+    dependencies=[Depends(require_tenant_permission("integrations:sync"))],
+)
+async def sincronizar_produtos(
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
     sync_service: SankhyaSyncService = Depends(get_sync_service),
-    produto_service: SankhyaProdutoService = Depends(get_produto_service)
+    produto_service: SankhyaProdutoService = Depends(get_produto_service),
 ):
-    """Sincroniza produtos do Sankhya."""
-    import asyncio
-
-    log = sync_service.iniciar_sync_log(tenant_id, "produtos", "import")
+    tenant_scope = str(tenant_id)
+    log = await sync_service.iniciar_sync_log(tenant_scope, "produtos", "import")
 
     try:
         start_time = time.time()
-
-        importados = asyncio.run(
-            produto_service.importar_produtos(tenant_id, log.id)
-        )
-
+        importados = await produto_service.importar_produtos(tenant_scope, log.id)
         tempo_ms = (time.time() - start_time) * 1000
-
-        sync_service.finalizar_sync_log(
-            log.id, True, importados, 0, None, tempo_ms
-        )
-
+        await sync_service.finalizar_sync_log(log.id, True, importados, 0, None, tempo_ms)
         return {
             "sucesso": True,
             "mensagem": f"{importados} produtos sincronizados",
-            "tempo_ms": tempo_ms
+            "tempo_ms": tempo_ms,
         }
-
-    except Exception as e:
-        sync_service.finalizar_sync_log(
-            log.id, False, 0, 0, str(e), 0
-        )
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as exc:
+        await sync_service.finalizar_sync_log(log.id, False, 0, 0, str(exc), 0)
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
-@router.post("/sync/completo", response_model=None)
-def sincronizar_completo(
-    tenant_id: str = Depends(get_current_tenant),
-    sync_service: SankhyaSyncService = Depends(get_sync_service)
-):
-    """Executa sincronização completa (pessoas + produtos)."""
+@router.post(
+    "/sync/completo",
+    dependencies=[Depends(require_tenant_permission("integrations:sync"))],
+)
+async def sincronizar_completo():
     return {
         "pessoas": "Fila de sincronização",
         "produtos": "Fila de sincronização",
-        "mensagem": "Sincronização em segundo plano iniciada"
+        "mensagem": "Sincronização em segundo plano iniciada",
     }
 
 
-# ============================================
-# LOGS
-# ============================================
-
-@router.get("/logs", response_model=List[SankhyaSyncLogResponse])
-def listar_logs_sankhya(
-    tipo: Optional[str] = None,
-    status: Optional[str] = None,
+@router.get(
+    "/logs",
+    response_model=list[SankhyaSyncLogResponse],
+    dependencies=[Depends(require_tenant_permission("integrations:logs:view"))],
+)
+async def listar_logs_sankhya(
+    tipo: str | None = None,
+    status: str | None = None,
     limit: int = 100,
-    tenant_id: str = Depends(get_current_tenant),
-    sync_service: SankhyaSyncService = Depends(get_sync_service)
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    sync_service: SankhyaSyncService = Depends(get_sync_service),
 ):
-    """Lista logs de sincronização."""
-    query = sync_service.db.query(SankhyaSyncLog).filter(
-        SankhyaSyncLog.tenant_id == tenant_id
+    return await sync_service.listar_logs_enriquecidos(
+        str(tenant_id),
+        tipo=tipo,
+        status=status,
+        limit=limit,
     )
 
-    if tipo:
-        query = query.filter(SankhyaSyncLog.tipo == tipo)
 
-    if status:
-        query = query.filter(SankhyaSyncLog.status == status)
+@router.get(
+    "/jobs",
+    response_model=list[SankhyaIntegrationJobResponse],
+    dependencies=[Depends(require_tenant_permission("integrations:logs:view"))],
+)
+async def listar_jobs_sankhya(
+    limit: int = 20,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    sync_service: SankhyaSyncService = Depends(get_sync_service),
+):
+    return await sync_service.listar_jobs(str(tenant_id), limit=limit)
 
-    return query.order_by(SankhyaSyncLog.created_at.desc()).limit(limit).all()
+
+@router.get(
+    "/timeline",
+    response_model=list[SankhyaTimelineItemResponse],
+    dependencies=[Depends(require_tenant_permission("integrations:logs:view"))],
+)
+async def listar_timeline_sankhya(
+    status: str | None = None,
+    feature_code: str | None = None,
+    origem: str | None = None,
+    limit: int = 50,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    sync_service: SankhyaSyncService = Depends(get_sync_service),
+):
+    return await sync_service.listar_timeline_operacional(
+        str(tenant_id),
+        status=status,
+        feature_code=feature_code,
+        origem=origem,
+        limit=limit,
+    )
 
 
-# ============================================
-# PESSOAS
-# ============================================
+@router.get(
+    "/diagnostico",
+    response_model=SankhyaOperationalDiagnosisResponse,
+    dependencies=[Depends(require_tenant_permission("integrations:view"))],
+)
+async def obter_diagnostico_sankhya(
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    sync_service: SankhyaSyncService = Depends(get_sync_service),
+):
+    return await sync_service.obter_diagnostico_operacional(str(tenant_id))
 
-@router.get("/pessoas", response_model=List[SankhyaPessoaResponse])
-def listar_pessoas_sankhya(
-    tipo: Optional[str] = None,
-    ativo: Optional[bool] = None,
+
+@router.get(
+    "/pessoas",
+    response_model=list[SankhyaPessoaResponse],
+    dependencies=[Depends(require_tenant_permission("integrations:view"))],
+)
+async def listar_pessoas_sankhya(
+    tipo: str | None = None,
+    ativo: bool | None = None,
     skip: int = 0,
     limit: int = 100,
-    tenant_id: str = Depends(get_current_tenant),
-    pessoa_service: SankhyaPessoaService = Depends(get_pessoa_service)
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    pessoa_service: SankhyaPessoaService = Depends(get_pessoa_service),
 ):
-    """Lista pessoas sincronizadas do Sankhya."""
-    query = pessoa_service.db.query(SankhyaPessoa).filter(
-        SankhyaPessoa.tenant_id == tenant_id
+    return await pessoa_service.listar_pessoas(
+        str(tenant_id),
+        tipo=tipo,
+        ativo=ativo,
+        skip=skip,
+        limit=limit,
     )
 
-    if tipo:
-        query = query.filter(SankhyaPessoa.tipo == tipo)
 
-    if ativo is not None:
-        query = query.filter(SankhyaPessoa.ativo == ativo)
-
-    return query.offset(skip).limit(limit).all()
-
-
-# ============================================
-# PRODUTOS
-# ============================================
-
-@router.get("/produtos", response_model=List[SankhyaProdutoResponse])
-def listar_produtos_sankhya(
-    ativo: Optional[bool] = None,
+@router.get(
+    "/produtos",
+    response_model=list[SankhyaProdutoResponse],
+    dependencies=[Depends(require_tenant_permission("integrations:view"))],
+)
+async def listar_produtos_sankhya(
+    ativo: bool | None = None,
     skip: int = 0,
     limit: int = 100,
-    tenant_id: str = Depends(get_current_tenant),
-    produto_service: SankhyaProdutoService = Depends(get_produto_service)
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    produto_service: SankhyaProdutoService = Depends(get_produto_service),
 ):
-    """Lista produtos sincronizados do Sankhya."""
-    query = produto_service.db.query(SankhyaProduto).filter(
-        SankhyaProduto.tenant_id == tenant_id
+    return await produto_service.listar_produtos(
+        str(tenant_id), ativo=ativo, skip=skip, limit=limit
     )
 
-    if ativo is not None:
-        query = query.filter(SankhyaProduto.ativo == ativo)
 
-    return query.offset(skip).limit(limit).all()
-
-
-# ============================================
-# NOTAS FISCAIS
-# ============================================
-
-@router.post("/nfe/exportar", response_model=None)
-def exportar_nfe(
+@router.post(
+    "/nfe/exportar",
+    dependencies=[Depends(require_tenant_permission("integrations:sync"))],
+)
+async def exportar_nfe(
     nfe_data: dict,
-    tenant_id: str = Depends(get_current_tenant),
-    service: SankhyaNFeService = Depends(get_nfe_service)
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    service: SankhyaNFeService = Depends(get_nfe_service),
 ):
-    """Exporta Nota Fiscal para o Sankhya."""
-    import asyncio
-
     try:
-        resultado = asyncio.run(service.exportar_nfe(tenant_id, nfe_data))
+        resultado = await service.exportar_nfe(str(tenant_id), nfe_data)
         return {"sucesso": True, "dados": resultado}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
-@router.post("/nfe/importar-entrada", response_model=None)
-def importar_nfe_entrada(
+@router.post(
+    "/nfe/importar-entrada",
+    dependencies=[Depends(require_tenant_permission("integrations:sync"))],
+)
+async def importar_nfe_entrada(
     periodo_inicio: date,
     periodo_fim: date,
-    tenant_id: str = Depends(get_current_tenant),
-    service: SankhyaNFeService = Depends(get_nfe_service)
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    service: SankhyaNFeService = Depends(get_nfe_service),
 ):
-    """Importa Notas Fiscais de entrada do Sankhya."""
-    import asyncio
-
     try:
-        importadas = asyncio.run(
-            service.importar_nfe_entrada(tenant_id, periodo_inicio, periodo_fim)
-        )
-        return {
-            "sucesso": True,
-            "mensagem": f"{importadas} NFes de entrada importadas"
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        importadas = await service.importar_nfe_entrada(str(tenant_id), periodo_inicio, periodo_fim)
+        return {"sucesso": True, "mensagem": f"{importadas} NFes de entrada importadas"}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
-@router.get("/nfe", response_model=List[SankhyaNFEResponse])
-def listar_nfe_sankhya(
-    tipo_operacao: Optional[str] = None,
-    exportado: Optional[bool] = None,
+@router.get(
+    "/nfe",
+    response_model=list[SankhyaNFEResponse],
+    dependencies=[Depends(require_tenant_permission("integrations:view"))],
+)
+async def listar_nfe_sankhya(
+    tipo_operacao: str | None = None,
+    exportado: bool | None = None,
     skip: int = 0,
     limit: int = 100,
-    tenant_id: str = Depends(get_current_tenant),
-    service: SankhyaNFeService = Depends(get_nfe_service)
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    service: SankhyaNFeService = Depends(get_nfe_service),
 ):
-    """Lista Notas Fiscais sincronizadas."""
-    query = service.db.query(SankhyaNFe).filter(
-        SankhyaNFe.tenant_id == tenant_id
+    return await service.listar_nfe(
+        str(tenant_id),
+        tipo_operacao=tipo_operacao,
+        exportado=exportado,
+        skip=skip,
+        limit=limit,
     )
 
-    if tipo_operacao:
-        query = query.filter(SankhyaNFe.tipo_operacao == tipo_operacao)
 
-    if exportado is not None:
-        query = query.filter(SankhyaNFe.exportado_sankhya == exportado)
-
-    return query.offset(skip).limit(limit).all()
-
-
-# ============================================
-# FINANCEIRO
-# ============================================
-
-@router.post("/financeiro/exportar-contas-pagar", response_model=None)
-def exportar_contas_pagar(
-    lancamentos: List[dict],
-    tenant_id: str = Depends(get_current_tenant),
-    service: SankhyaFinanceiroService = Depends(get_financeiro_service)
+@router.post(
+    "/financeiro/exportar-contas-pagar",
+    dependencies=[Depends(require_tenant_permission("integrations:sync"))],
+)
+async def exportar_contas_pagar(
+    lancamentos: list[dict],
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    service: SankhyaFinanceiroService = Depends(get_financeiro_service),
 ):
-    """Exporta contas a pagar para o Sankhya."""
-    import asyncio
-
     try:
-        resultado = asyncio.run(
-            service.exportar_contas_pagar(tenant_id, lancamentos)
-        )
+        resultado = await service.exportar_contas_pagar(str(tenant_id), lancamentos)
         return {"sucesso": True, "dados": resultado}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
-@router.post("/financeiro/exportar-contas-receber", response_model=None)
-def exportar_contas_receber(
-    lancamentos: List[dict],
-    tenant_id: str = Depends(get_current_tenant),
-    service: SankhyaFinanceiroService = Depends(get_financeiro_service)
+@router.post(
+    "/financeiro/exportar-contas-receber",
+    dependencies=[Depends(require_tenant_permission("integrations:sync"))],
+)
+async def exportar_contas_receber(
+    lancamentos: list[dict],
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    service: SankhyaFinanceiroService = Depends(get_financeiro_service),
 ):
-    """Exporta contas a receber para o Sankhya."""
-    import asyncio
-
     try:
-        resultado = asyncio.run(
-            service.exportar_contas_receber(tenant_id, lancamentos)
-        )
+        resultado = await service.exportar_contas_receber(str(tenant_id), lancamentos)
         return {"sucesso": True, "dados": resultado}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
-@router.post("/financeiro/importar", response_model=None)
-def importar_financeiro(
+@router.post(
+    "/financeiro/importar",
+    dependencies=[Depends(require_tenant_permission("integrations:sync"))],
+)
+async def importar_financeiro(
     periodo_inicio: date,
     periodo_fim: date,
     tipo: str = "AMBOS",
-    tenant_id: str = Depends(get_current_tenant),
-    service: SankhyaFinanceiroService = Depends(get_financeiro_service)
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    service: SankhyaFinanceiroService = Depends(get_financeiro_service),
 ):
-    """Importa lançamentos financeiros do Sankhya."""
-    import asyncio
-
     try:
-        importados = asyncio.run(
-            service.importar_lancamentos(tenant_id, periodo_inicio, periodo_fim, tipo)
+        importados = await service.importar_lancamentos(
+            str(tenant_id),
+            periodo_inicio,
+            periodo_fim,
+            tipo,
         )
-        return {
-            "sucesso": True,
-            "mensagem": f"{importados} lançamentos importados"
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        return {"sucesso": True, "mensagem": f"{importados} lançamentos importados"}
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
-@router.get("/financeiro", response_model=List[SankhyaLancamentoFinanceiroResponse])
-def listar_financeiro_sankhya(
-    tipo: Optional[str] = None,
-    exportado: Optional[bool] = None,
+@router.get(
+    "/financeiro",
+    response_model=list[SankhyaLancamentoFinanceiroResponse],
+    dependencies=[Depends(require_tenant_permission("integrations:view"))],
+)
+async def listar_financeiro_sankhya(
+    tipo: str | None = None,
+    exportado: bool | None = None,
     skip: int = 0,
     limit: int = 100,
-    tenant_id: str = Depends(get_current_tenant),
-    service: SankhyaFinanceiroService = Depends(get_financeiro_service)
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    service: SankhyaFinanceiroService = Depends(get_financeiro_service),
 ):
-    """Lista lançamentos financeiros sincronizados."""
-    query = service.db.query(SankhyaLancamentoFinanceiro).filter(
-        SankhyaLancamentoFinanceiro.tenant_id == tenant_id
+    return await service.listar_lancamentos(
+        str(tenant_id),
+        tipo=tipo,
+        exportado=exportado,
+        skip=skip,
+        limit=limit,
     )
-
-    if tipo:
-        query = query.filter(SankhyaLancamentoFinanceiro.tipo == tipo)
-
-    if exportado is not None:
-        query = query.filter(SankhyaLancamentoFinanceiro.exportado_sankhya == exportado)
-
-    return query.offset(skip).limit(limit).all()

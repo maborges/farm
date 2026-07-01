@@ -1,14 +1,14 @@
 """Schemas para integração Sankhya."""
 
+from datetime import date, datetime
+
 from pydantic import BaseModel, Field
-from typing import Optional, List, Dict, Any
-from datetime import datetime, date
 
 
 class SankhyaConfigCreate(BaseModel):
     ws_url: str = Field(..., description="URL do WS Sankhya")
     username: str
-    password: str
+    password: str | None = None
     sync_interval: int = 900  # 15 minutos
 
 
@@ -18,10 +18,12 @@ class SankhyaConfigResponse(BaseModel):
     ws_url: str
     username: str
     ativo: bool
-    ultimo_teste: Optional[datetime]
-    teste_status: Optional[str]
-    ultimo_sync: Optional[datetime]
+    ultimo_teste: datetime | None
+    teste_status: str | None
+    ultimo_sync: datetime | None
     sync_interval: int
+    password_configured: bool = False
+    password_mask: str | None = None
     created_at: datetime
 
     class Config:
@@ -37,10 +39,19 @@ class SankhyaSyncLogResponse(BaseModel):
     registros_processados: int
     registros_sucesso: int
     registros_erro: int
-    tempo_execucao_ms: Optional[float]
+    tempo_execucao_ms: float | None
     created_at: datetime
-    started_at: Optional[datetime]
-    completed_at: Optional[datetime]
+    started_at: datetime | None
+    completed_at: datetime | None
+    origem_dados: str = "legacy"
+    integration_job_id: str | None = None
+    feature_code: str | None = None
+    job_status: str | None = None
+    trigger_type: str | None = None
+    job_started_at: datetime | None = None
+    job_finished_at: datetime | None = None
+    result_payload: dict | list | None = None
+    error_payload: dict | list | str | None = None
 
     class Config:
         from_attributes = True
@@ -51,15 +62,15 @@ class SankhyaPessoaResponse(BaseModel):
     sankhya_id: str
     tipo: str
     nome: str
-    nome_fantasia: Optional[str]
-    cpf: Optional[str]
-    cnpj: Optional[str]
-    email: Optional[str]
-    telefone: Optional[str]
-    cidade: Optional[str]
-    uf: Optional[str]
+    nome_fantasia: str | None
+    cpf: str | None
+    cnpj: str | None
+    email: str | None
+    telefone: str | None
+    cidade: str | None
+    uf: str | None
     ativo: bool
-    sincronizado_em: Optional[datetime]
+    sincronizado_em: datetime | None
 
     class Config:
         from_attributes = True
@@ -70,12 +81,12 @@ class SankhyaProdutoResponse(BaseModel):
     sankhya_id: str
     codigo: str
     nome: str
-    ncm: Optional[str]
+    ncm: str | None
     unidade: str
-    preco_custo: Optional[float]
-    preco_venda: Optional[float]
+    preco_custo: float | None
+    preco_venda: float | None
     ativo: bool
-    sincronizado_em: Optional[datetime]
+    sincronizado_em: datetime | None
 
     class Config:
         from_attributes = True
@@ -83,16 +94,16 @@ class SankhyaProdutoResponse(BaseModel):
 
 class SankhyaNFEResponse(BaseModel):
     id: int
-    sankhya_id: Optional[str]
+    sankhya_id: str | None
     tipo_operacao: str
     numero: str
-    serie: Optional[str]
-    chave_acesso: Optional[str]
+    serie: str | None
+    chave_acesso: str | None
     valor_total: float
-    data_emissao: Optional[date]
-    status_sankhya: Optional[str]
+    data_emissao: date | None
+    status_sankhya: str | None
     exportado_sankhya: bool
-    sincronizado_em: Optional[datetime]
+    sincronizado_em: datetime | None
 
     class Config:
         from_attributes = True
@@ -100,15 +111,15 @@ class SankhyaNFEResponse(BaseModel):
 
 class SankhyaLancamentoFinanceiroResponse(BaseModel):
     id: int
-    sankhya_id: Optional[str]
+    sankhya_id: str | None
     tipo: str
-    numero_documento: Optional[str]
+    numero_documento: str | None
     valor: float
-    valor_saldo: Optional[float]
-    data_vencimento: Optional[date]
-    status: Optional[str]
+    valor_saldo: float | None
+    data_vencimento: date | None
+    status: str | None
     exportado_sankhya: bool
-    sincronizado_em: Optional[datetime]
+    sincronizado_em: datetime | None
 
     class Config:
         from_attributes = True
@@ -122,6 +133,81 @@ class SankhyaTestConnectionResponse(BaseModel):
 class SankhyaSyncStatusResponse(BaseModel):
     configurado: bool
     ativo: bool
-    ultimo_sync: Optional[datetime]
-    proximo_sync: Optional[datetime]
+    ultimo_sync: datetime | None
+    proximo_sync: datetime | None
     status_conexao: str
+    status_legado: str | None = None
+    status_canonico: str | None = None
+    status_origem: str = "legacy"
+    health_origem: str = "legacy"
+    config_id_canonico: int | None = None
+    lifecycle_state: str | None = None
+    health_status: str | None = None
+    health_summary: str | None = None
+    last_success_at: datetime | None = None
+    last_failure_at: datetime | None = None
+    consecutive_failures: int = 0
+    features_habilitadas: list[str] = Field(default_factory=list)
+    policies_resumidas: list[dict[str, str | bool | int | None]] = Field(default_factory=list)
+
+
+class SankhyaHealthResponse(BaseModel):
+    configurado: bool
+    origem: str = "legacy"
+    status: str
+    summary: str | None = None
+    checked_at: datetime | None = None
+    last_success_at: datetime | None = None
+    last_failure_at: datetime | None = None
+    consecutive_failures: int = 0
+    details: dict | list | str | None = None
+
+
+class SankhyaIntegrationJobResponse(BaseModel):
+    id: str
+    tenant_id: str
+    config_id: int | None = None
+    feature_code: str | None = None
+    job_status: str
+    trigger_type: str
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    processados: int = 0
+    sucessos: int = 0
+    erros: int = 0
+    correlation_id: str | None = None
+    legacy_log_id: int | None = None
+    result_payload: dict | list | None = None
+    error_payload: dict | list | str | None = None
+
+
+class SankhyaTimelineItemResponse(BaseModel):
+    id: str
+    tipo_registro: str
+    origem_dado: str
+    feature_code: str | None = None
+    status: str
+    event_type: str | None = None
+    resumo: str
+    occurred_at: datetime
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    duracao_ms: float | None = None
+    processados: int = 0
+    sucessos: int = 0
+    erros: int = 0
+    correlation_id: str | None = None
+    payload: dict | list | str | None = None
+
+
+class SankhyaOperationalDiagnosisResponse(BaseModel):
+    origem: str = "legacy"
+    health_atual: str
+    status_degradacao: str
+    ultimo_sucesso_at: datetime | None = None
+    ultima_falha_at: datetime | None = None
+    falhas_consecutivas: int = 0
+    feature_mais_problematica: str | None = None
+    jobs_pendentes: int = 0
+    jobs_falhos: int = 0
+    recomendacao_operacional: str

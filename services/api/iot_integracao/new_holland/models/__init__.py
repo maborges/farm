@@ -1,10 +1,12 @@
 """Modelos para Sprint 26: New Holland, Marketplace, Carbono."""
+# ruff: noqa: E501, F401, I001, W293
 
 from sqlalchemy import Column, Integer, String, Float, DateTime, Date, ForeignKey, Text, Boolean, JSON
 from sqlalchemy.orm import relationship
 from datetime import datetime
 
 from core.database import Base
+from integracoes.models import MarketplaceIntegracao, TenantIntegracao
 
 
 # ============================================
@@ -56,83 +58,6 @@ class MaquinaNewHolland(Base):
 
     # Relacionamentos
     integracao = relationship("IntegracaoNewHolland", back_populates="maquinas")
-
-
-# ============================================
-# MARKETPLACE DE INTEGRAÇÕES
-# ============================================
-
-class MarketplaceIntegracao(Base):
-    """Catálogo de integrações disponíveis no marketplace."""
-    __tablename__ = "marketplace_integracoes"
-
-    id = Column(Integer, primary_key=True, index=True)
-    
-    # Dados da integração
-    nome = Column(String(100), nullable=False)
-    slug = Column(String(100), unique=True, nullable=False)
-    descricao = Column(Text)
-    descricao_curta = Column(String(200))
-    
-    # Categoria
-    categoria = Column(String(50))  # financeiro, iot, erp, etc.
-    subcategoria = Column(String(50))
-    
-    # Fornecedor
-    fornecedor = Column(String(100))
-    fornecedor_logo = Column(String(500))
-    site_fornecedor = Column(String(500))
-    suporte_email = Column(String(200))
-    
-    # Status
-    ativa = Column(Boolean, default=True)
-    oficial = Column(Boolean, default=False)  # Integração oficial AgroSaaS
-    
-    # Metadados
-    versao = Column(String(20))
-    requisitos = Column(JSON)  # Requisitos técnicos
-    configuracoes = Column(JSON)  # Configurações necessárias
-    
-    # Stats
-    total_instalacoes = Column(Integer, default=0)
-    avaliacao_media = Column(Float, default=0)
-    total_avaliacoes = Column(Integer, default=0)
-    
-    # URLs
-    logo_url = Column(String(500))
-    screenshots = Column(JSON)  # Lista de URLs
-    documentacao_url = Column(String(500))
-    
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-
-class TenantIntegracao(Base):
-    """Integrações instaladas por tenant."""
-    __tablename__ = "tenant_integracoes"
-
-    id = Column(Integer, primary_key=True, index=True)
-    tenant_id = Column(String(50), nullable=False, index=True)
-    integracao_id = Column(Integer, ForeignKey("marketplace_integracoes.id"), nullable=False)
-    
-    # Status
-    status = Column(String(50), default="ativa")  # ativa, inativa, pendente
-    configuracoes = Column(JSON, default={})
-    credenciais = Column(JSON)  # Credenciais específicas do tenant
-    
-    # Webhook
-    webhook_url = Column(String(500))
-    webhook_secret = Column(String(200))
-    
-    # Uso
-    ultima_sincronizacao = Column(DateTime)
-    total_sincronizacoes = Column(Integer, default=0)
-    
-    installed_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-    # Relacionamentos
-    integracao = relationship("MarketplaceIntegracao")
 
 
 class MarketplaceAvaliacao(Base):

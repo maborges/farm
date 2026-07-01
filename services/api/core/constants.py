@@ -504,6 +504,7 @@ class TenantPermissions:
             "tenant:settings:*",
             "tenant:billing:view",  # Apenas visualizar billing
             "tenant:audit:view",
+            "integrations:*",
 
             # Acesso a todos os módulos contratados (verificado via feature gate)
             "agricola:*",
@@ -520,6 +521,8 @@ class TenantPermissions:
             "tenant:users:invite",
             "tenant:fazendas:view",
             "tenant:audit:view",
+            "integrations:view",
+            "integrations:logs:view",
 
             # Módulos baseados na área do gerente (deve ser customizado)
             "agricola:*",
@@ -533,6 +536,7 @@ class TenantPermissions:
         "agronomo": [
             "tenant:users:view",
             "tenant:fazendas:view",
+            "integrations:view",
 
             # Módulo agrícola completo
             "agricola:*",
@@ -544,6 +548,7 @@ class TenantPermissions:
 
         "operador": [
             "tenant:fazendas:view",
+            "integrations:view",
 
             # Operações de campo
             "agricola:operacoes:*",
@@ -564,6 +569,8 @@ class TenantPermissions:
         "consultor": [
             # Apenas leitura
             "tenant:fazendas:view",
+            "integrations:view",
+            "integrations:logs:view",
             "agricola:view",
             "pecuaria:view",
             "financeiro:view",
@@ -575,6 +582,8 @@ class TenantPermissions:
         "financeiro": [
             "tenant:users:view",
             "tenant:fazendas:view",
+            "integrations:view",
+            "integrations:logs:view",
 
             # Módulo financeiro completo
             "financeiro:*",
@@ -588,6 +597,8 @@ class TenantPermissions:
         "auditor": [
             # Leitura geral de todos os módulos
             "tenant:fazendas:view",
+            "integrations:view",
+            "integrations:logs:view",
             "agricola:*:view",
             "agricola:*:list",
             "agricola:*:export",
