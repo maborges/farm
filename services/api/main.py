@@ -263,6 +263,11 @@ app.add_middleware(
         "http://localhost.localdomain:3002",
         "http://localhost.localdomain:3003",
         "http://localhost.localdomain:3004",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:3001",
+        "http://127.0.0.1:3002",
+        "http://127.0.0.1:3003",
+        "http://127.0.0.1:3004",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -408,6 +413,7 @@ from certificacoes_esg.public_router import router as router_certificacoes_esg_p
 # from enterprise.routers.preditivo import router as preditivo_router
 from enterprise.routers.sprints_27_33_router import router as sprints_27_33_router
 from integracoes.sankhya.routers import router as sankhya_router
+from integracoes.openweather.routers import router as openweather_router
 from integracoes.regulatorias.router import router as regulatorias_router
 
 # Contabilidade (COMENTADO - Usa Session síncrono, requer migração para AsyncSession)
@@ -506,6 +512,7 @@ app.include_router(router_certificacoes_esg_publica, prefix="/api/v1/public")
 # app.include_router(preditivo_router, prefix="/api/v1/enterprise")
 app.include_router(sprints_27_33_router, prefix="/api/v1/enterprise")
 app.include_router(sankhya_router, prefix="/api/v1/integracoes")
+app.include_router(openweather_router, prefix="/api/v1/integracoes")
 app.include_router(regulatorias_router, prefix="/api/v1/integracoes/regulatorias")
 
 # Contabilidade (COMENTADO)

@@ -16,6 +16,7 @@ import { GpsWarning } from "@/components/campo/gps-warning";
 import { Wheat, Check, CheckCircle2, ArrowRight } from "lucide-react";
 import { CampoButton, CampoShell, CampoSurface } from "@/components/campo/ui";
 import { CampoStepNav, CampoSuccessScreen } from "@/components/campo/flow";
+import { ClimaOperacionalCard } from "@/components/agricola/climatico/clima-operacional-card";
 
 type Step = "local" | "quantidade" | "confirmar";
 
@@ -82,6 +83,10 @@ export default function ColheitaPage() {
   return (
     <CampoShell className="gap-4">
       <TaskHeader title="Colheita" icon={Wheat} gpsStatus={gps.status} step={stepIndex + 1} totalSteps={3} domain="AGRICULTURA" />
+      
+      {fazendaId && (
+        <ClimaOperacionalCard fazendaId={fazendaId} tipoOperacao="COLHEITA" />
+      )}
 
       {step === "local" && (
         <div className="flex flex-1 flex-col gap-4">

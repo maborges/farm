@@ -207,6 +207,7 @@ class SyncService:
         from pecuaria.animal.models import Animal, LoteAnimal
         from core.cadastros.produtos.models import Produto
         from agricola.caderno.service import CadernoCampoService
+        from agricola.climatico.recommendation_service import ClimaRecommendationService
         # Safra depende de Cultivo para configurar o mapper corretamente.
         # Importar o módulo aqui evita InvalidRequestError quando o pull é
         # executado antes de outros fluxos agrícolas que já carregariam o model.
@@ -344,6 +345,12 @@ class SyncService:
             for t in (await self.session.execute(stmt_tomb)).scalars().all():
                 if t.entity_type in tombstones:
                     tombstones[t.entity_type].append(t.entity_id)
+        
+        clima_rec_svc = ClimaRecommendationService(self.session, self.tenant_id)
+        recomendacoes_climaticas = []
+        for fazenda_id in fazenda_ids:
+            recs = await clima_rec_svc.get_recomendacoes(fazenda_id)
+            recomendacoes_climaticas.extend([rec.model_dump(mode="json") for rec in recs])
 
         return {
             "sync_at": datetime.utcnow(),
@@ -439,6 +446,7 @@ class SyncService:
                 for t in tarefas_rows
             ],
             "eventos_caderno_oficiais": [evento.model_dump(mode="json") for evento in eventos_caderno_oficiais],
+            "recomendacoes_climaticas": recomendacoes_climaticas,
             "tombstones": tombstones,
         }
 

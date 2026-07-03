@@ -110,6 +110,17 @@ interface SyncPullPayload {
     cpf?: string | null;
     cargo?: string | null;
   }>;
+  recomendacoes_climaticas?: Array<{
+    unidade_produtiva_id: string;
+    tipo_operacao: string;
+    status: string;
+    severidade: string;
+    motivo: string;
+    dados_utilizados: Record<string, unknown>;
+    data_referencia: string;
+    fonte: string;
+    validade_horas: number;
+  }>;
   sync_at: string;
 }
 
@@ -169,7 +180,7 @@ export async function pullSync(): Promise<void> {
   const data = (await res.json()) as SyncPullPayload;
 
   // Atualiza caches no IndexedDB em transação
-  await db.transaction("rw", [db.fazendas, db.talhoes, db.lotes, db.animais, db.insumos, db.safras, db.tasks, db.sync_queue, db.caderno_events, db.caderno_server_events, db.colaboradores], async () => {
+  await db.transaction("rw", [db.fazendas, db.talhoes, db.lotes, db.animais, db.insumos, db.safras, db.tasks, db.sync_queue, db.caderno_events, db.caderno_server_events, db.colaboradores, db.recomendacoes_climaticas], async () => {
     // Colaboradores
     if (data.colaboradores) {
       await db.colaboradores.clear();
@@ -229,6 +240,24 @@ export async function pullSync(): Promise<void> {
           nome: i.nome,
           tipo: i.tipo,
           unidade_medida: i.unidade_medida ?? undefined,
+        }))
+      );
+    }
+
+    // Recomendações Climáticas
+    if (data.recomendacoes_climaticas?.length) {
+      await db.recomendacoes_climaticas.bulkPut(
+        data.recomendacoes_climaticas.map((r) => ({
+          id: `${r.unidade_produtiva_id}-${r.tipo_operacao}`,
+          unidade_produtiva_id: r.unidade_produtiva_id,
+          tipo_operacao: r.tipo_operacao,
+          status: r.status,
+          severidade: r.severidade,
+          motivo: r.motivo,
+          dados_utilizados: r.dados_utilizados,
+          data_referencia: r.data_referencia,
+          fonte: r.fonte,
+          validade_horas: r.validade_horas,
         }))
       );
     }

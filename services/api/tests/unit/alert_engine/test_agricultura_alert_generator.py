@@ -15,6 +15,8 @@ from alert_engine.generators import (
     AlertGeneratorRunner,
     alert_generator_registry,
 )
+from alert_engine.generators.agricultura_generator import _OperacaoContext, _SafraContext, _TalhaoContext
+from alert_engine.generators.clima_generator import ClimaAlertGenerator
 from alert_engine.scheduler import run_scheduled_alerts
 
 UTC = timezone.utc
@@ -599,6 +601,11 @@ async def test_scheduler_executes_agricultura_generator(monkeypatch: pytest.Monk
         AgriculturaAlertGenerator,
         "_persistir_alerta",
         store.persist,
+    )
+    monkeypatch.setattr(
+        ClimaAlertGenerator,
+        "_listar_registros_climaticos",
+        AsyncMock(return_value=[]),
     )
     monkeypatch.setattr(agricultura_module, "CustosService", agricultura_module.CustosService)
 

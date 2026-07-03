@@ -16,6 +16,7 @@ import { GpsWarning } from "@/components/campo/gps-warning";
 import { Sprout, Check, CheckCircle2, ArrowRight } from "lucide-react";
 import { CampoButton, CampoShell, CampoSurface } from "@/components/campo/ui";
 import { CampoStepNav, CampoSuccessScreen } from "@/components/campo/flow";
+import { ClimaOperacionalCard } from "@/components/agricola/climatico/clima-operacional-card";
 
 type Step = "local" | "produto" | "quantidade" | "confirmar";
 
@@ -82,6 +83,10 @@ export default function AplicacaoPage() {
   return (
     <CampoShell className="gap-4">
       <TaskHeader title="Aplicação" icon={Sprout} gpsStatus={gps.status} step={stepIndex + 1} totalSteps={4} domain="AGRICULTURA" />
+      
+      {fazendaId && (
+        <ClimaOperacionalCard fazendaId={fazendaId} tipoOperacao="PULVERIZACAO" />
+      )}
 
       {step === "local" && (
         <div className="flex flex-1 flex-col gap-4">
