@@ -151,6 +151,7 @@ from integracoes.models import (
     MarketplaceIntegracao,
     TenantIntegracao,
 )
+from recommendations.models import RecommendationLifecycleEvent, RecommendationResult
 
 # Billing / Solicitacoes
 from core.models.solicitacoes_comerciais import SolicitacaoComercial

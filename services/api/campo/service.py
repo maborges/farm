@@ -27,13 +27,25 @@ from campo.schemas import (
     TarefaProgramadaUpdate,
     ExecucaoUpdate,
 )
+from recommendations.enums import ACTIVE_RECOMMENDATION_STATUSES
+from recommendations.models import RecommendationResult
 
 _ACTIVATION_CODE_CHARS = string.ascii_uppercase + string.digits
 _ACTIVATION_TTL_MINUTES = 30
+_RECOMMENDATION_PRIORITY_RANK = {
+    "URGENT": 4,
+    "HIGH": 3,
+    "NORMAL": 2,
+    "LOW": 1,
+}
 
 
 def _generate_activation_code(length: int = 8) -> str:
     return "".join(secrets.choice(_ACTIVATION_CODE_CHARS) for _ in range(length))
+
+
+def _priority_rank(priority: str) -> int:
+    return _RECOMMENDATION_PRIORITY_RANK.get(priority, 0)
 
 
 def _make_device_jwt(device: DispositivoCampo, user_name: str, user_avatar_url: str | None) -> str:
@@ -207,7 +219,6 @@ class SyncService:
         from pecuaria.animal.models import Animal, LoteAnimal
         from core.cadastros.produtos.models import Produto
         from agricola.caderno.service import CadernoCampoService
-        from agricola.climatico.recommendation_service import ClimaRecommendationService
         # Safra depende de Cultivo para configurar o mapper corretamente.
         # Importar o módulo aqui evita InvalidRequestError quando o pull é
         # executado antes de outros fluxos agrícolas que já carregariam o model.
@@ -345,12 +356,12 @@ class SyncService:
             for t in (await self.session.execute(stmt_tomb)).scalars().all():
                 if t.entity_type in tombstones:
                     tombstones[t.entity_type].append(t.entity_id)
-        
-        clima_rec_svc = ClimaRecommendationService(self.session, self.tenant_id)
-        recomendacoes_climaticas = []
-        for fazenda_id in fazenda_ids:
-            recs = await clima_rec_svc.get_recomendacoes(fazenda_id)
-            recomendacoes_climaticas.extend([rec.model_dump(mode="json") for rec in recs])
+
+        recomendacoes_operacionais = await self._listar_recomendacoes_operacionais(
+            fazenda_ids=fazenda_ids,
+            last_sync_at=last_sync_at,
+        )
+        recomendacoes_climaticas = self._build_recomendacoes_climaticas(recomendacoes_operacionais)
 
         return {
             "sync_at": datetime.utcnow(),
@@ -446,9 +457,168 @@ class SyncService:
                 for t in tarefas_rows
             ],
             "eventos_caderno_oficiais": [evento.model_dump(mode="json") for evento in eventos_caderno_oficiais],
+            "recomendacoes_operacionais": [self._serialize_recommendation(row) for row in recomendacoes_operacionais],
             "recomendacoes_climaticas": recomendacoes_climaticas,
             "tombstones": tombstones,
         }
+
+    async def _listar_recomendacoes_operacionais(
+        self,
+        *,
+        fazenda_ids: list[uuid.UUID],
+        last_sync_at: datetime | None,
+    ) -> list[RecommendationResult]:
+        if not fazenda_ids:
+            return []
+
+        try:
+            stmt = select(RecommendationResult).where(
+                RecommendationResult.tenant_id == self.tenant_id,
+                RecommendationResult.unidade_produtiva_id.in_(fazenda_ids),
+                RecommendationResult.domain.in_(self._recommended_domains()),
+                RecommendationResult.status.in_(ACTIVE_RECOMMENDATION_STATUSES),
+            )
+            if last_sync_at is not None:
+                stmt = stmt.where(RecommendationResult.updated_at > last_sync_at)
+            stmt = stmt.order_by(RecommendationResult.updated_at.desc(), RecommendationResult.created_at.desc()).limit(30)
+            rows = (await self.session.execute(stmt)).scalars().all()
+            return sorted(rows, key=self._recommendation_sort_key, reverse=True)
+        except Exception as exc:
+            logger.warning(f"[sync/pull] Falha ao carregar recomendações persistidas: {exc}")
+            return []
+
+    @staticmethod
+    def _recommended_domains() -> tuple[str, ...]:
+        return ("FIELD", "AGRICULTURE", "LIVESTOCK", "OPERATIONS")
+
+    @staticmethod
+    def _recommendation_sort_key(row: RecommendationResult) -> tuple[int, datetime]:
+        return (_priority_rank(getattr(row, "priority", "")), row.updated_at or row.created_at)
+
+    def _serialize_recommendation(self, row: RecommendationResult) -> dict[str, Any]:
+        return {
+            "id": row.id,
+            "tenant_id": row.tenant_id,
+            "unidade_produtiva_id": row.unidade_produtiva_id,
+            "domain": row.domain,
+            "status": row.status,
+            "priority": row.priority,
+            "source_type": row.source_type,
+            "action_type": row.action_type,
+            "provider_name": row.provider_name,
+            "rule_code": row.rule_code,
+            "scope_type": row.scope_type,
+            "scope_id": row.scope_id,
+            "title": row.title,
+            "summary": row.summary,
+            "rationale": row.rationale,
+            "dedupe_key": row.dedupe_key,
+            "source_signal_ids": row.source_signal_ids or [],
+            "confidence": float(row.confidence) if row.confidence is not None else None,
+            "action_label": row.action_label,
+            "action_target": row.action_target,
+            "context": row.context,
+            "created_at": row.created_at,
+            "updated_at": row.updated_at,
+            "expires_at": row.expires_at,
+            "viewed_at": row.viewed_at,
+            "accepted_at": row.accepted_at,
+            "dismissed_at": row.dismissed_at,
+            "postponed_until": row.postponed_until,
+            "executed_at": row.executed_at,
+            "superseded_at": row.superseded_at,
+            "superseded_by_id": row.superseded_by_id,
+        }
+
+    def _build_recomendacoes_climaticas(self, rows: list[RecommendationResult]) -> list[dict[str, Any]]:
+        if not rows:
+            return []
+
+        climate_rows = [row for row in rows if row.provider_name == "clima"]
+        if not climate_rows:
+            return []
+
+        payload: list[dict[str, Any]] = []
+        grouped_by_unit: dict[uuid.UUID, list[RecommendationResult]] = {}
+        for row in climate_rows:
+            if row.unidade_produtiva_id is None:
+                continue
+            grouped_by_unit.setdefault(row.unidade_produtiva_id, []).append(row)
+
+        for unidade_produtiva_id, unit_rows in grouped_by_unit.items():
+            specific_rows: dict[str, RecommendationResult] = {}
+            for row in unit_rows:
+                tipo_operacao = self._map_climate_tipo_operacao(row)
+                current = specific_rows.get(tipo_operacao)
+                if current is None or self._recommendation_sort_key(row) > self._recommendation_sort_key(current):
+                    specific_rows[tipo_operacao] = row
+
+            geral = self._best_climate_general(unit_rows)
+            if geral is None:
+                geral = max(unit_rows, key=self._recommendation_sort_key)
+
+            for tipo_operacao in ("PULVERIZACAO", "COLHEITA", "ADUBACAO", "GERAL"):
+                row = specific_rows.get(tipo_operacao) or geral
+                payload.append(self._serialize_climate_recommendation(unidade_produtiva_id, tipo_operacao, row))
+        return payload
+
+    @staticmethod
+    def _best_climate_general(rows: list[RecommendationResult]) -> RecommendationResult | None:
+        general_rows = [row for row in rows if SyncService._map_climate_tipo_operacao(row) == "GERAL"]
+        if not general_rows:
+            return None
+        return sorted(general_rows, key=SyncService._recommendation_sort_key, reverse=True)[0]
+
+    @staticmethod
+    def _map_climate_tipo_operacao(row: RecommendationResult) -> str:
+        rule_code = (row.rule_code or "").upper()
+        title = (row.title or "").upper()
+        summary = (row.summary or "").upper()
+        reference = " ".join((rule_code, title, summary))
+        if any(token in reference for token in ("PULVER", "VENTO", "JANELA")):
+            return "PULVERIZACAO"
+        if any(token in reference for token in ("COLHEITA", "CHUVA")):
+            return "COLHEITA"
+        if any(token in reference for token in ("ADUB", "FERT")):
+            return "ADUBACAO"
+        return "GERAL"
+
+    def _serialize_climate_recommendation(
+        self,
+        unidade_produtiva_id: uuid.UUID,
+        tipo_operacao: str,
+        row: RecommendationResult,
+    ) -> dict[str, Any]:
+        status, severidade = self._legacy_climate_status(row.priority)
+        return {
+            "unidade_produtiva_id": unidade_produtiva_id,
+            "tipo_operacao": tipo_operacao,
+            "status": status,
+            "severidade": severidade,
+            "motivo": row.summary or row.rationale,
+            "dados_utilizados": row.context or {},
+            "data_referencia": row.updated_at or row.created_at,
+            "fonte": row.provider_name,
+            "validade_horas": self._climate_validity_hours(row),
+        }
+
+    @staticmethod
+    def _legacy_climate_status(priority: str) -> tuple[str, str]:
+        if priority == "URGENT":
+            return "NAO_RECOMENDADO", "CRITICAL"
+        if priority == "HIGH":
+            return "ATENCAO", "WARNING"
+        if priority == "NORMAL":
+            return "RECOMENDADO", "NORMAL"
+        return "RECOMENDADO", "NORMAL"
+
+    @staticmethod
+    def _climate_validity_hours(row: RecommendationResult) -> int:
+        if not row.expires_at or not row.updated_at:
+            return 12
+        delta = row.expires_at - row.updated_at
+        hours = int(delta.total_seconds() // 3600)
+        return hours if hours > 0 else 12
 
     async def push(self, items: list[SyncPushItem]) -> list[SyncPushItemResult]:
         results: list[SyncPushItemResult] = []

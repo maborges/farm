@@ -4,7 +4,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { type LucideIcon, BookText, Sprout, Wheat, ShieldHalf, Scale, Syringe, CloudSun, Dna, HeartPulse, Baby, Scissors } from "lucide-react";
-import { db, type LocalTask } from "@/lib/db";
+import { db, type CachedRecomendacaoOperacional, type LocalTask } from "@/lib/db";
 import { useSessionStore } from "@/lib/stores/session-store";
 import { useSyncStore } from "@/lib/stores/sync-store";
 import { CampoButton, CampoPill, CampoSectionTitle, CampoSurface } from "@/components/campo/ui";
@@ -60,6 +60,7 @@ export default function HomePage() {
   const talhoes = useLiveQuery(() => db.talhoes.toArray(), []);
   const lotes = useLiveQuery(() => db.lotes.toArray(), []);
   const safras = useLiveQuery(() => db.safras.toArray(), []);
+  const recomendacoesOperacionais = useLiveQuery(() => db.recomendacoes_operacionais.toArray(), []);
 
   const tarefasPendentes = useLiveQuery(
     () =>
@@ -96,6 +97,10 @@ export default function HomePage() {
   const talhoesById = useMemo(() => new Map((talhoes ?? []).map((item) => [item.id, item])), [talhoes]);
   const lotesById = useMemo(() => new Map((lotes ?? []).map((item) => [item.id, item])), [lotes]);
   const safrasById = useMemo(() => new Map((safras ?? []).map((item) => [item.id, item])), [safras]);
+  const activeRecommendations = useMemo(
+    () => sortRecommendations((recomendacoesOperacionais ?? []).filter((item) => isActiveRecommendation(item.status))),
+    [recomendacoesOperacionais]
+  );
 
   const emExecucaoCount = tarefasEmExecucao?.length ?? 0;
   const tarefasAtribuidas = (tarefasPendentes ?? []).filter((t) => t.dispositivo_id === session?.device_id);
@@ -237,6 +242,69 @@ export default function HomePage() {
         ))}
       </div>
 
+      {recomendacoesOperacionais !== undefined && (
+        <CampoSurface className="p-4 sm:p-5">
+          <CampoSectionTitle
+            eyebrow="Inteligência"
+            title="Recomendações operacionais"
+            description="Orientações persistidas no dispositivo e atualizadas no sync."
+            action={
+              <CampoButton variant="secondary" size="sm" onClick={() => router.push("/recomendacoes")}>
+                Abrir painel
+              </CampoButton>
+            }
+          />
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            <CampoPill className="border-sky-200 bg-sky-50 text-sky-800 dark:border-sky-900/60 dark:bg-sky-950/30 dark:text-sky-200">
+              {activeRecommendations.length} ativas
+            </CampoPill>
+            <CampoPill className="border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-200">
+              {activeRecommendations.filter((item) => item.priority === "URGENT").length} urgentes
+            </CampoPill>
+            <CampoPill className="border-border bg-muted text-muted-foreground">
+              {new Set(activeRecommendations.map((item) => item.domain)).size} domínios
+            </CampoPill>
+          </div>
+
+          {activeRecommendations.length > 0 ? (
+            <div className="mt-4 grid gap-2">
+              {activeRecommendations.slice(0, 3).map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => router.push("/recomendacoes")}
+                  className="flex w-full items-start justify-between gap-3 rounded-sm border border-border bg-card p-3 text-left shadow-sm transition-all hover:border-primary/20 hover:bg-muted/50 active:scale-[0.99]"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <CampoPill className="border-border bg-muted text-muted-foreground">
+                        {formatRecommendationDomain(item.domain)}
+                      </CampoPill>
+                      <CampoPill className={getPriorityTone(item.priority)}>
+                        {formatRecommendationPriority(item.priority)}
+                      </CampoPill>
+                    </div>
+                    <p className="mt-2 truncate text-sm font-semibold text-foreground">{item.title}</p>
+                    <p className="mt-1 line-clamp-2 text-xs leading-5 text-muted-foreground">{item.summary}</p>
+                  </div>
+                  <div className="shrink-0 rounded-full border border-border bg-muted px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                    {item.provider_name}
+                  </div>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="mt-4 flex min-h-[132px] flex-col items-center justify-center rounded-sm border border-dashed border-border bg-muted/30 px-6 text-center">
+              <p className="text-sm font-medium text-foreground">Nenhuma recomendação operacional disponível para esta unidade.</p>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                Sincronize quando houver conexão para carregar orientações persistidas no aparelho.
+              </p>
+            </div>
+          )}
+        </CampoSurface>
+      )}
+
       <div className="flex flex-wrap gap-2">
         {(["ALL", "AGRICULTURA", "PECUARIA"] as DomainFilter[]).map((filter) => {
           const active = domainFilter === filter;
@@ -360,6 +428,59 @@ export default function HomePage() {
         </div>
       </section>
     </div>
+  );
+}
+
+function isActiveRecommendation(status: string): boolean {
+  return ["CREATED", "VIEWED", "ACCEPTED", "POSTPONED", "REOPENED"].includes(status);
+}
+
+function sortRecommendations(items: CachedRecomendacaoOperacional[]): CachedRecomendacaoOperacional[] {
+  return [...items].sort((left, right) => {
+    const priorityDelta = priorityScore(right.priority) - priorityScore(left.priority);
+    if (priorityDelta !== 0) return priorityDelta;
+    return dateScore(right.updated_at) - dateScore(left.updated_at);
+  });
+}
+
+function priorityScore(priority: string): number {
+  return { URGENT: 4, HIGH: 3, NORMAL: 2, LOW: 1 }[priority] ?? 0;
+}
+
+function dateScore(value: string): number {
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? 0 : parsed.getTime();
+}
+
+function formatRecommendationDomain(domain: string): string {
+  return (
+    {
+      FIELD: "Campo",
+      AGRICULTURE: "Agricultura",
+      LIVESTOCK: "Pecuária",
+      OPERATIONS: "Operações",
+      FINANCE: "Financeiro",
+      SYSTEM: "Sistema",
+      INTEGRATIONS: "Integrações",
+    }[domain] ?? domain
+  );
+}
+
+function formatRecommendationPriority(priority: string): string {
+  return { URGENT: "Urgente", HIGH: "Alta", NORMAL: "Normal", LOW: "Baixa" }[priority] ?? priority;
+}
+
+function getPriorityTone(priority: string): string {
+  return (
+    {
+      URGENT:
+        "border-rose-200 bg-rose-50 text-rose-800 dark:border-rose-900/60 dark:bg-rose-950/30 dark:text-rose-200",
+      HIGH:
+        "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200",
+      NORMAL:
+        "border-sky-200 bg-sky-50 text-sky-800 dark:border-sky-900/60 dark:bg-sky-950/30 dark:text-sky-200",
+      LOW: "border-border bg-muted text-muted-foreground",
+    }[priority] ?? "border-border bg-muted text-muted-foreground"
   );
 }
 

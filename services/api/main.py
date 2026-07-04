@@ -57,6 +57,7 @@ from operacional.routers import abastecimento as router_abastecimento
 from operacional.routers import checklist as router_checklist
 from operacional.routers import documento_equipamento as router_doc_equipamento
 from alert_engine.router import router as alert_engine_router
+from recommendations.router import router as recommendations_router
 from core.cadastros.router import router as router_core_cadastros
 from core.cadastros.propriedades.propriedade_router import router as router_propriedades_econ
 from core.cadastros.pessoas.router import router as router_pessoas, router_tipos as router_tipos_relacionamento
@@ -521,6 +522,7 @@ app.include_router(regulatorias_router, prefix="/api/v1/integracoes/regulatorias
 # app.include_router(contabilidade_lancamentos_router, prefix="/api/v1/contabilidade")
 app.include_router(router_rh, prefix="/api/v1")
 app.include_router(alert_engine_router, prefix="/api/v1")
+app.include_router(recommendations_router, prefix="/api/v1")
 app.include_router(router_notificacoes, prefix="/api/v1")
 app.include_router(despesas.router, prefix="/api/v1/financeiro")
 app.include_router(lotes.router, prefix="/api/v1")

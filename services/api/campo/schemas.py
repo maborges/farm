@@ -4,6 +4,7 @@ from datetime import datetime, date
 from typing import Any, Literal
 from pydantic import BaseModel, Field, ConfigDict
 from agricola.caderno.schemas import EventoCadernoOficialSync
+from agricola.climatico.schemas import RecomendacaoOperacionalResponse
 
 
 # ---------------------------------------------------------------------------
@@ -152,6 +153,40 @@ class SyncTombstonesPayload(BaseModel):
     insumos: list[str] = Field(default_factory=list)
 
 
+class RecomendacaoOperacionalSync(BaseModel):
+    id: uuid.UUID
+    tenant_id: uuid.UUID
+    unidade_produtiva_id: uuid.UUID | None
+    domain: str
+    status: str
+    priority: str
+    source_type: str
+    action_type: str
+    provider_name: str
+    rule_code: str
+    scope_type: str
+    scope_id: str
+    title: str
+    summary: str
+    rationale: str
+    dedupe_key: str
+    source_signal_ids: list[uuid.UUID] = Field(default_factory=list)
+    confidence: float | None = None
+    action_label: str | None = None
+    action_target: str | None = None
+    context: dict[str, Any] | None = None
+    created_at: datetime
+    updated_at: datetime
+    expires_at: datetime | None = None
+    viewed_at: datetime | None = None
+    accepted_at: datetime | None = None
+    dismissed_at: datetime | None = None
+    postponed_until: datetime | None = None
+    executed_at: datetime | None = None
+    superseded_at: datetime | None = None
+    superseded_by_id: uuid.UUID | None = None
+
+
 class SyncPullResponse(BaseModel):
     sync_at: datetime
     safras: list[SafraSync]
@@ -161,6 +196,8 @@ class SyncPullResponse(BaseModel):
     insumos: list[InsumoSync]
     tarefas_pendentes: list[TarefaPendenteSync]
     eventos_caderno_oficiais: list[EventoCadernoOficialSync] = Field(default_factory=list)
+    recomendacoes_operacionais: list[RecomendacaoOperacionalSync] = Field(default_factory=list)
+    recomendacoes_climaticas: list[RecomendacaoOperacionalResponse] = Field(default_factory=list)
     tombstones: SyncTombstonesPayload
 
 

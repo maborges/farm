@@ -121,6 +121,39 @@ interface SyncPullPayload {
     fonte: string;
     validade_horas: number;
   }>;
+  recomendacoes_operacionais?: Array<{
+    id: string;
+    tenant_id: string;
+    unidade_produtiva_id: string | null;
+    domain: string;
+    status: string;
+    priority: string;
+    source_type: string;
+    action_type: string;
+    provider_name: string;
+    rule_code: string;
+    scope_type: string;
+    scope_id: string;
+    title: string;
+    summary: string;
+    rationale: string;
+    dedupe_key: string;
+    source_signal_ids: string[];
+    confidence?: number | null;
+    action_label?: string | null;
+    action_target?: string | null;
+    context?: Record<string, unknown> | null;
+    created_at: string;
+    updated_at: string;
+    expires_at?: string | null;
+    viewed_at?: string | null;
+    accepted_at?: string | null;
+    dismissed_at?: string | null;
+    postponed_until?: string | null;
+    executed_at?: string | null;
+    superseded_at?: string | null;
+    superseded_by_id?: string | null;
+  }>;
   sync_at: string;
 }
 
@@ -180,7 +213,24 @@ export async function pullSync(): Promise<void> {
   const data = (await res.json()) as SyncPullPayload;
 
   // Atualiza caches no IndexedDB em transação
-  await db.transaction("rw", [db.fazendas, db.talhoes, db.lotes, db.animais, db.insumos, db.safras, db.tasks, db.sync_queue, db.caderno_events, db.caderno_server_events, db.colaboradores, db.recomendacoes_climaticas], async () => {
+  await db.transaction(
+    "rw",
+    [
+      db.fazendas,
+      db.talhoes,
+      db.lotes,
+      db.animais,
+      db.insumos,
+      db.safras,
+      db.tasks,
+      db.sync_queue,
+      db.caderno_events,
+      db.caderno_server_events,
+      db.colaboradores,
+      db.recomendacoes_climaticas,
+      db.recomendacoes_operacionais,
+    ],
+    async () => {
     // Colaboradores
     if (data.colaboradores) {
       await db.colaboradores.clear();
@@ -245,6 +295,7 @@ export async function pullSync(): Promise<void> {
     }
 
     // Recomendações Climáticas
+    await db.recomendacoes_climaticas.clear();
     if (data.recomendacoes_climaticas?.length) {
       await db.recomendacoes_climaticas.bulkPut(
         data.recomendacoes_climaticas.map((r) => ({
@@ -258,6 +309,29 @@ export async function pullSync(): Promise<void> {
           data_referencia: r.data_referencia,
           fonte: r.fonte,
           validade_horas: r.validade_horas,
+        }))
+      );
+    }
+
+    // Recomendações Operacionais
+    await db.recomendacoes_operacionais.clear();
+    if (data.recomendacoes_operacionais?.length) {
+      await db.recomendacoes_operacionais.bulkPut(
+        data.recomendacoes_operacionais.map((r) => ({
+          ...r,
+          source_signal_ids: r.source_signal_ids ?? [],
+          confidence: r.confidence ?? null,
+          action_label: r.action_label ?? null,
+          action_target: r.action_target ?? null,
+          context: r.context ?? null,
+          expires_at: r.expires_at ?? null,
+          viewed_at: r.viewed_at ?? null,
+          accepted_at: r.accepted_at ?? null,
+          dismissed_at: r.dismissed_at ?? null,
+          postponed_until: r.postponed_until ?? null,
+          executed_at: r.executed_at ?? null,
+          superseded_at: r.superseded_at ?? null,
+          superseded_by_id: r.superseded_by_id ?? null,
         }))
       );
     }

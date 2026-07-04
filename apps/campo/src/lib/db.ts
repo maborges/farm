@@ -311,6 +311,40 @@ export interface CachedRecomendacaoClimatica {
   validade_horas: number;
 }
 
+export interface CachedRecomendacaoOperacional {
+  id: string;
+  tenant_id: string;
+  unidade_produtiva_id: string | null;
+  domain: string;
+  status: string;
+  priority: string;
+  source_type: string;
+  action_type: string;
+  provider_name: string;
+  rule_code: string;
+  scope_type: string;
+  scope_id: string;
+  title: string;
+  summary: string;
+  rationale: string;
+  dedupe_key: string;
+  source_signal_ids: string[];
+  confidence?: number | null;
+  action_label?: string | null;
+  action_target?: string | null;
+  context?: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+  expires_at?: string | null;
+  viewed_at?: string | null;
+  accepted_at?: string | null;
+  dismissed_at?: string | null;
+  postponed_until?: string | null;
+  executed_at?: string | null;
+  superseded_at?: string | null;
+  superseded_by_id?: string | null;
+}
+
 // ---------------------------------------------------------------------------
 // Database
 // ---------------------------------------------------------------------------
@@ -330,6 +364,7 @@ export class CampoDatabase extends Dexie {
   safras!: Table<CachedSafra>;
   colaboradores!: Table<CachedColaborador>;
   recomendacoes_climaticas!: Table<CachedRecomendacaoClimatica>;
+  recomendacoes_operacionais!: Table<CachedRecomendacaoOperacional>;
 
   constructor() {
     super("campo_db");
@@ -538,6 +573,25 @@ export class CampoDatabase extends Dexie {
       safras: "id, status",
       colaboradores: "id",
       recomendacoes_climaticas: "id, unidade_produtiva_id, tipo_operacao",
+    });
+    this.version(12).stores({
+      session: "id",
+      tasks:
+        "id, server_id, type, module, fazenda_id, talhao_id, lote_id, status, origem, status_execucao, data_programada, synced, created_at",
+      sync_queue: "id, entity_id, entity_type, status, created_at",
+      caderno_events: "local_id, server_id, tenant_id, safra_id, talhao_id, device_id, sync_status, review_required, created_at",
+      caderno_server_events:
+        "server_id, local_id, device_id, safra_id, talhao_id, status_evento, documental_status, updated_at, data_registro",
+      caderno_drafts: "id, user_id, task_id, updated_at",
+      fazendas: "id",
+      talhoes: "id, fazenda_id",
+      lotes: "id, fazenda_id",
+      animais: "id, unidade_produtiva_id, lote_id, numero_brinco, nome, categoria, sexo, status",
+      insumos: "id, categoria",
+      safras: "id, status",
+      colaboradores: "id",
+      recomendacoes_climaticas: "id, unidade_produtiva_id, tipo_operacao",
+      recomendacoes_operacionais: "id, unidade_produtiva_id, domain, status, priority, updated_at",
     });
   }
 }

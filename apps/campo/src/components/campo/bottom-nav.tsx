@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Plus, House, RefreshCw, BookText, Sprout, Wheat, Scale, Syringe, type LucideIcon } from "lucide-react";
+import { Plus, House, RefreshCw, BookText, Sprout, Wheat, Scale, Syringe, Sparkles, type LucideIcon } from "lucide-react";
 import { useSessionStore } from "@/lib/stores/session-store";
 import { useSyncStore } from "@/lib/stores/sync-store";
 
@@ -25,11 +25,15 @@ const BASE_ITEMS: NavItem[] = [
 ];
 
 function getQuickItems(modules: string[]): NavItem[] {
+  const items: NavItem[] = [
+    { key: "recomendacoes", label: "Recomendações", href: "/recomendacoes", icon: Sparkles },
+  ];
   const hasAgricola = modules.includes("agricola");
   const hasPecuaria = modules.includes("pecuaria");
 
   if (hasAgricola && hasPecuaria) {
     return [
+      ...items,
       { key: "aplicacao", label: "Aplicação", href: "/campo/aplicacao", icon: Sprout },
       { key: "pesagem", label: "Pesagem", href: "/campo/pesagem", icon: Scale },
       { key: "vacinacao", label: "Vacinação", href: "/campo/vacinacao", icon: Syringe },
@@ -38,6 +42,7 @@ function getQuickItems(modules: string[]): NavItem[] {
 
   if (hasAgricola) {
     return [
+      ...items,
       { key: "aplicacao", label: "Aplicação", href: "/campo/aplicacao", icon: Sprout },
       { key: "colheita", label: "Colheita", href: "/campo/colheita", icon: Wheat },
     ];
@@ -45,12 +50,13 @@ function getQuickItems(modules: string[]): NavItem[] {
 
   if (hasPecuaria) {
     return [
+      ...items,
       { key: "pesagem", label: "Pesagem", href: "/campo/pesagem", icon: Scale },
       { key: "vacinacao", label: "Vacinação", href: "/campo/vacinacao", icon: Syringe },
     ];
   }
 
-  return [];
+  return items;
 }
 
 export function CampoBottomNav() {
