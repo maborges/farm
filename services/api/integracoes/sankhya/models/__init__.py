@@ -27,11 +27,19 @@ class SankhyaConfig(Base):
     id = Column(Integer, primary_key=True, index=True)
     tenant_id = Column(String(50), nullable=False, unique=True, index=True)
 
-    # Connection: parâmetros técnicos não secretos do provider ERP.
-    ws_url = Column(String(500), nullable=False)  # https://<servidor>/bpm/ws
-    username = Column(String(100), nullable=False)
+    # Gateway: parâmetros técnicos do provider ERP atual.
+    environment = Column(String(30))
+    api_base_url = Column(String(500))
+    auth_url = Column(String(500))
+    client_id = Column(String(200))
     # Credential: segredo do cliente. Não retornar em texto puro ao frontend.
-    password = Column(String(200), nullable=False)  # Criptografado
+    client_secret = Column(String(200))  # Criptografado
+    x_token = Column(String(200))  # Criptografado
+
+    # LEGACY: campos antigos mantidos apenas para compatibilidade histórica.
+    ws_url = Column(String(500))  # LEGACY: https://<servidor>/bpm/ws
+    username = Column(String(100))  # LEGACY
+    password = Column(String(200))  # LEGACY: Criptografado
 
     # Status
     ativo = Column(Boolean, default=True)

@@ -74,28 +74,40 @@ async def configurar_sankhya(
     existing = await sync_service.get_config(tenant_scope)
 
     if existing:
-        updated = await sync_service.atualizar_config(
-            existing,
+        try:
+            updated = await sync_service.atualizar_config(
+                existing,
+                sankhya_environment=config.sankhya_environment,
+                sankhya_api_base_url=config.sankhya_api_base_url,
+                sankhya_auth_url=config.sankhya_auth_url,
+                sankhya_client_id=config.sankhya_client_id,
+                sankhya_client_secret=config.sankhya_client_secret,
+                sankhya_x_token=config.sankhya_x_token,
+                ws_url=config.ws_url,
+                username=config.username,
+                password=config.password,
+                sync_interval=config.sync_interval,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        return SankhyaConfigSerializer.to_response(updated)
+
+    try:
+        created = await sync_service.criar_config(
+            tenant_id=tenant_scope,
+            sankhya_environment=config.sankhya_environment,
+            sankhya_api_base_url=config.sankhya_api_base_url,
+            sankhya_auth_url=config.sankhya_auth_url,
+            sankhya_client_id=config.sankhya_client_id,
+            sankhya_client_secret=config.sankhya_client_secret,
+            sankhya_x_token=config.sankhya_x_token,
             ws_url=config.ws_url,
             username=config.username,
             password=config.password,
             sync_interval=config.sync_interval,
         )
-        return SankhyaConfigSerializer.to_response(updated)
-
-    if not config.password:
-        raise HTTPException(
-            status_code=422,
-            detail="Senha é obrigatória na criação da configuração.",
-        )
-
-    created = await sync_service.criar_config(
-        tenant_id=tenant_scope,
-        ws_url=config.ws_url,
-        username=config.username,
-        password=config.password,
-        sync_interval=config.sync_interval,
-    )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     return SankhyaConfigSerializer.to_response(created)
 
 

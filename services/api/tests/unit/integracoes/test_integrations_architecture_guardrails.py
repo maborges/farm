@@ -145,9 +145,11 @@ def test_credenciais_exigem_criptografia_masking_ou_contrato_equivalente() -> No
     assert "credenciais nunca devem ser persistidas em texto puro" in combined
     assert "mascarar valores" in combined
     assert "permitir rotação" in combined
-    assert "password = Column(String(200), nullable=False)  # Criptografado" in sankhya_models
-    assert "encrypt_integration_secret(password)" in sync_service
+    assert "client_secret = Column(String(200))  # Criptografado" in sankhya_models
+    assert "x_token = Column(String(200))  # Criptografado" in sankhya_models
+    assert "encrypt_integration_secret(" in sync_service
     assert "mask_integration_secret(config.password)" in sync_service
+    assert "mask_integration_secret(config.client_secret)" in sync_service
 
 
 def test_rotas_tenant_scoped_devem_usar_sessao_rls() -> None:

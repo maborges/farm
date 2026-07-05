@@ -1,33 +1,65 @@
 """Schemas para integração Sankhya."""
 
+from __future__ import annotations
+
 from datetime import date, datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class SankhyaConfigCreate(BaseModel):
-    ws_url: str = Field(..., description="URL do WS Sankhya")
-    username: str
-    password: str | None = None
-    sync_interval: int = 900  # 15 minutos
+    sankhya_environment: str = Field(
+        default="producao",
+        description="Ambiente do Gateway Sankhya.",
+    )
+    sankhya_api_base_url: str | None = Field(
+        default=None,
+        description="Base URL do Gateway Sankhya.",
+    )
+    sankhya_auth_url: str | None = Field(
+        default=None,
+        description="Endpoint de autenticação /authenticate.",
+    )
+    sankhya_client_id: str | None = Field(default=None, description="Client ID do Gateway.")
+    sankhya_client_secret: str | None = Field(
+        default=None,
+        description="Client Secret do Gateway.",
+    )
+    sankhya_x_token: str | None = Field(default=None, description="X-Token do Gateway.")
+    sync_interval: int = Field(default=900, ge=60)
+    # LEGACY: aceito apenas para compatibilidade com dados antigos.
+    ws_url: str | None = Field(default=None, description="[LEGACY] URL do WS Sankhya.")
+    username: str | None = Field(default=None, description="[LEGACY] Usuário do WS Sankhya.")
+    password: str | None = Field(default=None, description="[LEGACY] Senha do WS Sankhya.")
+
+    model_config = ConfigDict(extra="ignore")
 
 
 class SankhyaConfigResponse(BaseModel):
     id: int
     tenant_id: str
-    ws_url: str
-    username: str
+    sankhya_environment: str | None = None
+    sankhya_api_base_url: str | None = None
+    sankhya_auth_url: str | None = None
+    sankhya_client_id: str | None = None
+    sankhya_client_secret_configured: bool = False
+    sankhya_client_secret_mask: str | None = None
+    sankhya_x_token_configured: bool = False
+    sankhya_x_token_mask: str | None = None
+    ws_url: str | None = None
+    username: str | None = None
+    password_configured: bool = False
+    password_mask: str | None = None
     ativo: bool
     ultimo_teste: datetime | None
     teste_status: str | None
     ultimo_sync: datetime | None
     sync_interval: int
-    password_configured: bool = False
-    password_mask: str | None = None
+    auth_model: str = "LEGACY"
+    legacy_configured: bool = False
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SankhyaSyncLogResponse(BaseModel):
@@ -53,8 +85,7 @@ class SankhyaSyncLogResponse(BaseModel):
     result_payload: dict | list | None = None
     error_payload: dict | list | str | None = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SankhyaPessoaResponse(BaseModel):
@@ -72,8 +103,7 @@ class SankhyaPessoaResponse(BaseModel):
     ativo: bool
     sincronizado_em: datetime | None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SankhyaProdutoResponse(BaseModel):
@@ -88,8 +118,7 @@ class SankhyaProdutoResponse(BaseModel):
     ativo: bool
     sincronizado_em: datetime | None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SankhyaNFEResponse(BaseModel):
@@ -105,8 +134,7 @@ class SankhyaNFEResponse(BaseModel):
     exportado_sankhya: bool
     sincronizado_em: datetime | None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SankhyaLancamentoFinanceiroResponse(BaseModel):
@@ -121,13 +149,20 @@ class SankhyaLancamentoFinanceiroResponse(BaseModel):
     exportado_sankhya: bool
     sincronizado_em: datetime | None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SankhyaTestConnectionResponse(BaseModel):
     sucesso: bool
     mensagem: str
+    ambiente: str | None = None
+    base_url: str | None = None
+    auth_url: str | None = None
+    client_id_mask: str | None = None
+    x_token_mask: str | None = None
+    token_obtido: bool = False
+    token_expires_at: datetime | None = None
+    auth_model: str | None = None
 
 
 class SankhyaSyncStatusResponse(BaseModel):

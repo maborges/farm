@@ -8,7 +8,7 @@
 
 ## 📋 Visão Geral
 
-Módulo de integração bidirecional com o ERP Sankhya via Web Services BPM.
+Módulo de integração bidirecional com o ERP Sankhya via API Gateway, com compatibilidade legada apenas para leitura histórica.
 
 ### Funcionalidades
 
@@ -50,9 +50,12 @@ POST /api/v1/integracoes/sankhya/config
 **Request:**
 ```json
 {
-  "ws_url": "https://seu-servidor/bpm/ws",
-  "username": "usuario_sankhya",
-  "password": "senha_sankhya",
+  "sankhya_environment": "producao",
+  "sankhya_api_base_url": "https://gateway.sankhya.com.br",
+  "sankhya_auth_url": "https://gateway.sankhya.com.br/authenticate",
+  "sankhya_client_id": "client-id",
+  "sankhya_client_secret": "client-secret",
+  "sankhya_x_token": "x-token",
   "sync_interval": 900
 }
 ```
@@ -62,8 +65,12 @@ POST /api/v1/integracoes/sankhya/config
 {
   "id": 1,
   "tenant_id": "tenant-abc",
-  "ws_url": "https://seu-servidor/bpm/ws",
-  "username": "usuario_sankhya",
+  "sankhya_environment": "producao",
+  "sankhya_api_base_url": "https://gateway.sankhya.com.br",
+  "sankhya_auth_url": "https://gateway.sankhya.com.br/authenticate",
+  "sankhya_client_id": "client-id",
+  "sankhya_client_secret_configured": true,
+  "sankhya_x_token_configured": true,
   "ativo": true,
   "teste_status": null,
   "ultimo_sync": null,
@@ -196,7 +203,7 @@ SankhyaProduto (upsert by sankhya_id)
 ### Endpoints WS
 
 ```
-Base URL: https://<servidor>/bpm/ws
+Base URL: https://gateway.sankhya.com.br
 
 Serviços disponíveis:
 - PessoaFisica.save
@@ -215,10 +222,25 @@ Serviços disponíveis:
 ### Autenticação
 
 ```python
-# Basic Auth
-credentials = username:password
-encoded = base64(credentials)
-Authorization: Basic <encoded>
+# Gateway Sankhya
+POST /authenticate
+
+Headers:
+- X-Token: <x_token>
+- Content-Type: application/json
+
+Body:
+{
+  "client_id": "<client_id>",
+  "client_secret": "<client_secret>",
+  "grant_type": "client_credentials"
+}
+
+Response:
+{
+  "access_token": "<token>",
+  "expires_in": 3600
+}
 ```
 
 ### Exemplo de Chamada SOAP

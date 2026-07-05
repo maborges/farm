@@ -67,6 +67,14 @@ class Settings(BaseSettings):
     smtp_pass: str = ""
     mail_from: str = "noreply@agrosaas.com.br"
 
+    # Sankhya Gateway Config
+    sankhya_environment: str = "producao"
+    sankhya_api_base_url: str = ""
+    sankhya_auth_url: str = ""
+    sankhya_client_id: str = ""
+    sankhya_client_secret: str = ""
+    sankhya_x_token: str = ""
+
     model_config = SettingsConfigDict(
         env_file=str(_env_path),
         env_file_encoding="utf-8",

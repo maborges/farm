@@ -21,6 +21,7 @@ from integracoes.models import (
     TenantIntegracao,
 )
 from integracoes.sankhya.models import SankhyaConfig
+from integracoes.sankhya.services.auth_service import SankhyaGatewayAuthService
 from integracoes.sankhya.services.sync_service import (
     SankhyaConfigSerializer,
     SankhyaSyncService,
@@ -93,6 +94,28 @@ async def test_senha_e_persistida_protegida(session: AsyncSession) -> None:
 
 
 @pytest.mark.asyncio
+async def test_gateway_segredos_sao_persistidos_e_classificados(session: AsyncSession) -> None:
+    service = SankhyaSyncService(session)
+    config = await service.criar_config(
+        tenant_id="tenant-1",
+        sankhya_environment="producao",
+        sankhya_api_base_url="https://gateway.example/api",
+        sankhya_auth_url="https://gateway.example/authenticate",
+        sankhya_client_id="client-123",
+        sankhya_client_secret="client-secret",
+        sankhya_x_token="x-token",
+        sync_interval=900,
+    )
+
+    assert config.client_secret != "client-secret"
+    assert is_integration_secret_encrypted(config.client_secret)
+    assert decrypt_integration_secret(config.client_secret) == "client-secret"
+    assert decrypt_integration_secret(config.x_token) == "x-token"
+    assert config.api_base_url == "https://gateway.example/api"
+    assert SankhyaGatewayAuthService(config).auth_model() == "GATEWAY"
+
+
+@pytest.mark.asyncio
 async def test_resposta_nao_retorna_senha_bruta(session: AsyncSession) -> None:
     service = SankhyaSyncService(session)
     config = await service.criar_config(
@@ -108,6 +131,33 @@ async def test_resposta_nao_retorna_senha_bruta(session: AsyncSession) -> None:
     assert "password" not in payload
     assert payload["password_configured"] is True
     assert payload["password_mask"] == "••••••••"
+
+
+@pytest.mark.asyncio
+async def test_resposta_gateway_nao_retorna_segredos_brutos(session: AsyncSession) -> None:
+    service = SankhyaSyncService(session)
+    config = await service.criar_config(
+        tenant_id="tenant-1",
+        sankhya_environment="sandbox",
+        sankhya_api_base_url="https://gateway.example/api",
+        sankhya_auth_url="https://gateway.example/authenticate",
+        sankhya_client_id="client-abc",
+        sankhya_client_secret="client-secret",
+        sankhya_x_token="x-token",
+        sync_interval=900,
+    )
+
+    payload = SankhyaConfigSerializer.to_response(config)
+
+    assert payload["sankhya_api_base_url"] == "https://gateway.example/api"
+    assert payload["sankhya_auth_url"] == "https://gateway.example/authenticate"
+    assert payload["sankhya_client_id"] == "client-abc"
+    assert payload["sankhya_client_secret_configured"] is True
+    assert payload["sankhya_client_secret_mask"] == "••••••••"
+    assert payload["sankhya_x_token_configured"] is True
+    assert payload["sankhya_x_token_mask"] == "••••••••"
+    assert payload["auth_model"] == "GATEWAY"
+    assert payload["password_configured"] is False
 
 
 @pytest.mark.asyncio
@@ -134,6 +184,38 @@ async def test_atualizacao_sem_nova_senha_mantem_credencial_existente(
 
     assert updated.password == encrypted
     assert decrypt_integration_secret(updated.password) == "segredo-inicial"
+
+
+@pytest.mark.asyncio
+async def test_atualizacao_gateway_sem_reenviar_segredos_mantem_token(session: AsyncSession) -> None:
+    service = SankhyaSyncService(session)
+    config = await service.criar_config(
+        tenant_id="tenant-1",
+        sankhya_environment="producao",
+        sankhya_api_base_url="https://gateway.example/api",
+        sankhya_auth_url="https://gateway.example/authenticate",
+        sankhya_client_id="client-123",
+        sankhya_client_secret="client-secret",
+        sankhya_x_token="x-token",
+        sync_interval=900,
+    )
+    encrypted_client_secret = config.client_secret
+    encrypted_x_token = config.x_token
+
+    updated = await service.atualizar_config(
+        config,
+        sankhya_environment="producao",
+        sankhya_api_base_url="https://gateway.example/api/v2",
+        sankhya_auth_url="https://gateway.example/authenticate",
+        sankhya_client_id="client-123",
+        sankhya_client_secret=None,
+        sankhya_x_token=None,
+        sync_interval=1200,
+    )
+
+    assert updated.client_secret == encrypted_client_secret
+    assert updated.x_token == encrypted_x_token
+    assert updated.api_base_url == "https://gateway.example/api/v2"
 
 
 @pytest.mark.asyncio

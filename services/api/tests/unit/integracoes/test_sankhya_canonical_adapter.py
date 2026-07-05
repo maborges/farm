@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+import json
 from pathlib import Path
 from typing import Any
 
@@ -29,7 +30,7 @@ from integracoes.models import (
 from integracoes.sankhya.models import SankhyaConfig, SankhyaNFe, SankhyaSyncLog
 from integracoes.sankhya.services.nfe_financeiro_service import SankhyaNFeService
 from integracoes.sankhya.services.sync_service import SankhyaSyncService
-from integracoes.security import encrypt_integration_secret
+from integracoes.security import decrypt_integration_secret, encrypt_integration_secret
 
 REPO_ROOT = Path(__file__).resolve().parents[5]
 ROUTERS_FILE = REPO_ROOT / "services/api/integracoes/sankhya/routers/__init__.py"
@@ -72,6 +73,20 @@ async def _legacy_sankhya_config(session: AsyncSession) -> SankhyaConfig:
         ws_url="https://erp.example/ws",
         username="usuario",
         password="segredo",
+        sync_interval=900,
+    )
+
+
+async def _gateway_sankhya_config(session: AsyncSession) -> SankhyaConfig:
+    service = SankhyaSyncService(session)
+    return await service.criar_config(
+        tenant_id="90aa4f2e-c8ce-4e69-a792-eedf505372e4",
+        sankhya_environment="producao",
+        sankhya_api_base_url="https://gateway.example/api",
+        sankhya_auth_url="https://gateway.example/authenticate",
+        sankhya_client_id="client-123",
+        sankhya_client_secret="client-secret",
+        sankhya_x_token="x-token",
         sync_interval=900,
     )
 
@@ -138,6 +153,45 @@ async def test_adapter_cria_config_canonica_features_policies_e_health(
         IntegrationHealthStatus.DISCONNECTED.value,
     }
     assert any(event.event_type == "integrations.configured" for event in events)
+
+
+@pytest.mark.asyncio
+async def test_adapter_gateway_bundles_segredos_e_conexao_canonica(
+    session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def fake_publish(event: Any, **_: Any) -> None:
+        return None
+
+    monkeypatch.setattr(
+        "integracoes.sankhya.services.canonical_adapter.publish_domain_event_safe",
+        fake_publish,
+    )
+
+    gateway = await _gateway_sankhya_config(session)
+
+    config = (
+        await session.execute(
+            select(TenantIntegracao).where(
+                TenantIntegracao.tenant_id == gateway.tenant_id,
+            )
+        )
+    ).scalar_one()
+    credential = (
+        await session.execute(
+            select(IntegrationCredential).where(
+                IntegrationCredential.tenant_id == gateway.tenant_id,
+            )
+        )
+    ).scalar_one()
+
+    credential_payload = json.loads(decrypt_integration_secret(credential.segredo_criptografado))
+
+    assert config.connection_payload["sankhya_api_base_url"] == "https://gateway.example/api"
+    assert config.connection_payload["auth_model"] == "GATEWAY"
+    assert config.credenciais["auth_model"] == "GATEWAY"
+    assert credential_payload["sankhya_client_secret"] == "client-secret"
+    assert credential_payload["sankhya_x_token"] == "x-token"
 
 
 @pytest.mark.asyncio

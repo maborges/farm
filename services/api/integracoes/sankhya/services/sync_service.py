@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import base64
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -10,6 +9,7 @@ import httpx
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from core.config import settings
 from integracoes.models import (
     IntegrationFeature,
     IntegrationHealth,
@@ -25,7 +25,9 @@ from integracoes.sankhya.models import (
     SankhyaProduto,
     SankhyaSyncLog,
 )
+from integracoes.sankhya.schemas import SankhyaTestConnectionResponse
 from integracoes.sankhya.services.canonical_adapter import SankhyaCanonicalAdapter
+from integracoes.sankhya.services.auth_service import SankhyaGatewayAuthService
 from integracoes.security import (
     decrypt_integration_secret,
     encrypt_integration_secret,
@@ -38,9 +40,10 @@ class SankhyaWSClient:
 
     def __init__(self, config: SankhyaConfig):
         self.config = config
-        self.base_url = config.ws_url
-        self.username = config.username
-        self.password = decrypt_integration_secret(config.password)
+        self.auth_service = SankhyaGatewayAuthService(config)
+        self.auth_model = self.auth_service.auth_model()
+        self.base_url = config.api_base_url or config.ws_url or ""
+        self.auth_url = config.auth_url or ""
         self._session: httpx.AsyncClient | None = None
 
     async def __aenter__(self):
@@ -51,16 +54,28 @@ class SankhyaWSClient:
         if self._session:
             await self._session.aclose()
 
-    def _get_auth_headers(self) -> dict[str, str]:
-        credentials = f"{self.username}:{self.password}"
-        encoded = base64.b64encode(credentials.encode()).decode()
-        return {
-            "Authorization": f"Basic {encoded}",
-            "Content-Type": "text/xml; charset=utf-8",
-            "SOAPAction": '""',
-        }
+    def _validate_config(self) -> None:
+        if self.auth_model == "GATEWAY":
+            self.auth_service.validate_gateway_config()
+            return
+        if self.auth_model == "LEGACY":
+            self.auth_service.validate_legacy_config()
+            return
+        raise ValueError("Configuração Sankhya incompleta: informe Gateway ou credenciais legadas")
+
+    async def _get_auth_headers(self) -> dict[str, str]:
+        self._validate_config()
+        if self.auth_model == "GATEWAY":
+            token = await self.auth_service.authenticate(self._session)
+            return self.auth_service.build_request_headers(token)
+        token_headers = self.auth_service.build_request_headers("")
+        token_headers["Content-Type"] = "text/xml; charset=utf-8"
+        token_headers["SOAPAction"] = '""'
+        return token_headers
 
     async def test_connection(self) -> bool:
+        if self._session is None:
+            raise RuntimeError("SankhyaWSClient deve ser usado como context manager")
         try:
             soap_envelope = """<?xml version="1.0" encoding="UTF-8"?>
             <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/">
@@ -70,7 +85,7 @@ class SankhyaWSClient:
 
             response = await self._session.post(
                 self.base_url,
-                headers=self._get_auth_headers(),
+                headers=await self._get_auth_headers(),
                 content=soap_envelope,
             )
             return response.status_code == 200
@@ -81,12 +96,14 @@ class SankhyaWSClient:
     async def executar_ws(
         self, service: str, method: str, params: dict[str, Any]
     ) -> dict[str, Any]:
+        if self._session is None:
+            raise RuntimeError("SankhyaWSClient deve ser usado como context manager")
         soap_envelope = self._build_soap_envelope(service, method, params)
 
         try:
             response = await self._session.post(
                 self.base_url,
-                headers=self._get_auth_headers(),
+                headers=await self._get_auth_headers(),
                 content=soap_envelope,
             )
 
@@ -126,9 +143,20 @@ class SankhyaConfigSerializer:
 
     @staticmethod
     def to_response(config: SankhyaConfig) -> dict[str, Any]:
+        auth_service = SankhyaGatewayAuthService(config)
         return {
             "id": config.id,
             "tenant_id": config.tenant_id,
+            "sankhya_environment": config.environment,
+            "sankhya_api_base_url": config.api_base_url or config.ws_url,
+            "sankhya_auth_url": config.auth_url,
+            "sankhya_client_id": config.client_id,
+            "sankhya_client_secret_configured": bool(
+                decrypt_integration_secret(config.client_secret)
+            ),
+            "sankhya_client_secret_mask": mask_integration_secret(config.client_secret),
+            "sankhya_x_token_configured": bool(decrypt_integration_secret(config.x_token)),
+            "sankhya_x_token_mask": mask_integration_secret(config.x_token),
             "ws_url": config.ws_url,
             "username": config.username,
             "ativo": config.ativo,
@@ -138,6 +166,8 @@ class SankhyaConfigSerializer:
             "sync_interval": config.sync_interval,
             "password_configured": bool(config.password),
             "password_mask": mask_integration_secret(config.password),
+            "auth_model": auth_service.auth_model(),
+            "legacy_configured": auth_service.is_legacy_configured(),
             "created_at": config.created_at,
         }
 
@@ -153,27 +183,179 @@ class SankhyaSyncService:
         stmt = select(SankhyaConfig).where(SankhyaConfig.tenant_id == tenant_id)
         return (await self.db.execute(stmt)).scalar_one_or_none()
 
+    def _normalize_config_values(
+        self,
+        *,
+        sankhya_environment: str | None,
+        sankhya_api_base_url: str | None,
+        sankhya_auth_url: str | None,
+        sankhya_client_id: str | None,
+        sankhya_client_secret: str | None,
+        sankhya_x_token: str | None,
+        ws_url: str | None,
+        username: str | None,
+        password: str | None,
+        sync_interval: int,
+        current: SankhyaConfig | None = None,
+    ) -> dict[str, Any]:
+        gateway_inputs = [
+            sankhya_api_base_url,
+            sankhya_auth_url,
+            sankhya_client_id,
+            sankhya_client_secret,
+            sankhya_x_token,
+        ]
+        legacy_inputs = [ws_url, username, password]
+        explicit_gateway = any(value is not None for value in gateway_inputs)
+        explicit_legacy = any(value is not None for value in legacy_inputs)
+
+        if explicit_gateway:
+            auth_model = "GATEWAY"
+        elif explicit_legacy:
+            auth_model = "LEGACY"
+        elif current is not None:
+            auth_model = SankhyaGatewayAuthService(current).auth_model()
+        else:
+            auth_model = "GATEWAY"
+
+        current_auth = SankhyaGatewayAuthService(current) if current else None
+        current_is_gateway = current_auth.auth_model() == "GATEWAY" if current_auth else False
+        current_is_legacy = current_auth.auth_model() == "LEGACY" if current_auth else False
+
+        environment = sankhya_environment or (current.environment if current else settings.sankhya_environment)
+        api_base_url = sankhya_api_base_url or (
+            current.api_base_url if current and current.api_base_url else None
+        )
+        auth_url = sankhya_auth_url or (current.auth_url if current and current.auth_url else None)
+        client_id = sankhya_client_id or (current.client_id if current and current.client_id else None)
+        client_secret_raw = sankhya_client_secret
+        x_token_raw = sankhya_x_token
+        ws_url_value = ws_url or (current.ws_url if current and current.ws_url else None)
+        username_value = username or (current.username if current and current.username else None)
+        password_raw = password
+
+        if auth_model == "INCOMPLETE":
+            raise ValueError(
+                "Configuração Sankhya incompleta: informe Gateway ou credenciais legadas"
+            )
+
+        if auth_model == "GATEWAY":
+            if api_base_url is None:
+                raise ValueError("Configuração Sankhya Gateway incompleta: sankhya_api_base_url")
+            if auth_url is None:
+                raise ValueError("Configuração Sankhya Gateway incompleta: sankhya_auth_url")
+            if client_id is None:
+                raise ValueError("Configuração Sankhya Gateway incompleta: sankhya_client_id")
+
+            if client_secret_raw is None and current_is_gateway and current and current.client_secret:
+                client_secret = current.client_secret
+            elif client_secret_raw is None:
+                raise ValueError("Configuração Sankhya Gateway incompleta: sankhya_client_secret")
+            else:
+                client_secret = encrypt_integration_secret(client_secret_raw)
+
+            if x_token_raw is None and current_is_gateway and current and current.x_token:
+                x_token = current.x_token
+            elif x_token_raw is None:
+                raise ValueError("Configuração Sankhya Gateway incompleta: sankhya_x_token")
+            else:
+                x_token = encrypt_integration_secret(x_token_raw)
+
+            if ws_url_value is None:
+                ws_url_value = api_base_url
+            if username_value is None:
+                username_value = client_id
+
+            password_value = (
+                encrypt_integration_secret(password_raw)
+                if password_raw is not None
+                else (current.password if current and current.password and current_is_legacy else None)
+            )
+        else:
+            if ws_url_value is None:
+                raise ValueError("Configuração Sankhya LEGACY incompleta: ws_url")
+            if username_value is None:
+                raise ValueError("Configuração Sankhya LEGACY incompleta: username")
+
+            if password_raw is None and current_is_legacy and current and current.password:
+                password_value = current.password
+            elif password_raw is None:
+                raise ValueError("Configuração Sankhya LEGACY incompleta: password")
+            else:
+                password_value = encrypt_integration_secret(password_raw)
+
+            if api_base_url is None:
+                api_base_url = ws_url_value
+            if auth_url is None:
+                auth_url = None
+            if client_id is None:
+                client_id = None
+            client_secret = current.client_secret if current and current.client_secret else None
+            x_token = current.x_token if current and current.x_token else None
+
+        return {
+            "environment": environment,
+            "api_base_url": api_base_url,
+            "auth_url": auth_url,
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "x_token": x_token,
+            "ws_url": ws_url_value,
+            "username": username_value,
+            "password": password_value,
+            "sync_interval": sync_interval,
+            "auth_model": auth_model,
+            "client_secret_changed": client_secret_raw is not None,
+            "x_token_changed": x_token_raw is not None,
+            "password_changed": password_raw is not None,
+        }
+
     async def criar_config(
         self,
         tenant_id: str,
-        ws_url: str,
-        username: str,
-        password: str,
+        *,
+        sankhya_environment: str | None = None,
+        sankhya_api_base_url: str | None = None,
+        sankhya_auth_url: str | None = None,
+        sankhya_client_id: str | None = None,
+        sankhya_client_secret: str | None = None,
+        sankhya_x_token: str | None = None,
+        ws_url: str | None = None,
+        username: str | None = None,
+        password: str | None = None,
         sync_interval: int = 900,
     ) -> SankhyaConfig:
-        config = SankhyaConfig(
-            tenant_id=tenant_id,
+        normalized = self._normalize_config_values(
+            sankhya_environment=sankhya_environment,
+            sankhya_api_base_url=sankhya_api_base_url,
+            sankhya_auth_url=sankhya_auth_url,
+            sankhya_client_id=sankhya_client_id,
+            sankhya_client_secret=sankhya_client_secret,
+            sankhya_x_token=sankhya_x_token,
             ws_url=ws_url,
             username=username,
-            password=encrypt_integration_secret(password),
+            password=password,
             sync_interval=sync_interval,
+        )
+        config = SankhyaConfig(
+            tenant_id=tenant_id,
+            environment=normalized["environment"],
+            api_base_url=normalized["api_base_url"],
+            auth_url=normalized["auth_url"],
+            client_id=normalized["client_id"],
+            client_secret=normalized["client_secret"],
+            x_token=normalized["x_token"],
+            ws_url=normalized["ws_url"],
+            username=normalized["username"],
+            password=normalized["password"],
+            sync_interval=normalized["sync_interval"],
         )
         self.db.add(config)
         await self.db.commit()
         await self.db.refresh(config)
         await self.adapter.sync_provider_config(
             config,
-            password_changed=True,
+            password_changed=bool(normalized["client_secret"] or normalized["x_token"] or normalized["password"]),
             reason="sankhya_config_created",
         )
         return config
@@ -182,17 +364,50 @@ class SankhyaSyncService:
         self,
         config: SankhyaConfig,
         *,
-        ws_url: str,
-        username: str,
-        password: str | None,
+        sankhya_environment: str | None = None,
+        sankhya_api_base_url: str | None = None,
+        sankhya_auth_url: str | None = None,
+        sankhya_client_id: str | None = None,
+        sankhya_client_secret: str | None = None,
+        sankhya_x_token: str | None = None,
+        ws_url: str | None = None,
+        username: str | None = None,
+        password: str | None = None,
         sync_interval: int,
     ) -> SankhyaConfig:
-        password_changed = bool(password)
-        config.ws_url = ws_url
-        config.username = username
-        if password:
-            config.password = encrypt_integration_secret(password)
-        config.sync_interval = sync_interval
+        normalized = self._normalize_config_values(
+            sankhya_environment=sankhya_environment,
+            sankhya_api_base_url=sankhya_api_base_url,
+            sankhya_auth_url=sankhya_auth_url,
+            sankhya_client_id=sankhya_client_id,
+            sankhya_client_secret=sankhya_client_secret,
+            sankhya_x_token=sankhya_x_token,
+            ws_url=ws_url,
+            username=username,
+            password=password,
+            sync_interval=sync_interval,
+            current=config,
+        )
+        password_changed = bool(
+            normalized["client_secret_changed"]
+            or normalized["x_token_changed"]
+            or normalized["password_changed"]
+        )
+        config.environment = normalized["environment"]
+        config.api_base_url = normalized["api_base_url"]
+        config.auth_url = normalized["auth_url"]
+        config.client_id = normalized["client_id"]
+        if normalized["client_secret"] is not None:
+            config.client_secret = normalized["client_secret"]
+        if normalized["x_token"] is not None:
+            config.x_token = normalized["x_token"]
+        if normalized["ws_url"] is not None:
+            config.ws_url = normalized["ws_url"]
+        if normalized["username"] is not None:
+            config.username = normalized["username"]
+        if normalized["password"] is not None:
+            config.password = normalized["password"]
+        config.sync_interval = normalized["sync_interval"]
         self.db.add(config)
         await self.db.commit()
         await self.db.refresh(config)
@@ -203,28 +418,27 @@ class SankhyaSyncService:
         )
         return config
 
-    async def testar_conexao(self, tenant_id: str) -> dict[str, Any]:
+    async def testar_conexao(self, tenant_id: str) -> SankhyaTestConnectionResponse:
+        """Executa um teste controlado do Gateway Sankhya sem persistência externa.
+
+        Args:
+            tenant_id: Identificador do tenant em escopo RLS.
+
+        Returns:
+            Resposta sanitizada do teste de conexão.
+        """
+
         config = await self.get_config(tenant_id)
         if not config:
-            return {"sucesso": False, "mensagem": "Configuração não encontrada"}
+            return SankhyaTestConnectionResponse(
+                sucesso=False,
+                mensagem="Configuração não encontrada",
+                token_obtido=False,
+            )
 
-        async with SankhyaWSClient(config) as client:
-            sucesso = await client.test_connection()
-
-        config.ultimo_teste = datetime.utcnow()
-        config.teste_status = "sucesso" if sucesso else "erro"
-        self.db.add(config)
-        await self.db.commit()
-        await self.adapter.sync_connection_test(
-            config,
-            success=sucesso,
-            message="Conexão estabelecida" if sucesso else "Falha na conexão",
-        )
-
-        return {
-            "sucesso": sucesso,
-            "mensagem": "Conexão estabelecida" if sucesso else "Falha na conexão",
-        }
+        auth_service = SankhyaGatewayAuthService(config)
+        diagnostic = await auth_service.test_connection()
+        return SankhyaTestConnectionResponse.model_validate(diagnostic.as_dict())
 
     async def iniciar_sync_log(self, tenant_id: str, tipo: str, operacao: str) -> SankhyaSyncLog:
         next_id = await self._next_sync_log_id_for_sqlite()

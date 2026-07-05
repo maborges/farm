@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import uuid
 from datetime import datetime, timezone
 from typing import Any
@@ -36,7 +37,12 @@ from integracoes.models import (
     TenantIntegracao,
 )
 from integracoes.sankhya.models import SankhyaConfig
-from integracoes.security import encrypt_integration_secret, mask_integration_secret
+from integracoes.sankhya.services.auth_service import SankhyaGatewayAuthService
+from integracoes.security import (
+    decrypt_integration_secret,
+    encrypt_integration_secret,
+    mask_integration_secret,
+)
 
 _SANKHYA_SLUG = "sankhya"
 _SANKHYA_NAME = "Sankhya"
@@ -328,10 +334,26 @@ class SankhyaCanonicalAdapter:
                 provider_type="ERP",
                 provider_definition={"provider": "sankhya", "version": 1},
                 connection_schema={
-                    "required": ["ws_url", "username", "sync_interval"],
-                    "optional": ["ultimo_teste", "teste_status", "ultimo_sync"],
+                    "required": [
+                        "sankhya_environment",
+                        "sankhya_api_base_url",
+                        "sankhya_auth_url",
+                        "sync_interval",
+                    ],
+                    "optional": [
+                        "sankhya_client_id",
+                        "ws_url",
+                        "username",
+                        "ultimo_teste",
+                        "teste_status",
+                        "ultimo_sync",
+                        "auth_model",
+                    ],
                 },
-                credential_schema={"required": ["password"]},
+                credential_schema={
+                    "required": ["sankhya_client_id", "sankhya_client_secret", "sankhya_x_token"],
+                    "optional": ["password", "legacy_auth_model"],
+                },
                 feature_schema={"supported_features": list(_FEATURE_DEFAULTS.keys())},
                 sync_schema={"default_trigger": "MANUAL"},
                 health_schema={"states": [status.value for status in IntegrationHealthStatus]},
@@ -356,6 +378,9 @@ class SankhyaCanonicalAdapter:
         *,
         rotate: bool,
     ) -> IntegrationCredential:
+        auth_service = SankhyaGatewayAuthService(provider_config)
+        credential_bundle = self._credential_bundle(provider_config)
+        credential_mask = auth_service.describe()
         stmt = (
             select(IntegrationCredential)
             .where(
@@ -373,8 +398,8 @@ class SankhyaCanonicalAdapter:
                 tenant_id=provider_config.tenant_id,
                 provider_id=provider.id,
                 scope_type=IntegrationScope.TENANT.value,
-                segredo_criptografado=self._canonical_secret(provider_config.password),
-                mask_metadata={"password_mask": mask_integration_secret(provider_config.password)},
+                segredo_criptografado=self._canonical_secret(credential_bundle),
+                mask_metadata=self._credential_mask_metadata(provider_config, credential_mask),
                 version_number=1,
                 ativo=True,
                 rotated_at=datetime.utcnow(),
@@ -394,8 +419,8 @@ class SankhyaCanonicalAdapter:
             tenant_id=provider_config.tenant_id,
             provider_id=provider.id,
             scope_type=IntegrationScope.TENANT.value,
-            segredo_criptografado=self._canonical_secret(provider_config.password),
-            mask_metadata={"password_mask": mask_integration_secret(provider_config.password)},
+            segredo_criptografado=self._canonical_secret(credential_bundle),
+            mask_metadata=self._credential_mask_metadata(provider_config, credential_mask),
             version_number=current.version_number + 1,
             ativo=True,
             rotated_at=datetime.utcnow(),
@@ -418,6 +443,7 @@ class SankhyaCanonicalAdapter:
         )
         config = (await self.db.execute(stmt)).scalar_one_or_none()
         payload = self._connection_payload(provider_config)
+        credentials_payload = self._credentials_payload(provider_config, credential)
         changed = False
 
         if config is None:
@@ -426,6 +452,7 @@ class SankhyaCanonicalAdapter:
                 integracao_id=provider.id,
                 status="ativa" if provider_config.ativo else "inativa",
                 configuracoes={"sync_interval": provider_config.sync_interval},
+                credenciais=credentials_payload,
                 scope_type=IntegrationScope.TENANT.value,
                 lifecycle_state=(
                     IntegrationStatus.ACTIVE.value
@@ -444,6 +471,9 @@ class SankhyaCanonicalAdapter:
             changed = True
         if config.configuracoes != {"sync_interval": provider_config.sync_interval}:
             config.configuracoes = {"sync_interval": provider_config.sync_interval}
+            changed = True
+        if config.credenciais != credentials_payload:
+            config.credenciais = credentials_payload
             changed = True
 
         status = "ativa" if provider_config.ativo else "inativa"
@@ -552,12 +582,22 @@ class SankhyaCanonicalAdapter:
         provider_config: SankhyaConfig,
         reason: str,
     ) -> None:
+        auth_service = SankhyaGatewayAuthService(provider_config)
         snapshot = {
             "provider_slug": _SANKHYA_SLUG,
+            "auth_model": auth_service.auth_model(),
+            "sankhya_environment": provider_config.environment,
+            "sankhya_api_base_url": provider_config.api_base_url or provider_config.ws_url,
+            "sankhya_auth_url": provider_config.auth_url,
+            "sankhya_client_id": provider_config.client_id,
             "ws_url": provider_config.ws_url,
             "username": provider_config.username,
             "sync_interval": provider_config.sync_interval,
             "ativo": provider_config.ativo,
+            "client_secret_configured": bool(provider_config.client_secret),
+            "client_secret_mask": mask_integration_secret(provider_config.client_secret),
+            "x_token_configured": bool(provider_config.x_token),
+            "x_token_mask": mask_integration_secret(provider_config.x_token),
             "password_configured": bool(provider_config.password),
             "password_mask": mask_integration_secret(provider_config.password),
         }
@@ -817,6 +857,54 @@ class SankhyaCanonicalAdapter:
         return uuid.uuid5(_LOG_NAMESPACE, str(legacy_log_id))
 
     @staticmethod
+    def _credential_bundle(provider_config: SankhyaConfig) -> str:
+        auth_service = SankhyaGatewayAuthService(provider_config)
+        if auth_service.auth_model() == "GATEWAY":
+            return json.dumps(
+                {
+                    "sankhya_client_secret": decrypt_integration_secret(provider_config.client_secret),
+                    "sankhya_x_token": decrypt_integration_secret(provider_config.x_token),
+                    "legacy_password": None,
+                },
+                sort_keys=True,
+            )
+        return provider_config.password or ""
+
+    @staticmethod
+    def _credential_mask_metadata(
+        provider_config: SankhyaConfig,
+        auth_description: dict[str, Any],
+    ) -> dict[str, Any]:
+        return {
+            "auth_model": auth_description["auth_model"],
+            "sankhya_environment": provider_config.environment,
+            "sankhya_api_base_url": provider_config.api_base_url or provider_config.ws_url,
+            "sankhya_auth_url": provider_config.auth_url,
+            "sankhya_client_id": provider_config.client_id,
+            "sankhya_client_secret_mask": auth_description["client_secret_mask"],
+            "sankhya_x_token_mask": auth_description["x_token_mask"],
+            "password_mask": auth_description["password_mask"],
+        }
+
+    @staticmethod
+    def _credentials_payload(
+        provider_config: SankhyaConfig,
+        credential: IntegrationCredential,
+    ) -> dict[str, Any]:
+        auth_service = SankhyaGatewayAuthService(provider_config)
+        return {
+            "auth_model": auth_service.auth_model(),
+            "sankhya_environment": provider_config.environment,
+            "sankhya_api_base_url": provider_config.api_base_url or provider_config.ws_url,
+            "sankhya_auth_url": provider_config.auth_url,
+            "sankhya_client_id": provider_config.client_id,
+            "client_secret_mask": mask_integration_secret(provider_config.client_secret),
+            "x_token_mask": mask_integration_secret(provider_config.x_token),
+            "legacy_password_mask": mask_integration_secret(provider_config.password),
+            "credential_ref_id": credential.id,
+        }
+
+    @staticmethod
     def _canonical_secret(raw_or_encrypted: str) -> str:
         if raw_or_encrypted.startswith("enc::"):
             return raw_or_encrypted
@@ -835,7 +923,13 @@ class SankhyaCanonicalAdapter:
 
     @staticmethod
     def _connection_payload(provider_config: SankhyaConfig) -> dict[str, Any]:
+        auth_service = SankhyaGatewayAuthService(provider_config)
         return {
+            "auth_model": auth_service.auth_model(),
+            "sankhya_environment": provider_config.environment,
+            "sankhya_api_base_url": provider_config.api_base_url or provider_config.ws_url,
+            "sankhya_auth_url": provider_config.auth_url,
+            "sankhya_client_id": provider_config.client_id,
             "ws_url": provider_config.ws_url,
             "username": provider_config.username,
             "sync_interval": provider_config.sync_interval,
