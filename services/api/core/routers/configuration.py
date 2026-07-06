@@ -22,6 +22,10 @@ from core.schemas.config_schemas import (
 from core.services.configuracoes_service import (
     ConfiguracoesService, UnidadeAreaConverter, seed_categorias_padrao
 )
+from agricola.templates.service import PhaseTemplateService, OperationTemplateService
+from integracoes.sankhya.services import SankhyaSyncService
+from integracoes.events import IntegrationSyncRequested
+from events.helpers import publish_domain_event_safe
 
 router = APIRouter(prefix="/config", tags=["Configurações"])
 
@@ -373,6 +377,55 @@ async def completar_onboarding(
             await svc.set_configuracao("geral", "erp_principal", data.erp)
         if data.modulos:
             await svc.set_configuracao("geral", "modulos_selecionados", ",".join(data.modulos))
+
+        # FASE 2: Aplicação do PhaseTemplate (CAFE)
+        if data.cultura == "CAFE":
+            pts = PhaseTemplateService(session, tenant.id)
+            globais = await pts.listar(cultura="CAFE")
+
+            templates_globais = [t for t in globais if t.tenant_id is None]
+            existentes = [t for t in globais if t.tenant_id == tenant.id]
+            titulos_existentes = {t.titulo.replace(" (Cópia)", "") for t in existentes}
+            titulos_diretos = {t.titulo for t in existentes}
+
+            for g in templates_globais:
+                if g.titulo not in titulos_existentes and f"{g.titulo} (Cópia)" not in titulos_diretos:
+                    await pts.duplicar_global(g.id)
+
+            # FASE 05C: OperationTemplates (CAFE)
+            ots = OperationTemplateService(session, tenant.id)
+            ops_globais = await ots.listar(cultura="CAFE")
+            
+            ops_templates_globais = [t for t in ops_globais if t.tenant_id is None]
+            ops_existentes = [t for t in ops_globais if t.tenant_id == tenant.id]
+            ops_titulos_existentes = {t.titulo.replace(" (Cópia)", "") for t in ops_existentes}
+            ops_titulos_diretos = {t.titulo for t in ops_existentes}
+            
+            for g in ops_templates_globais:
+                if g.titulo not in ops_titulos_existentes and f"{g.titulo} (Cópia)" not in ops_titulos_diretos:
+                    await ots.duplicar_global(g.id)
+
+        # FASE 05B: Integração Sankhya
+        if data.erp == "SANKHYA":
+            sankhya_sync = SankhyaSyncService(session)
+            config = await sankhya_sync.get_config(str(tenant.id))
+            if config:
+                event = IntegrationSyncRequested(
+                    tenant_id=tenant.id,
+                    entity_id=config.id,
+                    provider_id=config.provider_id,
+                    config_id=config.id,
+                    features=["pessoas", "produtos"]
+                )
+                await publish_domain_event_safe(
+                    event,
+                    session=session,
+                    commit=False,
+                    idempotency_key=f"sankhya_initial_sync_{tenant.id}"
+                )
+            else:
+                await svc.set_configuracao("integracoes", "sankhya_status", "PENDENTE")
+
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
 

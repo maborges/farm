@@ -136,6 +136,38 @@ class OperationTemplateService(BaseService[OperationTemplate]):
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
+    async def duplicar_global(self, global_template_id: UUID) -> OperationTemplate:
+        """Cria uma cópia de um template global operacional para o tenant atual."""
+        global_tmpl = await self.get_with_details(global_template_id)
+        if global_tmpl.tenant_id is not None:
+            raise BusinessRuleError("Apenas templates globais podem ser duplicados desta forma.")
+        
+        new_tmpl = OperationTemplate(
+            tenant_id=self.tenant_id,
+            cultura=global_tmpl.cultura,
+            fase=global_tmpl.fase,
+            titulo=f"{global_tmpl.titulo} (Cópia)",
+            descricao=global_tmpl.descricao,
+            ativo=True,
+            is_system_default=False
+        )
+        self.session.add(new_tmpl)
+        await self.session.flush()
+
+        for item in global_tmpl.items:
+            self.session.add(OperationTemplateItem(
+                operation_template_id=new_tmpl.id,
+                tipo=item.tipo,
+                titulo=item.titulo,
+                descricao=item.descricao,
+                dose_sugerida=item.dose_sugerida,
+                unidade=item.unidade,
+                can_generate_task=item.can_generate_task,
+                ordem=item.ordem
+            ))
+            
+        await self.session.flush()
+        return new_tmpl
 
 class TemplateApplicationService:
     """Service especializado em instanciar templates em uma Safra."""

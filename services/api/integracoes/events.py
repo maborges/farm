@@ -90,3 +90,12 @@ class IntegrationHealthChanged(IntegrationDomainEvent):
     config_id: int
     previous_status: str | None = None
     current_status: str
+
+
+class IntegrationSyncRequested(IntegrationDomainEvent):
+    event_type: Literal["integrations.sync_requested"] = "integrations.sync_requested"
+    source_type: str = "integration.job"
+    entity_type: str = "integration_config"
+    provider_id: int
+    config_id: int
+    features: list[str] | None = None
