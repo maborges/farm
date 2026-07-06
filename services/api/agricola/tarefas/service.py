@@ -12,7 +12,7 @@ from agricola.caderno.models import CadernoCampoEntrada, CadernoCampoFoto
 from agricola.custos.models import CostAllocation
 from agricola.operacoes.models import OperacaoAgricola, OperacaoExecucao
 from agricola.tarefas.models import SafraTarefa
-from agricola.tarefas.schemas import TarefaCreate, TarefaUpdate
+from agricola.tarefas.schemas import TarefaCreate, TarefaUpdate, PlanejarOperacaoRequest
 from core.services.audit_service import _serialize, write_audit_log
 from financeiro.models.despesa import Despesa
 from operacional.models.estoque import EstoqueMovimento
@@ -521,3 +521,53 @@ class TarefaService:
                         origem_id=f"tarefa:{tarefa.id}:maintenance_without_evidence",
                     )
                 )
+
+    async def gerar_operacao_planejada(self, tarefa_id: uuid.UUID, dados: PlanejarOperacaoRequest) -> OperacaoAgricola:
+        tarefa = await self._get(tarefa_id)
+        if tarefa.status not in {"PENDENTE_APROVACAO", "APROVADA"}:
+            raise BusinessRuleError("Apenas tarefas pendentes ou aprovadas podem ser planejadas logisticamente.")
+
+        from agricola.operacoes.models import OperacaoAgricola
+        from agricola.operacoes.service import OperacaoService
+        from agricola.operacoes.schemas import OperacaoAgricolaCreate, InsumoOperacaoCreate
+
+        stmt = select(OperacaoAgricola).where(
+            OperacaoAgricola.tenant_id == self.tenant_id,
+            OperacaoAgricola.tarefa_id == tarefa.id,
+            OperacaoAgricola.status == "PLANEJADA"
+        )
+        op_existente = (await self.session.execute(stmt)).scalars().first()
+        if op_existente:
+            return op_existente
+
+        insumos_create = []
+        for ins in dados.insumos:
+            insumos_create.append(InsumoOperacaoCreate(
+                produto_id=ins.produto_id,
+                dose_por_ha=ins.dose_por_ha,
+                unidade=ins.unidade,
+                area_aplicada=tarefa.area_ha,
+            ))
+
+        op_create = OperacaoAgricolaCreate(
+            safra_id=tarefa.safra_id,
+            talhao_id=tarefa.talhao_id,
+            cultivo_id=None,
+            production_unit_id=tarefa.production_unit_id,
+            tarefa_id=tarefa.id,
+            tipo=tarefa.tipo,
+            descricao=tarefa.descricao or f"Operação planejada a partir da tarefa {tarefa.tipo}",
+            fase_safra=tarefa.fase,
+            data_prevista=dados.data_prevista,
+            data_realizada=dados.data_prevista,
+            area_aplicada_ha=tarefa.area_ha or 1.0,
+            maquina_id=dados.maquina_id,
+            implemento=dados.implemento,
+            operador_id=dados.operador_id,
+            status="PLANEJADA",
+            insumos=insumos_create,
+        )
+
+        op_svc = OperacaoService(self.session, self.tenant_id)
+        operacao = await op_svc.criar(op_create)
+        return operacao

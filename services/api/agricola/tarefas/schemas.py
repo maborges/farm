@@ -72,3 +72,17 @@ class TarefaResponse(BaseModel):
     created_by: Optional[UUID]
     created_at: datetime
     updated_at: datetime
+
+
+class PlanejarInsumoRequest(BaseModel):
+    produto_id: UUID
+    dose_por_ha: float = Field(..., gt=0)
+    unidade: str = Field(..., min_length=1, max_length=20)
+
+
+class PlanejarOperacaoRequest(BaseModel):
+    data_prevista: date
+    operador_id: Optional[UUID] = None
+    maquina_id: Optional[UUID] = None
+    implemento: Optional[str] = None
+    insumos: list[PlanejarInsumoRequest] = []

@@ -861,8 +861,8 @@ class OperacaoService(BaseService[OperacaoAgricola]):
                 f"Fases permitidas: {', '.join(fases_permitidas)}"
             )
 
-        # 2.6. VALIDAÇÃO: Data não pode ser futura
-        if dados.data_realizada > date.today():
+        # 2.6. VALIDAÇÃO: Data não pode ser futura apenas se a operação já estiver realizada
+        if operacao.status == "REALIZADA" and dados.data_realizada > date.today():
             raise BusinessRuleError(
                 f"Data da operação não pode ser futura. "
                 f"Informe a data em que a operação foi realmente realizada."
@@ -891,8 +891,9 @@ class OperacaoService(BaseService[OperacaoAgricola]):
         try:
             for insumo in insumos_data:
                 quantidade_total = insumo.dose_por_ha * (insumo.area_aplicada or dados.area_aplicada_ha or 1.0)
+                custo_item = 0.0
+                custo_unitario = 0.0
 
-                # Busca produto
                 produto = await self.session.get(Produto, insumo.produto_id)
                 if not produto or (produto.tenant_id is not None and produto.tenant_id != self.tenant_id):
                     logger.warning(
@@ -903,47 +904,55 @@ class OperacaoService(BaseService[OperacaoAgricola]):
                     )
                     raise EntityNotFoundError("Produto/Insumo", insumo.produto_id)
 
-                # FIFO: Consume oldest batches first
-                try:
-                    consumo = await consumir_lotes_fifo(
+                if operacao.status == "REALIZADA":
+                    # FIFO: Consume oldest batches first
+                    try:
+                        consumo = await consumir_lotes_fifo(
+                            session=self.session,
+                            produto_id=insumo.produto_id,
+                            quantidade_necessaria=quantidade_total,
+                            tenant_id=self.tenant_id,
+                        )
+                    except BusinessRuleError as e:
+                        logger.warning(f"FIFO consumption failed for {insumo.produto_id}: {e}")
+                        raise
+
+                    # Custo real vem do FIFO (lotes históricos), não do preço médio
+                    custo_item = consumo.custo_total
+                    custo_unitario = consumo.custo_total / quantidade_total if quantidade_total > 0 else 0.0
+
+                    for lote_consumido in consumo.lotes_consumidos:
+                        await validate_deposito_context(
+                            self.session,
+                            tenant_id=self.tenant_id,
+                            deposito_id=lote_consumido["deposito_id"],
+                            expected_unidade_produtiva_id=unidade_produtiva_id,
+                        )
+                        ledger_consumos.append({
+                            "produto_id": insumo.produto_id,
+                            "deposito_id": lote_consumido["deposito_id"],
+                            "lote_id": lote_consumido["lote_id"],
+                            "quantidade": lote_consumido["quantidade"],
+                            "custo_unitario": lote_consumido["custo_unitario"],
+                            "custo_total": lote_consumido["custo"],
+                            "observacoes": f"Aplicação em operação agrícola ({operacao.tipo})",
+                        })
+                        logger.info(
+                            f"Batch consumed via FIFO: {lote_consumido['numero_lote']} × {lote_consumido['quantidade']}",
+                            lote_id=str(lote_consumido["lote_id"]),
+                            deposito_id=str(lote_consumido["deposito_id"]),
+                            quantidade=lote_consumido["quantidade"],
+                            custo=lote_consumido["custo"],
+                        )
+
+                    # Update SaldoEstoque after FIFO consumption (required for UI accuracy)
+                    await atualizar_saldo_apos_consumo(
                         session=self.session,
                         produto_id=insumo.produto_id,
-                        quantidade_necessaria=quantidade_total,
-                        tenant_id=self.tenant_id,
-                    )
-                except BusinessRuleError as e:
-                    logger.warning(f"FIFO consumption failed for {insumo.produto_id}: {e}")
-                    raise
-
-                # Custo real vem do FIFO (lotes históricos), não do preço médio
-                custo_item = consumo.custo_total
-
-                for lote_consumido in consumo.lotes_consumidos:
-                    await validate_deposito_context(
-                        self.session,
-                        tenant_id=self.tenant_id,
-                        deposito_id=lote_consumido["deposito_id"],
-                        expected_unidade_produtiva_id=unidade_produtiva_id,
-                    )
-                    ledger_consumos.append({
-                        "produto_id": insumo.produto_id,
-                        "deposito_id": lote_consumido["deposito_id"],
-                        "lote_id": lote_consumido["lote_id"],
-                        "quantidade": lote_consumido["quantidade"],
-                        "custo_unitario": lote_consumido["custo_unitario"],
-                        "custo_total": lote_consumido["custo"],
-                        "observacoes": f"Aplicação em operação agrícola ({operacao.tipo})",
-                    })
-                    logger.info(
-                        f"Batch consumed via FIFO: {lote_consumido['numero_lote']} × {lote_consumido['quantidade']}",
-                        lote_id=str(lote_consumido["lote_id"]),
-                        deposito_id=str(lote_consumido["deposito_id"]),
-                        quantidade=lote_consumido["quantidade"],
-                        custo=lote_consumido["custo"],
+                        quantidade_total=quantidade_total,
                     )
 
-                # Record InsumoOperacao with actual FIFO cost
-                # custo_unitario = weighted average of all consumed batches
+                # Record InsumoOperacao
                 insumo_op = InsumoOperacao(
                     id=uuid.uuid4(),
                     operacao_id=operacao.id,
@@ -954,19 +963,12 @@ class OperacaoService(BaseService[OperacaoAgricola]):
                     unidade=insumo.unidade,
                     area_aplicada=insumo.area_aplicada,
                     quantidade_total=quantidade_total,
-                    custo_unitario=consumo.custo_total / quantidade_total if quantidade_total > 0 else 0.0,  # Weighted avg
+                    custo_unitario=custo_unitario,
                     custo_total=custo_item,
                 )
 
                 self.session.add(insumo_op)
                 custo_total_operacao += custo_item
-
-                # Update SaldoEstoque after FIFO consumption (required for UI accuracy)
-                await atualizar_saldo_apos_consumo(
-                    session=self.session,
-                    produto_id=insumo.produto_id,
-                    quantidade_total=quantidade_total,
-                )
 
             # All insumos processed successfully - finalize operacao.
             # Manual-only launches (common in "Execução por Fase") do not send
@@ -997,8 +999,11 @@ class OperacaoService(BaseService[OperacaoAgricola]):
             # 4. Sincroniza custo na Safra
             safra = await self.session.get(Safra, operacao.safra_id)
             if safra:
-                # Re-calcula custo realizado por ha baseado em todas as operações (simplificado para fins de refino)
-                stmt_sum = select(func.sum(OperacaoAgricola.custo_total)).where(OperacaoAgricola.safra_id == safra.id)
+                # Re-calcula custo realizado por ha baseado em todas as operações REALIZADAS
+                stmt_sum = select(func.sum(OperacaoAgricola.custo_total)).where(
+                    OperacaoAgricola.safra_id == safra.id,
+                    OperacaoAgricola.status == "REALIZADA"
+                )
                 total_acumulado = (await self.session.execute(stmt_sum)).scalar() or 0.0
                 area_plantada_ha = getattr(safra, "area_plantada_ha", None)
                 if (
@@ -1012,7 +1017,7 @@ class OperacaoService(BaseService[OperacaoAgricola]):
                     )
 
             # 5. Registra Despesa no Financeiro (Módulo Integrado)
-            if custo_total_operacao > 0:
+            if custo_total_operacao > 0 and operacao.status == "REALIZADA":
                 from financeiro.models.plano_conta import PlanoConta
                 # Tenta conta analítica de custeio; fallback para qualquer conta de custeio ativa
                 stmt_pc = (
@@ -1067,8 +1072,8 @@ class OperacaoService(BaseService[OperacaoAgricola]):
                     entrada_id=str(entrada.id),
                 )
 
-            # 7. Conclui a tarefa vinculada automaticamente
-            if dados.tarefa_id:
+            # 7. Conclui a tarefa vinculada automaticamente se a operação for REALIZADA
+            if dados.tarefa_id and operacao.status == "REALIZADA":
                 from agricola.tarefas.models import SafraTarefa
                 tarefa = await self.session.get(SafraTarefa, dados.tarefa_id)
                 if tarefa and tarefa.tenant_id == self.tenant_id:

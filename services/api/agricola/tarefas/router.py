@@ -5,7 +5,8 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.dependencies import get_session, get_tenant_id, require_module, require_role
-from agricola.tarefas.schemas import TarefaCreate, TarefaUpdate, TarefaResponse
+from agricola.tarefas.schemas import TarefaCreate, TarefaUpdate, TarefaResponse, PlanejarOperacaoRequest
+from agricola.operacoes.schemas import OperacaoAgricolaResponse
 from agricola.tarefas.service import TarefaService
 
 router = APIRouter(tags=["Agrícola - Tarefas (A2)"])
@@ -206,3 +207,23 @@ async def cancelar_tarefa(
     svc = TarefaService(session, tenant_id, user_id=user_id)
     await svc.excluir(tarefa_id)
     await session.commit()
+
+
+@router.post(
+    "/tarefas/{tarefa_id}/planejar-operacao",
+    response_model=OperacaoAgricolaResponse,
+    summary="Gera uma Operação Agrícola PLANEJADA (Ordem de Serviço) a partir desta Tarefa"
+)
+async def planejar_operacao(
+    tarefa_id: UUID,
+    dados: PlanejarOperacaoRequest,
+    session: AsyncSession = Depends(get_session),
+    tenant_id: UUID = Depends(get_tenant_id),
+    _: None = Depends(require_module(MODULE)),
+    user: dict = Depends(require_role(["agronomo", "admin", "gerente"])),
+):
+    svc = TarefaService(session, tenant_id)
+    operacao = await svc.gerar_operacao_planejada(tarefa_id, dados)
+    await session.commit()
+    await session.refresh(operacao)
+    return operacao
