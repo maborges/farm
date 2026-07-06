@@ -1,8 +1,8 @@
-# INTEGRATIONS-DOMAIN-02 — Especificação de Materialização do Domínio Canônico de Integrações
+# INTEGRATIONS-DOMAIN-02 — Especificação de Materialização do Domínio Oficial de Integrações
 
 ## 1. Resumo Executivo
 
-O domínio canônico de Integrações não deve ser implementado do zero.
+O domínio oficial de Integrações não deve ser implementado do zero.
 
 A auditoria anterior mostrou que o AgroSaaS já possui:
 
@@ -14,7 +14,7 @@ A auditoria anterior mostrou que o AgroSaaS já possui:
 Esta especificação define que a materialização deve seguir quatro princípios:
 
 - promover sementes já existentes antes de criar novas tabelas;
-- separar claramente canônico de provider-specific;
+- separar claramente oficial de provider-specific;
 - reutilizar integralmente Outbox, Alert Engine, Notification Engine, auditoria, RLS e segurança de segredos;
 - preservar compatibilidade com Sankhya durante toda a transição.
 
@@ -22,7 +22,7 @@ O domínio futuro será composto por:
 
 - catálogo de providers;
 - definição declarativa por provider;
-- configuração canônica por escopo;
+- configuração oficial por escopo;
 - envelopes de connection e credential;
 - feature enablement;
 - sync policy;
@@ -36,7 +36,7 @@ O domínio futuro será composto por:
 | --- | --- | --- |
 | `MarketplaceIntegracao` | PROMOVER | Já atua como catálogo de integrações e é a melhor semente para `IntegrationProvider`, apesar do acoplamento comercial atual. |
 | `TenantIntegracao` | PROMOVER | Já é a melhor semente de `IntegrationConfig` tenant-scoped, com `configuracoes`, `credenciais` e `status`. |
-| `SankhyaConfig` | MANTER PROVIDER-SPECIFIC | Deve continuar existindo temporariamente como adapter/provider config até o canônico absorver a configuração comum. |
+| `SankhyaConfig` | MANTER PROVIDER-SPECIFIC | Deve continuar existindo temporariamente como adapter/provider config até o oficial absorver a configuração comum. |
 | `SankhyaSyncLog` | MANTER PROVIDER-SPECIFIC | Continua como log operacional específico do provider enquanto `IntegrationLog` e `IntegrationJob` não estiverem materializados. |
 | `DomainEventOutbox` | REUTILIZAR | É a infraestrutura oficial de eventos e execução assíncrona. Não deve ser duplicada. |
 | `OperationalAlert` | REUTILIZAR | É o mecanismo oficial de alertas operacionais. |
@@ -45,14 +45,14 @@ O domínio futuro será composto por:
 | `AdminAuditLog` | REUTILIZAR | Continua sendo a trilha de suporte/backoffice. |
 | `integracoes/security.py` | NÃO ALTERAR | Já resolve criptografia, masking e compatibilidade legada de segredos. Deve ser o utilitário oficial do domínio. |
 
-## 3. Modelos Canônicos Propostos
+## 3. Modelos Oficiais Propostos
 
 ### 3.1 `IntegrationProvider`
 
 - criar tabela nova: não inicialmente;
 - reaproveitar tabela existente: sim, promover `marketplace_integracoes`;
 - destino: adapter evolutivo;
-- observação: a tabela atual deve perder protagonismo de marketplace e virar catálogo canônico ao longo da implementação.
+- observação: a tabela atual deve perder protagonismo de marketplace e virar catálogo oficial ao longo da implementação.
 
 ### 3.2 `IntegrationProviderDefinition`
 
@@ -65,7 +65,7 @@ O domínio futuro será composto por:
 
 - criar tabela nova: sim;
 - reaproveitar tabela existente: parcialmente, via evolução de `tenant_integracoes`;
-- observação: a recomendação é evoluir `tenant_integracoes` para o papel de configuração canônica, em vez de criar tabela totalmente paralela.
+- observação: a recomendação é evoluir `tenant_integracoes` para o papel de configuração oficial, em vez de criar tabela totalmente paralela.
 
 ### 3.4 `IntegrationConnection`
 
@@ -78,7 +78,7 @@ O domínio futuro será composto por:
 
 - criar tabela nova: sim;
 - motivo: separar segredo de config comum;
-- observação: segredos não devem continuar misturados com configuração comum no modelo canônico.
+- observação: segredos não devem continuar misturados com configuração comum no modelo oficial.
 
 ### 3.6 `IntegrationFeature`
 
@@ -118,7 +118,7 @@ O domínio futuro será composto por:
 ### 3.12 `IntegrationScope`
 
 - criar tabela nova: não;
-- destino recomendado: enum oficial persistido nos modelos canônicos;
+- destino recomendado: enum oficial persistido nos modelos oficiais;
 - valores oficiais: `PLATFORM`, `TENANT`, `ESTABELECIMENTO`, `USUARIO`.
 
 ### 3.13 `IntegrationStatus`
@@ -127,9 +127,9 @@ O domínio futuro será composto por:
 - destino recomendado: enum oficial persistido em `IntegrationConfig`, `IntegrationJob` e `IntegrationHealth`;
 - observação: status e lifecycle devem ser contratos explícitos.
 
-## 4. Fronteira Canônico × Provider-Specific
+## 4. Fronteira Oficial × Provider-Specific
 
-### 4.1 Fica no domínio canônico
+### 4.1 Fica no domínio oficial
 
 - provider;
 - provider definition;
@@ -355,7 +355,7 @@ Segredos devem ficar exclusivamente em `IntegrationCredential`.
 
 - não usar `IntegrationJob` como substituto de Outbox;
 - não usar Outbox como histórico operacional completo do sync;
-- `SankhyaSyncLog` permanece temporariamente como provider log até o adapter canônico existir.
+- `SankhyaSyncLog` permanece temporariamente como provider log até o adapter oficial existir.
 
 ## 8. Alertas e Notificações
 
@@ -440,14 +440,14 @@ Regras obrigatórias:
 
 ### 11.2 Estratégia
 
-1. materializar primeiro o canônico.
+1. materializar primeiro o oficial.
 2. criar adapters para leitura/escrita compatível.
-3. somente depois mover Sankhya para consumir o canônico progressivamente.
+3. somente depois mover Sankhya para consumir o oficial progressivamente.
 
 ### 11.3 Efeito prático
 
 - dados antigos podem continuar onde estão inicialmente;
-- Sankhya pode escrever temporariamente nos modelos legados e refletir no canônico por adapter;
+- Sankhya pode escrever temporariamente nos modelos legados e refletir no oficial por adapter;
 - o frontend não precisa quebrar na fase inicial;
 - a convergência será incremental, não disruptiva.
 
@@ -462,7 +462,7 @@ Regras obrigatórias:
 
 ### Fase 2 — Provider e config genéricos
 
-- promover `marketplace_integracoes` para catálogo canônico;
+- promover `marketplace_integracoes` para catálogo oficial;
 - evoluir `tenant_integracoes` para `IntegrationConfig`;
 - introduzir `scope_type` e `scope_id`;
 - manter compatibilidade com o que já existe.
@@ -483,7 +483,7 @@ Regras obrigatórias:
 ### Fase 5 — Adapters Sankhya
 
 - manter rotas e contratos atuais;
-- criar adapter canônico para Sankhya;
+- criar adapter oficial para Sankhya;
 - reduzir dependência direta de `SankhyaConfig`.
 
 ### Fase 6 — Observabilidade e provider adicional
@@ -496,7 +496,7 @@ Regras obrigatórias:
 Principais riscos:
 
 - duplicar infraestrutura já existente;
-- acoplar o domínio canônico ao Sankhya;
+- acoplar o domínio oficial ao Sankhya;
 - criar tabelas demais cedo demais;
 - quebrar RLS ao introduzir novas tabelas;
 - expor segredo em snapshot/versionamento;
@@ -511,22 +511,22 @@ Principais riscos:
 
 - promoção de `MarketplaceIntegracao` e `TenantIntegracao` aprovada;
 - decisão sobre criação de `integration_credentials` aprovada;
-- fronteira canônico × provider-specific congelada;
+- fronteira oficial × provider-specific congelada;
 - estratégia de compatibilidade com Sankhya aprovada;
 - regra de uso obrigatório de `get_session()` e RLS confirmada;
 - regra de reaproveitamento de Outbox, Alert Engine, Notification Engine e audit logs confirmada;
-- nomenclatura final das tabelas canônicas aprovada;
+- nomenclatura final das tabelas oficiais aprovada;
 - lifecycle e enums considerados estáveis.
 
 ## 15. Próxima Execução
 
 Próxima execução recomendada:
 
-`INTEGRATIONS-DOMAIN-03 — Foundation Persistente do Domínio Canônico de Integrações`
+`INTEGRATIONS-DOMAIN-03 — Foundation Persistente do Domínio Oficial de Integrações`
 
 Essa execução deve se limitar a:
 
-- enums canônicos;
+- enums oficiais;
 - evolução controlada de provider/config;
 - tabela de credenciais;
 - tabela de versionamento;

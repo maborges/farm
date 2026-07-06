@@ -21,9 +21,9 @@ O processamento continua baseado no Outbox transacional já consolidado e o `Eve
 
 ## Forma de execução operacional
 
-- Função canônica: `run_outbox_relay_once(...)`
+- Função oficial: `run_outbox_relay_once(...)`
 - Entrada interna simples: `python -m events.outbox_worker`
-- O worker usa sessão assíncrona canônica do projeto e instancia `DomainEventOutboxRelay` por dentro.
+- O worker usa sessão assíncrona oficial do projeto e instancia `DomainEventOutboxRelay` por dentro.
 
 ## Parâmetros suportados
 

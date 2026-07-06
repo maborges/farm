@@ -2,7 +2,7 @@
 
 ## Resumo
 
-A EXECUTION-34F integrou os fluxos reais de Campo e Pecuária à fundação canônica de Domain Events.
+A EXECUTION-34F integrou os fluxos reais de Campo e Pecuária à fundação oficial de Domain Events.
 Os Domain Services continuam sem depender diretamente do Alert Engine, e a publicação agora ocorre
 de forma post-commit, com isolamento de falhas via `publish_domain_event_safe(...)`.
 

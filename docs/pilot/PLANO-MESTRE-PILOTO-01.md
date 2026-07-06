@@ -45,7 +45,7 @@ Para este piloto, o Sankhya permanece como referência principal para os cadastr
 Referências:
 
 - [SANKHYA-SYNC-01-ESCOPO-PILOTO-CAFE.md](/opt/lampp/htdocs/farm/docs/implementation/reports/SANKHYA-SYNC-01-ESCOPO-PILOTO-CAFE.md)
-- [SANKHYA-SYNC-02-MAPEAMENTO-CANONICO.md](/opt/lampp/htdocs/farm/docs/implementation/reports/SANKHYA-SYNC-02-MAPEAMENTO-CANONICO.md)
+- [SANKHYA-SYNC-02-MAPEAMENTO-OFICIAL.md](/opt/lampp/htdocs/farm/docs/implementation/reports/SANKHYA-SYNC-02-MAPEAMENTO-OFICIAL.md)
 - [SANKHYA-SYNC-03-ESTRATEGIA-SINCRONIZACAO-PILOTO.md](/opt/lampp/htdocs/farm/docs/implementation/reports/SANKHYA-SYNC-03-ESTRATEGIA-SINCRONIZACAO-PILOTO.md)
 
 ## 3. Premissas
@@ -82,10 +82,10 @@ Referências:
 
 - [SANKHYA-AUTH-02-TEST-CONNECTION.md](/opt/lampp/htdocs/farm/docs/implementation/reports/SANKHYA-AUTH-02-TEST-CONNECTION.md)
 - [SANKHYA-SYNC-01-ESCOPO-PILOTO-CAFE.md](/opt/lampp/htdocs/farm/docs/implementation/reports/SANKHYA-SYNC-01-ESCOPO-PILOTO-CAFE.md)
-- [SANKHYA-SYNC-02-MAPEAMENTO-CANONICO.md](/opt/lampp/htdocs/farm/docs/implementation/reports/SANKHYA-SYNC-02-MAPEAMENTO-CANONICO.md)
+- [SANKHYA-SYNC-02-MAPEAMENTO-OFICIAL.md](/opt/lampp/htdocs/farm/docs/implementation/reports/SANKHYA-SYNC-02-MAPEAMENTO-OFICIAL.md)
 - [SANKHYA-SYNC-03-ESTRATEGIA-SINCRONIZACAO-PILOTO.md](/opt/lampp/htdocs/farm/docs/implementation/reports/SANKHYA-SYNC-03-ESTRATEGIA-SINCRONIZACAO-PILOTO.md)
-- [SANKHYA-DOMAIN-01-ADAPTER-CANONICO.md](/opt/lampp/htdocs/farm/docs/implementation/reports/SANKHYA-DOMAIN-01-ADAPTER-CANONICO.md)
-- [SANKHYA-DOMAIN-02-API-UX-CANONICA-STATUS-JOBS-HEALTH.md](/opt/lampp/htdocs/farm/docs/implementation/reports/SANKHYA-DOMAIN-02-API-UX-CANONICA-STATUS-JOBS-HEALTH.md)
+- [SANKHYA-DOMAIN-01-ADAPTER-OFICIAL.md](/opt/lampp/htdocs/farm/docs/implementation/reports/SANKHYA-DOMAIN-01-ADAPTER-OFICIAL.md)
+- [SANKHYA-DOMAIN-02-API-UX-OFICIAL-STATUS-JOBS-HEALTH.md](/opt/lampp/htdocs/farm/docs/implementation/reports/SANKHYA-DOMAIN-02-API-UX-OFICIAL-STATUS-JOBS-HEALTH.md)
 - [SANKHYA-DOMAIN-03-OBSERVABILIDADE-CORRELACAO-HISTORICA.md](/opt/lampp/htdocs/farm/docs/implementation/reports/SANKHYA-DOMAIN-03-OBSERVABILIDADE-CORRELACAO-HISTORICA.md)
 
 ## 5. Papéis e responsabilidades
@@ -173,7 +173,7 @@ O pacote oficial do piloto é composto pelos documentos abaixo:
 5. [PILOT-GOV-01B-IDENTIDADE-CONVITES-EQUIPE.md](/opt/lampp/htdocs/farm/docs/implementation/reports/PILOT-GOV-01B-IDENTIDADE-CONVITES-EQUIPE.md)
 6. [SANKHYA-AUTH-02-TEST-CONNECTION.md](/opt/lampp/htdocs/farm/docs/implementation/reports/SANKHYA-AUTH-02-TEST-CONNECTION.md)
 7. [SANKHYA-SYNC-01-ESCOPO-PILOTO-CAFE.md](/opt/lampp/htdocs/farm/docs/implementation/reports/SANKHYA-SYNC-01-ESCOPO-PILOTO-CAFE.md)
-8. [SANKHYA-SYNC-02-MAPEAMENTO-CANONICO.md](/opt/lampp/htdocs/farm/docs/implementation/reports/SANKHYA-SYNC-02-MAPEAMENTO-CANONICO.md)
+8. [SANKHYA-SYNC-02-MAPEAMENTO-OFICIAL.md](/opt/lampp/htdocs/farm/docs/implementation/reports/SANKHYA-SYNC-02-MAPEAMENTO-OFICIAL.md)
 9. [SANKHYA-SYNC-03-ESTRATEGIA-SINCRONIZACAO-PILOTO.md](/opt/lampp/htdocs/farm/docs/implementation/reports/SANKHYA-SYNC-03-ESTRATEGIA-SINCRONIZACAO-PILOTO.md)
 10. [docs/runbooks/estoque-implantacao-assistida.md](/opt/lampp/htdocs/farm/docs/runbooks/estoque-implantacao-assistida.md)
 11. [docs/runbooks/field-pwa-local-setup.md](/opt/lampp/htdocs/farm/docs/runbooks/field-pwa-local-setup.md)

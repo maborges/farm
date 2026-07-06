@@ -8,7 +8,7 @@
 
 ## Contexto
 
-`InsumoOperacao.insumo_id` referencia `cadastros_produtos.id` — o catálogo canônico de produtos.  
+`InsumoOperacao.insumo_id` referencia `cadastros_produtos.id` — o catálogo oficial de produtos.  
 Todos os demais módulos usam `produto_id` para a mesma FK. O nome `insumo_id` é uma inconsistência semântica identificada na auditoria Step 82 (INC-01).
 
 A coluna já tem FK correta; o rename é puramente de nomenclatura.

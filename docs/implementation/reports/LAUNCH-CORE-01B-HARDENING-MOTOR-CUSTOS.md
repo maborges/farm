@@ -1,4 +1,4 @@
-# LAUNCH-CORE-01B — Hardening e Validação Operacional do Motor Canônico de Custos
+# LAUNCH-CORE-01B — Hardening e Validação Operacional do Motor Oficial de Custos
 
 ## Escopo executado
 
@@ -16,7 +16,7 @@ Sem criação de novos módulos, serviços econômicos, endpoints, models ou mig
 
 Não.
 
-O Motor Canônico de Custos **ainda não pode ser considerado operacionalmente validado para produção** nesta execução, porque a convergência econômica ativa foi confirmada no código, mas a validação operacional completa ficou bloqueada por limitações reais do ambiente de banco e por um bug de hardening encontrado durante os testes.
+O Motor Oficial de Custos **ainda não pode ser considerado operacionalmente validado para produção** nesta execução, porque a convergência econômica ativa foi confirmada no código, mas a validação operacional completa ficou bloqueada por limitações reais do ambiente de banco e por um bug de hardening encontrado durante os testes.
 
 ## Auditoria executada
 
@@ -40,7 +40,7 @@ Integrações auditadas:
 Conclusão da auditoria:
 
 - Frota e RH convergem para `OperationalCostAllocationService`.
-- `DREAgricolaV1Service` consome `CostAllocation` como camada prioritária e exclui `Despesa` quando a origem já está representada por allocation canônica.
+- `DREAgricolaV1Service` consome `CostAllocation` como camada prioritária e exclui `Despesa` quando a origem já está representada por allocation oficial.
 - `RentabilidadeAgricolaV1Service` deriva da DRE agrícola v1, preservando a cadeia econômica.
 - Não encontrei caminho ativo chamando `LancamentoOperacionalService`.
 - Existe um caminho paralelo **órfão** em `services/api/financeiro/services/lancamento_operacional_service.py`, mas sem referências ativas no código auditado.
@@ -50,7 +50,7 @@ Conclusão da auditoria:
 Confirmado no código:
 
 - `CostAllocation` tem precedência sobre `Despesa` na DRE agrícola v1.
-- As origens canônicas auditadas com supressão de dupla contagem são:
+- As origens oficiais auditadas com supressão de dupla contagem são:
   - `ABASTECIMENTO -> FROTA_COMBUSTIVEL`
   - `ORDEM_SERVICO -> FROTA_PECAS | FROTA_MANUTENCAO`
   - `RH_DIARIA -> RH_DIARIA`
@@ -237,7 +237,7 @@ Impacto:
 
 ## Critérios de aceite: status
 
-- O Motor Canônico de Custos está operacionalmente validado.
+- O Motor Oficial de Custos está operacionalmente validado.
   - Não confirmado
 
 - CostAllocation permanece como camada econômica única.

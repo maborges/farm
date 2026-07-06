@@ -4,7 +4,7 @@ Data da execução: 2026-07-01
 
 ## 1. Resumo executivo
 
-Foi criado o modelo canônico complementar do domínio de Integrações para resolver o problema central identificado nas auditorias anteriores:
+Foi criado o modelo oficial complementar do domínio de Integrações para resolver o problema central identificado nas auditorias anteriores:
 
 - provedores reais, como Sankhya, possuem parâmetros específicos;
 - esses parâmetros não podem contaminar o núcleo do domínio como se fossem universais.
@@ -16,7 +16,7 @@ Decisão central:
 ## 2. Principais decisões arquiteturais
 
 - `IntegrationProvider` é catálogo, não configuração do cliente.
-- `IntegrationProviderDefinition` é a definição canônica dos schemas esperados.
+- `IntegrationProviderDefinition` é a definição oficial dos schemas esperados.
 - `IntegrationConnection` guarda parâmetros técnicos não secretos.
 - `IntegrationCredential` guarda segredos e deve ter criptografia, masking, auditoria e rotação.
 - `IntegrationFeature` representa capacidades habilitadas por configuração.
@@ -42,7 +42,7 @@ Regras oficiais definidas:
 
 - campos como `gateway_url` não são universais do domínio;
 - cada provider declara seu próprio schema;
-- o domínio exige envelopes canônicos, não atributos fixos específicos;
+- o domínio exige envelopes oficiais, não atributos fixos específicos;
 - `Sankhya`, `SAP`, `TOTVS`, `SMTP`, `INMET` e `Banco do Brasil` usam a mesma arquitetura, mas com definições próprias.
 
 ## 5. Relação com INTEGRATIONS-ARCH-01
@@ -51,7 +51,7 @@ Regras oficiais definidas:
 
 - mantém ERP por `TENANT` ou `ESTABELECIMENTO`;
 - mantém ERP fora de `UnidadeProdutiva`;
-- aprofunda somente a camada de modelagem canônica de configuração e runtime.
+- aprofunda somente a camada de modelagem oficial de configuração e runtime.
 
 ## 6. Limitações deliberadas da V1
 

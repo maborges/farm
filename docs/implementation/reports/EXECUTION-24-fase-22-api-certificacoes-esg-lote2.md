@@ -1,7 +1,7 @@
 # EXECUTION-24 - Fase 22 API Pública Protegida Certificações/ESG Lote 2
 
 ## Objetivo
-Expor a API pública protegida do domínio consumidor Certificações/ESG para evidências, não conformidades e planos de ação, mantendo isolamento por tenant e sem tocar na base territorial/fundiária canônica.
+Expor a API pública protegida do domínio consumidor Certificações/ESG para evidências, não conformidades e planos de ação, mantendo isolamento por tenant e sem tocar na base territorial/fundiária oficial.
 
 ## Estratégia aplicada
 - Router dedicado em `services/api/certificacoes_esg/router.py`.

@@ -23,7 +23,7 @@ Mas o encadeamento **nao e totalmente automatico**. A apropriacao economica da m
 - abastecimento externo;
 - ou custos ja consolidados em dashboards analiticos.
 
-Nao encontrei um evento canonico unico que transforme toda operacao mecanizada em custo economico persistido e consumido pela DRE sem intervencao operacional adicional.
+Nao encontrei um evento oficial unico que transforme toda operacao mecanizada em custo economico persistido e consumido pela DRE sem intervencao operacional adicional.
 
 Classificacao final do fluxo: **🟡 Parcial**
 
@@ -63,7 +63,7 @@ Classificacao final do fluxo: **🟡 Parcial**
 
 ### 3.6. Infraestrutura financeira reutilizavel, porem nao integrada em toda a cadeia
 
-- Existe um servico canônico para registrar custos / despesas operacionais em [services/api/financeiro/services/lancamento_operacional_service.py](/opt/lampp/htdocs/farm/services/api/financeiro/services/lancamento_operacional_service.py:10).
+- Existe um servico oficial para registrar custos / despesas operacionais em [services/api/financeiro/services/lancamento_operacional_service.py](/opt/lampp/htdocs/farm/services/api/financeiro/services/lancamento_operacional_service.py:10).
 - Esse servico contem helpers para uso de insumo, manutencao e abastecimento em [services/api/financeiro/services/lancamento_operacional_service.py](/opt/lampp/htdocs/farm/services/api/financeiro/services/lancamento_operacional_service.py:15).
 - Nao encontrei uso direto desse servico na cadeia mecanizada auditada. Isso indica capacidade existente, mas integracao incompleta.
 
@@ -116,7 +116,7 @@ Classificacao final do fluxo: **🟡 Parcial**
 
 - **Parcialmente.**
 - Ha rastreabilidade forte entre equipamento, jornada, OS, abastecimento, estoque e DRE.
-- Faltam pontos canonicos unificados para todo custo mecanizado.
+- Faltam pontos oficiais unificados para todo custo mecanizado.
 
 10. Existe intervencao manual?
 
@@ -169,7 +169,7 @@ Classificacao final do fluxo: **🟡 Parcial**
 - Parte do custo nasce como analitica de frota, nao como lancamento economico persistente.
 - O apontamento que gera `CostAllocation` exige `custo_total` informado manualmente.
 - O abastecimento interno nao cria despesa financeira direta.
-- O encadeamento ate DRE / rentabilidade existe, mas depende de origens especificas e nao cobre todo o fluxo mecanizado de forma canonica.
+- O encadeamento ate DRE / rentabilidade existe, mas depende de origens especificas e nao cobre todo o fluxo mecanizado de forma oficial.
 
 ## 8. Arquivos consultados
 

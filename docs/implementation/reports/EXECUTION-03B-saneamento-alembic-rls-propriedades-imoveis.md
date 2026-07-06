@@ -103,7 +103,7 @@ Foi identificada duplicidade de `revision = 'b1c2d3e4f5a6'` em:
   - menor risco inicial;
   - escopo reduzido;
   - compatível com a estratégia atual de middleware;
-  - permite começar pela entidade nova e canônica.
+  - permite começar pela entidade nova e oficial.
 - Desvantagem:
   - não endurece imediatamente o legado.
 
@@ -207,7 +207,7 @@ A futura migration real deve conter:
 
 ### Racional
 
-- O menor pacote seguro é aquele que cria a entidade canônica com sua proteção física básica.
+- O menor pacote seguro é aquele que cria a entidade oficial com sua proteção física básica.
 - Tudo o que for retrocompatibilidade, saneamento legado ou migração de dados deve ser separado.
 
 ---

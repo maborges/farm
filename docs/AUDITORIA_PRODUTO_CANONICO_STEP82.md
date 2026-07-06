@@ -1,4 +1,4 @@
-# Auditoria — Produto Canônico (Step 82)
+# Auditoria — Produto Oficial (Step 82)
 
 **Data:** 2026-04-28  
 **Escopo:** mapeamento de entidades de produto/insumo entre módulos, identificação de inconsistências e proposta de padronização.  
@@ -15,7 +15,7 @@
 
 | Campo | Tipo | Observação |
 |-------|------|------------|
-| `id` | UUID PK | identificador canônico |
+| `id` | UUID PK | identificador oficial |
 | `tenant_id` | UUID FK(tenants) | isolamento multi-tenant |
 | `nome` | String(200) | |
 | `tipo` | String(30) | enum `TipoProduto` |
@@ -48,7 +48,7 @@ Cobre insumos agrícolas (SEMENTE, DEFENSIVO, FERTILIZANTE, INOCULANTE, ADJUVANT
 
 | Tabela | Campo FK | ondelete | Status |
 |--------|----------|----------|--------|
-| `estoque_movimentos` (ledger) | `produto_id → cadastros_produtos.id` | RESTRICT | ✅ canônico |
+| `estoque_movimentos` (ledger) | `produto_id → cadastros_produtos.id` | RESTRICT | ✅ oficial |
 | `estoque_saldos` | `produto_id → cadastros_produtos.id` | CASCADE | ✅ |
 | `estoque_lotes` | `produto_id → cadastros_produtos.id` | CASCADE | ✅ |
 | `estoque_requisicoes_itens` | `produto_id → cadastros_produtos.id` | — (sem ondelete) | ⚠️ ondelete ausente |
@@ -110,7 +110,7 @@ produto_id: Mapped[UUID] = mapped_column(ForeignKey("cadastros_produtos.id"))
 # Atual — campo livre
 unidade: Mapped[str] = mapped_column(String(20), nullable=False)
 
-# Esperado — FK canônica
+# Esperado — FK oficial
 unidade_medida_id: Mapped[UUID] = mapped_column(ForeignKey("unidades_medida.id", ondelete="RESTRICT"))
 ```
 
@@ -133,7 +133,7 @@ O catálogo base `cadastros_produtos` armazena `unidade_medida: String(10)` como
 ### INC-05 — `pec_manejos_lote` sem vínculo ao catálogo de produtos
 **Severidade:** Média
 
-`ManejoLote` registra eventos em massa (vacinação, medicação) sem `produto_id`. Apenas `EventoAnimal` (individual) tem `produto_id nullable`. Manejo coletivo com medicamentos ou vacinas não tem rastreabilidade para o catálogo canônico.
+`ManejoLote` registra eventos em massa (vacinação, medicação) sem `produto_id`. Apenas `EventoAnimal` (individual) tem `produto_id nullable`. Manejo coletivo com medicamentos ou vacinas não tem rastreabilidade para o catálogo oficial.
 
 ---
 
@@ -146,7 +146,7 @@ O catálogo base `cadastros_produtos` armazena `unidade_medida: String(10)` como
 
 ## 4. Classificação
 
-| Entidade | Papel | Fonte canônica? |
+| Entidade | Papel | Fonte oficial? |
 |----------|-------|----------------|
 | `cadastros_produtos` | Catálogo mestre de insumos e produtos | ✅ Fonte da verdade |
 | `cadastros_produtos_agricola` | Extensão para agrícola | ✅ Subtipo correto |
@@ -161,7 +161,7 @@ O catálogo base `cadastros_produtos` armazena `unidade_medida: String(10)` como
 
 ---
 
-## 5. Proposta de Modelo Canônico
+## 5. Proposta de Modelo Oficial
 
 ### 5.1 Regra geral
 
@@ -214,7 +214,7 @@ Adicionar `produto_id UUID nullable FK(cadastros_produtos.id, SET NULL)` em `pec
 ## Arquivos de referência
 
 - `core/cadastros/produtos/models.py` — fonte da verdade
-- `operacional/models/estoque.py` — ledger canônico
+- `operacional/models/estoque.py` — ledger oficial
 - `agricola/operacoes/models.py` — InsumoOperacao (INC-01, INC-02, INC-03)
 - `pecuaria/models/manejo.py` — ManejoLote (INC-05)
-- `docs/ESTOQUE_CANONICO_LEDGER_2026-04-28.md` — ledger canônico de estoque
+- `docs/ESTOQUE_CANONICO_LEDGER_2026-04-28.md` — ledger oficial de estoque

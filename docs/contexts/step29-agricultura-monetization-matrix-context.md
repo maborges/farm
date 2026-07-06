@@ -61,7 +61,7 @@ Deve concentrar recursos de escala e governança:
 - APIs e bridges externos;
 - governança de dados e relatórios corporativos.
 
-Observação técnica: o backend define `PlanTier` com `ENTERPRISE` como nome canônico do topo da oferta. `PREMIUM` permanece apenas como alias legado para compatibilidade com dados e integrações antigas.
+Observação técnica: o backend define `PlanTier` com `ENTERPRISE` como nome oficial do topo da oferta. `PREMIUM` permanece apenas como alias legado para compatibilidade com dados e integrações antigas.
 
 ---
 
@@ -180,7 +180,7 @@ Inclui capacidades que aumentam escala, governança ou dependem de integração:
 
 ## Inconsistências Identificadas
 
-### 1. `ENTERPRISE` como nome canônico
+### 1. `ENTERPRISE` como nome oficial
 
 O código passou a usar:
 

@@ -100,7 +100,7 @@ O primeiro diferencial é o ledger único de estoque.
 
 Isso significa que as movimentações físicas seguem uma única trilha operacional, sem ledgers paralelos separados por módulo. Com isso, o estoque ganha consistência e rastreabilidade real.
 
-O segundo diferencial é o produto canônico e rastreável.
+O segundo diferencial é o produto oficial e rastreável.
 
 Campo, pecuária e estoque passam a falar a mesma linguagem. O produto, o lote e o consumo ficam vinculados dentro do mesmo contexto operacional.
 
@@ -150,7 +150,7 @@ o AgroSaaS é uma plataforma de gestão rural que integra operação de campo, e
 
 Ela oferece agricultura, pecuária, estoque, financeiro, frota e CRM em uma estrutura conectada.
 
-E os grandes diferenciais estão no ledger único de estoque, no produto canônico e rastreável, na origem financeira integrada e na comparação de cenários com base operacional real.
+E os grandes diferenciais estão no ledger único de estoque, no produto oficial e rastreável, na origem financeira integrada e na comparação de cenários com base operacional real.
 
 No fim, a promessa da plataforma é simples:
 
@@ -174,7 +174,7 @@ A plataforma conecta agricultura, pecuária, estoque, financeiro, frota e CRM na
 
 E os diferenciais principais estão em quatro pilares:
 
-ledger único de estoque, produto canônico e rastreável, origem financeira integrada e comparação de cenários sem depender de planilhas externas.
+ledger único de estoque, produto oficial e rastreável, origem financeira integrada e comparação de cenários sem depender de planilhas externas.
 
 Ou seja, não é só um sistema para registrar dados.
 

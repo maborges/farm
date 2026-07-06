@@ -1,6 +1,6 @@
 # Alert Engine Architecture
 
-Status: Canonical
+Status: Oficial
 Scope: AgroSaaS multi-domain intelligence infrastructure
 Applies to: Agriculture, Livestock, Finance, Operational, Field/PWA, Notifications, Copilot IA, External APIs
 
@@ -44,13 +44,13 @@ Dashboards only present or filter the intelligence. They do not own the intellig
 
 ## 3. Official Chain of Intelligence
 
-### 3.1 Canonical chain
+### 3.1 Oficial chain
 
 ```text
 Evento -> Indicador -> Alerta -> Insight -> Copiloto IA -> Usuário
 ```
 
-### 3.2 Canonical feedback loop
+### 3.2 Oficial feedback loop
 
 ```text
 Usuário -> Ação -> Evento
@@ -75,7 +75,7 @@ However, two non-intelligence transport layers must be recognized:
 
 These are infrastructure layers, not conceptual intelligence layers.
 
-## 4. Canonical Concepts
+## 4. Oficial Concepts
 
 ### 4.1 Evento
 
@@ -166,9 +166,9 @@ Should indicators be persisted?
 Yes, when they have analytical, historical, or cross-channel value.
 
 Should indicators always be calculated on demand?
-No. On-demand calculation is allowed for low-cost, transient views, but the canonical behavior is to persist important indicators as snapshots with provenance.
+No. On-demand calculation is allowed for low-cost, transient views, but the oficial behavior is to persist important indicators as snapshots with provenance.
 
-Canonical rule:
+Oficial rule:
 Indicators are derived data and may be materialized.
 
 ### 4.3 Alerta
@@ -219,7 +219,7 @@ Any authorized user, automation, or consuming workflow that marks it as seen or 
 Who closes it?
 The user, a rule-based resolution flow, an automation, or the system when the underlying condition resolves.
 
-Canonical rule:
+Oficial rule:
 An alert is not the same as an event. The event says what happened. The alert says what demands attention.
 
 ### 4.4 Insight
@@ -264,12 +264,12 @@ Yes. A deterministic rules engine or analytics engine can generate insights.
 Should insight be persisted?
 Sometimes. Persist if the insight is part of operational memory, audit, explainability, or a user-facing timeline.
 
-Canonical rule:
+Oficial rule:
 Insight is interpretation. It is not the raw fact and not the operational alert itself.
 
 ## 5. Conceptual Contracts
 
-These are canonical conceptual interfaces. They are not implementation code.
+These are oficial conceptual interfaces. They are not implementation code.
 
 ### 5.1 Event
 
@@ -402,7 +402,7 @@ A low-severity alert may be urgent if it blocks an operational deadline.
 Definition:
 Represents the intrinsic seriousness of the condition.
 
-Canonical use:
+Oficial use:
 
 - INFO
 - WARNING
@@ -433,7 +433,7 @@ No. It may also exist for non-ML rule systems when the evaluation has uncertaint
 Should deterministic rules always have confidence?
 Not mandatory. Deterministic rules may omit it or set it to 1.0 only if the product wants explicit certainty semantics.
 
-Canonical rule:
+Oficial rule:
 If the engine cannot justify uncertainty, do not invent confidence. Leave it absent or set it explicitly according to engine policy.
 
 ### 6.4 Category
@@ -441,7 +441,7 @@ If the engine cannot justify uncertainty, do not invent confidence. Leave it abs
 Definition:
 Domain-independent classification of the condition type.
 
-Recommended canonical categories:
+Recommended oficial categories:
 
 - SANITARIO
 - OPERACIONAL
@@ -455,7 +455,7 @@ Recommended canonical categories:
 - PRODUCAO
 
 Assessment:
-The proposed list is correct as a canonical base. It should remain independent from the business domain.
+The proposed list is correct as a oficial base. It should remain independent from the business domain.
 
 Domain is not category.
 
@@ -519,7 +519,7 @@ Ingestion:
 Accepts facts from domains and integrations. It does not decide business meaning.
 
 Normalization:
-Converts domain-specific payloads into canonical structures.
+Converts domain-specific payloads into oficial structures.
 
 Indicator computation:
 Aggregates facts into measurable metrics.
@@ -575,7 +575,7 @@ Keeps the full operational memory and lifecycle history.
 - Field workflows
 - External integrations
 
-Canonical prohibition:
+Oficial prohibition:
 Copilot never creates Event.
 Copilot never creates Indicator.
 Copilot never creates Alert.
@@ -701,7 +701,7 @@ Insights are narrative outputs. The Copilot can reuse them, but they are not the
 - when summarizing patterns, trends, or recommendations
 - when presenting a narrative in dashboard cards or chat summaries
 
-Canonical rule:
+Oficial rule:
 The Copilot interprets. It does not originate business truth.
 
 ## 11. Recommended Roadmap
@@ -713,7 +713,7 @@ EXECUTION-33A
 Alert Engine Architecture
 
 EXECUTION-33B
-Canonical Contracts
+Oficial Contracts
 
 EXECUTION-33C
 Persistence Model
@@ -742,7 +742,7 @@ Reasoning:
 - Architecture first: define boundaries and semantics
 - Contracts second: stabilize interfaces before persistence
 - Persistence third: model lifecycle and storage
-- Dashboards and Copilot next: consume the canonical store
+- Dashboards and Copilot next: consume the oficial store
 - Field and notifications after the core is stable
 - WhatsApp and automation adapters last, because they are channel integrations
 
@@ -757,7 +757,7 @@ Reasoning:
 - The Alert Engine is transversal and domain-agnostic
 - Domain classification and condition classification must remain separate
 
-## 13. Canonical Summary
+## 13. Oficial Summary
 
 The AgroSaaS intelligence stack is not a dashboard feature.
 
@@ -767,4 +767,4 @@ It is a shared operational memory and decision infrastructure:
 Evento -> Indicador -> Alerta -> Insight -> Copiloto IA -> Usuário -> Ação -> Evento
 ```
 
-This document is the canonical architectural reference for all Alert Engine work.
+This document is the oficial architectural reference for all Alert Engine work.

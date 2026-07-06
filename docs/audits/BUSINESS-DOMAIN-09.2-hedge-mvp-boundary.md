@@ -15,7 +15,7 @@
 | **HedgeRegistro** (model) | **EXISTE PARCIALMENTE** | `services/api/enterprise/models/sprints_27_33.py` L431 | `class HedgeRegistro(Base)` | — | Revertida (tabela removida do banco) | Campos existem; tabela não está ativa |
 | **HedgeRegistro** (service) | **EXISTE PARCIALMENTE** | `services/api/enterprise/services/sprints_27_33_service.py` L247 | `HedgingService.registrar_hedge()` | — | — | Funcional, mas sem validação de negócio |
 | **HedgeRegistro** (router/endpoint) | **EXISTE PARCIALMENTE** | `services/api/enterprise/routers/sprints_27_33_router.py` L223 | `def registrar_hedge(...)` | `POST /sprints27-33/hedging/registros` | — | Endpoint existe; depende de módulo `EXT_IA`; tabela inativa |
-| **ContratoFuturo** (model) | **EXISTE PARCIALMENTE** | `services/api/enterprise/models/sprints_27_33.py` L399 | `class ContratoFuturo(Base)` | — | Revertida | Sem FK para `safra_id` ou `commodity_id` canônico |
+| **ContratoFuturo** (model) | **EXISTE PARCIALMENTE** | `services/api/enterprise/models/sprints_27_33.py` L399 | `class ContratoFuturo(Base)` | — | Revertida | Sem FK para `safra_id` ou `commodity_id` oficial |
 | **ContratoFuturo** (endpoint) | **EXISTE PARCIALMENTE** | `services/api/enterprise/routers/sprints_27_33_router.py` L208 | `def criar_contrato_futuro(...)` | `POST /sprints27-33/hedging/contratos` | — | Sem vínculo com safra ou commodity cadastral |
 | **Contratos** (gerais) | **NÃO EXISTE NO CÓDIGO** | — | — | — | — | Não há model/service de contrato agrícola geral fora da enterprise |
 | **Comercialização** (model) | **EXISTE E ATENDE** | `services/api/financeiro/comercializacao/models.py` L20 | `class ComercializacaoCommodity(Base)` | — | Ativa | Possui `commodity_id`, `quantidade`, `status`, `produto_colhido_id` |
@@ -148,7 +148,7 @@ As seguintes funcionalidades **NÃO devem ser implementadas** no MVP:
 | **Entidades V2?** | `HedgeMarkToMarket`, `HedgeMarginCall`, `BarterAgreement` como hedge natural |
 | **Entidades V3?** | `HedgePolicy` (extensão de `RiskPolicy`), `HedgeRiskMetric` |
 | **Domínio pronto para implementação?** | ⚠️ **Não totalmente** — faltam pré-requisitos |
-| **Pré-requisitos faltantes?** | 1) Reativar migration de `hedge_registros` e `contratos_futuros`; 2) Adicionar `safra_id` e `commodity_id` canônico em `ContratoFuturo`; 3) Criar model e migration de `HedgePosition`; 4) Criar endpoint de consolidação de exposição |
+| **Pré-requisitos faltantes?** | 1) Reativar migration de `hedge_registros` e `contratos_futuros`; 2) Adicionar `safra_id` e `commodity_id` oficial em `ContratoFuturo`; 3) Criar model e migration de `HedgePosition`; 4) Criar endpoint de consolidação de exposição |
 
 ---
 
@@ -159,7 +159,7 @@ As seguintes funcionalidades **NÃO devem ser implementadas** no MVP:
 | 1 | Reativar/recriar migration de `hedge_registros` | Hedge | Tabela inexistente — nada funciona |
 | 2 | Reativar/recriar migration de `contratos_futuros` | Hedge | Sem instrumento para registrar |
 | 3 | Adicionar `safra_id` (FK) em `ContratoFuturo` | Hedge | Sem contexto agrícola para cálculo de exposição |
-| 4 | Adicionar `commodity_id` canônico em `ContratoFuturo` | Hedge | Sem ligação com commodities cadastrais |
+| 4 | Adicionar `commodity_id` oficial em `ContratoFuturo` | Hedge | Sem ligação com commodities cadastrais |
 | 5 | Criar `HedgePosition` (model + migration) | Hedge | Aggregate Root ausente |
 | 6 | Criar `HedgeExposureService` (query de consolidação) | Hedge | Exposição não calculável |
 | 7 | Mover módulo hedge de `require_module("EXT_IA")` para módulo próprio | Plataforma | Hedge não deve depender de módulo de IA |

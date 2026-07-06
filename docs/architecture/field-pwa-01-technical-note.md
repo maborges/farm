@@ -39,7 +39,7 @@
 ### O que faltava originalmente para o FIELD-PWA-01
 
 - contrato documental offline para eventos do caderno
-- persistência local específica para eventos canônicos do caderno
+- persistência local específica para eventos oficiais do caderno
 - endpoint incremental para enviar eventos PWA_OFFLINE ao backend oficial
 - resposta de sync por evento com `local_id`, `server_id`, `status` e erro
 - persistência de `device_id`, `client_created_at` e `client_updated_at`
@@ -83,7 +83,7 @@ O que ainda existe não é mais um gap arquitetural primário, e sim um conjunto
 
 #### 2. Cobertura funcional do caderno
 
-- a modelagem local suporta um conjunto maior de tipos canônicos, mas a UI atual expõe apenas um subconjunto em `PWA_CADERNO_EVENT_TYPES`
+- a modelagem local suporta um conjunto maior de tipos oficiais, mas a UI atual expõe apenas um subconjunto em `PWA_CADERNO_EVENT_TYPES`
 - isso é suficiente para um primeiro ciclo, mas ainda não cobre todo o espaço operacional esperado do caderno oficial
 - falta definir quais tipos:
   - entram no próximo ciclo

@@ -18,7 +18,7 @@ Fase 4 concluida com sucesso.
 - `ImovelRural` permanece com seus campos de cadastro legal e patrimonial
 - `ImovelRural` passou a expor a relacao com `PropriedadeImovel` sem duplicar o dominio de origem
 
-### Vínculo canônico
+### Vínculo oficial
 - `PropriedadeImovel` foi validada como a unica entidade de ponte N:N entre Propriedade e Imovel Rural
 - o vinculo preserva tenant isolation
 - o schema de leitura nao vaza campos operacionais ou fundiarios completos

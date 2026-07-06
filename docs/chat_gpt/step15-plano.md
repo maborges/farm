@@ -16,7 +16,7 @@
 
 - Lógica envolve condicional de `TG_OP` e cálculo de status derivado com 4 ramos.
 - PL/pgSQL permite `RAISE EXCEPTION` com mensagem contextual e `USING ERRCODE` para clientes detectarem violação.
-- SQL puro forçaria split em múltiplas funções; PL/pgSQL é canônico para triggers de negócio.
+- SQL puro forçaria split em múltiplas funções; PL/pgSQL é oficial para triggers de negócio.
 
 ### 1.2 Por que trigger de validação usa `NEW.tenant_id/safra_id/area_id`
 
@@ -242,7 +242,7 @@ Script `services/api/scripts/smoke_step15.py`:
 ### 4.3 Comunicação
 
 - Slack #ops — pré-deploy e pós-deploy.
-- Changelog interno: "Step 15 — ProductionUnit + status_consorcio_area (centro de custo canônico agrícola)".
+- Changelog interno: "Step 15 — ProductionUnit + status_consorcio_area (centro de custo oficial agrícola)".
 
 ---
 

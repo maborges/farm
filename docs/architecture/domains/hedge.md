@@ -1,6 +1,6 @@
 # Domínio Hedge do AgroSaaS
 
-**Status:** Catálogo canônico do domínio  
+**Status:** Catálogo oficial do domínio  
 **Base normativa:** [Master Context](../agrosaas-master-context.md), [Domain Map](../agrosaas-domain-map.md), [Data Model](../agrosaas-data-model.md), [Routing Map](../agrosaas-routing-map.md)
 
 ## 1. Visão Geral
@@ -90,7 +90,7 @@ Gestão de risco
 
 | Funcionalidade | Status | Observação |
 |---|---|---|
-| Contrato futuro | IMPLEMENTADO | Instrumento canônico existente. |
+| Contrato futuro | IMPLEMENTADO | Instrumento oficial existente. |
 | Registros de hedge | IMPLEMENTADO | Operação materializada. |
 | Snapshot diário | IMPLEMENTADO | MTM e auditoria. |
 | Exposição consolidada | IMPLEMENTADO | Visão por safra e commodity. |

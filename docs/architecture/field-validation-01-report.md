@@ -4,7 +4,7 @@
 
 Status final: `BLOQUEADO`
 
-A fundação FIELD continua funcional no backend e no PWA/Campo em runtime validado por build e suíte direcionada. Os cenários centrais de contrato canônico, governança de status, exportação, retificação, invalidação e sync offline passaram na suíte FIELD.
+A fundação FIELD continua funcional no backend e no PWA/Campo em runtime validado por build e suíte direcionada. Os cenários centrais de contrato oficial, governança de status, exportação, retificação, invalidação e sync offline passaram na suíte FIELD.
 
 Os dois bloqueadores remanescentes são estruturais:
 
@@ -66,7 +66,7 @@ git diff --check
 
 ### O que funcionou
 
-- Contrato canônico do caderno
+- Contrato oficial do caderno
 - Governança de status
 - Exportação oficial e auditoria
 - Retificação documental
@@ -227,7 +227,7 @@ Conclusão:
 
 ### Cenário A
 
-`Criar tarefa -> executar -> operação -> evento canônico -> aprovar -> consolidar -> exportar oficial -> assinar`
+`Criar tarefa -> executar -> operação -> evento oficial -> aprovar -> consolidar -> exportar oficial -> assinar`
 
 Status: `VALIDADO POR TESTE`
 

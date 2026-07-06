@@ -6,7 +6,7 @@ A codebase atual nao trata `Fornecedor` como entidade totalmente independente, m
 
 As evidencias encontradas mostram uma arquitetura de transicao:
 
-- `Pessoa` ja existe como base canônica para fornecedores em `services/api/core/cadastros/pessoas/`.
+- `Pessoa` ja existe como base oficial para fornecedores em `services/api/core/cadastros/pessoas/`.
 - o modulo de compras possui `Fornecedor` em `compras_fornecedores`, com `pessoa_id` opcional e campos proprios comerciais.
 - o CRUD de fornecedor em compras chama `salvar_fornecedor_legado()`, que resolve ou cria `Pessoa` e garante o papel `FORNECEDOR`.
 - cotacoes, pedidos e analytics de compras continuam operando majoritariamente por `fornecedor_nome` textual.
@@ -16,7 +16,7 @@ As evidencias encontradas mostram uma arquitetura de transicao:
 Conclusao objetiva:
 
 - a arquitetura encontrada e `Modelo D`: `Fornecedor` funciona como wrapper operacional de `Pessoa`, mantendo metadados especificos de compras;
-- para a versao 1.0, a evidencia recomenda `Opcao D`: criar antes uma camada canônica de resolucao de fornecedor para preservar compatibilidade com Compras, Estoque, Financeiro e dados legados.
+- para a versao 1.0, a evidencia recomenda `Opcao D`: criar antes uma camada oficial de resolucao de fornecedor para preservar compatibilidade com Compras, Estoque, Financeiro e dados legados.
 
 ## 2. Inventario
 
@@ -51,7 +51,7 @@ Evidencias principais:
 
 Leitura arquitetural:
 
-- o desenho mestre do dominio ja posiciona `Pessoa` como base canônica;
+- o desenho mestre do dominio ja posiciona `Pessoa` como base oficial;
 - `FORNECEDOR` ja existe formalmente como papel, nao como conceito externo ao dominio de pessoas.
 
 ### 3.2 `Fornecedor`
@@ -107,7 +107,7 @@ Evidencias:
 
 Leitura arquitetural:
 
-- financeiro nao exige fornecedor canônico;
+- financeiro nao exige fornecedor oficial;
 - ha suporte nativo a dupla representacao.
 
 ## 4. Tabelas
@@ -159,7 +159,7 @@ Todas as criacoes e atualizacoes passam por:
 Leitura arquitetural:
 
 - o modulo de compras nao cria fornecedor puramente isolado;
-- ele sempre tenta resolver a pessoa canônica por documento ou nome e vincular `pessoa_id`.
+- ele sempre tenta resolver a pessoa oficial por documento ou nome e vincular `pessoa_id`.
 
 ### 5.2 Fluxos de cotacao e pedido
 
@@ -171,8 +171,8 @@ Evidencias:
 
 Leitura arquitetural:
 
-- a camada transacional de compras ainda nao depende do cadastro canônico de fornecedor para operar;
-- a resolucao canonica nao esta presente nesses fluxos.
+- a camada transacional de compras ainda nao depende do cadastro oficial de fornecedor para operar;
+- a resolucao oficial nao esta presente nesses fluxos.
 
 ### 5.3 Financeiro
 
@@ -248,7 +248,7 @@ Evidencias:
 
 Leitura:
 
-- estoque ainda preserva fornecedor textual fora do cadastro canônico.
+- estoque ainda preserva fornecedor textual fora do cadastro oficial.
 
 ### 6.5 Cadastro central de pessoas
 
@@ -337,7 +337,7 @@ Fluxo real:
 Conclusao:
 
 - o pedido continua textual no eixo fornecedor;
-- rastreabilidade de estoque vem por pedido/NF/lote, nao por fornecedor canônico.
+- rastreabilidade de estoque vem por pedido/NF/lote, nao por fornecedor oficial.
 
 ### 8.4 Compra -> financeiro
 
@@ -352,7 +352,7 @@ Detalhe importante:
 
 Conclusao:
 
-- existe resolucao canônica parcial, mas com fallback estrutural para texto.
+- existe resolucao oficial parcial, mas com fallback estrutural para texto.
 
 ### 8.5 Cadastro central
 
@@ -392,7 +392,7 @@ Riscos estruturais identificados:
 - `Pessoa` com papel fornecedor sem registro operacional em `compras_fornecedores`
 - divergencia entre `cnpj_cpf` em `Fornecedor` e `PessoaDocumento`
 - divergencia entre `email`/`telefone` em `Fornecedor` e `PessoaContato`
-- cotacao e pedido sem fornecedor canônico, apenas textual
+- cotacao e pedido sem fornecedor oficial, apenas textual
 - despesa financeira sem `pessoa_id`, apenas com `fornecedor` texto livre
 - entrada manual de estoque com fornecedor textual sem vinculo mestre
 - analytics por `fornecedor_nome`, sujeitos a duplicidade sem normalizacao
@@ -404,7 +404,7 @@ Risco adicional:
 
 ## 11. Decisao
 
-Decisao escolhida: **Opcao D — Criar camada de resolucao canônica de fornecedor antes de tornar vínculo obrigatório.**
+Decisao escolhida: **Opcao D — Criar camada de resolucao oficial de fornecedor antes de tornar vínculo obrigatório.**
 
 Justificativa:
 
@@ -415,13 +415,13 @@ Justificativa:
 
 Resposta objetiva ao objetivo desta auditoria:
 
-`Fornecedor` nao deve permanecer como entidade totalmente independente a longo prazo. Tambem nao e seguro tratá-lo imediatamente como papel puro e obrigatorio de `Pessoa` em todos os fluxos. Antes disso, deve existir uma camada canônica de resolucao de fornecedor.
+`Fornecedor` nao deve permanecer como entidade totalmente independente a longo prazo. Tambem nao e seguro tratá-lo imediatamente como papel puro e obrigatorio de `Pessoa` em todos os fluxos. Antes disso, deve existir uma camada oficial de resolucao de fornecedor.
 
 ## 12. Plano recomendado
 
 Plano documental recomendado, sem implementacao nesta execucao:
 
-1. Criar um resolver canônico de fornecedor com prioridade explicita:
+1. Criar um resolver oficial de fornecedor com prioridade explicita:
    `Fornecedor.pessoa_id -> match por documento -> match por nome controlado -> fallback textual`.
 2. Introduzir esse resolver primeiro nos consumidores de menor risco:
    - compras -> financeiro
@@ -433,10 +433,10 @@ Plano documental recomendado, sem implementacao nesta execucao:
    - prazo de entrega
    - avaliacao
 5. Tornar `Pessoa` obrigatoria para novos fornecedores apenas quando:
-   - cotacoes e pedidos puderem resolver fornecedor canônico sem regressao;
-   - financeiro e estoque aceitarem metadados canônicos sem depender de texto livre como fonte primaria;
+   - cotacoes e pedidos puderem resolver fornecedor oficial sem regressao;
+   - financeiro e estoque aceitarem metadados oficiais sem depender de texto livre como fonte primaria;
    - os testes cobrirem compatibilidade com dados antigos e com deduplicacao por documento/nome.
 
 ## 13. Pergunta final obrigatoria
 
-**Para a versao 1.0 do AgroSaaS, `Fornecedor` nao deve continuar como entidade operacional totalmente isolada, mas tambem nao deve ser convertido diretamente em papel puro e obrigatorio de `Pessoa` em todos os fluxos. A evidencia da codebase indica que deve existir antes uma camada canônica de resolucao de fornecedor para preservar compatibilidade com Compras, Estoque, Financeiro e dados legados.**
+**Para a versao 1.0 do AgroSaaS, `Fornecedor` nao deve continuar como entidade operacional totalmente isolada, mas tambem nao deve ser convertido diretamente em papel puro e obrigatorio de `Pessoa` em todos os fluxos. A evidencia da codebase indica que deve existir antes uma camada oficial de resolucao de fornecedor para preservar compatibilidade com Compras, Estoque, Financeiro e dados legados.**

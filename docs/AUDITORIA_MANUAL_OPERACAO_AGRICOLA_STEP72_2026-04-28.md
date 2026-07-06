@@ -4,7 +4,7 @@
 
 Decidir manualmente o destino do único caso legado de `estoque_movimentacoes` que permaneceu fora do backfill automático:
 
-- virar movimento canônico com vínculo real;
+- virar movimento oficial com vínculo real;
 - ficar como `LEGADO`;
 - ou ser ignorado por já estar coberto.
 
@@ -48,11 +48,11 @@ Consulta em `operacoes_execucoes` por `operacao_id = 3e1a163d-8945-40b7-914d-584
 
 Leitura:
 
-- não há vínculo canônico real disponível para converter este movimento automaticamente para `origem = OPERACAO_EXECUCAO`.
+- não há vínculo oficial real disponível para converter este movimento automaticamente para `origem = OPERACAO_EXECUCAO`.
 
-### 3. Existe um movimento canônico no mesmo contexto de produto/deposito/data, mas ele não cobre este caso
+### 3. Existe um movimento oficial no mesmo contexto de produto/deposito/data, mas ele não cobre este caso
 
-Movimento canônico encontrado:
+Movimento oficial encontrado:
 
 - `estoque_movimentos.id = b13e975b-0ffb-4a5d-a687-3691baa937ab`
 - `origem = OPERACAO_EXECUCAO`
@@ -62,7 +62,7 @@ Movimento canônico encontrado:
 - `lote_id = 5e258d57-f76b-4bd3-b9d3-7836b031b793`
 - `observacoes = Consumo no ledger`
 
-Esse movimento canônico aponta para:
+Esse movimento oficial aponta para:
 
 - `operacoes_execucoes.id = a87731ad-7729-423d-a343-4eb797ab733e`
 - `operacao_id = 4ac7d757-19c9-46d8-958a-08a9421de42b`
@@ -75,7 +75,7 @@ E a operação correspondente é:
 - mesmo `talhao_id = 2d476920-e869-48c7-b6ea-ee8b28d00d37`
 - mesma `safra_id = 8932e2c1-c2b7-4e6c-890e-ea40602e3e67`
 
-### 4. Diferenças materiais entre o legado e o canônico existente
+### 4. Diferenças materiais entre o legado e o oficial existente
 
 Operação legada:
 
@@ -84,12 +84,12 @@ Operação legada:
 - quantidade legada consumida: `5.0`
 - lote legado: `LEGADO-001`
 
-Operação canônica encontrada:
+Operação oficial encontrada:
 
 - `PULVERIZACAO`
 - `data_realizada = 2026-04-10`
-- quantidade canônica consumida: `12.0`
-- lote canônico: `LEDGER-001`
+- quantidade oficial consumida: `12.0`
+- lote oficial: `LEDGER-001`
 
 Leitura:
 
@@ -107,7 +107,7 @@ Checagem por marcador em `observacoes` do ledger:
 
 ### Conclusão
 
-Este caso **não deve ser ignorado** e **não pode virar movimento canônico com vínculo real nesta etapa**.
+Este caso **não deve ser ignorado** e **não pode virar movimento oficial com vínculo real nesta etapa**.
 
 Decisão recomendada:
 
@@ -118,7 +118,7 @@ Decisão recomendada:
 
 ### Por que não ignorar
 
-- não existe cobertura canônica do mesmo evento;
+- não existe cobertura oficial do mesmo evento;
 - o movimento encontrado no ledger pertence a outra operação, com outro tipo, outra data, outra quantidade e outro lote.
 
 ### Por que não migrar com vínculo real
@@ -128,9 +128,9 @@ Decisão recomendada:
 
 ### Por que `LEGADO` é o destino mais seguro
 
-- a origem operacional histórica é conhecida no legado, mas não existe equivalente canônico executável para ligação formal;
+- a origem operacional histórica é conhecida no legado, mas não existe equivalente oficial executável para ligação formal;
 - preservar como `LEGADO` mantém o consumo auditável no ledger sem fabricar uma execução agrícola que não existe;
-- isso respeita a política do Step 67: `LEGADO` para histórico sem vínculo canônico confiável.
+- isso respeita a política do Step 67: `LEGADO` para histórico sem vínculo oficial confiável.
 
 ## Recomendação operacional
 

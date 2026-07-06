@@ -8,7 +8,7 @@ Estado real encontrado na codebase:
 
 - Existe um catálogo novo e arquiteturalmente preferível em `cadastros_culturas`, modelado por `ProdutoCultura`.
 - Existe uma estrutura legada paralela em `agricola/cadastros`, com model e router próprios para `culturas`.
-- Os fluxos operacionais críticos não usam apenas catálogo canônico:
+- Os fluxos operacionais críticos não usam apenas catálogo oficial:
   - `Safra` ainda persiste `cultura` textual.
   - `Cultivo` persiste `cultura` textual e opcionalmente `cultivar_id` para `cadastros_culturas`.
   - `Hedge` resolve commodity primeiro por `Cultivo.commodity_id` e depois faz fallback por `Safra.cultura`.
@@ -17,7 +17,7 @@ Estado real encontrado na codebase:
 
 Conclusão segura:
 
-- A fonte canônica recomendada para novos fluxos e para o futuro Wizard deve ser `ProdutoCultura` / tabela `cadastros_culturas`.
+- A fonte oficial recomendada para novos fluxos e para o futuro Wizard deve ser `ProdutoCultura` / tabela `cadastros_culturas`.
 - A estrutura legada ainda é necessária para compatibilidade.
 - Não é seguro consolidar escrita nem remover legado nesta execução.
 - Decisão tomada: **Opção A — apenas auditoria e plano seguro**.
@@ -33,22 +33,22 @@ Resposta curta à pergunta central:
 | Conceito | Model/Tabela | Owner | Status | Uso atual | Risco |
 | --- | --- | --- | --- | --- | --- |
 | Cultura legada | `agricola.cadastros.models.Cultura` / `culturas` | Agricultura legado | Ativo na codebase | CRUD legado e consumidor frontend legado | Alto |
-| Cultura canônica | `core.cadastros.produtos.models.ProdutoCultura` / `cadastros_culturas` | Core Cadastros | Ativo | Catálogo principal em telas novas, solo e cultivos | Baixo |
+| Cultura oficial | `core.cadastros.produtos.models.ProdutoCultura` / `cadastros_culturas` | Core Cadastros | Ativo | Catálogo principal em telas novas, solo e cultivos | Baixo |
 | Safra.cultura textual | `agricola.safras.models.Safra.cultura` | Agricultura | Legado compatível | Filtro, exibição, fallback, sync PWA | Alto |
 | Cultivo.cultura textual | `agricola.cultivos.models.Cultivo.cultura` | Agricultura | Híbrido/compatível | Obrigatório na criação operacional | Alto |
-| Cultivo.cultivar_id | `agricola.cultivos.models.Cultivo.cultivar_id` -> `cadastros_culturas.id` | Agricultura + Core | Canônico parcial | Ponte para catálogo canônico | Médio |
-| Cultivo.commodity_id | `agricola.cultivos.models.Cultivo.commodity_id` -> `cadastros_commodities.id` | Agricultura + Core | Canônico operacional | Base de hedge e colheita | Médio |
-| Commodity | `core.cadastros.commodities.models.Commodity` / `cadastros_commodities` | Core Cadastros | Canônico | Comercialização, hedge, produto colhido, romaneio | Baixo |
-| Produto | `core.cadastros.produtos.models.Produto` / `cadastros_produtos` | Core Cadastros | Canônico | Insumos e estoque de entrada | Baixo |
+| Cultivo.cultivar_id | `agricola.cultivos.models.Cultivo.cultivar_id` -> `cadastros_culturas.id` | Agricultura + Core | Oficial parcial | Ponte para catálogo oficial | Médio |
+| Cultivo.commodity_id | `agricola.cultivos.models.Cultivo.commodity_id` -> `cadastros_commodities.id` | Agricultura + Core | Oficial operacional | Base de hedge e colheita | Médio |
+| Commodity | `core.cadastros.commodities.models.Commodity` / `cadastros_commodities` | Core Cadastros | Oficial | Comercialização, hedge, produto colhido, romaneio | Baixo |
+| Produto | `core.cadastros.produtos.models.Produto` / `cadastros_produtos` | Core Cadastros | Oficial | Insumos e estoque de entrada | Baixo |
 | ProdutoColhido | `agricola.colheita.models.ProdutoColhido` / `agricola_produtos_colhidos` | Agricultura | Ativo | Usa `commodity_id`, não usa cultura direta | Médio |
 | Contrato Hedge | `financeiro.hedge.models.ContratoFuturo` | Financeiro/Hedge | Híbrido | Usa `commodity_id` e ainda mantém `commodity` textual | Médio |
-| Comercialização | `financeiro.comercializacao.models.ComercializacaoCommodity` | Financeiro/Comercialização | Canônico por commodity | Usa `commodity_id` e opcionalmente `produto_colhido_id` | Baixo |
+| Comercialização | `financeiro.comercializacao.models.ComercializacaoCommodity` | Financeiro/Comercialização | Oficial por commodity | Usa `commodity_id` e opcionalmente `produto_colhido_id` | Baixo |
 
 ---
 
 ## 3. Tabelas e models
 
-### 3.1 Catálogo canônico identificado
+### 3.1 Catálogo oficial identificado
 
 Evidências:
 
@@ -81,7 +81,7 @@ Evidências:
 Interpretação:
 
 - O legado não foi removido da codebase.
-- Ainda existe superfície pública ativa para cadastro de cultura fora do catálogo canônico.
+- Ainda existe superfície pública ativa para cadastro de cultura fora do catálogo oficial.
 
 ### 3.3 Inconsistência estrutural relevante
 
@@ -107,7 +107,7 @@ Conclusão:
 
 ## 4. Rotas
 
-### 4.1 Rotas canônicas
+### 4.1 Rotas oficiais
 
 - `services/api/core/cadastros/produtos/router.py`
   - `GET /cadastros/culturas`
@@ -132,13 +132,13 @@ Conclusão:
 Risco:
 
 - Existem dois pontos de CRUD de cultura com modelos distintos.
-- Isso permite divergência funcional e de dados entre catálogo canônico e legado.
+- Isso permite divergência funcional e de dados entre catálogo oficial e legado.
 
 ---
 
 ## 5. Frontend
 
-### 5.1 Frontend já orientado ao catálogo canônico
+### 5.1 Frontend já orientado ao catálogo oficial
 
 Evidências:
 
@@ -161,7 +161,7 @@ Evidência:
 Conclusão:
 
 - O frontend não está totalmente consolidado.
-- O Wizard deve usar apenas o catálogo canônico, mas não é seguro descontinuar a rota legada nesta execução.
+- O Wizard deve usar apenas o catálogo oficial, mas não é seguro descontinuar a rota legada nesta execução.
 
 ### 5.3 Modelo de UI ainda fortemente textual
 
@@ -250,7 +250,7 @@ Evidências:
 
 Leitura objetiva:
 
-- O modelo operacional atual exige texto e apenas complementa com vínculo canônico.
+- O modelo operacional atual exige texto e apenas complementa com vínculo oficial.
 - `cultivar_id` ainda não substituiu `cultura`.
 
 ### 8.3 Romaneio / Colheita
@@ -280,7 +280,7 @@ Evidências:
 
 Leitura objetiva:
 
-- Comercialização usa commodity canônica.
+- Comercialização usa commodity oficial.
 - Não depende de `Cultura` como entidade central.
 
 ### 8.5 Hedge
@@ -311,11 +311,11 @@ Conclusão segura:
 
 ---
 
-## 9. Fonte canônica recomendada
+## 9. Fonte oficial recomendada
 
-### 9.1 Fonte canônica para novos fluxos
+### 9.1 Fonte oficial para novos fluxos
 
-**Fonte canônica recomendada: `core.cadastros.produtos.models.ProdutoCultura` / `cadastros_culturas`.**
+**Fonte oficial recomendada: `core.cadastros.produtos.models.ProdutoCultura` / `cadastros_culturas`.**
 
 Justificativa baseada na codebase:
 
@@ -345,7 +345,7 @@ Justificativa:
 
 - continua sendo preenchida em `SafraService`;
 - continua sendo consumida por PWA, filtros, exibição e fallbacks;
-- não fornece relacionamento canônico por si só.
+- não fornece relacionamento oficial por si só.
 
 ---
 
@@ -396,7 +396,7 @@ Motivo:
 
 ## 13. Arquivos alterados
 
-- `docs/implementation/reports/MASTERDATA-01-AUDITORIA-CULTURA-CANONICA.md`
+- `docs/implementation/reports/MASTERDATA-01-AUDITORIA-CULTURA-OFICIAL.md`
 
 ---
 
@@ -431,7 +431,7 @@ Validação aplicável:
 - Todo novo fluxo de onboarding/wizard deve gravar `cultivar_id` quando aplicável.
 - `Safra.cultura` e `Cultivo.cultura` continuam sendo preenchidos como espelho textual de compatibilidade.
 
-### Fase 2 — Introduzir resolução canônica explícita
+### Fase 2 — Introduzir resolução oficial explícita
 
 Criar, em execução futura, uma camada de resolução de cultura com prioridade:
 
@@ -488,7 +488,7 @@ Sim.
 
 Nenhuma migration foi criada.
 
-### A fonte canônica recomendada foi justificada por evidência?
+### A fonte oficial recomendada foi justificada por evidência?
 
 Sim.
 
@@ -516,7 +516,7 @@ Não houve mudança de código.
 
 Sim.
 
-O plano foi estruturado em cinco fases, começando por congelamento da fonte canônica e só depois migração de consumidores.
+O plano foi estruturado em cinco fases, começando por congelamento da fonte oficial e só depois migração de consumidores.
 
 ---
 
@@ -524,4 +524,4 @@ O plano foi estruturado em cinco fases, começando por congelamento da fonte can
 
 **Após esta execução, sabemos com segurança qual entidade de Cultura deve ser usada pelo Assistente de Implantação e pelos novos fluxos do AgroSaaS, sem quebrar Safra, Cultivo, Romaneio, Comercialização, Hedge e dados legados?**
 
-**Sim, para novos fluxos a entidade correta é `ProdutoCultura` / `cadastros_culturas`. Não, ainda não é seguro tratar essa entidade como substituição completa do legado. Portanto, o Wizard já pode adotar a fonte canônica, mas a plataforma ainda precisa de uma transição controlada antes de consolidar totalmente o domínio Cultura sem dependências legadas.**
+**Sim, para novos fluxos a entidade correta é `ProdutoCultura` / `cadastros_culturas`. Não, ainda não é seguro tratar essa entidade como substituição completa do legado. Portanto, o Wizard já pode adotar a fonte oficial, mas a plataforma ainda precisa de uma transição controlada antes de consolidar totalmente o domínio Cultura sem dependências legadas.**

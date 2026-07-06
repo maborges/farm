@@ -6,7 +6,7 @@ Data da auditoria: 2026-07-01
 
 O AgroSaaS já possui suporte real para uma operação cafeeira acima do nível genérico de grãos. Há evidência concreta de:
 
-- cultura `Café` no catálogo canônico de culturas;
+- cultura `Café` no catálogo oficial de culturas;
 - escala fenológica específica para café;
 - romaneios com parâmetros de umidade/impureza específicos para café;
 - módulo dedicado de beneficiamento pós-colheita de café;
@@ -28,7 +28,7 @@ Interpretação prática:
 
 ## 3. Evidências por arquivo
 
-- Cultura canônica e parâmetros agronômicos: `ProdutoCultura` em [services/api/core/cadastros/produtos/models.py](/opt/lampp/htdocs/farm/services/api/core/cadastros/produtos/models.py:388).
+- Cultura oficial e parâmetros agronômicos: `ProdutoCultura` em [services/api/core/cadastros/produtos/models.py](/opt/lampp/htdocs/farm/services/api/core/cadastros/produtos/models.py:388).
 - Seed explícita de `Café`: [services/api/scripts/seed_culturas.py](/opt/lampp/htdocs/farm/services/api/scripts/seed_culturas.py:357).
 - Fenologia específica de café, incluindo floração, cereja e passa: [services/api/agricola/fenologia/seed_escalas.py](/opt/lampp/htdocs/farm/services/api/agricola/fenologia/seed_escalas.py:34).
 - Cultivo com `cultivar_id`, `espacamento_cm` e vínculo econômico/operacional: [services/api/agricola/cultivos/models.py](/opt/lampp/htdocs/farm/services/api/agricola/cultivos/models.py:15).
@@ -56,7 +56,7 @@ Interpretação prática:
 
 | Item | Classificação | Evidência | Leitura |
 | --- | --- | --- | --- |
-| Cultura café | EXISTE E ATENDE | `seed_culturas.py`, `ProdutoCultura` | Café existe como cultura canônica. |
+| Cultura café | EXISTE E ATENDE | `seed_culturas.py`, `ProdutoCultura` | Café existe como cultura oficial. |
 | Variedades/cultivares | EXISTE PARCIALMENTE | `cultivos.models`, `safras.models` | Há `cultivar_id` e `cultivar_nome`, mas sem pacote específico de gestão varietal de café. |
 | Talhões de café | EXISTE E ATENDE | `AreaRural` + `SafraTalhao` + PWA/web | Estrutura territorial e seleção por talhão existem. |
 | Idade do cafezal | NÃO EXISTE | sem evidência no código | Não encontrei `idade_cafezal`, `ano_plantio` ou equivalente específico. |
@@ -160,8 +160,8 @@ Leitura por necessidade do piloto:
 - **Custo por talhão**: EXISTE E ATENDE.
 - **Custo por safra**: EXISTE E ATENDE.
 - **Custo por ProductionUnit**: EXISTE E ATENDE.
-- **Custo por lote de café beneficiado**: NÃO EXISTE como camada econômica canônica explícita.
-- **Custo por saca**: EXISTE PARCIALMENTE, derivável em relatórios, mas não encontrei trilha canônica explícita pronta.
+- **Custo por lote de café beneficiado**: NÃO EXISTE como camada econômica oficial explícita.
+- **Custo por saca**: EXISTE PARCIALMENTE, derivável em relatórios, mas não encontrei trilha oficial explícita pronta.
 - **Custo de máquinas**: EXISTE E ATENDE via porta oficial operacional.
 - **Custo de mão de obra**: EXISTE E ATENDE pela arquitetura econômica consolidada.
 - **Custo de insumos**: EXISTE E ATENDE.
@@ -240,7 +240,7 @@ Conclusão:
 ## 9. Lacunas críticas
 
 - Não existe fluxo explícito de exportação com embarque, porto, Incoterm, documentação e logística internacional.
-- Não existe camada canônica explícita de custo por lote exportável de café.
+- Não existe camada oficial explícita de custo por lote exportável de café.
 - O Wizard não valida prontidão específica de cafeicultura exportadora.
 - O PWA não cobre secagem, beneficiamento e classificação de café como jornada dedicada.
 - Não encontrei evidência de testes específicos da integração Sankhya.

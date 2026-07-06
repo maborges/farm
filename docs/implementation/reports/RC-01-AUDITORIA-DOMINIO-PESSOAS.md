@@ -4,7 +4,7 @@
 
 Esta auditoria encontrou um **modelo híbrido** para o domínio Pessoas no AgroSaaS.
 
-Existe uma fonte canônica clara em `services/api/core/cadastros/pessoas/`, centrada em:
+Existe uma fonte oficial clara em `services/api/core/cadastros/pessoas/`, centrada em:
 
 - `Pessoa` (`cadastros_pessoas`)
 - `PessoaDocumento`
@@ -39,7 +39,7 @@ As principais evidências são:
 
 Conclusão objetiva:
 
-- **Existe uma fonte canônica candidata para Master Person Data:** `Pessoa`.
+- **Existe uma fonte oficial candidata para Master Person Data:** `Pessoa`.
 - **Ela ainda não é a única fonte de verdade operacional do sistema.**
 - **Há inconsistências estruturais suficientes para impedir afirmar que o domínio Pessoas já está pronto como Master Person Data definitivo da versão 1.0.**
 
@@ -120,7 +120,7 @@ Portanto, a arquitetura real não é puramente:
 
 | Conceito | Model | Tabela | Owner | Uso atual | Status | Risco |
 | --- | --- | --- | --- | --- | --- | --- |
-| Pessoa | `Pessoa` | `cadastros_pessoas` | Core / Cadastros | Cadastro mestre de indivíduo ou organização | Ativo e canônico em intenção | Médio |
+| Pessoa | `Pessoa` | `cadastros_pessoas` | Core / Cadastros | Cadastro mestre de indivíduo ou organização | Ativo e oficial em intenção | Médio |
 | Documento de Pessoa | `PessoaDocumento` | `cadastros_pessoas_documentos` | Core / Cadastros | CPF/CNPJ/IE e afins | Ativo | Baixo |
 | Contato de Pessoa | `PessoaContato` | `cadastros_pessoas_contatos` | Core / Cadastros | E-mail, telefone, WhatsApp | Ativo | Baixo |
 | Endereço de Pessoa | `PessoaEndereco` | `cadastros_pessoas_enderecos` | Core / Cadastros | Endereços operacionais/fiscais | Ativo | Baixo |
@@ -139,7 +139,7 @@ Portanto, a arquitetura real não é puramente:
 | Lead CRM | `LeadCRM` | `crm_leads` | Core / CRM | Prospect comercial pré-conversão | Ativo e independente | Médio |
 | Atividade CRM | `AtividadeCRM` | `crm_atividades` | Core / CRM | Follow-up de lead | Ativo | Baixo |
 | Pipeline CRM | `PipelineEstagio` | `crm_pipeline_estagios` | Core / CRM | Estágios do pipeline | Ativo | Baixo |
-| Comprador de comercialização | FK `comprador_id -> Pessoa` | `financeiro_comercializacoes` | Financeiro / Comercialização | Compra/venda agrícola usa pessoa canônica | Ativo e canônico | Baixo |
+| Comprador de comercialização | FK `comprador_id -> Pessoa` | `financeiro_comercializacoes` | Financeiro / Comercialização | Compra/venda agrícola usa pessoa oficial | Ativo e oficial | Baixo |
 | Cliente financeiro | FK `pessoa_id` + texto `cliente` | `fin_receitas` | Financeiro | Contas a receber | Ativo e híbrido | Médio |
 | Fornecedor financeiro | FK `pessoa_id` + texto `fornecedor` | `fin_despesas` | Financeiro | Contas a pagar | Ativo e híbrido | Médio |
 | Trabalhador EPI/Caderno | `ColaboradorRH` + campos textuais | `caderno_campo_entradas` / payloads | Campo PWA / Agrícola | Fluxos de EPI e caderno | Ativo e legado operacional | Alto |
@@ -148,7 +148,7 @@ Portanto, a arquitetura real não é puramente:
 
 ## 5. Entidades encontradas
 
-### Fonte canônica explícita
+### Fonte oficial explícita
 
 O model `Pessoa` contém a descrição:
 
@@ -362,7 +362,7 @@ Em `services/api/financeiro/comercializacao/`:
 - filtros e criação usam `comprador_id`
 - `comprador_id` é FK para `Pessoa`
 
-Aqui o consumidor já opera diretamente sobre a base canônica.
+Aqui o consumidor já opera diretamente sobre a base oficial.
 
 ---
 
@@ -414,7 +414,7 @@ Em `apps/web/src/app/(dashboard)/dashboard/financeiro/comercializacoes/page.tsx`
 - a tela busca pessoas em `/cadastros/pessoas`
 - o formulário exige `comprador_id`
 
-Aqui o frontend já consome a fonte canônica.
+Aqui o frontend já consome a fonte oficial.
 
 ### ESG / Certificações
 
@@ -471,7 +471,7 @@ Em `services/api/tests/integration/test_cadastros.py` existem testes de:
 Em `services/api/tests/integration/operacional/test_compras.py`:
 
 - existe teste explícito garantindo que criar fornecedor:
-  - resolve uma `Pessoa` canônica;
+  - resolve uma `Pessoa` oficial;
   - reutiliza o legado;
   - não duplica registros/documentos.
 
@@ -513,7 +513,7 @@ Há testes backend e frontend usando:
 
 - `responsavel_pessoa_id`
 
-O contrato funcional já pressupõe pessoa canônica para responsável.
+O contrato funcional já pressupõe pessoa oficial para responsável.
 
 ### Conftest global
 
@@ -562,7 +562,7 @@ Quem consome:
 Conclusão:
 
 - fornecedor ainda não nasce diretamente como `Pessoa`;
-- há bridge para sincronizar com a base canônica.
+- há bridge para sincronizar com a base oficial.
 
 ### Fluxo 3: RH
 
@@ -605,7 +605,7 @@ Fluxo real encontrado:
 
 Conclusão:
 
-- comprador já usa a base canônica.
+- comprador já usa a base oficial.
 
 ### Fluxo 6: CRM
 
@@ -627,7 +627,7 @@ Conclusão:
 
 - `Usuario` representa autenticação e acesso;
 - mas também acumula atributos pessoais;
-- sem ligação canônica com `Pessoa`.
+- sem ligação oficial com `Pessoa`.
 
 ---
 
@@ -725,7 +725,7 @@ Conclusão:
 
 Há pelo menos **quatro eixos de representação de pessoa** coexistindo:
 
-1. `Pessoa` canônica
+1. `Pessoa` oficial
 2. `Fornecedor` legado sincronizado
 3. `ColaboradorRH` híbrido
 4. `Usuario` independente
@@ -736,11 +736,11 @@ Além disso:
 
 ---
 
-## 14. Fonte canônica
+## 14. Fonte oficial
 
-### Fonte canônica identificada
+### Fonte oficial identificada
 
-A única entidade com evidência suficiente para ser considerada a base canônica do domínio Pessoas é:
+A única entidade com evidência suficiente para ser considerada a base oficial do domínio Pessoas é:
 
 - `Pessoa` em `services/api/core/cadastros/pessoas/models.py`
 
@@ -760,7 +760,7 @@ A única entidade com evidência suficiente para ser considerada a base canônic
 
 Apesar disso, a auditoria **não permite afirmar** que `Pessoa` já é a única fonte de verdade operacional do produto.
 
-Ela é a fonte canônica **arquitetural**, mas ainda não a fonte única **funcional**.
+Ela é a fonte oficial **arquitetural**, mas ainda não a fonte única **funcional**.
 
 ---
 
@@ -816,7 +816,7 @@ Resposta:
 
 Conclusão:
 
-- **Comercialização já reutiliza a base canônica.**
+- **Comercialização já reutiliza a base oficial.**
 
 ### Pecuária
 
@@ -825,7 +825,7 @@ Conclusão:
 Resposta:
 
 - Há consumo de `Pessoa` em partes da pecuária e operacional.
-- Não foi encontrada, nesta auditoria, uma entidade canônica exclusiva de veterinário separada do restante.
+- Não foi encontrada, nesta auditoria, uma entidade oficial exclusiva de veterinário separada do restante.
 
 Conclusão:
 
@@ -851,7 +851,7 @@ Resposta:
 
 - `Usuario` representa autenticação, vínculo de acesso e credenciais.
 - Porém também armazena atributos de pessoa.
-- Não há FK canônica para `Pessoa`.
+- Não há FK oficial para `Pessoa`.
 
 Conclusão:
 
@@ -920,7 +920,7 @@ Campos sobrepostos:
 
 Problema:
 
-- lançamentos podem existir sem chave canônica.
+- lançamentos podem existir sem chave oficial.
 
 ---
 
@@ -991,7 +991,7 @@ Sem uma narrativa única de quem é a entidade principal.
 
 Relatórios, contratos e lançamentos financeiros podem misturar:
 
-- pessoa canônica;
+- pessoa oficial;
 - texto livre;
 - cadastro legado.
 
@@ -1066,7 +1066,7 @@ Potencialmente o mesmo ator pode ser repetido como:
 
 ### Motivo exato
 
-O domínio Pessoas já possui uma base canônica bem definida, mas ainda não possui adoção uniforme suficiente para ser tratado como Master Person Data definitivo da plataforma.
+O domínio Pessoas já possui uma base oficial bem definida, mas ainda não possui adoção uniforme suficiente para ser tratado como Master Person Data definitivo da plataforma.
 
 Os bloqueios objetivos são:
 
@@ -1087,15 +1087,15 @@ Consolidar `Pessoa` como Master Person Data sem remoção destrutiva imediata.
 
 ### Sequência recomendada
 
-1. Congelar `Pessoa` como fonte canônica oficial do domínio.
+1. Congelar `Pessoa` como fonte oficial oficial do domínio.
 2. Mapear formalmente papéis suportados por `TipoRelacionamento`.
-3. Criar camada explícita de resolução canônica para:
+3. Criar camada explícita de resolução oficial para:
    - fornecedor
    - cliente/comprador
    - colaborador
    - responsável técnico
    - prestador
-4. Tratar `Usuario` como identidade de autenticação e definir relação canônica com `Pessoa`.
+4. Tratar `Usuario` como identidade de autenticação e definir relação oficial com `Pessoa`.
 5. Tornar `ColaboradorRH` uma especialização obrigatória de `Pessoa` em fluxo novo.
 6. Transformar `Fornecedor` em wrapper compatível de `Pessoa`, sem criação paralela autônoma no fluxo novo.
 7. Reduzir progressivamente o uso de:
@@ -1121,7 +1121,7 @@ Consolidar `Pessoa` como Master Person Data sem remoção destrutiva imediata.
 
 **Não na operação completa do sistema.**
 
-Existe uma candidata canônica clara:
+Existe uma candidata oficial clara:
 
 - `Pessoa`
 
@@ -1196,10 +1196,10 @@ O risco é relevante para consistência cadastral, UX e rastreabilidade.
 
 **Não como Master Person Data definitivo.**
 
-Está suficientemente avançado para apontar uma base canônica, mas ainda não consolidado para servir sozinho como fonte única de verdade.
+Está suficientemente avançado para apontar uma base oficial, mas ainda não consolidado para servir sozinho como fonte única de verdade.
 
 ---
 
 ## 24. Resposta final obrigatória
 
-**O domínio Pessoas do AgroSaaS ainda não possui uma arquitetura suficientemente consistente para servir como Master Person Data definitivo da versão 1.0. A codebase já contém uma fonte canônica clara em `Pessoa` (`cadastros_pessoas`), mas coexistem cadastros paralelos, wrappers legados, campos textuais e identidade de usuário desacoplada, o que caracteriza inconsistências estruturais que devem ser resolvidas antes do lançamento do produto como arquitetura mestre de pessoas.**
+**O domínio Pessoas do AgroSaaS ainda não possui uma arquitetura suficientemente consistente para servir como Master Person Data definitivo da versão 1.0. A codebase já contém uma fonte oficial clara em `Pessoa` (`cadastros_pessoas`), mas coexistem cadastros paralelos, wrappers legados, campos textuais e identidade de usuário desacoplada, o que caracteriza inconsistências estruturais que devem ser resolvidas antes do lançamento do produto como arquitetura mestre de pessoas.**

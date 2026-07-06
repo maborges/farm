@@ -71,7 +71,7 @@ A remoção física de `estoque_movimentacoes` fica aprovada como próxima etapa
 - não reabrir fallback funcional
 - não recriar dependência de leitura/escrita no legado
 - tratar a remoção como mudança de infraestrutura de schema
-- preservar rastreabilidade histórica relevante no ledger canônico e na documentação
+- preservar rastreabilidade histórica relevante no ledger oficial e na documentação
 
 ## Plano de execução
 

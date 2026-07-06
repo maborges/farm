@@ -1,4 +1,4 @@
-# INTEGRATIONS-LIFECYCLE-01 — Ciclo de Vida e Operações Canônicas do Domínio de Integrações
+# INTEGRATIONS-LIFECYCLE-01 — Ciclo de Vida e Operações Oficiais do Domínio de Integrações
 
 ## 1. Resumo executivo
 
@@ -71,7 +71,7 @@ Transições proibidas relevantes:
 
 ## 4. Operações oficiais
 
-Operações canônicas definidas:
+Operações oficiais definidas:
 
 - Configurar
 - Editar
@@ -203,7 +203,7 @@ Permanece fora do escopo desta execução:
 
 - implementação do lifecycle como engine de produção;
 - implementação do versionamento persistente;
-- implementação canônica de jobs, health e alerts;
+- implementação oficial de jobs, health e alerts;
 - modelagem de `ESTABELECIMENTO`.
 
 ## 10. Próxima execução recomendada
@@ -214,7 +214,7 @@ Próxima execução recomendada:
 
 Foco recomendado:
 
-- modelo persistente canônico de `IntegrationConfig`, `IntegrationVersion`, `IntegrationJob`, `IntegrationHealth` e `IntegrationAlert`;
+- modelo persistente oficial de `IntegrationConfig`, `IntegrationVersion`, `IntegrationJob`, `IntegrationHealth` e `IntegrationAlert`;
 - base para consumo do lifecycle por Wizard, dashboards e observabilidade;
 - governança específica de transições e rollback.
 

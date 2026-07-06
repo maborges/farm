@@ -2,7 +2,7 @@
 
 ## 1. Resumo executivo
 
-O AgroSaaS já possui uma arquitetura event-driven canônica suficientemente clara para orientar novos desenvolvimentos.
+O AgroSaaS já possui uma arquitetura event-driven oficial suficientemente clara para orientar novos desenvolvimentos.
 
 O fluxo oficial encontrado na codebase é:
 
@@ -51,7 +51,7 @@ Conclusão objetiva:
 - Publicação direta sem Outbox existe apenas como fallback controlado.
 - Ainda há limitações operacionais de v1.0, especialmente métricas in-memory, subscriber de notificação não ligado por padrão ao registry global e ausência de infraestrutura externa de fila/telemetria.
 
-## 2. Fluxo canônico
+## 2. Fluxo oficial
 
 Fluxo oficial confirmado pela codebase:
 
@@ -109,7 +109,7 @@ Adapter por canal
 
 ## 3. Domain Events
 
-`DomainEvent` é o envelope canônico do fato de domínio. O contrato atual carrega:
+`DomainEvent` é o envelope oficial do fato de domínio. O contrato atual carrega:
 
 - `event_id`
 - `tenant_id`
@@ -318,7 +318,7 @@ Papel oficial dos adapters:
 - devolver resultado estruturado;
 - não decidir regra de negócio;
 - não conhecer Alert Engine;
-- não conhecer domínio emissor além do envelope canônico.
+- não conhecer domínio emissor além do envelope oficial.
 
 Norma oficial:
 

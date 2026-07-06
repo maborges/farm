@@ -1,12 +1,12 @@
 # Alert Engine Contracts
 
-Status: Canonical
+Status: Oficial
 Parent architecture: [alert-engine-architecture.md](./alert-engine-architecture.md)
 Scope: Contract layer for the AgroSaaS Alert Engine
 
 ## 1. Purpose
 
-This document defines the canonical contracts of the Alert Engine before any implementation.
+This document defines the oficial contracts of the Alert Engine before any implementation.
 
 It does not define storage details, endpoints, or code. It defines the semantic API surface that future implementations must follow.
 
@@ -20,11 +20,11 @@ The Alert Engine contract layer covers:
 - Alert Query
 - Alert Lifecycle Actions
 
-## 2. Canonical Enum Set
+## 2. Oficial Enum Set
 
 ### 2.1 Domain
 
-Canonical values:
+Oficial values:
 
 ```ts
 type Domain = "AGRICULTURE" | "LIVESTOCK" | "FINANCE" | "OPERATIONS" | "FIELD" | "SYSTEM";
@@ -43,7 +43,7 @@ Rationale:
 
 ### 2.2 Category
 
-Canonical values:
+Oficial values:
 
 ```ts
 type Category =
@@ -70,7 +70,7 @@ Rationale:
 
 ### 2.3 Severity
 
-Canonical values:
+Oficial values:
 
 ```ts
 type Severity = "INFO" | "WARNING" | "CRITICAL" | "EMERGENCY";
@@ -85,7 +85,7 @@ Meaning:
 
 ### 2.4 Priority
 
-Canonical values:
+Oficial values:
 
 ```ts
 type Priority = "LOW" | "NORMAL" | "HIGH" | "URGENT";
@@ -100,7 +100,7 @@ Meaning:
 
 ### 2.5 AlertStatus
 
-Canonical values:
+Oficial values:
 
 ```ts
 type AlertStatus = "OPEN" | "ACKNOWLEDGED" | "SNOOZED" | "RESOLVED" | "EXPIRED" | "CANCELLED";
@@ -108,7 +108,7 @@ type AlertStatus = "OPEN" | "ACKNOWLEDGED" | "SNOOZED" | "RESOLVED" | "EXPIRED" 
 
 ### 2.6 TriggerType
 
-Canonical values:
+Oficial values:
 
 ```ts
 type TriggerType = "RULE" | "THRESHOLD" | "MODEL" | "MANUAL" | "SCHEDULE";
@@ -116,13 +116,13 @@ type TriggerType = "RULE" | "THRESHOLD" | "MODEL" | "MANUAL" | "SCHEDULE";
 
 ### 2.7 InsightGeneratedBy
 
-Canonical values:
+Oficial values:
 
 ```ts
 type InsightGeneratedBy = "RULE_ENGINE" | "ANALYTICS" | "COPILOT" | "HUMAN";
 ```
 
-## 3. Canonical Event Contract
+## 3. Oficial Event Contract
 
 ### 3.1 Contract
 
@@ -171,8 +171,8 @@ type Event = {
 
 - `id` must be globally unique within the tenant namespace.
 - `tenantId` must match the authenticated tenant context.
-- `domain` must be one of the canonical enum values.
-- `category` must be one of the canonical enum values.
+- `domain` must be one of the oficial enum values.
+- `category` must be one of the oficial enum values.
 - `source` must be a stable technical identifier of the origin.
 - `occurredAt` must represent the moment the business fact happened.
 - `ingestedAt` must represent the moment the Alert Engine received it.
@@ -235,7 +235,7 @@ System:
 - ingestão falhou
 - regra atualizada
 
-## 4. Canonical Indicator Contract
+## 4. Oficial Indicator Contract
 
 ### 4.1 Contract
 
@@ -297,7 +297,7 @@ Indicators may be:
 - on-demand
 - hybrid
 
-Canonical rule:
+Oficial rule:
 
 - If the metric is cheap and only needed inside a single request, it can be computed on demand.
 - If the metric is reused, audited, or compared over time, it should be materialized.
@@ -338,7 +338,7 @@ Examples:
 - tarefas atrasadas
 - saldo financeiro
 
-## 5. Canonical OperationalAlert Contract
+## 5. Oficial OperationalAlert Contract
 
 ### 5.1 Contract
 
@@ -487,7 +487,7 @@ Caixa negativo:
 
 ### 5.9 Action fields
 
-`actionLabel` and `actionUrl` provide the canonical next step exposed to UI and Copilot.
+`actionLabel` and `actionUrl` provide the oficial next step exposed to UI and Copilot.
 
 Examples:
 
@@ -496,7 +496,7 @@ Examples:
 
 These fields are hints for consumers. They do not replace access control.
 
-## 6. Canonical Insight Contract
+## 6. Oficial Insight Contract
 
 ### 6.1 Contract
 
@@ -613,7 +613,7 @@ type AlertSummary = {
 - `maxSeverity` reflects the highest severity among open alerts.
 - `maxPriority` reflects the highest priority among open alerts.
 - `mostCriticalDomain` identifies the domain with the highest weighted open risk.
-- `byDomain` must always include all canonical domains.
+- `byDomain` must always include all oficial domains.
 - `topAlerts` must be ordered by severity, then priority, then recency.
 
 ### 7.3 Ordering rule for `topAlerts`
@@ -633,7 +633,7 @@ Default `topAlerts` limit:
 - 5 for dashboard summary cards
 - 10 for expandable views
 
-The exact limit is a consumer choice, but the canonical default for compact surfaces is 5.
+The exact limit is a consumer choice, but the oficial default for compact surfaces is 5.
 
 ### 7.5 Filters
 
@@ -652,7 +652,7 @@ When no alerts exist:
 
 ## 8. Alert Query API
 
-### 8.1 Canonical query surface
+### 8.1 Oficial query surface
 
 ```http
 GET /api/v1/alerts
@@ -681,9 +681,9 @@ GET /api/v1/alerts
 - `offset` must be non-negative.
 - Query results must respect tenant isolation.
 
-### 8.4 Canonical response shape
+### 8.4 Oficial response shape
 
-The canonical list response is a paginated envelope:
+The oficial list response is a paginated envelope:
 
 ```ts
 type AlertQueryResponse = {
@@ -702,7 +702,7 @@ Default ordering for the list endpoint:
 2. priority descending
 3. createdAt descending
 
-Consumers may request alternative sorts later, but the canonical default must remain action-first.
+Consumers may request alternative sorts later, but the oficial default must remain action-first.
 
 ### 8.6 Summary endpoint
 
@@ -714,7 +714,7 @@ The summary endpoint returns `AlertSummary` and may reuse the same filtering con
 
 ## 9. Alert Lifecycle Actions
 
-### 9.1 Canonical actions
+### 9.1 Oficial actions
 
 ```http
 POST /api/v1/alerts/{id}/acknowledge
@@ -891,7 +891,7 @@ Audit data is part of the lifecycle, not optional metadata.
 
 ### 11.1 Contract version
 
-Canonical contract version:
+Oficial contract version:
 
 ```text
 v1
@@ -918,7 +918,7 @@ Breaking changes require:
 - explicit deprecation timeline
 - documentation update
 
-## 12. Canonical Summary
+## 12. Oficial Summary
 
 The contract layer is intentionally strict:
 

@@ -6,7 +6,7 @@
 
 ## 1. Resumo Executivo
 
-Nesta execução (CLIMATE-03), o módulo agrícola foi aprimorado para gerar Alertas Operacionais baseados na ingestão de dados climáticos (`RegistroClima`). Implementamos um novo Alert Generator aderente ao `Alert Engine` canônico, capaz de disparar alertas (Warning/Critical) em casos de chuvas excessivas, ventos fortes e temperaturas anômalas (estresse térmico). 
+Nesta execução (CLIMATE-03), o módulo agrícola foi aprimorado para gerar Alertas Operacionais baseados na ingestão de dados climáticos (`RegistroClima`). Implementamos um novo Alert Generator aderente ao `Alert Engine` oficial, capaz de disparar alertas (Warning/Critical) em casos de chuvas excessivas, ventos fortes e temperaturas anômalas (estresse térmico). 
 
 Todo o fluxo respeita isolamento de tenant, foco em `UnidadeProdutiva`, e evita integrações pontuais, reafirmando o padrão Pub/Sub e a arquitetura centralizada.
 

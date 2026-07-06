@@ -14,7 +14,7 @@ Escopo desta auditoria:
 
 ## 2. Resumo Executivo
 
-O runtime atual do SaaS se apoia em dois eixos canônicos:
+O runtime atual do SaaS se apoia em dois eixos oficiais:
 
 1. `modulos_inclusos` no plano/assinatura para controlar quais modulos estao contratados;
 2. `plan_tier` para controlar profundidade de acesso, especialmente features mais avancadas.
@@ -28,8 +28,8 @@ Hoje existem quatro camadas de nomenclatura convivendo em paralelo:
 
 Conclusao principal:
 
-- `A1_PLANEJAMENTO` e demais codigos por letra+numero sao hoje identificadores tecnicos canônicos de modulo;
-- `BASICO`, `PROFISSIONAL`, `ENTERPRISE` sao hoje os tiers canônicos de runtime;
+- `A1_PLANEJAMENTO` e demais codigos por letra+numero sao hoje identificadores tecnicos oficiais de modulo;
+- `BASICO`, `PROFISSIONAL`, `ENTERPRISE` sao hoje os tiers oficiais de runtime;
 - `PREMIUM` e alias legado de compatibilidade;
 - nomes comerciais de pacote/plano ainda nao estao unificados entre backend, frontend, seeds e documentacao.
 
@@ -75,7 +75,7 @@ Fontes de compatibilidade, seeds ou historico:
 
 ### 4.1 Modulos
 
-Fonte canônica de runtime:
+Fonte oficial de runtime:
 
 - backend: `services/api/core/constants.py` classe `Modulos`
 - frontend: `apps/web/src/lib/constants/modulos.ts`
@@ -96,7 +96,7 @@ Classificacao:
 
 ### 4.2 Tiers
 
-Fonte canônica de runtime:
+Fonte oficial de runtime:
 
 - backend: `services/api/core/constants.py` classe `PlanTier`
 - frontend: `apps/web/src/lib/constants/planos.ts`
@@ -241,7 +241,7 @@ Aparece em:
 
 Classificacao:
 
-- identificador tecnico canônico de modulo
+- identificador tecnico oficial de modulo
 - modulo contratado
 - dependencia de gate
 
@@ -270,7 +270,7 @@ Aparece majoritariamente em:
 Classificacao:
 
 - documentacao e naming historico
-- nao e o tier canônico atual de runtime
+- nao e o tier oficial atual de runtime
 
 ### 5.5 `Profissional`
 
@@ -303,7 +303,7 @@ Aparece em:
 
 - tier tecnico `ENTERPRISE`
 - labels comerciais
-- Step 35 como nome canônico do tier topo
+- Step 35 como nome oficial do tier topo
 
 Classificacao:
 
@@ -336,7 +336,7 @@ Conclusao:
 
 - nao existe hoje uma entidade unica de banco chamada `pacote`;
 - pacote e composicao de frontend/documentacao;
-- plano e a entidade canônica de billing.
+- plano e a entidade oficial de billing.
 
 ### 6.2 Pacote -> modulo
 
@@ -404,7 +404,7 @@ Conclusao:
 
 ### 6.6 Billing -> assinatura -> plano
 
-Cadeia canônica:
+Cadeia oficial:
 
 - `AssinaturaTenant.plano_id` -> `PlanoAssinatura.id`
 - `PlanoAssinatura.plan_tier`
@@ -467,7 +467,7 @@ Risco:
 
 Estado:
 
-- Step 35 definiu `ENTERPRISE` como nome canônico;
+- Step 35 definiu `ENTERPRISE` como nome oficial;
 - `PREMIUM` permanece apenas para compatibilidade.
 
 Risco:
@@ -620,7 +620,7 @@ Motivo:
 
 - qualquer alteracao aqui pode quebrar gates, assinaturas ativas, CRM, onboarding, testes e analytics.
 
-## 12. Proposta de Glossario Canonico
+## 12. Proposta de Glossario Oficial
 
 ### 12.1 Tecnico
 
@@ -633,14 +633,14 @@ Motivo:
 ### 12.2 Comercial
 
 - `Plano comercial`: nome exibido ao cliente, ex. `A1 Planejamento`, `Profissional`, `Enterprise`
-- `Pacote`: composicao comercial para landing/comparativo; nao e hoje entidade canônica de banco
+- `Pacote`: composicao comercial para landing/comparativo; nao e hoje entidade oficial de banco
 - `Dominio`: frente de valor como `Agricultura`, `Pecuária`, `Financeiro`, `Estoque`, `Frota`, `CRM`
 
 ### 12.3 Compatibilidade
 
 - `PREMIUM`: somente alias legado de `ENTERPRISE`
 - `Essencial`: termo historico de documentacao, nao recomendado para runtime novo
-- `Bronze/Prata/Ouro`, `Pro`, `Empresarial`: nomenclaturas antigas ou de seed, nao canônicas
+- `Bronze/Prata/Ouro`, `Pro`, `Empresarial`: nomenclaturas antigas ou de seed, nao oficiais
 
 ## 13. Recomendacoes Praticas de Melhoria Futura
 
@@ -662,7 +662,7 @@ Motivo:
 ### 13.3 Alto impacto, fazer apenas com projeto de refactor
 
 - centralizar matriz `modulo -> tier minimo -> labels comerciais`;
-- criar fonte canônica unica para catalogo comercial de planos/pacotes;
+- criar fonte oficial unica para catalogo comercial de planos/pacotes;
 - se houver renome de codigos tecnicos, executar migration + compatibilidade + replay de claims + ajuste de seeds/tests.
 
 ## 14. Conclusao

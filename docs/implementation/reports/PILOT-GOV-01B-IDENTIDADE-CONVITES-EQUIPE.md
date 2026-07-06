@@ -7,7 +7,7 @@ Conclusão objetiva: a implementação atual confirma a arquitetura de identidad
 O desenho oficial encontrado na codebase é:
 
 ```text
-Pessoa (domínio canônico futuro)
+Pessoa (domínio oficial futuro)
         │
 Usuario
         │
@@ -177,7 +177,7 @@ Conclusão:
 
 Resultado da auditoria:
 
-- não foi encontrado fluxo operacional canônico de `POST /team/users` ou criação direta de usuário pelo administrador do tenant;
+- não foi encontrado fluxo operacional oficial de `POST /team/users` ou criação direta de usuário pelo administrador do tenant;
 - a gestão da equipe auditada é orientada a convite;
 - o que existe é:
   - listar equipe;
@@ -189,7 +189,7 @@ Resultado da auditoria:
 
 Conclusão:
 
-- o cenário E não existe como fluxo canônico atual;
+- o cenário E não existe como fluxo oficial atual;
 - a entrada de equipe no tenant é oficialmente baseada em convite e vínculo posterior.
 
 ## 7. Implantação da equipe

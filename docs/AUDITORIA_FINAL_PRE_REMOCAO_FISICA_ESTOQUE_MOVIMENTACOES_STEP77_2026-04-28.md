@@ -4,7 +4,7 @@
 
 Esta auditoria consolida o estado final do legado `estoque_movimentacoes` após:
 
-- Step 61: novos writes direcionados ao ledger canônico `estoque_movimentos`
+- Step 61: novos writes direcionados ao ledger oficial `estoque_movimentos`
 - Step 63: adaptação inicial de leituras
 - Step 71: backfill real do legado elegível
 - Step 74: guardrails de legado `read-only`

@@ -161,7 +161,7 @@ Ownership oficial:
 
 - a DRE é a fonte upstream do domínio analítico;
 - `analytics-governance-decision.md` define a estratégia de memoização e o monitoramento do fan-out;
-- `analytics_taxonomy.py` concentra a taxonomia canônica.
+- `analytics_taxonomy.py` concentra a taxonomia oficial.
 
 Pode fazer:
 
@@ -210,7 +210,7 @@ Não deve fazer:
 
 Responsável por:
 
-- Taxonomia canônica
+- Taxonomia oficial
 - Auditoria
 - Guardrails
 - Enforcement
@@ -219,7 +219,7 @@ Responsável por:
 
 Ownership oficial:
 
-- a taxonomia canônica vive em `analytics_taxonomy.py`;
+- a taxonomia oficial vive em `analytics_taxonomy.py`;
 - `TenantAuditLog` é o trilho transversal de auditoria;
 - a governança operacional e econômica reutiliza guardrails já existentes;
 - `agro-domain-governance.md` e `operational-workflow-governance.md` formalizam as fronteiras de domínio e fluxo.
@@ -241,7 +241,7 @@ Não deve fazer:
 ## Dependências Permitidas
 
 ```text
-Territorial -> Fundiário (via vínculo canônico)
+Territorial -> Fundiário (via vínculo oficial)
 Operacional -> Econômico
 Econômico -> Analítico
 Analítico -> Assistido
@@ -272,7 +272,7 @@ Governança -> transversal
 - `Rentabilidade`, `Eficiência`, `Benchmark`: derivações analíticas.
 - `Diagnóstico`, `Recomendações`, `Prioridades`: inteligência assistida derivada.
 - `TenantAuditLog`: governança transversal.
-- `Taxonomia canônica`: governança transversal de linguagem.
+- `Taxonomia oficial`: governança transversal de linguagem.
 
 ## Anti-Patterns Oficiais
 

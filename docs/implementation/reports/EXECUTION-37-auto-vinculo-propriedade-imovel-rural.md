@@ -1,4 +1,4 @@
-# EXECUTION-37 — Correção de Fluxo de Cadastro Propriedade ↔ Imóvel Rural (Auto Vínculo Canônico)
+# EXECUTION-37 — Correção de Fluxo de Cadastro Propriedade ↔ Imóvel Rural (Auto Vínculo Oficial)
 
 ## Resumo Executivo
 
@@ -8,7 +8,7 @@ Foi implementado e **completado** o fluxo orquestrado de auto-vínculo entre a e
 
 ---
 
-## Governança de Dados Fundiários (Regra Canônica)
+## Governança de Dados Fundiários (Regra Oficial)
 
 > [!IMPORTANT]
 > As regras abaixo são parte da arquitetura aprovada e **não devem ser violadas** em evoluções futuras.
@@ -16,12 +16,12 @@ Foi implementado e **completado** o fluxo orquestrado de auto-vínculo entre a e
 | Entidade | Papel | Fonte Oficial? |
 |---|---|---|
 | `ImovelRural` | Domínio jurídico/fundiário/documental | **SIM** |
-| `ImovelRural.sigef_codigo` | Código SIGEF canônico | **SIM — fonte oficial** |
-| `ImovelRural.car_numero` | CAR canônico | **SIM — fonte oficial** |
-| `ImovelRural.nirf` | NIRF canônico | **SIM — fonte oficial** |
-| `ImovelRural.ccir_numero` | CCIR canônico | **SIM — fonte oficial** |
-| `ImovelRural.numero_matricula` | Matrícula canônica | **SIM — fonte oficial** |
-| `PropriedadeImovel` | Vínculo canônico N:N | **SIM (vínculo)** |
+| `ImovelRural.sigef_codigo` | Código SIGEF oficial | **SIM — fonte oficial** |
+| `ImovelRural.car_numero` | CAR oficial | **SIM — fonte oficial** |
+| `ImovelRural.nirf` | NIRF oficial | **SIM — fonte oficial** |
+| `ImovelRural.ccir_numero` | CCIR oficial | **SIM — fonte oficial** |
+| `ImovelRural.numero_matricula` | Matrícula oficial | **SIM — fonte oficial** |
+| `PropriedadeImovel` | Vínculo oficial N:N | **SIM (vínculo)** |
 | `UnidadeProdutiva` | Domínio operacional/territorial | **NÃO** |
 | `UnidadeProdutiva.codigo_car` | Campo de entrada legado | **NÃO — apenas captura de dado** |
 | `UnidadeProdutiva.nirf` | Campo de entrada legado | **NÃO — apenas captura de dado** |
@@ -32,7 +32,7 @@ Foi implementado e **completado** o fluxo orquestrado de auto-vínculo entre a e
 
 > [!WARNING]
 > **Nenhum campo fundiário em `Propriedade` ou `UnidadeProdutiva` deve ser considerado fonte oficial.**
-> A leitura canônica de CAR, NIRF, CCIR, SIGEF e Matrícula deve sempre ser realizada via `ImovelRural`, acessado através do vínculo `PropriedadeImovel`.
+> A leitura oficial de CAR, NIRF, CCIR, SIGEF e Matrícula deve sempre ser realizada via `ImovelRural`, acessado através do vínculo `PropriedadeImovel`.
 
 ---
 
@@ -71,7 +71,7 @@ Fluxo ao salvar `UnidadeProdutiva`:
 3. Busca `ImovelRural` existente no tenant por OR-logic (qualquer dos 5 identificadores).
 4. Se não encontrar → cria `ImovelRural` automaticamente via `ImovelService.criar_imovel()`. O SIGEF é atribuído ao imóvel após o `flush`.
 5. Busca `ExploracaoRural` para obter `propriedade_id`.
-6. Se existir → garante `PropriedadeImovel` canônico com `tipo_vinculo=PROPRIEDADE_PRINCIPAL` e `vinculo_principal=True` (idempotente: não duplica).
+6. Se existir → garante `PropriedadeImovel` oficial com `tipo_vinculo=PROPRIEDADE_PRINCIPAL` e `vinculo_principal=True` (idempotente: não duplica).
 
 #### `get(id)` — Overlay de Visão Territorial (leitura em memória)
 
@@ -86,7 +86,7 @@ Fluxo da leitura:
 2. Resolve `propriedade_id` via `ExploracaoRural`.
 3. Busca `ImovelRural` via `PropriedadeImovel` ativo + `vinculo_principal=True`.
 4. Se encontrar → sobrescreve **em memória**: `codigo_car`, `nirf`, `ccir`, `sigef_codigo`, `numero_matricula` com os valores de `ImovelRural` (fonte oficial).
-5. Retorna o objeto com os campos canônicos.
+5. Retorna o objeto com os campos oficiais.
 
 **Resultado:** A API sempre serve dados fundiários a partir de `ImovelRural` quando há vínculo ativo. Os campos legados em `UnidadeProdutiva` no banco são ignorados na resposta.
 
@@ -118,7 +118,7 @@ Fluxo da leitura:
 |---|---|---|
 | 1 | CAR novo → cria ImovelRural | ✅ PASSED |
 | 2 | CAR existente → reutiliza ImovelRural | ✅ PASSED |
-| 3 | Com ExploracaoRural → cria PropriedadeImovel canônico | ✅ PASSED |
+| 3 | Com ExploracaoRural → cria PropriedadeImovel oficial | ✅ PASSED |
 | 4 | Sem dado fundiário → não cria ImovelRural | ✅ PASSED |
 | 5 | Sync idempotente — sem duplicatas | ✅ PASSED |
 | 6 | SIGEF novo → cria ImovelRural com `sigef_codigo` | ✅ PASSED |
@@ -142,7 +142,7 @@ Fluxo da leitura:
 
 ## Estratégia Adotada
 
-**Princípio:** Input único pelo usuário, armazenamento canônico em `ImovelRural`, leitura sempre via fonte oficial.
+**Princípio:** Input único pelo usuário, armazenamento oficial em `ImovelRural`, leitura sempre via fonte oficial.
 
 1. **Captura:** O formulário de `UnidadeProdutiva` recebe os identificadores fundiários.
 2. **Sincronização:** `_sincronizar_vinculo_fundiario()` localiza ou cria o `ImovelRural` com os dados oficiais.
@@ -183,7 +183,7 @@ alembic upgrade head — aplicado com sucesso
 
 - `ImovelRural` consolidado como única fonte oficial de dados fundiários.
 - `UnidadeProdutiva` mantida como domínio operacional sem autoridade fundiária.
-- `PropriedadeImovel` confirmado como vínculo canônico N:N.
+- `PropriedadeImovel` confirmado como vínculo oficial N:N.
 - Nenhuma violação de `AGRI-DOMAIN-001` ou `AGRI-DOMAIN-002`.
 
 ## Compatibilidade Preservada

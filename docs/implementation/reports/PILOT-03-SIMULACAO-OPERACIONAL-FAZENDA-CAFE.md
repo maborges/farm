@@ -16,7 +16,7 @@ Limitação encontrada:
 
 - a plataforma ainda não cobre uma operação exportadora full-scope ponta a ponta com logística internacional, documentação de embarque, Incoterm, porto, container, booking e governança específica de exportação;
 - parte do pós-colheita especializado continua concentrada no Web;
-- a operação econômica está forte por safra, talhão e `ProductionUnit`, mas não aparece como trilha canônica explícita por lote exportador.
+- a operação econômica está forte por safra, talhão e `ProductionUnit`, mas não aparece como trilha oficial explícita por lote exportador.
 
 Recomendação:
 
@@ -29,7 +29,7 @@ Recomendação:
 
 Fato encontrado:
 
-- a implantação operacional já possui fluxo oficial via Wizard, com `ImplantacaoOperacional`, etapas canônicas, checklist automático e bloqueio de go-live sem `UnidadeProdutiva`, área, talhão, depósito, plano de contas e catálogo mínimo de produtos em [services/api/wizard/services.py](/opt/lampp/htdocs/farm/services/api/wizard/services.py:59) e [services/api/wizard/checklist_engine.py](/opt/lampp/htdocs/farm/services/api/wizard/checklist_engine.py:60);
+- a implantação operacional já possui fluxo oficial via Wizard, com `ImplantacaoOperacional`, etapas oficiais, checklist automático e bloqueio de go-live sem `UnidadeProdutiva`, área, talhão, depósito, plano de contas e catálogo mínimo de produtos em [services/api/wizard/services.py](/opt/lampp/htdocs/farm/services/api/wizard/services.py:59) e [services/api/wizard/checklist_engine.py](/opt/lampp/htdocs/farm/services/api/wizard/checklist_engine.py:60);
 - o frontend do Wizard existe em `/dashboard/implantacao/wizard`, sustentado pela API `/api/v1/wizard`.
 
 Leitura operacional:
@@ -52,7 +52,7 @@ Fato encontrado:
 
 - `Safra` e `Cultivo` existem com rotas próprias em [services/api/agricola/safras/router.py](/opt/lampp/htdocs/farm/services/api/agricola/safras/router.py:22) e [services/api/agricola/cultivos/router.py](/opt/lampp/htdocs/farm/services/api/agricola/cultivos/router.py:18);
 - `Cultivo` suporta `cultivar_id`, `cultivar_nome`, `commodity_id` e `espacamento_cm` em [services/api/agricola/cultivos/models.py](/opt/lampp/htdocs/farm/services/api/agricola/cultivos/models.py:15);
-- café existe como cultura canônica em [services/api/scripts/seed_culturas.py](/opt/lampp/htdocs/farm/services/api/scripts/seed_culturas.py:357) e [services/api/core/cadastros/produtos/models.py](/opt/lampp/htdocs/farm/services/api/core/cadastros/produtos/models.py:388);
+- café existe como cultura oficial em [services/api/scripts/seed_culturas.py](/opt/lampp/htdocs/farm/services/api/scripts/seed_culturas.py:357) e [services/api/core/cadastros/produtos/models.py](/opt/lampp/htdocs/farm/services/api/core/cadastros/produtos/models.py:388);
 - há orçamento e itens de planejamento por safra em [services/api/agricola/a1_planejamento/router.py](/opt/lampp/htdocs/farm/services/api/agricola/a1_planejamento/router.py:21).
 
 Leitura operacional:
@@ -104,7 +104,7 @@ Leitura operacional:
 
 - o operador registra a colheita no campo;
 - o responsável consolida romaneios no backend;
-- a produção passa a ter lastro físico e econômico dentro da arquitetura canônica.
+- a produção passa a ter lastro físico e econômico dentro da arquitetura oficial.
 
 Status da etapa:
 
@@ -156,7 +156,7 @@ Status da etapa:
 - frontend: existe parcialmente no ecossistema financeiro/agro;
 - API: existe;
 - fluxo completo: existe para comercialização básica;
-- fluxo exportador: não existe como trilha canônica completa.
+- fluxo exportador: não existe como trilha oficial completa.
 
 ### Etapa 7 — Integração Sankhya
 
@@ -202,7 +202,7 @@ Fato encontrado:
 
 - a arquitetura econômica oficial segue `OperationalCostAllocationService -> CostAllocation -> DRE -> Rentabilidade`;
 - a DRE agrícola oficial consome `Receita` e `CostAllocation` e evita duplicidade com romaneio versus comercialização em [services/api/agricola/dre/service.py](/opt/lampp/htdocs/farm/services/api/agricola/dre/service.py:341);
-- custos operacionais estão ancorados na porta canônica `OperationalCostAllocationService` em [services/api/agricola/custos/operational_cost_service.py](/opt/lampp/htdocs/farm/services/api/agricola/custos/operational_cost_service.py:1).
+- custos operacionais estão ancorados na porta oficial `OperationalCostAllocationService` em [services/api/agricola/custos/operational_cost_service.py](/opt/lampp/htdocs/farm/services/api/agricola/custos/operational_cost_service.py:1).
 
 Leitura operacional:
 
@@ -239,13 +239,13 @@ Leitura operacional:
 | Comercialização básica | Sim | Média/Alta | `ComercializacaoCommodity` | Opcional | Atende venda; não cobre exportação full-scope. |
 | Exportação internacional | Não integralmente | Baixa | Ausência de fluxo específico | Sim, parcialmente | Não prometer ponta a ponta. |
 | ESG e certificações | Sim, com limites | Média/Alta | Rastreabilidade e certificações | Não | Forte para cadeia e passaporte. |
-| DRE e rentabilidade | Sim | Alta | DRE agrícola v1 + custos canônicos | Opcional | Melhor por safra/talhão/PU do que por lote exportador. |
+| DRE e rentabilidade | Sim | Alta | DRE agrícola v1 + custos oficiais | Opcional | Melhor por safra/talhão/PU do que por lote exportador. |
 
 ## 5. Jornada das personas
 
 | Persona | Objetivo | Atividades | Módulos/telas | Dificuldades |
 | --- | --- | --- | --- | --- |
-| Proprietário | Ver operação e resultado | acompanhar go-live, produção, comercialização e rentabilidade | Wizard, DRE, rastreabilidade, comercialização | exportação internacional ainda fora do fluxo canônico |
+| Proprietário | Ver operação e resultado | acompanhar go-live, produção, comercialização e rentabilidade | Wizard, DRE, rastreabilidade, comercialização | exportação internacional ainda fora do fluxo oficial |
 | Gerente agrícola | Planejar e executar safra | safra, cultivo, operações, romaneios, beneficiamento | Web agrícola, PWA caderno/colheita | parte do planejamento cafeeiro fino ainda é genérica |
 | Encarregado | Organizar execução diária | distribuir trabalho, revisar apontamentos, consolidar romaneios | PWA, operações, romaneios | troca entre PWA e Web no pós-colheita |
 | Operador de campo | Registrar atividade | aplicação, caderno, colheita, fotos, GPS, sync | `apps/campo` | pós-colheita e comercialização ficam fora do PWA |
@@ -262,7 +262,7 @@ Leitura operacional:
 | Troca Web agrícola → Web financeiro na comercialização | Baixo | esperado para a arquitetura atual |
 | Dependência de Web para rastreabilidade, certificações e passaporte | Médio | aceitável para piloto administrativo |
 | Dependência de Sankhya para parte administrativa/fiscal/financeira corporativa | Médio | coerente com o posicionamento AgroSaaS operacional + ERP corporativo |
-| Ausência de fluxo canônico de exportação internacional | Alto | principal limite para cliente exportador full-scope |
+| Ausência de fluxo oficial de exportação internacional | Alto | principal limite para cliente exportador full-scope |
 | Necessidade de disciplina manual em planejamento cafeeiro fino | Médio | por ausência de trilha perene especializada |
 | Ausência de pós-colheita especializado no PWA | Médio | não bloqueia piloto, mas reduz aderência de operação móvel |
 
@@ -298,9 +298,9 @@ Leitura recomendada para o piloto:
 
 ## 10. Lacunas críticas
 
-- inexistência de fluxo canônico de exportação internacional ponta a ponta;
+- inexistência de fluxo oficial de exportação internacional ponta a ponta;
 - ausência de camada explícita para operação logística/documental exportadora;
-- rentabilidade não aparece como trilha canônica específica por lote exportador;
+- rentabilidade não aparece como trilha oficial específica por lote exportador;
 - prontidão do piloto cai se o cliente exigir que AgroSaaS substitua o ERP no início.
 
 ## 11. Lacunas não críticas

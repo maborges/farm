@@ -1,4 +1,4 @@
-# INTEGRATIONS-ARCH-01 — Arquitetura Canônica do Domínio de Integrações do AgroSaaS
+# INTEGRATIONS-ARCH-01 — Arquitetura Oficial do Domínio de Integrações do AgroSaaS
 
 ## 1. Objetivo
 
@@ -26,7 +26,7 @@ Situação atual:
 
 Problema:
 
-- sem arquitetura canônica, cada nova integração tende a nascer com seu próprio modelo, RBAC, navegação, segredos, logs e fila;
+- sem arquitetura oficial, cada nova integração tende a nascer com seu próprio modelo, RBAC, navegação, segredos, logs e fila;
 - isso cria risco de arquitetura paralela, vazamento entre tenants e inconsistência de suporte.
 
 Decisão:
@@ -39,7 +39,7 @@ Decisão:
 O domínio `Integrações` é o domínio responsável por conectar o AgroSaaS a sistemas externos, preservando:
 
 - isolamento multi-tenant;
-- contratos canônicos;
+- contratos oficiais;
 - segurança de credenciais;
 - rastreabilidade operacional;
 - observabilidade;
@@ -290,7 +290,7 @@ Arquitetura oficial de segurança:
 
 Decisão oficial:
 
-- `IntegrationCredential` é contrato canônico separado de `IntegrationConfig`;
+- `IntegrationCredential` é contrato oficial separado de `IntegrationConfig`;
 - leitura de credencial deve ser minimizada;
 - telas de tenant não devem exibir segredo completo após gravação;
 - backoffice pode visualizar estado e metadados, não necessariamente o segredo bruto.
@@ -314,7 +314,7 @@ Toda integração oficial deve expor, no mínimo:
 - logs recentes;
 - métricas básicas.
 
-Saídas canônicas:
+Saídas oficiais:
 
 - `IntegrationHealth`
 - `IntegrationLog`
@@ -388,9 +388,9 @@ Suporte
 Regra:
 
 - console de configuração do cliente não deve morar no backoffice;
-- backoffice não é a casa canônica da configuração do ERP do tenant.
+- backoffice não é a casa oficial da configuração do ERP do tenant.
 
-## 13. Contratos Canônicos
+## 13. Contratos Oficiais
 
 Contratos oficiais do domínio:
 
@@ -480,7 +480,7 @@ ADRs formais geradas por este documento:
 - ADR-INT-02: ERP nunca é configurado por Unidade Produtiva.
 - ADR-INT-03: Escopo padrão de ERP é `TENANT`; `ESTABELECIMENTO` é extensão oficial.
 - ADR-INT-04: Console do cliente e console de backoffice são responsabilidades distintas.
-- ADR-INT-05: Credenciais de integração exigem contrato canônico separado e criptografia em repouso.
+- ADR-INT-05: Credenciais de integração exigem contrato oficial separado e criptografia em repouso.
 - ADR-INT-06: Observabilidade global não substitui a governança de tenant.
 
 ## 16. Decisões Arquiteturais
@@ -490,7 +490,7 @@ ADRs formais geradas por este documento:
 - `Estabelecimento` passa a ser conceito arquitetural oficial;
 - `UnidadeProdutiva` não é escopo válido de configuração de ERP;
 - configurações do cliente pertencem ao tenant/estabelecimento;
-- backoffice observa e dá suporte, mas não é o local canônico da configuração do cliente;
+- backoffice observa e dá suporte, mas não é o local oficial da configuração do cliente;
 - RLS e tenant isolation são mandatórios para integrações.
 
 ## 17. Limitações deliberadas da V1
@@ -503,9 +503,9 @@ ADRs formais geradas por este documento:
 
 ## 18. Evoluções previstas
 
-- detalhamento canônico de `Provider`, `ProviderDefinition`, `Connection`, `Credential`, `Feature`, `SyncPolicy` e `Health` em `INTEGRATIONS-ARCH-02`;
+- detalhamento oficial de `Provider`, `ProviderDefinition`, `Connection`, `Credential`, `Feature`, `SyncPolicy` e `Health` em `INTEGRATIONS-ARCH-02`;
 - `INTEGRATIONS-GOV-01` para guardrails do domínio;
-- modelagem canônica de `Estabelecimento`;
+- modelagem oficial de `Estabelecimento`;
 - refatoração da governança Sankhya para console de tenant;
 - endurecimento de segredos, rotação e mascaramento;
 - padronização de jobs, filas, eventos e health;

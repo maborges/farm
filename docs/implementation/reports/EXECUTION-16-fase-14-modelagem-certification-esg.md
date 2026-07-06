@@ -21,7 +21,7 @@ Modelar o domínio consumidor de Certificações/ESG antes de qualquer migration
 - **Legado**: `MRVProjeto`, `MRVRelatorio`, `PlanoAcaoOperacionalAgricola*`, backlog histórico.
 - **Duplicado**: `PlanoAcaoItem` financeiro se for usado como modelo oficial de compliance.
 - **Risco arquitetural**: reutilização direta de modelos simplificados como verdade final do domínio consumidor.
-- **Inexistente**: `ProgramaCertificacao`, `ChecklistCertificacao`, `CriterioCertificacao`, `AvaliacaoCertificacao`, `EvidenciaCertificacao`, `NaoConformidade`, `PlanoAcao` próprio de certificação, `PassaporteRastreabilidade` canônico.
+- **Inexistente**: `ProgramaCertificacao`, `ChecklistCertificacao`, `CriterioCertificacao`, `AvaliacaoCertificacao`, `EvidenciaCertificacao`, `NaoConformidade`, `PlanoAcao` próprio de certificação, `PassaporteRastreabilidade` oficial.
 
 ## 4. Modelo Conceitual Proposto
 
@@ -65,11 +65,11 @@ Fronteiras de escrita:
 | `NaoConformidade` | Certificações/ESG | Avaliação, critérios, evidências | Não é dado territorial. |
 | `PlanoAcao` | Certificações/ESG | Não conformidade, pessoas, prazos | Pode integrar notificações depois. |
 | `RelatorioESG` | Certificações/ESG | Propriedade, Imóvel Rural, documentos, pessoas, evidências | Relatório derivado. |
-| `PassaporteRastreabilidade` | Certificações/ESG | Caderno, lote, certificações, documentos, vínculo canônico | Snapshot público/privado. |
+| `PassaporteRastreabilidade` | Certificações/ESG | Caderno, lote, certificações, documentos, vínculo oficial | Snapshot público/privado. |
 
 ## 7. Necessidade Provável De Migration Futuro
 
-- Há necessidade provável de migration futura para materializar o modelo canônico do domínio consumidor.
+- Há necessidade provável de migration futura para materializar o modelo oficial do domínio consumidor.
 - Não houve necessidade de migration nesta fase, porque o objetivo foi apenas a modelagem inicial.
 - A migração futura deve criar entidades do domínio consumidor sem duplicar fontes oficiais territoriais/fundiárias.
 
@@ -98,7 +98,7 @@ Fronteiras de escrita:
 
 ## 12. Riscos Encontrados
 
-- Usar os modelos simplificados atuais como se fossem o domínio canônico final.
+- Usar os modelos simplificados atuais como se fossem o domínio oficial final.
 - Misturar plano de ação financeiro/IA com plano de ação de certificação.
 - Tratar questionários como origem territorial/fundiária.
 - Duplicar CAR, matrícula ou documentos em entidades novas.
@@ -108,7 +108,7 @@ Fronteiras de escrita:
 - Definir migrations quando a modelagem passar da fase conceitual para a fase estrutural.
 - Definir contratos de API do domínio consumidor.
 - Definir telas de cadastro, checklist e auditoria.
-- Normalizar a relação entre os modelos legados atuais e o futuro modelo canônico.
+- Normalizar a relação entre os modelos legados atuais e o futuro modelo oficial.
 
 ## 14. Recomendação Para A Próxima Fase
 

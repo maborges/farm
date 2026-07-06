@@ -72,7 +72,7 @@ Proibições oficiais:
 - não conceder permissões globais;
 - não substituir convites ou gestão de equipe;
 - não exigir equipe completa para concluir a implantação mínima;
-- não redefinir arquitetura canônica de domínios já aprovados.
+- não redefinir arquitetura oficial de domínios já aprovados.
 
 ## 5. Separação oficial entre Wizard e outros domínios
 
@@ -139,7 +139,7 @@ Regra oficial:
 Regra oficial:
 
 - o Wizard pode conduzir a confirmação, criação ou parametrização da primeira `UnidadeProdutiva`, quando isso fizer parte da implantação operacional;
-- o Wizard não redefine a natureza canônica de `UnidadeProdutiva` como unidade operacional mínima da plataforma.
+- o Wizard não redefine a natureza oficial de `UnidadeProdutiva` como unidade operacional mínima da plataforma.
 
 ### 5.6 Relação com equipe
 
@@ -149,7 +149,7 @@ Regra oficial:
 
 - apenas `Owner/Admin` é obrigatório para implantação mínima;
 - equipe operacional é opcional e progressiva;
-- convites continuam sendo o fluxo canônico de entrada de equipe;
+- convites continuam sendo o fluxo oficial de entrada de equipe;
 - o Wizard pode orientar a inclusão de equipe, mas não deve bloquear o go-live mínimo por ausência dela.
 
 ## 6. Pré-requisitos para início do Wizard
@@ -195,7 +195,7 @@ Dentro do seu escopo, o Wizard pode conduzir e configurar:
 
 Regra oficial:
 
-- o Wizard só pode operar sobre entidades já definidas como canônicas pela arquitetura oficial;
+- o Wizard só pode operar sobre entidades já definidas como oficiais pela arquitetura oficial;
 - ele não pode inventar estruturas paralelas para “simplificar” a implantação.
 
 ## 8. O que o Wizard é proibido de criar ou configurar
@@ -267,7 +267,7 @@ Princípio:
 
 - Wizard bom é idempotente por leitura do estado real do tenant.
 
-## 11. Etapas canônicas do Wizard
+## 11. Etapas oficiais do Wizard
 
 Sequência oficial sugerida:
 
@@ -542,7 +542,7 @@ Funções no piloto:
 
 Regra oficial:
 
-- piloto controlado deve preferir a mesma sequência canônica do Wizard;
+- piloto controlado deve preferir a mesma sequência oficial do Wizard;
 - qualquer exceção deve ser tratada como compatibilidade temporária, não como nova arquitetura.
 
 ## 16. Relação com implantação manual
@@ -561,7 +561,7 @@ Riscos que o Wizard deve evitar:
 - virar novo onboarding comercial;
 - recriar auth ou billing por conveniência;
 - transformar equipe em pré-requisito obrigatório;
-- criar atalhos com entidades não canônicas;
+- criar atalhos com entidades não oficiais;
 - considerar “configuração preenchida” como sinônimo de “operação pronta”;
 - ignorar os gates mínimos já definidos em `PILOT-ARCH-01`, `PILOT-GOV-01` e `PILOT-GOV-01B`;
 - duplicar lógica de domínio em vez de consumir serviços e fluxos oficiais.
@@ -577,7 +577,7 @@ Decisões normativas:
 - o Wizard trata `Owner/Admin` como único ator obrigatório da implantação mínima;
 - o Wizard deve operar por etapas retomáveis e idempotentes;
 - o Wizard deve ser compatível com implantação manual e piloto controlado;
-- o Wizard deve reutilizar apenas entidades canônicas já aprovadas.
+- o Wizard deve reutilizar apenas entidades oficiais já aprovadas.
 
 ## 19. Recomendações para WIZARD-GOV-01
 
@@ -587,7 +587,7 @@ Guardrails mínimos recomendados:
 - validar que o Wizard exige `Owner/Admin` e `Tenant` ativo antes de iniciar;
 - validar que o Wizard não considera equipe completa como pré-requisito;
 - validar que `UnidadeProdutiva` continua sendo o gate operacional mínimo;
-- validar que trilhas agrícola e pecuária respeitam `AreaRural`, `Talhão`, `Piquete` e `ProductionUnit` canônicos;
+- validar que trilhas agrícola e pecuária respeitam `AreaRural`, `Talhão`, `Piquete` e `ProductionUnit` oficiais;
 - validar que o Wizard não cria catálogos paralelos de `Produto`, `ProdutoCultura`, `Commodity` ou estruturas econômicas paralelas;
 - validar que estados do Wizard permaneçam estáveis e retomáveis;
 - validar que go-live só ocorra com checklist mínimo e sem bloqueio crítico.

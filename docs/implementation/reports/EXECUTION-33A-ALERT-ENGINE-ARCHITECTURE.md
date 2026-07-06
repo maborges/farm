@@ -2,7 +2,7 @@
 
 ## Summary
 
-This execution established the canonical architecture for the AgroSaaS Alert Engine.
+This execution established the oficial architecture for the AgroSaaS Alert Engine.
 
 No code, migrations, endpoints, or frontend/backend contracts were changed.
 
@@ -10,7 +10,7 @@ No code, migrations, endpoints, or frontend/backend contracts were changed.
 
 ### Official intelligence chain
 
-The canonical lifecycle is:
+The oficial lifecycle is:
 
 ```text
 Evento -> Indicador -> Alerta -> Insight -> Copiloto IA -> Usuário -> Ação -> Evento
@@ -52,7 +52,7 @@ Copilot should prioritize alerts, then indicators, then events, then insights de
 
 Recommended follow-up sequence:
 
-1. EXECUTION-33B - Canonical Contracts
+1. EXECUTION-33B - Oficial Contracts
 2. EXECUTION-33C - Persistence Model
 3. EXECUTION-33D - Dashboard Consumption
 4. EXECUTION-33E - Copilot Consumption

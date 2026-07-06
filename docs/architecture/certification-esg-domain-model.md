@@ -20,14 +20,14 @@ Este domínio:
 
 | Item | Local | Classificação | Observação |
 | --- | --- | --- | --- |
-| `CertificacaoPropriedade` | `services/api/agricola/rastreabilidade/models.py` | Parcial | Usa `unidade_produtiva_id`, não modela o domínio consumidor canônico. |
+| `CertificacaoPropriedade` | `services/api/agricola/rastreabilidade/models.py` | Parcial | Usa `unidade_produtiva_id`, não modela o domínio consumidor oficial. |
 | `LoteRastreabilidade` | `services/api/agricola/rastreabilidade/models.py` | Aproveitável | Passaporte de lote e leitura de certificações. |
 | `CadernoLoteComercial` | `services/api/agricola/rastreabilidade/models.py` | Aproveitável | Snapshot imutável e suporte a rastreabilidade pública. |
 | `ESGIndicador` | `services/api/enterprise/models/sprints_27_33.py` | Parcial | Modelo genérico e simplificado, sem governance própria do domínio consumidor. |
 | `ESGRelatorio` | `services/api/enterprise/models/sprints_27_33.py` | Parcial | Útil como referência, mas ainda acoplado a uma modelagem enterprise genérica. |
 | `MRVProjeto` / `MRVRelatorio` | `services/api/enterprise/models/sprints_27_33.py` | Legado / adjacente | Útil para carbono, mas não é o núcleo do domínio de certificações/ESG. |
 | `TenantAuditLog` | `services/api/core/models/tenant_audit_log.py` | Aproveitável | Trilha transversal de escrita e auditoria. |
-| `CadernoCampoEntrada` | `services/api/agricola/caderno/models.py` | Aproveitável | Fonte canônica de evidência operacional. |
+| `CadernoCampoEntrada` | `services/api/agricola/caderno/models.py` | Aproveitável | Fonte oficial de evidência operacional. |
 | `CadernoCampoFoto` | `services/api/agricola/caderno/models.py` | Aproveitável | Evidência visual com metadados e flag pública. |
 | `VisitaTecnica` | `services/api/agricola/caderno/models.py` | Aproveitável | Evidência técnica com assinatura e CARA/CREA. |
 | `EPIEntrega` | `services/api/agricola/caderno/models.py` | Aproveitável | Evidência social e de segurança. |
@@ -37,12 +37,12 @@ Este domínio:
 | `PlanoAcaoOperacionalAgricola*` | `services/api/agricola/inteligencia_operacional/*` | Legado / adjacente | Pode inspirar priorização, mas não é o domínio oficial de conformidade. |
 | `CARRegistro` / `DocumentoAmbiental` / `DocumentoLegal` | documentação de compliance | Aproveitável | Fonte de leitura para regularidade ambiental e fundiária. |
 
-### 2.2 Documentos canônicos de apoio
+### 2.2 Documentos oficiais de apoio
 
 | Documento | Classificação | Uso |
 | --- | --- | --- |
 | `docs/architecture/certification-esg-territorial-foundation.md` | Aproveitável | Define a fronteira de consumo sem domínio paralelo. |
-| `docs/architecture/domains/certificacoes.md` | Aproveitável | Catálogo canônico inicial do domínio compartilhado. |
+| `docs/architecture/domains/certificacoes.md` | Aproveitável | Catálogo oficial inicial do domínio compartilhado. |
 | `docs/architecture/cert-readiness-01-report.md` | Aproveitável | Diagnóstico de prontidão e gaps. |
 | `docs/architecture/field-certification-01-report.md` | Aproveitável | Base de rastreabilidade, auditoria e certificação. |
 | `docs/architecture/cert-implementation-01-passaporte-rastreabilidade.md` | Aproveitável | Modelo do passaporte e snapshot público. |
@@ -106,7 +106,7 @@ Este domínio:
 - `EvidenciaCertificacao`
 - `NaoConformidade`
 - `PlanoAcao` do domínio de certificação
-- `PassaporteRastreabilidade` como agregado canônico do consumidor
+- `PassaporteRastreabilidade` como agregado oficial do consumidor
 
 ## 4. Modelo Conceitual Inicial
 
@@ -301,7 +301,7 @@ Campos conceituais:
 | `NaoConformidade` | Certificações/ESG | Avaliação, critérios, evidências | Não deve virar erro territorial. |
 | `PlanoAcao` | Certificações/ESG | Não conformidade, pessoas, prazos | Pode integrar notificações/IA no futuro. |
 | `RelatorioESG` | Certificações/ESG | Propriedade, Imóvel Rural, documentos, pessoas, evidências | Produz score e versão. |
-| `PassaporteRastreabilidade` | Certificações/ESG | Caderno, lote, certificações, documentos, vínculo canônico | Pode ser público, mas derivado. |
+| `PassaporteRastreabilidade` | Certificações/ESG | Caderno, lote, certificações, documentos, vínculo oficial | Pode ser público, mas derivado. |
 
 ## 6. Regras De Ownership
 
@@ -335,7 +335,7 @@ As estruturas existentes são úteis, mas não representam ainda o modelo normal
 
 ## 8. Conclusão
 
-O domínio consumidor Certificações/ESG já tem base funcional distribuída e bons pontos de reaproveitamento, mas ainda não tem uma modelagem canônica própria.
+O domínio consumidor Certificações/ESG já tem base funcional distribuída e bons pontos de reaproveitamento, mas ainda não tem uma modelagem oficial própria.
 
 O próximo passo correto é transformar este desenho em contratos e, depois, em migration controlada do domínio consumidor, sempre preservando a hierarquia:
 

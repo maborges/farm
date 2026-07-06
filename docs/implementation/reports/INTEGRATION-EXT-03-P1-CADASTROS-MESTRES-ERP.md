@@ -30,7 +30,7 @@
 ## O que foi reaproveitado
 
 - Serviço transversal `ExternalRecordAssociationService`.
-- Estrutura canônica da associação oficial.
+- Estrutura oficial da associação oficial.
 - Contexto Sankhya já resolvido por `TenantIntegracao` + `MarketplaceIntegracao` + `IntegrationFeature`.
 - Padrão de sincronização já usado no P0: staging local primeiro, associação oficial depois.
 

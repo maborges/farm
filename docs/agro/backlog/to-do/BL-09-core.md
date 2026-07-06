@@ -13,7 +13,7 @@ Consolidar o núcleo da plataforma em uma base única e confiável para:
 - onboarding
 - billing e limites
 - RBAC e feature gates
-- catálogo canônico de módulos e pacotes
+- catálogo oficial de módulos e pacotes
 
 ## Contexto
 
@@ -29,7 +29,7 @@ Este backlog serve para fechar lacunas de consistência e reduzir risco de regre
 
 ## User Stories
 
-### US-09.1 — Catálogo canônico de módulos
+### US-09.1 — Catálogo oficial de módulos
 **Como** administrador da plataforma, **quero** uma fonte única para módulos e pacotes, **para** evitar divergências entre frontend e backend.
 
 **Critérios de aceite:**
@@ -66,7 +66,7 @@ Este backlog serve para fechar lacunas de consistência e reduzir risco de regre
 ## Tarefas Técnicas
 
 ### Backend
-- [x] Consolidar catálogo de módulos em uma fonte canônica
+- [x] Consolidar catálogo de módulos em uma fonte oficial
 - [x] Revisar divergências de nomenclatura entre módulos e pacotes
 - [x] Validar a correspondência entre `Modulos`, `ModuloMetadata` e pacotes
 - [x] Adicionar testes de contract para billing e onboarding

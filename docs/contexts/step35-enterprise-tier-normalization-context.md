@@ -2,7 +2,7 @@
 
 ## Decisão
 
-- `ENTERPRISE` passa a ser o nome canônico do tier topo.
+- `ENTERPRISE` passa a ser o nome oficial do tier topo.
 - `PREMIUM` permanece apenas como alias legado de leitura.
 
 ## Escopo aplicado

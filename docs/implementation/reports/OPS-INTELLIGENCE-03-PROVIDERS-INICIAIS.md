@@ -109,7 +109,7 @@ Resultado observado:
 
 ## Observações técnicas
 
-- O provider climático lê `RegistroClima` e thresholds canônicos diretamente.
+- O provider climático lê `RegistroClima` e thresholds oficiais diretamente.
 - O provider agrícola usa sinais read-only de operação, caderno, safra e orçamento previsto.
 - O provider financeiro combina `DashboardService`, `LancamentoService`, despesas/receitas e orçamento de safra como heurística de decisão.
 - Todos os providers retornam apenas `RecommendationCandidate`.

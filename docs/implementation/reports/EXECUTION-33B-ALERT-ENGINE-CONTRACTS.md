@@ -2,7 +2,7 @@
 
 ## Summary
 
-This execution defined the canonical contract layer for the AgroSaaS Alert Engine.
+This execution defined the oficial contract layer for the AgroSaaS Alert Engine.
 
 The work was documentation-only. No code, endpoints, tables, or migrations were created or modified.
 
@@ -10,8 +10,8 @@ The work was documentation-only. No code, endpoints, tables, or migrations were 
 
 ### Enums
 
-- `Domain`: canonical in English for transport and interoperability
-- `Category`: canonical in Portuguese for business semantics
+- `Domain`: oficial in English for transport and interoperability
+- `Category`: oficial in Portuguese for business semantics
 - `Severity`: `INFO | WARNING | CRITICAL | EMERGENCY`
 - `Priority`: `LOW | NORMAL | HIGH | URGENT`
 - `AlertStatus`: `OPEN | ACKNOWLEDGED | SNOOZED | RESOLVED | EXPIRED | CANCELLED`
@@ -28,8 +28,8 @@ The work was documentation-only. No code, endpoints, tables, or migrations were 
 ### Summary and query contracts
 
 - `AlertSummary` defines dashboard aggregation
-- `GET /api/v1/alerts` is the canonical list/query surface
-- `GET /api/v1/alerts/summary` is the canonical summary surface
+- `GET /api/v1/alerts` is the oficial list/query surface
+- `GET /api/v1/alerts/summary` is the oficial summary surface
 
 ### Lifecycle actions
 
@@ -42,7 +42,7 @@ All lifecycle operations require auditability and tenant isolation.
 
 ### Versioning
 
-The canonical version is `v1`.
+The oficial version is `v1`.
 Extensions should use `metadata`.
 Breaking changes require a new version and deprecation plan.
 

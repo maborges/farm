@@ -7,7 +7,7 @@ Definir a política arquitetural final para encerrar o uso de `estoque_movimenta
 Base considerada:
 
 - Step 61: novos writes já foram travados em `estoque_movimentos`
-- Step 63: leituras funcionais principais já foram adaptadas para priorizar o ledger canônico
+- Step 63: leituras funcionais principais já foram adaptadas para priorizar o ledger oficial
 - Step 71: backfill real executado para os casos elegíveis
 - Step 72: exceção remanescente de `OPERACAO_AGRICOLA` revisada manualmente
 
@@ -23,7 +23,7 @@ Fora de escopo desta etapa:
 ### O que já está resolvido
 
 - novos writes operacionais usam `estoque_movimentos`;
-- leituras principais de Safra e Relatórios já priorizam o ledger canônico;
+- leituras principais de Safra e Relatórios já priorizam o ledger oficial;
 - o passivo elegível do legado já foi tratado:
   - `4` casos persistidos como `LEGADO`;
   - `4` casos de `PEDIDO_COMPRA` ignorados por já estarem cobertos;
@@ -47,7 +47,7 @@ Fora de escopo desta etapa:
 
 Uso atual:
 
-- fallback legado para movimentos/lotes de safra ainda não cobertos pelo ledger canônico.
+- fallback legado para movimentos/lotes de safra ainda não cobertos pelo ledger oficial.
 
 Classificação:
 
@@ -57,7 +57,7 @@ Classificação:
 
 Uso atual:
 
-- fallback legado para agregados históricos fora da cobertura canônica.
+- fallback legado para agregados históricos fora da cobertura oficial.
 
 Classificação:
 
@@ -94,7 +94,7 @@ Classificação:
 
 Uso atual:
 
-- exercitam cenário híbrido com dados legados e canônicos.
+- exercitam cenário híbrido com dados legados e oficiais.
 
 Classificação:
 
@@ -136,7 +136,7 @@ Classificação:
 Política oficial:
 
 - leitura histórica de `estoque_movimentacoes` ainda é permitida apenas como compatibilidade temporária para dados antigos já conhecidos;
-- essa leitura deve ser sempre subordinada ao ledger canônico;
+- essa leitura deve ser sempre subordinada ao ledger oficial;
 - nenhum novo endpoint deve usar `estoque_movimentacoes` como fonte primária.
 
 ### Fallback
@@ -185,7 +185,7 @@ Objetivo:
 Ações planejadas:
 
 1. medir se ainda existe consulta funcional dependente do fallback legado;
-2. validar se o histórico relevante já está suficientemente disponível via ledger canônico;
+2. validar se o histórico relevante já está suficientemente disponível via ledger oficial;
 3. retirar fallback de:
    - `agricola/safras/service.py`
    - `operacional/services/relatorio_service.py`
@@ -194,7 +194,7 @@ Ações planejadas:
 
 Objetivo:
 
-- deixar os testes ancorados no ledger canônico, mantendo só a guarda negativa do legado enquanto necessário.
+- deixar os testes ancorados no ledger oficial, mantendo só a guarda negativa do legado enquanto necessário.
 
 Ações planejadas:
 
@@ -239,7 +239,7 @@ Remoção física da tabela só deve ser considerada quando todos os critérios 
 4. período mínimo de observação sem necessidade de fallback:
    - recomendação: `30 dias`
 5. auditoria confirmando que:
-   - o ledger canônico cobre o histórico necessário;
+   - o ledger oficial cobre o histórico necessário;
    - não há reconciliação pendente relevante;
    - exceções manuais abertas já foram resolvidas ou aceitas como encerradas
 

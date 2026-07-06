@@ -6,14 +6,14 @@ Esta execução adiciona proteção mínima de governança sobre a arquitetura o
 
 ## Guardrails criados
 
-- Comentários inline em pontos legados que ainda podem ser confundidos com fonte canônica:
+- Comentários inline em pontos legados que ainda podem ser confundidos com fonte oficial:
   - `services/api/financeiro/services/lancamento_service.py`
   - `services/api/agricola/custos/service.py`
   - `services/api/agricola/romaneios/service.py`
   - `services/api/pecuaria/services/manejo_service.py`
   - `services/api/operacional/services/estoque_service.py`
 - Teste estático de governança em `services/api/tests/unit/agricola/test_economic_arch_guardrails.py` cobrindo:
-  - Regra 1: `OperationalCostAllocationService` continua sendo a porta oficial para custos operacionais e `CostAllocation` segue sendo a persistência canônica.
+  - Regra 1: `OperationalCostAllocationService` continua sendo a porta oficial para custos operacionais e `CostAllocation` segue sendo a persistência oficial.
   - Regra 2: `agricola.dre.v1` continua sendo a DRE operacional oficial.
   - Regra 3: `RentabilidadeAgricolaV1Service` continua derivando da DRE agrícola v1.
   - Regra 4: a DRE legada baseada em `LancamentoFinanceiro` segue explicitamente marcada como compatibilidade.
@@ -32,7 +32,7 @@ Esta execução adiciona proteção mínima de governança sobre a arquitetura o
 
 - Criar DRE operacional nova baseada primariamente em `LancamentoFinanceiro`.
 - Usar `OperacaoAgricola.custo_total` como fonte primária de custo operacional.
-- Tratar romaneio como fonte canônica de receita fora da camada `Receita`.
+- Tratar romaneio como fonte oficial de receita fora da camada `Receita`.
 - Criar custo operacional novo fora de `OperationalCostAllocationService` + `CostAllocation`.
 - Misturar `Despesa` e `CostAllocation` como se fossem a mesma camada econômica.
 

@@ -129,6 +129,6 @@ Sem trailing whitespace ou conflitos de linha
 
 - `ImovelRural` continua sendo a única fonte oficial fundiária.
 - `UnidadeProdutiva` continua sendo campo de entrada/compatibilidade.
-- `PropriedadeImovel` continua sendo o vínculo canônico N:N.
+- `PropriedadeImovel` continua sendo o vínculo oficial N:N.
 - Nenhum ADR violado.
 - Nenhuma migration desnecessária criada.

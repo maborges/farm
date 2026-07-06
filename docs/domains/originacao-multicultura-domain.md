@@ -180,7 +180,7 @@ sequenceDiagram
 
 ## 📌 Conclusão
 
-Este modelo canônico de **Originação Agrícola Multicultura** está alinhado com os domínios existentes, promove **reuso** máximo e estabelece uma base sólida para as próximas etapas de comercialização, contratos avançados e portal do parceiro.
+Este modelo oficial de **Originação Agrícola Multicultura** está alinhado com os domínios existentes, promove **reuso** máximo e estabelece uma base sólida para as próximas etapas de comercialização, contratos avançados e portal do parceiro.
 
 ---
 

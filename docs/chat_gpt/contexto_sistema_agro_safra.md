@@ -57,7 +57,7 @@ Step 20 → Scenarios
 
 ## Decisões
 
-- 1 unidade canônica por dimensão (enforced no banco)
+- 1 unidade oficial por dimensão (enforced no banco)
 - Precisão de cálculo ≠ precisão de apresentação
 - SC50/SC60 como unidades próprias
 - Moeda (BRL) dentro do domínio de UOM
@@ -153,7 +153,7 @@ production_units.percentual_participacao
 
 # 💰 Centro de Custo
 
-ProductionUnit é o centro de custo agrícola canônico
+ProductionUnit é o centro de custo agrícola oficial
 
 - Não existe tabela separada de centros de custo
 - Rateio tratado no Step 19

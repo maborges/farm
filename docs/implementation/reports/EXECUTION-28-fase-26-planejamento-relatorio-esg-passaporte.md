@@ -46,7 +46,7 @@ Planejar o próximo bloco funcional do domínio Certificações/ESG para `Relato
 
 ## Necessidade provável de migration
 
-Sim. Há necessidade provável de migration futura para normalizar os modelos canônicos e os fluxos de snapshot/publicação.
+Sim. Há necessidade provável de migration futura para normalizar os modelos oficiais e os fluxos de snapshot/publicação.
 
 ## Recomendação de lote
 
@@ -77,7 +77,7 @@ Recomendação: migration única para o bloco de publicação, desde que o escop
 
 ## Riscos encontrados
 
-- Existe bastante legado adjacente em ESG, rastreabilidade e MRV, então a normalização futura precisa manter a separação entre referência e contrato canônico.
+- Existe bastante legado adjacente em ESG, rastreabilidade e MRV, então a normalização futura precisa manter a separação entre referência e contrato oficial.
 - Snapshots públicos exigem cuidado para não vazar dados territoriais/fundiários sensíveis.
 
 ## Pendências reais

@@ -11,7 +11,7 @@ Esta execução adiciona guardrails mínimos de governança para proteger a arqu
   - `Talhão` como `AreaRural.tipo = TALHAO`.
   - `Piquete` como `AreaRural.tipo = PIQUETE`.
   - `AreaOperacional` como tipo de `AreaRural`, não model próprio.
-  - `PropriedadeImovel` como ponte canônica entre `Propriedade` e `ImovelRural`.
+  - `PropriedadeImovel` como ponte oficial entre `Propriedade` e `ImovelRural`.
   - `ProductionUnit` como unidade agrícola oficial de safra/cultivo/área.
   - `UnidadeProdutiva` como unidade operacional, com campos fundiários apenas por compatibilidade.
 - Comentários inline de compatibilidade legada em:

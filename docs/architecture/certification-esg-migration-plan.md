@@ -13,7 +13,7 @@ Este plano:
 - respeita o modelo conceitual de `certification-esg-domain-model.md`;
 - não duplica dados territoriais/fundiários;
 - não altera `Propriedade`, `Imóvel Rural` nem `PropriedadeImovel`;
-- não usa `PlanoAcaoItem` financeiro/IA como contrato canônico;
+- não usa `PlanoAcaoItem` financeiro/IA como contrato oficial;
 - preserva compatibilidade com os modelos existentes até a transição.
 
 ## 2. Inventário De Migrations Relevantes
@@ -28,20 +28,20 @@ Este plano:
 | `7109d2ac3e9e_checklist_agricola_templates_itens.py` | média | Referência de normalização de checklist. |
 | `a4dc0640fdcf_add_lote_comercial_and_publica_foto.py` | alta | Base do passaporte comercial e snapshot público. |
 | `2325278cb390_create_equipamento_calibracao.py` | média | Demonstra tabela dedicada para outro subdomínio de certificação. |
-| `add_propriedade_imovel.py` | alta | Fundação territorial/fundiária canônica para consumo por certificações/ESG. |
+| `add_propriedade_imovel.py` | alta | Fundação territorial/fundiária oficial para consumo por certificações/ESG. |
 | `b1c2d3e4f5a7_add_imoveis_avaliacoes.py` | alta | Lastro fundiário/documental adjacente. |
 
 ### 2.2 O que não existe ainda
 
-- migrations canônicas para `ProgramaCertificacao`
-- migrations canônicas para `ChecklistCertificacao`
-- migrations canônicas para `CriterioCertificacao`
-- migrations canônicas para `AvaliacaoCertificacao`
-- migrations canônicas para `EvidenciaCertificacao`
-- migrations canônicas para `NaoConformidade`
-- migrations canônicas para `PlanoAcaoCertificacao`
-- migrations canônicas para `RelatorioESG`
-- migrations canônicas para `PassaporteRastreabilidade`
+- migrations oficiais para `ProgramaCertificacao`
+- migrations oficiais para `ChecklistCertificacao`
+- migrations oficiais para `CriterioCertificacao`
+- migrations oficiais para `AvaliacaoCertificacao`
+- migrations oficiais para `EvidenciaCertificacao`
+- migrations oficiais para `NaoConformidade`
+- migrations oficiais para `PlanoAcaoCertificacao`
+- migrations oficiais para `RelatorioESG`
+- migrations oficiais para `PassaporteRastreabilidade`
 
 ## 3. Tabelas Físicas Candidatas
 
@@ -467,16 +467,16 @@ Este plano:
 
 | Modelo | Classificação | Estratégia |
 | --- | --- | --- |
-| `CertificacaoPropriedade` | compatibilidade somente leitura / adaptar depois | manter até o novo programa canônico existir; migrar por referência futura. |
-| `ESGIndicador` | fora do domínio canônico / adaptar depois | usar como fonte de leitura histórica, mas não como contrato final. |
+| `CertificacaoPropriedade` | compatibilidade somente leitura / adaptar depois | manter até o novo programa oficial existir; migrar por referência futura. |
+| `ESGIndicador` | fora do domínio oficial / adaptar depois | usar como fonte de leitura histórica, mas não como contrato final. |
 | `ESGRelatorio` | substituir gradualmente | novos relatórios devem escrever em `esg_relatorios`. |
 | `LoteRastreabilidade` | manter com FK futura | permanece útil como ponte de leitura e rastreabilidade. |
 | `CadernoLoteComercial` | manter com FK futura | permanece útil como snapshot/passaporte comercial. |
 | `ChecklistModelo` | compatibilidade somente leitura | reaproveitar apenas para inspeções operacionais. |
 | `ChecklistRealizado` | compatibilidade somente leitura | reaproveitar apenas como evidência operacional/inspeção. |
-| `PlanoAcaoItem` | fora do domínio canônico | não usar como plano oficial de certificação. |
-| `MRVProjeto` | legado histórico | não usar como canônico do domínio consumidor. |
-| `MRVRelatorio` | legado histórico | não usar como canônico do domínio consumidor. |
+| `PlanoAcaoItem` | fora do domínio oficial | não usar como plano oficial de certificação. |
+| `MRVProjeto` | legado histórico | não usar como oficial do domínio consumidor. |
+| `MRVRelatorio` | legado histórico | não usar como oficial do domínio consumidor. |
 
 ## 6. Ordem Segura De Criação
 

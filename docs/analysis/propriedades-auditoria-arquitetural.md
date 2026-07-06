@@ -116,7 +116,7 @@ Evidências:
 | Campo | Existe? | Obrigatório? | Origem |
 |---|---|---|---|
 | Nome da propriedade | Sim | Sim | `UnidadeProdutivaCreate.nome`; `AreaRural.nome`; UI de propriedade |
-| Código interno | Parcial | Não | `AreaRural.codigo`; não há evidência forte de código interno canônico na propriedade principal |
+| Código interno | Parcial | Não | `AreaRural.codigo`; não há evidência forte de código interno oficial na propriedade principal |
 | Município | Sim | Não | `UnidadeProdutivaCreate.municipio`; `ImovelRural.municipio`; UI |
 | Estado | Sim | Não | `UnidadeProdutivaCreate.uf`; `ImovelRural.uf`; UI |
 | País | Não | Não | Não identificado em propriedades/imóveis |
@@ -151,7 +151,7 @@ Evidências:
 |---|---|---|
 | APP | IMPLEMENTADO | Tipo `APP` em `AreaRural`; `area_app_ha` em `UnidadeProdutiva` e `ImovelRural` |
 | Reserva Legal | IMPLEMENTADO | Tipo `RESERVA_LEGAL`; `area_rl_ha` |
-| Nascentes | PARCIAL | Pode ser representado por `dados_extras` e registros ambientais, mas sem entidade canônica |
+| Nascentes | PARCIAL | Pode ser representado por `dados_extras` e registros ambientais, mas sem entidade oficial |
 | Areas Restritas | PARCIAL | Estrutura ambiental e `dados_extras` permitem representar, mas sem modelagem dedicada |
 | Licenças Ambientais | PARCIAL | `RegistroAmbiental` e tipos como `LICENCA_IBAMA`, `OUTORGA_AGUA`, `AIA` |
 | Certificações | INEXISTENTE | Não há entidade ou fluxo dedicado no módulo analisado |
@@ -198,7 +198,7 @@ Leitura técnica:
 
 - O backend cobre a estrutura mínima: `AREA_RURAL`, `GLEBA`, `TALHAO`, `AREA_OPERACIONAL`, `AREA_AMBIENTAL`, `APP`, `RESERVA_LEGAL` e `INFRAESTRUTURA`.
 - O frontend, porém, já usa conceitos como `PASTAGEM` e `PROPRIEDADE` como raiz de árvore, o que indica drift semântico entre interface e backend.
-- Não há modelagem canônica explícita para `Estradas`; isso fica implícito em `OUTROS` ou `dados_extras`.
+- Não há modelagem oficial explícita para `Estradas`; isso fica implícito em `OUTROS` ou `dados_extras`.
 - O modelo ainda está mais próximo de um núcleo operacional do que de um cadastro territorial universal.
 
 ## Etapa 8 - Análise Estratégica
@@ -255,7 +255,7 @@ Portanto, o caminho correto é **refinar responsabilidades**, não criar um terc
 
 | Objetivo | Justificativa | Impacto | Complexidade |
 |---|---|---|---|
-| Aprofundar metadados ambientais | Nascentes, restrições, certificações e ESG não estão canônicos hoje | Médio | Média/Alta |
+| Aprofundar metadados ambientais | Nascentes, restrições, certificações e ESG não estão oficiais hoje | Médio | Média/Alta |
 | Robustecer geoespacialmente com PostGIS | Melhora precisão e consultas espaciais | Médio | Alta |
 | Melhorar relatórios de resumo territorial | Traz visibilidade de área total, produtiva, ambiental e infraestrutura | Médio | Média |
 
@@ -271,7 +271,7 @@ O AgroSaaS já possui dois blocos distintos:
 ### Lacunas encontradas
 
 - Sobreposição de dados cadastrais entre `propriedades` e `imoveis`.
-- Falta de entidade canônica para proprietário/condômino.
+- Falta de entidade oficial para proprietário/condômino.
 - Cobertura parcial de ITR, matrícula e cartório no eixo `propriedades`.
 - Lacunas em nascentes, restrições, certificações e ESG.
 - Drift entre frontend e backend na árvore territorial.

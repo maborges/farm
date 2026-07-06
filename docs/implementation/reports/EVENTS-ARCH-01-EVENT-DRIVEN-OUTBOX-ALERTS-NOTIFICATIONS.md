@@ -2,11 +2,11 @@
 
 ## Resultado
 
-A auditoria confirmou uma arquitetura event-driven canônica já existente e suficientemente clara para normatização.
+A auditoria confirmou uma arquitetura event-driven oficial já existente e suficientemente clara para normatização.
 
 ## Decisões centrais
 
-- O fluxo canônico oficial foi definido como `Domain Service -> Outbox -> Relay -> EventPublisher -> Subscribers`.
+- O fluxo oficial oficial foi definido como `Domain Service -> Outbox -> Relay -> EventPublisher -> Subscribers`.
 - `DomainEventOutbox` foi definido como padrão transacional oficial.
 - `EventPublisher` foi definido como único fan-out oficial.
 - `Alert Engine` foi definido como consumidor desacoplado via subscriber.

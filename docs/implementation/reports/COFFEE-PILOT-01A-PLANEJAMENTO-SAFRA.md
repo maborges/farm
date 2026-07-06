@@ -76,7 +76,7 @@
 
 ### 9. Relação Propriedade ↔ Imóvel Rural
 - **Situação:** EXISTE E ATENDE
-- **UX:** Vínculo canônico automático reduz redundância de tela para o usuário (Auto-Vínculo EXECUTION-37).
+- **UX:** Vínculo oficial automático reduz redundância de tela para o usuário (Auto-Vínculo EXECUTION-37).
 - **Dados:** OR-logic funcional.
 - **Automação:** Alta (idempotência no vínculo e criação automática do imóvel).
 - **Integração:** Total.

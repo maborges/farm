@@ -15,7 +15,7 @@ Este documento nao implementa tabelas, migrations, endpoints ou contratos. Ele r
 - `docs/implementation/reports/SANKHYA-SYNC-04-AUDITORIA-VINCULO-REGISTROS-AGROSAAS-SANKHYA.md`
 - `docs/implementation/reports/INTEGRATION-DOMAIN-01-AUDITORIA-ENTIDADES-INTEGRACAO.md`
 - `docs/implementation/reports/SANKHYA-SYNC-01-ESCOPO-PILOTO-CAFE.md`
-- `docs/implementation/reports/SANKHYA-SYNC-02-MAPEAMENTO-CANONICO.md`
+- `docs/implementation/reports/SANKHYA-SYNC-02-MAPEAMENTO-OFICIAL.md`
 - `docs/implementation/reports/SANKHYA-SYNC-03-ESTRATEGIA-SINCRONIZACAO-PILOTO.md`
 - `docs/implementation/reports/SANKHYA-AUTH-03-VALIDACAO-ESPECIFICACAO-TECNICA.md`
 - `docs/implementation/reports/integracao_sankhya_especificacao_tecnica.md`

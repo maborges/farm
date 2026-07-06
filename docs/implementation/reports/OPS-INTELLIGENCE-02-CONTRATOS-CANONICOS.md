@@ -1,8 +1,8 @@
-# OPS-INTELLIGENCE-02 — Contratos Canônicos
+# OPS-INTELLIGENCE-02 — Contratos Oficiais
 
 ## Escopo
 
-Implementada a fundação canônica do `Recommendation Engine` global em `services/api/recommendations/`, sem providers reais de domínio e sem integração com frontend, Campo, notificações ou `Alert Engine`.
+Implementada a fundação oficial do `Recommendation Engine` global em `services/api/recommendations/`, sem providers reais de domínio e sem integração com frontend, Campo, notificações ou `Alert Engine`.
 
 ## Auditoria prévia
 
@@ -21,7 +21,7 @@ Antes da implementação, foi confirmado no código:
 
 ## O que foi criado
 
-### Módulo canônico
+### Módulo oficial
 
 - `services/api/recommendations/enums.py`
 - `services/api/recommendations/schemas.py`

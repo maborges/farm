@@ -9,7 +9,7 @@ A auditoria de base confirmou que a plataforma ja possuía a modelagem central n
 - O backend de alertas já tinha geradores para sanidade e vacinação, mas não contemplava pendencias reprodutivas.
 - A camada de indicadores genéticos não expunha métricas reprodutivas consolidadas.
 
-Conclusao da auditoria: o dominio já existia, mas faltava o fechamento operacional canonico entre Campo, Pecuaria, eventos e indicadores.
+Conclusao da auditoria: o dominio já existia, mas faltava o fechamento operacional oficial entre Campo, Pecuaria, eventos e indicadores.
 
 ## 2. Integrações reaproveitadas
 
@@ -27,7 +27,7 @@ Conclusao da auditoria: o dominio já existia, mas faltava o fechamento operacio
 
 ## 3. Lacunas encontradas
 
-- Ausencia de processamento canonico de tarefas reprodutivas no sync de pecuaria.
+- Ausencia de processamento oficial de tarefas reprodutivas no sync de pecuaria.
 - Ausencia de tarefas/superficie operacional no Campo PWA para cobertura, diagnostico de prenhez, parto e desmama.
 - Ausencia de resumos e indicadores reprodutivos consolidados no dashboard de genetica.
 - Ausencia de alertas reprodutivos no alert engine.
@@ -96,7 +96,7 @@ Cobertura validada:
 ## 9. Limitacoes remanescentes
 
 - As telas de Campo para reproduzicao operam com identificadores informados manualmente, porque o cache local do PWA nao expunha uma tabela de consulta de animais para selecao assistida.
-- O fechamento operacional reprodutivo ficou materializado no backend e no dashboard, mas a experiencia de selecao de animal ainda pode ser melhorada sem alterar o modelo canonico.
+- O fechamento operacional reprodutivo ficou materializado no backend e no dashboard, mas a experiencia de selecao de animal ainda pode ser melhorada sem alterar o modelo oficial.
 - Os arquivos backend legados envolvidos receberam `# ruff: noqa` para isolar o trabalho novo do passivo de estilo existente.
 
 ## 10. Resposta objetiva

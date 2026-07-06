@@ -1,4 +1,4 @@
-# FIELD-PWA-03 — Reconciliação Avançada, Conflitos e Estado Canônico no PWA
+# FIELD-PWA-03 — Reconciliação Avançada, Conflitos e Estado Oficial no PWA
 
 ## Resumo executivo
 
@@ -6,7 +6,7 @@ O `apps/campo` passou a separar claramente:
 
 - fila local offline do dispositivo
 - eventos em atenção/revisão
-- timeline oficial canônica vinda do servidor
+- timeline oficial oficial vinda do servidor
 
 A reconciliação agora relaciona `local_id`, `device_id` e `server_id`, evita duplicação de eventos de outros dispositivos, detecta conflito simples e bloqueia retries inseguros. O contrato de `pull` foi enriquecido com campos documentais suficientes para refletir rejeição, retificação e invalidação no PWA sem criar timeline paralela.
 
@@ -96,7 +96,7 @@ git diff --check
 ## Observações
 
 - O IndexedDB do Campo subiu para `version(7)` para acomodar os novos campos de reconciliação e status de evidência sem reset local.
-- O backend manteve o contrato canônico; apenas enriqueceu o payload de `pull` com metadados já existentes na cadeia documental.
+- O backend manteve o contrato oficial; apenas enriqueceu o payload de `pull` com metadados já existentes na cadeia documental.
 - Permanecem as ressalvas globais já conhecidas do projeto, mas este ciclo não as agravou.
 
 ## Decisão final

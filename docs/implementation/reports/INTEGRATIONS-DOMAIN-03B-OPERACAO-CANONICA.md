@@ -1,8 +1,8 @@
-# INTEGRATIONS-DOMAIN-03B — Operação Canônica do Domínio de Integrações
+# INTEGRATIONS-DOMAIN-03B — Operação Oficial do Domínio de Integrações
 
 ## 1. Resumo Executivo
 
-Esta execução materializou a camada operacional genérica do domínio canônico de Integrações sem convergir o provider Sankhya e sem criar infraestrutura paralela de fila, alerta, notificação ou auditoria.
+Esta execução materializou a camada operacional genérica do domínio oficial de Integrações sem convergir o provider Sankhya e sem criar infraestrutura paralela de fila, alerta, notificação ou auditoria.
 
 Foram adicionados:
 
@@ -10,7 +10,7 @@ Foram adicionados:
 - `IntegrationSyncPolicy`
 - `IntegrationJob`
 - `IntegrationHealth`
-- contratos canônicos de eventos do domínio
+- contratos oficiais de eventos do domínio
 - migration operacional com constraints e RLS
 - testes unitários/estáticos da camada operacional
 
@@ -30,7 +30,7 @@ Foram adicionados:
     - `IntegrationJobTrigger`
     - `IntegrationHealthStatus`
 
-### Eventos canônicos
+### Eventos oficiais
 
 - `services/api/integracoes/events.py`
   - `IntegrationConfigured`
@@ -133,7 +133,7 @@ Foi adicionado o domínio `INTEGRATIONS` ao enum `Domain` do Alert Engine em:
 
 Não foi criado engine paralelo de alertas.
 
-O domínio de Integrações passa a poder emitir eventos canônicos compatíveis com a infraestrutura existente para cenários como:
+O domínio de Integrações passa a poder emitir eventos oficiais compatíveis com a infraestrutura existente para cenários como:
 
 - credencial inválida
 - sync falho
@@ -146,7 +146,7 @@ Nenhuma infraestrutura de notificação foi duplicada.
 
 Decisão preservada:
 
-- Integrações continua consumindo `Notificacao` e `Notification Dispatcher` existentes por meio dos eventos canônicos.
+- Integrações continua consumindo `Notificacao` e `Notification Dispatcher` existentes por meio dos eventos oficiais.
 - não foi criado `integration_notifications`.
 
 ## 7. Relação com Auditoria
@@ -161,7 +161,7 @@ Decisão preservada:
 
 continuam sendo a infraestrutura oficial de auditoria do domínio.
 
-## 8. Eventos Canônicos
+## 8. Eventos Oficiais
 
 Os contratos adicionados em `services/api/integracoes/events.py` formalizam os fatos operacionais mínimos:
 
@@ -195,11 +195,11 @@ Arquivo criado:
 Cobertura adicionada:
 
 - estabilidade dos enums operacionais
-- colunas canônicas dos modelos
+- colunas oficiais dos modelos
 - persistência básica de `Feature` e `SyncPolicy`
 - vínculo opcional com Outbox
 - domínio `INTEGRATIONS` no Alert Engine
-- contratos canônicos de eventos
+- contratos oficiais de eventos
 - ausência de infraestrutura paralela de notificações e auditoria
 - RLS e constraints na migration
 - import dos modelos no metadata do Alembic
@@ -211,7 +211,7 @@ Cobertura adicionada:
 Continuam fora desta fase:
 
 - adapters de provider
-- convergência do Sankhya para o domínio canônico
+- convergência do Sankhya para o domínio oficial
 - `IntegrationFeature` automática por provider
 - `IntegrationHealth` calculado por runtime
 - scheduler próprio do domínio
@@ -234,4 +234,4 @@ Objetivo recomendado:
 
 - adaptar o provider Sankhya para consumir `IntegrationFeature`, `IntegrationSyncPolicy`, `IntegrationJob` e `IntegrationHealth` sem quebra funcional
 - iniciar convergência incremental de `SankhyaConfig` e `SankhyaSyncLog`
-- passar a emitir eventos canônicos reais durante sync e health
+- passar a emitir eventos oficiais reais durante sync e health

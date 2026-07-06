@@ -1,4 +1,4 @@
-# MASTERDATA-02 — Camada Canônica de Resolução de Cultura
+# MASTERDATA-02 — Camada Oficial de Resolução de Cultura
 
 ## 1. Resumo executivo
 
@@ -6,11 +6,11 @@ Esta execução implementou uma camada única e reutilizável de resolução de 
 
 Resultado:
 
-- `ProdutoCultura` / `cadastros_culturas` permanece como fonte canônica.
+- `ProdutoCultura` / `cadastros_culturas` permanece como fonte oficial.
 - Foi criado um resolver central de leitura em `services/api/core/services/cultura_resolution_service.py`.
 - O `HedgeService` passou a usar o resolver central no fallback de cultura, preservando a priorização operacional por `Cultivo.commodity_id`.
 - O frontend de baixo risco em `apps/web/src/hooks/use-agricola.ts` passou a priorizar `/cadastros/culturas`, com fallback para `/agricola/cadastros/culturas`.
-- O Campo PWA continuou compatível com `safra.cultura` e ganhou suporte passivo a metadados canônicos opcionais.
+- O Campo PWA continuou compatível com `safra.cultura` e ganhou suporte passivo a metadados oficiais opcionais.
 
 Não foi alterado:
 
@@ -37,7 +37,7 @@ Foi feita revalidação local do estado dos módulos auditados em `MASTERDATA-01
 Conclusão da reauditoria:
 
 - A estratégia do `MASTERDATA-01` continuava válida.
-- O catálogo canônico seguia em `cadastros_culturas`.
+- O catálogo oficial seguia em `cadastros_culturas`.
 - O legado continuava ativo.
 - Havia inclusive alteração local pré-existente em `services/api/financeiro/hedge/service.py` já alinhada à priorização por `Cultivo`, o que não invalidou a estratégia.
 
@@ -61,7 +61,7 @@ Motivo:
 
 O serviço:
 
-- resolve cultura canônica em modo somente leitura;
+- resolve cultura oficial em modo somente leitura;
 - respeita `tenant_id`;
 - nunca grava;
 - nunca altera banco;
@@ -140,7 +140,7 @@ Mudança:
 
 Impacto:
 
-- novos fluxos consumidores do hook passam a preferir o catálogo canônico;
+- novos fluxos consumidores do hook passam a preferir o catálogo oficial;
 - a compatibilidade com a rota legada foi preservada.
 
 ### 5.3 Campo PWA
@@ -162,7 +162,7 @@ Impacto:
 
 - `safra.cultura` continua sendo aceita e armazenada;
 - não houve quebra de payload;
-- o PWA fica preparado para consumir metadata canônica futura sem alteração incompatível.
+- o PWA fica preparado para consumir metadata oficial futura sem alteração incompatível.
 
 ---
 
@@ -209,7 +209,7 @@ Cobertura implementada:
 - fallback por `Cultivo.cultura`
 - fallback por `Safra.cultura`
 - retorno `NOT_FOUND` quando nada existe
-- compatibilidade com dado antigo: cultivo sem mapeamento canônico e fallback para safra
+- compatibilidade com dado antigo: cultivo sem mapeamento oficial e fallback para safra
 
 Cobertura adicional no hedge:
 
@@ -295,7 +295,7 @@ Sim.
 
 No PWA, apenas campos opcionais foram aceitos/adicionados.
 
-### ProdutoCultura permaneceu como fonte canônica?
+### ProdutoCultura permaneceu como fonte oficial?
 
 Sim.
 
@@ -343,7 +343,7 @@ No escopo validado, não houve evidência de regressão:
 
 ## 12. Conclusão objetiva
 
-**Após esta execução, o AgroSaaS possui uma única camada oficial de resolução de Cultura, reutilizável por todos os módulos, permitindo que novos fluxos utilizem o catálogo canônico (`ProdutoCultura`) enquanto a compatibilidade com Safra, Cultivo, Hedge, Campo PWA e dados legados permanece preservada, preparando a plataforma para a futura consolidação definitiva do domínio Cultura.**
+**Após esta execução, o AgroSaaS possui uma única camada oficial de resolução de Cultura, reutilizável por todos os módulos, permitindo que novos fluxos utilizem o catálogo oficial (`ProdutoCultura`) enquanto a compatibilidade com Safra, Cultivo, Hedge, Campo PWA e dados legados permanece preservada, preparando a plataforma para a futura consolidação definitiva do domínio Cultura.**
 
 Com a ressalva correta:
 

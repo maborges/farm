@@ -7,8 +7,8 @@
 | Pecuária | Há serviços executivos de lote, sanidade, dashboard e sync de campo para pecuária. | EXISTE PARCIALMENTE | `pecuaria/services/*`, `pecuaria/animal/models.py`, `campo.models.TarefaCampo` |
 | Estoque | Há serviço operacional completo com saldos, lotes, reservas, requisições e ledger. | EXISTE PARCIALMENTE | `operacional/services/estoque_service.py`, `operacional/models/estoque.py` |
 | Frota | Há dashboard, disponibilidade, manutenção preventiva e inteligência de frota. | EXISTE PARCIALMENTE | `operacional/services/frota_dashboard_service.py`, `operacional/services/frota_manutencao_preventiva_service.py` |
-| ESG/Certificações | Há serviço de certificações, integridade, não conformidades, planos de ação e geração de alertas canônicos. | EXISTE E ATENDE | `certificacoes_esg/service.py`, `certificacoes_esg/models.py`, `alert_engine/generators/esg_certificacoes_generator.py` |
-| Wizard/Onboarding | Há engine canônica de checklist e implantação operacional. | EXISTE E ATENDE | `wizard/checklist_engine.py`, `wizard/models.py`, `wizard/services.py` |
+| ESG/Certificações | Há serviço de certificações, integridade, não conformidades, planos de ação e geração de alertas oficiais. | EXISTE E ATENDE | `certificacoes_esg/service.py`, `certificacoes_esg/models.py`, `alert_engine/generators/esg_certificacoes_generator.py` |
+| Wizard/Onboarding | Há engine oficial de checklist e implantação operacional. | EXISTE E ATENDE | `wizard/checklist_engine.py`, `wizard/models.py`, `wizard/services.py` |
 | Campo PWA | Há sync push/pull, dispositivos, tarefas offline e eventos de falha. | EXISTE PARCIALMENTE | `campo/service.py`, `campo/router.py`, `campo/models.py` |
 
 ## Providers Criados
@@ -62,8 +62,8 @@ Registro explícito em `services/api/recommendations/providers/__init__.py` e re
 
 ## Regras Adiadas
 
-- Conflito pendente de Campo com estado persistido canônico
-  - Motivo: o fluxo atual retorna `CONFLICT` para o cliente, mas não persiste um estado canônico próprio para consulta posterior sem criar nova estrutura paralela.
+- Conflito pendente de Campo com estado persistido oficial
+  - Motivo: o fluxo atual retorna `CONFLICT` para o cliente, mas não persiste um estado oficial próprio para consulta posterior sem criar nova estrutura paralela.
 
 ## Fontes Oficiais Reutilizadas
 

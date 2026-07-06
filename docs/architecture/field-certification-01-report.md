@@ -7,7 +7,7 @@ Este relatório apresenta o diagnóstico técnico e regulatório do ecossistema 
 O objetivo central desta análise é responder à pergunta de conformidade:
 > **"O AgroSaaS está pronto para suportar programas de certificação, auditoria e rastreabilidade exigidos pelo agronegócio moderno?"**
 
-**Diagnóstico consolidado:** O AgroSaaS possui um motor documental e de auditoria de dados extremamente avançado. A separação clara entre a timeline canônica ([CadernoCampoEntrada](file:///opt/lampp/htdocs/farm/services/api/agricola/caderno/models.py#L9-L99)), a auditoria atômica baseada em diffs de transação ([TenantAuditLog](file:///opt/lampp/htdocs/farm/services/api/core/models/tenant_audit_log.py)), a imutabilidade criptográfica (SHA-256) das exportações e a operação offline resiliente com reconciliação inbound e controle de conflitos colocam o sistema no topo da conformidade regulatória. 
+**Diagnóstico consolidado:** O AgroSaaS possui um motor documental e de auditoria de dados extremamente avançado. A separação clara entre a timeline oficial ([CadernoCampoEntrada](file:///opt/lampp/htdocs/farm/services/api/agricola/caderno/models.py#L9-L99)), a auditoria atômica baseada em diffs de transação ([TenantAuditLog](file:///opt/lampp/htdocs/farm/services/api/core/models/tenant_audit_log.py)), a imutabilidade criptográfica (SHA-256) das exportações e a operação offline resiliente com reconciliação inbound e controle de conflitos colocam o sistema no topo da conformidade regulatória. 
 
 Entretanto, há lacunas a serem sanadas para atingir o nível "exportação sem ressalvas", principalmente na automação do controle de Cadeia de Custódia comercial e em detalhes finos de integração da governança do Responsável Técnico.
 
@@ -90,7 +90,7 @@ Aderência conceitual e prática de **75%**.
 Aderência conceitual e prática de **90%**.
 
 - **Requisitos Atendidos**:
-  - Caderno de Campo canônico inalterável.
+  - Caderno de Campo oficial inalterável.
   - Fotos georreferenciadas do talhão para provar execução.
   - Controle de visitas técnicas regulares de engenheiros agrônomos com recomendações detalhadas ([VisitaTecnica](file:///opt/lampp/htdocs/farm/services/api/agricola/caderno/models.py#L147-L172)).
 
@@ -162,7 +162,7 @@ O AgroSaaS possui todos os fundamentos necessários para suportar o **Projeto Ra
 
 1. **Expedição Comercial Desacoplada**: A colheita no talhão é registrada, mas o AgroSaaS carece de um fluxo que feche a cadeia de custódia gerando a etiqueta com código de rastreabilidade final da sacaria/lote de exportação.
 2. **Validação de Regularidade de Conselhos (CREA)**: A assinatura do RT registra o número do CREA ([CadernoExportacao](file:///opt/lampp/htdocs/farm/services/api/agricola/caderno/models.py#L213)), mas a validade é autodeclarada pelo usuário. Não há integração externa com conselhos profissionais para verificar a regularidade da habilitação.
-3. **Calibração e Manutenção de Equipamentos de Aplicação**: Faltam registros estruturados na timeline canônica sobre laudos de calibração de bicos de pulverização de pulverizadores, requisito severamente auditado na GlobalG.A.P.
+3. **Calibração e Manutenção de Equipamentos de Aplicação**: Faltam registros estruturados na timeline oficial sobre laudos de calibração de bicos de pulverização de pulverizadores, requisito severamente auditado na GlobalG.A.P.
 4. **Assinatura Manuscrita Digitalizada Offline**: O PWA armazena a entrega do EPI, mas não coleta a assinatura manuscrita (desenho do operador na tela) em modo offline para incorporação direta no PDF de exportação.
 
 ---
@@ -174,7 +174,7 @@ O AgroSaaS possui todos os fundamentos necessários para suportar o **Projeto Ra
 2. **Assinatura Manuscrita em Canvas (PWA/Offline)**:
    - Adicionar componente de assinatura manuscrita digital na tela de entrega de EPI no PWA, armazenando a assinatura em base64 compactada no IndexedDB para sincronização posterior.
 3. **Integração de Checklist de Calibração de Máquinas**:
-   - Inserir eventos do tipo `MANUTENCAO` ou `INSPECAO` específicos para auditoria de equipamentos e calibração periódica de bicos de defensivos na timeline canônica.
+   - Inserir eventos do tipo `MANUTENCAO` ou `INSPECAO` específicos para auditoria de equipamentos e calibração periódica de bicos de defensivos na timeline oficial.
 
 ---
 
@@ -191,4 +191,4 @@ O AgroSaaS possui todos os fundamentos necessários para suportar o **Projeto Ra
 - **Nota**: **8.5 / 10**
 - **Classificação**: **PRONTO COM AJUSTES**
 
-**Justificativa objetiva:** O AgroSaaS atende plenamente aos requisitos de imutabilidade, timeline canônica, governança de status, evidências ricas georreferenciadas e auditoria regulatória. Os ajustes recomendados (Cadeia de Custódia comercial e assinatura manuscrita em PWA) elevarão o sistema ao nível de certificação internacional incondicional.
+**Justificativa objetiva:** O AgroSaaS atende plenamente aos requisitos de imutabilidade, timeline oficial, governança de status, evidências ricas georreferenciadas e auditoria regulatória. Os ajustes recomendados (Cadeia de Custódia comercial e assinatura manuscrita em PWA) elevarão o sistema ao nível de certificação internacional incondicional.

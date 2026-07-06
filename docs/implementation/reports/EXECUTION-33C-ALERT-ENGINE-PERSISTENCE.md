@@ -2,7 +2,7 @@
 
 ## Summary
 
-This execution defined the canonical physical persistence model for the AgroSaaS Alert Engine.
+This execution defined the oficial physical persistence model for the AgroSaaS Alert Engine.
 
 The work was documentation-only. No code, endpoints, tables, or migrations were created or modified.
 

@@ -229,7 +229,7 @@ Regras:
 - Movimentações de estoque e lançamentos financeiros devem ser imutáveis após confirmação; correções por estorno.
 - Tabelas produtivas podem editar planejamento, mas eventos executados devem manter trilha de auditoria.
 - Campos polimórficos `origem_tipo/origem_id` e `referencia_tipo/referencia_id` devem ser restritos por enum controlado, não texto livre.
-- Dashboards devem ler fontes canônicas: Estoque para saldos, Financeiro para valores, Agricultura/Pecuária para contexto produtivo e Frota para equipamento.
+- Dashboards devem ler fontes oficiais: Estoque para saldos, Financeiro para valores, Agricultura/Pecuária para contexto produtivo e Frota para equipamento.
 
 ## Fora do Escopo Nesta Etapa
 

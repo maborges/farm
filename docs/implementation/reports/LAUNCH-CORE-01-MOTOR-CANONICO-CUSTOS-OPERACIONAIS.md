@@ -1,4 +1,4 @@
-# LAUNCH-CORE-01 — Motor Canônico de Custos Operacionais
+# LAUNCH-CORE-01 — Motor Oficial de Custos Operacionais
 
 ## Auditoria realizada
 
@@ -16,9 +16,9 @@ Constatações principais:
 
 - `CostAllocation` já era a camada econômica oficial consumida por `CustosService`, DRE e Rentabilidade.
 - Frota já gerava integração financeira parcial (`Despesa`) em abastecimento externo e fechamento de OS.
-- Frota apontava custo manual via `registrar_cost_allocation`, mas com `source="MANUAL"` e sem contrato econômico canônico.
+- Frota apontava custo manual via `registrar_cost_allocation`, mas com `source="MANUAL"` e sem contrato econômico oficial.
 - RH criava `Despesa` para diárias/empreitadas, mas sem convergência consistente para `CostAllocation`.
-- A DRE já tinha regra de precedência econômica, porém a supressão de `Despesa` não cobria as novas origens canônicas de Frota/RH.
+- A DRE já tinha regra de precedência econômica, porém a supressão de `Despesa` não cobria as novas origens oficiais de Frota/RH.
 
 ## Decisão arquitetural
 
@@ -50,7 +50,7 @@ Responsabilidades implementadas:
 
 - `services/api/agricola/custos/operational_cost_service.py`
 - `services/api/tests/test_launch_core01_operational_cost_engine.py`
-- `docs/implementation/reports/LAUNCH-CORE-01-MOTOR-CANONICO-CUSTOS-OPERACIONAIS.md`
+- `docs/implementation/reports/LAUNCH-CORE-01-MOTOR-OFICIAL-CUSTOS-OPERACIONAIS.md`
 
 ## Arquivos alterados
 
@@ -80,14 +80,14 @@ Responsabilidades implementadas:
 ### DRE
 
 - mantida a lógica oficial baseada em `CostAllocation` e `Despesa`
-- ajustada apenas a precedência para suprimir `Despesa` quando a nova alocação canônica equivalente já existir
+- ajustada apenas a precedência para suprimir `Despesa` quando a nova alocação oficial equivalente já existir
 
 ## Testes
 
 Adicionados/ajustados cenários para:
 
 - apontamento derivando custo por `custo_por_ha`
-- idempotência do serviço canônico
+- idempotência do serviço oficial
 - abastecimento externo refletindo em `CostAllocation` e `Despesa`
 - fechamento de OS refletindo peças e manutenção
 - RH sem contexto agrícola não forçando rateio inválido
@@ -108,7 +108,7 @@ Limitações de validação nesta execução:
 
 ## Limitações remanescentes
 
-- A convergência canônica foi aplicada aos fluxos auditados de Frota e RH.
+- A convergência oficial foi aplicada aos fluxos auditados de Frota e RH.
 - Não foi adicionada nova integração pecuária operacional porque, na auditoria deste escopo, não foi identificado fluxo equivalente de máquinas/RH pecuário já pronto para convergir sem ampliar o domínio.
 - RH continua sem forçar apropriação quando não há contexto agrícola suficiente; nesse caso fica apenas a `Despesa`, preservando a integridade do rateio.
 
@@ -117,7 +117,7 @@ Limitações de validação nesta execução:
 - Nenhum módulo duplicado foi criado.
 - Nenhum cálculo de DRE foi duplicado.
 - Nenhum financeiro paralelo foi criado.
-- `CostAllocation` permaneceu como camada econômica canônica.
+- `CostAllocation` permaneceu como camada econômica oficial.
 - `Despesa` continuou sendo reutilizada quando aplicável.
 - RH e Máquinas passaram a convergir para a mesma camada econômica.
 - A arquitetura orientada a eventos permaneceu intacta.
@@ -126,7 +126,7 @@ Limitações de validação nesta execução:
 
 ## Resposta objetiva
 
-Após esta execução, os custos operacionais de máquinas, combustível, manutenção, peças, diárias, empreitadas e mão de obra passam a convergir para uma camada econômica canônica reutilizando `CostAllocation` e `Despesa`, sem criar módulos paralelos e sem depender exclusivamente de lançamento manual de `custo_total`.
+Após esta execução, os custos operacionais de máquinas, combustível, manutenção, peças, diárias, empreitadas e mão de obra passam a convergir para uma camada econômica oficial reutilizando `CostAllocation` e `Despesa`, sem criar módulos paralelos e sem depender exclusivamente de lançamento manual de `custo_total`.
 
 Pontos ainda dependentes de validação final em ambiente real:
 

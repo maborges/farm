@@ -15,7 +15,7 @@ A cadeia analítica oficial pode usar memoização `request-scoped` para reaprov
 
 ## Objetivo
 
-Formalizar, de forma canônica, qual é a fonte oficial de cada natureza econômica no AgroSaaS e qual camada apenas reflete, apropria, realiza, provisiona ou consolida.
+Formalizar, de forma oficial, qual é a fonte oficial de cada natureza econômica no AgroSaaS e qual camada apenas reflete, apropria, realiza, provisiona ou consolida.
 
 Este documento existe para evitar dupla contagem entre:
 

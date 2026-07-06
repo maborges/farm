@@ -67,7 +67,7 @@ Priorizar `require_tier(PlanTier.PROFISSIONAL)` para:
 
 ### ENTERPRISE está padronizado
 
-O código usa `PlanTier.ENTERPRISE` como nome canônico do topo da oferta.
+O código usa `PlanTier.ENTERPRISE` como nome oficial do topo da oferta.
 `PlanTier.PREMIUM` permanece apenas como alias legado para compatibilidade
 com dados já persistidos e integrações antigas.
 
@@ -234,7 +234,7 @@ Escopo:
 
 Objetivo:
 
-- padronizar `ENTERPRISE` como nome canônico;
+- padronizar `ENTERPRISE` como nome oficial;
 - manter `PREMIUM` apenas como alias legado;
 - evitar decisões ad hoc por endpoint.
 
@@ -270,6 +270,6 @@ Prioridade de implementação:
 1. **P0:** fechar routers avançados sem gate explícito (`templates`, `amostragem_solo`, `ndvi_avancado`).
 2. **P1:** aplicar `PROFISSIONAL` em inteligência já exposta dentro de A1 (`analises_solo`, `previsoes`, `alertas`, `reports`).
 3. **P2:** combinar módulos avançados com tier (`agronomo`, `monitoramento`, `NDVI`, `VRA`, `beneficiamento`, `rastreabilidade`, `caderno`).
-4. **P3:** manter compatibilidade com o alias `PREMIUM` enquanto `ENTERPRISE` segue como nome canônico.
+4. **P3:** manter compatibilidade com o alias `PREMIUM` enquanto `ENTERPRISE` segue como nome oficial.
 
 O maior risco atual é exposição de endpoints avançados sem gate explícito. O maior risco comercial é manter automações e inteligência em A1, reduzindo a diferenciação do plano `PROFISSIONAL`.

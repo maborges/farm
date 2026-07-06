@@ -18,9 +18,9 @@ A fórmula de MtM (Marcação a Mercado) determina o lucro ou prejuízo não rea
 
 ## 2. Normalização e Canonicidade (V2.1 - MVP)
 
-### 2.1 Unidade Canônica
+### 2.1 Unidade Oficial
 A unidade deve ser estritamente a `unidade_padrao` cadastrada na respectiva `Commodity`.
-- **MVP (V2.1):** Nenhuma conversão complexa de unidade on-the-fly. Preço contratado, volume e cotação de mercado devem concordar na mesma unidade canônica. Fatores de conversão (saca para tonelada, etc) existem em `ConversaoUnidade` mas atuarão apenas como utilitário manual nesta etapa.
+- **MVP (V2.1):** Nenhuma conversão complexa de unidade on-the-fly. Preço contratado, volume e cotação de mercado devem concordar na mesma unidade oficial. Fatores de conversão (saca para tonelada, etc) existem em `ConversaoUnidade` mas atuarão apenas como utilitário manual nesta etapa.
 
 ### 2.2 Moeda
 - **MVP (V2.1):** Operações single-currency. Se o contrato de derivativo/termo foi estabelecido em BRL, a cotação de fechamento respectiva a ser lançada DEVE estar em BRL. A conversão de exposição cambial (PTAX) e fluxos multi-moeda entrarão em v2.2.

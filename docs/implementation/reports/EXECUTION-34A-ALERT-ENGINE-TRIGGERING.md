@@ -2,7 +2,7 @@
 
 ## Summary
 
-This execution defined the canonical triggering architecture for the AgroSaaS Alert Engine.
+This execution defined the oficial triggering architecture for the AgroSaaS Alert Engine.
 
 The work was documentation-only. No code, migrations, endpoints, or frontend/backend contracts were changed.
 
@@ -24,7 +24,7 @@ The work was documentation-only. No code, migrations, endpoints, or frontend/bac
 
 ### Official strategy
 
-- Hybrid architecture is the canonical model
+- Hybrid architecture is the oficial model
 - Event-driven for immediate facts
 - Scheduled for time and threshold rules
 - On-demand for consultative analysis

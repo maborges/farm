@@ -1,7 +1,7 @@
 # EXECUTION-33 — FASE 31 VALIDAÇÃO E HARDENING FRONTEND RELATÓRIO ESG E PASSAPORTE
 
 ## 1. Escopo e Objetivos
-A Fase 31 teve como foco a validação, teste e "hardening" da entrega da Fase 30 (Frontend MVP Autenticado). O objetivo primário foi assegurar que a UI exposta no painel consome as APIs canônicas isolando o contexto *multi-tenant* sem sobrepor nem duplicar lógicas ou escritas de sistemas legados.
+A Fase 31 teve como foco a validação, teste e "hardening" da entrega da Fase 30 (Frontend MVP Autenticado). O objetivo primário foi assegurar que a UI exposta no painel consome as APIs oficiais isolando o contexto *multi-tenant* sem sobrepor nem duplicar lógicas ou escritas de sistemas legados.
 
 ## 2. Validações Realizadas
 
@@ -12,7 +12,7 @@ A Fase 31 teve como foco a validação, teste e "hardening" da entrega da Fase 3
 
 ## 3. Endurecimento (Hardening) e Playwright Tests
 
-A suíte Playwright principal para Relatórios e Passaportes apresentava falsos negativos (timeouts de navegação e falha em localizar o `heading` de aba) por rodar sem os mocks canônicos de autenticação. 
+A suíte Playwright principal para Relatórios e Passaportes apresentava falsos negativos (timeouts de navegação e falha em localizar o `heading` de aba) por rodar sem os mocks oficiais de autenticação. 
 
 **Ajuste Aplicado:**
 Realizamos o hardening do seletor em `certificacoes-esg-relatorios-passaportes.spec.ts`. Injetamos os wrappers de mock autenticado (`buildAuthConfig`, `setupAuthenticatedContext` e `mockAuthenticatedApi`), permitindo que a suíte passe em CI local ou pipeline com o Next.js, testando isoladamente os modals e fluxos da página.
@@ -33,7 +33,7 @@ Comandos rodados para validação completa:
 * **Resultado TypeScript:** Sucesso (`noEmit` executado sem erros), validando tipagem forte e união de strings.
 * **Resultado Playwright:** Sucesso após a atualização dos seletores.
 * **Riscos Encontrados:** Falhas temporárias devidas a falta de chromium nos pipelines sem build previo do container.
-* **Pendências:** Nenhuma pendência imediata no frontend canônico.
+* **Pendências:** Nenhuma pendência imediata no frontend oficial.
 
 ## Próxima Fase Recomendada
 As estruturas frontend de listagem e criação estão prontas. Como o MVP Frontend consome a API adequadamente, as próximas Fases recomendadas devem centrar-se em:

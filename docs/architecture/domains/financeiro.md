@@ -1,6 +1,6 @@
 # Domínio Financeiro do AgroSaaS
 
-**Status:** Catálogo canônico do domínio  
+**Status:** Catálogo oficial do domínio  
 **Base normativa:** [Master Context](../agrosaas-master-context.md), [Domain Map](../agrosaas-domain-map.md), [Data Model](../agrosaas-data-model.md), [Routing Map](../agrosaas-routing-map.md)
 
 ## 1. Visão Geral

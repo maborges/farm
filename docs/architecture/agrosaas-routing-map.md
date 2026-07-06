@@ -42,11 +42,11 @@ Este documento lista e agrupa as rotas do Monolito Backend (FastAPI) e a estrutu
 **Cobertura funcional**
 - Propriedades: geometria, hierarquia territorial, infraestrutura, safras operacionais e áreas.
 - Imóveis Rurais: titularidade, matrícula, cartório, CAR, CCIR, ITR, NIRF, contratos e avaliações.
-- Visões agregadas: leitura consolidada read-only com dados operacionais, fundiários e de vínculo canônico.
+- Visões agregadas: leitura consolidada read-only com dados operacionais, fundiários e de vínculo oficial.
 
 **Observação**
 - A relação entre os domínios deve seguir `AGRI-DOMAIN-001`.
-- A cardinalidade oficial é `N:N` via entidade de vínculo canônica.
+- A cardinalidade oficial é `N:N` via entidade de vínculo oficial.
 
 ### Certificações & ESG
 **Módulo**: Domínio consumidor territorial/fundiário
@@ -58,7 +58,7 @@ Este documento lista e agrupa as rotas do Monolito Backend (FastAPI) e a estrutu
 
 **Características**
 - Escrita exclusiva de evidências, não conformidades e planos de ação do domínio de certificação.
-- Consumo somente leitura da base territorial/fundiária canônica.
+- Consumo somente leitura da base territorial/fundiária oficial.
 - Tenant-aware com isolamento via RLS e tenant atual extraído da sessão autenticada.
 
 ### Financeiro & Comercialização
@@ -97,7 +97,7 @@ Este documento lista e agrupa as rotas do Monolito Backend (FastAPI) e a estrutu
 
 ### `apps/web` (Painel Administrativo)
 - Baseado no App Router (`src/app/`).
-- **Páginas Base**: `/login`, `/dashboard`, `/agricola`, `/financeiro`. (Estrutura canônica baseada nas APIs).
+- **Páginas Base**: `/login`, `/dashboard`, `/agricola`, `/financeiro`. (Estrutura oficial baseada nas APIs).
 - **Visões financeiras Hedge**:
   - `/dashboard/financeiro/hedge/contratos`
   - `/dashboard/financeiro/hedge/registros`

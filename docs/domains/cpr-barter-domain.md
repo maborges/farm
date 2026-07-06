@@ -13,7 +13,7 @@ Definir a modelagem de domínio que suporte:
 3. **Fluxo de Negócio** – Registro, validação, cálculo de compensação, aceitação.
 4. **Regras de Negócio** – Limites de volume, regras de preço, prazo de liquidação.
 
-## Modelo de Domínio (Canonical)
+## Modelo de Domínio (Oficial)
 
 ```mermaid
 classDiagram

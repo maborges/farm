@@ -29,7 +29,7 @@ Os testes estáticos cobrem:
 9. Sankhya permanece classificado como `ERP`.
 10. Sankhya não deve exigir `UnidadeProdutiva` como escopo.
 11. Configuração de ERP aceita `TENANT` e fica preparada para `ESTABELECIMENTO`.
-12. Credenciais exigem criptografia, masking e rotação por contrato canônico.
+12. Credenciais exigem criptografia, masking e rotação por contrato oficial.
 13. Rotas tenant-scoped devem usar mecanismo de sessão/RLS ou ficar marcadas como lacuna conhecida.
 14. Logs e health devem possuir `tenant_id` ou escopo equivalente.
 15. Sync/jobs devem registrar `tenant_id` ou escopo equivalente.
@@ -48,14 +48,14 @@ Frases normativas consolidadas para as lacunas atuais:
 
 - a configuração atual no Backoffice não está correta como ponto principal de governança;
 - unidade produtiva: inexistente como escopo de ERP no Sankhya atual;
-- credenciais devem exigir criptografia, masking e rotação por contrato canônico;
+- credenciais devem exigir criptografia, masking e rotação por contrato oficial;
 - rotas tenant-scoped atuais do Sankhya ainda usam `get_db()` em vez de `get_session()`;
 - isso permanece como lacuna conhecida de RLS físico no módulo atual.
 
 Declarações objetivas:
 
 - a configuração atual no backoffice não está correta como ponto principal de governança.
-- credenciais devem exigir criptografia, masking e rotação por contrato canônico.
+- credenciais devem exigir criptografia, masking e rotação por contrato oficial.
 
 ## 4. Violações atuais conhecidas
 

@@ -15,7 +15,7 @@ Na arquitetura oficial:
 Isso significa que:
 
 - `OperacaoAgricola` gera fatos operacionais
-- `CadernoCampoEntrada` formaliza a linha do tempo canônica
+- `CadernoCampoEntrada` formaliza a linha do tempo oficial
 - `Estoque` consome fatos de uso e movimentação
 - `Financeiro` consome fatos para custos, DRE e apropriações
 - `IA` consome a trilha consolidada para análise operacional e financeira
@@ -33,7 +33,7 @@ O objetivo do FIELD-CORE foi transformar um conjunto de registros distribuídos 
 O domínio agrícola existia de forma parcialmente distribuída:
 
 - operações agrícolas já geravam eventos relevantes
-- havia timeline, mas não existia uma fonte canônica formal
+- havia timeline, mas não existia uma fonte oficial formal
 - o status era parcial ou inconsistente em diferentes caminhos
 - exportações existiam, mas sem cadeia documental unificada
 - o PWA capturava eventos offline, mas ainda sem contrato documental completo
@@ -52,7 +52,7 @@ O domínio agrícola existia de forma parcialmente distribuída:
 
 - `CadernoCampoEntrada` foi definido como entidade central
 - `OperacaoAgricola` permaneceu como gerador de fatos
-- eventos passaram a ter contrato canônico
+- eventos passaram a ter contrato oficial
 - status ganhou governança formal
 - exportação ganhou modo oficial e modo auditoria
 - assinatura técnica passou a ser server-side
@@ -65,7 +65,7 @@ O domínio agrícola existia de forma parcialmente distribuída:
 
 ### Entidade central
 
-`CadernoCampoEntrada` é a entidade canônica do Caderno de Campo.
+`CadernoCampoEntrada` é a entidade oficial do Caderno de Campo.
 
 Ela representa a unidade documental oficial de evento da safra.
 
@@ -103,9 +103,9 @@ Ele é a representação formal de:
 
 ---
 
-## 4. Contrato Canônico do Evento
+## 4. Contrato Oficial do Evento
 
-O contrato canônico consolida:
+O contrato oficial consolida:
 
 - `tipo_evento`
 - `origem_evento`
@@ -299,7 +299,7 @@ O PWA é a extensão offline do Caderno Oficial.
 - não substitui aprovação documental
 - não consolida sozinho eventos críticos
 - não redefine a cadeia documental
-- não é a fonte canônica final
+- não é a fonte oficial final
 
 ### O que ainda falta evoluir no PWA
 
@@ -415,7 +415,7 @@ Transformar o PWA em uma extensão offline documentalmente confiável do Caderno
 
 ---
 
-## 12. Decisões Canônicas
+## 12. Decisões Oficiais
 
 As decisões abaixo são oficiais e devem ser preservadas na evolução do sistema.
 

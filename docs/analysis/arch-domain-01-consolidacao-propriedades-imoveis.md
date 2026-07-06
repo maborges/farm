@@ -64,9 +64,9 @@ Conclusão executiva:
 
 - O eixo `Propriedades` deve representar o que a operação usa diariamente.
 - O eixo `Imóveis Rurais` deve representar o que exige prova, registro, documento e custódia legal.
-- Campos como CAR, CCIR, NIRF e matrícula podem ser espelhados na experiência operacional, mas não devem mudar de ownership canônico.
+- Campos como CAR, CCIR, NIRF e matrícula podem ser espelhados na experiência operacional, mas não devem mudar de ownership oficial.
 
-## Etapa 2 - Modelo Canônico
+## Etapa 2 - Modelo Oficial
 
 ### Modelo oficial proposto
 
@@ -97,7 +97,7 @@ Conclusão executiva:
 
 ### Observação
 
-Esse modelo canônico está consistente com o material já existente:
+Esse modelo oficial está consistente com o material já existente:
 - o `data model` trata `Propriedades / Áreas Rurais` como entidade central multi-domínio;
 - o módulo `imoveis` já assume o papel patrimonial/legal;
 - o `routing map` e o `permission catalog` já separam os caminhos operacionais e legais.
@@ -185,7 +185,7 @@ Replicar é proibido quando:
 | Condôminos | IMPORTANTE | Necessário para copropriedade e situações compartilhadas. |
 | Representantes legais | CRÍTICO | Essencial para autorização e governança documental. |
 | Procuradores | IMPORTANTE | Relevante para operações com mandato e representação. |
-| Posse | IMPORTANTE | Já há sinais parciais, mas sem entidade/fluxo canônico consolidado. |
+| Posse | IMPORTANTE | Já há sinais parciais, mas sem entidade/fluxo oficial consolidado. |
 | Usufruto | FUTURO | Relevante juridicamente, mas não bloqueia o núcleo atual. |
 | Comodato | FUTURO | Acordo de uso, útil mas não central no curto prazo. |
 | Hipoteca | FUTURO | Importante para garantias reais, mas fora do núcleo operacional imediato. |
@@ -237,7 +237,7 @@ As lacunas mais críticas não são técnicas; são de **modelagem jurídica de 
 ### Fase 4 - Expansão ambiental
 
 - Estruturar nascentes, restrições e áreas sensíveis.
-- Organizar licenças e registros ambientais canônicos.
+- Organizar licenças e registros ambientais oficiais.
 - Melhorar leitura ambiental por imóvel e por propriedade.
 
 ### Fase 5 - Integração ESG e rastreabilidade

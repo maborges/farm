@@ -10,7 +10,7 @@
 - `services/api/notifications/notification_deduplication.py`: existe e atende deduplicação em memória.
 - `services/api/notifications/notification_preferences.py`: existe e atende preferências via metadata.
 - `services/api/notifications/notification_silence_window.py`: existe e atende janela de silêncio.
-- `services/api/recommendations/`: existe o engine canônico, mas sem qualquer ponte para notificações.
+- `services/api/recommendations/`: existe o engine oficial, mas sem qualquer ponte para notificações.
 - `services/api/events/`: existe o barramento de eventos e subscribers, mas sem integração de recommendations para notifications.
 - `services/api/alert_engine/`: existe e atende seu próprio domínio, mas não é parte deste fluxo.
 

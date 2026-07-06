@@ -6,7 +6,7 @@ O ciclo de infraestrutura analítica do AgroSaaS evoluiu em etapas sucessivas:
 
 - Step 38: memoização request-scoped para a cadeia analítica.
 - Step 39 e Step 39.2: otimização estrutural da DRE agrícola v1.
-- Step 40 e Step 40.2: registry canônico de severidade, códigos e taxonomia analítica.
+- Step 40 e Step 40.2: registry oficial de severidade, códigos e taxonomia analítica.
 - Step 41: medição objetiva do fan-out residual da cadeia.
 
 A cadeia oficial permanece:

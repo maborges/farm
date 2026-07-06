@@ -2,7 +2,7 @@
 
 ## 1. Objetivo
 
-Este relatorio registra a consolidacao documental da arquitetura canônica do dominio Pessoas com base exclusiva nas auditorias:
+Este relatorio registra a consolidacao documental da arquitetura oficial do dominio Pessoas com base exclusiva nas auditorias:
 
 - `RC-01`
 - `RC-01A`
@@ -30,7 +30,7 @@ Pessoa
 
 Decisoes normativas consolidadas:
 
-- `Pessoa` = identidade civil/organizacional canônica
+- `Pessoa` = identidade civil/organizacional oficial
 - `Usuario` = autenticacao, acesso e RBAC
 - `ColaboradorRH` = vinculo operacional/trabalhista
 - `Fornecedor` = wrapper operacional de compras com ponte para `Pessoa`
@@ -69,7 +69,7 @@ Foram definidos como obrigatorios para a estrategia de transicao:
 ### Obrigatorio antes da v1.0
 
 - arquitetura oficial documentada
-- `Pessoa` definida como fonte canônica
+- `Pessoa` definida como fonte oficial
 - congelamento de novos cadastros paralelos
 - regras para novos fluxos
 - definicao formal dos resolvers futuros
@@ -94,7 +94,7 @@ Fases definidas:
 ## 7. Confirmacoes de aceite
 
 - A arquitetura alvo de Pessoas foi definida.
-- `Pessoa` foi definida como identidade canônica.
+- `Pessoa` foi definida como identidade oficial.
 - `Usuario` foi definido como identidade de autenticacao/acesso.
 - `ColaboradorRH` foi definido como vinculo operacional/trabalhista.
 - `Fornecedor` foi definido como wrapper/papel operacional.

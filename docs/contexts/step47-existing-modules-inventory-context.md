@@ -15,7 +15,7 @@ Auditar o que já existe no repositório antes de propor ou implementar qualquer
 
 ## Observação sobre o ER preliminar
 
-O documento `docs/contexts/step47-unified-data-model-context.md` deve ser tratado como rascunho conceitual preliminar. Esta auditoria deve prevalecer antes de qualquer implementação, porque o repositório já possui entidades canônicas ou semi-canônicas para quase todos os domínios da matriz cross-módulo.
+O documento `docs/contexts/step47-unified-data-model-context.md` deve ser tratado como rascunho conceitual preliminar. Esta auditoria deve prevalecer antes de qualquer implementação, porque o repositório já possui entidades oficiais ou semi-oficiais para quase todos os domínios da matriz cross-módulo.
 
 ## Inventário por Módulo
 
@@ -25,10 +25,10 @@ O documento `docs/contexts/step47-unified-data-model-context.md` deve ser tratad
 | Core / Fazenda | `services/api/core/models/unidade_produtiva.py` (`unidades_produtivas`), `services/api/core/models/fazenda.py` alias de compatibilidade | `services/api/core/schemas/unidade_produtiva_*.py`, `fazenda_*.py` | `services/api/core/routers/unidades_produtivas.py`, `fazendas.py` | `services/api/core/services/unidade_produtiva_service.py`, `fazenda_service.py` | `unidades_produtivas` já substitui fazenda. |
 | Core / Áreas rurais | `services/api/core/cadastros/propriedades/models.py` (`cadastros_areas_rurais`, matrículas, registros ambientais, infraestruturas, arquivos geo) | `services/api/core/cadastros/propriedades/schemas.py` | `services/api/core/cadastros/propriedades/router.py` | `services/api/core/cadastros/propriedades/service.py` | Fonte mais forte para talhão, piquete, curral e subdivisão espacial. |
 | Core / Pessoas | `services/api/core/cadastros/pessoas/models.py` (`cadastros_pessoas`, documentos, contatos, endereços, relacionamentos) | `services/api/core/cadastros/pessoas/schemas.py` | `services/api/core/cadastros/pessoas/router.py` | `services/api/core/cadastros/pessoas/service.py` | Já suporta fornecedor, cliente, funcionário e prestador por papéis. |
-| Core / Produtos | `services/api/core/cadastros/produtos/models.py` (`cadastros_produtos`, marca, modelo, categoria, detalhes agrícola/estoque/EPI, `cadastros_culturas`) | `services/api/core/cadastros/produtos/schemas.py` | `services/api/core/cadastros/produtos/router.py` | `services/api/core/cadastros/produtos/service.py` | Fonte canônica recomendada para produto/insumo. |
+| Core / Produtos | `services/api/core/cadastros/produtos/models.py` (`cadastros_produtos`, marca, modelo, categoria, detalhes agrícola/estoque/EPI, `cadastros_culturas`) | `services/api/core/cadastros/produtos/schemas.py` | `services/api/core/cadastros/produtos/router.py` | `services/api/core/cadastros/produtos/service.py` | Fonte oficial recomendada para produto/insumo. |
 | Agricultura | `services/api/agricola/safras/models.py`, `cultivos/models.py`, `operacoes/models.py`, `production_units/models.py`, `custos/models.py` | `services/api/agricola/*/schemas.py` | `services/api/agricola/*/router.py` | `services/api/agricola/*/service.py` | Já possui ciclo produtivo maduro. Integrar, não recriar. |
 | Pecuária | `services/api/pecuaria/animal/models.py`, `models/piquete.py`, `models/manejo.py`, `producao/models.py` | `services/api/pecuaria/schemas/*.py` | `services/api/pecuaria/routers/*.py` | `services/api/pecuaria/services/*.py` | Possui modelo moderno de animal/lote/evento e modelo legado de piquete separado. |
-| Estoque | `services/api/operacional/models/estoque.py` (`estoque_depositos`, `estoque_saldos`, `estoque_lotes`, `estoque_movimentacoes`, `estoque_movimentos`) | `services/api/operacional/schemas/estoque.py` | `services/api/operacional/routers/estoque.py` | `services/api/operacional/services/estoque_service.py`, `estoque_ledger.py`, `estoque_fifo.py` | `estoque_movimentos` é melhor candidato a ledger canônico; `estoque_movimentacoes` é histórico legado/operacional. |
+| Estoque | `services/api/operacional/models/estoque.py` (`estoque_depositos`, `estoque_saldos`, `estoque_lotes`, `estoque_movimentacoes`, `estoque_movimentos`) | `services/api/operacional/schemas/estoque.py` | `services/api/operacional/routers/estoque.py` | `services/api/operacional/services/estoque_service.py`, `estoque_ledger.py`, `estoque_fifo.py` | `estoque_movimentos` é melhor candidato a ledger oficial; `estoque_movimentacoes` é histórico legado/operacional. |
 | Financeiro | `services/api/financeiro/models/*.py` (`fin_planos_conta`, `fin_despesas`, `fin_receitas`, `fin_rateios`, `fin_notas_fiscais`, conciliação) | `services/api/financeiro/schemas/*.py` | `services/api/financeiro/routers/*.py` | `services/api/financeiro/services/*.py` | Financeiro existe como receitas/despesas separadas; não há `lancamento_financeiro` único. |
 | Frota/Máquinas | `services/api/core/cadastros/equipamentos/models.py` (`cadastros_equipamentos`), `services/api/operacional/models/frota.py`, `abastecimento.py`, `apontamento.py`, `documento_equipamento.py` | `services/api/operacional/schemas/*.py`, `core/cadastros/equipamentos/schemas.py` | `services/api/operacional/routers/*.py`, `core/cadastros/equipamentos/router.py` | `services/api/operacional/services/frota_service.py`, `abastecimento_service.py` | Cadastro mestre já foi movido para Core; operacional referencia equipamento. |
 | Compras | `services/api/operacional/models/compras.py` (`compras_*`) | `services/api/operacional/schemas/compras.py` e schemas inline em router | `services/api/operacional/routers/compras.py` | lógica no router e integrações com Estoque | Existe, mas fornecedor duplica Pessoa. |
@@ -39,27 +39,27 @@ O documento `docs/contexts/step47-unified-data-model-context.md` deve ser tratad
 
 | Entidade da matriz | Implementação existente | Classificação | Recomendação |
 |---|---|---|---|
-| Fazenda | `unidades_produtivas` em `services/api/core/models/unidade_produtiva.py`; `Fazenda = UnidadeProdutiva` em `core/models/fazenda.py` | Manter como está | Usar `unidades_produtivas` como fonte canônica. Evitar nova tabela `fazendas`; o alias já sinaliza migração concluída. |
-| Unidade produtiva / área produtiva | `cadastros_areas_rurais` em `core/cadastros/propriedades/models.py`; `production_units` em `agricola/production_units/models.py` | Ajustar para fonte canônica por nível | `unidades_produtivas` = propriedade/fazenda; `cadastros_areas_rurais` = talhão/piquete/curral/área; `production_units` = unidade econômica agrícola safra+cultivo+área. |
-| Pessoa | `cadastros_pessoas` e relacionamentos em `core/cadastros/pessoas/models.py` | Ajustar para virar fonte canônica | Migrar consumidores que ainda usam cadastros próprios ou texto livre para `cadastros_pessoas` + `cadastros_pessoa_relacionamentos`. |
+| Fazenda | `unidades_produtivas` em `services/api/core/models/unidade_produtiva.py`; `Fazenda = UnidadeProdutiva` em `core/models/fazenda.py` | Manter como está | Usar `unidades_produtivas` como fonte oficial. Evitar nova tabela `fazendas`; o alias já sinaliza migração concluída. |
+| Unidade produtiva / área produtiva | `cadastros_areas_rurais` em `core/cadastros/propriedades/models.py`; `production_units` em `agricola/production_units/models.py` | Ajustar para fonte oficial por nível | `unidades_produtivas` = propriedade/fazenda; `cadastros_areas_rurais` = talhão/piquete/curral/área; `production_units` = unidade econômica agrícola safra+cultivo+área. |
+| Pessoa | `cadastros_pessoas` e relacionamentos em `core/cadastros/pessoas/models.py` | Ajustar para virar fonte oficial | Migrar consumidores que ainda usam cadastros próprios ou texto livre para `cadastros_pessoas` + `cadastros_pessoa_relacionamentos`. |
 | Fornecedor | `compras_fornecedores` em `operacional/models/compras.py`; `cadastros_pessoas` com relacionamento FORNECEDOR | Depreciar/substituir | `compras_fornecedores` duplica Pessoa. Deve virar compatibilidade ou ponte para `cadastros_pessoas`. |
 | Cliente/comprador | `cadastros_pessoas` em comercialização (`comprador_id`), mas `fin_receitas.cliente` texto livre existe | Integrar com módulo central | Manter `pessoa_id` em `fin_receitas`; reduzir uso de `cliente` texto livre. |
-| Produto/insumo | `cadastros_produtos` em `core/cadastros/produtos/models.py`; estoque usa `ProdutoCatalogo` reexportado em `core/cadastros/models.py` | Manter como fonte canônica | Não criar `produto` novo em Estoque, Agricultura ou Pecuária. |
+| Produto/insumo | `cadastros_produtos` em `core/cadastros/produtos/models.py`; estoque usa `ProdutoCatalogo` reexportado em `core/cadastros/models.py` | Manter como fonte oficial | Não criar `produto` novo em Estoque, Agricultura ou Pecuária. |
 | Cultura/cultivo agrícola | `cadastros_culturas` em Core; tabela antiga `culturas` em `agricola/cadastros/models.py`; `cultivos` em Agricultura | Integrar/depreciar duplicidade | `cadastros_culturas` deve ser catálogo; `cultivos` é entidade produtiva; `culturas` legado deve ser depreciada. |
-| Estoque | `estoque_depositos`, `estoque_saldos`, `estoque_lotes`, `estoque_movimentacoes`, `estoque_movimentos` em `operacional/models/estoque.py` | Ajustar para fonte canônica | Padronizar `estoque_movimentos` como ledger append-only e tratar `estoque_movimentacoes` como camada legado/operacional até migração. |
+| Estoque | `estoque_depositos`, `estoque_saldos`, `estoque_lotes`, `estoque_movimentacoes`, `estoque_movimentos` em `operacional/models/estoque.py` | Ajustar para fonte oficial | Padronizar `estoque_movimentos` como ledger append-only e tratar `estoque_movimentacoes` como camada legado/operacional até migração. |
 | Centro de custo | Não há `centro_custo` explícito; existe `fin_planos_conta`, `fin_rateios`, `cost_allocations` | Criar novo ou formalizar existente | Gap real. `fin_rateios` rateia despesas para safra/talhão; `cost_allocations` apropria custo agrícola. Falta centro de custo geral para Agricultura, Pecuária e Frota. |
 | Financeiro | `fin_despesas`, `fin_receitas`, `fin_rateios`, `fin_planos_conta`, `fin_lancamentos_bancarios` | Manter e ajustar | Não criar `lancamento_financeiro` genérico sem plano de migração; hoje a fonte é dual: despesas/receitas. |
-| Safra | `safras`, `safra_talhoes`, `safra_fase_historico` em `agricola/safras/models.py` | Manter como está | Fonte canônica agrícola para período produtivo. |
-| Cultivo | `cultivos`, `cultivo_areas` em `agricola/cultivos/models.py` | Manter como está | Fonte canônica da unidade produtiva agrícola de negócio. |
+| Safra | `safras`, `safra_talhoes`, `safra_fase_historico` em `agricola/safras/models.py` | Manter como está | Fonte oficial agrícola para período produtivo. |
+| Cultivo | `cultivos`, `cultivo_areas` em `agricola/cultivos/models.py` | Manter como está | Fonte oficial da unidade produtiva agrícola de negócio. |
 | Operação agrícola | `operacoes_agricolas`, `operacoes_execucoes`, `insumos_operacao` em `agricola/operacoes/models.py` | Manter e integrar | Já integra Estoque, Financeiro e `cost_allocations` em `agricola/operacoes/service.py`. |
 | Rebanho/lote | `pec_lotes` em `pecuaria/animal/models.py`; não há tabela explícita `rebanho` | Ajustar/criar novo se necessário | `pec_lotes` é fonte para lote. Falta entidade agregadora `rebanho` se a regra de negócio exigir agrupamento acima do lote. |
 | Animal | `pec_animais`, `pec_eventos_animal` em `pecuaria/animal/models.py` | Manter como está | Modelo moderno; não duplicar em produto/estoque. |
 | Piquete | `pec_piquetes` em `pecuaria/models/piquete.py`; `cadastros_areas_rurais` suporta `PIQUETE` | Depreciar/substituir | `pec_piquetes` duplica área rural. Preferir `cadastros_areas_rurais` tipo `PIQUETE`; manter `pec_piquetes` apenas compatibilidade até migração. |
 | Manejo pecuário | `pec_manejos_lote` em `pecuaria/models/manejo.py`; `pec_eventos_animal` em `pecuaria/animal/models.py` | Integrar | Coletivo em `pec_manejos_lote`, individual em `pec_eventos_animal`. Falta integração com Estoque para vacina/medicação. |
-| Máquina/veículo | `cadastros_equipamentos` em Core; Frota referencia `cadastros_equipamentos.id` | Manter como fonte canônica | Não recriar `maquina_veiculo`. Resolver inconsistências de nomes em serviços. |
+| Máquina/veículo | `cadastros_equipamentos` em Core; Frota referencia `cadastros_equipamentos.id` | Manter como fonte oficial | Não recriar `maquina_veiculo`. Resolver inconsistências de nomes em serviços. |
 | Compras | `compras_pedidos`, `compras_itens_pedido`, `compras_recebimentos`, `compras_cotacoes` | Manter e integrar | Compras já integra produtos e recebimento/estoque, mas fornecedor deve migrar para Pessoa. |
 | Vendas | `financeiro_comercializacoes`, `romaneios_colheita`, `agricola_produtos_colhidos` | Integrar com módulo central | Há ciclo venda agrícola; falta generalizar para Pecuária sem duplicar Financeiro. |
-| Fiscal | `fin_notas_fiscais`, `sankhya_nfe`, campos NF em receitas/despesas/comercializações | Integrar com módulo central | Fiscal é real, mas disperso. Antes de novo módulo fiscal, definir se `fin_notas_fiscais` será fonte canônica. |
+| Fiscal | `fin_notas_fiscais`, `sankhya_nfe`, campos NF em receitas/despesas/comercializações | Integrar com módulo central | Fiscal é real, mas disperso. Antes de novo módulo fiscal, definir se `fin_notas_fiscais` será fonte oficial. |
 
 ## Duplicidades Identificadas
 
@@ -68,9 +68,9 @@ O documento `docs/contexts/step47-unified-data-model-context.md` deve ser tratad
 - `cadastros_produtos` em `services/api/core/cadastros/produtos/models.py` é o catálogo unificado de insumos.
 - `core/cadastros/models.py` reexporta `ProdutoCatalogo` para compatibilidade.
 - `agricola/cadastros/models.py` mantém `culturas`, mas Core já tem `cadastros_culturas` em `core/cadastros/produtos/models.py`.
-- `sankhya_produtos` em `services/api/integracoes/sankhya/models/__init__.py` é tabela de staging/sincronização externa, não deve virar fonte canônica.
+- `sankhya_produtos` em `services/api/integracoes/sankhya/models/__init__.py` é tabela de staging/sincronização externa, não deve virar fonte oficial.
 
-Recomendação: manter `cadastros_produtos` e `cadastros_culturas` como fontes canônicas. Depreciar `agricola/cadastros/models.py` (`culturas`) e tratar `sankhya_produtos` como espelho de integração.
+Recomendação: manter `cadastros_produtos` e `cadastros_culturas` como fontes oficiais. Depreciar `agricola/cadastros/models.py` (`culturas`) e tratar `sankhya_produtos` como espelho de integração.
 
 ### Pessoa/fornecedor/cliente duplicado
 
@@ -78,7 +78,7 @@ Recomendação: manter `cadastros_produtos` e `cadastros_culturas` como fontes c
 - `compras_fornecedores` em `operacional/models/compras.py` duplica fornecedor com `nome_fantasia`, `cnpj_cpf`, `email`, `telefone`.
 - `fin_despesas` ainda possui `fornecedor` texto livre, embora já tenha `pessoa_id`.
 - `fin_receitas` ainda possui `cliente` texto livre, embora já tenha `pessoa_id`.
-- `sankhya_pessoas` é staging de integração, não fonte canônica.
+- `sankhya_pessoas` é staging de integração, não fonte oficial.
 
 Recomendação: ajustar Compras para consumir `cadastros_pessoas` com papel FORNECEDOR. Manter campos texto livre em Financeiro apenas como legado/fallback.
 
@@ -89,7 +89,7 @@ Recomendação: ajustar Compras para consumir `cadastros_pessoas` com papel FORN
 - `agricola/colheita/models.py` cria `agricola_produtos_colhidos`, que representa lote colhido e não saldo genérico.
 - `financeiro/comercializacao/models.py` referencia `produto_colhido_id`, mas não usa `estoque_movimentos`.
 
-Recomendação: escolher `estoque_movimentos` como ledger canônico de movimentação. Manter `estoque_saldos` como estado atual. Integrar `agricola_produtos_colhidos` ao Estoque por regra clara de entrada/baixa, sem criar outro saldo agrícola.
+Recomendação: escolher `estoque_movimentos` como ledger oficial de movimentação. Manter `estoque_saldos` como estado atual. Integrar `agricola_produtos_colhidos` ao Estoque por regra clara de entrada/baixa, sem criar outro saldo agrícola.
 
 ### Financeiro paralelo
 
@@ -100,7 +100,7 @@ Recomendação: escolher `estoque_movimentos` como ledger canônico de movimenta
 - `romaneios_colheita` mantém `receita_total`.
 - `pec_manejos_lote` mantém `custo_total` e `valor_venda`.
 
-Recomendação: manter valores operacionais nos módulos produtivos como contexto/resultado local, mas Financeiro deve continuar fonte canônica de receitas/despesas. Formalizar `cost_allocations` como projeção gerencial, não lançamento financeiro primário.
+Recomendação: manter valores operacionais nos módulos produtivos como contexto/resultado local, mas Financeiro deve continuar fonte oficial de receitas/despesas. Formalizar `cost_allocations` como projeção gerencial, não lançamento financeiro primário.
 
 ### Unidade produtiva duplicada
 
@@ -118,7 +118,7 @@ Recomendação: não criar nova tabela `unidade_produtiva`. Usar `unidades_produ
 - `operacional/models/frota.py`, `abastecimento.py`, `apontamento.py` e `documento_equipamento.py` referenciam `cadastros_equipamentos.id`.
 - Há inconsistências de nomenclatura nos serviços: `FrotaService` usa `maquinario_id` em alguns pontos, enquanto os models têm `equipamento_id`.
 
-Recomendação: manter `cadastros_equipamentos` como fonte canônica. Ajustar futuramente services/schemas para padronizar `equipamento_id`, sem criar tabela nova.
+Recomendação: manter `cadastros_equipamentos` como fonte oficial. Ajustar futuramente services/schemas para padronizar `equipamento_id`, sem criar tabela nova.
 
 ## Integrações Já Implementadas
 
@@ -133,8 +133,8 @@ Recomendação: manter `cadastros_equipamentos` como fonte canônica. Ajustar fu
 | Manejo pecuário gera receita/despesa | `pecuaria/services/manejo_service.py` cria `Despesa` para VACINACAO/MEDICACAO e `Receita` para VENDA/ABATE | Parcial; não usa `origem_id/origem_tipo` nem Estoque. |
 | Abastecimento baixa estoque ou gera despesa | `operacional/services/abastecimento_service.py` baixa por nome do combustível para abastecimento interno e cria `Despesa` para externo | Implementada, mas frágil por busca textual de produto. |
 | OS de frota baixa estoque e gera despesa | `operacional/services/frota_service.py` usa `EstoqueService.registrar_saida_insumo` e cria `Despesa` | Implementada, mas há risco por inconsistência `maquinario_id`/`equipamento_id`. |
-| Compras recebe produto no estoque | `operacional/routers/compras.py` importa `EstoqueService`, `registrar_ledger_estoque`, `LoteEstoque`, `SaldoEstoque` | Implementada no router; precisa service dedicado e fornecedor canônico. |
-| Comercialização usa comprador canônico | `financeiro/comercializacao/models.py` usa `comprador_id -> cadastros_pessoas.id` | Boa base para Vendas. |
+| Compras recebe produto no estoque | `operacional/routers/compras.py` importa `EstoqueService`, `registrar_ledger_estoque`, `LoteEstoque`, `SaldoEstoque` | Implementada no router; precisa service dedicado e fornecedor oficial. |
+| Comercialização usa comprador oficial | `financeiro/comercializacao/models.py` usa `comprador_id -> cadastros_pessoas.id` | Boa base para Vendas. |
 
 ## Gaps Reais Antes de Implementar Novo ER
 
@@ -163,12 +163,12 @@ Recomendação: manter `cadastros_equipamentos` como fonte canônica. Ajustar fu
 - `pec_animais`, `pec_eventos_animal`, `pec_lotes` em `services/api/pecuaria/animal/models.py`.
 - `cadastros_equipamentos` em `services/api/core/cadastros/equipamentos/models.py`.
 
-### Ajustar para virar fonte canônica
+### Ajustar para virar fonte oficial
 
 - `cadastros_pessoas` em `services/api/core/cadastros/pessoas/models.py`: fonte para fornecedores, clientes, operadores, prestadores e compradores.
 - `cadastros_produtos` em `services/api/core/cadastros/produtos/models.py`: fonte para insumos agrícolas, pecuários, peças, combustível e EPI.
 - `cadastros_areas_rurais` em `services/api/core/cadastros/propriedades/models.py`: fonte para talhão, piquete, curral, armazém e áreas ambientais.
-- `estoque_movimentos` em `services/api/operacional/models/estoque.py`: fonte canônica de ledger.
+- `estoque_movimentos` em `services/api/operacional/models/estoque.py`: fonte oficial de ledger.
 
 ### Integrar com módulo central
 

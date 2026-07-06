@@ -1,13 +1,13 @@
 # Domínio Pecuária do AgroSaaS
 
-**Status:** Catálogo canônico do domínio  
+**Status:** Catálogo oficial do domínio  
 **Base normativa:** [Master Context](../agrosaas-master-context.md), [Domain Map](../agrosaas-domain-map.md), [Data Model](../agrosaas-data-model.md), [Routing Map](../agrosaas-routing-map.md)
 
 ## 1. Visão Geral
 
 O Domínio Pecuária concentra a gestão operacional do rebanho, dos piquetes, dos lotes, dos manejos e das rotinas produtivas de origem animal. Ele organiza a operação pecuária como um fluxo rastreável de área, animal, manejo, produção e resultado.
 
-Esse domínio consome a base territorial do AgroSaaS, mas não é dono da titularidade fundiária nem da geometria canônica da propriedade.
+Esse domínio consome a base territorial do AgroSaaS, mas não é dono da titularidade fundiária nem da geometria oficial da propriedade.
 
 ## 2. Objetivo
 
@@ -78,7 +78,7 @@ Resultado operacional
 1. Um lote deve pertencer a um tenant.
 2. Um manejo deve estar associado a um lote ou piquete.
 3. Piquete é referência operacional e não substitui o domínio territorial.
-4. O domínio pecuário pode consumir área rural, mas não pode redefinir a área canônica.
+4. O domínio pecuário pode consumir área rural, mas não pode redefinir a área oficial.
 5. Produção pecuária deve ser rastreável por lote e período.
 
 ## 9. Fronteiras
@@ -96,7 +96,7 @@ Resultado operacional
 
 - Titularidade fundiária;
 - Matrícula, CAR, CCIR e contratos rurais;
-- Cadastro territorial canônico;
+- Cadastro territorial oficial;
 - Contabilidade corporativa.
 
 ## 10. Roadmap

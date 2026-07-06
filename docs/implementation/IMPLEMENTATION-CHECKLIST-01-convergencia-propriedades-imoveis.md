@@ -49,7 +49,7 @@ Transformar a decisão arquitetural aprovada em um roteiro técnico faseado para
 
 ### Checklist
 
-- [ ] Modelar a entidade canônica `PropriedadeImovel`.
+- [ ] Modelar a entidade oficial `PropriedadeImovel`.
 - [ ] Definir o enum oficial `tipo_vinculo`.
 - [ ] Definir os atributos mínimos obrigatórios e opcionais.
 - [ ] Definir constraints de integridade e cardinalidade.
@@ -173,7 +173,7 @@ Transformar a decisão arquitetural aprovada em um roteiro técnico faseado para
 ### Bloqueios
 
 - Cadeia incompleta.
-- Rastreamento sem vínculo canônico.
+- Rastreamento sem vínculo oficial.
 - Falta de prova documental para origem.
 
 ---
@@ -263,7 +263,7 @@ As tarefas abaixo precisam estar resolvidas antes de avançar:
 
 A implementação pode ser considerada concluída quando todos os itens abaixo forem verdadeiros:
 
-- `PropriedadeImovel` existe e é a entidade canônica do vínculo.
+- `PropriedadeImovel` existe e é a entidade oficial do vínculo.
 - Existe uma única fonte da verdade para cada campo crítico.
 - A cardinalidade `N:N` está implementada e validada.
 - RLS e tenant isolation estão preservados.

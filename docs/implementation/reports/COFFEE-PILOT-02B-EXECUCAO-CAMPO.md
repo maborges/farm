@@ -31,7 +31,7 @@ Quando o PWA sincroniza apenas a mudança de status (`status: "REALIZADA"`), sem
 **Baixo/Moderado.** Se múltiplos dispositivos atualizarem a mesma operação simultaneamente, a ausência de um lock pessimista no banco para o ID da operação durante o `atualizar` pode gerar "race conditions". Contudo, as validações de lote (Estoque) possuem garantias transacionais razoáveis.
 
 ### 6. Existe risco de sincronização duplicada?
-**Mitigado.** O PWA pode retentar a requisição. Contudo, o sistema checa `if novo_status == "REALIZADA" and status_anterior != "REALIZADA":` antes de acionar a criação canônica no Caderno de Campo, protegendo a mensageria de domínios externos de disparos duplos de conclusão.
+**Mitigado.** O PWA pode retentar a requisição. Contudo, o sistema checa `if novo_status == "REALIZADA" and status_anterior != "REALIZADA":` antes de acionar a criação oficial no Caderno de Campo, protegendo a mensageria de domínios externos de disparos duplos de conclusão.
 
 ### 7. Existe risco de baixa dupla no estoque?
 **Baixo.** A função `_reverter_movimentos_estoque_operacao` limpa ativamente os movimentos prévios antes de reaplicar os novos insumos em caso de edição de uma operação já realizada. Contudo, é uma operação de estorno pesado. 

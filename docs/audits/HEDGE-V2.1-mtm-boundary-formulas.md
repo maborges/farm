@@ -13,7 +13,7 @@ O modelo atual de `CotacaoCommodity` foi inventariado e avaliado:
 ## 2. Resoluções Finais e Aprovações
 
 - **Fórmula de MtM Aprovada:** SIM. Sinais opostos para VENDA e COMPRA conforme padrões contábeis e financeiros.
-- **Unidade Canônica Aprovada:** SIM. Exigida uniformidade rigorosa via aplicação. Sem conversões complexas on-the-fly.
+- **Unidade Oficial Aprovada:** SIM. Exigida uniformidade rigorosa via aplicação. Sem conversões complexas on-the-fly.
 - **Moeda do MVP Aprovada:** SIM. Mesmo par de moeda (Same Currency MTM). Multi-currency diferido para V2.2.
 - **Modelo de Snapshot Aprovado:** SIM. O `HedgePositionSnapshot` detalhado no documento de domínio está homologado para refletir granularidade por *Contrato* e possibilitar idemptotência de recálculo diário.
 
@@ -26,7 +26,7 @@ O modelo atual de `CotacaoCommodity` foi inventariado e avaliado:
 ## 4. Conclusão Final
 
 - Fórmula aprovada.
-- Unidade canônica aprovada.
+- Unidade oficial aprovada.
 - Moeda do MVP aprovada.
 - Modelo de snapshot aprovado.
 

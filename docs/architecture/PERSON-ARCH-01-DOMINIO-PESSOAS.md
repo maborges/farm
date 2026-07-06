@@ -2,7 +2,7 @@
 
 ## 1. Objetivo
 
-Este documento define a arquitetura canônica do dominio Pessoas do AgroSaaS para a versao 1.0 e a estrategia segura de transicao a partir do modelo hibrido identificado nas auditorias:
+Este documento define a arquitetura oficial do dominio Pessoas do AgroSaaS para a versao 1.0 e a estrategia segura de transicao a partir do modelo hibrido identificado nas auditorias:
 
 - `RC-01-AUDITORIA-DOMINIO-PESSOAS`
 - `RC-01A-AUDITORIA-IDENTIDADE-PESSOA-USUARIO`
@@ -11,7 +11,7 @@ Este documento define a arquitetura canônica do dominio Pessoas do AgroSaaS par
 
 Pergunta que este documento responde:
 
-**Qual deve ser a arquitetura canônica de Pessoas para a versao 1.0 do AgroSaaS e qual sera a estrategia segura de transicao?**
+**Qual deve ser a arquitetura oficial de Pessoas para a versao 1.0 do AgroSaaS e qual sera a estrategia segura de transicao?**
 
 ## 2. Decisao arquitetural
 
@@ -33,7 +33,7 @@ Pessoa
 
 ### 2.2 Principio central
 
-`Pessoa` e a identidade civil ou organizacional canônica.
+`Pessoa` e a identidade civil ou organizacional oficial.
 
 Tudo o que representar um individuo ou uma organizacao do tenant deve, a longo prazo, convergir para `Pessoa` como fonte primaria de identidade.
 
@@ -55,7 +55,7 @@ Portanto:
 Definicao oficial:
 
 - identidade civil ou organizacional do tenant;
-- base canônica para individuo ou organizacao;
+- base oficial para individuo ou organizacao;
 - dona dos dados mestres de documento, contato, endereco, dados bancarios, PII e consentimento;
 - ancora de papeis por `TipoRelacionamento` e `PessoaRelacionamento`.
 
@@ -74,7 +74,7 @@ Definicao oficial:
 
 Nao e definicao oficial de `Usuario`:
 
-- nao e a identidade civil canônica;
+- nao e a identidade civil oficial;
 - nao e o cadastro mestre de pessoa;
 - nao deve originar novos cadastros paralelos de dados pessoais.
 
@@ -94,7 +94,7 @@ Definicao oficial:
 
 Diretriz:
 
-- `ColaboradorRH` nao e a identidade civil canônica;
+- `ColaboradorRH` nao e a identidade civil oficial;
 - ele deve convergir para especializacao de `Pessoa`, mas sem ruptura de fluxos legados;
 - enquanto o legado existir, `ColaboradorRH` pode continuar com `pessoa_id` opcional e dados proprios por compatibilidade.
 
@@ -109,7 +109,7 @@ Definicao oficial:
 Diretriz:
 
 - `Fornecedor` nao e master data independente a longo prazo;
-- `Pessoa` e a identidade canônica;
+- `Pessoa` e a identidade oficial;
 - `Fornecedor` pode permanecer como wrapper operacional enquanto existirem consumidores legados.
 
 ### 3.5 Cliente
@@ -117,7 +117,7 @@ Diretriz:
 Definicao oficial:
 
 - papel comercial de uma `Pessoa`;
-- representa comprador, cliente ou contraparte comercial quando o fluxo canônico estiver consolidado.
+- representa comprador, cliente ou contraparte comercial quando o fluxo oficial estiver consolidado.
 
 Estado atual reconhecido:
 
@@ -196,7 +196,7 @@ Diretriz:
 
 ### 4.6 LeadCRM
 
-`LeadCRM` = identidade comercial pre-conversao, anterior ao cadastro canônico de `Pessoa`.
+`LeadCRM` = identidade comercial pre-conversao, anterior ao cadastro oficial de `Pessoa`.
 
 ## 5. Compatibilidade legada
 
@@ -221,7 +221,7 @@ Suporte legado permitido:
 
 Regra:
 
-- nenhum novo fluxo deve assumir que `ColaboradorRH` e a identidade civil canônica;
+- nenhum novo fluxo deve assumir que `ColaboradorRH` e a identidade civil oficial;
 - quando houver resolver, a leitura deve preferir `pessoa_id`.
 
 ### 5.3 Fornecedor com `pessoa_id` opcional
@@ -289,7 +289,7 @@ Suporte legado permitido:
 Regra:
 
 - apos conversao, a identidade mestre deve ser `Pessoa`;
-- nao se deve expandir `LeadCRM` para substituir a modelagem canônica de pessoas.
+- nao se deve expandir `LeadCRM` para substituir a modelagem oficial de pessoas.
 
 ## 6. Resolves futuros obrigatorios
 
@@ -385,7 +385,7 @@ Comportamento alvo:
 
 ```text
 1. usar Pessoa com papel CLIENTE quando existir
-2. aceitar comprador_id canônico de comercializacao
+2. aceitar comprador_id oficial de comercializacao
 3. manter Receita.cliente como fallback textual legado
 ```
 
@@ -393,7 +393,7 @@ Comportamento alvo:
 
 ### 7.1 Regra de identidade
 
-Todo novo fluxo deve usar `Pessoa` como identidade canônica quando representar individuo ou organizacao do tenant.
+Todo novo fluxo deve usar `Pessoa` como identidade oficial quando representar individuo ou organizacao do tenant.
 
 ### 7.2 Regra de papel
 
@@ -433,11 +433,11 @@ Enquanto houver legado, todo novo fluxo que toque dominio hibrido deve usar o re
 
 - documentacao arquitetural oficial do dominio Pessoas
 - congelamento de novos cadastros paralelos de pessoa
-- definicao formal de `Pessoa` como identidade canônica
+- definicao formal de `Pessoa` como identidade oficial
 - definicao formal de `Usuario` como identidade de autenticacao/acesso
 - definicao formal de `ColaboradorRH` como vinculo operacional/trabalhista
 - definicao formal de `Fornecedor` como wrapper operacional com ponte para `Pessoa`
-- orientacao para onboarding e futuro Wizard usarem `Pessoa` como referencia canônica
+- orientacao para onboarding e futuro Wizard usarem `Pessoa` como referencia oficial
 - definicao arquitetural dos resolvers prioritarios:
   - `PessoaIdentityResolver`
   - `TrabalhadorResolver`
@@ -460,7 +460,7 @@ Enquanto houver legado, todo novo fluxo que toque dominio hibrido deve usar o re
 Objetivo:
 
 - impedir novos cadastros paralelos de pessoa;
-- reconhecer `Pessoa` como entidade canônica oficial;
+- reconhecer `Pessoa` como entidade oficial oficial;
 - alinhar arquitetura sem mudar o banco ainda.
 
 Regra:
@@ -471,7 +471,7 @@ Regra:
 
 Objetivo:
 
-- introduzir leitura canônica sem quebrar compatibilidade.
+- introduzir leitura oficial sem quebrar compatibilidade.
 
 Resolvers priorizados:
 
@@ -551,9 +551,9 @@ Ficam proibidos para novos desenvolvimentos:
 
 ## 12. Resumo normativo
 
-### 12.1 Fonte canônica
+### 12.1 Fonte oficial
 
-`Pessoa` e a fonte canônica de identidade civil/organizacional.
+`Pessoa` e a fonte oficial de identidade civil/organizacional.
 
 ### 12.2 Identidade de acesso
 
@@ -572,4 +572,4 @@ Campos textuais e estruturas legadas permanecem apenas como compatibilidade, nun
 
 ## 13. Resposta arquitetural final
 
-**A arquitetura canônica do dominio Pessoas para a versao 1.0 do AgroSaaS fica definida com `Pessoa` como identidade civil/organizacional canônica, `Usuario` como identidade de acesso, `ColaboradorRH` como vinculo operacional/trabalhista, `Fornecedor` como wrapper operacional de compras e `Cliente` como papel comercial de `Pessoa`, com transicao segura baseada em resolvers e compatibilidade legada, sem consolidacao destrutiva antes da migracao progressiva dos consumidores.**
+**A arquitetura oficial do dominio Pessoas para a versao 1.0 do AgroSaaS fica definida com `Pessoa` como identidade civil/organizacional oficial, `Usuario` como identidade de acesso, `ColaboradorRH` como vinculo operacional/trabalhista, `Fornecedor` como wrapper operacional de compras e `Cliente` como papel comercial de `Pessoa`, com transicao segura baseada em resolvers e compatibilidade legada, sem consolidacao destrutiva antes da migracao progressiva dos consumidores.**

@@ -50,7 +50,7 @@ Decisão recomendada:
 | Onboarding comercial | EXISTE E ATENDE | `GET /onboarding/ativar/{token}`, `POST /onboarding/ativar/{token}`, convite de equipe | Reutilizar o fluxo atual | Fragmentado, mas funcional |
 | Onboarding operacional | EXISTE PARCIALMENTE | `GET /onboarding/status`, `apps/web/src/components/auth/onboarding-guard.tsx` | Reutilizar como guardrail de entrada | A tela `onboarding/configurar` é genérica e não conduz toda a implantação |
 | Tenant / owner / plano | EXISTE E ATENDE | `Tenant`, `Usuario`, `TenantUsuario`, `AssinaturaTenant`, `Fatura` | Reutilizar modelos e services | Nenhuma para o piloto |
-| `UnidadeProdutiva` | EXISTE E ATENDE | Modelo canônico com `tenant_id`, ativo, dados documentais e legados | Reutilizar como âncora operacional | Nenhuma crítica |
+| `UnidadeProdutiva` | EXISTE E ATENDE | Modelo oficial com `tenant_id`, ativo, dados documentais e legados | Reutilizar como âncora operacional | Nenhuma crítica |
 | Estrutura da fazenda | EXISTE E ATENDE | `AreaRural`, `MatriculaImovel`, hierarquia territorial e infraestrutura | Reutilizar para sede, gleba, talhão, área operacional, APP, reserva legal e depósitos | A profundidade da hierarquia é alta, mas já cobre o piloto |
 | Cadastros básicos | EXISTE PARCIALMENTE | Pessoas, produtos, depósitos, equipamentos, plano de contas e áreas rurais já existem no backend e no web | Reutilizar onde já houver cadastro | Nem todos os cadastros têm a mesma maturidade de UX |
 | Wizard de implantação | EXISTE E ATENDE | `ImplantacaoOperacional`, etapas, checklist, pendências, histórico e transições | Reutilizar integralmente | Nenhuma crítica para o piloto |
@@ -122,7 +122,7 @@ Evidências:
 
 O que já atende:
 
-- existe modelo canônico com `tenant_id`;
+- existe modelo oficial com `tenant_id`;
 - a transição para `READY_FOR_GO_LIVE` e `GO_LIVE` exige `UnidadeProdutiva`;
 - o web e o wizard tratam `UnidadeProdutiva` como âncora do go-live.
 
@@ -143,7 +143,7 @@ O que já atende:
 
 O que é parcial:
 
-- a estrutura é canônica, mas a experiência ainda depende de múltiplas telas;
+- a estrutura é oficial, mas a experiência ainda depende de múltiplas telas;
 - a implantação do piloto não se reduz a uma única etapa de cadastro territorial.
 
 ### 5. Checklists e go-live

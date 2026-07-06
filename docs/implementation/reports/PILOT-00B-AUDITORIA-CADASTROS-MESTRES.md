@@ -8,7 +8,7 @@ Ele esta **razoavelmente unificado para Produtos, Commodities e Unidades de Medi
 
 - `Cultura` duplicada entre o fluxo legado de Agricola e o catálogo unificado novo;
 - uso paralelo de caminhos legados e novos para `Produto`;
-- `Centro de Custo` sem um modelo mestre explícito, aparecendo mais como agregacao/reporting do que como entidade canônica;
+- `Centro de Custo` sem um modelo mestre explícito, aparecendo mais como agregacao/reporting do que como entidade oficial;
 - mistura de conceito entre `Safra`, `Cultivo`, `Commodity` e `Romaneio` em alguns fluxos;
 - `Fornecedor` proprio em Compras coexistindo com `Pessoa`, o que cria sobreposicao conceitual;
 - `Comercializacao` e `Hedge` reutilizando `Commodity`, mas com campos textuais paralelos para o mesmo conceito.
@@ -71,7 +71,7 @@ Fontes principais consultadas:
 | Safra | `Safra` | `agricola.safras` | Contexto macro da produção |
 | Cultivo | `Cultivo` + `CultivoArea` | `agricola.cultivos` | Unidade operacional real |
 | Production Unit | Existem referências no módulo agrícola | `agricola.production_units` | Unidade operacional auxiliar de execução/custo |
-| Talhão / Área | `AreaRural` | `core.cadastros.propriedades` | Estrutura territorial canônica |
+| Talhão / Área | `AreaRural` | `core.cadastros.propriedades` | Estrutura territorial oficial |
 
 ### Estoque
 
@@ -81,7 +81,7 @@ Fontes principais consultadas:
 | Categoria de produto | `CategoriaProduto` | `core.cadastros.produtos` | Estrutura hierárquica |
 | Marca | `Marca` | `core.cadastros.produtos` | Sistema + tenant |
 | Modelo de produto | `ModeloProduto` | `core.cadastros.produtos` | Sistema + tenant |
-| Unidade de medida | `UnidadeMedida` | `core.measurements` | Cadastro separado e canônico |
+| Unidade de medida | `UnidadeMedida` | `core.measurements` | Cadastro separado e oficial |
 | Depósito | `Deposito` | `operacional.estoque` | Operacional, não master puro |
 | Lote | `LoteEstoque` | `operacional.estoque` | Operacional |
 
@@ -89,7 +89,7 @@ Fontes principais consultadas:
 
 | Cadastro | Modelo oficial | Owner funcional | Observação |
 |---|---|---|---|
-| Commodity | `Commodity` | `core.cadastros.commodities` | Cadastro canônico de mercado |
+| Commodity | `Commodity` | `core.cadastros.commodities` | Cadastro oficial de mercado |
 | Classificação de commodity | `CommodityClassificacao` | `core.cadastros.commodities` | Qualidade / padrão |
 | Cotação de commodity | `CotacaoCommodity` | `core.cadastros.commodities` | Mercado / pricing |
 | Conversão de unidade da commodity | `ConversaoUnidade` | `core.cadastros.commodities` + `core.measurements` | Complementar |
@@ -109,7 +109,7 @@ Fontes principais consultadas:
 | Cadastro | Modelo oficial | Owner funcional | Observação |
 |---|---|---|---|
 | Espécie | enum `EspecieAnimal` | `pecuaria.animal` | Não é tabela mestre separada |
-| Raça | não há tabela mestre canônica única no trecho auditado | `pecuaria` / `enterprise` | Há sinais de modelos legados/variações |
+| Raça | não há tabela mestre oficial única no trecho auditado | `pecuaria` / `enterprise` | Há sinais de modelos legados/variações |
 | Lote pecuário | `LoteAnimal` | `pecuaria.animal` | Estrutura operacional |
 | Animal | `Animal` | `pecuaria.animal` | Ativo biológico |
 | Evento animal | `EventoAnimal` | `pecuaria.animal` | Linha do tempo |
@@ -118,7 +118,7 @@ Fontes principais consultadas:
 
 | Cadastro | Modelo oficial | Owner funcional | Observação |
 |---|---|---|---|
-| Plano de contas | `PlanoConta` | `financeiro.plano_conta` | Mestre canônico financeiro |
+| Plano de contas | `PlanoConta` | `financeiro.plano_conta` | Mestre oficial financeiro |
 | Centro de custo | não há modelo mestre dedicado encontrado | `financeiro.relatorio` / rateios | Aparece como agregação e rateio |
 | Categoria financeira | não há entidade própria dedicada encontrada | derivada de `PlanoConta.categoria_rfb` | Não existe como master separado |
 
@@ -142,7 +142,7 @@ Fontes principais consultadas:
 
 ## Proprietário de cada cadastro
 
-### Cadastro único e canônico
+### Cadastro único e oficial
 
 - Produtos: `core.cadastros.produtos`
 - Commodities: `core.cadastros.commodities`
@@ -175,7 +175,7 @@ Fontes principais consultadas:
 
 - Centro de custo
 - Categoria financeira como entidade própria
-- Raça como entidade mestre canônica única
+- Raça como entidade mestre oficial única
 - Fornecedor como conceito independente de Pessoa
 
 ---
@@ -225,7 +225,7 @@ Isso é coerente com o domínio.
 
 **Sim.**
 
-O cadastro canônico é `Commodity` em `core/cadastros/commodities/models.py`.
+O cadastro oficial é `Commodity` em `core/cadastros/commodities/models.py`.
 
 Ele é usado por:
 
@@ -240,7 +240,7 @@ Ele é usado por:
 
 O dono funcional é `core.cadastros.commodities`.
 
-Backoffice também administra tabelas sistêmicas, mas a entidade canônica é a mesma.
+Backoffice também administra tabelas sistêmicas, mas a entidade oficial é a mesma.
 
 ### Agricultura, Comercialização ou Hedge?
 
@@ -271,11 +271,11 @@ Isso gera sobreposição conceitual.
 
 ### A Cultura gera Commodity?
 
-**Nao como regra canônica.**
+**Nao como regra oficial.**
 
 ### Commodity gera Cultura?
 
-**Nao como regra canônica.**
+**Nao como regra oficial.**
 
 ### Sao entidades independentes?
 
@@ -908,7 +908,7 @@ Conflito entre:
 2. O produto unificado exige várias visões complementares no frontend, o que pode dar sensação de duplicidade.
 3. A cultura antiga ainda é um caminho navegável.
 4. O financeiro usa `categoria_rfb` do plano de contas como eixo de classificação, e não uma tabela de categoria separada.
-5. Hedge e comercialização dependem da commodity canônica, mas não eliminam os textos livres.
+5. Hedge e comercialização dependem da commodity oficial, mas não eliminam os textos livres.
 6. O romaneio pode materializar `ProdutoColhido` e receita automaticamente.
 
 ---

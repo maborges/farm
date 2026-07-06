@@ -30,7 +30,7 @@
 ### 14.1 Tabelas novas
 
 #### `unidades_medida`
-Unidades de medida canônicas do sistema.
+Unidades de medida oficiais do sistema.
 
 | Coluna | Tipo | Nullable | Notas |
 |---|---|---|---|
@@ -39,25 +39,25 @@ Unidades de medida canônicas do sistema.
 | codigo | VARCHAR(16) | NOT NULL | Ex: `KG`, `SC60`, `L`, `HA`, `HR_MAQ` |
 | nome | VARCHAR(80) | NOT NULL | Ex: "Saca 60kg" |
 | dimensao | VARCHAR(24) | NOT NULL | `massa`, `volume`, `area`, `tempo`, `contagem`, `moeda`, `hora_maquina`, `hora_homem` |
-| codigo_canonico | VARCHAR(16) | NOT NULL | Unidade canônica da dimensão (ex: `massa → KG`) |
-| fator_canonico | NUMERIC(18,9) | NOT NULL | Multiplicador p/ canônica (ex: `SC60 → 60.000000000`) |
+| codigo_canonico | VARCHAR(16) | NOT NULL | Unidade oficial da dimensão (ex: `massa → KG`) |
+| fator_canonico | NUMERIC(18,9) | NOT NULL | Multiplicador p/ oficial (ex: `SC60 → 60.000000000`) |
 | sistema | BOOLEAN | NOT NULL default `false` | `true` em registros seed de sistema |
 | ativo | BOOLEAN | NOT NULL default `true` | |
 | casas_decimais | SMALLINT | NOT NULL default `2` | Precisão de **apresentação** (UI/máscaras). **Não substitui a precisão de cálculo (NUMERIC).** Cálculos internos usam o precision/scale das colunas NUMERIC. |
-| eh_canonica | BOOLEAN | NOT NULL default `false` | Marca explícita da unidade canônica da dimensão. Só `true` quando `codigo=codigo_canonico` e `fator_canonico=1` (CHECK garante). |
+| eh_canonica | BOOLEAN | NOT NULL default `false` | Marca explícita da unidade oficial da dimensão. Só `true` quando `codigo=codigo_canonico` e `fator_canonico=1` (CHECK garante). |
 | created_at, updated_at | TIMESTAMP | NOT NULL | |
 
 **Unique (partial, PG nativo):**
 - `uq_unidades_medida_codigo_global ON (codigo) WHERE tenant_id IS NULL` — código único globalmente
 - `uq_unidades_medida_codigo_tenant ON (tenant_id, codigo) WHERE tenant_id IS NOT NULL` — código único por tenant
-- `uq_unidades_medida_canonica_global ON (dimensao) WHERE eh_canonica = true AND tenant_id IS NULL` — 1 canônica global por dimensão
-- `uq_unidades_medida_canonica_tenant ON (tenant_id, dimensao) WHERE eh_canonica = true AND tenant_id IS NOT NULL` — 1 canônica por tenant por dimensão
+- `uq_unidades_medida_canonica_global ON (dimensao) WHERE eh_canonica = true AND tenant_id IS NULL` — 1 oficial global por dimensão
+- `uq_unidades_medida_canonica_tenant ON (tenant_id, dimensao) WHERE eh_canonica = true AND tenant_id IS NOT NULL` — 1 oficial por tenant por dimensão
 
 **Check:**
 - `ck_unidades_medida_fator_canonico_positivo CHECK (fator_canonico > 0)`
 - `ck_unidades_medida_dimensao CHECK (dimensao IN ('massa','volume','area','tempo','contagem','moeda','hora_maquina','hora_homem'))`
 - `ck_unidades_medida_casas_decimais_range CHECK (casas_decimais BETWEEN 0 AND 9)`
-- `ck_unidades_medida_canonica_coerencia CHECK ((eh_canonica = false) OR (codigo = codigo_canonico AND fator_canonico = 1))` — flag só é true quando dados são de fato canônicos
+- `ck_unidades_medida_canonica_coerencia CHECK ((eh_canonica = false) OR (codigo = codigo_canonico AND fator_canonico = 1))` — flag só é true quando dados são de fato oficiais
 
 **Índices:**
 - `ix_unidades_medida_dimensao ON (dimensao)`
@@ -126,14 +126,14 @@ Tabela `unidades_medida_conversoes` é criada **vazia**. Conversões lineares en
 
 ## STEP 15 — `production_units` (+ backfill)
 
-**Motivação:** Centro de custo agrícola canônico. ProductionUnit é **entidade de primeira classe** — unidade econômica/operacional de apropriação (centro de custo, execução, produção e análise) no cruzamento Safra × Cultivo × AreaRural. Não é projeção derivada; nasce por backfill inicial e depois disso é criada/mantida via API própria.
+**Motivação:** Centro de custo agrícola oficial. ProductionUnit é **entidade de primeira classe** — unidade econômica/operacional de apropriação (centro de custo, execução, produção e análise) no cruzamento Safra × Cultivo × AreaRural. Não é projeção derivada; nasce por backfill inicial e depois disso é criada/mantida via API própria.
 
 **Decisões aprovadas (ver `step15-desenho-conceitual.md`):**
 - Unicidade: partial unique `WHERE status <> 'CANCELADA'` — permite recriação após cancelamento.
 - `area_ha`: **snapshot** da safra; preserva histórico mesmo se AreaRural mudar.
 - Criação: backfill inicial + API manual + sync via service (sem trigger DB).
 - `status_consorcio_area`: **read model + gate seletivo** (mutação em INCONSISTENTE; transição ENCERRADA).
-- **PU é** o centro de custo agrícola canônico — sem tabela `centros_custo` externa.
+- **PU é** o centro de custo agrícola oficial — sem tabela `centros_custo` externa.
 - Rateio (default `AREA_HA`) é responsabilidade do Step 19, não da PU.
 
 ### 15.1 Tabela nova
@@ -178,7 +178,7 @@ Tabela `unidades_medida_conversoes` é criada **vazia**. Conversões lineares en
 
 **Semântica de criação (first-class):**
 - **Backfill (executado uma vez na migration):** converte cada linha de `cultivo_areas` em 1 PU. Bootstrap inicial.
-- **Após o step15:** PUs são criadas via `ProductionUnitService.criar(...)` — camada canônica. Consórcio = N PUs para mesma `(safra, area)` com cultivos distintos.
+- **Após o step15:** PUs são criadas via `ProductionUnitService.criar(...)` — camada oficial. Consórcio = N PUs para mesma `(safra, area)` com cultivos distintos.
 - **Sync com CultivoArea:** quando CultivoArea é criada/atualizada/deletada via fluxo UI legacy, o service `ProductionUnitService.syncFromCultivoArea()` é chamado **explicitamente na mesma transação**. Nenhum trigger DB.
 - **Gate de integridade:** `ProductionUnitService.criar/atualizar` consulta `status_consorcio_area` da `(safra, area)` alvo; se status = `INCONSISTENTE`, recusa mutação até reconciliação manual (ver 15.2).
 
@@ -259,13 +259,13 @@ Toda mutação em `production_units` é envelopada por `pg_advisory_xact_lock(ha
 - `cultivo_areas` permanece como **input-UI layer** no modal atual de criação de safra.
 - Quando safra é criada/atualizada via fluxo UI legacy, `ProductionUnitService.syncFromCultivoArea(cultivo_area_id)` é invocado na **mesma transação** — sem trigger DB.
 - PU também pode ser criada **diretamente via API** — sem CultivoArea correspondente (ex: parcelas experimentais, ajuste manual de consórcio). Nesse caso `cultivo_area_id = NULL`.
-- Módulos novos (step16+) usam `ProductionUnitService.criar(...)` como caminho canônico, não CultivoArea.
+- Módulos novos (step16+) usam `ProductionUnitService.criar(...)` como caminho oficial, não CultivoArea.
 - CultivoArea **não é fonte de verdade** de operações/custos/estoque — é camada de entrada. Fonte de verdade é PU.
 
 ### 15.6 Compatibilidade
 
 - `cultivo_areas` permanece intacta — usada como camada de input UI e rastreada em `production_units.cultivo_area_id`.
-- `production_units` é **centro de custo agrícola canônico** e **fonte de verdade** de participação/área efetiva da safra.
+- `production_units` é **centro de custo agrícola oficial** e **fonte de verdade** de participação/área efetiva da safra.
 - `status_consorcio_area` é **read model + gate seletivo** — projeção agregada; rebuild seguro a qualquer momento.
 - `SafraTalhao` (legado) intocado.
 - **Rateio de custo não é propriedade da PU** — será tratado no Step 19 (`custos_rateios`) com default `AREA_HA` e override por operação.

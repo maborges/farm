@@ -1,4 +1,4 @@
-# EXECUTION-32A1 — Contratos Canônicos do Dashboard Executivo
+# EXECUTION-32A1 — Contratos Oficiais do Dashboard Executivo
 
 ## Objetivo
 
@@ -6,7 +6,7 @@ Definir os contratos de consumo do Dashboard Geral sem recalcular indicadores no
 
 Premissas adotadas:
 
-- Financeiro já possui resumo canônico reutilizável.
+- Financeiro já possui resumo oficial reutilizável.
 - Agricultura já possui dashboard consolidado reutilizável.
 - Pecuária ainda precisa de um resumo executivo único.
 - Operacional ainda precisa de um resumo transversal.
@@ -31,7 +31,7 @@ type ResumoExecutivoPecuaria = {
 };
 ```
 
-### Fonte canônica por campo
+### Fonte oficial por campo
 
 | Campo | Origem | Endpoint atual | Service atual | Status |
 | --- | --- | --- | --- | --- |
@@ -46,15 +46,15 @@ type ResumoExecutivoPecuaria = {
 
 ### Interpretação técnica
 
-- `peso_medio_kg` já existe de forma canônica por lote e é reutilizável.
-- `custo_sanitario_acumulado` já existe de forma canônica por lote, mas para o dashboard geral precisa ser agregado por tenant/fazenda.
+- `peso_medio_kg` já existe de forma oficial por lote e é reutilizável.
+- `custo_sanitario_acumulado` já existe de forma oficial por lote, mas para o dashboard geral precisa ser agregado por tenant/fazenda.
 - `manejos_pendentes` e `vacinacoes_pendentes` ainda não estão prontos como resumo executivo único; existem no Campo e no sync, mas precisam de agregação.
 - `animais_ativos`, `lotes_ativos` e `piquetes_ativos` já existem como base de cálculo e podem ser agregados sem invenção de regra nova.
 
 ### Custo estimado
 
 - Se derivado do painel pecuário atual: 2 a 4 queries.
-- Se consolidado em um serviço canônico único: 3 a 5 queries.
+- Se consolidado em um serviço oficial único: 3 a 5 queries.
 - Cache recomendado: 60 s a 300 s.
 
 ---
@@ -94,7 +94,7 @@ type ResumoOperacional = {
 
 #### Pecuária
 
-- `TarefaCampo` com `module = pecuaria` é a fonte canônica de manejos.
+- `TarefaCampo` com `module = pecuaria` é a fonte oficial de manejos.
 - `GET /pecuaria/campo-sync/sync-status` em [services/api/pecuaria/routers/campo_sync.py:19](/opt/lampp/htdocs/farm/services/api/pecuaria/routers/campo_sync.py:19) já expõe estado de sincronização e status de processamento.
 - `ManejoSyncService` é o motor de materialização, não o resumo executivo.
 
@@ -112,7 +112,7 @@ type ResumoOperacional = {
 
 ### Conclusão
 
-O resumo operacional **precisa ser criado** como contrato canônico único. Ele deve ser uma agregação leve sobre `TarefaCampo` e, quando necessário, sobre as especializações por domínio.
+O resumo operacional **precisa ser criado** como contrato oficial único. Ele deve ser uma agregação leve sobre `TarefaCampo` e, quando necessário, sobre as especializações por domínio.
 
 ### Custo estimado
 
@@ -183,7 +183,7 @@ Blocos visíveis:
 
 ### Financeiro e Agricultura
 
-- Financeiro executivo já é relativamente barato e canônico.
+- Financeiro executivo já é relativamente barato e oficial.
 - Agricultura consolidada já existe, mas pode ficar cara se o dashboard geral puxar também safra detalhada e IA.
 - Estratégia recomendada: consumir apenas o resumo consolidado e evitar cards de detalhamento.
 
@@ -209,8 +209,8 @@ Blocos visíveis:
 
 ### CRIAR
 
-- Resumo executivo pecuário canônico por tenant/fazenda.
-- Resumo operacional transversal canônico.
+- Resumo executivo pecuário oficial por tenant/fazenda.
+- Resumo operacional transversal oficial.
 
 ---
 
@@ -218,7 +218,7 @@ Blocos visíveis:
 
 - Risco de duplicar cálculo de pecuária no dashboard geral se ele continuar lendo diretamente lotes e manejos isolados.
 - Risco de operar com “dados de lote” onde o contrato precisa ser de “fazenda”.
-- Risco de N+1 se o frontend pedir vários cards separados em vez de um resumo canônico.
+- Risco de N+1 se o frontend pedir vários cards separados em vez de um resumo oficial.
 - Risco de misturar safra com operação geral e degradar UX.
 - Risco de usar sinal de módulo como substituto de dado real.
 
@@ -228,7 +228,7 @@ Blocos visíveis:
 
 ### EXECUTION-32A.2
 
-Criar os contratos canônicos e os agregadores backend:
+Criar os contratos oficiais e os agregadores backend:
 
 - resumo executivo pecuário;
 - resumo operacional transversal.
@@ -257,11 +257,11 @@ Hardening:
 
 1. **Contrato final do Resumo Executivo Pecuário:** `animais_ativos`, `lotes_ativos`, `piquetes_ativos`, `peso_total_kg`, `peso_medio_kg`, `manejos_pendentes`, `vacinacoes_pendentes`, `custo_sanitario_acumulado`.
 2. **Contrato final do Resumo Operacional:** `pendentes`, `em_execucao`, `atrasadas`, `concluidas`, com quebramento opcional por domínio.
-3. **Fontes canônicas utilizadas:** `DashboardService` financeiro, `DashboardAgricolaService`, `LoteIndicadoresService`, `LoteResumoSanitarioService`, `CampoService`.
+3. **Fontes oficiais utilizadas:** `DashboardService` financeiro, `DashboardAgricolaService`, `LoteIndicadoresService`, `LoteResumoSanitarioService`, `CampoService`.
 4. **Campos reutilizados:** peso médio, custo sanitário por lote, totais financeiros, safra consolidada.
 5. **Campos adaptados:** animais ativos, lotes ativos, piquetes ativos, manejos pendentes, vacinações pendentes, resumo operacional.
-6. **Campos novos:** resumo operacional transversal e resumo executivo pecuário canônico.
+6. **Campos novos:** resumo operacional transversal e resumo executivo pecuário oficial.
 7. **Quantidade estimada de queries:** 3 a 5 para pecuária, 1 a 3 para operacional.
 8. **Estratégia de cache:** 15 s a 60 s para operacional; 60 s a 300 s para pecuária; financeiro e agrícola já podem seguir a política atual.
 9. **Riscos:** N+1, duplicação de regra, excesso de cards safra-first, falso positivo de domínio.
-10. **Ordem de implementação:** primeiro os contratos canônicos, depois o consumo no dashboard, depois performance e smoke.
+10. **Ordem de implementação:** primeiro os contratos oficiais, depois o consumo no dashboard, depois performance e smoke.

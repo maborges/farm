@@ -21,7 +21,7 @@ O AgroSaaS atingiu maturidade técnica completa para entrar no mercado de forma 
 
 | Capacidade | Classificação | Valor Comercial |
 | :--- | :--- | :--- |
-| **Caderno de Campo Canônico** | EXISTE E ATENDE | Trilha auditável imutável — valor direto para certificadoras |
+| **Caderno de Campo Oficial** | EXISTE E ATENDE | Trilha auditável imutável — valor direto para certificadoras |
 | **Auditoria Imutável (SHA-256)** | EXISTE E ATENDE | Hash determinístico encadeado — elimina fraudes em papel |
 | **Passaporte de Rastreabilidade** | EXISTE E ATENDE | QR Code com snapshot JSON — exportadoras exigem isso |
 | **Cadeia de Custódia** | EXISTE E ATENDE | Do talhão ao lote comercial com evidências fotográficas |
@@ -77,7 +77,7 @@ O AgroSaaS atingiu maturidade técnica completa para entrar no mercado de forma 
 - ✅ Multi-tenant: cada cooperado tem seu próprio espaço isolado
 - ✅ Assinaturas offline de EPI — elimina fichas de papel nas auditorias Fairtrade
 - ✅ PWA offline: funciona em áreas rurais sem conectividade
-- ✅ Caderno de campo canônico para padronizar registros de todos os cooperados
+- ✅ Caderno de campo oficial para padronizar registros de todos os cooperados
 - ✅ Passaporte de rastreabilidade consolidado por blend de cooperados
 
 **Modelo comercial sugerido:**
@@ -116,7 +116,7 @@ O AgroSaaS atingiu maturidade técnica completa para entrar no mercado de forma 
 - ✅ Painel público do passaporte acessível por URL sem login
 - ✅ Hash SHA-256 verificável — certifica autenticidade do snapshot
 - ✅ Evidências com GPS + timestamp — elimina necessidade de visita física para pré-qualificação
-- ✅ Caderno canônico protegido contra alteração retroativa
+- ✅ Caderno oficial protegido contra alteração retroativa
 
 **Modelo comercial:**
 > Parceria de integração: a certificadora valida produtores AgroSaaS com desconto ou agilidade no processo de certificação, usando a plataforma como canal de due diligence digital.
@@ -150,7 +150,7 @@ graph LR
         S2["✅ SHA-256 + QR Code"]
         S3["✅ Passaporte Público"]
         S4["✅ EPI Offline + Assinatura"]
-        S5["✅ Caderno Canônico"]
+        S5["✅ Caderno Oficial"]
         S6["✅ DRE por Safra"]
         S7["✅ Frota + Custo/Hora"]
         S8["✅ Copiloto IA"]
@@ -306,7 +306,7 @@ Com base no `cert-readiness-02-report.md`, os 3 ciclos de maior ROI são:
 
 | Concorrente | Ponto Forte | GAP vs. AgroSaaS |
 | :--- | :--- | :--- |
-| **Agrotools** | Analytics e BI Agro | Sem módulo de campo offline + EPI + caderno canônico |
+| **Agrotools** | Analytics e BI Agro | Sem módulo de campo offline + EPI + caderno oficial |
 | **Sap Agro / Trimble** | ERPs corporativos | Complexidade elevada, custo proibitivo para médio produtor |
 | **Agronow** | Dados climáticos e satélite | Sem gestão operacional, sem caderno de campo |
 | **Sisagri / GovBR** | Conformidade fiscal | Sem integração financeira, sem PWA offline, sem GIS |

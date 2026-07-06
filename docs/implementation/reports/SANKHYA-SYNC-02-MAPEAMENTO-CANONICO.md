@@ -1,12 +1,12 @@
-# SANKHYA-SYNC-02 - Auditoria do Mapeamento Canonico Sankhya x AgroSaaS
+# SANKHYA-SYNC-02 - Auditoria do Mapeamento Oficial Sankhya x AgroSaaS
 
 ## Escopo auditado
 
-Auditoria apenas documental da base de codigo para identificar o mapeamento canonico entre Sankhya e AgroSaaS, sem criar sync, endpoints, tabelas, migrations ou alterar contratos existentes.
+Auditoria apenas documental da base de codigo para identificar o mapeamento oficial entre Sankhya e AgroSaaS, sem criar sync, endpoints, tabelas, migrations ou alterar contratos existentes.
 
 ### Areas auditadas
 
-- Integracao Sankhya: configuracao, autenticacao Gateway e adapter canonico
+- Integracao Sankhya: configuracao, autenticacao Gateway e adapter oficial
 - Estrutura organizacional
 - Pessoas
 - Produtos
@@ -23,11 +23,11 @@ Auditoria apenas documental da base de codigo para identificar o mapeamento cano
 
 - Router Sankhya com configuracao, teste de conexao, status, health, syncs por dominio e diagnostico. Referencia: `services/api/integracoes/sankhya/routers/__init__.py`
 - Auth Gateway com `/authenticate`, validacao de config, mascaramento e diagnostic snapshot. Referencia: `services/api/integracoes/sankhya/services/auth_service.py`
-- Adapter canonico com provider, credenciais, health, jobs, features e eventos. Referencia: `services/api/integracoes/sankhya/services/canonical_adapter.py`
+- Adapter oficial com provider, credenciais, health, jobs, features e eventos. Referencia: `services/api/integracoes/sankhya/services/canonical_adapter.py`
 - Modelos persistidos de configuracao, pessoas, produtos, NFe, financeiro e tabelas auxiliares. Referencia: `services/api/integracoes/sankhya/models/__init__.py`
 - Servicos de pessoa, produto, NFe e financeiro ja operam upsert por `sankhya_id` ou `chave_acesso`. Referencia: `services/api/integracoes/sankhya/services/sync_service.py` e `services/api/integracoes/sankhya/services/nfe_financeiro_service.py`
 
-### Contexto canonico AgroSaaS ja existente
+### Contexto oficial AgroSaaS ja existente
 
 - `UnidadeProdutiva` como raiz operacional do tenant. Referencia: `services/api/core/models/unidade_produtiva.py`
 - `Pessoa`, `PessoaDocumento`, `PessoaContato`, `PessoaEndereco`, `TipoRelacionamento`, `PessoaRelacionamento`. Referencia: `services/api/core/cadastros/pessoas/models.py`
@@ -43,9 +43,9 @@ Auditoria apenas documental da base de codigo para identificar o mapeamento cano
 
 | Entidade Sankhya | AgroSaaS correspondente | Situacao | Arquivos envolvidos | Regras existentes | Adaptacao necessaria |
 | --- | --- | --- | --- | --- | --- |
-| Empresa | Nenhuma entidade canonica dedicada | NAO EXISTE | `services/api/core/models/unidade_produtiva.py`, `services/api/core/models/auth.py` | Tenant e UnidadeProdutiva estruturam contexto, mas nao empresa/filial | Definir modelo canônico se o piloto exigir consolidacao societaria |
-| Filial | Nenhuma entidade canonica dedicada | NAO EXISTE | `services/api/core/models/unidade_produtiva.py` | Contexto operacional por fazenda/UP, nao por filial | Mapear somente se houver multicarteira societaria no piloto |
-| Unidade de Negocio | Nenhuma entidade canonica dedicada | NAO EXISTE | `services/api/core/models/unidade_produtiva.py`, `services/api/core/operational_context.py` | Contexto operacional depende de UnidadeProdutiva, area e safra | Criar apenas se a operacao precisar de centro empresarial formal |
+| Empresa | Nenhuma entidade oficial dedicada | NAO EXISTE | `services/api/core/models/unidade_produtiva.py`, `services/api/core/models/auth.py` | Tenant e UnidadeProdutiva estruturam contexto, mas nao empresa/filial | Definir modelo oficial se o piloto exigir consolidacao societaria |
+| Filial | Nenhuma entidade oficial dedicada | NAO EXISTE | `services/api/core/models/unidade_produtiva.py` | Contexto operacional por fazenda/UP, nao por filial | Mapear somente se houver multicarteira societaria no piloto |
+| Unidade de Negocio | Nenhuma entidade oficial dedicada | NAO EXISTE | `services/api/core/models/unidade_produtiva.py`, `services/api/core/operational_context.py` | Contexto operacional depende de UnidadeProdutiva, area e safra | Criar apenas se a operacao precisar de centro empresarial formal |
 | Deposito | `Deposito` | EXISTE E ATENDE | `services/api/operacional/models/estoque.py`, `services/api/core/operational_context.py` | Deposito vincula tenant, UnidadeProdutiva e tipo; saldo/lote/movimento ja usam deposito | Ajuste leve de mapeamento de `CODLOCAL`/localizacao |
 | Local de Estoque | `Deposito.localizacao_desc` e `ProdutoEstoque.localizacao_default` | EXISTE PARCIALMENTE | `services/api/operacional/models/estoque.py`, `services/api/core/cadastros/produtos/models.py` | Existe como atributo de apoio, nao como master separado | Se Sankhya usar local granular, pode exigir extensao de cadastro |
 
@@ -68,10 +68,10 @@ Auditoria apenas documental da base de codigo para identificar o mapeamento cano
 | Servico | `Produto` tipo `SERVICO` | EXISTE E ATENDE | `services/api/core/cadastros/produtos/models.py` | Tipo de produto ja contempla servicos | Pode exigir mapeamento de UOM e natureza fiscal do item |
 | Combustivel | `Produto` tipo `COMBUSTIVEL` + `Deposito` tipo `COMBUSTIVEL` | EXISTE E ATENDE | `services/api/core/cadastros/produtos/models.py`, `services/api/operacional/models/estoque.py` | Produto e deposito ja cobrem o caso operacional | Ajuste apenas na estrategia de local/estoque |
 | Peca | `Produto` tipo `PECA` | EXISTE E ATENDE | `services/api/core/cadastros/produtos/models.py` | Estoque e movimentacao suportados | Nenhuma estrutura nova necessaria |
-| Unidade de Medida | `UnidadeMedida` | EXISTE E ATENDE | `services/api/core/measurements/models.py`, `services/api/core/routers/backoffice_uom.py` | UoM global canonica, escopo por dimensao e controle de unidade canonica | Reaproveitar para mapeamento de unidade Sankhya |
+| Unidade de Medida | `UnidadeMedida` | EXISTE E ATENDE | `services/api/core/measurements/models.py`, `services/api/core/routers/backoffice_uom.py` | UoM global oficial, escopo por dimensao e controle de unidade oficial | Reaproveitar para mapeamento de unidade Sankhya |
 | Conversao de Unidade | `UnidadeMedidaConversao` | EXISTE E ATENDE | `services/api/core/measurements/models.py`, `services/api/core/routers/backoffice_uom.py` | Conversao unica por par origem/destino/cultura, com regra generica e especifica | Reaproveitar para equivalencias do piloto de cafe |
-| NCM | `ProdutoEstoque.ncm`, `SankhyaProduto.ncm`, `NotaFiscal.ncm` | EXISTE PARCIALMENTE | `services/api/core/cadastros/produtos/models.py`, `services/api/integracoes/sankhya/models/__init__.py`, `services/api/financeiro/models/nota_fiscal.py` | O campo existe em varios pontos, mas nao ha master fiscal canonico unico | Consolidar tabela de referencia se a operacao exigir manutencao local |
-| Classificacoes fiscais | `SankhyaTabela`, campos fiscais em produto/NF | EXISTE PARCIALMENTE | `services/api/integracoes/sankhya/models/__init__.py`, `services/api/financeiro/services/nfe_xml_generator.py` | CFOP/NCM/serie aparecem em modelos e geradores, mas sem master canonico unificado | Mapear apenas como referencia, sem criar estrutura nova agora |
+| NCM | `ProdutoEstoque.ncm`, `SankhyaProduto.ncm`, `NotaFiscal.ncm` | EXISTE PARCIALMENTE | `services/api/core/cadastros/produtos/models.py`, `services/api/integracoes/sankhya/models/__init__.py`, `services/api/financeiro/models/nota_fiscal.py` | O campo existe em varios pontos, mas nao ha master fiscal oficial unico | Consolidar tabela de referencia se a operacao exigir manutencao local |
+| Classificacoes fiscais | `SankhyaTabela`, campos fiscais em produto/NF | EXISTE PARCIALMENTE | `services/api/integracoes/sankhya/models/__init__.py`, `services/api/financeiro/services/nfe_xml_generator.py` | CFOP/NCM/serie aparecem em modelos e geradores, mas sem master oficial unificado | Mapear apenas como referencia, sem criar estrutura nova agora |
 
 ### Financeiro
 
@@ -79,7 +79,7 @@ Auditoria apenas documental da base de codigo para identificar o mapeamento cano
 | --- | --- | --- | --- | --- | --- |
 | Plano de Contas | `PlanoConta` | EXISTE E ATENDE | `services/api/financeiro/models/plano_conta.py` | Hierarquia, tipo receita/despesa, natureza sintetica/analitica, categoria RFB | Reaproveitamento direto com mapeamento de conta externa |
 | Centro de Custo | `Rateio` e vinculos por origem | EXISTE PARCIALMENTE | `services/api/financeiro/models/rateio.py`, `services/api/financeiro/models/despesa.py`, `services/api/financeiro/models/receita.py` | Existe rateio por safra/talhao, mas nao master de centro de custo | Se Sankhya exigir centro de custo proprio, sera preciso complementar o modelo |
-| Natureza Financeira | Nenhuma entidade canonica dedicada | NAO EXISTE | `services/api/financeiro/models/plano_conta.py` | PlanoConta cobre a classificacao financeira, mas nao um master separado | Pode ser derivado de PlanoConta no piloto; sem nova estrutura agora |
+| Natureza Financeira | Nenhuma entidade oficial dedicada | NAO EXISTE | `services/api/financeiro/models/plano_conta.py` | PlanoConta cobre a classificacao financeira, mas nao um master separado | Pode ser derivado de PlanoConta no piloto; sem nova estrutura agora |
 | Contas a Pagar | `Despesa` | EXISTE E ATENDE | `services/api/financeiro/models/despesa.py` | Suporte a `pessoa_id`, parcela, origem, NF, serie e chave NFe | Reaproveitamento direto para exportacao/importacao financeira |
 | Contas a Receber | `Receita` | EXISTE E ATENDE | `services/api/financeiro/models/receita.py` | Suporte a `pessoa_id`, parcela, origem, NF, serie e chave NFe | Reaproveitamento direto para exportacao/importacao financeira |
 | Condicoes de Pagamento | `forma_pagamento`/`forma_recebimento` e texto livre em fornecedores | EXISTE PARCIALMENTE | `services/api/financeiro/models/despesa.py`, `services/api/financeiro/models/receita.py`, `services/api/operacional/models/compras.py` | Ha campos de forma de pagamento, prazo e condicoes textuais | Se Sankhya exigir tabela mestre, a extensao vira necessaria |
@@ -101,7 +101,7 @@ Auditoria apenas documental da base de codigo para identificar o mapeamento cano
 | Saldo | `SaldoEstoque` | EXISTE E ATENDE | `services/api/operacional/models/estoque.py` | Saldo por produto/deposito, com quantidade atual e reservada | Reaproveitar para espelhar saldo operacional |
 | Lotes | `LoteEstoque` | EXISTE E ATENDE | `services/api/operacional/models/estoque.py` | Rastreamento por lote, validade, nota e status | Reaproveitar para importacao de lotes de Sankhya |
 | Movimentacoes | `EstoqueMovimento` | EXISTE E ATENDE | `services/api/operacional/models/estoque.py` | Ledger append-only com `origem` e `origem_id` | Reaproveitar como trilha de integridade |
-| Inventario | Nenhuma entidade canonica dedicada | NAO EXISTE | `services/api/operacional/models/estoque.py` | Movimentacoes cobrem o saldo, mas nao um processo formal de inventario | Se o piloto demandar fechamento fisico, isso fica para fase posterior |
+| Inventario | Nenhuma entidade oficial dedicada | NAO EXISTE | `services/api/operacional/models/estoque.py` | Movimentacoes cobrem o saldo, mas nao um processo formal de inventario | Se o piloto demandar fechamento fisico, isso fica para fase posterior |
 
 ### Comercializacao
 
@@ -156,7 +156,7 @@ Auditoria apenas documental da base de codigo para identificar o mapeamento cano
 | Commodities | AgroSaaS |
 | Contratos de comercializacao | AgroSaaS |
 
-Observacao: para os itens de cadastro comercial/fiscal, a leitura do codigo mostra que Sankhya ja possui integrações e IDs externos prontos para upsert. Para itens operacionais agronomicos, AgroSaaS permanece como fonte canonica.
+Observacao: para os itens de cadastro comercial/fiscal, a leitura do codigo mostra que Sankhya ja possui integrações e IDs externos prontos para upsert. Para itens operacionais agronomicos, AgroSaaS permanece como fonte oficial.
 
 ## Chaves externas e idempotencia
 
@@ -180,7 +180,7 @@ Observacao: para os itens de cadastro comercial/fiscal, a leitura do codigo most
 
 - `CODPARC` para parceiros/pessoas
 - `CODPROD` para produtos
-- `CODEMP` nao foi modelado como entidade canonica dedicada
+- `CODEMP` nao foi modelado como entidade oficial dedicada
 - `CODLOCAL` nao aparece como master proprio; o destino natural e `Deposito`
 - `NUMDOC` para numero documental financeiro
 - `DESDOB` para identificacao de desdobramento/lancamento
@@ -195,7 +195,7 @@ Observacao: para os itens de cadastro comercial/fiscal, a leitura do codigo most
 | Nota fiscal | `CHAVEACESSO` | numero + serie + emitente | Upsert por chave de acesso | Chave de acesso como identidade fiscal natural |
 | Lancamento financeiro | `DESDOB` | NUMDOC + CODPARC | Upsert por `sankhya_id` | Chave externa de lancamento + origem |
 | Deposito | `CODLOCAL` | nome + unidade_produtiva | Upsert por codigo externo se existir | Evitar duplicacao por localizacao |
-| Unidade de medida | codigo oficial | dimensao + fator | Preferir tabela canonica do AgroSaaS | Reusar mapeamento global existente |
+| Unidade de medida | codigo oficial | dimensao + fator | Preferir tabela oficial do AgroSaaS | Reusar mapeamento global existente |
 
 ## Conversoes e riscos de mapeamento
 
@@ -209,7 +209,7 @@ Observacao: para os itens de cadastro comercial/fiscal, a leitura do codigo most
 ### Pontos que exigem cuidado
 
 - `CODLOCAL` pode representar deposito fisico ou local operacional; nao assumir equivalencia automatica com qualquer registro de estoque.
-- `CODEMP` e `CODFILIAL` nao possuem master canonico equivalente no AgroSaaS atual.
+- `CODEMP` e `CODFILIAL` nao possuem master oficial equivalente no AgroSaaS atual.
 - `Centro de Custo` em Sankhya nao deve ser confundido com `Rateio`; o primeiro e cadastro, o segundo e distribuicao.
 - `Natureza Financeira` nao existe como master proprio; o melhor encaixe atual e `PlanoConta`, mas isso e apenas aproximacao.
 - `ComercializacaoCommodity` cobre contrato de venda de commodity, mas nao substitui um ERP de pedidos/fiscal completo.
@@ -246,17 +246,17 @@ Observacao: para os itens de cadastro comercial/fiscal, a leitura do codigo most
 
 ## Itens realmente inexistentes
 
-- Empresa como entidade canonica separada
-- Filial como entidade canonica separada
-- Unidade de Negocio como entidade canonica separada
+- Empresa como entidade oficial separada
+- Filial como entidade oficial separada
+- Unidade de Negocio como entidade oficial separada
 - Natureza Financeira como master separado
-- Inventario como master/processo canonico separado
+- Inventario como master/processo oficial separado
 
 ## Riscos tecnicos identificados
 
 1. Duplicidade de pessoas se o upsert nao usar `CODPARC` + documento + papel.
 2. Duplicidade de produtos se o cadastro interno for tratado como dono do mesmo dado que Sankhya.
-3. Divergencia de unidade de medida se a conversao nao respeitar a unidade canonica global.
+3. Divergencia de unidade de medida se a conversao nao respeitar a unidade oficial global.
 4. Confusao entre centro de custo e rateio.
 5. Confusao entre deposito e localizacao interna de estoque.
 6. Mistura entre contrato comercial, pedido e documento fiscal no mesmo objeto.
@@ -267,7 +267,7 @@ Observacao: para os itens de cadastro comercial/fiscal, a leitura do codigo most
 
 - Usar o presente mapeamento como contrato mestre antes de qualquer sync de negocio.
 - Reaproveitar os masters existentes primeiro e adicionar extensoes apenas onde o dado externo nao cabe no modelo atual.
-- Tratar `Pessoa`, `Produto`, `PlanoConta`, `Deposito`, `UnidadeMedida` e `Commodity` como bases canonicas ja maduras.
+- Tratar `Pessoa`, `Produto`, `PlanoConta`, `Deposito`, `UnidadeMedida` e `Commodity` como bases oficiais ja maduras.
 - Manter Sankhya como origem para cadastro comercial/fiscal do piloto e AgroSaaS como origem para contexto agronomico e operacional.
 - Definir explicitamente a politica de centro de custo e natureza financeira antes de qualquer importacao financeira em volume.
 - Validar a semantica de `CODLOCAL`, `CODEMP` e `CODFILIAL` com o usuario de negocio antes da fase de sincronizacao.

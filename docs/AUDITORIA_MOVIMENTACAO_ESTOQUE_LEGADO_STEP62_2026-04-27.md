@@ -25,7 +25,7 @@ Fora de escopo:
 
 Estado atual encontrado:
 
-- novos writes já foram travados no ledger canônico `estoque_movimentos`;
+- novos writes já foram travados no ledger oficial `estoque_movimentos`;
 - ainda existem leituras funcionais importantes apontando para `MovimentacaoEstoque`;
 - a maior dependência funcional restante está em consultas agrícolas por safra e em relatórios operacionais;
 - a maior dependência de testes está em cenários FIFO/E2E que ainda descrevem rastreabilidade via `MovimentacaoEstoque`, embora hoje o consumo FIFO em si não grave mais nessa tabela.
@@ -52,7 +52,7 @@ Uso atual:
 
 Diagnóstico:
 - leitura funcional ativa;
-- após Step 61, novos consumos agrícolas relevantes passam a ficar no ledger canônico;
+- após Step 61, novos consumos agrícolas relevantes passam a ficar no ledger oficial;
 - manter essa query no legado vai ocultar movimentos novos ou gerar visão parcial.
 
 Classificação:
@@ -78,7 +78,7 @@ Classificação:
 
 Direção sugerida:
 - cruzar `LoteEstoque` com `EstoqueMovimento`;
-- usar `operacao_execucao_id` ou `origem/ origem_id` canônicos em vez do legado.
+- usar `operacao_execucao_id` ou `origem/ origem_id` oficiais em vez do legado.
 
 3. [apps/web/services/api/operacional/services/relatorio_service.py](/opt/lampp/htdocs/farm/apps/web/services/api/operacional/services/relatorio_service.py:149)
 
@@ -186,7 +186,7 @@ Classificação:
 
 Direção sugerida:
 - remover import legado;
-- se houver extensão do teste para rastreabilidade, validar ledger canônico.
+- se houver extensão do teste para rastreabilidade, validar ledger oficial.
 
 3. [apps/web/services/api/tests/test_e2e_colheita_completa.py](/opt/lampp/htdocs/farm/apps/web/services/api/tests/test_e2e_colheita_completa.py:16)
 
@@ -202,7 +202,7 @@ Classificação:
 - `DEPRECIAR`
 
 Direção sugerida:
-- reescrever expectativa para ledger canônico;
+- reescrever expectativa para ledger oficial;
 - eventualmente renomear o teste para refletir `EstoqueMovimento`.
 
 4. [apps/web/services/api/tests/integration/operacional/test_estoque.py](/opt/lampp/htdocs/farm/apps/web/services/api/tests/integration/operacional/test_estoque.py:81)
@@ -256,7 +256,7 @@ Classificação:
 - `DEPRECIAR`
 
 Direção sugerida:
-- limpar imports e comentários para refletir ledger canônico.
+- limpar imports e comentários para refletir ledger oficial.
 
 ## Itens documentais desatualizados
 

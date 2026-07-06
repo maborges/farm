@@ -20,7 +20,7 @@ Foi definida a arquitetura oficial de implantação do AgroSaaS, consolidando a 
 
 - a espinha dorsal oficial da implantação é `Tenant -> Administrador -> Onboarding -> UnidadeProdutiva`;
 - a árvore territorial oficial entra antes da operação agrícola e pecuária;
-- `Pessoa`, `Produto`, `ProdutoCultura`, `Commodity`, `PlanoConta`, `Receita`, `Despesa`, `CostAllocation`, `AreaRural` e `ProductionUnit` foram usados como referências canônicas;
+- `Pessoa`, `Produto`, `ProdutoCultura`, `Commodity`, `PlanoConta`, `Receita`, `Despesa`, `CostAllocation`, `AreaRural` e `ProductionUnit` foram usados como referências oficiais;
 - a operação assistida foi definida como gate obrigatório antes do go-live;
 - foram definidos níveis de maturidade, checklists, dependências, rollback e estabilização.
 
@@ -32,7 +32,7 @@ A arquitetura está pronta para orientar Wizard, parceiros, consultores e implan
 
 ## Arquivos-base usados
 
-- `docs/architecture/ARC-00-INDICE-ARQUITETURA-CANONICA-AGROSAAS.md`
+- `docs/architecture/ARC-00-INDICE-ARQUITETURA-OFICIAL-AGROSAAS.md`
 - `docs/architecture/PERSON-ARCH-01-DOMINIO-PESSOAS.md`
 - `docs/architecture/ECONOMIC-ARCH-01-DOMINIO-ECONOMICO.md`
 - `docs/architecture/TERRITORY-ARCH-01-DOMINIO-TERRITORIAL.md`
@@ -40,7 +40,7 @@ A arquitetura está pronta para orientar Wizard, parceiros, consultores e implan
 - `docs/architecture/EVENTS-ARCH-01-EVENT-DRIVEN-OUTBOX-ALERTS-NOTIFICATIONS.md`
 - `docs/implementation/reports/PILOT-00A-AUDITORIA-IMPLANTACAO.md`
 - `docs/implementation/reports/PILOT-00B-AUDITORIA-CADASTROS-MESTRES.md`
-- `docs/implementation/reports/MASTERDATA-01-AUDITORIA-CULTURA-CANONICA.md`
+- `docs/implementation/reports/MASTERDATA-01-AUDITORIA-CULTURA-OFICIAL.md`
 - `docs/implementation/reports/MASTERDATA-02-CAMADA-RESOLUCAO-CULTURA.md`
 
 ## Validação

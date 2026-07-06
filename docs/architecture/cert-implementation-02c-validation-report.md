@@ -17,7 +17,7 @@ A implementação evitou a duplicação de tabelas e reutilizou o máximo de inf
 * **Equipamento (`cadastros_equipamentos`)**: Reutilizado como a entidade base de controle.
 * **ChecklistModelo (`frota_checklist_modelos`)**: Reutilizado para definir os templates de itens sanitários, sem criar tabelas paralelas de configuração sanitária. A classificação da higienização é feita pelo nome do modelo (busca insensível por substrings `"sanit"`, `"limpez"` ou `"higien"`).
 * **ChecklistRealizado (`frota_checklists_realizados`)**: Reutilizado para registrar as execuções diárias das vistorias em campo.
-* **CadernoCampoEntrada (`caderno_campo_entradas`)**: Reutilizado para abrigar os eventos de inspeção sob o tipo canônico `"INSPECAO"`.
+* **CadernoCampoEntrada (`caderno_campo_entradas`)**: Reutilizado para abrigar os eventos de inspeção sob o tipo oficial `"INSPECAO"`.
 * **Auditoria (`BaseService`)**: Reutilizada a infraestrutura padrão do AgroSaaS (`write_audit_log`) para registrar as transações de escrita e modificações do status.
 
 | Entidade / Componente | Classificação | O que foi reaproveitado / estendido |
@@ -25,7 +25,7 @@ A implementação evitou a duplicação de tabelas e reutilizou o máximo de inf
 | **Equipamento** | **EXISTE E ATENDE** | Mantida a estrutura e herança de tenant e unidade produtiva. |
 | **ChecklistModelo** | **EXISTE E ATENDE** | Reutilizado o mecanismo de modelos dinâmicos de frota. |
 | **ChecklistRealizado** | **EXISTE E ATENDE** | Reutilizada a tabela operacional para registrar liberação diária. |
-| **CadernoCampoEntrada** | **EXISTE E ATENDE** | Reaproveitada a infraestrutura canônica de eventos oficiais de campo. |
+| **CadernoCampoEntrada** | **EXISTE E ATENDE** | Reaproveitada a infraestrutura oficial de eventos oficiais de campo. |
 | **EquipamentoCalibracao** | **CRIADO** | Nova tabela `cadastros_equipamentos_calibracoes` para controlar o histórico de calibração de forma independente e auditável. |
 
 ---

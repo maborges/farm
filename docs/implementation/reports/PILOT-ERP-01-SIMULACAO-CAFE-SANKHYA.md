@@ -22,7 +22,7 @@ Documentos revisados:
 - `docs/pilot/GUIA-USUARIO-IMPLANTACAO-SAFRA-CAFE.md`
 - `docs/pilot/RUNBOOK-01-EXECUCAO-D-5-A-D+7.md`
 - `docs/implementation/reports/SANKHYA-SYNC-01-ESCOPO-PILOTO-CAFE.md`
-- `docs/implementation/reports/SANKHYA-SYNC-02-MAPEAMENTO-CANONICO.md`
+- `docs/implementation/reports/SANKHYA-SYNC-02-MAPEAMENTO-OFICIAL.md`
 - `docs/implementation/reports/SANKHYA-SYNC-03-ESTRATEGIA-SINCRONIZACAO-PILOTO.md`
 - `docs/implementation/reports/SANKHYA-SYNC-04-AUDITORIA-VINCULO-REGISTROS-AGROSAAS-SANKHYA.md`
 - `docs/implementation/reports/INTEGRATION-DOMAIN-01-AUDITORIA-ENTIDADES-INTEGRACAO.md`

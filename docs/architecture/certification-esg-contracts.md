@@ -94,7 +94,7 @@ Este documento define:
 - referência de lastro legal/fundiário
 
 **Relação com PropriedadeImovel**
-- vínculo canônico entre escopo e lastro
+- vínculo oficial entre escopo e lastro
 
 ### 3.2 ChecklistCertificacao
 
@@ -509,7 +509,7 @@ Leitura proibida como cópia:
 ### 4.3 PropriedadeImovel
 
 Leitura permitida:
-- vínculo canônico
+- vínculo oficial
 - tipo de vínculo
 - vigência
 - origem documental
@@ -579,14 +579,14 @@ Leitura permitida:
 
 | Modelo | Classificação | Destino |
 | --- | --- | --- |
-| `CertificacaoPropriedade` | compatibilidade / parcial | manter por enquanto como ponte legada, mas não como canônico final |
+| `CertificacaoPropriedade` | compatibilidade / parcial | manter por enquanto como ponte legada, mas não como oficial final |
 | `ESGIndicador` | adaptar | reaproveitar conceitualmente para o futuro `RelatorioESG`, mas não como contrato final |
-| `ESGRelatorio` | substituir | serve de referência, porém o contrato canônico futuro deve ser novo |
+| `ESGRelatorio` | substituir | serve de referência, porém o contrato oficial futuro deve ser novo |
 | `LoteRastreabilidade` | manter | é útil como passaporte de lote e origem |
 | `CadernoLoteComercial` | manter | snapshot e passaporte comercial continuam válidos |
-| `ChecklistModelo` | compatibilidade | reaproveitável para inspeções, sem virar checklist canônico de certificação |
+| `ChecklistModelo` | compatibilidade | reaproveitável para inspeções, sem virar checklist oficial de certificação |
 | `ChecklistRealizado` | compatibilidade | reaproveitável para validações operacionais e sanitárias |
-| `PlanoAcaoItem` | não usar como canônico | modelo financeiro/IA não deve ser o contrato oficial do domínio consumidor |
+| `PlanoAcaoItem` | não usar como oficial | modelo financeiro/IA não deve ser o contrato oficial do domínio consumidor |
 | `MRVProjeto` | legado | relacionado a carbono/MRV, não ao núcleo de certificação |
 | `MRVRelatorio` | legado | relacionado a carbono/MRV, não ao núcleo de certificação |
 
@@ -654,7 +654,7 @@ Leitura permitida:
 Há necessidade provável de migration futura.
 
 Motivos:
-- o contrato canônico ainda não existe fisicamente;
+- o contrato oficial ainda não existe fisicamente;
 - os modelos existentes são parciais, legados ou de compatibilidade;
 - haverá necessidade de normalização para `ProgramaCertificacao`, `ChecklistCertificacao`, `CriterioCertificacao`, `AvaliacaoCertificacao`, `EvidenciaCertificacao`, `NaoConformidade`, `PlanoAcaoCertificacao`, `RelatorioESG` e `PassaporteRastreabilidade`.
 

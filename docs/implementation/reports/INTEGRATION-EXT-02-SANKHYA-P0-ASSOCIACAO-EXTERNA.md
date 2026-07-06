@@ -18,7 +18,7 @@ Entidades P0 integradas:
 - `ExternalRecordAssociation`
 - `ExternalRecordAssociationHistory`
 - `ExternalRecordAssociationService`
-- runtime canônico Sankhya (`TenantIntegracao`, `IntegrationFeature`, `IntegrationJob`, `IntegrationHealth`)
+- runtime oficial Sankhya (`TenantIntegracao`, `IntegrationFeature`, `IntegrationJob`, `IntegrationHealth`)
 - staging `sankhya_*`
 
 ## Estendido

@@ -119,7 +119,7 @@ Compatibilidades mantidas:
 - não foi implementado domínio de `Estabelecimento`;
 - o escopo continua `TENANT`, apenas preparado documentalmente para futura extensão por `ESTABELECIMENTO`;
 - não houve refatoração completa do provider para `IntegrationConnection` e `IntegrationCredential` persistentes separados;
-- o backoffice ainda consome status/logs do provider atual, sem um subdomínio canônico de observabilidade de integrações.
+- o backoffice ainda consome status/logs do provider atual, sem um subdomínio oficial de observabilidade de integrações.
 
 ## 11. Testes executados
 
@@ -131,8 +131,8 @@ Compatibilidades mantidas:
 
 ## 12. Próxima execução recomendada
 
-`INTEGRATIONS-EXEC-01` ou equivalente de implementação canônica do domínio Integrações, com foco em:
+`INTEGRATIONS-EXEC-01` ou equivalente de implementação oficial do domínio Integrações, com foco em:
 
 - modelo persistente genérico de `IntegrationConfig`, `IntegrationConnection`, `IntegrationCredential`, `IntegrationHealth` e `IntegrationLog`;
-- observabilidade canônica separada do provider Sankhya;
+- observabilidade oficial separada do provider Sankhya;
 - preparação para escopo por `ESTABELECIMENTO` sem quebrar o tenant atual.

@@ -2,7 +2,7 @@
 
 ## Adicionar Um Novo Evento
 
-1. Defina um `event_type` existente na fundação canônica.
+1. Defina um `event_type` existente na fundação oficial.
 2. Construa um `DomainEvent` com `tenant_id`, `unidade_produtiva_id`, `domain`, `event_type`,
    `source_type`, `entity_type`, `entity_id`, `correlation_id`, `causation_id` e `metadata`.
 3. Publique somente após o `commit` principal.
@@ -13,7 +13,7 @@
 
 1. Implemente `EventSubscriber`.
 2. Preencha `subscriber_name` e `event_types`.
-3. Registre o subscriber no registry canônico.
+3. Registre o subscriber no registry oficial.
 4. Garanta que o subscriber não carregue payloads grandes em logs ou metadata.
 5. Cubra o contrato com teste unitário.
 
@@ -45,7 +45,7 @@
 
 ## Preparar Evento Para Futura Outbox
 
-1. Mantenha o evento canônico enxuto.
+1. Mantenha o evento oficial enxuto.
 2. Evite snapshots completos e payloads grandes.
 3. Mantenha a publicação separada da mutação principal.
 4. Não introduza dependência direta do Alert Engine no Domain Service.

@@ -3,7 +3,7 @@
 ## 1. Resumo executivo
 
 A auditoria confirma que o módulo de RH existe, é operacional e possui telas, rotas e testes próprios. Também existe integração financeira parcial: diárias e empreitadas podem gerar `Despesa` ao serem pagas.  
-Mesmo assim, a cadeia econômica não está fechada de ponta a ponta. Não encontrei evidência de geração automática de `CostAllocation` a partir de execução de colaboradores, nem de uma ponte canônica de RH até DRE e rentabilidade sem intervenção manual.
+Mesmo assim, a cadeia econômica não está fechada de ponta a ponta. Não encontrei evidência de geração automática de `CostAllocation` a partir de execução de colaboradores, nem de uma ponte oficial de RH até DRE e rentabilidade sem intervenção manual.
 
 Conclusão objetiva: **não**, toda operação executada por colaboradores ainda **não** gera automaticamente seus custos econômicos completos até `CostAllocation`, Financeiro, DRE e Rentabilidade.
 
@@ -53,7 +53,7 @@ O RH consegue gerar `Despesa` em dois pontos:
 - `DiariaService.pagar_lote(...)` agrupa diárias por unidade produtiva e cria `Despesa` quando encontra um `PlanoConta` válido.
 - `EmpreitadaService.pagar(...)` também cria `Despesa` com base no valor total da empreitada, novamente condicionado à existência de `PlanoConta`.
 
-Isso comprova integração com o módulo financeiro, mas não comprova apropriação econômica canônica.
+Isso comprova integração com o módulo financeiro, mas não comprova apropriação econômica oficial.
 
 Referência:
 
@@ -68,10 +68,10 @@ A busca no repositório mostrou `CostAllocation` amplamente usado em operações
 Referências:
 
 - `rg -n "CostAllocation|registrar_cost_allocation" services/api/rh ...` não retornou uso em RH.
-- `services/api/agricola/custos/allocation_service.py` define o mecanismo canônico de alocação.
+- `services/api/agricola/custos/allocation_service.py` define o mecanismo oficial de alocação.
 - `services/api/agricola/dre/service.py` consome `CostAllocation` como fonte oficial de custo.
 
-Referências canônicas:
+Referências oficiais:
 
 - [`services/api/agricola/custos/allocation_service.py:16-54`](</opt/lampp/htdocs/farm/services/api/agricola/custos/allocation_service.py:16>)
 - [`services/api/agricola/dre/service.py:520-571`](</opt/lampp/htdocs/farm/services/api/agricola/dre/service.py:520>)
@@ -79,7 +79,7 @@ Referências canônicas:
 ### 3.4 O DRE agrícola depende de `CostAllocation`, não de RH diretamente
 
 O serviço de DRE agrícola consolida custos diretos e operacionais a partir de `CostAllocation`.  
-Como RH não emite `CostAllocation`, o seu impacto econômico não entra na camada canônica de DRE da mesma forma que ocorre com outras origens já integradas.
+Como RH não emite `CostAllocation`, o seu impacto econômico não entra na camada oficial de DRE da mesma forma que ocorre com outras origens já integradas.
 
 Referência:
 
@@ -127,7 +127,7 @@ Referências:
 ### Ordem de serviço / campo / execução
 
 - Existe parcialmente via outros módulos da plataforma.
-- Para RH, não encontrei ponte automática que converta apontamento de campo em custo econômico canônico.
+- Para RH, não encontrei ponte automática que converta apontamento de campo em custo econômico oficial.
 - Backend: parcial.
 - Frontend: parcial.
 - Teste: parcial.
@@ -136,7 +136,7 @@ Referências:
 ### Apontamento / horas trabalhadas
 
 - Existe.
-- O modelo guarda `horas_trabalhadas`, mas não há evidência de cálculo automático de custo horário canônico até `CostAllocation`.
+- O modelo guarda `horas_trabalhadas`, mas não há evidência de cálculo automático de custo horário oficial até `CostAllocation`.
 - Backend: sim.
 - Frontend: sim.
 - Teste: sim, para cadastro, não para apropriação econômica completa.
@@ -155,7 +155,7 @@ Referências:
 
 - Existe parcialmente.
 - Financeiro recebe `Despesa` do RH.
-- Não encontrei vínculo automático de RH com centro de custos nem trânsito canônico até DRE/rentabilidade via `CostAllocation`.
+- Não encontrei vínculo automático de RH com centro de custos nem trânsito oficial até DRE/rentabilidade via `CostAllocation`.
 - Backend: parcial.
 - Frontend: parcial.
 - Teste: não comprovado para a cadeia completa.
@@ -175,8 +175,8 @@ Referências:
 11. Existe rastreabilidade completa? **Não**.
 12. Existe intervenção manual? **Sim**.
 13. O RH é apenas cadastral ou realmente operacional? **É operacional, mas a apropriação econômica ainda é parcial**.
-14. Existe reutilização do serviço financeiro canônico de lançamentos operacionais? **Não encontrei no fluxo RH**.
-15. Há um motor econômico único ou múltiplos caminhos independentes? **Múltiplos caminhos; RH não entra no mesmo caminho canônico de `CostAllocation`**.
+14. Existe reutilização do serviço financeiro oficial de lançamentos operacionais? **Não encontrei no fluxo RH**.
+15. Há um motor econômico único ou múltiplos caminhos independentes? **Múltiplos caminhos; RH não entra no mesmo caminho oficial de `CostAllocation`**.
 
 ## 6. Comparação com LAUNCH-R2
 
@@ -184,14 +184,14 @@ Os problemas encontrados em RH são **equivalentes em natureza** aos encontrados
 
 - existe registro operacional;
 - existe alguma conversão para custo/financeiro em pontos específicos;
-- falta fechamento econômico canônico e uniforme;
+- falta fechamento econômico oficial e uniforme;
 - falta apropriação automática completa até `CostAllocation`, DRE e Rentabilidade;
 - há intervenção manual em etapas de quitação/fechamento.
 
 Diferença principal:
 
 - em Máquinas, a integração com `CostAllocation` já está mais explícita na cadeia operacional;
-- em RH, a integração visível é principalmente para `Despesa`, sem evidência de saída canônica para `CostAllocation`.
+- em RH, a integração visível é principalmente para `Despesa`, sem evidência de saída oficial para `CostAllocation`.
 
 ## 7. Testes
 
@@ -230,6 +230,6 @@ Motivo:
 
 A resposta para a pergunta central é **não**: a operação executada por colaboradores ainda não gera automaticamente seus custos econômicos completos e não atualiza de forma comprovada `CostAllocation`, Financeiro, DRE e Rentabilidade sem intervenção manual.
 
-Isso **justifica sim** uma execução única **LAUNCH-W6 — Motor Canônico de Custos Operacionais**, desde que o objetivo seja unificar Máquinas, Equipamentos e Mão de Obra sob uma camada econômica comum e rastreável.
+Isso **justifica sim** uma execução única **LAUNCH-W6 — Motor Oficial de Custos Operacionais**, desde que o objetivo seja unificar Máquinas, Equipamentos e Mão de Obra sob uma camada econômica comum e rastreável.
 
-O ponto de corte técnico é claro: hoje existem fluxos operacionais e algumas conversões em `Despesa`, mas não existe um motor canônico único para apropriação econômica operacional.
+O ponto de corte técnico é claro: hoje existem fluxos operacionais e algumas conversões em `Despesa`, mas não existe um motor oficial único para apropriação econômica operacional.

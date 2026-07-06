@@ -14,7 +14,7 @@ Fontes lidas:
 - [agrosaas-ai-rules.md](/opt/lampp/htdocs/farm/docs/architecture/agrosaas-ai-rules.md)
 - [propriedades-auditoria-arquitetural.md](/opt/lampp/htdocs/farm/docs/analysis/propriedades-auditoria-arquitetural.md)
 - [arch-domain-01-consolidacao-propriedades-imoveis.md](/opt/lampp/htdocs/farm/docs/analysis/arch-domain-01-consolidacao-propriedades-imoveis.md)
-- [agrosaas-territorial-canonical-model.md](/opt/lampp/htdocs/farm/docs/architecture/agrosaas-territorial-canonical-model.md)
+- [agrosaas-territorial-oficial-model.md](/opt/lampp/htdocs/farm/docs/architecture/agrosaas-territorial-oficial-model.md)
 
 ## Conclusão Executiva
 
@@ -25,7 +25,7 @@ Motivo central:
 - um imóvel rural pode sustentar múltiplas operações ou múltiplas propriedades funcionais;
 - cenários reais de arrendamento parcial, grupos empresariais, uso misto e certificações exigem uma relação não redutível a um simples 1:N.
 
-Essa cardinalidade deve ser implementada conceitualmente por uma entidade de ligação canônica, aqui tratada como `PropriedadeImovel`.
+Essa cardinalidade deve ser implementada conceitualmente por uma entidade de ligação oficial, aqui tratada como `PropriedadeImovel`.
 
 ## Etapa 1 - Cenários Reais do Agronegócio
 
@@ -99,7 +99,7 @@ Conclusão:
 ### Banco de dados
 
 Impacto:
-- exige entidade de associação canônica;
+- exige entidade de associação oficial;
 - evita que um lado carregue múltiplos significados em uma FK simples;
 - permite registrar vigência, área, percentual, papel e origem documental.
 
@@ -196,7 +196,7 @@ Impacto:
 Adotar `N:N` não significa que o sistema deve perder simplicidade.
 Significa que a simplicidade deve ficar na experiência do usuário, enquanto o modelo interno mantém a precisão necessária.
 
-## Etapa 6 - Modelo Canônico para N:N
+## Etapa 6 - Modelo Oficial para N:N
 
 ### Estrutura conceitual
 
@@ -342,6 +342,6 @@ O modelo suporta origem, custódia, documentação e vínculo legal com granular
 
 ## Recomendação Final
 
-O AgroSaaS deve congelar a cardinalidade oficial entre `Propriedade` e `Imóvel Rural` como **N:N**, implementada conceitualmente por uma entidade de vínculo canônica.
+O AgroSaaS deve congelar a cardinalidade oficial entre `Propriedade` e `Imóvel Rural` como **N:N**, implementada conceitualmente por uma entidade de vínculo oficial.
 
 Isso elimina a limitação de um `1:N` simplificado e garante aderência ao agronegócio real, à rastreabilidade, ao ESG, às certificações e ao Projeto Raízes.

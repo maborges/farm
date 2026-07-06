@@ -1164,7 +1164,7 @@ Depósito principal: Depósito Central de Insumos
 - `docs/pilot/CHECKLIST-CLIENTE-01-PREPARACAO-IMPLANTACAO.md`
 - `docs/implementation/reports/PILOT-03-AUDITORIA-EXECUCAO-IMPLANTACAO.md`
 - `docs/implementation/reports/SANKHYA-SYNC-01-ESCOPO-PILOTO-CAFE.md`
-- `docs/implementation/reports/SANKHYA-SYNC-02-MAPEAMENTO-CANONICO.md`
+- `docs/implementation/reports/SANKHYA-SYNC-02-MAPEAMENTO-OFICIAL.md`
 - `docs/implementation/reports/SANKHYA-SYNC-03-ESTRATEGIA-SINCRONIZACAO-PILOTO.md`
 - `docs/implementation/reports/SANKHYA-AUTH-03-VALIDACAO-ESPECIFICACAO-TECNICA.md`
 

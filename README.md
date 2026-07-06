@@ -28,7 +28,7 @@ Função de cada documento:
 Sempre que houver mudança relevante de arquitetura, stack, convenções ou organização de diretórios, atualize `CONTEXTO.md` e os documentos de arquitetura afetados.
 Utilize os português (pt-br) para todos os documentos e iterações com o usuário sempre considerando acentuações e usar palavras não técnicas para explicações.
 
-Observação: cópias espelhadas em `apps/web/` existem para compatibilidade histórica. A fonte canônica fica na raiz do repositório.
+Observação: cópias espelhadas em `apps/web/` existem para compatibilidade histórica. A fonte oficial fica na raiz do repositório.
 
 ## 🏗️ Arquitetura do Sistema
 
@@ -264,13 +264,13 @@ O projeto é dividido em um monorepo contendo:
 - **Dashboard**: Nova tela `/dashboard/financeiro/hedge/exposicao` com gauge de cobertura, 8 KPIs divididos em grupos (Exposição Física / Proteção Financeira) e tabela analítica consolidada por safra e commodity.
 - **Fluxo**: Sidebar → "Exposição Física × Financeira" → RSC carrega `ExposicaoConsolidada` via `apiFetchServer` → `ExposicaoDashboardClient` combina duas queries paralelas (consolidado + detalhe) → KPIs + gauge + tabela.
 
-### 26. Auto-Vínculo Canônico (Propriedade ↔ Imóvel Rural) — EXECUTION-37
-- **Consolidação Territorial/Fundiária**: O cadastro e edição de Propriedades (operacional) realiza a criação automática e idempotente de `ImovelRural` (fundiário/documental) e do vínculo canônico `PropriedadeImovel`.
+### 26. Auto-Vínculo Oficial (Propriedade ↔ Imóvel Rural) — EXECUTION-37
+- **Consolidação Territorial/Fundiária**: O cadastro e edição de Propriedades (operacional) realiza a criação automática e idempotente de `ImovelRural` (fundiário/documental) e do vínculo oficial `PropriedadeImovel`.
 - **5 Identificadores Suportados**: A sincronização é acionada por qualquer um dos identificadores: CAR, NIRF, CCIR, SIGEF e Matrícula. Busca em OR-logic — reutiliza se encontrar, cria se não encontrar.
 - **Visão Territorial (Overlay de Leitura)**: O `GET` da Unidade Produtiva sobrepõe em memória os campos fundiários com os dados da fonte oficial (`ImovelRural`) quando há `PropriedadeImovel` ativo. Sem escrita dupla, sem espelhos.
 - **Orquestração RLS Segura**: Sincronização executada na camada de serviço com injeção do contexto de tenant (`SET app.current_tenant_id`) para garantir isolamento por RLS.
 - **Feedback na UI**: Formulário de Propriedades exibe o campo "Matrícula" e banner informativo de Convergência Territorial avisando que os dados fundiários serão vinculados automaticamente ao Imóvel Rural.
-- **Fluxo**: Usuário salva Propriedade com dados fundiários → `_sincronizar_vinculo_fundiario()` localiza ou cria `ImovelRural` → garante `PropriedadeImovel` canônico (idempotente) → `get()` aplica overlay territorial na leitura.
+- **Fluxo**: Usuário salva Propriedade com dados fundiários → `_sincronizar_vinculo_fundiario()` localiza ou cria `ImovelRural` → garante `PropriedadeImovel` oficial (idempotente) → `get()` aplica overlay territorial na leitura.
 
 
 
@@ -366,7 +366,7 @@ O documento consolidado oficial da arquitetura do Caderno de Campo é:
 
 Ele deve ser usado como referência para:
 
-- arquitetura canônica do Caderno de Campo
+- arquitetura oficial do Caderno de Campo
 - governança de status, aprovação e retificação
 - cadeia documental, exportação e assinatura técnica
 - papel oficial do PWA como extensão offline

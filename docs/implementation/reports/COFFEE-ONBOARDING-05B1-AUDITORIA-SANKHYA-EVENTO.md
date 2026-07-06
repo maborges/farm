@@ -26,7 +26,7 @@ A implementação do disparo de sincronização com o ERP Sankhya (COFFEE-ONBOAR
 
 ## 4. Subscriber Sankhya
 - **Confirmar que apenas reage ao evento:** `[EXISTE E ATENDE]` `SankhyaSyncEventSubscriber` responde exclusivamente ao `integrations.sync_requested`.
-- **Confirmar que reutiliza SankhyaSyncService:** `[EXISTE E ATENDE]` Os serviços canônicos da integração foram injetados no construtor dentro do subscriber.
+- **Confirmar que reutiliza SankhyaSyncService:** `[EXISTE E ATENDE]` Os serviços oficiais da integração foram injetados no construtor dentro do subscriber.
 - **Confirmar que não duplica regra de negócio:** `[EXISTE E ATENDE]` Encaminha tudo para o `sync_service.iniciar_sync_log`.
 - **Confirmar que não cria domínio paralelo:** `[EXISTE E ATENDE]` O código reside puramente na pasta de infraestrutura do subscriber, sem afetar o *Core Domain*.
 

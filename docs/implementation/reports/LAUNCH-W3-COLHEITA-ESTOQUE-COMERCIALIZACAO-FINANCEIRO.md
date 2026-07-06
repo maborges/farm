@@ -18,7 +18,7 @@ Auditoria baseada no código-fonte em `services/api/agricola/`, `services/api/fi
 
 - Não havia subrota operacional no frontend web para listar, criar e avançar comercializações.
 - Não havia atalho explícito no painel financeiro para essa jornada.
-- Os testes unitários de comercialização cobriam schema e transições permitidas, mas não provavam os efeitos canônicos de reserva de estoque e criação de receita.
+- Os testes unitários de comercialização cobriam schema e transições permitidas, mas não provavam os efeitos oficiais de reserva de estoque e criação de receita.
 
 ## Implementações realizadas
 
@@ -37,7 +37,7 @@ Auditoria baseada no código-fonte em `services/api/agricola/`, `services/api/fi
 
 ## Testes
 
-- Teste novo de serviço para o fluxo canônico da comercialização.
+- Teste novo de serviço para o fluxo oficial da comercialização.
 - Cobertura existente de schema e transições preservada.
 
 ## Validações

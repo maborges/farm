@@ -89,5 +89,5 @@ Transformar a monetização técnica do módulo Agricultura em planos comerciais
 ## Regra de manutenção
 
 - Novas telas, CTAs e tabelas comerciais devem refletir esta estrutura.
-- A documentação comercial deve usar os nomes canônicos: `A1 Planejamento`, `PROFISSIONAL`, `ENTERPRISE`.
+- A documentação comercial deve usar os nomes oficiais: `A1 Planejamento`, `PROFISSIONAL`, `ENTERPRISE`.
 - Não abrir novos tiers sem revisão de monetização completa.

@@ -76,9 +76,9 @@
 
 | Feature | Descrição |
 |---|---|
-| **Estoque** | Ledger canônico FIFO, movimentações, lotes, histórico de custo |
+| **Estoque** | Ledger oficial FIFO, movimentações, lotes, histórico de custo |
 | **Compras** | Pedidos de compra, cotações, aprovação, inteligência de compras |
-| **Fornecedores** | Cadastro canônico, índice de desempenho, consolidação |
+| **Fornecedores** | Cadastro oficial, índice de desempenho, consolidação |
 | **Frota** | Gestão de equipamentos/veículos, manutenções, oficina |
 | **Abastecimentos** | Controle de combustível por equipamento |
 | **Apontamentos** | Apontamento de horas/atividades operacionais |
@@ -230,7 +230,7 @@ Frontend: 5 páginas (dashboard, lotes, manejo, piquetes, relatórios) — stubs
 - Plataforma multi-tenant pronta para escala
 - IA embarcada com 15+ serviços (diferencial competitivo alto)
 - Cobertura end-to-end: planejamento → colheita → financeiro → comercialização
-- FIFO/Ledger canônico de estoque (raridade em AgTech BR)
+- FIFO/Ledger oficial de estoque (raridade em AgTech BR)
 - RBAC granular com feature gates por plano (pronto para freemium/enterprise)
 - Integrações Sankhya + regulatórias
 

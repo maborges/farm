@@ -25,7 +25,7 @@ O modelo territorial e fundiário oficial do AgroSaaS é regido pela norma [AGRI
 ### Cardinalidade oficial
 
 - `Propriedade` ↔ `Imóvel Rural`: `N:N`
-- A entidade canônica de vínculo é `PropriedadeImovel`
+- A entidade oficial de vínculo é `PropriedadeImovel`
 - `PropriedadeImovel` representa o relacionamento entre os domínios e não deve armazenar dados operacionais nem fundiários
 
 ### Ownership dos domínios
@@ -34,7 +34,7 @@ O modelo territorial e fundiário oficial do AgroSaaS é regido pela norma [AGRI
 - `Imóveis Rurais`: domínio jurídico, patrimonial, documental e fiscal
 - `Compartilhado`: ESG, certificações, carbono, recuperação ambiental e licenciamento ambiental
 
-### Entidade canônica de vínculo
+### Entidade oficial de vínculo
 
 - `PropriedadeImovel`: entidade de primeira classe responsável exclusivamente pelo vínculo entre `Propriedade` e `Imóvel Rural`
 - Cardinalidade oficial: `Propriedade` ↔ `Imóvel Rural` = `N:N`
@@ -170,7 +170,7 @@ O modelo territorial e fundiário oficial do AgroSaaS é regido pela norma [AGRI
 ### Entidade: Produto / Commodity
 - **Nome**: Produto
 - **Módulo**: Core Cadastros / Financeiro / Estoque
-- **Responsabilidade**: Catálogo canônico de itens gerenciados, comprados ou vendidos.
+- **Responsabilidade**: Catálogo oficial de itens gerenciados, comprados ou vendidos.
 - **Ownership**: Módulo Estoque / Suprimentos
 - **Possui tenant_id?**: Sim.
 - **Status**: Implementado.

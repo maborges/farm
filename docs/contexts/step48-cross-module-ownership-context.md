@@ -1,4 +1,4 @@
-# Step 48 - Ownership Canônico das Entidades Cross-Módulo
+# Step 48 - Ownership Oficial das Entidades Cross-Módulo
 
 ## Objetivo
 
@@ -20,11 +20,11 @@ Congelar a decisão arquitetural de ownership das entidades compartilhadas do Sa
 
 ## Regra Geral
 
-Novas funcionalidades devem consumir as fontes canônicas listadas aqui. Quando uma entidade já existe como fonte canônica, não criar outra tabela paralela em módulo produtivo, financeiro, estoque, frota, compras, vendas ou fiscal.
+Novas funcionalidades devem consumir as fontes oficiais listadas aqui. Quando uma entidade já existe como fonte oficial, não criar outra tabela paralela em módulo produtivo, financeiro, estoque, frota, compras, vendas ou fiscal.
 
-## Ownership Canônico
+## Ownership Oficial
 
-| Entidade | Fonte canônica atual | Arquivos/tabelas | Módulo dono | Consumidores | Não criar novamente | Pendências de migração/depreciação |
+| Entidade | Fonte oficial atual | Arquivos/tabelas | Módulo dono | Consumidores | Não criar novamente | Pendências de migração/depreciação |
 |---|---|---|---|---|---|---|
 | Tenant | `Tenant` | `services/api/core/models/tenant.py` (`tenants`) | Core | Todos os módulos, billing, backoffice, integrações | `tenant`, `empresa`, `conta_cliente` por módulo | Nenhuma pendência estrutural identificada para cross-módulo. |
 | Usuário/permissão | `Usuario`, `TenantUsuario`, `UnidadeProdutivaUsuario`, `PerfilAcesso` | `services/api/core/models/auth.py` (`usuarios`, `tenant_usuarios`, `unidade_produtiva_usuarios`, `perfis_acesso`) | Core / Auth | Todos os módulos, RBAC, convites, equipe, auditoria | `usuario_agricola`, `usuario_pecuaria`, permissões locais por módulo | Módulos devem só consumir RBAC central; evitar permissões hardcoded fora de gates/roles existentes. |
@@ -54,7 +54,7 @@ Novas funcionalidades devem consumir as fontes canônicas listadas aqui. Quando 
 | Comercialização/vendas pecuárias | `Receita` gerada por `ManejoLote`; eventos animal têm campos de venda | `services/api/pecuaria/services/manejo_service.py`, `services/api/pecuaria/models/manejo.py`, `services/api/pecuaria/animal/models.py`, `services/api/financeiro/models/receita.py` | Pecuária + Financeiro | Financeiro, Fiscal, Relatórios, Rastreabilidade | Tabela de venda pecuária nova sem integrar com `cadastros_pessoas` e `fin_receitas` | Gap real: falta entidade comercial pecuária equivalente a `financeiro_comercializacoes`. Criar só após desenho de integração com Pessoa, Receita e Fiscal. |
 | Compras | `PedidoCompra`, `ItemPedidoCompra`, `RecebimentoParcial`, `ItemRecebimento`, `CotacaoFornecedor`, `DevolucaoFornecedor` | `services/api/operacional/models/compras.py` (`compras_pedidos`, `compras_itens_pedido`, `compras_recebimentos`, `compras_recebimentos_itens`, `compras_cotacoes`, `compras_devolucoes`) | Compras / Operacional | Estoque, Financeiro, Fiscal, Pessoas, Produtos | Pedido/recebimento por módulo produtivo | Manter pedidos e recebimentos. Depreciar apenas `compras_fornecedores` como cadastro duplicado; trocar por Pessoa com papel FORNECEDOR. |
 | Fiscal/notas | `NotaFiscal` | `services/api/financeiro/models/nota_fiscal.py` (`fin_notas_fiscais`), `services/api/financeiro/routers/notas_fiscais.py`, `services/api/financeiro/services/nfe_*` | Fiscal atualmente em Financeiro | Financeiro, Vendas, Compras, Estoque, Contabilidade, Integrações | `nota_fiscal_agricola`, `nota_fiscal_pecuaria`, NF local por módulo | Até existir módulo Fiscal separado, `fin_notas_fiscais` é fonte operacional. Campos de NF em receitas/despesas/comercializações são referências auxiliares. |
-| Integração fiscal/ERP | Tabelas Sankhya | `services/api/integracoes/sankhya/models/__init__.py` (`sankhya_pessoas`, `sankhya_produtos`, `sankhya_nfe`, `sankhya_lancamentos_financeiros`) | Integrações | Core, Produtos, Pessoas, Financeiro, Fiscal | Tratar staging externo como fonte interna de verdade | Tabelas Sankhya são espelhos/staging. Devem sincronizar para fontes canônicas, não substituí-las. |
+| Integração fiscal/ERP | Tabelas Sankhya | `services/api/integracoes/sankhya/models/__init__.py` (`sankhya_pessoas`, `sankhya_produtos`, `sankhya_nfe`, `sankhya_lancamentos_financeiros`) | Integrações | Core, Produtos, Pessoas, Financeiro, Fiscal | Tratar staging externo como fonte interna de verdade | Tabelas Sankhya são espelhos/staging. Devem sincronizar para fontes oficiais, não substituí-las. |
 
 ## Decisões de Não Recriação
 
@@ -65,7 +65,7 @@ Novas funcionalidades devem consumir as fontes canônicas listadas aqui. Quando 
 - Não criar novo cadastro de máquinas/veículos; usar `cadastros_equipamentos`.
 - Não criar estoque agrícola, pecuário ou frota separado; usar Estoque central.
 - Não criar financeiro agrícola ou pecuário separado; usar `fin_despesas` e `fin_receitas` com origem rastreável.
-- Não usar tabelas de integração externa como fonte canônica interna.
+- Não usar tabelas de integração externa como fonte oficial interna.
 
 ## Pendências Priorizadas
 
@@ -84,17 +84,17 @@ Novas funcionalidades devem consumir as fontes canônicas listadas aqui. Quando 
 
 Ao criar nova funcionalidade, verificar esta ordem:
 
-1. Existe fonte canônica neste documento?
+1. Existe fonte oficial neste documento?
 2. A entidade nova é realmente uma especialização ou apenas duplicidade?
-3. O módulo consumidor pode referenciar a fonte canônica por FK ou origem rastreável?
+3. O módulo consumidor pode referenciar a fonte oficial por FK ou origem rastreável?
 4. Há campo legado que deve ser mantido apenas como compatibilidade?
 5. A mudança exige plano de migração/depreciação antes de criar tabela nova?
 
-Se a resposta indicar duplicidade, não criar nova tabela. Atualizar ou integrar com a fonte canônica existente.
+Se a resposta indicar duplicidade, não criar nova tabela. Atualizar ou integrar com a fonte oficial existente.
 
 ## Critérios de Aceite
 
-- Ownership canônico definido para todas as entidades solicitadas.
+- Ownership oficial definido para todas as entidades solicitadas.
 - Cada entidade possui fonte atual, arquivos/tabelas, módulo dono, consumidores, bloqueios contra recriação e pendências.
 - Decisão alinhada com a matriz cross-módulo e com a auditoria de módulos existentes.
 - Nenhum código, migration ou gate alterado.

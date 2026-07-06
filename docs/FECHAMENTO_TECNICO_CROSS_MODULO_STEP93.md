@@ -7,9 +7,9 @@
 
 Os Steps 46-92 consolidaram uma direcao arquitetural unica para entidades cross-modulo, reduziram duplicidades historicas entre modulos produtivos e modulos integradores e fecharam duas trilhas principais de refatoracao:
 
-- consolidacao de ownership canônico para entidades compartilhadas;
+- consolidacao de ownership oficial para entidades compartilhadas;
 - consolidacao de `estoque_movimentos` como ledger unico de estoque;
-- consolidacao de `cadastros_produtos` como catalogo canônico de produto/insumo;
+- consolidacao de `cadastros_produtos` como catalogo oficial de produto/insumo;
 - eliminacao do nome legado `insumo_id` em favor de `produto_id`;
 - validacao final dos fluxos principais entre Estoque, Compras, Agricultura, Pecuaria e Financeiro.
 
@@ -18,15 +18,15 @@ No estado encerrado pelo Step 92:
 - nao ha uso ativo de `estoque_movimentacoes` em codigo Python validado;
 - nao ha uso ativo de `insumo_id` em codigo Python validado;
 - os fluxos principais testados seguem operacionais no escopo coberto;
-- as decisoes canônicas dos Steps 46-49 continuam sendo a referencia de arquitetura.
+- as decisoes oficiais dos Steps 46-49 continuam sendo a referencia de arquitetura.
 
 ## 2. Decisoes arquiteturais tomadas
 
 ### 2.1 Regra estrutural
 
-Agricultura e Pecuaria permanecem como modulos produtivos. Core, Estoque, Financeiro e demais modulos integradores permanecem como fontes compartilhadas para cadastros, movimentos fisicos e movimentos economicos. Modulos produtivos nao devem recriar cadastros, ledgers ou fluxos paralelos para entidades ja canônicas.
+Agricultura e Pecuaria permanecem como modulos produtivos. Core, Estoque, Financeiro e demais modulos integradores permanecem como fontes compartilhadas para cadastros, movimentos fisicos e movimentos economicos. Modulos produtivos nao devem recriar cadastros, ledgers ou fluxos paralelos para entidades ja oficiais.
 
-### 2.2 Ownership canônico congelado
+### 2.2 Ownership oficial congelado
 
 As decisoes do Step 48 seguem ativas como regra de manutencao:
 
@@ -34,7 +34,7 @@ As decisoes do Step 48 seguem ativas como regra de manutencao:
 - `UnidadeProdutiva` / compatibilidade com `Fazenda`: ownership do Core.
 - `AreaRural`: ownership do Core para talhao, piquete, curral e equivalentes espaciais.
 - `Pessoa`: ownership do Core/Pessoas para fornecedor, cliente e prestador.
-- `Produto`: ownership do catalogo canônico consumido por Estoque e pelos modulos operacionais.
+- `Produto`: ownership do catalogo oficial consumido por Estoque e pelos modulos operacionais.
 - `EstoqueMovimento`, `SaldoEstoque`, `LoteEstoque`, `Deposito`: ownership de Estoque/Operacional.
 - `Despesa` e `Receita`: ownership do Financeiro.
 - `Safra`, `Cultivo`, `OperacaoAgricola`: ownership da Agricultura.
@@ -50,21 +50,21 @@ Ficou consolidado que:
 - `LEGADO` e uma origem valida apenas para backfill/migracao/importacao historica;
 - `MANUAL` permanece reservado a lancamentos manuais correntes do dominio atual.
 
-### 2.4 Produto/insumo canônico
+### 2.4 Produto/insumo oficial
 
 Ficou consolidado que:
 
 - `cadastros_produtos` e o catalogo mestre de produto/insumo;
 - referencias transacionais devem usar `produto_id`;
 - `InsumoOperacao.insumo_id` era legado de nomenclatura e foi substituido por `produto_id`;
-- Pecuaria passou a ter `produto_id` em `pec_manejos_lote` para vinculo com o catalogo canônico;
-- `lote_estoque_id` e `unidade_medida_id` passaram a existir em `insumos_operacao` como campos canônicos aditivos.
+- Pecuaria passou a ter `produto_id` em `pec_manejos_lote` para vinculo com o catalogo oficial;
+- `lote_estoque_id` e `unidade_medida_id` passaram a existir em `insumos_operacao` como campos oficiais aditivos.
 
-## 3. Fontes canônicas atuais
+## 3. Fontes oficiais atuais
 
 As fontes abaixo devem ser tratadas como referencia atual para novas implementacoes e revisoes:
 
-| Dominio | Fonte canônica atual | Referencia principal |
+| Dominio | Fonte oficial atual | Referencia principal |
 |---|---|---|
 | Matriz cross-modulo e monetizacao | regras de integracao por modulo | `docs/contexts/step46-cross-module-integration-monetization-context.md` |
 | Modelo de dados unificado | ownership e relacionamentos logicos | `docs/contexts/step47-unified-data-model-context.md` |
@@ -86,7 +86,7 @@ As migracoes explicitamente vinculadas ao fechamento desta refatoracao foram:
 | 68 | `step24_estoque_movimentos_origem_legado.py` | liberou `LEGADO` na constraint de `estoque_movimentos` |
 | 79 | `step25_drop_movimentacoes.py` | removeu fisicamente `estoque_movimentacoes` |
 | 83/84 | `step26_produto_canonico.py` | adicionou `lote_estoque_id` e `unidade_medida_id` em `insumos_operacao`; adicionou `produto_id` em `pec_manejos_lote` |
-| 86 | `step27_rename_insumo_id.py` | renomeou `insumos_operacao.insumo_id` para `produto_id` e recriou o indice canônico |
+| 86 | `step27_rename_insumo_id.py` | renomeou `insumos_operacao.insumo_id` para `produto_id` e recriou o indice oficial |
 
 ### 4.2 Migracao de dados / operacao assistida
 
@@ -124,7 +124,7 @@ Varre codigo Python ativo em `services/api` e `apps/web/services/api` para imped
 - `MovimentacaoEstoque`
 - `estoque_movimentacoes`
 
-### 5.3 Guardrail semantico de produto canônico
+### 5.3 Guardrail semantico de produto oficial
 
 A validacao do Step 92 confirmou por varredura estatica que nao ha uso ativo de `insumo_id` em codigo Python sob `services/api/**/*.py`. Na pratica, `produto_id` virou o nome permitido para novas referencias runtime do dominio.
 
@@ -136,7 +136,7 @@ A validacao do Step 92 confirmou por varredura estatica que nao ha uso ativo de 
 - Step 70: dry-run do backfill com classificacao `IGNORAR`, `MIGRAR`, `MARCAR_COMO_LEGADO` e `REVISAR_MANUALMENTE`.
 - Step 71: execucao real do backfill com idempotencia validada.
 - Step 77: auditoria final pre-remocao fisica confirmando `0` usos funcionais do legado.
-- Step 80: validacao final do ledger canônico apos o drop fisico da tabela legada.
+- Step 80: validacao final do ledger oficial apos o drop fisico da tabela legada.
 
 ### 6.2 Validacao final cross-modulo do Step 92
 
@@ -168,18 +168,18 @@ O Step 92 registrou cobertura valida para:
 
 ### 7.1 Correcao da trilha de estoque legado
 
-Foi eliminada a dependencia funcional ativa de `MovimentacaoEstoque` e de `estoque_movimentacoes`, incluindo remanescentes identificados apos o rename canônico. O estado final validado no Step 92 confirma ausencia desses termos em codigo Python ativo.
+Foi eliminada a dependencia funcional ativa de `MovimentacaoEstoque` e de `estoque_movimentacoes`, incluindo remanescentes identificados apos o rename oficial. O estado final validado no Step 92 confirma ausencia desses termos em codigo Python ativo.
 
 ### 7.2 Correcao da nomenclatura transacional de insumo/produto
 
-`insumo_id` foi removido do runtime em favor de `produto_id`, alinhando Agricultura, Pecuaria, Estoque e demais consumidores sobre a mesma FK canônica para `cadastros_produtos`.
+`insumo_id` foi removido do runtime em favor de `produto_id`, alinhando Agricultura, Pecuaria, Estoque e demais consumidores sobre a mesma FK oficial para `cadastros_produtos`.
 
 ### 7.3 Correcao de avancar fase de safra
 
 No Step 92 foi corrigido o fluxo `POST /api/v1/safras/{id}/avancar-fase/{nova_fase}`:
 
 - `novo_status` deixou de ser obrigatorio no corpo;
-- a fase da URL permaneceu como fonte canônica;
+- a fase da URL permaneceu como fonte oficial;
 - foi adicionada validacao defensiva para rejeitar divergencia entre URL e corpo.
 
 ### 7.4 Correcao de sinal na leitura de ledger por safra
@@ -198,7 +198,7 @@ As pendencias abaixo continuam abertas apos o Step 92, mas nao bloqueiam o fecha
 - depreciar `pec_piquetes` em favor de `cadastros_areas_rurais` tipo `PIQUETE`;
 - consolidar padrao `equipamento_id` e eliminar nomenclatura legado `maquinario_id`;
 - definir estrategia de centro de custo geral cross-modulo, hoje fragmentada entre `Rateio` e `CostAllocation`;
-- evoluir `Produto.unidade_medida` de campo livre para FK canônica em `unidades_medida`;
+- evoluir `Produto.unidade_medida` de campo livre para FK oficial em `unidades_medida`;
 - explicitar `ondelete` nas FKs transacionais que ainda dependem do comportamento padrao do banco;
 - manter vigilancia contra recriacao de fluxos paralelos de estoque, produto, fornecedor e geografia produtiva.
 
@@ -208,7 +208,7 @@ Observacao importante: o caso legado de `OPERACAO_AGRICOLA` revisado no Step 72 
 
 ### 9.1 Prioridade alta
 
-1. Executar a migracao de fornecedor canônico em Compras (`compras_fornecedores` -> `cadastros_pessoas`).
+1. Executar a migracao de fornecedor oficial em Compras (`compras_fornecedores` -> `cadastros_pessoas`).
 2. Padronizar `origem_tipo/origem_id` nos fluxos restantes de Pecuaria, Frota, Compras e Vendas.
 3. Tratar geografia produtiva como fonte unica, reduzindo cadastros espaciais paralelos.
 
@@ -216,14 +216,14 @@ Observacao importante: o caso legado de `OPERACAO_AGRICOLA` revisado no Step 72 
 
 1. Definir entidade/estrategia de centro de custo geral cross-modulo.
 2. Padronizar definitivamente `equipamento_id` em Frota/Maquinas.
-3. Planejar migracao da unidade de medida de produto para FK canônica.
+3. Planejar migracao da unidade de medida de produto para FK oficial.
 
 ### 9.3 Regra operacional para os proximos steps
 
 Qualquer nova implementacao cross-modulo deve:
 
 - citar o Step 48 antes de criar entidade compartilhada;
-- usar as fontes canônicas atuais antes de propor tabela nova;
+- usar as fontes oficiais atuais antes de propor tabela nova;
 - preservar `estoque_movimentos` como ledger unico;
 - preservar `cadastros_produtos` como catalogo unico;
 - evitar reintroduzir nomes ou contratos legados sem plano de compatibilidade explicito.

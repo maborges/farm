@@ -14,7 +14,7 @@ Criar um comando explícito para executar apenas testes de integração do módu
 
 ### Padrão existente no projeto
 
-- Diretório [`services/api/tests/integration/`](/opt/lampp/htdocs/farm/services/api/tests/integration/) já é o padrão canônico de integração.
+- Diretório [`services/api/tests/integration/`](/opt/lampp/htdocs/farm/services/api/tests/integration/) já é o padrão oficial de integração.
 - Arquivo [`services/api/tests/integration/conftest.py`](/opt/lampp/htdocs/farm/services/api/tests/integration/conftest.py) fornece fixtures compartilhadas de integração.
 - Há testes unitários em outros módulos que explicitamente dizem que certos caminhos são testados em `integration/`.
 

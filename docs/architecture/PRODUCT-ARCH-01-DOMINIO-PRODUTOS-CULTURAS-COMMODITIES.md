@@ -1,22 +1,22 @@
-# PRODUCT-ARCH-01 — ARQUITETURA CANÔNICA DE PRODUTOS, CULTURAS E COMMODITIES
+# PRODUCT-ARCH-01 — ARQUITETURA OFICIAL DE PRODUTOS, CULTURAS E COMMODITIES
 
 ## 1. Resumo executivo
 
 O AgroSaaS já possui uma arquitetura parcialmente convergida para produtos, culturas e commodities, mas ela ainda não está inteiramente limpa o bastante para ser classificada como totalmente consistente para a v1.0.
 
-A leitura do código mostra a seguinte direção canônica:
+A leitura do código mostra a seguinte direção oficial:
 
 - `Produto` é o catálogo mestre de itens físicos e serviços de entrada, usado por compras, estoque, operações agrícolas, frota e pecuária.
 - `ProdutoAgricola`, `ProdutoEstoque` e `ProdutoEPI` são especializações técnicas de `Produto`, não cadastros paralelos.
-- `ProdutoCultura` é o cadastro canônico de culturas agrícolas.
-- `Commodity` é a entidade canônica de mercado para negociação, qualidade, cotação e hedge.
+- `ProdutoCultura` é o cadastro oficial de culturas agrícolas.
+- `Commodity` é a entidade oficial de mercado para negociação, qualidade, cotação e hedge.
 - `ProdutoColhido` é o lote físico/comercial da colheita, derivado da operação agrícola e lastreado por `Commodity`.
 - `ComercializacaoCommodity` vende `Commodity`, opcionalmente rastreada a um `ProdutoColhido`.
 - `Hedge` opera sobre `Commodity`, com vínculo de contexto por `Safra`.
 
 Ao mesmo tempo, ainda existem sobreposições relevantes:
 
-- `agricola.cadastros.Cultura` legado ainda existe em paralelo ao cadastro canônico `ProdutoCultura`.
+- `agricola.cadastros.Cultura` legado ainda existe em paralelo ao cadastro oficial `ProdutoCultura`.
 - `Safra` e `Cultivo` continuam carregando campos texto de cultura para compatibilidade.
 - Hedge ainda mantém `commodity` textual além de `commodity_id`.
 - `RomaneioColheita` ainda cria `Receita` automática por compatibilidade, antes da comercialização formal.
@@ -25,13 +25,13 @@ Ao mesmo tempo, ainda existem sobreposições relevantes:
 
 ## 2. Inventário de produtos/culturas/commodities
 
-| Conceito | Model/Tabela | Owner | Função | É canônico? | Consumidores | Risco |
+| Conceito | Model/Tabela | Owner | Função | É oficial? | Consumidores | Risco |
 | -------- | ------------ | ----- | ------ | ----------: | ------------ | ----- |
 | Produto | `core.cadastros.produtos.models.Produto` / `cadastros_produtos` | Core/Cadastros | Catálogo mestre de itens de entrada, insumos, peças, EPI e serviços | Sim | Compras, estoque, operações agrícolas, frota, pecuária | Médio |
 | ProdutoAgricola | `ProdutoAgricola` / `cadastros_produtos_agricola` | Core/Cadastros | Extensão técnica/regulatória de uso agrícola | Sim | Cadastro de produtos, operações agrícolas | Baixo |
 | ProdutoEstoque | `ProdutoEstoque` / `cadastros_produtos_estoque` | Core/Cadastros | Extensão física/logística para estoque | Sim | Estoque, compras | Baixo |
 | ProdutoEPI | `ProdutoEPI` / `cadastros_produtos_epi` | Core/Cadastros | Extensão regulatória de EPI | Sim | RH, segurança, cadastro | Baixo |
-| ProdutoCultura | `ProdutoCultura` / `cadastros_culturas` | Core/Cadastros | Cadastro canônico de culturas agrícolas | Sim | Cultivos, resolução de cultura, UI agrícola | Médio |
+| ProdutoCultura | `ProdutoCultura` / `cadastros_culturas` | Core/Cadastros | Cadastro oficial de culturas agrícolas | Sim | Cultivos, resolução de cultura, UI agrícola | Médio |
 | Cultura legada | `agricola.cadastros.models.Cultura` / `culturas` | Agrícola legado | Cadastro antigo de cultura | Não | Fallback de rotas e clientes antigos | Alto |
 | Commodity | `core.cadastros.commodities.models.Commodity` / `cadastros_commodities` | Core/Cadastros | Padrão de mercado para comercialização e hedge | Sim | Romaneios, produto colhido, comercialização, hedge, qualidade | Médio |
 | CommodityClassificacao | `CommodityClassificacao` / `cadastros_commodities_classificacoes` | Core/Cadastros | Classes de qualidade da commodity | Sim | Produto colhido, qualidade, comercialização | Baixo |
@@ -48,7 +48,7 @@ Ao mesmo tempo, ainda existem sobreposições relevantes:
 | ItemPedidoCompra | `operacional.models.compras.ItemPedidoCompra` / `compras_itens_pedido` | Operacional/Compras | Item comprado vinculado a `Produto` | Sim | Compras, recebimento, despesa, estoque | Baixo |
 | Produtos pecuários | `Produto` + `pecuaria.models.manejo.ManejoLote.produto_id` | Pecuária + Core/Cadastros | Vacina, medicamento, ração, mineral usados em manejo | Sim | Manejo, estoque, compras, custo | Médio |
 
-## 3. Entidades canônicas
+## 3. Entidades oficiais
 
 ### Produto
 
@@ -68,7 +68,7 @@ Não foi desenhado para:
 - produto colhido da safra;
 - ativo biológico/animal.
 
-Conclusão: `Produto` é o cadastro canônico de item comprado, estocado, consumido e usado operacionalmente.
+Conclusão: `Produto` é o cadastro oficial de item comprado, estocado, consumido e usado operacionalmente.
 
 ### Commodity
 
@@ -80,7 +80,7 @@ Conclusão: `Produto` é o cadastro canônico de item comprado, estocado, consum
 - comercialização;
 - hedge.
 
-Conclusão: `Commodity` é a entidade canônica de negociação e mercado, não substitui `Produto`.
+Conclusão: `Commodity` é a entidade oficial de negociação e mercado, não substitui `Produto`.
 
 ### ProdutoColhido
 
@@ -92,7 +92,7 @@ Ele representa:
 - o lastro comercial da venda;
 - a ponte entre romaneio, qualidade, armazenagem e comercialização.
 
-Conclusão: `ProdutoColhido` é a entidade canônica da produção agrícola colhida.
+Conclusão: `ProdutoColhido` é a entidade oficial da produção agrícola colhida.
 
 ## 4. Especializações de Produto
 
@@ -112,7 +112,7 @@ Portanto:
 
 ## 5. Cultura e ProdutoCultura
 
-`ProdutoCultura` é o cadastro canônico atual de culturas. Ele vive em `cadastros_culturas` e é usado por:
+`ProdutoCultura` é o cadastro oficial atual de culturas. Ele vive em `cadastros_culturas` e é usado por:
 
 - `CulturaResolutionService`;
 - `Cultivo.cultivar_id`;
@@ -127,7 +127,7 @@ Mas ainda existe legado relevante:
 
 Conclusão:
 
-- `ProdutoCultura` é a cultura canônica.
+- `ProdutoCultura` é a cultura oficial.
 - `Cultura` antiga é compatibilidade legada.
 - `Safra.cultura` e `Cultivo.cultura` ainda são campos de convivência, úteis para clientes antigos e resolução textual.
 
@@ -212,7 +212,7 @@ Evidências:
 
 Conclusão:
 
-- `Produto` é a fonte canônica de compras.
+- `Produto` é a fonte oficial de compras.
 
 ## 10. Comercialização
 
@@ -236,7 +236,7 @@ Risco:
 
 ## 11. Hedge
 
-Hedge usa `Commodity` como referência canônica de mercado e `Safra` como contexto produtivo.
+Hedge usa `Commodity` como referência oficial de mercado e `Safra` como contexto produtivo.
 
 Fluxo real:
 
@@ -251,7 +251,7 @@ Pontos observados:
 
 Conclusão:
 
-- hedge canônico = `Commodity`;
+- hedge oficial = `Commodity`;
 - safra/cultivo fornecem contexto e exposição;
 - ainda existe compatibilidade textual relevante.
 
@@ -266,7 +266,7 @@ Isso vale para:
 - ração;
 - mineral.
 
-`ManejoLote.produto_id` aponta para `cadastros_produtos`, consolidando o uso canônico do catálogo unificado.
+`ManejoLote.produto_id` aponta para `cadastros_produtos`, consolidando o uso oficial do catálogo unificado.
 
 Não compartilham `Produto`:
 
@@ -274,7 +274,7 @@ Não compartilham `Produto`:
 - lote animal;
 - produção zootécnica em si.
 
-Sobre leite e carne, a auditoria não mostrou um domínio canônico tão consolidado quanto o agrícola de `ProdutoColhido`; portanto, não devem ser tratados automaticamente como equivalentes ao fluxo agrícola.
+Sobre leite e carne, a auditoria não mostrou um domínio oficial tão consolidado quanto o agrícola de `ProdutoColhido`; portanto, não devem ser tratados automaticamente como equivalentes ao fluxo agrícola.
 
 ## 13. Fluxos reais
 
@@ -306,7 +306,7 @@ Sobre leite e carne, a auditoria não mostrou um domínio canônico tão consoli
 ↓
 `ProductionUnit`
 
-Observação: no código, `Safra` é contexto superior e `Cultivo` é a unidade de negócio agrícola. O fluxo lógico canônico é `Safra` contendo `Cultivo`, mas arquiteturalmente a cultura canônica entra por `ProdutoCultura` e materializa-se nos cultivos.
+Observação: no código, `Safra` é contexto superior e `Cultivo` é a unidade de negócio agrícola. O fluxo lógico oficial é `Safra` contendo `Cultivo`, mas arquiteturalmente a cultura oficial entra por `ProdutoCultura` e materializa-se nos cultivos.
 
 ### Colheita
 
@@ -433,16 +433,16 @@ para hedge e exposição.
 
 **Modelo C**
 
-Existem fontes canônicas identificáveis, mas ainda há sobreposições relevantes demais para declarar o domínio plenamente consolidado antes da v1.0 sem guardrails e adapters adicionais.
+Existem fontes oficiais identificáveis, mas ainda há sobreposições relevantes demais para declarar o domínio plenamente consolidado antes da v1.0 sem guardrails e adapters adicionais.
 
 ## 18. O que entra na v1.0
 
 - `Produto` como catálogo mestre de compras, estoque e consumo.
 - `ProdutoAgricola`, `ProdutoEstoque`, `ProdutoEPI` apenas como extensões de `Produto`.
-- `ProdutoCultura` como cultura canônica.
-- `Commodity` como entidade canônica de mercado.
-- `ProdutoColhido` como lote colhido canônico.
-- `ComercializacaoCommodity` como venda canônica de commodity.
+- `ProdutoCultura` como cultura oficial.
+- `Commodity` como entidade oficial de mercado.
+- `ProdutoColhido` como lote colhido oficial.
+- `ComercializacaoCommodity` como venda oficial de commodity.
 - `Hedge` baseado em `Commodity`.
 - `Produto` compartilhado pela pecuária para insumos veterinários e nutricionais.
 
@@ -454,7 +454,7 @@ Existem fontes canônicas identificáveis, mas ainda há sobreposições relevan
 - Reduzir ou eliminar `ContratoFuturo.commodity` textual.
 - Revisar necessidade de `Safra.commodity_id` versus `Cultivo.commodity_id`.
 - Reforçar vínculo obrigatório entre comercialização e `ProdutoColhido` quando houver estoque físico.
-- Definir explicitamente o tratamento canônico para produtos pecuários de saída como leite/carne.
+- Definir explicitamente o tratamento oficial para produtos pecuários de saída como leite/carne.
 
 ## 20. Plano recomendado
 
@@ -479,9 +479,9 @@ Especialização de `Produto`.
 
 Especialização de `Produto`.
 
-### 4. ProdutoCultura é Cultura canônica ou produto agrícola?
+### 4. ProdutoCultura é Cultura oficial ou produto agrícola?
 
-É a cultura canônica.
+É a cultura oficial.
 
 ### 5. Commodity é produto?
 
@@ -517,7 +517,7 @@ Usa `Produto`.
 
 ### 13. Existe duplicidade entre Cultura, ProdutoCultura e Commodity?
 
-Sim. `ProdutoCultura` é cultura canônica, `Cultura` antiga ainda existe, e `Commodity` pode espelhar semanticamente a mesma cultura em contexto de mercado.
+Sim. `ProdutoCultura` é cultura oficial, `Cultura` antiga ainda existe, e `Commodity` pode espelhar semanticamente a mesma cultura em contexto de mercado.
 
 ### 14. Existe risco de o usuário cadastrar a mesma coisa em mais de um lugar?
 
@@ -541,4 +541,4 @@ Sim. Exemplo típico: soja como `ProdutoCultura`, soja como `Commodity`, semente
 
 ## Pergunta final obrigatória
 
-**Não integralmente ainda. Após esta execução, a referência arquitetural fica clara em documentação, mas a codebase ainda possui sobreposições relevantes de cultura legada, resolução textual e fluxos híbridos entre `Commodity`, `ProdutoCultura`, `Safra`, `Romaneio` e `ProdutoColhido`. Portanto, novos desenvolvimentos já podem seguir uma direção canônica clara, mas a plataforma ainda precisa consolidar compatibilidades antes de considerar o domínio livre de duplicidades estruturais.**
+**Não integralmente ainda. Após esta execução, a referência arquitetural fica clara em documentação, mas a codebase ainda possui sobreposições relevantes de cultura legada, resolução textual e fluxos híbridos entre `Commodity`, `ProdutoCultura`, `Safra`, `Romaneio` e `ProdutoColhido`. Portanto, novos desenvolvimentos já podem seguir uma direção oficial clara, mas a plataforma ainda precisa consolidar compatibilidades antes de considerar o domínio livre de duplicidades estruturais.**

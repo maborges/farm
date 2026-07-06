@@ -1,10 +1,10 @@
-# INTEGRATIONS-ARCH-01 — Relatório de Arquitetura Canônica de Integrações
+# INTEGRATIONS-ARCH-01 — Relatório de Arquitetura Oficial de Integrações
 
 Data da execução: 2026-07-01
 
 ## 1. Resumo executivo
 
-Foi criada a arquitetura canônica do domínio `Integrações` para reger integrações ERP, bancos, fiscal, satélite, clima, IoT, comunicação, armazenamento, webhooks, APIs externas e BI.
+Foi criada a arquitetura oficial do domínio `Integrações` para reger integrações ERP, bancos, fiscal, satélite, clima, IoT, comunicação, armazenamento, webhooks, APIs externas e BI.
 
 Decisão central:
 
@@ -30,7 +30,7 @@ Foram oficializados:
 - escopos `PLATFORM`, `TENANT`, `ESTABELECIMENTO`, `USUARIO`;
 - papel oficial de `Estabelecimento`;
 - papel oficial do Backoffice versus console do tenant;
-- contratos canônicos de integração;
+- contratos oficiais de integração;
 - posição oficial do ERP e aplicação ao Sankhya.
 
 ## 4. Principais decisões
@@ -41,7 +41,7 @@ Foram oficializados:
 - `Estabelecimento` é o domínio administrativo correto entre `Tenant` e `UnidadeProdutiva`.
 - a configuração principal do ERP deve morar na administração do tenant, não no backoffice.
 - o backoffice deve concentrar observabilidade, diagnóstico, suporte e troubleshooting.
-- segredos e credenciais devem ser tratados por contrato canônico separado.
+- segredos e credenciais devem ser tratados por contrato oficial separado.
 
 ## 5. Modelo oficial para Integrações
 

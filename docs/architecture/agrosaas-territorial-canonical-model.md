@@ -1,10 +1,10 @@
-# AgroSaaS Territorial Canonical Model
+# AgroSaaS Territorial Oficial Model
 
 Data de referência: 2026-06-20
 
 ## Objetivo
 
-Estabelecer o modelo canônico oficial do AgroSaaS para território, fundiário, rastreabilidade, ESG e certificações.
+Estabelecer o modelo oficial oficial do AgroSaaS para território, fundiário, rastreabilidade, ESG e certificações.
 
 Este documento é a referência normativa para:
 - Arquitetura
@@ -28,7 +28,7 @@ Este modelo respeita os documentos oficiais:
 - [propriedades-auditoria-arquitetural.md](/opt/lampp/htdocs/farm/docs/analysis/propriedades-auditoria-arquitetural.md)
 - [arch-domain-01-consolidacao-propriedades-imoveis.md](/opt/lampp/htdocs/farm/docs/analysis/arch-domain-01-consolidacao-propriedades-imoveis.md)
 
-## Princípios Canônicos
+## Princípios Oficiais
 
 1. Não existe um terceiro módulo entre `Propriedades` e `Imóveis Rurais`.
 2. `Propriedades` é o domínio operacional, territorial e produtivo.
@@ -127,7 +127,7 @@ Este modelo respeita os documentos oficiais:
 ### 15. Documento
 - Definição: evidência documental associada ao imóvel ou à operação.
 - Responsabilidade: guardar versão, validade, origem e status de prova.
-- Ownership: compartilhado, com origem canônica no domínio fundiário para documentos legais.
+- Ownership: compartilhado, com origem oficial no domínio fundiário para documentos legais.
 - Módulo responsável: Imóveis Rurais e Ambiental, conforme o tipo.
 
 ### 16. Avaliação
@@ -212,13 +212,13 @@ Tenant
 
 ### Validação
 
-O modelo-base está correto, mas com dois ajustes canônicos:
+O modelo-base está correto, mas com dois ajustes oficiais:
 - `Pastagem` deve ser tratada como unidade operacional pecuária, não como raiz separada.
 - `Estrada` deve ser tratada como infraestrutura/acesso, não como entidade fundiária autônoma.
 
 ### Leitura normativa
 
-O que o backend já implementa como `AREA_RURAL`, `GLEBA`, `TALHAO`, `AREA_OPERACIONAL`, `AREA_AMBIENTAL` e `INFRAESTRUTURA` é consistente com a hierarquia oficial. `Pastagem` e `Estrada` são extensões canônicas do mesmo tronco operacional.
+O que o backend já implementa como `AREA_RURAL`, `GLEBA`, `TALHAO`, `AREA_OPERACIONAL`, `AREA_AMBIENTAL` e `INFRAESTRUTURA` é consistente com a hierarquia oficial. `Pastagem` e `Estrada` são extensões oficiais do mesmo tronco operacional.
 
 ## Etapa 4 - Hierarquia Fundiária Oficial
 
@@ -288,7 +288,7 @@ O modelo está correto como árvore fundiária oficial, com uma melhoria importa
 
 ### Regras gerais
 
-- A origem canônica é única.
+- A origem oficial é única.
 - Replicação é permitida somente para leitura, cache, visualização ou consolidação operacional.
 - Edição fora da origem é proibida.
 - Campos derivados devem ser explicitamente marcados como derivados.
@@ -299,7 +299,7 @@ O modelo está correto como árvore fundiária oficial, com uma melhoria importa
 
 Um dado pode ser espelhado quando:
 - a UI precisa exibi-lo em outro contexto;
-- o espelho não altera a informação canônica;
+- o espelho não altera a informação oficial;
 - a origem permanece única.
 
 Exemplos:
@@ -426,7 +426,7 @@ O Projeto Raízes depende de:
 - evidência documental e ambiental;
 - integridade da cadeia de custódia.
 
-O modelo canônico proposto entrega essa cadeia porque:
+O modelo oficial proposto entrega essa cadeia porque:
 - produção e safra ficam no domínio operacional;
 - território e infraestrutura ficam no domínio de propriedades;
 - titularidade e documentação ficam no domínio de imóveis rurais;
@@ -557,6 +557,6 @@ O Projeto Raízes depende exatamente da cadeia de origem que este modelo formali
 
 ## Conclusão
 
-Este é o modelo canônico oficial de território, fundiário, rastreabilidade e ESG do AgroSaaS.
+Este é o modelo oficial oficial de território, fundiário, rastreabilidade e ESG do AgroSaaS.
 
 Ele resolve a fronteira entre `Propriedades` e `Imóveis Rurais`, preserva a operação agrícola, mantém a cadeia legal, e estabelece a base para certificações, exportação, Projeto Raízes e integrações futuras.

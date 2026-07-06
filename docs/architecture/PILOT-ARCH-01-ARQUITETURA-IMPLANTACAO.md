@@ -2,7 +2,7 @@
 
 ## 1. Resumo executivo
 
-O AgroSaaS passa a adotar uma arquitetura oficial de implantação baseada exclusivamente nas arquiteturas canônicas já aprovadas:
+O AgroSaaS passa a adotar uma arquitetura oficial de implantação baseada exclusivamente nas arquiteturas oficiais já aprovadas:
 
 - `ARC-00`
 - `PERSON-ARCH-01`
@@ -64,7 +64,7 @@ Princípio oficial:
 
 - primeiro nasce o ambiente;
 - depois nasce a estrutura operacional mínima;
-- depois entram os cadastros canônicos;
+- depois entram os cadastros oficiais;
 - só então começam operações reais.
 
 ## 3. Tipos oficiais de cliente
@@ -240,20 +240,20 @@ Ordem territorial oficial:
 
 | Cadastro | Classificação | Observação |
 | --- | --- | --- |
-| Pessoa | Obrigatório para operação madura | Fonte canônica de identidade |
+| Pessoa | Obrigatório para operação madura | Fonte oficial de identidade |
 | Usuário | Obrigatório | Pelo menos administrador |
 | Funcionário | Opcional no início | Obrigatório antes de RH/apontamento |
 | Fornecedor | Importável | Deve convergir para `Pessoa` |
 | Cliente | Importável | Papel comercial, não master paralelo novo |
 | Produto | Obrigatório para estoque/compras | Catálogo mestre |
-| ProdutoCultura | Obrigatório para agricultura | Cultura canônica |
-| Commodity | Obrigatório para comercialização/hedge | Mercado canônico |
+| ProdutoCultura | Obrigatório para agricultura | Cultura oficial |
+| Commodity | Obrigatório para comercialização/hedge | Mercado oficial |
 | Máquina/Equipamento | Opcional | Obrigatório antes de frota |
 | Depósito | Obrigatório para estoque | Estrutura operacional |
 | Animal | Opcional por escopo | Obrigatório para pecuária individual |
 | LoteAnimal | Obrigatório para pecuária | Organização do rebanho |
 | Categorias auxiliares | Automático/importável | Conforme catálogo disponível |
-| PlanoConta | Obrigatório para financeiro | Base financeira canônica |
+| PlanoConta | Obrigatório para financeiro | Base financeira oficial |
 | Centro de custos | Opcional na entrada mínima | Necessário para governança econômica madura |
 
 ### 7.3 Regras
@@ -370,7 +370,7 @@ Colheita
 ### 10.2 Dependências
 
 - `Safra` depende de `UnidadeProdutiva` e área produtiva.
-- `Cultivo` depende de `Safra` e de cultura canônica.
+- `Cultivo` depende de `Safra` e de cultura oficial.
 - `ProductionUnit` depende de `Cultivo` e área.
 - planejamento depende de `ProductionUnit`.
 - operações dependem de planejamento mínimo ou contexto de execução.
@@ -501,7 +501,7 @@ Fluxos obrigatórios da operação assistida:
 O cliente está apto para produção quando:
 
 - consegue operar os fluxos da onda 1 sem planilha paralela obrigatória;
-- os cadastros canônicos mínimos estão completos;
+- os cadastros oficiais mínimos estão completos;
 - não há dependência estrutural bloqueante aberta;
 - os usuários críticos foram treinados;
 - os primeiros fluxos reais passaram pela operação assistida.
@@ -550,7 +550,7 @@ O cliente está apto para produção quando:
 
 ## 16. Dependências entre módulos
 
-### 16.1 Matriz canônica resumida
+### 16.1 Matriz oficial resumida
 
 | Módulo | Depende de |
 | --- | --- |
@@ -639,7 +639,7 @@ Regra:
 ### 19.3 Regra oficial
 
 - importação acelera carga, não substitui validação arquitetural;
-- dados importados devem convergir para as entidades canônicas;
+- dados importados devem convergir para as entidades oficiais;
 - importação que reforça legado paralelo não é direção futura.
 
 ## 20. Checklist de implantação
@@ -681,7 +681,7 @@ Regra:
 Um módulo é considerado homologado quando:
 
 - suas dependências estruturais foram cumpridas;
-- o cadastro canônico mínimo está completo;
+- o cadastro oficial mínimo está completo;
 - ao menos um fluxo real assistido foi executado com sucesso;
 - não há erro bloqueante aberto;
 - o responsável funcional validou o resultado.
@@ -713,13 +713,13 @@ Plano oficial de rollback durante implantação:
 
 - interromper ativação do módulo que ainda não homologou;
 - manter operação híbrida temporária apenas no módulo afetado;
-- preservar cadastros canônicos já validados;
+- preservar cadastros oficiais já validados;
 - reabrir operação assistida após correção de dados ou processo;
 - evitar rollback estrutural de tenant/unidade produtiva já produtivos.
 
 Regra:
 
-- rollback é de entrada em operação, não de arquitetura canônica.
+- rollback é de entrada em operação, não de arquitetura oficial.
 
 ## 24. Estabilização
 

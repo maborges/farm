@@ -7,7 +7,7 @@ Foi auditado o fluxo de plantio no backend agrícola, no PWA Campo e nos pontos 
 Constatações principais:
 
 - O backend já fechava a cadeia operacional em `services/api/agricola/operacoes/service.py`, com consumo FIFO, atualização de saldo, geração de `Despesa`, `CostAllocation` e caderno oficial.
-- O backend já reconhecia `PLANTIO` como evento canônico em `services/api/agricola/caderno/service.py`.
+- O backend já reconhecia `PLANTIO` como evento oficial em `services/api/agricola/caderno/service.py`.
 - O PWA Campo já possuía execução offline, sync e caderno oficial em `apps/campo/src/lib/caderno-offline.ts` e `apps/campo/src/app/(campo)/caderno/page.tsx`.
 - Havia um desvio de UX/mapeamento no PWA: `PLANTIO_REGISTRO` era convertido para `OBSERVACAO` no fluxo offline, apesar de o backend já tratar plantio como evento oficial.
 - O detalhe da tarefa no Campo e o hub do PWA não exibiam `PLANTIO_REGISTRO` com label amigável.
@@ -32,7 +32,7 @@ Constatações principais:
 - Corrigido o mapeamento de `PLANTIO_REGISTRO` para `PLANTIO` no offline sync do Campo.
 - Corrigido o label de `PLANTIO_REGISTRO` no detalhe de tarefa do Campo.
 - Corrigido o label de `PLANTIO_REGISTRO` no hub do PWA.
-- Adicionado teste de regressão para confirmar que o evento canônico de plantio continua sendo emitido como `PLANTIO`.
+- Adicionado teste de regressão para confirmar que o evento oficial de plantio continua sendo emitido como `PLANTIO`.
 
 ## 5. Arquivos alterados
 

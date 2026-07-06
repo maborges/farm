@@ -7,7 +7,7 @@ Este documento apresenta a especificação técnica e arquitetural para os proce
 ## 1. Resumo Executivo
 
 O AgroSaaS necessita comprovar que as operações agrícolas (especialmente pulverizações de defensivos e adubações) são realizadas por maquinários regulados e limpos, mitigando riscos de contaminação cruzada ou sobre/subdosagem de insumos. 
-A arquitetura proposta integra a calibração de bicos/vazão e as vistorias de higiene (liberação sanitária) diretamente ao fluxo canônico do Caderno de Campo e do Passaporte de Rastreabilidade Comercial, garantindo rastreabilidade fim-a-fim sem introduzir complexidade ou tabelas redundantes desnecessárias.
+A arquitetura proposta integra a calibração de bicos/vazão e as vistorias de higiene (liberação sanitária) diretamente ao fluxo oficial do Caderno de Campo e do Passaporte de Rastreabilidade Comercial, garantindo rastreabilidade fim-a-fim sem introduzir complexidade ou tabelas redundantes desnecessárias.
 
 ---
 
@@ -113,7 +113,7 @@ classDiagram
 
 ## 6. Integração com Caderno de Campo
 
-Toda calibração concluída ou checklist de liberação sanitária aprovado gerará, via regras internas de serviço, um evento canônico no **`CadernoCampoEntrada`**:
+Toda calibração concluída ou checklist de liberação sanitária aprovado gerará, via regras internas de serviço, um evento oficial no **`CadernoCampoEntrada`**:
 
 * **Para Calibrações**:
   * `tipo`: `"INSPECAO"`

@@ -6,7 +6,7 @@ Medir o passivo legado em `estoque_movimentacoes` antes de qualquer backfill par
 
 - volume;
 - duplicidade;
-- cobertura já existente no ledger canônico;
+- cobertura já existente no ledger oficial;
 - risco de dupla gravação ao migrar.
 
 Premissas desta etapa:
@@ -21,15 +21,15 @@ Premissas desta etapa:
 - data do snapshot: `2026-04-28`;
 - tabelas auditadas:
   - `estoque_movimentacoes` legado;
-  - `estoque_movimentos` canônico;
+  - `estoque_movimentos` oficial;
   - `estoque_depositos` para resolver `tenant_id` do legado.
 
 ## Resumo executivo
 
 - `estoque_movimentacoes`: `9` linhas legadas.
-- `estoque_movimentos`: `30` linhas canônicas.
+- `estoque_movimentos`: `30` linhas oficiais.
 - duplicidade exata dentro do legado: `0` grupos duplicados, `0` linhas excedentes.
-- cobertura heurística já existente no ledger canônico: `4` de `9` linhas legadas.
+- cobertura heurística já existente no ledger oficial: `4` de `9` linhas legadas.
 - risco principal: não é volume nem duplicidade interna; é backfill duplicar movimentos que já existem no ledger por outro fluxo.
 
 Leitura prática:
@@ -70,7 +70,7 @@ Leitura prática:
 | `2026-04-27` | 4 |
 | `2026-04-21` | 2 |
 
-## Distribuição do ledger canônico
+## Distribuição do ledger oficial
 
 ### Por origem e tipo
 
@@ -112,7 +112,7 @@ Leitura prática:
 - a maior perda de rastreabilidade está em `origem_*` nulo e `lote_id` ausente;
 - `8` de `9` linhas não carregam vínculo de lote, então qualquer backfill será majoritariamente em nível de produto/deposito, não de lote.
 
-## Cobertura heurística já existente no canônico
+## Cobertura heurística já existente no oficial
 
 Foi feita uma verificação conservadora por:
 
@@ -122,13 +122,13 @@ Foi feita uma verificação conservadora por:
 - `quantidade`;
 - mesma data;
 - compatibilidade de direção:
-  - legado `ENTRADA` versus canônico `ENTRADA/AJUSTE/SALDO_INICIAL`;
-  - legado `SAIDA` versus canônico `SAIDA/TRANSFERENCIA`.
+  - legado `ENTRADA` versus oficial `ENTRADA/AJUSTE/SALDO_INICIAL`;
+  - legado `SAIDA` versus oficial `SAIDA/TRANSFERENCIA`.
 
 Resultado:
 
 - linhas legadas avaliadas: `9`;
-- linhas legadas com algum possível correspondente canônico: `4`.
+- linhas legadas com algum possível correspondente oficial: `4`.
 
 ### Cobertura por `origem_tipo`
 
@@ -153,7 +153,7 @@ Resultado:
 - `4` linhas;
 - todas `ENTRADA`;
 - mesmo padrão operacional de compras;
-- já existe cobertura canônica heurística para as `4`.
+- já existe cobertura oficial heurística para as `4`.
 
 Conclusão:
 
@@ -166,7 +166,7 @@ Conclusão:
 - `4` linhas;
 - `2` saídas em `2026-04-21`;
 - `2` entradas em `2026-04-28`;
-- nenhuma encontrou match heurístico no canônico.
+- nenhuma encontrou match heurístico no oficial.
 
 Conclusão:
 
@@ -179,12 +179,12 @@ Conclusão:
 
 - `1` linha;
 - `SAIDA`;
-- sem match heurístico no canônico;
+- sem match heurístico no oficial;
 - possui melhor sinal de origem operacional do que o grupo nulo, mas ainda no nome legado.
 
 Conclusão:
 
-- esse caso deve ser remapeado com cuidado para a origem canônica equivalente;
+- esse caso deve ser remapeado com cuidado para a origem oficial equivalente;
 - a hipótese mais provável é conversão para `OPERACAO_EXECUCAO`, desde que exista vínculo determinístico com a execução real.
 
 ## Riscos identificados
@@ -201,7 +201,7 @@ Conclusão:
 ### 3. Risco médio/alto de dupla contagem cross-ledger
 
 - `PEDIDO_COMPRA` já aparece com cobertura heurística total;
-- uma regra fraca de correspondência pode reinserir no canônico algo que já foi gravado por fluxo novo.
+- uma regra fraca de correspondência pode reinserir no oficial algo que já foi gravado por fluxo novo.
 
 ### 4. Risco médio de ambiguidade de origem
 
@@ -228,11 +228,11 @@ O backfill futuro de `estoque_movimentacoes` para `estoque_movimentos` deve clas
 
 ### 1. `IGNORAR`
 
-Devem ser ignoradas, para evitar dupla contagem, as linhas legadas que já estejam materialmente representadas no ledger canônico por fluxo novo.
+Devem ser ignoradas, para evitar dupla contagem, as linhas legadas que já estejam materialmente representadas no ledger oficial por fluxo novo.
 
 Regra oficial inicial:
 
-- `PEDIDO_COMPRA` legado deve ser `IGNORAR` quando já existir movimento canônico compatível de entrada de compra no mesmo contexto operacional.
+- `PEDIDO_COMPRA` legado deve ser `IGNORAR` quando já existir movimento oficial compatível de entrada de compra no mesmo contexto operacional.
 
 Critério mínimo para exclusão:
 
@@ -242,7 +242,7 @@ Critério mínimo para exclusão:
 - mesma direção econômica;
 - mesma quantidade;
 - mesma janela operacional coerente com o evento de compra;
-- vínculo de origem compatível com compra canônica.
+- vínculo de origem compatível com compra oficial.
 
 Observação:
 
@@ -253,15 +253,15 @@ Observação:
 
 Devem ser migradas as linhas legadas que:
 
-- não tenham cobertura canônica equivalente;
+- não tenham cobertura oficial equivalente;
 - tenham semântica de movimento ainda válida;
-- possuam mapeamento aceito para `tipo_movimento` e origem canônica;
+- possuam mapeamento aceito para `tipo_movimento` e origem oficial;
 - não gerem dupla contagem com fluxos já estabilizados.
 
 Regra oficial inicial:
 
-- movimentos com `origem_tipo = NULL` e sem match canônico podem ser `MIGRAR` apenas se o time aceitar convertê-los para origem manual legítima;
-- movimentos com origem operacional legada só podem ser `MIGRAR` quando houver remapeamento determinístico para a origem canônica correspondente.
+- movimentos com `origem_tipo = NULL` e sem match oficial podem ser `MIGRAR` apenas se o time aceitar convertê-los para origem manual legítima;
+- movimentos com origem operacional legada só podem ser `MIGRAR` quando houver remapeamento determinístico para a origem oficial correspondente.
 
 ### 3. `MARCAR_COMO_LEGADO`
 
@@ -271,7 +271,7 @@ Regra oficial:
 
 - usar `LEGADO` apenas quando a linha precisar ser preservada no ledger e não houver base confiável para classificá-la como operacional;
 - `LEGADO` não substitui exclusão de duplicata;
-- `LEGADO` não deve ser usado para mascarar linha já coberta por fluxo canônico.
+- `LEGADO` não deve ser usado para mascarar linha já coberta por fluxo oficial.
 
 Aplicação prática:
 
@@ -302,7 +302,7 @@ Aplicação prática:
 ### Distinção oficial entre `MANUAL` e `LEGADO`
 
 - `MANUAL`: movimento criado conscientemente no domínio atual, por ação manual legítima do usuário ou rotina operacional equivalente.
-- `LEGADO`: movimento histórico preservado no ledger por necessidade de reconciliação/auditoria, mas sem origem operacional confiável no modelo canônico.
+- `LEGADO`: movimento histórico preservado no ledger por necessidade de reconciliação/auditoria, mas sem origem operacional confiável no modelo oficial.
 
 ### Regras obrigatórias para `LEGADO`
 
@@ -331,17 +331,17 @@ Entram aqui as linhas que não podem ser decididas com segurança por regra auto
 
 Casos típicos:
 
-- origem operacional legada sem correspondência canônica determinística;
+- origem operacional legada sem correspondência oficial determinística;
 - divergência entre quantidade/data/origem e possível match no ledger;
-- necessidade de decidir entre `OPERACAO_AGRICOLA` legado versus `OPERACAO_EXECUCAO` canônico.
+- necessidade de decidir entre `OPERACAO_AGRICOLA` legado versus `OPERACAO_EXECUCAO` oficial.
 
 ## Regras objetivas por origem atual
 
 ### `PEDIDO_COMPRA`
 
-- `IGNORAR` se já existir cobertura canônica compatível de compra.
+- `IGNORAR` se já existir cobertura oficial compatível de compra.
 - `REVISAR_MANUALMENTE` se houver conflito, multiplicidade ou ausência de vínculo suficiente para concluir cobertura.
-- `MIGRAR` só em caso excepcional, quando ficar provado que o movimento de compra não entrou no ledger canônico.
+- `MIGRAR` só em caso excepcional, quando ficar provado que o movimento de compra não entrou no ledger oficial.
 
 ### `OPERACAO_AGRICOLA`
 
@@ -359,7 +359,7 @@ Casos típicos:
 
 Aplicando a política do Step 66 ao snapshot de `2026-04-28`:
 
-- `4` linhas `PEDIDO_COMPRA`: candidatas a `IGNORAR`, porque já têm cobertura canônica provável e representam o maior risco de dupla contagem.
+- `4` linhas `PEDIDO_COMPRA`: candidatas a `IGNORAR`, porque já têm cobertura oficial provável e representam o maior risco de dupla contagem.
 - `1` linha `OPERACAO_AGRICOLA`: candidata a `REVISAR_MANUALMENTE` até existir remapeamento determinístico para `OPERACAO_EXECUCAO`.
 - `4` linhas com `origem_tipo = NULL`: candidatas a `MARCAR_COMO_LEGADO`, salvo decisão explícita posterior de tratá-las como `MANUAL`.
 

@@ -1,7 +1,7 @@
 # PROVIDER-DOMAIN-01 — OpenWeather
 
 ## 1. Resumo Executivo
-O primeiro provider climático canônico foi materializado com o OpenWeather como prova prática de que o domínio de Integrações suporta um provider não-ERP sem redesign estrutural. A implementação reutiliza `IntegrationConfig`, `IntegrationCredential`, `IntegrationFeature`, `IntegrationSyncPolicy`, `IntegrationJob`, `IntegrationHealth`, eventos canônicos, `Alert Engine`, observabilidade e RLS, sem alterar Sankhya ou criar infraestrutura paralela.
+O primeiro provider climático oficial foi materializado com o OpenWeather como prova prática de que o domínio de Integrações suporta um provider não-ERP sem redesign estrutural. A implementação reutiliza `IntegrationConfig`, `IntegrationCredential`, `IntegrationFeature`, `IntegrationSyncPolicy`, `IntegrationJob`, `IntegrationHealth`, eventos oficiais, `Alert Engine`, observabilidade e RLS, sem alterar Sankhya ou criar infraestrutura paralela.
 
 ## 2. Arquivos Criados e Alterados
 Backend:
@@ -27,7 +27,7 @@ Documentação:
 - `docs/implementation/reports/PROVIDER-DOMAIN-01-OPENWEATHER.md`
 
 ## 3. Adapter
-O adapter OpenWeather foi implementado como uma camada canônica complementar, com responsabilidade de materializar a configuração do provider, executar teste de conexão, consultar o clima atual, emitir jobs canônicos, atualizar health e publicar eventos de domínio.
+O adapter OpenWeather foi implementado como uma camada oficial complementar, com responsabilidade de materializar a configuração do provider, executar teste de conexão, consultar o clima atual, emitir jobs oficiais, atualizar health e publicar eventos de domínio.
 
 Pontos centrais:
 - provider slug: `openweather`
@@ -47,7 +47,7 @@ Foram materializadas as features:
 Isso valida que `IntegrationFeature` suporta capacidades incrementais por provider.
 
 ## 6. Policies
-As policies canônicas foram definidas como:
+As policies oficiais foram definidas como:
 - `current_weather` -> `PULL`
 - `forecast` -> `PULL`
 - `rainfall` -> `PULL`
@@ -64,10 +64,10 @@ Cada consulta gera `IntegrationJob`, com:
 - feature
 - trigger
 
-O job canônico não substitui o Outbox; ele representa a execução operacional.
+O job oficial não substitui o Outbox; ele representa a execução operacional.
 
 ## 8. Health
-O provider atualiza `IntegrationHealth` com estado operacional e resumo de falhas/sucessos. A implementação usa o enum canônico existente, sem criar enum paralelo.
+O provider atualiza `IntegrationHealth` com estado operacional e resumo de falhas/sucessos. A implementação usa o enum oficial existente, sem criar enum paralelo.
 
 Estados observados na prática:
 - `CONNECTED`
@@ -75,10 +75,10 @@ Estados observados na prática:
 - `RATE_LIMITED`
 - `DEGRADED`
 - `TIMEOUT`
-- `API_UNAVAILABLE` via mapeamento operacional e resumo, sem expandir a enumeração canônica
+- `API_UNAVAILABLE` via mapeamento operacional e resumo, sem expandir a enumeração oficial
 
 ## 9. Eventos
-Foram reutilizados os eventos canônicos já existentes:
+Foram reutilizados os eventos oficiais já existentes:
 - `IntegrationConfigured`
 - `IntegrationSyncStarted`
 - `IntegrationSyncCompleted`
@@ -103,7 +103,7 @@ Isso comprova que a arquitetura de Integrações não está acoplada ao Sankhya.
 ## 12. Compatibilidade
 Compatibilidades preservadas:
 - Sankhya não foi alterado
-- `IntegrationJob`, `IntegrationHealth` e eventos canônicos foram reutilizados
+- `IntegrationJob`, `IntegrationHealth` e eventos oficiais foram reutilizados
 - RLS e `tenant_id` continuam sendo a base de isolamento
 - frontend do tenant recebeu uma entrada própria em Administração -> Integrações -> Clima -> OpenWeather
 
@@ -117,7 +117,7 @@ Validações executadas:
 - `git diff --check` -> ok
 
 ## 14. Conclusões
-O OpenWeather confirmou que o domínio canônico de Integrações é genérico de fato:
+O OpenWeather confirmou que o domínio oficial de Integrações é genérico de fato:
 - aceita provider não-ERP
 - separa conexão de credencial
 - suporta features e policies por provider

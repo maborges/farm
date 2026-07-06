@@ -16,19 +16,19 @@ Todos os domínios (integração, inteligência de alertas, recomendações oper
 * **Evidências:** O modelo `RegistroClima` em `services/api/agricola/climatico/models.py:11` possui explicitamente as foreign keys indexadas `tenant_id` e `unidade_produtiva_id`. O atributo `vento_kmh` foi consolidado por meio da migration `23b548507313_add_vento_kmh_to_registro_clima.py`. 
 
 ### 4. Alert Engine: PRONTO
-* **Evidências:** A classe `ClimaAlertGenerator` em `services/api/alert_engine/generators/clima_generator.py:22` avalia regras localmente lendo de `RegistroClima` e usando restrições limpas (`ClimaThresholds`). A geração de um alerta possui uma forte chave determinística (ex: `dedupe_key=f"clima:vento:{reg.unidade_produtiva_id}:{reg.data_registro.isoformat()}"`) e instancia objetos canônicos de `OperationalAlert`.
+* **Evidências:** A classe `ClimaAlertGenerator` em `services/api/alert_engine/generators/clima_generator.py:22` avalia regras localmente lendo de `RegistroClima` e usando restrições limpas (`ClimaThresholds`). A geração de um alerta possui uma forte chave determinística (ex: `dedupe_key=f"clima:vento:{reg.unidade_produtiva_id}:{reg.data_registro.isoformat()}"`) e instancia objetos oficiais de `OperationalAlert`.
 
 ### 5. Recommendation Engine: PRONTO
 * **Evidências:** O serviço `ClimaRecommendationService` em `services/api/agricola/climatico/recommendation_service.py:13` lê diretamente de `RegistroClima` e `OperationalAlert`. As recomendações (como Adubação, Colheita, Pulverização) baseiam-se em lógicas claras e sem hardcode (usando as constantes contidas em `ClimaThresholds`), entregando o "Por quê" no atributo motivacional do retorno JSON.
 
 ### 6. Web Dashboard: PRONTO
-* **Evidências:** O dashboard climático no app Web obtém as recomendações chamando o backend canônico sem fazer proxy de chamadas, tratando o retorno da `ClimaRecommendationService` de maneira elegante e tratando os limites de dados faltantes/empty states apropriadamente.
+* **Evidências:** O dashboard climático no app Web obtém as recomendações chamando o backend oficial sem fazer proxy de chamadas, tratando o retorno da `ClimaRecommendationService` de maneira elegante e tratando os limites de dados faltantes/empty states apropriadamente.
 
 ### 7. Campo PWA: PRONTO
 * **Evidências:** Como consolidado no PWA via Dexie DB e pull-sync transacional (`apps/campo/src/lib/sync/pull.ts:235`), os dados recebidos são estáticos no front e a `ClimaOperacionalCard` não processa regras de negócio, servindo apenas de expositor de interface com gerenciamento de stale-data (`validade_horas` via `apps/campo/src/components/agricola/climatico/clima-operacional-card.tsx`). Nenhuma chamada direta ao `OpenWeather` é feita.
 
 ### 8. RLS / Multi-tenant: PRONTO
-* **Evidências:** Injeção canônica nos endpoints do clima usando `tenant_id: UUID = Depends(get_tenant_id)` em `services/api/agricola/climatico/router.py`. No worker background de alertas, há injeção programática explícita usando o contexto via `await set_rls_context(self.session, context.tenant_id)`.
+* **Evidências:** Injeção oficial nos endpoints do clima usando `tenant_id: UUID = Depends(get_tenant_id)` em `services/api/agricola/climatico/router.py`. No worker background de alertas, há injeção programática explícita usando o contexto via `await set_rls_context(self.session, context.tenant_id)`.
 
 ### 9. Segurança: PRONTO
 * **Evidências:** Não há hardcoding de tokens ou credenciais da OpenWeather nas camadas de Frontend ou Repositório, payloads de resposta do provider passam por DTOs e esquemas (`OpenWeatherConfigResponse` - `services/api/integracoes/openweather/schemas.py:24`), e nenhuma chave é repassada ao app Campo PWA.

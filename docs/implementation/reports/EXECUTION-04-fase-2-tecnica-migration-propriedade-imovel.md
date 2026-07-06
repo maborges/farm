@@ -1,7 +1,7 @@
 # EXECUTION-04 — Fase 2 Técnica: Migration Real de `propriedade_imovel`
 
 ## Objetivo
-Criar a migration real da tabela canônica `propriedade_imovel`, partindo do head consolidado `merge_heads_before_propriedade_imovel`.
+Criar a migration real da tabela oficial `propriedade_imovel`, partindo do head consolidado `merge_heads_before_propriedade_imovel`.
 
 ## 1. Pré-check
 
@@ -123,7 +123,7 @@ A migration cria a tabela:
 ## 7. Comentários
 
 ### Implementados
-- comentário de tabela explicando o papel canônico do vínculo
+- comentário de tabela explicando o papel oficial do vínculo
 - comentários nas colunas principais
 - destaque para:
   - rastreabilidade

@@ -54,7 +54,7 @@ Esta matriz cruza os requisitos regulatórios das principais certificadoras com 
 | **Rainforest Alliance** | Deriva de pulverização | **ATENDIDO** | Dados climáticos (temperatura, vento, umidade) na operação. | Nenhuma. | `agricola/operacoes` |
 | **Rainforest Alliance** | Rastreio de origem do talhão | **ATENDIDO** | GPS de fotos locais e ID do talhão no caderno. | Nenhuma. | `agricola/caderno` |
 | **Fairtrade** | Entrega de EPI aos trabalhadores | **PARCIAL** | Registro estruturado `EPIEntrega` no caderno. | Assinatura manuscrita digitalizada do trabalhador no campo. | `agricola/caderno` & `PWA` |
-| **Certifica Minas** | Livro de Registro Canônico | **ATENDIDO** | PDF assinado de `CadernoExportacao` com hash SHA-256. | Nenhuma. | `agricola/caderno` |
+| **Certifica Minas** | Livro de Registro Oficial | **ATENDIDO** | PDF assinado de `CadernoExportacao` com hash SHA-256. | Nenhuma. | `agricola/caderno` |
 | **Projeto Raízes** | Passaporte do Lote Comercial | **NÃO ATENDIDO** | Metadados do caderno e dados de colheita. | Código QR Code do lote apontando para a timeline pública. | `agricola/caderno` |
 
 ---

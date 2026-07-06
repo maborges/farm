@@ -175,7 +175,7 @@ Nenhuma migracao adicional e exigida por esta fase.
 Motivo:
 
 - a convergencia estrutural ja existe;
-- a ponte canonica `PropriedadeImovel` ja esta em vigor;
+- a ponte oficial `PropriedadeImovel` ja esta em vigor;
 - os documentos continuam segregados por dominio;
 - a tarefa atual e de governanca documental e consistente com o estado fisico existente.
 
@@ -185,7 +185,7 @@ Eventual limpeza definitiva dos espelhos legados em `unidades_produtivas` e `cad
 
 - CAR, CCIR, ITR, NIRF, SIGEF, matriculas e cartorios pertencem ao dominio fundiario.
 - Talhoes, glebas, pastagens, infraestrutura e safra pertencem ao dominio operacional.
-- PropriedadeImovel e a unica ponte canonica N:N.
+- PropriedadeImovel e a unica ponte oficial N:N.
 - Nenhuma entidade de ponte deve armazenar documento integral.
 - Nenhum dominio pode criar nova fonte oficial para o mesmo dado.
 - Dados espelhados so podem existir como leitura ou compatibilidade, nunca como nova verdade.
@@ -200,7 +200,7 @@ Esta governanca documental opera junto das Regras de Anticorrupcao dos Legados T
 
 - `Propriedades` para territorio operacional.
 - `Imoveis Rurais` para lastro documental e fundiario.
-- `PropriedadeImovel` para o vinculo canonico.
+- `PropriedadeImovel` para o vinculo oficial.
 
 ### 10.2 Fontes de compatibilidade
 

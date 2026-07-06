@@ -30,7 +30,7 @@ O gap comprovado era o fechamento automático do recebimento financeiro. A comer
 
 ## Integrações reutilizadas
 
-- `ComercializacaoCommodity` como entidade canônica de contrato/venda
+- `ComercializacaoCommodity` como entidade oficial de contrato/venda
 - `Receita` como contas a receber
 - `ProdutoColhido` como lote físico rastreável
 - `DREAgricolaV1Service` / DRE agrícola v1 como consumidor econômico oficial

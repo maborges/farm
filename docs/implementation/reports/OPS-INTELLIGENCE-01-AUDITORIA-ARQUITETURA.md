@@ -6,10 +6,10 @@ A auditoria do código confirma que o AgroSaaS já possui uma fundação transve
 
 Conclusão central:
 
-- existe um `Alert Engine` global canônico
+- existe um `Alert Engine` global oficial
 - existe uma esteira de `Domain Events` + `Outbox`
 - existe um `Notification Dispatcher` preparado
-- não existe ainda um `Recommendation Engine` global canônico
+- não existe ainda um `Recommendation Engine` global oficial
 - as recomendações atuais estão distribuídas e heterogêneas
 
 Veredicto:
@@ -24,7 +24,7 @@ Veredicto:
 Evidências principais:
 
 - `services/api/alert_engine/service.py`
-  - lifecycle canônico de alertas
+  - lifecycle oficial de alertas
   - create/update com `dedupe_key`
   - acknowledge, snooze e resolução
 
@@ -39,10 +39,10 @@ Evidências principais:
   - publicação direta ou via outbox
 
 - `services/api/events/outbox_relay.py`
-  - relay canônico da `domain_event_outbox`
+  - relay oficial da `domain_event_outbox`
 
 - `services/api/notifications/dispatcher.py`
-  - dispatcher canônico de notificações com policy
+  - dispatcher oficial de notificações com policy
 
 ### 2.2 Recommendation Engine climático
 
@@ -88,7 +88,7 @@ Conclusão:
 
 ## 3. Componentes Existentes
 
-### 3.1 Alert Engine canônico
+### 3.1 Alert Engine oficial
 
 Arquivos:
 
@@ -101,7 +101,7 @@ Arquivos:
 
 Capacidades confirmadas:
 
-- domínios canônicos: `AGRICULTURE`, `LIVESTOCK`, `FINANCE`, `OPERATIONS`, `FIELD`, `INTEGRATIONS`, `SYSTEM`
+- domínios oficiais: `AGRICULTURE`, `LIVESTOCK`, `FINANCE`, `OPERATIONS`, `FIELD`, `INTEGRATIONS`, `SYSTEM`
 - categorias, severidade, prioridade, dedupe e status
 - execução agendada
 - execução dirigida por evento
@@ -142,7 +142,7 @@ Arquivos:
 
 Capacidades confirmadas:
 
-- dispatcher canônico
+- dispatcher oficial
 - política de entrega
 - bridge futura para eventos
 
@@ -238,7 +238,7 @@ Problemas observados:
 - sem política comum de expiração
 - sem trilha comum de aceite/execução
 
-### 5.2 Alertas fora do Alert Engine canônico
+### 5.2 Alertas fora do Alert Engine oficial
 
 Ainda existem mecanismos legados ou paralelos:
 
@@ -248,7 +248,7 @@ Ainda existem mecanismos legados ou paralelos:
 
 Conclusão:
 
-- o `Alert Engine` canônico existe
+- o `Alert Engine` oficial existe
 - mas a consolidação dos produtores ainda não terminou
 
 ### 5.3 Drift documental
@@ -266,7 +266,7 @@ Isso indica:
 
 Adotar:
 
-- `Recommendation Engine` global canônico
+- `Recommendation Engine` global oficial
 - `providers` por domínio
 - lifecycle próprio de recomendação
 
@@ -373,7 +373,7 @@ Impacto:
 
 ### Risco 2
 
-Criar um motor por domínio sem contrato canônico.
+Criar um motor por domínio sem contrato oficial.
 
 Impacto:
 
@@ -409,7 +409,7 @@ Impacto:
 
 Escopo:
 
-- contratos canônicos de recomendação
+- contratos oficiais de recomendação
 - entities/modelos
 - lifecycle
 - dispatcher/subscriber
@@ -457,7 +457,7 @@ Escopo:
 ## 11. Veredicto Final
 
 - documentos de auditoria e arquitetura: definidos
-- veredicto arquitetural: **motor global canônico com providers por domínio**
+- veredicto arquitetural: **motor global oficial com providers por domínio**
 - `Recommendation Engine` climático: **reaproveitado apenas como provider/regra de clima, não como núcleo global**
 - arquitetura recomendada: **OperationalContext -> RecommendationProvider -> RecommendationEngine -> RecommendationResult -> RecommendationLifecycle**
 - próximos épicos sugeridos:

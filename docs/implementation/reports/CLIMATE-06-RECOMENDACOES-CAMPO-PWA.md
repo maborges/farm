@@ -9,7 +9,7 @@ Este relatório detalha a implementação do CLIMATE-06, que leva os dados de in
 Conforme definido nas restrições, o aplicativo PWA (frontend) não processa lógicas agronômicas. Ele foi desenhado para ser "mudo" em relação à criação das regras climáticas, o que mantém a regra isolada no backend, evitando vazamento de lógica e duplicação de _thresholds_.
 
 2. **Fluxo Desacoplado de Sync (Backend)**
-A classe `SyncService.pull` no backend (`services/api/campo/service.py`) foi modificada. Durante a chamada global de sincronização, invocamos a lógica canônica já existente:
+A classe `SyncService.pull` no backend (`services/api/campo/service.py`) foi modificada. Durante a chamada global de sincronização, invocamos a lógica oficial já existente:
 `ClimaRecommendationService.get_recomendacoes(fazenda_id)`.
 Os resultados gerados no momento do *sync* são serializados e enviados ao PWA, assegurando coesão de dados e aproveitando a conectividade existente.
 

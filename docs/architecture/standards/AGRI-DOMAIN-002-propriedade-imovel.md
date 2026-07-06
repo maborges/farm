@@ -16,7 +16,7 @@
 
 # 1. Objetivo
 
-Definir oficialmente a entidade canônica `PropriedadeImovel` como o vínculo normativo entre os domínios:
+Definir oficialmente a entidade oficial `PropriedadeImovel` como o vínculo normativo entre os domínios:
 
 - `Propriedades`
 - `Imóveis Rurais`
@@ -35,7 +35,7 @@ Esta norma estabelece:
 
 # 2. Definição
 
-`PropriedadeImovel` é a entidade canônica de vínculo entre uma propriedade operacional e um imóvel rural legal.
+`PropriedadeImovel` é a entidade oficial de vínculo entre uma propriedade operacional e um imóvel rural legal.
 
 Ela existe para representar:
 
@@ -349,7 +349,7 @@ Produção -> Safra -> Talhão -> Propriedade -> PropriedadeImovel -> Imóvel Ru
 
 # 11. Norma Oficial
 
-`PropriedadeImovel` é uma entidade canônica de domínio.
+`PropriedadeImovel` é uma entidade oficial de domínio.
 
 Ela não é tabela auxiliar.
 

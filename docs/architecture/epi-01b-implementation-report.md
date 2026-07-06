@@ -12,7 +12,7 @@ A solução foi implementada de forma a evoluir a arquitetura de sincronização
 - `rh_colaboradores` (cadastro de colaboradores no backend)
 - `cadastros_produtos_epi` (catálogo de insumos/produtos com tipo `EPI`)
 - `epi_entregas` (registro físico consolidado de entregas)
-- `caderno_campo_entradas` (log canônico para auditoria)
+- `caderno_campo_entradas` (log oficial para auditoria)
 
 ---
 

@@ -10,7 +10,7 @@ As fases anteriores da convergencia territorial/fundiaria estabeleceram:
 
 - `Propriedades` como dominio operacional, territorial e produtivo;
 - `Imoveis Rurais` como dominio juridico, patrimonial, documental e fiscal;
-- `PropriedadeImovel` como unica entidade canonica de vinculacao N:N;
+- `PropriedadeImovel` como unica entidade oficial de vinculacao N:N;
 - `AGRI-DOMAIN-001` e `AGRI-DOMAIN-002` como normas imutaveis.
 
 Apesar disso, o codigo ainda possui espelhos historicos e pontos de leitura legados para documentos e identificadores fundiarios. A plataforma precisa consolidar a governanca documental sem promover nova duplicidade de fonte da verdade e sem introduzir migracao adicional neste momento.
@@ -94,7 +94,7 @@ O AgroSaaS adota oficialmente a seguinte governanca documental:
 - As telas devem continuar separando:
   - operacao territorial em `Propriedades`;
   - lastro documental em `Imoveis Rurais`;
-  - relacao canonica em `PropriedadeImovel`.
+  - relacao oficial em `PropriedadeImovel`.
 - Campos espelhados legados devem ser tratados como leitura ou compatibilidade, nunca como edicao primaria.
 
 ## 10. Impacto em ESG

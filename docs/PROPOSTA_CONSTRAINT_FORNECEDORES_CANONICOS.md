@@ -1,4 +1,4 @@
-# Proposta de Constraint Futura para Fornecedores Canônicos
+# Proposta de Constraint Futura para Fornecedores Oficiais
 
 Data: 2026-04-27
 
@@ -6,7 +6,7 @@ Data: 2026-04-27
 
 Preparar a aplicação futura de garantias mais fortes sobre `compras_fornecedores`, agora que:
 
-- novos writes já resolvem `Pessoa` canônica;
+- novos writes já resolvem `Pessoa` oficial;
 - `pessoa_id` já foi preenchido via backfill;
 - duplicidades legadas por `tenant_id + pessoa_id` já foram consolidadas no ambiente local/dev.
 
@@ -23,7 +23,7 @@ Hoje `compras_fornecedores` continua sendo uma tabela de compatibilidade.
 
 Situação desejada para fase futura:
 
-1. todo fornecedor legado deve apontar para uma `Pessoa` canônica;
+1. todo fornecedor legado deve apontar para uma `Pessoa` oficial;
 2. um mesmo par `tenant_id + pessoa_id` não deve existir duas vezes;
 3. novos cadastros via Compras não devem criar fornecedor sem `pessoa_id`.
 
@@ -33,7 +33,7 @@ Situação desejada para fase futura:
 
 Objetivo:
 
-- impedir duplicidade lógica do mesmo fornecedor canônico no legado.
+- impedir duplicidade lógica do mesmo fornecedor oficial no legado.
 
 Proposta:
 
@@ -52,7 +52,7 @@ Observações:
 
 Objetivo:
 
-- bloquear definitivamente fornecedor legado sem vínculo canônico.
+- bloquear definitivamente fornecedor legado sem vínculo oficial.
 
 Isso **não deve ser feito agora**.
 
@@ -261,7 +261,7 @@ Quando usar:
 ## Riscos conhecidos
 
 1. Integração fora do router:
-   writes diretos no banco ou scripts antigos podem não respeitar a lógica canônica.
+   writes diretos no banco ou scripts antigos podem não respeitar a lógica oficial.
 
 2. Duplicidade sem documento:
    embora o fluxo atual tenha sido consolidado, dados futuros de baixa qualidade podem pressionar o fallback por nome.

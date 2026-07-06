@@ -28,8 +28,8 @@ Auditoria documental da estrategia operacional de sincronizacao Sankhya x AgroSa
 - Auth Gateway com chamada a `/authenticate`, cache de token, mascaramento e diagnostico sanitizado. Referencia: `services/api/integracoes/sankhya/services/auth_service.py`
 - Sync service com configuracao, teste de conexao, logs, status, health, jobs, timeline e upsert das entidades ja suportadas. Referencia: `services/api/integracoes/sankhya/services/sync_service.py`
 - WS client generico para envelopes SOAP e chamadas ao Gateway. Referencia: `services/api/integracoes/sankhya/services/sync_service.py`
-- Servicos de NFe e financeiro com exportacao/importacao, usando jobs canonicos. Referencia: `services/api/integracoes/sankhya/services/nfe_financeiro_service.py`
-- Adapter canonico que materializa provider, credenciais, configuracao, features, policies, health e eventos. Referencia: `services/api/integracoes/sankhya/services/canonical_adapter.py`
+- Servicos de NFe e financeiro com exportacao/importacao, usando jobs oficiais. Referencia: `services/api/integracoes/sankhya/services/nfe_financeiro_service.py`
+- Adapter oficial que materializa provider, credenciais, configuracao, features, policies, health e eventos. Referencia: `services/api/integracoes/sankhya/services/canonical_adapter.py`
 
 ### Infra de integracoes ja existente
 
@@ -56,7 +56,7 @@ Auditoria documental da estrategia operacional de sincronizacao Sankhya x AgroSa
 
 | Item | Situacao | Evidencia | Reuso | Extensao futura |
 | --- | --- | --- | --- | --- |
-| Scheduler reutilizavel | EXISTE PARCIALMENTE | `sync_interval` em `SankhyaConfig`; `proximo_sync` derivado no status; `trigger_expression` em `IntegrationSyncPolicy`; scheduler canônico em Alert/Recommendations | Reutilizar o padrao de orquestracao existente no core de integracoes e os calculos de proximo ciclo ja existentes | Nao existe scheduler Sankhya dedicado; se a operacao exigir execucao automatica real, a integracao com um orquestrador externo ainda precisara ser ligada |
+| Scheduler reutilizavel | EXISTE PARCIALMENTE | `sync_interval` em `SankhyaConfig`; `proximo_sync` derivado no status; `trigger_expression` em `IntegrationSyncPolicy`; scheduler oficial em Alert/Recommendations | Reutilizar o padrao de orquestracao existente no core de integracoes e os calculos de proximo ciclo ja existentes | Nao existe scheduler Sankhya dedicado; se a operacao exigir execucao automatica real, a integracao com um orquestrador externo ainda precisara ser ligada |
 | Execucao manual | EXISTE E ATENDE | Rotas `/config/testar-conexao`, `/sync/pessoas`, `/sync/produtos`, `/sync/completo`, `/nfe/exportar`, `/nfe/importar-entrada`, `/financeiro/exportar-contas-pagar`, `/financeiro/exportar-contas-receber`, `/financeiro/importar` | Reutilizar integralmente | Nenhuma obrigatoria nesta fase |
 | Execucao agendada | EXISTE PARCIALMENTE | README sugere Celery Beat; `IntegrationSyncMode.AGENDADO` existe; `RecommendationSchedulerService` e `AlertSchedulerService` mostram padrao de scheduler interno | Reutilizar apenas o contrato de politica e o padrao de scheduler de outros dominios | Falta ligar Sankhya a um scheduler real; nao criar um novo agora |
 | Controle por tenant | EXISTE E ATENDE | `tenant_id` em config, jobs, logs, health e rotas via `Depends(get_tenant_id)` | Reutilizar | Nenhuma |
@@ -66,7 +66,7 @@ Auditoria documental da estrategia operacional de sincronizacao Sankhya x AgroSa
 
 | Item | Situacao | Evidencia | Reuso | Extensao futura |
 | --- | --- | --- | --- | --- |
-| Jobs existentes | EXISTE E ATENDE | `IntegrationJob` com `PENDING`, `RUNNING`, `SUCCESS`, `FAILED`, `CANCELLED`, `RETRYING`; `SankhyaSyncLog` como legado de audit trail | Reutilizar `IntegrationJob` como camada canonica e manter `SankhyaSyncLog` para compatibilidade | Nenhuma para o piloto |
+| Jobs existentes | EXISTE E ATENDE | `IntegrationJob` com `PENDING`, `RUNNING`, `SUCCESS`, `FAILED`, `CANCELLED`, `RETRYING`; `SankhyaSyncLog` como legado de audit trail | Reutilizar `IntegrationJob` como camada oficial e manter `SankhyaSyncLog` para compatibilidade | Nenhuma para o piloto |
 | Reprocessamento | EXISTE PARCIALMENTE | `run_once` no Outbox worker; rotas manuais de sync; listas de logs/jobs com filtros | Reutilizar execucao manual por rota e o worker do Outbox como padrao de reexecucao de eventos | Falta um comando/rota especifica de reprocessamento por periodo/documento para Sankhya |
 | Execucao incremental | EXISTE PARCIALMENTE | `ultimo_sync` em `SankhyaConfig`; `proximo_sync` calculado; filtros `tipo`/`status` nos logs | Reutilizar como base temporal | Falta checkpoint de cursor/continuation token para incremental fino por pagina |
 | Execucao completa | EXISTE PARCIALMENTE | `/sync/completo` existe, mas retorna apenas mensagem de fila | Reutilizar como entrada de orquestracao | Falta implementar a semantica real; nesta etapa nao deve ser criada nova estrutura |
@@ -87,7 +87,7 @@ Auditoria documental da estrategia operacional de sincronizacao Sankhya x AgroSa
 | --- | --- | --- | --- | --- |
 | Paginacao interna do app | EXISTE PARCIALMENTE | `skip`/`limit` em pessoas/produtos; `limit` em logs/jobs/timeline | Reutilizar para consulta operacional | Nao resolve a paginação do provider, apenas da UI/API local |
 | Paginacao do Gateway Sankhya | NAO EXISTE NA BASE AUDITADA | `SankhyaWSClient.executar_ws` monta envelope SOAP generico; chamadas atuais usam `findAll` ou `findByPeriodo` | Reutilizar o client generico | Se o provider exigir paginação, isso sera extensao do proprio consumo, nao novo scheduler |
-| Controle de lote | EXISTE PARCIALMENTE | `IntegrationSyncPolicy.batch_size`; `DomainEventOutboxService.claim_batch`; scheduler canônico em outros modulos usa `batch_size` | Reutilizar o padrao de lote | Falta o lote no Sankhya sync em fluxo real, apenas o contrato existe |
+| Controle de lote | EXISTE PARCIALMENTE | `IntegrationSyncPolicy.batch_size`; `DomainEventOutboxService.claim_batch`; scheduler oficial em outros modulos usa `batch_size` | Reutilizar o padrao de lote | Falta o lote no Sankhya sync em fluxo real, apenas o contrato existe |
 | Processamento parcial | EXISTE PARCIALMENTE | Outbox worker trabalha por batches; scheduler de recommendations trabalha por batches | Reutilizar como modelo de orchestracao | Sankhya ainda nao divide carga por lote no fluxo de dados de negocio |
 
 ### Idempotencia
@@ -96,8 +96,8 @@ Auditoria documental da estrategia operacional de sincronizacao Sankhya x AgroSa
 | --- | --- | --- | --- | --- |
 | Upsert por chave externa | EXISTE E ATENDE PARA OS DOMINIOS JA IMPLEMENTADOS | `SankhyaPessoa.sankhya_id`, `SankhyaProduto.sankhya_id`, `SankhyaNFe.chave_acesso`, `SankhyaLancamentoFinanceiro.sankhya_id` | Reutilizar integralmente | Novos dominios ainda nao cobertos precisarao de chave externa propria |
 | Prevenção de duplicidade | EXISTE E ATENDE | Unique constraints em `sankhya_id` e `chave_acesso`; `IntegrationJob` e `DomainEventOutbox` com unicidade de idempotencia | Reutilizar | Nenhuma |
-| Tratamento de existentes | EXISTE E ATENDE | Upsert em `sync_service.py` e `nfe_financeiro_service.py`; credencial rotaciona sem perder snapshot canonico | Reutilizar | Nenhuma |
-| Chaves externas do piloto | EXISTE PARCIALMENTE | `CODPARC`, `CODPROD`, `NUMDOC`, `DESDOB`, `CHAVEACESSO` aparecem nas cargas | Reutilizar as chaves ja mapeadas | `CODLOCAL` e `CODEMP` ainda nao possuem tratamento canonico dedicado |
+| Tratamento de existentes | EXISTE E ATENDE | Upsert em `sync_service.py` e `nfe_financeiro_service.py`; credencial rotaciona sem perder snapshot oficial | Reutilizar | Nenhuma |
+| Chaves externas do piloto | EXISTE PARCIALMENTE | `CODPARC`, `CODPROD`, `NUMDOC`, `DESDOB`, `CHAVEACESSO` aparecem nas cargas | Reutilizar as chaves ja mapeadas | `CODLOCAL` e `CODEMP` ainda nao possuem tratamento oficial dedicado |
 
 ### Retry
 
@@ -123,7 +123,7 @@ Auditoria documental da estrategia operacional de sincronizacao Sankhya x AgroSa
 | --- | --- | --- | --- | --- |
 | Logs | EXISTE E ATENDE | `SankhyaSyncLog`, logs estruturados do adapter, do worker e do relay | Reutilizar | Nenhuma |
 | Health | EXISTE E ATENDE | `IntegrationHealth` e `obter_health_detalhado` | Reutilizar | Nenhuma |
-| Status | EXISTE E ATENDE | `/status` em Sankhya; status canonico no adapter | Reutilizar | Nenhuma |
+| Status | EXISTE E ATENDE | `/status` em Sankhya; status oficial no adapter | Reutilizar | Nenhuma |
 | Diagnosticos | EXISTE E ATENDE | `/diagnostico`, `/health`, `/timeline` | Reutilizar | Nenhuma |
 | Eventos operacionais | EXISTE E ATENDE | `IntegrationConfigured`, `IntegrationCredentialRotated`, `IntegrationSyncStarted`, `IntegrationSyncCompleted`, `IntegrationSyncFailed`, `IntegrationHealthChanged` | Reutilizar integralmente | Nenhuma |
 | Metricas | EXISTE PARCIALMENTE | Outbox metrics e health report existem; Sankhya usa logs/health mas nao tem metricas de dominio adicionais | Reutilizar observabilidade do Outbox | Nao criar novas metricas agora sem demanda operacional comprovada |
@@ -132,7 +132,7 @@ Auditoria documental da estrategia operacional de sincronizacao Sankhya x AgroSa
 
 | Item | Situacao | Evidencia | Reuso | Extensao futura |
 | --- | --- | --- | --- | --- |
-| Eventos atuais atendem a estrategia | EXISTE E ATENDE | Adapter Sankhya publica eventos canonicos de configuracao, credencial, sync e health | Reutilizar sem criar novos eventos | Novos eventos apenas se houver novo dominio ou gatilho comprovado |
+| Eventos atuais atendem a estrategia | EXISTE E ATENDE | Adapter Sankhya publica eventos oficiais de configuracao, credencial, sync e health | Reutilizar sem criar novos eventos | Novos eventos apenas se houver novo dominio ou gatilho comprovado |
 | Reuso de eventos | EXISTE E ATENDE | `publish_domain_event_safe` e `DomainEventOutboxService.enqueue` | Reutilizar | Nenhuma |
 | Necessidade de eventos novos para o piloto | NAO EXISTE NECESSIDADE COMPROVADA | Os eventos de ciclo de vida cobrem o piloto atual | Nao criar novos eventos | Somente se aparecer checkpoint/cursor/job type novo em fase posterior |
 
@@ -249,7 +249,7 @@ Para o primeiro piloto operacional, a estrategia mais segura e:
 - `full refresh` controlado para pessoas e produtos
 - `no new scheduler`
 - `no new outbox pipeline`
-- `reuse canonical jobs, health and events`
+- `reuse oficial jobs, health and events`
 
 Essa combinacao entrega o piloto sem duplicar arquitetura e sem introduzir checkpoints artificiais antes de haver necessidade real.
 

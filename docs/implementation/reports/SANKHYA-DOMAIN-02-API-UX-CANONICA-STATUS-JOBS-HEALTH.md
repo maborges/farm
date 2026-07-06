@@ -1,8 +1,8 @@
-# SANKHYA-DOMAIN-02 — API/UX Canônica de Status, Jobs e Health
+# SANKHYA-DOMAIN-02 — API/UX Oficial de Status, Jobs e Health
 
 ## 1. Resumo Executivo
 
-Esta execução adaptou a integração Sankhya para expor status, jobs e health canônicos quando disponíveis, mantendo fallback legado sem remover `SankhyaConfig` nem `SankhyaSyncLog`.
+Esta execução adaptou a integração Sankhya para expor status, jobs e health oficiais quando disponíveis, mantendo fallback legado sem remover `SankhyaConfig` nem `SankhyaSyncLog`.
 
 ## 2. Arquivos alterados
 
@@ -37,7 +37,7 @@ Os campos legados `configurado`, `ativo`, `ultimo_sync`, `proximo_sync` e `statu
 
 ## 4. API de jobs/logs
 
-O endpoint `GET /integracoes/sankhya/logs` passou a enriquecer cada `SankhyaSyncLog` com correlação canônica quando houver `IntegrationJob` relacionado.
+O endpoint `GET /integracoes/sankhya/logs` passou a enriquecer cada `SankhyaSyncLog` com correlação oficial quando houver `IntegrationJob` relacionado.
 
 Foram adicionados:
 
@@ -51,7 +51,7 @@ Foram adicionados:
 - `result_payload`
 - `error_payload`
 
-Também foi criado `GET /integracoes/sankhya/jobs` para listar jobs canônicos recentes sem substituir os logs legados.
+Também foi criado `GET /integracoes/sankhya/jobs` para listar jobs oficiais recentes sem substituir os logs legados.
 
 ## 5. Health
 
@@ -60,21 +60,21 @@ Foi criado `GET /integracoes/sankhya/health`.
 Comportamento:
 
 - usa `IntegrationHealth` quando existir;
-- usa fallback legado quando a camada canônica não estiver materializada;
+- usa fallback legado quando a camada oficial não estiver materializada;
 - informa a origem do dado em `origem`;
-- não falha apenas por ausência de snapshot canônico.
+- não falha apenas por ausência de snapshot oficial.
 
 ## 6. Frontend tenant
 
 O console principal do tenant em `Administração → Integrações ERP → Sankhya` passou a exibir:
 
-- lifecycle e health canônicos;
+- lifecycle e health oficiais;
 - origem do status/health;
 - último sucesso e última falha;
 - falhas consecutivas;
 - features habilitadas;
 - políticas resumidas;
-- jobs canônicos recentes;
+- jobs oficiais recentes;
 - logs legados enriquecidos.
 
 O formulário de configuração existente foi preservado.
@@ -85,13 +85,13 @@ O backoffice continuou com foco em observabilidade e suporte.
 
 A tela passou a exibir:
 
-- health canônico;
-- origem canônica ou legada;
-- jobs canônicos;
+- health oficial;
+- origem oficial ou legada;
+- jobs oficiais;
 - logs legados enriquecidos;
 - reforço explícito de que o backoffice não é o console primário de configuração.
 
-## 8. Compatibilidade legado/canônico
+## 8. Compatibilidade legado/oficial
 
 - `SankhyaConfig` preservado.
 - `SankhyaSyncLog` preservado.
@@ -113,8 +113,8 @@ A tela passou a exibir:
 
 Cobertura adicionada:
 
-- status canônico com fallback legado;
-- health canônico e legado;
+- status oficial com fallback legado;
+- health oficial e legado;
 - enriquecimento de logs com `IntegrationJob`;
 - mascaramento de payloads sensíveis;
 - presença de rotas `/status`, `/health`, `/jobs` e `/logs`;
@@ -122,10 +122,10 @@ Cobertura adicionada:
 
 ## 11. Limitações
 
-- Não houve migração de dados legados para a camada canônica.
-- O vínculo legado ↔ canônico continua complementar, não substitutivo.
+- Não houve migração de dados legados para a camada oficial.
+- O vínculo legado ↔ oficial continua complementar, não substitutivo.
 - O console genérico de integrações ainda é uma tela simples e não implementa todo o catálogo futuro do domínio.
 
 ## 12. Próxima execução recomendada
 
-`SANKHYA-DOMAIN-03` para aprofundar observabilidade operacional, correlação histórica e eventual convergência incremental de rotinas legadas para consumo prioritário da camada canônica, sem big bang.
+`SANKHYA-DOMAIN-03` para aprofundar observabilidade operacional, correlação histórica e eventual convergência incremental de rotinas legadas para consumo prioritário da camada oficial, sem big bang.

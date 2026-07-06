@@ -16,7 +16,7 @@ O AgroSaaS já consolidou:
 
 - `Propriedade` como fonte oficial operacional/territorial;
 - `Imóvel Rural` como fonte oficial jurídica/fundiária/documental;
-- `PropriedadeImovel` como vínculo canônico `N:N`;
+- `PropriedadeImovel` como vínculo oficial `N:N`;
 - Certificações/ESG como domínio consumidor;
 - evidências, não conformidades e planos de ação como escrita local do domínio consumidor;
 - visões territoriais/fundiárias read-only e APIs agregadas;
@@ -43,7 +43,7 @@ O novo bloco deve consumir essas bases sem criar uma nova fonte oficial territor
 
 ### 3.2 Leitura arquitetural desses modelos
 
-- `ESGIndicador` e `ESGRelatorio` são referências parciais, úteis como insumo de normalização, mas não canônicas.
+- `ESGIndicador` e `ESGRelatorio` são referências parciais, úteis como insumo de normalização, mas não oficiais.
 - `LoteRastreabilidade` e `CadernoLoteComercial` já carregam o padrão de snapshot imutável e passaporte de origem.
 - `CadernoExportacao` é a melhor base de referência para PDF/assinatura/hash/documentação congelada.
 - `CertificacaoPropriedade` é ponte legada, não contrato final.
@@ -228,7 +228,7 @@ O bloco novo deve ler, e nunca duplicar como fonte oficial:
 
 - **Propriedade**: área operacional, infraestrutura, hierarquia de áreas, contexto produtivo.
 - **Imóvel Rural**: titularidade, matrícula, documentos fundiários, CAR, CCIR, ITR, NIRF, SIGEF.
-- **PropriedadeImovel**: vínculo canônico, vigência, área vinculada, percentual vinculado.
+- **PropriedadeImovel**: vínculo oficial, vigência, área vinculada, percentual vinculado.
 - **Caderno de campo**: entradas, fotos, visitas, EPI, exportações.
 - **Lotes**: origem física e cadeia de custódia.
 - **Comercialização/exportação**: origem documental e lastro comercial.
@@ -326,7 +326,7 @@ Há necessidade provável de migration futura.
 
 ### Motivos
 
-- os modelos canônicos ainda não existem fisicamente;
+- os modelos oficiais ainda não existem fisicamente;
 - os modelos existentes são parciais, legados ou compatíveis;
 - a estrutura nova depende de versionamento e snapshots próprios;
 - a publicação exige constraints, enums e trilha de auditoria dedicadas.
@@ -355,4 +355,4 @@ Mas a recomendação padrão continua sendo uma migration única, desde que o es
 
 O AgroSaaS já possui base suficiente para modelar o bloco de `RelatorioESG` e `PassaporteRastreabilidade` sem inventar nova fonte oficial territorial/fundiária.
 
-O passo correto agora é apenas aprovação arquitetural deste plano. A implementação física deve vir depois, com migration controlada e sem alterar a fundação canônica de território, imóvel rural e vínculo `PropriedadeImovel`.
+O passo correto agora é apenas aprovação arquitetural deste plano. A implementação física deve vir depois, com migration controlada e sem alterar a fundação oficial de território, imóvel rural e vínculo `PropriedadeImovel`.

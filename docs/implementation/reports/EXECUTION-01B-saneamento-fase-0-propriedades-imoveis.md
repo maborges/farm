@@ -25,7 +25,7 @@ Data de execução: 2026-06-21
 | `docs/architecture/agrosaas-routing-map.md` | Documentação arquitetural já esperada | Atualização operacional esperada |
 | `docs/analysis/` | Relatórios de implementação | Diretório novo esperado para a trilha de execução |
 | `docs/architecture/adr/` | Relatórios / ADRs | Diretório novo esperado para decisão arquitetural |
-| `docs/architecture/agrosaas-territorial-canonical-model.md` | Documentação arquitetural já esperada | Documento canônico da trilha territorial |
+| `docs/architecture/agrosaas-territorial-oficial-model.md` | Documentação arquitetural já esperada | Documento oficial da trilha territorial |
 | `docs/architecture/domains/` | Documentação de domínio | Diretório novo esperado |
 | `docs/architecture/governance/` | Documentação de governança | Diretório novo esperado |
 | `docs/architecture/standards/` | Normas arquiteturais | Diretório novo esperado |

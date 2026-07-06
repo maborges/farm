@@ -1,7 +1,7 @@
 # OPS-INTELLIGENCE-05 - Telemetria e Governança Operacional
 
 ## Objetivo
-Implementar telemetria, métricas e governança operacional do Recommendation Engine global sem alterar frontend, Campo PWA, NotificationDispatcher, Alert Engine ou o lifecycle canônico.
+Implementar telemetria, métricas e governança operacional do Recommendation Engine global sem alterar frontend, Campo PWA, NotificationDispatcher, Alert Engine ou o lifecycle oficial.
 
 ## Auditoria Inicial
 

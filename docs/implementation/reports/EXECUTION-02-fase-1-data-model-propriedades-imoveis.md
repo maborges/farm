@@ -20,7 +20,7 @@ Este relatório não implementa código, migration, API ou frontend.
 
 ### Objetivo
 
-`PropriedadeImovel` é a entidade canônica de vínculo entre `Propriedades` e `Imóveis Rurais`. Ela existe para registrar a relação auditável entre o domínio operacional e o domínio fundiário/legal.
+`PropriedadeImovel` é a entidade oficial de vínculo entre `Propriedades` e `Imóveis Rurais`. Ela existe para registrar a relação auditável entre o domínio operacional e o domínio fundiário/legal.
 
 ### Ownership
 
@@ -313,7 +313,7 @@ OUTRO
 
 ### Resultado
 
-- O Data Model agora reconhece explicitamente o vínculo canônico como entidade de primeira classe.
+- O Data Model agora reconhece explicitamente o vínculo oficial como entidade de primeira classe.
 - A documentação está coerente com AGRI-DOMAIN-002 e com a ADR aprovada.
 
 ---

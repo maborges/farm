@@ -168,7 +168,7 @@ Há sobreposição direta.
 | CPF | `Usuario.cpf` | `PessoaPII.cpf`, `PessoaDocumento.numero` tipo `CPF` |
 | Telefone | `Usuario.telefone` | `PessoaPII.telefone`, `PessoaPII.celular`, `PessoaContato.valor` |
 | E-mail | `Usuario.email` | `PessoaPII.email`, `PessoaContato.valor` tipo `EMAIL` |
-| Foto | `Usuario.foto_perfil_url` | Não existe equivalente canônico explícito em `Pessoa` |
+| Foto | `Usuario.foto_perfil_url` | Não existe equivalente oficial explícito em `Pessoa` |
 | Documento civil | Parcial (`cpf`) | Completo em `PessoaDocumento` |
 | Contatos múltiplos | Não | Sim, em `PessoaContato` |
 
@@ -390,7 +390,7 @@ No Campo PWA:
 
 - autenticação/sessão = `Usuario`
 - trabalhador/colaborador = `ColaboradorRH`
-- identidade civil canônica `Pessoa` = **não é o eixo principal**
+- identidade civil oficial `Pessoa` = **não é o eixo principal**
 
 ---
 
@@ -806,14 +806,14 @@ Sem ponte explícita entre ambos.
 
 `Usuario` autentica e autoriza, mas também carrega dados pessoais duplicados.
 
-`Pessoa` já existe como identidade civil/organizacional canônica, mas não participa dos fluxos de login, convite, onboarding ou RBAC.
+`Pessoa` já existe como identidade civil/organizacional oficial, mas não participa dos fluxos de login, convite, onboarding ou RBAC.
 
 Isso é exatamente um modelo híbrido.
 
 Não é:
 
 - Modelo A, porque `Usuario` não é credencial pura;
-- Modelo B, porque `Pessoa` não está restrita a terceiros externos e já é fonte canônica para pessoas do domínio;
+- Modelo B, porque `Pessoa` não está restrita a terceiros externos e já é fonte oficial para pessoas do domínio;
 - Modelo D, porque a evidência encontrada é suficiente para enquadrar o modelo atual.
 
 ---
@@ -910,7 +910,7 @@ Também é comportamento normal do sistema.
 - consentimento
 - log de acesso a PII
 
-`Usuario` mantém dados pessoais fora dessa malha canônica.
+`Usuario` mantém dados pessoais fora dessa malha oficial.
 
 ### Risco 7: onboarding e convite fora da base mestre
 
@@ -957,11 +957,11 @@ Separar formalmente:
 ### Direção recomendada
 
 1. `Usuario` deve ser tratado arquiteturalmente como identidade de acesso.
-2. `Pessoa` deve permanecer como identidade civil/organizacional canônica.
+2. `Pessoa` deve permanecer como identidade civil/organizacional oficial.
 3. Deve existir vínculo explícito entre ambos.
 4. Para novos usuários, esse vínculo deve nascer no onboarding e no convite.
 5. O RBAC pode continuar baseado em `Usuario`, `TenantUsuario` e `PerfilAcesso`.
-6. O perfil pessoal exibido na UI deve ser reconciliado com a base canônica.
+6. O perfil pessoal exibido na UI deve ser reconciliado com a base oficial.
 7. Fluxos de LGPD devem apontar para uma governança única dos dados pessoais.
 
 ### O que este relatório não recomenda fazer agora
@@ -988,4 +988,4 @@ Separar formalmente:
 
 ## 24. Pergunta final obrigatória
 
-**Para a versão 1.0 do AgroSaaS, `Usuario` não deveria continuar totalmente independente de `Pessoa`. A codebase mostra que `Usuario` hoje mistura autenticação, vínculo organizacional e dados pessoais duplicados, enquanto `Pessoa` já existe como base canônica civil. Portanto, a arquitetura deve evoluir para um vínculo explícito entre `Usuario` e `Pessoa` antes do lançamento, preferencialmente obrigatório para novos usuários e compatível com o legado existente.**
+**Para a versão 1.0 do AgroSaaS, `Usuario` não deveria continuar totalmente independente de `Pessoa`. A codebase mostra que `Usuario` hoje mistura autenticação, vínculo organizacional e dados pessoais duplicados, enquanto `Pessoa` já existe como base oficial civil. Portanto, a arquitetura deve evoluir para um vínculo explícito entre `Usuario` e `Pessoa` antes do lançamento, preferencialmente obrigatório para novos usuários e compatível com o legado existente.**

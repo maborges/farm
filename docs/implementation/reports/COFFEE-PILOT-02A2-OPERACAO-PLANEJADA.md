@@ -13,7 +13,7 @@ A arquitetura consolidada do AgroSaaS foi respeitada preservando o **Bounded Con
 - **`services/api/agricola/tarefas/schemas.py`**: Criados os modelos de dados `PlanejarOperacaoRequest` e `PlanejarInsumoRequest`, encapsulando os dados logísticos básicos exigidos pela frota (`maquina_id`, `operador_id`) e almoxarifado (`produto_id`).
 - **`services/api/agricola/tarefas/service.py`**: Adicionado o método gerador `gerar_operacao_planejada`. Este método lê a intenção agronômica (SafraTarefa) e gera uma `OperacaoAgricola` vinculada, copiando propriedades como fase, área e tipo, e agregando as novidades logísticas. Garante a idempotência para o botão de "Planejar".
 - **`services/api/agricola/tarefas/router.py`**: Criado o endpoint `POST /tarefas/{tarefa_id}/planejar-operacao`.
-- **`services/api/agricola/operacoes/service.py`**: Modificada a entidade canônica de execução para respeitar o status `PLANEJADA`.
+- **`services/api/agricola/operacoes/service.py`**: Modificada a entidade oficial de execução para respeitar o status `PLANEJADA`.
 
 ## 2. Validação dos Critérios Exigidos
 

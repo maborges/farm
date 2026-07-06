@@ -14,7 +14,7 @@ Submódulo de estoque voltado à entrada assistida de dados legados para início
 - revalidação
 - aptidão para confirmação
 - confirmação transacional
-- gravação canônica em `SALDO_INICIAL`
+- gravação oficial em `SALDO_INICIAL`
 - proveniência explícita `IMPLANTACAO`
 - auditoria da trilha da sessão
 - frontend operacional completo
@@ -38,7 +38,7 @@ Submódulo de estoque voltado à entrada assistida de dados legados para início
 - `estoque:implantacao_assistida:delete`
 - `tenant:audit:view` para consulta de auditoria
 
-## Proveniência canônica
+## Proveniência oficial
 
 Na confirmação, cada item confirmável gera movimento em `estoque_movimentos` com:
 

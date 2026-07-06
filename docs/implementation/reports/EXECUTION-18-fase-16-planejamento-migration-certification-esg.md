@@ -47,13 +47,13 @@ Planejar tecnicamente a migration física do domínio consumidor Certificações
 ## 5. Estratégia Para Modelos Existentes
 
 - `CertificacaoPropriedade`: compatibilidade somente leitura / adaptar depois
-- `ESGIndicador`: fora do domínio canônico / adaptar depois
+- `ESGIndicador`: fora do domínio oficial / adaptar depois
 - `ESGRelatorio`: substituir gradualmente
 - `LoteRastreabilidade`: manter com FK futura
 - `CadernoLoteComercial`: manter com FK futura
 - `ChecklistModelo`: compatibilidade somente leitura
 - `ChecklistRealizado`: compatibilidade somente leitura
-- `PlanoAcaoItem`: fora do domínio canônico
+- `PlanoAcaoItem`: fora do domínio oficial
 - `MRVProjeto`: legado histórico
 - `MRVRelatorio`: legado histórico
 

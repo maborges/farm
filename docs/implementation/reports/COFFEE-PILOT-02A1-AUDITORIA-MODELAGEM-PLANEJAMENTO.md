@@ -23,7 +23,7 @@ Não. Operadores são recursos de RH com disponibilidades de turno, independente
 **Não.** Criar essa estrutura forçaria o agrônomo a agir como almoxarife, transformando a intenção agronômica em um controle de estoque prematuro e ferindo a arquitetura.
 
 **6. Já existe alguma entidade que represente um plano operacional reutilizável?**
-**Sim.** A entidade canônica `OperacaoAgricola` já conta com atributos logísticos pesados (`maquina_id`, `operador_id`, lista de `insumos` amarrada a `produto_id` e a possibilidade de assumir `status="PLANEJADA"`).
+**Sim.** A entidade oficial `OperacaoAgricola` já conta com atributos logísticos pesados (`maquina_id`, `operador_id`, lista de `insumos` amarrada a `produto_id` e a possibilidade de assumir `status="PLANEJADA"`).
 
 **7. É possível reutilizar Ordens de Serviço em modo "Planejado"?**
 A tabela/entidade `OrdemServico` não existe ativamente na arquitetura de banco de dados do AgroSaaS (há apenas código morto residual em `/agricola/services`). Portanto, não há o que reutilizar dessa nomenclatura.

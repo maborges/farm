@@ -27,7 +27,7 @@ Conclusão executiva:
 - O AgroSaaS já possui dois domínios ativos e parcialmente sobrepostos: `Propriedades` e `Imóveis Rurais`.
 - O domínio `Propriedades` está correto como camada operacional, territorial e produtiva.
 - O domínio `Imóveis Rurais` está correto como camada legal, documental, patrimonial e fiscal.
-- A convergência ainda não está pronta para implementação porque existem duplicidades de fonte da verdade e ausência de entidade canônica de vínculo.
+- A convergência ainda não está pronta para implementação porque existem duplicidades de fonte da verdade e ausência de entidade oficial de vínculo.
 
 ## 1. Inventário atual
 
@@ -94,7 +94,7 @@ Conclusão executiva:
 | Avaliações patrimoniais | Presentes no módulo Imóveis Rurais | Alinhado | MANTER |
 | Infraestrutura operacional | Presentes no módulo de Propriedades | Pode permanecer como ativo territorial | MANTER |
 | Registro ambiental e patrimonial no cadastro territorial | Presente em Propriedades | Parte é compartilhável, mas a prova documental deve ser centralizada | AJUSTAR |
-| Entidade canônica de vínculo entre Propriedade e Imóvel Rural | Não existe | Lacuna central do modelo | CRIAR |
+| Entidade oficial de vínculo entre Propriedade e Imóvel Rural | Não existe | Lacuna central do modelo | CRIAR |
 | Cardinalidade N:N formalizada em persistência | Não existe no banco | Lacuna central | CRIAR |
 | Regras de espelhamento e edição controlada | Não formalizadas no código | Lacuna de governança técnica | CRIAR |
 
@@ -107,7 +107,7 @@ Conclusão executiva:
   - Dados fundiários continuam alojados no domínio territorial.
   - Há duplicação de campos de matrícula, CAR, CCIR, NIRF, ITR e cartório.
 - O que falta:
-  - Entidade de ligação canônica.
+  - Entidade de ligação oficial.
   - Plano de migração de dados e leitura compatível.
   - Regras formais de source-of-truth e sincronização.
 
@@ -156,13 +156,13 @@ Conclusão executiva:
 | Item | Status |
 |---|---|
 | Existe atualmente | INEXISTENTE |
-| Tabela canônica de vínculo | Não existe |
+| Tabela oficial de vínculo | Não existe |
 | Modelo explícito de relacionamento N:N | Não existe |
 | Regras de vínculo histórico | Não formalizadas |
 
 ### Definição conceitual recomendada
 
-`PropriedadeImovel` é a entidade canônica de vínculo entre a unidade operacional `Propriedade` e a unidade legal/documental `Imóvel Rural`.
+`PropriedadeImovel` é a entidade oficial de vínculo entre a unidade operacional `Propriedade` e a unidade legal/documental `Imóvel Rural`.
 
 Ela não representa operação, nem titularidade, nem matrícula isoladamente. Ela representa a associação auditável entre os dois domínios.
 
@@ -208,7 +208,7 @@ Ela não representa operação, nem titularidade, nem matrícula isoladamente. E
 | `imoveis_documentos` | Baixo | Manter como documental oficial | Baixa |
 | `imoveis_arrendamentos` | Baixo | Manter | Baixa |
 | `imoveis_avaliacoes` | Baixo | Manter | Baixa |
-| `propriedade_imovel` | Alto | Criar nova tabela canônica de vínculo | Alta |
+| `propriedade_imovel` | Alto | Criar nova tabela oficial de vínculo | Alta |
 
 ### Leitura técnica
 
@@ -228,10 +228,10 @@ Ela não representa operação, nem titularidade, nem matrícula isoladamente. E
 | `/api/v1/cadastros/areas-rurais/{id}/matriculas` | Alto | Refatorar ou depreciar conforme migração |
 | `/api/v1/cadastros/areas-rurais/{id}/registros-ambientais` | Médio | Revisar espelhamento documental |
 | `/api/v1/imoveis` | Médio | Consolidar como fonte legal e documental oficial |
-| `/api/v1/imoveis/{id}` | Médio | Fortalecer leitura canônica de matrícula, cartório e documentos |
+| `/api/v1/imoveis/{id}` | Médio | Fortalecer leitura oficial de matrícula, cartório e documentos |
 | `/api/v1/imoveis/arrendamentos` | Baixo | Manter e integrar ao vínculo PropriedadeImovel |
 | `/api/v1/imoveis/avaliacoes` | Baixo | Manter |
-| Future `/api/v1/propriedade-imovel` | Alto | Criar para gerenciar o vínculo canônico |
+| Future `/api/v1/propriedade-imovel` | Alto | Criar para gerenciar o vínculo oficial |
 
 ### Efeito prático
 
@@ -291,7 +291,7 @@ Ela não representa operação, nem titularidade, nem matrícula isoladamente. E
 
 | Objetivo | Risco | Complexidade | Dependências |
 |---|---|---|---|
-| Definir `PropriedadeImovel` no modelo canônico e eliminar ambiguidade conceitual | Médio | Alta | ADR e governança |
+| Definir `PropriedadeImovel` no modelo oficial e eliminar ambiguidade conceitual | Médio | Alta | ADR e governança |
 
 ### Fase 3 — Banco de Dados
 
@@ -321,7 +321,7 @@ Ela não representa operação, nem titularidade, nem matrícula isoladamente. E
 
 | Objetivo | Risco | Complexidade | Dependências |
 |---|---|---|---|
-| Usar o vínculo canônico como lastro de auditoria, ESG e origem | Médio | Média | Rastreabilidade estável |
+| Usar o vínculo oficial como lastro de auditoria, ESG e origem | Médio | Média | Rastreabilidade estável |
 
 ## 10. ADR final
 
@@ -333,7 +333,7 @@ Ela não representa operação, nem titularidade, nem matrícula isoladamente. E
 
 - A arquitetura conceitual está madura.
 - O sistema atual ainda contém duplicidade de dados fundiários entre Propriedades e Imóveis Rurais.
-- A entidade canônica `PropriedadeImovel` ainda não existe.
+- A entidade oficial `PropriedadeImovel` ainda não existe.
 - Não há ainda sequência de migração e compatibilidade retroativa formalizada em ADR.
 - Implementar sem essa etapa elevaria o risco de inconsistência cadastral, documental e de rastreabilidade.
 
@@ -362,7 +362,7 @@ Essa ADR deve autorizar:
 
 - Remover a duplicidade de campos fundiários dentro de Propriedades.
 - Tornar Imóveis Rurais a fonte oficial de CAR, CCIR, ITR, NIRF, matrícula e cartório.
-- Introduzir `PropriedadeImovel` como vínculo canônico.
+- Introduzir `PropriedadeImovel` como vínculo oficial.
 
 3. O que precisa ser criado?
 
@@ -399,4 +399,4 @@ Essa ADR deve autorizar:
 
 ## Conclusão
 
-O AgroSaaS deve convergir `Propriedades` e `Imóveis Rurais` sem criar um terceiro módulo. A implementação futura depende da criação da entidade canônica `PropriedadeImovel`, da eliminação de duplicidades fundiárias e da formalização de uma ADR de migração. Hoje, o sistema já possui boa base conceitual, mas ainda não está pronto para uma implementação definitiva sem risco de regressão arquitetural.
+O AgroSaaS deve convergir `Propriedades` e `Imóveis Rurais` sem criar um terceiro módulo. A implementação futura depende da criação da entidade oficial `PropriedadeImovel`, da eliminação de duplicidades fundiárias e da formalização de uma ADR de migração. Hoje, o sistema já possui boa base conceitual, mas ainda não está pronto para uma implementação definitiva sem risco de regressão arquitetural.

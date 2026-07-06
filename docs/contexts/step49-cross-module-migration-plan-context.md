@@ -2,7 +2,7 @@
 
 ## Objetivo
 
-Planejar a remoção incremental das duplicidades críticas entre módulos do SaaS agro, migrando os novos fluxos para as fontes canônicas definidas em:
+Planejar a remoção incremental das duplicidades críticas entre módulos do SaaS agro, migrando os novos fluxos para as fontes oficiais definidas em:
 
 - `docs/contexts/step47-existing-modules-inventory-context.md`
 - `docs/contexts/step48-cross-module-ownership-context.md`
@@ -14,7 +14,7 @@ Este documento é deliberadamente um plano técnico. Ele não implementa código
 - Core permanece como base comum de identidade, cadastros e permissões.
 - Agricultura e Pecuária continuam como módulos produtivos equivalentes.
 - Estoque, Financeiro e Frota/Máquinas são módulos integradores.
-- Novas implementações devem consumir fontes canônicas antes de criar novas tabelas.
+- Novas implementações devem consumir fontes oficiais antes de criar novas tabelas.
 - Tabelas legadas podem continuar existindo durante janelas de compatibilidade.
 - Depreciação física só deve ocorrer em etapa futura, com migration dedicada, testes e aceite explícito.
 
@@ -22,10 +22,10 @@ Este documento é deliberadamente um plano técnico. Ele não implementa código
 
 As migrações devem seguir uma sequência conservadora:
 
-1. Congelar a fonte canônica por entidade.
+1. Congelar a fonte oficial por entidade.
 2. Identificar registros duplicados e chaves naturais de reconciliação.
-3. Criar plano de correspondência entre legado e canônico.
-4. Adaptar novos writes para a fonte canônica.
+3. Criar plano de correspondência entre legado e oficial.
+4. Adaptar novos writes para a fonte oficial.
 5. Manter leitura compatível para APIs/frontends existentes.
 6. Backfill idempotente dos dados legados.
 7. Validar saldos, custos, origem e relatórios.
@@ -42,21 +42,21 @@ As migrações devem seguir uma sequência conservadora:
 | 3 | `origem_tipo/origem_id` cross-módulo | Permite rastreabilidade de custos, receitas e estoque. |
 | 4 | `pec_piquetes` -> `cadastros_areas_rurais` | Unifica geografia produtiva entre Agricultura e Pecuária. |
 | 5 | `culturas` legado -> `cadastros_culturas` | Remove duplicidade agronômica antes de novos cadastros agrícolas. |
-| 6 | `maquinario_id` -> `equipamento_id` | Padroniza Frota/Máquinas sobre equipamento canônico. |
+| 6 | `maquinario_id` -> `equipamento_id` | Padroniza Frota/Máquinas sobre equipamento oficial. |
 | 7 | Centro de custo geral | Depende de origem e ledger mais estáveis para não nascer inconsistente. |
 
 ## 0. Congelamento operacional
 
 ### Estado atual
 
-O repositório já possui fontes canônicas definidas no Step 48, mas ainda existem fluxos e nomes legados em módulos operacionais. Os principais pontos são:
+O repositório já possui fontes oficiais definidas no Step 48, mas ainda existem fluxos e nomes legados em módulos operacionais. Os principais pontos são:
 
-- Pessoas canônicas em `cadastros_pessoas`, mas fornecedores duplicados em `compras_fornecedores`.
+- Pessoas oficiais em `cadastros_pessoas`, mas fornecedores duplicados em `compras_fornecedores`.
 - Estoque com `estoque_movimentacoes` e `estoque_movimentos`.
 - Financeiro com campos de origem em `fin_despesas` e `fin_receitas`, mas uso irregular por módulo.
-- Geografia produtiva canônica em `cadastros_areas_rurais`, mas piquetes legados em `pec_piquetes`.
-- Cultura canônica em `cadastros_culturas`, mas tabela legada `culturas`.
-- Equipamentos canônicos em `cadastros_equipamentos`, mas aliases `maquinario_id` em Frota.
+- Geografia produtiva oficial em `cadastros_areas_rurais`, mas piquetes legados em `pec_piquetes`.
+- Cultura oficial em `cadastros_culturas`, mas tabela legada `culturas`.
+- Equipamentos oficiais em `cadastros_equipamentos`, mas aliases `maquinario_id` em Frota.
 
 ### Risco
 
@@ -65,19 +65,19 @@ Sem congelamento, novas telas, endpoints ou jobs podem reforçar tabelas duplica
 ### Estratégia de migração
 
 - Registrar este documento como diretriz para novas histórias técnicas.
-- Proibir, em revisão técnica, novas tabelas por módulo para entidades já canônicas.
+- Proibir, em revisão técnica, novas tabelas por módulo para entidades já oficiais.
 - Tratar tabelas legadas como compatibilidade, não como fonte de verdade.
-- Exigir que novos fluxos informem `tenant_id`, fonte canônica e, quando aplicável, `origem_tipo/origem_id`.
+- Exigir que novos fluxos informem `tenant_id`, fonte oficial e, quando aplicável, `origem_tipo/origem_id`.
 
 ### Impacto em API/frontend/testes
 
 - Não exige alteração imediata.
-- Novos contratos de API devem preferir ids canônicos.
+- Novos contratos de API devem preferir ids oficiais.
 - Testes futuros devem validar que novos fluxos não escrevem em cadastros duplicados.
 
 ### Critérios de aceite
 
-- Novas histórias técnicas citam a fonte canônica antes de modelar entidades compartilhadas.
+- Novas histórias técnicas citam a fonte oficial antes de modelar entidades compartilhadas.
 - Nenhum novo módulo cria tabela própria para pessoa, produto, estoque, fazenda, área rural ou equipamento.
 - Legados são tratados explicitamente como compatibilidade.
 
@@ -85,8 +85,8 @@ Sem congelamento, novas telas, endpoints ou jobs podem reforçar tabelas duplica
 
 ### Estado atual
 
-- Fonte canônica: `cadastros_pessoas`, em `services/api/core/cadastros/pessoas/models.py`.
-- Papel/relacionamento canônico: relacionamentos de pessoa no mesmo módulo de cadastros.
+- Fonte oficial: `cadastros_pessoas`, em `services/api/core/cadastros/pessoas/models.py`.
+- Papel/relacionamento oficial: relacionamentos de pessoa no mesmo módulo de cadastros.
 - Legado duplicado: `compras_fornecedores`, modelado em `services/api/operacional/models/compras.py`.
 - Consumo operacional: rotas de Compras em `services/api/operacional/routers/compras.py`.
 
@@ -103,7 +103,7 @@ Sem congelamento, novas telas, endpoints ou jobs podem reforçar tabelas duplica
 2. Definir regra de match:
    - CNPJ/CPF válido tem precedência.
    - Na ausência de documento, usar nome normalizado apenas como sugestão, exigindo revisão.
-3. Criar, em fase futura, vínculo entre fornecedor legado e pessoa canônica.
+3. Criar, em fase futura, vínculo entre fornecedor legado e pessoa oficial.
 4. Fazer backfill de `compras_fornecedores` para `cadastros_pessoas`.
 5. Garantir relacionamento/papel `FORNECEDOR` para cada pessoa migrada.
 6. Adaptar novos writes de fornecedores para criar/atualizar `cadastros_pessoas`.
@@ -113,8 +113,8 @@ Sem congelamento, novas telas, endpoints ou jobs podem reforçar tabelas duplica
 ### Impacto em API
 
 - Endpoints atuais de Compras devem permanecer compatíveis durante a transição.
-- Respostas podem passar a expor `pessoa_id` como identificador canônico.
-- Criação de fornecedor via Compras deve resolver ou criar pessoa canônica.
+- Respostas podem passar a expor `pessoa_id` como identificador oficial.
+- Criação de fornecedor via Compras deve resolver ou criar pessoa oficial.
 - Validações de unicidade devem migrar de fornecedor local para pessoa por tenant/documento.
 
 ### Impacto em frontend
@@ -132,10 +132,10 @@ Sem congelamento, novas telas, endpoints ou jobs podem reforçar tabelas duplica
 
 ### Critérios de aceite
 
-- Todo novo fornecedor de Compras possui pessoa canônica associada.
+- Todo novo fornecedor de Compras possui pessoa oficial associada.
 - Pessoa com papel `FORNECEDOR` é a fonte de verdade.
 - `compras_fornecedores` não recebe novos cadastros independentes.
-- Relatórios e pedidos de compra resolvem fornecedor via pessoa canônica.
+- Relatórios e pedidos de compra resolvem fornecedor via pessoa oficial.
 
 ## 2. Novos fluxos de estoque usando `estoque_movimentos` como ledger único
 
@@ -143,7 +143,7 @@ Sem congelamento, novas telas, endpoints ou jobs podem reforçar tabelas duplica
 
 - Modelos de Estoque ficam em `services/api/operacional/models/estoque.py`.
 - Existem `estoque_movimentacoes` e `estoque_movimentos`.
-- O Step 48 definiu `estoque_movimentos` como ledger canônico para novos fluxos.
+- O Step 48 definiu `estoque_movimentos` como ledger oficial para novos fluxos.
 - `estoque_saldos` representa saldo operacional.
 - `estoque_lotes` representa lote/rastreabilidade.
 - `services/api/operacional/services/estoque_ledger.py` já indica intenção de ledger.
@@ -161,7 +161,7 @@ Sem congelamento, novas telas, endpoints ou jobs podem reforçar tabelas duplica
 2. Manter `estoque_movimentacoes` apenas como legado/compatibilidade enquanto necessário.
 3. Definir contrato mínimo do ledger:
    - `tenant_id`
-   - produto/insumo canônico
+   - produto/insumo oficial
    - depósito/local
    - lote, quando aplicável
    - quantidade
@@ -184,12 +184,12 @@ Sem congelamento, novas telas, endpoints ou jobs podem reforçar tabelas duplica
 ### Impacto em frontend
 
 - Telas operacionais de movimentação podem manter comportamento inicial.
-- Novas telas de rastreabilidade devem consultar ledger canônico.
+- Novas telas de rastreabilidade devem consultar ledger oficial.
 - Indicadores de saldo devem explicitar depósito, lote e data de referência.
 
 ### Impacto em testes
 
-- Testar que cada novo fluxo gera exatamente um movimento canônico esperado.
+- Testar que cada novo fluxo gera exatamente um movimento oficial esperado.
 - Testar que saldo calculado a partir do ledger bate com `estoque_saldos`.
 - Testar idempotência de backfill.
 - Testar rastreabilidade por `origem_tipo/origem_id`.
@@ -205,14 +205,14 @@ Sem congelamento, novas telas, endpoints ou jobs podem reforçar tabelas duplica
 
 - O passivo legado remanescente em `estoque_movimentacoes` é baixo (`9` linhas no snapshot de `2026-04-28`), mas não deve sofrer backfill automático sem classificação prévia.
 - Não foi encontrada duplicidade exata intra-legado; o risco principal está em dupla contagem cross-ledger.
-- Registros legados de `PEDIDO_COMPRA` com cobertura canônica provável devem ser excluídos do backfill por regra determinística.
+- Registros legados de `PEDIDO_COMPRA` com cobertura oficial provável devem ser excluídos do backfill por regra determinística.
 - Registros com `origem_tipo` nulo ou `OPERACAO_AGRICOLA` legado exigem política explícita de mapeamento antes da migração.
 - O backfill futuro deve ser idempotente por identificador legado, com dry-run obrigatório e trilha de auditoria.
 
 ### Política operacional consolidada no Step 66
 
 - Cada linha legada de `estoque_movimentacoes` deve cair em exatamente uma classe: `IGNORAR`, `MIGRAR`, `MARCAR_COMO_LEGADO` ou `REVISAR_MANUALMENTE`.
-- `PEDIDO_COMPRA` já coberto no ledger canônico deve ser `IGNORAR` para evitar dupla contagem.
+- `PEDIDO_COMPRA` já coberto no ledger oficial deve ser `IGNORAR` para evitar dupla contagem.
 - `OPERACAO_AGRICOLA` legado só pode ser `MIGRAR` se houver remapeamento determinístico para `OPERACAO_EXECUCAO`; caso contrário, fica em `REVISAR_MANUALMENTE`.
 - Linhas com `origem_tipo` nulo devem preferir `MARCAR_COMO_LEGADO` quando precisarem ser preservadas sem origem confiável; `MANUAL` só deve ser usado com decisão explícita de negócio.
 - Nenhum backfill futuro deve inventar rastreabilidade operacional ausente no legado.
@@ -301,7 +301,7 @@ Arquivos relevantes do inventário:
 
 ### Estado atual
 
-- Fonte canônica de áreas rurais: `cadastros_areas_rurais`, em `services/api/core/cadastros/propriedades/models.py`.
+- Fonte oficial de áreas rurais: `cadastros_areas_rurais`, em `services/api/core/cadastros/propriedades/models.py`.
 - Piquete legado: `pec_piquetes`, em `services/api/pecuaria/models/piquete.py`.
 - `LoteAnimal.area_id` já aponta para `cadastros_areas_rurais`.
 - Serviços de lote ainda podem aceitar `piquete_id` e validar contra piquete legado.
@@ -327,7 +327,7 @@ Arquivos relevantes do inventário:
 
 - Endpoints novos devem usar `area_id`.
 - Endpoints antigos podem aceitar `piquete_id` durante transição.
-- Respostas devem preferir `area_id` e metadados da área rural canônica.
+- Respostas devem preferir `area_id` e metadados da área rural oficial.
 
 ### Impacto em frontend
 
@@ -352,9 +352,9 @@ Arquivos relevantes do inventário:
 
 ### Estado atual
 
-- Fonte canônica: `cadastros_culturas`, em `services/api/core/cadastros/produtos/models.py`.
+- Fonte oficial: `cadastros_culturas`, em `services/api/core/cadastros/produtos/models.py`.
 - Legado agrícola: tabela `culturas`, em `services/api/agricola/cadastros/models.py`.
-- `Cultivo` já referencia cultura/cultivar canônica em parte do modelo agrícola.
+- `Cultivo` já referencia cultura/cultivar oficial em parte do modelo agrícola.
 
 ### Risco
 
@@ -367,27 +367,27 @@ Arquivos relevantes do inventário:
 
 1. Inventariar culturas legadas por tenant.
 2. Fazer match com `cadastros_culturas` por nome normalizado e metadados agronômicos.
-3. Planejar criação futura das culturas faltantes no cadastro canônico.
+3. Planejar criação futura das culturas faltantes no cadastro oficial.
 4. Migrar referências de cultivos e cadastros agrícolas para `cadastros_culturas`.
 5. Manter endpoints legados como leitura compatível ou alias temporário.
-6. Depreciar tabela `culturas` apenas após todos os cultivos usarem a fonte canônica.
+6. Depreciar tabela `culturas` apenas após todos os cultivos usarem a fonte oficial.
 
 ### Impacto em API
 
-- Novos endpoints agrícolas devem aceitar cultura canônica.
+- Novos endpoints agrícolas devem aceitar cultura oficial.
 - APIs legadas podem expor `cultura_id` antigo apenas durante transição.
-- Respostas devem incluir id canônico quando houver compatibilidade.
+- Respostas devem incluir id oficial quando houver compatibilidade.
 
 ### Impacto em frontend
 
-- Seletores agrícolas devem migrar para culturas canônicas.
+- Seletores agrícolas devem migrar para culturas oficiais.
 - Telas de cultivo, safra e planejamento devem evitar criação de cultura local.
 - Relatórios por cultura devem agrupar somente por `cadastros_culturas`.
 
 ### Impacto em testes
 
 - Testar match idempotente por tenant e nome.
-- Testar criação de cultivo com cultura canônica.
+- Testar criação de cultivo com cultura oficial.
 - Testar que culturas legadas não são recriadas em fluxos novos.
 - Testar relatórios por cultura após migração.
 
@@ -395,14 +395,14 @@ Arquivos relevantes do inventário:
 
 - Novos cultivos usam `cadastros_culturas`.
 - Tabela `culturas` não recebe novos cadastros independentes.
-- Relatórios agrícolas agrupam por cultura canônica.
+- Relatórios agrícolas agrupam por cultura oficial.
 
 ## 6. `maquinario_id` -> `equipamento_id` em Frota
 
 ### Estado atual
 
-- Fonte canônica: `cadastros_equipamentos`, em `services/api/core/cadastros/equipamentos/models.py`.
-- Frota/Máquinas deve consumir equipamento canônico.
+- Fonte oficial: `cadastros_equipamentos`, em `services/api/core/cadastros/equipamentos/models.py`.
+- Frota/Máquinas deve consumir equipamento oficial.
 - O inventário identificou divergência de nomenclatura: modelos tendem a usar `equipamento_id`, enquanto serviços/schemas podem expor ou aceitar `maquinario_id`.
 
 ### Risco
@@ -414,7 +414,7 @@ Arquivos relevantes do inventário:
 
 ### Estratégia de migração
 
-1. Congelar `equipamento_id` como nome canônico.
+1. Congelar `equipamento_id` como nome oficial.
 2. Mapear todos os contratos que ainda usam `maquinario_id`.
 3. Adotar compatibilidade temporária:
    - aceitar `maquinario_id` em entrada antiga;
@@ -426,9 +426,9 @@ Arquivos relevantes do inventário:
 
 ### Impacto em API
 
-- Contrato canônico deve ser `equipamento_id`.
+- Contrato oficial deve ser `equipamento_id`.
 - Alias `maquinario_id` pode existir temporariamente para não quebrar clientes.
-- Erros de validação devem mencionar o identificador canônico.
+- Erros de validação devem mencionar o identificador oficial.
 
 ### Impacto em frontend
 
@@ -453,7 +453,7 @@ Arquivos relevantes do inventário:
 
 ### Estado atual
 
-- O inventário não identificou uma tabela canônica única de centro de custo cross-módulo.
+- O inventário não identificou uma tabela oficial única de centro de custo cross-módulo.
 - Financeiro possui estruturas relacionadas, como planos de conta e rateios.
 - Agricultura possui alocações/custos produtivos próprios.
 - Operações de Pecuária, Frota, Compras e Vendas ainda dependem de origem e rateios para consolidar custo.
@@ -468,13 +468,13 @@ Arquivos relevantes do inventário:
 ### Estratégia de migração
 
 1. Não criar centro de custo geral antes de estabilizar:
-   - pessoas canônicas em Compras;
+   - pessoas oficiais em Compras;
    - ledger único de estoque;
    - `origem_tipo/origem_id`;
-   - áreas e equipamentos canônicos.
+   - áreas e equipamentos oficiais.
 2. Produzir RFC técnico específico para centro de custo.
 3. Avaliar dois caminhos:
-   - tabela canônica nova `centros_custo` sob domínio Financeiro/Core operacional;
+   - tabela oficial nova `centros_custo` sob domínio Financeiro/Core operacional;
    - evolução de rateios financeiros existentes com referência cross-módulo.
 4. Definir granularidade mínima:
    - tenant;
@@ -491,7 +491,7 @@ Arquivos relevantes do inventário:
 ### Impacto em API
 
 - Inicialmente não deve haver mudança.
-- Após RFC, APIs financeiras devem conseguir associar rateios a centro de custo canônico.
+- Após RFC, APIs financeiras devem conseguir associar rateios a centro de custo oficial.
 - APIs produtivas não devem criar centros locais.
 
 ### Impacto em frontend
@@ -517,17 +517,17 @@ Arquivos relevantes do inventário:
 
 | Migração | Depende de | Bloqueia |
 | --- | --- | --- |
-| Fornecedor canônico | Pessoa canônica existente | Compras, Fiscal e Financeiro consistentes por fornecedor |
-| Ledger único de estoque | Produto/insumo canônico | Rastreabilidade produtiva e conciliação de saldo |
+| Fornecedor oficial | Pessoa oficial existente | Compras, Fiscal e Financeiro consistentes por fornecedor |
+| Ledger único de estoque | Produto/insumo oficial | Rastreabilidade produtiva e conciliação de saldo |
 | Origem padronizada | Serviços geradores de estoque/financeiro | Drill-down executivo e centro de custo confiável |
-| Piquete como área rural | Áreas rurais canônicas | Custo e lotação por território |
-| Cultura canônica | Produtos/culturas canônicos | Relatórios agrícolas por cultura |
-| Equipamento canônico | Cadastro de equipamentos | Custo operacional de Frota/Máquinas |
-| Centro de custo geral | Origem, estoque, financeiro e entidades canônicas | Margem cross-módulo |
+| Piquete como área rural | Áreas rurais oficiais | Custo e lotação por território |
+| Cultura oficial | Produtos/culturas oficiais | Relatórios agrícolas por cultura |
+| Equipamento oficial | Cadastro de equipamentos | Custo operacional de Frota/Máquinas |
+| Centro de custo geral | Origem, estoque, financeiro e entidades oficiais | Margem cross-módulo |
 
 ## Critérios gerais de aceite
 
-- Cada duplicidade crítica tem fonte canônica documentada e ordem de migração.
+- Cada duplicidade crítica tem fonte oficial documentada e ordem de migração.
 - Nenhuma etapa exige alteração imediata de schema, migrations ou gates.
 - Cada item define estado atual, risco, estratégia, impactos e aceite.
 - Novos fluxos evitam cadastros paralelos.
@@ -541,4 +541,4 @@ Arquivos relevantes do inventário:
 - Alterar routers, services, schemas ou modelos.
 - Alterar gates de monetização ou permissão.
 - Unificar fisicamente `fin_despesas` e `fin_receitas`.
-- Tratar tabelas de integração externa, como staging fiscal/ERP, como fontes canônicas.
+- Tratar tabelas de integração externa, como staging fiscal/ERP, como fontes oficiais.

@@ -1,8 +1,8 @@
-# INTEGRATIONS-ARCH-02 — Modelo Canônico de Providers, Conexões e Configurações
+# INTEGRATIONS-ARCH-02 — Modelo Oficial de Providers, Conexões e Configurações
 
 ## 1. Objetivo
 
-Refinar a arquitetura oficial do domínio de Integrações com o modelo canônico de:
+Refinar a arquitetura oficial do domínio de Integrações com o modelo oficial de:
 
 - `IntegrationProvider`
 - `IntegrationProviderDefinition`
@@ -50,7 +50,7 @@ Decisão:
 Regra:
 
 - `INTEGRATIONS-ARCH-02` não contradiz `INTEGRATIONS-ARCH-01`;
-- ele apenas aprofunda a modelagem canônica do domínio.
+- ele apenas aprofunda a modelagem oficial do domínio.
 
 ## 4. Provider
 
@@ -78,7 +78,7 @@ Semântica oficial:
 
 Decisão:
 
-- provider é metadado canônico do domínio;
+- provider é metadado oficial do domínio;
 - configuração do cliente sempre deve referenciar um provider, nunca copiar sua identidade conceitual para um model paralelo.
 
 ## 5. Provider Definition
@@ -145,7 +145,7 @@ Regra central:
 
 - os campos concretos variam por provider;
 - o domínio não deve exigir que todos os providers tenham os mesmos campos;
-- o domínio exige apenas a existência de um envelope canônico de conexão.
+- o domínio exige apenas a existência de um envelope oficial de conexão.
 
 Semântica:
 
@@ -179,7 +179,7 @@ Regras obrigatórias:
 
 Decisão oficial:
 
-- `IntegrationCredential` é contrato canônico próprio;
+- `IntegrationCredential` é contrato oficial próprio;
 - credencial nunca deve ser confundida com `IntegrationConnection`;
 - a leitura de credenciais deve ser excepcional e auditada.
 
@@ -296,7 +296,7 @@ IntegrationHealth
 
 Diferenças oficiais:
 
-- `ProviderDefinition`: definição canônica do provedor.
+- `ProviderDefinition`: definição oficial do provedor.
 - `IntegrationConfig`: configuração do cliente para aquele provider e escopo.
 - `Connection`: parâmetros técnicos não secretos.
 - `Credential`: segredos e autenticação.
@@ -439,7 +439,7 @@ Health(runtime)
 ## 15. Limitações deliberadas da V1
 
 - o domínio pode começar com schemas flexíveis por provider antes de validação mais sofisticada;
-- alguns providers existentes podem continuar com modelagem legada enquanto não migrarem para os contratos canônicos;
+- alguns providers existentes podem continuar com modelagem legada enquanto não migrarem para os contratos oficiais;
 - health pode nascer simplificado por provider e amadurecer em fases;
 - sync policy pode começar apenas com modos essenciais;
 - versionamento e rotação de credenciais podem ser implementados incrementalmente.

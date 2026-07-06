@@ -2,7 +2,7 @@
 
 ## Resumo Executivo
 
-Foi concluída a migration física do bloco canônico de `RelatorioESG` e `PassaporteRastreabilidade`, com integração dos novos models SQLAlchemy ao bootstrap da API e validação runtime completa via Alembic no PostgreSQL do projeto.
+Foi concluída a migration física do bloco oficial de `RelatorioESG` e `PassaporteRastreabilidade`, com integração dos novos models SQLAlchemy ao bootstrap da API e validação runtime completa via Alembic no PostgreSQL do projeto.
 
 ## Arquivos Criados
 

@@ -28,7 +28,7 @@ Validação do grupo consolidado:
 - referências em `compras_devolucoes` para A: `0`
 - referências em `compras_devolucoes` para B: `0`
 
-## Critério do registro canônico
+## Critério do registro oficial
 
 O script de consolidação usa regra determinística:
 
@@ -37,7 +37,7 @@ O script de consolidação usa regra determinística:
 3. presença de documento
 4. desempate estável por `id`
 
-Para este grupo, o canônico escolhido foi:
+Para este grupo, o oficial escolhido foi:
 
 - `fc8bd619-b1b2-4344-9572-8a53e7c0425f`
 
@@ -52,7 +52,7 @@ Registro removido:
 Decisão aplicada:
 
 - reapontar referências primeiro
-- mesclar dados faltantes no registro canônico quando necessário
+- mesclar dados faltantes no registro oficial quando necessário
 - remover o duplicado apenas após a consolidação
 
 Neste caso específico, não havia referências para reapontar.

@@ -13,7 +13,7 @@
 
 ### 1.1 Por que este step precisa existir primeiro
 
-O doc mestre exige um **Measurement Engine** antes de `estoque_movimentos` e `operacoes_execucoes`. Sem UOM canônica:
+O doc mestre exige um **Measurement Engine** antes de `estoque_movimentos` e `operacoes_execucoes`. Sem UOM oficial:
 - Saldos de estoque ficam sem unidade (kg? saca? litro?).
 - Execuções de operação não conseguem comparar `qtd_prevista` vs `qtd_executada` em unidades diferentes.
 - Conversão saca↔kg por cultura (café 50kg vs soja 60kg) fica espalhada em código.
@@ -68,9 +68,9 @@ Sacas de 50 kg (café) e 60 kg (soja/milho) são **unidades fixas**, não conver
 ### 1.10 Por que incluir `eh_canonica` explícita
 
 - **Queries legíveis:** `WHERE eh_canonica = true` vs `WHERE codigo = codigo_canonico AND fator_canonico = 1`.
-- **Constraint de unicidade:** sem a flag, não há como garantir no banco que existe apenas 1 canônica por dimensão. Partial unique `WHERE eh_canonica = true` resolve.
-- **CHECK de coerência:** `(eh_canonica = false) OR (codigo = codigo_canonico AND fator_canonico = 1)` força que a flag só seja `true` quando os dados são de fato canônicos — elimina o risco de drift entre flag e valores.
-- **Seed determinístico:** 7 canônicas (`KG, L, HA, HR_MAQ, HR_HOMEM, UN, BRL`) marcadas explicitamente; nunca mais dependemos de inspeção dos dados.
+- **Constraint de unicidade:** sem a flag, não há como garantir no banco que existe apenas 1 oficial por dimensão. Partial unique `WHERE eh_canonica = true` resolve.
+- **CHECK de coerência:** `(eh_canonica = false) OR (codigo = codigo_canonico AND fator_canonico = 1)` força que a flag só seja `true` quando os dados são de fato oficiais — elimina o risco de drift entre flag e valores.
+- **Seed determinístico:** 7 oficiais (`KG, L, HA, HR_MAQ, HR_HOMEM, UN, BRL`) marcadas explicitamente; nunca mais dependemos de inspeção dos dados.
 
 ---
 
@@ -107,7 +107,7 @@ Sacas de 50 kg (café) e 60 kg (soja/milho) são **unidades fixas**, não conver
 | T1 | `test_tabela_unidades_medida_existe` | Tabela criada |
 | T2 | `test_tabela_unidades_medida_conversoes_existe` | Tabela criada |
 | T3 | `test_seed_sistema_14_unidades` | `SELECT COUNT(*) FROM unidades_medida WHERE sistema=true AND tenant_id IS NULL` = 14 |
-| T4 | `test_seed_codigos_canonicos` | KG, L, HA, BRL, HR_MAQ, HR_HOMEM, UN presentes como canônicos |
+| T4 | `test_seed_codigos_canonicos` | KG, L, HA, BRL, HR_MAQ, HR_HOMEM, UN presentes como oficiais |
 | T5 | `test_partial_unique_codigo_global` | INSERT duplicado de (NULL, 'KG') falha com IntegrityError |
 | T6 | `test_partial_unique_codigo_tenant` | INSERT duplicado de (tenant_A, 'CUSTOM') falha; INSERT (tenant_A, 'CUSTOM') + (tenant_B, 'CUSTOM') passam |
 | T7 | `test_tenant_pode_redefinir_codigo_global` | Tenant pode criar `KG` próprio (tenant_id preenchido) sem colidir com global |
@@ -121,7 +121,7 @@ Sacas de 50 kg (café) e 60 kg (soja/milho) são **unidades fixas**, não conver
 | T15 | `test_partial_unique_canonica_global` | INSERT de 2ª unidade `eh_canonica=true` na mesma dimensão (tenant_id=NULL) falha com IntegrityError; por tenant idem |
 | T16 | `test_check_canonica_coerencia` | INSERT com `eh_canonica=true` mas `codigo<>codigo_canonico` ou `fator_canonico<>1` falha CHECK; UPDATE que quebre a coerência idem |
 | T17 | `test_check_casas_decimais_range` | INSERT com `casas_decimais=10` ou `-1` falha |
-| T18 | `test_seed_canonicas_presentes` | Todas as 7 canônicas (`KG, L, HA, HR_MAQ, HR_HOMEM, UN, BRL`) têm `eh_canonica=true` e exatamente 1 por dimensão |
+| T18 | `test_seed_canonicas_presentes` | Todas as 7 oficiais (`KG, L, HA, HR_MAQ, HR_HOMEM, UN, BRL`) têm `eh_canonica=true` e exatamente 1 por dimensão |
 
 ### 3.2 Checks manuais em staging
 
@@ -134,14 +134,14 @@ SELECT COUNT(*) FROM unidades_medida WHERE sistema = true;
 SELECT dimensao, COUNT(*), array_agg(codigo ORDER BY codigo)
 FROM unidades_medida WHERE sistema = true GROUP BY dimensao;
 
--- 3. Validar canônicos (agora via flag explícita)
+-- 3. Validar oficiais (agora via flag explícita)
 SELECT dimensao, codigo, casas_decimais
   FROM unidades_medida
  WHERE sistema = true AND eh_canonica = true
  ORDER BY dimensao;
 -- Esperado: 7 linhas, 1 por dimensão (KG, L, HA, HR_MAQ, HR_HOMEM, UN, BRL)
 
--- 3b. Validar unicidade da canônica
+-- 3b. Validar unicidade da oficial
 SELECT dimensao, COUNT(*)
   FROM unidades_medida
  WHERE sistema = true AND eh_canonica = true AND tenant_id IS NULL
@@ -164,7 +164,7 @@ VALUES (gen_random_uuid(), NULL, 'TEST', 'Teste', 'inexistente', 'KG', 1);
 
 Script em `services/api/scripts/smoke_step14.py` (a criar no próximo ciclo):
 1. Contar seed = 14.
-2. Verificar que toda dimensão tem pelo menos 1 unidade canônica.
+2. Verificar que toda dimensão tem pelo menos 1 unidade oficial.
 3. Verificar que nenhuma conversão existe (tabela vazia é esperada).
 
 ---

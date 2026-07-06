@@ -74,10 +74,10 @@ O console do tenant passou a exibir:
 
 - cards de diagnóstico operacional;
 - linha do tempo consolidada;
-- jobs canônicos recentes;
+- jobs oficiais recentes;
 - logs legados correlacionados;
 - health e lifecycle já existentes;
-- indicação de origem canônica ou legada.
+- indicação de origem oficial ou legada.
 
 O formulário de configuração permaneceu intacto.
 
@@ -87,11 +87,11 @@ O backoffice foi atualizado para observabilidade e suporte com:
 
 - diagnóstico resumido para troubleshooting;
 - timeline consolidada filtrável por status, origem e feature;
-- jobs canônicos recentes;
+- jobs oficiais recentes;
 - logs legados enriquecidos;
 - reforço de que não é o console principal de configuração.
 
-## 7. Compatibilidade legado/canônico
+## 7. Compatibilidade legado/oficial
 
 - `SankhyaConfig` preservado.
 - `SankhyaSyncLog` preservado.
@@ -99,7 +99,7 @@ O backoffice foi atualizado para observabilidade e suporte com:
 - Novos endpoints aditivos:
   - `/timeline`
   - `/diagnostico`
-- Fallback legado mantido quando não houver camada canônica suficiente.
+- Fallback legado mantido quando não houver camada oficial suficiente.
 
 ## 8. Segurança
 
@@ -118,7 +118,7 @@ O backoffice foi atualizado para observabilidade e suporte com:
 
 Cobertura nova:
 
-- timeline com dados canônicos e legados;
+- timeline com dados oficiais e legados;
 - timeline com fallback apenas legado;
 - diagnóstico de último sucesso, última falha e feature mais problemática;
 - presença das rotas `/timeline` e `/diagnostico`.
@@ -126,9 +126,9 @@ Cobertura nova:
 ## 10. Limitações
 
 - `IntegrationHealth` continua sendo snapshot atual, não histórico persistido por versão.
-- Não houve migração de registros legados para a camada canônica.
+- Não houve migração de registros legados para a camada oficial.
 - A correlação histórica depende do vínculo incremental entre `legacy_log_id` e `IntegrationJob`.
 
 ## 11. Próxima execução recomendada
 
-`SANKHYA-DOMAIN-04` para aprofundar histórico persistido de health/diagnóstico, correlação com eventos canônicos em nível mais explícito e eventual priorização de consumo do domínio canônico na observabilidade, ainda sem big bang.
+`SANKHYA-DOMAIN-04` para aprofundar histórico persistido de health/diagnóstico, correlação com eventos oficiais em nível mais explícito e eventual priorização de consumo do domínio oficial na observabilidade, ainda sem big bang.

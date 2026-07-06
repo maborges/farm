@@ -305,7 +305,7 @@ Suportar:
 * UOM
 * conversões
 * conversões por cultura
-* unidade canônica interna
+* unidade oficial interna
 * tolerâncias
 
 Nunca salvar valor sem unidade.

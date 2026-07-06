@@ -37,7 +37,7 @@ Principais áreas inspecionadas:
 
 Classificação final: **Modelo C**.
 
-Existe arquitetura canônica identificável, mas ainda há sobreposições relevantes:
+Existe arquitetura oficial identificável, mas ainda há sobreposições relevantes:
 
 - `ProdutoCultura` versus `Cultura` legada;
 - `Commodity` versus resolução textual por cultura;
@@ -49,9 +49,9 @@ Existe arquitetura canônica identificável, mas ainda há sobreposições relev
 
 - `Produto` = catálogo mestre de itens físicos e serviços de entrada.
 - `ProdutoAgricola`, `ProdutoEstoque`, `ProdutoEPI` = extensões de `Produto`.
-- `ProdutoCultura` = cultura canônica.
-- `Commodity` = cadastro canônico de mercado e negociação.
-- `ProdutoColhido` = lote colhido canônico.
+- `ProdutoCultura` = cultura oficial.
+- `Commodity` = cadastro oficial de mercado e negociação.
+- `ProdutoColhido` = lote colhido oficial.
 - `ComercializacaoCommodity` = venda de commodity.
 - `Hedge` = proteção de preço baseada em `Commodity`, contextualizada por `Safra`.
 

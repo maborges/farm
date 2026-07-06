@@ -2,9 +2,9 @@
 
 ## 1. Resumo executivo
 
-Conclusão objetiva: o AgroSaaS já possui uma arquitetura econômica canônica parcialmente implementada, mas ela ainda não é a única arquitetura em execução na codebase.
+Conclusão objetiva: o AgroSaaS já possui uma arquitetura econômica oficial parcialmente implementada, mas ela ainda não é a única arquitetura em execução na codebase.
 
-O núcleo canônico atual é:
+O núcleo oficial atual é:
 
 ```text
 Receita operacional  -> Receita
@@ -22,12 +22,12 @@ O problema é que ainda coexistem caminhos paralelos relevantes:
 - `agricola.custos.service.CustosService.get_resumo_safra()` faz fallback para `OperacaoAgricola.custo_total` quando não encontra `CostAllocation`.
 - `agricola.romaneios.service.RomaneioService.criar()` gera `Receita` automática em romaneio.
 - `financeiro.comercializacao.service.ComercializacaoService._gerar_receita()` também gera `Receita` automática na comercialização.
-- `pecuaria.services.manejo_service.ManejoLoteService` cria `Despesa` e `Receita` diretamente para alguns manejos, sem passar pelo motor canônico de custo operacional.
+- `pecuaria.services.manejo_service.ManejoLoteService` cria `Despesa` e `Receita` diretamente para alguns manejos, sem passar pelo motor oficial de custo operacional.
 - `financeiro/hedge` calcula exposição e MTM, mas ainda não integra o resultado ao fluxo econômico oficial.
 
 Classificação final: **Modelo C**.
 
-Existe um desenho canônico claro para o lançamento, mas ainda existem caminhos paralelos relevantes demais para afirmar que a plataforma já opera sob uma arquitetura econômica única.
+Existe um desenho oficial claro para o lançamento, mas ainda existem caminhos paralelos relevantes demais para afirmar que a plataforma já opera sob uma arquitetura econômica única.
 
 ## 2. Escopo auditado
 
@@ -65,7 +65,7 @@ Testes auditados:
 
 ## 3. Inventário econômico
 
-| Conceito | Model/Service | Owner | Fonte canônica? | Consumidores | Risco |
+| Conceito | Model/Service | Owner | Fonte oficial? | Consumidores | Risco |
 | --- | --- | --- | ---: | --- | --- |
 | Receita | `financeiro.models.receita.Receita`, `ReceitaService` | Financeiro | Sim | Fluxo de caixa, livro caixa, DRE agrícola v1, dashboards financeiros | Alto quando coexistem romaneio e comercialização |
 | Despesa | `financeiro.models.despesa.Despesa`, `DespesaService` | Financeiro | Sim | Fluxo de caixa, livro caixa, DRE agrícola v1, centro de custos | Alto quando coexistem despesa e cost allocation da mesma origem |
@@ -80,16 +80,16 @@ Testes auditados:
 | Comercialização | `financeiro.comercializacao.models.ComercializacaoCommodity`, `ComercializacaoService` | Financeiro Comercialização | Sim como fato comercial | Receita, hedge, UI comercialização | Médio por precedência com romaneio |
 | EstoqueMovimento | `operacional.models.estoque.EstoqueMovimento`, `EstoqueService` | Operacional Estoque | Sim como trilha física/valuation | Estoque, FIFO, reconciliação DRE, compras, pecuária | Alto se consumido como custo final |
 | Compras | `operacional.models.compras.*`, `ComprasService` | Operacional Compras | Parcial | Estoque, despesa, analytics de savings | Alto por múltiplas fases do mesmo fato |
-| RH | `rh.models.*`, `rh.service.*` | RH | Parcial | CostAllocation, Despesa, dashboards RH | Médio, porque diária/empreitada já usam motor canônico, mas não todo RH |
+| RH | `rh.models.*`, `rh.service.*` | RH | Parcial | CostAllocation, Despesa, dashboards RH | Médio, porque diária/empreitada já usam motor oficial, mas não todo RH |
 | Frota | `operacional.services.frota_*`, `AbastecimentoService`, `FrotaService` | Operacional Frota | Parcial | CostAllocation, Despesa, dashboards executivos de frota | Alto por analytics paralelos sobre custo bruto |
 | Hedge | `financeiro.hedge.*` | Financeiro Hedge | Não para DRE/caixa; sim para exposição/MTM | UI hedge, snapshots, alertas de risco | Médio, porque ainda está fora da cadeia econômica oficial |
 | Pecuária | `pecuaria.services.*` | Pecuária | Parcial | Despesa/Receita, CostAllocation sanitário, dashboards | Alto por caminhos mistos e sem precedência uniforme |
 
-## 4. Fontes canônicas identificadas
+## 4. Fontes oficiais identificadas
 
 ### 4.1 Receita
 
-Fonte canônica definida: **`Receita`**.
+Fonte oficial definida: **`Receita`**.
 
 Regra oficial:
 
@@ -97,8 +97,8 @@ Regra oficial:
 - comercialização confirmada gera `Receita` automática com `origem_tipo="COMERCIALIZACAO"`;
 - romaneio com `receita_total > 0` gera `Receita` automática com `origem_tipo="ROMANEIO_COLHEITA"`;
 - receita manual via financeiro também cai em `Receita`;
-- hedge não gera `Receita` canônica hoje;
-- `LancamentoFinanceiro` não é a fonte canônica de receita operacional.
+- hedge não gera `Receita` oficial hoje;
+- `LancamentoFinanceiro` não é a fonte oficial de receita operacional.
 
 Situação real:
 
@@ -108,13 +108,13 @@ Situação real:
 
 Decisão:
 
-- **fonte canônica de receita = `Receita`**;
+- **fonte oficial de receita = `Receita`**;
 - `RomaneioColheita` e `ComercializacaoCommodity` são origens possíveis da `Receita`, não fontes concorrentes;
 - `LancamentoFinanceiro` é apenas trilha financeira legada/reconciliação.
 
 ### 4.2 Despesa
 
-Fonte canônica definida: **`Despesa`**.
+Fonte oficial definida: **`Despesa`**.
 
 Regra oficial:
 
@@ -122,33 +122,33 @@ Regra oficial:
 - compras geram `Despesa` automática `A_PAGAR` no recebimento;
 - RH/frota/abastecimento/OS podem gerar `Despesa` automática;
 - pecuária ainda gera `Despesa` direta em alguns manejos;
-- `LancamentoFinanceiro` não é a fonte canônica da despesa operacional.
+- `LancamentoFinanceiro` não é a fonte oficial da despesa operacional.
 
 Decisão:
 
-- **fonte canônica de despesa = `Despesa`**;
+- **fonte oficial de despesa = `Despesa`**;
 - `Rateio` distribui `Despesa`, não substitui `Despesa`;
 - `LancamentoFinanceiro` permanece como camada legada/financeira, não obrigação primária.
 
 ### 4.3 Custo operacional
 
-Fonte canônica definida: **`CostAllocation`**.
+Fonte oficial definida: **`CostAllocation`**.
 
 Regra oficial:
 
 - custo operacional apropriado por safra/PU nasce em `CostAllocation`;
-- `OperationalCostAllocationService` é a camada canônica para novos custos operacionais;
+- `OperationalCostAllocationService` é a camada oficial para novos custos operacionais;
 - `EstoqueMovimento`, `Despesa`, `Rateio` e `OperacaoExecucao` são insumos/origens, não custo final consolidado.
 
 Decisão:
 
-- **fonte canônica de custo operacional = `CostAllocation`**;
+- **fonte oficial de custo operacional = `CostAllocation`**;
 - `Despesa` não é custo operacional oficial quando já existir `CostAllocation`;
-- `OperationalCostService` é o gateway recomendado, mas a entidade canônica persistida continua sendo `CostAllocation`.
+- `OperationalCostService` é o gateway recomendado, mas a entidade oficial persistida continua sendo `CostAllocation`.
 
 ## 5. Perguntas obrigatórias
 
-### 5.1 Qual é a fonte canônica de Receita?
+### 5.1 Qual é a fonte oficial de Receita?
 
 **`Receita`.**
 
@@ -157,33 +157,33 @@ Mapa auditado:
 - romaneio: cria `Receita` estimada/automática;
 - comercialização: cria `Receita` confirmada;
 - financeiro manual: cria `Receita` manual;
-- hedge: não cria receita canônica hoje;
+- hedge: não cria receita oficial hoje;
 - outras origens: pecuária cria `Receita` direta para venda/abate.
 
 Precedência operacional atual:
 
 - comercialização > romaneio na `DRE agrícola v1`;
 - romaneio sem comercialização ainda entra como receita;
-- `LancamentoFinanceiro` não substitui a fonte canônica.
+- `LancamentoFinanceiro` não substitui a fonte oficial.
 
-### 5.2 Qual é a fonte canônica de Despesa?
+### 5.2 Qual é a fonte oficial de Despesa?
 
 **`Despesa`.**
 
 Mapa auditado:
 
 - compras: gera `Despesa` automática `A_PAGAR`;
-- estoque: gera `LancamentoFinanceiro` legado, não `Despesa` canônica;
+- estoque: gera `LancamentoFinanceiro` legado, não `Despesa` oficial;
 - RH: diária/empreitada usam `OperationalCostService` e podem criar `Despesa`;
 - frota/manutenção/abastecimento externo: usam `OperationalCostService` e podem criar `Despesa`;
 - operações agrícolas: ainda criam `Despesa` automática direta com `origem_tipo="OPERACAO_AGRICOLA"`;
 - pecuária: vacinação/medicação geram `Despesa` direta em serviço legado.
 
-### 5.3 Qual é a fonte canônica de custo operacional?
+### 5.3 Qual é a fonte oficial de custo operacional?
 
 **`CostAllocation`.**
 
-`OperationalCostAllocationService` é a porta de entrada recomendada para novos fluxos, mas o dado canônico persistido e consolidado é `CostAllocation`.
+`OperationalCostAllocationService` é a porta de entrada recomendada para novos fluxos, mas o dado oficial persistido e consolidado é `CostAllocation`.
 
 ### 5.4 DRE consome o quê?
 
@@ -270,11 +270,11 @@ Conclusão:
 - o modelo exige `PlanoConta`;
 - algumas integrações automáticas ainda degradam silenciosamente quando a infraestrutura financeira não está pronta.
 
-### 5.10 Centro de Custo é entidade canônica ou agregação?
+### 5.10 Centro de Custo é entidade oficial ou agregação?
 
 **Agregação.**
 
-No código, centro de custo não é uma entidade econômica canônica própria.
+No código, centro de custo não é uma entidade econômica oficial própria.
 
 Hoje ele é derivado de:
 
@@ -285,8 +285,8 @@ Hoje ele é derivado de:
 Logo:
 
 - centro de custo é **visão analítica/agregada**;
-- a entidade canônica de distribuição é `Rateio`;
-- a entidade canônica de custo apropriado continua sendo `CostAllocation`.
+- a entidade oficial de distribuição é `Rateio`;
+- a entidade oficial de custo apropriado continua sendo `CostAllocation`.
 
 ## 6. Fluxos reais auditados
 
@@ -318,7 +318,7 @@ Fluxo real encontrado:
 Movimento de estoque
   -> valuation físico em EstoqueMovimento/LoteEstoque
   -> em fluxo legado pode gerar LancamentoFinanceiro (ESTOQUE)
-  -> em fluxo canônico deve gerar CostAllocation quando houver apropriação
+  -> em fluxo oficial deve gerar CostAllocation quando houver apropriação
   -> DRE agrícola v1 usa movimento só para reconciliação
 ```
 
@@ -476,7 +476,7 @@ Decisão:
 
 Decisão arquitetural:
 
-- centro de custo **não é entidade canônica**;
+- centro de custo **não é entidade oficial**;
 - é uma visão analítica derivada de `Rateio` e `Despesa`;
 - para custo operacional oficial por safra/PU, a referência deve ser `CostAllocation`, não centro de custo.
 
@@ -508,7 +508,7 @@ Diagnóstico:
 
 Decisão:
 
-- `CostAllocation` é a fonte canônica de custo apropriado;
+- `CostAllocation` é a fonte oficial de custo apropriado;
 - nenhuma nova leitura de custo operacional deve entrar na DRE sem passar por `CostAllocation`.
 
 ## 12. Receitas
@@ -623,7 +623,7 @@ LancamentoFinanceiro + EstoqueMovimento
 
 Justificativa:
 
-- a referência canônica já existe;
+- a referência oficial já existe;
 - a DRE agrícola v1 e a rentabilidade v1 já estão corretas;
 - mas o produto ainda expõe e calcula visões econômicas paralelas importantes.
 
@@ -631,9 +631,9 @@ Justificativa:
 
 Deve entrar na v1.0:
 
-- `Receita` como fonte canônica de receita;
-- `Despesa` como fonte canônica de obrigação financeira;
-- `CostAllocation` como fonte canônica de custo operacional;
+- `Receita` como fonte oficial de receita;
+- `Despesa` como fonte oficial de obrigação financeira;
+- `CostAllocation` como fonte oficial de custo operacional;
 - `OperationalCostAllocationService` como gateway obrigatório para novos custos operacionais;
 - `agricola.dre.v1` como DRE oficial;
 - `agricola.rentabilidade.v1` como rentabilidade oficial;
@@ -664,11 +664,11 @@ Pode ficar para v1.1:
 
 ## 22. Resposta à pergunta central
 
-**Existe uma arquitetura econômica canônica única no AgroSaaS para custos, receitas, apropriações, DRE, fluxo de caixa e rentabilidade, ou ainda existem caminhos paralelos relevantes que precisam ser corrigidos antes do lançamento?**
+**Existe uma arquitetura econômica oficial única no AgroSaaS para custos, receitas, apropriações, DRE, fluxo de caixa e rentabilidade, ou ainda existem caminhos paralelos relevantes que precisam ser corrigidos antes do lançamento?**
 
 Resposta:
 
-- **existe uma arquitetura canônica definida e tecnicamente defensável**;
+- **existe uma arquitetura oficial definida e tecnicamente defensável**;
 - **mas ela ainda não é única na implementação atual**;
 - **existem caminhos paralelos relevantes que devem ser tratados antes do lançamento v1.0**.
 
@@ -676,9 +676,9 @@ Resposta:
 
 Confirmações explícitas:
 
-- A fonte canônica de receita foi definida: **`Receita`**.
-- A fonte canônica de despesa foi definida: **`Despesa`**.
-- A fonte canônica de custo operacional foi definida: **`CostAllocation`**.
+- A fonte oficial de receita foi definida: **`Receita`**.
+- A fonte oficial de despesa foi definida: **`Despesa`**.
+- A fonte oficial de custo operacional foi definida: **`CostAllocation`**.
 - A relação entre `Despesa` e `CostAllocation` foi definida: **obrigação financeira vs apropriação econômica**.
 - A DRE tem arquitetura oficial: **`agricola.dre.v1`**.
 - A Rentabilidade tem arquitetura oficial: **`agricola.rentabilidade.v1`**.

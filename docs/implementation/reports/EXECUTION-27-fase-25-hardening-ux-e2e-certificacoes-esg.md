@@ -73,4 +73,4 @@ Endurecer a UX, a acessibilidade e a estabilidade dos testes E2E do MVP de Certi
 
 ## Recomendação para a próxima fase
 
-- Seguir apenas para endurecimento incremental ou expansão funcional claramente justificada, preservando a separação entre o domínio de certificação e a base territorial/fundiária canônica.
+- Seguir apenas para endurecimento incremental ou expansão funcional claramente justificada, preservando a separação entre o domínio de certificação e a base territorial/fundiária oficial.

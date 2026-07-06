@@ -23,7 +23,7 @@ O posicionamento resultante e:
 
 Os Steps 46-93 provaram que o sistema nao e apenas um conjunto de modulos. Ele tem uma arquitetura mais vendavel do que ERPs fragmentados porque:
 
-- usa cadastro canônico unico para produto, pessoa, unidade produtiva e estoque;
+- usa cadastro oficial unico para produto, pessoa, unidade produtiva e estoque;
 - evita estoques paralelos por modulo;
 - conecta origem operacional com impacto financeiro;
 - sustenta crescimento do cliente do planejamento basico ate governanca multiempresa;
@@ -126,7 +126,7 @@ Expandir para multiunidade, multiempresa, auditoria, integracoes e rastreabilida
 | Plano | Escopo comercial |
 |---|---|
 | A1 | lotes, manejos basicos, visao inicial de rebanho |
-| Profissional | manejo com produto canônico, custos, integracao com estoque e financeiro |
+| Profissional | manejo com produto oficial, custos, integracao com estoque e financeiro |
 | Enterprise | auditoria, escala, processos mais complexos e rastreabilidade ampliada |
 
 #### Financeiro
@@ -224,7 +224,7 @@ O cliente nao precisa reconciliar saldos entre modulos diferentes. O estoque tem
 
 ### 7.2 Rastreabilidade por `produto_id`
 
-**Base tecnica:** padronizacao do catalogo canônico e eliminacao do nome legado `insumo_id`.  
+**Base tecnica:** padronizacao do catalogo oficial e eliminacao do nome legado `insumo_id`.  
 **Traducao comercial:**  
 Cada consumo ou uso de insumo/produto passa a falar a mesma lingua em Agricultura, Pecuaria e Estoque.
 

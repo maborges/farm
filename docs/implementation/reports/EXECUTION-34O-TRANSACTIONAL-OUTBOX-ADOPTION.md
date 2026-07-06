@@ -36,7 +36,7 @@ Os cinco pontos agora usam `publish_domain_event_safe(..., commit=False)` nas ro
 ## Pontos mantidos pós-commit e motivo
 
 - Nenhum dos cinco pontos reliable permaneceu como emissor pós-commit.
-- O único caminho de fallback pós-commit que continua existe no helper canônico quando a sessão não está disponível ou quando o caller opta explicitamente por não usar o Outbox.
+- O único caminho de fallback pós-commit que continua existe no helper oficial quando a sessão não está disponível ou quando o caller opta explicitamente por não usar o Outbox.
 
 ## Pontos com fallback in-memory e motivo
 
@@ -53,7 +53,7 @@ Os cinco pontos agora usam `publish_domain_event_safe(..., commit=False)` nas ro
 
 ## Riscos remanescentes
 
-- O helper canônico ainda mantém fallback in-memory em cenários sem sessão.
+- O helper oficial ainda mantém fallback in-memory em cenários sem sessão.
 - O fluxo de sync da Pecuária ainda possui commits internos em etapas intermediárias, então a transacionalidade plena depende de refatoração futura mais ampla.
 - O relay ainda é programático e não opera como worker externo.
 

@@ -38,7 +38,7 @@ Use quando quiser testar a cadeia completa:
 - baixa automática no estoque
 - custo operacional
 - despesa financeira automática
-- evento canônico no Caderno
+- evento oficial no Caderno
 - rastreabilidade
 
 Se o objetivo é validar integrações ponta a ponta, este é o fluxo principal.
@@ -214,7 +214,7 @@ Arquivo:
 - baixa de estoque
 - custo real da operação
 - despesa financeira automática
-- evento canônico no Caderno
+- evento oficial no Caderno
 - conclusão da tarefa vinculada, se a operação tiver `tarefa_id`
 
 ### O que validar após salvar
@@ -279,7 +279,7 @@ Arquivo:
 
 ### O que validar
 
-Depois da operação agrícola `REALIZADA`, deve existir um evento canônico no Caderno.
+Depois da operação agrícola `REALIZADA`, deve existir um evento oficial no Caderno.
 
 Verifique:
 

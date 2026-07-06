@@ -518,7 +518,7 @@ const columns: ColumnDef<Safra>[] = [
   },
 ];
 
-// Ícones canônicos (READ CODE FROM button.tsx, input.tsx, etc)
+// Ícones oficiais (READ CODE FROM button.tsx, input.tsx, etc)
 // Eye, Pencil, Trash2, MoreHorizontal, Plus, ChevronRight, etc
 ```
 

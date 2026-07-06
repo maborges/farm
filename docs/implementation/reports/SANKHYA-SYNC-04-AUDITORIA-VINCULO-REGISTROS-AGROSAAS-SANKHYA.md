@@ -10,7 +10,7 @@ Nao foram implementados codigo, migrations, endpoints, contratos, autenticacao o
 
 ## Fontes auditadas
 
-### Integracao Sankhya canonica
+### Integracao Sankhya oficial
 
 - `services/api/integracoes/sankhya/models/__init__.py`
 - `services/api/integracoes/sankhya/schemas/__init__.py`
@@ -27,7 +27,7 @@ Nao foram implementados codigo, migrations, endpoints, contratos, autenticacao o
 - `services/api/tests/unit/integracoes/test_sankhya_gateway_auth_service.py`
 - `services/api/tests/unit/integracoes/test_sankhya_gateway_test_connection.py`
 
-### Dominio canonico de integracoes
+### Dominio oficial de integracoes
 
 - `services/api/integracoes/models.py`
 - `services/api/migrations/versions/20260701_integrations_domain_03a_foundation.py`
@@ -53,10 +53,10 @@ Nao foram implementados codigo, migrations, endpoints, contratos, autenticacao o
 ### Documentacao de estrategia anterior
 
 - `docs/implementation/reports/SANKHYA-SYNC-01-ESCOPO-PILOTO-CAFE.md`
-- `docs/implementation/reports/SANKHYA-SYNC-02-MAPEAMENTO-CANONICO.md`
+- `docs/implementation/reports/SANKHYA-SYNC-02-MAPEAMENTO-OFICIAL.md`
 - `docs/implementation/reports/SANKHYA-SYNC-03-ESTRATEGIA-SINCRONIZACAO-PILOTO.md`
-- `docs/implementation/reports/SANKHYA-DOMAIN-01-ADAPTER-CANONICO.md`
-- `docs/implementation/reports/SANKHYA-DOMAIN-02-API-UX-CANONICA-STATUS-JOBS-HEALTH.md`
+- `docs/implementation/reports/SANKHYA-DOMAIN-01-ADAPTER-OFICIAL.md`
+- `docs/implementation/reports/SANKHYA-DOMAIN-02-API-UX-OFICIAL-STATUS-JOBS-HEALTH.md`
 - `docs/implementation/reports/SANKHYA-DOMAIN-03-OBSERVABILIDADE-CORRELACAO-HISTORICA.md`
 - `docs/implementation/reports/SANKHYA-GOV-01-AUDITORIA-GOVERNANCA-INTEGRACAO-SANKHYA.md`
 - `docs/implementation/reports/SANKHYA-GOV-02-CORRECAO-GOVERNADA-INTEGRACAO-SANKHYA.md`
@@ -67,22 +67,22 @@ O AgroSaaS esta preparado para manter configuracao, credenciais, features, jobs,
 
 Tambem existem tabelas provider-specific de staging/espelho para pessoas, produtos, NFe, lancamentos financeiros e tabelas auxiliares do Sankhya. Essas tabelas persistem identificadores externos como `sankhya_id`, `CODPARC`, `CODPROD`, `DESDOB` e `CHAVEACESSO`.
 
-Porem, a auditoria nao encontrou uma associacao oficial e reutilizavel entre os registros canonicos do AgroSaaS e os registros do ERP Sankhya para a maior parte das entidades. Em termos praticos:
+Porem, a auditoria nao encontrou uma associacao oficial e reutilizavel entre os registros oficiais do AgroSaaS e os registros do ERP Sankhya para a maior parte das entidades. Em termos praticos:
 
 - existe persistencia de registros Sankhya em tabelas `sankhya_*`;
 - existe idempotencia dentro dessas tabelas de staging;
 - existe rastreabilidade de execucao via `sankhya_sync_logs` e `integration_jobs`;
 - nao existe, de forma geral, um vinculo persistente do tipo `cadastros_pessoas.id <-> CODPARC`, `cadastros_produtos.id <-> CODPROD`, `estoque_depositos.id <-> CODLOCAL`, `fin_planos_conta.id <-> CODNAT/CODCENCUS` ou equivalente.
 
-Conclusao objetiva: para o primeiro piloto read-only/manual-first, a base atual e suficiente para importar e auditar dados no staging Sankhya, mas ainda nao e suficiente para garantir, durante toda a vida util da integracao, a identidade unica entre um registro canonico AgroSaaS e seu equivalente no Sankhya em todos os dominios.
+Conclusao objetiva: para o primeiro piloto read-only/manual-first, a base atual e suficiente para importar e auditar dados no staging Sankhya, mas ainda nao e suficiente para garantir, durante toda a vida util da integracao, a identidade unica entre um registro oficial AgroSaaS e seu equivalente no Sankhya em todos os dominios.
 
 ## Distincao critica encontrada
 
 | Camada | Existe hoje | O que resolve | O que nao resolve |
 | --- | --- | --- | --- |
-| Provider-specific Sankhya | `sankhya_config`, `sankhya_pessoas`, `sankhya_produtos`, `sankhya_nfe`, `sankhya_lancamentos_financeiros`, `sankhya_tabelas` | Guarda dados e IDs vindos do Sankhya | Nao aponta para IDs canonicos de Pessoa, Produto, Deposito, PlanoConta, Despesa, Receita, etc. |
-| Dominio canonico de Integracoes | `marketplace_integracoes`, `tenant_integracoes`, `integration_credentials`, `integration_versions`, `integration_features`, `integration_sync_policies`, `integration_jobs`, `integration_health_snapshots` | Governanca, credenciais, features, jobs, policies, health e versoes de configuracao | Nao e um registro de de-para por entidade de negocio |
-| Cadastros canonicos AgroSaaS | `cadastros_pessoas`, `cadastros_produtos`, `estoque_depositos`, `fin_*`, `financeiro_comercializacoes`, etc. | Fonte canonica interna do produto | Nao armazena identificadores Sankhya oficiais de forma padronizada |
+| Provider-specific Sankhya | `sankhya_config`, `sankhya_pessoas`, `sankhya_produtos`, `sankhya_nfe`, `sankhya_lancamentos_financeiros`, `sankhya_tabelas` | Guarda dados e IDs vindos do Sankhya | Nao aponta para IDs oficiais de Pessoa, Produto, Deposito, PlanoConta, Despesa, Receita, etc. |
+| Dominio oficial de Integracoes | `marketplace_integracoes`, `tenant_integracoes`, `integration_credentials`, `integration_versions`, `integration_features`, `integration_sync_policies`, `integration_jobs`, `integration_health_snapshots` | Governanca, credenciais, features, jobs, policies, health e versoes de configuracao | Nao e um registro de de-para por entidade de negocio |
+| Cadastros oficiais AgroSaaS | `cadastros_pessoas`, `cadastros_produtos`, `estoque_depositos`, `fin_*`, `financeiro_comercializacoes`, etc. | Fonte oficial interna do produto | Nao armazena identificadores Sankhya oficiais de forma padronizada |
 
 ## Tabela por entidade
 
@@ -91,9 +91,9 @@ Conclusao objetiva: para o primeiro piloto read-only/manual-first, a base atual 
 | Entidade | Identificador no AgroSaaS | Identificador no Sankhya | Como a associacao e armazenada | Situacao |
 | --- | --- | --- | --- | --- |
 | Tenant | `tenants.id` UUID, `tenants.documento` | Configuracao do tenant no Sankhya; possiveis `CODEMP`/ambiente nao modelados | `sankhya_config.tenant_id` e `tenant_integracoes.tenant_id` associam o tenant a configuracao da integracao, nao a uma empresa/filial Sankhya especifica | EXISTE PARCIALMENTE |
-| Empresa | Nao ha entidade canonica dedicada | `CODEMP` | Nao encontrada | NAO EXISTE |
-| Filial | Nao ha entidade canonica dedicada | `CODFILIAL` ou equivalente | Nao encontrada | NAO EXISTE |
-| Unidade de Negocio | Nao ha entidade canonica dedicada | Codigo de unidade/centro empresarial do ERP | Nao encontrada | NAO EXISTE |
+| Empresa | Nao ha entidade oficial dedicada | `CODEMP` | Nao encontrada | NAO EXISTE |
+| Filial | Nao ha entidade oficial dedicada | `CODFILIAL` ou equivalente | Nao encontrada | NAO EXISTE |
+| Unidade de Negocio | Nao ha entidade oficial dedicada | Codigo de unidade/centro empresarial do ERP | Nao encontrada | NAO EXISTE |
 | Unidade Produtiva | `unidades_produtivas.id` UUID | Nao modelado; possivel relacao futura com empresa/filial/local | Nenhuma associacao Sankhya; testes confirmam Sankhya tenant-scoped e sem `unidade_produtiva_id` | NAO EXISTE |
 | Propriedade | `cadastros_propriedades.id` UUID | Nao modelado | Nenhuma associacao Sankhya | NAO EXISTE |
 
@@ -104,8 +104,8 @@ Conclusao objetiva: para o primeiro piloto read-only/manual-first, a base atual 
 | Pessoa | `cadastros_pessoas.id` UUID, documentos em `cadastros_pessoas_documentos` | `CODPARC` | `sankhya_pessoas.sankhya_id` recebe `CODPARC`; nao ha FK para `cadastros_pessoas.id` | EXISTE PARCIALMENTE |
 | Cliente | `Pessoa` + `PessoaRelacionamento`/`Receita.pessoa_id` | `CODPARC` + categoria/papel | Apenas no staging `sankhya_pessoas`; nao ha vinculo oficial para `Receita.pessoa_id` | EXISTE PARCIALMENTE |
 | Fornecedor | `Pessoa` + `PessoaRelacionamento`/`Despesa.pessoa_id`; fornecedor legado em compras | `CODPARC` + categoria/papel | Apenas no staging `sankhya_pessoas`; nao ha vinculo oficial para `Despesa.pessoa_id` ou fornecedor legado | EXISTE PARCIALMENTE |
-| Transportadora | `Pessoa` + papel configuravel | `CODPARC` | Apenas no staging se vier como categoria; nao ha papel canonico Sankhya persistido | EXISTE PARCIALMENTE |
-| Representante | `Pessoa` + papel configuravel | `CODPARC` | Apenas no staging se vier como categoria; nao ha papel canonico Sankhya persistido | EXISTE PARCIALMENTE |
+| Transportadora | `Pessoa` + papel configuravel | `CODPARC` | Apenas no staging se vier como categoria; nao ha papel oficial Sankhya persistido | EXISTE PARCIALMENTE |
+| Representante | `Pessoa` + papel configuravel | `CODPARC` | Apenas no staging se vier como categoria; nao ha papel oficial Sankhya persistido | EXISTE PARCIALMENTE |
 
 ### Produtos
 
@@ -114,8 +114,8 @@ Conclusao objetiva: para o primeiro piloto read-only/manual-first, a base atual 
 | Produto | `cadastros_produtos.id` UUID, `codigo_interno`, `sku`, `codigo_barras` | `CODPROD` | `sankhya_produtos.sankhya_id` e `codigo` recebem `CODPROD`; nao ha FK para `cadastros_produtos.id` | EXISTE PARCIALMENTE |
 | Insumo | `Produto` tipo agricola/operacional + detalhes | `CODPROD` | Apenas no staging `sankhya_produtos`; nao ha classificacao de equivalencia com `ProdutoAgricola` | EXISTE PARCIALMENTE |
 | Servico | `Produto` tipo `SERVICO` | `CODPROD` ou codigo de servico do ERP | Apenas no staging `sankhya_produtos`; sem vinculo com `Produto` tipo servico | EXISTE PARCIALMENTE |
-| Unidade de medida | Enum/cadastros de unidade no AgroSaaS e campos `unidade_medida`/`unidade` | Unidade Sankhya | Campo textual em `sankhya_produtos.unidade`; sem tabela de equivalencia Sankhya <-> unidade canonica | EXISTE PARCIALMENTE |
-| Conversao | Tabelas canonicas de medidas/conversoes ja existentes | Fator/unidade do Sankhya | Nao encontrada associacao direta Sankhya | NAO EXISTE |
+| Unidade de medida | Enum/cadastros de unidade no AgroSaaS e campos `unidade_medida`/`unidade` | Unidade Sankhya | Campo textual em `sankhya_produtos.unidade`; sem tabela de equivalencia Sankhya <-> unidade oficial | EXISTE PARCIALMENTE |
+| Conversao | Tabelas oficiais de medidas/conversoes ja existentes | Fator/unidade do Sankhya | Nao encontrada associacao direta Sankhya | NAO EXISTE |
 
 ### Estoque
 
@@ -142,7 +142,7 @@ Conclusao objetiva: para o primeiro piloto read-only/manual-first, a base atual 
 
 | Entidade | Identificador no AgroSaaS | Identificador no Sankhya | Como a associacao e armazenada | Situacao |
 | --- | --- | --- | --- | --- |
-| Nota Fiscal canonica | `fin_notas_fiscais.id`, `chave_acesso`, `numero`, `serie` | `CHAVEACESSO`, `NUMNOTA`, `SERIE`, possivel `NUNOTA`/`CODNEG` | `fin_notas_fiscais.chave_acesso` e `sankhya_nfe.chave_acesso` podem deduplicar por chave, mas nao ha FK entre elas | EXISTE PARCIALMENTE |
+| Nota Fiscal oficial | `fin_notas_fiscais.id`, `chave_acesso`, `numero`, `serie` | `CHAVEACESSO`, `NUMNOTA`, `SERIE`, possivel `NUNOTA`/`CODNEG` | `fin_notas_fiscais.chave_acesso` e `sankhya_nfe.chave_acesso` podem deduplicar por chave, mas nao ha FK entre elas | EXISTE PARCIALMENTE |
 | NFe staging Sankhya | `sankhya_nfe.id` | `sankhya_id`, `CHAVEACESSO` | Tabela `sankhya_nfe` tem unique em `sankhya_id` e `chave_acesso` | EXISTE E ATENDE para staging |
 | Serie | `serie` em NF/receita/despesa | `SERIE` | Campo textual, sem master de serie | EXISTE PARCIALMENTE |
 | Numero | `numero`, `numero_nf`, `numero_documento` | `NUMNOTA`, `NUMDOC` | Campos textuais/numericos, sem associacao oficial | EXISTE PARCIALMENTE |
@@ -161,11 +161,11 @@ Conclusao objetiva: para o primeiro piloto read-only/manual-first, a base atual 
 
 | Identificador | Onde aparece | Uso atual | Dependencias |
 | --- | --- | --- | --- |
-| `tenant_id` | `sankhya_config`, `sankhya_sync_logs`, `sankhya_*`, `tenant_integracoes`, `integration_*`, entidades canonicas | Escopo multi-tenant e RLS/logica de isolamento | Todos os fluxos Sankhya |
+| `tenant_id` | `sankhya_config`, `sankhya_sync_logs`, `sankhya_*`, `tenant_integracoes`, `integration_*`, entidades oficiais | Escopo multi-tenant e RLS/logica de isolamento | Todos os fluxos Sankhya |
 | `sankhya_config.id` | `sankhya_config`, `sankhya_sync_logs.config_id` | Configuracao provider-specific | Logs legados |
-| `tenant_integracoes.id` | `tenant_integracoes`, `integration_features`, `integration_sync_policies`, `integration_jobs`, `integration_health_snapshots`, `integration_versions` | Configuracao canonica da integracao | Jobs, health, features, policies |
+| `tenant_integracoes.id` | `tenant_integracoes`, `integration_features`, `integration_sync_policies`, `integration_jobs`, `integration_health_snapshots`, `integration_versions` | Configuracao oficial da integracao | Jobs, health, features, policies |
 | `IntegrationJob.id` | `integration_jobs`, health e timeline | Execucao operacional de sync | Logs enriquecidos, timeline, health |
-| `SankhyaSyncLog.id` | `sankhya_sync_logs`; causation deterministica no adapter | Log legado de sync | Jobs canonicos por `legacy_log_id` |
+| `SankhyaSyncLog.id` | `sankhya_sync_logs`; causation deterministica no adapter | Log legado de sync | Jobs oficiais por `legacy_log_id` |
 | `CODPARC` | `sync_service.py` em pessoas; `nfe_financeiro_service.py` em payloads de NFe/lancamento | Importacao de pessoas para `sankhya_pessoas.sankhya_id`; payload de exportacao | Pessoas, clientes, fornecedores, NFe, financeiro |
 | `CODPROD` | `sync_service.py` em produtos | Importacao para `sankhya_produtos.sankhya_id` e `codigo` | Produtos/insumos/servicos |
 | `CODNEG` | `nfe_financeiro_service.py` em NFe de entrada | Usado como `sankhya_nfe.sankhya_id` | NFe staging |
@@ -184,12 +184,12 @@ Conclusao objetiva: para o primeiro piloto read-only/manual-first, a base atual 
 
 | Entidade | Como identifica existencia hoje | Quando atualiza | Quando cria novo | Como evita duplicidade | Se o ID Sankhya mudar |
 | --- | --- | --- | --- | --- | --- |
-| Configuracao Sankhya | `sankhya_config.tenant_id` unico | `atualizar_config` no mesmo tenant | `criar_config` quando nao existe | Unique em `tenant_id`; config canonica em `tenant_integracoes` por tenant/provider | Mantem configuracao por tenant; nao trata alteracao de empresa/filial porque esses IDs nao existem |
-| Pessoas staging | Busca `SankhyaPessoa.sankhya_id == CODPARC` | Sobrescreve dados do staging | Insere novo `sankhya_pessoas` | Unique global em `sankhya_id` | Se `CODPARC` mudar, tende a criar outro staging; nao ha reconciliacao por documento + pessoa canonica |
-| Produtos staging | Busca `SankhyaProduto.sankhya_id == CODPROD` | Sobrescreve dados do staging | Insere novo `sankhya_produtos` | Unique global em `sankhya_id` | Se `CODPROD` mudar, tende a criar outro staging; nao ha reconciliacao com produto canonico |
+| Configuracao Sankhya | `sankhya_config.tenant_id` unico | `atualizar_config` no mesmo tenant | `criar_config` quando nao existe | Unique em `tenant_id`; config oficial em `tenant_integracoes` por tenant/provider | Mantem configuracao por tenant; nao trata alteracao de empresa/filial porque esses IDs nao existem |
+| Pessoas staging | Busca `SankhyaPessoa.sankhya_id == CODPARC` | Sobrescreve dados do staging | Insere novo `sankhya_pessoas` | Unique global em `sankhya_id` | Se `CODPARC` mudar, tende a criar outro staging; nao ha reconciliacao por documento + pessoa oficial |
+| Produtos staging | Busca `SankhyaProduto.sankhya_id == CODPROD` | Sobrescreve dados do staging | Insere novo `sankhya_produtos` | Unique global em `sankhya_id` | Se `CODPROD` mudar, tende a criar outro staging; nao ha reconciliacao com produto oficial |
 | NFe staging | Busca `SankhyaNFe.chave_acesso` | Atualiza staging existente | Insere nova `sankhya_nfe` | Unique em `chave_acesso` e `sankhya_id` | Se ID Sankhya mudar mas chave permanecer, a chave segura a identidade fiscal; se chave ausente, risco aumenta |
 | Financeiro staging | Busca `SankhyaLancamentoFinanceiro.sankhya_id == DESDOB` | Atualiza staging existente | Insere novo staging | Unique global em `sankhya_id` | Se `DESDOB` mudar, tende a duplicar; nao ha chave composta `CODPARC + NUMDOC + DESDOB + tenant` persistida |
-| Cadastros canonicos | Nao ha upsert Sankhya -> canonico auditado | Nao aplicavel | Nao aplicavel | Nao aplicavel | Nao ha trilha oficial para resolver mudanca de ID externo |
+| Cadastros oficiais | Nao ha upsert Sankhya -> oficial auditado | Nao aplicavel | Nao aplicavel | Nao aplicavel | Nao ha trilha oficial para resolver mudanca de ID externo |
 
 Observacao: os upserts de staging usam `sankhya_id` sem filtro por `tenant_id` nas buscas de pessoas/produtos/financeiro e as migrations criam unique global em `sankhya_id`. Isso e aceitavel apenas se os codigos Sankhya forem globalmente unicos na instalacao. Em ambiente SaaS multi-tenant, o desenho mais seguro normalmente seria unicidade composta por tenant/provider/identificador externo.
 
@@ -224,8 +224,8 @@ Observacao: os upserts de staging usam `sankhya_id` sem filtro por `tenant_id` n
 
 | Pergunta | Lacuna |
 | --- | --- |
-| Qual `cadastros_pessoas.id` corresponde ao `CODPARC`? | Nao ha FK, tabela de de-para ou campo externo na entidade canonica. |
-| Qual `cadastros_produtos.id` corresponde ao `CODPROD`? | Nao ha FK, tabela de de-para ou campo externo na entidade canonica. |
+| Qual `cadastros_pessoas.id` corresponde ao `CODPARC`? | Nao ha FK, tabela de de-para ou campo externo na entidade oficial. |
+| Qual `cadastros_produtos.id` corresponde ao `CODPROD`? | Nao ha FK, tabela de de-para ou campo externo na entidade oficial. |
 | Qual `estoque_depositos.id` corresponde ao `CODLOCAL`? | `CODLOCAL` nao esta persistido. |
 | Qual `fin_planos_conta.id` corresponde a `CODNAT` ou plano/natureza Sankhya? | Nao ha mapeamento persistido. |
 | Qual centro de custo AgroSaaS corresponde a `CODCENCUS`? | Nao ha master de centro de custo nem mapeamento. |
@@ -235,35 +235,35 @@ Observacao: os upserts de staging usam `sankhya_id` sem filtro por `tenant_id` n
 
 ## Riscos identificados
 
-1. **Vinculo registro-a-registro nao oficializado**: a maior parte dos dominios tem staging Sankhya, mas nao tem associacao persistida com os cadastros canonicos.
+1. **Vinculo registro-a-registro nao oficializado**: a maior parte dos dominios tem staging Sankhya, mas nao tem associacao persistida com os cadastros oficiais.
 2. **Unicidade global de IDs Sankhya**: `sankhya_id` e `chave_acesso` aparecem como unique global nas migrations/tabelas de staging, nao compostos por `tenant_id`. Isso pode bloquear ou misturar tenants caso dois ambientes Sankhya usem o mesmo codigo numerico.
-3. **Risco de duplicidade ao promover staging para canonico**: sem de-para persistido, imports futuros podem criar nova `Pessoa`/`Produto` quando o registro ja existir por documento, nome ou codigo interno.
+3. **Risco de duplicidade ao promover staging para oficial**: sem de-para persistido, imports futuros podem criar nova `Pessoa`/`Produto` quando o registro ja existir por documento, nome ou codigo interno.
 4. **Mudanca de codigo no Sankhya**: se `CODPARC`, `CODPROD` ou `DESDOB` mudar, o sistema tende a tratar como novo registro no staging.
 5. **Fiscal parcialmente mitigado por chave de acesso**: NF-e e a area mais segura porque `CHAVEACESSO` e uma chave natural forte. Ainda assim, falta FK entre staging e `fin_notas_fiscais`.
 6. **Empresa/filial ausentes**: nao ha como responder formalmente qual `CODEMP`/`CODFILIAL` esta associado ao tenant, empresa, propriedade ou unidade produtiva.
 7. **Centro de custo e natureza financeira sem master equivalente**: `CODCENCUS` e `CODNAT` nao tem destino oficial persistido.
 8. **Deposito/local de estoque sem de-para**: `CODLOCAL` nao esta armazenado e a feature `estoque` esta preparada como futura, mas desabilitada.
-9. **Rastreabilidade operacional nao substitui rastreabilidade de entidade**: `IntegrationJob`, `IntegrationHealth` e `SankhyaSyncLog` dizem quando e como a sync rodou, mas nao qual registro canonico foi vinculado.
-10. **Reprocessamento limitado**: para pessoas/produtos, o full refresh por `findAll` atualiza staging, mas nao resolve reconciliacao com canonicos nem divergencias de identidade.
+9. **Rastreabilidade operacional nao substitui rastreabilidade de entidade**: `IntegrationJob`, `IntegrationHealth` e `SankhyaSyncLog` dizem quando e como a sync rodou, mas nao qual registro oficial foi vinculado.
+10. **Reprocessamento limitado**: para pessoas/produtos, o full refresh por `findAll` atualiza staging, mas nao resolve reconciliacao com oficiais nem divergencias de identidade.
 
 ## Associacoes totalmente implementadas
 
 | Associacao | Evidencia | Observacao |
 | --- | --- | --- |
 | Tenant AgroSaaS -> configuracao Sankhya | `sankhya_config.tenant_id`; `tenant_integracoes.tenant_id` | Atende configuracao da integracao por tenant. |
-| Configuracao Sankhya -> credencial/versionamento canonico | `integration_credentials`, `integration_versions` via `SankhyaCanonicalAdapter` | Atende governanca de credenciais e auditoria de configuracao. |
-| Sync legado -> job canonico | `sankhya_sync_logs` + `integration_jobs` com `legacy_log_id`/causation deterministica | Atende rastreabilidade operacional. |
-| Registro NFe staging -> NFe externa por chave de acesso | `sankhya_nfe.chave_acesso` unique e upsert por `CHAVEACESSO` | Atende idempotencia fiscal no staging; nao e FK canonica. |
+| Configuracao Sankhya -> credencial/versionamento oficial | `integration_credentials`, `integration_versions` via `SankhyaCanonicalAdapter` | Atende governanca de credenciais e auditoria de configuracao. |
+| Sync legado -> job oficial | `sankhya_sync_logs` + `integration_jobs` com `legacy_log_id`/causation deterministica | Atende rastreabilidade operacional. |
+| Registro NFe staging -> NFe externa por chave de acesso | `sankhya_nfe.chave_acesso` unique e upsert por `CHAVEACESSO` | Atende idempotencia fiscal no staging; nao e FK oficial. |
 
 ## Associacoes parcialmente implementadas
 
 | Associacao | Onde existe | Lacuna |
 | --- | --- | --- |
-| Pessoa/cliente/fornecedor/transportadora/representante -> Sankhya | `sankhya_pessoas.sankhya_id = CODPARC` | Falta vinculo com `cadastros_pessoas.id` e papel canonico. |
-| Produto/insumo/servico -> Sankhya | `sankhya_produtos.sankhya_id = CODPROD` | Falta vinculo com `cadastros_produtos.id` e unidade canonica. |
+| Pessoa/cliente/fornecedor/transportadora/representante -> Sankhya | `sankhya_pessoas.sankhya_id = CODPARC` | Falta vinculo com `cadastros_pessoas.id` e papel oficial. |
+| Produto/insumo/servico -> Sankhya | `sankhya_produtos.sankhya_id = CODPROD` | Falta vinculo com `cadastros_produtos.id` e unidade oficial. |
 | NFe AgroSaaS -> NFe Sankhya | `chave_acesso` nos dois lados | Associacao e inferivel por chave, nao persistida como relacao oficial. |
 | Contas a pagar/receber -> Sankhya | `sankhya_lancamentos_financeiros.sankhya_id = DESDOB` | Falta vinculo com `fin_despesas.id`/`fin_receitas.id`; chave externa parece fraca isoladamente. |
-| Tenant -> provider/health/jobs/features | Dominio canonico de Integracoes | Cobre integracao, nao registros de negocio. |
+| Tenant -> provider/health/jobs/features | Dominio oficial de Integracoes | Cobre integracao, nao registros de negocio. |
 
 ## Associacoes inexistentes
 
@@ -283,14 +283,14 @@ Observacao: os upserts de staging usam `sankhya_id` sem filtro por `tenant_id` n
 ### Reusar arquitetura existente primeiro
 
 1. Manter `SankhyaConfig`, `SankhyaSyncLog` e `SankhyaCanonicalAdapter` como base operacional. Eles ja resolvem configuracao, health, jobs, timeline e auditoria de execucao.
-2. Reusar `IntegrationJob`, `IntegrationFeature`, `IntegrationSyncPolicy`, `IntegrationHealth` e eventos canonicos para qualquer evolucao, sem criar scheduler/outbox paralelo.
-3. Reusar as tabelas `sankhya_*` como staging/espelho de dados externos. Elas nao devem virar fonte canonica de Pessoas, Produtos, Financeiro ou Estoque.
+2. Reusar `IntegrationJob`, `IntegrationFeature`, `IntegrationSyncPolicy`, `IntegrationHealth` e eventos oficiais para qualquer evolucao, sem criar scheduler/outbox paralelo.
+3. Reusar as tabelas `sankhya_*` como staging/espelho de dados externos. Elas nao devem virar fonte oficial de Pessoas, Produtos, Financeiro ou Estoque.
 4. Reusar chaves naturais existentes quando fortes, especialmente `CHAVEACESSO` para NF-e.
 
 ### Ajustes conceituais antes de nova implementacao
 
-1. Definir uma politica oficial de identidade externa por entidade antes de promover dados Sankhya para cadastros canonicos.
-2. Definir se a associacao deve viver em campos especificos nos canonicos, em uma tabela generica de de-para por provider, ou em extensoes por dominio. A auditoria nao encontrou uma estrutura atual que resolva isso de forma transversal.
+1. Definir uma politica oficial de identidade externa por entidade antes de promover dados Sankhya para cadastros oficiais.
+2. Definir se a associacao deve viver em campos especificos nos oficiais, em uma tabela generica de de-para por provider, ou em extensoes por dominio. A auditoria nao encontrou uma estrutura atual que resolva isso de forma transversal.
 3. Garantir que qualquer chave externa seja escopada por `tenant_id` e provider/ambiente. Evitar unicidade global simples para codigos como `CODPARC`, `CODPROD`, `DESDOB`, `CODLOCAL`, `CODNAT` e `CODCENCUS`.
 4. Para pessoas, usar uma estrategia composta: `tenant_id + provider + CODPARC` como identidade externa primaria, com documento normalizado e papel como reconciliacao secundaria.
 5. Para produtos, usar `tenant_id + provider + CODPROD`, com `codigo_interno`/`sku`/`codigo_barras` e unidade como reconciliacao secundaria.
@@ -300,7 +300,7 @@ Observacao: os upserts de staging usam `sankhya_id` sem filtro por `tenant_id` n
 
 ### Quando considerar nova estrutura
 
-Somente recomendar nova estrutura apos confirmar que os mecanismos atuais nao atendem. A conclusao desta auditoria e que os mecanismos atuais atendem integracao operacional, mas nao atendem vinculo registro-a-registro. Portanto, se a proxima etapa exigir promover/importar dados para os cadastros canonicos com garantia de identidade, sera necessario introduzir uma forma persistente de de-para por provider ou extensoes equivalentes nos dominios.
+Somente recomendar nova estrutura apos confirmar que os mecanismos atuais nao atendem. A conclusao desta auditoria e que os mecanismos atuais atendem integracao operacional, mas nao atendem vinculo registro-a-registro. Portanto, se a proxima etapa exigir promover/importar dados para os cadastros oficiais com garantia de identidade, sera necessario introduzir uma forma persistente de de-para por provider ou extensoes equivalentes nos dominios.
 
 ## Impacto para o primeiro piloto
 
@@ -314,9 +314,9 @@ Somente recomendar nova estrutura apos confirmar que os mecanismos atuais nao at
 
 ### O que exige cuidado no piloto
 
-- Nao assumir que uma pessoa importada em `sankhya_pessoas` ja corresponde a uma `Pessoa` canonica.
-- Nao assumir que um produto importado em `sankhya_produtos` ja corresponde a um `Produto` canonico.
-- Nao importar estoque/deposito como canonico sem validar `CODLOCAL` e sem definir associacao.
+- Nao assumir que uma pessoa importada em `sankhya_pessoas` ja corresponde a uma `Pessoa` oficial.
+- Nao assumir que um produto importado em `sankhya_produtos` ja corresponde a um `Produto` oficial.
+- Nao importar estoque/deposito como oficial sem validar `CODLOCAL` e sem definir associacao.
 - Nao conciliar financeiro em `Despesa`/`Receita` apenas por `DESDOB`.
 - Nao tratar `sankhya_id` global como seguro para multiplos tenants sem validar unicidade real entre ambientes Sankhya.
 
@@ -326,7 +326,7 @@ Somente recomendar nova estrutura apos confirmar que os mecanismos atuais nao at
 | --- | --- |
 | Piloto de conexao, observabilidade e staging Sankhya | GO |
 | Piloto read-only com cargas controladas e validacao manual | GO com restricoes |
-| Promocao automatica para cadastros canonicos com garantia de identidade | NO-GO ate existir de-para oficial |
+| Promocao automatica para cadastros oficiais com garantia de identidade | NO-GO ate existir de-para oficial |
 | Sync bidirecional ou escrita AgroSaaS -> Sankhya | NO-GO para esta fase |
 | Multiempresa/multifilial Sankhya | NO-GO ate modelar/registrar `CODEMP`/`CODFILIAL` |
 
@@ -334,9 +334,9 @@ Somente recomendar nova estrutura apos confirmar que os mecanismos atuais nao at
 
 O AgroSaaS esta parcialmente preparado para manter associacoes Sankhya durante o primeiro piloto: a infraestrutura de integracao, autenticacao, configuracao, health, jobs, logs e staging esta implementada e e reutilizavel.
 
-O AgroSaaS ainda nao esta plenamente preparado para manter, durante toda a vida util da integracao, a associacao oficial entre cada registro canonico AgroSaaS e seu equivalente no ERP Sankhya. A lacuna principal nao e de Gateway, scheduler ou observabilidade; e de identidade externa persistente por entidade de negocio.
+O AgroSaaS ainda nao esta plenamente preparado para manter, durante toda a vida util da integracao, a associacao oficial entre cada registro oficial AgroSaaS e seu equivalente no ERP Sankhya. A lacuna principal nao e de Gateway, scheduler ou observabilidade; e de identidade externa persistente por entidade de negocio.
 
-Para o piloto, a recomendacao e manter o recorte aprovado: leitura controlada, staging, validacao manual, sem escrita bidirecional e sem promocao automatica irreversivel para os cadastros canonicos enquanto nao houver politica oficial de de-para.
+Para o piloto, a recomendacao e manter o recorte aprovado: leitura controlada, staging, validacao manual, sem escrita bidirecional e sem promocao automatica irreversivel para os cadastros oficiais enquanto nao houver politica oficial de de-para.
 
 ## Validacao
 

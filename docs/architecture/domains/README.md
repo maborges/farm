@@ -1,6 +1,6 @@
 # Catálogo de Domínios do AgroSaaS
 
-Índice canônico dos catálogos de domínio do AgroSaaS.
+Índice oficial dos catálogos de domínio do AgroSaaS.
 
 ## Domínios Centrais
 
@@ -27,7 +27,7 @@
 - [AGRI-DOMAIN-001](/opt/lampp/htdocs/farm/docs/architecture/standards/AGRI-DOMAIN-001-territorial-fundiario.md)
 - [AGRI-DOMAIN-002](/opt/lampp/htdocs/farm/docs/architecture/standards/AGRI-DOMAIN-002-propriedade-imovel.md)
 - [Governança Arquitetural](/opt/lampp/htdocs/farm/docs/architecture/governance/agrosaas-architecture-governance.md)
-- [Modelo Territorial Canônico](/opt/lampp/htdocs/farm/docs/architecture/agrosaas-territorial-canonical-model.md)
+- [Modelo Territorial Oficial](/opt/lampp/htdocs/farm/docs/architecture/agrosaas-territorial-oficial-model.md)
 
 ## Leitura Recomendada
 

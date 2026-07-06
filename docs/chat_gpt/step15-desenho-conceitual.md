@@ -30,7 +30,7 @@
 UNIQUE (tenant_id, safra_id, cultivo_id, area_id) WHERE status <> 'CANCELADA'
 ```
 
-- PU canônico: 1 por cruzamento ativo.
+- PU oficial: 1 por cruzamento ativo.
 - Cancelamento preserva histórico sem bloquear recriação.
 - `data_inicio`/`data_fim` permanecem como campos informativos (não na chave).
 
@@ -95,7 +95,7 @@ UNIQUE (tenant_id, safra_id, cultivo_id, area_id) WHERE status <> 'CANCELADA'
 
 - **Backfill (step15):** converte `CultivoArea` existentes em PUs. Bootstrap único.
 - **Depois do step15:**
-  - Service `ProductionUnitService.criar(...)` é o caminho canônico.
+  - Service `ProductionUnitService.criar(...)` é o caminho oficial.
   - Quando safra é criada com cultivos + áreas na UI legacy, service instancia PUs explicitamente (não trigger).
   - `CultivoArea` permanece como input-UI layer; step16+ fazem module migration gradual para PU-first.
 - **Sem trigger de sync DB** (decisão já firmada anteriormente). Service garante coerência.
@@ -153,7 +153,7 @@ Não bloqueia: criação de operações, romaneios, análises de solo, etc. Esse
 
 ### 5.3 Recomendação
 
-**Opção A — PU é o centro de custo agrícola canônico.**
+**Opção A — PU é o centro de custo agrícola oficial.**
 
 - `custos_rateios.production_unit_id` é FK direta (step19).
 - Sem criar tabela `centros_custo` agora — YAGNI.
@@ -206,7 +206,7 @@ Não bloqueia: criação de operações, romaneios, análises de solo, etc. Esse
 | 2 | `area_ha` | **Armazenada** como snapshot; validação de coerência em service |
 | 3 | Criação de PU | **First-class** — backfill inicial + criação manual via API; sync por service, sem trigger DB |
 | 4 | `status_consorcio_area` | **Read model + gate seletivo** (mutação em INCONSISTENTE; transição ENCERRADA) |
-| 5 | PU como CC | PU **é** o centro de custo agrícola canônico; sem tabela externa |
+| 5 | PU como CC | PU **é** o centro de custo agrícola oficial; sem tabela externa |
 | 6 | Default de rateio | **`AREA_HA`** como default; override por operação em `custos_rateios` (step19) |
 
 ## Impactos no desenho já existente do Step 15

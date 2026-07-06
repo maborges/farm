@@ -67,7 +67,7 @@ O operador agora consegue:
 - sincronizar o catalogo local de animais;
 - buscar animais offline por identificacao, brinco, nome ou lote;
 - escolher matriz, reprodutor, pai e cria sem digitar IDs manualmente;
-- manter o fluxo reprodutivo com o mesmo contrato de sincronizacao e o mesmo modelo canonico de `Animal`.
+- manter o fluxo reprodutivo com o mesmo contrato de sincronizacao e o mesmo modelo oficial de `Animal`.
 
 ## 9. Limitacoes remanescentes
 

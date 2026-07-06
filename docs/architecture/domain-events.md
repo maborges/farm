@@ -3,7 +3,7 @@
 ## Propósito
 
 A fundação de Domain Events do AgroSaaS existe para desacoplar fatos de domínio do Alert Engine.
-Domain Services publicam um evento canônico em memória e a cadeia de publicação faz o roteamento
+Domain Services publicam um evento oficial em memória e a cadeia de publicação faz o roteamento
 para subscribers e, quando aplicável, para o Alert Engine.
 
 ## Fluxo Atual
@@ -23,7 +23,7 @@ Domain Service
 
 ## Conceitos
 
-- `DomainEvent`: envelope canônico do fato de domínio. Carrega identidade do evento, tenant,
+- `DomainEvent`: envelope oficial do fato de domínio. Carrega identidade do evento, tenant,
   unidade produtiva, tipo, origem, entidade, correlação, causalidade e metadata segura.
 - `EventPublisher`: resolve subscribers registrados para o `event_type` e executa a fan-out.
 - `EventSubscriber`: contrato de consumo de eventos em memória.
@@ -33,7 +33,7 @@ Domain Service
 
 ## Por que Domain Services não chamam o Dispatcher
 
-Domain Services devem conhecer apenas o evento canônico e o helper de publicação segura.
+Domain Services devem conhecer apenas o evento oficial e o helper de publicação segura.
 Chamar `AlertDispatcherService` diretamente introduz acoplamento com a implementação do Alert Engine,
 confunde fronteiras arquiteturais e dificulta evoluir para Outbox ou filas sem reescrever domínio.
 
@@ -94,7 +94,7 @@ Os logs não devem incluir payloads grandes, snapshots completos ou dados sensí
 O desenho atual já separa:
 
 - produção do fato de domínio;
-- publicação canônica;
+- publicação oficial;
 - fan-out para subscribers;
 - ponte para o Alert Engine.
 

@@ -1,10 +1,10 @@
-# Estoque Canônico — `estoque_movimentos` como única fonte oficial
+# Estoque Oficial — `estoque_movimentos` como única fonte oficial
 
 Data de consolidação: `2026-04-28`
 
 ## Decisão arquitetural
 
-A tabela `estoque_movimentos` é o **ledger canônico e único** de movimentações de estoque no AgroSaaS.
+A tabela `estoque_movimentos` é o **ledger oficial e único** de movimentações de estoque no AgroSaaS.
 
 A tabela legada `estoque_movimentacoes` foi **removida fisicamente** no Step 79 (migration `step25_drop_estoque_movimentacoes`).
 
@@ -15,7 +15,7 @@ A tabela legada `estoque_movimentacoes` foi **removida fisicamente** no Step 79 
 | Step | Ação |
 |------|------|
 | 61 | Novos writes passaram a gravar somente em `estoque_movimentos` |
-| 63 | Leituras funcionais adaptadas para o ledger canônico |
+| 63 | Leituras funcionais adaptadas para o ledger oficial |
 | 68 | Migration: `origem_tipo = LEGADO` liberado em `estoque_movimentos` |
 | 69 | Script idempotente de backfill criado |
 | 71 | Backfill real executado: 4 registros migrados como LEGADO, 0 erros |
@@ -27,11 +27,11 @@ A tabela legada `estoque_movimentacoes` foi **removida fisicamente** no Step 79 
 | 77 | Auditoria final pré-remoção: 0 usos funcionais confirmados |
 | 78 | Plano de remoção física documentado |
 | 79 | Model removido, migration `DROP TABLE` executada, guardrail convertido para sentinela pós-drop |
-| 80 | Validação final: 27 passed, 0 failed — todos os módulos dependem somente do ledger canônico |
+| 80 | Validação final: 27 passed, 0 failed — todos os módulos dependem somente do ledger oficial |
 
 ---
 
-## Estrutura do ledger canônico
+## Estrutura do ledger oficial
 
 **Tabela:** `estoque_movimentos`  
 **Model:** `EstoqueMovimento` em `operacional/models/estoque.py`

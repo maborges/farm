@@ -22,7 +22,7 @@
 | **InventoryMovement** (ledger) | ❌ NÃO | — | Não há ledger imutável de estoque |
 | **CostAllocation** (rateio multi) | ⚠️ parcial | `financeiro.rateio` | Existe `Rateio` financeiro, **não** há rateio por PU/talhão/cultivo |
 | **Scenario** (planejamento) | ❌ NÃO | — | Nenhum suporte a cenários |
-| **Measurement Engine** (UOM) | ❌ NÃO | — | Valores salvos sem unidade canônica |
+| **Measurement Engine** (UOM) | ❌ NÃO | — | Valores salvos sem unidade oficial |
 | **Laudo versionado** | ❌ NÃO | `analises_solo` não versionado | `CultivoArea.analise_solo_id` é FK simples |
 
 ---

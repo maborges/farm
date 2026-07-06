@@ -1,7 +1,7 @@
 # EXECUTION-05 - Fase 3 Backend da Convergencia Propriedades x Imoveis Rurais
 
 ## Objetivo
-Implementar a camada backend da entidade canonica `PropriedadeImovel`, respeitando a norma territorial/fundiaria, o `tenant isolation` e a fonte oficial de cada dominio.
+Implementar a camada backend da entidade oficial `PropriedadeImovel`, respeitando a norma territorial/fundiaria, o `tenant isolation` e a fonte oficial de cada dominio.
 
 ## Resultado
 Fase 3 concluida com sucesso.
@@ -25,7 +25,7 @@ Fase 3 concluida com sucesso.
 `PropriedadeImovel` foi criado e mapeado para a tabela `propriedade_imovel`.
 
 Cobertura implementada:
-- campos obrigatorios e opcionais da entidade canonica
+- campos obrigatorios e opcionais da entidade oficial
 - enum oficial `TipoVinculoPropriedadeImovel`
 - constraints de tipo, datas, percentual e area
 - indices operacionais e de consulta

@@ -115,7 +115,7 @@ Impacto:
 Correcao aplicada:
 
 - `SafraAvancarFase.novo_status` passou a ser opcional
-- A rota continua usando a fase da URL como fonte canonica
+- A rota continua usando a fase da URL como fonte oficial
 - Foi adicionada validacao defensiva para rejeitar divergencia entre URL e corpo quando ambos forem enviados
 
 Arquivos:
@@ -133,7 +133,7 @@ Sintoma:
 
 Impacto:
 
-- Quebrava a interpretacao canonica do payload e o teste de integracao do espelho `apps/web`
+- Quebrava a interpretacao oficial do payload e o teste de integracao do espelho `apps/web`
 
 Correcao aplicada:
 

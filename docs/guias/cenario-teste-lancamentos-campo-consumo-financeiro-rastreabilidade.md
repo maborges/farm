@@ -162,7 +162,7 @@ Tela:
 
 ### Resultado esperado
 
-- existe evento canônico da operação
+- existe evento oficial da operação
 - a descrição da operação está visível
 - o evento está na timeline da safra
 

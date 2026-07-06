@@ -1,17 +1,17 @@
-# SANKHYA-DOMAIN-01 — Adapter Canônico Sankhya
+# SANKHYA-DOMAIN-01 — Adapter Oficial Sankhya
 
 ## 1. Resumo Executivo
 
-Esta execução iniciou a convergência incremental do provider Sankhya para o domínio canônico de Integrações sem remover `SankhyaConfig`, sem remover `SankhyaSyncLog` e sem quebrar rotas existentes.
+Esta execução iniciou a convergência incremental do provider Sankhya para o domínio oficial de Integrações sem remover `SankhyaConfig`, sem remover `SankhyaSyncLog` e sem quebrar rotas existentes.
 
 Foi criada uma camada complementar responsável por:
 
-- localizar ou criar a configuração canônica do Sankhya;
+- localizar ou criar a configuração oficial do Sankhya;
 - garantir features padrão do provider;
 - garantir policies padrão do provider;
 - criar `IntegrationJob` durante syncs existentes;
 - atualizar `IntegrationHealth`;
-- emitir eventos canônicos;
+- emitir eventos oficiais;
 - preservar integralmente a compatibilidade do provider-specific legado.
 
 ## 2. Arquivos alterados
@@ -41,7 +41,7 @@ O adapter usa como base provider-specific:
 - `SankhyaConfig`
 - `SankhyaSyncLog`
 
-E sincroniza isso com o domínio canônico:
+E sincroniza isso com o domínio oficial:
 
 - `MarketplaceIntegracao`
 - `TenantIntegracao`
@@ -52,7 +52,7 @@ E sincroniza isso com o domínio canônico:
 - `IntegrationJob`
 - `IntegrationHealth`
 
-## 4. Features canônicas Sankhya
+## 4. Features oficiais Sankhya
 
 Features garantidas:
 
@@ -71,7 +71,7 @@ Decisão aplicada:
 
 ## 5. Sync Policies
 
-Policies canônicas garantidas:
+Policies oficiais garantidas:
 
 - `pessoas` → `MANUAL`, com suporte declarado para `MANUAL` e `AGENDADO`
 - `produtos` → `MANUAL`, com suporte declarado para `MANUAL` e `AGENDADO`
@@ -82,7 +82,7 @@ Policies canônicas garantidas:
 
 ## 6. IntegrationJob
 
-Os syncs existentes passaram a criar `IntegrationJob` canônico como camada complementar.
+Os syncs existentes passaram a criar `IntegrationJob` oficial como camada complementar.
 
 Mapeamento aplicado:
 
@@ -101,7 +101,7 @@ Integrações conectadas:
 
 ## 7. IntegrationHealth
 
-O adapter passou a manter snapshot canônico em `IntegrationHealth`.
+O adapter passou a manter snapshot oficial em `IntegrationHealth`.
 
 Atualizações cobertas:
 
@@ -121,7 +121,7 @@ Estados utilizados nesta etapa:
 - `PARTIAL_FAILURE`
 - `RATE_LIMITED`
 
-## 8. Eventos canônicos
+## 8. Eventos oficiais
 
 Eventos emitidos pelo adapter:
 
@@ -174,7 +174,7 @@ Ainda não foi feito:
 - substituição de `SankhyaSyncLog` por `IntegrationJob`;
 - uso real de `outbox_event_id` nos jobs Sankhya;
 - automação explícita de Alert Engine para Integrações;
-- dashboards específicos do health canônico;
+- dashboards específicos do health oficial;
 - convergência do frontend para exibir `IntegrationHealth` e `IntegrationJob`.
 
 ## 12. Próxima execução recomendada
@@ -185,7 +185,7 @@ Próxima execução recomendada:
 
 Escopo recomendado:
 
-- adaptar rotas e consultas para ler status canônico sem remover status legado;
-- começar a expor health e jobs canônicos na API Sankhya;
-- mapear logs legados e jobs canônicos na mesma experiência operacional;
-- preparar migração progressiva de leitura do frontend para o domínio canônico.
+- adaptar rotas e consultas para ler status oficial sem remover status legado;
+- começar a expor health e jobs oficiais na API Sankhya;
+- mapear logs legados e jobs oficiais na mesma experiência operacional;
+- preparar migração progressiva de leitura do frontend para o domínio oficial.

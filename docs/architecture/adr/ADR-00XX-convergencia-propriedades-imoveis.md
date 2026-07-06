@@ -15,7 +15,7 @@ A análise arquitetural consolidada em `AGRI-DOMAIN-001`, `AGRI-DOMAIN-002` e `A
 
 - sobreposição de responsabilidades;
 - duplicidade de fonte da verdade para dados fundiários;
-- ausência de entidade canônica de vínculo;
+- ausência de entidade oficial de vínculo;
 - necessidade de rastreabilidade completa até o imóvel legal;
 - necessidade de suporte consistente para ESG, Certificações e Projeto Raízes.
 
@@ -26,7 +26,7 @@ Esta ADR formaliza a decisão arquitetural oficial para a convergência dos dom�
 O estado atual apresenta três problemas centrais:
 
 1. `Propriedades` ainda concentra alguns dados fundiários e documentais que pertencem ao domínio legal.
-2. `Imóveis Rurais` já é a fonte oficial do lastro fundiário, mas não existe vínculo canônico obrigatório entre os domínios.
+2. `Imóveis Rurais` já é a fonte oficial do lastro fundiário, mas não existe vínculo oficial obrigatório entre os domínios.
 3. O sistema não possui uma forma única de representar, auditar e rastrear a relação entre operação territorial e propriedade legal.
 
 Sem essa convergência, o AgroSaaS fica exposto a:
@@ -46,7 +46,7 @@ O AgroSaaS adota oficialmente a convergência entre `Propriedades` e `Imóveis R
 2. `Propriedades` permanece como fonte da verdade do território operacional, incluindo glebas, talhões, pastagens, infraestrutura, produção, safra e operação.
 3. `Imóveis Rurais` permanece como fonte da verdade da titularidade, matrícula, cartório, CAR, CCIR, ITR, NIRF, SIGEF, contratos e avaliações.
 4. A cardinalidade oficial entre `Propriedade` e `Imóvel Rural` é `N:N`.
-5. A entidade canônica obrigatória de vínculo é `PropriedadeImovel`.
+5. A entidade oficial obrigatória de vínculo é `PropriedadeImovel`.
 6. Toda rastreabilidade relevante deve alcançar o `Imóvel Rural`.
 7. Toda fonte da verdade deve ser única por dado.
 8. Dados espelhados entre domínios serão apenas derivados e não editáveis fora da origem oficial.
@@ -121,7 +121,7 @@ O AgroSaaS adota oficialmente a convergência entre `Propriedades` e `Imóveis R
 
 - As APIs de `Propriedades` devem deixar de tratar dados fundiários como origem primária.
 - As APIs de `Imóveis Rurais` devem ser a origem oficial de documentação fundiária.
-- Uma nova API ou recurso canônico para `PropriedadeImovel` será necessária.
+- Uma nova API ou recurso oficial para `PropriedadeImovel` será necessária.
 - Rotas legadas poderão permanecer por período de transição, mas apenas como compatibilidade.
 
 ### Classificação do impacto
@@ -157,7 +157,7 @@ A decisão melhora o suporte a ESG porque:
 
 O Projeto Raízes passa a ter base arquitetural mais sólida porque:
 
-- a produção pode ser rastreada até a safra, o talhão, a propriedade, o vínculo canônico e o imóvel legal;
+- a produção pode ser rastreada até a safra, o talhão, a propriedade, o vínculo oficial e o imóvel legal;
 - a origem fundiária fica explicitamente comprovável;
 - a documentação passa a ser auditável por camada;
 - a cadeia de custódia deixa de depender de campos duplicados ou implícitos.
@@ -172,7 +172,7 @@ O Projeto Raízes passa a ter base arquitetural mais sólida porque:
 
 ### Fase 2 - Modelo de dados
 
-- introduzir `PropriedadeImovel` como entidade canônica;
+- introduzir `PropriedadeImovel` como entidade oficial;
 - definir constraints, cardinalidade e vigência;
 - mapear campos a migrar, manter ou descontinuar.
 
@@ -191,12 +191,12 @@ O Projeto Raízes passa a ter base arquitetural mais sólida porque:
 ### Fase 5 - Frontend
 
 - separar claramente telas operacionais e fundiárias;
-- expor o vínculo canônico nos fluxos relevantes;
+- expor o vínculo oficial nos fluxos relevantes;
 - revisar rastreabilidade e visualizações de auditoria.
 
 ### Fase 6 - Rastreabilidade, ESG e Raízes
 
-- integrar o vínculo canônico aos fluxos de origem;
+- integrar o vínculo oficial aos fluxos de origem;
 - validar o encadeamento até o imóvel rural;
 - reforçar relatórios, auditorias e certificações.
 
@@ -252,9 +252,9 @@ Rollback recomendado:
 ## Impacto em Normas
 
 - AGRI-DOMAIN-001: sem impacto conceitual; esta ADR operacionaliza a norma.
-- AGRI-DOMAIN-002: sem impacto conceitual; esta ADR reforça a entidade canônica já definida.
+- AGRI-DOMAIN-002: sem impacto conceitual; esta ADR reforça a entidade oficial já definida.
 - Agrosaas Architecture Governance: sem impacto; a ADR segue o processo exigido.
-- Data Model: impacto relevante, pois explicita a cardinalidade e o vínculo canônico.
+- Data Model: impacto relevante, pois explicita a cardinalidade e o vínculo oficial.
 - Domain Map: impacto relevante, pois formaliza a fronteira entre os dois domínios.
 
 ## Impacto em Domínios
@@ -274,7 +274,7 @@ Rollback recomendado:
 - Frontend: impacto moderado, com ajustes semânticos.
 - RLS: deve ser preservado.
 - Relatórios: devem ser revalidados.
-- Rastreabilidade: passa a ser endereçada por vínculo canônico obrigatório.
+- Rastreabilidade: passa a ser endereçada por vínculo oficial obrigatório.
 
 ## Plano de Migração
 

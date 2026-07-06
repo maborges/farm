@@ -20,7 +20,7 @@ Fase 6 concluida com sucesso.
 
 ### Fonte oficial de vinculacao
 
-- `PropriedadeImovel` continua sendo a unica ponte canonica N:N.
+- `PropriedadeImovel` continua sendo a unica ponte oficial N:N.
 
 ### Legados e compatibilidade
 
@@ -65,7 +65,7 @@ Fase 6 concluida com sucesso.
 
 ## Riscos reais
 
-- `SIGEF` ainda depende de consolidação fisica futura no dominio fundiario canonico.
+- `SIGEF` ainda depende de consolidação fisica futura no dominio fundiario oficial.
 - Espelhos legados podem ser reintroduzidos como fonte oficial se novos consumidores ignorarem a norma.
 - Rotas e telas antigas podem continuar sugerindo edicao em dados que agora devem ser somente leitura/compatibilidade.
 

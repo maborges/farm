@@ -42,7 +42,7 @@ O fluxo validado no frontend foi:
 - abrir o formulário de novo imóvel;
 - preencher `Nome`, `Município`, `UF`, `Área Total`;
 - selecionar a Propriedade existente no campo opcional de vínculo;
-- enviar o payload canônico sem `tenant_id`;
+- enviar o payload oficial sem `tenant_id`;
 - usar `numero_matricula` como campo oficial.
 
 ## Regra implementada no UPDATE
@@ -53,7 +53,7 @@ Nenhuma regra de backend foi alterada nesta execução.
 
 - o botão `Novo Imóvel` ficou exposto com o mock de permissões correto;
 - o formulário de criação passou a ser acessível de forma estável no Playwright;
-- o teste novo valida seleção de Propriedade existente e o envio do payload canônico;
+- o teste novo valida seleção de Propriedade existente e o envio do payload oficial;
 - a navegação para `visao-fundiaria` foi mantida no spec existente.
 
 ## Testes executados

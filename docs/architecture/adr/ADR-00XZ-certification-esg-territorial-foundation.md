@@ -10,7 +10,7 @@ O AgroSaaS já consolidou a fronteira entre:
 
 - `Propriedade`, como fonte oficial operacional, territorial e produtiva;
 - `Imóvel Rural`, como fonte oficial jurídica, patrimonial, documental e fiscal;
-- `PropriedadeImovel`, como vínculo canônico N:N entre os dois domínios.
+- `PropriedadeImovel`, como vínculo oficial N:N entre os dois domínios.
 
 Além disso, o produto já possui:
 

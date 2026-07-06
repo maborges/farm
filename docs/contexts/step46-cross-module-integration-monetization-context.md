@@ -9,7 +9,7 @@ Mapear como os módulos Agricultura, Pecuária, Financeiro, Estoque, Frota, Máq
 - Documento de arquitetura e monetização.
 - Não altera gates existentes.
 - Não implementa código.
-- Não cria novos planos nem muda nomes canônicos de tiers.
+- Não cria novos planos nem muda nomes oficiais de tiers.
 - Usa `Core` como base comum e `A1_PLANEJAMENTO`, `PROFISSIONAL` e `ENTERPRISE` como níveis de monetização.
 
 ## Princípio Arquitetural
@@ -45,7 +45,7 @@ Core
 
 ## Entidades Compartilhadas
 
-| Entidade | Dono canônico | Consumidores | Regra de integração |
+| Entidade | Dono oficial | Consumidores | Regra de integração |
 |---|---|---|---|
 | Fazenda | Core | Todos os módulos | Toda entidade operacional deve referenciar fazenda ou tenant. Não duplicar fazenda em módulos produtivos. |
 | Unidade produtiva | Core com especialização operacional | Agricultura, Pecuária, Financeiro, Estoque, Relatórios | Talhão, piquete, curral, galpão ou área devem usar uma base comum de unidade produtiva quando possível. |
@@ -156,7 +156,7 @@ Funcionalidades que ampliam gestão, análise e automação operacional devem fi
 - Core é obrigatório para todos os módulos.
 - Um módulo produtivo pode registrar dados manuais mesmo sem módulo integrador contratado, desde que não simule funcionalidade premium.
 - Quando o módulo integrador não estiver contratado, o sistema pode exibir campos informativos manuais ou CTA de upgrade.
-- Quando o módulo integrador estiver contratado, a fonte canônica deve ser o módulo integrador.
+- Quando o módulo integrador estiver contratado, a fonte oficial deve ser o módulo integrador.
 - A contratação do módulo responde "qual domínio está habilitado"; o tier responde "qual profundidade daquele domínio está habilitada".
 - Agricultura e Pecuária devem seguir a mesma lógica de profundidade: A1 para registro operacional básico, `PROFISSIONAL` para gestão e análise, `ENTERPRISE` para escala, auditoria, automação avançada e integrações.
 - Feature gates existentes continuam sendo a fonte técnica de verdade.
@@ -170,7 +170,7 @@ Funcionalidades que ampliam gestão, análise e automação operacional devem fi
 | Estoque separado por módulo | Saldos divergentes, compra emergencial indevida e perda de rastreabilidade | Estoque central como dono de produto, saldo, lote e movimentação. |
 | Financeiro isolado em Agricultura ou Pecuária | Margem incorreta e fluxo de caixa incompleto | Financeiro central como dono de lançamentos, centros de custo e títulos. |
 | Frota duplicada entre máquinas agrícolas e veículos | Custo hora inconsistente e manutenção fragmentada | Cadastro unificado de equipamento com tipo: veículo, máquina ou implemento. |
-| Dashboards inconsistentes | Gestão executiva perde confiança nos números | Dashboards devem consumir indicadores consolidados e fontes canônicas. |
+| Dashboards inconsistentes | Gestão executiva perde confiança nos números | Dashboards devem consumir indicadores consolidados e fontes oficiais. |
 | Unidades produtivas sem padrão | Talhão, piquete e área não comparáveis | Base comum de unidade produtiva com especializações por domínio. |
 | Rastreabilidade parcial | Auditoria frágil e impossibilidade de comprovar origem | Eventos produtivos imutáveis e integrados com estoque, fiscal e comercialização. |
 | Compras fora do estoque/financeiro | Entrada sem saldo ou título a pagar | Pedido aprovado deve gerar entrada prevista de estoque e obrigação financeira quando módulos existirem. |

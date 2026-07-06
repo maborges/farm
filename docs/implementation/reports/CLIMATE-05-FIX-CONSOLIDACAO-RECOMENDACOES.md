@@ -11,7 +11,7 @@ Ao inspecionar o `ClimaAlertGenerator` e o `ClimaRecommendationService`, foi con
 **Veredito:** Eram numericamente iguais, mas a separação gerava risco de divergência futura caso um fosse atualizado e o outro não.
 
 ## 2. Padronização e Refatoração (Thresholds)
-Foi criado o arquivo de configuração canônico focado nas regras de negócio climáticas.
+Foi criado o arquivo de configuração oficial focado nas regras de negócio climáticas.
 
 **Arquivo criado**: `services/api/agricola/climatico/config.py`
 ```python

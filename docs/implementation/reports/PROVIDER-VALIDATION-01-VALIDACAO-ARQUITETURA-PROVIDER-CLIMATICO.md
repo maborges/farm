@@ -2,11 +2,11 @@
 
 ## 1. Resumo Executivo
 
-Esta auditoria validou o domínio canônico de Integrações contra um provider climático sem implementar nova integração.
+Esta auditoria validou o domínio oficial de Integrações contra um provider climático sem implementar nova integração.
 
 Conclusão executiva:
 
-- a arquitetura canônica já suporta naturalmente um provider climático no escopo `TENANT`;
+- a arquitetura oficial já suporta naturalmente um provider climático no escopo `TENANT`;
 - o modelo de provider, config, credential, feature, policy, job, health, eventos e observabilidade é suficientemente genérico;
 - não há dependência estrutural de `UnidadeProdutiva`;
 - ainda existem pontos parcialmente acoplados ao primeiro caso real, o Sankhya, principalmente na semântica inicial de jobs, health e eventos;
@@ -48,9 +48,9 @@ A escolha é adequada para validar o domínio porque é tecnicamente muito difer
 | `IntegrationFeature` | ATENDE | O conceito é genérico e comporta facilmente features meteorológicas. | [services/api/integracoes/models.py](/opt/lampp/htdocs/farm/services/api/integracoes/models.py): `IntegrationFeature` |
 | `IntegrationSyncPolicy` | ATENDE | Já representa `MANUAL`, `AGENDADO`, `PULL`, retry, backoff, timeout e idempotência. | [services/api/integracoes/models.py](/opt/lampp/htdocs/farm/services/api/integracoes/models.py): `IntegrationSyncPolicy` |
 | `IntegrationHealth` | ATENDE PARCIALMENTE | Atende runtime health e falhas consecutivas, mas não possui estado explícito para `TIMEOUT` e `API_UNAVAILABLE`; hoje isso precisaria mapear para `DEGRADED` ou `CONFIG_ERROR`. | [services/api/integracoes/models.py](/opt/lampp/htdocs/farm/services/api/integracoes/models.py): `IntegrationHealthStatus` |
-| `IntegrationJob` | ATENDE PARCIALMENTE | Representa execuções e retries, mas `cache hit` e `cache miss` hoje entram melhor como payload/result do job do que como estado canônico explícito. | [services/api/integracoes/models.py](/opt/lampp/htdocs/farm/services/api/integracoes/models.py): `IntegrationJob` |
+| `IntegrationJob` | ATENDE PARCIALMENTE | Representa execuções e retries, mas `cache hit` e `cache miss` hoje entram melhor como payload/result do job do que como estado oficial explícito. | [services/api/integracoes/models.py](/opt/lampp/htdocs/farm/services/api/integracoes/models.py): `IntegrationJob` |
 | `IntegrationVersion` | ATENDE | O snapshot mascarado e versionado suporta bem mudanças de config e credencial de provider climático. | [services/api/integracoes/models.py](/opt/lampp/htdocs/farm/services/api/integracoes/models.py): `IntegrationVersion` |
-| Domain Events | ATENDE PARCIALMENTE | A infraestrutura atende, mas os eventos canônicos atuais são mais focados em config/job/health; eventos específicos como `rate limit exceeded` ou `credential expired` dependeriam de payload ou evolução incremental. | [services/api/integracoes/events.py](/opt/lampp/htdocs/farm/services/api/integracoes/events.py), `publish_domain_event_safe(...)` via infraestrutura `events` |
+| Domain Events | ATENDE PARCIALMENTE | A infraestrutura atende, mas os eventos oficiais atuais são mais focados em config/job/health; eventos específicos como `rate limit exceeded` ou `credential expired` dependeriam de payload ou evolução incremental. | [services/api/integracoes/events.py](/opt/lampp/htdocs/farm/services/api/integracoes/events.py), `publish_domain_event_safe(...)` via infraestrutura `events` |
 | Outbox | ATENDE | O provider climático pode publicar eventos via infraestrutura já existente sem nova fila. | [docs/implementation/reports/INTEGRATIONS-DOMAIN-01-AUDITORIA-MATERIALIZACAO.md](/opt/lampp/htdocs/farm/docs/implementation/reports/INTEGRATIONS-DOMAIN-01-AUDITORIA-MATERIALIZACAO.md), `events/outbox_*` citados no relatório |
 | Alert Engine | ATENDE | O motor já é adequado para indisponibilidade, credencial inválida, rate limit e dados desatualizados. | [docs/implementation/reports/INTEGRATIONS-DOMAIN-01-AUDITORIA-MATERIALIZACAO.md](/opt/lampp/htdocs/farm/docs/implementation/reports/INTEGRATIONS-DOMAIN-01-AUDITORIA-MATERIALIZACAO.md) |
 | Notification Engine | ATENDE | O domínio já possui dispatcher, policies e adapters reutilizáveis. | pesquisa em `services/api/notifications/` |
@@ -74,7 +74,7 @@ Justificativa:
 - `connection_payload` em `TenantIntegracao` já é JSON genérico;
 - `MarketplaceIntegracao` já possui `connection_schema`, permitindo declarar estrutura esperada do provider;
 - `IntegrationSyncPolicy` já modela timeout, retry, backoff e batch;
-- não existe coluna fixa ERP-only no envelope canônico.
+- não existe coluna fixa ERP-only no envelope oficial.
 
 Classificação: **ATENDE**
 
@@ -177,7 +177,7 @@ Classificação: **ATENDE PARCIALMENTE**
 
 Motivo do parcial:
 
-- `cache hit` e `cache miss` não são estados canônicos próprios;
+- `cache hit` e `cache miss` não são estados oficiais próprios;
 - `TIMEOUT` não é status explícito do job, mas cabe em `FAILED + error_message` ou payload;
 - isso não bloqueia a integração, apenas reduz semântica pronta para diagnóstico.
 
@@ -241,7 +241,7 @@ Motivo:
 
 - consulta iniciada/concluída/falhou cabe diretamente em `IntegrationSyncStarted/Completed/Failed`;
 - `provider indisponível`, `credencial expirada` e `limite excedido` hoje cabem como causa em `IntegrationSyncFailed` e em `IntegrationHealthChanged`;
-- não existe ainda evento canônico explícito para `credential expired` ou `rate limit exceeded`.
+- não existe ainda evento oficial explícito para `credential expired` ou `rate limit exceeded`.
 
 Conclusão:
 
@@ -278,13 +278,13 @@ A observabilidade já suporta naturalmente o provider climático com:
 - diagnóstico
 - jobs
 - health
-- origem canonical/legacy
+- origem oficial/legacy
 
 Justificativa:
 
 - a camada de observabilidade construída no Sankhya é baseada em contratos genéricos (`IntegrationJob`, `IntegrationHealth`, timeline consolidada e diagnóstico);
 - não depende semanticamente de pessoas, produtos ou NFe para existir;
-- um provider climático não teria legado Sankhya, mas usaria diretamente a camada canônica.
+- um provider climático não teria legado Sankhya, mas usaria diretamente a camada oficial.
 
 Classificação: **ATENDE**
 
@@ -303,7 +303,7 @@ Limitação:
 - features genéricas;
 - sync policy genérica;
 - escopo `TENANT` com preparação para `ESTABELECIMENTO`;
-- jobs canônicos;
+- jobs oficiais;
 - versionamento de configuração;
 - outbox, alert engine e notification engine reutilizáveis;
 - timeline e diagnóstico como observabilidade transversal.
@@ -353,7 +353,7 @@ Resposta objetiva à pergunta central:
 Classificação final de aderência:
 
 - arquitetura: **alta aderência**
-- implementação canônica: **aderência suficiente para novo provider**
+- implementação oficial: **aderência suficiente para novo provider**
 - acoplamento residual ao Sankhya: **baixo a moderado, não bloqueante**
 
 ## 15. Próxima execução
@@ -366,6 +366,6 @@ Escopo recomendado dessa próxima etapa:
 
 - escolher um provider climático real;
 - materializar provider definition;
-- criar adapter canônico simples;
+- criar adapter oficial simples;
 - validar `IntegrationFeature`, `IntegrationSyncPolicy`, `IntegrationJob`, `IntegrationHealth`, timeline e alertas em um contexto não ERP;
 - manter isso como prova arquitetural de generalidade do domínio.

@@ -85,7 +85,7 @@ O ponto mais importante da auditoria:
 
 13. Criar `Propriedade`, se o fluxo patrimonial/legal for usado.
 14. Criar `ImovelRural`, se o fluxo fundiario/legal for usado.
-15. Criar `PropriedadeImovel`, se for necessario formalizar o vinculo canonico.
+15. Criar `PropriedadeImovel`, se for necessario formalizar o vinculo oficial.
 16. Detalhar a arvore territorial:
    - glebas
    - talhoes
@@ -182,7 +182,7 @@ Depende do modulo que sera usado primeiro:
 | Estrutura de areas | UnidadeProdutiva | Sim para agricultura/pecuaria | Sim para go-live administrativo | Sim | Nao | Sim, porque raizes sao auto-criadas |
 | Propriedade | Tenant | Nao no minimo operacional | Sim | Sim | Nao | Sim, se o foco inicial for operacional e nao patrimonial |
 | ImovelRural | UnidadeProdutiva | Nao no minimo operacional | Sim | Sim | Nao | Parcial, pois cobre a mesma realidade da fazenda por outra lente |
-| PropriedadeImovel | Propriedade + ImovelRural | Nao no minimo operacional | Sim | Sim | Nao | Sim, e um vinculo canonico adicional |
+| PropriedadeImovel | Propriedade + ImovelRural | Nao no minimo operacional | Sim | Sim | Nao | Sim, e um vinculo oficial adicional |
 | Talhoes | Estrutura de areas | Sim para agricultura | Sim para outros modulos | Sim | Nao | Nao |
 | Piquetes | Estrutura de areas | Sim para pecuaria a pasto | Sim | Sim | Nao | Nao |
 | Infraestrutura | UnidadeProdutiva | Nao | Sim | Sim | Nao | Sim, pois a root ja nasce automaticamente |
@@ -263,7 +263,7 @@ Depende do modulo que sera usado primeiro:
 1. O onboarding do frontend e bloqueado por `/onboarding/status`.
 2. O status de onboarding considera completo quando o tenant esta ativo e existe ao menos uma fazenda ativa.
 3. `UnidadeProdutiva` cria a arvore raiz de `AreaRural` automaticamente.
-4. `ImovelRural` depende de `UnidadeProdutiva` e pode acionar vinculo canônico com `PropriedadeImovel`.
+4. `ImovelRural` depende de `UnidadeProdutiva` e pode acionar vinculo oficial com `PropriedadeImovel`.
 5. `PropriedadeImovel` exige `Propriedade` e `ImovelRural` existentes ao mesmo tempo.
 6. `Safra` exige ao menos uma forma de definicao de cultivo/talhao.
 7. `Cultivo` e `ProductionUnit` dependem de area real cadastrada.
@@ -375,7 +375,7 @@ Existe oportunidade objetiva para um Assistente de Implantacao.
 7. Criacao do primeiro talhao
 8. Criacao do primeiro plano de contas
 9. Importacao assistida de estoque
-10. Opcional: propriedade, imovel e vinculo canonico
+10. Opcional: propriedade, imovel e vinculo oficial
 
 ### Por que vale a pena
 

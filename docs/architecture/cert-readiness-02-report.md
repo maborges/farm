@@ -20,7 +20,7 @@ Atualização do mapeamento estrutural dos componentes da aplicação com base n
 
 | Componente / Módulo | Classificação Anterior | Classificação Atual | Justificativa Técnica / Alterações |
 | :--- | :--- | :--- | :--- |
-| **Caderno de Campo** | EXISTE E ATENDE | **EXISTE E ATENDE** | Timeline canônica baseada em [CadernoCampoEntrada](file:///opt/lampp/htdocs/farm/services/api/agricola/caderno/models.py) inalterável. |
+| **Caderno de Campo** | EXISTE E ATENDE | **EXISTE E ATENDE** | Timeline oficial baseada em [CadernoCampoEntrada](file:///opt/lampp/htdocs/farm/services/api/agricola/caderno/models.py) inalterável. |
 | **Operações** | EXISTE E ATENDE | **EXISTE E ATENDE** | [OperacaoAgricola](file:///opt/lampp/htdocs/farm/services/api/agricola/operacoes/models.py) registra clima, defensivos, carência e operador. |
 | **Talhão / GIS** | EXISTE E PODE SER EVOLUÍDO | **EXISTE E ATENDE** | Ativação operacional da camada GeoJSON de polígonos, centróides e mapas dinâmicos de satélite ([GIS-01B](file:///opt/lampp/htdocs/farm/docs/architecture/gis-01b-activation-report.md)). |
 | **Passaporte** | EXISTE E ATENDE | **EXISTE E ATENDE** | Snapshots públicos do lote assinados digitalmente com QR Code. |
@@ -96,7 +96,7 @@ gantt
 ## 4. ESG (Environmental, Social, Governance)
 
 * **Ambiental (E) — Evolução: ALTO**
-  * O sistema agora conta com a camada espacial canônica para todos os talhões (`geometria` GeoJSON) e controle estrito de desvio de pulverização/deriva climática.
+  * O sistema agora conta com a camada espacial oficial para todos os talhões (`geometria` GeoJSON) e controle estrito de desvio de pulverização/deriva climática.
 * **Social (S) — Evolução: ALTO**
   * O AgroSaaS atende ao controle de RH rural e EPIs com a assinatura física manuscrita capturada em campo offline, reduzindo passivos trabalhistas.
 * **Governança (G) — Evolução: ALTO**

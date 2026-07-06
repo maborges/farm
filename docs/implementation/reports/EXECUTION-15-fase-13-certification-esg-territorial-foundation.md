@@ -31,7 +31,7 @@ Preparar o domínio de Certificações, ESG e Projeto Raízes sobre a base terri
 
 - `Propriedade`: fonte oficial do território operacional.
 - `Imóvel Rural`: fonte oficial do lastro jurídico/fundiário/documental.
-- `PropriedadeImovel`: vínculo canônico entre operação territorial e lastro fundiário.
+- `PropriedadeImovel`: vínculo oficial entre operação territorial e lastro fundiário.
 - Documentos fundiários e ambientais: leitura de apoio para certificação/ESG.
 - `Certificações/ESG`: domínio consumidor e escritor de evidências, auditorias, respostas, pareceres e snapshots.
 - Pessoas, treinamentos e EPI: fonte de evidência social, não fonte territorial.
@@ -54,7 +54,7 @@ Preparar o domínio de Certificações, ESG e Projeto Raízes sobre a base terri
 ## 8. Migration
 
 - Não houve necessidade comprovada de migration nesta fase.
-- O repositório já possui os elementos conceituais e estruturais para iniciar a implementação futura com leitura das fontes canônicas.
+- O repositório já possui os elementos conceituais e estruturais para iniciar a implementação futura com leitura das fontes oficiais.
 
 ## 9. Testes Executados
 
@@ -88,5 +88,5 @@ Avançar para a implementação incremental do domínio de Certificações/ESG c
 
 1. contratos de leitura e agregados de consulta;
 2. modelagem de checklists, evidências e auditorias;
-3. validação de relatórios ESG e Projeto Raízes sobre a base canônica;
+3. validação de relatórios ESG e Projeto Raízes sobre a base oficial;
 4. somente depois, avaliar necessidade de migration do domínio consumidor.

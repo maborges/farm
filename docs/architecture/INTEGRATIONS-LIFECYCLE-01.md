@@ -1,4 +1,4 @@
-# INTEGRATIONS-LIFECYCLE-01 — Ciclo de Vida e Operações Canônicas do Domínio de Integrações
+# INTEGRATIONS-LIFECYCLE-01 — Ciclo de Vida e Operações Oficiais do Domínio de Integrações
 
 ## 1. Objetivo
 
@@ -8,7 +8,7 @@ Este documento estabelece:
 
 - estados arquiteturais oficiais;
 - transições válidas e proibidas;
-- operações canônicas;
+- operações oficiais;
 - regras de auditoria;
 - princípios de versionamento;
 - onboarding e desligamento;
@@ -56,7 +56,7 @@ Decisão:
 
 ## 3. Lifecycle
 
-O lifecycle canônico do domínio Integrações representa o estado administrativo e operacional da configuração de integração do cliente.
+O lifecycle oficial do domínio Integrações representa o estado administrativo e operacional da configuração de integração do cliente.
 
 Ele não substitui:
 
@@ -153,7 +153,7 @@ Uso correto:
 
 #### `ACTIVE`
 
-Estado canônico de operação normal.
+Estado oficial de operação normal.
 
 Uso correto:
 
@@ -268,7 +268,7 @@ Motivo:
 
 ## 5. Transições
 
-### 5.1 Fluxo canônico principal
+### 5.1 Fluxo oficial principal
 
 ```text
 NOT_CONFIGURED
@@ -382,7 +382,7 @@ São proibidas, entre outras:
 
 ## 6. Operações
 
-### 6.1 Operações canônicas oficiais
+### 6.1 Operações oficiais oficiais
 
 - Configurar
 - Editar
@@ -784,7 +784,7 @@ O domínio deve ser capaz de alertar quando houver:
 
 ### 13.1 Mapeamento conceitual
 
-No Sankhya atual, o fluxo canônico esperado passa a ser:
+No Sankhya atual, o fluxo oficial esperado passa a ser:
 
 ```text
 NOT_CONFIGURED
@@ -829,7 +829,7 @@ Escopo proibido:
 - suspender;
 - desativar;
 - revogar;
-- remover logicamente quando o domínio canônico suportar.
+- remover logicamente quando o domínio oficial suportar.
 
 ### 13.4 Backoffice no Sankhya
 
@@ -863,7 +863,7 @@ Tenant Sankhya deve continuar com:
 
 Limitações aceitas para a V1:
 
-- lifecycle definido conceitualmente, ainda não implementado como engine canônica transversal;
+- lifecycle definido conceitualmente, ainda não implementado como engine oficial transversal;
 - versionamento formal de configuração ainda não materializado;
 - alertas e jobs ainda dependem da evolução operacional do domínio;
 - `ESTABELECIMENTO` ainda não está implementado como domínio produtivo completo.
@@ -872,9 +872,9 @@ Limitações aceitas para a V1:
 
 Próximas evoluções recomendadas:
 
-- `INTEGRATIONS-DOMAIN-01` ou equivalente para modelo persistente canônico;
+- `INTEGRATIONS-DOMAIN-01` ou equivalente para modelo persistente oficial;
 - `INTEGRATIONS-GOV-02` para guardrails específicos de lifecycle;
 - implementação de histórico/versionamento de configurações;
-- implementação de `IntegrationJob`, `IntegrationHealth` e `IntegrationAlert` canônicos;
+- implementação de `IntegrationJob`, `IntegrationHealth` e `IntegrationAlert` oficiais;
 - preparação de consumo do lifecycle pelo Wizard e por health dashboards.
 

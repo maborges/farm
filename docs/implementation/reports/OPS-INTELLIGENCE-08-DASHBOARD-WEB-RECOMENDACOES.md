@@ -101,5 +101,5 @@
 
 ## Observação final
 
-- A interface entregue é inicial e focada em consumo de API canônica, filtros, lista, detalhe e lifecycle explícito.
+- A interface entregue é inicial e focada em consumo de API oficial, filtros, lista, detalhe e lifecycle explícito.
 - A base está pronta para expandir com paginação, gráficos mais ricos e navegação contextual, sem mexer na lógica de recomendação.

@@ -6,14 +6,14 @@ A codebase atual não trata `ColaboradorRH` como especializacao obrigatoria de `
 
 As evidencias encontradas mostram um modelo hibrido:
 
-- `Pessoa` existe como cadastro canônico potencial em `services/api/core/cadastros/pessoas/`.
+- `Pessoa` existe como cadastro oficial potencial em `services/api/core/cadastros/pessoas/`.
 - `ColaboradorRH` possui `pessoa_id`, mas a FK e opcional.
 - `ColaboradorRH` tambem armazena dados proprios, principalmente `nome` e `cpf`.
 - RH, custos, SST, EPI, caderno de campo e Campo PWA continuam operando principalmente sobre `colaborador_id`, `trabalhador_id` e `nome_trabalhador`.
 - O backend de RH nao exige `Pessoa` na criacao de colaborador.
 - O frontend web de RH ja tenta caminhar para `pessoa_id`, mas isso ainda nao esta consolidado no contrato real da API.
 
-Conclusao objetiva: para a versao 1.0, a evidencia nao sustenta tornar `Pessoa` obrigatoria imediatamente para novos `ColaboradorRH` sem antes criar uma camada de resolucao canonica de trabalhador. A classificacao arquitetural encontrada e `Modelo C`, com decisao recomendada `Opcao D`.
+Conclusao objetiva: para a versao 1.0, a evidencia nao sustenta tornar `Pessoa` obrigatoria imediatamente para novos `ColaboradorRH` sem antes criar uma camada de resolucao oficial de trabalhador. A classificacao arquitetural encontrada e `Modelo C`, com decisao recomendada `Opcao D`.
 
 ## 2. Inventario
 
@@ -78,7 +78,7 @@ Evidencias:
 
 - `EPIEntrega` armazena `trabalhador_id` opcional e `nome_trabalhador` obrigatorio
 - `CadernoCampoEntrada` usa `usuario_id` para autoria de lancamento
-- `TarefaCampo` possui `user_id` obrigatorio e `operador_id` opcional sem FK canônica para `Pessoa`
+- `TarefaCampo` possui `user_id` obrigatorio e `operador_id` opcional sem FK oficial para `Pessoa`
 
 Leitura arquitetural:
 
@@ -214,7 +214,7 @@ Evidencias:
 Conclusao:
 
 - o Campo PWA depende de uma projecao simplificada de `ColaboradorRH`;
-- o modelo offline ainda nao suporta `Pessoa` como referencia canonica direta;
+- o modelo offline ainda nao suporta `Pessoa` como referencia oficial direta;
 - qualquer obrigatoriedade imediata de `Pessoa` quebraria a premissa atual de compatibilidade offline se nao houver camada intermediaria.
 
 ## 8. Testes
@@ -341,7 +341,7 @@ Riscos estruturais identificados:
 - duplicidade de `nome` e `cpf` entre `Pessoa` e `ColaboradorRH`
 - divergencia entre `nome_trabalhador` textual e cadastro real
 - trabalhador duplicado entre `Pessoa`, `ColaboradorRH`, `Usuario` e texto livre
-- custos de mao de obra sem referencia canônica de pessoa
+- custos de mao de obra sem referencia oficial de pessoa
 - SST/EPI sem rastreabilidade mestre unificada
 - Campo PWA dependente de cache simplificado e legado
 - desalinhamento entre frontend web de RH e contrato atual da API
@@ -353,7 +353,7 @@ Risco adicional relevante:
 
 ## 12. Decisao
 
-Decisao escolhida: **Opcao D — Criar camada de resolucao canonica de trabalhador antes de tornar vinculo obrigatorio.**
+Decisao escolhida: **Opcao D — Criar camada de resolucao oficial de trabalhador antes de tornar vinculo obrigatorio.**
 
 Justificativa:
 
@@ -364,23 +364,23 @@ Justificativa:
 
 Resposta objetiva ao objetivo desta auditoria:
 
-`ColaboradorRH` nao deve continuar como cadastro totalmente independente a longo prazo, mas tambem nao deve se tornar especializacao obrigatoria de `Pessoa` imediatamente sem uma camada canonica intermediaria de resolucao de trabalhador.
+`ColaboradorRH` nao deve continuar como cadastro totalmente independente a longo prazo, mas tambem nao deve se tornar especializacao obrigatoria de `Pessoa` imediatamente sem uma camada oficial intermediaria de resolucao de trabalhador.
 
 ## 13. Plano recomendado
 
 Plano documental recomendado, sem implementacao nesta execucao:
 
-1. Definir um resolver canonico de trabalhador com prioridade explicita:
+1. Definir um resolver oficial de trabalhador com prioridade explicita:
    `ColaboradorRH.pessoa_id -> ColaboradorRH -> campos textuais legados`.
 2. Mapear todos os payloads que hoje usam `colaborador_id`, `trabalhador_id`, `nome_trabalhador` e `operador_id`.
-3. Introduzir leitura canonica sem remover compatibilidade com RH, Campo PWA, custos, SST e caderno.
+3. Introduzir leitura oficial sem remover compatibilidade com RH, Campo PWA, custos, SST e caderno.
 4. Tornar `Pessoa` obrigatoria apenas para novos colaboradores quando:
    - backend de RH aceitar esse fluxo oficialmente;
-   - Campo PWA sincronizar metadados canonicos;
+   - Campo PWA sincronizar metadados oficiais;
    - formularios legados deixarem de depender de texto livre como fonte primaria;
    - testes cobrirem compatibilidade com dados antigos.
 5. Depois dessa camada, avaliar consolidacao progressiva de CPF/nome para reduzir duplicidade e risco LGPD.
 
 ## 14. Pergunta final obrigatoria
 
-**Para a versao 1.0 do AgroSaaS, `ColaboradorRH` nao deve nem continuar como cadastro totalmente independente nem ser convertido imediatamente em especializacao obrigatoria de `Pessoa`; a evidencia da codebase indica que deve existir antes uma camada de resolucao canonica de trabalhador para preservar compatibilidade com Campo, RH, custos e dados legados.**
+**Para a versao 1.0 do AgroSaaS, `ColaboradorRH` nao deve nem continuar como cadastro totalmente independente nem ser convertido imediatamente em especializacao obrigatoria de `Pessoa`; a evidencia da codebase indica que deve existir antes uma camada de resolucao oficial de trabalhador para preservar compatibilidade com Campo, RH, custos e dados legados.**

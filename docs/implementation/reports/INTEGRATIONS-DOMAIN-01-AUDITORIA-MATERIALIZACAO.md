@@ -1,13 +1,13 @@
-# INTEGRATIONS-DOMAIN-01 — Auditoria de Materialização do Domínio Canônico de Integrações
+# INTEGRATIONS-DOMAIN-01 — Auditoria de Materialização do Domínio Oficial de Integrações
 
 ## 1. Resumo Executivo
 
-O AgroSaaS já possui uma base técnica relevante para sustentar o domínio canônico de Integrações, mas essa base ainda está fragmentada entre módulos específicos, principalmente `integracoes.sankhya`, `iot_integracao`, `events`, `alert_engine`, `notificacoes` e `core`.
+O AgroSaaS já possui uma base técnica relevante para sustentar o domínio oficial de Integrações, mas essa base ainda está fragmentada entre módulos específicos, principalmente `integracoes.sankhya`, `iot_integracao`, `events`, `alert_engine`, `notificacoes` e `core`.
 
 A conclusão da auditoria é:
 
 - a infraestrutura transversal já existe e é forte;
-- a modelagem canônica do domínio de Integrações ainda não existe como domínio unificado;
+- a modelagem oficial do domínio de Integrações ainda não existe como domínio unificado;
 - parte importante do que foi arquitetado já existe de forma parcial e reutilizável;
 - o maior risco futuro é criar novos modelos paralelos para config, credencial, jobs, logs, health, alertas e auditoria, duplicando capacidades já existentes.
 
@@ -15,7 +15,7 @@ Em termos práticos:
 
 - `IntegrationProvider` e `IntegrationConfig` já possuem equivalentes parciais;
 - `IntegrationCredential`, `IntegrationLog` e `IntegrationJob` também possuem base parcial;
-- `IntegrationProviderDefinition`, `IntegrationFeature`, `IntegrationSyncPolicy`, `IntegrationVersion`, `IntegrationScope` e `IntegrationStatus` ainda não estão materializados como contratos canônicos;
+- `IntegrationProviderDefinition`, `IntegrationFeature`, `IntegrationSyncPolicy`, `IntegrationVersion`, `IntegrationScope` e `IntegrationStatus` ainda não estão materializados como contratos oficiais;
 - Outbox, Alert Engine, Notification Engine, auditoria, RLS e segurança de segredos devem ser reaproveitados, não recriados.
 
 ## 2. Estado Atual
@@ -39,7 +39,7 @@ Materialização de domínio ainda incompleta:
 
 - Sankhya tem modelagem própria e funcional;
 - IoT possui catálogos e vínculos genéricos parcialmente reutilizáveis;
-- não existe um namespace canônico único para providers, configs, credentials, features, lifecycle, health e jobs;
+- não existe um namespace oficial único para providers, configs, credentials, features, lifecycle, health e jobs;
 - ainda não existe um contrato genérico persistente que governe todos os providers.
 
 ## 3. Evidências
@@ -129,7 +129,7 @@ Materialização de domínio ainda incompleta:
 | `MarketplaceIntegracao` | `IntegrationProvider` parcial | `iot_integracao/new_holland/models/__init__.py` | Já é catálogo, mas está acoplado a marketplace/comercial |
 | `TenantIntegracao` | `IntegrationConfig` parcial | `iot_integracao/new_holland/models/__init__.py` | Já possui `tenant_id`, `configuracoes`, `credenciais`, `status` |
 | `SankhyaConfig` | `IntegrationConfig` provider-specific | `integracoes/sankhya/models/__init__.py` | Funcional, mas não genérico |
-| `SankhyaSyncLog` | `IntegrationLog` ou `IntegrationJob` parcial | `integracoes/sankhya/models/__init__.py` | Mais log de execução do que job canônico |
+| `SankhyaSyncLog` | `IntegrationLog` ou `IntegrationJob` parcial | `integracoes/sankhya/models/__init__.py` | Mais log de execução do que job oficial |
 
 ## 5. Componentes Parciais
 
@@ -139,10 +139,10 @@ Materialização de domínio ainda incompleta:
 | --- | --- | --- | --- |
 | `IntegrationProvider` | EXISTE PARCIALMENTE | `MarketplaceIntegracao` em `iot_integracao/new_holland/models/__init__.py` | Mistura catálogo com marketplace e metadados comerciais |
 | `IntegrationConfig` | EXISTE PARCIALMENTE | `TenantIntegracao`, `SankhyaConfig` | Implementações paralelas e provider-specific |
-| `IntegrationConnection` | EXISTE PARCIALMENTE | `SankhyaConfig.ws_url`, `TenantIntegracao.configuracoes` | Não há contrato canônico separado |
+| `IntegrationConnection` | EXISTE PARCIALMENTE | `SankhyaConfig.ws_url`, `TenantIntegracao.configuracoes` | Não há contrato oficial separado |
 | `IntegrationCredential` | EXISTE PARCIALMENTE | `SankhyaConfig.password`, `TenantIntegracao.credenciais`, `IntegracaoNewHolland.client_secret` | Persistência separada ainda não é padrão |
 | `IntegrationHealth` | EXISTE PARCIALMENTE | campos `teste_status`, `ultimo_teste`, `ultimo_sync` em `SankhyaConfig`; métricas no outbox | Não existe entidade/contrato genérico |
-| `IntegrationJob` | EXISTE PARCIALMENTE | `SankhyaSyncLog`, worker/outbox | Falta job canônico por feature/provider |
+| `IntegrationJob` | EXISTE PARCIALMENTE | `SankhyaSyncLog`, worker/outbox | Falta job oficial por feature/provider |
 | `IntegrationLog` | EXISTE PARCIALMENTE | `SankhyaSyncLog`, audit logs | Falta unificação entre log operacional, auditoria e sync |
 | `IntegrationEvent` | EXISTE PARCIALMENTE | `DomainEventOutbox` | Existe transporte, não contrato específico do domínio Integrações |
 | `IntegrationStatus` | EXISTE PARCIALMENTE | `TenantIntegracao.status`, `IntegracaoNewHolland.status`, `SankhyaConfig.ativo/teste_status` | Falta enum/lifecycle oficial materializado |
@@ -152,7 +152,7 @@ Materialização de domínio ainda incompleta:
 | Conceito | Classificação | Evidências | Observação |
 | --- | --- | --- | --- |
 | `IntegrationProviderDefinition` | NÃO EXISTE | sem classe/model equivalente encontrada | Não há schema declarativo por provider |
-| `IntegrationFeature` | NÃO EXISTE | sem model/enum canônico encontrado | Features hoje ficam implícitas ou ad hoc |
+| `IntegrationFeature` | NÃO EXISTE | sem model/enum oficial encontrado | Features hoje ficam implícitas ou ad hoc |
 | `IntegrationSyncPolicy` | NÃO EXISTE | sem model/contract encontrado | Não há política genérica por feature |
 | `IntegrationVersion` | NÃO EXISTE | apenas audit logs genéricos | Não há versionamento comparável de config |
 | `IntegrationScope` | NÃO EXISTE | só existe na arquitetura documental | Não há enum/model persistente oficial |
@@ -217,7 +217,7 @@ Decisão prática da auditoria:
 | IntegrationCredential | Parcial | Sim | Sim | Sim, como contrato | `password`, `credenciais`, `client_secret` |
 | IntegrationFeature | Não | Não | Não | Sim | não encontrado |
 | IntegrationSyncPolicy | Não | Não | Não | Sim | não encontrado |
-| IntegrationHealth | Parcial | Sim | Sim | Sim, como visão canônica | `teste_status`, `ultimo_teste`, observability |
+| IntegrationHealth | Parcial | Sim | Sim | Sim, como visão oficial | `teste_status`, `ultimo_teste`, observability |
 | IntegrationJob | Parcial | Sim | Sim | Sim, se precisar job de negócio | `SankhyaSyncLog`, outbox worker |
 | IntegrationAlert | Parcial | Sim | Sim | Não como domínio paralelo | `OperationalAlert` |
 | IntegrationVersion | Não | Parcial | Sim | Sim | `TenantAuditLog` apenas audit |
@@ -235,7 +235,7 @@ Decisão prática da auditoria:
 - manter `SankhyaConfig` como adapter/provider-specific temporário;
 - formalizar reaproveitamento obrigatório de `integracoes/security.py`, `TenantAuditLog`, `AdminAuditLog`, Outbox, Alert Engine e Notification Engine.
 
-### Fase 2 — Contratos canônicos do domínio
+### Fase 2 — Contratos oficiais do domínio
 
 - materializar `IntegrationProviderDefinition`;
 - materializar `IntegrationScope`;
@@ -244,7 +244,7 @@ Decisão prática da auditoria:
 
 ### Fase 3 — Encaixe governado do Sankhya
 
-- adaptar Sankhya ao domínio canônico como provider ERP;
+- adaptar Sankhya ao domínio oficial como provider ERP;
 - separar mais claramente config genérica vs dados específicos do provider;
 - preservar compatibilidade de rotas e serviço existentes.
 
@@ -262,12 +262,12 @@ Decisão prática da auditoria:
 - criar novo audit log específico de integração;
 - criar novo secret manager paralelo;
 - criar novo catálogo de providers sem aproveitar `MarketplaceIntegracao`;
-- criar nova config canônica ignorando `TenantIntegracao` e `SankhyaConfig`.
+- criar nova config oficial ignorando `TenantIntegracao` e `SankhyaConfig`.
 
 ### 10.2 Riscos de acoplamento errado
 
 - promover Sankhya diretamente a modelo universal;
-- acoplar o domínio canônico a ERP antes de suportar clima, satélite, IoT, comunicação e storage;
+- acoplar o domínio oficial a ERP antes de suportar clima, satélite, IoT, comunicação e storage;
 - confundir provider catalog com config do cliente;
 - confundir log operacional com job de negócio;
 - confundir audit trail com versionamento de configuração.
@@ -287,15 +287,15 @@ Decisão prática da auditoria:
 ### 11.2 O que deve apenas mudar de namespace ou ser promovido conceitualmente
 
 - `MarketplaceIntegracao` para papel de provider catalog;
-- `TenantIntegracao` para papel de configuração canônica tenant-scoped;
-- `SankhyaSyncLog` para papel de evidência provider-specific conectada ao log/job canônico futuro.
+- `TenantIntegracao` para papel de configuração oficial tenant-scoped;
+- `SankhyaSyncLog` para papel de evidência provider-specific conectada ao log/job oficial futuro.
 
 ### 11.3 O que precisa ser criado
 
 - `IntegrationProviderDefinition`;
 - `IntegrationScope`;
-- contratos canônicos de `Feature`, `SyncPolicy`, `Health`, `Status`, `Version`;
-- camada canônica de composição entre provider, config, connection e credential.
+- contratos oficiais de `Feature`, `SyncPolicy`, `Health`, `Status`, `Version`;
+- camada oficial de composição entre provider, config, connection e credential.
 
 ### 11.4 O que não deve ser criado
 
@@ -310,7 +310,7 @@ Decisão prática da auditoria:
 
 A próxima execução recomendada é:
 
-`INTEGRATIONS-DOMAIN-02 — Especificação de Materialização do Domínio Canônico`
+`INTEGRATIONS-DOMAIN-02 — Especificação de Materialização do Domínio Oficial`
 
 Ela deve:
 
@@ -325,6 +325,6 @@ Ela deve:
 A aderência entre arquitetura e implementação é parcial.
 
 - a infraestrutura de suporte do domínio já existe em nível alto de maturidade;
-- a modelagem canônica do domínio de Integrações ainda não foi materializada;
-- o projeto está pronto para implementar o domínio canônico;
+- a modelagem oficial do domínio de Integrações ainda não foi materializada;
+- o projeto está pronto para implementar o domínio oficial;
 - essa implementação deve começar por promoção e unificação de conceitos já existentes, não por criação do zero.

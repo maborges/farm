@@ -1,6 +1,6 @@
 # Alert Engine Triggering
 
-Status: Canonical
+Status: Oficial
 Scope: Arquitetura oficial de disparo do Alert Engine
 Applies to: Agriculture, Livestock, Finance, Operations, Field/PWA, Copilot IA, Notifications, External APIs
 
@@ -16,7 +16,7 @@ It complements:
 
 The Alert Engine is not a dashboard concern. It is the shared intelligence infrastructure that consumes facts, computes indicators, evaluates conditions, and materializes alerts and insights.
 
-## 2. Canonical Trigger Taxonomy
+## 2. Oficial Trigger Taxonomy
 
 Alert generation is divided into three official trigger classes.
 
@@ -90,7 +90,7 @@ Primary signal sources:
 - task status changes
 - processing errors
 
-Canonical existing services:
+Oficial existing services:
 
 - `services/api/campo/service.py`
 - `services/api/campo/router.py`
@@ -112,7 +112,7 @@ Primary signal sources:
 - handling planning
 - lots and animals
 
-Canonical existing services:
+Oficial existing services:
 
 - `services/api/pecuaria/services/lote_indicadores_service.py`
 - `services/api/pecuaria/services/lote_resumo_sanitario_service.py`
@@ -196,7 +196,7 @@ Disadvantages:
 Decision:
 
 - acceptable only for local, immediate post-sync signals
-- not the canonical architecture for the whole platform
+- not the oficial architecture for the whole platform
 
 ### 4.2 Option B - Disparo dentro dos services de dominio
 
@@ -247,7 +247,7 @@ Disadvantages:
 
 Decision:
 
-- canonical direction for event-driven alerts
+- oficial direction for event-driven alerts
 - recommended backbone for future growth
 
 ### 4.4 Option D - Scheduler periodico
@@ -272,7 +272,7 @@ Disadvantages:
 
 Decision:
 
-- canonical for periodic and threshold checks
+- oficial for periodic and threshold checks
 
 ### 4.5 Option E - Hybrid
 
@@ -291,7 +291,7 @@ Decision:
 
 ## 5. Official Architecture Recommendation
 
-### 5.1 Canonical trigger model
+### 5.1 Oficial trigger model
 
 - Event-driven for explicit domain facts and failures
 - Scheduled for time-based and threshold-based conditions
@@ -348,7 +348,7 @@ Decision:
 - resolved, expired, or cancelled alerts may reappear as new alerts
 - scheduled jobs must be idempotent by design
 
-## 6. Canonical Generator Contract
+## 6. Oficial Generator Contract
 
 Generators are domain signal executors. They do not own persistence rules; they call the Alert Engine service.
 
@@ -397,7 +397,7 @@ Generators may raise:
 
 Generators should isolate per-item failures when running batches.
 
-## 7. Canonical Dispatcher Contract
+## 7. Oficial Dispatcher Contract
 
 The dispatcher is the routing and execution coordinator for event-driven generators.
 
@@ -425,7 +425,7 @@ class AlertDispatcher:
 - a generator failure should be contained unless the source transaction requires strict coupling
 - dispatcher should favor post-commit execution or outbox consumption
 
-## 8. Canonical Scheduler Architecture
+## 8. Oficial Scheduler Architecture
 
 ### 8.1 Where it should run
 
@@ -611,7 +611,7 @@ Copilot consuming enriched alerts and on-demand refresh hooks.
 - external API adapters
 - delivery tracking
 
-## 13. Canonical Conclusion
+## 13. Oficial Conclusion
 
 The official Alert Engine triggering architecture is hybrid:
 

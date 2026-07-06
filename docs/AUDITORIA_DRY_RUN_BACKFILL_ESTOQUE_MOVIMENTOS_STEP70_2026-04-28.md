@@ -124,7 +124,7 @@ Origem predominante:
 
 Leitura:
 
-- esses movimentos foram reconhecidos como já cobertos no ledger canônico;
+- esses movimentos foram reconhecidos como já cobertos no ledger oficial;
 - o script os excluiu da migração para evitar dupla contagem;
 - este foi o comportamento esperado pelo Step 66.
 
@@ -173,8 +173,8 @@ Leitura:
 
 | origem legada | total | classificação prevista | observação |
 | --- | ---: | --- | --- |
-| `PEDIDO_COMPRA` | 4 | `IGNORAR` | já coberto no ledger canônico |
-| `OPERACAO_AGRICOLA` | 1 | `REVISAR_MANUALMENTE` | vínculo canônico não determinístico |
+| `PEDIDO_COMPRA` | 4 | `IGNORAR` | já coberto no ledger oficial |
+| `OPERACAO_AGRICOLA` | 1 | `REVISAR_MANUALMENTE` | vínculo oficial não determinístico |
 | `origem_tipo = NULL` | 4 | `MARCAR_COMO_LEGADO` | histórico sem origem confiável |
 | outros | 0 | n/a | não apareceu neste snapshot |
 

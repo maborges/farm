@@ -4,7 +4,7 @@
 
 Este arquivo consolida o contexto operacional do AgroSaaS para evitar novo levantamento manual a cada sessão. Ele deve ser lido antes de alterações relevantes no projeto e atualizado sempre que a arquitetura, convenções ou pontos de entrada mudarem.
 
-## Documentos Canônicos Relacionados
+## Documentos Oficiais Relacionados
 
 - `README.md`: porta de entrada do projeto.
 - `docs/architecture/ai-bootstrap.md`: ordem oficial de leitura para agentes.
@@ -142,7 +142,7 @@ Os módulos principais observados no backend são:
 
 ## Convenções de Projeto Relevantes
 
-Com base em `README.md`, `CLAUDE.md` e nos documentos de arquitetura canônicos:
+Com base em `README.md`, `CLAUDE.md` e nos documentos de arquitetura oficiais:
 
 - idioma de trabalho: pt-BR
 - frontend deve preservar App Router e `page.tsx` como RSC sempre que aplicável

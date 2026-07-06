@@ -73,7 +73,7 @@ Sim, o AgroSaaS possui modelagem de EPIs madura no catálogo de insumos:
 
 Sim, a infraestrutura pode ser totalmente reaproveitada:
 * A tabela `epi_entregas` possui a coluna `assinatura_url`.
-* O mecanismo de imutabilidade baseia-se na serialização ordenada (JSON canonical) de todo o histórico de entregas do colaborador, calculando um hash SHA-256 no momento da geração do snapshot do caderno de campo.
+* O mecanismo de imutabilidade baseia-se na serialização ordenada (JSON oficial) de todo o histórico de entregas do colaborador, calculando um hash SHA-256 no momento da geração do snapshot do caderno de campo.
 * A assinatura manuscrita coletada no PWA (vetorial em SVG ou rasterizada em PNG) será enviada no payload, salva no storage do tenant e vinculada como evidência visual incontestável.
 
 ---

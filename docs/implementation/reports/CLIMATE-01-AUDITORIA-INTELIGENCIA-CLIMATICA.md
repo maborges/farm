@@ -4,7 +4,7 @@
 O AgroSaaS possui uma fundação arquitetural extremamente robusta (Integrações, Alert Engine, Domain Events). O provedor `OpenWeather` já foi integrado na camada técnica. No entanto, a Inteligência Climática como funcionalidade de negócio (módulo Agrícola) encontra-se em estágio incipiente. Os modelos de banco de dados (`RegistroClima`) existem, mas a lógica de captura, armazenamento real, disparo de alertas operacionais e consumo no frontend (Web e PWA) ainda não foi implementada. A fundação está pronta, mas o ciclo de negócio está interrompido.
 
 ## 2. Estado Atual
-- **Camada Técnica**: A integração com o `OpenWeather` existe, possui schema canônico e executa sync, mas é estritamente técnica (apenas string `location_query` a nível de tenant).
+- **Camada Técnica**: A integração com o `OpenWeather` existe, possui schema oficial e executa sync, mas é estritamente técnica (apenas string `location_query` a nível de tenant).
 - **Camada Operacional (Backend)**: Existem os modelos e roteadores em `services/api/agricola/climatico`, porém a implementação no serviço (`ClimaService.sync_open_meteo`) é apenas um mock.
 - **Camada Visual/Frontend**: O aplicativo Web possui apenas redirecionamentos (ex: `agricola/climatico/page.tsx`). Não há telas ou componentes visuais consumindo o clima.
 - **Camada Offline (PWA)**: Não há presença de dados climáticos no `apps/campo`.
@@ -20,7 +20,7 @@ O AgroSaaS possui uma fundação arquitetural extremamente robusta (Integraçõe
 - **Services**: EXISTE PARCIALMENTE (apenas assinatura de métodos mockados).
 - **Repositories**: EXISTE PARCIALMENTE.
 - **Routers**: EXISTE PARCIALMENTE (mockados).
-- **Jobs/Scheduler/Workers**: NÃO EXISTE na camada agrícola (apenas o job canônico genérico de integrações).
+- **Jobs/Scheduler/Workers**: NÃO EXISTE na camada agrícola (apenas o job oficial genérico de integrações).
 - **Events**: NÃO EXISTE eventos de domínio para o Clima.
 - **Alertas**: NÃO EXISTE integração climática no `AlertEngine`.
 - **Health/Observabilidade**: EXISTE E ATENDE (herdado da engine de integrações).
@@ -74,7 +74,7 @@ O AgroSaaS possui uma fundação arquitetural extremamente robusta (Integraçõe
 | Área | Existe | Parcial | Não Existe | Evidências |
 |---|---|---|---|---|
 | Modelagem Base | | X | | `RegistroClima` e `PrevisaoProdutividade` existem. Faltam sensores e riscos severos. |
-| Provider OpenWeather | X | | | Integrações canônicas maduras, mas consumo apenas técnico. |
+| Provider OpenWeather | X | | | Integrações oficiais maduras, mas consumo apenas técnico. |
 | Serviços Agrícolas (Backend) | | | X | `ClimaService` mockado, não conecta com a engine de integração. |
 | Eventos (Domain Events) | | | X | Ausência de eventos do tipo `WeatherSnapshotCaptured`. |
 | Alertas Operacionais | | | X | `AlertEngine` não tem gerador de clima. |

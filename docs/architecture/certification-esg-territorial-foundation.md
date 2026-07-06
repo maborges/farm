@@ -169,7 +169,7 @@ Referências:
 Certificações/ESG deve consumir:
 - identificação da propriedade;
 - geometria/área operacional;
-- vínculo canônico com imóvel rural;
+- vínculo oficial com imóvel rural;
 - documentos fundiários e ambientais;
 - titulares e representantes legais quando necessários para auditoria;
 - EPIs, treinamentos e evidências humanas quando o requisito da certificação exigir.
@@ -206,7 +206,7 @@ Estruturalmente, a base já é suficiente para iniciar a implementação sem mig
 Motivos:
 - as entidades de território/fundiário já existem;
 - a cardinalidade oficial já está definida;
-- as rotas agregadas já consomem as fontes canônicas;
+- as rotas agregadas já consomem as fontes oficiais;
 - há documentação funcional para certificações, ESG, documentos e rastreabilidade;
 - já existem snapshots e trilhas para auditoria.
 

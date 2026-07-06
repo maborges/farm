@@ -1,4 +1,4 @@
-# ARC-00 — Índice da Arquitetura Canônica do AgroSaaS
+# ARC-00 — Índice da Arquitetura Oficial do AgroSaaS
 
 ## Objetivo
 
@@ -22,7 +22,7 @@ Todo novo desenvolvimento deve priorizar:
 - idempotência;
 - isolamento entre módulos.
 
-É proibido criar novos modelos, cadastros, fluxos ou serviços paralelos quando já existir uma entidade canônica documentada.
+É proibido criar novos modelos, cadastros, fluxos ou serviços paralelos quando já existir uma entidade oficial documentada.
 
 ## Domínios arquiteturais oficiais
 
@@ -41,7 +41,7 @@ Define:
 - Papéis
 - Relacionamentos
 
-Fonte canônica:
+Fonte oficial:
 
 ```text
 Pessoa
@@ -273,7 +273,7 @@ Isso significa:
 
 - o legado continua funcionando;
 - novos desenvolvimentos não devem ampliar estruturas legadas;
-- toda nova funcionalidade deve utilizar a entidade canônica correspondente;
+- toda nova funcionalidade deve utilizar a entidade oficial correspondente;
 - remoções estruturais ficam para a versão 1.1 ou posterior.
 
 ## Regras obrigatórias para novos desenvolvimentos
@@ -281,7 +281,7 @@ Isso significa:
 Antes de criar qualquer entidade, verificar:
 
 - já existe um documento `ARCH` correspondente;
-- já existe entidade canônica;
+- já existe entidade oficial;
 - existe resolver oficial;
 - existe guardrail;
 - existe compatibilidade prevista.
@@ -356,6 +356,6 @@ A partir deste documento:
 
 ## Resposta final
 
-Após a conclusão dos documentos `PERSON-ARCH-01`, `ECONOMIC-ARCH-01`, `TERRITORY-ARCH-01`, `PRODUCT-ARCH-01` e `EVENTS-ARCH-01`, o AgroSaaS passa a possuir uma Arquitetura Canônica formalizada para seus principais domínios de negócio.
+Após a conclusão dos documentos `PERSON-ARCH-01`, `ECONOMIC-ARCH-01`, `TERRITORY-ARCH-01`, `PRODUCT-ARCH-01` e `EVENTS-ARCH-01`, o AgroSaaS passa a possuir uma Arquitetura Oficial formalizada para seus principais domínios de negócio.
 
-Esses documentos estabelecem as entidades canônicas, as responsabilidades de cada domínio, as estratégias de compatibilidade com o legado, os guardrails de governança e o processo oficial para evolução da plataforma, reduzindo significativamente o risco de regressões arquiteturais antes da versão 1.0.
+Esses documentos estabelecem as entidades oficiais, as responsabilidades de cada domínio, as estratégias de compatibilidade com o legado, os guardrails de governança e o processo oficial para evolução da plataforma, reduzindo significativamente o risco de regressões arquiteturais antes da versão 1.0.

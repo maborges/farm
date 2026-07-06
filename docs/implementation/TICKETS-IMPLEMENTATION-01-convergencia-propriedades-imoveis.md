@@ -354,7 +354,7 @@ Fase:
 
 Objetivo:
 
-Definir o contrato conceitual da entidade canônica de vínculo.
+Definir o contrato conceitual da entidade oficial de vínculo.
 
 Escopo:
 
@@ -406,7 +406,7 @@ Formalizar os tipos oficiais de vínculo e suas regras temporais.
 
 Escopo:
 
-* Definir enum canônico.
+* Definir enum oficial.
 * Definir restrições de uso por tipo.
 * Definir vigência, vínculo principal e vínculos secundários.
 
@@ -642,7 +642,7 @@ Fase:
 
 Objetivo:
 
-Estruturar a tabela física do vínculo canônico.
+Estruturar a tabela física do vínculo oficial.
 
 Escopo:
 
@@ -784,7 +784,7 @@ Fase:
 
 Objetivo:
 
-Criar os contratos de entrada e saída para o vínculo canônico.
+Criar os contratos de entrada e saída para o vínculo oficial.
 
 Escopo:
 
@@ -870,7 +870,7 @@ Comando de validação sugerido:
 
 ---
 
-## TCK-019 — Criar router da entidade canônica
+## TCK-019 — Criar router da entidade oficial
 
 Tipo:
 
@@ -1221,7 +1221,7 @@ Escopo:
 
 * Revisar listagem e detalhe.
 * Evidenciar matrícula, cartório, CAR, CCIR, ITR e titularidade.
-* Garantir leitura canônica de dados fundiários.
+* Garantir leitura oficial de dados fundiários.
 
 Fora de escopo:
 
@@ -1263,7 +1263,7 @@ Fase:
 
 Objetivo:
 
-Exibir a relação canônica entre Propriedades e Imóveis Rurais.
+Exibir a relação oficial entre Propriedades e Imóveis Rurais.
 
 Escopo:
 
@@ -1311,7 +1311,7 @@ Fase:
 
 Objetivo:
 
-Criar a UI para cadastro e manutenção do vínculo canônico.
+Criar a UI para cadastro e manutenção do vínculo oficial.
 
 Escopo:
 

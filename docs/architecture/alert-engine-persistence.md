@@ -1,6 +1,6 @@
 # Alert Engine Persistence
 
-Status: Canonical
+Status: Oficial
 Parent architecture: [alert-engine-architecture.md](./alert-engine-architecture.md)
 Parent contracts: [alert-engine-contracts.md](./alert-engine-contracts.md)
 Scope: Physical persistence model for the AgroSaaS Alert Engine
@@ -43,7 +43,7 @@ May start as virtual or computed-on-read:
 - some transient insights
 - delivery tracking per channel
 
-Canonical rule:
+Oficial rule:
 
 - Events, alerts, and lifecycle actions are core persisted state.
 - Indicators and insights should be persisted when they are reused, audited, or expensive to compute.
@@ -107,8 +107,8 @@ Append-only ledger of domain facts consumed by the Alert Engine.
 
 ### 4.6 Constraints
 
-- `domain` must match canonical enum values.
-- `category` must match canonical enum values.
+- `domain` must match oficial enum values.
+- `category` must match oficial enum values.
 - `payload` must be a valid JSON object.
 - `occurred_at` must be less than or equal to `ingested_at` unless a delayed import policy explicitly allows backfill.
 - `source` cannot be empty.
@@ -138,7 +138,7 @@ Partitioning may be introduced later by:
 - tenant-aware hash partitioning or
 - time-based partitioning by `occurred_at`
 
-Canonical recommendation:
+Oficial recommendation:
 
 - prefer time-based partitioning only after real volume justifies it
 - keep the MVP unpartitioned unless the ingestion rate demands otherwise
@@ -182,7 +182,7 @@ Use one of the following value columns at a time:
 - `value_text`
 - `value_bool`
 
-Canonical rule:
+Oficial rule:
 
 - exactly one value column should be populated for a typed indicator
 - null is acceptable only when the indicator is intentionally a marker without value
@@ -298,7 +298,7 @@ Stores the current alert state and lifecycle fields.
 
 ### 6.6 Deduplication policy
 
-Recommended canonical dedupe rule:
+Recommended oficial dedupe rule:
 
 - unique active alert by `tenant_id + dedupe_key` for open-state alerts
 
@@ -414,7 +414,7 @@ For future Copilot conversation linking, the recommended approach is:
 - `conversation_id` should be added only if a persistent conversation store is formalized
 - until then, use `metadata` or a join table in a later phase
 
-Canonical rule:
+Oficial rule:
 
 - do not force a premature coupling between insights and conversation state
 
@@ -542,9 +542,9 @@ Every index must start with `tenant_id` or otherwise remain compatible with tena
 
 ## 11. Dedupe Rules
 
-### 11.1 Canonical dedupe key
+### 11.1 Oficial dedupe key
 
-`dedupe_key` is the canonical physical dedupe token.
+`dedupe_key` is the oficial physical dedupe token.
 
 Recommended generation factors:
 
@@ -641,7 +641,7 @@ Possible future partition axes:
 
 ### 12.7 Query limits
 
-Canonical safeguards:
+Oficial safeguards:
 
 - default limit must be small and safe
 - pagination must be required for broad list endpoints
@@ -656,7 +656,7 @@ Suggested default list limit:
 
 Use offset pagination for simple MVP query surfaces and cursor pagination later if scale requires it.
 
-Canonical recommendation:
+Oficial recommendation:
 
 - start with offset pagination for implementation simplicity
 - move to cursor pagination if alert volume or retention makes offset expensive
@@ -748,7 +748,7 @@ Connect the first domain emitters to the engine:
 
 Introduce `alert_deliveries` when channel delivery tracking becomes necessary.
 
-## 15. Canonical Summary
+## 15. Oficial Summary
 
 The physical model is intentionally layered:
 

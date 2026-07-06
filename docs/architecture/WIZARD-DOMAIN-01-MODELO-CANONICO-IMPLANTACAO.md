@@ -1,8 +1,8 @@
-# WIZARD-DOMAIN-01 — Modelo Canônico de Dados da Implantação Operacional
+# WIZARD-DOMAIN-01 — Modelo Oficial de Dados da Implantação Operacional
 
 ## 1. Visão geral
 
-Este documento define o modelo canônico de dados que sustentará o Assistente de Implantação Operacional do AgroSaaS.
+Este documento define o modelo oficial de dados que sustentará o Assistente de Implantação Operacional do AgroSaaS.
 
 Pergunta central:
 
@@ -11,7 +11,7 @@ Pergunta central:
 Resposta objetiva:
 
 - a implantação operacional deve ser representada por um agregado principal `ImplantacaoOperacional`;
-- as etapas canônicas do Wizard devem ser registradas em `ImplantacaoEtapa`;
+- as etapas oficiais do Wizard devem ser registradas em `ImplantacaoEtapa`;
 - itens verificáveis de avanço e go-live devem existir em `ImplantacaoChecklistItem`;
 - riscos, bloqueios e pendências devem existir em `ImplantacaoPendencia`;
 - toda transição material de estado deve ser auditada em `ImplantacaoHistorico`;
@@ -49,7 +49,7 @@ Princípios obrigatórios:
 
 ### 4.1 ImplantacaoOperacional
 
-`ImplantacaoOperacional` é a entidade canônica que representa uma execução de implantação operacional dentro de um tenant.
+`ImplantacaoOperacional` é a entidade oficial que representa uma execução de implantação operacional dentro de um tenant.
 
 Função oficial:
 
@@ -67,7 +67,7 @@ Campos conceituais mínimos:
 | `unidade_produtiva_id` | FK lógica opcional | opcional no início, obrigatório antes do go-live |
 | `owner_usuario_id` | FK lógica | ator responsável principal |
 | `status` | enum | estado global da implantação |
-| `etapa_atual` | código canônico | etapa corrente do fluxo |
+| `etapa_atual` | código oficial | etapa corrente do fluxo |
 | `percentual_progresso` | número de 0 a 100 | progresso consolidado |
 | `modo_implantacao` | enum conceitual | assistida, manual assistida, piloto, parceiro |
 | `origem` | enum conceitual | novo assinante, upgrade de assinante, implantação interna, parceiro |
@@ -94,7 +94,7 @@ Campos conceituais recomendados:
 
 ### 5.1 ImplantacaoEtapa
 
-`ImplantacaoEtapa` representa uma etapa canônica do Wizard dentro de uma implantação.
+`ImplantacaoEtapa` representa uma etapa oficial do Wizard dentro de uma implantação.
 
 Função oficial:
 
@@ -109,7 +109,7 @@ Campos conceituais mínimos:
 | --- | --- | --- |
 | `id` | identificador único | identidade da etapa |
 | `implantacao_id` | FK lógica | obrigatório |
-| `codigo_etapa` | enum/código estável | canônico e imutável |
+| `codigo_etapa` | enum/código estável | oficial e imutável |
 | `nome` | texto | legibilidade |
 | `status` | enum | estado individual da etapa |
 | `obrigatoria` | booleano | distingue etapa opcional |
@@ -236,7 +236,7 @@ Eventos esperados:
 
 ## 6. Relacionamentos oficiais
 
-Relacionamentos canônicos:
+Relacionamentos oficiais:
 
 ```text
 Tenant
@@ -257,7 +257,7 @@ Relações de referência, não de ownership:
 - `ImplantacaoOperacional` referencia `Tenant`, mas não o cria;
 - `ImplantacaoOperacional` referencia `Usuario`, mas não o gerencia;
 - `ImplantacaoOperacional` referencia `UnidadeProdutiva`, mas não redefine sua arquitetura;
-- itens e pendências podem apontar evidências em `AreaRural`, `Produto`, `PlanoConta`, `Safra`, `ProductionUnit`, `LoteAnimal`, `Deposito`, `Equipamento` e equivalentes canônicos.
+- itens e pendências podem apontar evidências em `AreaRural`, `Produto`, `PlanoConta`, `Safra`, `ProductionUnit`, `LoteAnimal`, `Deposito`, `Equipamento` e equivalentes oficiais.
 
 ## 7. Estados oficiais
 
@@ -296,7 +296,7 @@ Guardrail futuro:
 
 - `WIZARD-GOV-01` deve impedir mudança para `READY_FOR_GO_LIVE` quando houver status global `BLOCKED` ou pendência crítica aberta.
 
-## 8. Etapas canônicas
+## 8. Etapas oficiais
 
 Etapas herdadas de `WIZARD-ARCH-01`:
 
@@ -388,7 +388,7 @@ Exemplos de evidência:
 Regra oficial:
 
 - evidência não precisa ser sempre um arquivo;
-- a principal evidência do Wizard é o estado real das entidades canônicas do tenant.
+- a principal evidência do Wizard é o estado real das entidades oficiais do tenant.
 
 ## 12. Histórico e auditoria
 
@@ -536,7 +536,7 @@ Regra oficial:
 Decisões normativas:
 
 - `ImplantacaoOperacional` é a entidade raiz do domínio do Wizard;
-- `ImplantacaoEtapa`, `ImplantacaoChecklistItem`, `ImplantacaoPendencia` e `ImplantacaoHistorico` são entidades auxiliares canônicas;
+- `ImplantacaoEtapa`, `ImplantacaoChecklistItem`, `ImplantacaoPendencia` e `ImplantacaoHistorico` são entidades auxiliares oficiais;
 - o modelo deve suportar `BLOCKED` além dos estados já definidos em `WIZARD-ARCH-01`;
 - v1.0 deve permitir no máximo uma implantação ativa por tenant;
 - `UnidadeProdutiva` principal é obrigatória antes do go-live;
@@ -576,7 +576,7 @@ Diretrizes de implementação futura:
 - começar pelo agregado `ImplantacaoOperacional`;
 - materializar códigos estáveis para estados, etapas e itens de checklist;
 - separar status global de status de etapa;
-- modelar snapshots como apoio de auditoria, não como substituto das entidades canônicas;
+- modelar snapshots como apoio de auditoria, não como substituto das entidades oficiais;
 - preferir resolvers/verificadores automáticos para checklist;
 - manter compatibilidade com `onboarding/status` até migração explícita;
 - prever serviços de reidratação e retomada por leitura do estado real do tenant;
@@ -584,4 +584,4 @@ Diretrizes de implementação futura:
 
 ## 27. Resposta final
 
-Após este documento, o AgroSaaS passa a ter um modelo canônico de dados claro para a implantação operacional: uma raiz `ImplantacaoOperacional`, cercada por etapas, checklist, pendências e histórico, ligada a `Tenant`, `Owner/Admin` e `UnidadeProdutiva`, com regras explícitas de unicidade, idempotência, bloqueio, go-live e separação arquitetural em relação a Auth, Billing, Onboarding e Equipe.
+Após este documento, o AgroSaaS passa a ter um modelo oficial de dados claro para a implantação operacional: uma raiz `ImplantacaoOperacional`, cercada por etapas, checklist, pendências e histórico, ligada a `Tenant`, `Owner/Admin` e `UnidadeProdutiva`, com regras explícitas de unicidade, idempotência, bloqueio, go-live e separação arquitetural em relação a Auth, Billing, Onboarding e Equipe.

@@ -57,7 +57,7 @@ O AgroSaaS reconhece oficialmente o domínio territorial e fundiário como uma f
 
 - `Propriedades` é o domínio operacional, territorial e produtivo.
 - `Imóveis Rurais` é o domínio jurídico, patrimonial, documental e fiscal.
-- A cardinalidade oficial entre ambos é `N:N`, com entidade de vínculo canônica `PropriedadeImovel`.
+- A cardinalidade oficial entre ambos é `N:N`, com entidade de vínculo oficial `PropriedadeImovel`.
 - Nenhum dado territorial ou fundiário pode possuir duas fontes oficiais.
 
 ### Norma obrigatória
@@ -69,7 +69,7 @@ Antes de qualquer alteração envolvendo propriedades, imóveis rurais, rastreab
 ---
 
 ## ROUTING MAP RESUMIDO
-- **Frontend Web**: Rotas canônicas em `/agricola`, `/financeiro`, `/estoque`.
+- **Frontend Web**: Rotas oficiais em `/agricola`, `/financeiro`, `/estoque`.
 - **Frontend Campo**: Views de formulário off-line alimentando o Dexie.
 - **Backend API**: Centralizado no prefixo `/api/v1/`. Dividido em dezenas de `routers` que apenas validam requisições e enviam para os `services` atômicos.
 

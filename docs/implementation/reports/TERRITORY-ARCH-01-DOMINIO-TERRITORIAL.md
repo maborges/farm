@@ -2,7 +2,7 @@
 
 ## Resultado
 
-A auditoria encontrou uma arquitetura territorial canônica já desenhada, mas ainda com sobreposições relevantes.
+A auditoria encontrou uma arquitetura territorial oficial já desenhada, mas ainda com sobreposições relevantes.
 
 Classificação: **Modelo C**.
 
@@ -11,8 +11,8 @@ Classificação: **Modelo C**.
 - `UnidadeProdutiva` foi confirmada como unidade operacional mínima.
 - `Propriedade` foi confirmada como camada patrimonial/organizacional.
 - `ImovelRural` foi confirmado como camada legal/fundiária/documental.
-- `PropriedadeImovel` foi confirmada como ponte N:N canônica.
-- `AreaRural` foi confirmada como árvore espacial canônica.
+- `PropriedadeImovel` foi confirmada como ponte N:N oficial.
+- `AreaRural` foi confirmada como árvore espacial oficial.
 - `Talhão` foi confirmado como tipo de `AreaRural`.
 - `Piquete` foi confirmado como tipo de `AreaRural`, mas ainda coexistindo com legado `pec_piquetes`.
 - `ProductionUnit` foi confirmada como unidade agrícola operacional/econômica da safra.

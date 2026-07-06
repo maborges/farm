@@ -2,7 +2,7 @@
 
 ## Causa raiz
 
-O fluxo de cadastro/edição de Imóvel Rural não propagava `propriedade_id` para o backend e, portanto, não acionava a criação/reuso do vínculo canônico `PropriedadeImovel`.
+O fluxo de cadastro/edição de Imóvel Rural não propagava `propriedade_id` para o backend e, portanto, não acionava a criação/reuso do vínculo oficial `PropriedadeImovel`.
 
 Além disso:
 
@@ -105,7 +105,7 @@ Playwright:
 
 - o fluxo de Playwright ainda depende do estado de permissao/mock do spec;
 - o spec de imóveis tem um caso antigo de navegacao que nao passou nesta execucao, independente da correcao do vínculo;
-- a regra idempotente agora cria/reaproveita o vinculo canônico no backend, mas nao foi adicionada uma nova query de listagem nesta execucao.
+- a regra idempotente agora cria/reaproveita o vinculo oficial no backend, mas nao foi adicionada uma nova query de listagem nesta execucao.
 
 ## Pendencias reais
 
@@ -116,7 +116,7 @@ Playwright:
 
 - `Propriedade` continua no dominio operacional;
 - `ImovelRural` continua sendo a fonte oficial fundiaria/documental;
-- `PropriedadeImovel` continua sendo a ponte canonica N:N;
+- `PropriedadeImovel` continua sendo a ponte oficial N:N;
 - nao houve migration;
 - nao houve ruptura no contrato de listagem de Imóveis Rurais;
 - nao houve remocao de legado.

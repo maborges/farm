@@ -26,7 +26,7 @@ A entrega agora deixa de depender exclusivamente de publicação em memória par
 ## Estrutura implementada
 
 - `DomainEventOutbox`
-  - modelo canônico para persistência de Domain Events reliable.
+  - modelo oficial para persistência de Domain Events reliable.
   - inclui `tenant_id`, `unidade_produtiva_id`, `event_type`, `source_type`, `source_id`, `payload`, `metadata`, `correlation_id`, `causation_id`, `status`, `attempts`, `next_attempt_at`, `locked_at`, `locked_by`, `created_at`, `processed_at`, `failed_at`, `last_error` e `idempotency_key`.
 - `DomainEventOutboxService`
   - persiste eventos na outbox com idempotência;
@@ -40,7 +40,7 @@ A entrega agora deixa de depender exclusivamente de publicação em memória par
   - chama `EventPublisher`;
   - consolida resultado e status de execução.
 - `enqueue_domain_event(...)`
-  - helper canônico para gravação na outbox.
+  - helper oficial para gravação na outbox.
 - `publish_domain_event_safe(...)`
   - mantém fallback explícito para publicação in-memory quando não houver `session` ou quando o uso do Outbox for desabilitado.
 - Migration Alembic

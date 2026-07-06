@@ -78,7 +78,7 @@ Implementar a orquestração backend para execução controlada do `Recommendati
 - Não integra Alert Engine.
 - Não altera frontend.
 - Não altera Campo PWA.
-- Não executa mutação operacional fora do engine já canônico.
+- Não executa mutação operacional fora do engine já oficial.
 - Não cria pipeline paralelo.
 
 ## Validação

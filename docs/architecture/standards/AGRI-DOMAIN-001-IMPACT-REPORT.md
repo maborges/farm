@@ -28,13 +28,13 @@ Registrar a incorporação da norma AGRI-DOMAIN-001 ao ecossistema documental do
 ### 3. Data Model
 
 - O documento citava `Propriedades / Áreas Rurais`, mas não formalizava a cardinalidade `N:N`.
-- A entidade canônica `PropriedadeImovel` não estava explicitada.
+- A entidade oficial `PropriedadeImovel` não estava explicitada.
 - O ownership territorial/fundiário não estava separado em blocos normativos.
 
 ### 4. Domain Map
 
 - Não existiam domínios explícitos chamados `Territorial` e `Fundiário`.
-- A relação entre os dois domínios não estava formalizada como dependência canônica.
+- A relação entre os dois domínios não estava formalizada como dependência oficial.
 
 ### 5. Routing Map
 
@@ -56,13 +56,13 @@ Registrar a incorporação da norma AGRI-DOMAIN-001 ao ecossistema documental do
 
 - Adicionada a entidade `Imóveis Rurais` como núcleo jurídico/patrimonial/documental/fiscal.
 - Formalizada a cardinalidade oficial `N:N` entre `Propriedade` e `Imóvel Rural`.
-- Formalizada a entidade canônica `PropriedadeImovel`.
+- Formalizada a entidade oficial `PropriedadeImovel`.
 - Declarado o ownership por domínio.
 
 ### Domain Map
 
 - Adicionados os domínios `Territorial` e `Fundiário`.
-- Registrada a dependência entre território e fundiário via vínculo canônico.
+- Registrada a dependência entre território e fundiário via vínculo oficial.
 - Explicitadas as restrições de não sobreposição.
 
 ### Routing Map

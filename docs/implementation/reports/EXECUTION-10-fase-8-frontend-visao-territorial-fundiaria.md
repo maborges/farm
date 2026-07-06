@@ -1,7 +1,7 @@
 # EXECUTION-10 — FASE 8 FRONTEND DE VISÃO TERRITORIAL/FUNDIÁRIA AGREGADA
 
 ## Resumo Executivo
-Consumida a camada de consulta agregada criada na Fase 7 no frontend web, com componentes somente leitura para visão territorial da Propriedade e visão fundiária do Imóvel Rural. A implementação preserva a separação entre fonte oficial, vínculo canônico e compatibilidade legada.
+Consumida a camada de consulta agregada criada na Fase 7 no frontend web, com componentes somente leitura para visão territorial da Propriedade e visão fundiária do Imóvel Rural. A implementação preserva a separação entre fonte oficial, vínculo oficial e compatibilidade legada.
 
 ## Arquivos criados
 - `apps/web/src/lib/hooks/use-territorial-visao.ts`

@@ -4,7 +4,7 @@
 
 O AgroSaaS já possui sinais de alerta distribuídos em quatro frentes: Financeiro, Agricultura, Pecuária e Operacional/Campo. Hoje esses sinais aparecem em contratos e services separados, com diferentes níveis de maturidade:
 
-- Financeiro já tem alertas canônicos de vencimento, atraso e saldo negativo.
+- Financeiro já tem alertas oficiais de vencimento, atraso e saldo negativo.
 - Agricultura já emite alertas de checklist, safra parada, fenologia vencida e governança operacional.
 - Pecuária já consolida manejo pendente, vacinação pendente, custo sanitário e indicadores de lote.
 - Operacional/Campo já expõe atrasos, invalidações, erros de sync e disponibilidade/frota com risco.
@@ -48,7 +48,7 @@ Alertas e sinais já existentes:
 
 Observação:
 
-- `DashboardService` já é o melhor contrato canônico de leitura geral.
+- `DashboardService` já é o melhor contrato oficial de leitura geral.
 - `AlertaInteligenteService` e `ResumoDiarioService` são úteis, mas ainda são safra-first e dependem de IA/estresse/planejamento.
 
 ### 1.2 Agricultura
@@ -138,11 +138,11 @@ Observação:
 
 - `DashboardResumoOperacionalService` já fornece o tronco transversal ideal para o dashboard geral.
 - `campo.service.py` e `campo.models.py` mostram que já existe base para detectar sincronização, status e invalidação.
-- `frota_dashboard_service` e `frota_inteligencia_service` ampliam o escopo operacional, mas são mais adequados como especialização de frota do que como núcleo do alerta canônico.
+- `frota_dashboard_service` e `frota_inteligencia_service` ampliam o escopo operacional, mas são mais adequados como especialização de frota do que como núcleo do alerta oficial.
 
 ---
 
-## 2. Modelo canônico proposto
+## 2. Modelo oficial proposto
 
 ### 2.1 Taxonomia recomendada
 
@@ -160,7 +160,7 @@ Recomendação:
 
 - manter severidade e domínio em caixa alta;
 - manter `status` em caixa alta;
-- usar inglês para o código canônico;
+- usar inglês para o código oficial;
 - usar mensagens em português na UI.
 
 Justificativa:
@@ -169,7 +169,7 @@ Justificativa:
 - isso reduz variação e simplifica integrações multi-domínio;
 - evita misturar termos de negócio com termos técnicos.
 
-### 2.3 Contrato canônico
+### 2.3 Contrato oficial
 
 ```ts
 type OperationalAlert = {
@@ -465,7 +465,7 @@ O Dashboard Geral deveria receber um payload agregado com:
 
 ## 7. Riscos
 
-- duplicação de sinal entre dashboards especializados e a central canônica
+- duplicação de sinal entre dashboards especializados e a central oficial
 - alerta obsoleto se a expiração não for bem definida
 - excesso de alertas de baixa relevância gerando ruído
 - contrato muito amplo virando “catch-all”
@@ -492,7 +492,7 @@ Mitigações:
 
 Objetivo:
 
-- criar o contrato canônico;
+- criar o contrato oficial;
 - persistir alertas relevantes;
 - implementar deduplicação e status;
 - expor leitura agregada por domínio.
@@ -530,7 +530,7 @@ Objetivo:
 
 A melhor modelagem para o AgroSaaS é:
 
-1. **central canônica de alertas materializada** para os casos persistentes e acionáveis;
+1. **central oficial de alertas materializada** para os casos persistentes e acionáveis;
 2. **sinais on-the-fly** apenas como fontes internas de cálculo;
 3. **dashboards consumidores** com leitura agregada;
 4. **Copiloto consultando a central**, não recalculando o mundo;

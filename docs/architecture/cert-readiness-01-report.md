@@ -20,7 +20,7 @@ Realizamos o mapeamento estrutural de todo o ecossistema do AgroSaaS para identi
 
 | Componente / Módulo | Classificação | Justificativa Técnica / Mapeamento |
 | :--- | :--- | :--- |
-| **Caderno de Campo** | **EXISTE E ATENDE** | Timeline canônica baseada em [CadernoCampoEntrada](file:///opt/lampp/htdocs/farm/services/api/agricola/caderno/models.py#L9) com histórico inalterável de retificações e invalidações. |
+| **Caderno de Campo** | **EXISTE E ATENDE** | Timeline oficial baseada em [CadernoCampoEntrada](file:///opt/lampp/htdocs/farm/services/api/agricola/caderno/models.py#L9) com histórico inalterável de retificações e invalidações. |
 | **Operações** | **EXISTE E ATENDE** | [OperacaoAgricola](file:///opt/lampp/htdocs/farm/services/api/agricola/operacoes/models.py#L8) registra clima, dosagem de insumos por hectare, período de carência e operador. |
 | **Safra** | **EXISTE E ATENDE** | Estrutura delimitadora em [Safra](file:///opt/lampp/htdocs/farm/services/api/agricola/safras/models.py). |
 | **Talhão** | **EXISTE E PODE SER EVOLUÍDO** | Mapeia áreas e coordenadas geográficas centrais, mas precisa de suporte a polígonos GeoJSON completos para cruzamento de desmatamento. |
@@ -81,7 +81,7 @@ A aderência técnica do AgroSaaS em relação aos blocos regulatórios está ma
 ### Certifica Minas
 * **Classificação**: **ATENDIDO** (Aderência: **95%**)
 * **Requisitos Atendidos**:
-  * Diário de campo canônico completo.
+  * Diário de campo oficial completo.
   * Registro de visitas técnicas regulares de engenheiros agrônomos com recomendações integradas.
   * Protocolo assinado digitalmente com hash inalterável de dados.
 * **Evidências Existentes**: [CadernoExportacao](file:///opt/lampp/htdocs/farm/services/api/agricola/caderno/models.py#L195) assinado com hash SHA-256 e logs do Responsável Técnico.
@@ -212,4 +212,4 @@ Considerando a maximização do valor comercial e regulatório com o menor esfor
 > [!IMPORTANT]
 > **PRONTO PARA PILOTO**
 >
-> **Justificativa técnica:** O AgroSaaS possui um motor canônico de Caderno de Campo, auditoria de escrita profunda, controle de calibração rígido e o Passaporte Comercial estruturado com QR Code. O sistema está plenamente apto a rodar um projeto piloto de exportação de grãos e passar por auditorias assistidas das certificadoras. A transição para a classificação "Pronto para Escala/Certificação" requer a eliminação dos GAPs de assinatura no PWA (Canvas) e polígonos GIS mapeados no roadmap.
+> **Justificativa técnica:** O AgroSaaS possui um motor oficial de Caderno de Campo, auditoria de escrita profunda, controle de calibração rígido e o Passaporte Comercial estruturado com QR Code. O sistema está plenamente apto a rodar um projeto piloto de exportação de grãos e passar por auditorias assistidas das certificadoras. A transição para a classificação "Pronto para Escala/Certificação" requer a eliminação dos GAPs de assinatura no PWA (Canvas) e polígonos GIS mapeados no roadmap.

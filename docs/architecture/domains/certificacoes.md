@@ -1,6 +1,6 @@
 # Domínio Certificações do AgroSaaS
 
-**Status:** Catálogo canônico do domínio compartilhado  
+**Status:** Catálogo oficial do domínio compartilhado  
 **Base normativa:** [Master Context](../agrosaas-master-context.md), [Domain Map](../agrosaas-domain-map.md), [Data Model](../agrosaas-data-model.md), [Routing Map](../agrosaas-routing-map.md), [AGRI-DOMAIN-001](../standards/AGRI-DOMAIN-001-territorial-fundiario.md), [AGRI-DOMAIN-002](../standards/AGRI-DOMAIN-002-propriedade-imovel.md)
 
 ## 1. Visão Geral

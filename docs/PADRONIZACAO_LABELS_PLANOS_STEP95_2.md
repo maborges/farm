@@ -67,7 +67,7 @@ Ajustes complementares de UI para limpar termos legados visiveis durante a valid
 
 ### `apps/web/src/lib/constants/planos.ts`
 
-- adicionado mapa comercial canônico por tier
+- adicionado mapa comercial oficial por tier
 - `PlanTierMetadata.BASICO.label` alterado para `A1 Planejamento`
 - criada funcao helper para recuperar nome comercial do plano sem tocar no tier tecnico
 
@@ -86,7 +86,7 @@ Ajustes complementares de UI para limpar termos legados visiveis durante a valid
 
 ### `apps/web/src/components/shared/module-gate.tsx`
 
-- texto de upsell ajustado para citar os tres planos comerciais canônicos
+- texto de upsell ajustado para citar os tres planos comerciais oficiais
 
 ### `apps/web/src/app/page.tsx`
 

@@ -28,7 +28,7 @@ Status consolidado:
 
 ### Step 63
 
-- leituras funcionais começaram a ser adaptadas para o ledger canônico
+- leituras funcionais começaram a ser adaptadas para o ledger oficial
 
 ### Step 68
 
@@ -67,7 +67,7 @@ Relatório:
 - o caso remanescente de `OPERACAO_AGRICOLA` foi revisado manualmente
 - decisão:
   - não ignorar
-  - não migrar com vínculo canônico real
+  - não migrar com vínculo oficial real
   - tratar como inserção manual `LEGADO` apenas se a equipe quiser preservar esse histórico
 
 Relatório:

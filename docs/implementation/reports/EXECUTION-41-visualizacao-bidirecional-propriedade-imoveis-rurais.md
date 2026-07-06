@@ -26,7 +26,7 @@
 - O service de Imovel passou a anotar cada item com:
   - `propriedades_vinculadas_count`
   - `vinculo_status`
-- A visao territorial e a visao fundiaria continuam usando `PropriedadeImovel` como ponte canonica N:N.
+- A visao territorial e a visao fundiaria continuam usando `PropriedadeImovel` como ponte oficial N:N.
 - As visoes agregadas retornam os vinculos com metadados relacionais:
   - tipo de vinculo
   - vigencia
@@ -85,6 +85,6 @@
 ## Compatibilidade preservada
 - Propriedade continua como dominio operacional.
 - Imovel Rural continua como fonte oficial fundiaria/documental.
-- PropriedadeImovel continua como ponte canonica N:N.
+- PropriedadeImovel continua como ponte oficial N:N.
 - Nao houve migration.
 - Legado nao foi removido.

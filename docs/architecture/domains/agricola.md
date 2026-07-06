@@ -1,6 +1,6 @@
 # Domínio Agrícola do AgroSaaS
 
-**Status:** Documento canônico do domínio  
+**Status:** Documento oficial do domínio  
 **Base normativa:** [AGRI-DOMAIN-001](/opt/lampp/htdocs/farm/docs/architecture/standards/AGRI-DOMAIN-001-territorial-fundiario.md), [AGRI-DOMAIN-002](/opt/lampp/htdocs/farm/docs/architecture/standards/AGRI-DOMAIN-002-propriedade-imovel.md)  
 **Evidências principais:** [Routing Map](/opt/lampp/htdocs/farm/docs/architecture/agrosaas-routing-map.md), [Master Context](/opt/lampp/htdocs/farm/docs/architecture/agrosaas-master-context.md), [Domain Map](/opt/lampp/htdocs/farm/docs/architecture/agrosaas-domain-map.md), [Data Model](/opt/lampp/htdocs/farm/docs/architecture/agrosaas-data-model.md)
 
@@ -90,7 +90,7 @@ O objetivo do Domínio Agrícola é garantir que a operação de campo seja mode
 | `PhaseTemplate` | Definir governança de fase | Agrícola | `PhaseTemplateChecklistItem`, `PhaseTemplateTask`, `PhaseGateRule` | Agrícola |
 | `OperationTemplate` | Definir plano operacional padrão | Agrícola | `OperationTemplateItem`, `OperationDependency` | Agrícola |
 | `OperacaoTipoFase` | Validar fase permitida para cada tipo de operação | Agrícola | `OperacaoAgricola` | Agrícola |
-| `SafraChecklistItem` | Checklist canônico por fase da safra | Agrícola | `Safra`, `PhaseTemplateChecklistItem` | Agrícola |
+| `SafraChecklistItem` | Checklist oficial por fase da safra | Agrícola | `Safra`, `PhaseTemplateChecklistItem` | Agrícola |
 | `CadernoCampoEntrada` | Ledger documental do campo | Agrícola | `Safra`, `AreaRural`, `OperacaoAgricola` | Agrícola |
 | `CadernoCampoFoto` | Evidência fotográfica de campo | Agrícola | `CadernoCampoEntrada` | Agrícola |
 | `CadernoEventoStatusHistorico` | Histórico de estados do caderno | Agrícola | `CadernoCampoEntrada` | Agrícola |
@@ -156,7 +156,7 @@ PLANEJADA → PREPARO_SOLO → PLANTIO → DESENVOLVIMENTO → COLHEITA → POS_
 
 ## 6. Eventos
 
-Os eventos abaixo são a forma canônica de leitura do domínio. Nem todos estão publicados como event bus explícito; parte deles é inferida das transições e serviços existentes.
+Os eventos abaixo são a forma oficial de leitura do domínio. Nem todos estão publicados como event bus explícito; parte deles é inferida das transições e serviços existentes.
 
 | Evento | Gatilho | Consumidores típicos | Evidência |
 |---|---|---|---|
@@ -241,7 +241,7 @@ Os eventos abaixo são a forma canônica de leitura do domínio. Nem todos estã
 - RH corporativo;
 - Financeiro corporativo não agrícola;
 - Compliance legal do imóvel rural;
-- Cadastro territorial canônico.
+- Cadastro territorial oficial.
 
 ### Fronteira de consumo
 
@@ -272,7 +272,7 @@ O domínio agrícola consome a área e a geometria de `AreaRural`, mas a origem 
 | Diagnóstico e recomendações | IMPLEMENTADO | Presença de rotas e serviços dedicados. |
 | Cenários | IMPLEMENTADO | Modelagem de simulação por safra e unidade. |
 | Rastreabilidade pública | IMPLEMENTADO | Passaporte e consulta pública existentes. |
-| ESG e certificações nativas | PARCIAL | Há suporte documental e de rastreabilidade, mas a modelagem ESG completa deve ser integrada a normas canônicas. |
+| ESG e certificações nativas | PARCIAL | Há suporte documental e de rastreabilidade, mas a modelagem ESG completa deve ser integrada a normas oficiais. |
 
 ## Conclusão
 

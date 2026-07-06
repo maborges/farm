@@ -1,7 +1,7 @@
 # AUDIT-01: Auditoria Arquitetural do AgroSaaS
 
 ## 1. Resumo executivo
-A auditoria técnica AUDIT-01 foi realizada para avaliar a separação de camadas, violações de domínio, bypass de regras canônicas, e riscos de evolução do AgroSaaS. Foram identificados pontos de acoplamento indevido, principalmente entre routers acessando a base de dados diretamente e cruzamento de fronteiras entre domínios (Estoque e Financeiro). A estrutura base do projeto é sólida, mas pequenas correções incrementais são necessárias para garantir escalabilidade e manutenção da saúde do sistema multi-tenant.
+A auditoria técnica AUDIT-01 foi realizada para avaliar a separação de camadas, violações de domínio, bypass de regras oficiais, e riscos de evolução do AgroSaaS. Foram identificados pontos de acoplamento indevido, principalmente entre routers acessando a base de dados diretamente e cruzamento de fronteiras entre domínios (Estoque e Financeiro). A estrutura base do projeto é sólida, mas pequenas correções incrementais são necessárias para garantir escalabilidade e manutenção da saúde do sistema multi-tenant.
 
 ## 2. Escopo auditado
 A auditoria cobriu os seguintes diretórios no backend (FastAPI/Python):

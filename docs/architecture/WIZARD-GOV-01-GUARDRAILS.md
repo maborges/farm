@@ -20,7 +20,7 @@ Resposta objetiva:
 Este documento protege:
 
 - domínio do Wizard;
-- modelo canônico de implantação;
+- modelo oficial de implantação;
 - estados;
 - etapas;
 - checklist;
@@ -29,7 +29,7 @@ Este documento protege:
 - idempotência;
 - go-live;
 - retomada;
-- integração com arquiteturas canônicas já aprovadas.
+- integração com arquiteturas oficiais já aprovadas.
 
 ## 3. Guardrail 1 — Separação de domínios
 
@@ -170,7 +170,7 @@ Nunca sobre:
 
 Norma oficial:
 
-- progresso e go-live devem ser derivados do estado verificável das entidades canônicas.
+- progresso e go-live devem ser derivados do estado verificável das entidades oficiais.
 
 ## 11. Guardrail 9 — Idempotência
 
@@ -220,7 +220,7 @@ Norma oficial:
 
 - `Equipe` permanece opcional;
 - novas etapas estruturais só podem surgir por nova arquitetura oficial;
-- etapas condicionais devem continuar subordinadas ao mesmo tronco canônico.
+- etapas condicionais devem continuar subordinadas ao mesmo tronco oficial.
 
 ## 14. Guardrail 12 — Estados
 
@@ -306,7 +306,7 @@ Norma oficial:
 
 - Wizard nunca envia convites.
 
-## 20. Guardrail 18 — Modelo canônico
+## 20. Guardrail 18 — Modelo oficial
 
 As entidades oficiais do domínio Wizard permanecem:
 
@@ -331,7 +331,7 @@ Norma oficial:
 - o Wizard é a expressão guiada da arquitetura oficial;
 - não é um processo paralelo.
 
-## 22. Guardrail 20 — Compatibilidade com arquiteturas canônicas
+## 22. Guardrail 20 — Compatibilidade com arquiteturas oficiais
 
 Toda implementação futura do Wizard deverá continuar compatível com:
 
@@ -366,4 +366,4 @@ Conclusão normativa:
 
 ## 25. Resposta final
 
-Após este documento, o AgroSaaS passa a possuir guardrails explícitos para impedir que o futuro Wizard assuma responsabilidades indevidas, crie fluxos paralelos, ignore `UnidadeProdutiva`, trate equipe como pré-requisito obrigatório, contorne evidência factual ou rompa o modelo canônico `ImplantacaoOperacional` + etapas + checklist + pendências + histórico.
+Após este documento, o AgroSaaS passa a possuir guardrails explícitos para impedir que o futuro Wizard assuma responsabilidades indevidas, crie fluxos paralelos, ignore `UnidadeProdutiva`, trate equipe como pré-requisito obrigatório, contorne evidência factual ou rompa o modelo oficial `ImplantacaoOperacional` + etapas + checklist + pendências + histórico.

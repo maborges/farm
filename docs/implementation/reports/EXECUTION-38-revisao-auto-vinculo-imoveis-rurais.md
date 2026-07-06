@@ -17,13 +17,13 @@ O auto-vinculo fundiario ja existia em `UnidadeProdutivaService`, mas a experien
 
 - Mantido o fluxo de CREATE/UPDATE em `UnidadeProdutivaService` para disparar o auto-vinculo fundiario.
 - O helper de criacao sem validacao passou a respeitar o `tenant_id` na busca por NIRF.
-- O fluxo continua preservando `UnidadeProdutiva` como dominio operacional, `ImovelRural` como fonte oficial e `PropriedadeImovel` como ponte canonica.
+- O fluxo continua preservando `UnidadeProdutiva` como dominio operacional, `ImovelRural` como fonte oficial e `PropriedadeImovel` como ponte oficial.
 
 ### Listagem de Imoveis Rurais
 
 - A rota `GET /imoveis` passou a aceitar `situacao=all` como sinônimo de sem filtro.
 - A pagina de `Imoveis Rurais` deixou de enviar `situacao=all` no fetch inicial SSR.
-- O client de `Imoveis Rurais` passou a consumir e exibir `numero_matricula` de forma canonica.
+- O client de `Imoveis Rurais` passou a consumir e exibir `numero_matricula` de forma oficial.
 
 ### Compatibilidade
 
@@ -77,7 +77,7 @@ Nao houve migration.
 ## Riscos Encontrados
 
 - Existem alteracoes preexistentes no worktree fora deste escopo.
-- O modulo de `Imoveis Rurais` ainda possui contratos legados no frontend, entao novas telas devem seguir `numero_matricula` como campo canônico.
+- O modulo de `Imoveis Rurais` ainda possui contratos legados no frontend, entao novas telas devem seguir `numero_matricula` como campo oficial.
 
 ## Pendencias Reais
 
@@ -90,4 +90,4 @@ Nao houve migration.
 - O auto-vinculo continua sem duplicacoes.
 - O dominio operacional continua em `UnidadeProdutiva`.
 - O dominio fundiario continua em `ImovelRural`.
-- A ponte canonica continua em `PropriedadeImovel`.
+- A ponte oficial continua em `PropriedadeImovel`.

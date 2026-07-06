@@ -9,8 +9,8 @@ Esta execução adiciona guardrails mínimos de governança para proteger a arqu
 - Teste estático `services/api/tests/unit/test_product_governance_guardrails.py` cobrindo:
   - `Produto` como catálogo mestre operacional.
   - `ProdutoAgricola`, `ProdutoEstoque` e `ProdutoEPI` como extensões de `Produto`.
-  - `ProdutoCultura` como cultura canônica.
-  - `Commodity` como camada canônica de mercado para comercialização e hedge.
+  - `ProdutoCultura` como cultura oficial.
+  - `Commodity` como camada oficial de mercado para comercialização e hedge.
   - `ProdutoColhido` como lote físico colhido distinto de `Produto`.
   - compras, estoque e pecuária sanitária/nutricional usando `Produto`.
   - aliases e campos textuais preservados apenas como compatibilidade.
@@ -44,7 +44,7 @@ Esta execução adiciona guardrails mínimos de governança para proteger a arqu
 ## Proibido para novos fluxos
 
 - Criar cadastro paralelo para item comprado/estocado/consumido fora de `Produto`.
-- Criar cultura agronômica canônica fora de `ProdutoCultura`.
+- Criar cultura agronômica oficial fora de `ProdutoCultura`.
 - Criar cadastro paralelo de commodity para comercialização, cotação ou hedge.
 - Usar `Produto` como substituto de `ProdutoColhido` em fluxos de produção colhida.
 - Tratar `Produto`, `ProdutoCultura`, `Commodity` e `ProdutoColhido` como a mesma camada semântica.

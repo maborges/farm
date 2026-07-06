@@ -36,7 +36,7 @@ Roadmap oficial extraído do estado da base de código (routers, models e integr
 ### 5. Estoque & Compras
 - **Status**: IMPLEMENTADO
 - **Prioridade**: Alta | **Impacto**: Alto | **Complexidade**: Média
-- Componentes: Movimentos, Cadastro Canônico de Insumos/Produtos.
+- Componentes: Movimentos, Cadastro Oficial de Insumos/Produtos.
 
 ### 6. Frota & Oficina
 - **Status**: IMPLEMENTADO

@@ -1,4 +1,4 @@
-# Auditoria Final — Produto Canônico após Rename `insumo_id → produto_id`
+# Auditoria Final — Produto Oficial após Rename `insumo_id → produto_id`
 
 **Data:** 2026-04-28  
 **Step:** 87  
@@ -41,7 +41,7 @@ lote_estoque_id: Mapped[UUID | None] = mapped_column(Uuid, ForeignKey("estoque_l
 unidade_medida_id: Mapped[UUID | None] = mapped_column(Uuid, ForeignKey("unidades_medida.id", ondelete="SET NULL"), nullable=True)
 ```
 
-FK `produto_id → cadastros_produtos.id` — canônico. ✅  
+FK `produto_id → cadastros_produtos.id` — oficial. ✅  
 Campos aditivos `lote_estoque_id` e `unidade_medida_id` presentes. ✅
 
 ---
@@ -118,7 +118,7 @@ from operacional.models.estoque import MovimentacaoEstoque, Deposito  # linha 9
 
 Import **top-level** de modelo removido. Causará `ImportError` na inicialização do módulo quando carregado pelo FastAPI. Função impactada: `historico_deposito()` (linhas ~170-210) que agrupa movimentações por depósito.
 
-**Substituição necessária:** reescrever query usando `EstoqueMovimento` (ledger canônico), que tem os mesmos campos (`produto_id`, `deposito_id`, `quantidade`, `custo_total`, `tipo_movimento`).
+**Substituição necessária:** reescrever query usando `EstoqueMovimento` (ledger oficial), que tem os mesmos campos (`produto_id`, `deposito_id`, `quantidade`, `custo_total`, `tipo_movimento`).
 
 ### 7.2 `agricola/safras/service.py:524`
 

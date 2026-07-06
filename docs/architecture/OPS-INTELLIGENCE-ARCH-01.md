@@ -5,7 +5,7 @@
 ## Status
 
 - Tipo: arquitetura alvo
-- Escopo: auditoria e definição canônica
+- Escopo: auditoria e definição oficial
 - Implementação: não iniciada neste documento
 
 ## Resumo Executivo
@@ -14,17 +14,17 @@ O AgroSaaS já possui infraestrutura transversal suficiente para suportar um mot
 
 Hoje o projeto já tem:
 
-- `Alert Engine` canônico com domínios, categorias, severidades, prioridade, deduplicação e lifecycle em `services/api/alert_engine/*`
+- `Alert Engine` oficial com domínios, categorias, severidades, prioridade, deduplicação e lifecycle em `services/api/alert_engine/*`
 - `Domain Events` com publicação segura e `Outbox` em `services/api/events/*`
-- `Notification Dispatcher` canônico em `services/api/notifications/*`
+- `Notification Dispatcher` oficial em `services/api/notifications/*`
 - scheduler interno do `Alert Engine` em `services/api/alert_engine/scheduler.py`
 - consumo de recomendações no `apps/web` e no `apps/campo`
 
 Hoje o projeto ainda não tem:
 
 - contrato global de `Recommendation`
-- persistência canônica de recomendações
-- lifecycle canônico de recomendação
+- persistência oficial de recomendações
+- lifecycle oficial de recomendação
 - deduplicação transversal de recomendação
 - auditoria transversal do que foi sugerido, aceito, executado, descartado ou expirado
 
@@ -36,7 +36,7 @@ Também não é recomendado manter motores completamente independentes por domí
 
 A recomendação é:
 
-- criar um **Recommendation Engine global canônico**
+- criar um **Recommendation Engine global oficial**
 - com **rule providers por domínio**
 - reutilizando a infraestrutura transversal já pronta
 - sem fundir recomendação com alerta
@@ -70,13 +70,13 @@ Além disso, ele já mostra sinais de acoplamento frágil:
 - porém os alertas climáticos são persistidos com `source_id=str(reg.id)` no generator de clima
 - enquanto o serviço climático consulta alertas por `source_id == unidade_produtiva_id`
 
-Isso indica que o motor climático atual deve ser tratado como **provider/regra legada de clima**, e não como núcleo canônico global.
+Isso indica que o motor climático atual deve ser tratado como **provider/regra legada de clima**, e não como núcleo oficial global.
 
-## Diretriz Canônica
+## Diretriz Oficial
 
 ### 1. Separar `Alert Engine` de `Recommendation Engine`
 
-O `Alert Engine` já é canônico e deve continuar responsável por:
+O `Alert Engine` já é oficial e deve continuar responsável por:
 
 - detectar risco
 - materializar alerta
@@ -135,7 +135,7 @@ Portanto:
 - recomendação não substitui workflow operacional
 - recomendação não substitui aprovação humana
 
-## Domínio Canônico Recomendado
+## Domínio Oficial Recomendado
 
 ### Entidades conceituais
 
@@ -210,7 +210,7 @@ Quem consome:
 
 Quem persiste:
 
-- o domínio canônico de recomendações
+- o domínio oficial de recomendações
 
 Quem executa:
 
@@ -257,7 +257,7 @@ Quem audita:
   - reaproveitar regras financeiras determinísticas
   - mover para provider financeiro quando o épico de implementação começar
 
-### Não reaproveitar como fonte canônica
+### Não reaproveitar como fonte oficial
 
 - strings soltas de `recomendacao_operacional`
 - recomendações derivadas diretamente em responses de dashboard
@@ -317,7 +317,7 @@ Dashboard / Campo
 
 ### Épico 1
 
-- modelagem canônica de recommendation
+- modelagem oficial de recommendation
 - contratos e lifecycle
 - subscriber/dispatcher de recommendation
 
@@ -349,7 +349,7 @@ Dashboard / Campo
 
 Arquitetura recomendada:
 
-- **motor global canônico de recomendações**
+- **motor global oficial de recomendações**
 - **providers por domínio**
 - **reuso da infraestrutura de eventos, outbox, alertas, notificações, RLS e RBAC**
 - **ClimaRecommendationService reaproveitado apenas como provider/rule set legado**

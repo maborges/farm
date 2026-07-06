@@ -4,15 +4,15 @@
 
 ### EXISTE E ATENDE
 - Nenhum endpoint global de recommendations existia antes desta entrega.
-- O módulo `services/api/recommendations/` já tinha o núcleo canônico, lifecycle e persistência.
+- O módulo `services/api/recommendations/` já tinha o núcleo oficial, lifecycle e persistência.
 
 ### EXISTE PARCIALMENTE
 - `services/api/agricola/recomendacoes/` expõe recomendações assistidas, mas é um motor local do domínio agrícola.
 - `services/api/financeiro/routers/lancamentos.py` expõe recomendações do contexto financeiro, mas sem contrato global persistido.
-- `services/api/agricola/climatico/recommendation_service.py` existe como referência histórica, porém não é a camada canônica global.
+- `services/api/agricola/climatico/recommendation_service.py` existe como referência histórica, porém não é a camada oficial global.
 
 ### NÃO EXISTE
-- Router global canônico de leitura para `recommendation_results`.
+- Router global oficial de leitura para `recommendation_results`.
 - Query service global read-only.
 - Endpoints globais para lifecycle explícito de recomendações persistidas.
 

@@ -13,20 +13,20 @@ Auditar o que já existe no AgroSaaS para Sankhya e desenhar o escopo mínimo de
 O backend já possui módulo Sankhya com:
 
 - router principal em [`services/api/integracoes/sankhya/routers/__init__.py`](/opt/lampp/htdocs/farm/services/api/integracoes/sankhya/routers/__init__.py)
-- adapter canônico em [`services/api/integracoes/sankhya/services/canonical_adapter.py`](/opt/lampp/htdocs/farm/services/api/integracoes/sankhya/services/canonical_adapter.py)
+- adapter oficial em [`services/api/integracoes/sankhya/services/canonical_adapter.py`](/opt/lampp/htdocs/farm/services/api/integracoes/sankhya/services/canonical_adapter.py)
 - serviços de pessoas/produtos em [`services/api/integracoes/sankhya/services/sync_service.py`](/opt/lampp/htdocs/farm/services/api/integracoes/sankhya/services/sync_service.py)
 - serviços de NFe/financeiro em [`services/api/integracoes/sankhya/services/nfe_financeiro_service.py`](/opt/lampp/htdocs/farm/services/api/integracoes/sankhya/services/nfe_financeiro_service.py)
 
-### Adapter canônico atual
+### Adapter oficial atual
 
 O adapter já cobre:
 
-- criação/atualização da configuração canônica
+- criação/atualização da configuração oficial
 - health snapshot
 - eventos de integração
-- jobs canônicos
-- features canônicas
-- políticas canônicas
+- jobs oficiais
+- features oficiais
+- políticas oficiais
 
 E já deixa explícito um desenho futuro para `pedidos` e `estoque` como features baseadas em outbox. Referência:
 

@@ -1,4 +1,4 @@
-# FIELD-CORE-01 - Modelo Canônico do Caderno de Campo
+# FIELD-CORE-01 - Modelo Oficial do Caderno de Campo
 
 > Objetivo: transformar o Caderno de Campo no núcleo oficial, transacional, rastreável e auditável da safra sem criar um caderno paralelo ou reescrever a arquitetura existente.
 
@@ -45,7 +45,7 @@ Esta proposta foi construída a partir do estado real do projeto, com foco nos c
 ### O que está parcial
 
 - A timeline principal do caderno agrega entradas manuais e operações automáticas, mas ainda não incorpora de forma nativa `VisitaTecnica` e `EPIEntrega` [caderno/service.py](/opt/lampp/htdocs/farm/services/api/agricola/caderno/service.py#L93-L176).
-- O tipo do evento ainda é uma string livre no modelo e no schema, o que fragiliza a taxonomia canônica [caderno/models.py](/opt/lampp/htdocs/farm/services/api/agricola/caderno/models.py#L17-L20) [caderno/schemas.py](/opt/lampp/htdocs/farm/services/api/agricola/caderno/schemas.py).
+- O tipo do evento ainda é uma string livre no modelo e no schema, o que fragiliza a taxonomia oficial [caderno/models.py](/opt/lampp/htdocs/farm/services/api/agricola/caderno/models.py#L17-L20) [caderno/schemas.py](/opt/lampp/htdocs/farm/services/api/agricola/caderno/schemas.py).
 - A regra de 72h para retroatividade existe, mas hoje está aplicada só na criação quando o payload marca `digitalizacao_retroativa`; update e delete ainda dependem de reforço de governança [caderno/service.py](/opt/lampp/htdocs/farm/services/api/agricola/caderno/service.py#L28-L46) [caderno/router.py](/opt/lampp/htdocs/farm/services/api/agricola/caderno/router.py#L165-L192).
 - A validação agronômica obrigatória ainda é parcial:
   - foto obrigatória por tipo
@@ -64,7 +64,7 @@ Esta proposta foi construída a partir do estado real do projeto, com foco nos c
 
 ## 2. Definição Oficial do Caderno
 
-No AgroSaaS, o Caderno de Campo é o **registro canônico da execução da safra**.
+No AgroSaaS, o Caderno de Campo é o **registro oficial da execução da safra**.
 
 Ele não é apenas uma tela de histórico. Ele é o **diário operacional oficial** da safra, onde cada evento relevante do campo fica vinculado a:
 
@@ -79,15 +79,15 @@ Ele não é apenas uma tela de histórico. Ele é o **diário operacional oficia
 - impacto documental
 - impacto financeiro, quando aplicável
 
-O caderno é a linha do tempo oficial do trabalho realizado no campo. Operações, fotos, visitas, EPIs, observações e ajustes retroativos só são válidos como histórico oficial quando entram nessa cadeia canônica.
+O caderno é a linha do tempo oficial do trabalho realizado no campo. Operações, fotos, visitas, EPIs, observações e ajustes retroativos só são válidos como histórico oficial quando entram nessa cadeia oficial.
 
-## 3. Modelo Canônico
+## 3. Modelo Oficial
 
 ### Entidade central
 
 A entidade central continua sendo `CadernoCampoEntrada`, mas com um papel formalmente ampliado:
 
-- é o registro canônico da ocorrência
+- é o registro oficial da ocorrência
 - é a base da timeline oficial
 - é o ponto de convergência entre operação, evidência, auditoria e exportação
 
@@ -95,12 +95,12 @@ A entidade central continua sendo `CadernoCampoEntrada`, mas com um papel formal
 
 | Entidade | Papel oficial |
 |---|---|
-| `CadernoCampoEntrada` | Evento canônico da safra |
+| `CadernoCampoEntrada` | Evento oficial da safra |
 | `CadernoCampoFoto` | Evidência anexada ao evento |
 | `VisitaTecnica` | Evento técnico especializado, com assinatura do RT |
 | `EPIEntrega` | Evento de responsabilidade laboral e segurança do aplicador |
 | `CadernoExportacao` | Snapshot documental assinado para auditoria/certificação |
-| `OperacaoAgricola` | Fato operacional gerador de evento canônico |
+| `OperacaoAgricola` | Fato operacional gerador de evento oficial |
 | `OperacaoExecucao` | Fato transacional da execução que impacta estoque e custo |
 
 ### Relação com safra, UP e talhão
@@ -112,8 +112,8 @@ A entidade central continua sendo `CadernoCampoEntrada`, mas com um papel formal
 
 ### Relação com operações
 
-- Operação concluída gera evento canônico.
-- O evento canônico não deve depender de digitação manual quando a operação já existe.
+- Operação concluída gera evento oficial.
+- O evento oficial não deve depender de digitação manual quando a operação já existe.
 - O caderno não substitui a operação transacional, mas é a **narrativa oficial** da execução.
 
 ### Relação com estoque
@@ -135,7 +135,7 @@ A entidade central continua sendo `CadernoCampoEntrada`, mas com um papel formal
 
 ### Relação com IA
 
-- A IA deve consumir eventos canônicos e evidências.
+- A IA deve consumir eventos oficiais e evidências.
 - A IA não deve escrever a verdade oficial diretamente.
 - Sugestões de IA podem apoiar monitoramento, recomendação e triagem, mas a consolidação final é humana e/ou server-side.
 
@@ -153,7 +153,7 @@ O código já reconhece, em maior ou menor grau:
 - `CLIMA`
 - `SOLO`
 
-### 4.2. Tipos canônicos de negócio
+### 4.2. Tipos oficiais de negócio
 
 Para o FIELD-CORE, os tipos de negócio oficiais devem ser normalizados em uma taxonomia única.
 
@@ -243,12 +243,12 @@ Ele não deve ser uma origem independente da verdade.
 - não deve ser dono de uma timeline paralela
 - não deve consolidar financeiramente eventos sozinho
 - não deve aprovar conformidade crítica localmente
-- não deve substituir a origem canônica do servidor
+- não deve substituir a origem oficial do servidor
 
 ### Como tratar conflitos
 
 - o cliente mantém outbox local
-- o servidor recebe e decide a versão canônica
+- o servidor recebe e decide a versão oficial
 - conflitos devem preservar:
   - `client_created_at`
   - identidade do dispositivo
@@ -258,7 +258,7 @@ Ele não deve ser uma origem independente da verdade.
 
 ### Situação atual do PWA
 
-Hoje o PWA de campo está forte para operação geral e offline-first, mas ainda não expõe o fluxo canônico do caderno como canal principal. Isso é um gap de produto, não uma falha da base técnica.
+Hoje o PWA de campo está forte para operação geral e offline-first, mas ainda não expõe o fluxo oficial do caderno como canal principal. Isso é um gap de produto, não uma falha da base técnica.
 
 ## 7. Governança Operacional
 
@@ -273,7 +273,7 @@ Hoje o PWA de campo está forte para operação geral e offline-first, mas ainda
 | Gerente | acompanha execução e pendências |
 | Sistema | gera eventos automáticos e vínculos |
 
-### Permissões canônicas
+### Permissões oficiais
 
 - criar evento
 - ler timeline
@@ -390,7 +390,7 @@ Para suportar certificação forte, o sistema precisa preservar:
 
 ### 9.4. Risco offline
 
-- o PWA já faz outbox e sync, mas ainda não é o canal canônico do caderno
+- o PWA já faz outbox e sync, mas ainda não é o canal oficial do caderno
 - se o operador usar apenas o PWA, o fluxo documental completo ainda não está fechado
 
 ### 9.5. Risco documental
@@ -405,19 +405,19 @@ Para suportar certificação forte, o sistema precisa preservar:
 
 ## 10. Roadmap Evolutivo
 
-### FIELD-CORE-02 - Contrato Canônico
+### FIELD-CORE-02 - Contrato Oficial
 
 Objetivo:
 
 - padronizar o tipo de evento
 - separar proveniência técnica de tipo de negócio
-- introduzir status canônico do evento
+- introduzir status oficial do evento
 - alinhar `CadernoCampoEntrada` como contrato oficial
 
 Entregas esperadas:
 
 - enum/tabela de tipos oficiais
-- mapeamento de operações para eventos canônicos
+- mapeamento de operações para eventos oficiais
 - contrato de evento offline/síncrono
 - campo de origem e referência cruzada
 
@@ -461,7 +461,7 @@ Entregas esperadas:
 
 - consumidores financeiros da timeline oficial
 - vínculos mais fortes com estoque e execuções
-- IA lendo eventos canônicos e evidências
+- IA lendo eventos oficiais e evidências
 - painéis de conformidade e risco
 
 ## Diretriz final
@@ -472,7 +472,7 @@ Principio operacional:
 
 - **uma safra**
 - **uma timeline oficial**
-- **uma cadeia canônica**
+- **uma cadeia oficial**
 - **um PWA como extensão offline**
 - **uma verdade operacional consolidada no servidor**
 

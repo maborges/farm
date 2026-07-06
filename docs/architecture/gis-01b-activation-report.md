@@ -22,7 +22,7 @@ A análise do repositório demonstrou maturidade completa do ecossistema, não e
 | Componente Mapeado | Classificação | O que foi reaproveitado / estendido |
 | :--- | :--- | :--- |
 | **AreaRural** | **EXISTE E ATENDE** | Reaproveitada a coluna `geometria` (JSONB) do tipo `TALHAO` contendo dados de polígono padrão GeoJSON, os campos `centroide_lat` / `centroide_lng` e cálculo de hectares. |
-| **Talhão** | **EXISTE E ATENDE** | Mapeamento físico canônico sem modificações estruturais de colunas. |
+| **Talhão** | **EXISTE E ATENDE** | Mapeamento físico oficial sem modificações estruturais de colunas. |
 | **Passaporte Comercial** | **EXISTE E PODE SER EVOLUÍDO** | O serviço de compilação de snapshot foi estendido para incluir chaves geoespaciais sem expor dados confidenciais de transação ou preços. |
 | **Snapshot de Rastreabilidade** | **EXISTE E PODE SER EVOLUÍDO** | A estrutura JSON do snapshot foi enriquecida com `geometria`, `centroide_lat`, `centroide_lng` e `talhao_area_ha`. |
 | **Frontend de Talhões** | **EXISTE E ATENDE** | O fluxo de desenho e importação de mapas do dashboard serviu como referência de estilização e parametrização de camadas do MapLibre. |

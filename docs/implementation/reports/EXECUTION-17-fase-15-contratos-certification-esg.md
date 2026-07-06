@@ -36,7 +36,7 @@ Formalizar os contratos de leitura e escrita do domínio consumidor Certificaç�
 - `CadernoLoteComercial`: manter
 - `ChecklistModelo`: compatibilidade
 - `ChecklistRealizado`: compatibilidade
-- `PlanoAcaoItem`: não usar como canônico
+- `PlanoAcaoItem`: não usar como oficial
 - `MRVProjeto`: legado
 - `MRVRelatorio`: legado
 
@@ -64,7 +64,7 @@ Formalizar os contratos de leitura e escrita do domínio consumidor Certificaç�
 ## 7. Necessidade Provável De Migration Futura
 
 - Sim, há necessidade provável de migration futura.
-- Motivo: os contratos canônicos ainda não existem fisicamente e os modelos atuais são apenas parcamente aderentes ao que o domínio consumidor precisa.
+- Motivo: os contratos oficiais ainda não existem fisicamente e os modelos atuais são apenas parcamente aderentes ao que o domínio consumidor precisa.
 - A migration futura deve normalizar o domínio consumidor sem tocar na base territorial/fundiária.
 
 ## 8. Arquivos Criados

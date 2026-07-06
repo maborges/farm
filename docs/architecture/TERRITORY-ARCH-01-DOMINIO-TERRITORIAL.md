@@ -2,7 +2,7 @@
 
 ## 1. Resumo executivo
 
-Conclusão objetiva: o AgroSaaS já possui uma arquitetura territorial e operacional canônica parcialmente consolidada, mas ela ainda não é a única arquitetura em execução na codebase.
+Conclusão objetiva: o AgroSaaS já possui uma arquitetura territorial e operacional oficial parcialmente consolidada, mas ela ainda não é a única arquitetura em execução na codebase.
 
 O desenho que emerge do código é:
 
@@ -11,7 +11,7 @@ Tenant
   ↓
 UnidadeProdutiva
   ↓
-AreaRural (árvore espacial canônica)
+AreaRural (árvore espacial oficial)
   ├── AREA_RURAL
   │   └── GLEBA
   │       ├── TALHAO
@@ -54,25 +54,25 @@ ProductionUnit
 O problema é que ainda coexistem sobreposições relevantes:
 
 - `UnidadeProdutiva` continua armazenando campos fundiários legados (`codigo_car`, `nirf`, `ccir`, `sigef_codigo`, `numero_matricula`).
-- `AreaRural` já é a árvore espacial canônica, mas `pecuaria.models.Piquete` ainda existe como entidade paralela.
+- `AreaRural` já é a árvore espacial oficial, mas `pecuaria.models.Piquete` ainda existe como entidade paralela.
 - `AreaOperacional` existe no código como `TipoArea.AREA_OPERACIONAL`, mas também aparece em alguns fluxos e telas como apelido conceitual.
 - `Propriedade` e `AreaRural` ainda carregam parte de responsabilidades de suporte documental/patrimonial.
 - Frontend e PWA ainda usam linguagem híbrida (`fazenda`, `unidade_produtiva`, `talhao`, `piquete`, `area operacional`) em diferentes níveis.
 
 Classificação final: **Modelo C**.
 
-Existe uma arquitetura territorial canônica clara para orientar novos desenvolvimentos, mas ainda há sobreposições suficientes para exigir consolidação antes da v1.0.
+Existe uma arquitetura territorial oficial clara para orientar novos desenvolvimentos, mas ainda há sobreposições suficientes para exigir consolidação antes da v1.0.
 
 ## 2. Inventário territorial
 
-| Conceito | Model/Tabela | Owner | Função | É canônico? | Consumidores | Risco |
+| Conceito | Model/Tabela | Owner | Função | É oficial? | Consumidores | Risco |
 | --- | --- | --- | --- | ---: | --- | --- |
 | Tenant | `tenants` | Core SaaS | Fronteira de isolamento/RLS | Sim | Todos os módulos | Baixo |
 | UnidadeProdutiva | `core.models.unidade_produtiva.UnidadeProdutiva` / `unidades_produtivas` | Core | Unidade operacional mínima do tenant | Sim | Agricultura, pecuária, estoque, frota, Campo, imóveis | Alto por carregar legado fundiário |
 | Propriedade | `core.cadastros.propriedades.propriedade_models.Propriedade` / `cadastros_propriedades` | Core Propriedades | Entidade patrimonial/organizacional/econômica | Sim | Exploração rural, visão territorial, vínculo com imóvel | Médio |
-| ImovelRural | `imoveis.models.imovel.ImovelRural` / `imoveis_rurais` | Imóveis Rurais | Entidade legal/fundiária/documental | Sim | Visão fundiária, vínculo canônico, validações legais | Médio |
-| PropriedadeImovel | `core.cadastros.propriedade_imovel.models.PropriedadeImovel` / `propriedade_imovel` | Core Territorial | Ponte N:N canônica entre Propriedade e ImovelRural | Sim | Visão territorial/fundiária, auto-vínculo EXEC-37/39 | Baixo |
-| AreaRural | `core.cadastros.propriedades.models.AreaRural` / `cadastros_areas_rurais` | Core Propriedades | Árvore espacial canônica | Sim | Agricultura, pecuária, infraestrutura, Campo, rastreabilidade | Crítico |
+| ImovelRural | `imoveis.models.imovel.ImovelRural` / `imoveis_rurais` | Imóveis Rurais | Entidade legal/fundiária/documental | Sim | Visão fundiária, vínculo oficial, validações legais | Médio |
+| PropriedadeImovel | `core.cadastros.propriedade_imovel.models.PropriedadeImovel` / `propriedade_imovel` | Core Territorial | Ponte N:N oficial entre Propriedade e ImovelRural | Sim | Visão territorial/fundiária, auto-vínculo EXEC-37/39 | Baixo |
+| AreaRural | `core.cadastros.propriedades.models.AreaRural` / `cadastros_areas_rurais` | Core Propriedades | Árvore espacial oficial | Sim | Agricultura, pecuária, infraestrutura, Campo, rastreabilidade | Crítico |
 | AreaOperacional | `TipoArea.AREA_OPERACIONAL` dentro de `AreaRural` | Core Propriedades | Subdivisão operacional de talhão | Sim, como tipo | Árvore de áreas, telas de piquete, pecuária | Médio |
 | Talhao | `AreaRural.tipo = TALHAO` | Core Propriedades / Agrícola | Referência agrícola operacional | Sim | Safra, CultivoArea, Campo, operações, relatórios | Baixo |
 | Piquete | `AreaRural.tipo = PIQUETE` e legado `pec_piquetes` | Pecuária | Referência pecuária operacional | Parcial | LoteAnimal, manejo, tela de piquetes, sync pecuária | Crítico por duplicidade |
@@ -83,7 +83,7 @@ Existe uma arquitetura territorial canônica clara para orientar novos desenvolv
 | Depósito | `operacional.models.estoque.Deposito` / `estoque_depositos` | Operacional Estoque | Estrutura física logística por unidade produtiva | Sim | Estoque, requisições, custos | Baixo |
 | Equipamento | `core.cadastros.equipamentos.models.Equipamento` / `cadastros_equipamentos` | Core Equipamentos / Frota | Ativo operacional do tenant, com alocação por unidade | Sim | Frota, abastecimento, apontamentos, manutenção | Médio por fallback legado em `unidade_produtiva_id` |
 
-## 3. Entidades canônicas
+## 3. Entidades oficiais
 
 ### 3.1 UnidadeProdutiva
 
@@ -133,7 +133,7 @@ Decisão:
 
 ### 3.4 PropriedadeImovel
 
-Função definida pelo código: **ponte N:N canônica entre Propriedade e ImovelRural**.
+Função definida pelo código: **ponte N:N oficial entre Propriedade e ImovelRural**.
 
 Evidência:
 
@@ -176,7 +176,7 @@ Risco:
 
 ### 5.1 AreaRural
 
-Função definida pelo código: **árvore territorial/operacional canônica**.
+Função definida pelo código: **árvore territorial/operacional oficial**.
 
 Evidência:
 
@@ -186,7 +186,7 @@ Evidência:
 
 Decisão:
 
-- `AreaRural` é a **camada genérica e canônica** para representar território, subdivisão operacional, áreas ambientais e infraestrutura.
+- `AreaRural` é a **camada genérica e oficial** para representar território, subdivisão operacional, áreas ambientais e infraestrutura.
 
 ### 5.2 Talhão
 
@@ -204,7 +204,7 @@ Decisão:
 
 ### 5.3 Piquete
 
-Função definida pelo código: **deveria ser tipo de área canônico, mas ainda convive com entidade pecuária legada**.
+Função definida pelo código: **deveria ser tipo de área oficial, mas ainda convive com entidade pecuária legada**.
 
 Evidência:
 
@@ -216,7 +216,7 @@ Evidência:
 
 Decisão:
 
-- **Piquete canônico = `AreaRural.tipo = PIQUETE`**.
+- **Piquete oficial = `AreaRural.tipo = PIQUETE`**.
 - `pec_piquetes` é compatibilidade legada paralela.
 
 ### 5.4 AreaOperacional
@@ -230,7 +230,7 @@ Evidência:
 
 Decisão:
 
-- `AreaOperacional` **existe como camada canônica, mas como tipo dentro de `AreaRural`**.
+- `AreaOperacional` **existe como camada oficial, mas como tipo dentro de `AreaRural`**.
 - Não é uma tabela/autonomia própria.
 
 ### 5.5 Infraestrutura
@@ -242,7 +242,7 @@ Função encontrada:
 
 Decisão:
 
-- A camada espacial canônica é a árvore `AreaRural`.
+- A camada espacial oficial é a árvore `AreaRural`.
 - O subrecurso `Infraestrutura` complementa metadados físicos de uma área.
 
 Risco:
@@ -451,7 +451,7 @@ Risco:
 
 ### 11.3 AreaRural × Piquete
 
-- canônico: `AreaRural.tipo = PIQUETE`;
+- oficial: `AreaRural.tipo = PIQUETE`;
 - legado: `pec_piquetes`.
 
 Risco:
@@ -542,7 +542,7 @@ Regras oficiais:
 - `Propriedade` = camada patrimonial/organizacional.
 - `ImovelRural` = camada fundiária/legal.
 - `PropriedadeImovel` = ponte N:N obrigatória.
-- `AreaRural` = árvore espacial canônica.
+- `AreaRural` = árvore espacial oficial.
 - `Talhão` = tipo de `AreaRural`.
 - `Piquete` = tipo de `AreaRural`.
 - `AreaOperacional` = tipo de `AreaRural`.
@@ -554,7 +554,7 @@ Regras oficiais:
 
 Motivo:
 
-- a arquitetura canônica já existe e é suficientemente clara;
+- a arquitetura oficial já existe e é suficientemente clara;
 - porém ainda existem sobreposições estruturais relevantes demais para afirmar consistência total antes da v1.0.
 
 ## 15. O que entra na v1.0

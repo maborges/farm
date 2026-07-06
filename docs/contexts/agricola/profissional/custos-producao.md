@@ -29,7 +29,7 @@ O submódulo de Custos de Produção consolida todos os gastos associados a uma 
 
 Este submódulo é crítico para a tomada de decisão: o produtor precisa saber se está tendo lucro ou prejuízo em cada talhão, e quais categorias de custo estão acima do esperado.
 
-Para a consolidação técnica da DRE agrícola v1, use [DRE Agrícola v1](dre-agricola-v1.md). Este documento é o canônico para janela temporal, fallback por fonte e regras de reconciliação; `Custos de Produção` continua focado em apuração analítica de custo.
+Para a consolidação técnica da DRE agrícola v1, use [DRE Agrícola v1](dre-agricola-v1.md). Este documento é o oficial para janela temporal, fallback por fonte e regras de reconciliação; `Custos de Produção` continua focado em apuração analítica de custo.
 
 ### Contexto Brasileiro
 

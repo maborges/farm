@@ -75,7 +75,7 @@ Este relatório não cria migration real, não altera `services/api/migrations/v
 
 ### Finalidade
 
-- Registrar o vínculo canônico entre `Propriedades` e `Imóveis Rurais`.
+- Registrar o vínculo oficial entre `Propriedades` e `Imóveis Rurais`.
 - Sustentar principalidade, sobreposição, vigência e rastreabilidade do relacionamento.
 
 ### Colunas previstas

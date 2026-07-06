@@ -50,7 +50,7 @@ Checklist rápido para validar a cadeia:
 ## 4. Caderno de Campo
 
 - [ ] Acessar `/agricola/safras/{safra_id}/caderno`
-- [ ] Confirmar que o evento canônico da operação foi criado
+- [ ] Confirmar que o evento oficial da operação foi criado
 - [ ] Confirmar descrição, data e status do evento
 - [ ] Confirmar vínculo documental com a operação
 

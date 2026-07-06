@@ -18,11 +18,11 @@ Esta auditoria nao implementa nada, nao cria migrations, nao altera codigo, nao 
 - `docs/implementation/reports/SANKHYA-AUTH-01-GATEWAY-CREDENTIALS.md`
 - `docs/implementation/reports/SANKHYA-AUTH-02-TEST-CONNECTION.md`
 - `docs/implementation/reports/SANKHYA-AUTH-03-VALIDACAO-ESPECIFICACAO-TECNICA.md`
-- `docs/implementation/reports/SANKHYA-DOMAIN-01-ADAPTER-CANONICO.md`
-- `docs/implementation/reports/SANKHYA-DOMAIN-02-API-UX-CANONICA-STATUS-JOBS-HEALTH.md`
+- `docs/implementation/reports/SANKHYA-DOMAIN-01-ADAPTER-OFICIAL.md`
+- `docs/implementation/reports/SANKHYA-DOMAIN-02-API-UX-OFICIAL-STATUS-JOBS-HEALTH.md`
 - `docs/implementation/reports/SANKHYA-DOMAIN-03-OBSERVABILIDADE-CORRELACAO-HISTORICA.md`
 - `docs/implementation/reports/SANKHYA-SYNC-01-ESCOPO-PILOTO-CAFE.md`
-- `docs/implementation/reports/SANKHYA-SYNC-02-MAPEAMENTO-CANONICO.md`
+- `docs/implementation/reports/SANKHYA-SYNC-02-MAPEAMENTO-OFICIAL.md`
 - `docs/implementation/reports/SANKHYA-SYNC-03-ESTRATEGIA-SINCRONIZACAO-PILOTO.md`
 - `docs/implementation/reports/SANKHYA-SYNC-04-AUDITORIA-VINCULO-REGISTROS-AGROSAAS-SANKHYA.md`
 - `docs/architecture/INTEGRATIONS-ARCH-01.md`
@@ -73,7 +73,7 @@ O modelo atual tambem possui tabelas provider-specific do Sankhya para staging d
 
 Porem, o modelo ainda nao contempla todo o universo de entidades mestre do ERP Sankhya com associacoes oficiais registro-a-registro. A lacuna principal permanece a identidade externa persistente por entidade de negocio.
 
-Para o primeiro piloto, o escopo read-only/manual-first continua viavel com restricoes. Para Go-Live amplo ou evolucao bidirecional, ainda ha lacunas arquiteturais relevantes em empresa/filial, estabelecimento, centro de custo, natureza financeira, conta corrente, deposito/local, pedidos/documentos e vinculos de entidades canonicas.
+Para o primeiro piloto, o escopo read-only/manual-first continua viavel com restricoes. Para Go-Live amplo ou evolucao bidirecional, ainda ha lacunas arquiteturais relevantes em empresa/filial, estabelecimento, centro de custo, natureza financeira, conta corrente, deposito/local, pedidos/documentos e vinculos de entidades oficiais.
 
 ## APIs Sankhya auditadas no projeto
 
@@ -112,7 +112,7 @@ Para o primeiro piloto, o escopo read-only/manual-first continua viavel com rest
 | --- | --- | --- | --- | --- | --- |
 | Pessoas | Parceiro/Pessoa | `Pessoa` | Parcial: `sankhya_pessoas.sankhya_id = CODPARC`, sem FK para `Pessoa` | Sim | P0 |
 | Pessoas | Cliente | `Pessoa` + `PessoaRelacionamento` + `Receita.pessoa_id` | Parcial via staging, sem papel oficial vinculado | Sim | P0 |
-| Pessoas | Fornecedor | `Pessoa` + `Fornecedor` legado + `Despesa.pessoa_id` | Parcial via staging, sem FK para canonico | Sim | P0 |
+| Pessoas | Fornecedor | `Pessoa` + `Fornecedor` legado + `Despesa.pessoa_id` | Parcial via staging, sem FK para oficial | Sim | P0 |
 | Pessoas | Transportadora | `Pessoa` + papel configuravel | Parcial se vier em `sankhya_pessoas.categoria` | Nao no piloto inicial | P1 |
 | Pessoas | Representante | `Pessoa` + papel configuravel | Parcial se vier em `sankhya_pessoas.categoria` | Nao | P1 |
 | Pessoas | Funcionario | `ColaboradorRH` + `Pessoa` | Nao | Nao | P2 |
@@ -127,7 +127,7 @@ Para o primeiro piloto, o escopo read-only/manual-first continua viavel com rest
 | Produtos | Servico | `Produto` tipo `SERVICO` | Parcial via staging, sem mapeamento de tipo | Sim se servicos entrarem no financeiro | P1 |
 | Produtos | Grupo de Produto | `CategoriaProduto`/`TipoProduto` | Nao | Nao | P1 |
 | Produtos | Categoria | `CategoriaProduto` | Nao | Nao | P1 |
-| Produtos | Unidade de Medida | `Produto.unidade_medida`, medidas canonicas | Parcial: `sankhya_produtos.unidade` textual | Sim para produtos | P0 |
+| Produtos | Unidade de Medida | `Produto.unidade_medida`, medidas oficiais | Parcial: `sankhya_produtos.unidade` textual | Sim para produtos | P0 |
 | Produtos | NCM/CEST/CFOP auxiliares | `ProdutoEstoque.ncm`, `SankhyaTabela`, campos fiscais | Parcial | Nao como master no piloto | P1 |
 
 ### Estoque
@@ -218,8 +218,8 @@ Para o primeiro piloto, o escopo read-only/manual-first continua viavel com rest
 | Entidade | ID AgroSaaS | ID Sankhya | Onde armazena associacao hoje | Dedupe atual | Mudanca de ID externo |
 | --- | --- | --- | --- | --- | --- |
 | Tenant/configuracao | `tenants.id` | Config/ambiente provider | `sankhya_config.tenant_id`, `tenant_integracoes.tenant_id` | Unique em `tenant_id` | Nao cobre `CODEMP`/`CODFILIAL` |
-| Pessoa/parceiro | `cadastros_pessoas.id` | `CODPARC` | Apenas `sankhya_pessoas.sankhya_id` | Upsert por `sankhya_id` no staging | Pode duplicar staging/canonico |
-| Produto | `cadastros_produtos.id` | `CODPROD` | Apenas `sankhya_produtos.sankhya_id` | Upsert por `sankhya_id` no staging | Pode duplicar staging/canonico |
+| Pessoa/parceiro | `cadastros_pessoas.id` | `CODPARC` | Apenas `sankhya_pessoas.sankhya_id` | Upsert por `sankhya_id` no staging | Pode duplicar staging/oficial |
+| Produto | `cadastros_produtos.id` | `CODPROD` | Apenas `sankhya_produtos.sankhya_id` | Upsert por `sankhya_id` no staging | Pode duplicar staging/oficial |
 | NFe | `fin_notas_fiscais.id` | `CHAVEACESSO`, `NUNOTA`/`CODNEG` se existir | `sankhya_nfe.chave_acesso`, `sankhya_nfe.sankhya_id` | Chave de acesso | Chave de acesso mitiga; sem FK local |
 | Financeiro | `fin_despesas.id`/`fin_receitas.id` | `DESDOB`, `NUMDOC`, `CODPARC` | `sankhya_lancamentos_financeiros.sankhya_id` | Upsert por `DESDOB` no staging | Alto risco se `DESDOB` mudar ou repetir por tenant |
 | Deposito | `estoque_depositos.id` | `CODLOCAL` | Nao existe | Nao existe | Nao tratado |
@@ -273,7 +273,7 @@ Para o primeiro piloto, o escopo read-only/manual-first continua viavel com rest
 Estas entidades estao prontas como runtime de integracao, nao necessariamente como de-para de negocio:
 
 - `SankhyaConfig` por tenant.
-- `TenantIntegracao` como configuracao canonica do provider.
+- `TenantIntegracao` como configuracao oficial do provider.
 - `IntegrationCredential` com segredo criptografado/versionado.
 - `IntegrationVersion`.
 - `IntegrationFeature`.
@@ -285,10 +285,10 @@ Estas entidades estao prontas como runtime de integracao, nao necessariamente co
 
 ## Entidades parcialmente prontas
 
-- Pessoas/parceiros, clientes e fornecedores: staging existe, entidade canonica existe, de-para nao existe.
-- Produtos/insumos/servicos: staging existe, entidade canonica existe, de-para nao existe.
+- Pessoas/parceiros, clientes e fornecedores: staging existe, entidade oficial existe, de-para nao existe.
+- Produtos/insumos/servicos: staging existe, entidade oficial existe, de-para nao existe.
 - NFe: chave de acesso existe dos dois lados, mas a associacao nao e persistida por FK/de-para.
-- Contas a pagar/receber: staging financeiro existe, entidades canonicas existem, de-para nao existe.
+- Contas a pagar/receber: staging financeiro existe, entidades oficiais existem, de-para nao existe.
 - Unidade de medida: modelo local existe, unidade Sankhya vem textual em produto.
 - Depositos/estoque: modelo local existe, feature de estoque e futura/desabilitada, `CODLOCAL` nao existe.
 - Plano de contas: modelo local existe, mas `CODNAT`/natureza Sankhya nao esta vinculado.
@@ -331,9 +331,9 @@ Estas entidades estao prontas como runtime de integracao, nao necessariamente co
 1. **Universo mestre incompleto**: o runtime de integracao esta maduro, mas as entidades mestre vinculaveis ainda nao foram modeladas transversalmente.
 2. **Falta de `Estabelecimento` materializado**: a arquitetura reconhece `ESTABELECIMENTO`, mas o piloto Sankhya segue tenant-scoped. Multiempresa/multifilial exigira resolucao antes do Go-Live amplo.
 3. **Codigos externos sem escopo composto**: `CODPARC`, `CODPROD`, `DESDOB` e similares nao devem ser tratados como globais entre tenants/ambientes.
-4. **Promocao de staging para canonico sem de-para**: pode criar duplicidade em `Pessoa`, `Produto`, `Despesa`, `Receita` e `Deposito`.
+4. **Promocao de staging para oficial sem de-para**: pode criar duplicidade em `Pessoa`, `Produto`, `Despesa`, `Receita` e `Deposito`.
 5. **Confusao entre centro de custo, centro de resultado e rateio**: o AgroSaaS tem rateios operacionais, mas nao um master equivalente ao ERP.
-6. **Natureza financeira sem destino oficial**: `CODNAT` nao possui associacao canonica.
+6. **Natureza financeira sem destino oficial**: `CODNAT` nao possui associacao oficial.
 7. **Conta corrente/carteira bancaria ausentes do mapeamento Sankhya**: contas e baixas futuras dependem disso.
 8. **Documentos Sankhya futuros exigem `NUNOTA`/ID documental**: a especificacao tecnica requer persistir identificador do documento no ERP, status, payload e retorno.
 9. **Fiscal parcialmente seguro apenas por chave de acesso**: NFe tem melhor identidade natural, mas serie/numero/status/tipo operacao ainda precisam de vocabulário controlado.
@@ -342,8 +342,8 @@ Estas entidades estao prontas como runtime de integracao, nao necessariamente co
 
 ## Recomendacoes de arquitetura
 
-1. Manter o dominio canônico de Integracoes como fonte de runtime: provider, config, credential, feature, policy, job, health e versionamento.
-2. Tratar `sankhya_*` como provider-specific staging, nao como fonte canonica de negocio.
+1. Manter o dominio oficial de Integracoes como fonte de runtime: provider, config, credential, feature, policy, job, health e versionamento.
+2. Tratar `sankhya_*` como provider-specific staging, nao como fonte oficial de negocio.
 3. Antes de qualquer nova implementacao, fechar uma matriz oficial de entidades vinculaveis por provider, com prioridade e source of truth.
 4. Separar tres problemas: runtime da integracao, staging do provider e identidade externa dos registros de negocio.
 5. Nao usar Unidade Produtiva como escopo de ERP. Para multiempresa/multifilial, usar o conceito arquitetural de `ESTABELECIMENTO`.
@@ -356,7 +356,7 @@ Estas entidades estao prontas como runtime de integracao, nao necessariamente co
 
 1. Manter o piloto como `manual first`, `tenant scoped`, `read-only` e baseado em staging.
 2. P0 real do piloto: configuracao/credencial, pessoas/parceiros, produtos/insumos, contas a pagar, contas a receber e NFe.
-3. Nao promover automaticamente staging para cadastros canonicos sem regra aprovada de de-para.
+3. Nao promover automaticamente staging para cadastros oficiais sem regra aprovada de de-para.
 4. Se o cliente Sankhya tiver uma unica empresa/filial no piloto, registrar esse pressuposto operacional explicitamente.
 5. Se houver `CODEMP`/`CODFILIAL` relevante no piloto, considerar isso bloqueador arquitetural antes de Go-Live.
 6. Para NFe, usar `CHAVEACESSO` como idempotencia primaria.

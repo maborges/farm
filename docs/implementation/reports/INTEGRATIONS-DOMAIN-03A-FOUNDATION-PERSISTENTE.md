@@ -1,14 +1,14 @@
-# INTEGRATIONS-DOMAIN-03A — Foundation Persistente do Domínio Canônico de Integrações
+# INTEGRATIONS-DOMAIN-03A — Foundation Persistente do Domínio Oficial de Integrações
 
 ## 1. Resumo Executivo
 
-Esta execução materializou a fundação persistente mínima do domínio canônico de Integrações sem migrar Sankhya, sem implementar jobs, health, alerts, policies ou adapters completos.
+Esta execução materializou a fundação persistente mínima do domínio oficial de Integrações sem migrar Sankhya, sem implementar jobs, health, alerts, policies ou adapters completos.
 
 O foco foi:
 
 - materializar enums oficiais;
 - promover a base persistente de provider e config sem quebrar compatibilidade;
-- criar persistência canônica para credenciais e versionamento;
+- criar persistência oficial para credenciais e versionamento;
 - aplicar RLS nas tabelas tenant-scoped novas e evoluídas;
 - validar a migration em ciclo completo.
 
@@ -23,14 +23,14 @@ Modelos materializados:
 - `IntegrationScope`
 - `IntegrationStatus`
 - `MarketplaceIntegracao` promovido como catálogo de provider
-- `TenantIntegracao` evoluído como configuração canônica por tenant/escopo
+- `TenantIntegracao` evoluído como configuração oficial por tenant/escopo
 - `IntegrationCredential`
 - `IntegrationVersion`
 
 ### Compatibilidade preservada
 
 - [services/api/iot_integracao/new_holland/models/__init__.py](/opt/lampp/htdocs/farm/services/api/iot_integracao/new_holland/models/__init__.py)
-  - passou a reexportar `MarketplaceIntegracao` e `TenantIntegracao` do domínio canônico
+  - passou a reexportar `MarketplaceIntegracao` e `TenantIntegracao` do domínio oficial
   - mantém `MarketplaceAvaliacao`, `IntegracaoNewHolland` e demais modelos legados
 
 ## 3. Migrations
@@ -67,7 +67,7 @@ A migration foi escrita para suportar dois cenários:
 - tabelas legadas `marketplace_integracoes` e `tenant_integracoes` já existentes;
 - tabelas legadas ausentes no banco atual.
 
-Quando ausentes, a migration cria as bases compatíveis antes de aplicar a evolução canônica.
+Quando ausentes, a migration cria as bases compatíveis antes de aplicar a evolução oficial.
 
 ## 4. Enums
 
@@ -173,7 +173,7 @@ Compatibilidade preservada:
 - `configuracoes`
 - estatísticas e URLs existentes
 
-Os campos canônicos de provider definition foram adicionados sem remover o shape legado.
+Os campos oficiais de provider definition foram adicionados sem remover o shape legado.
 
 ## 8. Testes
 
@@ -185,7 +185,7 @@ Os campos canônicos de provider definition foram adicionados sem remover o shap
 
 - estabilidade de `IntegrationScope`
 - estabilidade de `IntegrationStatus`
-- colunas canônicas em `TenantIntegracao`
+- colunas oficiais em `TenantIntegracao`
 - persistência básica de provider, credential, config e version
 - criptografia e masking com `integracoes/security.py`
 - ausência de segredo em texto puro no snapshot versionado
@@ -209,8 +209,8 @@ Itens deliberadamente fora desta fase:
 - `IntegrationHealth`
 - `IntegrationFeature`
 - `IntegrationSyncPolicy`
-- adapters canônicos
-- migração do Sankhya para o canônico
+- adapters oficiais
+- migração do Sankhya para o oficial
 - alertas
 - observabilidade de integração
 - scheduler/worker de sync
@@ -218,7 +218,7 @@ Itens deliberadamente fora desta fase:
 Limitações técnicas restantes:
 
 - `tenant_id` continua textual nesta parte do domínio por compatibilidade histórica;
-- `tenant_integracoes` ainda carrega campos legados (`configuracoes`, `credenciais`) além do shape canônico novo;
+- `tenant_integracoes` ainda carrega campos legados (`configuracoes`, `credenciais`) além do shape oficial novo;
 - `marketplace_integracoes` ainda mantém carga semântica de marketplace além do papel de catálogo de provider.
 
 ## 10. Próxima execução
@@ -235,5 +235,5 @@ Ela deve atacar:
 - `IntegrationSyncPolicy`
 - integração com Outbox sem duplicação
 - integração com Alert Engine e Notification Engine
-- primeiros adapters canônicos de provider
-- início da convergência controlada do Sankhya para o modelo canônico
+- primeiros adapters oficiais de provider
+- início da convergência controlada do Sankhya para o modelo oficial

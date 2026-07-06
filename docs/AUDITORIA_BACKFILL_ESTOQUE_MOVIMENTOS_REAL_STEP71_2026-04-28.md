@@ -60,7 +60,7 @@ Origem:
 
 Motivo:
 
-- já cobertos no ledger canônico;
+- já cobertos no ledger oficial;
 - não migrados para evitar dupla contagem.
 
 ### `MIGRAR`
