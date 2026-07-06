@@ -11,6 +11,7 @@ from sqlalchemy import (
     Boolean,
     Column,
     DateTime,
+    Index,
     Float,
     ForeignKey,
     Integer,
@@ -103,6 +104,47 @@ class IntegrationHealthStatus(str, Enum):
     CONFIG_ERROR = "CONFIG_ERROR"
     PARTIAL_FAILURE = "PARTIAL_FAILURE"
     RATE_LIMITED = "RATE_LIMITED"
+
+
+class ExternalRecordAssociationStatus(str, Enum):
+    """Estados oficiais da associacao entre registro local e externo."""
+
+    ACTIVE = "ACTIVE"
+    PENDING = "PENDING"
+    CONFLICT = "CONFLICT"
+    SUPERSEDED = "SUPERSEDED"
+    INACTIVE = "INACTIVE"
+
+
+class ExternalRecordAssociationOrigin(str, Enum):
+    """Origem da criacao ou atualizacao da associacao."""
+
+    IMPORT = "IMPORT"
+    EXPORT = "EXPORT"
+    MANUAL_RECONCILIATION = "MANUAL_RECONCILIATION"
+    MIGRATION = "MIGRATION"
+    SYNC_JOB = "SYNC_JOB"
+
+
+class ExternalRecordAssociationConfidence(str, Enum):
+    """Nivel de confianca da associacao."""
+
+    HIGH = "HIGH"
+    MEDIUM = "MEDIUM"
+    LOW = "LOW"
+    MANUAL_CONFIRMED = "MANUAL_CONFIRMED"
+
+
+class ExternalRecordAssociationHistoryEvent(str, Enum):
+    """Eventos historicos da associacao oficial."""
+
+    CREATED = "CREATED"
+    UPDATED = "UPDATED"
+    CONFLICT_MARKED = "CONFLICT_MARKED"
+    RECONCILED = "RECONCILED"
+    SUPERSEDED = "SUPERSEDED"
+    DEACTIVATED = "DEACTIVATED"
+    REACTIVATED = "REACTIVATED"
 
 
 class MarketplaceIntegracao(Base):
@@ -371,3 +413,112 @@ class IntegrationHealth(Base):
     config = relationship("TenantIntegracao", foreign_keys=[config_id])
     provider = relationship("MarketplaceIntegracao", foreign_keys=[provider_id])
     last_job = relationship("IntegrationJob", foreign_keys=[last_job_id])
+
+
+class ExternalRecordAssociation(Base):
+    """Associacao oficial entre um registro local e um registro externo."""
+
+    __tablename__ = "integration_external_record_links"
+    __table_args__ = (
+        Index(
+            "ix_external_record_links_tenant_local",
+            "tenant_id",
+            "local_entity",
+            "local_record_id",
+        ),
+        Index(
+            "ix_external_record_links_tenant_external",
+            "tenant_id",
+            "provider_id",
+            "external_entity",
+            "external_record_id",
+        ),
+        Index(
+            "ix_external_record_links_tenant_status",
+            "tenant_id",
+            "status",
+        ),
+    )
+
+    id = Column(UUIDType(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(String(50), nullable=False, index=True)
+    provider_id = Column(Integer, ForeignKey("marketplace_integracoes.id"), nullable=False)
+    config_id = Column(Integer, ForeignKey("tenant_integracoes.id"), nullable=False)
+    feature_id = Column(Integer, ForeignKey("integration_features.id"))
+    environment = Column(String(50), nullable=False)
+    scope_type = Column(String(30), nullable=False, default=IntegrationScope.TENANT.value)
+    scope_id = Column(String(50))
+    external_company_id = Column(String(50))
+    external_branch_id = Column(String(50))
+    local_entity = Column(String(100), nullable=False)
+    local_record_id = Column(String(100))
+    external_entity = Column(String(100), nullable=False)
+    external_record_id = Column(String(255), nullable=False)
+    secondary_keys = Column(JSON)
+    status = Column(
+        String(30),
+        nullable=False,
+        default=ExternalRecordAssociationStatus.ACTIVE.value,
+    )
+    origin = Column(
+        String(40),
+        nullable=False,
+        default=ExternalRecordAssociationOrigin.SYNC_JOB.value,
+    )
+    confidence = Column(
+        String(30),
+        nullable=False,
+        default=ExternalRecordAssociationConfidence.MEDIUM.value,
+    )
+    last_sync_at = Column(DateTime(timezone=True))
+    last_job_id = Column(UUIDType(as_uuid=True), ForeignKey("integration_jobs.id"))
+    notes = Column(Text)
+    metadata_json = Column(JSON)
+    created_by_usuario_id = Column(String(50))
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    deleted_at = Column(DateTime)
+
+    provider = relationship("MarketplaceIntegracao", foreign_keys=[provider_id])
+    config = relationship("TenantIntegracao", foreign_keys=[config_id])
+    feature = relationship("IntegrationFeature", foreign_keys=[feature_id])
+    last_job = relationship("IntegrationJob", foreign_keys=[last_job_id])
+
+
+class ExternalRecordAssociationHistory(Base):
+    """Historico de alteracoes da associacao oficial."""
+
+    __tablename__ = "integration_external_record_link_history"
+    __table_args__ = (
+        Index(
+            "ix_external_record_link_history_tenant_link",
+            "tenant_id",
+            "link_id",
+        ),
+        Index(
+            "ix_external_record_link_history_tenant_event",
+            "tenant_id",
+            "event_type",
+        ),
+    )
+
+    id = Column(UUIDType(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(String(50), nullable=False, index=True)
+    link_id = Column(
+        UUIDType(as_uuid=True),
+        ForeignKey("integration_external_record_links.id"),
+        nullable=False,
+    )
+    event_type = Column(String(30), nullable=False)
+    previous_external_record_id = Column(String(255))
+    new_external_record_id = Column(String(255))
+    previous_status = Column(String(30))
+    new_status = Column(String(30))
+    job_id = Column(UUIDType(as_uuid=True), ForeignKey("integration_jobs.id"))
+    actor_usuario_id = Column(String(50))
+    reason = Column(String(255))
+    details_payload = Column(JSON)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    link = relationship("ExternalRecordAssociation", foreign_keys=[link_id])
+    job = relationship("IntegrationJob", foreign_keys=[job_id])

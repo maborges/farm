@@ -26,6 +26,9 @@ from integracoes.sankhya.models import (
     SankhyaSyncLog,
 )
 from integracoes.sankhya.schemas import SankhyaTestConnectionResponse
+from integracoes.sankhya.services.external_association_helper import (
+    SankhyaExternalAssociationHelper,
+)
 from integracoes.sankhya.services.canonical_adapter import SankhyaCanonicalAdapter
 from integracoes.sankhya.services.auth_service import SankhyaGatewayAuthService
 from integracoes.security import (
@@ -1135,6 +1138,7 @@ class SankhyaPessoaService:
 
     def __init__(self, db: AsyncSession):
         self.db = db
+        self.association_helper = SankhyaExternalAssociationHelper(db)
 
     async def importar_pessoas(self, tenant_id: str, log_id: int | None = None) -> int:
         config = await self._get_config(tenant_id)
@@ -1213,6 +1217,7 @@ class SankhyaPessoaService:
 
         await self.db.commit()
         await self.db.refresh(pessoa)
+        await self.association_helper.sync_pessoa(tenant_id, data)
         return pessoa
 
     async def _salvar_pessoa_juridica(self, tenant_id: str, data: dict[str, Any]) -> SankhyaPessoa:
@@ -1248,6 +1253,7 @@ class SankhyaPessoaService:
 
         await self.db.commit()
         await self.db.refresh(pessoa)
+        await self.association_helper.sync_pessoa(tenant_id, data)
         return pessoa
 
     async def _get_config(self, tenant_id: str) -> SankhyaConfig | None:
@@ -1264,6 +1270,7 @@ class SankhyaProdutoService:
 
     def __init__(self, db: AsyncSession):
         self.db = db
+        self.association_helper = SankhyaExternalAssociationHelper(db)
 
     async def importar_produtos(self, tenant_id: str, log_id: int | None = None) -> int:
         config = await self._get_config(tenant_id)
@@ -1328,6 +1335,7 @@ class SankhyaProdutoService:
 
         await self.db.commit()
         await self.db.refresh(produto)
+        await self.association_helper.sync_produto(tenant_id, data)
         return produto
 
     async def _get_config(self, tenant_id: str) -> SankhyaConfig | None:

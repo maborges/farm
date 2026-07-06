@@ -15,6 +15,9 @@ from integracoes.sankhya.models import (
     SankhyaNFe,
 )
 from integracoes.sankhya.services.canonical_adapter import SankhyaCanonicalAdapter
+from integracoes.sankhya.services.external_association_helper import (
+    SankhyaExternalAssociationHelper,
+)
 from integracoes.sankhya.services.sync_service import SankhyaWSClient
 
 
@@ -24,6 +27,7 @@ class SankhyaNFeService:
     def __init__(self, db: AsyncSession):
         self.db = db
         self.adapter = SankhyaCanonicalAdapter(db)
+        self.association_helper = SankhyaExternalAssociationHelper(db)
 
     async def _get_config(self, tenant_id: str) -> SankhyaConfig | None:
         stmt = select(SankhyaConfig).where(SankhyaConfig.tenant_id == tenant_id)
@@ -224,6 +228,7 @@ class SankhyaNFeService:
 
         await self.db.commit()
         await self.db.refresh(nfe)
+        await self.association_helper.sync_nfe(tenant_id, data)
         return nfe
 
     def _parse_date(self, date_str: str) -> date | None:
@@ -241,6 +246,7 @@ class SankhyaFinanceiroService:
     def __init__(self, db: AsyncSession):
         self.db = db
         self.adapter = SankhyaCanonicalAdapter(db)
+        self.association_helper = SankhyaExternalAssociationHelper(db)
 
     async def _get_config(self, tenant_id: str) -> SankhyaConfig | None:
         stmt = select(SankhyaConfig).where(SankhyaConfig.tenant_id == tenant_id)
@@ -479,6 +485,7 @@ class SankhyaFinanceiroService:
 
         await self.db.commit()
         await self.db.refresh(lancamento)
+        await self.association_helper.sync_financeiro(tenant_id, data)
         return lancamento
 
     def _parse_date(self, date_str: str) -> date | None:

@@ -26,6 +26,7 @@ Função de cada documento:
 - `SKILLS_INDEX.md`: índice de skills por módulo.
 
 Sempre que houver mudança relevante de arquitetura, stack, convenções ou organização de diretórios, atualize `CONTEXTO.md` e os documentos de arquitetura afetados.
+Utilize os português (pt-br) para todos os documentos e iterações com o usuário sempre considerando acentuações e usar palavras não técnicas para explicações.
 
 Observação: cópias espelhadas em `apps/web/` existem para compatibilidade histórica. A fonte canônica fica na raiz do repositório.
 
