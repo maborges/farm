@@ -355,6 +355,8 @@ class OperacaoService(BaseService[OperacaoAgricola]):
 
         for insumo in insumos_data:
             quantidade_total = insumo.dose_por_ha * (insumo.area_aplicada or area_base_ha)
+            custo_item = 0.0
+            custo_unitario = 0.0
 
             produto = await self.session.get(Produto, insumo.produto_id)
             if not produto or (produto.tenant_id is not None and produto.tenant_id != self.tenant_id):
@@ -366,31 +368,39 @@ class OperacaoService(BaseService[OperacaoAgricola]):
                 )
                 raise EntityNotFoundError("Produto/Insumo", insumo.produto_id)
 
-            consumo = await consumir_lotes_fifo(
-                session=self.session,
-                produto_id=insumo.produto_id,
-                quantidade_necessaria=quantidade_total,
-                tenant_id=self.tenant_id,
-            )
-
-            custo_item = consumo.custo_total
-
-            for lote_consumido in consumo.lotes_consumidos:
-                await validate_deposito_context(
-                    self.session,
+            if operacao.status == "REALIZADA":
+                consumo = await consumir_lotes_fifo(
+                    session=self.session,
+                    produto_id=insumo.produto_id,
+                    quantidade_necessaria=quantidade_total,
                     tenant_id=self.tenant_id,
-                    deposito_id=lote_consumido["deposito_id"],
-                    expected_unidade_produtiva_id=unidade_produtiva_id,
                 )
-                ledger_consumos.append({
-                    "produto_id": insumo.produto_id,
-                    "deposito_id": lote_consumido["deposito_id"],
-                    "lote_id": lote_consumido["lote_id"],
-                    "quantidade": lote_consumido["quantidade"],
-                    "custo_unitario": lote_consumido["custo_unitario"],
-                    "custo_total": lote_consumido["custo"],
-                    "observacoes": f"Aplicação em operação agrícola ({operacao.tipo})",
-                })
+
+                custo_item = consumo.custo_total
+                custo_unitario = consumo.custo_total / quantidade_total if quantidade_total > 0 else 0.0
+
+                for lote_consumido in consumo.lotes_consumidos:
+                    await validate_deposito_context(
+                        self.session,
+                        tenant_id=self.tenant_id,
+                        deposito_id=lote_consumido["deposito_id"],
+                        expected_unidade_produtiva_id=unidade_produtiva_id,
+                    )
+                    ledger_consumos.append({
+                        "produto_id": insumo.produto_id,
+                        "deposito_id": lote_consumido["deposito_id"],
+                        "lote_id": lote_consumido["lote_id"],
+                        "quantidade": lote_consumido["quantidade"],
+                        "custo_unitario": lote_consumido["custo_unitario"],
+                        "custo_total": lote_consumido["custo"],
+                        "observacoes": f"Aplicação em operação agrícola ({operacao.tipo})",
+                    })
+
+                await atualizar_saldo_apos_consumo(
+                    session=self.session,
+                    produto_id=insumo.produto_id,
+                    quantidade_total=quantidade_total,
+                )
 
             insumo_op = InsumoOperacao(
                 id=uuid.uuid4(),
@@ -404,17 +414,11 @@ class OperacaoService(BaseService[OperacaoAgricola]):
                 unidade=insumo.unidade,
                 area_aplicada=insumo.area_aplicada,
                 quantidade_total=quantidade_total,
-                custo_unitario=consumo.custo_total / quantidade_total if quantidade_total > 0 else 0.0,
+                custo_unitario=custo_unitario,
                 custo_total=custo_item,
             )
             self.session.add(insumo_op)
             custo_total_insumos += custo_item
-
-            await atualizar_saldo_apos_consumo(
-                session=self.session,
-                produto_id=insumo.produto_id,
-                quantidade_total=quantidade_total,
-            )
 
         return custo_total_insumos, ledger_consumos
 
@@ -1134,7 +1138,15 @@ class OperacaoService(BaseService[OperacaoAgricola]):
         operacao = await super().update(obj_id, dados_dict)
 
         area_alterada = "area_aplicada_ha" in dados_dict
-        precisa_reprocessar_insumos = insumos_payload is not None or (area_alterada and len(insumos_anteriores) > 0)
+        novo_status = dados_dict.get("status")
+        status_mudou_para_realizada = novo_status == "REALIZADA" and status_anterior != "REALIZADA"
+
+        precisa_reprocessar_insumos = (
+            insumos_payload is not None
+            or (area_alterada and len(insumos_anteriores) > 0)
+            or status_mudou_para_realizada
+        )
+
         if precisa_reprocessar_insumos:
             await self._reverter_movimentos_estoque_operacao(operacao_execucao_existente)
             if insumos_anteriores:
