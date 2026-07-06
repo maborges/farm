@@ -15,6 +15,7 @@ from core.cadastros.pessoas.models import Pessoa, PessoaDocumento
 from core.cadastros.produtos.models import CategoriaProduto, Marca, ModeloProduto, Produto
 from core.database import Base
 from core.measurements.models import UnidadeMedida
+from financeiro.models.conciliacao import ContaBancaria
 from events.outbox_model import DomainEventOutbox
 from financeiro.models.despesa import Despesa
 from financeiro.models.nota_fiscal import NotaFiscal, StatusSEFAZ, TipoNF
@@ -43,11 +44,16 @@ from integracoes.sankhya.services.nfe_financeiro_service import (
     SankhyaFinanceiroService,
     SankhyaNFeService,
 )
+from integracoes.sankhya.services.external_association_helper import (
+    SankhyaExternalAssociationHelper,
+)
 from integracoes.sankhya.services.sync_service import (
     SankhyaPessoaService,
     SankhyaProdutoService,
     SankhyaSyncService,
 )
+from operacional.models.estoque import Deposito
+from agricola.models import OperacaoTipoFase
 
 if "tenants" not in Base.metadata.tables:
     Table(
@@ -110,8 +116,11 @@ async def session(monkeypatch: pytest.MonkeyPatch) -> AsyncSession:
             PessoaDocumento.__table__,
             UnidadeMedida.__table__,
             PlanoConta.__table__,
+            ContaBancaria.__table__,
             NotaFiscal.__table__,
             Despesa.__table__,
+            Deposito.__table__,
+            OperacaoTipoFase.__table__,
             SankhyaConfig.__table__,
             SankhyaPessoa.__table__,
             SankhyaProduto.__table__,
@@ -343,6 +352,70 @@ async def _create_despesa(
     await session.commit()
     await session.refresh(despesa)
     return despesa
+
+
+async def _create_conta_bancaria(
+    session: AsyncSession,
+    tenant_id: uuid.UUID,
+    *,
+    nome: str,
+    banco: str | None = None,
+    agencia: str | None = None,
+    conta: str | None = None,
+) -> ContaBancaria:
+    conta_bancaria = ContaBancaria(
+        tenant_id=tenant_id,
+        nome=nome,
+        banco=banco,
+        agencia=agencia,
+        conta=conta,
+        tipo="CORRENTE",
+        ativa=True,
+    )
+    session.add(conta_bancaria)
+    await session.commit()
+    await session.refresh(conta_bancaria)
+    return conta_bancaria
+
+
+async def _create_deposito(
+    session: AsyncSession,
+    tenant_id: uuid.UUID,
+    unidade_id: uuid.UUID,
+    *,
+    nome: str,
+    localizacao_desc: str | None = None,
+) -> Deposito:
+    deposito = Deposito(
+        tenant_id=tenant_id,
+        unidade_produtiva_id=unidade_id,
+        nome=nome,
+        tipo="GERAL",
+        localizacao_desc=localizacao_desc,
+        ativo=True,
+    )
+    session.add(deposito)
+    await session.commit()
+    await session.refresh(deposito)
+    return deposito
+
+
+async def _create_tipo_operacao(
+    session: AsyncSession,
+    *,
+    tipo_operacao: str,
+    fases_permitidas: list[str] | None = None,
+) -> OperacaoTipoFase:
+    item = OperacaoTipoFase(
+        id=uuid.uuid4(),
+        tipo_operacao=tipo_operacao,
+        fases_permitidas=fases_permitidas or ["PLANTIO"],
+        descricao=f"Tipo {tipo_operacao}",
+    )
+    session.add(item)
+    await session.commit()
+    await session.refresh(item)
+    return item
 
 
 async def _list_associations(
@@ -627,3 +700,164 @@ async def test_associacao_pendente_da_unidade_e_reconciliada_quando_equivalencia
         ).scalars()
     )
     assert len(history) >= 2
+
+
+@pytest.mark.asyncio
+async def test_organizacao_sem_modelo_local_seguro_fica_pendente(session: AsyncSession) -> None:
+    tenant_uuid = uuid.uuid4()
+    tenant_id = str(tenant_uuid)
+    await _insert_base_scope(session, tenant_uuid)
+    await _seed_sankhya_runtime(session, tenant_id)
+
+    helper = SankhyaExternalAssociationHelper(session)
+    empresa, filial = await helper.sync_organizacao(
+        tenant_id,
+        {
+            "CODEMP": "10",
+            "CODFILIAL": "20",
+        },
+    )
+
+    assert empresa is not None
+    assert filial is not None
+    assert empresa.status == ExternalRecordAssociationStatus.PENDING.value
+    assert filial.status == ExternalRecordAssociationStatus.PENDING.value
+    assert empresa.local_record_id is None
+    assert filial.local_record_id is None
+    assert filial.external_company_id == "10"
+    assert filial.external_branch_id == "20"
+
+
+@pytest.mark.asyncio
+async def test_deposito_codlocal_com_mesmo_codigo_em_tenants_diferentes_mantem_isolamento(
+    session: AsyncSession,
+) -> None:
+    tenant_a = uuid.uuid4()
+    tenant_b = uuid.uuid4()
+    scope_a = await _insert_base_scope(session, tenant_a)
+    scope_b = await _insert_base_scope(session, tenant_b)
+    await _seed_sankhya_runtime(session, str(tenant_a), environment="producao")
+    await _seed_sankhya_runtime(session, str(tenant_b), environment="producao")
+    unidade_a = scope_a["unidade_id"]
+    unidade_b = scope_b["unidade_id"]
+    deposito_a = await _create_deposito(session, tenant_a, unidade_a, nome="CD-01")
+    deposito_b = await _create_deposito(session, tenant_b, unidade_b, nome="CD-01")
+
+    helper = SankhyaExternalAssociationHelper(session)
+    await helper.sync_deposito(
+        str(tenant_a),
+        {"CODLOCAL": "10", "NOMELOCAL": "CD-01", "TIPOLOCAL": "ARMAZEM"},
+    )
+    await helper.sync_deposito(
+        str(tenant_b),
+        {"CODLOCAL": "10", "NOMELOCAL": "CD-01", "TIPOLOCAL": "ARMAZEM"},
+    )
+
+    associations_a = await _list_associations(session, tenant_id=str(tenant_a), external_entity="LocalEstoque")
+    associations_b = await _list_associations(session, tenant_id=str(tenant_b), external_entity="LocalEstoque")
+
+    assert associations_a[0].local_record_id == str(deposito_a.id)
+    assert associations_b[0].local_record_id == str(deposito_b.id)
+    assert associations_a[0].external_record_id == associations_b[0].external_record_id == "10"
+
+
+@pytest.mark.asyncio
+async def test_deposito_mesmo_codlocal_em_ambientes_diferentes_gera_associacoes_distintas(
+    session: AsyncSession,
+) -> None:
+    tenant_uuid = uuid.uuid4()
+    tenant_id = str(tenant_uuid)
+    scope = await _insert_base_scope(session, tenant_uuid)
+    await _seed_sankhya_runtime(session, tenant_id, environment="producao")
+    deposito = await _create_deposito(session, tenant_uuid, scope["unidade_id"], nome="CD-01")
+
+    helper = SankhyaExternalAssociationHelper(session)
+    payload = {"CODLOCAL": "10", "NOMELOCAL": "CD-01", "TIPOLOCAL": "ARMAZEM"}
+    await helper.sync_deposito(tenant_id, payload)
+    await _set_runtime_environment(session, tenant_id, "homologacao")
+    await helper.sync_deposito(tenant_id, payload)
+
+    associations = await _list_associations(session, tenant_id=tenant_id, external_entity="LocalEstoque")
+    assert len(associations) == 2
+    assert {item.environment for item in associations} == {"producao", "homologacao"}
+    assert all(item.local_record_id == str(deposito.id) for item in associations)
+
+
+@pytest.mark.asyncio
+async def test_conta_bancaria_cria_associacao_ativa_e_mantem_pendencias_de_banco_agencia_carteira(
+    session: AsyncSession,
+) -> None:
+    tenant_uuid = uuid.uuid4()
+    tenant_id = str(tenant_uuid)
+    await _insert_base_scope(session, tenant_uuid)
+    await _seed_sankhya_runtime(session, tenant_id)
+    conta_local = await _create_conta_bancaria(
+        session,
+        tenant_uuid,
+        nome="Conta Bradesco",
+        banco="237",
+        agencia="1234",
+        conta="000123-4",
+    )
+
+    helper = SankhyaExternalAssociationHelper(session)
+    conta_assoc = await helper.sync_conta_bancaria(
+        tenant_id,
+        {
+            "CODBANCO": "237",
+            "AGENCIA": "1234",
+            "CONTA": "000123-4",
+            "CARTEIRA": "109",
+            "NOMECONTA": "Conta Bradesco",
+        },
+    )
+
+    assert conta_assoc is not None
+    assert conta_assoc.local_record_id == str(conta_local.id)
+    assert conta_assoc.status == ExternalRecordAssociationStatus.ACTIVE.value
+    assert conta_assoc.external_record_id == "237|1234|000123-4|109"
+
+    banco_assoc = (await _list_associations(session, tenant_id=tenant_id, external_entity="Banco"))[0]
+    agencia_assoc = (await _list_associations(session, tenant_id=tenant_id, external_entity="Agencia"))[0]
+    carteira_assoc = (await _list_associations(session, tenant_id=tenant_id, external_entity="Carteira"))[0]
+
+    assert banco_assoc.status == ExternalRecordAssociationStatus.PENDING.value
+    assert agencia_assoc.status == ExternalRecordAssociationStatus.PENDING.value
+    assert carteira_assoc.status == ExternalRecordAssociationStatus.PENDING.value
+
+
+@pytest.mark.asyncio
+async def test_centros_e_tipo_operacao_seguem_pendente_ou_ativo_conforme_master_local(
+    session: AsyncSession,
+) -> None:
+    tenant_uuid = uuid.uuid4()
+    tenant_id = str(tenant_uuid)
+    await _insert_base_scope(session, tenant_uuid)
+    await _seed_sankhya_runtime(session, tenant_id)
+    await _create_tipo_operacao(session, tipo_operacao="PLANTIO")
+
+    helper = SankhyaExternalAssociationHelper(session)
+    tipo_assoc = await helper.sync_tipo_operacao(
+        tenant_id,
+        {
+            "CODTIPOPER": "1001",
+            "TIPOOPERACAO": "PLANTIO",
+            "DESCRTIPOPER": "Plantio",
+        },
+    )
+    centro_custo_assoc = await helper.sync_centro_custo(
+        tenant_id,
+        {"CODCENCUS": "CC-01"},
+    )
+    centro_resultado_assoc = await helper.sync_centro_resultado(
+        tenant_id,
+        {"CODCENRES": "CR-01"},
+    )
+
+    assert tipo_assoc is not None
+    assert tipo_assoc.status == ExternalRecordAssociationStatus.ACTIVE.value
+    assert tipo_assoc.local_record_id is not None
+    assert centro_custo_assoc is not None
+    assert centro_resultado_assoc is not None
+    assert centro_custo_assoc.status == ExternalRecordAssociationStatus.PENDING.value
+    assert centro_resultado_assoc.status == ExternalRecordAssociationStatus.PENDING.value

@@ -7,10 +7,16 @@ import time
 import uuid
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.dependencies import get_session, get_tenant_id, require_tenant_permission
+from integracoes.models import (
+    ExternalRecordAssociation,
+    ExternalRecordAssociationStatus,
+    IntegrationFeature,
+)
 from integracoes.sankhya.schemas import (
     SankhyaConfigCreate,
     SankhyaConfigResponse,
@@ -34,6 +40,13 @@ from integracoes.sankhya.services import (
     SankhyaSyncService,
 )
 from integracoes.sankhya.services.sync_service import SankhyaConfigSerializer
+from integracoes.schemas import (
+    ExternalRecordAssociationGovernanceReconcileRequest,
+    ExternalRecordAssociationHistoryItemResponse,
+    ExternalRecordAssociationPendingItemResponse,
+    ExternalRecordAssociationReconcile,
+)
+from integracoes.services import ExternalRecordAssociationService, DuplicateAssociationError
 
 router = APIRouter(prefix="/sankhya", tags=["Integração Sankhya"])
 
@@ -56,6 +69,74 @@ def get_nfe_service(db: AsyncSession = Depends(get_session)) -> SankhyaNFeServic
 
 def get_financeiro_service(db: AsyncSession = Depends(get_session)) -> SankhyaFinanceiroService:
     return SankhyaFinanceiroService(db)
+
+
+def get_external_association_service(
+    db: AsyncSession = Depends(get_session),
+) -> ExternalRecordAssociationService:
+    return ExternalRecordAssociationService(db)
+
+
+def _sanitize_external_payload(association) -> dict[str, object]:
+    return {
+        "secondary_keys": association.secondary_keys or {},
+        "metadata_json": association.metadata_json or {},
+    }
+
+
+def _build_external_key(association) -> str:
+    return "|".join(
+        [
+            str(association.provider_id),
+            str(association.config_id),
+            association.environment,
+            association.external_entity,
+            association.external_company_id or "-",
+            association.external_branch_id or "-",
+            association.external_record_id,
+        ]
+    )
+
+
+def _serialize_history_item(history) -> ExternalRecordAssociationHistoryItemResponse:
+    return ExternalRecordAssociationHistoryItemResponse.model_validate(history)
+
+
+async def _serialize_pending_item(
+    association,
+    *,
+    service: ExternalRecordAssociationService,
+    feature_code_by_id: dict[int, str] | None = None,
+) -> ExternalRecordAssociationPendingItemResponse:
+    history = await service.list_history(tenant_id=association.tenant_id, link_id=association.id)
+    payload = {
+        "id": association.id,
+        "tenant_id": association.tenant_id,
+        "provider_id": association.provider_id,
+        "config_id": association.config_id,
+        "feature_id": association.feature_id,
+        "feature_code": feature_code_by_id.get(association.feature_id) if feature_code_by_id else None,
+        "environment": association.environment,
+        "scope_type": association.scope_type,
+        "scope_id": association.scope_id,
+        "external_company_id": association.external_company_id,
+        "external_branch_id": association.external_branch_id,
+        "local_entity_type": association.local_entity,
+        "local_entity_id": association.local_record_id,
+        "external_entity_type": association.external_entity,
+        "external_id": association.external_record_id,
+        "external_key": _build_external_key(association),
+        "external_payload": _sanitize_external_payload(association),
+        "status": association.status,
+        "confidence": association.confidence,
+        "motivo": association.notes,
+        "last_sync_at": association.last_sync_at,
+        "last_job_id": association.last_job_id,
+        "created_at": association.created_at,
+        "updated_at": association.updated_at,
+        "history": [_serialize_history_item(item) for item in history],
+    }
+    return ExternalRecordAssociationPendingItemResponse.model_validate(payload)
 
 
 @router.post(
@@ -464,4 +545,120 @@ async def listar_financeiro_sankhya(
         exportado=exportado,
         skip=skip,
         limit=limit,
+    )
+
+
+@router.get(
+    "/associacoes/pendentes",
+    response_model=list[ExternalRecordAssociationPendingItemResponse],
+    dependencies=[Depends(require_tenant_permission("integrations:view"))],
+)
+async def listar_associacoes_externas_pendentes(
+    provider_id: int | None = None,
+    feature_id: int | None = None,
+    feature_code: str | None = None,
+    entity_type: str | None = None,
+    external_entity_type: str | None = None,
+    environment: str | None = None,
+    tenant_filter: uuid.UUID | None = Query(default=None, alias="tenant_id"),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    current_tenant_id: uuid.UUID = Depends(get_tenant_id),
+    service: ExternalRecordAssociationService = Depends(get_external_association_service),
+):
+    if tenant_filter is not None and tenant_filter != current_tenant_id:
+        raise HTTPException(status_code=403, detail="Filtro de tenant fora do escopo atual")
+
+    associations = await service.list_pending_associations(
+        tenant_id=str(current_tenant_id),
+        provider_id=provider_id,
+        feature_id=feature_id,
+        feature_code=feature_code,
+        environment=environment,
+        local_entity=entity_type,
+        external_entity=external_entity_type,
+        limit=limit,
+        offset=offset,
+    )
+
+    feature_code_by_id: dict[int, str] = {}
+    feature_ids = {item.feature_id for item in associations if item.feature_id is not None}
+    if feature_ids:
+        rows = await service.db.execute(
+            select(IntegrationFeature.id, IntegrationFeature.codigo).where(
+                IntegrationFeature.id.in_(feature_ids),
+            ),
+        )
+        feature_code_by_id = {row.id: row.codigo for row in rows}
+
+    return [
+        await _serialize_pending_item(
+            association,
+            service=service,
+            feature_code_by_id=feature_code_by_id,
+        )
+        for association in associations
+    ]
+
+
+@router.post(
+    "/associacoes/{association_id}/reconciliar",
+    response_model=ExternalRecordAssociationPendingItemResponse,
+    dependencies=[Depends(require_tenant_permission("integrations:sync"))],
+)
+async def reconciliar_associacao_externa(
+    association_id: uuid.UUID,
+    payload: ExternalRecordAssociationGovernanceReconcileRequest,
+    current_tenant_id: uuid.UUID = Depends(get_tenant_id),
+    service: ExternalRecordAssociationService = Depends(get_external_association_service),
+):
+    association = await service.db.get(ExternalRecordAssociation, association_id)
+    if association is None or association.tenant_id != str(current_tenant_id) or association.deleted_at is not None:
+        raise HTTPException(status_code=404, detail="Associacao externa nao encontrada")
+    if association.status != ExternalRecordAssociationStatus.PENDING.value:
+        raise HTTPException(status_code=409, detail="Somente associacoes pendentes podem ser reconciliadas")
+
+    try:
+        await service.detect_duplicate(
+            tenant_id=association.tenant_id,
+            provider_id=association.provider_id,
+            config_id=association.config_id,
+            environment=association.environment,
+            local_entity=payload.local_entity_type,
+            local_record_id=payload.local_entity_id,
+            external_entity=association.external_entity,
+            external_record_id=association.external_record_id,
+            external_company_id=association.external_company_id,
+            external_branch_id=association.external_branch_id,
+            ignore_link_id=association.id,
+        )
+    except DuplicateAssociationError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    reconciled = await service.reconcile_pending(
+        association,
+        ExternalRecordAssociationReconcile(
+            actor_usuario_id=payload.actor_usuario_id,
+            reason=payload.reason,
+            local_entity=payload.local_entity_type,
+            local_record_id=payload.local_entity_id,
+            confidence=payload.confidence,
+            last_job_id=payload.last_job_id,
+            notes=payload.notes,
+        ),
+    )
+
+    feature_code_by_id: dict[int, str] = {}
+    if reconciled.feature_id is not None:
+        rows = await service.db.execute(
+            select(IntegrationFeature.id, IntegrationFeature.codigo).where(
+                IntegrationFeature.id == reconciled.feature_id,
+            ),
+        )
+        feature_code_by_id = {row.id: row.codigo for row in rows}
+
+    return await _serialize_pending_item(
+        reconciled,
+        service=service,
+        feature_code_by_id=feature_code_by_id,
     )

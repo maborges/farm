@@ -12,11 +12,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.cadastros.pessoas.models import Pessoa, PessoaDocumento
 from core.cadastros.produtos.models import Produto
+from financeiro.models.conciliacao import ContaBancaria
 from core.measurements.models import UnidadeMedida
 from financeiro.models.despesa import Despesa
 from financeiro.models.nota_fiscal import NotaFiscal
 from financeiro.models.plano_conta import PlanoConta
 from financeiro.models.receita import Receita
+from operacional.models.estoque import Deposito
+from agricola.models import OperacaoTipoFase
 from integracoes.models import (
     ExternalRecordAssociation,
     ExternalRecordAssociationConfidence,
@@ -205,6 +208,292 @@ class SankhyaExternalAssociationHelper:
         await self.sync_plano_natureza(tenant_id, data.get("CODNAT"), context=context)
         return association
 
+    async def sync_organizacao(
+        self,
+        tenant_id: str,
+        data: dict[str, Any],
+    ) -> tuple[ExternalRecordAssociation | None, ExternalRecordAssociation | None]:
+        """Registra associacoes pendentes para empresa e filial externas.
+
+        Args:
+            tenant_id: Identificador do tenant em escopo.
+            data: Payload do ERP com `CODEMP` e `CODFILIAL`, quando disponiveis.
+
+        Returns:
+            Tupla com as associacoes de empresa e filial, nesta ordem.
+
+        Raises:
+            None.
+        """
+
+        context = await self._ensure_context(tenant_id, "financeiro")
+        if context is None:
+            return None, None
+
+        empresa = await self._sync_pending_reference(
+            context=context,
+            local_entity="Empresa",
+            external_entity="Empresa",
+            external_record_id=self._clean_optional(
+                data.get("CODEMP") or data.get("CODEMPRESA")
+            ),
+            secondary_keys={"codemp": self._clean_optional(data.get("CODEMP") or data.get("CODEMPRESA"))},
+            notes="Empresa externa sem master local seguro.",
+        )
+        filial = await self._sync_pending_reference(
+            context=context,
+            local_entity="Filial",
+            external_entity="Filial",
+            external_record_id=self._clean_optional(data.get("CODFILIAL") or data.get("CODFIL")),
+            secondary_keys={
+                "codemp": self._clean_optional(data.get("CODEMP") or data.get("CODEMPRESA")),
+                "codfilial": self._clean_optional(data.get("CODFILIAL") or data.get("CODFIL")),
+            },
+            external_company_id=self._extract_external_company_id(data),
+            external_branch_id=self._extract_external_branch_id(data),
+            notes="Filial externa sem master local seguro.",
+        )
+        return empresa, filial
+
+    async def sync_deposito(
+        self,
+        tenant_id: str,
+        data: dict[str, Any],
+    ) -> ExternalRecordAssociation | None:
+        """Registra a associacao de deposito com CODLOCAL ou referencia textual.
+
+        Args:
+            tenant_id: Identificador do tenant em escopo.
+            data: Payload Sankhya do estoque.
+
+        Returns:
+            Associacao oficial criada ou atualizada, quando houver codigo util.
+
+        Raises:
+            None.
+        """
+
+        context = await self._ensure_context(tenant_id, "estoque")
+        if context is None:
+            return None
+
+        external_record_id = self._first_identifier(
+            data.get("CODLOCAL"),
+            data.get("NOMELOCAL"),
+            data.get("DESCRLOCAL"),
+            data.get("LOCAL"),
+        )
+        if external_record_id is None:
+            return None
+
+        local = await self._find_deposito(tenant_id, data)
+        return await self._sync_entity_association(
+            context=context,
+            local_entity="Deposito",
+            external_entity="LocalEstoque",
+            external_record_id=external_record_id,
+            local_record_id=str(local.id) if local else None,
+            secondary_keys={
+                "codlocal": self._clean_optional(data.get("CODLOCAL")),
+                "nome": self._clean_optional(data.get("NOMELOCAL") or data.get("DESCRLOCAL") or data.get("LOCAL")),
+                "tipo": self._clean_optional(data.get("TIPOLOCAL") or data.get("TIPO")),
+            },
+            confidence=(
+                ExternalRecordAssociationConfidence.HIGH
+                if local is not None
+                else ExternalRecordAssociationConfidence.LOW
+            ),
+            notes=None if local is not None else "Deposito externo sem equivalencia local segura.",
+            external_company_id=self._extract_external_company_id(data),
+            external_branch_id=self._extract_external_branch_id(data),
+        )
+
+    async def sync_conta_bancaria(
+        self,
+        tenant_id: str,
+        data: dict[str, Any],
+    ) -> ExternalRecordAssociation | None:
+        """Registra a associacao da conta corrente e pendencias bancarias auxiliares.
+
+        Args:
+            tenant_id: Identificador do tenant em escopo.
+            data: Payload Sankhya com dados bancarios.
+
+        Returns:
+            Associacao da conta corrente local, quando localmente identificada.
+
+        Raises:
+            None.
+        """
+
+        context = await self._ensure_context(tenant_id, "financeiro")
+        if context is None:
+            return None
+
+        local = await self._find_conta_bancaria(tenant_id, data)
+        external_record_id = self._build_conta_bancaria_external_id(data)
+        if external_record_id is None:
+            return None
+        primary = await self._sync_entity_association(
+            context=context,
+            local_entity="ContaBancaria",
+            external_entity="ContaCorrente",
+            external_record_id=external_record_id,
+            local_record_id=str(local.id) if local else None,
+            secondary_keys={
+                "banco": self._clean_optional(data.get("CODBANCO") or data.get("BANCO")),
+                "agencia": self._clean_optional(data.get("CODAGENCIA") or data.get("AGENCIA")),
+                "conta": self._clean_optional(data.get("CONTA") or data.get("NUMCONTA") or data.get("CONTA_CORRENTE")),
+                "carteira": self._clean_optional(data.get("CARTEIRA") or data.get("CODCARTEIRA")),
+            },
+            confidence=(
+                ExternalRecordAssociationConfidence.HIGH
+                if local is not None
+                else ExternalRecordAssociationConfidence.LOW
+            ),
+            notes=None if local is not None else "Conta bancária externa sem equivalencia local segura.",
+            external_company_id=self._extract_external_company_id(data),
+            external_branch_id=self._extract_external_branch_id(data),
+        )
+
+        await self._sync_pending_reference(
+            context=context,
+            local_entity="Banco",
+            external_entity="Banco",
+            external_record_id=self._first_identifier(data.get("CODBANCO"), data.get("BANCO")),
+            secondary_keys={"codbanco": self._clean_optional(data.get("CODBANCO") or data.get("BANCO"))},
+            external_company_id=self._extract_external_company_id(data),
+            external_branch_id=self._extract_external_branch_id(data),
+            notes="Banco externo sem master local.",
+        )
+        await self._sync_pending_reference(
+            context=context,
+            local_entity="Agencia",
+            external_entity="Agencia",
+            external_record_id=self._first_identifier(data.get("CODAGENCIA"), data.get("AGENCIA")),
+            secondary_keys={"codagencia": self._clean_optional(data.get("CODAGENCIA") or data.get("AGENCIA"))},
+            external_company_id=self._extract_external_company_id(data),
+            external_branch_id=self._extract_external_branch_id(data),
+            notes="Agencia externa sem master local.",
+        )
+        await self._sync_pending_reference(
+            context=context,
+            local_entity="Carteira",
+            external_entity="Carteira",
+            external_record_id=self._first_identifier(data.get("CARTEIRA"), data.get("CODCARTEIRA")),
+            secondary_keys={"carteira": self._clean_optional(data.get("CARTEIRA") or data.get("CODCARTEIRA"))},
+            external_company_id=self._extract_external_company_id(data),
+            external_branch_id=self._extract_external_branch_id(data),
+            notes="Carteira externa sem master local.",
+        )
+        return primary
+
+    async def sync_centro_custo(
+        self,
+        tenant_id: str,
+        data: dict[str, Any],
+    ) -> ExternalRecordAssociation | None:
+        """Registra a pendencia de centro de custo externo.
+
+        Args:
+            tenant_id: Identificador do tenant em escopo.
+            data: Payload Sankhya com o codigo do centro.
+
+        Returns:
+            Associacao pendente quando o codigo externo estiver presente.
+
+        Raises:
+            None.
+        """
+
+        return await self._sync_pendente_financeiro(
+            tenant_id,
+            data,
+            local_entity="CentroCusto",
+            external_entity="CentroCusto",
+            external_keys=("CODCENCUS", "CODCCUSTO", "CODCC"),
+            notes="Centro de custo externo sem master local seguro.",
+        )
+
+    async def sync_centro_resultado(
+        self,
+        tenant_id: str,
+        data: dict[str, Any],
+    ) -> ExternalRecordAssociation | None:
+        """Registra a pendencia de centro de resultado externo.
+
+        Args:
+            tenant_id: Identificador do tenant em escopo.
+            data: Payload Sankhya com o codigo do centro.
+
+        Returns:
+            Associacao pendente quando o codigo externo estiver presente.
+
+        Raises:
+            None.
+        """
+
+        return await self._sync_pendente_financeiro(
+            tenant_id,
+            data,
+            local_entity="CentroResultado",
+            external_entity="CentroResultado",
+            external_keys=("CODCENRES", "CODCENTRORESULTADO", "CODCCRES"),
+            notes="Centro de resultado externo sem master local seguro.",
+        )
+
+    async def sync_tipo_operacao(
+        self,
+        tenant_id: str,
+        data: dict[str, Any],
+    ) -> ExternalRecordAssociation | None:
+        """Registra a associacao de tipo de operacao quando o lookup local existe.
+
+        Args:
+            tenant_id: Identificador do tenant em escopo.
+            data: Payload Sankhya com codigo e descricao do tipo operacional.
+
+        Returns:
+            Associacao oficial ativa ou pendente, quando o tipo for identificado.
+
+        Raises:
+            None.
+        """
+
+        context = await self._ensure_context(tenant_id, "estoque")
+        if context is None:
+            return None
+
+        external_record_id = self._first_identifier(
+            data.get("CODTIPOPER"),
+            data.get("CODTIPOPERACAO"),
+            data.get("TIPOOPERACAO"),
+            data.get("DESCRTIPOPER"),
+        )
+        if external_record_id is None:
+            return None
+
+        local = await self._find_tipo_operacao(data)
+        return await self._sync_entity_association(
+            context=context,
+            local_entity="OperacaoTipoFase",
+            external_entity="TipoOperacao",
+            external_record_id=external_record_id,
+            local_record_id=str(local.id) if local else None,
+            secondary_keys={
+                "codigo": self._clean_optional(data.get("CODTIPOPER") or data.get("CODTIPOPERACAO")),
+                "tipo_operacao": self._clean_optional(data.get("TIPOOPERACAO") or data.get("DESCRTIPOPER")),
+            },
+            confidence=(
+                ExternalRecordAssociationConfidence.HIGH
+                if local is not None
+                else ExternalRecordAssociationConfidence.LOW
+            ),
+            notes=None if local is not None else "Tipo de operacao externo sem equivalencia local segura.",
+            external_company_id=self._extract_external_company_id(data),
+            external_branch_id=self._extract_external_branch_id(data),
+        )
+
     async def sync_plano_natureza(
         self,
         tenant_id: str,
@@ -234,6 +523,39 @@ class SankhyaExternalAssociationHelper:
                 else ExternalRecordAssociationConfidence.LOW
             ),
             notes=None if local is not None else "Natureza/plano local nao identificado de forma segura.",
+        )
+
+    async def _sync_pendente_financeiro(
+        self,
+        tenant_id: str,
+        data: dict[str, Any],
+        *,
+        local_entity: str,
+        external_entity: str,
+        external_keys: tuple[str, ...],
+        notes: str,
+    ) -> ExternalRecordAssociation | None:
+        context = await self._ensure_context(tenant_id, "financeiro")
+        if context is None:
+            return None
+
+        external_record_id = self._first_identifier(*(data.get(key) for key in external_keys))
+        if external_record_id is None:
+            return None
+
+        return await self._sync_pending_reference(
+            context=context,
+            local_entity=local_entity,
+            external_entity=external_entity,
+            external_record_id=external_record_id,
+            secondary_keys={
+                key.lower(): self._clean_optional(data.get(key))
+                for key in external_keys
+                if self._clean_optional(data.get(key)) is not None
+            },
+            external_company_id=self._extract_external_company_id(data),
+            external_branch_id=self._extract_external_branch_id(data),
+            notes=notes,
         )
 
     async def _sync_entity_association(
@@ -516,11 +838,118 @@ class SankhyaExternalAssociationHelper:
         )
         return await self._scalar_unique(stmt)
 
+    async def _find_deposito(self, tenant_id: str, data: dict[str, Any]) -> Deposito | None:
+        tenant_uuid = self._parse_uuid(tenant_id)
+        if tenant_uuid is None:
+            return None
+
+        candidates = [
+            self._normalize_code(data.get("NOMELOCAL")),
+            self._normalize_code(data.get("DESCRLOCAL")),
+            self._normalize_code(data.get("LOCAL")),
+        ]
+        candidates = [candidate for candidate in candidates if candidate]
+        if not candidates:
+            return None
+
+        stmt = select(Deposito).where(
+            Deposito.tenant_id == tenant_uuid,
+            Deposito.ativo.is_(True),
+            or_(
+                func.upper(Deposito.nome).in_(candidates),
+                func.upper(func.coalesce(Deposito.localizacao_desc, "")).in_(candidates),
+            ),
+        )
+        return await self._scalar_unique(stmt)
+
+    async def _find_conta_bancaria(self, tenant_id: str, data: dict[str, Any]) -> ContaBancaria | None:
+        tenant_uuid = self._parse_uuid(tenant_id)
+        if tenant_uuid is None:
+            return None
+
+        banco = self._clean_optional(data.get("CODBANCO") or data.get("BANCO"))
+        agencia = self._clean_optional(data.get("CODAGENCIA") or data.get("AGENCIA"))
+        conta = self._clean_optional(data.get("CONTA") or data.get("NUMCONTA") or data.get("CONTA_CORRENTE"))
+        nome = self._clean_optional(data.get("NOMECONTA") or data.get("NOME"))
+
+        filters = [ContaBancaria.tenant_id == tenant_uuid, ContaBancaria.ativa.is_(True)]
+        if banco is not None:
+            filters.append(func.upper(func.coalesce(ContaBancaria.banco, "")) == banco.upper())
+        if agencia is not None:
+            filters.append(func.upper(func.coalesce(ContaBancaria.agencia, "")) == agencia.upper())
+        if conta is not None:
+            filters.append(func.upper(func.coalesce(ContaBancaria.conta, "")) == conta.upper())
+        if nome is not None:
+            filters.append(func.upper(ContaBancaria.nome) == nome.upper())
+        if len(filters) == 2:
+            return None
+
+        stmt = select(ContaBancaria).where(*filters)
+        return await self._scalar_unique(stmt)
+
+    async def _find_tipo_operacao(self, data: dict[str, Any]) -> OperacaoTipoFase | None:
+        candidates = [
+            self._normalize_code(data.get("TIPOOPERACAO")),
+            self._normalize_code(data.get("DESCRTIPOPER")),
+        ]
+        candidates = [candidate for candidate in candidates if candidate]
+        if not candidates:
+            return None
+
+        stmt = select(OperacaoTipoFase).where(
+            func.upper(OperacaoTipoFase.tipo_operacao).in_(candidates)
+        )
+        return await self._scalar_unique(stmt)
+
+    async def _sync_pending_reference(
+        self,
+        *,
+        context: dict[str, Any],
+        local_entity: str,
+        external_entity: str,
+        external_record_id: str | None,
+        secondary_keys: dict[str, Any] | None = None,
+        external_company_id: str | None = None,
+        external_branch_id: str | None = None,
+        notes: str | None = None,
+    ) -> ExternalRecordAssociation | None:
+        if external_record_id is None:
+            return None
+        return await self._sync_entity_association(
+            context=context,
+            local_entity=local_entity,
+            external_entity=external_entity,
+            external_record_id=external_record_id,
+            local_record_id=None,
+            secondary_keys=secondary_keys or {},
+            confidence=ExternalRecordAssociationConfidence.LOW,
+            notes=notes,
+            external_company_id=external_company_id,
+            external_branch_id=external_branch_id,
+        )
+
     async def _scalar_unique(self, stmt):
         rows = list((await self.db.execute(stmt.limit(2))).scalars().all())
         if len(rows) == 1:
             return rows[0]
         return None
+
+    def _first_identifier(self, *values: Any) -> str | None:
+        for value in values:
+            cleaned = self._clean_optional(value)
+            if cleaned:
+                return cleaned
+        return None
+
+    def _build_conta_bancaria_external_id(self, data: dict[str, Any]) -> str | None:
+        parts = [
+            self._clean_optional(data.get("CODBANCO") or data.get("BANCO")),
+            self._clean_optional(data.get("CODAGENCIA") or data.get("AGENCIA")),
+            self._clean_optional(data.get("CONTA") or data.get("NUMCONTA") or data.get("CONTA_CORRENTE")),
+            self._clean_optional(data.get("CARTEIRA") or data.get("CODCARTEIRA")),
+        ]
+        values = [part for part in parts if part]
+        return "|".join(values) if values else None
 
     def _build_financeiro_secondary_keys(self, data: dict[str, Any]) -> dict[str, Any]:
         return {

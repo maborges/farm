@@ -13,6 +13,7 @@ from integracoes.models import (
     ExternalRecordAssociationHistory,
     ExternalRecordAssociationHistoryEvent,
     ExternalRecordAssociationStatus,
+    IntegrationFeature,
 )
 from integracoes.schemas import (
     ExternalRecordAssociationCreate,
@@ -366,6 +367,50 @@ class ExternalRecordAssociationService:
             )
             .order_by(ExternalRecordAssociationHistory.created_at.asc()),
         )
+        return list(result)
+
+    async def list_pending_associations(
+        self,
+        *,
+        tenant_id: str,
+        provider_id: int | None = None,
+        feature_id: int | None = None,
+        feature_code: str | None = None,
+        config_id: int | None = None,
+        environment: str | None = None,
+        local_entity: str | None = None,
+        external_entity: str | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list[ExternalRecordAssociation]:
+        stmt = self._base_query().where(
+            ExternalRecordAssociation.tenant_id == tenant_id,
+            ExternalRecordAssociation.status == ExternalRecordAssociationStatus.PENDING.value,
+            ExternalRecordAssociation.deleted_at.is_(None),
+        )
+        if provider_id is not None:
+            stmt = stmt.where(ExternalRecordAssociation.provider_id == provider_id)
+        if feature_id is not None:
+            stmt = stmt.where(ExternalRecordAssociation.feature_id == feature_id)
+        if config_id is not None:
+            stmt = stmt.where(ExternalRecordAssociation.config_id == config_id)
+        if environment is not None:
+            stmt = stmt.where(ExternalRecordAssociation.environment == environment)
+        if local_entity is not None:
+            stmt = stmt.where(ExternalRecordAssociation.local_entity == local_entity)
+        if external_entity is not None:
+            stmt = stmt.where(ExternalRecordAssociation.external_entity == external_entity)
+        if feature_code is not None:
+            stmt = stmt.join(
+                IntegrationFeature,
+                ExternalRecordAssociation.feature_id == IntegrationFeature.id,
+            ).where(IntegrationFeature.codigo == feature_code)
+        stmt = (
+            stmt.order_by(ExternalRecordAssociation.created_at.desc())
+            .offset(offset)
+            .limit(limit)
+        )
+        result = await self.db.scalars(stmt)
         return list(result)
 
     def _base_query(self) -> Select[tuple[ExternalRecordAssociation]]:
