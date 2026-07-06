@@ -365,6 +365,14 @@ async def completar_onboarding(
         await svc.set_moeda_padrao(data.moeda)
         await svc.set_fuso_horario(data.fuso_horario)
         await svc.set_configuracao("geral", "idioma", data.idioma)
+
+        # Persistência da Intenção (Fase 1: Preparação para PhaseTemplates e Sync)
+        if data.cultura:
+            await svc.set_configuracao("geral", "cultura_principal", data.cultura)
+        if data.erp:
+            await svc.set_configuracao("geral", "erp_principal", data.erp)
+        if data.modulos:
+            await svc.set_configuracao("geral", "modulos_selecionados", ",".join(data.modulos))
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
 

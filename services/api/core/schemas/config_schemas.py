@@ -179,7 +179,13 @@ class HistoricoConfiguracaoItem(BaseModel):
 # =============================================================================
 
 class OnboardingConfigRequest(BaseModel):
-    """Payload de configuração inicial do onboarding."""
+    """Payload de configuração inicial do onboarding (Fase 1: Intent-Based)."""
+    # Novos campos (Intent-Based)
+    cultura: Optional[str] = Field(None, description="Cultura principal (ex: Cafe, Soja)")
+    erp: Optional[str] = Field(None, description="ERP utilizado (ex: Sankhya, TOTVS)")
+    modulos: Optional[List[str]] = Field(default_factory=list, description="Módulos selecionados")
+
+    # Campos antigos mantidos para compatibilidade com os testes e defaults da Fase 1
     ano_agricola_inicio: int = Field(7, ge=1, le=12, description="Mês de início (padrão: 7)")
     ano_agricola_fim: int = Field(6, ge=1, le=12, description="Mês de fim (padrão: 6)")
     unidade_area: str = Field("HA", description="Unidade de área padrão")
