@@ -45,6 +45,52 @@ _LEGACY_TEXT_REPLACEMENTS = {
     "Estabilizacao": "Estabilização",
 }
 
+_CHECKLIST_ACTION_GUIDANCE = {
+    "CHECK_UNIDADE_PRODUTIVA": (
+        "Cadastre ou ative pelo menos uma unidade produtiva para vincular a implantação "
+        "a uma fazenda válida."
+    ),
+    "CHECK_ESTRUTURA_TERRITORIAL": (
+        "Cadastre ao menos uma área rural ou talhão dentro da unidade produtiva para "
+        "formar a estrutura territorial mínima."
+    ),
+    "CHECK_AGRICULTURA_TALHAO": (
+        "Se o módulo agrícola estiver em uso, crie ao menos um talhão ativo para permitir "
+        "operações e lançamentos da safra."
+    ),
+    "CHECK_PECUARIA_PIQUETE": (
+        "Se o módulo pecuário estiver em uso, cadastre ao menos um piquete ativo para "
+        "organizar o manejo do rebanho."
+    ),
+    "CHECK_ESTOQUE_DEPOSITO": (
+        "Se o estoque estiver habilitado, crie ao menos um depósito ativo para receber "
+        "saldos, entradas e saídas."
+    ),
+    "CHECK_FINANCEIRO_PLANO_CONTA": (
+        "Se o financeiro estiver habilitado, configure um plano de contas mínimo para "
+        "classificar receitas e despesas."
+    ),
+    "CHECK_PRODUTO_CATALOGO": (
+        "Cadastre os produtos básicos da operação, como insumos, materiais ou itens de "
+        "estoque, para liberar o catálogo mínimo."
+    ),
+    "CHECK_EQUIPAMENTO_CADASTRO": (
+        "Se a frota estiver habilitada, cadastre ao menos um equipamento ou máquina para "
+        "concluir a configuração operacional."
+    ),
+}
+
+_CHECKLIST_ACTION_TARGETS = {
+    "CHECK_UNIDADE_PRODUTIVA": ("Abrir propriedades", "/cadastros/propriedades"),
+    "CHECK_ESTRUTURA_TERRITORIAL": ("Abrir talhões", "/cadastros/propriedades/talhoes"),
+    "CHECK_AGRICULTURA_TALHAO": ("Abrir talhões", "/cadastros/propriedades/talhoes"),
+    "CHECK_PECUARIA_PIQUETE": ("Abrir piquetes", "/dashboard/pecuaria/piquetes"),
+    "CHECK_ESTOQUE_DEPOSITO": ("Abrir estoque", "/suprimentos/estoque"),
+    "CHECK_FINANCEIRO_PLANO_CONTA": ("Abrir planos de conta", "/dashboard/financeiro/planos-conta"),
+    "CHECK_PRODUTO_CATALOGO": ("Abrir produtos", "/cadastros/produtos"),
+    "CHECK_EQUIPAMENTO_CADASTRO": ("Abrir equipamentos", "/cadastros/equipamentos"),
+}
+
 
 def _merge_payload(
     payload_snapshot: dict[str, object] | None,
@@ -63,6 +109,20 @@ def _normalize_user_text(value: str | None) -> str | None:
     for old, new in _LEGACY_TEXT_REPLACEMENTS.items():
         normalized = normalized.replace(old, new)
     return normalized
+
+
+def _get_checklist_action_guidance(codigo_item: str) -> str:
+    return _CHECKLIST_ACTION_GUIDANCE.get(
+        codigo_item,
+        (
+            "Conclua o cadastro ou a configuração exigida por este item para que a "
+            "validação automática seja refeita com sucesso."
+        ),
+    )
+
+
+def _get_checklist_action_target(codigo_item: str) -> tuple[str | None, str | None]:
+    return _CHECKLIST_ACTION_TARGETS.get(codigo_item, (None, None))
 
 
 async def _get_implantacao_ativa(
@@ -149,6 +209,9 @@ async def _build_resumo(
             WizardResumoChecklistPendenteResponse(
                 codigo_item=item.codigo_item,
                 descricao=_normalize_user_text(item.descricao) or item.descricao,
+                acao_recomendada=_get_checklist_action_guidance(item.codigo_item),
+                acao_label=_get_checklist_action_target(item.codigo_item)[0],
+                acao_link=_get_checklist_action_target(item.codigo_item)[1],
                 obrigatorio=item.obrigatorio,
                 status=item.status,
                 severidade=item.severidade,
@@ -199,6 +262,9 @@ async def _build_checklist_response(
             ).model_copy(
                 update={
                     "descricao": _normalize_user_text(item.descricao) or item.descricao,
+                    "acao_recomendada": _get_checklist_action_guidance(item.codigo_item),
+                    "acao_label": _get_checklist_action_target(item.codigo_item)[0],
+                    "acao_link": _get_checklist_action_target(item.codigo_item)[1],
                 }
             )
             for item in itens

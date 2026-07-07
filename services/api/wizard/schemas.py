@@ -10,6 +10,9 @@ from pydantic import BaseModel, ConfigDict, Field
 class WizardResumoChecklistPendenteResponse(BaseModel):
     codigo_item: str
     descricao: str
+    acao_recomendada: str | None = None
+    acao_label: str | None = None
+    acao_link: str | None = None
     obrigatorio: bool
     status: str
     severidade: str
@@ -79,6 +82,9 @@ class WizardChecklistItemResponse(BaseModel):
     etapa_id: uuid.UUID | None = None
     codigo_item: str
     descricao: str
+    acao_recomendada: str | None = None
+    acao_label: str | None = None
+    acao_link: str | None = None
     obrigatorio: bool
     status: str
     severidade: str

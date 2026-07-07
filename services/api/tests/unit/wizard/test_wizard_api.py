@@ -284,6 +284,9 @@ def test_checklist_retorna_itens() -> None:
     body = response.json()
     assert body["checklist_minimo_satisfeito"] is False
     assert body["itens"][0]["codigo_item"] == "CHECK_UNIDADE_PRODUTIVA"
+    assert "unidade produtiva" in body["itens"][0]["acao_recomendada"].lower()
+    assert body["itens"][0]["acao_label"] == "Abrir propriedades"
+    assert body["itens"][0]["acao_link"] == "/cadastros/propriedades"
 
 
 def test_reavaliar_checklist_e_idempotente() -> None:
