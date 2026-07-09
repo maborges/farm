@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Request, status
+from sqlalchemy import select, text
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from core.dependencies import get_current_user, get_session, get_tenant_id
 from core.models.auth import Usuario
@@ -11,6 +14,7 @@ from wizard.checklist_engine import ChecklistEngine
 from wizard.models import ImplantacaoOperacional, PendenciaSeverity, PendenciaStatus, WizardStatus
 from wizard.schemas import (
     WizardActionRequest,
+    WizardCargaRequest,
     WizardChecklistItemResponse,
     WizardChecklistResponse,
     WizardEtapaResponse,
@@ -21,6 +25,9 @@ from wizard.schemas import (
     WizardResumoResponse,
 )
 from wizard.services import ImplantacaoService
+from wizard.services import (
+    sanitize_legacy_wizard_nullable_uuid_columns as _sanitize_legacy_uuids,
+)
 from wizard.state_engine import can_transition
 
 router = APIRouter(prefix="/wizard", tags=["Wizard — Implantacao"])
@@ -78,6 +85,14 @@ _CHECKLIST_ACTION_GUIDANCE = {
         "Se a frota estiver habilitada, cadastre ao menos um equipamento ou máquina para "
         "concluir a configuração operacional."
     ),
+    "CHECK_CULTURA": (
+        "Cadastre ao menos uma cultura produtiva (ex: Soja, Milho, Café) baseada nas "
+        "commodities ou produtos canônicos para habilitar o módulo agrícola."
+    ),
+    "CHECK_INTEGRACAO_ERP": (
+        "Se houver integração com ERP, cadastre as credenciais e ative o sincronismo "
+        "na Central de Integrações."
+    ),
 }
 
 _CHECKLIST_ACTION_TARGETS = {
@@ -89,7 +104,16 @@ _CHECKLIST_ACTION_TARGETS = {
     "CHECK_FINANCEIRO_PLANO_CONTA": ("Abrir planos de conta", "/dashboard/financeiro/planos-conta"),
     "CHECK_PRODUTO_CATALOGO": ("Abrir produtos", "/cadastros/produtos"),
     "CHECK_EQUIPAMENTO_CADASTRO": ("Abrir equipamentos", "/cadastros/equipamentos"),
+    "CHECK_CULTURA": ("Abrir culturas", "/cadastros/culturas"),
+    "CHECK_INTEGRACAO_ERP": ("Abrir integrações", "/configuracoes/integracoes"),
 }
+
+
+async def _commit_and_restore_rls(session: AsyncSession):
+    await session.commit()
+    tenant_id = session.info.get("tenant_id")
+    if tenant_id:
+        await session.execute(text(f"SET LOCAL app.current_tenant_id = '{tenant_id}';"))
 
 
 def _merge_payload(
@@ -128,8 +152,32 @@ def _get_checklist_action_target(codigo_item: str) -> tuple[str | None, str | No
 async def _get_implantacao_ativa(
     service: ImplantacaoService,
     tenant_id: uuid.UUID,
+    owner_usuario_id: uuid.UUID,
+    *,
+    unidade_produtiva_id: uuid.UUID | None = None,
 ) -> ImplantacaoOperacional:
-    return await service.retomar_implantacao(tenant_id)
+    from core.exceptions import EntityNotFoundError
+    try:
+        return await service.retomar_implantacao(
+            tenant_id,
+            unidade_produtiva_id=unidade_produtiva_id,
+        )
+    except EntityNotFoundError:
+        return await service.create_or_get_active(
+            tenant_id=tenant_id,
+            owner_usuario_id=owner_usuario_id,
+            unidade_produtiva_id=unidade_produtiva_id,
+        )
+
+
+def _resolver_unidade_produtiva_contexto(request: Request) -> uuid.UUID | None:
+    header = request.headers.get("x-fazenda-id") or request.headers.get("x-unidade-produtiva-id")
+    if not header:
+        return None
+    try:
+        return uuid.UUID(header)
+    except ValueError:
+        return None
 
 
 async def _build_resumo(
@@ -199,7 +247,11 @@ async def _build_resumo(
         etapa_atual=implantacao.etapa_atual,
         percentual_progresso=implantacao.percentual_progresso,
         checklist_minimo_percentual=implantacao.checklist_minimo_percentual,
+        modo_implantacao=getattr(implantacao, "modo_implantacao", None) or "ASSISTIDA",
+        origem=getattr(implantacao, "origem", None) or "NOVO_ASSINANTE",
         unidade_produtiva_id=implantacao.unidade_produtiva_id,
+        escopo_modulos=getattr(implantacao, "escopo_modulos", None),
+        diagnostico_inicial_snapshot=getattr(implantacao, "diagnostico_inicial_snapshot", None),
         pendencias_criticas_abertas=pendencias_criticas_abertas,
         checklist_minimo_satisfeito=checklist_minimo_satisfeito,
         elegivel_para_pronto_go_live=elegivel_para_pronto_go_live,
@@ -229,6 +281,41 @@ async def _build_resumo(
             for pendencia in pendencias_criticas
         ],
     )
+
+
+async def _recarregar_implantacao_ativa(
+    session: AsyncSession,
+    tenant_id: uuid.UUID,
+    implantacao_id: uuid.UUID | None,
+) -> ImplantacaoOperacional:
+    """Recarrega a implantação ativa para evitar estado ORM expirado após rollback.
+
+    Args:
+        service: Serviço de implantação já vinculado à sessão atual.
+        tenant_id: Tenant usado para localizar a implantação ativa.
+        implantacao: Instância original usada no fluxo de negócio.
+
+    Returns:
+        Instância fresca da implantação ativa, preferindo a id original.
+
+    Raises:
+        EntityNotFoundError: quando a implantação ativa não puder ser recarregada.
+    """
+    if implantacao_id is not None:
+        stmt = (
+            select(ImplantacaoOperacional)
+            .where(
+                ImplantacaoOperacional.id == implantacao_id,
+                ImplantacaoOperacional.tenant_id == tenant_id,
+            )
+            .limit(1)
+        )
+        result = await session.execute(stmt)
+        recarregada = result.scalar_one_or_none()
+        if recarregada is not None:
+            return recarregada
+    service = ImplantacaoService(session)
+    return await service.get_active_implantacao(tenant_id)
 
 
 async def _build_checklist_response(
@@ -275,9 +362,25 @@ async def _build_checklist_response(
 async def _avaliar_checklist(
     session: AsyncSession,
     implantacao: ImplantacaoOperacional,
-) -> None:
+    *,
+    tenant_id: uuid.UUID | None = None,
+) -> ImplantacaoOperacional:
+    """Reavalia o checklist do wizard, tratando UUIDs vazios legados.
+
+    Args:
+        session: Sessão assíncrona do SQLAlchemy.
+        implantacao: Instância da implantação a reavaliar.
+        tenant_id: Tenant usado para recarregar a implantação após sanitização.
+
+    Returns:
+        Instância da implantação (possivelmente recarregada após sanitização).
+    """
     engine = ChecklistEngine(session)
-    await engine.avaliar_implantacao(implantacao)
+    try:
+        await engine.avaliar_implantacao(implantacao)
+        return implantacao
+    except DBAPIError as exc:
+        raise
 
 
 async def _apply_transition_and_commit(
@@ -290,7 +393,7 @@ async def _apply_transition_and_commit(
     reevaluate_checklist: bool = False,
 ) -> ImplantacaoOperacional:
     if reevaluate_checklist:
-        await _avaliar_checklist(session, implantacao)
+        implantacao = await _avaliar_checklist(session, implantacao)
     if implantacao.status == target_status:
         return implantacao
     service = ImplantacaoService(session)
@@ -300,20 +403,35 @@ async def _apply_transition_and_commit(
         ator_usuario_id=actor_user_id,
         payload_snapshot=_merge_payload(request.payload_snapshot, request.motivo),
     )
-    await session.commit()
+    await _commit_and_restore_rls(session)
     return implantacao
 
 
 @router.get("/status", response_model=WizardResumoResponse)
 async def wizard_status(
+    request: Request,
     session: AsyncSession = SESSION_DEP,
     tenant_id: uuid.UUID = TENANT_DEP,
     current_user: Usuario = CURRENT_USER_DEP,
 ):
-    del current_user
-    service = ImplantacaoService(session)
-    implantacao = await _get_implantacao_ativa(service, tenant_id)
-    return await _build_resumo(session, implantacao)
+    try:
+        service = ImplantacaoService(session)
+        implantacao = await _get_implantacao_ativa(
+            service,
+            tenant_id,
+            current_user.id,
+            unidade_produtiva_id=_resolver_unidade_produtiva_contexto(request),
+        )
+        implantacao = await _avaliar_checklist(session, implantacao, tenant_id=tenant_id)
+        await _commit_and_restore_rls(session)
+        implantacao_id = implantacao.id
+        implantacao = await _recarregar_implantacao_ativa(session, tenant_id, implantacao_id)
+        return await _build_resumo(session, implantacao)
+    except Exception as e:
+        import traceback
+        with open("/tmp/wizard_error.log", "a") as f:
+            f.write(f"\nError in wizard_status:\n{traceback.format_exc()}\n")
+        raise
 
 
 @router.post(
@@ -322,17 +440,19 @@ async def wizard_status(
     status_code=status.HTTP_200_OK,
 )
 async def iniciar_wizard(
-    request: WizardIniciarRequest | None = None,
+    request: Request,
+    payload: WizardIniciarRequest | None = None,
     session: AsyncSession = SESSION_DEP,
     tenant_id: uuid.UUID = TENANT_DEP,
     current_user: Usuario = CURRENT_USER_DEP,
 ):
-    payload = request or WizardIniciarRequest()
+    payload = payload or WizardIniciarRequest()
     service = ImplantacaoService(session)
     implantacao = await service.create_or_get_active(
         tenant_id=tenant_id,
         owner_usuario_id=current_user.id,
-        unidade_produtiva_id=payload.unidade_produtiva_id,
+        unidade_produtiva_id=payload.unidade_produtiva_id
+        or _resolver_unidade_produtiva_contexto(request),
         modo_implantacao=payload.modo_implantacao,
         origem=payload.origem,
     )
@@ -341,7 +461,7 @@ async def iniciar_wizard(
     if payload.diagnostico_inicial_snapshot is not None:
         implantacao.diagnostico_inicial_snapshot = payload.diagnostico_inicial_snapshot
     session.add(implantacao)
-    await _avaliar_checklist(session, implantacao)
+    implantacao = await _avaliar_checklist(session, implantacao, tenant_id=tenant_id)
     if implantacao.status == WizardStatus.NOT_STARTED.value:
         implantacao = await service.aplicar_transicao_estado(
             implantacao,
@@ -349,19 +469,53 @@ async def iniciar_wizard(
             ator_usuario_id=current_user.id,
             payload_snapshot={"origem_endpoint": "wizard.iniciar"},
         )
-    await session.commit()
+    await _commit_and_restore_rls(session)
+    return await _build_resumo(session, implantacao)
+
+
+@router.post(
+    "/configurar-carga",
+    response_model=WizardResumoResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def configurar_carga_wizard(
+    request: Request,
+    payload: WizardCargaRequest,
+    session: AsyncSession = SESSION_DEP,
+    tenant_id: uuid.UUID = TENANT_DEP,
+    current_user: Usuario = CURRENT_USER_DEP,
+):
+    service = ImplantacaoService(session)
+    implantacao = await _get_implantacao_ativa(
+        service,
+        tenant_id,
+        current_user.id,
+        unidade_produtiva_id=_resolver_unidade_produtiva_contexto(request),
+    )
+    implantacao.modo_implantacao = payload.modo_implantacao
+    implantacao.origem = payload.origem
+    implantacao.escopo_modulos = payload.escopo_modulos
+    implantacao.diagnostico_inicial_snapshot = payload.diagnostico_inicial_snapshot
+    session.add(implantacao)
+    await _commit_and_restore_rls(session)
+    implantacao = await _recarregar_implantacao_ativa(session, tenant_id, implantacao.id)
     return await _build_resumo(session, implantacao)
 
 
 @router.get("/etapas", response_model=list[WizardEtapaResponse])
 async def listar_etapas(
+    request: Request,
     session: AsyncSession = SESSION_DEP,
     tenant_id: uuid.UUID = TENANT_DEP,
     current_user: Usuario = CURRENT_USER_DEP,
 ):
-    del current_user
     service = ImplantacaoService(session)
-    implantacao = await _get_implantacao_ativa(service, tenant_id)
+    implantacao = await _get_implantacao_ativa(
+        service,
+        tenant_id,
+        current_user.id,
+        unidade_produtiva_id=_resolver_unidade_produtiva_contexto(request),
+    )
     etapas = await service.etapa_service.listar_etapas(implantacao.id)
     return [
         WizardEtapaResponse.model_validate(
@@ -379,39 +533,65 @@ async def listar_etapas(
 
 @router.get("/checklist", response_model=WizardChecklistResponse)
 async def listar_checklist(
+    request: Request,
     session: AsyncSession = SESSION_DEP,
     tenant_id: uuid.UUID = TENANT_DEP,
     current_user: Usuario = CURRENT_USER_DEP,
 ):
-    del current_user
     service = ImplantacaoService(session)
-    implantacao = await _get_implantacao_ativa(service, tenant_id)
+    implantacao = await _get_implantacao_ativa(
+        service,
+        tenant_id,
+        current_user.id,
+        unidade_produtiva_id=_resolver_unidade_produtiva_contexto(request),
+    )
+    implantacao = await _avaliar_checklist(session, implantacao, tenant_id=tenant_id)
+    await _commit_and_restore_rls(session)
+    implantacao_id = implantacao.id
+    implantacao = await _recarregar_implantacao_ativa(session, tenant_id, implantacao_id)
     return await _build_checklist_response(session, implantacao)
 
 
 @router.post("/checklist/reavaliar", response_model=WizardChecklistResponse)
 async def reavaliar_checklist(
+    request: Request,
     session: AsyncSession = SESSION_DEP,
     tenant_id: uuid.UUID = TENANT_DEP,
     current_user: Usuario = CURRENT_USER_DEP,
 ):
-    del current_user
     service = ImplantacaoService(session)
-    implantacao = await _get_implantacao_ativa(service, tenant_id)
-    await _avaliar_checklist(session, implantacao)
-    await session.commit()
+    implantacao = await _get_implantacao_ativa(
+        service,
+        tenant_id,
+        current_user.id,
+        unidade_produtiva_id=_resolver_unidade_produtiva_contexto(request),
+    )
+    implantacao = await _avaliar_checklist(session, implantacao, tenant_id=tenant_id)
+    await _commit_and_restore_rls(session)
+    implantacao_id = implantacao.id
+    implantacao = await _recarregar_implantacao_ativa(session, tenant_id, implantacao_id)
     return await _build_checklist_response(session, implantacao)
 
 
 @router.get("/pendencias", response_model=list[WizardPendenciaResponse])
 async def listar_pendencias(
+    request: Request,
     session: AsyncSession = SESSION_DEP,
     tenant_id: uuid.UUID = TENANT_DEP,
     current_user: Usuario = CURRENT_USER_DEP,
 ):
-    del current_user
     service = ImplantacaoService(session)
-    implantacao = await _get_implantacao_ativa(service, tenant_id)
+    implantacao = await _get_implantacao_ativa(
+        service,
+        tenant_id,
+        current_user.id,
+        unidade_produtiva_id=_resolver_unidade_produtiva_contexto(request),
+    )
+    implantacao = await _avaliar_checklist(session, implantacao, tenant_id=tenant_id)
+    await _commit_and_restore_rls(session)
+    implantacao_id = implantacao.id
+    implantacao = await _recarregar_implantacao_ativa(session, tenant_id, implantacao_id)
+    service = ImplantacaoService(session)
     pendencias = await service.pendencia_service.listar_pendencias(implantacao.id)
     return [
         WizardPendenciaResponse.model_validate(
@@ -429,95 +609,125 @@ async def listar_pendencias(
 
 @router.post("/pausar", response_model=WizardResumoResponse)
 async def pausar_wizard(
-    request: WizardActionRequest | None = None,
+    request: Request,
+    body: WizardActionRequest | None = None,
     session: AsyncSession = SESSION_DEP,
     tenant_id: uuid.UUID = TENANT_DEP,
     current_user: Usuario = CURRENT_USER_DEP,
 ):
     service = ImplantacaoService(session)
-    implantacao = await _get_implantacao_ativa(service, tenant_id)
+    implantacao = await _get_implantacao_ativa(
+        service,
+        tenant_id,
+        current_user.id,
+        unidade_produtiva_id=_resolver_unidade_produtiva_contexto(request),
+    )
     implantacao = await _apply_transition_and_commit(
         session,
         implantacao,
         target_status=WizardStatus.PAUSED.value,
         actor_user_id=current_user.id,
-        request=request or WizardActionRequest(),
+        request=body or WizardActionRequest(),
     )
     return await _build_resumo(session, implantacao)
 
 
 @router.post("/retomar", response_model=WizardResumoResponse)
 async def retomar_wizard(
-    request: WizardActionRequest | None = None,
+    request: Request,
+    body: WizardActionRequest | None = None,
     session: AsyncSession = SESSION_DEP,
     tenant_id: uuid.UUID = TENANT_DEP,
     current_user: Usuario = CURRENT_USER_DEP,
 ):
     service = ImplantacaoService(session)
-    implantacao = await _get_implantacao_ativa(service, tenant_id)
+    implantacao = await _get_implantacao_ativa(
+        service,
+        tenant_id,
+        current_user.id,
+        unidade_produtiva_id=_resolver_unidade_produtiva_contexto(request),
+    )
     implantacao = await _apply_transition_and_commit(
         session,
         implantacao,
         target_status=WizardStatus.IN_PROGRESS.value,
         actor_user_id=current_user.id,
-        request=request or WizardActionRequest(),
+        request=body or WizardActionRequest(),
     )
     return await _build_resumo(session, implantacao)
 
 
 @router.post("/bloquear", response_model=WizardResumoResponse)
 async def bloquear_wizard(
-    request: WizardActionRequest | None = None,
+    request: Request,
+    body: WizardActionRequest | None = None,
     session: AsyncSession = SESSION_DEP,
     tenant_id: uuid.UUID = TENANT_DEP,
     current_user: Usuario = CURRENT_USER_DEP,
 ):
     service = ImplantacaoService(session)
-    implantacao = await _get_implantacao_ativa(service, tenant_id)
+    implantacao = await _get_implantacao_ativa(
+        service,
+        tenant_id,
+        current_user.id,
+        unidade_produtiva_id=_resolver_unidade_produtiva_contexto(request),
+    )
     implantacao = await _apply_transition_and_commit(
         session,
         implantacao,
         target_status=WizardStatus.BLOCKED.value,
         actor_user_id=current_user.id,
-        request=request or WizardActionRequest(),
+        request=body or WizardActionRequest(),
     )
     return await _build_resumo(session, implantacao)
 
 
 @router.post("/desbloquear", response_model=WizardResumoResponse)
 async def desbloquear_wizard(
-    request: WizardActionRequest | None = None,
+    request: Request,
+    body: WizardActionRequest | None = None,
     session: AsyncSession = SESSION_DEP,
     tenant_id: uuid.UUID = TENANT_DEP,
     current_user: Usuario = CURRENT_USER_DEP,
 ):
     service = ImplantacaoService(session)
-    implantacao = await _get_implantacao_ativa(service, tenant_id)
+    implantacao = await _get_implantacao_ativa(
+        service,
+        tenant_id,
+        current_user.id,
+        unidade_produtiva_id=_resolver_unidade_produtiva_contexto(request),
+    )
     implantacao = await _apply_transition_and_commit(
         session,
         implantacao,
         target_status=WizardStatus.IN_PROGRESS.value,
         actor_user_id=current_user.id,
-        request=request or WizardActionRequest(),
+        request=body or WizardActionRequest(),
     )
     return await _build_resumo(session, implantacao)
 
 
 @router.post("/pronto-go-live", response_model=WizardResumoResponse)
 async def pronto_go_live(
-    request: WizardActionRequest | None = None,
+    request: Request,
+    body: WizardActionRequest | None = None,
     session: AsyncSession = SESSION_DEP,
     tenant_id: uuid.UUID = TENANT_DEP,
     current_user: Usuario = CURRENT_USER_DEP,
 ):
     service = ImplantacaoService(session)
-    implantacao = await _get_implantacao_ativa(service, tenant_id)
+    implantacao = await _get_implantacao_ativa(
+        service,
+        tenant_id,
+        current_user.id,
+        unidade_produtiva_id=_resolver_unidade_produtiva_contexto(request),
+    )
     implantacao = await _apply_transition_and_commit(
         session,
         implantacao,
         target_status=WizardStatus.READY_FOR_GO_LIVE.value,
         actor_user_id=current_user.id,
-        request=request or WizardActionRequest(),
+        request=body or WizardActionRequest(),
         reevaluate_checklist=True,
     )
     return await _build_resumo(session, implantacao)
@@ -525,19 +735,25 @@ async def pronto_go_live(
 
 @router.post("/go-live", response_model=WizardResumoResponse)
 async def executar_go_live(
-    request: WizardActionRequest | None = None,
+    request: Request,
+    body: WizardActionRequest | None = None,
     session: AsyncSession = SESSION_DEP,
     tenant_id: uuid.UUID = TENANT_DEP,
     current_user: Usuario = CURRENT_USER_DEP,
 ):
     service = ImplantacaoService(session)
-    implantacao = await _get_implantacao_ativa(service, tenant_id)
+    implantacao = await _get_implantacao_ativa(
+        service,
+        tenant_id,
+        current_user.id,
+        unidade_produtiva_id=_resolver_unidade_produtiva_contexto(request),
+    )
     implantacao = await _apply_transition_and_commit(
         session,
         implantacao,
         target_status=WizardStatus.GO_LIVE.value,
         actor_user_id=current_user.id,
-        request=request or WizardActionRequest(),
+        request=body or WizardActionRequest(),
         reevaluate_checklist=True,
     )
     return await _build_resumo(session, implantacao)
@@ -545,56 +761,62 @@ async def executar_go_live(
 
 @router.post("/estabilizar", response_model=WizardResumoResponse)
 async def estabilizar_wizard(
-    request: WizardActionRequest | None = None,
+    request: Request,
+    body: WizardActionRequest | None = None,
     session: AsyncSession = SESSION_DEP,
     tenant_id: uuid.UUID = TENANT_DEP,
     current_user: Usuario = CURRENT_USER_DEP,
 ):
     service = ImplantacaoService(session)
-    implantacao = await _get_implantacao_ativa(service, tenant_id)
+    implantacao = await _get_implantacao_ativa(
+        service,
+        tenant_id,
+        current_user.id,
+        unidade_produtiva_id=_resolver_unidade_produtiva_contexto(request),
+    )
     implantacao = await _apply_transition_and_commit(
         session,
         implantacao,
         target_status=WizardStatus.STABILIZATION.value,
         actor_user_id=current_user.id,
-        request=request or WizardActionRequest(),
+        request=body or WizardActionRequest(),
     )
     return await _build_resumo(session, implantacao)
 
 
 @router.post("/concluir", response_model=WizardResumoResponse)
 async def concluir_wizard(
-    request: WizardActionRequest | None = None,
+    body: WizardActionRequest | None = None,
     session: AsyncSession = SESSION_DEP,
     tenant_id: uuid.UUID = TENANT_DEP,
     current_user: Usuario = CURRENT_USER_DEP,
 ):
     service = ImplantacaoService(session)
-    implantacao = await _get_implantacao_ativa(service, tenant_id)
+    implantacao = await _get_implantacao_ativa(service, tenant_id, current_user.id)
     implantacao = await _apply_transition_and_commit(
         session,
         implantacao,
         target_status=WizardStatus.COMPLETED.value,
         actor_user_id=current_user.id,
-        request=request or WizardActionRequest(),
+        request=body or WizardActionRequest(),
     )
     return await _build_resumo(session, implantacao)
 
 
 @router.post("/cancelar", response_model=WizardResumoResponse)
 async def cancelar_wizard(
-    request: WizardActionRequest | None = None,
+    body: WizardActionRequest | None = None,
     session: AsyncSession = SESSION_DEP,
     tenant_id: uuid.UUID = TENANT_DEP,
     current_user: Usuario = CURRENT_USER_DEP,
 ):
     service = ImplantacaoService(session)
-    implantacao = await _get_implantacao_ativa(service, tenant_id)
+    implantacao = await _get_implantacao_ativa(service, tenant_id, current_user.id)
     implantacao = await _apply_transition_and_commit(
         session,
         implantacao,
         target_status=WizardStatus.CANCELLED.value,
         actor_user_id=current_user.id,
-        request=request or WizardActionRequest(),
+        request=body or WizardActionRequest(),
     )
     return await _build_resumo(session, implantacao)

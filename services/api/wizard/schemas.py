@@ -32,7 +32,11 @@ class WizardResumoResponse(BaseModel):
     etapa_atual: str
     percentual_progresso: int
     checklist_minimo_percentual: int
+    modo_implantacao: str
+    origem: str
     unidade_produtiva_id: uuid.UUID | None = None
+    escopo_modulos: dict[str, Any] | None = None
+    diagnostico_inicial_snapshot: dict[str, Any] | None = None
     pendencias_criticas_abertas: int
     checklist_minimo_satisfeito: bool
     elegivel_para_pronto_go_live: bool
@@ -44,6 +48,13 @@ class WizardResumoResponse(BaseModel):
 
 class WizardIniciarRequest(BaseModel):
     unidade_produtiva_id: uuid.UUID | None = None
+    modo_implantacao: str = Field(default="ASSISTIDA")
+    origem: str = Field(default="NOVO_ASSINANTE")
+    escopo_modulos: dict[str, Any] | None = None
+    diagnostico_inicial_snapshot: dict[str, Any] | None = None
+
+
+class WizardCargaRequest(BaseModel):
     modo_implantacao: str = Field(default="ASSISTIDA")
     origem: str = Field(default="NOVO_ASSINANTE")
     escopo_modulos: dict[str, Any] | None = None

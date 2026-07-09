@@ -69,25 +69,51 @@ class VisaoTerritorialService:
         from sqlalchemy import or_
         from core.cadastros.propriedades.propriedade_models import ExploracaoRural
 
+        options = (
+            selectinload(Propriedade.exploracoes),
+            selectinload(Propriedade.propriedade_imoveis)
+            .selectinload(PropriedadeImovel.imovel_rural)
+            .selectinload(ImovelRural.documentos),
+            selectinload(Propriedade.propriedade_imoveis)
+            .selectinload(PropriedadeImovel.imovel_rural)
+            .selectinload(ImovelRural.cartorio),
+            selectinload(Propriedade.propriedade_imoveis)
+            .selectinload(PropriedadeImovel.imovel_rural)
+            .selectinload(ImovelRural.propriedade_imoveis),
+        )
+
         stmt = (
             select(Propriedade)
             .outerjoin(ExploracaoRural, Propriedade.id == ExploracaoRural.propriedade_id)
             .where(
                 or_(Propriedade.id == propriedade_id, ExploracaoRural.unidade_produtiva_id == propriedade_id),
-                Propriedade.tenant_id == self.tenant_id
+                Propriedade.tenant_id == self.tenant_id,
             )
-            .options(
-                selectinload(Propriedade.exploracoes),
-                selectinload(Propriedade.propriedade_imoveis)
-                .selectinload(PropriedadeImovel.imovel_rural)
-                .selectinload(ImovelRural.documentos),
-                selectinload(Propriedade.propriedade_imoveis)
-                .selectinload(PropriedadeImovel.imovel_rural)
-                .selectinload(ImovelRural.cartorio),
-                selectinload(Propriedade.propriedade_imoveis)
-                .selectinload(PropriedadeImovel.imovel_rural)
-                .selectinload(ImovelRural.propriedade_imoveis),
+            .options(*options)
+        )
+        result = await self.session.execute(stmt)
+        obj = result.scalars().first()
+        if obj:
+            return obj
+
+        stmt = (
+            select(Propriedade)
+            .join(PropriedadeImovel, PropriedadeImovel.propriedade_id == Propriedade.id)
+            .join(ImovelRural, ImovelRural.id == PropriedadeImovel.imovel_rural_id)
+            .where(
+                ImovelRural.unidade_produtiva_id == propriedade_id,
+                Propriedade.tenant_id == self.tenant_id,
+                PropriedadeImovel.tenant_id == self.tenant_id,
+                ImovelRural.tenant_id == self.tenant_id,
+                ImovelRural.deleted_at.is_(None),
             )
+            .order_by(
+                PropriedadeImovel.vinculo_principal.desc(),
+                PropriedadeImovel.ativo.desc(),
+                PropriedadeImovel.data_inicio.desc(),
+                PropriedadeImovel.created_at.desc(),
+            )
+            .options(*options)
         )
         result = await self.session.execute(stmt)
         obj = result.scalars().first()

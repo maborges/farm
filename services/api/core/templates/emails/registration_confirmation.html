@@ -1,0 +1,21 @@
+{% extends "emails/base.html" %}
+
+{% block content %}
+<h2>Confirme seu cadastro</h2>
+
+<p>Olá, {{ nome_usuario }}.</p>
+
+<p>
+  Seu cadastro no ambiente <strong>{{ nome_tenant }}</strong> foi recebido.
+  Antes dos próximos acessos, confirme seu e-mail no link abaixo.
+</p>
+
+<p style="margin: 32px 0;">
+  <a href="{{ confirmation_url }}"
+    style="background: #2f855a; color: #ffffff; text-decoration: none; padding: 12px 20px; border-radius: 8px; display: inline-block; font-weight: 600;">
+    Confirmar cadastro
+  </a>
+</p>
+
+<p>Se você não reconhece esta solicitação, ignore esta mensagem.</p>
+{% endblock %}

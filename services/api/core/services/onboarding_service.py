@@ -29,7 +29,7 @@ class OnboardingService:
             PerfilAcesso.is_custom == False,
             PerfilAcesso.nome == TenantRoles.OWNER,
         )
-        perfil = (await self.session.execute(stmt)).scalar_one_or_none()
+        perfil = (await self.session.execute(stmt)).scalars().first()
         if not perfil:
             raise HTTPException(
                 status_code=500,
@@ -51,6 +51,11 @@ class OnboardingService:
         stmt = select(Usuario).where((Usuario.email == data.email) | (Usuario.username == data.username))
         if (await self.session.execute(stmt)).scalars().first():
             raise HTTPException(status_code=400, detail="E-mail ou Username já existe no sistema.")
+
+        if data.cpf:
+            stmt = select(Usuario).where(Usuario.cpf == data.cpf)
+            if (await self.session.execute(stmt)).scalars().first():
+                raise HTTPException(status_code=400, detail="Este CPF já está cadastrado no sistema.")
 
         # 2. Checar CNPJ/CPF duplicado (se informado)
         if documento_tenant:
@@ -87,6 +92,10 @@ class OnboardingService:
             nome=data.nome_produtor,
             documento=documento_tenant,
             ativo=True,
+            email_responsavel=data.email,
+            telefone_responsavel=data.telefone or None,
+            activation_token=secrets.token_urlsafe(32),
+            activation_expires_at=agora + timedelta(hours=48),
         )
         self.session.add(tenant)
         await self.session.flush()
@@ -143,26 +152,15 @@ class OnboardingService:
 
         await self.session.commit()
 
-        # 12. Enviar email (trial ou boas-vindas)
+        # 12. Enviar e-mail de confirmação do cadastro
         try:
-            if not plano.is_free and is_trial:
-                await email_service.send_trial_notice(
-                    email=user.email,
-                    nome=user.nome_completo or user.username,
-                    nome_produtor=tenant.nome,
-                    nome_plano=plano.nome,
-                    dias_trial=plano.dias_trial,
-                    data_vencimento=primeiro_vencimento,
-                    tenant_id=tenant.id,
-                )
-            else:
-                await email_service.send_welcome(
-                    email=user.email,
-                    nome=user.nome_completo or user.username,
-                    tenant_nome=tenant.nome,
-                    username=user.username,
-                    tenant_id=tenant.id,
-                )
+            await email_service.send_registration_confirmation(
+                email=user.email,
+                nome=user.nome_completo or user.username,
+                tenant_nome=tenant.nome,
+                token=tenant.activation_token,
+                tenant_id=tenant.id,
+            )
         except Exception as e:
             logger.error(f"Falha ao enviar email para {user.email}: {e}")
 

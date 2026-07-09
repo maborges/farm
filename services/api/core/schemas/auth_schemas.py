@@ -65,6 +65,8 @@ class TenantAcessoResponse(BaseModel):
     perfil: Optional[PerfilSimplesResponse]
     fazendas: List[UnidadeProdutivaAcessoResponse]
     is_owner: bool
+    ativo: bool = True
+    activation_pending: bool = False
     plan_tier: str = "BASICO"
     max_fazendas: int = 1
     max_usuarios: int = 2

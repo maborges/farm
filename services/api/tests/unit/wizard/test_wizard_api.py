@@ -42,6 +42,11 @@ def _make_session() -> AsyncSession:
     session.add = MagicMock()
     session.commit = AsyncMock()
     session.flush = AsyncMock()
+    result_mock = MagicMock()
+    result_mock.scalars.return_value.all.return_value = []
+    result_mock.scalar_one_or_none.return_value = None
+    result_mock.scalar_one.return_value = 0
+    session.execute = AsyncMock(return_value=result_mock)
     return session
 
 
@@ -122,8 +127,14 @@ def _build_service(
     checklist_minimo_satisfeito: bool = True,
 ):
     service = MagicMock()
+    session = _make_session()
+    result = MagicMock()
+    result.scalar_one_or_none.return_value = implantacao
+    session.execute = AsyncMock(return_value=result)
+    service.session = session
     service.retomar_implantacao = AsyncMock(return_value=implantacao)
     service.create_or_get_active = AsyncMock(return_value=implantacao)
+    service.get_active_implantacao = AsyncMock(return_value=implantacao)
     service.aplicar_transicao_estado = AsyncMock(return_value=implantacao)
     service.etapa_service = MagicMock()
     service.etapa_service.listar_etapas = AsyncMock(return_value=etapas or [])
@@ -219,8 +230,14 @@ def test_status_retorna_resumo_da_implantacao_ativa() -> None:
         checklist_minimo_satisfeito=True,
     )
 
+    engine = MagicMock()
+    engine.avaliar_implantacao = AsyncMock(return_value=[])
+
     client, _ = _build_client()
-    with patch("wizard.router.ImplantacaoService", return_value=service):
+    with (
+        patch("wizard.router.ImplantacaoService", return_value=service),
+        patch("wizard.router.ChecklistEngine", return_value=engine),
+    ):
         response = client.get("/api/v1/wizard/status")
 
     assert response.status_code == 200
@@ -233,6 +250,28 @@ def test_status_retorna_resumo_da_implantacao_ativa() -> None:
     assert "pendências críticas abertas" in body["motivos_bloqueio"][0]
 
 
+def test_status_usa_contexto_da_fazenda_para_vincular_implantacao() -> None:
+    implantacao = _make_implantacao(WizardStatus.IN_PROGRESS.value)
+    service = _build_service(implantacao, checklist_minimo_satisfeito=True)
+    unidade_id = uuid.uuid4()
+
+    engine = MagicMock()
+    engine.avaliar_implantacao = AsyncMock(return_value=[])
+
+    client, _ = _build_client()
+    with (
+        patch("wizard.router.ImplantacaoService", return_value=service),
+        patch("wizard.router.ChecklistEngine", return_value=engine),
+    ):
+        response = client.get(
+            "/api/v1/wizard/status",
+            headers={"x-fazenda-id": str(unidade_id)},
+        )
+
+    assert response.status_code == 200
+    assert service.retomar_implantacao.await_args.kwargs["unidade_produtiva_id"] == unidade_id
+
+
 def test_status_expoe_motivos_de_bloqueio_sem_unidade_produtiva_e_checklist() -> None:
     implantacao = _make_implantacao(WizardStatus.BLOCKED.value)
     item = _make_item("CHECK_UNIDADE_PRODUTIVA")
@@ -242,8 +281,14 @@ def test_status_expoe_motivos_de_bloqueio_sem_unidade_produtiva_e_checklist() ->
         checklist_minimo_satisfeito=False,
     )
 
+    engine = MagicMock()
+    engine.avaliar_implantacao = AsyncMock(return_value=[])
+
     client, _ = _build_client()
-    with patch("wizard.router.ImplantacaoService", return_value=service):
+    with (
+        patch("wizard.router.ImplantacaoService", return_value=service),
+        patch("wizard.router.ChecklistEngine", return_value=engine),
+    ):
         response = client.get("/api/v1/wizard/status")
 
     assert response.status_code == 200
@@ -276,8 +321,14 @@ def test_checklist_retorna_itens() -> None:
     itens = [_make_item("CHECK_UNIDADE_PRODUTIVA")]
     service = _build_service(implantacao, itens=itens, checklist_minimo_satisfeito=False)
 
+    engine = MagicMock()
+    engine.avaliar_implantacao = AsyncMock(return_value=[])
+
     client, _ = _build_client()
-    with patch("wizard.router.ImplantacaoService", return_value=service):
+    with (
+        patch("wizard.router.ImplantacaoService", return_value=service),
+        patch("wizard.router.ChecklistEngine", return_value=engine),
+    ):
         response = client.get("/api/v1/wizard/checklist")
 
     assert response.status_code == 200
@@ -295,8 +346,11 @@ def test_reavaliar_checklist_e_idempotente() -> None:
     service = _build_service(implantacao, itens=itens)
     engine = MagicMock()
     engine.avaliar_implantacao = AsyncMock(return_value=[])
+    reload_result = MagicMock()
+    reload_result.scalar_one_or_none.return_value = implantacao
 
     client, session = _build_client()
+    session.execute = AsyncMock(return_value=reload_result)
     with (
         patch("wizard.router.ImplantacaoService", return_value=service),
         patch("wizard.router.ChecklistEngine", return_value=engine),
@@ -316,8 +370,14 @@ def test_pendencias_retorna_lista() -> None:
     pendencias = [_make_pendencia(), _make_pendencia(PendenciaStatus.RESOLVIDA.value)]
     service = _build_service(implantacao, pendencias=pendencias)
 
+    engine = MagicMock()
+    engine.avaliar_implantacao = AsyncMock(return_value=[])
+
     client, _ = _build_client()
-    with patch("wizard.router.ImplantacaoService", return_value=service):
+    with (
+        patch("wizard.router.ImplantacaoService", return_value=service),
+        patch("wizard.router.ChecklistEngine", return_value=engine),
+    ):
         response = client.get("/api/v1/wizard/pendencias")
 
     assert response.status_code == 200

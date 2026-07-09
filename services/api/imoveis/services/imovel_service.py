@@ -480,11 +480,10 @@ class ImovelService:
         Returns:
             ImovelRural criado e flushed na sessão.
         """
-        # Detecta NIRF duplicado (global) sem validar formato — ignora se existente
+        # Detecta NIRF duplicado de forma global para respeitar a constraint única
         nirf_final: Optional[str] = None
         if nirf:
             stmt_nirf = select(ImovelRural).where(
-                ImovelRural.tenant_id == tenant_id,
                 ImovelRural.nirf == nirf,
                 ImovelRural.deleted_at.is_(None),
             ).limit(1)

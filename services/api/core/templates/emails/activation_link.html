@@ -1,0 +1,23 @@
+{% extends "emails/base.html" %}
+
+{% block content %}
+<h2>Confirme sua ativacao</h2>
+
+<p>Ola, {{ nome_usuario }}.</p>
+
+<p>
+  Seu acesso ao ambiente <strong>{{ nome_tenant }}</strong> esta quase pronto.
+  Para concluir, abra o link abaixo e confirme seus dados de ativacao.
+</p>
+
+<p style="margin: 32px 0;">
+  <a
+    href="{{ activation_url }}"
+    style="background: #2f855a; color: #ffffff; text-decoration: none; padding: 12px 20px; border-radius: 8px; display: inline-block; font-weight: 600;"
+  >
+    Confirmar ativacao
+  </a>
+</p>
+
+<p>Se voce nao reconhece esta solicitacao, ignore esta mensagem.</p>
+{% endblock %}

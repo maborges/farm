@@ -237,6 +237,23 @@ async def test_obter_propriedade_aplica_tenant_filter(service, tenant_id, sessio
     assert "cadastros_propriedades" in stmt_text
 
 
+async def test_obter_propriedade_resolve_por_imovel_vinculado(service, tenant_id, session):
+    propriedade = _make_propriedade(tenant_id)
+
+    result_sem_exploracao = MagicMock()
+    result_sem_exploracao.scalars.return_value.first.return_value = None
+
+    result_resolvido = MagicMock()
+    result_resolvido.scalars.return_value.first.return_value = propriedade
+
+    session.execute.side_effect = [result_sem_exploracao, result_resolvido]
+
+    encontrado = await service._obter_propriedade(uuid.uuid4())
+
+    assert encontrado is propriedade
+    assert session.execute.await_count == 2
+
+
 async def test_obter_imovel_aplica_tenant_filter(service, tenant_id, session):
     imovel = _make_imovel(tenant_id)
     result = MagicMock()

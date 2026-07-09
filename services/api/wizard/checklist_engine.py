@@ -70,30 +70,33 @@ class ChecklistEngine:
             "CHECK_FINANCEIRO_PLANO_CONTA": self._check_plano_conta,
             "CHECK_PRODUTO_CATALOGO": self._check_catalogo_produto,
             "CHECK_EQUIPAMENTO_CADASTRO": self._check_equipamento,
+            "CHECK_CULTURA": self._check_cultura,
+            "CHECK_INTEGRACAO_ERP": self._check_integracao_erp,
         }
 
     async def avaliar_implantacao(
         self,
         implantacao: ImplantacaoOperacional,
     ) -> list[ChecklistEvaluation]:
+        implantacao_id = implantacao.id
         await self.implantacao_service.etapa_service.inicializar_etapas_canonicas(implantacao)
-        etapas = await self.implantacao_service.etapa_service.listar_etapas(implantacao.id)
+        etapas = await self.implantacao_service.etapa_service.listar_etapas(implantacao_id)
         await self.implantacao_service.checklist_service.criar_checklist_base_idempotente(
             implantacao,
             etapas,
         )
-        itens = await self.implantacao_service.checklist_service.listar_itens(implantacao.id)
+        itens = await self.implantacao_service.checklist_service.listar_itens(implantacao_id)
         resultados: list[ChecklistEvaluation] = []
         for item in itens:
             resultados.append(await self.avaliar_item(implantacao, item))
         implantacao.bloqueio_critico_aberto = await (
             self.implantacao_service.pendencia_service.has_open_critical_blockers(
-                implantacao.id
+                implantacao_id
             )
         )
         self.session.add(implantacao)
         await self.session.flush()
-        await self.implantacao_service.recalcular_progresso_basico(implantacao)
+        await self.implantacao_service.recalcular_progresso_basico(implantacao_id)
         return resultados
 
     async def avaliar_todos(
@@ -128,11 +131,15 @@ class ChecklistEngine:
         item: ImplantacaoChecklistItem,
         resultado: ChecklistEvaluation,
     ) -> None:
+        implantacao_id = implantacao.id
+        owner_usuario_id = implantacao.owner_usuario_id
+        status_atual = implantacao.status
+        etapa_atual = implantacao.etapa_atual
         agora = resultado.evidencia.timestamp if resultado.evidencia else datetime.now(UTC)
         pendencia_titulo = self._pendencia_titulo(item.codigo_item)
         pendencia_aberta = await (
             self.implantacao_service.pendencia_service.buscar_pendencia_aberta_por_titulo(
-                implantacao.id,
+                implantacao_id,
                 pendencia_titulo,
             )
         )
@@ -162,10 +169,10 @@ class ChecklistEngine:
         item.updated_at = agora
 
         if resultado.status == ChecklistItemStatus.ATENDIDO.value:
-            item.checked_by_usuario_id = implantacao.owner_usuario_id
+            item.checked_by_usuario_id = owner_usuario_id
             item.checked_at = agora
         elif resultado.status == ChecklistItemStatus.DISPENSADO.value:
-            item.checked_by_usuario_id = implantacao.owner_usuario_id
+            item.checked_by_usuario_id = owner_usuario_id
             item.checked_at = agora
         else:
             item.checked_by_usuario_id = None
@@ -180,31 +187,31 @@ class ChecklistEngine:
         }:
             resolved = await (
                 self.implantacao_service.pendencia_service.resolver_pendencia_por_titulo(
-                    implantacao.id,
+                    implantacao_id,
                     pendencia_titulo,
                 )
             )
             if pendencia_aberta is not None and resolved is not None:
                 await self.implantacao_service.historico_service.registrar(
-                    implantacao.id,
+                    implantacao_id,
                     evento="CHECKLIST_ITEM_RESOLVED",
-                    status_anterior=implantacao.status,
-                    status_novo=implantacao.status,
-                    etapa_anterior=implantacao.etapa_atual,
-                    etapa_nova=implantacao.etapa_atual,
-                    ator_usuario_id=implantacao.owner_usuario_id,
+                    status_anterior=status_atual,
+                    status_novo=status_atual,
+                    etapa_anterior=etapa_atual,
+                    etapa_nova=etapa_atual,
+                    ator_usuario_id=owner_usuario_id,
                     payload_snapshot=self._history_payload(item, resultado),
                 )
                 return
             if changed:
                 await self.implantacao_service.historico_service.registrar(
-                    implantacao.id,
+                    implantacao_id,
                     evento="CHECKLIST_ITEM_VALIDATED",
-                    status_anterior=implantacao.status,
-                    status_novo=implantacao.status,
-                    etapa_anterior=implantacao.etapa_atual,
-                    etapa_nova=implantacao.etapa_atual,
-                    ator_usuario_id=implantacao.owner_usuario_id,
+                    status_anterior=status_atual,
+                    status_novo=status_atual,
+                    etapa_anterior=etapa_atual,
+                    etapa_nova=etapa_atual,
+                    ator_usuario_id=owner_usuario_id,
                     payload_snapshot=self._history_payload(item, resultado),
                 )
             return
@@ -213,7 +220,7 @@ class ChecklistEngine:
         if item.obrigatorio:
             created_pendencia = await (
                 self.implantacao_service.pendencia_service.criar_ou_manter_pendencia(
-                    implantacao.id,
+                    implantacao_id,
                     titulo=pendencia_titulo,
                     descricao=resultado.descricao,
                     tipo=resultado.pendencia_tipo,
@@ -226,13 +233,13 @@ class ChecklistEngine:
             )
         if changed or (created_pendencia and created_pendencia[1]):
             await self.implantacao_service.historico_service.registrar(
-                implantacao.id,
+                implantacao_id,
                 evento="CHECKLIST_ITEM_FAILED",
-                status_anterior=implantacao.status,
-                status_novo=implantacao.status,
-                etapa_anterior=implantacao.etapa_atual,
-                etapa_nova=implantacao.etapa_atual,
-                ator_usuario_id=implantacao.owner_usuario_id,
+                status_anterior=status_atual,
+                status_novo=status_atual,
+                etapa_anterior=etapa_atual,
+                etapa_nova=etapa_atual,
+                ator_usuario_id=owner_usuario_id,
                 payload_snapshot=self._history_payload(item, resultado),
             )
 
@@ -344,7 +351,7 @@ class ChecklistEngine:
             )
         return self._validated(
             "CHECK_UNIDADE_PRODUTIVA",
-            "Unidade Produtiva ativa encontrada.",
+            "Pelo menos uma Unidade Produtiva ativa foi encontrada para a implantação.",
             entidade="Unidade Produtiva",
             entidade_id=unidade_id,
         )
@@ -500,9 +507,50 @@ class ChecklistEngine:
             )
         return self._validated(
             "CHECK_EQUIPAMENTO_CADASTRO",
-            "Equipamento ativo encontrado.",
+            "Pelo menos um equipamento ou máquina foi cadastrado.",
             entidade="Equipamento",
             entidade_id=equipamento_id,
+        )
+
+    async def _check_cultura(
+        self,
+        implantacao: ImplantacaoOperacional,
+    ) -> ChecklistEvaluation:
+        if not self._module_enabled(implantacao, "agricultura"):
+            return self._dispensed(
+                "CHECK_CULTURA",
+                "Agricultura não está habilitada nesta implantação.",
+            )
+        # Verify if there is a Cultura for the tenant (simplified check)
+        stmt = select(Produto).where(
+            Produto.tenant_id == implantacao.tenant_id,
+            Produto.ativo.is_(True),
+            Produto.categoria.ilike("%cultura%"), # Simple fallback for check
+        ).limit(1)
+        cultura_id = (await self.session.execute(stmt)).scalars().first()
+
+        if cultura_id is None:
+            return self._missing(
+                "CHECK_CULTURA",
+                "Agricultura habilitada sem culturas produtivas cadastradas.",
+                status=ChecklistItemStatus.FALHOU.value,
+                severidade=PendenciaSeverity.CRITICA.value,
+            )
+        return self._validated(
+            "CHECK_CULTURA",
+            "Cultura produtiva encontrada.",
+            entidade="ProdutoCultura",
+            entidade_id=cultura_id.id,
+        )
+
+    async def _check_integracao_erp(
+        self,
+        implantacao: ImplantacaoOperacional,
+    ) -> ChecklistEvaluation:
+        # Just an example, dispensed if no integrations defined in scope
+        return self._dispensed(
+            "CHECK_INTEGRACAO_ERP",
+            "Nenhum ERP de terceiros configurado para obrigatoriedade de sincronismo.",
         )
 
     async def _find_unidade_produtiva(

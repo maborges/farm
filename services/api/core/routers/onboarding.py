@@ -3,12 +3,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from datetime import datetime, timezone, timedelta
 import uuid
+import secrets
 
 from core.dependencies import get_session, get_current_user_claims, get_tenant_id
 from core.schemas.onboarding_schemas import AssinanteRegisterRequest, ConviteCreateRequest, ConviteResponse
 from core.services.onboarding_service import OnboardingService
 from core.services.auth_service import AuthService
 from core.schemas.auth_schemas import TokenResponse, UsuarioMeResponse
+from core.services.email_service import email_service
 from core.models.tenant import Tenant
 from core.models.auth import Usuario, TenantUsuario
 from core.models.unidade_produtiva import UnidadeProdutiva as Fazenda
@@ -110,6 +112,20 @@ class AtivarContaInfoResponse(BaseModel):
 class AtivarContaCheckoutResponse(BaseModel):
     checkout_url: str
     message: str
+
+
+class ConfirmarCadastroResponse(BaseModel):
+    sucesso: bool
+    mensagem: str
+
+
+class ReenviarAtivacaoRequest(BaseModel):
+    email: EmailStr
+
+
+class ReenviarAtivacaoResponse(BaseModel):
+    sucesso: bool
+    mensagem: str
 
 
 @router.get(
@@ -274,6 +290,106 @@ async def ativar_conta(
     return AtivarContaCheckoutResponse(
         checkout_url=checkout_url,
         message="Dados confirmados. Prossiga para o pagamento.",
+    )
+
+
+@router.post(
+    "/confirmar-cadastro/{token}",
+    response_model=ConfirmarCadastroResponse,
+    summary="Confirma o cadastro self-service por e-mail",
+)
+async def confirmar_cadastro(token: str, session: AsyncSession = Depends(get_session)):
+    stmt = select(Tenant).where(Tenant.activation_token == token)
+    result = await session.execute(stmt)
+    tenant = result.scalar_one_or_none()
+
+    if not tenant:
+        raise HTTPException(status_code=404, detail="Token de confirmação inválido ou já utilizado.")
+
+    if not tenant.ativo:
+        raise HTTPException(status_code=409, detail="Este link pertence a uma ativação comercial. Use o fluxo de ativação da conta.")
+
+    if tenant.activation_expires_at and tenant.activation_expires_at < datetime.now(timezone.utc):
+        raise HTTPException(status_code=410, detail="Token expirado. Solicite um novo e-mail de confirmação.")
+
+    tenant.activation_token = None
+    tenant.activation_expires_at = None
+    await session.commit()
+
+    return ConfirmarCadastroResponse(
+        sucesso=True,
+        mensagem="Cadastro confirmado com sucesso. Agora voce ja pode fazer login normalmente.",
+    )
+
+
+@router.post(
+    "/ativacao/reenviar",
+    response_model=ReenviarAtivacaoResponse,
+    summary="Reenvia o e-mail de ativação para o responsável",
+)
+async def reenviar_ativacao(
+    dados: ReenviarAtivacaoRequest,
+    session: AsyncSession = Depends(get_session),
+):
+    stmt = (
+        select(Tenant, Usuario)
+        .join(TenantUsuario, TenantUsuario.tenant_id == Tenant.id)
+        .join(Usuario, Usuario.id == TenantUsuario.usuario_id)
+        .where(
+            Usuario.email == dados.email,
+            TenantUsuario.is_owner == True,
+        )
+    )
+    result = await session.execute(stmt)
+    row = result.first()
+
+    if not row:
+        return ReenviarAtivacaoResponse(
+            sucesso=True,
+            mensagem="Se existir uma ativação pendente para este e-mail, enviaremos um novo link.",
+        )
+
+    tenant, usuario = row
+
+    if tenant.ativo and not tenant.activation_token:
+        return ReenviarAtivacaoResponse(
+            sucesso=True,
+            mensagem="Esta conta já está ativada. Faça login normalmente.",
+        )
+
+    if not tenant.activation_token or (
+        tenant.activation_expires_at and tenant.activation_expires_at < datetime.now(timezone.utc)
+    ):
+        tenant.activation_token = secrets.token_urlsafe(32)
+        tenant.activation_expires_at = datetime.now(timezone.utc) + timedelta(hours=48)
+        await session.commit()
+
+    try:
+        if tenant.ativo:
+            await email_service.send_registration_confirmation(
+                email=usuario.email,
+                nome=usuario.nome_completo or usuario.username,
+                tenant_nome=tenant.nome,
+                token=tenant.activation_token,
+                tenant_id=tenant.id,
+            )
+        else:
+            await email_service.send_activation_link(
+                email=usuario.email,
+                nome=usuario.nome_completo or usuario.username,
+                tenant_nome=tenant.nome,
+                token=tenant.activation_token,
+                tenant_id=tenant.id,
+            )
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Não foi possível reenviar o e-mail de ativação agora. Tente novamente em instantes.",
+        )
+
+    return ReenviarAtivacaoResponse(
+        sucesso=True,
+        mensagem="Enviamos um novo e-mail com o link de ativação.",
     )
 
 

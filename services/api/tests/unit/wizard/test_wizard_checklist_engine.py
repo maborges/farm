@@ -340,7 +340,7 @@ async def test_avaliar_implantacao_recalcula_e_sincroniza_servicos() -> None:
     resultados = await engine.avaliar_implantacao(implantacao)
 
     assert len(resultados) == 1
-    engine.implantacao_service.recalcular_progresso_basico.assert_awaited_once_with(implantacao)
+    engine.implantacao_service.recalcular_progresso_basico.assert_awaited_once_with(implantacao.id)
 
 
 async def test_checklist_engine_nao_importa_auth_billing_convites_ou_frontend() -> None:

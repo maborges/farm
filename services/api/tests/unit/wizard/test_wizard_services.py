@@ -95,6 +95,10 @@ async def test_criacao_idempotente_de_implantacao_ativa() -> None:
     owner_id = uuid.uuid4()
     active: list[ImplantacaoOperacional | None] = [None]
 
+    result_sem_unidades = MagicMock()
+    result_sem_unidades.scalar_one_or_none.return_value = None
+    session.execute = AsyncMock(return_value=result_sem_unidades)
+
     async def fake_get_active(_: uuid.UUID) -> ImplantacaoOperacional | None:
         return active[0]
 
@@ -118,6 +122,42 @@ async def test_criacao_idempotente_de_implantacao_ativa() -> None:
     assert primeira is segunda
     assert session.add.call_count == 1
     service.historico_service.registrar.assert_awaited_once()
+
+
+async def test_garantir_unidade_produtiva_contextual_ignora_se_nenhuma_for_passada() -> None:
+    session = _make_session()
+    service = ImplantacaoService(session)
+    implantacao = _make_implantacao()
+    unidade_id = uuid.uuid4()
+
+    result = MagicMock()
+    result.scalar_one_or_none.return_value = unidade_id
+    session.execute = AsyncMock(return_value=result)
+
+    vinculada = await service.garantir_unidade_produtiva_contextual(implantacao)
+
+    assert vinculada.unidade_produtiva_id is None
+    session.add.assert_not_called()
+    session.flush.assert_not_awaited()
+
+
+async def test_garantir_unidade_produtiva_contextual_prioriza_contexto_explicitado() -> None:
+    session = _make_session()
+    service = ImplantacaoService(session)
+    implantacao = _make_implantacao()
+    unidade_id = uuid.uuid4()
+
+    result = MagicMock()
+    result.scalar_one_or_none.return_value = unidade_id
+    session.execute = AsyncMock(return_value=result)
+
+    vinculada = await service.garantir_unidade_produtiva_contextual(
+        implantacao,
+        unidade_produtiva_id=unidade_id,
+    )
+
+    assert vinculada.unidade_produtiva_id == unidade_id
+    session.add.assert_called_once_with(implantacao)
 
 
 async def test_inicializacao_idempotente_de_etapas() -> None:
@@ -380,6 +420,7 @@ async def test_go_live_exige_unidade_produtiva() -> None:
     implantacao = _make_implantacao("IN_PROGRESS")
     service.checklist_service.minimum_checklist_satisfied = AsyncMock(return_value=True)
     service.pendencia_service.has_open_critical_blockers = AsyncMock(return_value=False)
+    service.garantir_unidade_produtiva_contextual = AsyncMock()
 
     with pytest.raises(Exception, match="exige unidade_produtiva_id"):
         await service.aplicar_transicao_estado(
@@ -413,10 +454,13 @@ async def test_recalculo_basico_de_progresso() -> None:
             status=WizardEtapaStatus.NOT_STARTED.value,
         ),
     ]
+    result = MagicMock()
+    result.scalar_one.return_value = implantacao
+    session.execute = AsyncMock(return_value=result)
     service.etapa_service.listar_etapas = AsyncMock(return_value=etapas)
     service.checklist_service.minimum_checklist_satisfied = AsyncMock(return_value=False)
 
-    progresso = await service.recalcular_progresso_basico(implantacao)
+    progresso = await service.recalcular_progresso_basico(implantacao.id)
 
     assert progresso == 40
     assert implantacao.percentual_progresso == 40

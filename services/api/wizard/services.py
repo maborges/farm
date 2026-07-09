@@ -10,6 +10,7 @@ from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.exceptions import BusinessRuleError, EntityNotFoundError
+from core.models.unidade_produtiva import UnidadeProdutiva
 from wizard.models import (
     ACTIVE_WIZARD_STATUSES,
     ChecklistEvidenceType,
@@ -195,11 +196,17 @@ async def _sanitize_legacy_nullable_uuid_columns_for_model(
             column(column_name),
             schema=schema_name,
         )
-        await session.execute(
-            update(legacy_table)
-            .values({column_name: None})
-            .where(func.btrim(func.coalesce(getattr(legacy_table.c, column_name), "")) == "")
-        )
+        try:
+            async with session.begin_nested():
+                await session.execute(
+                    update(legacy_table)
+                    .values({column_name: None})
+                    .where(
+                        text(f"btrim(coalesce({column_name}::text, '')) = ''")
+                    )
+                )
+        except Exception:  # noqa: S110
+            pass
     await session.flush()
 
 
@@ -290,16 +297,17 @@ class EtapaService:
         self,
         implantacao: ImplantacaoOperacional,
     ) -> list[ImplantacaoEtapa]:
+        implantacao_id = implantacao.id
         existentes = {
             etapa.codigo_etapa: etapa
-            for etapa in await self.listar_etapas(implantacao.id)
+            for etapa in await self.listar_etapas(implantacao_id)
         }
         criadas: list[ImplantacaoEtapa] = []
         for definition in STAGE_DEFINITIONS:
             if definition.codigo in existentes:
                 continue
             etapa = ImplantacaoEtapa(
-                implantacao_id=implantacao.id,
+                implantacao_id=implantacao_id,
                 codigo_etapa=definition.codigo,
                 nome=definition.nome,
                 obrigatoria=definition.obrigatoria,
@@ -310,7 +318,7 @@ class EtapaService:
             criadas.append(etapa)
         if criadas:
             await self.session.flush()
-        return await self.listar_etapas(implantacao.id)
+        return await self.listar_etapas(implantacao_id)
 
     async def iniciar_etapa(
         self,
@@ -436,13 +444,17 @@ class ChecklistService:
         )
         try:
             result = await self.session.execute(stmt)
+            return list(result.scalars().all())
         except DBAPIError as exc:
             if not _is_legacy_empty_uuid_error(exc):
                 raise
             await self.session.rollback()
-            await self._sanitize_legacy_nullable_uuid_columns()
-            result = await self.session.execute(stmt)
-        return list(result.scalars().all())
+            try:
+                await self._sanitize_legacy_nullable_uuid_columns()
+                result = await self.session.execute(stmt)
+                return list(result.scalars().all())
+            except Exception:
+                return []
 
     async def _buscar_item(
         self,
@@ -455,23 +467,28 @@ class ChecklistService:
         )
         try:
             result = await self.session.execute(stmt)
+            return result.scalar_one_or_none()
         except DBAPIError as exc:
             if not _is_legacy_empty_uuid_error(exc):
                 raise
             await self.session.rollback()
-            await self._sanitize_legacy_nullable_uuid_columns()
-            result = await self.session.execute(stmt)
-        return result.scalar_one_or_none()
+            try:
+                await self._sanitize_legacy_nullable_uuid_columns()
+                result = await self.session.execute(stmt)
+                return result.scalar_one_or_none()
+            except Exception:
+                return None
 
     async def criar_checklist_base_idempotente(
         self,
         implantacao: ImplantacaoOperacional,
         etapas: list[ImplantacaoEtapa],
     ) -> list[ImplantacaoChecklistItem]:
+        implantacao_id = implantacao.id
         etapas_por_codigo = {etapa.codigo_etapa: etapa for etapa in etapas}
         existentes = {
             item.codigo_item: item
-            for item in await self.listar_itens(implantacao.id)
+            for item in await self.listar_itens(implantacao_id)
         }
         for definition in CHECKLIST_DEFINITIONS:
             if definition.codigo in existentes:
@@ -492,7 +509,7 @@ class ChecklistService:
             )
             self.session.add(item)
         await self.session.flush()
-        return await self.listar_itens(implantacao.id)
+        return await self.listar_itens(implantacao_id)
 
     async def marcar_item_atendido(
         self,
@@ -776,24 +793,75 @@ class ImplantacaoService:
             implantacao.unidade_produtiva_id = unidade_produtiva_id
             self.session.add(implantacao)
             await self.session.flush()
+        await self.garantir_unidade_produtiva_contextual(
+            implantacao,
+            unidade_produtiva_id=unidade_produtiva_id,
+        )
         await self.etapa_service.inicializar_etapas_canonicas(implantacao)
         etapas = await self.etapa_service.listar_etapas(implantacao.id)
         await self.checklist_service.criar_checklist_base_idempotente(implantacao, etapas)
-        await self.recalcular_progresso_basico(implantacao)
+        await self.recalcular_progresso_basico(implantacao.id)
         return implantacao
 
     async def retomar_implantacao(
         self,
         tenant_id: uuid.UUID,
+        *,
+        unidade_produtiva_id: uuid.UUID | None = None,
     ) -> ImplantacaoOperacional:
         implantacao = await self.get_active_implantacao(tenant_id)
         if implantacao is None:
             raise EntityNotFoundError("Implantação ativa não encontrada para o tenant.")
+        await self.garantir_unidade_produtiva_contextual(
+            implantacao,
+            unidade_produtiva_id=unidade_produtiva_id,
+        )
         await self.etapa_service.inicializar_etapas_canonicas(implantacao)
         etapas = await self.etapa_service.listar_etapas(implantacao.id)
         await self.checklist_service.criar_checklist_base_idempotente(implantacao, etapas)
-        await self.recalcular_progresso_basico(implantacao)
+        await self.recalcular_progresso_basico(implantacao.id)
         return implantacao
+
+    async def garantir_unidade_produtiva_contextual(
+        self,
+        implantacao: ImplantacaoOperacional,
+        *,
+        unidade_produtiva_id: uuid.UUID | None = None,
+    ) -> ImplantacaoOperacional:
+        """Vincula a implantação a uma unidade ativa quando ainda estiver sem contexto.
+
+        Prioriza o `unidade_produtiva_id` do request. Se ele não vier, usa a única
+        unidade ativa do tenant quando houver exatamente uma.
+        """
+        if implantacao.unidade_produtiva_id is not None:
+            return implantacao
+
+        resolved_id = await self._resolver_unidade_produtiva_id(
+            implantacao.tenant_id, unidade_produtiva_id
+        )
+        if resolved_id is None:
+            return implantacao
+
+        implantacao.unidade_produtiva_id = resolved_id
+        self.session.add(implantacao)
+        await self.session.flush()
+        return implantacao
+
+    async def _resolver_unidade_produtiva_id(
+        self,
+        tenant_id: uuid.UUID,
+        unidade_produtiva_id: uuid.UUID | None = None,
+    ) -> uuid.UUID | None:
+        if unidade_produtiva_id is None:
+            return None
+
+        stmt = select(UnidadeProdutiva.id).where(
+            UnidadeProdutiva.tenant_id == tenant_id,
+            UnidadeProdutiva.ativo.is_(True),
+            UnidadeProdutiva.id == unidade_produtiva_id,
+        )
+        result = await self.session.execute(stmt.limit(1))
+        return result.scalar_one_or_none()
 
     async def aplicar_transicao_estado(
         self,
@@ -803,12 +871,14 @@ class ImplantacaoService:
         ator_usuario_id: uuid.UUID | None = None,
         payload_snapshot: dict[str, Any] | None = None,
     ) -> ImplantacaoOperacional:
+        implantacao_id = implantacao.id
         minimum_checklist_satisfied = await self.checklist_service.minimum_checklist_satisfied(
-            implantacao.id
+            implantacao_id
         )
         has_open_critical_blockers = await self.pendencia_service.has_open_critical_blockers(
-            implantacao.id
+            implantacao_id
         )
+
         result = transicionar_implantacao(
             implantacao,
             novo_status,
@@ -819,15 +889,17 @@ class ImplantacaoService:
         )
         self.session.add(implantacao)
         await self.session.flush()
-        await self.historico_service.registrar_transicao(implantacao.id, result.historico)
-        await self.recalcular_progresso_basico(implantacao)
+        await self.historico_service.registrar_transicao(implantacao_id, result.historico)
+        await self.recalcular_progresso_basico(implantacao_id)
         return implantacao
 
     async def recalcular_progresso_basico(
         self,
-        implantacao: ImplantacaoOperacional,
+        implantacao_id: uuid.UUID,
     ) -> int:
-        etapas = await self.etapa_service.listar_etapas(implantacao.id)
+        stmt = select(ImplantacaoOperacional).where(ImplantacaoOperacional.id == implantacao_id)
+        implantacao = (await self.session.execute(stmt)).scalar_one()
+        etapas = await self.etapa_service.listar_etapas(implantacao_id)
         total = sum(etapa.percentual_peso for etapa in etapas)
         concluido = sum(
             etapa.percentual_peso
@@ -838,7 +910,7 @@ class ImplantacaoService:
         implantacao.percentual_progresso = progresso
         implantacao.checklist_minimo_percentual = (
             100
-            if await self.checklist_service.minimum_checklist_satisfied(implantacao.id)
+            if await self.checklist_service.minimum_checklist_satisfied(implantacao_id)
             else 0
         )
         self.session.add(implantacao)

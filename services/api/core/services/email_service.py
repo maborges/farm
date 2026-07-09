@@ -133,6 +133,24 @@ class EmailService:
         )
         await self._send(email, f"Convite: {tenant_nome} no AgroSaaS", html, tenant_id)
 
+    async def send_activation_link(self, email: str, nome: str, tenant_nome: str, token: str, tenant_id: uuid.UUID = None):
+        template = self.env.get_template("emails/activation_link.html")
+        html = template.render(
+            nome_usuario=nome,
+            nome_tenant=tenant_nome,
+            activation_url=f"{settings.frontend_url}/onboarding/ativar?token={token}",
+        )
+        await self._send(email, "Confirme sua ativacao no AgroSaaS", html, tenant_id)
+
+    async def send_registration_confirmation(self, email: str, nome: str, tenant_nome: str, token: str, tenant_id: uuid.UUID = None):
+        template = self.env.get_template("emails/registration_confirmation.html")
+        html = template.render(
+            nome_usuario=nome,
+            nome_tenant=tenant_nome,
+            confirmation_url=f"{settings.frontend_url}/onboarding/confirmar-cadastro?token={token}",
+        )
+        await self._send(email, "Confirme seu cadastro no AgroSaaS", html, tenant_id)
+
     async def send_password_recovery(self, email: str, nome_usuario: str, token: str, tenant_id: uuid.UUID = None):
         """Envia e-mail de recuperação de senha com token expirável."""
         template = self.env.get_template("emails/password_reset.html")

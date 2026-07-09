@@ -247,6 +247,19 @@ class UnidadeProdutivaService(BaseService[UnidadeProdutiva]):
         if not any([car, nirf, ccir, sigef, matricula]):
             return
 
+        if nirf:
+            stmt_nirf = select(ImovelRural.id).where(
+                ImovelRural.nirf == nirf,
+                ImovelRural.deleted_at.is_(None),
+            ).limit(1)
+            nirf_existente = await self.session.execute(stmt_nirf)
+            if nirf_existente.scalar_one_or_none():
+                logger.warning(
+                    "[AutoVinculo] NIRF já existente em ImovelRural; criação ignorada para unidade={}",
+                    unidade.id,
+                )
+                return
+
         # ── Passo 1: Localizar ImovelRural existente ─────────────────────
         imovel: Optional[ImovelRural] = None
         condicoes = []

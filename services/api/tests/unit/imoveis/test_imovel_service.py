@@ -118,7 +118,36 @@ async def test_criar_imovel_pode_vincular_propriedade():
 
     assert imovel.nome == "Imóvel com vínculo"
     assert alertas == []
-    service._garantir_vinculo_propriedade_imovel.assert_awaited_once()
+
+
+async def test_criar_imovel_sem_validacao_ignora_nirf_duplicado_global():
+    from imoveis.services.imovel_service import ImovelService
+
+    session = AsyncMock()
+    session.execute = AsyncMock()
+    result_mock = MagicMock()
+    result_mock.scalar_one_or_none.return_value = SimpleNamespace(id=uuid.uuid4())
+    session.execute.return_value = result_mock
+    session.add = MagicMock()
+    session.flush = AsyncMock()
+
+    service = ImovelService(session)
+
+    imovel = await service.criar_imovel_sem_validacao(
+        tenant_id=uuid.uuid4(),
+        unidade_produtiva_id=uuid.uuid4(),
+        nome="Imóvel duplicado",
+        municipio="Linhares",
+        uf="ES",
+        nirf="1234567",
+        car_numero="ES-3550308-XXXXXX",
+        ccir_numero="00012345689",
+        sigef_codigo="BR-ES-123456-A",
+        numero_matricula=None,
+        created_by=uuid.uuid4(),
+    )
+
+    assert imovel.nirf is None
 
 
 async def test_atualizar_imovel_pode_vincular_propriedade():

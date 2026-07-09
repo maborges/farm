@@ -480,6 +480,8 @@ class AuthService:
                 tenant_id=tenant.id,
                 nome_tenant=tenant.nome,
                 is_owner=tu.is_owner,
+                ativo=tenant.ativo,
+                activation_pending=bool(tenant.activation_token),
                 perfil=PerfilSimplesResponse(id=perfil.id, nome=perfil.nome, permissoes=perfil.permissoes) if perfil else None,
                 fazendas=fazendas_resp,
                 plan_tier=t_plan_tier,
