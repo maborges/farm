@@ -25,6 +25,21 @@ def _gateway_config() -> SankhyaConfig:
     )
 
 
+def _legacy_gateway_login_config() -> SankhyaConfig:
+    return SankhyaConfig(
+        tenant_id="tenant-legacy-login",
+        environment="producao",
+        api_base_url="https://gateway.example/api",
+        auth_url="https://gateway.example/login",
+        username="legacy-user",
+        password=encrypt_integration_secret("legacy-password"),
+        token=encrypt_integration_secret("legacy-token"),
+        appkey=encrypt_integration_secret("legacy-appkey"),
+        sync_interval=900,
+        ativo=True,
+    )
+
+
 @pytest.mark.asyncio
 async def test_gateway_auth_monta_headers_e_body_corretos() -> None:
     SankhyaGatewayAuthService.clear_cache()
@@ -40,6 +55,7 @@ async def test_gateway_auth_monta_headers_e_body_corretos() -> None:
     client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
     service = SankhyaGatewayAuthService(config)
 
+    assert service.auth_model() == "gateway_oauth_client_credentials"
     token = await service.authenticate(client)
 
     await client.aclose()
@@ -50,6 +66,38 @@ async def test_gateway_auth_monta_headers_e_body_corretos() -> None:
     assert captured["body"]["client_id"] == "client-123"
     assert captured["body"]["client_secret"] == "client-secret"
     assert captured["body"]["grant_type"] == "client_credentials"
+
+
+@pytest.mark.asyncio
+async def test_gateway_legacy_login_auth_monta_headers_e_body_corretos() -> None:
+    SankhyaGatewayAuthService.clear_cache()
+    config = _legacy_gateway_login_config()
+    captured: dict[str, object] = {}
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        captured["url"] = str(request.url)
+        captured["headers"] = request.headers
+        captured["body"] = json.loads(request.content.decode())
+        return httpx.Response(200, json={"token": "legacy-token-abc", "expires_in": 120})
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    service = SankhyaGatewayAuthService(config)
+
+    assert service.auth_model() == "gateway_legacy_login"
+    description = service.describe()
+    assert description["token_mask"] == "••••••••"
+    assert description["appkey_mask"] == "••••••••"
+    token = await service.authenticate(client)
+
+    await client.aclose()
+
+    assert token == "legacy-token-abc"
+    assert captured["url"] == "https://gateway.example/login"
+    assert "x-token" not in captured["headers"]
+    assert captured["body"]["token"] == "legacy-token"
+    assert captured["body"]["appkey"] == "legacy-appkey"
+    assert captured["body"]["username"] == "legacy-user"
+    assert captured["body"]["password"] == "legacy-password"
 
 
 @pytest.mark.asyncio
@@ -125,4 +173,4 @@ def test_legacy_nao_e_fluxo_padrao_quando_gateway_esta_disponivel() -> None:
 
     service = SankhyaGatewayAuthService(config)
 
-    assert service.auth_model() == "GATEWAY"
+    assert service.auth_model() == "gateway_oauth_client_credentials"

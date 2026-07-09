@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from core.database import Base
 from integracoes.models import (
+    ExternalRecordAssociation,
     IntegrationCredential,
     IntegrationFeature,
     IntegrationHealth,
@@ -57,6 +58,7 @@ async def session() -> AsyncSession:
         await conn.run_sync(lambda sync_conn: IntegrationSyncPolicy.__table__.create(sync_conn))
         await conn.run_sync(lambda sync_conn: IntegrationJob.__table__.create(sync_conn))
         await conn.run_sync(lambda sync_conn: IntegrationHealth.__table__.create(sync_conn))
+        await conn.run_sync(lambda sync_conn: ExternalRecordAssociation.__table__.create(sync_conn))
         await conn.run_sync(lambda sync_conn: SankhyaNFe.__table__.create(sync_conn))
 
     session_factory = async_sessionmaker(engine, expire_on_commit=False)
@@ -226,8 +228,8 @@ async def test_adapter_gateway_bundles_segredos_e_conexao_canonica(
     credential_payload = json.loads(decrypt_integration_secret(credential.segredo_criptografado))
 
     assert config.connection_payload["sankhya_api_base_url"] == "https://gateway.example/api"
-    assert config.connection_payload["auth_model"] == "GATEWAY"
-    assert config.credenciais["auth_model"] == "GATEWAY"
+    assert config.connection_payload["auth_model"] == "gateway_oauth_client_credentials"
+    assert config.credenciais["auth_model"] == "gateway_oauth_client_credentials"
     assert credential_payload["sankhya_client_secret"] == "client-secret"
     assert credential_payload["sankhya_x_token"] == "x-token"
 
@@ -392,6 +394,8 @@ async def test_status_detalhado_retorna_campos_canonicos_quando_existirem(
     assert payload["health_status"] == IntegrationHealthStatus.CONNECTED.value
     assert "pessoas" in payload["features_habilitadas"]
     assert any(policy["feature_code"] == "pessoas" for policy in payload["policies_resumidas"])
+    assert payload["readiness"]["status"] == "ATENDIDO"
+    assert payload["readiness"]["cta_url"] == "/dashboard/settings/integracoes/erp"
 
 
 @pytest.mark.asyncio

@@ -55,6 +55,21 @@ def _gateway_config() -> SankhyaConfig:
     )
 
 
+def _legacy_login_config() -> SankhyaConfig:
+    return SankhyaConfig(
+        tenant_id="tenant-legacy-login",
+        environment="producao",
+        api_base_url="https://gateway.example/api",
+        auth_url="https://gateway.example/login",
+        username="legacy-user",
+        password=encrypt_integration_secret("legacy-password"),
+        token=encrypt_integration_secret("legacy-token"),
+        appkey=encrypt_integration_secret("legacy-appkey"),
+        sync_interval=900,
+        ativo=True,
+    )
+
+
 @pytest.mark.asyncio
 async def test_gateway_test_connection_chama_authenticate_e_sanitiza_resposta() -> None:
     SankhyaGatewayAuthService.clear_cache()
@@ -91,6 +106,42 @@ async def test_gateway_test_connection_chama_authenticate_e_sanitiza_resposta() 
     assert diagnostic.client_id_mask == "••••••••"
     assert diagnostic.x_token_mask == "••••••••"
     assert SankhyaGatewayAuthService.cache_key_for(config) not in SankhyaGatewayAuthService._token_cache
+
+
+@pytest.mark.asyncio
+async def test_gateway_legacy_login_test_connection_chama_login_e_sanitiza_resposta() -> None:
+    SankhyaGatewayAuthService.clear_cache()
+    config = _legacy_login_config()
+    captured: dict[str, object] = {}
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        captured["url"] = str(request.url)
+        captured["headers"] = dict(request.headers)
+        captured["body"] = json.loads(request.content.decode())
+        return httpx.Response(
+            200,
+            json={
+                "token": "legacy-token-abc",
+                "expires_in": 120,
+            },
+        )
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    service = SankhyaGatewayAuthService(config)
+
+    diagnostic = await service.test_connection(client)
+
+    await client.aclose()
+
+    assert captured["url"] == "https://gateway.example/login"
+    assert "x-token" not in captured["headers"]
+    assert captured["body"]["token"] == "legacy-token"
+    assert captured["body"]["appkey"] == "legacy-appkey"
+    assert captured["body"]["username"] == "legacy-user"
+    assert captured["body"]["password"] == "legacy-password"
+    assert diagnostic.sucesso is True
+    assert diagnostic.token_obtido is True
+    assert diagnostic.auth_model == "gateway_legacy_login"
 
 
 @pytest.mark.asyncio

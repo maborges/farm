@@ -35,6 +35,8 @@ class SankhyaConfig(Base):
     # Credential: segredo do cliente. Não retornar em texto puro ao frontend.
     client_secret = Column(String(200))  # Criptografado
     x_token = Column(String(200))  # Criptografado
+    token = Column(String(200))  # LEGACY GATEWAY: Criptografado
+    appkey = Column(String(200))  # LEGACY GATEWAY: Criptografado
 
     # LEGACY: campos antigos mantidos apenas para compatibilidade histórica.
     ws_url = Column(String(500))  # LEGACY: https://<servidor>/bpm/ws

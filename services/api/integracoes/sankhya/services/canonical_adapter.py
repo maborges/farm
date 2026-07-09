@@ -7,7 +7,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from events import publish_domain_event_safe
@@ -226,7 +226,11 @@ def _provider_definition_payload() -> dict[str, Any]:
         "display_name": "Sankhya ERP",
         "vendor": "Sankhya",
         "supported_versions": ["v1"],
-        "authentication_models": ["GATEWAY", "LEGACY_CREDENTIAL_BUNDLE"],
+        "authentication_models": [
+            "gateway_oauth_client_credentials",
+            "gateway_legacy_login",
+            "legacy_ws_basic_auth",
+        ],
         "supported_scopes": list(_PROVIDER_SCOPES),
         "supported_capabilities": [
             defaults["settings_payload"]["capability_code"]
@@ -245,6 +249,9 @@ def _provider_definition_payload() -> dict[str, Any]:
         "maturity": "PILOT_READY",
         "provider_notes": [
             "provider de referência para o contrato ERP canônico",
+            "gateway_oauth_client_credentials usa /authenticate com client_id, client_secret e X-Token",
+            "gateway_legacy_login usa /login com token, appkey, username e password",
+            "legacy_ws_basic_auth permanece apenas por compatibilidade histórica",
             "reutiliza ExternalRecordAssociation, IntegrationJob, IntegrationHealth e IntegrationSyncPolicy",
         ],
     }
@@ -370,6 +377,7 @@ class SankhyaCanonicalAdapter:
         password_changed: bool = False,
         reason: str = "sync_provider_config",
     ) -> TenantIntegracao:
+        await self._restore_rls_context(provider_config.tenant_id)
         provider = await self._ensure_provider()
         credential = await self._ensure_credential(
             provider_config,
@@ -392,6 +400,7 @@ class SankhyaCanonicalAdapter:
             await self._publish_credential_rotated_event(config, credential)
 
         await self.db.commit()
+        await self._restore_rls_context(config.tenant_id)
         await self.db.refresh(config)
         return config
 
@@ -407,6 +416,7 @@ class SankhyaCanonicalAdapter:
             password_changed=False,
             reason="connection_test",
         )
+        await self._restore_rls_context(provider_config.tenant_id)
         health = await self._get_health_by_config_id(config.id)
         previous_status = health.status if health else None
         provider = await self._get_provider_by_id(config.provider_id)
@@ -430,6 +440,7 @@ class SankhyaCanonicalAdapter:
             await self._publish_health_changed_event(config, previous_status, updated.status)
 
         await self.db.commit()
+        await self._restore_rls_context(updated.tenant_id)
         await self.db.refresh(updated)
         return updated
 
@@ -442,6 +453,7 @@ class SankhyaCanonicalAdapter:
         legacy_log_id: int | None = None,
         request_payload: dict[str, Any] | None = None,
     ) -> IntegrationJob:
+        await self._restore_rls_context(tenant_id)
         config = await self._get_or_create_config_by_tenant(tenant_id)
         provider = await self._get_provider_by_id(config.provider_id)
         assert provider is not None
@@ -475,6 +487,7 @@ class SankhyaCanonicalAdapter:
 
         await self._publish_sync_started_event(config, job, feature_code)
         await self.db.commit()
+        await self._restore_rls_context(job.tenant_id)
         await self.db.refresh(job)
         return job
 
@@ -492,6 +505,7 @@ class SankhyaCanonicalAdapter:
         legacy_log_id: int | None = None,
         request_payload: dict[str, Any] | None = None,
     ) -> IntegrationJob:
+        await self._restore_rls_context(tenant_id)
         config = await self._get_or_create_config_by_tenant(tenant_id)
         provider = await self._get_provider_by_id(config.provider_id)
         assert provider is not None
@@ -565,6 +579,7 @@ class SankhyaCanonicalAdapter:
             await self._publish_health_changed_event(config, previous_status, health.status)
 
         await self.db.commit()
+        await self._restore_rls_context(job.tenant_id)
         await self.db.refresh(job)
         return job
 
@@ -591,8 +606,13 @@ class SankhyaCanonicalAdapter:
                     ],
                     "optional": [
                         "sankhya_client_id",
+                        "sankhya_client_secret",
+                        "sankhya_x_token",
+                        "sankhya_token",
+                        "sankhya_appkey",
                         "ws_url",
                         "username",
+                        "password",
                         "ultimo_teste",
                         "teste_status",
                         "ultimo_sync",
@@ -600,8 +620,15 @@ class SankhyaCanonicalAdapter:
                     ],
                 },
                 credential_schema={
-                    "required": ["sankhya_client_id", "sankhya_client_secret", "sankhya_x_token"],
-                    "optional": ["password", "legacy_auth_model"],
+                    "required": ["sankhya_client_id"],
+                    "optional": [
+                        "sankhya_client_secret",
+                        "sankhya_x_token",
+                        "sankhya_token",
+                        "sankhya_appkey",
+                        "password",
+                        "legacy_auth_model",
+                    ],
                 },
                 feature_schema=_feature_schema_payload(),
                 sync_schema=_sync_schema_payload(),
@@ -1071,6 +1098,7 @@ class SankhyaCanonicalAdapter:
         )
 
     async def _get_or_create_config_by_tenant(self, tenant_id: str) -> TenantIntegracao:
+        await self._restore_rls_context(tenant_id)
         stmt = select(SankhyaConfig).where(SankhyaConfig.tenant_id == tenant_id)
         provider_config = (await self.db.execute(stmt)).scalar_one_or_none()
         if provider_config is None:
@@ -1108,12 +1136,24 @@ class SankhyaCanonicalAdapter:
     @staticmethod
     def _credential_bundle(provider_config: SankhyaConfig) -> str:
         auth_service = SankhyaGatewayAuthService(provider_config)
-        if auth_service.auth_model() == "GATEWAY":
+        if auth_service.auth_model() == "gateway_oauth_client_credentials":
             return json.dumps(
                 {
                     "sankhya_client_secret": decrypt_integration_secret(provider_config.client_secret),
                     "sankhya_x_token": decrypt_integration_secret(provider_config.x_token),
+                    "sankhya_token": None,
+                    "sankhya_appkey": None,
                     "legacy_password": None,
+                },
+                sort_keys=True,
+            )
+        if auth_service.auth_model() == "gateway_legacy_login":
+            return json.dumps(
+                {
+                    "sankhya_token": decrypt_integration_secret(provider_config.token),
+                    "sankhya_appkey": decrypt_integration_secret(provider_config.appkey),
+                    "username": provider_config.username,
+                    "password": decrypt_integration_secret(provider_config.password),
                 },
                 sort_keys=True,
             )
@@ -1132,6 +1172,8 @@ class SankhyaCanonicalAdapter:
             "sankhya_client_id": provider_config.client_id,
             "sankhya_client_secret_mask": auth_description["client_secret_mask"],
             "sankhya_x_token_mask": auth_description["x_token_mask"],
+            "sankhya_token_mask": auth_description["token_mask"],
+            "sankhya_appkey_mask": auth_description["appkey_mask"],
             "password_mask": auth_description["password_mask"],
         }
 
@@ -1149,6 +1191,8 @@ class SankhyaCanonicalAdapter:
             "sankhya_client_id": provider_config.client_id,
             "client_secret_mask": mask_integration_secret(provider_config.client_secret),
             "x_token_mask": mask_integration_secret(provider_config.x_token),
+            "token_mask": mask_integration_secret(provider_config.token),
+            "appkey_mask": mask_integration_secret(provider_config.appkey),
             "legacy_password_mask": mask_integration_secret(provider_config.password),
             "credential_ref_id": credential.id,
         }
@@ -1166,6 +1210,19 @@ class SankhyaCanonicalAdapter:
         except ValueError:
             return uuid.uuid5(uuid.NAMESPACE_URL, f"sankhya-tenant:{tenant_id}")
 
+    async def _restore_rls_context(self, tenant_id: str | None = None) -> None:
+        bind = self.db.get_bind()
+        dialect = getattr(bind, "dialect", None)
+        effective_tenant_id = tenant_id or self.db.info.get("tenant_id")
+        if getattr(dialect, "name", "") != "postgresql" or not effective_tenant_id:
+            return
+
+        self.db.info["tenant_id"] = effective_tenant_id
+        await self.db.execute(
+            text("SELECT set_config('app.current_tenant_id', :tenant_id, true)"),
+            {"tenant_id": effective_tenant_id},
+        )
+
     @staticmethod
     def _config_entity_uuid(config: TenantIntegracao) -> uuid.UUID:
         return uuid.uuid5(uuid.NAMESPACE_URL, f"sankhya-config:{config.tenant_id}:{config.id}")
@@ -1179,6 +1236,10 @@ class SankhyaCanonicalAdapter:
             "sankhya_api_base_url": provider_config.api_base_url or provider_config.ws_url,
             "sankhya_auth_url": provider_config.auth_url,
             "sankhya_client_id": provider_config.client_id,
+            "sankhya_client_secret_mask": mask_integration_secret(provider_config.client_secret),
+            "sankhya_x_token_mask": mask_integration_secret(provider_config.x_token),
+            "sankhya_token_mask": mask_integration_secret(provider_config.token),
+            "sankhya_appkey_mask": mask_integration_secret(provider_config.appkey),
             "ws_url": provider_config.ws_url,
             "username": provider_config.username,
             "sync_interval": provider_config.sync_interval,

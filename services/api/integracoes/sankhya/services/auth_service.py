@@ -32,7 +32,7 @@ class SankhyaGatewayConnectionDiagnostic:
     x_token_mask: str | None
     token_obtido: bool
     token_expires_at: datetime | None
-    auth_model: str = "GATEWAY"
+    auth_model: str = "gateway_oauth_client_credentials"
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -65,6 +65,10 @@ class SankhyaGatewayAuthService:
                 (config.auth_url or config.ws_url or "").rstrip("/"),
                 (config.api_base_url or config.ws_url or "").rstrip("/"),
                 (config.client_id or "").strip(),
+                (decrypt_integration_secret(config.client_secret) or "").strip(),
+                (decrypt_integration_secret(config.x_token) or "").strip(),
+                (decrypt_integration_secret(getattr(config, "token", None)) or "").strip(),
+                (decrypt_integration_secret(getattr(config, "appkey", None)) or "").strip(),
             ]
         )
 
@@ -72,7 +76,7 @@ class SankhyaGatewayAuthService:
     def clear_cache(cls) -> None:
         cls._token_cache.clear()
 
-    def is_gateway_configured(self) -> bool:
+    def is_gateway_oauth_configured(self) -> bool:
         return all(
             [
                 self.config.api_base_url,
@@ -83,15 +87,63 @@ class SankhyaGatewayAuthService:
             ]
         )
 
-    def is_legacy_configured(self) -> bool:
+    def is_gateway_legacy_login_configured(self) -> bool:
+        return all(
+            [
+                self.config.auth_url or self.config.api_base_url,
+                self.config.username,
+                decrypt_integration_secret(getattr(self.config, "token", None)),
+                decrypt_integration_secret(getattr(self.config, "appkey", None)),
+                decrypt_integration_secret(self.config.password),
+            ]
+        )
+
+    def is_legacy_ws_basic_configured(self) -> bool:
         return all([self.config.ws_url, self.config.username, self.config.password])
 
+    def is_legacy_configured(self) -> bool:
+        return self.is_gateway_legacy_login_configured() or self.is_legacy_ws_basic_configured()
+
     def auth_model(self) -> str:
-        if self.is_gateway_configured():
-            return "GATEWAY"
-        if self.is_legacy_configured():
-            return "LEGACY"
-        return "INCOMPLETE"
+        if self.is_gateway_oauth_configured():
+            return "gateway_oauth_client_credentials"
+        if self.is_gateway_legacy_login_configured():
+            return "gateway_legacy_login"
+        if self.is_legacy_ws_basic_configured():
+            return "legacy_ws_basic_auth"
+        return "incomplete"
+
+    def validation_auth_model(self) -> str:
+        if self.is_gateway_oauth_configured():
+            return "gateway_oauth_client_credentials"
+        if self.is_gateway_legacy_login_configured():
+            return "gateway_legacy_login"
+        if any([getattr(self.config, "token", None), getattr(self.config, "appkey", None)]):
+            return "gateway_legacy_login"
+        if any(
+            [
+                self.config.api_base_url,
+                self.config.auth_url,
+                self.config.client_id,
+                self.config.client_secret,
+                self.config.x_token,
+            ]
+        ):
+            return "gateway_oauth_client_credentials"
+        if self.is_legacy_ws_basic_configured():
+            return "legacy_ws_basic_auth"
+        if any([self.config.ws_url, self.config.username, self.config.password]):
+            return "legacy_ws_basic_auth"
+        return "incomplete"
+
+    def validate_legacy_config(self) -> None:
+        if self.validation_auth_model() == "gateway_legacy_login":
+            self.validate_gateway_legacy_login_config()
+            return
+        if self.validation_auth_model() == "legacy_ws_basic_auth":
+            self.validate_legacy_basic_config()
+            return
+        raise ValueError("Configuração Sankhya LEGACY incompleta")
 
     def validate_gateway_config(self) -> None:
         missing: list[str] = []
@@ -111,7 +163,24 @@ class SankhyaGatewayAuthService:
                 "Configuração Sankhya Gateway incompleta: " + ", ".join(missing)
             )
 
-    def validate_legacy_config(self) -> None:
+    def validate_gateway_legacy_login_config(self) -> None:
+        missing: list[str] = []
+        if not (self.config.auth_url or self.config.api_base_url):
+            missing.append("sankhya_auth_url")
+        if not decrypt_integration_secret(getattr(self.config, "token", None)):
+            missing.append("token")
+        if not decrypt_integration_secret(getattr(self.config, "appkey", None)):
+            missing.append("appkey")
+        if not self.config.username:
+            missing.append("username")
+        if not decrypt_integration_secret(self.config.password):
+            missing.append("password")
+        if missing:
+            raise ValueError(
+                "Configuração Sankhya legacy login incompleta: " + ", ".join(missing)
+            )
+
+    def validate_legacy_basic_config(self) -> None:
         missing: list[str] = []
         if not self.config.ws_url:
             missing.append("ws_url")
@@ -133,6 +202,8 @@ class SankhyaGatewayAuthService:
             "client_id": self.config.client_id,
             "client_secret_mask": mask_integration_secret(self.config.client_secret),
             "x_token_mask": mask_integration_secret(self.config.x_token),
+            "token_mask": mask_integration_secret(getattr(self.config, "token", None)),
+            "appkey_mask": mask_integration_secret(getattr(self.config, "appkey", None)),
             "ws_url": self.config.ws_url,
             "username": self.config.username,
             "password_mask": mask_integration_secret(self.config.password),
@@ -158,7 +229,7 @@ class SankhyaGatewayAuthService:
             httpx.HTTPError: Quando o Gateway responde com erro HTTP.
         """
 
-        access_token, expires_at = await self._request_token(client, cache_result=True)
+        access_token, expires_at = await self._request_token(client, cache_result=cache_result)
         if cache_result:
             cache_key = self.cache_key_for(self.config)
             self._token_cache[cache_key] = SankhyaGatewayToken(
@@ -181,9 +252,24 @@ class SankhyaGatewayAuthService:
         """
 
         try:
-            self.validate_gateway_config()
+            if self.validation_auth_model() == "gateway_oauth_client_credentials":
+                self.validate_gateway_config()
+            elif self.validation_auth_model() == "gateway_legacy_login":
+                self.validate_gateway_legacy_login_config()
+            elif self.validation_auth_model() == "legacy_ws_basic_auth":
+                self.validate_legacy_basic_config()
+            else:
+                raise ValueError("Configuração Sankhya incompleta")
         except ValueError as exc:
             return self._build_diagnostic(False, str(exc), None)
+
+        if self.validation_auth_model() == "legacy_ws_basic_auth":
+            return self._build_diagnostic(
+                True,
+                "Configuração Sankhya LEGACY validada com sucesso",
+                None,
+            )
+
         try:
             _, expires_at = await self._request_token(client, cache_result=False)
         except ValueError as exc:
@@ -221,7 +307,15 @@ class SankhyaGatewayAuthService:
             httpx.HTTPError: Quando a requisição ao Gateway falha.
         """
 
-        self.validate_gateway_config()
+        auth_model = self.validation_auth_model()
+        if auth_model == "gateway_oauth_client_credentials":
+            self.validate_gateway_config()
+        elif auth_model == "gateway_legacy_login":
+            self.validate_gateway_legacy_login_config()
+        elif auth_model == "legacy_ws_basic_auth":
+            self.validate_legacy_basic_config()
+        else:
+            raise ValueError("Configuração Sankhya incompleta")
         cache_key = self.cache_key_for(self.config)
         if cache_result:
             cached = self._token_cache.get(cache_key)
@@ -231,7 +325,7 @@ class SankhyaGatewayAuthService:
         owns_client = client is None
         http_client = client or httpx.AsyncClient(timeout=60.0)
         try:
-            response = await self._perform_authentication_request(http_client)
+            response = await self._perform_authentication_request(http_client, auth_model=auth_model)
             response.raise_for_status()
 
             data = response.json()
@@ -242,7 +336,12 @@ class SankhyaGatewayAuthService:
             if owns_client:
                 await http_client.aclose()
 
-    async def _perform_authentication_request(self, http_client: httpx.AsyncClient) -> httpx.Response:
+    async def _perform_authentication_request(
+        self,
+        http_client: httpx.AsyncClient,
+        *,
+        auth_model: str,
+    ) -> httpx.Response:
         """Executa a chamada HTTP ao endpoint /authenticate.
 
         Args:
@@ -252,36 +351,66 @@ class SankhyaGatewayAuthService:
             Resposta HTTP do Gateway Sankhya.
         """
 
-        payloads: list[tuple[str, dict[str, Any]]] = [
-            (
-                "json",
-                {
-                    "client_id": self.config.client_id,
-                    "client_secret": decrypt_integration_secret(self.config.client_secret),
-                    "grant_type": "client_credentials",
-                },
-            ),
-            (
-                "data",
-                {
-                    "client_id": self.config.client_id,
-                    "client_secret": decrypt_integration_secret(self.config.client_secret),
-                    "grant_type": "client_credentials",
-                },
-            ),
-            (
-                "json",
-                {
-                    "client_id": self.config.client_id,
-                    "client_secret": decrypt_integration_secret(self.config.client_secret),
-                },
-            ),
-        ]
-        headers = {
-            "Accept": "application/json",
-            "Content-Type": "application/json",
-            "X-Token": decrypt_integration_secret(self.config.x_token),
-        }
+        if auth_model == "gateway_legacy_login":
+            endpoint = self.config.auth_url or f"{(self.config.api_base_url or self.config.ws_url or '').rstrip('/')}/login"
+            payloads: list[tuple[str, dict[str, Any]]] = [
+                (
+                    "json",
+                    {
+                        "token": decrypt_integration_secret(getattr(self.config, "token", None)),
+                        "appkey": decrypt_integration_secret(getattr(self.config, "appkey", None)),
+                        "username": self.config.username,
+                        "password": decrypt_integration_secret(self.config.password),
+                    },
+                ),
+                (
+                    "data",
+                    {
+                        "token": decrypt_integration_secret(getattr(self.config, "token", None)),
+                        "appkey": decrypt_integration_secret(getattr(self.config, "appkey", None)),
+                        "username": self.config.username,
+                        "password": decrypt_integration_secret(self.config.password),
+                    },
+                ),
+            ]
+            headers = {
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+            }
+        elif auth_model == "legacy_ws_basic_auth":
+            raise ValueError("Configuração Sankhya LEGACY não utiliza fluxo de token")
+        else:
+            endpoint = self.config.auth_url or ""
+            payloads = [
+                (
+                    "json",
+                    {
+                        "client_id": self.config.client_id,
+                        "client_secret": decrypt_integration_secret(self.config.client_secret),
+                        "grant_type": "client_credentials",
+                    },
+                ),
+                (
+                    "data",
+                    {
+                        "client_id": self.config.client_id,
+                        "client_secret": decrypt_integration_secret(self.config.client_secret),
+                        "grant_type": "client_credentials",
+                    },
+                ),
+                (
+                    "json",
+                    {
+                        "client_id": self.config.client_id,
+                        "client_secret": decrypt_integration_secret(self.config.client_secret),
+                    },
+                ),
+            ]
+            headers = {
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+                "X-Token": decrypt_integration_secret(self.config.x_token),
+            }
 
         response: httpx.Response | None = None
         for index, (mode, payload) in enumerate(payloads):
@@ -293,7 +422,7 @@ class SankhyaGatewayAuthService:
                 request_kwargs["data"] = payload
             else:
                 request_kwargs["json"] = payload
-            response = await http_client.post(self.config.auth_url or "", **request_kwargs)
+            response = await http_client.post(endpoint, **request_kwargs)
             if response.status_code not in {400, 401, 415, 422} or index == len(payloads) - 1:
                 break
         assert response is not None
@@ -347,10 +476,12 @@ class SankhyaGatewayAuthService:
             "Content-Type": "text/xml; charset=utf-8",
             "SOAPAction": '""',
         }
-        if self.is_gateway_configured():
+        if self.is_gateway_oauth_configured():
             headers["Authorization"] = f"Bearer {access_token}"
             headers["X-Token"] = decrypt_integration_secret(self.config.x_token)
-        elif self.is_legacy_configured():
+        elif self.is_gateway_legacy_login_configured():
+            headers["Authorization"] = f"Bearer {access_token}"
+        elif self.is_legacy_ws_basic_configured():
             import base64
 
             credentials = f"{self.config.username}:{decrypt_integration_secret(self.config.password)}"

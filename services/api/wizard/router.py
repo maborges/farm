@@ -90,8 +90,8 @@ _CHECKLIST_ACTION_GUIDANCE = {
         "commodities ou produtos canônicos para habilitar o módulo agrícola."
     ),
     "CHECK_INTEGRACAO_ERP": (
-        "Se o tenant usa ERP, configure o provider, valide o health e confirme as "
-        "capabilities e policies mínimas P0 no console ERP."
+        "Se a operação usa ERP, informe qual sistema está integrado, teste a comunicação "
+        "e confirme se as funções mínimas para o piloto já estão disponíveis no console ERP."
     ),
 }
 

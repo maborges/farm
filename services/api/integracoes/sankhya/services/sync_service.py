@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+from types import SimpleNamespace
 from typing import Any
 
 import httpx
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
+from sqlalchemy.exc import ProgrammingError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -20,6 +22,7 @@ from integracoes.models import (
     MarketplaceIntegracao,
     TenantIntegracao,
 )
+from integracoes.erp_readiness_service import ErpReadinessService
 from integracoes.sankhya.models import (
     SankhyaConfig,
     SankhyaPessoa,
@@ -59,17 +62,23 @@ class SankhyaWSClient:
             await self._session.aclose()
 
     def _validate_config(self) -> None:
-        if self.auth_model == "GATEWAY":
+        if self.auth_model == "gateway_oauth_client_credentials":
             self.auth_service.validate_gateway_config()
             return
-        if self.auth_model == "LEGACY":
+        if self.auth_model == "gateway_legacy_login":
+            self.auth_service.validate_gateway_legacy_login_config()
+            return
+        if self.auth_model == "legacy_ws_basic_auth":
             self.auth_service.validate_legacy_config()
             return
         raise ValueError("Configuração Sankhya incompleta: informe Gateway ou credenciais legadas")
 
     async def _get_auth_headers(self) -> dict[str, str]:
         self._validate_config()
-        if self.auth_model == "GATEWAY":
+        if self.auth_model in {
+            "gateway_oauth_client_credentials",
+            "gateway_legacy_login",
+        }:
             token = await self.auth_service.authenticate(self._session)
             return self.auth_service.build_request_headers(token)
         token_headers = self.auth_service.build_request_headers("")
@@ -161,6 +170,10 @@ class SankhyaConfigSerializer:
             "sankhya_client_secret_mask": mask_integration_secret(config.client_secret),
             "sankhya_x_token_configured": bool(decrypt_integration_secret(config.x_token)),
             "sankhya_x_token_mask": mask_integration_secret(config.x_token),
+            "sankhya_token_configured": bool(decrypt_integration_secret(config.token)),
+            "sankhya_token_mask": mask_integration_secret(config.token),
+            "sankhya_appkey_configured": bool(decrypt_integration_secret(config.appkey)),
+            "sankhya_appkey_mask": mask_integration_secret(config.appkey),
             "ws_url": config.ws_url,
             "username": config.username,
             "ativo": config.ativo,
@@ -206,10 +219,19 @@ class SankhyaSyncService:
     def __init__(self, db: AsyncSession):
         self.db = db
         self.adapter = SankhyaCanonicalAdapter(db)
+        self._supports_legacy_gateway_columns: bool | None = None
 
     async def get_config(self, tenant_id: str) -> SankhyaConfig | None:
+        if not await self._supports_legacy_gateway_login_columns():
+            return await self._get_config_without_legacy_gateway_columns(tenant_id)
         stmt = select(SankhyaConfig).where(SankhyaConfig.tenant_id == tenant_id)
-        return (await self.db.execute(stmt)).scalar_one_or_none()
+        try:
+            return (await self.db.execute(stmt)).scalar_one_or_none()
+        except ProgrammingError as exc:
+            if not self._is_missing_legacy_gateway_columns_error(exc):
+                raise
+            self._supports_legacy_gateway_columns = False
+            return await self._get_config_without_legacy_gateway_columns(tenant_id)
 
     async def obter_config_console(self, tenant_id: str) -> dict[str, Any]:
         config = await self.get_config(tenant_id)
@@ -222,6 +244,96 @@ class SankhyaSyncService:
         payload.update(_provider_contract_payload(provider))
         return payload
 
+    async def _supports_legacy_gateway_login_columns(self) -> bool:
+        if self._supports_legacy_gateway_columns is not None:
+            return self._supports_legacy_gateway_columns
+
+        dialect_name = self.db.bind.dialect.name if self.db.bind is not None else ""
+        if dialect_name == "sqlite":
+            stmt = text("PRAGMA table_info('sankhya_config')")
+            rows = (await self.db.execute(stmt)).mappings().all()
+            columns = {row["name"] for row in rows}
+        else:
+            stmt = text(
+                """
+                SELECT column_name
+                FROM information_schema.columns
+                WHERE table_name = 'sankhya_config'
+                  AND column_name IN ('token', 'appkey')
+                """
+            )
+            columns = set((await self.db.execute(stmt)).scalars().all())
+
+        self._supports_legacy_gateway_columns = {"token", "appkey"}.issubset(columns)
+        return self._supports_legacy_gateway_columns
+
+    async def _get_config_without_legacy_gateway_columns(
+        self,
+        tenant_id: str,
+    ) -> SankhyaConfig | None:
+        stmt = text(
+            """
+            SELECT
+                id,
+                tenant_id,
+                environment,
+                api_base_url,
+                auth_url,
+                client_id,
+                client_secret,
+                x_token,
+                ws_url,
+                username,
+                password,
+                ativo,
+                ultimo_teste,
+                teste_status,
+                sync_interval,
+                ultimo_sync,
+                created_at,
+                updated_at
+            FROM sankhya_config
+            WHERE tenant_id = :tenant_id
+            """
+        )
+        row = (await self.db.execute(stmt, {"tenant_id": tenant_id})).mappings().first()
+        if row is None:
+            return None
+
+        return SankhyaConfig(
+            id=row["id"],
+            tenant_id=row["tenant_id"],
+            environment=row["environment"],
+            api_base_url=row["api_base_url"],
+            auth_url=row["auth_url"],
+            client_id=row["client_id"],
+            client_secret=row["client_secret"],
+            x_token=row["x_token"],
+            token=None,
+            appkey=None,
+            ws_url=row["ws_url"],
+            username=row["username"],
+            password=row["password"],
+            ativo=row["ativo"],
+            ultimo_teste=row["ultimo_teste"],
+            teste_status=row["teste_status"],
+            sync_interval=row["sync_interval"],
+            ultimo_sync=row["ultimo_sync"],
+            created_at=row["created_at"],
+            updated_at=row["updated_at"],
+        )
+
+    @staticmethod
+    def _is_missing_legacy_gateway_columns_error(exc: ProgrammingError) -> bool:
+        message = str(exc).lower()
+        return "sankhya_config.token does not exist" in message or "sankhya_config.appkey does not exist" in message
+
+    @staticmethod
+    def _requires_legacy_gateway_columns(normalized: dict[str, Any]) -> bool:
+        return normalized["auth_model"] == "gateway_legacy_login" or bool(
+            normalized["token"] or normalized["appkey"]
+        )
+
     def _normalize_config_values(
         self,
         *,
@@ -231,6 +343,8 @@ class SankhyaSyncService:
         sankhya_client_id: str | None,
         sankhya_client_secret: str | None,
         sankhya_x_token: str | None,
+        sankhya_token: str | None,
+        sankhya_appkey: str | None,
         ws_url: str | None,
         username: str | None,
         password: str | None,
@@ -238,28 +352,37 @@ class SankhyaSyncService:
         current: SankhyaConfig | None = None,
     ) -> dict[str, Any]:
         gateway_inputs = [
-            sankhya_api_base_url,
-            sankhya_auth_url,
             sankhya_client_id,
             sankhya_client_secret,
             sankhya_x_token,
         ]
-        legacy_inputs = [ws_url, username, password]
-        explicit_gateway = any(value is not None for value in gateway_inputs)
-        explicit_legacy = any(value is not None for value in legacy_inputs)
-
-        if explicit_gateway:
-            auth_model = "GATEWAY"
-        elif explicit_legacy:
-            auth_model = "LEGACY"
-        elif current is not None:
-            auth_model = SankhyaGatewayAuthService(current).auth_model()
-        else:
-            auth_model = "GATEWAY"
+        legacy_inputs = [sankhya_token, sankhya_appkey, ws_url, username, password]
+        explicit_gateway = any(bool(value.strip() if isinstance(value, str) else value) for value in gateway_inputs)
+        explicit_legacy = any(bool(value.strip() if isinstance(value, str) else value) for value in legacy_inputs)
 
         current_auth = SankhyaGatewayAuthService(current) if current else None
-        current_is_gateway = current_auth.auth_model() == "GATEWAY" if current_auth else False
-        current_is_legacy = current_auth.auth_model() == "LEGACY" if current_auth else False
+        current_model = current_auth.auth_model() if current_auth else None
+
+        if explicit_gateway:
+            auth_model = "gateway_oauth_client_credentials"
+        elif (sankhya_token and sankhya_token.strip()) or (sankhya_appkey and sankhya_appkey.strip()):
+            auth_model = "gateway_legacy_login"
+        elif current_model and current_model != "incomplete":
+            auth_model = current_model
+        elif explicit_legacy:
+            auth_model = "legacy_ws_basic_auth"
+        else:
+            auth_model = "gateway_oauth_client_credentials"
+
+        current_is_gateway = (
+            current_auth.auth_model() == "gateway_oauth_client_credentials" if current_auth else False
+        )
+        current_is_legacy_login = (
+            current_auth.auth_model() == "gateway_legacy_login" if current_auth else False
+        )
+        current_is_legacy_basic = (
+            current_auth.auth_model() == "legacy_ws_basic_auth" if current_auth else False
+        )
 
         environment = sankhya_environment or (current.environment if current else settings.sankhya_environment)
         api_base_url = sankhya_api_base_url or (
@@ -269,68 +392,107 @@ class SankhyaSyncService:
         client_id = sankhya_client_id or (current.client_id if current and current.client_id else None)
         client_secret_raw = sankhya_client_secret
         x_token_raw = sankhya_x_token
+        token_raw = sankhya_token
+        appkey_raw = sankhya_appkey
         ws_url_value = ws_url or (current.ws_url if current and current.ws_url else None)
         username_value = username or (current.username if current and current.username else None)
         password_raw = password
 
-        if auth_model == "INCOMPLETE":
-            raise ValueError(
-                "Configuração Sankhya incompleta: informe Gateway ou credenciais legadas"
-            )
-
-        if auth_model == "GATEWAY":
-            if api_base_url is None:
+        if auth_model == "gateway_oauth_client_credentials":
+            if not api_base_url:
                 raise ValueError("Configuração Sankhya Gateway incompleta: sankhya_api_base_url")
-            if auth_url is None:
+            if not auth_url:
                 raise ValueError("Configuração Sankhya Gateway incompleta: sankhya_auth_url")
-            if client_id is None:
+            if not client_id:
                 raise ValueError("Configuração Sankhya Gateway incompleta: sankhya_client_id")
 
-            if client_secret_raw is None and current_is_gateway and current and current.client_secret:
+            if not client_secret_raw and current_is_gateway and current and current.client_secret:
                 client_secret = current.client_secret
-            elif client_secret_raw is None:
+            elif not client_secret_raw:
                 raise ValueError("Configuração Sankhya Gateway incompleta: sankhya_client_secret")
             else:
                 client_secret = encrypt_integration_secret(client_secret_raw)
 
-            if x_token_raw is None and current_is_gateway and current and current.x_token:
+            if not x_token_raw and current_is_gateway and current and current.x_token:
                 x_token = current.x_token
-            elif x_token_raw is None:
+            elif not x_token_raw:
                 raise ValueError("Configuração Sankhya Gateway incompleta: sankhya_x_token")
             else:
                 x_token = encrypt_integration_secret(x_token_raw)
 
-            if ws_url_value is None:
+            if not ws_url_value:
                 ws_url_value = api_base_url
-            if username_value is None:
+            if not username_value:
                 username_value = client_id
+
+            token = current.token if current and current.token else None
+            appkey = current.appkey if current and current.appkey else None
 
             password_value = (
                 encrypt_integration_secret(password_raw)
                 if password_raw is not None
-                else (current.password if current and current.password and current_is_legacy else None)
+                else (current.password if current and current.password and current_is_legacy_basic else None)
             )
-        else:
-            if ws_url_value is None:
+        elif auth_model == "gateway_legacy_login":
+            if not auth_url:
+                auth_url = api_base_url or ws_url_value
+            if not auth_url:
+                raise ValueError("Configuração Sankha legacy login incompleta: sankhya_auth_url")
+            if not token_raw and current_is_legacy_login and current and current.token:
+                token = current.token
+            elif not token_raw:
+                raise ValueError("Configuração Sankhya legacy login incompleta: token")
+            else:
+                token = encrypt_integration_secret(token_raw)
+
+            if not appkey_raw and current_is_legacy_login and current and current.appkey:
+                appkey = current.appkey
+            elif not appkey_raw:
+                raise ValueError("Configuração Sankhya legacy login incompleta: appkey")
+            else:
+                appkey = encrypt_integration_secret(appkey_raw)
+
+            if not username_value:
+                raise ValueError("Configuração Sankhya legacy login incompleta: username")
+
+            if not password_raw and current_is_legacy_login and current and current.password:
+                password_value = current.password
+            elif not password_raw:
+                raise ValueError("Configuração Sankhya legacy login incompleta: password")
+            else:
+                password_value = encrypt_integration_secret(password_raw)
+
+            if not api_base_url:
+                api_base_url = ws_url_value or auth_url
+            if not ws_url_value:
+                ws_url_value = api_base_url
+            client_secret = current.client_secret if current and current.client_secret else None
+            x_token = current.x_token if current and current.x_token else None
+        elif auth_model == "legacy_ws_basic_auth":
+            if not ws_url_value:
                 raise ValueError("Configuração Sankhya LEGACY incompleta: ws_url")
-            if username_value is None:
+            if not username_value:
                 raise ValueError("Configuração Sankhya LEGACY incompleta: username")
 
-            if password_raw is None and current_is_legacy and current and current.password:
+            if not password_raw and current_is_legacy_basic and current and current.password:
                 password_value = current.password
-            elif password_raw is None:
+            elif not password_raw:
                 raise ValueError("Configuração Sankhya LEGACY incompleta: password")
             else:
                 password_value = encrypt_integration_secret(password_raw)
 
-            if api_base_url is None:
+            if not api_base_url:
                 api_base_url = ws_url_value
-            if auth_url is None:
+            if not auth_url:
                 auth_url = None
-            if client_id is None:
+            if not client_id:
                 client_id = None
             client_secret = current.client_secret if current and current.client_secret else None
             x_token = current.x_token if current and current.x_token else None
+            token = current.token if current and current.token else None
+            appkey = current.appkey if current and current.appkey else None
+        else:
+            raise ValueError("Configuração Sankhya incompleta: informe Gateway ou credenciais legadas")
 
         return {
             "environment": environment,
@@ -339,6 +501,8 @@ class SankhyaSyncService:
             "client_id": client_id,
             "client_secret": client_secret,
             "x_token": x_token,
+            "token": token if "token" in locals() else (current.token if current and current.token else None),
+            "appkey": appkey if "appkey" in locals() else (current.appkey if current and current.appkey else None),
             "ws_url": ws_url_value,
             "username": username_value,
             "password": password_value,
@@ -346,6 +510,8 @@ class SankhyaSyncService:
             "auth_model": auth_model,
             "client_secret_changed": client_secret_raw is not None,
             "x_token_changed": x_token_raw is not None,
+            "token_changed": token_raw is not None,
+            "appkey_changed": appkey_raw is not None,
             "password_changed": password_raw is not None,
         }
 
@@ -359,6 +525,8 @@ class SankhyaSyncService:
         sankhya_client_id: str | None = None,
         sankhya_client_secret: str | None = None,
         sankhya_x_token: str | None = None,
+        sankhya_token: str | None = None,
+        sankhya_appkey: str | None = None,
         ws_url: str | None = None,
         username: str | None = None,
         password: str | None = None,
@@ -371,12 +539,26 @@ class SankhyaSyncService:
             sankhya_client_id=sankhya_client_id,
             sankhya_client_secret=sankhya_client_secret,
             sankhya_x_token=sankhya_x_token,
+            sankhya_token=sankhya_token,
+            sankhya_appkey=sankhya_appkey,
             ws_url=ws_url,
             username=username,
             password=password,
             sync_interval=sync_interval,
         )
+        next_config_id = await self._next_config_id()
+        if not await self._supports_legacy_gateway_login_columns():
+            if self._requires_legacy_gateway_columns(normalized):
+                raise ValueError(
+                    "Login legado do Gateway Sankhya exige migracao do banco para token/appkey."
+                )
+            return await self._create_config_without_legacy_gateway_columns(
+                tenant_id,
+                normalized,
+                next_config_id=next_config_id,
+            )
         config = SankhyaConfig(
+            id=next_config_id,
             tenant_id=tenant_id,
             environment=normalized["environment"],
             api_base_url=normalized["api_base_url"],
@@ -384,17 +566,42 @@ class SankhyaSyncService:
             client_id=normalized["client_id"],
             client_secret=normalized["client_secret"],
             x_token=normalized["x_token"],
+            token=normalized["token"],
+            appkey=normalized["appkey"],
             ws_url=normalized["ws_url"],
             username=normalized["username"],
             password=normalized["password"],
             sync_interval=normalized["sync_interval"],
         )
         self.db.add(config)
-        await self.db.commit()
-        await self.db.refresh(config)
+        try:
+            await self.db.commit()
+            await self._restore_rls_context(config.tenant_id)
+            await self.db.refresh(config)
+        except ProgrammingError as exc:
+            await self.db.rollback()
+            if not self._is_missing_legacy_gateway_columns_error(exc):
+                raise
+            self._supports_legacy_gateway_columns = False
+            if self._requires_legacy_gateway_columns(normalized):
+                raise ValueError(
+                    "Login legado do Gateway Sankhya exige migracao do banco para token/appkey."
+                ) from exc
+            config = await self._create_config_without_legacy_gateway_columns(
+                tenant_id,
+                normalized,
+                next_config_id=next_config_id,
+            )
+        await self._restore_rls_context(tenant_id)
         await self.adapter.sync_provider_config(
             config,
-            password_changed=bool(normalized["client_secret"] or normalized["x_token"] or normalized["password"]),
+            password_changed=bool(
+                normalized["client_secret"]
+                or normalized["x_token"]
+                or normalized["token"]
+                or normalized["appkey"]
+                or normalized["password"]
+            ),
             reason="sankhya_config_created",
         )
         return config
@@ -409,6 +616,8 @@ class SankhyaSyncService:
         sankhya_client_id: str | None = None,
         sankhya_client_secret: str | None = None,
         sankhya_x_token: str | None = None,
+        sankhya_token: str | None = None,
+        sankhya_appkey: str | None = None,
         ws_url: str | None = None,
         username: str | None = None,
         password: str | None = None,
@@ -421,15 +630,25 @@ class SankhyaSyncService:
             sankhya_client_id=sankhya_client_id,
             sankhya_client_secret=sankhya_client_secret,
             sankhya_x_token=sankhya_x_token,
+            sankhya_token=sankhya_token,
+            sankhya_appkey=sankhya_appkey,
             ws_url=ws_url,
             username=username,
             password=password,
             sync_interval=sync_interval,
             current=config,
         )
+        if not await self._supports_legacy_gateway_login_columns():
+            if self._requires_legacy_gateway_columns(normalized):
+                raise ValueError(
+                    "Login legado do Gateway Sankhya exige migracao do banco para token/appkey."
+                )
+            return await self._update_config_without_legacy_gateway_columns(config, normalized)
         password_changed = bool(
             normalized["client_secret_changed"]
             or normalized["x_token_changed"]
+            or normalized["token_changed"]
+            or normalized["appkey_changed"]
             or normalized["password_changed"]
         )
         config.environment = normalized["environment"]
@@ -440,6 +659,10 @@ class SankhyaSyncService:
             config.client_secret = normalized["client_secret"]
         if normalized["x_token"] is not None:
             config.x_token = normalized["x_token"]
+        if normalized["token"] is not None:
+            config.token = normalized["token"]
+        if normalized["appkey"] is not None:
+            config.appkey = normalized["appkey"]
         if normalized["ws_url"] is not None:
             config.ws_url = normalized["ws_url"]
         if normalized["username"] is not None:
@@ -448,14 +671,142 @@ class SankhyaSyncService:
             config.password = normalized["password"]
         config.sync_interval = normalized["sync_interval"]
         self.db.add(config)
-        await self.db.commit()
-        await self.db.refresh(config)
+        try:
+            await self.db.commit()
+            await self._restore_rls_context(config.tenant_id)
+            await self.db.refresh(config)
+        except ProgrammingError as exc:
+            await self.db.rollback()
+            if not self._is_missing_legacy_gateway_columns_error(exc):
+                raise
+            self._supports_legacy_gateway_columns = False
+            if self._requires_legacy_gateway_columns(normalized):
+                raise ValueError(
+                    "Login legado do Gateway Sankhya exige migracao do banco para token/appkey."
+                ) from exc
+            config = await self._update_config_without_legacy_gateway_columns(config, normalized)
+        await self._restore_rls_context(config.tenant_id)
         await self.adapter.sync_provider_config(
             config,
             password_changed=password_changed,
             reason="sankhya_config_updated",
         )
         return config
+
+    async def _create_config_without_legacy_gateway_columns(
+        self,
+        tenant_id: str,
+        normalized: dict[str, Any],
+        *,
+        next_config_id: int,
+    ) -> SankhyaConfig:
+        stmt = text(
+            """
+            INSERT INTO sankhya_config (
+                id,
+                tenant_id,
+                environment,
+                api_base_url,
+                auth_url,
+                client_id,
+                client_secret,
+                x_token,
+                ws_url,
+                username,
+                password,
+                ativo,
+                sync_interval,
+                created_at,
+                updated_at
+            ) VALUES (
+                :id,
+                :tenant_id,
+                :environment,
+                :api_base_url,
+                :auth_url,
+                :client_id,
+                :client_secret,
+                :x_token,
+                :ws_url,
+                :username,
+                :password,
+                :ativo,
+                :sync_interval,
+                :created_at,
+                :updated_at
+            )
+            """
+        )
+        now = datetime.utcnow()
+        await self.db.execute(
+            stmt,
+            {
+                "id": next_config_id,
+                "tenant_id": tenant_id,
+                "environment": normalized["environment"],
+                "api_base_url": normalized["api_base_url"],
+                "auth_url": normalized["auth_url"],
+                "client_id": normalized["client_id"],
+                "client_secret": normalized["client_secret"],
+                "x_token": normalized["x_token"],
+                "ws_url": normalized["ws_url"],
+                "username": normalized["username"],
+                "password": normalized["password"],
+                "ativo": True,
+                "sync_interval": normalized["sync_interval"],
+                "created_at": now,
+                "updated_at": now,
+            },
+        )
+        await self.db.commit()
+        config = await self._get_config_without_legacy_gateway_columns(tenant_id)
+        assert config is not None
+        return config
+
+    async def _update_config_without_legacy_gateway_columns(
+        self,
+        config: SankhyaConfig,
+        normalized: dict[str, Any],
+    ) -> SankhyaConfig:
+        stmt = text(
+            """
+            UPDATE sankhya_config
+            SET
+                environment = :environment,
+                api_base_url = :api_base_url,
+                auth_url = :auth_url,
+                client_id = :client_id,
+                client_secret = :client_secret,
+                x_token = :x_token,
+                ws_url = :ws_url,
+                username = :username,
+                password = :password,
+                sync_interval = :sync_interval,
+                updated_at = :updated_at
+            WHERE id = :id
+            """
+        )
+        await self.db.execute(
+            stmt,
+            {
+                "id": config.id,
+                "environment": normalized["environment"],
+                "api_base_url": normalized["api_base_url"],
+                "auth_url": normalized["auth_url"],
+                "client_id": normalized["client_id"],
+                "client_secret": normalized["client_secret"],
+                "x_token": normalized["x_token"],
+                "ws_url": normalized["ws_url"],
+                "username": normalized["username"],
+                "password": normalized["password"],
+                "sync_interval": normalized["sync_interval"],
+                "updated_at": datetime.utcnow(),
+            },
+        )
+        await self.db.commit()
+        updated = await self._get_config_without_legacy_gateway_columns(config.tenant_id)
+        assert updated is not None
+        return updated
 
     async def testar_conexao(self, tenant_id: str) -> SankhyaTestConnectionResponse:
         """Executa um teste controlado do Gateway Sankhya sem persistência externa.
@@ -491,6 +842,7 @@ class SankhyaSyncService:
         )
         self.db.add(log)
         await self.db.commit()
+        await self._restore_rls_context(log.tenant_id)
         await self.db.refresh(log)
         integration_job = await self.adapter.start_sync_job(
             tenant_id=tenant_id,
@@ -567,6 +919,7 @@ class SankhyaSyncService:
         health = await self._get_canonical_health(config_id)
         features = await self._list_canonical_features(config_id)
         policies = await self._list_canonical_policies(config_id)
+        readiness = await self._load_readiness(tenant_id, config, canonical_config)
 
         proximo_sync = None
         if config and config.ultimo_sync:
@@ -632,6 +985,7 @@ class SankhyaSyncService:
             "health_schema": canonical_config.integracao.health_schema
             if canonical_config and canonical_config.integracao
             else None,
+            "readiness": readiness,
         }
 
     async def obter_health_detalhado(self, tenant_id: str) -> dict[str, Any]:
@@ -835,6 +1189,23 @@ class SankhyaSyncService:
             return IntegrationJobTrigger.SCHEDULED
         return IntegrationJobTrigger.MANUAL
 
+    async def _next_config_id(self) -> int:
+        stmt = select(func.coalesce(func.max(SankhyaConfig.id), 0) + 1)
+        return int((await self.db.execute(stmt)).scalar_one())
+
+    async def _restore_rls_context(self, tenant_id: str | None = None) -> None:
+        bind = self.db.get_bind()
+        dialect = getattr(bind, "dialect", None)
+        effective_tenant_id = tenant_id or self.db.info.get("tenant_id")
+        if getattr(dialect, "name", "") != "postgresql" or not effective_tenant_id:
+            return
+
+        self.db.info["tenant_id"] = effective_tenant_id
+        await self.db.execute(
+            text("SELECT set_config('app.current_tenant_id', :tenant_id, true)"),
+            {"tenant_id": effective_tenant_id},
+        )
+
     async def _next_sync_log_id_for_sqlite(self) -> int | None:
         bind = self.db.get_bind()
         dialect = getattr(bind, "dialect", None)
@@ -856,6 +1227,48 @@ class SankhyaSyncService:
             )
         )
         return (await self.db.execute(stmt)).scalar_one_or_none()
+
+    async def _load_readiness(
+        self,
+        tenant_id: str,
+        config: SankhyaConfig | None,
+        canonical_config: TenantIntegracao | None,
+    ) -> dict[str, Any]:
+        declared = bool(config or canonical_config)
+        implantacao = SimpleNamespace(
+            tenant_id=tenant_id,
+            escopo_modulos={"integracao_erp": declared} if declared else {},
+            diagnostico_inicial_snapshot={},
+        )
+        readiness_service = ErpReadinessService(self.db)
+        runtime = await readiness_service.carregar_runtime(implantacao)
+        readiness = readiness_service.avaliar_runtime(implantacao, runtime)
+        return {
+            "status": readiness.status,
+            "label": {
+                "DISPENSADO": "Dispensado",
+                "PENDENTE": "Pendente",
+                "ATENDIDO": "Apto ao piloto",
+                "FALHOU": "Bloqueado",
+            }.get(readiness.status, readiness.status.title()),
+            "variant": {
+                "DISPENSADO": "secondary",
+                "PENDENTE": "secondary",
+                "ATENDIDO": "default",
+                "FALHOU": "destructive",
+            }.get(readiness.status, "secondary"),
+            "summary": readiness.description,
+            "pending": readiness.pending_items,
+            "block_reasons": readiness.block_reasons,
+            "cta_url": readiness.cta_url,
+            "provider_code": readiness.provider_code,
+            "provider_display_name": readiness.provider_display_name,
+            "health_status": readiness.health_status,
+            "capabilities_evaluated": readiness.capabilities_evaluated,
+            "policies_evaluated": readiness.policies_evaluated,
+            "pending_links": readiness.pending_links,
+            "conflict_links": readiness.conflict_links,
+        }
 
     async def _get_canonical_health(self, config_id: int | None) -> IntegrationHealth | None:
         if config_id is None:
@@ -907,12 +1320,12 @@ class SankhyaSyncService:
     @staticmethod
     def _legacy_health_summary(config: SankhyaConfig | None) -> str:
         if not config:
-            return "Integração Sankhya ainda não configurada."
+            return "A integração com o ERP ainda não foi configurada."
         if config.teste_status == "sucesso":
-            return "Último teste de conexão executado com sucesso."
+            return "A última verificação de comunicação com o ERP foi concluída com sucesso."
         if config.teste_status == "erro":
-            return "Último teste de conexão falhou."
-        return "Configuração existente sem health canônico disponível."
+            return "A última verificação de comunicação com o ERP falhou."
+        return "Há configuração salva, mas a situação detalhada da integração ainda não está disponível."
 
     def _serialize_job(
         self,
@@ -1047,7 +1460,7 @@ class SankhyaSyncService:
             "feature_code": None,
             "status": health.get("status", "DISCONNECTED"),
             "event_type": "integrations.health_snapshot",
-            "resumo": health.get("summary") or "Snapshot atual de health da integração.",
+            "resumo": health.get("summary") or "Situação mais recente da integração.",
             "occurred_at": occurred_at,
             "started_at": None,
             "finished_at": occurred_at,
@@ -1123,17 +1536,17 @@ class SankhyaSyncService:
         feature_mais_problematica: str | None,
     ) -> str:
         if health_atual in {"AUTH_ERROR", "CONFIG_ERROR"}:
-            return "Revisar credenciais e parâmetros técnicos antes de executar novo sync."
+            return "Revise as credenciais e os dados de acesso antes de tentar nova atualização."
         if falhas_consecutivas >= 3 and feature_mais_problematica:
             return (
-                "Priorizar troubleshooting da feature "
-                f"{feature_mais_problematica} antes de novas execuções manuais."
+                "Priorize a correção da área "
+                f"{feature_mais_problematica} antes de iniciar novas atualizações manuais."
             )
         if jobs_pendentes > 0:
-            return "Aguardar o processamento dos jobs em andamento antes de disparar novos syncs."
+            return "Aguarde a conclusão das atualizações em andamento antes de iniciar novas execuções."
         if health_atual in {"DEGRADED", "PARTIAL_FAILURE"}:
-            return "Monitorar os próximos jobs e validar os erros recentes do provider."
-        return "Integração operando de forma estável no momento."
+            return "Acompanhe as próximas atualizações e confira os erros mais recentes da integração."
+        return "A integração está operando de forma estável no momento."
 
     @staticmethod
     def _map_job_event_type(status: str) -> str:
@@ -1148,8 +1561,8 @@ class SankhyaSyncService:
     def _build_job_summary(self, job: dict[str, Any]) -> str:
         feature_code = job.get("feature_code") or "feature_indefinida"
         return (
-            f"Job canônico {job['job_status']} para {feature_code}: "
-            f"{job.get('sucessos', 0)}/{job.get('processados', 0)} com sucesso."
+            f"Execução {job['job_status']} para {feature_code}: "
+            f"{job.get('sucessos', 0)} de {job.get('processados', 0)} registros concluídos com sucesso."
         )
 
     def _build_log_summary(self, log: dict[str, Any]) -> str:
@@ -1387,6 +1800,7 @@ class SankhyaProdutoService:
             self.db.add(produto)
 
         await self.db.commit()
+        await self._restore_rls_context(tenant_id)
         await self.db.refresh(produto)
         await self.association_helper.sync_produto(tenant_id, data)
         return produto

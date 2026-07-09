@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from integracoes.erp_readiness_service import ErpReadinessResult
 from wizard.checklist_engine import ChecklistEngine, ErpChecklistRuntime
 from wizard.models import (
     ChecklistItemSeverity,
@@ -476,7 +477,7 @@ async def test_integracao_erp_configurada_sem_health_permanece_pendente() -> Non
     result = await engine.avaliar_item(implantacao, item)
 
     assert result.status == ChecklistItemStatus.PENDENTE.value
-    assert "health pendente" in result.descricao
+    assert "falta validar a comunicação" in result.descricao
 
 
 async def test_integracao_erp_com_health_critico_bloqueia() -> None:
@@ -500,7 +501,7 @@ async def test_integracao_erp_com_health_critico_bloqueia() -> None:
 
     assert result.status == ChecklistItemStatus.FALHOU.value
     assert result.pendencia_severidade == "CRITICA"
-    assert "health crítico" in result.descricao
+    assert "falha crítica" in result.descricao
 
 
 async def test_integracao_erp_com_capabilities_p0_incompletas_bloqueia() -> None:
@@ -523,7 +524,7 @@ async def test_integracao_erp_com_capabilities_p0_incompletas_bloqueia() -> None
     result = await engine.avaliar_item(implantacao, item)
 
     assert result.status == ChecklistItemStatus.FALHOU.value
-    assert "Capabilities P0 incompletas" in result.descricao
+    assert "funções obrigatórias" in result.descricao
     assert "nfe" in result.descricao
 
 
@@ -547,9 +548,40 @@ async def test_integracao_erp_com_capabilities_e_policies_ok_valida_piloto() -> 
     result = await engine.avaliar_item(implantacao, item)
 
     assert result.status == ChecklistItemStatus.ATENDIDO.value
-    assert "piloto restrito" in result.descricao
+    assert "piloto inicial" in result.descricao
     assert result.evidencia is not None
     assert result.evidencia.entidade == "Integração ERP"
+
+
+async def test_wizard_delega_prontidao_para_servico_centralizado() -> None:
+    session = _make_session()
+    engine = ChecklistEngine(session)
+    implantacao = _make_implantacao(escopo_modulos={"integracao_erp": True})
+    item = _make_item("CHECK_INTEGRACAO_ERP")
+    runtime = _make_erp_runtime()
+    readiness = ErpReadinessResult(
+        status="ATENDIDO",
+        provider_code="sankhya",
+        provider_name="Sankhya",
+        provider_display_name="Sankhya ERP",
+        health_status="CONNECTED",
+        description="A integração com o ERP Sankhya está pronta para o piloto inicial.",
+    )
+
+    engine._load_erp_runtime = AsyncMock(return_value=runtime)  # type: ignore[method-assign]
+    engine.erp_readiness_service.avaliar_runtime = MagicMock(return_value=readiness)
+    engine.implantacao_service.pendencia_service.buscar_pendencia_aberta_por_titulo = (
+        AsyncMock(return_value=None)
+    )
+    engine.implantacao_service.pendencia_service.resolver_pendencia_por_titulo = (
+        AsyncMock(return_value=None)
+    )
+    engine.implantacao_service.historico_service.registrar = AsyncMock()
+
+    result = await engine.avaliar_item(implantacao, item)
+
+    assert result.status == ChecklistItemStatus.ATENDIDO.value
+    engine.erp_readiness_service.avaliar_runtime.assert_called_once()
 
 
 async def test_integracao_erp_com_policies_minimas_pendentes_retorna_pendente() -> None:
@@ -572,18 +604,14 @@ async def test_integracao_erp_com_policies_minimas_pendentes_retorna_pendente() 
     result = await engine.avaliar_item(implantacao, item)
 
     assert result.status == ChecklistItemStatus.PENDENTE.value
-    assert "Policies de sincronização mínimas pendentes" in result.descricao
+    assert "regras obrigatórias para atualização dos dados" in result.descricao
 
 
 async def test_checklist_erp_nao_adota_escopo_unidade_produtiva() -> None:
-    source = (REPO_ROOT / "services" / "api" / "wizard" / "checklist_engine.py").read_text(
+    source = (REPO_ROOT / "services" / "api" / "integracoes" / "erp_readiness_service.py").read_text(
         encoding="utf-8"
     )
-    erp_runtime_block = source.split("async def _load_erp_runtime", 1)[1].split(
-        "async def _find_unidade_produtiva",
-        1,
-    )[0]
 
-    assert "IntegrationScope.TENANT.value" in erp_runtime_block
-    assert "IntegrationScope.ESTABELECIMENTO.value" in erp_runtime_block
-    assert "unidade_produtiva_id" not in erp_runtime_block
+    assert "IntegrationScope.TENANT.value" in source
+    assert "IntegrationScope.ESTABELECIMENTO.value" in source
+    assert "unidade_produtiva_id" not in source

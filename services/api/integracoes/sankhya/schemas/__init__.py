@@ -18,7 +18,7 @@ class SankhyaConfigCreate(BaseModel):
     )
     sankhya_auth_url: str | None = Field(
         default=None,
-        description="Endpoint de autenticação /authenticate.",
+        description="Endpoint de autenticação /authenticate ou /login.",
     )
     sankhya_client_id: str | None = Field(default=None, description="Client ID do Gateway.")
     sankhya_client_secret: str | None = Field(
@@ -26,6 +26,14 @@ class SankhyaConfigCreate(BaseModel):
         description="Client Secret do Gateway.",
     )
     sankhya_x_token: str | None = Field(default=None, description="X-Token do Gateway.")
+    sankhya_token: str | None = Field(
+        default=None,
+        description="[LEGACY GATEWAY] Token do login legado.",
+    )
+    sankhya_appkey: str | None = Field(
+        default=None,
+        description="[LEGACY GATEWAY] AppKey do login legado.",
+    )
     sync_interval: int = Field(default=900, ge=60)
     # LEGACY: aceito apenas para compatibilidade com dados antigos.
     ws_url: str | None = Field(default=None, description="[LEGACY] URL do WS Sankhya.")
@@ -49,6 +57,10 @@ class SankhyaConfigResponse(BaseModel):
     sankhya_client_secret_mask: str | None = None
     sankhya_x_token_configured: bool = False
     sankhya_x_token_mask: str | None = None
+    sankhya_token_configured: bool = False
+    sankhya_token_mask: str | None = None
+    sankhya_appkey_configured: bool = False
+    sankhya_appkey_mask: str | None = None
     ws_url: str | None = None
     username: str | None = None
     password_configured: bool = False
@@ -64,7 +76,7 @@ class SankhyaConfigResponse(BaseModel):
     teste_status: str | None
     ultimo_sync: datetime | None
     sync_interval: int
-    auth_model: str = "LEGACY"
+    auth_model: str = "legacy_ws_basic_auth"
     legacy_configured: bool = False
     created_at: datetime
 
@@ -197,6 +209,7 @@ class SankhyaSyncStatusResponse(BaseModel):
     feature_schema: dict | None = None
     sync_schema: dict | None = None
     health_schema: dict | None = None
+    readiness: dict | None = None
 
 
 class SankhyaHealthResponse(BaseModel):
