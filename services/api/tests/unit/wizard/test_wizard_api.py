@@ -340,6 +340,28 @@ def test_checklist_retorna_itens() -> None:
     assert body["itens"][0]["acao_link"] == "/cadastros/propriedades"
 
 
+def test_checklist_erp_aponta_para_console_oficial() -> None:
+    implantacao = _make_implantacao()
+    itens = [_make_item("CHECK_INTEGRACAO_ERP")]
+    service = _build_service(implantacao, itens=itens, checklist_minimo_satisfeito=False)
+
+    engine = MagicMock()
+    engine.avaliar_implantacao = AsyncMock(return_value=[])
+
+    client, _ = _build_client()
+    with (
+        patch("wizard.router.ImplantacaoService", return_value=service),
+        patch("wizard.router.ChecklistEngine", return_value=engine),
+    ):
+        response = client.get("/api/v1/wizard/checklist")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["itens"][0]["codigo_item"] == "CHECK_INTEGRACAO_ERP"
+    assert body["itens"][0]["acao_label"] == "Abrir console ERP"
+    assert body["itens"][0]["acao_link"] == "/dashboard/settings/integracoes/erp"
+
+
 def test_reavaliar_checklist_e_idempotente() -> None:
     implantacao = _make_implantacao()
     itens = [_make_item("CHECK_UNIDADE_PRODUTIVA")]

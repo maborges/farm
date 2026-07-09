@@ -90,8 +90,8 @@ _CHECKLIST_ACTION_GUIDANCE = {
         "commodities ou produtos canônicos para habilitar o módulo agrícola."
     ),
     "CHECK_INTEGRACAO_ERP": (
-        "Se houver integração com ERP, cadastre as credenciais e ative o sincronismo "
-        "na Central de Integrações."
+        "Se o tenant usa ERP, configure o provider, valide o health e confirme as "
+        "capabilities e policies mínimas P0 no console ERP."
     ),
 }
 
@@ -105,7 +105,7 @@ _CHECKLIST_ACTION_TARGETS = {
     "CHECK_PRODUTO_CATALOGO": ("Abrir produtos", "/cadastros/produtos"),
     "CHECK_EQUIPAMENTO_CADASTRO": ("Abrir equipamentos", "/cadastros/equipamentos"),
     "CHECK_CULTURA": ("Abrir culturas", "/cadastros/culturas"),
-    "CHECK_INTEGRACAO_ERP": ("Abrir integrações", "/configuracoes/integracoes"),
+    "CHECK_INTEGRACAO_ERP": ("Abrir console ERP", "/dashboard/settings/integracoes/erp"),
 }
 
 

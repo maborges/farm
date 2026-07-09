@@ -8,6 +8,7 @@ from typing import Any
 import httpx
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from core.config import settings
 from integracoes.models import (
@@ -175,6 +176,30 @@ class SankhyaConfigSerializer:
         }
 
 
+def _provider_contract_payload(provider: MarketplaceIntegracao | None) -> dict[str, Any]:
+    provider_definition = provider.provider_definition if provider else None
+    if isinstance(provider_definition, dict):
+        provider_code = provider_definition.get("provider_code") or provider.slug
+        provider_name = provider_definition.get("provider_name") or provider.nome
+        provider_display_name = provider_definition.get("display_name")
+    else:
+        provider_code = provider.slug if provider else None
+        provider_name = provider.nome if provider else None
+        provider_display_name = provider.nome if provider else None
+
+    return {
+        "provider_code": provider_code,
+        "provider_name": provider_name,
+        "provider_display_name": provider_display_name,
+        "connection_schema": provider.connection_schema if provider else None,
+        "credential_schema": provider.credential_schema if provider else None,
+        "provider_definition": provider.provider_definition if provider else None,
+        "feature_schema": provider.feature_schema if provider else None,
+        "sync_schema": provider.sync_schema if provider else None,
+        "health_schema": provider.health_schema if provider else None,
+    }
+
+
 class SankhyaSyncService:
     """Serviço de sincronização com Sankhya."""
 
@@ -185,6 +210,17 @@ class SankhyaSyncService:
     async def get_config(self, tenant_id: str) -> SankhyaConfig | None:
         stmt = select(SankhyaConfig).where(SankhyaConfig.tenant_id == tenant_id)
         return (await self.db.execute(stmt)).scalar_one_or_none()
+
+    async def obter_config_console(self, tenant_id: str) -> dict[str, Any]:
+        config = await self.get_config(tenant_id)
+        if not config:
+            return {}
+
+        payload = SankhyaConfigSerializer.to_response(config)
+        canonical_config = await self._get_canonical_config(tenant_id)
+        provider = canonical_config.integracao if canonical_config else None
+        payload.update(_provider_contract_payload(provider))
+        return payload
 
     def _normalize_config_values(
         self,
@@ -574,12 +610,28 @@ class SankhyaSyncService:
                 {
                     "feature_code": feature.codigo,
                     "mode": policy.mode,
+                    "prioridade": policy.prioridade,
                     "ativa": policy.ativa,
+                    "retry_ativo": policy.retry_ativo,
                     "retry_limite": policy.retry_limite,
+                    "batch_size": policy.batch_size,
+                    "timeout_seconds": policy.timeout_seconds,
                     "trigger_expression": policy.trigger_expression,
                 }
                 for policy, feature in policies
             ],
+            "provider_definition": canonical_config.integracao.provider_definition
+            if canonical_config and canonical_config.integracao
+            else None,
+            "feature_schema": canonical_config.integracao.feature_schema
+            if canonical_config and canonical_config.integracao
+            else None,
+            "sync_schema": canonical_config.integracao.sync_schema
+            if canonical_config and canonical_config.integracao
+            else None,
+            "health_schema": canonical_config.integracao.health_schema
+            if canonical_config and canonical_config.integracao
+            else None,
         }
 
     async def obter_health_detalhado(self, tenant_id: str) -> dict[str, Any]:
@@ -795,6 +847,7 @@ class SankhyaSyncService:
     async def _get_canonical_config(self, tenant_id: str) -> TenantIntegracao | None:
         stmt = (
             select(TenantIntegracao)
+            .options(selectinload(TenantIntegracao.integracao))
             .join(MarketplaceIntegracao, TenantIntegracao.integracao_id == MarketplaceIntegracao.id)
             .where(
                 TenantIntegracao.tenant_id == tenant_id,

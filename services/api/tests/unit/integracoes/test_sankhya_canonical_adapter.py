@@ -115,6 +115,11 @@ async def test_adapter_cria_config_canonica_features_policies_e_health(
             )
         )
     ).scalar_one()
+    provider = (
+        await session.execute(
+            select(MarketplaceIntegracao).where(MarketplaceIntegracao.slug == "sankhya")
+        )
+    ).scalar_one()
     features = list(
         (
             await session.execute(
@@ -152,6 +157,39 @@ async def test_adapter_cria_config_canonica_features_policies_e_health(
         IntegrationHealthStatus.CONNECTED.value,
         IntegrationHealthStatus.DISCONNECTED.value,
     }
+    assert provider.provider_definition["provider_code"] == "sankhya"
+    assert provider.provider_definition["supported_scopes"] == [
+        IntegrationScope.TENANT.value,
+        IntegrationScope.ESTABELECIMENTO.value,
+    ]
+    assert "erp.cadastros.pessoas.importar" in provider.provider_definition["supported_capabilities"]
+    assert provider.feature_schema["supported_features"] == [
+        "pessoas",
+        "produtos",
+        "financeiro",
+        "nfe",
+        "pedidos",
+        "estoque",
+    ]
+    pessoas_capability = next(
+        item
+        for item in provider.feature_schema["capability_matrix"]
+        if item["feature_code"] == "pessoas"
+    )
+    assert pessoas_capability["status"] == "SUPPORTED"
+    assert pessoas_capability["maturity"] == "TESTED"
+    assert (
+        provider.sync_schema["retry"]["max_attempts_source"]
+        == "IntegrationSyncPolicy.max_retries"
+    )
+    assert provider.sync_schema["polling"]["default_features"] == ["financeiro", "nfe"]
+    assert provider.health_schema["diagnostics"]["connection_test"] is True
+    pessoas_feature = next(feature for feature in features if feature.codigo == "pessoas")
+    assert pessoas_feature.settings_payload["capability_code"] == "erp.cadastros.pessoas.importar"
+    assert pessoas_feature.settings_payload["pilot_tier"] == "P0"
+    financeiro_policy = next(policy for policy in policies if policy.feature.codigo == "financeiro")
+    assert financeiro_policy.settings_payload["default_canonical_mode"] == "POLLING"
+    assert financeiro_policy.settings_payload["retry_managed_by"] == "IntegrationSyncPolicy"
     assert any(event.event_type == "integrations.configured" for event in events)
 
 

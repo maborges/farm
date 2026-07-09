@@ -15,6 +15,18 @@ from core.cadastros.propriedades.models import AreaRural, TipoArea
 from core.exceptions import EntityNotFoundError
 from core.models.unidade_produtiva import UnidadeProdutiva
 from financeiro.models.plano_conta import PlanoConta
+from integracoes.models import (
+    ExternalRecordAssociation,
+    ExternalRecordAssociationStatus,
+    IntegrationFeature,
+    IntegrationHealth,
+    IntegrationHealthStatus,
+    IntegrationScope,
+    IntegrationStatus,
+    IntegrationSyncPolicy,
+    MarketplaceIntegracao,
+    TenantIntegracao,
+)
 from operacional.models.estoque import Deposito
 from wizard.models import (
     ChecklistEvidenceType,
@@ -37,6 +49,20 @@ ChecklistVerifier = Callable[
     Awaitable["ChecklistEvaluation"],
 ]
 
+_ERP_REQUIRED_FEATURE_CODES = ("pessoas", "produtos", "financeiro", "nfe")
+_ERP_CRITICAL_HEALTH = {
+    IntegrationHealthStatus.AUTH_ERROR.value,
+    IntegrationHealthStatus.CONFIG_ERROR.value,
+    IntegrationHealthStatus.DISCONNECTED.value,
+}
+_ERP_ALLOWED_HEALTH_WARNING = {
+    IntegrationHealthStatus.DEGRADED.value,
+    IntegrationHealthStatus.PARTIAL_FAILURE.value,
+    IntegrationHealthStatus.RATE_LIMITED.value,
+}
+_ERP_REQUIRED_DIAGNOSTICS = ("connection_test", "timeline", "manual_reconciliation")
+_ERP_REQUIRED_OBSERVABILITY = ("health", "jobs", "logs", "reconciliation")
+
 
 @dataclass(frozen=True)
 class ChecklistEvidence:
@@ -55,6 +81,18 @@ class ChecklistEvaluation:
     evidencia: ChecklistEvidence | None
     pendencia_severidade: str | None = None
     pendencia_tipo: str = PendenciaTipo.PENDENCIA.value
+
+
+@dataclass(frozen=True)
+class ErpChecklistRuntime:
+    declared: bool
+    provider: MarketplaceIntegracao | None
+    config: TenantIntegracao | None
+    health: IntegrationHealth | None
+    features: dict[str, IntegrationFeature]
+    policies: dict[str, IntegrationSyncPolicy]
+    pending_links: int = 0
+    conflict_links: int = 0
 
 
 class ChecklistEngine:
@@ -547,11 +585,262 @@ class ChecklistEngine:
         self,
         implantacao: ImplantacaoOperacional,
     ) -> ChecklistEvaluation:
-        # Just an example, dispensed if no integrations defined in scope
-        return self._dispensed(
+        runtime = await self._load_erp_runtime(implantacao)
+        if not runtime.declared and runtime.config is None:
+            return self._dispensed(
+                "CHECK_INTEGRACAO_ERP",
+                "Operação sem ERP declarada para este tenant; o piloto restrito segue sem bloqueio.",
+            )
+        if runtime.config is None or runtime.provider is None:
+            return self._missing(
+                "CHECK_INTEGRACAO_ERP",
+                "ERP declarado no wizard, mas o provider ERP ainda não foi configurado no console ERP.",
+            )
+        if runtime.health is None:
+            return self._missing(
+                "CHECK_INTEGRACAO_ERP",
+                "Provider ERP configurado, mas health pendente. Execute o teste de conexão no console ERP.",
+            )
+        if runtime.health.status in _ERP_CRITICAL_HEALTH:
+            return self._missing(
+                "CHECK_INTEGRACAO_ERP",
+                f"Provider ERP configurado, mas health crítico ({runtime.health.status}).",
+                status=ChecklistItemStatus.FALHOU.value,
+                severidade=PendenciaSeverity.CRITICA.value,
+            )
+        missing_capabilities = self._missing_erp_capabilities(runtime)
+        if missing_capabilities:
+            return self._missing(
+                "CHECK_INTEGRACAO_ERP",
+                "Capabilities P0 incompletas para o piloto restrito: "
+                + ", ".join(missing_capabilities)
+                + ".",
+                status=ChecklistItemStatus.FALHOU.value,
+                severidade=PendenciaSeverity.CRITICA.value,
+            )
+        missing_policies = self._missing_erp_policies(runtime)
+        if missing_policies:
+            return self._missing(
+                "CHECK_INTEGRACAO_ERP",
+                "Policies de sincronização mínimas pendentes para: "
+                + ", ".join(missing_policies)
+                + ".",
+            )
+        if runtime.conflict_links > 0:
+            return self._missing(
+                "CHECK_INTEGRACAO_ERP",
+                f"Conflitos críticos de reconciliação ERP pendentes: {runtime.conflict_links}.",
+                status=ChecklistItemStatus.FALHOU.value,
+                severidade=PendenciaSeverity.CRITICA.value,
+            )
+        if runtime.pending_links > 0:
+            return self._missing(
+                "CHECK_INTEGRACAO_ERP",
+                f"Reconciliação manual pendente para {runtime.pending_links} associação(ões) ERP.",
+            )
+        return self._validated(
             "CHECK_INTEGRACAO_ERP",
-            "Nenhum ERP de terceiros configurado para obrigatoriedade de sincronismo.",
+            self._erp_ready_message(runtime),
+            entidade="Integração ERP",
+            entidade_id=runtime.config.id,
         )
+
+    def _erp_declared_for_implantacao(
+        self,
+        implantacao: ImplantacaoOperacional,
+    ) -> bool:
+        for payload in (
+            implantacao.escopo_modulos or {},
+            implantacao.diagnostico_inicial_snapshot or {},
+        ):
+            if not isinstance(payload, dict):
+                continue
+            if payload.get("integracao_erp") is True:
+                return True
+            if payload.get("estrategia_carga") == "ERP":
+                return True
+            if isinstance(payload.get("erp_nome"), str) and payload["erp_nome"].strip():
+                return True
+            if payload.get("carga_erp") or payload.get("escopo_carga_erp"):
+                return True
+        return False
+
+    async def _load_erp_runtime(
+        self,
+        implantacao: ImplantacaoOperacional,
+    ) -> ErpChecklistRuntime:
+        declared = self._erp_declared_for_implantacao(implantacao)
+        tenant_id = str(implantacao.tenant_id)
+        config_stmt = (
+            select(TenantIntegracao, MarketplaceIntegracao)
+            .join(MarketplaceIntegracao, TenantIntegracao.provider_id == MarketplaceIntegracao.id)
+            .where(
+                TenantIntegracao.tenant_id == tenant_id,
+                TenantIntegracao.deleted_at.is_(None),
+                TenantIntegracao.scope_type.in_(
+                    [IntegrationScope.TENANT.value, IntegrationScope.ESTABELECIMENTO.value]
+                ),
+                TenantIntegracao.lifecycle_state.notin_(
+                    [IntegrationStatus.REMOVED.value, IntegrationStatus.REVOKED.value]
+                ),
+                MarketplaceIntegracao.provider_type == "ERP",
+                MarketplaceIntegracao.ativa.is_(True),
+            )
+            .order_by(TenantIntegracao.installed_at.desc())
+            .limit(1)
+        )
+        runtime_row = (await self.session.execute(config_stmt)).first()
+        if runtime_row is None:
+            return ErpChecklistRuntime(
+                declared=declared,
+                provider=None,
+                config=None,
+                health=None,
+                features={},
+                policies={},
+            )
+        config, provider = runtime_row
+        return ErpChecklistRuntime(
+            declared=declared,
+            provider=provider,
+            config=config,
+            health=await self._load_erp_health(config.id),
+            features=await self._load_erp_features(config.id),
+            policies=await self._load_erp_policies(config.id),
+            pending_links=await self._count_erp_links(
+                tenant_id,
+                config.id,
+                provider.id,
+                ExternalRecordAssociationStatus.PENDING.value,
+            ),
+            conflict_links=await self._count_erp_links(
+                tenant_id,
+                config.id,
+                provider.id,
+                ExternalRecordAssociationStatus.CONFLICT.value,
+            ),
+        )
+
+    async def _load_erp_health(self, config_id: int) -> IntegrationHealth | None:
+        stmt = select(IntegrationHealth).where(IntegrationHealth.config_id == config_id).limit(1)
+        return (await self.session.execute(stmt)).scalar_one_or_none()
+
+    async def _load_erp_features(self, config_id: int) -> dict[str, IntegrationFeature]:
+        stmt = select(IntegrationFeature).where(IntegrationFeature.config_id == config_id)
+        features = (await self.session.execute(stmt)).scalars().all()
+        return {feature.codigo: feature for feature in features}
+
+    async def _load_erp_policies(self, config_id: int) -> dict[str, IntegrationSyncPolicy]:
+        stmt = select(IntegrationSyncPolicy, IntegrationFeature).join(
+            IntegrationFeature,
+            IntegrationSyncPolicy.feature_id == IntegrationFeature.id,
+        ).where(IntegrationSyncPolicy.config_id == config_id)
+        rows = (await self.session.execute(stmt)).all()
+        return {feature.codigo: policy for policy, feature in rows}
+
+    async def _count_erp_links(
+        self,
+        tenant_id: str,
+        config_id: int,
+        provider_id: int,
+        status: str,
+    ) -> int:
+        stmt = select(ExternalRecordAssociation.id).where(
+            ExternalRecordAssociation.tenant_id == tenant_id,
+            ExternalRecordAssociation.config_id == config_id,
+            ExternalRecordAssociation.provider_id == provider_id,
+            ExternalRecordAssociation.status == status,
+        )
+        return len((await self.session.execute(stmt)).scalars().all())
+
+    def _missing_erp_capabilities(
+        self,
+        runtime: ErpChecklistRuntime,
+    ) -> list[str]:
+        if runtime.provider is None:
+            return list(_ERP_REQUIRED_FEATURE_CODES)
+        capability_matrix = self._provider_capability_matrix(runtime.provider)
+        missing = self._missing_erp_diagnostics(runtime.provider)
+        for feature_code in _ERP_REQUIRED_FEATURE_CODES:
+            feature = runtime.features.get(feature_code)
+            capability = capability_matrix.get(feature_code) or getattr(feature, "settings_payload", {}) or {}
+            missing.extend(self._missing_erp_feature_capability(feature_code, feature, capability))
+        return sorted(set(missing))
+
+    def _missing_erp_diagnostics(
+        self,
+        provider: MarketplaceIntegracao,
+    ) -> list[str]:
+        health_schema = provider.health_schema or {}
+        diagnostics = health_schema.get("diagnostics") if isinstance(health_schema, dict) else {}
+        return [
+            f"diagnostico:{key}"
+            for key in _ERP_REQUIRED_DIAGNOSTICS
+            if not isinstance(diagnostics, dict) or diagnostics.get(key) is not True
+        ]
+
+    def _provider_capability_matrix(
+        self,
+        provider: MarketplaceIntegracao,
+    ) -> dict[str, dict[str, Any]]:
+        schema = provider.feature_schema or {}
+        matrix = schema.get("capability_matrix") if isinstance(schema, dict) else []
+        if not isinstance(matrix, list):
+            return {}
+        return {
+            item["feature_code"]: item
+            for item in matrix
+            if isinstance(item, dict) and isinstance(item.get("feature_code"), str)
+        }
+
+    def _missing_erp_feature_capability(
+        self,
+        feature_code: str,
+        feature: IntegrationFeature | None,
+        capability: dict[str, Any],
+    ) -> list[str]:
+        if feature is None or feature.habilitada is not True:
+            return [feature_code]
+        if capability.get("status") not in {"SUPPORTED", "PARTIAL"}:
+            return [feature_code]
+        if capability.get("maturity") not in {"TESTED", "PILOT_READY", "PRODUCTION_READY"}:
+            return [feature_code]
+        observability = capability.get("observability_requirements")
+        if not isinstance(observability, list):
+            return [feature_code]
+        return [
+            f"{feature_code}:{requirement}"
+            for requirement in _ERP_REQUIRED_OBSERVABILITY
+            if requirement not in observability
+        ]
+
+    def _missing_erp_policies(
+        self,
+        runtime: ErpChecklistRuntime,
+    ) -> list[str]:
+        missing: list[str] = []
+        for feature_code in _ERP_REQUIRED_FEATURE_CODES:
+            policy = runtime.policies.get(feature_code)
+            feature = runtime.features.get(feature_code)
+            supported = ((feature.settings_payload or {}) if feature else {}).get("supported_modes", [])
+            if policy is None or policy.ativa is not True:
+                missing.append(feature_code)
+                continue
+            if supported and policy.mode not in supported:
+                missing.append(feature_code)
+        return sorted(set(missing))
+
+    def _erp_ready_message(
+        self,
+        runtime: ErpChecklistRuntime,
+    ) -> str:
+        provider_name = runtime.provider.nome if runtime.provider is not None else "ERP"
+        if runtime.health is not None and runtime.health.status in _ERP_ALLOWED_HEALTH_WARNING:
+            return (
+                f"Integração ERP apta para piloto restrito com o provider {provider_name}, "
+                f"com health em {runtime.health.status} e monitoramento recomendado."
+            )
+        return f"Integração ERP apta para piloto restrito com o provider {provider_name}."
 
     async def _find_unidade_produtiva(
         self,

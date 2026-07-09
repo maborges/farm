@@ -161,6 +161,32 @@ async def test_resposta_gateway_nao_retorna_segredos_brutos(session: AsyncSessio
 
 
 @pytest.mark.asyncio
+async def test_painel_erp_expoe_contrato_canonico_do_provider(session: AsyncSession) -> None:
+    service = SankhyaSyncService(session)
+    await service.criar_config(
+        tenant_id="tenant-1",
+        sankhya_environment="sandbox",
+        sankhya_api_base_url="https://gateway.example/api",
+        sankhya_auth_url="https://gateway.example/authenticate",
+        sankhya_client_id="client-abc",
+        sankhya_client_secret="client-secret",
+        sankhya_x_token="x-token",
+        sync_interval=900,
+    )
+
+    payload = await service.obter_config_console("tenant-1")
+
+    assert payload["provider_code"] == "sankhya"
+    assert payload["provider_name"] == "Sankhya"
+    assert payload["provider_display_name"] == "Sankhya ERP"
+    assert payload["provider_definition"]["provider_code"] == "sankhya"
+    assert payload["feature_schema"]["capability_matrix"][0]["capability_code"] == "erp.cadastros.pessoas.importar"
+    assert payload["sync_schema"]["retry"]["max_attempts_source"] == "IntegrationSyncPolicy.max_retries"
+    assert payload["health_schema"]["diagnostics"]["connection_test"] is True
+    assert payload["connection_schema"]["required"][0] == "sankhya_environment"
+
+
+@pytest.mark.asyncio
 async def test_atualizacao_sem_nova_senha_mantem_credencial_existente(
     session: AsyncSession,
 ) -> None:

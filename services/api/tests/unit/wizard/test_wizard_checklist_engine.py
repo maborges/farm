@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import uuid
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from wizard.checklist_engine import ChecklistEngine
+from wizard.checklist_engine import ChecklistEngine, ErpChecklistRuntime
 from wizard.models import (
     ChecklistItemSeverity,
     ChecklistItemStatus,
@@ -362,3 +363,227 @@ async def test_checklist_engine_nao_importa_auth_billing_convites_ou_frontend() 
 
     for forbidden in forbidden_imports:
         assert forbidden not in source
+
+
+def _make_erp_runtime(
+    *,
+    declared: bool = True,
+    provider_name: str = "Sankhya",
+    health_status: str | None = "CONNECTED",
+    feature_codes: tuple[str, ...] = ("pessoas", "produtos", "financeiro", "nfe"),
+    policy_codes: tuple[str, ...] = ("pessoas", "produtos", "financeiro", "nfe"),
+    pending_links: int = 0,
+    conflict_links: int = 0,
+) -> ErpChecklistRuntime:
+    capability_matrix = [
+        {
+            "feature_code": feature_code,
+            "status": "SUPPORTED" if feature_code in {"pessoas", "produtos"} else "PARTIAL",
+            "maturity": "TESTED",
+            "observability_requirements": ["health", "jobs", "logs", "reconciliation"],
+        }
+        for feature_code in feature_codes
+    ]
+    provider = SimpleNamespace(
+        id=1,
+        nome=provider_name,
+        feature_schema={"capability_matrix": capability_matrix},
+        health_schema={
+            "diagnostics": {
+                "connection_test": True,
+                "timeline": True,
+                "manual_reconciliation": True,
+            }
+        },
+    )
+    config = SimpleNamespace(id=11)
+    health = None if health_status is None else SimpleNamespace(status=health_status)
+    features = {
+        feature_code: SimpleNamespace(
+            codigo=feature_code,
+            habilitada=True,
+            settings_payload={"supported_modes": ["MANUAL", "AGENDADO", "PULL"]},
+        )
+        for feature_code in feature_codes
+    }
+    policies = {
+        feature_code: SimpleNamespace(
+            ativa=True,
+            mode="MANUAL" if feature_code in {"pessoas", "produtos"} else "PULL",
+            settings_payload={},
+        )
+        for feature_code in policy_codes
+    }
+    return ErpChecklistRuntime(
+        declared=declared,
+        provider=provider,
+        config=config,
+        health=health,
+        features=features,
+        policies=policies,
+        pending_links=pending_links,
+        conflict_links=conflict_links,
+    )
+
+
+async def test_integracao_erp_e_dispesanda_quando_tenant_nao_declara_uso() -> None:
+    session = _make_session()
+    engine = ChecklistEngine(session)
+    implantacao = _make_implantacao()
+    item = _make_item("CHECK_INTEGRACAO_ERP")
+
+    engine._load_erp_runtime = AsyncMock(  # type: ignore[method-assign]
+        return_value=ErpChecklistRuntime(
+            declared=False,
+            provider=None,
+            config=None,
+            health=None,
+            features={},
+            policies={},
+        )
+    )
+    engine.implantacao_service.pendencia_service.buscar_pendencia_aberta_por_titulo = (
+        AsyncMock(return_value=None)
+    )
+    engine.implantacao_service.pendencia_service.resolver_pendencia_por_titulo = (
+        AsyncMock(return_value=None)
+    )
+    engine.implantacao_service.historico_service.registrar = AsyncMock()
+
+    result = await engine.avaliar_item(implantacao, item)
+
+    assert result.status == ChecklistItemStatus.DISPENSADO.value
+    assert "sem ERP" in result.descricao
+
+
+async def test_integracao_erp_configurada_sem_health_permanece_pendente() -> None:
+    session = _make_session()
+    engine = ChecklistEngine(session)
+    implantacao = _make_implantacao(escopo_modulos={"integracao_erp": True})
+    item = _make_item("CHECK_INTEGRACAO_ERP")
+
+    engine._load_erp_runtime = AsyncMock(  # type: ignore[method-assign]
+        return_value=_make_erp_runtime(health_status=None)
+    )
+    engine.implantacao_service.pendencia_service.buscar_pendencia_aberta_por_titulo = (
+        AsyncMock(return_value=None)
+    )
+    engine.implantacao_service.pendencia_service.criar_ou_manter_pendencia = AsyncMock(
+        return_value=(MagicMock(), True)
+    )
+    engine.implantacao_service.historico_service.registrar = AsyncMock()
+
+    result = await engine.avaliar_item(implantacao, item)
+
+    assert result.status == ChecklistItemStatus.PENDENTE.value
+    assert "health pendente" in result.descricao
+
+
+async def test_integracao_erp_com_health_critico_bloqueia() -> None:
+    session = _make_session()
+    engine = ChecklistEngine(session)
+    implantacao = _make_implantacao(escopo_modulos={"integracao_erp": True})
+    item = _make_item("CHECK_INTEGRACAO_ERP")
+
+    engine._load_erp_runtime = AsyncMock(  # type: ignore[method-assign]
+        return_value=_make_erp_runtime(health_status="AUTH_ERROR")
+    )
+    engine.implantacao_service.pendencia_service.buscar_pendencia_aberta_por_titulo = (
+        AsyncMock(return_value=None)
+    )
+    engine.implantacao_service.pendencia_service.criar_ou_manter_pendencia = AsyncMock(
+        return_value=(MagicMock(), True)
+    )
+    engine.implantacao_service.historico_service.registrar = AsyncMock()
+
+    result = await engine.avaliar_item(implantacao, item)
+
+    assert result.status == ChecklistItemStatus.FALHOU.value
+    assert result.pendencia_severidade == "CRITICA"
+    assert "health crítico" in result.descricao
+
+
+async def test_integracao_erp_com_capabilities_p0_incompletas_bloqueia() -> None:
+    session = _make_session()
+    engine = ChecklistEngine(session)
+    implantacao = _make_implantacao(escopo_modulos={"integracao_erp": True})
+    item = _make_item("CHECK_INTEGRACAO_ERP")
+
+    engine._load_erp_runtime = AsyncMock(  # type: ignore[method-assign]
+        return_value=_make_erp_runtime(feature_codes=("pessoas", "produtos", "financeiro"))
+    )
+    engine.implantacao_service.pendencia_service.buscar_pendencia_aberta_por_titulo = (
+        AsyncMock(return_value=None)
+    )
+    engine.implantacao_service.pendencia_service.criar_ou_manter_pendencia = AsyncMock(
+        return_value=(MagicMock(), True)
+    )
+    engine.implantacao_service.historico_service.registrar = AsyncMock()
+
+    result = await engine.avaliar_item(implantacao, item)
+
+    assert result.status == ChecklistItemStatus.FALHOU.value
+    assert "Capabilities P0 incompletas" in result.descricao
+    assert "nfe" in result.descricao
+
+
+async def test_integracao_erp_com_capabilities_e_policies_ok_valida_piloto() -> None:
+    session = _make_session()
+    engine = ChecklistEngine(session)
+    implantacao = _make_implantacao(escopo_modulos={"integracao_erp": True})
+    item = _make_item("CHECK_INTEGRACAO_ERP")
+
+    engine._load_erp_runtime = AsyncMock(  # type: ignore[method-assign]
+        return_value=_make_erp_runtime()
+    )
+    engine.implantacao_service.pendencia_service.buscar_pendencia_aberta_por_titulo = (
+        AsyncMock(return_value=None)
+    )
+    engine.implantacao_service.pendencia_service.resolver_pendencia_por_titulo = (
+        AsyncMock(return_value=None)
+    )
+    engine.implantacao_service.historico_service.registrar = AsyncMock()
+
+    result = await engine.avaliar_item(implantacao, item)
+
+    assert result.status == ChecklistItemStatus.ATENDIDO.value
+    assert "piloto restrito" in result.descricao
+    assert result.evidencia is not None
+    assert result.evidencia.entidade == "Integração ERP"
+
+
+async def test_integracao_erp_com_policies_minimas_pendentes_retorna_pendente() -> None:
+    session = _make_session()
+    engine = ChecklistEngine(session)
+    implantacao = _make_implantacao(escopo_modulos={"integracao_erp": True})
+    item = _make_item("CHECK_INTEGRACAO_ERP")
+
+    engine._load_erp_runtime = AsyncMock(  # type: ignore[method-assign]
+        return_value=_make_erp_runtime(policy_codes=("pessoas", "produtos", "financeiro"))
+    )
+    engine.implantacao_service.pendencia_service.buscar_pendencia_aberta_por_titulo = (
+        AsyncMock(return_value=None)
+    )
+    engine.implantacao_service.pendencia_service.criar_ou_manter_pendencia = AsyncMock(
+        return_value=(MagicMock(), True)
+    )
+    engine.implantacao_service.historico_service.registrar = AsyncMock()
+
+    result = await engine.avaliar_item(implantacao, item)
+
+    assert result.status == ChecklistItemStatus.PENDENTE.value
+    assert "Policies de sincronização mínimas pendentes" in result.descricao
+
+
+async def test_checklist_erp_nao_adota_escopo_unidade_produtiva() -> None:
+    source = (REPO_ROOT / "services" / "api" / "wizard" / "checklist_engine.py").read_text(
+        encoding="utf-8"
+    )
+    erp_runtime_block = source.split("async def _load_erp_runtime", 1)[1].split(
+        "async def _find_unidade_produtiva",
+        1,
+    )[0]
+
+    assert "IntegrationScope.TENANT.value" in erp_runtime_block
+    assert "IntegrationScope.ESTABELECIMENTO.value" in erp_runtime_block
+    assert "unidade_produtiva_id" not in erp_runtime_block

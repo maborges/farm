@@ -39,7 +39,6 @@ from integracoes.sankhya.services import (
     SankhyaProdutoService,
     SankhyaSyncService,
 )
-from integracoes.sankhya.services.sync_service import SankhyaConfigSerializer
 from integracoes.schemas import (
     ExternalRecordAssociationGovernanceReconcileRequest,
     ExternalRecordAssociationHistoryItemResponse,
@@ -171,7 +170,7 @@ async def configurar_sankhya(
             )
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
-        return SankhyaConfigSerializer.to_response(updated)
+        return await sync_service.obter_config_console(tenant_scope)
 
     try:
         created = await sync_service.criar_config(
@@ -189,7 +188,7 @@ async def configurar_sankhya(
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return SankhyaConfigSerializer.to_response(created)
+    return await sync_service.obter_config_console(tenant_scope)
 
 
 @router.get(
@@ -204,7 +203,7 @@ async def obter_config_sankhya(
     config = await sync_service.get_config(str(tenant_id))
     if not config:
         raise HTTPException(status_code=404, detail="Sankhya não configurado")
-    return SankhyaConfigSerializer.to_response(config)
+    return await sync_service.obter_config_console(str(tenant_id))
 
 
 @router.post(

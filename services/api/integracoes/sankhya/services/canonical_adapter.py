@@ -47,6 +47,18 @@ from integracoes.security import (
 _SANKHYA_SLUG = "sankhya"
 _SANKHYA_NAME = "Sankhya"
 _LOG_NAMESPACE = uuid.uuid5(uuid.NAMESPACE_URL, "agrosaas:sankhya:sync-log")
+_PROVIDER_SCOPES = [
+    IntegrationScope.TENANT.value,
+    IntegrationScope.ESTABELECIMENTO.value,
+]
+_CANONICAL_SYNC_MODES = {
+    IntegrationSyncMode.MANUAL: "MANUAL",
+    IntegrationSyncMode.AGENDADO: "SCHEDULED",
+    IntegrationSyncMode.EVENTO: "EVENT_DRIVEN",
+    IntegrationSyncMode.WEBHOOK: "WEBHOOK",
+    IntegrationSyncMode.PULL: "POLLING",
+    IntegrationSyncMode.PUSH: "ON_DEMAND",
+}
 
 _FEATURE_DEFAULTS: dict[str, dict[str, Any]] = {
     "pessoas": {
@@ -55,7 +67,23 @@ _FEATURE_DEFAULTS: dict[str, dict[str, Any]] = {
         "habilitada": True,
         "mode": IntegrationSyncMode.MANUAL,
         "prioridade": IntegrationPolicyPriority.NORMAL,
-        "settings_payload": {"supported_modes": ["MANUAL", "AGENDADO"]},
+        "settings_payload": {
+            "supported_modes": ["MANUAL", "AGENDADO"],
+            "capability_code": "erp.cadastros.pessoas.importar",
+            "status": "SUPPORTED",
+            "maturity": "TESTED",
+            "direction": "ERP_TO_AGROSAAS",
+            "supported_scopes": _PROVIDER_SCOPES,
+            "supported_sync_modes": ["MANUAL", "ON_DEMAND", "SCHEDULED"],
+            "runtime_sync_modes": ["MANUAL", "AGENDADO"],
+            "dependencies": [],
+            "restrictions": [
+                "requer credenciais válidas no gateway Sankhya",
+                "depende de reconciliação via ExternalRecordAssociation quando necessário",
+            ],
+            "observability_requirements": ["health", "jobs", "logs", "reconciliation"],
+            "pilot_tier": "P0",
+        },
     },
     "produtos": {
         "nome": "Produtos",
@@ -63,7 +91,23 @@ _FEATURE_DEFAULTS: dict[str, dict[str, Any]] = {
         "habilitada": True,
         "mode": IntegrationSyncMode.MANUAL,
         "prioridade": IntegrationPolicyPriority.NORMAL,
-        "settings_payload": {"supported_modes": ["MANUAL", "AGENDADO"]},
+        "settings_payload": {
+            "supported_modes": ["MANUAL", "AGENDADO"],
+            "capability_code": "erp.cadastros.produtos.importar",
+            "status": "SUPPORTED",
+            "maturity": "TESTED",
+            "direction": "ERP_TO_AGROSAAS",
+            "supported_scopes": _PROVIDER_SCOPES,
+            "supported_sync_modes": ["MANUAL", "ON_DEMAND", "SCHEDULED"],
+            "runtime_sync_modes": ["MANUAL", "AGENDADO"],
+            "dependencies": ["pessoas"],
+            "restrictions": [
+                "não redefine ownership do estoque operacional",
+                "depende de reconciliação manual quando o produto externo já existir",
+            ],
+            "observability_requirements": ["health", "jobs", "logs", "reconciliation"],
+            "pilot_tier": "P0",
+        },
     },
     "financeiro": {
         "nome": "Financeiro",
@@ -71,7 +115,23 @@ _FEATURE_DEFAULTS: dict[str, dict[str, Any]] = {
         "habilitada": True,
         "mode": IntegrationSyncMode.PULL,
         "prioridade": IntegrationPolicyPriority.HIGH,
-        "settings_payload": {"supported_modes": ["MANUAL", "AGENDADO", "PULL"]},
+        "settings_payload": {
+            "supported_modes": ["MANUAL", "AGENDADO", "PULL"],
+            "capability_code": "erp.financeiro.basico.sincronizar",
+            "status": "PARTIAL",
+            "maturity": "TESTED",
+            "direction": "ERP_TO_AGROSAAS",
+            "supported_scopes": _PROVIDER_SCOPES,
+            "supported_sync_modes": ["MANUAL", "ON_DEMAND", "SCHEDULED", "POLLING"],
+            "runtime_sync_modes": ["MANUAL", "AGENDADO", "PULL"],
+            "dependencies": ["pessoas", "produtos"],
+            "restrictions": [
+                "cobertura focada no financeiro administrativo do ERP",
+                "não substitui DRE operacional nem custos operacionais do AgroSaaS",
+            ],
+            "observability_requirements": ["health", "jobs", "logs", "reconciliation"],
+            "pilot_tier": "P0",
+        },
     },
     "nfe": {
         "nome": "NFe",
@@ -79,7 +139,23 @@ _FEATURE_DEFAULTS: dict[str, dict[str, Any]] = {
         "habilitada": True,
         "mode": IntegrationSyncMode.PULL,
         "prioridade": IntegrationPolicyPriority.HIGH,
-        "settings_payload": {"supported_modes": ["MANUAL", "AGENDADO", "PULL"]},
+        "settings_payload": {
+            "supported_modes": ["MANUAL", "AGENDADO", "PULL"],
+            "capability_code": "erp.fiscal.nfe.evidencia",
+            "status": "PARTIAL",
+            "maturity": "TESTED",
+            "direction": "EVIDENCE_RETURN",
+            "supported_scopes": _PROVIDER_SCOPES,
+            "supported_sync_modes": ["MANUAL", "ON_DEMAND", "SCHEDULED", "POLLING"],
+            "runtime_sync_modes": ["MANUAL", "AGENDADO", "PULL"],
+            "dependencies": ["pessoas", "produtos"],
+            "restrictions": [
+                "retorno fiscal é tratado como evidência oficial do ERP",
+                "não habilita CT-e, MDF-e ou exportação fiscal completa no P0",
+            ],
+            "observability_requirements": ["health", "jobs", "logs", "reconciliation"],
+            "pilot_tier": "P0",
+        },
     },
     "pedidos": {
         "nome": "Pedidos",
@@ -91,6 +167,20 @@ _FEATURE_DEFAULTS: dict[str, dict[str, Any]] = {
             "supported_modes": ["EVENTO"],
             "transport": "OUTBOX",
             "future": True,
+            "capability_code": "erp.comercial.pedidos.sincronizar",
+            "status": "PARTIAL",
+            "maturity": "DECLARED",
+            "direction": "BIDIRECTIONAL_CONTROLLED",
+            "supported_scopes": _PROVIDER_SCOPES,
+            "supported_sync_modes": ["EVENT_DRIVEN"],
+            "runtime_sync_modes": ["EVENTO"],
+            "dependencies": ["pessoas", "produtos", "nfe"],
+            "restrictions": [
+                "capability declarada, sem materialização operacional no piloto restrito",
+                "depende de política explícita de conflito e reconciliação",
+            ],
+            "observability_requirements": ["jobs", "logs", "reconciliation"],
+            "pilot_tier": "P2",
         },
     },
     "estoque": {
@@ -103,9 +193,168 @@ _FEATURE_DEFAULTS: dict[str, dict[str, Any]] = {
             "supported_modes": ["EVENTO"],
             "transport": "OUTBOX",
             "future": True,
+            "capability_code": "erp.estoque.administrativo.sincronizar",
+            "status": "PARTIAL",
+            "maturity": "DECLARED",
+            "direction": "BIDIRECTIONAL_CONTROLLED",
+            "supported_scopes": _PROVIDER_SCOPES,
+            "supported_sync_modes": ["EVENT_DRIVEN"],
+            "runtime_sync_modes": ["EVENTO"],
+            "dependencies": ["produtos"],
+            "restrictions": [
+                "não cobre estoque operacional agrícola do AgroSaaS",
+                "permanece fora do piloto restrito e exige evolução específica do adapter",
+            ],
+            "observability_requirements": ["jobs", "logs", "reconciliation"],
+            "pilot_tier": "P2",
         },
     },
 }
+
+
+def _canonical_sync_mode_from_runtime_label(mode: str) -> str:
+    runtime_mode = IntegrationSyncMode(mode)
+    return _CANONICAL_SYNC_MODES[runtime_mode]
+
+
+def _provider_definition_payload() -> dict[str, Any]:
+    return {
+        "provider": _SANKHYA_SLUG,
+        "version": 1,
+        "provider_code": _SANKHYA_SLUG,
+        "provider_name": _SANKHYA_NAME,
+        "display_name": "Sankhya ERP",
+        "vendor": "Sankhya",
+        "supported_versions": ["v1"],
+        "authentication_models": ["GATEWAY", "LEGACY_CREDENTIAL_BUNDLE"],
+        "supported_scopes": list(_PROVIDER_SCOPES),
+        "supported_capabilities": [
+            defaults["settings_payload"]["capability_code"]
+            for defaults in _FEATURE_DEFAULTS.values()
+        ],
+        "supported_sync_modes": sorted(
+            {
+                _canonical_sync_mode_from_runtime_label(runtime_mode)
+                for defaults in _FEATURE_DEFAULTS.values()
+                for runtime_mode in defaults["settings_payload"]["supported_modes"]
+            }
+        ),
+        "health_model": "INTEGRATION_HEALTH",
+        "documentation_url": "/docs/architecture/ERP-PROVIDER-CONTRACT-02-CONTRATO-CANONICO-PROVIDER-ERP.md",
+        "support_level": "REFERENCE_PROVIDER",
+        "maturity": "PILOT_READY",
+        "provider_notes": [
+            "provider de referência para o contrato ERP canônico",
+            "reutiliza ExternalRecordAssociation, IntegrationJob, IntegrationHealth e IntegrationSyncPolicy",
+        ],
+    }
+
+
+def _feature_schema_payload() -> dict[str, Any]:
+    return {
+        "supported_features": list(_FEATURE_DEFAULTS.keys()),
+        "capability_matrix": [
+            {
+                "feature_code": feature_code,
+                "display_name": defaults["nome"],
+                "description": defaults["descricao"],
+                **defaults["settings_payload"],
+            }
+            for feature_code, defaults in _FEATURE_DEFAULTS.items()
+        ],
+    }
+
+
+def _sync_schema_payload() -> dict[str, Any]:
+    return {
+        "default_trigger": "MANUAL",
+        "supported_runtime_modes": [mode.value for mode in IntegrationSyncMode],
+        "supported_canonical_modes": sorted(set(_CANONICAL_SYNC_MODES.values())),
+        "triggers": {
+            "manual": True,
+            "scheduled": True,
+            "event_driven": True,
+            "webhook": False,
+            "polling": True,
+        },
+        "retry": {
+            "supported": True,
+            "strategy": "provider_policy_runtime",
+            "max_attempts_source": "IntegrationSyncPolicy.max_retries",
+        },
+        "timeout": {
+            "supported": True,
+            "source": "IntegrationSyncPolicy.timeout_seconds",
+        },
+        "backoff": {
+            "supported": True,
+            "source": "IntegrationSyncPolicy.backoff_seconds",
+        },
+        "batch": {
+            "supported": True,
+            "source": "IntegrationSyncPolicy.batch_size",
+        },
+        "polling": {
+            "supported": True,
+            "default_features": ["financeiro", "nfe"],
+        },
+        "webhook": {
+            "supported": False,
+            "reason": "provider atual usa gateway e sync desacoplado sem webhook oficial materializado",
+        },
+        "schedule": {
+            "supported": True,
+            "source": "IntegrationSyncPolicy.trigger_expression",
+        },
+        "event_driven": {
+            "supported": True,
+            "default_transport": "OUTBOX",
+            "default_features": ["pedidos", "estoque"],
+        },
+    }
+
+
+def _health_schema_payload() -> dict[str, Any]:
+    return {
+        "states": [status.value for status in IntegrationHealthStatus],
+        "severity_by_state": {
+            IntegrationHealthStatus.CONNECTED.value: "INFO",
+            IntegrationHealthStatus.DISCONNECTED.value: "HIGH",
+            IntegrationHealthStatus.DEGRADED.value: "MEDIUM",
+            IntegrationHealthStatus.AUTH_ERROR.value: "HIGH",
+            IntegrationHealthStatus.CONFIG_ERROR.value: "HIGH",
+            IntegrationHealthStatus.PARTIAL_FAILURE.value: "MEDIUM",
+            IntegrationHealthStatus.RATE_LIMITED.value: "MEDIUM",
+        },
+        "availability_source": "IntegrationHealth.status",
+        "latency_source": "IntegrationHealth.latency_ms",
+        "last_success_source": "IntegrationHealth.last_success_at",
+        "last_failure_source": "IntegrationHealth.last_failure_at",
+        "dependencies": ["gateway_auth", "provider_api", "sync_runtime"],
+        "capability_degradation": True,
+        "diagnostics": {
+            "connection_test": True,
+            "timeline": True,
+            "job_correlation": True,
+            "manual_reconciliation": True,
+        },
+    }
+
+
+def _policy_settings_payload(feature_code: str) -> dict[str, Any]:
+    defaults = _FEATURE_DEFAULTS[feature_code]
+    feature_payload = defaults["settings_payload"]
+    return {
+        "supported_modes": feature_payload["supported_modes"],
+        "supported_sync_modes": feature_payload["supported_sync_modes"],
+        "runtime_sync_modes": feature_payload["runtime_sync_modes"],
+        "default_runtime_mode": defaults["mode"].value,
+        "default_canonical_mode": _CANONICAL_SYNC_MODES[defaults["mode"]],
+        "transport": feature_payload.get("transport"),
+        "future": feature_payload.get("future", False),
+        "retry_managed_by": "IntegrationSyncPolicy",
+        "observability_requirements": feature_payload["observability_requirements"],
+    }
 
 
 class SankhyaCanonicalAdapter:
@@ -332,7 +581,7 @@ class SankhyaCanonicalAdapter:
                 ativa=True,
                 oficial=True,
                 provider_type="ERP",
-                provider_definition={"provider": "sankhya", "version": 1},
+                provider_definition=_provider_definition_payload(),
                 connection_schema={
                     "required": [
                         "sankhya_environment",
@@ -354,9 +603,9 @@ class SankhyaCanonicalAdapter:
                     "required": ["sankhya_client_id", "sankhya_client_secret", "sankhya_x_token"],
                     "optional": ["password", "legacy_auth_model"],
                 },
-                feature_schema={"supported_features": list(_FEATURE_DEFAULTS.keys())},
-                sync_schema={"default_trigger": "MANUAL"},
-                health_schema={"states": [status.value for status in IntegrationHealthStatus]},
+                feature_schema=_feature_schema_payload(),
+                sync_schema=_sync_schema_payload(),
+                health_schema=_health_schema_payload(),
             )
             self.db.add(provider)
             await self.db.flush()
@@ -365,10 +614,10 @@ class SankhyaCanonicalAdapter:
         provider.provider_type = "ERP"
         provider.categoria = provider.categoria or "ERP"
         provider.ativa = True
-        provider.provider_definition = provider.provider_definition or {
-            "provider": "sankhya",
-            "version": 1,
-        }
+        provider.provider_definition = _provider_definition_payload()
+        provider.feature_schema = _feature_schema_payload()
+        provider.sync_schema = _sync_schema_payload()
+        provider.health_schema = _health_schema_payload()
         return provider
 
     async def _ensure_credential(
@@ -559,7 +808,7 @@ class SankhyaCanonicalAdapter:
                 provider_id=provider.id,
                 mode=defaults["mode"].value,
                 prioridade=defaults["prioridade"].value,
-                settings_payload=defaults.get("settings_payload"),
+                settings_payload=_policy_settings_payload(feature.codigo),
                 ativa=True,
             )
             self.db.add(policy)
@@ -568,7 +817,7 @@ class SankhyaCanonicalAdapter:
 
         policy.mode = defaults["mode"].value
         policy.prioridade = defaults["prioridade"].value
-        policy.settings_payload = defaults.get("settings_payload")
+        policy.settings_payload = _policy_settings_payload(feature.codigo)
         policy.ativa = True
         self.db.add(policy)
         await self.db.flush()

@@ -38,6 +38,9 @@ class SankhyaConfigCreate(BaseModel):
 class SankhyaConfigResponse(BaseModel):
     id: int
     tenant_id: str
+    provider_code: str | None = None
+    provider_name: str | None = None
+    provider_display_name: str | None = None
     sankhya_environment: str | None = None
     sankhya_api_base_url: str | None = None
     sankhya_auth_url: str | None = None
@@ -50,6 +53,12 @@ class SankhyaConfigResponse(BaseModel):
     username: str | None = None
     password_configured: bool = False
     password_mask: str | None = None
+    connection_schema: dict | None = None
+    credential_schema: dict | None = None
+    provider_definition: dict | None = None
+    feature_schema: dict | None = None
+    sync_schema: dict | None = None
+    health_schema: dict | None = None
     ativo: bool
     ultimo_teste: datetime | None
     teste_status: str | None
@@ -184,6 +193,10 @@ class SankhyaSyncStatusResponse(BaseModel):
     consecutive_failures: int = 0
     features_habilitadas: list[str] = Field(default_factory=list)
     policies_resumidas: list[dict[str, str | bool | int | None]] = Field(default_factory=list)
+    provider_definition: dict | None = None
+    feature_schema: dict | None = None
+    sync_schema: dict | None = None
+    health_schema: dict | None = None
 
 
 class SankhyaHealthResponse(BaseModel):
