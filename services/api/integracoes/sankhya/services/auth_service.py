@@ -353,30 +353,14 @@ class SankhyaGatewayAuthService:
 
         if auth_model == "gateway_legacy_login":
             endpoint = self.config.auth_url or f"{(self.config.api_base_url or self.config.ws_url or '').rstrip('/')}/login"
-            payloads: list[tuple[str, dict[str, Any]]] = [
-                (
-                    "json",
-                    {
-                        "token": decrypt_integration_secret(getattr(self.config, "token", None)),
-                        "appkey": decrypt_integration_secret(getattr(self.config, "appkey", None)),
-                        "username": self.config.username,
-                        "password": decrypt_integration_secret(self.config.password),
-                    },
-                ),
-                (
-                    "data",
-                    {
-                        "token": decrypt_integration_secret(getattr(self.config, "token", None)),
-                        "appkey": decrypt_integration_secret(getattr(self.config, "appkey", None)),
-                        "username": self.config.username,
-                        "password": decrypt_integration_secret(self.config.password),
-                    },
-                ),
-            ]
             headers = {
                 "Accept": "application/json",
-                "Content-Type": "application/json",
+                "token": decrypt_integration_secret(getattr(self.config, "token", None)),
+                "appkey": decrypt_integration_secret(getattr(self.config, "appkey", None)),
+                "username": self.config.username or "",
+                "password": decrypt_integration_secret(self.config.password),
             }
+            return await http_client.post(endpoint, headers=headers)
         elif auth_model == "legacy_ws_basic_auth":
             raise ValueError("Configuração Sankhya LEGACY não utiliza fluxo de token")
         else:
@@ -442,7 +426,12 @@ class SankhyaGatewayAuthService:
             ValueError: Quando o payload não contém token válido.
         """
 
-        access_token = data.get("access_token") or data.get("token") or data.get("accessToken")
+        access_token = (
+            data.get("access_token")
+            or data.get("bearerToken")
+            or data.get("token")
+            or data.get("accessToken")
+        )
         if not access_token:
             raise ValueError("Resposta de autenticação Sankhya sem access_token")
         return str(access_token)

@@ -305,11 +305,25 @@ async def sincronizar_produtos(
     "/sync/completo",
     dependencies=[Depends(require_tenant_permission("integrations:sync"))],
 )
-async def sincronizar_completo():
+async def sincronizar_completo(
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    sync_service: SankhyaSyncService = Depends(get_sync_service),
+    pessoa_service: SankhyaPessoaService = Depends(get_pessoa_service),
+    produto_service: SankhyaProdutoService = Depends(get_produto_service),
+):
+    tenant_scope = str(tenant_id)
+
+    log_pessoas = await sync_service.iniciar_sync_log(tenant_scope, "pessoas", "import")
+    pessoas_importadas = await pessoa_service.importar_pessoas(tenant_scope, log_pessoas.id)
+
+    log_produtos = await sync_service.iniciar_sync_log(tenant_scope, "produtos", "import")
+    produtos_importados = await produto_service.importar_produtos(tenant_scope, log_produtos.id)
+
     return {
-        "pessoas": "Fila de sincronização",
-        "produtos": "Fila de sincronização",
-        "mensagem": "Sincronização em segundo plano iniciada",
+        "sucesso": True,
+        "pessoas_importadas": pessoas_importadas,
+        "produtos_importados": produtos_importados,
+        "mensagem": "Sincronização completa iniciada com sucesso.",
     }
 
 

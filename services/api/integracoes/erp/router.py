@@ -9,6 +9,7 @@ from types import SimpleNamespace
 from typing import Any, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.dependencies import get_session, get_tenant_id, require_tenant_permission
@@ -33,10 +34,57 @@ from integracoes.sankhya.services import SankhyaSyncService
 from integracoes.schemas import (
     ExternalRecordAssociationGovernanceReconcileRequest,
     ExternalRecordAssociationPendingItemResponse,
+    ProviderSchemaResponse,
+    ProviderPublicIdentity,
 )
 from integracoes.services import ExternalRecordAssociationService
+from integracoes.models import MarketplaceIntegracao
 
 router = APIRouter(prefix="/erp", tags=["Integração ERP"])
+
+
+@router.get(
+    "/providers/{provider_slug}/schema",
+    response_model=ProviderSchemaResponse,
+    dependencies=[Depends(require_tenant_permission("integrations:view"))],
+)
+async def obter_schema_do_provider(
+    provider_slug: str,
+    db: AsyncSession = Depends(get_session),
+) -> ProviderSchemaResponse:
+    """Devolve os esquemas declarativos de conexão e credenciais do provider ERP."""
+    stmt = (
+        select(MarketplaceIntegracao)
+        .where(MarketplaceIntegracao.slug == provider_slug)
+    )
+    result = await db.execute(stmt)
+    provider = result.scalar_one_or_none()
+
+    if not provider:
+        raise HTTPException(status_code=404, detail="Provider não encontrado.")
+
+    if provider.provider_type != "ERP":
+        raise HTTPException(status_code=400, detail="O provider selecionado não é do tipo ERP.")
+
+    if not provider.ativa:
+        raise HTTPException(status_code=400, detail="O provider selecionado está inativo.")
+
+    return ProviderSchemaResponse(
+        provider=ProviderPublicIdentity(
+            id=provider.id,
+            slug=provider.slug,
+            nome=provider.nome,
+            descricao_curta=provider.descricao_curta,
+            logo_url=provider.logo_url,
+            provider_type=provider.provider_type,
+            ativa=provider.ativa,
+            oficial=provider.oficial,
+            versao=provider.versao,
+        ),
+        schema_version=1,
+        connection_schema=provider.connection_schema or {"required": [], "optional": []},
+        credential_schema=provider.credential_schema or {"required": [], "optional": []},
+    )
 
 
 def get_erp_readiness_service(

@@ -117,12 +117,11 @@ async def test_gateway_legacy_login_test_connection_chama_login_e_sanitiza_respo
     async def handler(request: httpx.Request) -> httpx.Response:
         captured["url"] = str(request.url)
         captured["headers"] = dict(request.headers)
-        captured["body"] = json.loads(request.content.decode())
+        captured["body"] = request.content
         return httpx.Response(
             200,
             json={
-                "token": "legacy-token-abc",
-                "expires_in": 120,
+                "bearerToken": "legacy-token-abc",
             },
         )
 
@@ -135,10 +134,11 @@ async def test_gateway_legacy_login_test_connection_chama_login_e_sanitiza_respo
 
     assert captured["url"] == "https://gateway.example/login"
     assert "x-token" not in captured["headers"]
-    assert captured["body"]["token"] == "legacy-token"
-    assert captured["body"]["appkey"] == "legacy-appkey"
-    assert captured["body"]["username"] == "legacy-user"
-    assert captured["body"]["password"] == "legacy-password"
+    assert captured["headers"]["token"] == "legacy-token"
+    assert captured["headers"]["appkey"] == "legacy-appkey"
+    assert captured["headers"]["username"] == "legacy-user"
+    assert captured["headers"]["password"] == "legacy-password"
+    assert captured["body"] == b""
     assert diagnostic.sucesso is True
     assert diagnostic.token_obtido is True
     assert diagnostic.auth_model == "gateway_legacy_login"

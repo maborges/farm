@@ -384,6 +384,42 @@ async def test_atualizacao_gateway_sem_reenviar_segredos_mantem_token(session: A
 
 
 @pytest.mark.asyncio
+async def test_atualizacao_gateway_para_login_legado_persiste_token_e_appkey(
+    session: AsyncSession,
+) -> None:
+    service = SankhyaSyncService(session)
+    config = await service.criar_config(
+        tenant_id="tenant-1",
+        sankhya_api_base_url="https://api.sankhya.com.br/gateway/v1",
+        sankhya_auth_url="https://api.sankhya.com.br/authenticate",
+        sankhya_client_id="oauth-client",
+        sankhya_client_secret="oauth-secret",
+        sankhya_x_token="x-token",
+        sync_interval=900,
+    )
+
+    updated = await service.atualizar_config(
+        config,
+        sankhya_api_base_url="https://api.sankhya.com.br/gateway/v1",
+        sankhya_auth_url="https://api.sankhya.com.br/login",
+        sankhya_client_id="usuario-legado",
+        sankhya_client_secret="senha-legada",
+        sankhya_token="legacy-token",
+        sankhya_appkey="legacy-appkey",
+        sync_interval=900,
+    )
+
+    assert decrypt_integration_secret(updated.token) == "legacy-token"
+    assert decrypt_integration_secret(updated.appkey) == "legacy-appkey"
+    assert updated.username == "usuario-legado"
+    assert decrypt_integration_secret(updated.password) == "senha-legada"
+    assert updated.client_id is None
+    assert updated.client_secret is None
+    assert updated.x_token is None
+    assert SankhyaGatewayAuthService(updated).auth_model() == "gateway_legacy_login"
+
+
+@pytest.mark.asyncio
 async def test_rotacao_de_senha_funciona(session: AsyncSession) -> None:
     service = SankhyaSyncService(session)
     config = await service.criar_config(

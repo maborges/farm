@@ -132,7 +132,7 @@ async def test_register_new_tenant_rejeita_cpf_ja_cadastrado(
         nome_completo="Usuario Existente",
         apelido="Existente",
         senha_hash="hash",
-        cpf="04245459859",
+        cpf="11122233344",
         ativo=True,
     )
     session.add(usuario_existente)
@@ -146,7 +146,7 @@ async def test_register_new_tenant_rejeita_cpf_ja_cadastrado(
         nome_completo="Novo Produtor",
         apelido="Novo",
         senha="senha123",
-        cpf="04245459859",
+        cpf="11122233344",
         telefone="11999999999",
         nome_produtor="Fazenda Nova",
         cnpj_tenant=None,

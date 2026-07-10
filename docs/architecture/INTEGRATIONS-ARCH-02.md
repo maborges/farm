@@ -73,7 +73,7 @@ Semântica oficial:
 
 - `IntegrationProvider` representa o provedor/tipo;
 - ele não representa a configuração do cliente;
-- ele não contém o segredo do cliente;
+- ele não contém a senha;
 - ele não é a conexão ativa do cliente.
 
 Decisão:

@@ -434,6 +434,55 @@ async def wizard_status(
         raise
 
 
+async def _validate_erp_payload(session: AsyncSession, diagnostico: dict | None):
+    if not diagnostico:
+        return
+
+    utiliza_erp = diagnostico.get("utiliza_erp") is True
+    configurar_depois = diagnostico.get("configurar_erp_depois") is True
+    erp_id = diagnostico.get("marketplace_integracao_id")
+    erp_slug = diagnostico.get("marketplace_integracao_slug")
+
+    if not utiliza_erp and erp_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Não é permitido enviar marketplace_integracao_id quando utiliza_erp é false",
+        )
+
+    if configurar_depois and erp_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Não é permitido enviar marketplace_integracao_id quando configurar_erp_depois é true",
+        )
+
+    if utiliza_erp and not erp_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A seleção de um ERP é obrigatória quando utiliza_erp é true",
+        )
+
+    if erp_id:
+        from integracoes.models import MarketplaceIntegracao
+        from sqlalchemy import select
+
+        stmt = select(MarketplaceIntegracao).where(MarketplaceIntegracao.id == erp_id)
+        result = await session.execute(stmt)
+        provider = result.scalar_one_or_none()
+
+        if not provider:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="ERP não encontrado no marketplace")
+
+        if not provider.ativa:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="O provider selecionado está inativo")
+
+        if provider.provider_type != "ERP":
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="O provider selecionado não é do tipo ERP")
+
+        if erp_slug and provider.slug != erp_slug:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="O slug enviado não corresponde ao ERP selecionado")
+
+
+
 @router.post(
     "/iniciar",
     response_model=WizardResumoResponse,
@@ -459,6 +508,7 @@ async def iniciar_wizard(
     if payload.escopo_modulos is not None:
         implantacao.escopo_modulos = payload.escopo_modulos
     if payload.diagnostico_inicial_snapshot is not None:
+        await _validate_erp_payload(session, payload.diagnostico_inicial_snapshot)
         implantacao.diagnostico_inicial_snapshot = payload.diagnostico_inicial_snapshot
     session.add(implantacao)
     implantacao = await _avaliar_checklist(session, implantacao, tenant_id=tenant_id)
@@ -495,6 +545,10 @@ async def configurar_carga_wizard(
     implantacao.modo_implantacao = payload.modo_implantacao
     implantacao.origem = payload.origem
     implantacao.escopo_modulos = payload.escopo_modulos
+
+    if payload.diagnostico_inicial_snapshot is not None:
+        await _validate_erp_payload(session, payload.diagnostico_inicial_snapshot)
+
     implantacao.diagnostico_inicial_snapshot = payload.diagnostico_inicial_snapshot
     session.add(implantacao)
     await _commit_and_restore_rls(session)

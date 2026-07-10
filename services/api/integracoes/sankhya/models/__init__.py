@@ -32,7 +32,7 @@ class SankhyaConfig(Base):
     api_base_url = Column(String(500))
     auth_url = Column(String(500))
     client_id = Column(String(200))
-    # Credential: segredo do cliente. Não retornar em texto puro ao frontend.
+    # Credential: senha. Não retornar em texto puro ao frontend.
     client_secret = Column(String(200))  # Criptografado
     x_token = Column(String(200))  # Criptografado
     token = Column(String(200))  # LEGACY GATEWAY: Criptografado

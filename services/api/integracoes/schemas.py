@@ -6,7 +6,8 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from enum import Enum
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from integracoes.models import (
     ExternalRecordAssociationConfidence,
@@ -136,3 +137,80 @@ class ExternalRecordAssociationGovernanceReconcileRequest(BaseModel):
     notes: str | None = None
 
     model_config = ConfigDict()
+
+
+class ProviderFieldType(str, Enum):
+    STRING = "string"
+    SECRET = "secret"
+    URL = "url"
+    BOOLEAN = "boolean"
+    INTEGER = "integer"
+    SELECT = "select"
+
+
+class ProviderFieldValidation(BaseModel):
+    min_length: int | None = None
+    max_length: int | None = None
+    pattern: str | None = None
+
+
+class ProviderFieldSelectOption(BaseModel):
+    value: str | int | bool
+    label: str
+
+
+class ProviderFieldDefinition(BaseModel):
+    key: str = Field(min_length=1)
+    label: str = Field(min_length=1)
+    type: ProviderFieldType
+    required: bool = False
+    secret: bool = False
+    placeholder: str | None = None
+    help_text: str | None = None
+    default: Any | None = None
+    order: int = 0
+    options: list[ProviderFieldSelectOption] | None = None
+    validation: ProviderFieldValidation | None = None
+
+    @model_validator(mode="after")
+    def validate_rules(self) -> ProviderFieldDefinition:
+        if self.type == ProviderFieldType.SELECT and not self.options:
+            raise ValueError("Fields of type 'select' must provide options.")
+        if self.type != ProviderFieldType.SELECT and self.options is not None:
+            raise ValueError("Only 'select' fields can have options.")
+        if self.secret and self.default is not None:
+            raise ValueError("Secret fields cannot have default values.")
+        return self
+
+
+class ProviderSchemaDefinition(BaseModel):
+    schema_version: int = 1
+    required: list[str] = Field(default_factory=list)
+    optional: list[str] = Field(default_factory=list)
+    fields: list[ProviderFieldDefinition] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_unique_keys(self) -> ProviderSchemaDefinition:
+        keys = [f.key for f in self.fields]
+        if len(keys) != len(set(keys)):
+            raise ValueError("Duplicate keys found in fields.")
+        return self
+
+
+class ProviderPublicIdentity(BaseModel):
+    id: int
+    slug: str
+    nome: str
+    descricao_curta: str | None = None
+    logo_url: str | None = None
+    provider_type: str
+    ativa: bool
+    oficial: bool
+    versao: str | None = None
+
+
+class ProviderSchemaResponse(BaseModel):
+    provider: ProviderPublicIdentity
+    schema_version: int = 1
+    connection_schema: ProviderSchemaDefinition | dict[str, Any] | None = None
+    credential_schema: ProviderSchemaDefinition | dict[str, Any] | None = None

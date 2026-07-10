@@ -43,6 +43,12 @@ from integracoes.security import (
     encrypt_integration_secret,
     mask_integration_secret,
 )
+from integracoes.schemas import (
+    ProviderSchemaDefinition,
+    ProviderFieldDefinition,
+    ProviderFieldType,
+    ProviderFieldSelectOption,
+)
 
 _SANKHYA_SLUG = "sankhya"
 _SANKHYA_NAME = "Sankhya"
@@ -597,14 +603,15 @@ class SankhyaCanonicalAdapter:
                 oficial=True,
                 provider_type="ERP",
                 provider_definition=_provider_definition_payload(),
-                connection_schema={
-                    "required": [
+                connection_schema=ProviderSchemaDefinition(
+                    schema_version=1,
+                    required=[
                         "sankhya_environment",
                         "sankhya_api_base_url",
                         "sankhya_auth_url",
                         "sync_interval",
                     ],
-                    "optional": [
+                    optional=[
                         "sankhya_client_id",
                         "sankhya_client_secret",
                         "sankhya_x_token",
@@ -618,18 +625,180 @@ class SankhyaCanonicalAdapter:
                         "ultimo_sync",
                         "auth_model",
                     ],
-                },
-                credential_schema={
-                    "required": ["sankhya_client_id"],
-                    "optional": [
+                    fields=[
+                        ProviderFieldDefinition(
+                            key="sankhya_environment",
+                            label="Ambiente Sankhya",
+                            type=ProviderFieldType.SELECT,
+                            required=True,
+                            secret=False,
+                            default="PRODUCAO",
+                            options=[
+                                ProviderFieldSelectOption(value="PRODUCAO", label="Produção"),
+                                ProviderFieldSelectOption(value="HOMOLOGACAO", label="Homologação"),
+                                ProviderFieldSelectOption(value="SANDBOX", label="Sandbox"),
+                            ],
+                            order=10,
+                        ),
+                        ProviderFieldDefinition(
+                            key="sankhya_api_base_url",
+                            label="URL da API (MGE)",
+                            type=ProviderFieldType.URL,
+                            required=True,
+                            secret=False,
+                            placeholder="https://api.sankhya.com.br",
+                            order=20,
+                        ),
+                        ProviderFieldDefinition(
+                            key="sankhya_auth_url",
+                            label="URL de Autenticação",
+                            type=ProviderFieldType.URL,
+                            required=True,
+                            secret=False,
+                            placeholder="https://api.sankhya.com.br/login",
+                            order=30,
+                        ),
+                        ProviderFieldDefinition(
+                            key="auth_model",
+                            label="Modelo de Autenticação",
+                            type=ProviderFieldType.SELECT,
+                            required=False,
+                            secret=False,
+                            default="gateway_oauth_client_credentials",
+                            options=[
+                                ProviderFieldSelectOption(
+                                    value="gateway_oauth_client_credentials",
+                                    label="Gateway - OAuth 2.0 Client Credentials"
+                                ),
+                                ProviderFieldSelectOption(
+                                    value="gateway_legacy_login",
+                                    label="Gateway - Legacy Login (Usuário e Senha)"
+                                ),
+                            ],
+                            order=40,
+                        ),
+                        ProviderFieldDefinition(
+                            key="sync_interval",
+                            label="Intervalo de Sincronização (min)",
+                            type=ProviderFieldType.INTEGER,
+                            required=True,
+                            secret=False,
+                            default=60,
+                            order=50,
+                        ),
+                        ProviderFieldDefinition(
+                            key="ws_url",
+                            label="URL do Workspace",
+                            type=ProviderFieldType.URL,
+                            required=False,
+                            secret=False,
+                            order=60,
+                        ),
+                        ProviderFieldDefinition(
+                            key="ultimo_teste",
+                            label="Data do Último Teste",
+                            type=ProviderFieldType.STRING,
+                            required=False,
+                            secret=False,
+                            order=70,
+                        ),
+                        ProviderFieldDefinition(
+                            key="teste_status",
+                            label="Status do Teste",
+                            type=ProviderFieldType.STRING,
+                            required=False,
+                            secret=False,
+                            order=80,
+                        ),
+                        ProviderFieldDefinition(
+                            key="ultimo_sync",
+                            label="Última Sincronização",
+                            type=ProviderFieldType.STRING,
+                            required=False,
+                            secret=False,
+                            order=90,
+                        ),
+                    ]
+                ).model_dump(mode='json'),
+                credential_schema=ProviderSchemaDefinition(
+                    schema_version=1,
+                    required=["sankhya_client_id"],
+                    optional=[
                         "sankhya_client_secret",
                         "sankhya_x_token",
                         "sankhya_token",
                         "sankhya_appkey",
+                        "username",
                         "password",
                         "legacy_auth_model",
                     ],
-                },
+                    fields=[
+                        ProviderFieldDefinition(
+                            key="sankhya_client_id",
+                            label="Client ID (Sankhya)",
+                            type=ProviderFieldType.STRING,
+                            required=True,
+                            secret=False,
+                            order=10,
+                        ),
+                        ProviderFieldDefinition(
+                            key="sankhya_client_secret",
+                            label="Client Secret",
+                            type=ProviderFieldType.SECRET,
+                            required=False,
+                            secret=True,
+                            order=20,
+                        ),
+                        ProviderFieldDefinition(
+                            key="sankhya_x_token",
+                            label="X-Token (Sankhya)",
+                            type=ProviderFieldType.SECRET,
+                            required=False,
+                            secret=True,
+                            order=30,
+                        ),
+                        ProviderFieldDefinition(
+                            key="sankhya_token",
+                            label="Token Legacy",
+                            type=ProviderFieldType.SECRET,
+                            required=False,
+                            secret=True,
+                            order=40,
+                        ),
+                        ProviderFieldDefinition(
+                            key="sankhya_appkey",
+                            label="App Key",
+                            type=ProviderFieldType.SECRET,
+                            required=False,
+                            secret=True,
+                            order=50,
+                        ),
+                        ProviderFieldDefinition(
+                            key="username",
+                            label="Usuário",
+                            type=ProviderFieldType.STRING,
+                            required=False,
+                            secret=False,
+                            order=60,
+                        ),
+                        ProviderFieldDefinition(
+                            key="password",
+                            label="Senha",
+                            type=ProviderFieldType.SECRET,
+                            required=False,
+                            secret=True,
+                            order=70,
+                        ),
+                        ProviderFieldDefinition(
+                            key="legacy_auth_model",
+                            label="Autenticação Legada",
+                            type=ProviderFieldType.BOOLEAN,
+                            required=False,
+                            secret=False,
+                            order=80,
+                        ),
+                    ]
+                ).model_dump(mode='json'),
                 feature_schema=_feature_schema_payload(),
                 sync_schema=_sync_schema_payload(),
                 health_schema=_health_schema_payload(),

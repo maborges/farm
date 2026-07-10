@@ -359,14 +359,17 @@ class SankhyaSyncService:
         legacy_inputs = [sankhya_token, sankhya_appkey, ws_url, username, password]
         explicit_gateway = any(bool(value.strip() if isinstance(value, str) else value) for value in gateway_inputs)
         explicit_legacy = any(bool(value.strip() if isinstance(value, str) else value) for value in legacy_inputs)
+        explicit_legacy_login = any(
+            bool(value and value.strip()) for value in (sankhya_token, sankhya_appkey)
+        )
 
         current_auth = SankhyaGatewayAuthService(current) if current else None
         current_model = current_auth.auth_model() if current_auth else None
 
-        if explicit_gateway:
-            auth_model = "gateway_oauth_client_credentials"
-        elif (sankhya_token and sankhya_token.strip()) or (sankhya_appkey and sankhya_appkey.strip()):
+        if explicit_legacy_login:
             auth_model = "gateway_legacy_login"
+        elif explicit_gateway:
+            auth_model = "gateway_oauth_client_credentials"
         elif current_model and current_model != "incomplete":
             auth_model = current_model
         elif explicit_legacy:
@@ -434,6 +437,8 @@ class SankhyaSyncService:
                 else (current.password if current and current.password and current_is_legacy_basic else None)
             )
         elif auth_model == "gateway_legacy_login":
+            username_value = username or sankhya_client_id or username_value
+            password_raw = password or sankhya_client_secret
             if not auth_url:
                 auth_url = api_base_url or ws_url_value
             if not auth_url:
@@ -466,8 +471,9 @@ class SankhyaSyncService:
                 api_base_url = ws_url_value or auth_url
             if not ws_url_value:
                 ws_url_value = api_base_url
-            client_secret = current.client_secret if current and current.client_secret else None
-            x_token = current.x_token if current and current.x_token else None
+            client_id = None
+            client_secret = None
+            x_token = None
         elif auth_model == "legacy_ws_basic_auth":
             if not ws_url_value:
                 raise ValueError("Configuração Sankhya LEGACY incompleta: ws_url")
@@ -655,14 +661,10 @@ class SankhyaSyncService:
         config.api_base_url = normalized["api_base_url"]
         config.auth_url = normalized["auth_url"]
         config.client_id = normalized["client_id"]
-        if normalized["client_secret"] is not None:
-            config.client_secret = normalized["client_secret"]
-        if normalized["x_token"] is not None:
-            config.x_token = normalized["x_token"]
-        if normalized["token"] is not None:
-            config.token = normalized["token"]
-        if normalized["appkey"] is not None:
-            config.appkey = normalized["appkey"]
+        config.client_secret = normalized["client_secret"]
+        config.x_token = normalized["x_token"]
+        config.token = normalized["token"]
+        config.appkey = normalized["appkey"]
         if normalized["ws_url"] is not None:
             config.ws_url = normalized["ws_url"]
         if normalized["username"] is not None:

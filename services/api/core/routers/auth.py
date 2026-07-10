@@ -359,7 +359,7 @@ async def gestor_ver_tentativas_usuario(
     # Verifica se o usuário alvo pertence ao tenant
     stmt_vinculo = select(TenantUsuario).where(
         TenantUsuario.usuario_id == usuario_id,
-        TenantUsuario.tenant_id == uuid.UUID(tenant_id)
+        TenantUsuario.tenant_id == tenant_id
     )
     result_vinculo = await session.execute(stmt_vinculo)
     vinculo = result_vinculo.scalar_one_or_none()

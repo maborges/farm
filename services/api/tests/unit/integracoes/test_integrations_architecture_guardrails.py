@@ -77,7 +77,7 @@ def test_provider_e_provider_definition_nao_podem_armazenar_credenciais_reais_de
     arch_02 = _read(ARCH_02)
 
     assert "`IntegrationProvider` é o catálogo oficial de tipos de integração." in arch_02
-    assert "ele não contém o segredo do cliente" in arch_02
+    assert "ele não contém senha" in arch_02
     assert "`IntegrationProviderDefinition` é a definição arquitetural do provider." in arch_02
     assert "schemas do provider pertencem à definição do provider" in arch_02
     assert "não pertencem diretamente à configuração do tenant" in arch_02

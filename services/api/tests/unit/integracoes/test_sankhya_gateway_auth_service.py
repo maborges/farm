@@ -69,7 +69,7 @@ async def test_gateway_auth_monta_headers_e_body_corretos() -> None:
 
 
 @pytest.mark.asyncio
-async def test_gateway_legacy_login_auth_monta_headers_e_body_corretos() -> None:
+async def test_gateway_legacy_login_auth_monta_headers_e_le_bearer_token() -> None:
     SankhyaGatewayAuthService.clear_cache()
     config = _legacy_gateway_login_config()
     captured: dict[str, object] = {}
@@ -77,8 +77,8 @@ async def test_gateway_legacy_login_auth_monta_headers_e_body_corretos() -> None
     async def handler(request: httpx.Request) -> httpx.Response:
         captured["url"] = str(request.url)
         captured["headers"] = request.headers
-        captured["body"] = json.loads(request.content.decode())
-        return httpx.Response(200, json={"token": "legacy-token-abc", "expires_in": 120})
+        captured["body"] = request.content
+        return httpx.Response(200, json={"bearerToken": "legacy-token-abc"})
 
     client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
     service = SankhyaGatewayAuthService(config)
@@ -94,10 +94,11 @@ async def test_gateway_legacy_login_auth_monta_headers_e_body_corretos() -> None
     assert token == "legacy-token-abc"
     assert captured["url"] == "https://gateway.example/login"
     assert "x-token" not in captured["headers"]
-    assert captured["body"]["token"] == "legacy-token"
-    assert captured["body"]["appkey"] == "legacy-appkey"
-    assert captured["body"]["username"] == "legacy-user"
-    assert captured["body"]["password"] == "legacy-password"
+    assert captured["headers"]["token"] == "legacy-token"
+    assert captured["headers"]["appkey"] == "legacy-appkey"
+    assert captured["headers"]["username"] == "legacy-user"
+    assert captured["headers"]["password"] == "legacy-password"
+    assert captured["body"] == b""
 
 
 @pytest.mark.asyncio

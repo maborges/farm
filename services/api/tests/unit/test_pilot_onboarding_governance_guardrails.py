@@ -60,11 +60,20 @@ def test_dashboard_permanece_bloqueado_sem_onboarding_ou_unidade_produtiva() -> 
     )
 
     assert 'apiFetch<OnboardingStatusResponse>("/onboarding/status"' in guard_source
-    assert 'router.replace("/onboarding/configurar")' in guard_source
+    assert 'router.replace("/dashboard/implantacao/wizard")' in guard_source
     assert "Fazenda.tenant_id == tenant_id" in status_source
     assert "Fazenda.ativo == True" in status_source
     assert "etapa2 = fazenda_result.scalar_one_or_none() is not None" in status_source
     assert complete_rule in status_source
+
+
+def test_guard_permite_console_erp_durante_wizard_sem_loop_de_navegacao() -> None:
+    guard_source = _read("apps/web/src/components/auth/onboarding-guard.tsx")
+
+    assert '"/dashboard/settings/integracoes/erp"' in guard_source
+    assert '"/cadastros/propriedades"' in guard_source
+    assert "isOnboardingAllowedPath(pathname)" in guard_source
+    assert "needsStatusCheck, pathname, router, tenantId" in guard_source
 
 
 def test_fluxos_convergem_sem_tratar_onboarding_tecnico_como_up() -> None:
@@ -72,10 +81,9 @@ def test_fluxos_convergem_sem_tratar_onboarding_tecnico_como_up() -> None:
     login_form_source = _read("apps/web/src/components/auth/login-form.tsx")
     new_subscription_source = _read("apps/web/src/components/auth/new-subscription-wizard.tsx")
     config_source = _read("services/api/core/routers/configuration.py")
-    onboarding_route = 'router.push("/onboarding/configurar")'
-
-    assert onboarding_route in register_form_source
-    assert 'nextRoute = "/onboarding/configurar"' in login_form_source
+    assert 'router.push("/login")' in register_form_source
+    assert '"/onboarding/configurar"' not in register_form_source
+    assert 'nextRoute = "/dashboard/implantacao/wizard"' in login_form_source
     assert 'window.location.href = "/dashboard"' in new_subscription_source
     assert "tenant.onboarding_configuracao_completo = True" in config_source
     assert "criar_unidade_produtiva" not in config_source
