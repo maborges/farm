@@ -1,352 +1,545 @@
-# Runbook Operacional do Primeiro Piloto
+# Runbook Oficial do Dry Run Assistido do Primeiro Piloto
 
-Data: 2026-07-05
+Data: 2026-07-09
 
-## Objetivo
+## 1. Papel deste documento
 
-Orientar a equipe de implantação e operação durante a janela D-5 até D+7 do primeiro piloto do AgroSaaS, sem duplicar o Plano Mestre e sem recriar procedimentos já aprovados.
+Este é o runbook operacional oficial do Dry Run assistido do primeiro piloto.
 
-## Como usar este runbook
+Ele executa o [PLANO-MESTRE-PILOTO-01.md](/opt/lampp/htdocs/farm/docs/pilot/PLANO-MESTRE-PILOTO-01.md) em ordem cronológica e referencia os documentos auxiliares já aprovados, sem criar fluxo paralelo.
 
-- Este documento executa o plano mestre em rotina diária.
-- Os detalhes de negócio, integração Sankhya, observabilidade e Campo PWA permanecem referenciados nos documentos oficiais.
-- Quando houver conflito entre este runbook e o plano mestre, prevalece o [PLANO-MESTRE-PILOTO-01.md](/opt/lampp/htdocs/farm/docs/pilot/PLANO-MESTRE-PILOTO-01.md).
+Hierarquia documental:
 
-## Documentos de referência
+1. Documento mestre: [PLANO-MESTRE-PILOTO-01.md](/opt/lampp/htdocs/farm/docs/pilot/PLANO-MESTRE-PILOTO-01.md)
+2. Runbook operacional: [RUNBOOK-01-EXECUCAO-D-5-A-D+7.md](/opt/lampp/htdocs/farm/docs/pilot/RUNBOOK-01-EXECUCAO-D-5-A-D+7.md)
+3. Checklist do cliente: [CHECKLIST-CLIENTE-01-PREPARACAO-IMPLANTACAO.md](/opt/lampp/htdocs/farm/docs/pilot/CHECKLIST-CLIENTE-01-PREPARACAO-IMPLANTACAO.md)
+4. Parecer de prontidão: [PILOT-E2E-01-AUDITORIA-PRONTIDAO-OPERACIONAL-PONTA-A-PONTA.md](/opt/lampp/htdocs/farm/docs/implementation/reports/PILOT-E2E-01-AUDITORIA-PRONTIDAO-OPERACIONAL-PONTA-A-PONTA.md)
 
-- [PLANO-MESTRE-PILOTO-01.md](/opt/lampp/htdocs/farm/docs/pilot/PLANO-MESTRE-PILOTO-01.md)
-- [PILOT-01-PLANO-OPERACIONAL-CONTROLADO.md](/opt/lampp/htdocs/farm/docs/implementation/reports/PILOT-01-PLANO-OPERACIONAL-CONTROLADO.md)
-- [PILOT-03-AUDITORIA-EXECUCAO-IMPLANTACAO.md](/opt/lampp/htdocs/farm/docs/implementation/reports/PILOT-03-AUDITORIA-EXECUCAO-IMPLANTACAO.md)
-- [PILOT-04A-AUDITORIA-DOCUMENTACAO-OPERACIONAL.md](/opt/lampp/htdocs/farm/docs/implementation/reports/PILOT-04A-AUDITORIA-DOCUMENTACAO-OPERACIONAL.md)
-- [PILOT-GOV-01-GUARDRAILS-IMPLANTACAO-ONBOARDING-ASSINATURA.md](/opt/lampp/htdocs/farm/docs/implementation/reports/PILOT-GOV-01-GUARDRAILS-IMPLANTACAO-ONBOARDING-ASSINATURA.md)
-- [PILOT-GOV-01B-IDENTIDADE-CONVITES-EQUIPE.md](/opt/lampp/htdocs/farm/docs/implementation/reports/PILOT-GOV-01B-IDENTIDADE-CONVITES-EQUIPE.md)
-- [SANKHYA-AUTH-02-TEST-CONNECTION.md](/opt/lampp/htdocs/farm/docs/implementation/reports/SANKHYA-AUTH-02-TEST-CONNECTION.md)
-- [SANKHYA-SYNC-01-ESCOPO-PILOTO-CAFE.md](/opt/lampp/htdocs/farm/docs/implementation/reports/SANKHYA-SYNC-01-ESCOPO-PILOTO-CAFE.md)
-- [SANKHYA-SYNC-02-MAPEAMENTO-OFICIAL.md](/opt/lampp/htdocs/farm/docs/implementation/reports/SANKHYA-SYNC-02-MAPEAMENTO-OFICIAL.md)
-- [SANKHYA-SYNC-03-ESTRATEGIA-SINCRONIZACAO-PILOTO.md](/opt/lampp/htdocs/farm/docs/implementation/reports/SANKHYA-SYNC-03-ESTRATEGIA-SINCRONIZACAO-PILOTO.md)
-- [docs/runbooks/estoque-implantacao-assistida.md](/opt/lampp/htdocs/farm/docs/runbooks/estoque-implantacao-assistida.md)
+## 2. Escopo do Dry Run
+
+Este Dry Run cobre:
+
+- preparação do ambiente e dos responsáveis;
+- tenant, owner/admin, onboarding e Wizard oficial;
+- estrutura da fazenda e cadastros mínimos;
+- safra e operação agrícola assistida;
+- Campo PWA offline-first com perda e retomada de rede;
+- estoque e apropriação de custo coerentes com a execução;
+- colheita, romaneio e comercialização mínima;
+- integração ERP via `/api/v1/integracoes/erp/*`;
+- suporte técnico provider-specific via `/api/v1/integracoes/sankhya/*`;
+- observabilidade, falhas controladas, evidências e decisão GO/NO-GO.
+
+Fora de escopo deste Dry Run:
+
+- exportação e cadeia avançada de café como requisito bloqueador;
+- novos endpoints, novos serviços ou correções funcionais;
+- automação ponta a ponta única;
+- logs ERP genéricos; logs técnicos seguem provider-specific e suporte.
+
+## 3. Arquitetura obrigatória a respeitar
+
+Governança:
+
+- `Tenant`, `Usuario`, `TenantUsuario`, Owner/Admin, onboarding oficial e RLS.
+
+Implantação:
+
+- Wizard em `/dashboard/implantacao/wizard` e `/api/v1/wizard/*`.
+
+Operação:
+
+- `UnidadeProdutiva`, propriedades, imóveis rurais, `PropriedadeImovel`, áreas, talhões, safras, estoque canônico, `CostAllocation`, `Despesa`, romaneio e comercialização.
+
+ERP:
+
+- superfície comum em `/api/v1/integracoes/erp/*`;
+- suporte e operações Sankhya provider-specific em `/api/v1/integracoes/sankhya/*`;
+- `ErpReadinessService`, `IntegrationHealth`, `IntegrationJob`, `ExternalRecordAssociation`, timeline e diagnóstico.
+
+Engines:
+
+- Domain Events, Outbox, Alert Engine, Notification Engine e Recommendation Engine.
+
+## 4. Documentos auxiliares obrigatórios
+
 - [docs/runbooks/field-pwa-local-setup.md](/opt/lampp/htdocs/farm/docs/runbooks/field-pwa-local-setup.md)
+- [docs/runbooks/estoque-implantacao-assistida.md](/opt/lampp/htdocs/farm/docs/runbooks/estoque-implantacao-assistida.md)
 - [docs/implementation/checklists/domain-events-operational-checklist.md](/opt/lampp/htdocs/farm/docs/implementation/checklists/domain-events-operational-checklist.md)
 - [docs/architecture/agrosaas-observability.md](/opt/lampp/htdocs/farm/docs/architecture/agrosaas-observability.md)
+- [docs/implementation/reports/PILOT-GOV-01-GUARDRAILS-IMPLANTACAO-ONBOARDING-ASSINATURA.md](/opt/lampp/htdocs/farm/docs/implementation/reports/PILOT-GOV-01-GUARDRAILS-IMPLANTACAO-ONBOARDING-ASSINATURA.md)
+- [docs/implementation/reports/SANKHYA-AUTH-02-TEST-CONNECTION.md](/opt/lampp/htdocs/farm/docs/implementation/reports/SANKHYA-AUTH-02-TEST-CONNECTION.md)
+- [docs/implementation/reports/SANKHYA-SYNC-03-ESTRATEGIA-SINCRONIZACAO-PILOTO.md](/opt/lampp/htdocs/farm/docs/implementation/reports/SANKHYA-SYNC-03-ESTRATEGIA-SINCRONIZACAO-PILOTO.md)
 
-## Responsáveis
+## 5. Pré-condições técnicas
 
-### Equipe AgroSaaS
+Antes de D-5, validar:
 
-- coordenar a execução diária;
-- validar checkpoints;
-- acompanhar integração Sankhya;
-- acompanhar sincronizações e logs;
-- registrar incidentes e ações corretivas.
+- branch e commit anotados no cabeçalho da execução;
+- API acessível e migrations consistentes;
+- Web acessível;
+- Campo PWA instalável ou ambiente equivalente preparado;
+- banco e schema `farms` disponíveis;
+- worker de outbox e schedulers necessários ativos, quando a validação depender deles;
+- tenant de teste criado ou pronto para criação pelos caminhos oficiais;
+- usuários de teste definidos;
+- local de armazenamento de evidências definido;
+- credenciais e secrets substituídos por placeholders em qualquer registro.
 
-### Cliente piloto
+Nunca registrar no runbook:
 
-- manter disponibilidade do owner/admin;
-- aprovar decisões de go/no-go;
-- validar pendências de cadastro e operação;
-- confirmar início da operação assistida.
+- senhas reais;
+- tokens reais;
+- client secrets;
+- cabeçalhos sensíveis;
+- URLs privadas de cliente.
 
-### Usuários operacionais
+Usar placeholders:
 
-- executar a operação do Campo e as rotinas liberadas;
-- reportar inconsistências;
-- respeitar os fluxos e limites aprovados.
+- `<OWNER_EMAIL>`
+- `<OWNER_PASSWORD>`
+- `<ERP_BASE_URL>`
+- `<ERP_TOKEN_ALIAS>`
+- `<TENANT_SLUG>`
+- `<UNIDADE_PRODUTIVA_ID>`
 
-## D-5 - Preparação
+## 6. Critérios de entrada
 
-### Atividades
+O Dry Run só pode começar se todos os itens abaixo estiverem atendidos:
 
-- validar contrato e assinatura;
-- validar tenant, owner e plano ativo;
-- confirmar `UnidadeProdutiva` vinculada;
-- conferir configuração inicial do Wizard;
-- validar credenciais Sankhya;
-- executar teste de conexão;
-- confirmar disponibilidade do Gateway;
-- confirmar acesso de todos os responsáveis.
+- ambiente disponível e identificado;
+- tenant válido;
+- Owner/Admin acessível;
+- checklist do cliente revisado;
+- ao menos uma `UnidadeProdutiva` criada ou com passo explícito para criação;
+- usuário operacional de campo definido;
+- massa de dados mínima acordada;
+- PWA instalável ou dispositivo preparado;
+- ERP configurado ou formalmente dispensado para o ciclo;
+- janela D-5 a D+7 reservada;
+- responsáveis técnico, funcional, suporte e cliente confirmados;
+- plano de contingência conhecido.
 
-### Evidências esperadas
+## 7. Massa de dados mínima controlada
 
-- tenant ativo;
-- owner autenticado;
-- assinatura ativa;
-- `UnidadeProdutiva` presente;
-- teste de conexão com retorno sanitizado;
-- acessos confirmados.
+Dados mínimos recomendados:
 
-### Responsável
+| Grupo | Mínimo |
+| ----- | ------ |
+| Governança | 1 tenant, 1 owner/admin, 1 usuário operacional |
+| Estrutura | 1 propriedade, 1 unidade produtiva, 1 talhão ativo |
+| Produção | 1 cultura de café, 1 safra ativa |
+| Cadastros | 1 produto colhido, 1 insumo, 1 fornecedor, 1 cliente |
+| Estoque | 1 depósito, 1 lote, 1 saldo inicial coerente |
+| Operação | 1 atividade planejada ou equivalente operacional |
+| Recursos | 1 máquina, 1 colaborador |
+| Financeiro | 1 conta financeira ou estrutura mínima equivalente |
+| Comercialização | 1 comercialização de teste no fluxo oficial |
 
-- Equipe AgroSaaS.
+Restrições:
 
-### Documentos de referência
+- usar dados mínimos, realistas e rastreáveis;
+- evitar dados pessoais ou fiscais reais;
+- registrar IDs funcionais sem expor segredos.
 
-- [PILOT-01-PLANO-OPERACIONAL-CONTROLADO.md](/opt/lampp/htdocs/farm/docs/implementation/reports/PILOT-01-PLANO-OPERACIONAL-CONTROLADO.md)
-- [SANKHYA-AUTH-02-TEST-CONNECTION.md](/opt/lampp/htdocs/farm/docs/implementation/reports/SANKHYA-AUTH-02-TEST-CONNECTION.md)
-- [PILOT-GOV-01-GUARDRAILS-IMPLANTACAO-ONBOARDING-ASSINATURA.md](/opt/lampp/htdocs/farm/docs/implementation/reports/PILOT-GOV-01-GUARDRAILS-IMPLANTACAO-ONBOARDING-ASSINATURA.md)
+## 8. Matriz de responsabilidades
 
-## D-4 - Estrutura Operacional
+| Papel | Responsabilidade principal |
+| ----- | -------------------------- |
+| Responsável técnico AgroSaaS | conduzir ambiente, APIs, ERP, suporte técnico e decisão técnica de continuidade |
+| Responsável funcional AgroSaaS | conduzir roteiro, validações operacionais, evidências e aceite funcional |
+| Owner/Admin do cliente | aprovar cadastros, go/no-go e continuidade da operação |
+| Operador Web | executar passos de backoffice/tenant |
+| Operador Campo PWA | executar operação offline e sincronização |
+| Suporte/Backoffice | observar health, jobs, timeline, diagnóstico e logs provider-specific |
+| Responsável ERP do cliente | validar credenciais, conexão e reconciliar dúvidas de origem |
+| Decisor GO/NO-GO | formalizar avanço, ressalvas ou interrupção |
 
-### Atividades
+Nenhuma atividade crítica pode ficar sem responsável nomeado na execução real.
 
-- validar propriedades e vínculos territoriais;
-- conferir imóveis rurais e glebas;
-- validar talhões, áreas operacionais e depósitos;
-- conferir produtos, fornecedores e clientes;
-- conferir plano de contas;
-- validar estoque inicial quando aplicável ao escopo do piloto.
+## 9. Convenção de evidências
 
-### Evidências esperadas
+Padrão de nome:
 
-- estrutura territorial consistente;
-- depósitos relacionados ao contexto da unidade produtiva;
-- cadastros básicos presentes para o piloto;
-- estoque inicial conferido quando fizer parte da onda inicial.
+`DRYRUN-[CENARIO]-[PASSO]-[AAAA-MM-DD]-[SEQ]`
 
-### Responsável
+Exemplos:
 
-- Equipe AgroSaaS com apoio do administrador do cliente.
+- `DRYRUN-A-OWNER-LOGIN-2026-07-09-01`
+- `DRYRUN-B-OFFLINE-PUSH-2026-07-09-03`
+- `DRYRUN-D-ERP-DIAGNOSTICO-2026-07-09-02`
 
-### Documentos de referência
+Tipos aceitos:
 
-- [PILOT-01-PLANO-OPERACIONAL-CONTROLADO.md](/opt/lampp/htdocs/farm/docs/implementation/reports/PILOT-01-PLANO-OPERACIONAL-CONTROLADO.md)
-- [PILOT-03-AUDITORIA-EXECUCAO-IMPLANTACAO.md](/opt/lampp/htdocs/farm/docs/implementation/reports/PILOT-03-AUDITORIA-EXECUCAO-IMPLANTACAO.md)
-- [docs/runbooks/estoque-implantacao-assistida.md](/opt/lampp/htdocs/farm/docs/runbooks/estoque-implantacao-assistida.md)
+- captura de tela sem dados sensíveis;
+- resposta de API sanitizada;
+- identificador funcional;
+- job/timeline/diagnóstico;
+- movimento de estoque;
+- apropriação de custo;
+- lançamento financeiro;
+- registro de sync;
+- aceite do responsável.
 
-## D-3 - Integração
+## 10. Observabilidade durante o Dry Run
 
-### Atividades
+Tenant:
 
-- executar a autenticação Sankhya conforme documentação oficial;
-- confirmar que o teste de conexão foi bem-sucedido;
-- validar a carga inicial aprovada para o piloto;
-- conferir os dados importados;
-- registrar inconsistências e decidir correções ou bloqueio.
+- telas funcionais do Wizard;
+- console ERP em `/dashboard/settings/integracoes/erp`;
+- indicadores de estoque, romaneio, comercialização e financeiro.
 
-### Evidências esperadas
+Backoffice/Suporte:
 
-- retorno do teste de conexão;
-- configuração padrão válida;
-- inconsistências classificadas;
-- aprovação ou bloqueio registrado.
+- health, jobs, timeline e diagnóstico do ERP;
+- logs provider-specific em `/api/v1/integracoes/sankhya/logs`;
+- trilha de incidentes, outbox, alertas, notificações e recomendações.
 
-### Responsável
+Separação obrigatória:
 
-- Equipe AgroSaaS.
+- tenant não precisa consumir log técnico bruto;
+- suporte/backoffice mantém acesso aos logs provider-specific;
+- `/api/v1/integracoes/erp/*` cobre o consumo comum do ERP.
 
-### Documentos de referência
+## 11. Critérios de interrupção imediata
 
-- [SANKHYA-AUTH-02-TEST-CONNECTION.md](/opt/lampp/htdocs/farm/docs/implementation/reports/SANKHYA-AUTH-02-TEST-CONNECTION.md)
-- [SANKHYA-SYNC-01-ESCOPO-PILOTO-CAFE.md](/opt/lampp/htdocs/farm/docs/implementation/reports/SANKHYA-SYNC-01-ESCOPO-PILOTO-CAFE.md)
-- [SANKHYA-SYNC-02-MAPEAMENTO-OFICIAL.md](/opt/lampp/htdocs/farm/docs/implementation/reports/SANKHYA-SYNC-02-MAPEAMENTO-OFICIAL.md)
-- [SANKHYA-SYNC-03-ESTRATEGIA-SINCRONIZACAO-PILOTO.md](/opt/lampp/htdocs/farm/docs/implementation/reports/SANKHYA-SYNC-03-ESTRATEGIA-SINCRONIZACAO-PILOTO.md)
+Interromper a execução se houver:
 
-## D-2 - Campo PWA
+- quebra de isolamento entre tenants;
+- inconsistência irreversível de estoque;
+- duplicação financeira material;
+- perda de dados offline sem recuperação;
+- impossibilidade de restaurar sincronização;
+- falha generalizada de autenticação;
+- migration inconsistente;
+- necessidade de ação destrutiva no banco;
+- vazamento de credencial;
+- comportamento não idempotente em operação crítica.
 
-### Atividades
+## 12. Critérios de sucesso
 
-- preparar dispositivos;
-- validar ativação com PIN;
-- confirmar sincronização inicial;
-- executar teste offline;
-- executar teste online;
-- testar recuperação de sincronização;
-- confirmar que a operação em campo depende do fluxo já validado.
+O Dry Run será aprovado apenas se:
 
-### Evidências esperadas
+- cenários A, B, D e E forem executados;
+- cenário C for executado ao menos no escopo mínimo definido neste runbook;
+- não houver violação multi-tenant;
+- a operação offline sincronizar sem duplicidade;
+- estoque e custos refletirem a execução real testada;
+- colheita e romaneio preservarem origem por safra/talhão;
+- ERP apresentar readiness, job e diagnóstico utilizáveis;
+- engines não bloquearem a transação principal;
+- falhas controladas puderem ser diagnosticadas e recuperadas;
+- evidências forem coletadas;
+- ressalvas forem registradas;
+- a decisão final for formalizada.
+
+## 13. Cobertura cronológica D-5 a D+7
+
+### D-5
+
+Objetivo:
+validar governança, ambiente, acessos e preparação do cliente.
+
+Passos:
+
+1. Confirmar branch, commit, ambiente e local de evidências.
+2. Validar tenant, owner/admin, assinatura e onboarding oficial.
+3. Confirmar acesso ao Wizard.
+4. Confirmar responsáveis e janela operacional.
+
+Evidências:
+
+- login do owner/admin;
+- status do onboarding;
+- acesso ao Wizard;
+- checklist do cliente revisado.
+
+### D-4
+
+Objetivo:
+validar estrutura produtiva e cadastros mínimos.
+
+Passos:
+
+1. Confirmar `UnidadeProdutiva`.
+2. Validar propriedade, imóveis rurais e vínculo `PropriedadeImovel` quando aplicável.
+3. Validar talhão, cultura e safra.
+4. Confirmar depósito, produto, insumo, fornecedor, cliente e conta mínima.
+
+Evidências:
+
+- estrutura territorial;
+- `UnidadeProdutiva` ativa;
+- safra visível;
+- depósitos e cadastros mínimos.
+
+### D-3
+
+Objetivo:
+validar ERP e observabilidade básica.
+
+Passos:
+
+1. Executar teste de conexão do provider atual pelos fluxos aprovados.
+2. Validar readiness e health na superfície ERP.
+3. Executar sincronização controlada aprovada.
+4. Conferir jobs, timeline, diagnóstico e associações.
+
+Evidências:
+
+- teste de conexão sanitizado;
+- resposta de readiness/health;
+- job criado;
+- timeline/diagnóstico disponíveis.
+
+### D-2
+
+Objetivo:
+preparar e validar Campo PWA.
+
+Passos:
+
+1. Preparar dispositivo conforme o runbook do Campo.
+2. Validar ativação do usuário operacional.
+3. Executar sync inicial.
+4. Validar operação offline, fechamento e reabertura do aplicativo.
+
+Evidências:
 
 - dispositivo ativado;
-- sessão local persistida;
-- sincronização inicial concluída;
-- teste offline e online validado;
-- recuperação de sync observada.
+- sync inicial concluído;
+- evidência local criada;
+- fila offline persistida.
 
-### Responsável
+### D-1
 
-- Equipe AgroSaaS com apoio dos usuários operacionais.
+Objetivo:
+fechar checklist e decidir entrada no Dry Run assistido.
 
-### Documentos de referência
+Passos:
 
-- [docs/runbooks/field-pwa-local-setup.md](/opt/lampp/htdocs/farm/docs/runbooks/field-pwa-local-setup.md)
-- [PILOT-03-AUDITORIA-EXECUCAO-IMPLANTACAO.md](/opt/lampp/htdocs/farm/docs/implementation/reports/PILOT-03-AUDITORIA-EXECUCAO-IMPLANTACAO.md)
+1. Reavaliar Wizard.
+2. Confirmar ausência de bloqueio crítico.
+3. Revisar massa mínima e responsáveis.
+4. Formalizar GO/NO-GO para D0.
 
-## D-1 - Pré Go-Live
+Evidências:
 
-### Atividades
+- resumo do Wizard;
+- checklist mínimo;
+- decisão assinada ou registrada.
 
-- executar o checklist mínimo;
-- validar pendências abertas;
-- validar o Wizard e o estado atual da implantação;
-- validar a `UnidadeProdutiva`;
-- decidir GO ou NO-GO;
-- se houver bloqueio, registrar motivo e ação corretiva.
+### D0
 
-### Evidências esperadas
+Objetivo:
+executar os cenários obrigatórios A-E.
 
-- checklist mínimo satisfeito ou bloqueado com causa registrada;
-- Wizard com status coerente;
-- decisão GO/NO-GO formalizada;
-- responsável do cliente ciente.
+### D+1 a D+7
 
-### Responsável
+Objetivo:
+acompanhar operação assistida, pendências e correções não destrutivas.
 
-- Equipe AgroSaaS e administrador do cliente.
+Rotina diária:
 
-### Documentos de referência
+1. Revisar jobs, timeline, health e diagnóstico.
+2. Revisar estoque, custos e financeiro do escopo executado.
+3. Revisar sincronizações do Campo.
+4. Consolidar evidências e incidentes.
+5. Reclassificar ressalvas e decidir continuidade.
 
-- [PILOT-01-PLANO-OPERACIONAL-CONTROLADO.md](/opt/lampp/htdocs/farm/docs/implementation/reports/PILOT-01-PLANO-OPERACIONAL-CONTROLADO.md)
-- [PILOT-03-AUDITORIA-EXECUCAO-IMPLANTACAO.md](/opt/lampp/htdocs/farm/docs/implementation/reports/PILOT-03-AUDITORIA-EXECUCAO-IMPLANTACAO.md)
-- [docs/implementation/checklists/domain-events-operational-checklist.md](/opt/lampp/htdocs/farm/docs/implementation/checklists/domain-events-operational-checklist.md)
+## 14. Cenário A — preparação do cliente
 
-## D0 - Go-Live
+Fluxo:
 
-### Atividades
+`tenant -> Owner -> onboarding -> Wizard -> propriedade -> unidade produtiva -> talhão -> safra -> cadastros mínimos -> readiness -> READY_FOR_GO_LIVE`
 
-- liberar oficialmente a operação;
-- executar a primeira sincronização operacional;
-- validar o primeiro acesso ao Campo;
-- registrar a primeira operação;
-- verificar alertas e recomendações;
-- validar logs e health do ambiente;
-- registrar qualquer incidente imediato.
+| Passo | Responsável | Interface | Resultado esperado | Evidência | Falha/contingência |
+| ----- | ----------- | --------- | ------------------ | --------- | ------------------ |
+| Validar tenant e owner | AgroSaaS + cliente | Web | tenant correto e owner autenticado | login e identificação do tenant | corrigir acesso ou interromper |
+| Confirmar onboarding | AgroSaaS | `/api/v1/onboarding/*` e Web | onboarding oficial concluído | print/estado do onboarding | voltar ao fluxo oficial |
+| Abrir Wizard | AgroSaaS + cliente | `/dashboard/implantacao/wizard` | Wizard acessível com estado coerente | resumo do Wizard | tratar bloqueio antes de avançar |
+| Validar unidade produtiva | Cliente + AgroSaaS | Web/Wizard | `UnidadeProdutiva` ativa | print/listagem | sem unidade produtiva: NO-GO |
+| Validar estrutura mínima | Cliente + AgroSaaS | cadastros | propriedade, talhão e safra válidos | prints/IDs | ajustar cadastros antes de D0 |
+| Confirmar readiness | AgroSaaS | ERP/Wizard | operação apta ao piloto | resumo com elegibilidade | manter em D-1 se houver bloqueio |
 
-### Evidências esperadas
+## 15. Cenário B — operação agrícola
 
-- go-live registrado;
-- primeira operação confirmada;
-- logs e health consultados;
-- alertas e recomendações verificados;
-- incidentes iniciais registrados, se houver.
+Fluxo:
 
-### Responsável
+`atividade planejada ou equivalente -> Campo PWA -> offline -> retomada de rede -> sync -> estoque -> custo -> evento -> recomendação/alerta`
 
-- Equipe AgroSaaS com apoio do cliente.
+Passos obrigatórios:
 
-### Documentos de referência
+1. Selecionar uma operação agrícola mínima do piloto.
+2. Carregar os dados no Campo PWA.
+3. Desligar a conectividade.
+4. Registrar a operação offline.
+5. Fechar e reabrir o aplicativo.
+6. Restabelecer a conectividade.
+7. Executar o push e validar idempotência.
+8. Confirmar reflexo em estoque e custo.
+9. Validar evento, recomendação ou alerta, quando aplicável.
 
-- [PILOT-01-PLANO-OPERACIONAL-CONTROLADO.md](/opt/lampp/htdocs/farm/docs/implementation/reports/PILOT-01-PLANO-OPERACIONAL-CONTROLADO.md)
-- [docs/architecture/agrosaas-observability.md](/opt/lampp/htdocs/farm/docs/architecture/agrosaas-observability.md)
-- [SANKHYA-SYNC-03-ESTRATEGIA-SINCRONIZACAO-PILOTO.md](/opt/lampp/htdocs/farm/docs/implementation/reports/SANKHYA-SYNC-03-ESTRATEGIA-SINCRONIZACAO-PILOTO.md)
+Evidências:
 
-## D+1 a D+7 - Operação assistida
+- registro offline no dispositivo;
+- estado da fila antes e depois do reenvio;
+- resposta de sync sanitizada;
+- movimento de estoque;
+- apropriação de custo ou evidência equivalente;
+- evento/alerta/recomendação quando o fluxo o produzir.
 
-### Atividades diárias
+## 16. Cenário C — colheita e comercialização
 
-- revisar sincronizações;
-- revisar logs;
-- revisar health;
-- revisar estoque;
-- revisar financeiro;
-- revisar Campo PWA;
-- revisar alertas e recomendações;
-- revisar pendências;
-- revisar incidentes;
-- executar ações corretivas aprovadas.
+Fluxo mínimo deste Dry Run:
 
-### Rotina mínima
+`colheita -> romaneio -> produto colhido -> comercialização -> transição de status -> entrega -> receita ou conta a receber -> reflexo financeiro`
 
-- checkpoint diário;
-- consolidação de evidências;
-- classificação de pendências;
-- decisão sobre correções imediatas ou retorno a D-1;
-- comunicação formal do status.
+Escopo testado nesta etapa:
 
-### Evidências esperadas
+- obrigatório:
+  - romaneio;
+  - preservação de origem por safra/talhão;
+  - criação e leitura do produto colhido;
+  - comercialização mínima no fluxo `RASCUNHO -> CONFIRMADO -> EM_TRANSITO -> ENTREGUE -> FINALIZADO`;
+  - reflexo financeiro previsto pelo fluxo atual.
+- assistido:
+  - rentabilidade e conferência analítica;
+  - validação operacional com acompanhamento do time funcional.
+- fora do Dry Run:
+  - exportação;
+  - classificação avançada;
+  - cadeia avançada de beneficiamento, salvo exigência explícita do piloto.
 
-- status diário registrado;
-- pendências classificadas;
-- ações corretivas vinculadas a incidentes ou alertas;
-- consistência entre operação, sync e observabilidade.
+Se alguma etapa mínima falhar por limitação já conhecida e controlável, registrar como ressalva. Só vira bloqueador se comprometer integridade, estoque, financeiro ou rastreabilidade básica.
 
-### Responsável
+## 17. Cenário D — integração ERP
 
-- Equipe AgroSaaS.
+Fluxo:
 
-### Documentos de referência
+`configuração -> teste de conexão -> readiness -> sincronização -> job -> associação externa -> health -> timeline -> diagnóstico -> falha -> reprocessamento`
 
-- [PILOT-01-PLANO-OPERACIONAL-CONTROLADO.md](/opt/lampp/htdocs/farm/docs/implementation/reports/PILOT-01-PLANO-OPERACIONAL-CONTROLADO.md)
-- [docs/architecture/agrosaas-observability.md](/opt/lampp/htdocs/farm/docs/architecture/agrosaas-observability.md)
-- [docs/implementation/checklists/domain-events-operational-checklist.md](/opt/lampp/htdocs/farm/docs/implementation/checklists/domain-events-operational-checklist.md)
+Separação obrigatória:
 
-## Escalonamento
+- superfície ERP comum:
+  - `GET /api/v1/integracoes/erp/status`
+  - `GET /api/v1/integracoes/erp/health`
+  - `GET /api/v1/integracoes/erp/jobs`
+  - `GET /api/v1/integracoes/erp/timeline`
+  - `GET /api/v1/integracoes/erp/diagnostico`
+  - `GET /api/v1/integracoes/erp/associacoes/pendentes`
+- provider-specific Sankhya:
+  - autenticação;
+  - teste de conexão técnico;
+  - logs;
+  - operações específicas.
 
-### Interromper a implantação quando
+Não exigir `/api/v1/integracoes/erp/logs` neste ciclo.
 
-- o teste de conexão Sankhya falhar de forma recorrente;
-- a `UnidadeProdutiva` deixar de estar válida;
-- o checklist mínimo ficar bloqueado sem correção segura;
-- houver divergência estrutural relevante entre documento e estado real;
-- a operação depender de fluxo paralelo não aprovado.
+Evidências:
 
-### Abrir incidente quando
+- teste de conexão sanitizado;
+- readiness;
+- job criado;
+- health;
+- timeline;
+- diagnóstico;
+- associação pendente ou reconciliada;
+- reprocessamento ou retry validado quando houver falha controlada.
 
-- houver falha de sincronização;
-- houver erro de health, logs ou recomendações críticas;
-- houver inconsistência de estoque, financeiro ou Campo PWA;
-- houver falha de acesso ou de permissão em etapa crítica;
-- houver incidentes repetidos no mesmo dia.
+## 18. Cenário E — falhas controladas
 
-### Retornar para D-1 quando
+### Campo PWA
 
-- o go-live ainda não tiver sido concluído de forma segura;
-- o checklist mínimo continuar bloqueado;
-- o cliente precisar corrigir dados antes da ativação oficial;
-- a equipe decidir adiar a liberação por risco operacional.
+- provocar perda de rede durante o uso;
+- registrar uma operação offline;
+- fechar e reabrir o aplicativo;
+- restaurar a rede;
+- reenviar;
+- repetir o mesmo push para validar idempotência;
+- observar falha e retomada, se ocorrer.
 
-### Cancelar o go-live quando
+### Estoque
 
-- a equipe concluir que não há condições seguras de estabilização;
-- houver quebra de premissa estrutural do piloto;
-- o cliente não puder manter o compromisso de operação assistida;
-- a correção exigida sair do escopo aprovado do piloto.
+- tentar saída ou consumo com saldo insuficiente em ambiente controlado;
+- validar bloqueio ou tratamento esperado;
+- validar ajuste/estorno apenas se o fluxo oficial suportar o caso.
 
-## Encerramento da primeira semana
+### ERP
 
-Ao final de D+7 registrar:
+- validar indisponibilidade controlada ou credencial inválida em ambiente seguro;
+- observar job com falha, health, timeline e diagnóstico;
+- validar retry ou reprocessamento permitido pelo fluxo existente.
 
-- objetivos atingidos;
-- problemas encontrados;
-- ações corretivas executadas;
-- backlog gerado;
-- recomendação de continuidade;
-- necessidade ou não de extensão da operação assistida.
+### Engines
 
-### Evidências de encerramento
+- observar que falha de notificação ou outbox não invalida a transação principal;
+- validar que recomendação/alerta não duplica o efeito funcional.
 
-- consolidação do status dos checkpoints;
-- relatório de incidentes e ações corretivas;
-- decisão de continuidade documentada.
+### Wizard
 
-### Responsável
+- validar tentativa bloqueada sem `UnidadeProdutiva` ou com pendência crítica;
+- confirmar que o Wizard impede avanço indevido.
 
-- Equipe AgroSaaS, com validação do cliente quando aplicável.
+Para cada falha, registrar:
 
-## Consolidação de procedimentos reutilizados
+- como foi provocada;
+- resultado esperado;
+- evidência;
+- restauração do ambiente;
+- decisão de continuar ou interromper.
 
-### Reutilizados integralmente
+## 19. Passos executáveis hoje com evidência no repositório
 
-- validação de contrato, assinatura, tenant, owner, plano e `UnidadeProdutiva`;
-- teste de conexão Sankhya;
-- sequência Sankhya de autenticação, carga e validação;
-- ativação e teste do Campo PWA;
-- checklist mínimo do Wizard;
-- observabilidade e leitura de health/logs;
-- implantação assistida de estoque quando aplicável.
+| Passo do Dry Run | Interface principal | Evidência de implementação |
+| ---------------- | ------------------- | -------------------------- |
+| Onboarding e owner | Web + `/api/v1/onboarding/*` | `services/api/core/routers/onboarding.py` |
+| Wizard | `/dashboard/implantacao/wizard` + `/api/v1/wizard/*` | `services/api/wizard/router.py` e testes `services/api/tests/unit/wizard/test_wizard_api.py` |
+| Campo PWA offline | PWA + `/api/v1/sync/*` | `apps/campo/src/lib/sync/*` e `services/api/tests/unit/agricola/test_field_pwa01_offline_sync.py` |
+| Estoque | Web + `/api/v1/estoque/*` | `services/api/operacional/routers/estoque.py` e `apps/web/tests/e2e/estoque-implantacao-assistida.spec.ts` |
+| Romaneio | Web + `/api/v1/agricola/romaneios/*` | `services/api/agricola/romaneios/router.py` e `services/api/tests/unit/agricola/test_romaneio_calculo.py` |
+| Comercialização | Web + `/api/v1/comercializacoes/*` | `services/api/financeiro/comercializacao/router.py` e `services/api/tests/unit/financeiro/test_comercializacao.py` |
+| ERP comum | Web + `/api/v1/integracoes/erp/*` | `services/api/integracoes/erp/router.py` e `services/api/tests/unit/integracoes/test_erp_router.py` |
+| Engines | backend assíncrono | testes de outbox/notificações/recomendações |
 
-### Reutilizados com adaptação
+## 20. Comandos de validação leves
 
-- estrutura territorial do D-4;
-- validação de inconsistências importadas no D-3;
-- rotina de acompanhamento diário D+1 a D+7;
-- escalonamento para retorno a D-1;
-- encerramento da semana com backlog e decisão de continuidade.
+Executar apenas em ambiente controlado e sem credenciais reais:
 
-### Criados neste runbook
+```bash
+git status --short
+git diff --check
+cd services/api && .venv/bin/pytest tests/unit/wizard/test_wizard_api.py --collect-only -q
+cd services/api && .venv/bin/pytest tests/unit/agricola/test_field_pwa01_offline_sync.py --collect-only -q
+cd services/api && .venv/bin/pytest tests/smoke/test_estoque_implantacao_runbook.py --collect-only -q
+cd services/api && .venv/bin/pytest tests/unit/financeiro/test_comercializacao.py --collect-only -q
+cd services/api && .venv/bin/pytest tests/unit/integracoes/test_erp_router.py --collect-only -q
+```
 
-- ordenação operacional única por dia do piloto;
-- consolidação da janela D-5 a D+7 em um só fluxo;
-- matriz de evidências por etapa;
-- critérios de escalonamento no contexto do piloto.
+Esses comandos validam a existência e a coleta das peças críticas do roteiro. Não substituem a execução assistida do Dry Run.
 
-## Confirmação final
+## 21. Encerramento e decisão
 
-Este runbook consolida procedimentos já aprovados e referencia os documentos oficiais existentes como fonte de verdade. Não há duplicação desnecessária de procedimentos; apenas organização operacional para uso diário da equipe no primeiro piloto.
+Ao final de D+7 consolidar:
+
+- evidências coletadas;
+- incidentes e ações corretivas;
+- ressalvas abertas;
+- pontos fora do escopo que permaneceram fora do teste;
+- decisão final.
+
+Classificação final:
+
+- `GO`: cenários críticos aprovados sem bloqueador.
+- `GO COM RESSALVAS`: roteiro executado com limitações controladas.
+- `NO-GO`: houve falha que comprometeu segurança, isolamento, integridade, continuidade operacional, estoque, financeiro, sincronização ou governança.
+
+## 22. Decisão operacional deste runbook
+
+Decisão vigente:
+
+- o Dry Run do primeiro piloto deve ser executado com este runbook como roteiro único;
+- o plano mestre continua sendo a referência executiva;
+- a operação deve ser assistida;
+- logs técnicos seguem provider-specific e suporte/backoffice;
+- a ausência de suíte única não impede este ciclo, desde que o roteiro manual seja seguido e as evidências sejam coletadas.

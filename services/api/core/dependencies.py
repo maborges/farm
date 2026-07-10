@@ -71,6 +71,57 @@ def _is_connection_exhaustion_error(exc: Exception) -> bool:
         or type(exc).__name__ == "TooManyConnectionsError"
     )
 
+
+def _resolve_request_tenant_id(request: Request | None) -> uuid.UUID | None:
+    """Recupera o tenant do contexto do request, com fallback via JWT.
+
+    O caminho preferencial continua sendo `request.state.rls_tenant_id`, preenchido
+    pelo middleware. O fallback pelo Authorization existe para manter o RLS ativo
+    mesmo quando o contexto de request não foi propagado até a dependência.
+    """
+    if request is None:
+        return None
+
+    tenant_id = getattr(request.state, "rls_tenant_id", None)
+    if tenant_id:
+        try:
+            return uuid.UUID(str(tenant_id))
+        except (TypeError, ValueError):
+            logger.warning(
+                "Tenant RLS inválido em request.state.",
+                tenant_id=str(tenant_id),
+                path=str(request.url.path),
+            )
+
+    authorization = request.headers.get("Authorization")
+    if not authorization or not authorization.startswith("Bearer "):
+        return None
+
+    try:
+        token = authorization.split(" ", 1)[1]
+        payload = jwt.decode(
+            token,
+            settings.jwt_secret_key,
+            algorithms=[settings.jwt_algorithm],
+            options={"verify_exp": False},
+        )
+    except (IndexError, JWTError):
+        return None
+
+    tenant_id_str = payload.get("tenant_id")
+    if not tenant_id_str:
+        return None
+
+    try:
+        return uuid.UUID(str(tenant_id_str))
+    except (TypeError, ValueError):
+        logger.warning(
+            "Tenant RLS inválido no JWT.",
+            tenant_id=str(tenant_id_str),
+            path=str(request.url.path),
+        )
+        return None
+
 if TYPE_CHECKING:
     from core.constants import PlanTier
 
@@ -82,10 +133,11 @@ async def get_session(request: Request = None) -> AsyncGenerator[AsyncSession, N
     """
     Dependency de sessão. Se o middleware TenantRLSMiddleware tiver extraído
     um tenant_id do JWT, ativa RLS automaticamente — mesmo em routers que
-    usam get_session diretamente (fail-safe).
+    usam get_session diretamente (fail-safe). Se o contexto do middleware não
+    estiver disponível, reaproveita o tenant do próprio JWT.
     """
     async with async_session_maker() as session:
-        tenant_id = getattr(request.state, "rls_tenant_id", None) if request else None
+        tenant_id = _resolve_request_tenant_id(request)
         try:
             if tenant_id and "postgresql" in DB_URL:
                 await session.execute(text(f"SET LOCAL app.current_tenant_id = '{tenant_id}';"))

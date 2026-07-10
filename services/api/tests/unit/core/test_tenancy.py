@@ -6,6 +6,7 @@ import pytest
 import uuid
 from unittest.mock import AsyncMock, MagicMock, patch
 from fastapi import HTTPException
+from starlette.requests import Request
 
 
 # ---------------------------------------------------------------------------
@@ -194,3 +195,63 @@ async def test_require_module_contratado_permite():
                 await result
         except HTTPException as e:
             pytest.fail(f"Módulo contratado deveria passar, recebeu {e.status_code}")
+
+
+@pytest.mark.asyncio
+async def test_get_session_reaplica_rls_via_jwt_quando_request_state_nao_tem_tenant(monkeypatch):
+    """CORE-TEN-06: get_session mantém o RLS ativo mesmo sem request.state."""
+    from core.dependencies import get_session
+    from core.services.auth_service import AuthService
+
+    tenant_id = uuid.uuid4()
+    token = AuthService(MagicMock()).create_access_token(
+        {
+            "sub": str(uuid.uuid4()),
+            "tenant_id": str(tenant_id),
+            "modules": ["CORE"],
+            "fazendas_auth": [],
+            "is_superuser": False,
+            "plan_tier": "BASICO",
+        }
+    )
+
+    class _FakeSessionContext:
+        def __init__(self, session):
+            self.session = session
+
+        async def __aenter__(self):
+            return self.session
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+    fake_session = AsyncMock()
+    fake_session.info = {}
+    fake_session.execute = AsyncMock()
+    monkeypatch.setattr(
+        "core.dependencies.async_session_maker",
+        lambda: _FakeSessionContext(fake_session),
+    )
+
+    scope = {
+        "type": "http",
+        "method": "GET",
+        "path": "/api/v1/wizard/status",
+        "headers": [(b"authorization", f"Bearer {token}".encode())],
+        "query_string": b"",
+        "client": ("testclient", 12345),
+        "server": ("testserver", 80),
+        "scheme": "http",
+        "http_version": "1.1",
+    }
+    request = Request(scope)
+
+    gen = get_session(request)
+    session = await gen.__anext__()
+
+    assert session is fake_session
+    assert fake_session.info["tenant_id"] == tenant_id
+    assert fake_session.execute.await_count == 1
+    assert str(tenant_id) in str(fake_session.execute.await_args.args[0])
+
+    await gen.aclose()
