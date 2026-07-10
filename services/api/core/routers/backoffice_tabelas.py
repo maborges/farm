@@ -6,11 +6,12 @@ para todos os tenants como valores padrão (Marcas, Modelos, Categorias de Produ
 """
 import uuid
 from typing import Optional
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy import select, or_
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from core.dependencies import get_session, get_current_admin
 from core.exceptions import EntityNotFoundError
@@ -401,6 +402,11 @@ class CommoditySistemaCreate(BaseModel):
     descricao: Optional[str] = None
     ativo: bool = True
 
+    @field_validator("codigo", mode="before")
+    @classmethod
+    def normalizar_codigo(cls, value: str) -> str:
+        return value.strip().upper()
+
 class CommoditySistemaUpdate(BaseModel):
     nome: Optional[str] = None
     codigo: Optional[str] = None
@@ -431,9 +437,24 @@ async def listar_commodities_sistema(
 
 @router.post("/commodities", status_code=201)
 async def criar_commodity_sistema(data: CommoditySistemaCreate, session: AsyncSession = Depends(get_session)):
+    existente = (
+        await session.execute(
+            select(Commodity.id).where(
+                Commodity.tenant_id.is_(None),
+                Commodity.codigo == data.codigo,
+            )
+        )
+    ).scalar_one_or_none()
+    if existente:
+        raise HTTPException(status_code=409, detail=f"Já existe uma commodity do sistema com o código '{data.codigo}'.")
+
     obj = Commodity(tenant_id=None, sistema=True, **data.model_dump())
     session.add(obj)
-    await session.commit()
+    try:
+        await session.commit()
+    except IntegrityError as exc:
+        await session.rollback()
+        raise HTTPException(status_code=409, detail=f"Já existe uma commodity do sistema com o código '{data.codigo}'.") from exc
     await session.refresh(obj)
     return obj
 
