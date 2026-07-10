@@ -86,6 +86,7 @@ from core.cadastros.propriedade_imovel.router import router as router_propriedad
 from growth import router as growth_router
 from core.background_jobs import run_background_jobs
 from wizard.router import router as wizard_router
+from integracoes.erp.router import router as erp_router
 
 
 # -- Configuração Loguru Estruturado p/ Grafana/Loki Compatível
@@ -512,6 +513,7 @@ app.include_router(router_certificacoes_esg_publica, prefix="/api/v1/public")
 # app.include_router(benchmarks_router, prefix="/api/v1/enterprise")
 # app.include_router(preditivo_router, prefix="/api/v1/enterprise")
 app.include_router(sprints_27_33_router, prefix="/api/v1/enterprise")
+app.include_router(erp_router, prefix="/api/v1/integracoes")
 app.include_router(sankhya_router, prefix="/api/v1/integracoes")
 app.include_router(openweather_router, prefix="/api/v1/integracoes")
 app.include_router(regulatorias_router, prefix="/api/v1/integracoes/regulatorias")
