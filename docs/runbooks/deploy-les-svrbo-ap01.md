@@ -15,7 +15,7 @@ Serviços já disponíveis no servidor:
 - `PostgreSQL`
 
 Objetivo:
-- subir a aplicação com o backend FastAPI, o frontend Next.js, o banco PostgreSQL e o proxy Nginx
+- subir a aplicação com o backend FastAPI, o frontend web Next.js, o frontend Campo PWA, o banco PostgreSQL e o proxy Nginx
 - manter banco, Redis e aplicativos de aplicação sem exposição direta na internet
 - deixar o passo a passo claro para quem está executando pela primeira vez
 
@@ -25,6 +25,7 @@ Objetivo:
 |---|---|---:|---|
 | Nginx | Servidor | 80 / 443 | Sim |
 | Frontend Next.js | Servidor, localmente em `127.0.0.1` | 3000 | Não |
+| Frontend Campo PWA | Servidor, localmente em `127.0.0.1` | 3002 | Não |
 | Backend FastAPI | Servidor, localmente em `127.0.0.1` | 8000 | Não |
 | PostgreSQL | Servidor, localmente em `127.0.0.1` | 5432 | Não |
 | Redis | Docker no servidor, localmente em `127.0.0.1` | 6379 | Não |
@@ -75,9 +76,9 @@ Também é possível entrar diretamente pelo seu computador com `ssh agrosaas@17
 4. Subir Redis via Docker.
 5. Baixar o código-fonte.
 6. Criar os arquivos `.env.local`.
-7. Instalar dependências do backend e do frontend.
+7. Instalar dependências do backend, do frontend web e do Campo PWA.
 8. Rodar migrations do banco.
-9. Build do frontend.
+9. Build dos frontends.
 10. Criar os serviços `systemd`.
 11. Configurar o Nginx.
 12. Testar os endpoints.
@@ -419,6 +420,72 @@ sudo -u postgres pg_restore -d agrosaas_restore /srv/agrosaas/backups/agrosaas-Y
 sudo -u postgres psql -d agrosaas -c "select now();"
 ```
 
+### 9.8 Copiar o banco local para produção
+
+Use esta seção quando você quiser pegar uma base de desenvolvimento/local e carregar no servidor de produção.
+
+### Passo 1. Exportar o banco local
+
+### Onde executar
+- `No seu computador`
+
+### Comando
+
+```bash
+pg_dump -Fc -h 127.0.0.1 -U <usuario_local> -d <nome_do_banco_local> -f /tmp/agrosaas-local.dump
+```
+
+Se o banco local roda em Docker, execute o `pg_dump` dentro do container ou aponte `-h` e `-p` para o host/porta corretos.
+
+### Passo 2. Enviar o dump para o servidor
+
+### Onde executar
+- `No seu computador`
+
+### Comando
+
+```bash
+scp /tmp/agrosaas-local.dump agrosaas@179.127.30.25:/tmp/
+```
+
+Se o SSH usar outra porta, adicione `-P <porta>`.
+
+### Passo 3. Preparar o banco no servidor
+
+### Onde executar
+- `No servidor como root`
+
+### Comandos
+
+```bash
+sudo -u postgres dropdb --if-exists agrosaas
+sudo -u postgres createdb -O agrosaas agrosaas
+```
+
+### Passo 4. Restaurar o dump no servidor
+
+### Onde executar
+- `No servidor como root`
+
+### Comando
+
+```bash
+sudo -u postgres pg_restore --clean --if-exists --no-owner --no-privileges -d agrosaas /tmp/agrosaas-local.dump
+```
+
+### Passo 5. Validar a importação
+
+### Onde executar
+- `No servidor como root`
+
+### Comando
+
+```bash
+sudo -u postgres psql -d agrosaas -c "select count(*) from tenants;"
+```
+
+Se o seu banco tiver outro nome de tabela inicial para validação, troque `tenants` por uma tabela já conhecida do projeto.
+
 ## 10. Redis via Docker
 
 O `Redis` não foi listado como instalado, então a forma mais simples é subir um container local.
@@ -551,6 +618,7 @@ storage_public_base_url=http://179.127.30.25
 Observação:
 - se houver domínio e certificado válidos, troque `http://179.127.30.25` por `https://seu-dominio`.
 - `run_embedded_jobs=false` é o modo correto quando o worker roda separado.
+- depois de subir a aplicação, valide também o acesso do PWA em `Campo PWA > Dispositivos`. É ali que ficam os aparelhos de campo; para o primeiro uso, clique em `Novo dispositivo` e cadastre/ative o tablet ou celular do operador.
 
 ### 12.2 Frontend web
 
@@ -617,6 +685,21 @@ pnpm install
 
 Não autorize automaticamente pacotes diferentes desses sem revisão. O `pnpm approve-builds` registra a autorização no `pnpm-workspace.yaml`; a configuração deve ser revisada e posteriormente versionada no repositório principal para que os próximos deploys não dependam dessa interação manual.
 
+### 13.3 Campo PWA
+
+### Onde executar
+- `No servidor como usuário agrosaas`
+- dentro da pasta `/opt/agrosaas`
+
+### Comandos
+
+```bash
+cd /opt/agrosaas
+pnpm --filter @agro/campo install
+```
+
+Se preferir, `pnpm install` na raiz do workspace já instala `apps/web` e `apps/campo` juntos. O comando acima serve para validar só o app Campo.
+
 ## 14. Aplicar migrations
 
 ### Onde executar
@@ -644,6 +727,19 @@ cd /opt/agrosaas
 pnpm --filter web build
 ```
 
+## 15.1 Build do Campo PWA
+
+### Onde executar
+- `No servidor como usuário agrosaas`
+- dentro da pasta `/opt/agrosaas`
+
+### Comando
+
+```bash
+cd /opt/agrosaas
+pnpm --filter @agro/campo build
+```
+
 ## 16. Primeiro teste manual
 
 ### Onde executar
@@ -661,8 +757,17 @@ Em outro terminal:
 
 ```bash
 cd /opt/agrosaas/apps/web
-pnpm start -- --hostname 127.0.0.1 --port 3000
+pnpm start --hostname 127.0.0.1 --port 3000
 ```
+
+Para o Campo PWA, em outro terminal:
+
+```bash
+cd /opt/agrosaas/apps/campo
+pnpm start
+```
+
+O `apps/campo` já sobe em `3002` pelo próprio `package.json`.
 
 Enquanto esses dois processos estiverem ativos, teste:
 
@@ -699,7 +804,7 @@ Type=simple
 User=agrosaas
 WorkingDirectory=/opt/agrosaas/services/api
 Environment=PYTHONUNBUFFERED=1
-ExecStart=/bin/bash -lc 'cd /opt/agrosaas/services/api && source .venv/bin/activate && exec uvicorn main:app --host 127.0.0.1 --port 8000'
+ExecStart=/opt/agrosaas/services/api/.venv/bin/python -m uvicorn main:app --host 127.0.0.1 --port 8000
 Restart=always
 RestartSec=5
 
@@ -726,7 +831,8 @@ User=agrosaas
 WorkingDirectory=/opt/agrosaas/apps/web
 Environment=NODE_ENV=production
 Environment=BACKEND_URL=http://127.0.0.1:8000
-ExecStart=/bin/bash -lc 'source ~/.bashrc && cd /opt/agrosaas/apps/web && exec pnpm start -- --hostname 127.0.0.1 --port 3000'
+Environment=PATH=/home/agrosaas/.nvm/versions/node/v22.23.1/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ExecStart=/bin/bash -lc 'exec pnpm start --hostname 127.0.0.1 --port 3000'
 Restart=always
 RestartSec=5
 
@@ -734,7 +840,35 @@ RestartSec=5
 WantedBy=multi-user.target
 ```
 
-### 17.3 Worker de automações
+### 17.3 Campo PWA
+
+### Onde executar
+- `No servidor como root`
+- arquivo: `/etc/systemd/system/agrosaas-campo.service`
+
+### Conteúdo
+
+```ini
+[Unit]
+Description=AgroSaaS Campo PWA
+After=network.target
+
+[Service]
+Type=simple
+User=agrosaas
+WorkingDirectory=/opt/agrosaas/apps/campo
+Environment=NODE_ENV=production
+Environment=BACKEND_URL=http://127.0.0.1:8000
+Environment=PATH=/home/agrosaas/.nvm/versions/node/v22.23.1/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ExecStart=/bin/bash -lc 'exec pnpm start'
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+```
+
+### 17.4 Worker de automações
 
 ### Onde executar
 - `No servidor como root`
@@ -750,8 +884,8 @@ After=network.target postgresql.service redis.service docker.service
 [Service]
 Type=simple
 User=agrosaas
-WorkingDirectory=/opt/agrosaas
-ExecStart=/bin/bash -lc 'cd /opt/agrosaas && source services/api/.venv/bin/activate && exec python scripts/run_worker.py'
+WorkingDirectory=/opt/agrosaas/services/api
+ExecStart=/opt/agrosaas/services/api/.venv/bin/python automacoes/worker.py
 Restart=always
 RestartSec=5
 
@@ -776,6 +910,7 @@ python -m events.outbox_worker run --loop
 sudo systemctl daemon-reload
 sudo systemctl enable --now agrosaas-api
 sudo systemctl enable --now agrosaas-web
+sudo systemctl enable --now agrosaas-campo
 sudo systemctl enable --now agrosaas-worker
 ```
 
@@ -790,6 +925,8 @@ Como o acesso público será feito só pelas portas `80` e `443`, o Nginx deve s
 - arquivo: `/etc/nginx/conf.d/agrosaas.conf`
 
 ### Conteúdo sugerido
+
+Sem domínio ainda, publique só o `web` no IP público e mantenha o `Campo PWA` interno em `127.0.0.1:3002`. Quando houver domínio/subdomínio, será possível criar um `server` próprio para o Campo.
 
 ```nginx
 server {
@@ -866,6 +1003,8 @@ server {
 Se ainda não existir domínio, você pode usar HTTP para o primeiro teste.
 
 Se houver domínio apontado para esse IP, crie ou instale o certificado e depois adicione outro `server` com `listen 443 ssl;`.
+
+Sem domínio ainda, não publique o `Campo PWA` na internet. Deixe-o apenas em `127.0.0.1:3002` até existir um host ou subdomínio próprio, para evitar conflito de `manifest` e `service worker`.
 
 ### 19.3 Validar a configuração do Nginx
 
@@ -1033,7 +1172,7 @@ As imagens de produção devem ser preparadas para atender a este contrato:
 | Imagem | Conteúdo | Processo padrão |
 |---|---|---|
 | `agrosaas-api` | Backend e Alembic | Uvicorn em `127.0.0.1:8000` |
-| `agrosaas-worker` | Backend e scripts do worker | `python scripts/run_worker.py` |
+| `agrosaas-worker` | Backend e worker de automações | `python automacoes/worker.py` |
 | `agrosaas-web` | Build de produção do Next.js | Next.js em `127.0.0.1:3000` |
 
 O backend e o worker devem aceitar `DATABASE_URL`, `REDIS_URL` e demais configurações por variáveis de ambiente. O frontend deve aceitar `BACKEND_URL`.

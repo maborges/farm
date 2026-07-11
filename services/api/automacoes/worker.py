@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from sqlalchemy import select
 from loguru import logger
 
+from agricola.cultivos.models import Cultivo  # noqa: F401 - registra relacionamentos do ORM
 from core.database import get_db_session
 from automacoes.models import AutomacaoConfiguracao
 from automacoes.service import AutomacoesService, _calcular_proxima_execucao
