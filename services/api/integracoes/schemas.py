@@ -125,6 +125,17 @@ class ExternalRecordAssociationPendingItemResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class PaginatedExternalRecordAssociationResponse(BaseModel):
+    items: list[ExternalRecordAssociationPendingItemResponse]
+    total: int
+    total_filtered: int
+    limit: int
+    offset: int
+
+    model_config = ConfigDict()
+
+
+
 class ExternalRecordAssociationGovernanceReconcileRequest(BaseModel):
     local_entity_type: str = Field(min_length=1, max_length=100)
     local_entity_id: str = Field(min_length=1, max_length=100)
@@ -135,6 +146,17 @@ class ExternalRecordAssociationGovernanceReconcileRequest(BaseModel):
     )
     last_job_id: UUID | None = None
     notes: str | None = None
+
+    model_config = ConfigDict()
+
+
+class ExternalRecordAssociationSummaryResponse(BaseModel):
+    PENDING: int = 0
+    CONFLICT: int = 0
+    ACTIVE: int = 0
+    SUPERSEDED: int = 0
+    INACTIVE: int = 0
+    TOTAL: int = 0
 
     model_config = ConfigDict()
 

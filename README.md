@@ -396,6 +396,7 @@ sudo kill -9 PID
 
 No diretório raiz do projeto:
 ```bash
+    cd /opt/lampp/htdocs/farm
     source .venv/bin/activate
     python scripts/run_worker.py
 ```

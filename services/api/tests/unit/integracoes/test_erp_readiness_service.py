@@ -26,7 +26,7 @@ from integracoes.models import (
 )
 from integracoes.sankhya.models import SankhyaConfig
 from integracoes.sankhya.services.sync_service import SankhyaSyncService
-from integracoes.security import decrypt_integration_secret
+
 REPO_ROOT = Path(__file__).resolve().parents[5]
 
 if "domain_event_outbox" not in Base.metadata.tables:

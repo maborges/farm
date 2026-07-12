@@ -1,9 +1,9 @@
 # ruff: noqa: S105, S106
 from __future__ import annotations
 
+import uuid
 from datetime import date, datetime, timezone
 from decimal import Decimal
-import uuid
 
 import pytest
 import pytest_asyncio
@@ -11,12 +11,13 @@ from sqlalchemy import Column, String, Table, select
 from sqlalchemy import Uuid as UUIDType
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+from agricola.models import OperacaoTipoFase
 from core.cadastros.pessoas.models import Pessoa, PessoaDocumento
 from core.cadastros.produtos.models import CategoriaProduto, Marca, ModeloProduto, Produto
 from core.database import Base
 from core.measurements.models import UnidadeMedida
-from financeiro.models.conciliacao import ContaBancaria
 from events.outbox_model import DomainEventOutbox
+from financeiro.models.conciliacao import ContaBancaria
 from financeiro.models.despesa import Despesa
 from financeiro.models.nota_fiscal import NotaFiscal, StatusSEFAZ, TipoNF
 from financeiro.models.plano_conta import PlanoConta
@@ -40,12 +41,12 @@ from integracoes.sankhya.models import (
     SankhyaPessoa,
     SankhyaProduto,
 )
+from integracoes.sankhya.services.external_association_helper import (
+    SankhyaExternalAssociationHelper,
+)
 from integracoes.sankhya.services.nfe_financeiro_service import (
     SankhyaFinanceiroService,
     SankhyaNFeService,
-)
-from integracoes.sankhya.services.external_association_helper import (
-    SankhyaExternalAssociationHelper,
 )
 from integracoes.sankhya.services.sync_service import (
     SankhyaPessoaService,
@@ -53,7 +54,6 @@ from integracoes.sankhya.services.sync_service import (
     SankhyaSyncService,
 )
 from operacional.models.estoque import Deposito
-from agricola.models import OperacaoTipoFase
 
 if "tenants" not in Base.metadata.tables:
     Table(

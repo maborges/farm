@@ -1802,7 +1802,6 @@ class SankhyaProdutoService:
             self.db.add(produto)
 
         await self.db.commit()
-        await self._restore_rls_context(tenant_id)
         await self.db.refresh(produto)
         await self.association_helper.sync_produto(tenant_id, data)
         return produto

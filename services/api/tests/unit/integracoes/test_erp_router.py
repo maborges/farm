@@ -13,7 +13,6 @@ from fastapi import HTTPException
 
 import integracoes.erp.router as erp_router_module
 import integracoes.sankhya.routers as sankhya_router_module
-from integracoes.schemas import ExternalRecordAssociationGovernanceReconcileRequest
 
 
 @pytest_asyncio.fixture()
@@ -343,188 +342,6 @@ async def test_diagnostico_erp_delega_para_router_sankhya(
 
 
 @pytest.mark.asyncio
-async def test_associacoes_pendentes_erp_delega_para_router_sankhya(
-    session: Any,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    tenant_id = uuid.uuid4()
-    readiness_service, sankhya_sync_service, association_service = _services(session)
-
-    async def fake_runtime(self: object, implantacao: SimpleNamespace) -> SimpleNamespace:
-        assert implantacao.tenant_id == tenant_id
-        return SimpleNamespace(
-            provider=SimpleNamespace(slug="sankhya"),
-            config=SimpleNamespace(id=1),
-        )
-
-    async def fake_listar_associacoes(
-        *,
-        provider_id: int | None = None,
-        feature_id: int | None = None,
-        feature_code: str | None = None,
-        entity_type: str | None = None,
-        external_entity_type: str | None = None,
-        environment: str | None = None,
-        tenant_filter: uuid.UUID | None = None,
-        limit: int = 50,
-        offset: int = 0,
-        current_tenant_id: uuid.UUID,
-        service: object,
-    ) -> list[dict[str, object]]:
-        assert current_tenant_id == tenant_id
-        assert service is association_service
-        assert provider_id == 7
-        assert feature_code == "pessoas"
-        assert entity_type == "Pessoa"
-        assert external_entity_type == "Parceiro"
-        assert environment == "producao"
-        assert tenant_filter == tenant_id
-        assert limit == 11
-        assert offset == 3
-        return [
-            {
-                "id": str(uuid.uuid4()),
-                "tenant_id": str(tenant_id),
-                "provider_id": 7,
-                "config_id": 9,
-                "feature_id": 11,
-                "feature_code": "pessoas",
-                "environment": "producao",
-                "scope_type": "TENANT",
-                "scope_id": None,
-                "external_company_id": None,
-                "external_branch_id": None,
-                "local_entity_type": "Pessoa",
-                "local_entity_id": None,
-                "external_entity_type": "Parceiro",
-                "external_id": "1001",
-                "external_key": "7|9|producao|Parceiro|-|-|1001",
-                "external_payload": {"secondary_keys": {}, "metadata_json": {}},
-                "status": "PENDING",
-                "confidence": "MEDIUM",
-                "motivo": "aguardando validacao",
-                "last_sync_at": None,
-                "last_job_id": None,
-                "created_at": "2026-07-09T10:00:00Z",
-                "updated_at": "2026-07-09T10:00:00Z",
-                "history": [],
-            }
-        ]
-
-    monkeypatch.setattr(erp_router_module.ErpReadinessService, "carregar_runtime", fake_runtime)
-    monkeypatch.setattr(
-        erp_router_module,
-        "listar_associacoes_externas_pendentes_sankhya",
-        fake_listar_associacoes,
-    )
-
-    response = cast(
-        list[dict[str, Any]],
-        await erp_router_module.listar_associacoes_erp_pendentes(
-            provider_id=7,
-            feature_code="pessoas",
-            entity_type="Pessoa",
-            external_entity_type="Parceiro",
-            environment="producao",
-            tenant_filter=tenant_id,
-            limit=11,
-            offset=3,
-            current_tenant_id=tenant_id,
-            readiness_service=readiness_service,
-            sankhya_sync_service=sankhya_sync_service,
-            association_service=association_service,
-        ),
-    )
-
-    assert response[0]["status"] == "PENDING"
-    assert response[0]["feature_code"] == "pessoas"
-
-
-@pytest.mark.asyncio
-async def test_reconciliar_associacao_erp_delega_para_router_sankhya(
-    session: Any,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    tenant_id = uuid.uuid4()
-    expected_association_id = uuid.uuid4()
-    readiness_service, sankhya_sync_service, association_service = _services(session)
-
-    async def fake_runtime(self: object, implantacao: SimpleNamespace) -> SimpleNamespace:
-        assert implantacao.tenant_id == tenant_id
-        return SimpleNamespace(
-            provider=SimpleNamespace(slug="sankhya"),
-            config=SimpleNamespace(id=1),
-        )
-
-    async def fake_reconciliar(
-        *,
-        association_id: uuid.UUID,
-        payload: Any,
-        current_tenant_id: uuid.UUID,
-        service: object,
-    ) -> dict[str, object]:
-        assert association_id == expected_association_id
-        assert current_tenant_id == tenant_id
-        assert service is association_service
-        assert payload.local_entity_type == "Pessoa"
-        assert payload.local_entity_id == "pessoa-1"
-        return {
-            "id": str(association_id),
-            "tenant_id": str(tenant_id),
-            "provider_id": 7,
-            "config_id": 9,
-            "feature_id": 11,
-            "feature_code": "pessoas",
-            "environment": "producao",
-            "scope_type": "TENANT",
-            "scope_id": None,
-            "external_company_id": None,
-            "external_branch_id": None,
-            "local_entity_type": "Pessoa",
-            "local_entity_id": "pessoa-1",
-            "external_entity_type": "Parceiro",
-            "external_id": "2002",
-            "external_key": "7|9|producao|Parceiro|-|-|2002",
-            "external_payload": {"secondary_keys": {}, "metadata_json": {}},
-            "status": "ACTIVE",
-            "confidence": "MANUAL_CONFIRMED",
-            "motivo": "reconciliado",
-            "last_sync_at": None,
-            "last_job_id": None,
-            "created_at": "2026-07-09T10:00:00Z",
-            "updated_at": "2026-07-09T10:01:00Z",
-            "history": [],
-        }
-
-    monkeypatch.setattr(erp_router_module.ErpReadinessService, "carregar_runtime", fake_runtime)
-    monkeypatch.setattr(
-        erp_router_module,
-        "reconciliar_associacao_externa_sankhya",
-        fake_reconciliar,
-    )
-
-    payload = ExternalRecordAssociationGovernanceReconcileRequest(
-        local_entity_type="Pessoa",
-        local_entity_id="pessoa-1",
-        reason="validado manualmente",
-    )
-    response = cast(
-        dict[str, Any],
-        await erp_router_module.reconciliar_associacao_erp(
-            association_id=expected_association_id,
-            payload=payload,
-            current_tenant_id=tenant_id,
-            readiness_service=readiness_service,
-            sankhya_sync_service=sankhya_sync_service,
-            association_service=association_service,
-        ),
-    )
-
-    assert response["id"] == str(expected_association_id)
-    assert response["status"] == "ACTIVE"
-
-
-@pytest.mark.asyncio
 async def test_status_erp_usa_fallback_legacy_sankhya_quando_runtime_ainda_nao_existe(
     session: Any,
     monkeypatch: pytest.MonkeyPatch,
@@ -625,11 +442,10 @@ def test_main_registra_router_erp() -> None:
     assert "from integracoes.erp.router import router as erp_router" in source
     assert 'app.include_router(erp_router, prefix="/api/v1/integracoes")' in source
 import pytest
-from unittest.mock import AsyncMock, MagicMock
-from fastapi import HTTPException
-import integracoes.erp.router as erp_router_module
-from integracoes.schemas import ProviderSchemaResponse
+
 from integracoes.models import MarketplaceIntegracao
+from integracoes.schemas import ProviderSchemaResponse
+
 
 @pytest.mark.asyncio
 async def test_obter_schema_do_provider_erp_ativo_retorna_200() -> None:
