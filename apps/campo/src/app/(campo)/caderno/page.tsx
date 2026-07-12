@@ -37,6 +37,7 @@ import { CampoStepNav } from "@/components/campo/flow";
 import { FieldSelect } from "@/components/campo/field-select";
 import { CameraCapture } from "@/components/campo/camera-capture";
 import { GpsWarning } from "@/components/campo/gps-warning";
+import { PessoaSelect } from "@/components/campo/PessoaSelect";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 
 const EVENT_LABELS: Record<CadernoEventoTipo, string> = {
@@ -164,6 +165,7 @@ export default function CadernoPage() {
   const [safraId, setSafraId] = useState("");
   const [talhaoId, setTalhaoId] = useState("");
   const [tipoEvento, setTipoEvento] = useState<CadernoEventoTipo>("MONITORAMENTO");
+  const [executadoPorPessoaId, setExecutadoPorPessoaId] = useState<string | null>(null);
 
   const taskId = searchParams.get("task_id");
   const querySafraId = searchParams.get("safra_id");
@@ -267,6 +269,7 @@ export default function CadernoPage() {
       setTipoEvento(restoredTipo);
       setDescricao(draft.descricao);
       setObservacao(draft.observacao);
+      setExecutadoPorPessoaId(draft.executado_por_pessoa_id ?? null);
       restorePhotos(draft.fotos ?? []);
       setDraftLoaded(true);
       setDraftRestored(true);
@@ -372,6 +375,7 @@ export default function CadernoPage() {
         tipo_evento: tipoEvento,
         descricao,
         observacao,
+        executado_por_pessoa_id: executadoPorPessoaId,
         fotos,
         updated_at: new Date().toISOString(),
       };
@@ -401,6 +405,7 @@ export default function CadernoPage() {
     talhaoId,
     taskId,
     tipoEvento,
+    executadoPorPessoaId,
   ]);
 
   const preparedEvidence = useMemo<CadernoEvidenciaOffline[]>(
@@ -485,6 +490,7 @@ export default function CadernoPage() {
         },
         evidencias: preparedEvidence,
         usuario_id: session.user_id,
+        executado_por_pessoa_id: executadoPorPessoaId || null,
       });
 
       await db.caderno_drafts.delete(draftId);
@@ -722,6 +728,15 @@ export default function CadernoPage() {
                 onChange={(id) => setTipoEvento(id as CadernoEventoTipo)}
                 placeholder="Escolha o tipo"
               />
+
+              <CampoSurface className="flex flex-col gap-2 p-4 sm:p-5">
+                <label className="text-sm font-semibold text-foreground">Executor (Opcional)</label>
+                <PessoaSelect
+                  unidadeProdutivaId={fazendaId}
+                  value={executadoPorPessoaId}
+                  onChange={setExecutadoPorPessoaId}
+                />
+              </CampoSurface>
 
               <CampoSurface className="flex flex-col gap-2 p-4 sm:p-5">
                 <label className="text-sm font-semibold text-foreground">Descrição</label>

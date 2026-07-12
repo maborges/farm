@@ -10,23 +10,25 @@ export async function pushSync(): Promise<void> {
   const session = useSessionStore.getState().session;
   if (!session) throw new Error("Sessão não encontrada");
 
-  const pending = await db.sync_queue
-    .where("status")
-    .equals("PENDING")
-    .sortBy("created_at")
-    .then((items) => items.slice(0, MAX_BATCH));
+  while (true) {
+    const pending = await db.sync_queue
+      .where("status")
+      .equals("PENDING")
+      .sortBy("created_at")
+      .then((items) => items.slice(0, MAX_BATCH));
 
-  if (pending.length === 0) return;
+    if (pending.length === 0) return;
 
-  const taskItems = pending.filter((item) => item.entity_type === "task");
-  const cadernoItems = pending.filter((item) => item.entity_type === "caderno_event");
+    const taskItems = pending.filter((item) => item.entity_type === "task");
+    const cadernoItems = pending.filter((item) => item.entity_type === "caderno_event");
 
-  if (taskItems.length > 0) {
-    await pushTaskSync(session, taskItems);
-  }
+    if (taskItems.length > 0) {
+      await pushTaskSync(session, taskItems);
+    }
 
-  if (cadernoItems.length > 0) {
-    await pushCadernoSync(session, cadernoItems);
+    if (cadernoItems.length > 0) {
+      await pushCadernoSync(session, cadernoItems);
+    }
   }
 }
 
@@ -68,8 +70,8 @@ async function pushTaskSync(session: LocalSession, pending: SyncQueueItem[]): Pr
 
   // Processa resultados
   await db.transaction("rw", [db.sync_queue, db.tasks], async () => {
-    for (const result of data.results) {
-      const queueItem = pending.find((p) => p.entity_id === result.local_id);
+    for (const [index, result] of data.results.entries()) {
+      const queueItem = pending[index];
       if (!queueItem) continue;
 
       if (result.status === "CREATED" || result.status === "UPDATED" || result.status === "DELETED") {

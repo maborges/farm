@@ -255,6 +255,40 @@ async def test_sync_multiplos_animais(session: AsyncSession, tenant_id: uuid.UUI
     assert a2.peso_atual_kg == 260.0
 
 
+async def test_sync_pesagem_coletiva_lote_balanca_materializa_todos_animais_ativos(
+    session: AsyncSession,
+    tenant_id: uuid.UUID,
+    unidade_produtiva_id: uuid.UUID,
+    sync_service: ManejoSyncService,
+):
+    lote = await _criar_lote(session, tenant_id, unidade_produtiva_id, identificacao="Lote Coletivo")
+    a1 = await _criar_animal(session, tenant_id, unidade_produtiva_id, lote_id=lote.id, brinc="P001", peso=180.0)
+    a2 = await _criar_animal(session, tenant_id, unidade_produtiva_id, lote_id=lote.id, brinc="P002", peso=190.0)
+
+    tarefa = await _criar_tarefa(
+        session,
+        tenant_id,
+        type_="PESAGEM",
+        dados={
+            "lote_id": str(lote.id),
+            "tipo_pesagem": "LOTE_BALANCA",
+            "peso_medio_kg": 222.4,
+            "quantidade_animais": 2,
+            "observacoes": "Pesagem coletiva",
+        },
+        unidade_produtiva_id=unidade_produtiva_id,
+    )
+
+    result = await sync_service.processar_tarefa_campo(tarefa.id)
+    assert result.status == "SUCCESS"
+    assert result.total_processado == 2
+
+    await session.refresh(a1)
+    await session.refresh(a2)
+    assert a1.peso_atual_kg == 222.4
+    assert a2.peso_atual_kg == 222.4
+
+
 async def test_sync_pesagem_nao_cria_movimento_estoque(session: AsyncSession, tenant_id: uuid.UUID, unidade_produtiva_id: uuid.UUID, sync_service: ManejoSyncService):
     animal = await _criar_animal(session, tenant_id, unidade_produtiva_id, brinc="002A", peso=200.0)
     tarefa = await _criar_tarefa(
@@ -390,6 +424,51 @@ async def test_sync_processar_vacinacao_cria_eventos_por_animal(session: AsyncSe
     assert movimento.origem_id == tarefa.id
     assert "PECUARIA_VACINACAO" in (movimento.observacoes or "")
     assert saldo.quantidade_atual == pytest.approx(21.0)
+
+
+async def test_sync_vacinacao_alias_sem_animais_ids_resolve_animais_do_lote(
+    session: AsyncSession,
+    tenant_id: uuid.UUID,
+    unidade_produtiva_id: uuid.UUID,
+    sync_service: ManejoSyncService,
+):
+    lote = await _criar_lote(session, tenant_id, unidade_produtiva_id, "Lote Vacina Alias")
+    a1 = await _criar_animal(session, tenant_id, unidade_produtiva_id, lote_id=lote.id, brinc="V001", peso=120.0)
+    a2 = await _criar_animal(session, tenant_id, unidade_produtiva_id, lote_id=lote.id, brinc="V002", peso=130.0)
+    produto = await _criar_produto_vacina(session, tenant_id, nome="Vacina Alias")
+    await _criar_deposito_com_saldo(session, tenant_id, unidade_produtiva_id, produto.id, quantidade=25.0)
+
+    tarefa = await _criar_tarefa(
+        session,
+        tenant_id,
+        module="pecuaria",
+        type_="VACINACAO",
+        status="CONCLUIDA",
+        status_execucao="CONCLUIDA",
+        unidade_produtiva_id=unidade_produtiva_id,
+        dados={
+            "lote_id": str(lote.id),
+            "vacina_id": str(produto.id),
+            "vacina_nome": produto.nome,
+            "dose_ml": 2.5,
+            "observacoes": "Vacinação manual legada",
+        },
+    )
+
+    res = await sync_service.processar_tarefa_campo(tarefa.id)
+    assert res.status == "SUCCESS", res.erros
+    assert res.total_processado == 2
+
+    eventos = (
+        await session.execute(
+            select(EventoAnimal).where(
+                EventoAnimal.tarefa_campo_id == tarefa.id,
+                EventoAnimal.tipo == "VACINACAO",
+            )
+        )
+    ).scalars().all()
+    assert len(eventos) == 2
+    assert {evento.animal_id for evento in eventos} == {a1.id, a2.id}
 
 
 async def test_sync_vacinacao_calcula_custo_total_no_movimento(session: AsyncSession):

@@ -52,7 +52,8 @@ async def _ensure_documental_invalidacao_columns(conn) -> None:
             ADD COLUMN IF NOT EXISTS origem_invalidada BOOLEAN NOT NULL DEFAULT FALSE,
             ADD COLUMN IF NOT EXISTS origem_invalidada_em TIMESTAMP,
             ADD COLUMN IF NOT EXISTS origem_invalidada_por UUID,
-            ADD COLUMN IF NOT EXISTS motivo_invalidacao_origem TEXT
+            ADD COLUMN IF NOT EXISTS motivo_invalidacao_origem TEXT,
+            ADD COLUMN IF NOT EXISTS executado_por_pessoa_id UUID
             """
         )
     )

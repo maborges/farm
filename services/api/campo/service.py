@@ -65,6 +65,13 @@ def _make_device_jwt(device: DispositivoCampo, user_name: str, user_avatar_url: 
     return jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
 
 
+_TIPOS_TAREFA_AGRICOLA_MATERIALIZAVEIS = {
+    "APLICACAO_DEFENSIVO",
+    "APLICACAO_FERTILIZANTE",
+    "COLHEITA_REGISTRO",
+}
+
+
 class DispositivoService:
     def __init__(self, session: AsyncSession, tenant_id: uuid.UUID):
         self.session = session
@@ -168,7 +175,9 @@ class DispositivoService:
             raise EntityNotFoundError(f"Dispositivo {data.device_id} não encontrado.")
 
         if not device.fazenda_ids:
-            raise BusinessRuleError("Dispositivo sem fazendas autorizadas. Refaça o cadastro antes de reativar.")
+            raise BusinessRuleError(
+                "Dispositivo sem fazendas autorizadas. Refaça o cadastro antes de reativar."
+            )
 
         activation_code = _generate_activation_code()
         activation_expires = datetime.utcnow() + timedelta(minutes=_ACTIVATION_TTL_MINUTES)
@@ -185,9 +194,9 @@ class DispositivoService:
 
     async def listar(self) -> list[DispositivoCampo]:
         result = await self.session.execute(
-            select(DispositivoCampo).where(
-                DispositivoCampo.tenant_id == self.tenant_id
-            ).order_by(DispositivoCampo.created_at.desc())
+            select(DispositivoCampo)
+            .where(DispositivoCampo.tenant_id == self.tenant_id)
+            .order_by(DispositivoCampo.created_at.desc())
         )
         return list(result.scalars().all())
 
@@ -206,12 +215,307 @@ class DispositivoService:
         )
 
 
+class CampoAgricolaSyncService:
+    def __init__(self, session: AsyncSession, tenant_id: uuid.UUID):
+        self.session = session
+        self.tenant_id = tenant_id
+
+    async def processar_tarefa_campo(self, tarefa_id: uuid.UUID) -> dict[str, Any]:
+        task = await self.session.get(TarefaCampo, tarefa_id)
+        if not task or task.tenant_id != self.tenant_id:
+            raise EntityNotFoundError("Tarefa de campo", tarefa_id)
+        if task.module != "agricola":
+            raise BusinessRuleError(
+                "Somente tarefas agrícolas podem ser materializadas neste fluxo."
+            )
+        if task.status_execucao != "CONCLUIDA":
+            raise BusinessRuleError(
+                "A tarefa precisa estar concluída para gerar efeitos agrícolas."
+            )
+
+        if task.type in {"APLICACAO_DEFENSIVO", "APLICACAO_FERTILIZANTE"}:
+            return await self._materializar_aplicacao(task)
+        if task.type == "COLHEITA_REGISTRO":
+            return await self._materializar_colheita(task)
+        raise BusinessRuleError(f"Tipo de tarefa agrícola não suportado: {task.type}")
+
+    async def _materializar_aplicacao(self, task: TarefaCampo) -> dict[str, Any]:
+        from agricola.operacoes.models import OperacaoAgricola
+        from agricola.operacoes.schemas import InsumoOperacaoCreate, OperacaoAgricolaCreate
+        from agricola.operacoes.service import OperacaoService
+        from core.cadastros.propriedades.models import AreaRural
+
+        stmt = (
+            select(OperacaoAgricola)
+            .where(
+                OperacaoAgricola.tenant_id == self.tenant_id,
+                OperacaoAgricola.tarefa_id == task.id,
+            )
+            .limit(1)
+        )
+        operacao_existente = (await self.session.execute(stmt)).scalars().first()
+        if operacao_existente is not None:
+            return await self._marcar_sync_agricola(
+                task.id,
+                {
+                    "status": "SYNCED",
+                    "tipo_materializacao": "OPERACAO_AGRICOLA",
+                    "operacao_id": str(operacao_existente.id),
+                    "data_processamento": datetime.utcnow().isoformat(),
+                },
+            )
+
+        dados = dict(task.dados or {})
+        safra_id = await self._resolver_safra_id(task, dados)
+        produto_id = _to_uuid(dados.get("insumo_id"))
+        quantidade = float(dados.get("quantidade") or 0.0)
+        unidade = str(dados.get("unidade") or "UN")
+        if produto_id is None:
+            raise BusinessRuleError(
+                "Aplicação sem insumo vinculado não pode gerar operação agrícola."
+            )
+        if quantidade <= 0:
+            raise BusinessRuleError(
+                "Aplicação sem quantidade válida não pode gerar operação agrícola."
+            )
+        if task.area_rural_id is None:
+            raise BusinessRuleError("Aplicação sem talhão não pode gerar operação agrícola.")
+
+        talhao = await self.session.get(AreaRural, task.area_rural_id)
+        if not talhao or talhao.tenant_id != self.tenant_id:
+            raise BusinessRuleError(
+                "Talhão da tarefa não localizado para materializar a aplicação."
+            )
+        area_aplicada_ha = float(talhao.area_hectares or talhao.area_hectares_manual or 0.0)
+        if area_aplicada_ha <= 0:
+            raise BusinessRuleError("Talhão sem área cadastrada não pode gerar aplicação agrícola.")
+
+        observacoes = _first_non_empty(
+            dados.get("obs_execucao"),
+            dados.get("obs"),
+        )
+        tipo_operacao = "PULVERIZAÇÃO" if task.type == "APLICACAO_DEFENSIVO" else "ADUBAÇÃO"
+        operacao = await OperacaoService(self.session, self.tenant_id).criar(
+            OperacaoAgricolaCreate(
+                safra_id=safra_id,
+                talhao_id=task.area_rural_id,
+                tarefa_id=task.id,
+                tipo=tipo_operacao,
+                subtipo=task.type,
+                descricao=f"{tipo_operacao} via Campo PWA",
+                data_realizada=self._data_referencia(task).date(),
+                area_aplicada_ha=area_aplicada_ha,
+                operador_id=task.operador_id or task.user_id,
+                latitude=float(task.latitude) if task.latitude is not None else None,
+                longitude=float(task.longitude) if task.longitude is not None else None,
+                custo_total=float(dados.get("custo_total") or dados.get("custo_mao_obra") or 0.0),
+                status="REALIZADA",
+                observacoes=observacoes,
+                insumos=[
+                    InsumoOperacaoCreate(
+                        produto_id=produto_id,
+                        dose_por_ha=quantidade,
+                        unidade=unidade,
+                        area_aplicada=area_aplicada_ha,
+                    )
+                ],
+            )
+        )
+        return await self._marcar_sync_agricola(
+            task.id,
+            {
+                "status": "SYNCED",
+                "tipo_materializacao": "OPERACAO_AGRICOLA",
+                "operacao_id": str(operacao.id),
+                "safra_id": str(safra_id),
+                "efeitos": [
+                    "operacao_agricola",
+                    "movimentacao_estoque",
+                    "despesa_financeira",
+                    "evento_caderno",
+                ],
+                "data_processamento": datetime.utcnow().isoformat(),
+            },
+        )
+
+    async def _materializar_colheita(self, task: TarefaCampo) -> dict[str, Any]:
+        from agricola.romaneios.models import RomaneioColheita
+        from agricola.romaneios.schemas import RomaneioColheitaCreate
+        from agricola.romaneios.service import RomaneioService
+
+        dados = dict(task.dados or {})
+        safra_id = await self._resolver_safra_id(task, dados)
+        numero_romaneio = f"CAMPO-{str(task.id).split('-')[0].upper()}"
+        stmt = (
+            select(RomaneioColheita)
+            .where(
+                RomaneioColheita.tenant_id == self.tenant_id,
+                RomaneioColheita.numero_romaneio == numero_romaneio,
+                RomaneioColheita.talhao_id == task.area_rural_id,
+            )
+            .limit(1)
+        )
+        romaneio_existente = (await self.session.execute(stmt)).scalars().first()
+        if romaneio_existente is not None:
+            return await self._marcar_sync_agricola(
+                task.id,
+                {
+                    "status": "SYNCED",
+                    "tipo_materializacao": "ROMANEIO_COLHEITA",
+                    "romaneio_id": str(romaneio_existente.id),
+                    "data_processamento": datetime.utcnow().isoformat(),
+                },
+            )
+
+        if task.area_rural_id is None:
+            raise BusinessRuleError("Colheita sem talhão não pode gerar romaneio.")
+
+        quantidade = float(dados.get("quantidade") or 0.0)
+        unidade = str(dados.get("unidade") or "sc").lower()
+        if quantidade <= 0:
+            raise BusinessRuleError("Colheita sem quantidade válida não pode gerar romaneio.")
+
+        peso_bruto_kg = self._converter_colheita_para_kg(quantidade, unidade)
+        romaneio = await RomaneioService(self.session, self.tenant_id).criar(
+            RomaneioColheitaCreate(
+                safra_id=safra_id,
+                talhao_id=task.area_rural_id,
+                production_unit_id=await self._resolver_production_unit_id(
+                    safra_id, task.area_rural_id
+                ),
+                numero_romaneio=numero_romaneio,
+                data_colheita=self._data_referencia(task).date(),
+                operador_id=task.operador_id or task.user_id,
+                peso_bruto_kg=peso_bruto_kg,
+                tara_kg=0,
+                umidade_pct=float(dados.get("umidade_perc"))
+                if dados.get("umidade_perc") not in (None, "")
+                else None,
+                destino=str(dados.get("destino") or "ARMAZEM"),
+                preco_saca=float(dados.get("preco_saca"))
+                if dados.get("preco_saca") not in (None, "")
+                else None,
+                observacoes=self._montar_observacao_colheita(task, quantidade, unidade),
+            )
+        )
+        efeitos = ["romaneio_colheita", "produto_colhido", "produtividade_safra"]
+        if romaneio.receita_total and float(romaneio.receita_total) > 0:
+            efeitos.append("receita_financeira")
+        return await self._marcar_sync_agricola(
+            task.id,
+            {
+                "status": "SYNCED",
+                "tipo_materializacao": "ROMANEIO_COLHEITA",
+                "romaneio_id": str(romaneio.id),
+                "safra_id": str(safra_id),
+                "sacas_60kg": float(romaneio.sacas_60kg or 0.0),
+                "receita_total": float(romaneio.receita_total or 0.0),
+                "efeitos": efeitos,
+                "data_processamento": datetime.utcnow().isoformat(),
+            },
+        )
+
+    async def _resolver_safra_id(self, task: TarefaCampo, dados: dict[str, Any]) -> uuid.UUID:
+        from agricola.safras.models import Safra, SafraTalhao
+
+        safra_id = _to_uuid(dados.get("safra_id"))
+        if safra_id is not None:
+            safra = await self.session.get(Safra, safra_id)
+            if safra and safra.tenant_id == self.tenant_id:
+                return safra_id
+
+        if task.area_rural_id is None:
+            raise BusinessRuleError(
+                "A tarefa não informa safra nem talhão para resolver o contexto agrícola."
+            )
+
+        stmt = (
+            select(Safra.id)
+            .join(SafraTalhao, SafraTalhao.safra_id == Safra.id)
+            .where(
+                Safra.tenant_id == self.tenant_id,
+                SafraTalhao.tenant_id == self.tenant_id,
+                SafraTalhao.area_id == task.area_rural_id,
+                Safra.status.notin_(["ENCERRADA", "CANCELADA"]),
+            )
+            .order_by((Safra.status == "ATIVA").desc(), Safra.created_at.desc())
+            .limit(1)
+        )
+        safra_id = (await self.session.execute(stmt)).scalar_one_or_none()
+        if safra_id is None:
+            raise BusinessRuleError(
+                "Nenhuma safra ativa/enquadrada foi encontrada para o talhão da tarefa."
+            )
+        return safra_id
+
+    async def _resolver_production_unit_id(
+        self,
+        safra_id: uuid.UUID,
+        talhao_id: uuid.UUID,
+    ) -> uuid.UUID | None:
+        from agricola.production_units.models import ProductionUnit
+
+        stmt = (
+            select(ProductionUnit.id)
+            .where(
+                ProductionUnit.tenant_id == self.tenant_id,
+                ProductionUnit.safra_id == safra_id,
+                ProductionUnit.area_id == talhao_id,
+            )
+            .order_by((ProductionUnit.status == "ATIVA").desc(), ProductionUnit.created_at.desc())
+            .limit(1)
+        )
+        return (await self.session.execute(stmt)).scalar_one_or_none()
+
+    async def _marcar_sync_agricola(
+        self, tarefa_id: uuid.UUID, sync_meta: dict[str, Any]
+    ) -> dict[str, Any]:
+        task = await self.session.get(TarefaCampo, tarefa_id)
+        if not task or task.tenant_id != self.tenant_id:
+            raise EntityNotFoundError("Tarefa de campo", tarefa_id)
+        dados = dict(task.dados or {})
+        dados["sync_agricola"] = sync_meta
+        task.dados = dados
+        await self.session.commit()
+        return sync_meta
+
+    def _data_referencia(self, task: TarefaCampo) -> datetime:
+        return (
+            task.concluida_em
+            or task.client_updated_at
+            or task.client_created_at
+            or task.updated_at
+            or task.created_at
+            or datetime.utcnow()
+        )
+
+    def _converter_colheita_para_kg(self, quantidade: float, unidade: str) -> float:
+        if unidade == "kg":
+            return quantidade
+        if unidade == "t":
+            return quantidade * 1000.0
+        if unidade in {"sc", "saca", "sacas", "cx"}:
+            return quantidade * 60.0
+        raise BusinessRuleError(f"Unidade de colheita não suportada para romaneio: {unidade}")
+
+    def _montar_observacao_colheita(
+        self, task: TarefaCampo, quantidade: float, unidade: str
+    ) -> str | None:
+        dados = dict(task.dados or {})
+        linhas = [f"Origem Campo PWA: {quantidade} {unidade}"]
+        obs = _first_non_empty(dados.get("obs_execucao"), dados.get("obs"))
+        if obs:
+            linhas.append(obs)
+        return "\n".join(linhas)
+
+
 class SyncService:
     def __init__(self, session: AsyncSession, tenant_id: uuid.UUID, device: DispositivoCampo):
         self.session = session
         self.tenant_id = tenant_id
         self.device = device
         self.tarefas_pecuaria_sync: list[uuid.UUID] = []
+        self.tarefas_agricola_sync: list[uuid.UUID] = []
 
     async def pull(self, last_sync_at: datetime | None) -> dict[str, Any]:
         from core.models.unidade_produtiva import UnidadeProdutiva
@@ -219,6 +523,7 @@ class SyncService:
         from pecuaria.animal.models import Animal, LoteAnimal
         from core.cadastros.produtos.models import Produto
         from agricola.caderno.service import CadernoCampoService
+
         # Safra depende de Cultivo para configurar o mapper corretamente.
         # Importar o módulo aqui evita InvalidRequestError quando o pull é
         # executado antes de outros fluxos agrícolas que já carregariam o model.
@@ -228,12 +533,16 @@ class SyncService:
         fazenda_ids = [uuid.UUID(str(fazenda_id)) for fazenda_id in self.device.fazenda_ids]
 
         # Safras ativas associadas ao tenant (base para o seletor de caderno no PWA)
-        stmt_s = select(Safra).where(
-            and_(
-                Safra.tenant_id == self.tenant_id,
-                Safra.status.notin_(["ENCERRADA", "CANCELADA"]),
+        stmt_s = (
+            select(Safra)
+            .where(
+                and_(
+                    Safra.tenant_id == self.tenant_id,
+                    Safra.status.notin_(["ENCERRADA", "CANCELADA"]),
+                )
             )
-        ).order_by(Safra.created_at.desc())
+            .order_by(Safra.created_at.desc())
+        )
         safras_rows = (await self.session.execute(stmt_s)).scalars().all()
 
         # Fazendas autorizadas para o dispositivo
@@ -273,16 +582,21 @@ class SyncService:
         animais_rows = (await self.session.execute(stmt_a)).scalars().all()
 
         # Insumos do tenant
-        stmt_i = select(Produto).where(
-            and_(
-                Produto.tenant_id == self.tenant_id,
-                Produto.ativo == True,
+        stmt_i = (
+            select(Produto)
+            .where(
+                and_(
+                    Produto.tenant_id == self.tenant_id,
+                    Produto.ativo == True,
+                )
             )
-        ).limit(500)
+            .limit(500)
+        )
         insumos_rows = (await self.session.execute(stmt_i)).scalars().all()
 
         # Colaboradores ativos do tenant
         from rh.models import ColaboradorRH
+
         stmt_c = select(ColaboradorRH).where(
             and_(
                 ColaboradorRH.tenant_id == self.tenant_id,
@@ -290,6 +604,57 @@ class SyncService:
             )
         )
         colaboradores_rows = (await self.session.execute(stmt_c)).scalars().all()
+
+        # Pessoas operacionais (Fase 2B)
+        from core.cadastros.pessoas.models import Pessoa, PessoaRelacionamento, TipoRelacionamento
+
+        hoje_date = date.today()
+        stmt_p = (
+            select(
+                Pessoa.id.label("pessoa_id"),
+                Pessoa.nome_exibicao,
+                PessoaRelacionamento.unidade_produtiva_id,
+                TipoRelacionamento.codigo.label("tipo_codigo"),
+            )
+            .select_from(Pessoa)
+            .join(PessoaRelacionamento, PessoaRelacionamento.pessoa_id == Pessoa.id)
+            .join(TipoRelacionamento, TipoRelacionamento.id == PessoaRelacionamento.tipo_id)
+            .where(
+                and_(
+                    Pessoa.tenant_id == self.tenant_id,
+                    Pessoa.ativo == True,
+                    PessoaRelacionamento.unidade_produtiva_id.in_(fazenda_ids),
+                    or_(
+                        PessoaRelacionamento.ativo_desde == None,
+                        PessoaRelacionamento.ativo_desde <= hoje_date,
+                    ),
+                    or_(
+                        PessoaRelacionamento.ativo_ate == None,
+                        PessoaRelacionamento.ativo_ate >= hoje_date,
+                    ),
+                    TipoRelacionamento.ativo == True,
+                )
+            )
+        )
+        pessoas_rows = (await self.session.execute(stmt_p)).all()
+
+        pessoas_dict = {}
+        for row in pessoas_rows:
+            key = (row.pessoa_id, row.unidade_produtiva_id)
+            if key not in pessoas_dict:
+                pessoas_dict[key] = {
+                    "pessoa_id": str(row.pessoa_id),
+                    "nome_exibicao": row.nome_exibicao,
+                    "unidade_produtiva_id": str(row.unidade_produtiva_id),
+                    "papeis": [],
+                }
+            if row.tipo_codigo not in pessoas_dict[key]["papeis"]:
+                pessoas_dict[key]["papeis"].append(row.tipo_codigo)
+
+        pessoas_operacionais = sorted(
+            [{**v, "papeis": sorted(v["papeis"])} for v in pessoas_dict.values()],
+            key=lambda x: (x["unidade_produtiva_id"], x["nome_exibicao"]),
+        )
 
         # Tarefas para este dispositivo:
         # 1. Manuais pendentes criadas pelo dispositivo
@@ -325,6 +690,11 @@ class SyncService:
                             TarefaCampo.dispositivo_id == None,
                             TarefaCampo.dispositivo_id == self.device.id,
                         ),
+                        or_(
+                            TarefaCampo.operador_id == None,
+                            TarefaCampo.operador_id == self.device.user_id,
+                            TarefaCampo.dispositivo_id == self.device.id,
+                        ),
                     ),
                     # Tarefa atribuída diretamente ao dispositivo
                     and_(
@@ -345,7 +715,12 @@ class SyncService:
         )
 
         # Tombstones desde o último sync
-        tombstones: dict[str, list[str]] = {"talhoes": [], "lotes": [], "tarefas": [], "insumos": []}
+        tombstones: dict[str, list[str]] = {
+            "talhoes": [],
+            "lotes": [],
+            "tarefas": [],
+            "insumos": [],
+        }
         if last_sync_at:
             stmt_tomb = select(SyncTombstone).where(
                 and_(
@@ -383,7 +758,9 @@ class SyncService:
                     "id": t.id,
                     "nome": t.nome,
                     "unidade_produtiva_id": t.unidade_produtiva_id,
-                    "area_ha": float(t.area_hectares_manual or t.area_hectares) if (t.area_hectares_manual or t.area_hectares) else None,
+                    "area_ha": float(t.area_hectares_manual or t.area_hectares)
+                    if (t.area_hectares_manual or t.area_hectares)
+                    else None,
                     "tipo": t.tipo,
                 }
                 for t in talhoes_rows
@@ -433,6 +810,7 @@ class SyncService:
                 }
                 for c in colaboradores_rows
             ],
+            "pessoas_operacionais": pessoas_operacionais,
             "tarefas_pendentes": [
                 {
                     "id": t.id,
@@ -456,8 +834,12 @@ class SyncService:
                 }
                 for t in tarefas_rows
             ],
-            "eventos_caderno_oficiais": [evento.model_dump(mode="json") for evento in eventos_caderno_oficiais],
-            "recomendacoes_operacionais": [self._serialize_recommendation(row) for row in recomendacoes_operacionais],
+            "eventos_caderno_oficiais": [
+                evento.model_dump(mode="json") for evento in eventos_caderno_oficiais
+            ],
+            "recomendacoes_operacionais": [
+                self._serialize_recommendation(row) for row in recomendacoes_operacionais
+            ],
             "recomendacoes_climaticas": recomendacoes_climaticas,
             "tombstones": tombstones,
         }
@@ -480,7 +862,9 @@ class SyncService:
             )
             if last_sync_at is not None:
                 stmt = stmt.where(RecommendationResult.updated_at > last_sync_at)
-            stmt = stmt.order_by(RecommendationResult.updated_at.desc(), RecommendationResult.created_at.desc()).limit(30)
+            stmt = stmt.order_by(
+                RecommendationResult.updated_at.desc(), RecommendationResult.created_at.desc()
+            ).limit(30)
             rows = (await self.session.execute(stmt)).scalars().all()
             return sorted(rows, key=self._recommendation_sort_key, reverse=True)
         except Exception as exc:
@@ -530,7 +914,9 @@ class SyncService:
             "superseded_by_id": row.superseded_by_id,
         }
 
-    def _build_recomendacoes_climaticas(self, rows: list[RecommendationResult]) -> list[dict[str, Any]]:
+    def _build_recomendacoes_climaticas(
+        self, rows: list[RecommendationResult]
+    ) -> list[dict[str, Any]]:
         if not rows:
             return []
 
@@ -550,7 +936,9 @@ class SyncService:
             for row in unit_rows:
                 tipo_operacao = self._map_climate_tipo_operacao(row)
                 current = specific_rows.get(tipo_operacao)
-                if current is None or self._recommendation_sort_key(row) > self._recommendation_sort_key(current):
+                if current is None or self._recommendation_sort_key(
+                    row
+                ) > self._recommendation_sort_key(current):
                     specific_rows[tipo_operacao] = row
 
             geral = self._best_climate_general(unit_rows)
@@ -559,12 +947,16 @@ class SyncService:
 
             for tipo_operacao in ("PULVERIZACAO", "COLHEITA", "ADUBACAO", "GERAL"):
                 row = specific_rows.get(tipo_operacao) or geral
-                payload.append(self._serialize_climate_recommendation(unidade_produtiva_id, tipo_operacao, row))
+                payload.append(
+                    self._serialize_climate_recommendation(unidade_produtiva_id, tipo_operacao, row)
+                )
         return payload
 
     @staticmethod
     def _best_climate_general(rows: list[RecommendationResult]) -> RecommendationResult | None:
-        general_rows = [row for row in rows if SyncService._map_climate_tipo_operacao(row) == "GERAL"]
+        general_rows = [
+            row for row in rows if SyncService._map_climate_tipo_operacao(row) == "GERAL"
+        ]
         if not general_rows:
             return None
         return sorted(general_rows, key=SyncService._recommendation_sort_key, reverse=True)[0]
@@ -629,11 +1021,13 @@ class SyncService:
                 results.append(result)
             except Exception as exc:
                 logger.warning(f"[sync/push] Erro ao processar item {item.local_id}: {exc}")
-                results.append(SyncPushItemResult(
-                    local_id=item.local_id,
-                    status="ERROR",
-                    error_message=str(exc),
-                ))
+                results.append(
+                    SyncPushItemResult(
+                        local_id=item.local_id,
+                        status="ERROR",
+                        error_message=str(exc),
+                    )
+                )
 
         return results
 
@@ -661,11 +1055,12 @@ class SyncService:
                     )
                 )
             )
-            if existing.scalar_one_or_none():
+            existing_task = existing.scalar_one_or_none()
+            if existing_task:
                 return SyncPushItemResult(
                     local_id=item.local_id,
                     status="CREATED",
-                    server_id=item.local_id,
+                    server_id=str(existing_task.id) if existing_task else None,
                 )
 
             task = TarefaCampo(
@@ -692,14 +1087,39 @@ class SyncService:
             self.session.add(task)
             await self.session.flush()
 
-            if task.module == "pecuaria" and task.type in {"PESAGEM", "VACINACAO", "COBERTURA", "INSEMINACAO", "DIAGNOSTICO_PRENHEZ", "PARTO", "DESMAME"} and task.status_execucao == "CONCLUIDA":
+            if (
+                task.module == "pecuaria"
+                and task.type
+                in {
+                    "PESAGEM",
+                    "VACINACAO",
+                    "COBERTURA",
+                    "INSEMINACAO",
+                    "DIAGNOSTICO_PRENHEZ",
+                    "PARTO",
+                    "DESMAME",
+                }
+                and task.status_execucao == "CONCLUIDA"
+            ):
                 self.tarefas_pecuaria_sync.append(task.id)
+            if (
+                task.module == "agricola"
+                and task.type in _TIPOS_TAREFA_AGRICOLA_MATERIALIZAVEIS
+                and task.status_execucao == "CONCLUIDA"
+            ):
+                self.tarefas_agricola_sync.append(task.id)
 
-            return SyncPushItemResult(local_id=item.local_id, status="CREATED", server_id=str(task.id))
+            return SyncPushItemResult(
+                local_id=item.local_id, status="CREATED", server_id=str(task.id)
+            )
 
         if item.operation == "UPDATE":
             if not item.server_id:
-                return SyncPushItemResult(local_id=item.local_id, status="ERROR", error_message="server_id obrigatório para UPDATE")
+                return SyncPushItemResult(
+                    local_id=item.local_id,
+                    status="ERROR",
+                    error_message="server_id obrigatório para UPDATE",
+                )
 
             result = await self.session.execute(
                 select(TarefaCampo).where(
@@ -711,7 +1131,9 @@ class SyncService:
             )
             task = result.scalar_one_or_none()
             if not task:
-                return SyncPushItemResult(local_id=item.local_id, status="ERROR", error_message="Tarefa não encontrada")
+                return SyncPushItemResult(
+                    local_id=item.local_id, status="ERROR", error_message="Tarefa não encontrada"
+                )
 
             tipo_existente = _normalizar_tipo_pecuaria(task.type)
             if tipo_existente and task.type != tipo_existente:
@@ -722,7 +1144,9 @@ class SyncService:
             # do backend e pode rejeitar transições válidas em sequência rápida
             # (ex.: EM_EXECUCAO -> CONCLUIDA na mesma tarefa).
             server_clock = task.client_updated_at or task.updated_at
-            if task.type.startswith("APLICACAO") or _to_naive_utc(item.client_updated_at) >= _to_naive_utc(server_clock):
+            if task.type.startswith("APLICACAO") or _to_naive_utc(
+                item.client_updated_at
+            ) >= _to_naive_utc(server_clock):
                 task.status = payload.get("status", task.status)
                 task.dados = payload.get("dados", task.dados)
                 task.client_updated_at = _parse_dt(item.client_updated_at)
@@ -734,13 +1158,35 @@ class SyncService:
 
                 await self.session.flush()
 
-                if task.module == "pecuaria" and task.type in {"PESAGEM", "VACINACAO", "COBERTURA", "INSEMINACAO", "DIAGNOSTICO_PRENHEZ", "PARTO", "DESMAME"} and task.status_execucao == "CONCLUIDA":
+                if (
+                    task.module == "pecuaria"
+                    and task.type
+                    in {
+                        "PESAGEM",
+                        "VACINACAO",
+                        "COBERTURA",
+                        "INSEMINACAO",
+                        "DIAGNOSTICO_PRENHEZ",
+                        "PARTO",
+                        "DESMAME",
+                    }
+                    and task.status_execucao == "CONCLUIDA"
+                ):
                     self.tarefas_pecuaria_sync.append(task.id)
+                if (
+                    task.module == "agricola"
+                    and task.type in _TIPOS_TAREFA_AGRICOLA_MATERIALIZAVEIS
+                    and task.status_execucao == "CONCLUIDA"
+                ):
+                    self.tarefas_agricola_sync.append(task.id)
 
-                return SyncPushItemResult(local_id=item.local_id, status="UPDATED", server_id=str(task.id))
+                return SyncPushItemResult(
+                    local_id=item.local_id, status="UPDATED", server_id=str(task.id)
+                )
             else:
                 # Conflito: servidor tem versão mais recente
                 from campo.schemas import TarefaPendenteSync
+
                 return SyncPushItemResult(
                     local_id=item.local_id,
                     status="CONFLICT",
@@ -777,7 +1223,16 @@ class SyncService:
 
             return SyncPushItemResult(local_id=item.local_id, status="DELETED")
 
-        return SyncPushItemResult(local_id=item.local_id, status="ERROR", error_message="Operação desconhecida")
+        return SyncPushItemResult(
+            local_id=item.local_id, status="ERROR", error_message="Operação desconhecida"
+        )
+
+
+def _first_non_empty(*values: object) -> str | None:
+    for value in values:
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return None
 
 
 def _aplicar_status_execucao(task: TarefaCampo, novo: str, payload: dict) -> None:
@@ -944,13 +1399,17 @@ class TarefaProgramadaService:
 
     async def atualizar_execucao(self, tarefa_id: uuid.UUID, data: ExecucaoUpdate) -> TarefaCampo:
         task = await self.get_or_fail(tarefa_id)
-        _aplicar_status_execucao(task, data.status_execucao, {
-            "obs": data.obs,
-            "fotos": data.fotos,
-            "localizacao_status": data.localizacao_status,
-            "latitude": data.latitude,
-            "longitude": data.longitude,
-        })
+        _aplicar_status_execucao(
+            task,
+            data.status_execucao,
+            {
+                "obs": data.obs,
+                "fotos": data.fotos,
+                "localizacao_status": data.localizacao_status,
+                "latitude": data.latitude,
+                "longitude": data.longitude,
+            },
+        )
         await self.session.flush()
         return task
 
@@ -993,7 +1452,9 @@ class TarefaProgramadaService:
 
         from agricola.caderno.service import CadernoCampoService
 
-        caderno_svc = CadernoCampoService(self.session, self.tenant_id, user_id=self.user_id, ip_address=self.ip_address)
+        caderno_svc = CadernoCampoService(
+            self.session, self.tenant_id, user_id=self.user_id, ip_address=self.ip_address
+        )
         await caderno_svc.propagar_invalidacao_origem_operacional(
             tarefa_id=task.id,
             motivo=motivo_limpo,

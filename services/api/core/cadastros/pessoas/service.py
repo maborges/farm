@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, date, timezone
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -59,7 +59,14 @@ class TipoRelacionamentoService(BaseService[TipoRelacionamento]):
 
 class PessoaService(BaseService[Pessoa]):
 
-    async def listar(self, tipo: str | None = None, ativo: bool = True) -> list[Pessoa]:
+    async def listar(
+        self,
+        tipo: str | None = None,
+        ativo: bool = True,
+        unidade_produtiva_id: uuid.UUID | None = None,
+        data_referencia: date | None = None
+    ) -> list[Pessoa]:
+        from sqlalchemy import exists, or_
         stmt = (
             select(Pessoa)
             .where(Pessoa.tenant_id == self.tenant_id, Pessoa.ativo == ativo)
@@ -69,6 +76,29 @@ class PessoaService(BaseService[Pessoa]):
         )
         if tipo:
             stmt = stmt.where(Pessoa.tipo == tipo)
+
+        if unidade_produtiva_id:
+            rel_conds = [
+                PessoaRelacionamento.pessoa_id == Pessoa.id,
+                PessoaRelacionamento.unidade_produtiva_id == unidade_produtiva_id,
+            ]
+
+            if data_referencia:
+                rel_conds.append(
+                    or_(
+                        PessoaRelacionamento.ativo_desde.is_(None),
+                        PessoaRelacionamento.ativo_desde <= data_referencia
+                    )
+                )
+                rel_conds.append(
+                    or_(
+                        PessoaRelacionamento.ativo_ate.is_(None),
+                        PessoaRelacionamento.ativo_ate >= data_referencia
+                    )
+                )
+
+            stmt = stmt.where(exists().where(and_(*rel_conds)))
+
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
@@ -179,8 +209,14 @@ class PessoaService(BaseService[Pessoa]):
         rel = PessoaRelacionamento(pessoa_id=pessoa_id, **data.model_dump())
         self.session.add(rel)
         await self.session.commit()
-        await self.session.refresh(rel)
-        return rel
+        stmt = (
+            select(PessoaRelacionamento)
+            .where(PessoaRelacionamento.id == rel.id, PessoaRelacionamento.pessoa_id == pessoa_id)
+            .options(selectinload(PessoaRelacionamento.tipo))
+        )
+        result = await self.session.execute(stmt)
+        rel_carregado = result.scalar_one()
+        return rel_carregado
 
     async def registrar_consentimento(self, pessoa_id: uuid.UUID, data: ConsentimentoCreate) -> PessoaConsentimento:
         await self._get_pessoa(pessoa_id)

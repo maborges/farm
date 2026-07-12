@@ -1,15 +1,18 @@
 from __future__ import annotations
+
 import uuid
-from datetime import datetime, date
+from datetime import date, datetime
 from typing import Any, Literal
-from pydantic import BaseModel, Field, ConfigDict
+
+from pydantic import BaseModel, ConfigDict, Field
+
 from agricola.caderno.schemas import EventoCadernoOficialSync
 from agricola.climatico.schemas import RecomendacaoOperacionalResponse
-
 
 # ---------------------------------------------------------------------------
 # Device
 # ---------------------------------------------------------------------------
+
 
 class DeviceCreate(BaseModel):
     nome: str = Field(..., max_length=100)
@@ -88,6 +91,7 @@ class DeviceSelfResponse(BaseModel):
 # Sync Pull
 # ---------------------------------------------------------------------------
 
+
 class FazendaSync(BaseModel):
     id: uuid.UUID
     nome: str
@@ -116,6 +120,35 @@ class InsumoSync(BaseModel):
     nome: str
     tipo: str
     unidade_medida: str | None
+
+
+class AnimalSync(BaseModel):
+    id: uuid.UUID
+    unidade_produtiva_id: uuid.UUID
+    lote_id: uuid.UUID | None = None
+    numero_brinco: str | None = None
+    numero_sisbov: str | None = None
+    nome: str | None = None
+    sexo: str | None = None
+    categoria: str | None = None
+    status: str | None = None
+    especie: str | None = None
+    dados_extras: dict[str, Any] | None = None
+    updated_at: datetime | None = None
+
+
+class ColaboradorSync(BaseModel):
+    id: uuid.UUID
+    nome: str
+    cpf: str | None = None
+    cargo: str | None = None
+
+
+class PessoaOperacionalSync(BaseModel):
+    pessoa_id: uuid.UUID
+    nome_exibicao: str
+    unidade_produtiva_id: uuid.UUID
+    papeis: list[str]
 
 
 class SafraSync(BaseModel):
@@ -193,7 +226,10 @@ class SyncPullResponse(BaseModel):
     fazendas: list[FazendaSync]
     talhoes: list[TalhaoSync]
     lotes: list[LoteSync]
+    animais: list[AnimalSync] = Field(default_factory=list)
     insumos: list[InsumoSync]
+    colaboradores: list[ColaboradorSync] = Field(default_factory=list)
+    pessoas_operacionais: list[PessoaOperacionalSync] = Field(default_factory=list)
     tarefas_pendentes: list[TarefaPendenteSync]
     eventos_caderno_oficiais: list[EventoCadernoOficialSync] = Field(default_factory=list)
     recomendacoes_operacionais: list[RecomendacaoOperacionalSync] = Field(default_factory=list)
@@ -204,6 +240,7 @@ class SyncPullResponse(BaseModel):
 # ---------------------------------------------------------------------------
 # Sync Push
 # ---------------------------------------------------------------------------
+
 
 class SyncPushItem(BaseModel):
     local_id: str = Field(..., description="UUID gerado localmente")
@@ -237,6 +274,7 @@ class SyncPushResponse(BaseModel):
 # ---------------------------------------------------------------------------
 # Tarefas Programadas (backoffice → PWA)
 # ---------------------------------------------------------------------------
+
 
 class TarefaProgramadaCreate(BaseModel):
     titulo: str = Field(..., max_length=200)

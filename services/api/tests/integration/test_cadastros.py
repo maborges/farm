@@ -31,6 +31,31 @@ async def _garantir_tenant(session):
     await session.commit()
 
 
+async def _garantir_tipo_relacionamento(session, codigo: str = "FUNCIONARIO") -> uuid.UUID:
+    tipo_id = uuid.uuid4()
+    await session.execute(
+        text("""
+            INSERT INTO cadastros_tipos_relacionamento (
+                id, tenant_id, codigo, nome, descricao, cor, icone, sistema, ativo
+            ) VALUES (
+                :id, :tenant_id, :codigo, :nome, :descricao, :cor, :icone, false, true
+            )
+            ON CONFLICT DO NOTHING
+        """),
+        {
+            "id": str(tipo_id),
+            "tenant_id": str(TENANT_ID),
+            "codigo": codigo,
+            "nome": "Funcionário",
+            "descricao": "Teste de vínculo",
+            "cor": "#6B7280",
+            "icone": "user",
+        },
+    )
+    await session.commit()
+    return tipo_id
+
+
 def _payload_produto(**overrides) -> dict:
     base = {
         "nome": f"Herbicida-{uuid.uuid4().hex[:4]}",
@@ -330,6 +355,35 @@ async def test_atualizar_pessoa(client, session, headers_admin):
     )
     assert update.status_code == 200
     assert update.json()["nome_exibicao"] == "Fornecedor Atualizado"
+
+
+# ---------------------------------------------------------------------------
+# CAD-PES-06: Criar relacionamento retorna tipo carregado
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_criar_relacionamento_retorna_tipo_carregado(client, session, headers_admin):
+    await _garantir_tenant(session)
+    tipo_id = await _garantir_tipo_relacionamento(session)
+
+    pessoa_resp = await client.post(
+        "/api/v1/cadastros/pessoas",
+        json=_payload_pessoa(tipo="PF", nome_exibicao="João Operador"),
+        headers=headers_admin,
+    )
+    assert pessoa_resp.status_code == 201, pessoa_resp.text
+    pessoa_id = pessoa_resp.json()["id"]
+
+    response = await client.post(
+        f"/api/v1/cadastros/pessoas/{pessoa_id}/relacionamentos",
+        json={"tipo_id": str(tipo_id), "unidade_produtiva_id": str(FAZENDA_ID)},
+        headers=headers_admin,
+    )
+
+    assert response.status_code == 201, response.text
+    data = response.json()
+    assert data["tipo"]["id"] == str(tipo_id)
+    assert data["tipo"]["codigo"] == "FUNCIONARIO"
 
 
 # ===========================================================================

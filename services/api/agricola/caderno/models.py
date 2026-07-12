@@ -30,6 +30,12 @@ class CadernoCampoEntrada(Base):
     data_registro: Mapped[date] = mapped_column(Date, nullable=False, index=True)
 
     usuario_id: Mapped[UUID] = mapped_column(Uuid, nullable=False)
+    executado_por_pessoa_id: Mapped[UUID | None] = mapped_column(
+        Uuid,
+        ForeignKey("cadastros_pessoas.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     # Referência opcional à operação agrícola que gerou esta entrada automaticamente
     operacao_id: Mapped[UUID | None] = mapped_column(
         Uuid,

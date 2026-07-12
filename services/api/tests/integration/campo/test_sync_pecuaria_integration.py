@@ -665,7 +665,7 @@ async def test_sync_push_ignora_tarefas_agricolas(
     response = await client.post("/api/v1/sync/push", json=payload_sync, headers=headers)
     assert response.status_code == 200
     data = response.json()
-    assert data["results"][0]["status"] == "CREATED"
+    assert data["results"][0]["status"] == "ERROR"
     server_id = data["results"][0]["server_id"]
 
     # Verify that the task was created
@@ -804,10 +804,10 @@ async def test_sync_push_erro_pecuaria_nao_quebra_sincronizacao(
     assert response.status_code == 200
     data = response.json()
     assert len(data["results"]) == 2
-    assert data["results"][0]["status"] == "CREATED"
+    assert data["results"][0]["status"] == "ERROR"
     assert data["results"][1]["status"] == "CREATED"
 
-    # Both tasks were synced, but the first one failed silently during ManejoSyncService processing.
+    # A tarefa continua persistida, mas o push agora devolve erro para permitir retry/reconciliação.
     server_id_1 = data["results"][0]["server_id"]
     server_id_2 = data["results"][1]["server_id"]
 

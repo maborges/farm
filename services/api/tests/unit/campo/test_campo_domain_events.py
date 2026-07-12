@@ -12,6 +12,7 @@ import pytest
 from campo import router as campo_router
 from campo.schemas import (
     SyncPushItem,
+    SyncPushItemResult,
     SyncPushRequest,
     TarefaProgramadaInvalidarRequest,
     TarefaProgramadaUpdate,
@@ -144,6 +145,7 @@ async def test_sync_failure_publica_evento(monkeypatch: pytest.MonkeyPatch) -> N
 
     class StubSyncService:
         def __init__(self, *args: object, **kwargs: object) -> None:  # noqa: D401, ARG002
+            self.tarefas_agricola_sync = []
             self.tarefas_pecuaria_sync = [task.id]
 
         async def push(self, items: list[object]) -> list[dict[str, object]]:  # noqa: ARG002
@@ -263,6 +265,75 @@ async def test_sync_failure_result_publica_evento(monkeypatch: pytest.MonkeyPatc
     assert set(event.metadata).issubset(
         {"error_type", "error_message", "origin", "local_id", "status"}
     )
+
+
+@pytest.mark.asyncio
+async def test_sync_push_marca_resultado_com_erro_quando_materializacao_pecuaria_ignorada(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    session = FakeSession()
+    task = _make_task()
+    session.task = task
+    fake_device = SimpleNamespace(id=uuid.uuid4(), tenant_id=task.tenant_id)
+
+    class StubSyncService:
+        def __init__(self, *args: object, **kwargs: object) -> None:  # noqa: D401, ARG002
+            self.tarefas_pecuaria_sync = [task.id]
+            self.tarefas_agricola_sync = []
+
+        async def push(self, items: list[object]) -> list[SyncPushItemResult]:  # noqa: ARG002
+            return [SyncPushItemResult(local_id="1", status="UPDATED", server_id=str(task.id), error_message=None)]
+
+    class StubDispositivoService:
+        def __init__(self, *args: object, **kwargs: object) -> None:  # noqa: D401, ARG002
+            pass
+
+        async def atualizar_last_sync(self, device_id: uuid.UUID) -> None:  # noqa: ARG002
+            return None
+
+    class StubManejoSyncService:
+        def __init__(self, *args: object, **kwargs: object) -> None:  # noqa: D401, ARG002
+            pass
+
+        async def processar_tarefa_campo(self, tarefa_id: uuid.UUID) -> ManejoSyncResult:  # noqa: ARG002
+            return ManejoSyncResult(
+                status="IGNORED",
+                total_recebido=0,
+                total_processado=0,
+                total_ignorados=0,
+                erros=["Payload incompleto"],
+                tarefa_campo_id=task.id,
+            )
+
+    monkeypatch.setattr(campo_router, "_get_device_from_token", AsyncMock(return_value=fake_device))
+    monkeypatch.setattr(campo_router, "SyncService", StubSyncService)
+    monkeypatch.setattr(campo_router, "DispositivoService", StubDispositivoService)
+    monkeypatch.setattr(
+        "pecuaria.services.manejo_sync_service.ManejoSyncService",
+        StubManejoSyncService,
+    )
+
+    response = await campo_router.sync_push(
+        request=SimpleNamespace(),
+        body=SyncPushRequest(
+            device_id=fake_device.id,
+            items=[
+                SyncPushItem(
+                    local_id="1",
+                    operation="UPDATE",
+                    entity_type="task",
+                    payload={},
+                    client_created_at=datetime.utcnow(),
+                    client_updated_at=datetime.utcnow(),
+                    server_id=str(task.id),
+                )
+            ],
+        ),
+        session=session,
+    )
+
+    assert response.results[0].status == "ERROR"
+    assert response.results[0].error_message == "Payload incompleto"
 
 
 def test_campo_nao_importa_dispatcher_diretamente() -> None:

@@ -110,6 +110,12 @@ interface SyncPullPayload {
     cpf?: string | null;
     cargo?: string | null;
   }>;
+  pessoas_operacionais?: Array<{
+    pessoa_id: string;
+    nome_exibicao: string;
+    unidade_produtiva_id: string;
+    papeis: string[];
+  }>;
   recomendacoes_climaticas?: Array<{
     unidade_produtiva_id: string;
     tipo_operacao: string;
@@ -229,6 +235,7 @@ export async function pullSync(): Promise<void> {
       db.colaboradores,
       db.recomendacoes_climaticas,
       db.recomendacoes_operacionais,
+      db.pessoas_operacionais,
     ],
     async () => {
     // Colaboradores
@@ -239,7 +246,23 @@ export async function pullSync(): Promise<void> {
       }
     }
 
+    // Pessoas Operacionais (Fase 2C)
+    if (data.pessoas_operacionais) {
+      await db.pessoas_operacionais.clear();
+      if (data.pessoas_operacionais.length) {
+        const payload = data.pessoas_operacionais.map((p) => ({
+          ...p,
+          id: `${p.unidade_produtiva_id}:${p.pessoa_id}`,
+          papeis: Array.from(new Set(p.papeis || [])),
+        }));
+        await db.pessoas_operacionais.bulkPut(payload);
+      }
+    }
+
     // Safras
+    if (data.safras) {
+      await db.safras.clear();
+    }
     if (data.safras?.length) {
       await db.safras.bulkPut(
         data.safras.map((s) => ({
@@ -255,11 +278,17 @@ export async function pullSync(): Promise<void> {
     }
 
     // Fazendas
+    if (data.fazendas) {
+      await db.fazendas.clear();
+    }
     if (data.fazendas?.length) {
       await db.fazendas.bulkPut(data.fazendas);
     }
 
     // Talhões
+    if (data.talhoes) {
+      await db.talhoes.clear();
+    }
     if (data.talhoes?.length) {
       await db.talhoes.bulkPut(
         data.talhoes.map((t) => ({
@@ -273,16 +302,25 @@ export async function pullSync(): Promise<void> {
     }
 
     // Lotes
+    if (data.lotes) {
+      await db.lotes.clear();
+    }
     if (data.lotes?.length) {
       await db.lotes.bulkPut(data.lotes.map((l) => ({ ...l, fazenda_id: l.unidade_produtiva_id })));
     }
 
     // Animais
+    if (data.animais) {
+      await db.animais.clear();
+    }
     if (data.animais?.length) {
       await db.animais.bulkPut(data.animais);
     }
 
     // Insumos
+    if (data.insumos) {
+      await db.insumos.clear();
+    }
     if (data.insumos?.length) {
       await db.insumos.bulkPut(
         data.insumos.map((i) => ({
@@ -464,6 +502,9 @@ export async function pullSync(): Promise<void> {
     }
     if (tombstones.lotes?.length) {
       await db.lotes.bulkDelete(tombstones.lotes);
+    }
+    if (tombstones.insumos?.length) {
+      await db.insumos.bulkDelete(tombstones.insumos);
     }
     if (tombstones.tarefas?.length) {
       // Marcar tarefas locais como canceladas

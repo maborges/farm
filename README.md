@@ -379,7 +379,7 @@ Ele deve ser usado como referência para:
 2. Ative o venv: `source .venv/bin/activate`.
 3. Rode: `uvicorn main:app --reload`.
 
-cd services/api
+cd /opt/lampp/htdocs/farm/services/api
 source .venv/bin/activate
 ./start_server.sh
 
@@ -405,14 +405,14 @@ No diretório raiz do projeto:
 1. Navegue até `apps/web`.
 2. Rode: `pnpm run dev`.
 
-cd apps/web
+cd /opt/lampp/htdocs/farm/apps/web
 pnpm run dev
 
 ### PWA de Campo
 1. Navegue até `apps/campo`.
 2. Rode: `pnpm run dev`.
 
-cd apps/campo
+cd /opt/lampp/htdocs/farm/apps/campo
 pnpm run dev
 
 O PWA fica em `http://localhost:3002` e redireciona para `/home` após a ativação do dispositivo.

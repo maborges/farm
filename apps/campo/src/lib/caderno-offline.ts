@@ -25,6 +25,7 @@ export interface CreateOfflineCadernoEventPayload {
   payload_operacional?: Record<string, unknown>;
   evidencias?: CadernoEvidenciaOffline[];
   usuario_id?: string | null;
+  executado_por_pessoa_id?: string | null;
 }
 
 type OfflineQueuePayload = Omit<
@@ -164,6 +165,7 @@ export async function createOfflineCadernoEvent(payload: CreateOfflineCadernoEve
     client_updated_at: now,
     device_id: session.device_id,
     usuario_id: payload.usuario_id ?? session.user_id,
+    executado_por_pessoa_id: payload.executado_por_pessoa_id ?? null,
     payload_operacional: {
       ...(payload.payload_operacional ?? {}),
       descricao,

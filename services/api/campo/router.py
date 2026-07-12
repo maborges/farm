@@ -15,7 +15,7 @@ from alert_engine.models import Domain
 from events import DomainEvent, publish_domain_event_safe
 
 from campo.models import DispositivoCampo, TarefaCampo
-from campo.service import DispositivoService, SyncService, TarefaProgramadaService
+from campo.service import CampoAgricolaSyncService, DispositivoService, SyncService, TarefaProgramadaService
 from campo.schemas import (
     DeviceCreate,
     DeviceCreateResponse,
@@ -116,6 +116,31 @@ def _build_sync_failure_event(tarefa, error: Exception, *, status: str) -> Domai
             "type": tarefa.type,
         },
     )
+
+
+def _marcar_resultado_sync_com_erro(
+    results: list,
+    tarefa_id: uuid.UUID,
+    error: Exception,
+) -> None:
+    for result in results:
+        server_id = result.get("server_id") if isinstance(result, dict) else result.server_id
+        if server_id == str(tarefa_id):
+            if isinstance(result, dict):
+                result["status"] = "ERROR"
+                result["error_message"] = str(error)
+            else:
+                result.status = "ERROR"
+                result.error_message = str(error)
+            return
+
+
+def _materializacao_pecuaria_error(resultado) -> Exception | None:
+    if getattr(resultado, "status", None) == "SUCCESS":
+        return None
+    erros = getattr(resultado, "erros", None) or []
+    mensagem = erros[0] if erros else f"Materialização pecuária retornou status {getattr(resultado, 'status', 'UNKNOWN')}"
+    return RuntimeError(mensagem)
 
 
 # ---------------------------------------------------------------------------
@@ -503,18 +528,34 @@ async def sync_push(
     await disp_svc.atualizar_last_sync(device.id)
     await session.commit()
 
-    # Processamento Assíncrono Pecuária (pós-commit seguro)
-    if svc.tarefas_pecuaria_sync:
+    # Materialização pós-commit segura: a tarefa já foi persistida e o retorno do
+    # sync continua refletindo falhas de efeitos colaterais para permitir retry.
+    tarefas_agricola_sync = getattr(svc, "tarefas_agricola_sync", [])
+    if tarefas_agricola_sync:
+        for tarefa_id in tarefas_agricola_sync:
+            try:
+                await CampoAgricolaSyncService(session, device.tenant_id).processar_tarefa_campo(tarefa_id)
+            except Exception as e:
+                logger.error(f"[sync/push] Erro ao materializar evento agricola para tarefa {tarefa_id}: {e}")
+                await session.rollback()
+                _marcar_resultado_sync_com_erro(results, tarefa_id, e)
+
+    tarefas_pecuaria_sync = getattr(svc, "tarefas_pecuaria_sync", [])
+    if tarefas_pecuaria_sync:
         from pecuaria.services.manejo_sync_service import ManejoSyncService
-        for tarefa_id in svc.tarefas_pecuaria_sync:
+        for tarefa_id in tarefas_pecuaria_sync:
             try:
                 msvc = ManejoSyncService(session, device.tenant_id)
-                await msvc.processar_tarefa_campo(tarefa_id)
+                resultado = await msvc.processar_tarefa_campo(tarefa_id)
+                erro_materializacao = _materializacao_pecuaria_error(resultado)
+                if erro_materializacao is not None:
+                    _marcar_resultado_sync_com_erro(results, tarefa_id, erro_materializacao)
                 await session.commit()
             except Exception as e:
                 # O erro não falha a sincronização, apenas gera log
                 logger.error(f"[sync/push] Erro ao materializar evento pecuario para tarefa {tarefa_id}: {e}")
                 await session.rollback()
+                _marcar_resultado_sync_com_erro(results, tarefa_id, e)
 
                 # Falha catastrófica
                 try:

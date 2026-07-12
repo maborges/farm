@@ -26,6 +26,8 @@ Use sempre o menu lateral esquerdo como ponto de partida. Quando o documento cit
 | Cadastrar produtos, fertilizantes e defensivos | `Cadastros > Insumos & Ativos > Catálogo de Produtos` | `/cadastros/produtos` |
 | Cadastrar equipamentos e frota | `Cadastros > Insumos & Ativos > Equipamentos & Frota` | `/cadastros/equipamentos` |
 | Cadastrar pessoas, operadores e parceiros | `Cadastros > Pessoas & Parceiros > Pessoas e Parceiros` | `/cadastros/pessoas` |
+| Preparar e consultar o estoque de insumos | `Suprimentos > ② Estoque > Almoxarifado` | `/suprimentos/estoque` |
+| Programar tarefas para execução no aplicativo | `Campo PWA > Dispositivos > Tarefas de Campo` | `/dashboard/operacional/campo/tarefas` |
 | Cadastrar culturas e variedades | `Agricultura > ① Planejamento da Safra > Culturas e Variedades` | `/agricola/cadastros/culturas` |
 | Abrir a lista de safras | `Agricultura > Visão Geral > Safras` | `/agricola/safras` |
 | Criar a safra de café | `Agricultura > Visão Geral > Safras > Nova Safra` | `/agricola/safras` |
@@ -82,6 +84,16 @@ Depois de abrir `/agricola/safras/{id}`, executar o fluxo principalmente por:
 
 Para café, isso é importante porque a cultura perene exige leitura contínua de fase, monitoramento e pós-colheita no mesmo contexto operacional.
 
+### Como interpretar as ações deste guia
+
+Cada etapa informa três coisas separadamente:
+
+- **Menu/subnav**: caminho usado para chegar à tela.
+- **Botão de abertura**: controle que abre o formulário ou inicia a ação.
+- **Botão de confirmação**: controle que grava a informação e produz o efeito descrito.
+
+Abrir um formulário não altera o processo. A alteração ocorre somente ao usar o botão de confirmação e receber a mensagem de sucesso. Nos avanços de fase, o sistema pode exigir a conclusão do checklist e das tarefas obrigatórias da fase atual.
+
 ## Capturas de referência
 
 ### Dashboard Agrícola
@@ -111,7 +123,7 @@ O workflow cobre:
 ## Persona de teste
 
 - tipo: produtor de café com suporte técnico
-- tenant: 1 tenant ativo e isolado
+- Produtor: 1 produtor ativo e isolado
 - perfil mínimo:
   - criar e editar safra
   - registrar operações
@@ -123,10 +135,14 @@ O workflow cobre:
 ## Pré-requisitos
 
 - fazenda e talhões cafeeiros cadastrados
-- usuário autenticado no tenant correto
+- usuário autenticado na conta do produtor correta
 - planos de conta de despesa e receita ativos
 - produtos e insumos cadastrados
 - estoque inicial carregado, se aplicável
+- ao menos um depósito ativo e um lote com saldo suficiente para cada insumo que será consumido
+- plano de conta ativo com categoria RFB `CUSTEIO`, necessário para a despesa automática da operação
+- dispositivo Campo ativado e associado ao produto, quando o cenário incluir execução offline
+- operador com acesso ao aplicativo Campo e tarefa programada para a data atual ou anterior
 
 ### Checklist antes de criar a safra
 
@@ -134,7 +150,7 @@ Antes de clicar em `Nova Safra`, confirme estes cadastros. Sem eles, o usuário 
 
 | Verificação | Caminho no sidebar | O que conferir |
 |---|---|---|
-| Tenant correto | seletor de empresa/fazenda no topo da aplicação | a operação deve estar no tenant da fazenda que será usada no teste |
+| Produto correto | seletor de empresa/fazenda no topo da aplicação | a operação deve estar no produto da fazenda que será usada no teste |
 | Fazenda cadastrada | `Cadastros > Minha Propriedade > Propriedades` | existe uma propriedade chamada `Fazenda Boa Esperança` |
 | Talhões cadastrados | `Cadastros > Minha Propriedade > Georreferenciamento` | existem os talhões `Café A1`, `Café A2` e `Café B1`, todos como tipo `TALHAO` |
 | Área dos talhões | `Cadastros > Minha Propriedade > Georreferenciamento` | A1 tem `20,00 ha`, A2 tem `25,00 ha` e B1 tem `30,00 ha` |
@@ -161,7 +177,7 @@ O esperado é que a IA:
 
 - deixe claro que a funcionalidade está usando análise assistida
 - explique o motivo da recomendação com base nos dados da safra
-- transforme leitura técnica em decisão prática para produtor, gestor ou agrônomo
+- transforme leitura técnica em decisão prática para o produtor, gestor ou agrônomo
 
 ## Massa de dados base
 
@@ -212,6 +228,128 @@ O esperado é que a IA:
 
 ## Workflow específico
 
+## Integrações transversais: tarefa, estoque e financeiro
+
+Estas integrações não nascem em uma única tela. Para enxergar a cadeia completa, use o fluxo abaixo:
+
+```text
+Gestor programa tarefa no web
+    -> dispositivo recebe a tarefa por sincronização
+    -> operador inicia e conclui no Campo PWA
+    -> dispositivo envia status, observação, fotos e GPS
+    -> gestor confere o retorno em Tarefas de Campo
+    -> operação agrícola REALIZADA é registrada com os insumos consumidos
+    -> sistema baixa o estoque por FIFO
+    -> sistema calcula o custo real e cria a despesa financeira
+    -> operação também aparece no Caderno de Campo
+```
+
+### Onde cada registro é gerado
+
+| Registro gerado | Ação que gera | Menu e botão | Retorno para conferir |
+|---|---|---|---|
+| Tarefa enviada ao Campo PWA | programar tarefa | `Campo PWA > Dispositivos > Tarefas de Campo` > `Nova Tarefa` > `Programar Tarefa` | tarefa web com origem `PROGRAMADA` e status `PENDENTE`; após o pull, aparece no início do aplicativo em `Para Hoje` ou `Atrasadas` |
+| Início da execução no campo | operador iniciar a tarefa recebida | aplicativo Campo > card da tarefa > `Iniciar Tarefa` | grava localmente `EM_EXECUCAO` e a data/hora de início; após sincronizar, o mesmo status aparece no web |
+| Conclusão e evidências | operador concluir a tarefa | aplicativo Campo > tarefa > preencher observação/fotos > `Concluir Tarefa` | grava localmente `CONCLUIDA`, data/hora, observação, fotos e GPS; após sincronizar, esses dados aparecem na linha/detalhe da tarefa no web |
+| Evento manual do caderno no campo | operador registrar uma ocorrência vinculada à tarefa | aplicativo Campo > tarefa > `Registrar no Caderno` | entrada fica na fila local e, após sincronização, é reconciliada com o Caderno oficial da safra |
+| Operação, consumo e custo realizado | registrar operação com status `REALIZADA` e insumos | safra > `Execução > Execução` > `Nova Operação desta Safra` > `Adicionar` insumo > `Registrar nesta Safra` | operação aparece na fase; custo é calculado com o consumo real dos lotes de estoque |
+| Movimentação automática de estoque | confirmação da operação `REALIZADA` com insumo e saldo disponível | não existe botão adicional: ocorre dentro de `Registrar nesta Safra` | safra > `Execução > Estoque` mostra uma `SAÍDA`; `Suprimentos > ② Estoque > Almoxarifado` mostra o histórico e o novo saldo |
+| Despesa financeira automática | confirmação da operação `REALIZADA` com custo maior que zero e plano de conta de custeio ativo | não existe botão adicional: ocorre na mesma transação de `Registrar nesta Safra` | safra > `Gestão > Financeiro` mostra despesa `PAGO`, com origem `OPERACAO_AGRICOLA`; o custo realizado da safra é recalculado |
+| Evento oficial no caderno | confirmação da operação `REALIZADA` | não existe botão adicional | safra > `Gestão > Caderno` mostra o evento canônico da operação |
+
+### Duas telas de tarefas com finalidades diferentes
+
+| Tela | Para que serve | Envia ao Campo PWA? | Gera estoque/financeiro? |
+|---|---|---|---|
+| safra > `Execução > Tarefas` | planejar e acompanhar tarefas internas da safra e suas pendências de fase | não é a tela de programação do dispositivo | não; tarefa sozinha não consome insumo nem cria despesa |
+| `Campo PWA > Dispositivos > Tarefas de Campo` | programar trabalho para o operador receber e executar no aplicativo | sim, por sincronização | não; a conclusão retorna execução e evidências, mas não substitui a operação agrícola `REALIZADA` |
+
+### Roteiro de sincronização da tarefa de campo
+
+1. No web, abra `Campo PWA > Dispositivos > Tarefas de Campo`.
+2. Clique em `Nova Tarefa` e preencha módulo `Agrícola`, safra `Café 2025/26`, talhão, operador, data programada, prioridade e descrição.
+3. Clique em `Programar Tarefa`. Isso cria a tarefa como `PENDENTE`; ainda não cria operação, baixa ou despesa.
+4. No aplicativo Campo, abra `Sincronização` e clique em `Sincronizar agora`. O pull traz tarefas com data programada até o dia atual e status `PENDENTE` ou `EM_EXECUCAO`.
+5. Na página inicial do aplicativo, abra a tarefa em `Para Hoje` ou `Atrasadas` e clique em `Iniciar Tarefa`.
+6. Execute o trabalho, registre observação, fotos e GPS e clique em `Concluir Tarefa`. O retorno permanece local enquanto estiver offline.
+7. Abra `Sincronização` e clique em `Sincronizar agora`. Confirme `Na fila: 0`, `Com erro: 0` e a atualização de `Última sincronização`.
+8. Volte ao web em `Campo PWA > Dispositivos > Tarefas de Campo`, atualize a lista e confira status `CONCLUIDA`, horários, observações e imagens.
+9. Se houver item em `Com erro`, abra-o na tela de sincronização, revise a falha e reenvie. Não considere a execução consolidada no servidor enquanto a fila não estiver limpa.
+
+> **Importante:** concluir a tarefa no aplicativo não cria automaticamente a operação agrícola com consumo. Para produzir baixa de estoque, custo e despesa, registre também a operação `REALIZADA` em `Execução > Execução`, vinculando a tarefa quando o campo estiver disponível.
+
+### Cenário integrado de café para validar estoque e financeiro
+
+Use uma das pulverizações da Etapa 7 para comprovar os reflexos:
+
+| Dado | Valor de teste |
+|---|---|
+| Operação | `PULVERIZACAO` no talhão `Café A2` |
+| Área aplicada | `25,00 ha` |
+| Produto | `Fungicida para ferrugem` |
+| Dose | `3,00 L/ha` |
+| Consumo esperado | `75,00 L` |
+| Saldo inicial sugerido | `100,00 L` |
+| Custo unitário do lote | `R$ 118,00/L` |
+| Custo de insumo esperado | `R$ 8.850,00` |
+| Saldo final esperado | `25,00 L` |
+
+#### Preparar o saldo antes da execução
+
+1. Acesse `Suprimentos > ② Estoque > Almoxarifado`.
+2. Se necessário, use `Novo Produto` e `Novo Depósito` para completar os cadastros.
+3. Clique em `Entrada`, preencha produto, depósito, quantidade `100,00 L`, custo unitário `R$ 118,00` e lote.
+4. Clique em `Confirmar Entrada`. Isso gera uma movimentação `ENTRADA` e disponibiliza o saldo para consumo.
+5. Confirme no `Histórico de Movimentações` e na consulta de saldo que existem `100,00 L` disponíveis.
+
+#### Gerar os reflexos automáticos
+
+1. Na safra, acesse `Execução > Execução` e clique em `Nova Operação desta Safra`.
+2. Informe status `REALIZADA` (ou mantenha o padrão realizado da tela), tipo `PULVERIZACAO`, talhão `Café A2`, área `25,00 ha`, custo manual `R$ 0,00` e uma data atual ou passada.
+3. Na seção de insumos, clique em `Adicionar`, selecione `Fungicida para ferrugem` e informe dose `3,00 L/ha`.
+4. Clique em `Registrar nesta Safra`.
+5. A confirmação é atômica: se faltar saldo, lote válido, depósito compatível ou plano de conta de custeio, a operação deve falhar sem deixar baixa ou despesa parcial.
+
+#### Conferir os retornos
+
+| Conferência | Caminho | Resultado esperado |
+|---|---|---|
+| Operação | safra > `Execução > Execução` | pulverização listada como `REALIZADA`, com consumo `75,00 L` e custo calculado |
+| Estoque da safra | safra > `Execução > Estoque` | movimentação `SAÍDA` vinculada à execução da operação |
+| Estoque global | `Suprimentos > ② Estoque > Almoxarifado` > `Histórico de Movimentações` | saída de `75,00 L`; saldo passa de `100,00 L` para `25,00 L` |
+| Financeiro | safra > `Gestão > Financeiro` | despesa automática de aproximadamente `R$ 8.850,00`, pois o cenário usa custo manual zero; status `PAGO` e origem `OPERACAO_AGRICOLA` |
+| Custo agrícola | sidebar `Agricultura > ① Planejamento da Safra > Custeio Agrícola` | custo realizado e custo por hectare recalculados |
+| Caderno | safra > `Gestão > Caderno` | evento oficial da pulverização na linha do tempo |
+
+O valor financeiro usa o custo FIFO dos lotes efetivamente consumidos. Portanto, pode diferir do preço do catálogo ou do valor sugerido neste guia quando houver lotes com custos diferentes.
+
+### Como a mão de obra gera custo
+
+Mão de obra gera custo, mas a seleção do operador não define esse valor automaticamente. Na operação agrícola, os campos têm efeitos diferentes:
+
+| Campo/ação | Efeito |
+|---|---|
+| `Operador` | identifica quem executou o trabalho e melhora a rastreabilidade; sozinho não calcula horas, diária, salário nem encargo |
+| `Custo Total (R$)` | informa o componente manual da operação, que pode representar mão de obra, serviço contratado, combustível ou outro custo ainda não integrado |
+| `Adicionar` insumo | calcula o consumo pela dose e área e acrescenta ao custo o valor FIFO dos lotes consumidos |
+| `Registrar nesta Safra` com status `REALIZADA` | soma `custo manual + custo FIFO dos insumos`, atualiza o custo realizado e cria uma única despesa financeira pelo total da operação |
+| Concluir tarefa no Campo PWA | retorna execução e evidências, mas não calcula nem lança mão de obra automaticamente |
+
+#### Exemplo com mão de obra na pulverização
+
+Se a pulverização do cenário integrado tiver `R$ 1.200,00` de mão de obra:
+
+| Componente | Valor |
+|---|---:|
+| Mão de obra informada em `Custo Total (R$)` | R$ 1.200,00 |
+| Fungicida consumido por FIFO | R$ 8.850,00 |
+| Custo total da operação | R$ 10.050,00 |
+| Despesa financeira automática | R$ 10.050,00 |
+
+Para testar somente a integração do insumo, mantenha `Custo Total (R$)` em `R$ 0,00`, como no cenário anterior. Para testar a composição completa da operação, informe nesse campo o valor da mão de obra antes de clicar em `Registrar nesta Safra`.
+
+> **Limite atual:** a operação não possui campos próprios de quantidade de trabalhadores, horas, valor/hora ou encargos. Portanto, o valor de mão de obra precisa ser previamente calculado e informado como custo manual. Se a mão de obra já tiver sido lançada por outro fluxo financeiro/RH, não repita o valor na operação sem verificar a regra de apropriação, para evitar duplicidade.
+
 ## Etapa 1 — Criar a safra de café
 
 ### Caminho no sidebar
@@ -228,9 +366,18 @@ Criar a safra `2025/26` de café e vincular os talhões `Café A1`, `Café A2` e
 
 Ao final desta etapa, a safra deve existir na listagem, deve abrir o painel próprio da safra e deve estar pronta para receber orçamento, operações, monitoramento e colheita.
 
+### Ações, botões e efeitos
+
+| Ação | Onde clicar | O que causa no processo |
+|---|---|---|
+| Abrir o cadastro | sidebar `Agricultura > Visão Geral > Safras` > botão `Nova Safra` | abre o dialog `Nova Safra`; ainda não cria nenhum registro |
+| Vincular outro talhão | dialog `Nova Safra` > botão `Talhão` | adiciona outra linha de ocupação para selecionar o talhão e a área; o vínculo só é persistido ao criar a safra |
+| Criar a safra | dialog `Nova Safra` > botão `Criar Safra` | cria o ciclo em `PLANEJADA`, vincula os talhões informados e habilita a navegação interna da safra |
+| Abrir a safra | lista `Safras` > card da safra `2025/26` | abre `Resumo > Visão Geral`; não altera dados nem a fase |
+
 ### Passo a passo para um usuário leigo
 
-1. Abra a aplicação e confirme que está logado no tenant correto.
+1. Abra a aplicação e confirme que está logado no produtor correto.
 2. No menu lateral esquerdo, clique em `Agricultura`.
 3. Dentro de `Agricultura`, localize o grupo `Visão Geral`.
 4. Clique em `Safras`.
@@ -324,8 +471,20 @@ Depois de clicar em `Criar Safra`, confira:
 
 ### Onde testar
 
-- `/agricola/planejamento`
-- `/agricola/safras/{id}/orcamento`
+- sidebar `Agricultura > ① Planejamento da Safra > Orçamento de Safra`, para a visão global (`/agricola/planejamento`)
+- dentro da safra, subnav `Planejamento > Orçamento` (`/agricola/safras/{id}/orcamento`)
+
+### Ações, botões e efeitos
+
+| Ação | Onde clicar | O que causa no processo |
+|---|---|---|
+| Incluir um custo previsto | `Planejamento > Orçamento` > botão `Adicionar item` | abre o dialog `Novo item`; ainda não altera o orçamento |
+| Gravar o item | dialog `Novo item` > botão `Salvar` | inclui o item no custeio previsto e recalcula custo previsto, receita esperada, margem bruta e ponto de equilíbrio |
+| Corrigir um item | ação de edição na linha do item > dialog `Editar item` > botão `Salvar` | substitui os valores planejados e recalcula os indicadores; não cria uma operação realizada |
+
+Repita `Adicionar item > Salvar` para cada linha da tabela abaixo. Esta etapa registra previsão. O custo realizado nasce das operações registradas na Etapa 3 em diante.
+
+O item `MAO_DE_OBRA` abaixo pertence somente ao orçamento previsto. Para virar custo realizado, a mão de obra deve ser informada no campo `Custo Total (R$)` de uma operação `REALIZADA` ou chegar por um fluxo financeiro/RH integrado. Criar o item orçamentário não gera despesa nem pagamento.
 
 ### Itens sugeridos
 
@@ -354,11 +513,23 @@ Total sugerido:
 
 ### Onde testar
 
-- `/agricola/safras/{id}/operacoes`
+- avanço de fase: subnav `Resumo > Visão Geral` (`/agricola/safras/{id}`)
+- registro de manejo: subnav `Execução > Execução` (`/agricola/safras/{id}/operacoes`)
 
 ### Ação
 
 Avançar a safra para `PREPARO_SOLO`.
+
+| Ação | Onde clicar | O que causa no processo |
+|---|---|---|
+| Avançar a fase | `Resumo > Visão Geral` > card da linha do tempo > botão `Próxima Fase` > botão `Avançar para Preparo do Solo` | muda o status da safra para `PREPARO_SOLO` e registra a transição na linha do tempo; pode ser bloqueado por pendências obrigatórias |
+| Abrir uma operação | `Execução > Execução` > botão `Nova Operação desta Safra` | abre o formulário já contextualizado na safra; ainda não gera custo nem histórico |
+| Vincular insumo | formulário da operação > seção de insumos > botão `Adicionar` | adiciona uma linha de insumo à operação; o efeito só é persistido com o registro da operação |
+| Gravar a operação | formulário > botão `Registrar nesta Safra` | cria o evento operacional, compõe o custo realizado e o disponibiliza no financeiro e no caderno da safra |
+
+Repita `Nova Operação desta Safra > Registrar nesta Safra` para cada operação sugerida.
+
+Na coluna `Custo` da tabela abaixo, informe em `Custo Total (R$)` somente a parcela manual da operação, como mão de obra ou serviço. Não some novamente o custo dos produtos adicionados na seção `Insumos Aplicados`, pois o sistema acrescenta esses valores automaticamente pelo consumo FIFO.
 
 ### Operações sugeridas
 
@@ -384,6 +555,11 @@ Em café adulto, a fase `PLANTIO` representa manejo estrutural da lavoura, não 
 
 Avançar para `PLANTIO` e registrar:
 
+| Ação | Onde clicar | O que causa no processo |
+|---|---|---|
+| Avançar a fase | `Resumo > Visão Geral` > `Próxima Fase` > `Avançar para Plantio` | muda o status para `PLANTIO` e registra a transição; não cria uma operação de plantio automaticamente |
+| Registrar poda ou adubação | `Execução > Execução` > `Nova Operação desta Safra` > `Registrar nesta Safra` | adiciona o manejo à timeline operacional e incorpora seu custo ao realizado da safra |
+
 | Tipo | Data | Talhão | Área | Custo |
 |---|---|---|---:|---:|
 | PODA | 2025-08-20 | A1 | 20,00 ha | R$ 7.800,00 |
@@ -398,7 +574,16 @@ Avançar para `PLANTIO` e registrar:
 
 ### Onde testar
 
-- `/agricola/safras/{id}/fenologia`
+- subnav `Monitoramento > Fenologia` (`/agricola/safras/{id}/fenologia`)
+
+### Ações, botões e efeitos
+
+| Ação | Onde clicar | O que causa no processo |
+|---|---|---|
+| Abrir o registro | aba `Registros por Talhão` > botão `Registrar Estágio` | abre o dialog `Registrar Estágio Fenológico`; ainda não altera o estágio observado |
+| Gravar o estágio | dialog > botão `Registrar Estágio` | cria uma observação fenológica para o talhão e atualiza a visão de fenologia atual da safra |
+
+Repita a ação para cada talhão e data da tabela.
 
 ### Registros sugeridos
 
@@ -417,7 +602,16 @@ Avançar para `PLANTIO` e registrar:
 
 ### Onde testar
 
-- `/agricola/safras/{id}/monitoramento`
+- subnav `Monitoramento > Sanidade` (`/agricola/safras/{id}/monitoramento`)
+
+### Ações, botões e efeitos
+
+| Ação | Onde clicar | O que causa no processo |
+|---|---|---|
+| Abrir o apontamento | botão `Registrar` | abre o dialog `Novo Registro de Monitoramento`; ainda não gera alerta |
+| Gravar o apontamento | dialog > botão `Salvar` | persiste agente, severidade e nível para o talhão; o risco passa a compor a listagem e pode repercutir no dashboard e no caderno |
+
+O monitoramento registra a constatação de campo. Ele não cria automaticamente uma pulverização; quando houver tratamento, registre-o em `Execução > Execução`.
 
 ### Registros sugeridos
 
@@ -441,11 +635,17 @@ Avançar para `PLANTIO` e registrar:
 
 ### Onde testar
 
-- `/agricola/safras/{id}/operacoes`
+- avanço de fase: subnav `Resumo > Visão Geral`
+- operações: subnav `Execução > Execução` (`/agricola/safras/{id}/operacoes`)
 
 ### Ação
 
 Avançar a safra para `DESENVOLVIMENTO` e registrar:
+
+| Ação | Onde clicar | O que causa no processo |
+|---|---|---|
+| Avançar a fase | `Resumo > Visão Geral` > `Próxima Fase` > `Avançar para Desenvolvimento` | muda o status para `DESENVOLVIMENTO` e registra a transição da safra |
+| Registrar adubação ou pulverização | `Execução > Execução` > `Nova Operação desta Safra` > `Registrar nesta Safra` | cria a operação, aumenta o custo realizado e atualiza os históricos financeiro e de campo |
 
 | Tipo | Data | Talhão | Área | Custo |
 |---|---|---|---:|---:|
@@ -462,7 +662,16 @@ Avançar a safra para `DESENVOLVIMENTO` e registrar:
 
 ### Onde testar
 
-- `/agricola/safras/{id}/caderno`
+- subnav `Gestão > Caderno` (`/agricola/safras/{id}/caderno`)
+
+### Ações, botões e efeitos
+
+| Ação | Onde clicar | O que causa no processo |
+|---|---|---|
+| Criar anotação ou monitoramento manual | botão `Novo Registro` > dialog `Novo Registro no Caderno` > botão `Registrar` | adiciona uma entrada manual à linha do tempo, sem criar operação ou custo agrícola |
+| Registrar visita técnica | botão `Registrar Visita` > botão `Registrar Visita` no dialog | adiciona a visita e seus dados técnicos ao histórico da safra |
+| Registrar entrega de EPI | botão `Registrar Entrega` > botão `Registrar Entrega` no dialog | registra a entrega para rastreabilidade e auditoria; não movimenta estoque de insumos |
+| Gerar documento | botão `Exportar oficial` ou `Exportar auditoria` | gera a versão correspondente do caderno; não modifica os registros de origem e pode exigir plano `ENTERPRISE` |
 
 ### Entradas manuais sugeridas
 
@@ -479,9 +688,22 @@ Avançar a safra para `DESENVOLVIMENTO` e registrar:
 
 ## Etapa 9 — Colheita
 
+### Onde testar
+
+- avanço de fase: subnav `Resumo > Visão Geral`
+- romaneios: subnav `Colheita > Romaneios` (`/agricola/safras/{id}/romaneios`)
+
 ### Ação
 
 Avançar a safra para `COLHEITA`.
+
+| Ação | Onde clicar | O que causa no processo |
+|---|---|---|
+| Avançar a fase | `Resumo > Visão Geral` > `Próxima Fase` > `Avançar para Colheita` | muda o status para `COLHEITA` e registra a transição; não lança produção automaticamente |
+| Abrir um romaneio | `Colheita > Romaneios` > botão `Novo Romaneio` | abre o dialog `Novo Romaneio de Colheita`; ainda não altera produção ou receita |
+| Gravar um romaneio | dialog > botão `Registrar Romaneio` | registra a produção do talhão e recalcula produção, produtividade e receita dos KPIs da colheita |
+
+Repita `Novo Romaneio > Registrar Romaneio` para A1, A2 e B1. A exclusão posterior do romaneio não remove automaticamente uma receita financeira já associada; essa conciliação deve ser revisada manualmente.
 
 ### Romaneios sugeridos
 
@@ -507,11 +729,17 @@ Totais sugeridos:
 
 ### Onde testar
 
-- `/agricola/safras/{id}/beneficiamento`
+- subnav `Colheita > Beneficiamento` (`/agricola/safras/{id}/beneficiamento`), disponível a partir do plano `PROFISSIONAL`
 
 ### Ação
 
 Criar 1 lote de beneficiamento.
+
+| Ação | Onde clicar | O que causa no processo |
+|---|---|---|
+| Abrir o lote | botão `Novo Lote` | abre o dialog `Novo Lote de Beneficiamento`; ainda não consome nem transforma a origem |
+| Gravar o lote | dialog > botão `Registrar` | cria o lote, vincula as origens selecionadas e calcula saída líquida/rendimento a partir da entrada e das perdas informadas |
+| Atualizar o processamento | ação de edição do lote > dialog `Atualizar Lote` > botão `Salvar` | atualiza dados e status do lote, preservando sua rastreabilidade com a origem |
 
 ### Dados sugeridos
 
@@ -540,7 +768,17 @@ Criar 1 lote de beneficiamento.
 
 ### Onde testar
 
-- `/agricola/safras/{id}/financeiro`
+- subnav `Gestão > Financeiro` (`/agricola/safras/{id}/financeiro`)
+
+### Ações, botões e efeitos
+
+Esta tela é de consolidação e conferência. Não há botão para criar custos agrícolas nela.
+
+| Ação | Onde clicar | O que causa no processo |
+|---|---|---|
+| Consultar o consolidado | `Gestão > Financeiro` | carrega custos das operações e receitas relacionadas à colheita para calcular resultado e ROI; não cria lançamentos |
+| Corrigir custo operacional | voltar a `Execução > Execução` > editar a operação > `Salvar Ajustes` | atualiza a operação de origem e, após recarregar os dados, seus reflexos financeiros |
+| Corrigir produção ou preço | voltar a `Colheita > Romaneios` > ação de edição do romaneio | altera a origem do indicador; exclusões exigem atenção à conciliação financeira associada |
 
 ### Custos operacionais sugeridos neste fluxo
 
@@ -568,7 +806,17 @@ Subtotal:
 
 ### Onde testar
 
-- `/agricola/safras/{id}/cenarios`
+- subnav `Planejamento > Cenários` (`/agricola/safras/{id}/cenarios`), disponível a partir do plano `PROFISSIONAL`
+
+### Ações, botões e efeitos
+
+| Ação | Onde clicar | O que causa no processo |
+|---|---|---|
+| Abrir uma simulação | botão `Novo Cenário` | abre o dialog `Novo Cenário Econômico`; ainda não calcula nem salva um cenário |
+| Gravar a simulação | dialog > botão `Criar Cenário` | cria o cenário e calcula seus indicadores com as premissas informadas |
+| Recalcular | ação `Recalcular` no card do cenário | refaz os indicadores com os dados atuais do cenário e das unidades vinculadas |
+
+Na interface, os tipos criáveis são `OTIMISTA`, `PESSIMISTA` e `CUSTOM` (`Personalizado`). Para representar o cenário base deste teste, use `CUSTOM` e mantenha no nome `Cenário Base Café 2025/26`.
 
 ### Cenário base sugerido
 
@@ -618,7 +866,15 @@ Subtotal:
 
 ### Onde testar
 
-- `/agricola/safras/{id}/cenarios/comparativo`
+- subnav `Planejamento > Cenários` (`/agricola/safras/{id}/cenarios`)
+
+### Ações, botões e efeitos
+
+| Ação | Onde clicar | O que causa no processo |
+|---|---|---|
+| Selecionar cenários | caixas de seleção à esquerda dos cards | prepara a seleção para comparação; não recalcula nem altera os cenários |
+| Abrir o comparativo | selecionar ao menos 2 cenários > botão `Comparar (N)` | abre `/agricola/safras/{id}/cenarios/comparativo` com os cenários selecionados e apresenta os indicadores lado a lado |
+| Exportar PDF | botão `Exportar PDF` | atualmente não causa efeito, pois o controle está desabilitado e marcado como disponível em breve |
 
 ### Resultado esperado
 
@@ -636,6 +892,12 @@ Subtotal:
 ## Critérios de aceite
 
 - safra de café concluída do planejamento à colheita
+- tarefa programada no web recebida no Campo PWA após sincronização
+- tarefa iniciada e concluída offline retorna ao web com status, horários e evidências após o push
+- tela de sincronização termina com `Na fila: 0` e `Com erro: 0`
+- operação `REALIZADA` com insumo gera saída de estoque e reduz o saldo pela quantidade calculada
+- operação `REALIZADA` com custo gera uma única despesa financeira rastreável à origem `OPERACAO_AGRICOLA`
+- falha na integração não deixa operação, estoque ou financeiro parcialmente gravados
 - fenologia e monitoramento refletidos no fluxo
 - romaneios e beneficiamento preservam rastreabilidade
 - financeiro consolida custos e receitas
@@ -653,6 +915,10 @@ Subtotal:
 | `/agricola/safras/{id}/orcamento` | orçamento cafeeiro consolidado | cálculo previsto da safra |
 | `/agricola/operacoes` | operações consolidadas disponíveis | visão global do histórico operacional |
 | `/agricola/safras/{id}/operacoes` | manejo de calagem, adubação, poda e pulverização listado | coerência entre operação e fase da safra |
+| `/dashboard/operacional/campo/tarefas` | tarefa concluída com horários, observações e imagens retornadas pelo aplicativo | sincronização da execução de campo com o backoffice |
+| aplicativo Campo `/sync` | fila zerada e nenhuma falha pendente | push e pull concluídos com sucesso |
+| `/agricola/safras/{id}/estoque` | saída FIFO vinculada à execução da operação | consumo automático do insumo realizado |
+| `/suprimentos/estoque` | histórico de saída e saldo final do fungicida em `25,00 L` | consistência entre ledger e saldo global |
 | `/agricola/safras/{id}/fenologia` | registros de floração, pegamento e granação | leitura fenológica da cultura café |
 | `/agricola/safras/{id}/monitoramento` | ferrugem e broca registradas | monitoramento fitossanitário por talhão |
 | `/agricola/safras/{id}/monitoramento` | quando houver IA, interpretação clara de risco e ação | apoio técnico assistido por IA |
@@ -661,6 +927,7 @@ Subtotal:
 | `/agricola/safras/{id}/beneficiamento` | lote beneficiado com quebra de peso | rastreabilidade pós-colheita |
 | `/agricola/safras/{id}/beneficiamento` | quando houver IA, leitura da perda e da qualidade do lote | apoio de IA na pós-colheita |
 | `/agricola/safras/{id}/financeiro` | custos, receitas e ROI positivos | integração agrícola-financeira do café |
+| `/agricola/safras/{id}/financeiro` | despesa da pulverização com origem `OPERACAO_AGRICOLA` | rastreabilidade financeira sem duplicidade |
 | `/agricola/safras/{id}/cenarios` | cenário base e alternativos calculados | modelagem econômica da safra cafeeira |
 | `/agricola/safras/{id}/cenarios` | quando houver IA, explicação útil do risco econômico | apoio de IA na análise cafeeira |
 | `/agricola/safras/{id}/cenarios/comparativo` | comparação entre base, otimista e pessimista | consistência do comparativo econômico |

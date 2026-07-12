@@ -39,6 +39,8 @@ export default function AplicacaoPage() {
 
   const talhoes = useLiveQuery(() => db.talhoes.where("fazenda_id").equals(fazendaId).toArray(), [fazendaId]);
   const insumos = useLiveQuery(() => db.insumos.toArray(), []);
+  const safras = useLiveQuery(() => db.safras.toArray(), []);
+  const activeSafra = safras?.find((s) => s.status === "ATIVA") ?? safras?.[0];
 
   const stepIndex = ["local", "produto", "quantidade", "confirmar"].indexOf(step);
 
@@ -51,6 +53,8 @@ export default function AplicacaoPage() {
         fazenda_id: fazendaId,
         talhao_id: talhaoId || undefined,
         dados: {
+          safra_id: activeSafra?.id,
+          safra_nome: activeSafra?.ano_safra,
           insumo_id: insumoId,
           quantidade: parseFloat(quantidade) || 0,
           unidade,
@@ -144,6 +148,7 @@ export default function AplicacaoPage() {
           {/* Resumo */}
           <CampoSurface className="grid gap-2.5 p-3.5 text-sm md:grid-cols-2">
             <SummaryRow label="Talhão" value={talhoes?.find((t) => t.id === talhaoId)?.nome ?? "—"} />
+            <SummaryRow label="Safra" value={activeSafra?.ano_safra ?? "—"} />
             <SummaryRow label="Produto" value={insumos?.find((i) => i.id === insumoId)?.nome ?? "—"} />
             <SummaryRow label="Quantidade" value={`${quantidade} ${unidade}`} />
           </CampoSurface>
@@ -163,7 +168,7 @@ export default function AplicacaoPage() {
 
           <CampoButton
             onClick={handleSalvar}
-            disabled={saving}
+            disabled={saving || !activeSafra}
             className="mt-auto w-full"
             size="md"
             variant="primary"

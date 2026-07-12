@@ -20,6 +20,7 @@ from agricola.caderno.models import (
     EPIEntrega,
     CadernoExportacao,
 )
+from core.cadastros.pessoas.models import Pessoa
 from core.models.auth import Usuario
 from agricola.caderno.schemas import (
     EntradaCreate,
@@ -600,6 +601,7 @@ class CadernoCampoService(BaseService[CadernoCampoEntrada]):
             "nivel_severidade": origem.nivel_severidade,
             "recomendacao": origem.recomendacao,
             "numero_receituario": origem.numero_receituario,
+            "executado_por_pessoa_id": origem.executado_por_pessoa_id,
             "digitalizacao_retroativa": origem.digitalizacao_retroativa,
             "justificativa_retroativa": origem.justificativa_retroativa,
         }
@@ -614,6 +616,8 @@ class CadernoCampoService(BaseService[CadernoCampoEntrada]):
                 valor = _validar_domino(str(valor), STATUS_EVENTO_VALIDOS, "status_evento", "PENDENTE_APROVACAO")
             elif campo_norm == "data_registro" and valor is not None and isinstance(valor, str):
                 valor = date.fromisoformat(valor)
+            elif campo_norm == "executado_por_pessoa_id" and valor is not None:
+                valor = UUID(str(valor))
             payload[campo_norm] = valor
 
         if payload["tipo_evento"] is None:
@@ -672,6 +676,14 @@ class CadernoCampoService(BaseService[CadernoCampoEntrada]):
             return existente
 
         payload = mapear_operacao_para_evento_caderno(operacao)
+        executor_herdado = operacao.operador_id
+        if operacao.execucoes:
+            # Tenta encontrar o executor efetivo nas execuções
+            for execucao in sorted(operacao.execucoes, key=lambda e: e.data_execucao):
+                if getattr(execucao, "operador_id", None):
+                    executor_herdado = execucao.operador_id
+                    break
+
         entrada = CadernoCampoEntrada(
             tenant_id=self.tenant_id,
             safra_id=operacao.safra_id,
@@ -681,6 +693,7 @@ class CadernoCampoService(BaseService[CadernoCampoEntrada]):
             descricao=payload["descricao"],
             data_registro=payload["data_registro"],
             usuario_id=UUID("00000000-0000-0000-0000-000000000000"),
+            executado_por_pessoa_id=executor_herdado,
             operacao_id=operacao.id,
             origem_evento=payload["origem_evento"],
             origem_id=payload["origem_id"],
@@ -918,6 +931,7 @@ class CadernoCampoService(BaseService[CadernoCampoEntrada]):
                     descricao=descricao,
                     data_registro=data_registro,
                     usuario_id=evento.usuario_id or device.user_id,
+                    executado_por_pessoa_id=evento.executado_por_pessoa_id,
                     operacao_id=evento.operacao_id,
                     origem_evento=origem_evento,
                     origem_id=origem_id,
@@ -1095,6 +1109,41 @@ class CadernoCampoService(BaseService[CadernoCampoEntrada]):
             },
         )
 
+        if dados.executado_por_pessoa_id:
+            stmt = select(Pessoa).where(
+                Pessoa.id == dados.executado_por_pessoa_id,
+                Pessoa.tenant_id == self.tenant_id
+            )
+            pessoa = (await self.session.execute(stmt)).scalar_one_or_none()
+            if not pessoa:
+                raise BusinessRuleError("Pessoa não encontrada neste tenant.")
+
+            from core.cadastros.propriedades.models import AreaRural
+            from core.cadastros.pessoas.models import PessoaRelacionamento
+            from sqlalchemy import exists, and_, or_
+
+            talhao = (await self.session.execute(select(AreaRural).where(AreaRural.id == dados.talhao_id))).scalar_one_or_none()
+            if not talhao:
+                raise BusinessRuleError("Talhão não encontrado.")
+
+            stmt_rel = select(exists().where(
+                and_(
+                    PessoaRelacionamento.pessoa_id == dados.executado_por_pessoa_id,
+                    PessoaRelacionamento.unidade_produtiva_id == talhao.unidade_produtiva_id,
+                    or_(
+                        PessoaRelacionamento.ativo_desde.is_(None),
+                        PessoaRelacionamento.ativo_desde <= dados.data_registro
+                    ),
+                    or_(
+                        PessoaRelacionamento.ativo_ate.is_(None),
+                        PessoaRelacionamento.ativo_ate >= dados.data_registro
+                    )
+                )
+            ))
+            tem_relacionamento = (await self.session.execute(stmt_rel)).scalar()
+            if not tem_relacionamento:
+                raise BusinessRuleError("Pessoa selecionada não possui relacionamento válido com a Unidade Produtiva neste período.")
+
         if dados.origem_evento and dados.origem_id:
             existente = await self.obter_por_origem(origem_evento, origem_id)
             if existente:
@@ -1109,6 +1158,7 @@ class CadernoCampoService(BaseService[CadernoCampoEntrada]):
             descricao=dados.descricao,
             data_registro=dados.data_registro,
             usuario_id=usuario_id,
+            executado_por_pessoa_id=dados.executado_por_pessoa_id,
             origem_evento=origem_evento,
             origem_id=origem_id,
             origem_tecnica=origem_tecnica,
@@ -1150,6 +1200,42 @@ class CadernoCampoService(BaseService[CadernoCampoEntrada]):
             raise BusinessRuleError("Evento consolidado exige permissão superior para retificação.")
 
         payload = self._aplicar_dados_corrigidos(origem, dados_corrigidos)
+
+        if payload.get("executado_por_pessoa_id"):
+            stmt = select(Pessoa).where(
+                Pessoa.id == payload["executado_por_pessoa_id"],
+                Pessoa.tenant_id == self.tenant_id
+            )
+            pessoa = (await self.session.execute(stmt)).scalar_one_or_none()
+            if not pessoa:
+                raise BusinessRuleError("Pessoa não encontrada neste tenant.")
+
+            from core.cadastros.propriedades.models import AreaRural
+            from core.cadastros.pessoas.models import PessoaRelacionamento
+            from sqlalchemy import exists, and_, or_
+
+            talhao = (await self.session.execute(select(AreaRural).where(AreaRural.id == payload["talhao_id"]))).scalar_one_or_none()
+            if not talhao:
+                raise BusinessRuleError("Talhão não encontrado.")
+
+            stmt_rel = select(exists().where(
+                and_(
+                    PessoaRelacionamento.pessoa_id == payload["executado_por_pessoa_id"],
+                    PessoaRelacionamento.unidade_produtiva_id == talhao.unidade_produtiva_id,
+                    or_(
+                        PessoaRelacionamento.ativo_desde.is_(None),
+                        PessoaRelacionamento.ativo_desde <= payload["data_registro"]
+                    ),
+                    or_(
+                        PessoaRelacionamento.ativo_ate.is_(None),
+                        PessoaRelacionamento.ativo_ate >= payload["data_registro"]
+                    )
+                )
+            ))
+            tem_relacionamento = (await self.session.execute(stmt_rel)).scalar()
+            if not tem_relacionamento:
+                raise BusinessRuleError("Pessoa selecionada não possui relacionamento válido com a Unidade Produtiva neste período.")
+
         if origem.tipo_evento in TIPOS_EVENTO_QUE_EXIGEM_APROVACAO or origem.origem_evento == "PWA_OFFLINE":
             payload["status_evento"] = "PENDENTE_APROVACAO"
         elif _normalizar_chave(origem.status_evento) in {"REJEITADO", "CANCELADO"}:
@@ -1167,6 +1253,7 @@ class CadernoCampoService(BaseService[CadernoCampoEntrada]):
             descricao=payload["descricao"],
             data_registro=payload["data_registro"],
             usuario_id=usuario_id,
+            executado_por_pessoa_id=payload.get("executado_por_pessoa_id"),
             operacao_id=origem.operacao_id,
             origem_evento=payload["origem_evento"],
             origem_id=payload["origem_id"],

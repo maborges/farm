@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLiveQuery } from "dexie-react-hooks";
-import { db } from "@/lib/db";
+import { db, type CachedAnimal } from "@/lib/db";
 import { useGps } from "@/hooks/useGps";
 import { useCamera } from "@/hooks/useCamera";
 import { createTask } from "@/lib/task-factory";
@@ -28,15 +28,17 @@ export default function VacinacaoPage() {
   const [step, setStep] = useState<Step>("lote");
   const [loteId, setLoteId] = useState("");
   const [vacinaId, setVacinaId] = useState("");
-  const [vacinaNome, setVacinaNome] = useState("");
   const [quantidade, setQuantidade] = useState("");
   const [obs, setObs] = useState("");
   const [saving, setSaving] = useState(false);
   const [done, setDone] = useState(false);
-  const vacinaNomeInputRef = useRef<HTMLInputElement | null>(null);
 
   const fazendaId = session?.active_fazenda_id ?? session?.fazenda_ids?.[0] ?? "";
   const lotes = useLiveQuery(() => db.lotes.where("fazenda_id").equals(fazendaId).toArray(), [fazendaId]);
+  const animaisNoLote = useLiveQuery(
+    async (): Promise<CachedAnimal[]> => (loteId ? db.animais.where("lote_id").equals(loteId).toArray() : []),
+    [loteId]
+  );
   const vacinas = useLiveQuery(
     () => db.insumos.filter((i) => i.tipo === "VETERINARIO" || i.tipo === "VACINA" || i.nome.toLowerCase().includes("vacin")).toArray(),
     []
@@ -44,29 +46,30 @@ export default function VacinacaoPage() {
 
   const stepIndex = ["lote", "vacina", "confirmar"].indexOf(step);
   const loteAtual = lotes?.find((l) => l.id === loteId);
-
-  useEffect(() => {
-    if (step !== "vacina" || (vacinas ?? []).length > 0) return;
-    const frame = requestAnimationFrame(() => {
-      vacinaNomeInputRef.current?.focus();
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [step, vacinas]);
+  const vacinaAtual = (vacinas ?? []).find((vacina) => vacina.id === vacinaId);
+  const animaisAtivos = (animaisNoLote ?? []).filter((animal) => {
+    const status = (animal.status ?? "ATIVO").toUpperCase();
+    return status === "ATIVO" || status === "";
+  });
 
   const handleSalvar = async () => {
     setSaving(true);
     try {
       await createTask({
-        type: "VACINACAO_LOTE",
+        type: "VACINACAO",
         module: "pecuaria",
         fazenda_id: fazendaId,
         lote_id: loteId || undefined,
         dados: {
-          vacina_id: vacinaId || null,
-          vacina_nome: vacinaNome,
+          vacina_id: vacinaAtual?.id ?? null,
+          produto_id: vacinaAtual?.id ?? null,
+          produto_nome: vacinaAtual?.nome ?? null,
           dose_ml: parseFloat(quantidade) || 0,
-          quantidade_animais: loteAtual?.quantidade_cabecas ?? 0,
-          obs,
+          dose: parseFloat(quantidade) || 0,
+          unidade_medida: vacinaAtual?.unidade_medida ?? "ML",
+          quantidade_animais: animaisAtivos.length,
+          animais_ids: animaisAtivos.map((animal) => animal.id),
+          observacoes: obs,
         },
         fotos: cam.fotos,
         localizacao_status: gps.status,
@@ -109,6 +112,13 @@ export default function VacinacaoPage() {
             onChange={setLoteId}
             placeholder={fazendaId ? "Selecione o lote" : "Selecione a unidade produtiva na barra superior"}
           />
+          <CampoSurface className="flex flex-col gap-2 p-3.5 text-sm">
+            <p className="font-semibold text-foreground">Animais ativos sincronizados</p>
+            <p className="text-2xl font-semibold text-foreground">{animaisAtivos.length}</p>
+            <p className="text-muted-foreground">
+              O registro manual aplica a vacinação para todos os animais ativos do lote.
+            </p>
+          </CampoSurface>
           <CampoStepNav onBack={() => router.back()} onNext={() => setStep("vacina")} nextLabel={<>Próximo <ArrowRight className="size-4 ml-1 inline" /></>} nextDisabled={!loteId} />
         </div>
       )}
@@ -120,31 +130,21 @@ export default function VacinacaoPage() {
               label="Vacina"
               options={(vacinas ?? []).map((v) => ({ id: v.id, label: v.nome, sublabel: v.unidade_medida ?? undefined }))}
               value={vacinaId}
-              onChange={(id) => {
-                setVacinaId(id);
-                const v = vacinas?.find((v) => v.id === id);
-                if (v) setVacinaNome(v.nome);
-              }}
+              onChange={setVacinaId}
               placeholder="Selecione a vacina"
             />
           ) : (
-            /* Fallback: digitar nome da vacina */
-            <CampoSurface className="flex flex-col gap-2 p-3.5">
-              <label className="text-sm font-semibold text-foreground">Nome da Vacina</label>
-              <input
-                ref={vacinaNomeInputRef}
-                placeholder="Ex: Febre Aftosa, Brucelose..."
-                value={vacinaNome}
-                onChange={(e) => setVacinaNome(e.target.value)}
-                className="rounded-sm border border-border bg-card px-3.5 py-3 text-base outline-none transition-colors focus:border-ring focus:bg-muted placeholder:text-muted-foreground/50"
-                enterKeyHint="done"
-              />
+            <CampoSurface className="flex flex-col gap-2 p-3.5 text-sm">
+              <p className="font-semibold text-foreground">Nenhuma vacina sincronizada</p>
+              <p className="text-muted-foreground">
+                Sincronize os insumos do dispositivo antes de registrar vacinação manual, para garantir estoque e custo.
+              </p>
             </CampoSurface>
           )}
 
           <NumPad value={quantidade} onChange={setQuantidade} suffix="mL/animal" label="Dose por animal (mL)" />
 
-          <CampoStepNav onBack={() => setStep("lote")} onNext={() => setStep("confirmar")} nextLabel={<>Próximo <ArrowRight className="size-4 ml-1 inline" /></>} nextDisabled={!vacinaNome && !vacinaId} />
+          <CampoStepNav onBack={() => setStep("lote")} onNext={() => setStep("confirmar")} nextLabel={<>Próximo <ArrowRight className="size-4 ml-1 inline" /></>} nextDisabled={!vacinaAtual || !quantidade || quantidade === "0" || animaisAtivos.length === 0} />
         </div>
       )}
 
@@ -153,8 +153,8 @@ export default function VacinacaoPage() {
           <GpsWarning status={gps.status} onRetry={gps.capture} />
           <CampoSurface className="grid gap-2.5 p-3.5 text-sm md:grid-cols-2">
             <SummaryRow label="Lote" value={loteAtual?.identificacao ?? "—"} />
-            <SummaryRow label="Animais" value={String(loteAtual?.quantidade_cabecas ?? "—")} />
-            <SummaryRow label="Vacina" value={vacinaNome || (vacinas?.find((v) => v.id === vacinaId)?.nome ?? "—")} />
+            <SummaryRow label="Animais" value={String(animaisAtivos.length)} />
+            <SummaryRow label="Vacina" value={vacinaAtual?.nome ?? "—"} />
             {quantidade && <SummaryRow label="Dose" value={`${quantidade} mL/animal`} />}
           </CampoSurface>
 

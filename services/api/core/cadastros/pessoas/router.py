@@ -81,10 +81,21 @@ async def desativar_tipo(
 async def listar_pessoas(
     tipo: str | None = Query(None),
     ativo: bool = Query(True),
+    unidade_produtiva_id: uuid.UUID | None = Query(None),
+    data_referencia: str | None = Query(None),
     session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
-    return await _svc(session, tenant_id).listar(tipo=tipo, ativo=ativo)
+    from datetime import date
+    ref_date = None
+    if data_referencia:
+        ref_date = date.fromisoformat(data_referencia)
+    return await _svc(session, tenant_id).listar(
+        tipo=tipo,
+        ativo=ativo,
+        unidade_produtiva_id=unidade_produtiva_id,
+        data_referencia=ref_date
+    )
 
 
 @router.post("", response_model=PessoaResponse, status_code=201)

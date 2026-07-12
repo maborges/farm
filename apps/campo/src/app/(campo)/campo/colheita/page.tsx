@@ -39,6 +39,8 @@ export default function ColheitaPage() {
 
   const fazendaId = session?.active_fazenda_id ?? session?.fazenda_ids?.[0] ?? "";
   const talhoes = useLiveQuery(() => db.talhoes.where("fazenda_id").equals(fazendaId).toArray(), [fazendaId]);
+  const safras = useLiveQuery(() => db.safras.toArray(), []);
+  const activeSafra = safras?.find((s) => s.status === "ATIVA") ?? safras?.[0];
 
   const stepIndex = ["local", "quantidade", "confirmar"].indexOf(step);
 
@@ -51,6 +53,8 @@ export default function ColheitaPage() {
         fazenda_id: fazendaId,
         talhao_id: talhaoId || undefined,
         dados: {
+          safra_id: activeSafra?.id,
+          safra_nome: activeSafra?.ano_safra,
           quantidade: parseFloat(quantidade) || 0,
           unidade,
           umidade_perc: parseFloat(umidade) || null,
@@ -144,6 +148,7 @@ export default function ColheitaPage() {
           <GpsWarning status={gps.status} onRetry={gps.capture} />
           <CampoSurface className="grid gap-2.5 p-3.5 text-sm md:grid-cols-2">
             <SummaryRow label="Talhão" value={talhoes?.find((t) => t.id === talhaoId)?.nome ?? "—"} />
+            <SummaryRow label="Safra" value={activeSafra?.ano_safra ?? "—"} />
             <SummaryRow label="Quantidade" value={`${quantidade} ${unidade}`} />
             {umidade && <SummaryRow label="Umidade" value={`${umidade}%`} />}
           </CampoSurface>
@@ -160,7 +165,7 @@ export default function ColheitaPage() {
 
           <CameraCapture fotos={cam.fotos} inputRef={cam.inputRef} canAddMore={cam.canAddMore} onOpen={cam.openCamera} onFileChange={cam.handleFileChange} onRemove={cam.removePhoto} />
 
-          <CampoButton onClick={handleSalvar} disabled={saving} className="mt-auto w-full" size="md" variant="primary">
+          <CampoButton onClick={handleSalvar} disabled={saving || !activeSafra} className="mt-auto w-full" size="md" variant="primary">
             {saving ? "Salvando..." : <><Check className="size-4 shrink-0" /> Salvar Colheita</>}
           </CampoButton>
         </div>

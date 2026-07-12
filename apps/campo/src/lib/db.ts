@@ -175,6 +175,7 @@ export interface CampoEventoOffline {
   client_updated_at: string;
   device_id: string;
   usuario_id?: string | null;
+  executado_por_pessoa_id?: string | null;
   payload_operacional: Record<string, unknown>;
   evidencias: CadernoEvidenciaOffline[];
   documental_status?: string | null;
@@ -204,6 +205,7 @@ export interface CampoEventoOficial {
   tipo_evento?: string | null;
   descricao: string;
   data_registro: string;
+  executado_por_pessoa_id?: string | null;
   status_evento: string;
   documental_status: string;
   versao_vigente: boolean;
@@ -231,6 +233,7 @@ export interface CadernoDraft {
   tipo_evento: CadernoEventoTipo | string;
   descricao: string;
   observacao: string;
+  executado_por_pessoa_id?: string | null;
   fotos: string[];
   updated_at: string;
 }
@@ -296,6 +299,14 @@ export interface CachedColaborador {
   nome: string;
   cpf?: string | null;
   cargo?: string | null;
+}
+
+export interface PessoaOperacional {
+  id: string; // `${unidade_produtiva_id}:${pessoa_id}`
+  pessoa_id: string;
+  nome_exibicao: string;
+  unidade_produtiva_id: string;
+  papeis: string[];
 }
 
 export interface CachedRecomendacaoClimatica {
@@ -365,6 +376,7 @@ export class CampoDatabase extends Dexie {
   colaboradores!: Table<CachedColaborador>;
   recomendacoes_climaticas!: Table<CachedRecomendacaoClimatica>;
   recomendacoes_operacionais!: Table<CachedRecomendacaoOperacional>;
+  pessoas_operacionais!: Table<PessoaOperacional>;
 
   constructor() {
     super("campo_db");
@@ -593,6 +605,45 @@ export class CampoDatabase extends Dexie {
       recomendacoes_climaticas: "id, unidade_produtiva_id, tipo_operacao",
       recomendacoes_operacionais: "id, unidade_produtiva_id, domain, status, priority, updated_at",
     });
+    this.version(13).stores({
+      session: "id",
+      tasks:
+        "id, server_id, type, module, fazenda_id, talhao_id, lote_id, status, origem, status_execucao, data_programada, synced, created_at",
+      sync_queue: "id, entity_id, entity_type, status, created_at",
+      caderno_events: "local_id, server_id, tenant_id, safra_id, talhao_id, device_id, sync_status, review_required, created_at",
+      caderno_server_events:
+        "server_id, local_id, device_id, safra_id, talhao_id, status_evento, documental_status, updated_at, data_registro",
+      caderno_drafts: "id, user_id, task_id, updated_at",
+      fazendas: "id",
+      talhoes: "id, fazenda_id",
+      lotes: "id, fazenda_id",
+      animais: "id, unidade_produtiva_id, lote_id, numero_brinco, nome, categoria, sexo, status",
+      insumos: "id, categoria",
+      safras: "id, status",
+      colaboradores: "id",
+      recomendacoes_climaticas: "id, unidade_produtiva_id, tipo_operacao",
+      recomendacoes_operacionais: "id, unidade_produtiva_id, domain, status, priority, updated_at",
+    });
+    this.version(14).stores({
+      session: "id",
+      tasks:
+        "id, server_id, type, module, fazenda_id, talhao_id, lote_id, status, origem, status_execucao, data_programada, synced, created_at",
+      sync_queue: "id, entity_id, entity_type, status, created_at",
+      caderno_events: "local_id, server_id, tenant_id, safra_id, talhao_id, device_id, sync_status, review_required, created_at",
+      caderno_server_events:
+        "server_id, local_id, device_id, safra_id, talhao_id, status_evento, documental_status, updated_at, data_registro",
+      caderno_drafts: "id, user_id, task_id, updated_at",
+      fazendas: "id",
+      talhoes: "id, fazenda_id",
+      lotes: "id, fazenda_id",
+      animais: "id, unidade_produtiva_id, lote_id, numero_brinco, nome, categoria, sexo, status",
+      insumos: "id, categoria",
+      safras: "id, status",
+      colaboradores: "id",
+      recomendacoes_climaticas: "id, unidade_produtiva_id, tipo_operacao",
+      recomendacoes_operacionais: "id, unidade_produtiva_id, domain, status, priority, updated_at",
+      pessoas_operacionais: "id, unidade_produtiva_id, pessoa_id",
+    });
   }
 }
 
@@ -608,4 +659,8 @@ export function newLocalId(): string {
 
 export function isoNow(): string {
   return new Date().toISOString();
+}
+
+export function generatePessoaOperacionalId(upId: string, pessoaId: string): string {
+  return `${upId}:${pessoaId}`;
 }

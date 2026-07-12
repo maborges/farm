@@ -89,6 +89,8 @@ class ManejoSyncService(BaseService[EventoAnimal]):
         dados = tarefa.dados or {}
         animais_payload = dados.get("animais", [])
         if not animais_payload:
+            animais_payload = await self._resolver_pesagem_coletiva_por_lote(dados)
+        if not animais_payload:
             return self._resultado_ignorado(tarefa_id, "A tarefa não contém a chave 'animais' ou a lista está vazia.")
 
         validacao = self._validar_animais_payload_pesagem(animais_payload, dados)
@@ -127,18 +129,19 @@ class ManejoSyncService(BaseService[EventoAnimal]):
     async def _processar_vacinacao(self, tarefa: TarefaCampo) -> ManejoSyncResult:
         tarefa_id = tarefa.id
         dados = tarefa.dados or {}
-        animais_ids = self._normalizar_animais_ids(dados.get("animais_ids"))
+        lote_id = self._uuid_from_value(dados.get("lote_id"))
+        animais_ids = await self._resolver_animais_ids_vacinacao(dados, lote_id)
         if not animais_ids:
             return self._resultado_ignorado(tarefa_id, "A tarefa não contém a chave 'animais_ids' ou a lista está vazia.")
 
         try:
-            lote_id = self._uuid_from_value(dados.get("lote_id"))
             if not lote_id:
                 raise ValueError("lote_id é obrigatório para vacinação.")
             await self._validar_lote_vacinacao(lote_id)
-            produto = await self._validar_produto_vacina(dados.get("produto_id"))
-            dose = self._validar_dose_vacinacao(dados.get("dose"))
-            if not dados.get("unidade_medida"):
+            produto = await self._validar_produto_vacina(dados.get("produto_id") or dados.get("vacina_id"))
+            dose = self._validar_dose_vacinacao(dados.get("dose") or dados.get("dose_ml"))
+            unidade_medida = str(dados.get("unidade_medida") or produto.unidade_medida or "").strip().upper()
+            if not unidade_medida:
                 raise ValueError("unidade_medida é obrigatória para vacinação.")
             animais_banco = await self._buscar_animais(animais_ids)
             erros = self._validar_animais_no_lote(animais_banco, animais_ids, lote_id)
@@ -146,7 +149,7 @@ class ManejoSyncService(BaseService[EventoAnimal]):
                 await self.session.rollback()
                 return self._resultado_erro(tarefa_id, len(animais_ids), erros)
             animais_ja_processados = await self._animais_ja_processados(tarefa_id, "VACINACAO", animais_ids)
-            eventos = self._montar_eventos_vacinacao(tarefa, dados, animais_banco, produto, dose, animais_ja_processados)
+            eventos = self._montar_eventos_vacinacao(tarefa, dados, animais_ids, animais_banco, produto, dose, animais_ja_processados)
             total_processado = len(eventos)
             total_ignorados = len(animais_ja_processados)
             if eventos:
@@ -156,13 +159,13 @@ class ManejoSyncService(BaseService[EventoAnimal]):
                 tarefa=tarefa,
                 produto=produto,
                 dose=dose,
-                unidade_medida=str(dados.get("unidade_medida")),
+                unidade_medida=unidade_medida,
                 quantidade_animais=total_processado,
             )
             await self._registrar_custo_vacinacao(tarefa, movimento, total_processado)
             await self._publish_vacinacao_registrada_event(
                 tarefa=tarefa,
-                dados=dados,
+                dados={**dados, "unidade_medida": unidade_medida},
                 animais_ids=animais_ids,
                 produto=produto,
                 dose=dose,
@@ -538,6 +541,35 @@ class ManejoSyncService(BaseService[EventoAnimal]):
         res_animais = await self.session.execute(stmt_animais)
         return {animal.id: animal for animal in res_animais.scalars().all()}
 
+    async def _buscar_animais_ativos_por_lote(self, lote_id: UUID) -> list[Animal]:
+        stmt = (
+            select(Animal)
+            .where(
+                Animal.tenant_id == self.tenant_id,
+                Animal.lote_id == lote_id,
+                Animal.status == "ATIVO",
+            )
+            .order_by(Animal.numero_brinco.asc().nullslast(), Animal.id.asc())
+        )
+        return list((await self.session.execute(stmt)).scalars().all())
+
+    async def _resolver_pesagem_coletiva_por_lote(self, dados: dict) -> list[dict]:
+        lote_id = self._uuid_from_value(dados.get("lote_id"))
+        tipo_pesagem = str(dados.get("tipo_pesagem") or "").upper()
+        peso_medio = self._safe_float(dados.get("peso_medio_kg"))
+        if lote_id is None or tipo_pesagem != "LOTE_BALANCA" or peso_medio is None or peso_medio <= 0:
+            return []
+        animais_lote = await self._buscar_animais_ativos_por_lote(lote_id)
+        return [
+            {
+                "animal_id": str(animal.id),
+                "peso_kg": peso_medio,
+                "observacao": dados.get("observacoes") or dados.get("obs"),
+                "data_evento": dados.get("data_evento"),
+            }
+            for animal in animais_lote
+        ]
+
     def _validar_animais_no_lote(self, animais_banco: dict[UUID, Animal], animal_ids: list[UUID], lote_id: UUID | None) -> list[str]:
         erros: list[str] = []
         for a_id in animal_ids:
@@ -548,6 +580,15 @@ class ManejoSyncService(BaseService[EventoAnimal]):
             if lote_id and animal_obj.lote_id != lote_id:
                 erros.append(f"Animal {a_id} não pertence ao lote {lote_id}.")
         return erros
+
+    async def _resolver_animais_ids_vacinacao(self, dados: dict, lote_id: UUID | None) -> list[UUID]:
+        animais_ids = self._normalizar_animais_ids(dados.get("animais_ids"))
+        if animais_ids:
+            return animais_ids
+        if lote_id is None:
+            return []
+        animais_lote = await self._buscar_animais_ativos_por_lote(lote_id)
+        return [animal.id for animal in animais_lote]
 
     async def _animais_ja_processados(self, tarefa_campo_id: UUID, tipo: str, animal_ids: list[UUID]) -> set[UUID]:
         stmt_eventos = select(EventoAnimal.animal_id).where(
@@ -623,6 +664,7 @@ class ManejoSyncService(BaseService[EventoAnimal]):
         self,
         tarefa: TarefaCampo,
         dados: dict,
+        animais_ids: list[UUID],
         animais_banco: dict[UUID, Animal],
         produto: Produto,
         dose: float,
@@ -632,7 +674,7 @@ class ManejoSyncService(BaseService[EventoAnimal]):
         lote_id = self._uuid_from_value(dados.get("lote_id"))
         area_id = self._uuid_from_value(dados.get("area_id"))
         data_evento = self._resolver_data_evento(dados.get("data_evento"), tarefa.concluida_em)
-        for animal_id in self._normalizar_animais_ids(dados.get("animais_ids")):
+        for animal_id in animais_ids:
             if animal_id in animais_ja_processados:
                 continue
             animal_obj = animais_banco[animal_id]
@@ -645,7 +687,7 @@ class ManejoSyncService(BaseService[EventoAnimal]):
                     tipo="VACINACAO",
                     data_evento=data_evento,
                     produto_id=produto.id,
-                    observacoes=dados.get("observacoes"),
+                    observacoes=dados.get("observacoes") or dados.get("obs"),
                     dados_extras={
                         "lote_id": str(lote_id) if lote_id else None,
                         "area_id": str(area_id) if area_id else None,

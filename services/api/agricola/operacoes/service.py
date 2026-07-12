@@ -866,7 +866,7 @@ class OperacaoService(BaseService[OperacaoAgricola]):
             )
 
         # 2.6. VALIDAÇÃO: Data não pode ser futura apenas se a operação já estiver realizada
-        if operacao.status == "REALIZADA" and dados.data_realizada > date.today():
+        if dados.status == "REALIZADA" and dados.data_realizada > date.today():
             raise BusinessRuleError(
                 f"Data da operação não pode ser futura. "
                 f"Informe a data em que a operação foi realmente realizada."

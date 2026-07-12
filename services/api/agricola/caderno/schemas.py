@@ -82,6 +82,7 @@ class EvidenciaUploadResponse(BaseModel):
 class EntradaCreate(BaseModel):
     safra_id: UUID
     talhao_id: UUID
+    executado_por_pessoa_id: Optional[UUID] = None
     tipo: str
     tipo_evento: Optional[TipoEventoCaderno] = None
     descricao: str
@@ -124,6 +125,7 @@ class EntradaResponse(BaseModel):
     descricao: str
     data_registro: date
     usuario_id: UUID
+    executado_por_pessoa_id: Optional[UUID] = None
     operacao_id: Optional[UUID] = None
     origem_evento: Optional[str] = None
     origem_id: Optional[str] = None
@@ -274,6 +276,7 @@ class TimelineItem(BaseModel):
     subtipo: Optional[str] = None  # para diferenciar entrada manual de operação auto
     descricao: str
     data_registro: date
+    executado_por_pessoa_id: Optional[UUID] = None
     talhao_id: UUID
     origem_evento: Optional[str] = None
     origem_id: Optional[str] = None
@@ -326,6 +329,7 @@ class EventoCadernoOfflinePayload(BaseModel):
     client_updated_at: datetime
     device_id: str
     usuario_id: Optional[UUID] = None
+    executado_por_pessoa_id: Optional[UUID] = None
     origem_evento: OrigemEventoCaderno = "PWA_OFFLINE"
     origem_tecnica: OrigemTecnicaCaderno = "SYNC_PWA"
     evidencias: list[EvidenciaOfflinePayload] = Field(default_factory=list)
@@ -354,6 +358,7 @@ class EventoCadernoOficialSync(BaseModel):
     tipo_evento: Optional[str] = None
     descricao: str
     data_registro: date
+    executado_por_pessoa_id: Optional[UUID] = None
     status_evento: str
     documental_status: str
     versao_vigente: bool = False
