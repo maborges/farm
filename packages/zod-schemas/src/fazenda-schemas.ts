@@ -19,6 +19,7 @@ export const createUnidadeProdutivaSchema = z.object({
     // Localização
     cep: z.string().max(9).optional().or(z.literal("")),
     logradouro: z.string().max(255).optional().or(z.literal("")),
+    numero: z.string().max(20, "Número muito longo").optional().or(z.literal("")),
     bairro: z.string().max(100).optional().or(z.literal("")),
     municipio: z.string().max(100).optional().or(z.literal("")),
     uf: z.string().max(2).optional().or(z.literal("")),

@@ -17,6 +17,7 @@ class UnidadeProdutivaCreate(BaseModel):
     # Localização
     cep: Optional[str] = Field(None, max_length=9)
     logradouro: Optional[str] = Field(None, max_length=255)
+    numero: Optional[str] = Field(None, max_length=20)
     bairro: Optional[str] = Field(None, max_length=100)
     municipio: Optional[str] = Field(None, max_length=100)
     uf: Optional[str] = Field(None, min_length=2, max_length=2, description="UF da propriedade.")
@@ -42,6 +43,7 @@ class UnidadeProdutivaUpdate(BaseModel):
     numero_matricula: Optional[str] = Field(None, max_length=100)
     cep: Optional[str] = Field(None, max_length=9)
     logradouro: Optional[str] = Field(None, max_length=255)
+    numero: Optional[str] = Field(None, max_length=20)
     bairro: Optional[str] = Field(None, max_length=100)
     municipio: Optional[str] = Field(None, max_length=100)
     uf: Optional[str] = Field(None, min_length=2, max_length=2)
