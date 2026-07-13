@@ -2,17 +2,20 @@
 
 from __future__ import annotations
 
+import asyncio
+import logging
 from datetime import datetime, timedelta
 from types import SimpleNamespace
 from typing import Any
 
 import httpx
 from sqlalchemy import func, select, text
-from sqlalchemy.exc import ProgrammingError
+from sqlalchemy.exc import IntegrityError, ProgrammingError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from core.config import settings
+from integracoes.erp_readiness_service import ErpReadinessService
 from integracoes.models import (
     IntegrationFeature,
     IntegrationHealth,
@@ -22,7 +25,6 @@ from integracoes.models import (
     MarketplaceIntegracao,
     TenantIntegracao,
 )
-from integracoes.erp_readiness_service import ErpReadinessService
 from integracoes.sankhya.models import (
     SankhyaConfig,
     SankhyaPessoa,
@@ -30,16 +32,76 @@ from integracoes.sankhya.models import (
     SankhyaSyncLog,
 )
 from integracoes.sankhya.schemas import SankhyaTestConnectionResponse
+from integracoes.sankhya.services.auth_service import SankhyaGatewayAuthService
+from integracoes.sankhya.services.canonical_adapter import SankhyaCanonicalAdapter
 from integracoes.sankhya.services.external_association_helper import (
     SankhyaExternalAssociationHelper,
 )
-from integracoes.sankhya.services.canonical_adapter import SankhyaCanonicalAdapter
-from integracoes.sankhya.services.auth_service import SankhyaGatewayAuthService
 from integracoes.security import (
     decrypt_integration_secret,
     encrypt_integration_secret,
     mask_integration_secret,
 )
+
+_LOGGER = logging.getLogger(__name__)
+_SANKHYA_CONFIG_TENANT_UNIQUE_CONSTRAINTS = {
+    "sankhya_config_pkey",
+    "sankhya_config_tenant_id_key",
+}
+
+
+def _constraint_name_from_integrity_error(exc: IntegrityError) -> str | None:
+    candidates = [
+        getattr(exc, "orig", None),
+        getattr(getattr(exc, "orig", None), "__cause__", None),
+    ]
+    for candidate in candidates:
+        if candidate is None:
+            continue
+        constraint_name = getattr(candidate, "constraint_name", None)
+        if constraint_name:
+            return str(constraint_name)
+        diag = getattr(candidate, "diag", None)
+        if diag is not None:
+            diag_constraint_name = getattr(diag, "constraint_name", None)
+            if diag_constraint_name:
+                return str(diag_constraint_name)
+    message = str(exc)
+    for name in _SANKHYA_CONFIG_TENANT_UNIQUE_CONSTRAINTS:
+        if name in message:
+            return name
+    return None
+
+
+def _sqlstate_from_integrity_error(exc: IntegrityError) -> str | None:
+    candidates = [
+        getattr(exc, "orig", None),
+        getattr(getattr(exc, "orig", None), "__cause__", None),
+    ]
+    for candidate in candidates:
+        if candidate is None:
+            continue
+        code = getattr(candidate, "sqlstate", None) or getattr(candidate, "pgcode", None)
+        if code:
+            return str(code)
+    return None
+
+
+def _is_sankhya_config_unique_conflict(exc: IntegrityError) -> bool:
+    sqlstate = _sqlstate_from_integrity_error(exc)
+    if sqlstate is not None and sqlstate != "23505":
+        return False
+
+    constraint_name = _constraint_name_from_integrity_error(exc)
+    if constraint_name in _SANKHYA_CONFIG_TENANT_UNIQUE_CONSTRAINTS:
+        return True
+
+    message = str(exc).lower()
+    return "sankhya_config" in message and (
+        ("tenant_id" in message and "unique" in message)
+        or ("id" in message and "unique" in message)
+        or ("id" in message and "duplicate key" in message)
+    )
 
 
 class SankhyaWSClient:
@@ -326,7 +388,10 @@ class SankhyaSyncService:
     @staticmethod
     def _is_missing_legacy_gateway_columns_error(exc: ProgrammingError) -> bool:
         message = str(exc).lower()
-        return "sankhya_config.token does not exist" in message or "sankhya_config.appkey does not exist" in message
+        return (
+            "sankhya_config.token does not exist" in message
+            or "sankhya_config.appkey does not exist" in message
+        )
 
     @staticmethod
     def _requires_legacy_gateway_columns(normalized: dict[str, Any]) -> bool:
@@ -357,8 +422,12 @@ class SankhyaSyncService:
             sankhya_x_token,
         ]
         legacy_inputs = [sankhya_token, sankhya_appkey, ws_url, username, password]
-        explicit_gateway = any(bool(value.strip() if isinstance(value, str) else value) for value in gateway_inputs)
-        explicit_legacy = any(bool(value.strip() if isinstance(value, str) else value) for value in legacy_inputs)
+        explicit_gateway = any(
+            bool(value.strip() if isinstance(value, str) else value) for value in gateway_inputs
+        )
+        explicit_legacy = any(
+            bool(value.strip() if isinstance(value, str) else value) for value in legacy_inputs
+        )
         explicit_legacy_login = any(
             bool(value and value.strip()) for value in (sankhya_token, sankhya_appkey)
         )
@@ -378,7 +447,9 @@ class SankhyaSyncService:
             auth_model = "gateway_oauth_client_credentials"
 
         current_is_gateway = (
-            current_auth.auth_model() == "gateway_oauth_client_credentials" if current_auth else False
+            current_auth.auth_model() == "gateway_oauth_client_credentials"
+            if current_auth
+            else False
         )
         current_is_legacy_login = (
             current_auth.auth_model() == "gateway_legacy_login" if current_auth else False
@@ -387,12 +458,16 @@ class SankhyaSyncService:
             current_auth.auth_model() == "legacy_ws_basic_auth" if current_auth else False
         )
 
-        environment = sankhya_environment or (current.environment if current else settings.sankhya_environment)
+        environment = sankhya_environment or (
+            current.environment if current else settings.sankhya_environment
+        )
         api_base_url = sankhya_api_base_url or (
             current.api_base_url if current and current.api_base_url else None
         )
         auth_url = sankhya_auth_url or (current.auth_url if current and current.auth_url else None)
-        client_id = sankhya_client_id or (current.client_id if current and current.client_id else None)
+        client_id = sankhya_client_id or (
+            current.client_id if current and current.client_id else None
+        )
         client_secret_raw = sankhya_client_secret
         x_token_raw = sankhya_x_token
         token_raw = sankhya_token
@@ -434,7 +509,11 @@ class SankhyaSyncService:
             password_value = (
                 encrypt_integration_secret(password_raw)
                 if password_raw is not None
-                else (current.password if current and current.password and current_is_legacy_basic else None)
+                else (
+                    current.password
+                    if current and current.password and current_is_legacy_basic
+                    else None
+                )
             )
         elif auth_model == "gateway_legacy_login":
             username_value = username or sankhya_client_id or username_value
@@ -498,7 +577,9 @@ class SankhyaSyncService:
             token = current.token if current and current.token else None
             appkey = current.appkey if current and current.appkey else None
         else:
-            raise ValueError("Configuração Sankhya incompleta: informe Gateway ou credenciais legadas")
+            raise ValueError(
+                "Configuração Sankhya incompleta: informe Gateway ou credenciais legadas"
+            )
 
         return {
             "environment": environment,
@@ -507,8 +588,12 @@ class SankhyaSyncService:
             "client_id": client_id,
             "client_secret": client_secret,
             "x_token": x_token,
-            "token": token if "token" in locals() else (current.token if current and current.token else None),
-            "appkey": appkey if "appkey" in locals() else (current.appkey if current and current.appkey else None),
+            "token": token
+            if "token" in locals()
+            else (current.token if current and current.token else None),
+            "appkey": appkey
+            if "appkey" in locals()
+            else (current.appkey if current and current.appkey else None),
             "ws_url": ws_url_value,
             "username": username_value,
             "password": password_value,
@@ -598,6 +683,26 @@ class SankhyaSyncService:
                 normalized,
                 next_config_id=next_config_id,
             )
+        except IntegrityError as exc:
+            await self.db.rollback()
+            if not _is_sankhya_config_unique_conflict(exc):
+                raise
+
+            _LOGGER.info(
+                "Idempotent unique collision while creating Sankhya config",
+                extra={
+                    "tenant_id": tenant_id,
+                    "constraint_name": _constraint_name_from_integrity_error(exc),
+                },
+            )
+            config = await self.get_config(tenant_id)
+            if config is None:
+                await asyncio.sleep(0)
+                config = await self.get_config(tenant_id)
+            if config is None:
+                raise RuntimeError(
+                    "Falha ao reler a configuração Sankhya após colisão concorrente"
+                ) from exc
         await self._restore_rls_context(tenant_id)
         await self.adapter.sync_provider_config(
             config,
@@ -1049,10 +1154,7 @@ class SankhyaSyncService:
         )
         jobs = list((await self.db.execute(stmt)).scalars().all())
 
-        return [
-            self._serialize_job(job, feature_by_id.get(job.feature_id))
-            for job in jobs
-        ]
+        return [self._serialize_job(job, feature_by_id.get(job.feature_id)) for job in jobs]
 
     async def listar_logs_enriquecidos(
         self,
@@ -1153,9 +1255,7 @@ class SankhyaSyncService:
 
         feature_mais_problematica = self._resolve_problematic_feature(jobs, logs)
         health_atual = str(
-            health_payload.get("status")
-            or status_payload.get("health_status")
-            or "DISCONNECTED"
+            health_payload.get("status") or status_payload.get("health_status") or "DISCONNECTED"
         )
         status_degradacao = (
             "degradado"
@@ -1165,9 +1265,7 @@ class SankhyaSyncService:
 
         return {
             "origem": (
-                health_payload.get("origem")
-                or status_payload.get("health_origem")
-                or "legacy"
+                health_payload.get("origem") or status_payload.get("health_origem") or "legacy"
             ),
             "health_atual": health_atual,
             "status_degradacao": status_degradacao,
@@ -1327,7 +1425,10 @@ class SankhyaSyncService:
             return "A última verificação de comunicação com o ERP foi concluída com sucesso."
         if config.teste_status == "erro":
             return "A última verificação de comunicação com o ERP falhou."
-        return "Há configuração salva, mas a situação detalhada da integração ainda não está disponível."
+        return (
+            "Há configuração salva, mas a situação detalhada da integração ainda "
+            "não está disponível."
+        )
 
     def _serialize_job(
         self,
@@ -1545,9 +1646,14 @@ class SankhyaSyncService:
                 f"{feature_mais_problematica} antes de iniciar novas atualizações manuais."
             )
         if jobs_pendentes > 0:
-            return "Aguarde a conclusão das atualizações em andamento antes de iniciar novas execuções."
+            return (
+                "Aguarde a conclusão das atualizações em andamento antes de iniciar "
+                "novas execuções."
+            )
         if health_atual in {"DEGRADED", "PARTIAL_FAILURE"}:
-            return "Acompanhe as próximas atualizações e confira os erros mais recentes da integração."
+            return (
+                "Acompanhe as próximas atualizações e confira os erros mais recentes da integração."
+            )
         return "A integração está operando de forma estável no momento."
 
     @staticmethod
@@ -1564,7 +1670,8 @@ class SankhyaSyncService:
         feature_code = job.get("feature_code") or "feature_indefinida"
         return (
             f"Execução {job['job_status']} para {feature_code}: "
-            f"{job.get('sucessos', 0)} de {job.get('processados', 0)} registros concluídos com sucesso."
+            f"{job.get('sucessos', 0)} de {job.get('processados', 0)} registros "
+            "concluídos com sucesso."
         )
 
     def _build_log_summary(self, log: dict[str, Any]) -> str:

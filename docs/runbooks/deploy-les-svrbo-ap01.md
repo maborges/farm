@@ -1004,9 +1004,35 @@ Se ainda não existir domínio, você pode usar HTTP para o primeiro teste.
 
 Se houver domínio apontado para esse IP, crie ou instale o certificado e depois adicione outro `server` com `listen 443 ssl;`.
 
-Sem domínio ainda, não publique o `Campo PWA` na internet. Deixe-o apenas em `127.0.0.1:3002` até existir um host ou subdomínio próprio, para evitar conflito de `manifest` e `service worker`.
+### 19.3 Como acessar (chamar) o Campo PWA sem domínio
 
-### 19.3 Validar a configuração do Nginx
+Sem um domínio (apenas IP), não é recomendado publicar o `Campo PWA` na mesma porta `80` (raiz ou subpasta) que o sistema principal (`web`), pois ocorrerão conflitos nos arquivos de `manifest.json` e `service worker`.
+
+Para acessar e testar o Campo PWA temporariamente, você pode expô-lo em uma porta diferente no Nginx (por exemplo, `8080`). Adicione este bloco extra no final do seu arquivo `/etc/nginx/conf.d/agrosaas.conf`:
+
+```nginx
+server {
+    listen 8080;
+    server_name 179.127.30.25;
+
+    location / {
+        proxy_pass http://127.0.0.1:3002;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+    }
+}
+```
+
+Após reiniciar o Nginx (no próximo passo), você poderá **chamar o Campo PWA** acessando: `http://179.127.30.25:8080`
+
+Quando houver subdomínio próprio (ex: `campo.seudominio.com.br`), você alterará este bloco mudando o `listen` para `80`/`443` e ajustando o `server_name`.
+
+### 19.4 Validar a configuração do Nginx
 
 ### Onde executar
 - `No servidor como root`
@@ -1028,6 +1054,7 @@ sudo systemctl restart nginx
 ```bash
 sudo firewall-cmd --permanent --add-service=http
 sudo firewall-cmd --permanent --add-service=https
+sudo firewall-cmd --permanent --add-port=8080/tcp
 sudo firewall-cmd --reload
 ```
 

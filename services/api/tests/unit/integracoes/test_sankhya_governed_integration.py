@@ -2,27 +2,14 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, call
 
 import pytest
-import pytest_asyncio
 from sqlalchemy import Column, Table
 from sqlalchemy import Uuid as UUIDType
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import Base
-from integracoes.models import (
-    ExternalRecordAssociation,
-    IntegrationCredential,
-    IntegrationFeature,
-    IntegrationHealth,
-    IntegrationJob,
-    IntegrationSyncPolicy,
-    IntegrationVersion,
-    MarketplaceIntegracao,
-    TenantIntegracao,
-)
-from integracoes.sankhya.models import SankhyaConfig
 from integracoes.sankhya.services.auth_service import SankhyaGatewayAuthService
 from integracoes.sankhya.services.sync_service import (
     SankhyaConfigSerializer,
@@ -45,28 +32,6 @@ if "domain_event_outbox" not in Base.metadata.tables:
         Base.metadata,
         Column("id", UUIDType(as_uuid=True), primary_key=True),
     )
-
-
-@pytest_asyncio.fixture()
-async def session() -> AsyncSession:
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
-    async with engine.begin() as conn:
-        await conn.run_sync(lambda sync_conn: MarketplaceIntegracao.__table__.create(sync_conn))
-        await conn.run_sync(lambda sync_conn: IntegrationCredential.__table__.create(sync_conn))
-        await conn.run_sync(lambda sync_conn: TenantIntegracao.__table__.create(sync_conn))
-        await conn.run_sync(lambda sync_conn: IntegrationVersion.__table__.create(sync_conn))
-        await conn.run_sync(lambda sync_conn: SankhyaConfig.__table__.create(sync_conn))
-        await conn.run_sync(lambda sync_conn: IntegrationFeature.__table__.create(sync_conn))
-        await conn.run_sync(lambda sync_conn: IntegrationSyncPolicy.__table__.create(sync_conn))
-        await conn.run_sync(lambda sync_conn: IntegrationJob.__table__.create(sync_conn))
-        await conn.run_sync(lambda sync_conn: IntegrationHealth.__table__.create(sync_conn))
-        await conn.run_sync(lambda sync_conn: ExternalRecordAssociation.__table__.create(sync_conn))
-
-    session_factory = async_sessionmaker(engine, expire_on_commit=False)
-    async with session_factory() as current:
-        yield current
-
-    await engine.dispose()
 
 
 @pytest.fixture(autouse=True)
@@ -166,7 +131,8 @@ async def test_criar_config_restaura_contexto_rls_antes_do_sync_canonico(
         sync_interval=900,
     )
 
-    restore_mock.assert_awaited_once_with("tenant-1")
+    assert restore_mock.await_count == 2
+    restore_mock.assert_has_awaits([call("tenant-1"), call("tenant-1")])
     sync_mock.assert_awaited_once()
 
 
@@ -313,8 +279,14 @@ async def test_painel_erp_expoe_contrato_canonico_do_provider(session: AsyncSess
     assert payload["provider_name"] == "Sankhya"
     assert payload["provider_display_name"] == "Sankhya ERP"
     assert payload["provider_definition"]["provider_code"] == "sankhya"
-    assert payload["feature_schema"]["capability_matrix"][0]["capability_code"] == "erp.cadastros.pessoas.importar"
-    assert payload["sync_schema"]["retry"]["max_attempts_source"] == "IntegrationSyncPolicy.max_retries"
+    assert (
+        payload["feature_schema"]["capability_matrix"][0]["capability_code"]
+        == "erp.cadastros.pessoas.importar"
+    )
+    assert (
+        payload["sync_schema"]["retry"]["max_attempts_source"]
+        == "IntegrationSyncPolicy.max_retries"
+    )
     assert payload["health_schema"]["diagnostics"]["connection_test"] is True
     assert payload["connection_schema"]["required"][0] == "sankhya_environment"
 
@@ -352,7 +324,9 @@ async def test_atualizacao_sem_nova_senha_mantem_credencial_existente(
 
 
 @pytest.mark.asyncio
-async def test_atualizacao_gateway_sem_reenviar_segredos_mantem_token(session: AsyncSession) -> None:
+async def test_atualizacao_gateway_sem_reenviar_segredos_mantem_token(
+    session: AsyncSession,
+) -> None:
     service = SankhyaSyncService(session)
     config = await service.criar_config(
         tenant_id="tenant-1",

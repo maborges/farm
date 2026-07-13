@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
+import asyncio
+import inspect
 import json
+import logging
 import uuid
+from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, TypeVar
 
 from sqlalchemy import select, text
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from events import publish_domain_event_safe
@@ -38,21 +43,68 @@ from integracoes.models import (
 )
 from integracoes.sankhya.models import SankhyaConfig
 from integracoes.sankhya.services.auth_service import SankhyaGatewayAuthService
+from integracoes.schemas import (
+    ProviderFieldDefinition,
+    ProviderFieldSelectOption,
+    ProviderFieldType,
+    ProviderSchemaDefinition,
+)
 from integracoes.security import (
     decrypt_integration_secret,
     encrypt_integration_secret,
     mask_integration_secret,
 )
-from integracoes.schemas import (
-    ProviderSchemaDefinition,
-    ProviderFieldDefinition,
-    ProviderFieldType,
-    ProviderFieldSelectOption,
-)
 
 _SANKHYA_SLUG = "sankhya"
 _SANKHYA_NAME = "Sankhya"
 _LOG_NAMESPACE = uuid.uuid5(uuid.NAMESPACE_URL, "agrosaas:sankhya:sync-log")
+_LOGGER = logging.getLogger(__name__)
+T = TypeVar("T")
+
+_TENANT_INTEGRACAO_UNIQUE_CONSTRAINTS = {
+    "uq_tenant_integracoes_provider_scope_tenant",
+    "uq_tenant_integracoes_provider_scope_estabelecimento",
+}
+_CANONICAL_UNIQUE_CONSTRAINTS = {
+    "marketplace_integracoes_slug_key",
+    "sankhya_config_tenant_id_key",
+    "uq_integration_credentials_version_scope",
+    "uq_integration_features_config_codigo",
+    "uq_integration_sync_policies_feature_id",
+    "uq_integration_health_config_id",
+    "uq_integration_versions_config_version",
+    *_TENANT_INTEGRACAO_UNIQUE_CONSTRAINTS,
+}
+_SQLITE_UNIQUE_CONFLICT_HINTS: dict[str, tuple[str, ...]] = {
+    "marketplace_integracoes_slug_key": ("marketplace_integracoes.slug",),
+    "sankhya_config_tenant_id_key": ("sankhya_config.tenant_id",),
+    "uq_integration_credentials_version_scope": (
+        "integration_credentials.tenant_id",
+        "integration_credentials.provider_id",
+        "integration_credentials.scope_type",
+        "integration_credentials.scope_id",
+        "integration_credentials.version_number",
+    ),
+    "uq_integration_features_config_codigo": (
+        "integration_features.config_id",
+        "integration_features.codigo",
+    ),
+    "uq_integration_sync_policies_feature_id": ("integration_sync_policies.feature_id",),
+    "uq_integration_health_config_id": ("integration_health.config_id",),
+    "uq_integration_versions_config_version": (
+        "integration_versions.config_id",
+        "integration_versions.version_number",
+    ),
+    "uq_tenant_integracoes_provider_scope_tenant": (
+        "tenant_integracoes.tenant_id",
+        "tenant_integracoes.integracao_id",
+    ),
+    "uq_tenant_integracoes_provider_scope_estabelecimento": (
+        "tenant_integracoes.tenant_id",
+        "tenant_integracoes.integracao_id",
+        "tenant_integracoes.scope_id",
+    ),
+}
 _PROVIDER_SCOPES = [
     IntegrationScope.TENANT.value,
     IntegrationScope.ESTABELECIMENTO.value,
@@ -250,15 +302,20 @@ def _provider_definition_payload() -> dict[str, Any]:
             }
         ),
         "health_model": "INTEGRATION_HEALTH",
-        "documentation_url": "/docs/architecture/ERP-PROVIDER-CONTRACT-02-CONTRATO-CANONICO-PROVIDER-ERP.md",
+        "documentation_url": (
+            "/docs/architecture/"
+            "ERP-PROVIDER-CONTRACT-02-CONTRATO-CANONICO-PROVIDER-ERP.md"
+        ),
         "support_level": "REFERENCE_PROVIDER",
         "maturity": "PILOT_READY",
         "provider_notes": [
             "provider de referência para o contrato ERP canônico",
-            "gateway_oauth_client_credentials usa /authenticate com client_id, client_secret e X-Token",
+            "gateway_oauth_client_credentials usa /authenticate com client_id, "
+            "client_secret e X-Token",
             "gateway_legacy_login usa /login com token, appkey, username e password",
             "legacy_ws_basic_auth permanece apenas por compatibilidade histórica",
-            "reutiliza ExternalRecordAssociation, IntegrationJob, IntegrationHealth e IntegrationSyncPolicy",
+            "reutiliza ExternalRecordAssociation, IntegrationJob, IntegrationHealth "
+            "e IntegrationSyncPolicy",
         ],
     }
 
@@ -313,7 +370,10 @@ def _sync_schema_payload() -> dict[str, Any]:
         },
         "webhook": {
             "supported": False,
-            "reason": "provider atual usa gateway e sync desacoplado sem webhook oficial materializado",
+            "reason": (
+                "provider atual usa gateway e sync desacoplado sem webhook oficial "
+                "materializado"
+            ),
         },
         "schedule": {
             "supported": True,
@@ -370,11 +430,136 @@ def _policy_settings_payload(feature_code: str) -> dict[str, Any]:
     }
 
 
+def _constraint_name_from_integrity_error(exc: IntegrityError) -> str | None:
+    candidates = [
+        getattr(exc, "orig", None),
+        getattr(getattr(exc, "orig", None), "__cause__", None),
+    ]
+    for candidate in candidates:
+        if candidate is None:
+            continue
+        constraint_name = getattr(candidate, "constraint_name", None)
+        if constraint_name:
+            return str(constraint_name)
+        diag = getattr(candidate, "diag", None)
+        if diag is not None:
+            diag_constraint_name = getattr(diag, "constraint_name", None)
+            if diag_constraint_name:
+                return str(diag_constraint_name)
+    message = str(exc)
+    for name in _CANONICAL_UNIQUE_CONSTRAINTS:
+        if name in message:
+            return name
+    return None
+
+
+def _sqlstate_from_integrity_error(exc: IntegrityError) -> str | None:
+    candidates = [
+        getattr(exc, "orig", None),
+        getattr(getattr(exc, "orig", None), "__cause__", None),
+    ]
+    for candidate in candidates:
+        if candidate is None:
+            continue
+        code = getattr(candidate, "sqlstate", None) or getattr(candidate, "pgcode", None)
+        if code:
+            return str(code)
+    return None
+
+
+def _is_unique_conflict_for_constraints(
+    exc: IntegrityError,
+    constraint_names: set[str],
+) -> bool:
+    sqlstate = _sqlstate_from_integrity_error(exc)
+    if sqlstate is not None and sqlstate != "23505":
+        return False
+
+    constraint_name = _constraint_name_from_integrity_error(exc)
+    if constraint_name in constraint_names:
+        return True
+
+    message = str(exc).lower()
+    if "unique constraint failed" in message:
+        for name in constraint_names:
+            hints = _SQLITE_UNIQUE_CONFLICT_HINTS.get(name)
+            if hints and all(hint in message for hint in hints):
+                return True
+
+    return False
+
+
 class SankhyaCanonicalAdapter:
     """Conecta SankhyaConfig/SankhyaSyncLog ao domínio canônico de Integrações."""
 
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
+
+    async def _persist_with_unique_retry(
+        self,
+        *,
+        label: str,
+        unique_constraints: set[str],
+        create_fn: Callable[[], Awaitable[T]],
+        reread_fn: Callable[[], Awaitable[T | None]],
+        tenant_id: str,
+        provider_slug: str = _SANKHYA_SLUG,
+        scope_type: str | None = None,
+    ) -> tuple[T, bool]:
+        nested = self.db.begin_nested()
+        if inspect.isawaitable(nested):
+            nested = await nested
+        try:
+            result = await create_fn()
+            await nested.commit()
+            return result, True
+        except IntegrityError as exc:
+            await nested.rollback()
+            if not _is_unique_conflict_for_constraints(exc, unique_constraints):
+                raise
+
+            _LOGGER.info(
+                "Idempotent unique collision while materializing Sankhya canonical rows",
+                extra={
+                    "tenant_id": tenant_id,
+                    "provider_slug": provider_slug,
+                    "scope_type": scope_type,
+                    "step": label,
+                    "constraint_name": _constraint_name_from_integrity_error(exc),
+                },
+            )
+
+            existing = await reread_fn()
+            if existing is None:
+                await asyncio.sleep(0)
+                existing = await reread_fn()
+            if existing is None:
+                _LOGGER.warning(
+                    "Idempotent reread failed after unique collision",
+                    extra={
+                        "tenant_id": tenant_id,
+                        "provider_slug": provider_slug,
+                        "scope_type": scope_type,
+                        "step": label,
+                    },
+                )
+                raise RuntimeError(
+                    "Falha ao reler o registro canônico após colisão concorrente"
+                ) from exc
+
+            _LOGGER.info(
+                "Idempotent reread succeeded after unique collision",
+                extra={
+                    "tenant_id": tenant_id,
+                    "provider_slug": provider_slug,
+                    "scope_type": scope_type,
+                    "step": label,
+                },
+            )
+            return existing, False
+        except Exception:
+            await nested.rollback()
+            raise
 
     async def sync_provider_config(
         self,
@@ -536,9 +721,7 @@ class SankhyaCanonicalAdapter:
 
         success_count = max(processados - erros, 0)
         job.status = (
-            IntegrationJobStatus.SUCCESS.value
-            if success
-            else IntegrationJobStatus.FAILED.value
+            IntegrationJobStatus.SUCCESS.value if success else IntegrationJobStatus.FAILED.value
         )
         job.finished_at = datetime.now(timezone.utc)  # noqa: UP017
         job.processados = processados
@@ -593,218 +776,238 @@ class SankhyaCanonicalAdapter:
         stmt = select(MarketplaceIntegracao).where(MarketplaceIntegracao.slug == _SANKHYA_SLUG)
         provider = (await self.db.execute(stmt)).scalar_one_or_none()
         if provider is None:
-            provider = MarketplaceIntegracao(
-                nome=_SANKHYA_NAME,
-                slug=_SANKHYA_SLUG,
-                descricao="Provider ERP Sankhya compatível com o domínio canônico.",
-                categoria="ERP",
-                fornecedor="Sankhya",
-                ativa=True,
-                oficial=True,
-                provider_type="ERP",
-                provider_definition=_provider_definition_payload(),
-                connection_schema=ProviderSchemaDefinition(
-                    schema_version=1,
-                    required=[
-                        "sankhya_environment",
-                        "sankhya_api_base_url",
-                        "sankhya_auth_url",
-                        "sync_interval",
-                    ],
-                    optional=[
-                        "sankhya_client_id",
-                        "sankhya_client_secret",
-                        "sankhya_x_token",
-                        "sankhya_token",
-                        "sankhya_appkey",
-                        "ws_url",
-                        "username",
-                        "password",
-                        "ultimo_teste",
-                        "teste_status",
-                        "ultimo_sync",
-                        "auth_model",
-                    ],
-                    fields=[
-                        ProviderFieldDefinition(
-                            key="sankhya_environment",
-                            label="Ambiente Sankhya",
-                            type=ProviderFieldType.SELECT,
-                            required=True,
-                            secret=False,
-                            default="PRODUCAO",
-                            options=[
-                                ProviderFieldSelectOption(value="PRODUCAO", label="Produção"),
-                                ProviderFieldSelectOption(value="HOMOLOGACAO", label="Homologação"),
-                                ProviderFieldSelectOption(value="SANDBOX", label="Sandbox"),
-                            ],
-                            order=10,
-                        ),
-                        ProviderFieldDefinition(
-                            key="sankhya_api_base_url",
-                            label="URL da API (MGE)",
-                            type=ProviderFieldType.URL,
-                            required=True,
-                            secret=False,
-                            placeholder="https://api.sankhya.com.br",
-                            order=20,
-                        ),
-                        ProviderFieldDefinition(
-                            key="sankhya_auth_url",
-                            label="URL de Autenticação",
-                            type=ProviderFieldType.URL,
-                            required=True,
-                            secret=False,
-                            placeholder="https://api.sankhya.com.br/login",
-                            order=30,
-                        ),
-                        ProviderFieldDefinition(
-                            key="auth_model",
-                            label="Modelo de Autenticação",
-                            type=ProviderFieldType.SELECT,
-                            required=False,
-                            secret=False,
-                            default="gateway_oauth_client_credentials",
-                            options=[
-                                ProviderFieldSelectOption(
-                                    value="gateway_oauth_client_credentials",
-                                    label="Gateway - OAuth 2.0 Client Credentials"
-                                ),
-                                ProviderFieldSelectOption(
-                                    value="gateway_legacy_login",
-                                    label="Gateway - Legacy Login (Usuário e Senha)"
-                                ),
-                            ],
-                            order=40,
-                        ),
-                        ProviderFieldDefinition(
-                            key="sync_interval",
-                            label="Intervalo de Sincronização (min)",
-                            type=ProviderFieldType.INTEGER,
-                            required=True,
-                            secret=False,
-                            default=60,
-                            order=50,
-                        ),
-                        ProviderFieldDefinition(
-                            key="ws_url",
-                            label="URL do Workspace",
-                            type=ProviderFieldType.URL,
-                            required=False,
-                            secret=False,
-                            order=60,
-                        ),
-                        ProviderFieldDefinition(
-                            key="ultimo_teste",
-                            label="Data do Último Teste",
-                            type=ProviderFieldType.STRING,
-                            required=False,
-                            secret=False,
-                            order=70,
-                        ),
-                        ProviderFieldDefinition(
-                            key="teste_status",
-                            label="Status do Teste",
-                            type=ProviderFieldType.STRING,
-                            required=False,
-                            secret=False,
-                            order=80,
-                        ),
-                        ProviderFieldDefinition(
-                            key="ultimo_sync",
-                            label="Última Sincronização",
-                            type=ProviderFieldType.STRING,
-                            required=False,
-                            secret=False,
-                            order=90,
-                        ),
-                    ]
-                ).model_dump(mode='json'),
-                credential_schema=ProviderSchemaDefinition(
-                    schema_version=1,
-                    required=["sankhya_client_id"],
-                    optional=[
-                        "sankhya_client_secret",
-                        "sankhya_x_token",
-                        "sankhya_token",
-                        "sankhya_appkey",
-                        "username",
-                        "password",
-                        "legacy_auth_model",
-                    ],
-                    fields=[
-                        ProviderFieldDefinition(
-                            key="sankhya_client_id",
-                            label="Client ID (Sankhya)",
-                            type=ProviderFieldType.STRING,
-                            required=True,
-                            secret=False,
-                            order=10,
-                        ),
-                        ProviderFieldDefinition(
-                            key="sankhya_client_secret",
-                            label="Client Secret",
-                            type=ProviderFieldType.SECRET,
-                            required=False,
-                            secret=True,
-                            order=20,
-                        ),
-                        ProviderFieldDefinition(
-                            key="sankhya_x_token",
-                            label="X-Token (Sankhya)",
-                            type=ProviderFieldType.SECRET,
-                            required=False,
-                            secret=True,
-                            order=30,
-                        ),
-                        ProviderFieldDefinition(
-                            key="sankhya_token",
-                            label="Token Legacy",
-                            type=ProviderFieldType.SECRET,
-                            required=False,
-                            secret=True,
-                            order=40,
-                        ),
-                        ProviderFieldDefinition(
-                            key="sankhya_appkey",
-                            label="App Key",
-                            type=ProviderFieldType.SECRET,
-                            required=False,
-                            secret=True,
-                            order=50,
-                        ),
-                        ProviderFieldDefinition(
-                            key="username",
-                            label="Usuário",
-                            type=ProviderFieldType.STRING,
-                            required=False,
-                            secret=False,
-                            order=60,
-                        ),
-                        ProviderFieldDefinition(
-                            key="password",
-                            label="Senha",
-                            type=ProviderFieldType.SECRET,
-                            required=False,
-                            secret=True,
-                            order=70,
-                        ),
-                        ProviderFieldDefinition(
-                            key="legacy_auth_model",
-                            label="Autenticação Legada",
-                            type=ProviderFieldType.BOOLEAN,
-                            required=False,
-                            secret=False,
-                            order=80,
-                        ),
-                    ]
-                ).model_dump(mode='json'),
-                feature_schema=_feature_schema_payload(),
-                sync_schema=_sync_schema_payload(),
-                health_schema=_health_schema_payload(),
+
+            async def _create_provider() -> MarketplaceIntegracao:
+                provider_obj = MarketplaceIntegracao(
+                    nome=_SANKHYA_NAME,
+                    slug=_SANKHYA_SLUG,
+                    descricao="Provider ERP Sankhya compatível com o domínio canônico.",
+                    categoria="ERP",
+                    fornecedor="Sankhya",
+                    ativa=True,
+                    oficial=True,
+                    provider_type="ERP",
+                    provider_definition=_provider_definition_payload(),
+                    connection_schema=ProviderSchemaDefinition(
+                        schema_version=1,
+                        required=[
+                            "sankhya_environment",
+                            "sankhya_api_base_url",
+                            "sankhya_auth_url",
+                            "sync_interval",
+                        ],
+                        optional=[
+                            "sankhya_client_id",
+                            "sankhya_client_secret",
+                            "sankhya_x_token",
+                            "sankhya_token",
+                            "sankhya_appkey",
+                            "ws_url",
+                            "username",
+                            "password",
+                            "ultimo_teste",
+                            "teste_status",
+                            "ultimo_sync",
+                            "auth_model",
+                        ],
+                        fields=[
+                            ProviderFieldDefinition(
+                                key="sankhya_environment",
+                                label="Ambiente Sankhya",
+                                type=ProviderFieldType.SELECT,
+                                required=True,
+                                secret=False,
+                                default="PRODUCAO",
+                                options=[
+                                    ProviderFieldSelectOption(value="PRODUCAO", label="Produção"),
+                                    ProviderFieldSelectOption(
+                                        value="HOMOLOGACAO", label="Homologação"
+                                    ),
+                                    ProviderFieldSelectOption(value="SANDBOX", label="Sandbox"),
+                                ],
+                                order=10,
+                            ),
+                            ProviderFieldDefinition(
+                                key="sankhya_api_base_url",
+                                label="URL da API (MGE)",
+                                type=ProviderFieldType.URL,
+                                required=True,
+                                secret=False,
+                                placeholder="https://api.sankhya.com.br",
+                                order=20,
+                            ),
+                            ProviderFieldDefinition(
+                                key="sankhya_auth_url",
+                                label="URL de Autenticação",
+                                type=ProviderFieldType.URL,
+                                required=True,
+                                secret=False,
+                                placeholder="https://api.sankhya.com.br/login",
+                                order=30,
+                            ),
+                            ProviderFieldDefinition(
+                                key="auth_model",
+                                label="Modelo de Autenticação",
+                                type=ProviderFieldType.SELECT,
+                                required=False,
+                                secret=False,
+                                default="gateway_oauth_client_credentials",
+                                options=[
+                                    ProviderFieldSelectOption(
+                                        value="gateway_oauth_client_credentials",
+                                        label="Gateway - OAuth 2.0 Client Credentials",
+                                    ),
+                                    ProviderFieldSelectOption(
+                                        value="gateway_legacy_login",
+                                        label="Gateway - Legacy Login (Usuário e Senha)",
+                                    ),
+                                ],
+                                order=40,
+                            ),
+                            ProviderFieldDefinition(
+                                key="sync_interval",
+                                label="Intervalo de Sincronização (min)",
+                                type=ProviderFieldType.INTEGER,
+                                required=True,
+                                secret=False,
+                                default=60,
+                                order=50,
+                            ),
+                            ProviderFieldDefinition(
+                                key="ws_url",
+                                label="URL do Workspace",
+                                type=ProviderFieldType.URL,
+                                required=False,
+                                secret=False,
+                                order=60,
+                            ),
+                            ProviderFieldDefinition(
+                                key="ultimo_teste",
+                                label="Data do Último Teste",
+                                type=ProviderFieldType.STRING,
+                                required=False,
+                                secret=False,
+                                order=70,
+                            ),
+                            ProviderFieldDefinition(
+                                key="teste_status",
+                                label="Status do Teste",
+                                type=ProviderFieldType.STRING,
+                                required=False,
+                                secret=False,
+                                order=80,
+                            ),
+                            ProviderFieldDefinition(
+                                key="ultimo_sync",
+                                label="Última Sincronização",
+                                type=ProviderFieldType.STRING,
+                                required=False,
+                                secret=False,
+                                order=90,
+                            ),
+                        ],
+                    ).model_dump(mode="json"),
+                    credential_schema=ProviderSchemaDefinition(
+                        schema_version=1,
+                        required=["sankhya_client_id"],
+                        optional=[
+                            "sankhya_client_secret",
+                            "sankhya_x_token",
+                            "sankhya_token",
+                            "sankhya_appkey",
+                            "username",
+                            "password",
+                            "legacy_auth_model",
+                        ],
+                        fields=[
+                            ProviderFieldDefinition(
+                                key="sankhya_client_id",
+                                label="Client ID (Sankhya)",
+                                type=ProviderFieldType.STRING,
+                                required=True,
+                                secret=False,
+                                order=10,
+                            ),
+                            ProviderFieldDefinition(
+                                key="sankhya_client_secret",
+                                label="Client Secret",
+                                type=ProviderFieldType.SECRET,
+                                required=False,
+                                secret=True,
+                                order=20,
+                            ),
+                            ProviderFieldDefinition(
+                                key="sankhya_x_token",
+                                label="X-Token (Sankhya)",
+                                type=ProviderFieldType.SECRET,
+                                required=False,
+                                secret=True,
+                                order=30,
+                            ),
+                            ProviderFieldDefinition(
+                                key="sankhya_token",
+                                label="Token Legacy",
+                                type=ProviderFieldType.SECRET,
+                                required=False,
+                                secret=True,
+                                order=40,
+                            ),
+                            ProviderFieldDefinition(
+                                key="sankhya_appkey",
+                                label="App Key",
+                                type=ProviderFieldType.SECRET,
+                                required=False,
+                                secret=True,
+                                order=50,
+                            ),
+                            ProviderFieldDefinition(
+                                key="username",
+                                label="Usuário",
+                                type=ProviderFieldType.STRING,
+                                required=False,
+                                secret=False,
+                                order=60,
+                            ),
+                            ProviderFieldDefinition(
+                                key="password",
+                                label="Senha",
+                                type=ProviderFieldType.SECRET,
+                                required=False,
+                                secret=True,
+                                order=70,
+                            ),
+                            ProviderFieldDefinition(
+                                key="legacy_auth_model",
+                                label="Autenticação Legada",
+                                type=ProviderFieldType.BOOLEAN,
+                                required=False,
+                                secret=False,
+                                order=80,
+                            ),
+                        ],
+                    ).model_dump(mode="json"),
+                    feature_schema=_feature_schema_payload(),
+                    sync_schema=_sync_schema_payload(),
+                    health_schema=_health_schema_payload(),
+                )
+                self.db.add(provider_obj)
+                await self.db.flush()
+                return provider_obj
+
+            async def _reread_provider() -> MarketplaceIntegracao | None:
+                reread_stmt = select(MarketplaceIntegracao).where(
+                    MarketplaceIntegracao.slug == _SANKHYA_SLUG
+                )
+                return (await self.db.execute(reread_stmt)).scalar_one_or_none()
+
+            provider, _ = await self._persist_with_unique_retry(
+                label="provider",
+                unique_constraints={"marketplace_integracoes_slug_key"},
+                create_fn=_create_provider,
+                reread_fn=_reread_provider,
+                tenant_id="system",
+                provider_slug=_SANKHYA_SLUG,
             )
-            self.db.add(provider)
-            await self.db.flush()
             return provider
 
         provider.provider_type = "ERP"
@@ -839,13 +1042,61 @@ class SankhyaCanonicalAdapter:
         current = (await self.db.execute(stmt)).scalars().first()
 
         if current is None:
+
+            async def _create_credential() -> IntegrationCredential:
+                credential = IntegrationCredential(
+                    tenant_id=provider_config.tenant_id,
+                    provider_id=provider.id,
+                    scope_type=IntegrationScope.TENANT.value,
+                    segredo_criptografado=self._canonical_secret(credential_bundle),
+                    mask_metadata=self._credential_mask_metadata(provider_config, credential_mask),
+                    version_number=1,
+                    ativo=True,
+                    rotated_at=datetime.utcnow(),
+                )
+                self.db.add(credential)
+                await self.db.flush()
+                return credential
+
+            async def _reread_credential() -> IntegrationCredential | None:
+                reread_stmt = (
+                    select(IntegrationCredential)
+                    .where(
+                        IntegrationCredential.tenant_id == provider_config.tenant_id,
+                        IntegrationCredential.provider_id == provider.id,
+                        IntegrationCredential.scope_type == IntegrationScope.TENANT.value,
+                        IntegrationCredential.ativo.is_(True),
+                    )
+                    .order_by(IntegrationCredential.version_number.desc())
+                )
+                return (await self.db.execute(reread_stmt)).scalars().first()
+
+            credential, _ = await self._persist_with_unique_retry(
+                label="credential_create",
+                unique_constraints={"uq_integration_credentials_version_scope"},
+                create_fn=_create_credential,
+                reread_fn=_reread_credential,
+                tenant_id=provider_config.tenant_id,
+                provider_slug=_SANKHYA_SLUG,
+                scope_type=IntegrationScope.TENANT.value,
+            )
+            return credential
+
+        if not rotate:
+            return current
+
+        async def _rotate_credential() -> IntegrationCredential:
+            current.ativo = False
+            self.db.add(current)
+            await self.db.flush()
+
             credential = IntegrationCredential(
                 tenant_id=provider_config.tenant_id,
                 provider_id=provider.id,
                 scope_type=IntegrationScope.TENANT.value,
                 segredo_criptografado=self._canonical_secret(credential_bundle),
                 mask_metadata=self._credential_mask_metadata(provider_config, credential_mask),
-                version_number=1,
+                version_number=current.version_number + 1,
                 ativo=True,
                 rotated_at=datetime.utcnow(),
             )
@@ -853,25 +1104,28 @@ class SankhyaCanonicalAdapter:
             await self.db.flush()
             return credential
 
-        if not rotate:
-            return current
+        async def _reread_credential() -> IntegrationCredential | None:
+            reread_stmt = (
+                select(IntegrationCredential)
+                .where(
+                    IntegrationCredential.tenant_id == provider_config.tenant_id,
+                    IntegrationCredential.provider_id == provider.id,
+                    IntegrationCredential.scope_type == IntegrationScope.TENANT.value,
+                    IntegrationCredential.ativo.is_(True),
+                )
+                .order_by(IntegrationCredential.version_number.desc())
+            )
+            return (await self.db.execute(reread_stmt)).scalars().first()
 
-        current.ativo = False
-        self.db.add(current)
-        await self.db.flush()
-
-        credential = IntegrationCredential(
+        credential, _ = await self._persist_with_unique_retry(
+            label="credential_rotate",
+            unique_constraints={"uq_integration_credentials_version_scope"},
+            create_fn=_rotate_credential,
+            reread_fn=_reread_credential,
             tenant_id=provider_config.tenant_id,
-            provider_id=provider.id,
+            provider_slug=_SANKHYA_SLUG,
             scope_type=IntegrationScope.TENANT.value,
-            segredo_criptografado=self._canonical_secret(credential_bundle),
-            mask_metadata=self._credential_mask_metadata(provider_config, credential_mask),
-            version_number=current.version_number + 1,
-            ativo=True,
-            rotated_at=datetime.utcnow(),
         )
-        self.db.add(credential)
-        await self.db.flush()
         return credential
 
     async def _ensure_config(
@@ -892,24 +1146,46 @@ class SankhyaCanonicalAdapter:
         changed = False
 
         if config is None:
-            config = TenantIntegracao(
+
+            async def _create_config() -> TenantIntegracao:
+                config_obj = TenantIntegracao(
+                    tenant_id=provider_config.tenant_id,
+                    integracao_id=provider.id,
+                    status="ativa" if provider_config.ativo else "inativa",
+                    configuracoes={"sync_interval": provider_config.sync_interval},
+                    credenciais=credentials_payload,
+                    scope_type=IntegrationScope.TENANT.value,
+                    lifecycle_state=(
+                        IntegrationStatus.ACTIVE.value
+                        if provider_config.ativo
+                        else IntegrationStatus.DISABLED.value
+                    ),
+                    connection_payload=payload,
+                    credential_ref_id=credential.id,
+                )
+                self.db.add(config_obj)
+                await self.db.flush()
+                return config_obj
+
+            async def _reread_config() -> TenantIntegracao | None:
+                reread_stmt = select(TenantIntegracao).where(
+                    TenantIntegracao.tenant_id == provider_config.tenant_id,
+                    TenantIntegracao.integracao_id == provider.id,
+                    TenantIntegracao.scope_type == IntegrationScope.TENANT.value,
+                    TenantIntegracao.deleted_at.is_(None),
+                )
+                return (await self.db.execute(reread_stmt)).scalar_one_or_none()
+
+            config, created = await self._persist_with_unique_retry(
+                label="tenant_integracao_create",
+                unique_constraints=_TENANT_INTEGRACAO_UNIQUE_CONSTRAINTS,
+                create_fn=_create_config,
+                reread_fn=_reread_config,
                 tenant_id=provider_config.tenant_id,
-                integracao_id=provider.id,
-                status="ativa" if provider_config.ativo else "inativa",
-                configuracoes={"sync_interval": provider_config.sync_interval},
-                credenciais=credentials_payload,
+                provider_slug=_SANKHYA_SLUG,
                 scope_type=IntegrationScope.TENANT.value,
-                lifecycle_state=(
-                    IntegrationStatus.ACTIVE.value
-                    if provider_config.ativo
-                    else IntegrationStatus.DISABLED.value
-                ),
-                connection_payload=payload,
-                credential_ref_id=credential.id,
             )
-            self.db.add(config)
-            await self.db.flush()
-            return config, True
+            return config, created
 
         if config.connection_payload != payload:
             config.connection_payload = payload
@@ -963,19 +1239,39 @@ class SankhyaCanonicalAdapter:
         )
         feature = (await self.db.execute(stmt)).scalar_one_or_none()
         if feature is None:
-            feature = IntegrationFeature(
+
+            async def _create_feature() -> IntegrationFeature:
+                feature_obj = IntegrationFeature(
+                    tenant_id=config.tenant_id,
+                    config_id=config.id,
+                    provider_id=provider.id,
+                    codigo=feature_code,
+                    nome=defaults["nome"],
+                    descricao=defaults["descricao"],
+                    habilitada=defaults["habilitada"],
+                    obrigatoria=False,
+                    settings_payload=defaults.get("settings_payload"),
+                )
+                self.db.add(feature_obj)
+                await self.db.flush()
+                return feature_obj
+
+            async def _reread_feature() -> IntegrationFeature | None:
+                reread_stmt = select(IntegrationFeature).where(
+                    IntegrationFeature.config_id == config.id,
+                    IntegrationFeature.codigo == feature_code,
+                )
+                return (await self.db.execute(reread_stmt)).scalar_one_or_none()
+
+            feature, _ = await self._persist_with_unique_retry(
+                label=f"feature_create:{feature_code}",
+                unique_constraints={"uq_integration_features_config_codigo"},
+                create_fn=_create_feature,
+                reread_fn=_reread_feature,
                 tenant_id=config.tenant_id,
-                config_id=config.id,
-                provider_id=provider.id,
-                codigo=feature_code,
-                nome=defaults["nome"],
-                descricao=defaults["descricao"],
-                habilitada=defaults["habilitada"],
-                obrigatoria=False,
-                settings_payload=defaults.get("settings_payload"),
+                provider_slug=_SANKHYA_SLUG,
+                scope_type=config.scope_type,
             )
-            self.db.add(feature)
-            await self.db.flush()
             return feature
 
         feature.nome = defaults["nome"]
@@ -992,23 +1288,40 @@ class SankhyaCanonicalAdapter:
         feature: IntegrationFeature,
     ) -> IntegrationSyncPolicy:
         defaults = _FEATURE_DEFAULTS[feature.codigo]
-        stmt = select(IntegrationSyncPolicy).where(
-            IntegrationSyncPolicy.feature_id == feature.id
-        )
+        stmt = select(IntegrationSyncPolicy).where(IntegrationSyncPolicy.feature_id == feature.id)
         policy = (await self.db.execute(stmt)).scalar_one_or_none()
         if policy is None:
-            policy = IntegrationSyncPolicy(
+
+            async def _create_policy() -> IntegrationSyncPolicy:
+                policy_obj = IntegrationSyncPolicy(
+                    tenant_id=config.tenant_id,
+                    config_id=config.id,
+                    feature_id=feature.id,
+                    provider_id=provider.id,
+                    mode=defaults["mode"].value,
+                    prioridade=defaults["prioridade"].value,
+                    settings_payload=_policy_settings_payload(feature.codigo),
+                    ativa=True,
+                )
+                self.db.add(policy_obj)
+                await self.db.flush()
+                return policy_obj
+
+            async def _reread_policy() -> IntegrationSyncPolicy | None:
+                reread_stmt = select(IntegrationSyncPolicy).where(
+                    IntegrationSyncPolicy.feature_id == feature.id
+                )
+                return (await self.db.execute(reread_stmt)).scalar_one_or_none()
+
+            policy, _ = await self._persist_with_unique_retry(
+                label=f"policy_create:{feature.codigo}",
+                unique_constraints={"uq_integration_sync_policies_feature_id"},
+                create_fn=_create_policy,
+                reread_fn=_reread_policy,
                 tenant_id=config.tenant_id,
-                config_id=config.id,
-                feature_id=feature.id,
-                provider_id=provider.id,
-                mode=defaults["mode"].value,
-                prioridade=defaults["prioridade"].value,
-                settings_payload=_policy_settings_payload(feature.codigo),
-                ativa=True,
+                provider_slug=_SANKHYA_SLUG,
+                scope_type=config.scope_type,
             )
-            self.db.add(policy)
-            await self.db.flush()
             return policy
 
         policy.mode = defaults["mode"].value
@@ -1059,17 +1372,37 @@ class SankhyaCanonicalAdapter:
         ):
             return
 
-        version_number = 1 if latest is None else latest.version_number + 1
-        version = IntegrationVersion(
+        async def _create_version() -> IntegrationVersion:
+            version_number = 1 if latest is None else latest.version_number + 1
+            version_obj = IntegrationVersion(
+                tenant_id=config.tenant_id,
+                config_id=config.id,
+                credential_ref_id=credential.id,
+                version_number=version_number,
+                snapshot_mascarado=snapshot,
+                motivo=reason,
+            )
+            self.db.add(version_obj)
+            await self.db.flush()
+            return version_obj
+
+        async def _reread_version() -> IntegrationVersion | None:
+            reread_stmt = (
+                select(IntegrationVersion)
+                .where(IntegrationVersion.config_id == config.id)
+                .order_by(IntegrationVersion.version_number.desc())
+            )
+            return (await self.db.execute(reread_stmt)).scalars().first()
+
+        await self._persist_with_unique_retry(
+            label="version_create",
+            unique_constraints={"uq_integration_versions_config_version"},
+            create_fn=_create_version,
+            reread_fn=_reread_version,
             tenant_id=config.tenant_id,
-            config_id=config.id,
-            credential_ref_id=credential.id,
-            version_number=version_number,
-            snapshot_mascarado=snapshot,
-            motivo=reason,
+            provider_slug=_SANKHYA_SLUG,
+            scope_type=config.scope_type,
         )
-        self.db.add(version)
-        await self.db.flush()
 
     async def _sync_health_snapshot_from_config(
         self,
@@ -1109,24 +1442,43 @@ class SankhyaCanonicalAdapter:
         health = await self._get_health_by_config_id(config.id)
         now = datetime.now(timezone.utc)  # noqa: UP017
         if health is None:
-            health = IntegrationHealth(
+
+            async def _create_health() -> IntegrationHealth:
+                health_obj = IntegrationHealth(
+                    tenant_id=config.tenant_id,
+                    config_id=config.id,
+                    provider_id=provider.id,
+                    status=status,
+                    summary=summary,
+                    details_payload=details_payload,
+                    checked_at=now,
+                    last_job_id=last_job_id,
+                    consecutive_failures=0,
+                )
+                if last_success:
+                    health_obj.last_success_at = now
+                else:
+                    health_obj.last_failure_at = now
+                    health_obj.consecutive_failures = 1
+                self.db.add(health_obj)
+                await self.db.flush()
+                return health_obj
+
+            async def _reread_health() -> IntegrationHealth | None:
+                reread_stmt = select(IntegrationHealth).where(
+                    IntegrationHealth.config_id == config.id
+                )
+                return (await self.db.execute(reread_stmt)).scalar_one_or_none()
+
+            health, _ = await self._persist_with_unique_retry(
+                label="health_create",
+                unique_constraints={"uq_integration_health_config_id"},
+                create_fn=_create_health,
+                reread_fn=_reread_health,
                 tenant_id=config.tenant_id,
-                config_id=config.id,
-                provider_id=provider.id,
-                status=status,
-                summary=summary,
-                details_payload=details_payload,
-                checked_at=now,
-                last_job_id=last_job_id,
-                consecutive_failures=0,
+                provider_slug=_SANKHYA_SLUG,
+                scope_type=config.scope_type,
             )
-            if last_success:
-                health.last_success_at = now
-            else:
-                health.last_failure_at = now
-                health.consecutive_failures = 1
-            self.db.add(health)
-            await self.db.flush()
             return health
 
         health.status = status
@@ -1308,7 +1660,9 @@ class SankhyaCanonicalAdapter:
         if auth_service.auth_model() == "gateway_oauth_client_credentials":
             return json.dumps(
                 {
-                    "sankhya_client_secret": decrypt_integration_secret(provider_config.client_secret),
+                    "sankhya_client_secret": decrypt_integration_secret(
+                        provider_config.client_secret
+                    ),
                     "sankhya_x_token": decrypt_integration_secret(provider_config.x_token),
                     "sankhya_token": None,
                     "sankhya_appkey": None,

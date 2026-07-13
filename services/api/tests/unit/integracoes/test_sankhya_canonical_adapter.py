@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -10,6 +11,7 @@ import pytest
 import pytest_asyncio
 from sqlalchemy import Column, Table, select
 from sqlalchemy import Uuid as UUIDType
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from core.database import Base
@@ -29,8 +31,15 @@ from integracoes.models import (
     TenantIntegracao,
 )
 from integracoes.sankhya.models import SankhyaConfig, SankhyaNFe, SankhyaSyncLog
+from integracoes.sankhya.services.canonical_adapter import (
+    SankhyaCanonicalAdapter,
+    _is_unique_conflict_for_constraints,
+)
 from integracoes.sankhya.services.nfe_financeiro_service import SankhyaNFeService
-from integracoes.sankhya.services.sync_service import SankhyaSyncService
+from integracoes.sankhya.services.sync_service import (
+    SankhyaSyncService,
+    _is_sankhya_config_unique_conflict,
+)
 from integracoes.security import decrypt_integration_secret, encrypt_integration_secret
 
 REPO_ROOT = Path(__file__).resolve().parents[5]
@@ -44,28 +53,7 @@ if "domain_event_outbox" not in Base.metadata.tables:
     )
 
 
-@pytest_asyncio.fixture()
-async def session() -> AsyncSession:
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
-    async with engine.begin() as conn:
-        await conn.run_sync(lambda sync_conn: MarketplaceIntegracao.__table__.create(sync_conn))
-        await conn.run_sync(lambda sync_conn: IntegrationCredential.__table__.create(sync_conn))
-        await conn.run_sync(lambda sync_conn: TenantIntegracao.__table__.create(sync_conn))
-        await conn.run_sync(lambda sync_conn: IntegrationVersion.__table__.create(sync_conn))
-        await conn.run_sync(lambda sync_conn: SankhyaConfig.__table__.create(sync_conn))
-        await conn.run_sync(lambda sync_conn: SankhyaSyncLog.__table__.create(sync_conn))
-        await conn.run_sync(lambda sync_conn: IntegrationFeature.__table__.create(sync_conn))
-        await conn.run_sync(lambda sync_conn: IntegrationSyncPolicy.__table__.create(sync_conn))
-        await conn.run_sync(lambda sync_conn: IntegrationJob.__table__.create(sync_conn))
-        await conn.run_sync(lambda sync_conn: IntegrationHealth.__table__.create(sync_conn))
-        await conn.run_sync(lambda sync_conn: ExternalRecordAssociation.__table__.create(sync_conn))
-        await conn.run_sync(lambda sync_conn: SankhyaNFe.__table__.create(sync_conn))
 
-    session_factory = async_sessionmaker(engine, expire_on_commit=False)
-    async with session_factory() as current:
-        yield current
-
-    await engine.dispose()
 
 
 async def _legacy_sankhya_config(session: AsyncSession) -> SankhyaConfig:
@@ -132,9 +120,7 @@ async def test_adapter_cria_config_canonica_features_policies_e_health(
     policies = list(
         (
             await session.execute(
-                select(IntegrationSyncPolicy).where(
-                    IntegrationSyncPolicy.config_id == config.id
-                )
+                select(IntegrationSyncPolicy).where(IntegrationSyncPolicy.config_id == config.id)
             )
         ).scalars()
     )
@@ -164,7 +150,9 @@ async def test_adapter_cria_config_canonica_features_policies_e_health(
         IntegrationScope.TENANT.value,
         IntegrationScope.ESTABELECIMENTO.value,
     ]
-    assert "erp.cadastros.pessoas.importar" in provider.provider_definition["supported_capabilities"]
+    assert (
+        "erp.cadastros.pessoas.importar" in provider.provider_definition["supported_capabilities"]
+    )
     assert provider.feature_schema["supported_features"] == [
         "pessoas",
         "produtos",
@@ -181,8 +169,7 @@ async def test_adapter_cria_config_canonica_features_policies_e_health(
     assert pessoas_capability["status"] == "SUPPORTED"
     assert pessoas_capability["maturity"] == "TESTED"
     assert (
-        provider.sync_schema["retry"]["max_attempts_source"]
-        == "IntegrationSyncPolicy.max_retries"
+        provider.sync_schema["retry"]["max_attempts_source"] == "IntegrationSyncPolicy.max_retries"
     )
     assert provider.sync_schema["polling"]["default_features"] == ["financeiro", "nfe"]
     assert provider.health_schema["diagnostics"]["connection_test"] is True
@@ -345,13 +332,17 @@ async def test_falha_de_sync_atualiza_job_e_health(
     await service.finalizar_sync_log(log.id, False, 0, 1, "falha externa", 90.0)
 
     failed = (
-        await session.execute(
-            select(IntegrationJob).where(
-                IntegrationJob.tenant_id == legacy.tenant_id,
-                IntegrationJob.feature_id.is_not(None),
+        (
+            await session.execute(
+                select(IntegrationJob).where(
+                    IntegrationJob.tenant_id == legacy.tenant_id,
+                    IntegrationJob.feature_id.is_not(None),
+                )
             )
         )
-    ).scalars().all()[-1]
+        .scalars()
+        .all()[-1]
+    )
     health = (
         await session.execute(
             select(IntegrationHealth).where(IntegrationHealth.tenant_id == legacy.tenant_id)
@@ -446,10 +437,14 @@ async def test_logs_enriquecidos_correlacionam_job_e_mascaram_payloads(
     await service.finalizar_sync_log(log.id, False, 2, 1, "token expirado", 80.0)
 
     job = (
-        await session.execute(
-            select(IntegrationJob).where(IntegrationJob.tenant_id == legacy.tenant_id)
+        (
+            await session.execute(
+                select(IntegrationJob).where(IntegrationJob.tenant_id == legacy.tenant_id)
+            )
         )
-    ).scalars().all()[-1]
+        .scalars()
+        .all()[-1]
+    )
     job.result_payload = {"token": "segredo", "erro": "token expirado"}
     session.add(job)
     await session.commit()
@@ -600,10 +595,14 @@ async def test_nfe_service_conecta_sync_existente_ao_job_canonico(
     )
 
     job = (
-        await session.execute(
-            select(IntegrationJob).where(IntegrationJob.tenant_id == legacy.tenant_id)
+        (
+            await session.execute(
+                select(IntegrationJob).where(IntegrationJob.tenant_id == legacy.tenant_id)
+            )
         )
-    ).scalars().all()[-1]
+        .scalars()
+        .all()[-1]
+    )
 
     assert result["success"] is True
     assert job.status == IntegrationJobStatus.SUCCESS.value
@@ -624,3 +623,265 @@ def test_rotas_continuam_compativeis_sem_escopo_unidade_produtiva() -> None:
     assert '"/sync/pessoas"' in source
     assert '"/sync/produtos"' in source
     assert "unidade_produtiva_id" not in source
+
+
+@pytest.mark.asyncio
+async def test_sync_service_reaproveita_config_existente_em_colisao_unica(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    tenant_id = "tenant-concorrencia-sync"
+    existing = SankhyaConfig(id=41, tenant_id=tenant_id, sync_interval=900)
+
+    class _FakeSession:
+        def __init__(self) -> None:
+            self.bind = None
+
+        def add(self, _obj: Any) -> None:
+            return None
+
+        async def commit(self) -> None:
+            return None
+
+        async def rollback(self) -> None:
+            return None
+
+        async def refresh(self, _obj: Any) -> None:
+            return None
+
+    service = SankhyaSyncService(_FakeSession())
+    service._supports_legacy_gateway_columns = True
+
+    class _Adapter:
+        def __init__(self) -> None:
+            self.calls: list[tuple[SankhyaConfig, dict[str, Any]]] = []
+
+        async def sync_provider_config(
+            self,
+            config: SankhyaConfig,
+            **kwargs: Any,
+        ) -> SankhyaConfig:
+            self.calls.append((config, kwargs))
+            return config
+
+    adapter_mock = _Adapter()
+
+    async def fake_next_config_id() -> int:
+        return 41
+
+    async def fake_get_config(_tenant_id: str) -> SankhyaConfig:
+        return existing
+
+    async def fake_restore_rls_context(_tenant_id: str) -> None:
+        return None
+
+    async def fake_refresh(_config: Any) -> None:
+        return None
+
+    commit_calls = 0
+
+    async def fake_commit() -> None:
+        nonlocal commit_calls
+        commit_calls += 1
+        if commit_calls == 1:
+            raise IntegrityError(
+                "INSERT",
+                {},
+                sqlite3.IntegrityError(
+                    "UNIQUE constraint failed: sankhya_config.tenant_id"
+                ),
+            )
+        return None
+
+    async def fake_rollback() -> None:
+        return None
+
+    def fake_add(_obj: Any) -> None:
+        return None
+
+    monkeypatch.setattr(service, "adapter", adapter_mock)
+    monkeypatch.setattr(service, "_next_config_id", fake_next_config_id)
+    monkeypatch.setattr(service, "get_config", fake_get_config)
+    monkeypatch.setattr(service, "_restore_rls_context", fake_restore_rls_context)
+    monkeypatch.setattr(service.db, "add", fake_add)
+    monkeypatch.setattr(service.db, "refresh", fake_refresh)
+    monkeypatch.setattr(service.db, "commit", fake_commit)
+    monkeypatch.setattr(service.db, "rollback", fake_rollback)
+
+    result = await service.criar_config(
+        tenant_id,
+        sankhya_environment="producao",
+        sankhya_api_base_url="https://gateway.example/api",
+        sankhya_auth_url="https://gateway.example/auth",
+        sankhya_client_id="client-123",
+        sankhya_client_secret="client-secret",
+        sankhya_x_token="x-token",
+        sync_interval=900,
+    )
+
+    assert result.id == existing.id
+    assert result.tenant_id == tenant_id
+    assert len(adapter_mock.calls) == 1
+    assert adapter_mock.calls[0][0].id == existing.id
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("constraint_names", "sqlite_message"),
+    [
+        (
+            {
+                "uq_tenant_integracoes_provider_scope_tenant",
+                "uq_tenant_integracoes_provider_scope_estabelecimento",
+            },
+            (
+                "UNIQUE constraint failed: tenant_integracoes.tenant_id, "
+                "tenant_integracoes.integracao_id"
+            ),
+        ),
+        (
+            {"uq_tenant_integracoes_provider_scope_estabelecimento"},
+            (
+                "UNIQUE constraint failed: tenant_integracoes.tenant_id, "
+                "tenant_integracoes.integracao_id, tenant_integracoes.scope_id"
+            ),
+        ),
+    ],
+)
+async def test_adapter_persist_with_unique_retry_reaproveita_linha_existente(
+    constraint_names: set[str],
+    sqlite_message: str,
+) -> None:
+    class _FakeNestedTransaction:
+        async def commit(self) -> None:
+            return None
+
+        async def rollback(self) -> None:
+            return None
+
+    class _FakeSession:
+        async def begin_nested(self) -> _FakeNestedTransaction:
+            return _FakeNestedTransaction()
+
+    adapter = SankhyaCanonicalAdapter(_FakeSession())
+    existing = object()
+    calls = 0
+
+    async def create_fn() -> object:
+        nonlocal calls
+        calls += 1
+        raise IntegrityError("INSERT", {}, sqlite3.IntegrityError(sqlite_message))
+
+    async def reread_fn() -> object | None:
+        return existing
+
+    result, created = await adapter._persist_with_unique_retry(
+        label="tenant_integracao_create",
+        unique_constraints=constraint_names,
+        create_fn=create_fn,
+        reread_fn=reread_fn,
+        tenant_id="tenant-concorrencia",
+        provider_slug="sankhya",
+        scope_type=IntegrationScope.TENANT.value,
+    )
+
+    assert result is existing
+    assert created is False
+    assert calls == 1
+
+
+@pytest.mark.asyncio
+async def test_adapter_persist_with_unique_retry_propagates_other_integrity_errors(
+) -> None:
+    class _FakeNestedTransaction:
+        async def commit(self) -> None:
+            return None
+
+        async def rollback(self) -> None:
+            return None
+
+    class _FakeSession:
+        async def begin_nested(self) -> _FakeNestedTransaction:
+            return _FakeNestedTransaction()
+
+    adapter = SankhyaCanonicalAdapter(_FakeSession())
+
+    async def create_fn() -> object:
+        raise IntegrityError(
+            "INSERT",
+            {},
+            type("_Orig", (), {"sqlstate": "23503", "constraint_name": "fk_other"})(),
+        )
+
+    async def reread_fn() -> object | None:
+        return None
+
+    with pytest.raises(IntegrityError):
+        await adapter._persist_with_unique_retry(
+            label="tenant_integracao_create",
+            unique_constraints={"uq_tenant_integracoes_provider_scope_tenant"},
+            create_fn=create_fn,
+            reread_fn=reread_fn,
+            tenant_id="tenant-concorrencia",
+            provider_slug="sankhya",
+            scope_type=IntegrationScope.TENANT.value,
+        )
+
+
+def test_detector_de_conflito_unico_cobre_postgres_e_sqlite() -> None:
+    postgres_error = IntegrityError(
+        "INSERT",
+        {},
+        type(
+            "_Orig",
+            (),
+            {"sqlstate": "23505", "constraint_name": "uq_tenant_integracoes_provider_scope_tenant"},
+        )(),
+    )
+    sqlite_error = IntegrityError(
+        "INSERT",
+        {},
+        sqlite3.IntegrityError(
+            "UNIQUE constraint failed: tenant_integracoes.tenant_id, "
+            "tenant_integracoes.integracao_id"
+        ),
+    )
+    other_error = IntegrityError(
+        "INSERT",
+        {},
+        type("_Orig", (), {"sqlstate": "23503", "constraint_name": "fk_other"})(),
+    )
+
+    assert _is_unique_conflict_for_constraints(
+        postgres_error,
+        {"uq_tenant_integracoes_provider_scope_tenant"},
+    )
+    assert _is_unique_conflict_for_constraints(
+        sqlite_error,
+        {"uq_tenant_integracoes_provider_scope_tenant"},
+    )
+    assert not _is_unique_conflict_for_constraints(
+        other_error,
+        {"uq_tenant_integracoes_provider_scope_tenant"},
+    )
+
+
+def test_detector_de_conflito_unico_da_config_cobre_tenant_e_pkey() -> None:
+    tenant_error = IntegrityError(
+        "INSERT",
+        {},
+        sqlite3.IntegrityError("UNIQUE constraint failed: sankhya_config.tenant_id"),
+    )
+    pkey_error = IntegrityError(
+        "INSERT",
+        {},
+        sqlite3.IntegrityError("UNIQUE constraint failed: sankhya_config.id"),
+    )
+    foreign_key_error = IntegrityError(
+        "INSERT",
+        {},
+        type("_Orig", (), {"sqlstate": "23503", "constraint_name": "fk_other"})(),
+    )
+
+    assert _is_sankhya_config_unique_conflict(tenant_error)
+    assert _is_sankhya_config_unique_conflict(pkey_error)
+    assert not _is_sankhya_config_unique_conflict(foreign_key_error)
