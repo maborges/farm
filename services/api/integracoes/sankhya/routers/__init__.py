@@ -65,10 +65,6 @@ def get_financeiro_service(db: AsyncSession = Depends(get_session)) -> SankhyaFi
     return SankhyaFinanceiroService(db)
 
 
-
-
-
-
 @router.post(
     "/config",
     response_model=SankhyaConfigResponse,
@@ -88,6 +84,7 @@ async def configurar_sankhya(
         try:
             updated = await sync_service.atualizar_config(
                 existing,
+                auth_model=config.auth_model,
                 sankhya_environment=config.sankhya_environment,
                 sankhya_api_base_url=config.sankhya_api_base_url,
                 sankhya_auth_url=config.sankhya_auth_url,
@@ -108,6 +105,7 @@ async def configurar_sankhya(
     try:
         created = await sync_service.criar_config(
             tenant_id=tenant_scope,
+            auth_model=config.auth_model,
             sankhya_environment=config.sankhya_environment,
             sankhya_api_base_url=config.sankhya_api_base_url,
             sankhya_auth_url=config.sankhya_auth_url,
@@ -494,6 +492,3 @@ async def listar_financeiro_sankhya(
         skip=skip,
         limit=limit,
     )
-
-
-

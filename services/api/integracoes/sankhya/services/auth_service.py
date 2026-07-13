@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import timezone,  datetime, timedelta
 from typing import Any, ClassVar
 
 import httpx
@@ -159,9 +159,7 @@ class SankhyaGatewayAuthService:
             missing.append("sankhya_x_token")
 
         if missing:
-            raise ValueError(
-                "Configuração Sankhya Gateway incompleta: " + ", ".join(missing)
-            )
+            raise ValueError("Configuração Sankhya Gateway incompleta: " + ", ".join(missing))
 
     def validate_gateway_legacy_login_config(self) -> None:
         missing: list[str] = []
@@ -176,9 +174,7 @@ class SankhyaGatewayAuthService:
         if not decrypt_integration_secret(self.config.password):
             missing.append("password")
         if missing:
-            raise ValueError(
-                "Configuração Sankhya legacy login incompleta: " + ", ".join(missing)
-            )
+            raise ValueError("Configuração Sankhya legacy login incompleta: " + ", ".join(missing))
 
     def validate_legacy_basic_config(self) -> None:
         missing: list[str] = []
@@ -323,9 +319,11 @@ class SankhyaGatewayAuthService:
                 return cached.access_token, cached.expires_at
 
         owns_client = client is None
-        http_client = client or httpx.AsyncClient(timeout=60.0)
+        http_client = client or httpx.AsyncClient(timeout=60.0, follow_redirects=False)
         try:
-            response = await self._perform_authentication_request(http_client, auth_model=auth_model)
+            response = await self._perform_authentication_request(
+                http_client, auth_model=auth_model
+            )
             response.raise_for_status()
 
             data = response.json()
@@ -352,7 +350,10 @@ class SankhyaGatewayAuthService:
         """
 
         if auth_model == "gateway_legacy_login":
-            endpoint = self.config.auth_url or f"{(self.config.api_base_url or self.config.ws_url or '').rstrip('/')}/login"
+            endpoint = (
+                self.config.auth_url
+                or f"{(self.config.api_base_url or self.config.ws_url or '').rstrip('/')}/login"
+            )
             headers = {
                 "Accept": "application/json",
                 "token": decrypt_integration_secret(getattr(self.config, "token", None)),
@@ -473,7 +474,9 @@ class SankhyaGatewayAuthService:
         elif self.is_legacy_ws_basic_configured():
             import base64
 
-            credentials = f"{self.config.username}:{decrypt_integration_secret(self.config.password)}"
+            credentials = (
+                f"{self.config.username}:{decrypt_integration_secret(self.config.password)}"
+            )
             encoded = base64.b64encode(credentials.encode()).decode()
             headers["Authorization"] = f"Basic {encoded}"
         return headers

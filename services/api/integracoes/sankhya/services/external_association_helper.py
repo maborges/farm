@@ -10,16 +10,15 @@ from typing import Any
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from agricola.models import OperacaoTipoFase
 from core.cadastros.pessoas.models import Pessoa, PessoaDocumento
 from core.cadastros.produtos.models import Produto
-from financeiro.models.conciliacao import ContaBancaria
 from core.measurements.models import UnidadeMedida
+from financeiro.models.conciliacao import ContaBancaria
 from financeiro.models.despesa import Despesa
 from financeiro.models.nota_fiscal import NotaFiscal
 from financeiro.models.plano_conta import PlanoConta
 from financeiro.models.receita import Receita
-from operacional.models.estoque import Deposito
-from agricola.models import OperacaoTipoFase
 from integracoes.models import (
     ExternalRecordAssociation,
     ExternalRecordAssociationConfidence,
@@ -29,14 +28,15 @@ from integracoes.models import (
     MarketplaceIntegracao,
     TenantIntegracao,
 )
+from integracoes.sankhya.models import SankhyaConfig
+from integracoes.sankhya.services.canonical_adapter import SankhyaCanonicalAdapter
 from integracoes.schemas import (
     ExternalRecordAssociationCreate,
     ExternalRecordAssociationReconcile,
     ExternalRecordAssociationUpdate,
 )
-from integracoes.services import DuplicateAssociationError, ExternalRecordAssociationService
-from integracoes.sankhya.models import SankhyaConfig
-from integracoes.sankhya.services.canonical_adapter import SankhyaCanonicalAdapter
+from integracoes.services import ExternalRecordAssociationService
+from operacional.models.estoque import Deposito
 
 _PROVIDER_SLUG = "sankhya"
 
@@ -49,7 +49,9 @@ class SankhyaExternalAssociationHelper:
         self.service = ExternalRecordAssociationService(db)
         self.adapter = SankhyaCanonicalAdapter(db)
 
-    async def sync_pessoa(self, tenant_id: str, data: dict[str, Any]) -> ExternalRecordAssociation | None:
+    async def sync_pessoa(
+        self, tenant_id: str, data: dict[str, Any]
+    ) -> ExternalRecordAssociation | None:
         context = await self._ensure_context(tenant_id, "pessoas")
         if context is None:
             return None
@@ -80,7 +82,9 @@ class SankhyaExternalAssociationHelper:
             external_branch_id=self._extract_external_branch_id(data),
         )
 
-    async def sync_produto(self, tenant_id: str, data: dict[str, Any]) -> ExternalRecordAssociation | None:
+    async def sync_produto(
+        self, tenant_id: str, data: dict[str, Any]
+    ) -> ExternalRecordAssociation | None:
         context = await self._ensure_context(tenant_id, "produtos")
         if context is None:
             return None
@@ -139,10 +143,14 @@ class SankhyaExternalAssociationHelper:
                 if local is not None
                 else ExternalRecordAssociationConfidence.LOW
             ),
-            notes=None if local is not None else "Unidade de medida sem equivalencia segura no AgroSaaS.",
+            notes=None
+            if local is not None
+            else "Unidade de medida sem equivalencia segura no AgroSaaS.",
         )
 
-    async def sync_nfe(self, tenant_id: str, data: dict[str, Any]) -> ExternalRecordAssociation | None:
+    async def sync_nfe(
+        self, tenant_id: str, data: dict[str, Any]
+    ) -> ExternalRecordAssociation | None:
         context = await self._ensure_context(tenant_id, "nfe")
         if context is None:
             return None
@@ -169,7 +177,9 @@ class SankhyaExternalAssociationHelper:
                 if local is not None
                 else ExternalRecordAssociationConfidence.MEDIUM
             ),
-            notes=None if local is not None else "Nota fiscal local nao localizada por chave de acesso.",
+            notes=None
+            if local is not None
+            else "Nota fiscal local nao localizada por chave de acesso.",
             external_company_id=self._extract_external_company_id(data),
             external_branch_id=self._extract_external_branch_id(data),
         )
@@ -200,7 +210,9 @@ class SankhyaExternalAssociationHelper:
                 if local is not None
                 else ExternalRecordAssociationConfidence.LOW
             ),
-            notes=None if local is not None else "Titulo financeiro local nao identificado de forma segura.",
+            notes=None
+            if local is not None
+            else "Titulo financeiro local nao identificado de forma segura.",
             external_company_id=self._extract_external_company_id(data),
             external_branch_id=self._extract_external_branch_id(data),
         )
@@ -234,10 +246,10 @@ class SankhyaExternalAssociationHelper:
             context=context,
             local_entity="Empresa",
             external_entity="Empresa",
-            external_record_id=self._clean_optional(
-                data.get("CODEMP") or data.get("CODEMPRESA")
-            ),
-            secondary_keys={"codemp": self._clean_optional(data.get("CODEMP") or data.get("CODEMPRESA"))},
+            external_record_id=self._clean_optional(data.get("CODEMP") or data.get("CODEMPRESA")),
+            secondary_keys={
+                "codemp": self._clean_optional(data.get("CODEMP") or data.get("CODEMPRESA"))
+            },
             notes="Empresa externa sem master local seguro.",
         )
         filial = await self._sync_pending_reference(
@@ -295,7 +307,9 @@ class SankhyaExternalAssociationHelper:
             local_record_id=str(local.id) if local else None,
             secondary_keys={
                 "codlocal": self._clean_optional(data.get("CODLOCAL")),
-                "nome": self._clean_optional(data.get("NOMELOCAL") or data.get("DESCRLOCAL") or data.get("LOCAL")),
+                "nome": self._clean_optional(
+                    data.get("NOMELOCAL") or data.get("DESCRLOCAL") or data.get("LOCAL")
+                ),
                 "tipo": self._clean_optional(data.get("TIPOLOCAL") or data.get("TIPO")),
             },
             confidence=(
@@ -343,7 +357,9 @@ class SankhyaExternalAssociationHelper:
             secondary_keys={
                 "banco": self._clean_optional(data.get("CODBANCO") or data.get("BANCO")),
                 "agencia": self._clean_optional(data.get("CODAGENCIA") or data.get("AGENCIA")),
-                "conta": self._clean_optional(data.get("CONTA") or data.get("NUMCONTA") or data.get("CONTA_CORRENTE")),
+                "conta": self._clean_optional(
+                    data.get("CONTA") or data.get("NUMCONTA") or data.get("CONTA_CORRENTE")
+                ),
                 "carteira": self._clean_optional(data.get("CARTEIRA") or data.get("CODCARTEIRA")),
             },
             confidence=(
@@ -351,7 +367,9 @@ class SankhyaExternalAssociationHelper:
                 if local is not None
                 else ExternalRecordAssociationConfidence.LOW
             ),
-            notes=None if local is not None else "Conta bancária externa sem equivalencia local segura.",
+            notes=None
+            if local is not None
+            else "Conta bancária externa sem equivalencia local segura.",
             external_company_id=self._extract_external_company_id(data),
             external_branch_id=self._extract_external_branch_id(data),
         )
@@ -361,7 +379,9 @@ class SankhyaExternalAssociationHelper:
             local_entity="Banco",
             external_entity="Banco",
             external_record_id=self._first_identifier(data.get("CODBANCO"), data.get("BANCO")),
-            secondary_keys={"codbanco": self._clean_optional(data.get("CODBANCO") or data.get("BANCO"))},
+            secondary_keys={
+                "codbanco": self._clean_optional(data.get("CODBANCO") or data.get("BANCO"))
+            },
             external_company_id=self._extract_external_company_id(data),
             external_branch_id=self._extract_external_branch_id(data),
             notes="Banco externo sem master local.",
@@ -371,7 +391,9 @@ class SankhyaExternalAssociationHelper:
             local_entity="Agencia",
             external_entity="Agencia",
             external_record_id=self._first_identifier(data.get("CODAGENCIA"), data.get("AGENCIA")),
-            secondary_keys={"codagencia": self._clean_optional(data.get("CODAGENCIA") or data.get("AGENCIA"))},
+            secondary_keys={
+                "codagencia": self._clean_optional(data.get("CODAGENCIA") or data.get("AGENCIA"))
+            },
             external_company_id=self._extract_external_company_id(data),
             external_branch_id=self._extract_external_branch_id(data),
             notes="Agencia externa sem master local.",
@@ -380,8 +402,12 @@ class SankhyaExternalAssociationHelper:
             context=context,
             local_entity="Carteira",
             external_entity="Carteira",
-            external_record_id=self._first_identifier(data.get("CARTEIRA"), data.get("CODCARTEIRA")),
-            secondary_keys={"carteira": self._clean_optional(data.get("CARTEIRA") or data.get("CODCARTEIRA"))},
+            external_record_id=self._first_identifier(
+                data.get("CARTEIRA"), data.get("CODCARTEIRA")
+            ),
+            secondary_keys={
+                "carteira": self._clean_optional(data.get("CARTEIRA") or data.get("CODCARTEIRA"))
+            },
             external_company_id=self._extract_external_company_id(data),
             external_branch_id=self._extract_external_branch_id(data),
             notes="Carteira externa sem master local.",
@@ -481,15 +507,21 @@ class SankhyaExternalAssociationHelper:
             external_record_id=external_record_id,
             local_record_id=str(local.id) if local else None,
             secondary_keys={
-                "codigo": self._clean_optional(data.get("CODTIPOPER") or data.get("CODTIPOPERACAO")),
-                "tipo_operacao": self._clean_optional(data.get("TIPOOPERACAO") or data.get("DESCRTIPOPER")),
+                "codigo": self._clean_optional(
+                    data.get("CODTIPOPER") or data.get("CODTIPOPERACAO")
+                ),
+                "tipo_operacao": self._clean_optional(
+                    data.get("TIPOOPERACAO") or data.get("DESCRTIPOPER")
+                ),
             },
             confidence=(
                 ExternalRecordAssociationConfidence.HIGH
                 if local is not None
                 else ExternalRecordAssociationConfidence.LOW
             ),
-            notes=None if local is not None else "Tipo de operacao externo sem equivalencia local segura.",
+            notes=None
+            if local is not None
+            else "Tipo de operacao externo sem equivalencia local segura.",
             external_company_id=self._extract_external_company_id(data),
             external_branch_id=self._extract_external_branch_id(data),
         )
@@ -522,7 +554,9 @@ class SankhyaExternalAssociationHelper:
                 if local is not None
                 else ExternalRecordAssociationConfidence.LOW
             ),
-            notes=None if local is not None else "Natureza/plano local nao identificado de forma segura.",
+            notes=None
+            if local is not None
+            else "Natureza/plano local nao identificado de forma segura.",
         )
 
     async def _sync_pendente_financeiro(
@@ -661,7 +695,9 @@ class SankhyaExternalAssociationHelper:
         )
         if provider_config is None:
             return None
-        await self.adapter.sync_provider_config(provider_config, reason="external_association_context")
+        await self.adapter.sync_provider_config(
+            provider_config, reason="external_association_context"
+        )
         return await self._get_context(tenant_id, feature_code)
 
     async def _get_context(self, tenant_id: str, feature_code: str) -> dict[str, Any] | None:
@@ -689,11 +725,7 @@ class SankhyaExternalAssociationHelper:
 
     def _resolve_environment(self, config: TenantIntegracao) -> str:
         payload = config.connection_payload or {}
-        return (
-            payload.get("sankhya_environment")
-            or payload.get("environment")
-            or "producao"
-        )
+        return payload.get("sankhya_environment") or payload.get("environment") or "producao"
 
     async def _find_existing_association(
         self,
@@ -717,11 +749,21 @@ class SankhyaExternalAssociationHelper:
             ExternalRecordAssociation.deleted_at.is_(None),
         )
         if external_company_id is None:
-            stmt = stmt.where(or_(ExternalRecordAssociation.external_company_id.is_(None), ExternalRecordAssociation.external_company_id == ""))
+            stmt = stmt.where(
+                or_(
+                    ExternalRecordAssociation.external_company_id.is_(None),
+                    ExternalRecordAssociation.external_company_id == "",
+                )
+            )
         else:
             stmt = stmt.where(ExternalRecordAssociation.external_company_id == external_company_id)
         if external_branch_id is None:
-            stmt = stmt.where(or_(ExternalRecordAssociation.external_branch_id.is_(None), ExternalRecordAssociation.external_branch_id == ""))
+            stmt = stmt.where(
+                or_(
+                    ExternalRecordAssociation.external_branch_id.is_(None),
+                    ExternalRecordAssociation.external_branch_id == "",
+                )
+            )
         else:
             stmt = stmt.where(ExternalRecordAssociation.external_branch_id == external_branch_id)
         stmt = stmt.order_by(ExternalRecordAssociation.created_at.asc())
@@ -862,14 +904,18 @@ class SankhyaExternalAssociationHelper:
         )
         return await self._scalar_unique(stmt)
 
-    async def _find_conta_bancaria(self, tenant_id: str, data: dict[str, Any]) -> ContaBancaria | None:
+    async def _find_conta_bancaria(
+        self, tenant_id: str, data: dict[str, Any]
+    ) -> ContaBancaria | None:
         tenant_uuid = self._parse_uuid(tenant_id)
         if tenant_uuid is None:
             return None
 
         banco = self._clean_optional(data.get("CODBANCO") or data.get("BANCO"))
         agencia = self._clean_optional(data.get("CODAGENCIA") or data.get("AGENCIA"))
-        conta = self._clean_optional(data.get("CONTA") or data.get("NUMCONTA") or data.get("CONTA_CORRENTE"))
+        conta = self._clean_optional(
+            data.get("CONTA") or data.get("NUMCONTA") or data.get("CONTA_CORRENTE")
+        )
         nome = self._clean_optional(data.get("NOMECONTA") or data.get("NOME"))
 
         filters = [ContaBancaria.tenant_id == tenant_uuid, ContaBancaria.ativa.is_(True)]
@@ -945,7 +991,9 @@ class SankhyaExternalAssociationHelper:
         parts = [
             self._clean_optional(data.get("CODBANCO") or data.get("BANCO")),
             self._clean_optional(data.get("CODAGENCIA") or data.get("AGENCIA")),
-            self._clean_optional(data.get("CONTA") or data.get("NUMCONTA") or data.get("CONTA_CORRENTE")),
+            self._clean_optional(
+                data.get("CONTA") or data.get("NUMCONTA") or data.get("CONTA_CORRENTE")
+            ),
             self._clean_optional(data.get("CARTEIRA") or data.get("CODCARTEIRA")),
         ]
         values = [part for part in parts if part]

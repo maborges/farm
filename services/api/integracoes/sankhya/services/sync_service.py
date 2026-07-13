@@ -42,6 +42,7 @@ from integracoes.security import (
     encrypt_integration_secret,
     mask_integration_secret,
 )
+from integracoes.url_validator import validate_provider_url
 
 _LOGGER = logging.getLogger(__name__)
 _SANKHYA_CONFIG_TENANT_UNIQUE_CONSTRAINTS = {
@@ -399,9 +400,10 @@ class SankhyaSyncService:
             normalized["token"] or normalized["appkey"]
         )
 
-    def _normalize_config_values(
+    async def _normalize_config_values(
         self,
         *,
+        auth_model: str | None = None,
         sankhya_environment: str | None,
         sankhya_api_base_url: str | None,
         sankhya_auth_url: str | None,
@@ -435,16 +437,21 @@ class SankhyaSyncService:
         current_auth = SankhyaGatewayAuthService(current) if current else None
         current_model = current_auth.auth_model() if current_auth else None
 
-        if explicit_legacy_login:
-            auth_model = "gateway_legacy_login"
-        elif explicit_gateway:
-            auth_model = "gateway_oauth_client_credentials"
-        elif current_model and current_model != "incomplete":
-            auth_model = current_model
-        elif explicit_legacy:
-            auth_model = "legacy_ws_basic_auth"
+        # Respeita o auth_model se for providenciado explicitamente, senão fallback
+        if auth_model:
+            if auth_model not in ("gateway_oauth_client_credentials", "gateway_legacy_login", "legacy_ws_basic_auth"):
+                raise ValueError(f"auth_model inválido: {auth_model}")
         else:
-            auth_model = "gateway_oauth_client_credentials"
+            if explicit_legacy_login:
+                auth_model = "gateway_legacy_login"
+            elif explicit_gateway:
+                auth_model = "gateway_oauth_client_credentials"
+            elif current_model and current_model != "incomplete":
+                auth_model = current_model
+            elif explicit_legacy:
+                auth_model = "legacy_ws_basic_auth"
+            else:
+                auth_model = "gateway_oauth_client_credentials"
 
         current_is_gateway = (
             current_auth.auth_model() == "gateway_oauth_client_credentials"
@@ -461,10 +468,16 @@ class SankhyaSyncService:
         environment = sankhya_environment or (
             current.environment if current else settings.sankhya_environment
         )
-        api_base_url = sankhya_api_base_url or (
+        api_base_url_raw = sankhya_api_base_url or (
             current.api_base_url if current and current.api_base_url else None
         )
-        auth_url = sankhya_auth_url or (current.auth_url if current and current.auth_url else None)
+        api_base_url = await validate_provider_url(api_base_url_raw, "sankhya_api_base_url")
+
+        auth_url_raw = sankhya_auth_url or (
+            current.auth_url if current and current.auth_url else None
+        )
+        auth_url = await validate_provider_url(auth_url_raw, "sankhya_auth_url")
+
         client_id = sankhya_client_id or (
             current.client_id if current and current.client_id else None
         )
@@ -472,7 +485,8 @@ class SankhyaSyncService:
         x_token_raw = sankhya_x_token
         token_raw = sankhya_token
         appkey_raw = sankhya_appkey
-        ws_url_value = ws_url or (current.ws_url if current and current.ws_url else None)
+        ws_url_value_raw = ws_url or (current.ws_url if current and current.ws_url else None)
+        ws_url_value = await validate_provider_url(ws_url_value_raw, "ws_url")
         username_value = username or (current.username if current and current.username else None)
         password_raw = password
 
@@ -610,6 +624,7 @@ class SankhyaSyncService:
         self,
         tenant_id: str,
         *,
+        auth_model: str | None = None,
         sankhya_environment: str | None = None,
         sankhya_api_base_url: str | None = None,
         sankhya_auth_url: str | None = None,
@@ -623,7 +638,8 @@ class SankhyaSyncService:
         password: str | None = None,
         sync_interval: int = 900,
     ) -> SankhyaConfig:
-        normalized = self._normalize_config_values(
+        normalized = await self._normalize_config_values(
+            auth_model=auth_model,
             sankhya_environment=sankhya_environment,
             sankhya_api_base_url=sankhya_api_base_url,
             sankhya_auth_url=sankhya_auth_url,
@@ -721,6 +737,7 @@ class SankhyaSyncService:
         self,
         config: SankhyaConfig,
         *,
+        auth_model: str | None = None,
         sankhya_environment: str | None = None,
         sankhya_api_base_url: str | None = None,
         sankhya_auth_url: str | None = None,
@@ -734,7 +751,8 @@ class SankhyaSyncService:
         password: str | None = None,
         sync_interval: int,
     ) -> SankhyaConfig:
-        normalized = self._normalize_config_values(
+        normalized = await self._normalize_config_values(
+            auth_model=auth_model,
             sankhya_environment=sankhya_environment,
             sankhya_api_base_url=sankhya_api_base_url,
             sankhya_auth_url=sankhya_auth_url,

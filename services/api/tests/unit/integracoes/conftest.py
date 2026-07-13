@@ -66,3 +66,30 @@ async def session() -> AsyncSession:
         yield current
 
     await engine.dispose()
+
+import socket
+import pytest
+
+@pytest.fixture(autouse=True)
+def mock_dns_globally(monkeypatch):
+    def _getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
+        # Mapeamento para os testes de integracoes
+        if host == "public.com":
+            return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("8.8.8.8", 443))]
+        elif host == "private.com":
+            return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("10.0.0.1", 443))]
+        elif host == "loopback.com":
+            return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("127.0.0.1", 443))]
+        elif host == "linklocal.com":
+            return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("169.254.169.254", 443))]
+        elif host == "ipv6-loopback.com":
+            return [(socket.AF_INET6, socket.SOCK_STREAM, 6, "", ("::1", 443))]
+        elif host == "timeout.com":
+            raise TimeoutError("DNS Timeout")
+        elif host == "nxdomain.com":
+            raise socket.gaierror("Name or service not known")
+        
+        # Para outros testes no pacote, retorna um IP publico dummy válido
+        return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("8.8.8.8", 443))]
+
+    monkeypatch.setattr(socket, "getaddrinfo", _getaddrinfo)

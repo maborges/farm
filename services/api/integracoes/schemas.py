@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 from datetime import datetime
+from enum import Enum
 from typing import Any
 from uuid import UUID
 
-from enum import Enum
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from integracoes.models import (
@@ -133,7 +133,6 @@ class PaginatedExternalRecordAssociationResponse(BaseModel):
     offset: int
 
     model_config = ConfigDict()
-
 
 
 class ExternalRecordAssociationGovernanceReconcileRequest(BaseModel):

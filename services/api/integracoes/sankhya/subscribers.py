@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import  datetime
 
 from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,9 +9,9 @@ from events.base import DomainEvent, EventSubscriber, EventSubscriberResult
 from events.registry import register_event_subscriber
 from integracoes.events import IntegrationSyncRequested
 from integracoes.sankhya.services import (
-    SankhyaSyncService,
     SankhyaPessoaService,
-    SankhyaProdutoService
+    SankhyaProdutoService,
+    SankhyaSyncService,
 )
 
 
@@ -34,7 +34,7 @@ class SankhyaSyncEventSubscriber(EventSubscriber):
             event = IntegrationSyncRequested.model_validate(event.model_dump())
 
         features = event.features or []
-        
+
         errors = 0
         warnings = 0
         processed = 0
@@ -56,28 +56,36 @@ class SankhyaSyncEventSubscriber(EventSubscriber):
         for feature in features:
             if feature not in ("pessoas", "produtos"):
                 warnings += 1
-                bound_logger.bind(feature=feature).warning("sankhya_sync_event_subscriber_unsupported_feature")
+                bound_logger.bind(feature=feature).warning(
+                    "sankhya_sync_event_subscriber_unsupported_feature"
+                )
                 continue
-            
+
             try:
                 log = await sync_service.iniciar_sync_log(tenant_scope, feature, "import")
-                
+
                 if feature == "pessoas":
                     await pessoa_service.importar_pessoas(tenant_scope, log.id)
                 elif feature == "produtos":
                     await produto_service.importar_produtos(tenant_scope, log.id)
-                
+
                 await sync_service.finalizar_sync_log(log.id, "COMPLETED")
                 processed += 1
             except Exception as e:
                 errors += 1
-                bound_logger.bind(feature=feature, exception=str(e)).error("sankhya_sync_event_subscriber_feature_failed")
-                if 'log' in locals():
+                bound_logger.bind(feature=feature, exception=str(e)).error(
+                    "sankhya_sync_event_subscriber_feature_failed"
+                )
+                if "log" in locals():
                     await sync_service.finalizar_sync_log(log.id, "FAILED", str(e))
 
-        status = "failed" if errors > 0 and processed == 0 else "success" if errors == 0 else "partial"
+        status = (
+            "failed" if errors > 0 and processed == 0 else "success" if errors == 0 else "partial"
+        )
 
-        result = self._to_result(event, started_at, status=status, processed=processed, errors=errors, warnings=warnings)
+        result = self._to_result(
+            event, started_at, status=status, processed=processed, errors=errors, warnings=warnings
+        )
         bound_logger.bind(
             status=result.status,
             duration_ms=result.duration_ms,
@@ -95,7 +103,7 @@ class SankhyaSyncEventSubscriber(EventSubscriber):
             tenant_id=str(event.tenant_id),
             correlation_id=str(event.correlation_id) if event.correlation_id else None,
             causation_id=str(event.causation_id) if event.causation_id else None,
-            config_id=event.metadata.get("config_id") or getattr(event, "config_id", None)
+            config_id=event.metadata.get("config_id") or getattr(event, "config_id", None),
         )
 
     @staticmethod
@@ -105,7 +113,7 @@ class SankhyaSyncEventSubscriber(EventSubscriber):
         status: str = "success",
         processed: int = 0,
         errors: int = 0,
-        warnings: int = 0
+        warnings: int = 0,
     ) -> EventSubscriberResult:
         finished_at = datetime.now(timezone.utc)
         return EventSubscriberResult(

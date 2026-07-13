@@ -303,8 +303,7 @@ def _provider_definition_payload() -> dict[str, Any]:
         ),
         "health_model": "INTEGRATION_HEALTH",
         "documentation_url": (
-            "/docs/architecture/"
-            "ERP-PROVIDER-CONTRACT-02-CONTRATO-CANONICO-PROVIDER-ERP.md"
+            "/docs/architecture/" "ERP-PROVIDER-CONTRACT-02-CONTRATO-CANONICO-PROVIDER-ERP.md"
         ),
         "support_level": "REFERENCE_PROVIDER",
         "maturity": "PILOT_READY",
@@ -371,8 +370,7 @@ def _sync_schema_payload() -> dict[str, Any]:
         "webhook": {
             "supported": False,
             "reason": (
-                "provider atual usa gateway e sync desacoplado sem webhook oficial "
-                "materializado"
+                "provider atual usa gateway e sync desacoplado sem webhook oficial " "materializado"
             ),
         },
         "schedule": {

@@ -34,7 +34,9 @@ def get_openweather_service(db: AsyncSession = Depends(get_session)) -> OpenWeat
 
 def _translate_domain_error(exc: ValueError) -> HTTPException:
     message = str(exc)
-    status_code = 404 if "não configurado" in message.lower() or "não encontrada" in message.lower() else 400
+    status_code = (
+        404 if "não configurado" in message.lower() or "não encontrada" in message.lower() else 400
+    )
     return HTTPException(status_code=status_code, detail=message)
 
 

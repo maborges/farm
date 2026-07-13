@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
 from typing import Any
 
 from sqlalchemy import select
@@ -21,6 +20,7 @@ from integracoes.models import (
     MarketplaceIntegracao,
     TenantIntegracao,
 )
+
 _ERP_REQUIRED_FEATURE_CODES = ("pessoas", "produtos", "financeiro", "nfe")
 _ERP_CRITICAL_HEALTH = {
     IntegrationHealthStatus.AUTH_ERROR.value,
@@ -405,15 +405,21 @@ class ErpReadinessService:
         evaluated: list[dict[str, Any]] = []
         for feature_code in _ERP_REQUIRED_FEATURE_CODES:
             feature = runtime.features.get(feature_code)
-            capability = capability_matrix.get(feature_code) or getattr(feature, "settings_payload", {}) or {}
+            capability = (
+                capability_matrix.get(feature_code)
+                or getattr(feature, "settings_payload", {})
+                or {}
+            )
             missing = self._missing_capability_requirements(feature_code, feature, capability)
             evaluated.append(
                 {
                     "feature_code": feature_code,
-                    "present": feature is not None and getattr(feature, "habilitada", False) is True,
+                    "present": feature is not None
+                    and getattr(feature, "habilitada", False) is True,
                     "status": capability.get("status"),
                     "maturity": capability.get("maturity"),
-                    "observability_requirements": capability.get("observability_requirements") or [],
+                    "observability_requirements": capability.get("observability_requirements")
+                    or [],
                     "missing": missing,
                 }
             )
@@ -432,17 +438,15 @@ class ErpReadinessService:
                     "retry_limite": getattr(policy, "retry_limite", None),
                     "batch_size": getattr(policy, "batch_size", None),
                     "timeout_seconds": getattr(policy, "timeout_seconds", None),
-                    "supported_modes": ((feature.settings_payload or {}) if feature else {}).get("supported_modes", []),
+                    "supported_modes": ((feature.settings_payload or {}) if feature else {}).get(
+                        "supported_modes", []
+                    ),
                 }
             )
         return evaluated
 
     def _missing_capabilities(self, capabilities: list[dict[str, Any]]) -> list[str]:
-        return [
-            item["feature_code"]
-            for item in capabilities
-            if item["missing"]
-        ]
+        return [item["feature_code"] for item in capabilities if item["missing"]]
 
     def _missing_capability_requirements(
         self,
@@ -470,7 +474,9 @@ class ErpReadinessService:
         for feature_code in _ERP_REQUIRED_FEATURE_CODES:
             policy = runtime.policies.get(feature_code)
             feature = runtime.features.get(feature_code)
-            supported = ((feature.settings_payload or {}) if feature else {}).get("supported_modes", [])
+            supported = ((feature.settings_payload or {}) if feature else {}).get(
+                "supported_modes", []
+            )
             if policy is None or policy.ativa is not True:
                 missing.append(feature_code)
                 continue
@@ -497,9 +503,11 @@ class ErpReadinessService:
     def _ready_message(self, runtime: ErpChecklistRuntime) -> str:
         provider_name = "ERP"
         if runtime.provider is not None:
-            provider_name = getattr(runtime.provider, "nome", None) or getattr(
-                runtime.provider, "provider_name", None
-            ) or provider_name
+            provider_name = (
+                getattr(runtime.provider, "nome", None)
+                or getattr(runtime.provider, "provider_name", None)
+                or provider_name
+            )
         if runtime.health is not None and runtime.health.status in _ERP_ALLOWED_HEALTH_WARNING:
             return (
                 f"A integração com o ERP {provider_name} está liberada para o piloto inicial, "
@@ -508,7 +516,10 @@ class ErpReadinessService:
         return f"A integração com o ERP {provider_name} está pronta para o piloto inicial."
 
     def _erp_declared_for_implantacao(self, implantacao: Any) -> bool:
-        for payload in (implantacao.escopo_modulos or {}, implantacao.diagnostico_inicial_snapshot or {}):
+        for payload in (
+            implantacao.escopo_modulos or {},
+            implantacao.diagnostico_inicial_snapshot or {},
+        ):
             if not isinstance(payload, dict):
                 continue
             if payload.get("integracao_erp") is True:
@@ -531,10 +542,14 @@ class ErpReadinessService:
         return {feature.codigo: feature for feature in features}
 
     async def _load_policies(self, config_id: int) -> dict[str, IntegrationSyncPolicy]:
-        stmt = select(IntegrationSyncPolicy, IntegrationFeature).join(
-            IntegrationFeature,
-            IntegrationSyncPolicy.feature_id == IntegrationFeature.id,
-        ).where(IntegrationSyncPolicy.config_id == config_id)
+        stmt = (
+            select(IntegrationSyncPolicy, IntegrationFeature)
+            .join(
+                IntegrationFeature,
+                IntegrationSyncPolicy.feature_id == IntegrationFeature.id,
+            )
+            .where(IntegrationSyncPolicy.config_id == config_id)
+        )
         rows = (await self.session.execute(stmt)).all()
         return {feature.codigo: policy for policy, feature in rows}
 

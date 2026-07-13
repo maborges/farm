@@ -8,6 +8,10 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class SankhyaConfigCreate(BaseModel):
+    auth_model: str | None = Field(
+        default=None,
+        description="Modelo de autenticação: gateway_oauth_client_credentials ou gateway_legacy_login",
+    )
     sankhya_environment: str = Field(
         default="producao",
         description="Ambiente do Gateway Sankhya.",

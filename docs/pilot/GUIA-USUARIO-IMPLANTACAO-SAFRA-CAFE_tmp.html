@@ -1,0 +1,2367 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>GUIA-USUARIO-IMPLANTACAO-SAFRA-CAFE.md</title>
+<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
+
+<style>
+/* https://github.com/microsoft/vscode/blob/master/extensions/markdown-language-features/media/markdown.css */
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+body {
+	font-family: var(--vscode-markdown-font-family, -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif);
+	font-size: var(--vscode-markdown-font-size, 14px);
+	padding: 0 26px;
+	line-height: var(--vscode-markdown-line-height, 22px);
+	word-wrap: break-word;
+}
+
+#code-csp-warning {
+	position: fixed;
+	top: 0;
+	right: 0;
+	color: white;
+	margin: 16px;
+	text-align: center;
+	font-size: 12px;
+	font-family: sans-serif;
+	background-color:#444444;
+	cursor: pointer;
+	padding: 6px;
+	box-shadow: 1px 1px 1px rgba(0,0,0,.25);
+}
+
+#code-csp-warning:hover {
+	text-decoration: none;
+	background-color:#007acc;
+	box-shadow: 2px 2px 2px rgba(0,0,0,.25);
+}
+
+body.scrollBeyondLastLine {
+	margin-bottom: calc(100vh - 22px);
+}
+
+body.showEditorSelection .code-line {
+	position: relative;
+}
+
+body.showEditorSelection .code-active-line:before,
+body.showEditorSelection .code-line:hover:before {
+	content: "";
+	display: block;
+	position: absolute;
+	top: 0;
+	left: -12px;
+	height: 100%;
+}
+
+body.showEditorSelection li.code-active-line:before,
+body.showEditorSelection li.code-line:hover:before {
+	left: -30px;
+}
+
+.vscode-light.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(0, 0, 0, 0.15);
+}
+
+.vscode-light.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(0, 0, 0, 0.40);
+}
+
+.vscode-light.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+.vscode-dark.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(255, 255, 255, 0.4);
+}
+
+.vscode-dark.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(255, 255, 255, 0.60);
+}
+
+.vscode-dark.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+.vscode-high-contrast.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(255, 160, 0, 0.7);
+}
+
+.vscode-high-contrast.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(255, 160, 0, 1);
+}
+
+.vscode-high-contrast.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+img {
+	max-width: 100%;
+	max-height: 100%;
+}
+
+a {
+	text-decoration: none;
+}
+
+a:hover {
+	text-decoration: underline;
+}
+
+a:focus,
+input:focus,
+select:focus,
+textarea:focus {
+	outline: 1px solid -webkit-focus-ring-color;
+	outline-offset: -1px;
+}
+
+hr {
+	border: 0;
+	height: 2px;
+	border-bottom: 2px solid;
+}
+
+h1 {
+	padding-bottom: 0.3em;
+	line-height: 1.2;
+	border-bottom-width: 1px;
+	border-bottom-style: solid;
+}
+
+h1, h2, h3 {
+	font-weight: normal;
+}
+
+table {
+	border-collapse: collapse;
+}
+
+table > thead > tr > th {
+	text-align: left;
+	border-bottom: 1px solid;
+}
+
+table > thead > tr > th,
+table > thead > tr > td,
+table > tbody > tr > th,
+table > tbody > tr > td {
+	padding: 5px 10px;
+}
+
+table > tbody > tr + tr > td {
+	border-top: 1px solid;
+}
+
+blockquote {
+	margin: 0 7px 0 5px;
+	padding: 0 16px 0 10px;
+	border-left-width: 5px;
+	border-left-style: solid;
+}
+
+code {
+	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
+	font-size: 1em;
+	line-height: 1.357em;
+}
+
+body.wordWrap pre {
+	white-space: pre-wrap;
+}
+
+pre:not(.hljs),
+pre.hljs code > div {
+	padding: 16px;
+	border-radius: 3px;
+	overflow: auto;
+}
+
+pre code {
+	color: var(--vscode-editor-foreground);
+	tab-size: 4;
+}
+
+/** Theming */
+
+.vscode-light pre {
+	background-color: rgba(220, 220, 220, 0.4);
+}
+
+.vscode-dark pre {
+	background-color: rgba(10, 10, 10, 0.4);
+}
+
+.vscode-high-contrast pre {
+	background-color: rgb(0, 0, 0);
+}
+
+.vscode-high-contrast h1 {
+	border-color: rgb(0, 0, 0);
+}
+
+.vscode-light table > thead > tr > th {
+	border-color: rgba(0, 0, 0, 0.69);
+}
+
+.vscode-dark table > thead > tr > th {
+	border-color: rgba(255, 255, 255, 0.69);
+}
+
+.vscode-light h1,
+.vscode-light hr,
+.vscode-light table > tbody > tr + tr > td {
+	border-color: rgba(0, 0, 0, 0.18);
+}
+
+.vscode-dark h1,
+.vscode-dark hr,
+.vscode-dark table > tbody > tr + tr > td {
+	border-color: rgba(255, 255, 255, 0.18);
+}
+
+</style>
+
+<style>
+/* Tomorrow Theme */
+/* http://jmblog.github.com/color-themes-for-google-code-highlightjs */
+/* Original theme - https://github.com/chriskempson/tomorrow-theme */
+
+/* Tomorrow Comment */
+.hljs-comment,
+.hljs-quote {
+	color: #8e908c;
+}
+
+/* Tomorrow Red */
+.hljs-variable,
+.hljs-template-variable,
+.hljs-tag,
+.hljs-name,
+.hljs-selector-id,
+.hljs-selector-class,
+.hljs-regexp,
+.hljs-deletion {
+	color: #c82829;
+}
+
+/* Tomorrow Orange */
+.hljs-number,
+.hljs-built_in,
+.hljs-builtin-name,
+.hljs-literal,
+.hljs-type,
+.hljs-params,
+.hljs-meta,
+.hljs-link {
+	color: #f5871f;
+}
+
+/* Tomorrow Yellow */
+.hljs-attribute {
+	color: #eab700;
+}
+
+/* Tomorrow Green */
+.hljs-string,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-addition {
+	color: #718c00;
+}
+
+/* Tomorrow Blue */
+.hljs-title,
+.hljs-section {
+	color: #4271ae;
+}
+
+/* Tomorrow Purple */
+.hljs-keyword,
+.hljs-selector-tag {
+	color: #8959a8;
+}
+
+.hljs {
+	display: block;
+	overflow-x: auto;
+	color: #4d4d4c;
+	padding: 0.5em;
+}
+
+.hljs-emphasis {
+	font-style: italic;
+}
+
+.hljs-strong {
+	font-weight: bold;
+}
+</style>
+
+<style>
+/*
+ * Markdown PDF CSS
+ */
+
+ body {
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif, "Meiryo";
+	padding: 0 12px;
+}
+
+pre {
+	background-color: #f8f8f8;
+	border: 1px solid #cccccc;
+	border-radius: 3px;
+	overflow-x: auto;
+	white-space: pre-wrap;
+	overflow-wrap: break-word;
+}
+
+pre:not(.hljs) {
+	padding: 23px;
+	line-height: 19px;
+}
+
+blockquote {
+	background: rgba(127, 127, 127, 0.1);
+	border-color: rgba(0, 122, 204, 0.5);
+}
+
+.emoji {
+	height: 1.4em;
+}
+
+code {
+	font-size: 14px;
+	line-height: 19px;
+}
+
+/* for inline code */
+:not(pre):not(.hljs) > code {
+	color: #C9AE75; /* Change the old color so it seems less like an error */
+	font-size: inherit;
+}
+
+/* Page Break : use <div class="page"/> to insert page break
+-------------------------------------------------------- */
+.page {
+	page-break-after: always;
+}
+
+</style>
+
+<script src="https://unpkg.com/mermaid/dist/mermaid.min.js"></script>
+</head>
+<body>
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: document.body.classList.contains('vscode-dark') || document.body.classList.contains('vscode-high-contrast')
+          ? 'dark'
+          : 'default'
+    });
+  </script>
+<h1 id="guia-do-usu%C3%A1rio---implanta%C3%A7%C3%A3o-da-safra-de-caf%C3%A9">Guia do Usuário - Implantação da Safra de Café</h1>
+<p>Documento: PILOT-06<br>
+Público: administrador do cliente e usuários responsáveis pela implantação<br>
+Escopo: primeiro acesso ao AgroSaaS até a visualização dos primeiros resultados da safra de café<br>
+Status: guia operacional baseado nas telas e fluxos existentes</p>
+<h2 id="0-antes-de-come%C3%A7ar">0. Antes de começar</h2>
+<p>Este guia mostra o caminho prático para colocar uma fazenda de café em operação no AgroSaaS.</p>
+<p>Ele não substitui o Plano Mestre, o Runbook ou o Checklist do Cliente. Ele traduz esses documentos para uma sequência simples de uso dentro do sistema.</p>
+<p>O piloto aprovado considera:</p>
+<ul>
+<li>O cliente é um produtor de café com perfil exportador.</li>
+<li>O ERP Sankhya é a origem principal de cadastros administrativos e financeiros definidos para o piloto.</li>
+<li>O AgroSaaS é a origem principal dos dados da fazenda, talhões, operação agrícola, Campo PWA, alertas, recomendações e resultados agronômicos.</li>
+<li>A integração Sankhya do piloto é Sankhya para AgroSaaS.</li>
+<li>O piloto não faz escrita bidirecional no Sankhya.</li>
+<li>Documentos avançados, faturamento, cancelamentos e contratos completos ficam fora do escopo inicial do piloto.</li>
+</ul>
+<h2 id="auditoria-das-telas-e-fluxos-existentes">Auditoria das telas e fluxos existentes</h2>
+<table>
+<thead>
+<tr>
+<th>Área auditada</th>
+<th>Menu ou rota principal</th>
+<th>Situação</th>
+<th>O que existe hoje</th>
+<th>Limitação para o usuário</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Primeiro acesso e login</td>
+<td><code>/login</code>, <code>/register</code>, <code>/convite/aceitar</code>, <code>/selecionar-tenant</code></td>
+<td>EXISTE E ATENDE</td>
+<td>Login, cadastro, aceite de convite e seleção de ambiente.</td>
+<td>O acesso depende de usuário, ambiente da empresa e permissões já provisionados.</td>
+</tr>
+<tr>
+<td>Ativação e onboarding inicial</td>
+<td><code>/onboarding/ativar</code>, <code>/onboarding/configurar</code>, <code>/onboarding/sucesso</code></td>
+<td>EXISTE E ATENDE</td>
+<td>Configuração inicial com ano agrícola, unidade de área, fuso, moeda e categorias padrão.</td>
+<td>Se o ambiente ativo não for detectado, o usuário precisa fazer login novamente.</td>
+</tr>
+<tr>
+<td>Wizard de implantação</td>
+<td><code>/dashboard/implantacao/wizard</code></td>
+<td>EXISTE E ATENDE</td>
+<td>Estados, progresso, checklist, pendências, motivos de bloqueio e ações de go-live.</td>
+<td>O Wizard não substitui os cadastros. Ele valida evidências e prontidão.</td>
+</tr>
+<tr>
+<td>Unidade Produtiva</td>
+<td>Serviço de unidades produtivas e telas de fazendas/propriedades</td>
+<td>EXISTE PARCIALMENTE</td>
+<td>Entidade e validação obrigatória no Wizard.</td>
+<td>A criação pode ser conduzida em telas de fazenda/propriedade ou operação assistida, conforme configuração do ambiente.</td>
+</tr>
+<tr>
+<td>Propriedades</td>
+<td>Minha Propriedade &gt; Propriedades, <code>/cadastros/propriedades</code></td>
+<td>EXISTE E ATENDE</td>
+<td>Cadastro e gestão das propriedades rurais.</td>
+<td>Dados fundiários detalhados podem depender da tela de Imóveis Rurais.</td>
+</tr>
+<tr>
+<td>Imóveis rurais</td>
+<td>Imóveis Rurais &gt; Imóveis Rurais, <code>/cadastros/imoveis</code></td>
+<td>EXISTE E ATENDE</td>
+<td>Cadastro legal com NIRF, CAR, CCIR, documentação e filtros.</td>
+<td>Vínculo com propriedade deve ser conferido durante a implantação assistida se houver dúvida.</td>
+</tr>
+<tr>
+<td>Estrutura de áreas</td>
+<td>Propriedade &gt; Estrutura, componentes de hierarquia</td>
+<td>EXISTE E ATENDE</td>
+<td>Área Rural, Gleba, Talhão, Área Operacional, APP, Reserva Legal, Infraestrutura, Sede, Armazém, Curral e Outros.</td>
+<td>O resultado do Wizard exige pelo menos área rural e talhão para agricultura.</td>
+</tr>
+<tr>
+<td>Talhões e georreferenciamento</td>
+<td>Minha Propriedade &gt; Georreferenciamento, <code>/cadastros/propriedades/talhoes</code></td>
+<td>EXISTE E ATENDE</td>
+<td>Visualização e edição de geometria dos talhões no mapa.</td>
+<td>O desenho correto depende de coordenadas ou ajuste manual pelo usuário/equipe.</td>
+</tr>
+<tr>
+<td>Pessoas e parceiros</td>
+<td>Pessoas &amp; Parceiros &gt; Pessoas &amp; Parceiros, <code>/cadastros/pessoas</code></td>
+<td>EXISTE E ATENDE</td>
+<td>Clientes, fornecedores, colaboradores e outros vínculos.</td>
+<td>Dados sensíveis usam controle de acesso e podem exigir permissão específica.</td>
+</tr>
+<tr>
+<td>Produtos e insumos</td>
+<td>Insumos &amp; Ativos &gt; Catálogo de Produtos, <code>/cadastros/produtos</code></td>
+<td>EXISTE E ATENDE</td>
+<td>Produto, tipo, categoria, princípio ativo, fabricante, unidade, estoque mínimo e preço médio.</td>
+<td>Duplicidades importadas ou cadastradas manualmente exigem conferência operacional.</td>
+</tr>
+<tr>
+<td>Commodities</td>
+<td>Minha Propriedade &gt; Commodities, <code>/cadastros/commodities</code></td>
+<td>EXISTE E ATENDE</td>
+<td>Cadastro de produtos agropecuários.</td>
+<td>Deve ser conferido para café quando usado em comercialização e relatórios.</td>
+</tr>
+<tr>
+<td>Safras</td>
+<td>Agricultura &gt; Safras, <code>/agricola/safras</code></td>
+<td>EXISTE E ATENDE</td>
+<td>Listagem, KPIs, filtro por fase, criação e acesso ao painel da safra.</td>
+<td>A safra só fica útil se houver talhões e cultivo configurados.</td>
+</tr>
+<tr>
+<td>Safra de café</td>
+<td><code>/agricola/safras/[id]</code></td>
+<td>EXISTE E ATENDE</td>
+<td>Cultivo, talhões, área, cultivar, meta de produtividade, período, fase, checklist, tarefas, fenologia e cenário base quando houver.</td>
+<td>A cultura Café precisa existir no cadastro de culturas para seleção no formulário.</td>
+</tr>
+<tr>
+<td>Operações agrícolas</td>
+<td>Agricultura &gt; Operações Consolidadas, Caderno de Campo, Romaneios, Beneficiamento</td>
+<td>EXISTE PARCIALMENTE</td>
+<td>Telas para acompanhar registros, caderno, colheita e pós-colheita.</td>
+<td>Alguns lançamentos podem entrar pelo Campo PWA ou operação assistida, conforme rotina do piloto.</td>
+</tr>
+<tr>
+<td>Campo PWA</td>
+<td>Web: <code>/dashboard/operacional/campo/*</code>; Campo: <code>/activate</code>, <code>/pin</code>, <code>/home</code>, <code>/sync</code>, <code>/caderno</code>, <code>/campo/aplicacao</code>, <code>/campo/colheita</code></td>
+<td>EXISTE E ATENDE</td>
+<td>Dispositivos, tarefas, ativação por código, PIN, sincronização, operação offline, aplicação, colheita e caderno.</td>
+<td>O dispositivo só opera depois de ativado e sincronizado.</td>
+</tr>
+<tr>
+<td>Estoque</td>
+<td>Estoque &amp; Suprimento &gt; Saldos, Almoxarifado, Lotes, Requisições, Implantação Assistida</td>
+<td>EXISTE E ATENDE</td>
+<td>Saldos, lotes, requisições, estoque mínimo, almoxarifado e implantação assistida.</td>
+<td>Saldo inicial precisa ser conferido antes de depender de baixa automática.</td>
+</tr>
+<tr>
+<td>Financeiro</td>
+<td>Financeiro &gt; Painel, Receitas, Despesas, Planos de Conta, Lançamentos, DRE</td>
+<td>EXISTE E ATENDE</td>
+<td>Receitas, despesas, plano de contas, lançamentos, fluxo de caixa e DRE operacional.</td>
+<td>Resultados dependem de dados importados do Sankhya ou lançados corretamente.</td>
+</tr>
+<tr>
+<td>Custos agrícolas</td>
+<td>Agricultura &gt; Custeio Agrícola, <code>/agricola/custos</code></td>
+<td>EXISTE E ATENDE</td>
+<td>Custo realizado, orçamento planejado e visão por safra.</td>
+<td>O custo por talhão/operação depende de apropriação correta dos lançamentos.</td>
+</tr>
+<tr>
+<td>Rentabilidade agrícola</td>
+<td>Agricultura &gt; Rentabilidade Agrícola, <code>/dashboard/agricola/rentabilidade</code></td>
+<td>EXISTE E ATENDE</td>
+<td>Rentabilidade derivada da DRE agrícola, filtros por safra, fazenda e unidade operacional.</td>
+<td>Requer plano compatível e dados de custo, receita, produção e área.</td>
+</tr>
+<tr>
+<td>DRE agrícola</td>
+<td>Agricultura &gt; DRE Agrícola v1, <code>/dashboard/agricola/dre</code></td>
+<td>EXISTE E ATENDE</td>
+<td>Visão econômica oficial para resultado agrícola.</td>
+<td>Se faltar receita, custo ou produção, a DRE fica parcial.</td>
+</tr>
+<tr>
+<td>Alertas e recomendações</td>
+<td>Inteligência Operacional, Recomendações, Central de Inteligência</td>
+<td>EXISTE E ATENDE</td>
+<td>Recomendações, alertas executivos e orientações persistidas no Campo PWA.</td>
+<td>A qualidade depende de dados sincronizados e regras disponíveis para o ambiente.</td>
+</tr>
+<tr>
+<td>Integração Sankhya</td>
+<td>Configurações &gt; Integrações &gt; ERP Sankhya, <code>/dashboard/settings/integracoes/erp</code></td>
+<td>EXISTE E ATENDE</td>
+<td>Configuração, teste de conexão, saúde da integração, diagnóstico, execuções, histórico técnico, linha do tempo e sincronização manual.</td>
+<td>O console atual usa URL do Web Service, usuário e senha. A estratégia de acesso pelo Gateway e campos técnicos completos seguem os relatórios Sankhya do piloto.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="1-vis%C3%A3o-geral-da-jornada">1. Visão geral da jornada</h2>
+<p>A implantação completa segue esta ordem:</p>
+<ol>
+<li>Primeiro acesso ao AgroSaaS.</li>
+<li>Ativação da conta e seleção do ambiente.</li>
+<li>Configuração inicial do ambiente da empresa.</li>
+<li>Início do Wizard de Implantação.</li>
+<li>Criação ou validação da Unidade Produtiva.</li>
+<li>Cadastro da propriedade e dos imóveis rurais.</li>
+<li>Estruturação da fazenda em glebas, talhões, áreas operacionais e infraestrutura.</li>
+<li>Configuração da integração Sankhya e teste de conexão.</li>
+<li>Conferência dos cadastros mestres.</li>
+<li>Criação da safra de café.</li>
+<li>Associação de talhões, cultivar, área e meta de produtividade.</li>
+<li>Preparação do Campo PWA.</li>
+<li>Registro da operação diária.</li>
+<li>Conferência de estoque, custos e financeiro.</li>
+<li>Acompanhamento de alertas e recomendações.</li>
+<li>Visualização de DRE e rentabilidade da safra.</li>
+</ol>
+<p>Resultado esperado: ao final da implantação, o usuário consegue acessar a safra de café, acompanhar atividades, sincronizar registros de campo, conferir custos e visualizar indicadores econômicos quando houver dados suficientes.</p>
+<h2 id="2-primeiro-acesso">2. Primeiro acesso</h2>
+<h3 id="onde-acessar">Onde acessar</h3>
+<ul>
+<li>Tela de login: <code>/login</code>.</li>
+<li>Tela de cadastro: <code>/register</code>.</li>
+<li>Aceite de convite: <code>/convite/aceitar</code>.</li>
+<li>Seleção de ambiente: <code>/selecionar-tenant</code>.</li>
+</ul>
+<h3 id="quem-deve-acessar-primeiro">Quem deve acessar primeiro</h3>
+<p>O primeiro acesso deve ser feito pelo Owner/Admin do cliente.</p>
+<p>Esse usuário normalmente é responsável por:</p>
+<ul>
+<li>aceitar o convite;</li>
+<li>selecionar o ambiente correto;</li>
+<li>concluir a configuração inicial;</li>
+<li>iniciar o Wizard;</li>
+<li>acompanhar pendências;</li>
+<li>aprovar a liberação para go-live.</li>
+</ul>
+<h3 id="passo-a-passo">Passo a passo</h3>
+<ol>
+<li>Acesse o endereço do AgroSaaS informado pela equipe.</li>
+<li>Entre na tela de login.</li>
+<li>Informe e-mail e senha.</li>
+<li>Se houver mais de um ambiente, selecione o ambiente correto.</li>
+<li>Confirme se o nome da empresa aparece no ambiente selecionado.</li>
+<li>Se o sistema direcionar para onboarding, conclua a configuração inicial antes de tentar usar o dashboard.</li>
+</ol>
+<h3 id="campos-e-valida%C3%A7%C3%B5es-esperadas">Campos e validações esperadas</h3>
+<table>
+<thead>
+<tr>
+<th>Campo</th>
+<th>O que preencher</th>
+<th>Validação esperada</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>E-mail</td>
+<td>E-mail cadastrado ou convidado</td>
+<td>Deve existir no ambiente ou convite.</td>
+</tr>
+<tr>
+<td>Senha</td>
+<td>Senha definida pelo usuário</td>
+<td>Deve ser válida.</td>
+</tr>
+<tr>
+<td>Tenant</td>
+<td>Ambiente da empresa</td>
+<td>Deve estar ativo e vinculado ao usuário.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="mensagens-comuns">Mensagens comuns</h3>
+<table>
+<thead>
+<tr>
+<th>Mensagem ou situação</th>
+<th>O que significa</th>
+<th>Como resolver</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Usuário ou senha inválidos</td>
+<td>Credencial incorreta ou usuário sem acesso</td>
+<td>Conferir e-mail, redefinir senha ou acionar suporte.</td>
+</tr>
+<tr>
+<td>Seleção de ambiente</td>
+<td>Usuário pertence a mais de um ambiente</td>
+<td>Escolher o ambiente da empresa piloto.</td>
+</tr>
+<tr>
+<td>Onboarding pendente</td>
+<td>Configuração inicial ainda não foi concluída</td>
+<td>Ir para o onboarding e concluir as etapas.</td>
+</tr>
+<tr>
+<td>Não foi possível detectar o ambiente ativo</td>
+<td>O navegador não está com ambiente válido</td>
+<td>Fazer login novamente.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="3-onboarding-inicial">3. Onboarding inicial</h2>
+<h3 id="onde-acessar">Onde acessar</h3>
+<ul>
+<li><code>/onboarding/configurar</code>.</li>
+</ul>
+<h3 id="o-que-o-usu%C3%A1rio-ver%C3%A1">O que o usuário verá</h3>
+<p>A tela apresenta a Configuração Inicial em 5 etapas:</p>
+<table>
+<thead>
+<tr>
+<th>Etapa</th>
+<th>Campo ou decisão</th>
+<th>O que fazer</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Ano Agrícola</td>
+<td>Início e fim</td>
+<td>Para café, usar o calendário definido pelo cliente. O padrão do sistema é julho a junho.</td>
+</tr>
+<tr>
+<td>Unidade de Área</td>
+<td>Hectare ou alqueires</td>
+<td>Usar hectare se não houver orientação diferente.</td>
+</tr>
+<tr>
+<td>Fuso e Moeda</td>
+<td>Fuso horário e Real Brasileiro</td>
+<td>Para a maioria das fazendas, usar São Paulo/Brasília e BRL.</td>
+</tr>
+<tr>
+<td>Categorias</td>
+<td>Carregar categorias padrão</td>
+<td>Manter marcado para iniciar com categorias comuns.</td>
+</tr>
+<tr>
+<td>Revisão</td>
+<td>Conferência final</td>
+<td>Confirmar se tudo está correto antes de concluir.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="bot%C3%B5es-dispon%C3%ADveis">Botões disponíveis</h3>
+<ul>
+<li><code>Anterior</code>.</li>
+<li><code>Próximo</code>.</li>
+<li><code>Concluir Configuração</code>.</li>
+</ul>
+<h3 id="resultado-esperado">Resultado esperado</h3>
+<p>Ao clicar em <code>Concluir Configuração</code>, o sistema salva a configuração e direciona o usuário para o dashboard.</p>
+<h3 id="se-o-dashboard-estiver-bloqueado">Se o dashboard estiver bloqueado</h3>
+<p>O dashboard pode ficar restrito quando:</p>
+<ul>
+<li>o ambiente da empresa não foi identificado;</li>
+<li>a configuração inicial não foi concluída;</li>
+<li>o Wizard ainda tem pendências críticas;</li>
+<li>a Unidade Produtiva não existe;</li>
+<li>os dados mínimos de implantação não foram informados.</li>
+</ul>
+<p>Nesse caso, o usuário deve acessar o Wizard e corrigir as pendências indicadas.</p>
+<h2 id="4-wizard-de-implanta%C3%A7%C3%A3o">4. Wizard de implantação</h2>
+<h3 id="onde-acessar">Onde acessar</h3>
+<p>Menu: Dashboard &gt; Implantação &gt; Wizard<br>
+Rota: <code>/dashboard/implantacao/wizard</code></p>
+<h3 id="para-que-serve">Para que serve</h3>
+<p>O Wizard é o painel de controle da implantação. Ele mostra:</p>
+<ul>
+<li>status da implantação;</li>
+<li>etapa atual;</li>
+<li>progresso geral;</li>
+<li>checklist mínimo;</li>
+<li>pendências críticas;</li>
+<li>motivos de bloqueio;</li>
+<li>elegibilidade para go-live;</li>
+<li>ações permitidas no momento.</li>
+</ul>
+<h3 id="estados-do-wizard">Estados do Wizard</h3>
+<table>
+<thead>
+<tr>
+<th>Estado</th>
+<th>Significado para o usuário</th>
+<th>Ação esperada</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Não iniciado</td>
+<td>A implantação ainda não foi aberta</td>
+<td>Clicar em <code>Iniciar implantação</code>.</td>
+</tr>
+<tr>
+<td>Em progresso</td>
+<td>A implantação está em andamento</td>
+<td>Corrigir pendências e avançar na preparação.</td>
+</tr>
+<tr>
+<td>Pausado</td>
+<td>A implantação foi parada temporariamente</td>
+<td>Clicar em <code>Retomar</code> quando puder continuar.</td>
+</tr>
+<tr>
+<td>Bloqueado</td>
+<td>Existe impedimento estrutural</td>
+<td>Resolver pendências críticas antes de continuar.</td>
+</tr>
+<tr>
+<td>Pronto para go-live</td>
+<td>Requisitos mínimos atendidos</td>
+<td>Validar com equipe e iniciar go-live.</td>
+</tr>
+<tr>
+<td>Go-live</td>
+<td>Operação assistida iniciada</td>
+<td>Acompanhar primeira operação real.</td>
+</tr>
+<tr>
+<td>Estabilização</td>
+<td>Pós-go-live em acompanhamento</td>
+<td>Monitorar rotina e resolver ajustes.</td>
+</tr>
+<tr>
+<td>Concluído</td>
+<td>Implantação encerrada com sucesso</td>
+<td>Seguir operação normal.</td>
+</tr>
+<tr>
+<td>Cancelado</td>
+<td>Implantação encerrada sem continuidade</td>
+<td>Acionar a equipe AgroSaaS.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="etapas-oficiais-do-wizard">Etapas oficiais do Wizard</h3>
+<table>
+<thead>
+<tr>
+<th>Ordem</th>
+<th>Etapa</th>
+<th>Objetivo</th>
+<th>Situação no piloto</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Diagnóstico</td>
+<td>Abrir e registrar contexto inicial</td>
+<td>EXISTE E ATENDE</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Unidade Produtiva</td>
+<td>Garantir fazenda/unidade ativa</td>
+<td>EXISTE E ATENDE</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Território</td>
+<td>Garantir estrutura de área rural</td>
+<td>EXISTE E ATENDE</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Atividades</td>
+<td>Garantir cadastros básicos</td>
+<td>EXISTE E ATENDE</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Agricultura</td>
+<td>Garantir talhão quando agricultura está habilitada</td>
+<td>EXISTE E ATENDE</td>
+</tr>
+<tr>
+<td>6</td>
+<td>Pecuária</td>
+<td>Exigida apenas se pecuária estiver habilitada</td>
+<td>EXISTE E ATENDE, mas normalmente dispensada no piloto café</td>
+</tr>
+<tr>
+<td>7</td>
+<td>Estoque</td>
+<td>Garantir depósito quando estoque está habilitado</td>
+<td>EXISTE E ATENDE</td>
+</tr>
+<tr>
+<td>8</td>
+<td>Financeiro</td>
+<td>Garantir plano de contas quando financeiro está habilitado</td>
+<td>EXISTE E ATENDE</td>
+</tr>
+<tr>
+<td>9</td>
+<td>Máquinas</td>
+<td>Garantir equipamento se frota/máquinas estiver habilitado</td>
+<td>EXISTE E ATENDE</td>
+</tr>
+<tr>
+<td>10</td>
+<td>Equipe</td>
+<td>Cadastro de equipe quando aplicável</td>
+<td>EXISTE PARCIALMENTE</td>
+</tr>
+<tr>
+<td>11</td>
+<td>Revisão</td>
+<td>Conferência final</td>
+<td>EXISTE E ATENDE</td>
+</tr>
+<tr>
+<td>12</td>
+<td>Go-live</td>
+<td>Entrada em operação assistida</td>
+<td>EXISTE E ATENDE</td>
+</tr>
+<tr>
+<td>13</td>
+<td>Estabilização</td>
+<td>Primeira semana de operação</td>
+<td>EXISTE E ATENDE</td>
+</tr>
+</tbody>
+</table>
+<h3 id="checklist-m%C3%ADnimo-validado-pelo-sistema">Checklist mínimo validado pelo sistema</h3>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>O que o sistema verifica</th>
+<th>Bloqueia?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Unidade Produtiva</td>
+<td>Existe pelo menos uma Unidade Produtiva ativa</td>
+<td>Sim, crítico</td>
+</tr>
+<tr>
+<td>Estrutura territorial</td>
+<td>Existe pelo menos uma Área Rural ativa</td>
+<td>Pode bloquear a prontidão</td>
+</tr>
+<tr>
+<td>Talhão agrícola</td>
+<td>Se Agricultura estiver habilitada, existe pelo menos um talhão</td>
+<td>Sim, crítico</td>
+</tr>
+<tr>
+<td>Depósito</td>
+<td>Se Estoque estiver habilitado, existe pelo menos um depósito ativo</td>
+<td>Pode bloquear a prontidão</td>
+</tr>
+<tr>
+<td>Plano de contas</td>
+<td>Se Financeiro estiver habilitado, existe plano de contas ativo</td>
+<td>Pode bloquear a prontidão</td>
+</tr>
+<tr>
+<td>Catálogo de produtos</td>
+<td>Se Agricultura ou Estoque estiverem habilitados, existe produto ativo</td>
+<td>Pode bloquear a prontidão</td>
+</tr>
+<tr>
+<td>Equipamento</td>
+<td>Se Frota/Máquinas estiver habilitado, existe equipamento ativo</td>
+<td>Pode bloquear conforme escopo</td>
+</tr>
+</tbody>
+</table>
+<h3 id="bot%C3%B5es-e-a%C3%A7%C3%B5es-do-wizard">Botões e ações do Wizard</h3>
+<table>
+<thead>
+<tr>
+<th>Botão</th>
+<th>Quando aparece</th>
+<th>O que faz</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Iniciar implantação</td>
+<td>Wizard ainda não iniciado</td>
+<td>Cria a implantação do ambiente da empresa.</td>
+</tr>
+<tr>
+<td>Reavaliar checklist</td>
+<td>Wizard ativo</td>
+<td>Reprocessa as validações automáticas.</td>
+</tr>
+<tr>
+<td>Pausar</td>
+<td>Em progresso</td>
+<td>Pausa a implantação.</td>
+</tr>
+<tr>
+<td>Bloquear</td>
+<td>Em progresso</td>
+<td>Registra bloqueio operacional.</td>
+</tr>
+<tr>
+<td>Marcar pronto para go-live</td>
+<td>Em progresso e apto</td>
+<td>Marca prontidão para go-live.</td>
+</tr>
+<tr>
+<td>Retomar</td>
+<td>Pausado ou bloqueado</td>
+<td>Retoma a implantação.</td>
+</tr>
+<tr>
+<td>Desbloquear</td>
+<td>Bloqueado</td>
+<td>Remove status de bloqueio se as condições permitirem.</td>
+</tr>
+<tr>
+<td>Iniciar go-live</td>
+<td>Pronto para go-live</td>
+<td>Inicia operação assistida.</td>
+</tr>
+<tr>
+<td>Iniciar estabilização</td>
+<td>Go-live</td>
+<td>Entra no acompanhamento pós-go-live.</td>
+</tr>
+<tr>
+<td>Concluir</td>
+<td>Estabilização</td>
+<td>Finaliza a implantação.</td>
+</tr>
+<tr>
+<td>Cancelar</td>
+<td>Em estados permitidos</td>
+<td>Encerra a implantação sem continuar.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="como-corrigir-uma-pend%C3%AAncia">Como corrigir uma pendência</h3>
+<ol>
+<li>Leia o item pendente no Wizard.</li>
+<li>Identifique o cadastro relacionado.</li>
+<li>Acesse o menu correspondente.</li>
+<li>Cadastre ou corrija o dado.</li>
+<li>Volte ao Wizard.</li>
+<li>Clique em <code>Reavaliar checklist</code>.</li>
+<li>Confirme se o item mudou para <code>Atendido</code> ou <code>Dispensado</code>.</li>
+</ol>
+<h2 id="5-unidade-produtiva">5. Unidade Produtiva</h2>
+<h3 id="o-que-%C3%A9">O que é</h3>
+<p>Unidade Produtiva é a fazenda ou unidade operacional usada pelo AgroSaaS para organizar dados, usuários, áreas, estoque, operações e relatórios.</p>
+<p>Ela é obrigatória porque o sistema precisa saber a qual fazenda pertencem:</p>
+<ul>
+<li>talhões;</li>
+<li>depósitos;</li>
+<li>produtos em estoque;</li>
+<li>tarefas de campo;</li>
+<li>registros de aplicação;</li>
+<li>colheitas;</li>
+<li>custos;</li>
+<li>resultados.</li>
+</ul>
+<h3 id="como-validar">Como validar</h3>
+<ol>
+<li>Acesse o Wizard.</li>
+<li>Verifique o item <code>CHECK_UNIDADE_PRODUTIVA</code>.</li>
+<li>Se estiver pendente, confirme com a equipe se a fazenda já foi criada.</li>
+<li>Acesse as telas de fazendas/propriedades disponíveis no ambiente.</li>
+<li>Cadastre ou valide a fazenda.</li>
+<li>Volte ao Wizard e clique em <code>Reavaliar checklist</code>.</li>
+</ol>
+<h3 id="resultado-esperado">Resultado esperado</h3>
+<p>O Wizard deve mostrar <code>Unidade Produtiva ativa encontrada</code>.</p>
+<h3 id="exemplo">Exemplo</h3>
+<table>
+<thead>
+<tr>
+<th>Campo</th>
+<th>Exemplo</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Nome</td>
+<td>Fazenda Santa Rita</td>
+</tr>
+<tr>
+<td>Município</td>
+<td>Carmo de Minas</td>
+</tr>
+<tr>
+<td>UF</td>
+<td>MG</td>
+</tr>
+<tr>
+<td>Uso no piloto</td>
+<td>Unidade principal da safra Café 2026</td>
+</tr>
+</tbody>
+</table>
+<h2 id="6-estrutura-da-fazenda">6. Estrutura da fazenda</h2>
+<h3 id="sequ%C3%AAncia-recomendada">Sequência recomendada</h3>
+<ol>
+<li>Cadastrar a propriedade.</li>
+<li>Cadastrar o imóvel rural.</li>
+<li>Conferir vínculo entre propriedade e imóvel rural.</li>
+<li>Criar a área rural principal.</li>
+<li>Criar glebas.</li>
+<li>Criar talhões.</li>
+<li>Criar áreas operacionais, se usadas.</li>
+<li>Criar infraestrutura relevante.</li>
+<li>Criar ou conferir depósitos.</li>
+</ol>
+<h3 id="propriedades">Propriedades</h3>
+<p>Menu: Minha Propriedade &gt; Propriedades<br>
+Rota: <code>/cadastros/propriedades</code></p>
+<p>Use esta tela para cadastrar a fazenda operacional.</p>
+<p>Campos esperados variam conforme o cadastro, mas a conferência deve cobrir:</p>
+<ul>
+<li>nome da propriedade;</li>
+<li>município;</li>
+<li>UF;</li>
+<li>área;</li>
+<li>status ativo;</li>
+<li>vínculo com ambiente/unidade produtiva.</li>
+</ul>
+<p>Exemplo: <code>Fazenda Santa Rita</code>.</p>
+<h3 id="im%C3%B3veis-rurais">Imóveis rurais</h3>
+<p>Menu: Imóveis Rurais &gt; Imóveis Rurais<br>
+Rota: <code>/cadastros/imoveis</code></p>
+<p>Use esta tela para a parte legal/fundiária.</p>
+<p>Campos e informações auditadas:</p>
+<ul>
+<li>nome do imóvel;</li>
+<li>município;</li>
+<li>situação;</li>
+<li>NIRF;</li>
+<li>CAR;</li>
+<li>CCIR;</li>
+<li>documentação legal;</li>
+<li>vínculo com fazenda/unidade produtiva.</li>
+</ul>
+<p>Botões encontrados:</p>
+<ul>
+<li>criar novo imóvel;</li>
+<li>editar;</li>
+<li>excluir;</li>
+<li>visualizar;</li>
+<li>filtrar por nome, município ou situação.</li>
+</ul>
+<p>Mensagem comum: <code>Preencha os campos obrigatórios</code>.</p>
+<h3 id="estrutura-hier%C3%A1rquica-de-%C3%A1reas">Estrutura hierárquica de áreas</h3>
+<p>A estrutura existente suporta:</p>
+<table>
+<thead>
+<tr>
+<th>Tipo</th>
+<th>Uso prático no café</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Área Rural</td>
+<td>Agrupa as áreas da propriedade.</td>
+</tr>
+<tr>
+<td>Gleba</td>
+<td>Divisão territorial maior, muitas vezes associada a matrícula ou setor.</td>
+</tr>
+<tr>
+<td>Talhão</td>
+<td>Unidade principal de plantio e acompanhamento.</td>
+</tr>
+<tr>
+<td>Área Operacional</td>
+<td>Subdivisão operacional para manejo.</td>
+</tr>
+<tr>
+<td>Subtalhão</td>
+<td>Subdivisão administrativa de talhão, se usada.</td>
+</tr>
+<tr>
+<td>Zona de Manejo</td>
+<td>Recorte para manejo diferenciado.</td>
+</tr>
+<tr>
+<td>APP</td>
+<td>Área de Preservação Permanente.</td>
+</tr>
+<tr>
+<td>Reserva Legal</td>
+<td>Área ambiental obrigatória.</td>
+</tr>
+<tr>
+<td>Infraestrutura</td>
+<td>Agrupa benfeitorias físicas.</td>
+</tr>
+<tr>
+<td>Sede</td>
+<td>Administração, casa ou escritório.</td>
+</tr>
+<tr>
+<td>Armazém</td>
+<td>Galpão, armazém ou depósito físico.</td>
+</tr>
+<tr>
+<td>Outros</td>
+<td>Estruturas não classificadas.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="talh%C3%B5es">Talhões</h3>
+<p>Menu: Minha Propriedade &gt; Georreferenciamento<br>
+Rota: <code>/cadastros/propriedades/talhoes</code></p>
+<p>Use esta tela para visualizar e editar a geometria dos talhões.</p>
+<p>Para o piloto café, cadastre pelo menos um talhão. Sem talhão, o Wizard bloqueia Agricultura.</p>
+<p>Exemplo:</p>
+<table>
+<thead>
+<tr>
+<th>Talhão</th>
+<th>Cultivar</th>
+<th>Área</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Talhão 01</td>
+<td>Mundo Novo</td>
+<td>12,50 ha</td>
+</tr>
+<tr>
+<td>Talhão 02</td>
+<td>Catuaí</td>
+<td>8,20 ha</td>
+</tr>
+<tr>
+<td>Talhão 03</td>
+<td>Bourbon Amarelo</td>
+<td>5,80 ha</td>
+</tr>
+</tbody>
+</table>
+<h3 id="dep%C3%B3sitos">Depósitos</h3>
+<p>Os depósitos aparecem no contexto de Estoque e Almoxarifado.</p>
+<p>Exemplos para café:</p>
+<ul>
+<li>Depósito Central de Insumos;</li>
+<li>Galpão de Fertilizantes;</li>
+<li>Armazém de Café Beneficiado;</li>
+<li>Depósito de Defensivos.</li>
+</ul>
+<p>Se Estoque estiver habilitado, o Wizard exige ao menos um depósito ativo.</p>
+<h2 id="7-integra%C3%A7%C3%A3o-sankhya">7. Integração Sankhya</h2>
+<h3 id="onde-acessar">Onde acessar</h3>
+<p>Menu: Configurações &gt; Integrações &gt; ERP Sankhya<br>
+Rota: <code>/dashboard/settings/integracoes/erp</code></p>
+<h3 id="o-que-a-tela-mostra">O que a tela mostra</h3>
+<p>A tela <code>ERP Sankhya</code> mostra:</p>
+<ul>
+<li>configuração operacional;</li>
+<li>conexão e credenciais;</li>
+<li>status e ciclo de vida da integração;</li>
+<li>saúde detalhada da integração;</li>
+<li>diagnóstico operacional;</li>
+<li>funcionalidades e políticas habilitadas;</li>
+<li>sincronização manual;</li>
+<li>execuções;</li>
+<li>histórico técnico;</li>
+<li>linha do tempo operacional.</li>
+</ul>
+<h3 id="campos-exibidos-no-console-atual">Campos exibidos no console atual</h3>
+<table>
+<thead>
+<tr>
+<th>Campo</th>
+<th>O que significa</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>URL do Web Service</td>
+<td>Endereço do serviço Sankhya configurado para o ambiente.</td>
+</tr>
+<tr>
+<td>Usuário</td>
+<td>Usuário autorizado para integração.</td>
+</tr>
+<tr>
+<td>Senha ou nova senha</td>
+<td>Credencial protegida. Nunca é exibida em texto puro.</td>
+</tr>
+<tr>
+<td>Intervalo de sincronização</td>
+<td>Tempo entre sincronizações quando aplicável.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="bot%C3%B5es-dispon%C3%ADveis">Botões disponíveis</h3>
+<table>
+<thead>
+<tr>
+<th>Botão</th>
+<th>Uso</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Salvar configuração</td>
+<td>Salva URL, usuário, senha e intervalo.</td>
+</tr>
+<tr>
+<td>Testar conexão</td>
+<td>Valida se o AgroSaaS consegue autenticar/conectar.</td>
+</tr>
+<tr>
+<td>Atualizar status</td>
+<td>Recarrega status, saúde da integração e diagnóstico.</td>
+</tr>
+<tr>
+<td>Sincronizar pessoas</td>
+<td>Inicia sincronização manual de pessoas.</td>
+</tr>
+<tr>
+<td>Sincronizar produtos</td>
+<td>Inicia sincronização manual de produtos.</td>
+</tr>
+<tr>
+<td>Sincronização completa</td>
+<td>Inicia sincronização manual completa permitida pela implementação atual.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="como-testar-a-conex%C3%A3o">Como testar a conexão</h3>
+<ol>
+<li>Acesse <code>Configurações &gt; Integrações &gt; ERP Sankhya</code>.</li>
+<li>Confira a URL do Web Service.</li>
+<li>Confira o usuário.</li>
+<li>Informe a senha somente se for a primeira configuração ou se precisar trocar.</li>
+<li>Clique em <code>Salvar configuração</code>.</li>
+<li>Clique em <code>Testar conexão</code>.</li>
+<li>Aguarde o retorno.</li>
+<li>Clique em <code>Atualizar status</code>.</li>
+<li>Verifique <code>Health atual</code>, <code>Último sucesso</code>, <code>Última falha</code> e <code>Falhas consecutivas</code>. Na tela, <code>Health atual</code> significa a saúde atual da integração.</li>
+</ol>
+<h3 id="como-interpretar-o-resultado">Como interpretar o resultado</h3>
+<table>
+<thead>
+<tr>
+<th>Resultado</th>
+<th>Interpretação</th>
+<th>Ação</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Sucesso</td>
+<td>Conexão validada</td>
+<td>Prosseguir para carga/conferência.</td>
+</tr>
+<tr>
+<td>Erro ao salvar</td>
+<td>Configuração incompleta ou inválida</td>
+<td>Conferir campos e permissões.</td>
+</tr>
+<tr>
+<td>Erro ao testar conexão</td>
+<td>URL, credencial, rede ou permissão incorreta</td>
+<td>Acionar responsável pelo ERP/Sankhya.</td>
+</tr>
+<tr>
+<td>DISCONNECTED</td>
+<td>Integração sem conexão</td>
+<td>Verificar Gateway, URL e credenciais.</td>
+</tr>
+<tr>
+<td>AUTH_ERROR</td>
+<td>Falha de autenticação</td>
+<td>Conferir usuário, senha, Client ID, Client Secret ou X-Token conforme ambiente.</td>
+</tr>
+<tr>
+<td>CONFIG_ERROR</td>
+<td>Configuração inconsistente</td>
+<td>Revisar parâmetros de integração.</td>
+</tr>
+<tr>
+<td>DEGRADED</td>
+<td>Funciona parcialmente</td>
+<td>Acompanhar histórico técnico e execuções com falha.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="termos-da-integra%C3%A7%C3%A3o-em-linguagem-simples">Termos da integração em linguagem simples</h3>
+<table>
+<thead>
+<tr>
+<th>Termo</th>
+<th>Explicação</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Ambiente</td>
+<td>Indica se a integração aponta para homologação, produção ou outro ambiente autorizado.</td>
+</tr>
+<tr>
+<td>Base URL</td>
+<td>Endereço principal usado para comunicação com o Sankhya.</td>
+</tr>
+<tr>
+<td>Auth URL</td>
+<td>Endereço usado para autenticação.</td>
+</tr>
+<tr>
+<td>Client ID</td>
+<td>Identificador da aplicação autorizada no Sankhya.</td>
+</tr>
+<tr>
+<td>Client Secret</td>
+<td>Senha técnica da aplicação. Deve ser mantida em sigilo.</td>
+</tr>
+<tr>
+<td>X-Token</td>
+<td>Token técnico exigido por alguns ambientes. Deve ser mantido em sigilo.</td>
+</tr>
+<tr>
+<td>Gateway</td>
+<td>Caminho oficial usado para autenticar e acessar a integração no piloto.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="o-que-ser%C3%A1-sincronizado-no-piloto">O que será sincronizado no piloto</h3>
+<p>O escopo aprovado é leitura e carga inicial Sankhya para AgroSaaS, principalmente:</p>
+<ul>
+<li>pessoas;</li>
+<li>clientes;</li>
+<li>fornecedores;</li>
+<li>produtos;</li>
+<li>insumos;</li>
+<li>plano de contas;</li>
+<li>financeiro;</li>
+<li>notas fiscais quando priorizadas no piloto;</li>
+<li>dados necessários para conferência operacional.</li>
+</ul>
+<h3 id="o-que-n%C3%A3o-ser%C3%A1-sincronizado-no-piloto">O que não será sincronizado no piloto</h3>
+<p>Não faz parte do escopo inicial:</p>
+<ul>
+<li>escrita de documentos no Sankhya;</li>
+<li>faturamento automático;</li>
+<li>cancelamento de documentos;</li>
+<li>contratos documentais completos;</li>
+<li>pipeline bidirecional;</li>
+<li>escrita AgroSaaS para Sankhya.</li>
+</ul>
+<h2 id="8-cadastros-mestres">8. Cadastros mestres</h2>
+<h3 id="clientes-fornecedores-e-parceiros">Clientes, fornecedores e parceiros</h3>
+<p>Menu: Pessoas &amp; Parceiros &gt; Pessoas &amp; Parceiros<br>
+Rota: <code>/cadastros/pessoas</code></p>
+<p>O usuário deve conferir:</p>
+<ul>
+<li>cliente exportador;</li>
+<li>compradores;</li>
+<li>fornecedores de insumos;</li>
+<li>transportadoras, se usadas;</li>
+<li>representantes, se usados;</li>
+<li>colaboradores, se usados na operação.</li>
+</ul>
+<p>Campos auditados em detalhes de pessoa:</p>
+<ul>
+<li>nome de exibição;</li>
+<li>base legal LGPD;</li>
+<li>CNPJ;</li>
+<li>razão social;</li>
+<li>nome fantasia;</li>
+<li>inscrição estadual;</li>
+<li>CPF;</li>
+<li>nome completo;</li>
+<li>RG;</li>
+<li>data de nascimento;</li>
+<li>dados pessoais com controle de acesso.</li>
+</ul>
+<p>Botões encontrados:</p>
+<ul>
+<li>nova pessoa;</li>
+<li>visualizar;</li>
+<li>editar;</li>
+<li>salvar;</li>
+<li>cancelar;</li>
+<li>voltar;</li>
+<li>acessar dados pessoais quando autorizado.</li>
+</ul>
+<h3 id="produtos-e-insumos">Produtos e insumos</h3>
+<p>Menu: Insumos &amp; Ativos &gt; Catálogo de Produtos<br>
+Rota: <code>/cadastros/produtos</code></p>
+<p>Campos principais:</p>
+<ul>
+<li>nome;</li>
+<li>tipo;</li>
+<li>categoria;</li>
+<li>princípio ativo;</li>
+<li>referência do fabricante;</li>
+<li>descrição;</li>
+<li>marca cadastrada;</li>
+<li>modelo;</li>
+<li>marca em texto livre;</li>
+<li>fabricante;</li>
+<li>unidade de estoque;</li>
+<li>conteúdo por embalagem;</li>
+<li>unidade do conteúdo;</li>
+<li>código interno;</li>
+<li>estoque mínimo;</li>
+<li>preço médio.</li>
+</ul>
+<p>Botões encontrados:</p>
+<ul>
+<li>novo produto;</li>
+<li>salvar;</li>
+<li>cancelar;</li>
+<li>editar.</li>
+</ul>
+<p>Mensagens encontradas:</p>
+<ul>
+<li><code>Produto cadastrado com sucesso</code>;</li>
+<li><code>Produto atualizado com sucesso</code>;</li>
+<li><code>Erro ao cadastrar produto</code>;</li>
+<li><code>Erro ao atualizar produto</code>.</li>
+</ul>
+<h3 id="o-que-fazer-em-caso-de-duplicidade">O que fazer em caso de duplicidade</h3>
+<ol>
+<li>Não crie outro cadastro manual.</li>
+<li>Pesquise pelo nome, CNPJ, código interno ou fabricante.</li>
+<li>Confira se a duplicidade veio do Sankhya ou de cadastro manual.</li>
+<li>Defina com a equipe qual registro ficará ativo.</li>
+<li>Evite usar registros duplicados em safra, estoque ou financeiro até a limpeza.</li>
+</ol>
+<h2 id="9-safra-de-caf%C3%A9">9. Safra de café</h2>
+<h3 id="onde-acessar">Onde acessar</h3>
+<p>Menu: Agricultura &gt; Safras<br>
+Rota: <code>/agricola/safras</code></p>
+<h3 id="criar-nova-safra">Criar nova safra</h3>
+<ol>
+<li>Acesse <code>Agricultura &gt; Safras</code>.</li>
+<li>Clique em <code>Nova Safra</code>.</li>
+<li>Informe o <code>Ano Agrícola</code>.</li>
+<li>Adicione pelo menos um <code>Cultivo</code>.</li>
+<li>Selecione a cultura <code>Café</code>.</li>
+<li>Informe o cultivar, se aplicável.</li>
+<li>Adicione os talhões.</li>
+<li>Informe a área plantada em hectares.</li>
+<li>Informe meta de produtividade em sacas por hectare, se houver.</li>
+<li>Informe início da ocupação.</li>
+<li>Informe fim da ocupação, se já souber.</li>
+<li>Clique em <code>Criar Safra</code>.</li>
+</ol>
+<h3 id="campos-da-safra">Campos da safra</h3>
+<table>
+<thead>
+<tr>
+<th>Campo</th>
+<th>Obrigatório</th>
+<th>Exemplo</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Ano Agrícola</td>
+<td>Sim</td>
+<td>2026 ou 2025/26</td>
+</tr>
+<tr>
+<td>Cultura</td>
+<td>Sim</td>
+<td>Café</td>
+</tr>
+<tr>
+<td>Cultivar</td>
+<td>Não</td>
+<td>Mundo Novo, Catuaí, Bourbon Amarelo</td>
+</tr>
+<tr>
+<td>Talhão</td>
+<td>Sim</td>
+<td>Talhão 01</td>
+</tr>
+<tr>
+<td>Área a plantar</td>
+<td>Sim</td>
+<td>12,50 ha</td>
+</tr>
+<tr>
+<td>Meta de produtividade</td>
+<td>Não</td>
+<td>35 sc/ha</td>
+</tr>
+<tr>
+<td>Consorciado</td>
+<td>Não</td>
+<td>Marcar somente se houver cultivo compartilhado</td>
+</tr>
+<tr>
+<td>Início da ocupação</td>
+<td>Sim</td>
+<td>2026-01-01</td>
+</tr>
+<tr>
+<td>Fim da ocupação</td>
+<td>Não</td>
+<td>Informar se houver previsão</td>
+</tr>
+</tbody>
+</table>
+<h3 id="valida%C3%A7%C3%B5es-encontradas">Validações encontradas</h3>
+<table>
+<thead>
+<tr>
+<th>Validação</th>
+<th>Mensagem esperada</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Ano agrícola inválido</td>
+<td>Use o formato AAAA ou AAAA/AA.</td>
+</tr>
+<tr>
+<td>Cultura vazia</td>
+<td>Informe a cultura.</td>
+</tr>
+<tr>
+<td>Sem talhão</td>
+<td>Adicione ao menos um talhão.</td>
+</tr>
+<tr>
+<td>Área zerada</td>
+<td>Deve ser maior que 0.</td>
+</tr>
+<tr>
+<td>Área maior que o talhão</td>
+<td>Máximo igual à área do talhão.</td>
+</tr>
+<tr>
+<td>Data de início vazia</td>
+<td>Data de início é obrigatória.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="depois-de-criar">Depois de criar</h3>
+<p>Acesse a safra criada. A tela mostra:</p>
+<ul>
+<li>título da safra;</li>
+<li>cultura;</li>
+<li>cultivar;</li>
+<li>fase atual;</li>
+<li>cultivos;</li>
+<li>área total;</li>
+<li>atualização;</li>
+<li>cenário base, quando houver;</li>
+<li>timeline;</li>
+<li>checklist da fase;</li>
+<li>tarefas;</li>
+<li>fenologia;</li>
+<li>histórico de fases;</li>
+<li>observações.</li>
+</ul>
+<h2 id="10-opera%C3%A7%C3%A3o-agr%C3%ADcola">10. Operação agrícola</h2>
+<h3 id="planejamento">Planejamento</h3>
+<p>Use:</p>
+<ul>
+<li>Agricultura &gt; Safras;</li>
+<li>Agricultura &gt; Orçamento de Safra;</li>
+<li>Agricultura &gt; Custeio Agrícola;</li>
+<li>Agricultura &gt; Tarefas dentro da safra.</li>
+</ul>
+<p>O objetivo é definir o que será feito na safra:</p>
+<ul>
+<li>tratos culturais;</li>
+<li>aplicações;</li>
+<li>monitoramento;</li>
+<li>colheita;</li>
+<li>insumos previstos;</li>
+<li>custos previstos;</li>
+<li>metas.</li>
+</ul>
+<h3 id="aplica%C3%A7%C3%B5es-e-tratos-culturais">Aplicações e tratos culturais</h3>
+<p>Podem ser acompanhados por:</p>
+<ul>
+<li>Web: Agricultura &gt; Caderno de Campo e Operações Consolidadas;</li>
+<li>Campo PWA: <code>/campo/aplicacao</code>.</li>
+</ul>
+<p>No Campo PWA, a tela de aplicação solicita:</p>
+<ul>
+<li>talhão;</li>
+<li>produto;</li>
+<li>quantidade;</li>
+<li>observação opcional;</li>
+<li>localização/GPS quando disponível.</li>
+</ul>
+<p>Resultado esperado: o registro fica salvo localmente e pronto para sincronizar quando houver conexão.</p>
+<h3 id="colheita">Colheita</h3>
+<p>Pode ser registrada pelo Campo PWA:</p>
+<ul>
+<li>Rota: <code>/campo/colheita</code>.</li>
+</ul>
+<p>Campos auditados:</p>
+<ul>
+<li>talhão;</li>
+<li>quantidade;</li>
+<li>observação opcional.</li>
+</ul>
+<p>Resultado esperado: a colheita fica salva localmente e sincroniza quando o dispositivo tiver internet.</p>
+<h3 id="romaneios">Romaneios</h3>
+<p>Menu: Agricultura &gt; Romaneios de Colheita<br>
+Rota: <code>/agricola/romaneios</code></p>
+<p>Use para acompanhar registros de colheita e movimentações relacionadas à produção.</p>
+<h3 id="beneficiamento">Beneficiamento</h3>
+<p>Menu: Agricultura &gt; Beneficiamento<br>
+Rota: <code>/agricola/beneficiamento</code></p>
+<p>Use quando o processo de pós-colheita estiver no escopo operacional do piloto.</p>
+<h3 id="custos-gerados">Custos gerados</h3>
+<p>Os custos aparecem quando:</p>
+<ul>
+<li>há despesas importadas ou lançadas;</li>
+<li>há consumo de estoque apropriado;</li>
+<li>há custos vinculados à safra;</li>
+<li>há rateio correto por unidade, talhão ou operação.</li>
+</ul>
+<h2 id="11-campo-pwa">11. Campo PWA</h2>
+<h3 id="preparar-o-dispositivo-no-web">Preparar o dispositivo no Web</h3>
+<p>Menu: Operacional &gt; Campo &gt; Dispositivos<br>
+Rota: <code>/dashboard/operacional/campo/dispositivos</code></p>
+<p>Passo a passo:</p>
+<ol>
+<li>Clique em <code>Novo dispositivo</code>.</li>
+<li>Informe <code>Nome do Dispositivo</code>.</li>
+<li>Selecione <code>Operador Responsável</code>.</li>
+<li>Informe validade em dias.</li>
+<li>Marque as fazendas que o dispositivo pode acessar.</li>
+<li>Clique em <code>Gerar Código de Ativação</code>.</li>
+<li>Copie o código.</li>
+<li>Repasse ao operador.</li>
+</ol>
+<p>Campos e validações:</p>
+<table>
+<thead>
+<tr>
+<th>Campo</th>
+<th>Validação</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Nome do Dispositivo</td>
+<td>Nome obrigatório, mínimo de 2 caracteres.</td>
+</tr>
+<tr>
+<td>Operador Responsável</td>
+<td>Obrigatório.</td>
+</tr>
+<tr>
+<td>Fazendas do dispositivo</td>
+<td>Selecionar ao menos uma fazenda.</td>
+</tr>
+<tr>
+<td>Validade</td>
+<td>Entre 1 e 365 dias.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="ativar-no-campo-pwa">Ativar no Campo PWA</h3>
+<p>Rota: <code>/activate</code></p>
+<p>O operador deve:</p>
+<ol>
+<li>Abrir o Campo PWA no dispositivo.</li>
+<li>Digitar o código de ativação.</li>
+<li>Criar um PIN de 6 dígitos.</li>
+<li>Confirmar o PIN.</li>
+<li>Clicar em <code>Ativar dispositivo</code>.</li>
+</ol>
+<p>Validações encontradas:</p>
+<ul>
+<li>código de ativação deve ter ao menos 6 caracteres;</li>
+<li>código de ativação deve ter no máximo 8 caracteres;</li>
+<li>PIN deve ter 6 dígitos;</li>
+<li>PIN deve conter apenas números;</li>
+<li>PINs precisam conferir.</li>
+</ul>
+<h3 id="uso-di%C3%A1rio-do-campo-pwa">Uso diário do Campo PWA</h3>
+<p>Rota principal: <code>/home</code></p>
+<p>A tela inicial mostra:</p>
+<ul>
+<li>botão para sincronização;</li>
+<li>recomendações operacionais;</li>
+<li>tarefas por domínio;</li>
+<li>registros offline recentes;</li>
+<li>nova atividade.</li>
+</ul>
+<p>Rotas principais:</p>
+<table>
+<thead>
+<tr>
+<th>Tela</th>
+<th>Rota</th>
+<th>Uso</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Sincronização</td>
+<td><code>/sync</code></td>
+<td>Ver fila local, reenviar falhas e resolver conflitos.</td>
+</tr>
+<tr>
+<td>Caderno</td>
+<td><code>/caderno</code></td>
+<td>Registro manual de ocorrências e evidências.</td>
+</tr>
+<tr>
+<td>Aplicação</td>
+<td><code>/campo/aplicacao</code></td>
+<td>Registrar aplicação agrícola.</td>
+</tr>
+<tr>
+<td>Colheita</td>
+<td><code>/campo/colheita</code></td>
+<td>Registrar colheita.</td>
+</tr>
+<tr>
+<td>Tarefa</td>
+<td><code>/campo/tarefa/[id]</code></td>
+<td>Executar tarefa programada.</td>
+</tr>
+<tr>
+<td>Recomendações</td>
+<td><code>/recomendacoes</code></td>
+<td>Consultar orientações sincronizadas.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="fluxo-offline-esperado">Fluxo offline esperado</h3>
+<ol>
+<li>Operador acessa Campo.</li>
+<li>Sincroniza antes de sair para o talhão.</li>
+<li>Seleciona a fazenda ativa.</li>
+<li>Vai para o talhão.</li>
+<li>Registra aplicação, colheita ou ocorrência.</li>
+<li>O dispositivo fica sem internet.</li>
+<li>O registro permanece salvo localmente.</li>
+<li>O operador volta para área com sinal.</li>
+<li>Acessa <code>/sync</code>.</li>
+<li>Reenvia itens pendentes ou aguarda sincronização.</li>
+<li>Os dados aparecem no Web após processamento.</li>
+</ol>
+<h3 id="recupera%C3%A7%C3%A3o-de-falhas">Recuperação de falhas</h3>
+<p>Na tela <code>/sync</code>, o operador consegue ver:</p>
+<ul>
+<li>itens com erro;</li>
+<li>itens em conflito;</li>
+<li>fila local;</li>
+<li>botão de reenviar quando disponível.</li>
+</ul>
+<p>Se houver conflito, não apague o registro. Acione o responsável pelo piloto.</p>
+<h2 id="12-estoque">12. Estoque</h2>
+<h3 id="onde-acessar">Onde acessar</h3>
+<p>Menu: Estoque &amp; Suprimento</p>
+<p>Rotas principais:</p>
+<ul>
+<li><code>/suprimentos/saldos</code>;</li>
+<li><code>/suprimentos/estoque</code>;</li>
+<li><code>/suprimentos/lotes</code>;</li>
+<li><code>/suprimentos/requisicoes</code>;</li>
+<li><code>/suprimentos/estoque/implantacao-assistida</code>.</li>
+</ul>
+<h3 id="conferir-saldo-inicial">Conferir saldo inicial</h3>
+<ol>
+<li>Acesse <code>Estoque &amp; Suprimento &gt; Saldos de Estoque</code>.</li>
+<li>Confira produto, depósito e saldo.</li>
+<li>Ajuste estoque mínimo quando aplicável.</li>
+<li>Verifique alertas de saldo baixo.</li>
+<li>Se necessário, use implantação assistida de estoque.</li>
+</ol>
+<h3 id="dep%C3%B3sitos">Depósitos</h3>
+<p>Confirme se os depósitos usados na operação existem e estão ativos.</p>
+<p>Exemplo:</p>
+<ul>
+<li>Depósito Central de Insumos;</li>
+<li>Defensivos;</li>
+<li>Fertilizantes;</li>
+<li>Armazém de Café.</li>
+</ul>
+<h3 id="requisi%C3%A7%C3%B5es">Requisições</h3>
+<p>Menu: Estoque &amp; Suprimento &gt; Requisições</p>
+<p>Campos auditados:</p>
+<ul>
+<li>fazenda;</li>
+<li>origem;</li>
+<li>OS ou tarefa vinculada;</li>
+<li>data de necessidade;</li>
+<li>observações;</li>
+<li>produto;</li>
+<li>quantidade;</li>
+<li>quantidade aprovada;</li>
+<li>depósito de saída.</li>
+</ul>
+<p>Botões encontrados:</p>
+<ul>
+<li>nova requisição;</li>
+<li>adicionar item;</li>
+<li>cancelar;</li>
+<li>criar;</li>
+<li>aprovar;</li>
+<li>recusar;</li>
+<li>concluir.</li>
+</ul>
+<h3 id="diverg%C3%AAncias-de-estoque">Divergências de estoque</h3>
+<table>
+<thead>
+<tr>
+<th>Situação</th>
+<th>Causa provável</th>
+<th>Ação</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Produto sem saldo</td>
+<td>Saldo inicial não foi lançado ou importado</td>
+<td>Conferir Sankhya e implantação assistida.</td>
+</tr>
+<tr>
+<td>Depósito não aparece</td>
+<td>Depósito não cadastrado ou inativo</td>
+<td>Cadastrar/ativar depósito e reavaliar Wizard.</td>
+</tr>
+<tr>
+<td>Baixa não aparece</td>
+<td>Registro ainda não sincronizou ou não gerou movimento</td>
+<td>Conferir Campo PWA, fila de sincronização e histórico técnico.</td>
+</tr>
+<tr>
+<td>Saldo negativo</td>
+<td>Consumo lançado sem entrada suficiente</td>
+<td>Corrigir estoque inicial ou movimentação.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="13-financeiro-e-custos">13. Financeiro e custos</h2>
+<h3 id="onde-acessar">Onde acessar</h3>
+<p>Menu: Financeiro</p>
+<p>Rotas principais:</p>
+<ul>
+<li><code>/dashboard/financeiro</code>;</li>
+<li><code>/dashboard/financeiro/receitas</code>;</li>
+<li><code>/dashboard/financeiro/despesas</code>;</li>
+<li><code>/dashboard/financeiro/planos-conta</code>;</li>
+<li><code>/dashboard/financeiro/lancamentos</code>;</li>
+<li><code>/dashboard/financeiro/dre</code>;</li>
+<li><code>/dashboard/financeiro/relatorios</code>;</li>
+<li><code>/dashboard/financeiro/nf-e</code>.</li>
+</ul>
+<h3 id="o-que-conferir">O que conferir</h3>
+<table>
+<thead>
+<tr>
+<th>Área</th>
+<th>Conferência</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Plano de contas</td>
+<td>Deve existir se Financeiro estiver habilitado.</td>
+</tr>
+<tr>
+<td>Receitas</td>
+<td>Vendas ou recebimentos relacionados à safra.</td>
+</tr>
+<tr>
+<td>Despesas</td>
+<td>Compras, serviços, mão de obra e custos operacionais.</td>
+</tr>
+<tr>
+<td>Lançamentos</td>
+<td>Classificação por safra, centro de custo e categoria.</td>
+</tr>
+<tr>
+<td>DRE</td>
+<td>Resultado consolidado.</td>
+</tr>
+<tr>
+<td>NF-e/NFP-e</td>
+<td>Notas fiscais quando estiverem no escopo do piloto.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="notas-fiscais">Notas fiscais</h3>
+<p>A tela de NF-e/NFP-e possui cadastro manual com campos:</p>
+<ul>
+<li>tipo;</li>
+<li>número;</li>
+<li>série;</li>
+<li>emitente;</li>
+<li>CPF/CNPJ emitente;</li>
+<li>destinatário;</li>
+<li>documento do destinatário;</li>
+<li>UF;</li>
+<li>produto/descrição;</li>
+<li>NCM;</li>
+<li>quantidade;</li>
+<li>unidade;</li>
+<li>valor dos produtos;</li>
+<li>valor ICMS;</li>
+<li>valor total.</li>
+</ul>
+<p>No piloto, a escrita avançada de documentos no Sankhya não faz parte do escopo inicial.</p>
+<h3 id="custos-agr%C3%ADcolas">Custos agrícolas</h3>
+<p>Menu: Agricultura &gt; Custeio Agrícola<br>
+Rota: <code>/agricola/custos</code></p>
+<p>A tela mostra:</p>
+<ul>
+<li>safra selecionada;</li>
+<li>custo total realizado;</li>
+<li>orçamento planejado;</li>
+<li>origem dos lançamentos;</li>
+<li>histórico.</li>
+</ul>
+<p>Para o custo da safra aparecer corretamente, os lançamentos precisam estar associados à safra, talhão, operação ou unidade operacional.</p>
+<h2 id="14-alertas-e-recomenda%C3%A7%C3%B5es">14. Alertas e recomendações</h2>
+<h3 id="onde-ver-no-web">Onde ver no Web</h3>
+<p>Menus relacionados:</p>
+<ul>
+<li>Agricultura &gt; Central de Inteligência;</li>
+<li>Agricultura &gt; Recomendações;</li>
+<li>Inteligência Operacional &gt; Recomendações;</li>
+<li>Dashboard Executivo da safra;</li>
+<li>Alertas Executivos da safra.</li>
+</ul>
+<h3 id="onde-ver-no-campo-pwa">Onde ver no Campo PWA</h3>
+<p>Rota: <code>/recomendacoes</code></p>
+<p>A tela do Campo mostra:</p>
+<ul>
+<li>recomendações persistidas no dispositivo;</li>
+<li>filtros por domínio, status e prioridade;</li>
+<li>leitura operacional da recomendação selecionada.</li>
+</ul>
+<h3 id="como-agir">Como agir</h3>
+<table>
+<thead>
+<tr>
+<th>Tipo</th>
+<th>O que fazer</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Informativo</td>
+<td>Ler e acompanhar.</td>
+</tr>
+<tr>
+<td>Atenção</td>
+<td>Conferir dados da safra, talhão ou operação.</td>
+</tr>
+<tr>
+<td>Crítico</td>
+<td>Acionar responsável e registrar ação corretiva.</td>
+</tr>
+<tr>
+<td>Recomendação operacional</td>
+<td>Executar ou planejar tarefa conforme orientação.</td>
+</tr>
+</tbody>
+</table>
+<p>Alertas e recomendações dependem de dados suficientes. Se nada aparecer no início, isso pode ser normal.</p>
+<h2 id="15-resultados-da-safra">15. Resultados da safra</h2>
+<h3 id="onde-acessar">Onde acessar</h3>
+<p>Menu: Agricultura &gt; Rentabilidade Agrícola<br>
+Rota: <code>/dashboard/agricola/rentabilidade</code></p>
+<p>Menu: Agricultura &gt; DRE Agrícola v1<br>
+Rota: <code>/dashboard/agricola/dre</code></p>
+<h3 id="filtros-dispon%C3%ADveis-na-rentabilidade">Filtros disponíveis na rentabilidade</h3>
+<ul>
+<li>safra;</li>
+<li>fazenda;</li>
+<li>unidade operacional.</li>
+</ul>
+<h3 id="indicadores-exibidos-quando-h%C3%A1-dados">Indicadores exibidos quando há dados</h3>
+<table>
+<thead>
+<tr>
+<th>Indicador</th>
+<th>Interpretação</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Receita líquida</td>
+<td>Valor de receita considerado no resultado.</td>
+</tr>
+<tr>
+<td>Margem</td>
+<td>Relação entre resultado operacional e receita líquida.</td>
+</tr>
+<tr>
+<td>Área total</td>
+<td>Soma das áreas do recorte selecionado.</td>
+</tr>
+<tr>
+<td>Eficiência econômica</td>
+<td>Indicador econômico derivado da DRE.</td>
+</tr>
+<tr>
+<td>Volume total</td>
+<td>Produção real ou estimada.</td>
+</tr>
+<tr>
+<td>Valor médio de venda</td>
+<td>Receita dividida pelo volume, quando disponível.</td>
+</tr>
+<tr>
+<td>Custo operacional total</td>
+<td>Custos diretos/operacionais consolidados.</td>
+</tr>
+<tr>
+<td>Resultado por saca</td>
+<td>Resultado dividido pelo total de sacas.</td>
+</tr>
+<tr>
+<td>Ranking por unidade operacional</td>
+<td>Comparação de unidades/talhões quando houver dados.</td>
+</tr>
+<tr>
+<td>Warnings</td>
+<td>Avisos de inconsistência ou dados incompletos.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="caminho-m%C3%ADnimo-para-aparecer-resultado">Caminho mínimo para aparecer resultado</h3>
+<ol>
+<li>Safra criada.</li>
+<li>Cultura Café selecionada.</li>
+<li>Talhões vinculados.</li>
+<li>Área informada.</li>
+<li>Operações registradas.</li>
+<li>Consumo de insumos ou despesas apropriadas.</li>
+<li>Colheita/produção registrada.</li>
+<li>Receita ou comercialização registrada.</li>
+<li>DRE consolidada.</li>
+<li>Rentabilidade calculada.</li>
+</ol>
+<h3 id="quando-a-rentabilidade-fica-zerada">Quando a rentabilidade fica zerada</h3>
+<p>Isso normalmente ocorre quando:</p>
+<ul>
+<li>ainda não há receita;</li>
+<li>ainda não há custo apropriado;</li>
+<li>não há produção real ou estimada;</li>
+<li>a safra não foi selecionada no filtro;</li>
+<li>os talhões não estão vinculados ao cultivo;</li>
+<li>a DRE não conseguiu consolidar o recorte.</li>
+</ul>
+<h2 id="16-exemplo-completo---fazenda-de-caf%C3%A9">16. Exemplo completo - Fazenda de café</h2>
+<h3 id="contexto">Contexto</h3>
+<p>Cliente: Fazenda Santa Rita<br>
+Cultura: Café<br>
+Safra: Café 2026<br>
+ERP: Sankhya<br>
+Unidade Produtiva: Fazenda Santa Rita<br>
+Depósito principal: Depósito Central de Insumos</p>
+<h3 id="passo-a-passo">Passo a passo</h3>
+<ol>
+<li>O Owner/Admin acessa <code>/login</code>.</li>
+<li>Seleciona o ambiente da Fazenda Santa Rita.</li>
+<li>O sistema direciona para <code>/onboarding/configurar</code>.</li>
+<li>O usuário define ano agrícola de julho a junho.</li>
+<li>Mantém unidade de área em hectare.</li>
+<li>Mantém fuso São Paulo/Brasília e moeda BRL.</li>
+<li>Mantém categorias padrão marcadas.</li>
+<li>Clica em <code>Concluir Configuração</code>.</li>
+<li>Acessa <code>/dashboard/implantacao/wizard</code>.</li>
+<li>Clica em <code>Iniciar implantação</code>.</li>
+<li>O Wizard aponta Unidade Produtiva pendente.</li>
+<li>A equipe cria ou valida <code>Fazenda Santa Rita</code>.</li>
+<li>O usuário acessa <code>Minha Propriedade &gt; Propriedades</code>.</li>
+<li>Confere a propriedade Fazenda Santa Rita.</li>
+<li>Acessa <code>Imóveis Rurais &gt; Imóveis Rurais</code>.</li>
+<li>Confere CAR, CCIR, município e documentação.</li>
+<li>Cria a estrutura territorial.</li>
+<li>Cria <code>Gleba Norte</code>.</li>
+<li>Cria <code>Talhão 01 - Mundo Novo</code>.</li>
+<li>Cria <code>Talhão 02 - Catuaí</code>.</li>
+<li>Cria <code>Depósito Central de Insumos</code>.</li>
+<li>Acessa <code>Configurações &gt; Integrações &gt; ERP Sankhya</code>.</li>
+<li>Informa URL, usuário e senha autorizados.</li>
+<li>Clica em <code>Salvar configuração</code>.</li>
+<li>Clica em <code>Testar conexão</code>.</li>
+<li>Confirma saúde da integração com sucesso.</li>
+<li>Executa sincronização de pessoas e produtos, se autorizada para o piloto.</li>
+<li>Acessa <code>Pessoas &amp; Parceiros</code> e confere fornecedores e clientes.</li>
+<li>Acessa <code>Catálogo de Produtos</code> e confere insumos.</li>
+<li>Acessa <code>Agricultura &gt; Safras</code>.</li>
+<li>Clica em <code>Nova Safra</code>.</li>
+<li>Informa <code>2026</code>.</li>
+<li>Seleciona cultura <code>Café</code>.</li>
+<li>Informa cultivar <code>Mundo Novo</code>.</li>
+<li>Vincula <code>Talhão 01</code>.</li>
+<li>Informa área de 12,50 ha.</li>
+<li>Informa meta de 35 sc/ha.</li>
+<li>Adiciona outro cultivo ou talhão se necessário.</li>
+<li>Clica em <code>Criar Safra</code>.</li>
+<li>Acessa a safra criada.</li>
+<li>Confere checklist, tarefas e fenologia.</li>
+<li>Acessa <code>Operacional &gt; Campo &gt; Dispositivos</code>.</li>
+<li>Clica em <code>Novo dispositivo</code>.</li>
+<li>Cria <code>Tablet Operador João</code>.</li>
+<li>Seleciona o operador.</li>
+<li>Seleciona Fazenda Santa Rita.</li>
+<li>Gera código de ativação.</li>
+<li>O operador abre o Campo PWA.</li>
+<li>Informa o código.</li>
+<li>Cria PIN de 6 dígitos.</li>
+<li>Sincroniza antes de ir ao talhão.</li>
+<li>No talhão, registra uma aplicação.</li>
+<li>O registro fica salvo offline.</li>
+<li>Ao voltar para internet, abre <code>/sync</code>.</li>
+<li>Sincroniza os dados.</li>
+<li>No Web, o gestor confere o Caderno de Campo.</li>
+<li>Confere se houve baixa ou necessidade de ajuste de estoque.</li>
+<li>Confere custos agrícolas.</li>
+<li>Registra ou importa receita/comercialização quando ocorrer venda.</li>
+<li>Acessa <code>Rentabilidade Agrícola</code>.</li>
+<li>Seleciona Safra Café 2026.</li>
+<li>Analisa margem, custo, receita e resultado por saca, quando houver dados suficientes.</li>
+</ol>
+<h2 id="17-problemas-comuns">17. Problemas comuns</h2>
+<table>
+<thead>
+<tr>
+<th>Problema</th>
+<th>Causa provável</th>
+<th>Como resolver</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Dashboard bloqueado</td>
+<td>Onboarding ou Wizard incompleto</td>
+<td>Concluir onboarding, abrir Wizard e corrigir pendências.</td>
+</tr>
+<tr>
+<td>Unidade Produtiva ausente</td>
+<td>Fazenda ainda não criada/ativada</td>
+<td>Criar ou validar a fazenda e reavaliar checklist.</td>
+</tr>
+<tr>
+<td>Checklist incompleto</td>
+<td>Dados mínimos faltando</td>
+<td>Ler item pendente, corrigir cadastro e clicar em <code>Reavaliar checklist</code>.</td>
+</tr>
+<tr>
+<td>Sankhya não conecta</td>
+<td>URL, credencial, ambiente ou Gateway incorreto</td>
+<td>Conferir com responsável pelo ERP e repetir teste de conexão.</td>
+</tr>
+<tr>
+<td>Campo não sincroniza</td>
+<td>Sem internet, dispositivo expirado ou fila com erro</td>
+<td>Abrir <code>/sync</code>, reenviar, conferir validade e acionar suporte se houver conflito.</td>
+</tr>
+<tr>
+<td>Produto duplicado</td>
+<td>Importação e cadastro manual criaram registros parecidos</td>
+<td>Não usar ambos; definir registro oficial com equipe.</td>
+</tr>
+<tr>
+<td>Talhão não aparece na safra</td>
+<td>Talhão não cadastrado como tipo TALHÃO ou sem área</td>
+<td>Conferir estrutura da propriedade e georreferenciamento.</td>
+</tr>
+<tr>
+<td>Cultura Café não aparece</td>
+<td>Cadastro de cultura incompleto</td>
+<td>Conferir <code>Culturas e Variedades</code> ou acionar operação assistida.</td>
+</tr>
+<tr>
+<td>Safra sem resultado</td>
+<td>Falta custo, receita, produção ou vínculo com talhão</td>
+<td>Conferir operações, estoque, financeiro e DRE.</td>
+</tr>
+<tr>
+<td>Rentabilidade zerada</td>
+<td>DRE sem dados suficientes</td>
+<td>Conferir receita, custo, produção e filtros.</td>
+</tr>
+<tr>
+<td>Alerta não aparece</td>
+<td>Ainda não há dados ou regra aplicável</td>
+<td>Continuar operação e confirmar configuração com equipe.</td>
+</tr>
+<tr>
+<td>Depósito não aparece</td>
+<td>Depósito não cadastrado/ativo</td>
+<td>Criar depósito e reavaliar Wizard.</td>
+</tr>
+<tr>
+<td>Go-live bloqueado</td>
+<td>Pendência crítica aberta</td>
+<td>Resolver item crítico antes de iniciar go-live.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="18-gloss%C3%A1rio-r%C3%A1pido">18. Glossário rápido</h2>
+<table>
+<thead>
+<tr>
+<th>Termo</th>
+<th>Explicação simples</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Tenant</td>
+<td>Nome técnico para o ambiente da empresa dentro do AgroSaaS. No uso diário, chame de ambiente.</td>
+</tr>
+<tr>
+<td>Unidade Produtiva</td>
+<td>Fazenda ou unidade operacional usada para organizar os dados.</td>
+</tr>
+<tr>
+<td>Propriedade</td>
+<td>Cadastro da fazenda como operação rural.</td>
+</tr>
+<tr>
+<td>Imóvel Rural</td>
+<td>Cadastro legal/fundiário, com documentos como CAR, CCIR e matrícula.</td>
+</tr>
+<tr>
+<td>Gleba</td>
+<td>Divisão territorial maior dentro da propriedade.</td>
+</tr>
+<tr>
+<td>Talhão</td>
+<td>Área de plantio acompanhada na safra.</td>
+</tr>
+<tr>
+<td>Área Operacional</td>
+<td>Subdivisão usada para organizar o trabalho de campo.</td>
+</tr>
+<tr>
+<td>Safra</td>
+<td>Ciclo agrícola acompanhado pelo sistema.</td>
+</tr>
+<tr>
+<td>Insumo</td>
+<td>Produto usado na operação, como fertilizante, defensivo ou corretivo.</td>
+</tr>
+<tr>
+<td>Estoque</td>
+<td>Controle de produtos, saldos, depósitos e movimentações.</td>
+</tr>
+<tr>
+<td>Romaneio</td>
+<td>Registro de colheita, carga, entrega ou movimentação da produção.</td>
+</tr>
+<tr>
+<td>Custo por saca</td>
+<td>Custo total dividido pela quantidade de sacas produzidas.</td>
+</tr>
+<tr>
+<td>Rentabilidade</td>
+<td>Resultado econômico da safra após receitas e custos.</td>
+</tr>
+<tr>
+<td>Sankhya</td>
+<td>ERP usado pelo cliente para cadastros, financeiro e documentos.</td>
+</tr>
+<tr>
+<td>Campo PWA</td>
+<td>Aplicativo de campo que funciona mesmo com internet instável.</td>
+</tr>
+<tr>
+<td>Go-live</td>
+<td>Liberação oficial para começar a operação real assistida.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="refer%C3%AAncias-oficiais-usadas">Referências oficiais usadas</h2>
+<ul>
+<li><code>docs/pilot/PLANO-MESTRE-PILOTO-01.md</code></li>
+<li><code>docs/pilot/RUNBOOK-01-EXECUCAO-D-5-A-D+7.md</code></li>
+<li><code>docs/pilot/CHECKLIST-CLIENTE-01-PREPARACAO-IMPLANTACAO.md</code></li>
+<li><code>docs/implementation/reports/PILOT-03-AUDITORIA-EXECUCAO-IMPLANTACAO.md</code></li>
+<li><code>docs/implementation/reports/SANKHYA-SYNC-01-ESCOPO-PILOTO-CAFE.md</code></li>
+<li><code>docs/implementation/reports/SANKHYA-SYNC-02-MAPEAMENTO-OFICIAL.md</code></li>
+<li><code>docs/implementation/reports/SANKHYA-SYNC-03-ESTRATEGIA-SINCRONIZACAO-PILOTO.md</code></li>
+<li><code>docs/implementation/reports/SANKHYA-AUTH-03-VALIDACAO-ESPECIFICACAO-TECNICA.md</code></li>
+</ul>
+<h2 id="limites-importantes-para-o-usu%C3%A1rio">Limites importantes para o usuário</h2>
+<ul>
+<li>O guia não promete sincronização bidirecional com Sankhya.</li>
+<li>O guia não promete faturamento, cancelamento ou escrita de documentos no ERP durante o piloto.</li>
+<li>O resultado econômico depende de dados reais de custo, produção e receita.</li>
+<li>O Campo PWA precisa ser ativado, sincronizado e usado corretamente para que registros apareçam no Web.</li>
+<li>O Wizard é obrigatório para go-live e deve ser usado como referência de prontidão.</li>
+<li>Quando uma tela existir parcialmente, a equipe AgroSaaS deve conduzir a operação assistida sem criar fluxo paralelo.</li>
+</ul>
+
+</body>
+</html>

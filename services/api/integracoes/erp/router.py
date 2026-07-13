@@ -53,6 +53,7 @@ def _sanitize_external_payload(association) -> dict[str, object]:
         "metadata_keys": list(metadata.keys()),
     }
 
+
 def _build_external_key(association) -> str:
     return "|".join(
         [
@@ -66,8 +67,10 @@ def _build_external_key(association) -> str:
         ]
     )
 
+
 def _serialize_history_item(history) -> ExternalRecordAssociationHistoryItemResponse:
     return ExternalRecordAssociationHistoryItemResponse.model_validate(history)
+
 
 async def _serialize_pending_item(
     association,
@@ -82,7 +85,9 @@ async def _serialize_pending_item(
         "provider_id": association.provider_id,
         "config_id": association.config_id,
         "feature_id": association.feature_id,
-        "feature_code": feature_code_by_id.get(association.feature_id) if feature_code_by_id else None,
+        "feature_code": feature_code_by_id.get(association.feature_id)
+        if feature_code_by_id
+        else None,
         "environment": association.environment,
         "scope_type": association.scope_type,
         "scope_id": association.scope_id,
@@ -106,8 +111,6 @@ async def _serialize_pending_item(
     return ExternalRecordAssociationPendingItemResponse.model_validate(payload)
 
 
-
-
 @router.get(
     "/providers/{provider_slug}/schema",
     response_model=ProviderSchemaResponse,
@@ -118,10 +121,7 @@ async def obter_schema_do_provider(
     db: AsyncSession = Depends(get_session),
 ) -> ProviderSchemaResponse:
     """Devolve os esquemas declarativos de conexão e credenciais do provider ERP."""
-    stmt = (
-        select(MarketplaceIntegracao)
-        .where(MarketplaceIntegracao.slug == provider_slug)
-    )
+    stmt = select(MarketplaceIntegracao).where(MarketplaceIntegracao.slug == provider_slug)
     result = await db.execute(stmt)
     provider = result.scalar_one_or_none()
 
@@ -212,10 +212,7 @@ def _unsupported_provider_error(provider_slug: str) -> HTTPException:
 
     return HTTPException(
         status_code=501,
-        detail=(
-            "Provider ERP ainda não suportado pela superfície HTTP ERP: "
-            f"{provider_slug}"
-        ),
+        detail=("Provider ERP ainda não suportado pela superfície HTTP ERP: " f"{provider_slug}"),
     )
 
 
@@ -321,12 +318,12 @@ async def listar_timeline_erp(
     return cast(
         list[SankhyaTimelineItemResponse],
         await listar_timeline_sankhya_provider(
-        status=status,
-        feature_code=feature_code,
-        origem=origem,
-        limit=limit,
-        tenant_id=tenant_id,
-        sync_service=sankhya_sync_service,
+            status=status,
+            feature_code=feature_code,
+            origem=origem,
+            limit=limit,
+            tenant_id=tenant_id,
+            sync_service=sankhya_sync_service,
         ),
     )
 
@@ -357,7 +354,6 @@ async def obter_diagnostico_erp(
     )
 
 
-
 @router.get(
     "/associacoes/pendentes",
     response_model=PaginatedExternalRecordAssociationResponse,
@@ -376,7 +372,9 @@ async def listar_associacoes_erp_pendentes(
     current_tenant_id: uuid.UUID = Depends(get_tenant_id),
     readiness_service: ErpReadinessService = Depends(get_erp_readiness_service),
     sankhya_sync_service: SankhyaSyncService = Depends(get_sankhya_sync_service),
-    association_service: ExternalRecordAssociationService = Depends(get_external_association_service),
+    association_service: ExternalRecordAssociationService = Depends(
+        get_external_association_service
+    ),
 ) -> PaginatedExternalRecordAssociationResponse:
     await _assert_sankhya_provider(
         tenant_id=current_tenant_id,
@@ -460,7 +458,9 @@ async def listar_associacoes_erp(
     current_tenant_id: uuid.UUID = Depends(get_tenant_id),
     readiness_service: ErpReadinessService = Depends(get_erp_readiness_service),
     sankhya_sync_service: SankhyaSyncService = Depends(get_sankhya_sync_service),
-    association_service: ExternalRecordAssociationService = Depends(get_external_association_service),
+    association_service: ExternalRecordAssociationService = Depends(
+        get_external_association_service
+    ),
 ) -> PaginatedExternalRecordAssociationResponse:
     await _assert_sankhya_provider(
         tenant_id=current_tenant_id,
@@ -540,7 +540,9 @@ async def resumo_associacoes_erp(
     current_tenant_id: uuid.UUID = Depends(get_tenant_id),
     readiness_service: ErpReadinessService = Depends(get_erp_readiness_service),
     sankhya_sync_service: SankhyaSyncService = Depends(get_sankhya_sync_service),
-    association_service: ExternalRecordAssociationService = Depends(get_external_association_service),
+    association_service: ExternalRecordAssociationService = Depends(
+        get_external_association_service
+    ),
 ) -> ExternalRecordAssociationSummaryResponse:
     await _assert_sankhya_provider(
         tenant_id=current_tenant_id,
@@ -569,7 +571,9 @@ async def reconciliar_associacao_erp(
     current_tenant_id: uuid.UUID = Depends(get_tenant_id),
     readiness_service: ErpReadinessService = Depends(get_erp_readiness_service),
     sankhya_sync_service: SankhyaSyncService = Depends(get_sankhya_sync_service),
-    association_service: ExternalRecordAssociationService = Depends(get_external_association_service),
+    association_service: ExternalRecordAssociationService = Depends(
+        get_external_association_service
+    ),
 ) -> ExternalRecordAssociationPendingItemResponse:
     await _assert_sankhya_provider(
         tenant_id=current_tenant_id,
@@ -578,10 +582,16 @@ async def reconciliar_associacao_erp(
     )
 
     association = await association_service.db.get(ExternalRecordAssociation, association_id)
-    if association is None or association.tenant_id != str(current_tenant_id) or association.deleted_at is not None:
+    if (
+        association is None
+        or association.tenant_id != str(current_tenant_id)
+        or association.deleted_at is not None
+    ):
         raise HTTPException(status_code=404, detail="Associacao externa nao encontrada")
     if association.status != ExternalRecordAssociationStatus.PENDING.value:
-        raise HTTPException(status_code=409, detail="Somente associacoes pendentes podem ser reconciliadas")
+        raise HTTPException(
+            status_code=409, detail="Somente associacoes pendentes podem ser reconciliadas"
+        )
 
     try:
         await association_service.detect_duplicate(

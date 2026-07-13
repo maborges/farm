@@ -159,7 +159,9 @@ class OpenWeatherWeatherSnapshot:
 class OpenWeatherClient:
     """Cliente HTTP mínimo para OpenWeather."""
 
-    def __init__(self, api_base_url: str, api_key: str, timeout_seconds: int, units: str, language: str) -> None:
+    def __init__(
+        self, api_base_url: str, api_key: str, timeout_seconds: int, units: str, language: str
+    ) -> None:
         self.api_base_url = api_base_url.rstrip("/")
         self.api_key = api_key
         self.timeout_seconds = timeout_seconds
@@ -179,7 +181,7 @@ class OpenWeatherClient:
             "units": self.units,
             "lang": self.language,
         }
-        
+
         if lat is not None and lon is not None:
             params["lat"] = lat
             params["lon"] = lon
@@ -233,7 +235,13 @@ class OpenWeatherCanonicalAdapter:
         feature_code: str,
         trigger_type: IntegrationJobTrigger,
         request_payload: dict[str, Any] | None = None,
-    ) -> tuple[TenantIntegracao, MarketplaceIntegracao, IntegrationFeature, IntegrationSyncPolicy, IntegrationJob]:
+    ) -> tuple[
+        TenantIntegracao,
+        MarketplaceIntegracao,
+        IntegrationFeature,
+        IntegrationSyncPolicy,
+        IntegrationJob,
+    ]:
         """Garante o contexto canônico para uma execução OpenWeather."""
 
         config = await self._get_or_create_config(tenant_id)
@@ -309,7 +317,9 @@ class OpenWeatherCanonicalAdapter:
             await self._publish_sync_completed_event(config, job, feature.codigo)
         else:
             await self._publish_sync_failed_event(config, job, feature.codigo, error_message)
-            await self._create_operational_alert(config, job, feature.codigo, health_status, error_message)
+            await self._create_operational_alert(
+                config, job, feature.codigo, health_status, error_message
+            )
 
         if previous_status != health.status:
             await self._publish_health_changed_event(config, previous_status, health.status)
@@ -356,9 +366,12 @@ class OpenWeatherCanonicalAdapter:
             connection_payload=config.connection_payload or {},
             configuracoes=config.configuracoes or {},
             api_key_configured=bool(credential and credential.segredo_criptografado),
-            api_key_mask=mask_integration_secret(credential.segredo_criptografado) if credential else None,
+            api_key_mask=mask_integration_secret(credential.segredo_criptografado)
+            if credential
+            else None,
             credential_ref_id=config.credential_ref_id,
-            last_synced_at=config.ultima_sincronizacao or (latest_job.finished_at if latest_job else None),
+            last_synced_at=config.ultima_sincronizacao
+            or (latest_job.finished_at if latest_job else None),
             created_at=config.installed_at,
             updated_at=config.updated_at,
         )
@@ -763,9 +776,7 @@ class OpenWeatherCanonicalAdapter:
         feature: IntegrationFeature,
     ) -> IntegrationSyncPolicy:
         defaults = _FEATURE_DEFAULTS[feature.codigo]
-        stmt = select(IntegrationSyncPolicy).where(
-            IntegrationSyncPolicy.feature_id == feature.id
-        )
+        stmt = select(IntegrationSyncPolicy).where(IntegrationSyncPolicy.feature_id == feature.id)
         policy = (await self.db.execute(stmt)).scalar_one_or_none()
         if policy is None:
             policy = IntegrationSyncPolicy(
@@ -887,9 +898,7 @@ class OpenWeatherCanonicalAdapter:
         snapshot: OpenWeatherWeatherSnapshot | None,
     ) -> None:
         job.status = (
-            IntegrationJobStatus.SUCCESS.value
-            if success
-            else IntegrationJobStatus.FAILED.value
+            IntegrationJobStatus.SUCCESS.value if success else IntegrationJobStatus.FAILED.value
         )
         job.finished_at = datetime.now(timezone.utc)  # noqa: UP017
         job.processados = processados
@@ -1127,7 +1136,9 @@ class OpenWeatherCanonicalAdapter:
     async def _get_canonical_health(self, config_id: int | None) -> IntegrationHealth | None:
         return await self._get_health_by_config_id(config_id)
 
-    async def _get_credential_by_id(self, credential_id: int | None) -> IntegrationCredential | None:
+    async def _get_credential_by_id(
+        self, credential_id: int | None
+    ) -> IntegrationCredential | None:
         if credential_id is None:
             return None
         stmt = select(IntegrationCredential).where(IntegrationCredential.id == credential_id)
@@ -1242,7 +1253,9 @@ class OpenWeatherCanonicalAdapter:
         if success and erros > 0:
             return IntegrationHealthStatus.PARTIAL_FAILURE.value
         normalized = (error_message or "").lower()
-        if any(token in normalized for token in ("auth", "api key", "apikey", "token", "401", "403")):
+        if any(
+            token in normalized for token in ("auth", "api key", "apikey", "token", "401", "403")
+        ):
             return IntegrationHealthStatus.AUTH_ERROR.value
         if any(token in normalized for token in ("rate", "limite", "quota", "429")):
             return IntegrationHealthStatus.RATE_LIMITED.value
@@ -1318,16 +1331,12 @@ class OpenWeatherCanonicalAdapter:
         filtered = timeline
         if status:
             filtered = [
-                item
-                for item in filtered
-                if str(item.get("status", "")).lower() == status.lower()
+                item for item in filtered if str(item.get("status", "")).lower() == status.lower()
             ]
         if feature_code:
             normalized = feature_code.lower()
             filtered = [
-                item
-                for item in filtered
-                if normalized in str(item.get("feature_code", "")).lower()
+                item for item in filtered if normalized in str(item.get("feature_code", "")).lower()
             ]
         if origem:
             filtered = [
@@ -1675,9 +1684,10 @@ class OpenWeatherService:
 
         from core.models.unidade_produtiva import UnidadeProdutiva
         from sqlalchemy import select
+
         stmt = select(UnidadeProdutiva).where(
             UnidadeProdutiva.tenant_id == self.adapter._tenant_uuid(config.tenant_id),
-            UnidadeProdutiva.ativo.is_(True)
+            UnidadeProdutiva.ativo.is_(True),
         )
         unidades = list((await self.db.execute(stmt)).scalars().all())
 
@@ -1686,11 +1696,13 @@ class OpenWeatherService:
         erros = 0
         message = ""
         first_snapshot = None
-        
+
         if not unidades:
             # Fallback para location_query textual se nao houver unidades
             try:
-                response = await client.fetch_current_weather(location_query=payload["location_query"])
+                response = await client.fetch_current_weather(
+                    location_query=payload["location_query"]
+                )
                 snapshot = self.adapter._build_openweather_snapshot(
                     response,
                     units=payload["units"],
@@ -1721,7 +1733,7 @@ class OpenWeatherService:
                             lon = float(parts[1].strip())
                     except ValueError:
                         pass
-                
+
                 try:
                     if lat is not None and lon is not None:
                         response = await client.fetch_current_weather(lat=lat, lon=lon)
@@ -1737,7 +1749,7 @@ class OpenWeatherService:
                         job_id=job.id,
                     )
                     sucessos += 1
-                    
+
                     if not first_snapshot:
                         first_snapshot = snapshot
 

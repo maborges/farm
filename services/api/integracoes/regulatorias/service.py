@@ -10,21 +10,21 @@ Falhas nunca bloqueiam o cadastro — retornam None silenciosamente.
 
 import re
 import time
+
 import httpx
-from typing import Optional
 from loguru import logger
 
 # ---------------------------------------------------------------------------
 # Cache TTL simples em memória
 # ---------------------------------------------------------------------------
 _CACHE: dict[str, tuple[dict, float]] = {}
-_CEP_TTL = 86400      # 24h — CEPs mudam raramente
-_CNPJ_TTL = 3600      # 1h
-_CAR_TTL = 86400      # 24h
-_TIMEOUT = 5.0        # segundos
+_CEP_TTL = 86400  # 24h — CEPs mudam raramente
+_CNPJ_TTL = 3600  # 1h
+_CAR_TTL = 86400  # 24h
+_TIMEOUT = 5.0  # segundos
 
 
-def _cache_get(key: str) -> Optional[dict]:
+def _cache_get(key: str) -> dict | None:
     entry = _CACHE.get(key)
     if entry and time.monotonic() < entry[1]:
         return entry[0]
@@ -45,7 +45,8 @@ def _cache_set(key: str, value: dict, ttl: float) -> None:
 # CEP — BrasilAPI (fallback ViaCEP)
 # ---------------------------------------------------------------------------
 
-async def consultar_cep(cep: str) -> Optional[dict]:
+
+async def consultar_cep(cep: str) -> dict | None:
     """
     Retorna dados de endereço pelo CEP.
 
@@ -113,7 +114,8 @@ async def consultar_cep(cep: str) -> Optional[dict]:
 # CNPJ — BrasilAPI
 # ---------------------------------------------------------------------------
 
-async def consultar_cnpj(cnpj: str) -> Optional[dict]:
+
+async def consultar_cnpj(cnpj: str) -> dict | None:
     """
     Retorna dados da empresa pelo CNPJ via BrasilAPI.
 
@@ -167,9 +169,7 @@ async def consultar_cnpj(cnpj: str) -> Optional[dict]:
 # CAR — SICAR/IBAMA
 # ---------------------------------------------------------------------------
 
-_CAR_REGEX = re.compile(
-    r"^[A-Z]{2}-\d{7}-[A-Z0-9]{8}\.[A-Z0-9]{4}\.[A-Z0-9]{4}/\d{4}-\d{2}$"
-)
+_CAR_REGEX = re.compile(r"^[A-Z]{2}-\d{7}-[A-Z0-9]{8}\.[A-Z0-9]{4}\.[A-Z0-9]{4}/\d{4}-\d{2}$")
 
 
 def validar_formato_car(car_codigo: str) -> bool:
@@ -177,7 +177,7 @@ def validar_formato_car(car_codigo: str) -> bool:
     return bool(_CAR_REGEX.match(car_codigo.upper().strip())) if car_codigo else False
 
 
-async def consultar_car(car_codigo: str) -> Optional[dict]:
+async def consultar_car(car_codigo: str) -> dict | None:
     """
     Consulta dados do imóvel no SICAR/IBAMA pelo código CAR.
 

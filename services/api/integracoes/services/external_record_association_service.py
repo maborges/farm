@@ -164,7 +164,9 @@ class ExternalRecordAssociationService:
         if config_id is not None:
             query = query.where(ExternalRecordAssociation.config_id == config_id)
         if external_company_id is not None:
-            query = query.where(ExternalRecordAssociation.external_company_id == external_company_id)
+            query = query.where(
+                ExternalRecordAssociation.external_company_id == external_company_id
+            )
         if external_branch_id is not None:
             query = query.where(ExternalRecordAssociation.external_branch_id == external_branch_id)
         return await self.db.scalar(query.limit(1))
@@ -405,9 +407,7 @@ class ExternalRecordAssociationService:
                 ExternalRecordAssociation.feature_id == IntegrationFeature.id,
             ).where(IntegrationFeature.codigo == feature_code)
         stmt = (
-            stmt.order_by(ExternalRecordAssociation.created_at.desc())
-            .offset(offset)
-            .limit(limit)
+            stmt.order_by(ExternalRecordAssociation.created_at.desc()).offset(offset).limit(limit)
         )
         result = await self.db.scalars(stmt)
         return list(result)
@@ -446,7 +446,7 @@ class ExternalRecordAssociationService:
                 IntegrationFeature,
                 ExternalRecordAssociation.feature_id == IntegrationFeature.id,
             ).where(IntegrationFeature.codigo == feature_code)
-        
+
         result = await self.db.scalar(stmt)
         return result or 0
 
@@ -500,9 +500,7 @@ class ExternalRecordAssociationService:
             )
 
         stmt = (
-            stmt.order_by(ExternalRecordAssociation.created_at.desc())
-            .offset(offset)
-            .limit(limit)
+            stmt.order_by(ExternalRecordAssociation.created_at.desc()).offset(offset).limit(limit)
         )
         result = await self.db.scalars(stmt)
         return list(result)
@@ -565,7 +563,9 @@ class ExternalRecordAssociationService:
         config_id: int | None = None,
         environment: str | None = None,
     ) -> dict[str, int]:
-        stmt = select(ExternalRecordAssociation.status, func.count(ExternalRecordAssociation.id)).where(
+        stmt = select(
+            ExternalRecordAssociation.status, func.count(ExternalRecordAssociation.id)
+        ).where(
             ExternalRecordAssociation.tenant_id == tenant_id,
             ExternalRecordAssociation.deleted_at.is_(None),
         )
@@ -607,7 +607,9 @@ class ExternalRecordAssociationService:
         if payload.local_record_id is None:
             query = query.where(ExternalRecordAssociation.local_record_id.is_(None))
         else:
-            query = query.where(ExternalRecordAssociation.local_record_id == payload.local_record_id)
+            query = query.where(
+                ExternalRecordAssociation.local_record_id == payload.local_record_id
+            )
         company_match = self._optional_match(
             ExternalRecordAssociation.external_company_id,
             payload.external_company_id,
@@ -719,5 +721,8 @@ class ExternalRecordAssociationService:
         return getattr(value, "value", value)
 
     def _validate_active_requires_local(self, status, local_record_id: str | None) -> None:
-        if self._enum_value(status) == ExternalRecordAssociationStatus.ACTIVE.value and not local_record_id:
+        if (
+            self._enum_value(status) == ExternalRecordAssociationStatus.ACTIVE.value
+            and not local_record_id
+        ):
             raise ValueError("Associacao ativa exige local_record_id resolvido.")

@@ -24,20 +24,17 @@ async def listar_erps_disponiveis(
     Retorna o catálogo de ERPs disponíveis no Marketplace para seleção no Wizard
     ou em configurações da plataforma.
     """
-    stmt = (
-        select(
-            MarketplaceIntegracao.id,
-            MarketplaceIntegracao.nome,
-            MarketplaceIntegracao.slug,
-            MarketplaceIntegracao.descricao,
-            MarketplaceIntegracao.logo_url,
-        )
-        .where(MarketplaceIntegracao.provider_type == "ERP")
-    )
-    
+    stmt = select(
+        MarketplaceIntegracao.id,
+        MarketplaceIntegracao.nome,
+        MarketplaceIntegracao.slug,
+        MarketplaceIntegracao.descricao,
+        MarketplaceIntegracao.logo_url,
+    ).where(MarketplaceIntegracao.provider_type == "ERP")
+
     if ativa:
         stmt = stmt.where(MarketplaceIntegracao.ativa.is_(True))
-        
+
     stmt = stmt.order_by(MarketplaceIntegracao.nome.asc())
 
     result = await db.execute(stmt)

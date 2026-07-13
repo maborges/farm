@@ -39,9 +39,7 @@ class IntegrationDisabled(IntegrationDomainEvent):
 
 
 class IntegrationCredentialRotated(IntegrationDomainEvent):
-    event_type: Literal["integrations.credential_rotated"] = (
-        "integrations.credential_rotated"
-    )
+    event_type: Literal["integrations.credential_rotated"] = "integrations.credential_rotated"
     source_type: str = "integration.credential"
     provider_id: int
     config_id: int
