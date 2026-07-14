@@ -21,6 +21,7 @@ class UnidadeProdutivaResponse(BaseModel):
     cep: Optional[str] = None
     logradouro: Optional[str] = None
     numero: Optional[str] = None
+    complemento: Optional[str] = None
     bairro: Optional[str] = None
     municipio: Optional[str] = None
     uf: Optional[str] = None

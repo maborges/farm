@@ -40,6 +40,7 @@ class UnidadeProdutiva(Base):
     cep: Mapped[str | None] = mapped_column(String(9), nullable=True)
     logradouro: Mapped[str | None] = mapped_column(String(255), nullable=True)
     numero: Mapped[str | None] = mapped_column(String(20), nullable=True, comment="Número do endereço")
+    complemento: Mapped[str | None] = mapped_column(String(100), nullable=True, comment="Complemento do endereço")
     bairro: Mapped[str | None] = mapped_column(String(100), nullable=True)
     uf: Mapped[str | None] = mapped_column(String(2), nullable=True, comment="UF (estado) da propriedade")
     municipio: Mapped[str | None] = mapped_column(String(100), nullable=True)
