@@ -3,24 +3,27 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from typing import Any
 
 import httpx
 from sqlalchemy import func, select, text
-from sqlalchemy.exc import IntegrityError, ProgrammingError
+from sqlalchemy.exc import IntegrityError, OperationalError, ProgrammingError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from core.config import settings
 from integracoes.erp_readiness_service import ErpReadinessService
 from integracoes.models import (
+    IntegrationCredential,
     IntegrationFeature,
     IntegrationHealth,
     IntegrationJob,
     IntegrationJobTrigger,
+    IntegrationStatus,
     IntegrationSyncPolicy,
     MarketplaceIntegracao,
     TenantIntegracao,
@@ -45,6 +48,7 @@ from integracoes.security import (
 from integracoes.url_validator import validate_provider_url
 
 _LOGGER = logging.getLogger(__name__)
+UTC = timezone.utc  # noqa: UP017
 _SANKHYA_CONFIG_TENANT_UNIQUE_CONSTRAINTS = {
     "sankhya_config_pkey",
     "sankhya_config_tenant_id_key",
@@ -284,6 +288,106 @@ class SankhyaSyncService:
         self.adapter = SankhyaCanonicalAdapter(db)
         self._supports_legacy_gateway_columns: bool | None = None
 
+    @staticmethod
+    def _clone_config(config: SankhyaConfig) -> SankhyaConfig:
+        clone = SankhyaConfig()
+        for field_name in (
+            "id",
+            "tenant_id",
+            "environment",
+            "api_base_url",
+            "auth_url",
+            "client_id",
+            "client_secret",
+            "x_token",
+            "token",
+            "appkey",
+            "ws_url",
+            "username",
+            "password",
+            "ativo",
+            "ultimo_teste",
+            "teste_status",
+            "sync_interval",
+            "ultimo_sync",
+            "created_at",
+            "updated_at",
+        ):
+            setattr(clone, field_name, getattr(config, field_name))
+        return clone
+
+    @staticmethod
+    def _credential_bundle_payload(credential: IntegrationCredential) -> dict[str, Any]:
+        decrypted = decrypt_integration_secret(credential.segredo_criptografado)
+        if not decrypted:
+            return {}
+        try:
+            payload = json.loads(decrypted)
+        except json.JSONDecodeError:
+            return {"password": decrypted}
+        return payload if isinstance(payload, dict) else {}
+
+    @staticmethod
+    def _normalize_secret_value(value: Any | None) -> str | None:
+        if not value:
+            return None
+        value_str = str(value)
+        if value_str.startswith("enc::"):
+            return value_str
+        return encrypt_integration_secret(value_str)
+
+    @staticmethod
+    def _apply_canonical_credential(
+        config: SankhyaConfig,
+        credential: IntegrationCredential,
+    ) -> None:
+        bundle = SankhyaSyncService._credential_bundle_payload(credential)
+        auth_model = (credential.mask_metadata or {}).get("auth_model")
+        if auth_model == "gateway_oauth_client_credentials":
+            config.client_secret = SankhyaSyncService._normalize_secret_value(
+                bundle.get("sankhya_client_secret")
+            )
+            config.x_token = SankhyaSyncService._normalize_secret_value(
+                bundle.get("sankhya_x_token")
+            )
+            config.token = None
+            config.appkey = None
+            config.username = None
+            config.password = None
+            return
+        if auth_model == "gateway_legacy_login":
+            config.client_secret = None
+            config.x_token = None
+            config.token = SankhyaSyncService._normalize_secret_value(bundle.get("sankhya_token"))
+            config.appkey = SankhyaSyncService._normalize_secret_value(
+                bundle.get("sankhya_appkey")
+            )
+            config.username = bundle.get("username")
+            config.password = SankhyaSyncService._normalize_secret_value(bundle.get("password"))
+            return
+        config.client_secret = None
+        config.x_token = None
+        config.token = None
+        config.appkey = None
+        config.password = SankhyaSyncService._normalize_secret_value(bundle.get("password"))
+
+    async def _get_operational_config(
+        self,
+        tenant_id: str,
+        *,
+        config: SankhyaConfig | None = None,
+        canonical_config: TenantIntegracao | None = None,
+    ) -> SankhyaConfig | None:
+        legacy_config = config or await self.get_config(tenant_id)
+        if legacy_config is None:
+            return None
+        canonical = canonical_config or await self._get_canonical_config(tenant_id)
+        if canonical is None or canonical.credential is None:
+            return legacy_config
+        operational_config = self._clone_config(legacy_config)
+        self._apply_canonical_credential(operational_config, canonical.credential)
+        return operational_config
+
     async def get_config(self, tenant_id: str) -> SankhyaConfig | None:
         if not await self._supports_legacy_gateway_login_columns():
             return await self._get_config_without_legacy_gateway_columns(tenant_id)
@@ -301,8 +405,13 @@ class SankhyaSyncService:
         if not config:
             return {}
 
-        payload = SankhyaConfigSerializer.to_response(config)
         canonical_config = await self._get_canonical_config(tenant_id)
+        operational_config = await self._get_operational_config(
+            tenant_id,
+            config=config,
+            canonical_config=canonical_config,
+        )
+        payload = SankhyaConfigSerializer.to_response(operational_config or config)
         provider = canonical_config.integracao if canonical_config else None
         payload.update(_provider_contract_payload(provider))
         return payload
@@ -439,7 +548,11 @@ class SankhyaSyncService:
 
         # Respeita o auth_model se for providenciado explicitamente, senão fallback
         if auth_model:
-            if auth_model not in ("gateway_oauth_client_credentials", "gateway_legacy_login", "legacy_ws_basic_auth"):
+            if auth_model not in (
+                "gateway_oauth_client_credentials",
+                "gateway_legacy_login",
+                "legacy_ws_basic_auth",
+            ):
                 raise ValueError(f"auth_model inválido: {auth_model}")
         else:
             if explicit_legacy_login:
@@ -514,20 +627,15 @@ class SankhyaSyncService:
 
             if not ws_url_value:
                 ws_url_value = api_base_url
-            if not username_value:
-                username_value = client_id
+            username_value = None
 
-            token = current.token if current and current.token else None
-            appkey = current.appkey if current and current.appkey else None
+            token = None
+            appkey = None
 
             password_value = (
                 encrypt_integration_secret(password_raw)
                 if password_raw is not None
-                else (
-                    current.password
-                    if current and current.password and current_is_legacy_basic
-                    else None
-                )
+                else None
             )
         elif auth_model == "gateway_legacy_login":
             username_value = username or sankhya_client_id or username_value
@@ -586,10 +694,10 @@ class SankhyaSyncService:
                 auth_url = None
             if not client_id:
                 client_id = None
-            client_secret = current.client_secret if current and current.client_secret else None
-            x_token = current.x_token if current and current.x_token else None
-            token = current.token if current and current.token else None
-            appkey = current.appkey if current and current.appkey else None
+            client_secret = None
+            x_token = None
+            token = None
+            appkey = None
         else:
             raise ValueError(
                 "Configuração Sankhya incompleta: informe Gateway ou credenciais legadas"
@@ -751,6 +859,7 @@ class SankhyaSyncService:
         password: str | None = None,
         sync_interval: int,
     ) -> SankhyaConfig:
+        current = await self._get_operational_config(config.tenant_id, config=config)
         normalized = await self._normalize_config_values(
             auth_model=auth_model,
             sankhya_environment=sankhya_environment,
@@ -765,7 +874,7 @@ class SankhyaSyncService:
             username=username,
             password=password,
             sync_interval=sync_interval,
-            current=config,
+            current=current or config,
         )
         if not await self._supports_legacy_gateway_login_columns():
             if self._requires_legacy_gateway_columns(normalized):
@@ -943,7 +1052,7 @@ class SankhyaSyncService:
             Resposta sanitizada do teste de conexão.
         """
 
-        config = await self.get_config(tenant_id)
+        config = await self._get_operational_config(tenant_id)
         if not config:
             return SankhyaTestConnectionResponse(
                 sucesso=False,
@@ -954,6 +1063,89 @@ class SankhyaSyncService:
         auth_service = SankhyaGatewayAuthService(config)
         diagnostic = await auth_service.test_connection()
         return SankhyaTestConnectionResponse.model_validate(diagnostic.as_dict())
+
+    async def remover_config(self, tenant_id: str) -> bool:
+        """Remove a integração Sankhya do tenant e volta o runtime para sem ERP.
+
+        Args:
+            tenant_id: Identificador do tenant em escopo RLS.
+
+        Returns:
+            `True` quando havia configuração ativa para remover.
+        """
+
+        legacy_config = await self.get_config(tenant_id)
+        canonical_config = await self._get_canonical_config(tenant_id)
+        if legacy_config is None and canonical_config is None:
+            return False
+
+        await self._soft_delete_canonical_runtime(tenant_id, canonical_config)
+        await self._delete_legacy_config(tenant_id)
+        await self.db.commit()
+        await self._restore_rls_context(tenant_id)
+        return True
+
+    async def _soft_delete_canonical_runtime(
+        self,
+        tenant_id: str,
+        canonical_config: TenantIntegracao | None,
+    ) -> None:
+        """Marca o runtime canônico como removido e inativa dependências operacionais."""
+
+        if canonical_config is None:
+            return
+
+        now = datetime.now(UTC)
+        canonical_config.status = "inativa"
+        canonical_config.lifecycle_state = IntegrationStatus.REMOVED.value
+        canonical_config.deleted_at = now
+        self.db.add(canonical_config)
+
+        await self.db.execute(
+            text(
+                """
+                UPDATE integration_features
+                SET habilitada = false, deleted_at = :now, updated_at = :now
+                WHERE tenant_id = :tenant_id AND config_id = :config_id AND deleted_at IS NULL
+                """
+            ),
+            {"tenant_id": tenant_id, "config_id": canonical_config.id, "now": now},
+        )
+        await self.db.execute(
+            text(
+                """
+                UPDATE integration_sync_policies
+                SET ativa = false, deleted_at = :now, updated_at = :now
+                WHERE tenant_id = :tenant_id AND config_id = :config_id AND deleted_at IS NULL
+                """
+            ),
+            {"tenant_id": tenant_id, "config_id": canonical_config.id, "now": now},
+        )
+        if canonical_config.credential_ref_id is not None:
+            await self.db.execute(
+                text(
+                    """
+                    UPDATE integration_credentials
+                    SET ativo = false, deleted_at = :now, updated_at = :now
+                    WHERE tenant_id = :tenant_id
+                      AND id = :credential_id
+                      AND deleted_at IS NULL
+                    """
+                ),
+                {
+                    "tenant_id": tenant_id,
+                    "credential_id": canonical_config.credential_ref_id,
+                    "now": now,
+                },
+            )
+
+    async def _delete_legacy_config(self, tenant_id: str) -> None:
+        """Remove a linha legada Sankhya para liberar o tenant sem ERP."""
+
+        await self.db.execute(
+            text("DELETE FROM sankhya_config WHERE tenant_id = :tenant_id"),
+            {"tenant_id": tenant_id},
+        )
 
     async def iniciar_sync_log(self, tenant_id: str, tipo: str, operacao: str) -> SankhyaSyncLog:
         next_id = await self._next_sync_log_id_for_sqlite()
@@ -1038,7 +1230,7 @@ class SankhyaSyncService:
         return list((await self.db.execute(stmt)).scalars().all())
 
     async def obter_status_detalhado(self, tenant_id: str) -> dict[str, Any]:
-        config = await self.get_config(tenant_id)
+        config = await self._get_operational_config(tenant_id)
         canonical_config = await self._get_canonical_config(tenant_id)
         config_id = canonical_config.id if canonical_config else None
         health = await self._get_canonical_health(config_id)
@@ -1067,8 +1259,8 @@ class SankhyaSyncService:
         return {
             "configurado": bool(config or canonical_config),
             "ativo": bool(config.ativo) if config else bool(canonical_config),
-            "ultimo_sync": config.ultimo_sync if config else None,
-            "proximo_sync": proximo_sync,
+            "ultimo_sync": self._normalize_utc_datetime(config.ultimo_sync) if config else None,
+            "proximo_sync": self._normalize_utc_datetime(proximo_sync),
             "status_conexao": status_conexao,
             "status_legado": legacy_status,
             "status_canonico": status_canonico,
@@ -1078,10 +1270,12 @@ class SankhyaSyncService:
             "lifecycle_state": lifecycle_state,
             "health_status": health_status,
             "health_summary": health.summary if health else self._legacy_health_summary(config),
-            "last_success_at": (
+            "last_success_at": self._normalize_utc_datetime(
                 health.last_success_at if health else config.ultimo_sync if config else None
             ),
-            "last_failure_at": health.last_failure_at if health else None,
+            "last_failure_at": self._normalize_utc_datetime(
+                health.last_failure_at if health else None
+            ),
             "consecutive_failures": health.consecutive_failures if health else 0,
             "features_habilitadas": [feature.codigo for feature in features if feature.habilitada],
             "policies_resumidas": [
@@ -1114,7 +1308,7 @@ class SankhyaSyncService:
         }
 
     async def obter_health_detalhado(self, tenant_id: str) -> dict[str, Any]:
-        config = await self.get_config(tenant_id)
+        config = await self._get_operational_config(tenant_id)
         canonical_config = await self._get_canonical_config(tenant_id)
         health = await self._get_canonical_health(canonical_config.id if canonical_config else None)
 
@@ -1125,9 +1319,9 @@ class SankhyaSyncService:
                 "origem": "canonical",
                 "status": health.status,
                 "summary": health.summary,
-                "checked_at": health.checked_at,
-                "last_success_at": health.last_success_at,
-                "last_failure_at": health.last_failure_at,
+                "checked_at": self._normalize_utc_datetime(health.checked_at),
+                "last_success_at": self._normalize_utc_datetime(health.last_success_at),
+                "last_failure_at": self._normalize_utc_datetime(health.last_failure_at),
                 "consecutive_failures": health.consecutive_failures,
                 "details": details,
             }
@@ -1137,11 +1331,11 @@ class SankhyaSyncService:
             "origem": "legacy",
             "status": self._map_legacy_health_status(config),
             "summary": self._legacy_health_summary(config),
-            "checked_at": config.ultimo_teste if config else None,
-            "last_success_at": (
+            "checked_at": self._normalize_utc_datetime(config.ultimo_teste) if config else None,
+            "last_success_at": self._normalize_utc_datetime(
                 config.ultimo_sync if config and config.teste_status == "sucesso" else None
             ),
-            "last_failure_at": (
+            "last_failure_at": self._normalize_utc_datetime(
                 config.ultimo_teste if config and config.teste_status == "erro" else None
             ),
             "consecutive_failures": 0,
@@ -1202,9 +1396,9 @@ class SankhyaSyncService:
                     "registros_sucesso": log.registros_sucesso,
                     "registros_erro": log.registros_erro,
                     "tempo_execucao_ms": log.tempo_execucao_ms,
-                    "created_at": log.created_at,
-                    "started_at": log.started_at,
-                    "completed_at": log.completed_at,
+                    "created_at": self._normalize_utc_datetime(log.created_at),
+                    "started_at": self._normalize_utc_datetime(log.started_at),
+                    "completed_at": self._normalize_utc_datetime(log.completed_at),
                     "origem_dados": "canonical+legacy" if job else "legacy",
                     "integration_job_id": job["id"] if job else None,
                     "feature_code": job["feature_code"] if job else None,
@@ -1336,7 +1530,10 @@ class SankhyaSyncService:
     async def _get_canonical_config(self, tenant_id: str) -> TenantIntegracao | None:
         stmt = (
             select(TenantIntegracao)
-            .options(selectinload(TenantIntegracao.integracao))
+            .options(
+                selectinload(TenantIntegracao.integracao),
+                selectinload(TenantIntegracao.credential),
+            )
             .join(MarketplaceIntegracao, TenantIntegracao.integracao_id == MarketplaceIntegracao.id)
             .where(
                 TenantIntegracao.tenant_id == tenant_id,
@@ -1344,7 +1541,10 @@ class SankhyaSyncService:
                 TenantIntegracao.deleted_at.is_(None),
             )
         )
-        return (await self.db.execute(stmt)).scalar_one_or_none()
+        try:
+            return (await self.db.execute(stmt)).scalar_one_or_none()
+        except (OperationalError, ProgrammingError):
+            return None
 
     async def _load_readiness(
         self,
@@ -1465,8 +1665,8 @@ class SankhyaSyncService:
             "feature_code": feature.codigo if feature else None,
             "job_status": job.status,
             "trigger_type": job.trigger_type,
-            "started_at": job.started_at,
-            "finished_at": job.finished_at,
+            "started_at": self._normalize_utc_datetime(job.started_at),
+            "finished_at": self._normalize_utc_datetime(job.finished_at),
             "processados": job.processados,
             "sucessos": job.sucessos,
             "erros": job.erros,
@@ -1516,9 +1716,9 @@ class SankhyaSyncService:
         for job in jobs:
             status = job["job_status"]
             event_type = self._map_job_event_type(status)
-            started_at = job.get("started_at")
-            finished_at = job.get("finished_at")
-            occurred_at = finished_at or started_at or datetime.utcnow()
+            started_at = self._normalize_utc_datetime(job.get("started_at"))
+            finished_at = self._normalize_utc_datetime(job.get("finished_at"))
+            occurred_at = finished_at or started_at or datetime.now(UTC)
             entries.append(
                 {
                     "id": f"job:{job['id']}",
@@ -1547,9 +1747,18 @@ class SankhyaSyncService:
     ) -> list[dict[str, Any]]:
         entries: list[dict[str, Any]] = []
         for log in logs:
-            started_at = log.get("job_started_at") or log.get("started_at")
-            finished_at = log.get("job_finished_at") or log.get("completed_at")
-            occurred_at = finished_at or started_at or log["created_at"]
+            started_at = self._normalize_utc_datetime(
+                log.get("job_started_at") or log.get("started_at")
+            )
+            finished_at = self._normalize_utc_datetime(
+                log.get("job_finished_at") or log.get("completed_at")
+            )
+            occurred_at = (
+                finished_at
+                or started_at
+                or self._normalize_utc_datetime(log.get("created_at"))
+                or datetime.now(UTC)
+            )
             entries.append(
                 {
                     "id": f"log:{log['id']}",
@@ -1573,7 +1782,7 @@ class SankhyaSyncService:
         return entries
 
     def _build_health_timeline_entry(self, health: dict[str, Any]) -> dict[str, Any]:
-        occurred_at = health.get("checked_at") or datetime.utcnow()
+        occurred_at = self._normalize_utc_datetime(health.get("checked_at")) or datetime.now(UTC)
         return {
             "id": "health:current",
             "tipo_registro": "health_snapshot",
@@ -1624,8 +1833,23 @@ class SankhyaSyncService:
         return filtered
 
     @staticmethod
-    def _resolve_latest_timestamp(candidates: list[Any]) -> datetime | None:
-        valid = [candidate for candidate in candidates if isinstance(candidate, datetime)]
+    def _normalize_utc_datetime(value: datetime | None) -> datetime | None:
+        """Normaliza timestamps legados e canônicos para UTC com timezone."""
+
+        if value is None:
+            return None
+        if value.tzinfo is None or value.tzinfo.utcoffset(value) is None:
+            return value.replace(tzinfo=UTC)
+        return value.astimezone(UTC)
+
+    @classmethod
+    def _resolve_latest_timestamp(cls, candidates: list[Any]) -> datetime | None:
+        valid = [
+            normalized
+            for candidate in candidates
+            if isinstance(candidate, datetime)
+            and (normalized := cls._normalize_utc_datetime(candidate)) is not None
+        ]
         return max(valid) if valid else None
 
     @staticmethod
@@ -1714,7 +1938,11 @@ class SankhyaSyncService:
     def _duration_ms(started_at: datetime | None, finished_at: datetime | None) -> float | None:
         if not started_at or not finished_at:
             return None
-        return (finished_at - started_at).total_seconds() * 1000
+        started = SankhyaSyncService._normalize_utc_datetime(started_at)
+        finished = SankhyaSyncService._normalize_utc_datetime(finished_at)
+        if not started or not finished:
+            return None
+        return (finished - started).total_seconds() * 1000
 
     def _resolve_log_duration_ms(self, log: dict[str, Any]) -> float | None:
         if log.get("tempo_execucao_ms") is not None:

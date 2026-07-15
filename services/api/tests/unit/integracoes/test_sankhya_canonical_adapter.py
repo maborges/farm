@@ -8,15 +8,13 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-import pytest_asyncio
 from sqlalchemy import Column, Table, select
 from sqlalchemy import Uuid as UUIDType
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import Base
 from integracoes.models import (
-    ExternalRecordAssociation,
     IntegrationCredential,
     IntegrationFeature,
     IntegrationHealth,
@@ -30,9 +28,11 @@ from integracoes.models import (
     MarketplaceIntegracao,
     TenantIntegracao,
 )
-from integracoes.sankhya.models import SankhyaConfig, SankhyaNFe, SankhyaSyncLog
+from integracoes.sankhya.models import SankhyaConfig, SankhyaSyncLog
 from integracoes.sankhya.services.canonical_adapter import (
     SankhyaCanonicalAdapter,
+    _connection_schema_payload,
+    _credential_schema_payload,
     _is_unique_conflict_for_constraints,
 )
 from integracoes.sankhya.services.nfe_financeiro_service import SankhyaNFeService
@@ -219,6 +219,89 @@ async def test_adapter_gateway_bundles_segredos_e_conexao_canonica(
     assert config.credenciais["auth_model"] == "gateway_oauth_client_credentials"
     assert credential_payload["sankhya_client_secret"] == "client-secret"
     assert credential_payload["sankhya_x_token"] == "x-token"
+
+
+@pytest.mark.asyncio
+async def test_adapter_publica_schema_editavel_no_provider(session: AsyncSession) -> None:
+    await _legacy_sankhya_config(session)
+
+    provider = (
+        await session.execute(
+            select(MarketplaceIntegracao).where(MarketplaceIntegracao.slug == "sankhya")
+        )
+    ).scalar_one()
+
+    connection_fields = {field["key"] for field in provider.connection_schema["fields"]}
+    credential_fields = {field["key"] for field in provider.credential_schema["fields"]}
+
+    assert connection_fields == {
+        "sankhya_environment",
+        "sankhya_api_base_url",
+        "sankhya_auth_url",
+        "auth_model",
+        "ws_url",
+        "sync_interval",
+    }
+    assert credential_fields == {
+        "sankhya_client_id",
+        "sankhya_client_secret",
+        "sankhya_x_token",
+        "sankhya_token",
+        "sankhya_appkey",
+        "username",
+        "password",
+    }
+    assert "ultimo_teste" not in connection_fields
+    assert "teste_status" not in connection_fields
+    assert "ultimo_sync" not in connection_fields
+    assert "legacy_auth_model" not in credential_fields
+
+    environment_field = next(
+        field
+        for field in provider.connection_schema["fields"]
+        if field["key"] == "sankhya_environment"
+    )
+    assert environment_field["default"] == "producao"
+    assert [option["value"] for option in environment_field["options"]] == [
+        "producao",
+        "homologacao",
+        "sandbox",
+    ]
+
+    auth_model_field = next(
+        field for field in provider.connection_schema["fields"] if field["key"] == "auth_model"
+    )
+    assert [option["value"] for option in auth_model_field["options"]] == [
+        "gateway_oauth_client_credentials",
+        "gateway_legacy_login",
+        "legacy_ws_basic_auth",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_adapter_atualiza_schema_de_provider_existente(session: AsyncSession) -> None:
+    provider = MarketplaceIntegracao(
+        nome="Sankhya",
+        slug="sankhya",
+        provider_type="ERP",
+        categoria="ERP",
+        ativa=True,
+        oficial=True,
+        connection_schema={"schema_version": 1, "required": [], "optional": [], "fields": []},
+        credential_schema={"schema_version": 1, "required": [], "optional": [], "fields": []},
+        provider_definition={"provider_code": "sankhya"},
+        feature_schema={"capability_matrix": []},
+        sync_schema={},
+        health_schema={},
+    )
+    session.add(provider)
+    await session.commit()
+
+    await _legacy_sankhya_config(session)
+    await session.refresh(provider)
+
+    assert provider.connection_schema == _connection_schema_payload()
+    assert provider.credential_schema == _credential_schema_payload()
 
 
 @pytest.mark.asyncio

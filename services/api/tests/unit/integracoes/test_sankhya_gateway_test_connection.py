@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timezone
+from typing import Any, cast
+from unittest.mock import AsyncMock
 
 import httpx
 import pytest
@@ -18,7 +20,9 @@ from integracoes.sankhya.services.auth_service import (
     SankhyaGatewayConnectionDiagnostic,
 )
 from integracoes.sankhya.services.sync_service import SankhyaSyncService
-from integracoes.security import encrypt_integration_secret
+from integracoes.security import decrypt_integration_secret, encrypt_integration_secret
+
+UTC = cast(Any, timezone).utc
 
 if "domain_event_outbox" not in Base.metadata.tables:
     Table(
@@ -102,10 +106,19 @@ async def test_gateway_test_connection_chama_authenticate_e_sanitiza_resposta() 
     assert captured["body"]["grant_type"] == "client_credentials"
     assert diagnostic.sucesso is True
     assert diagnostic.token_obtido is True
-    assert diagnostic.token_expires_at == datetime(2026, 7, 5, 15, 0, tzinfo=timezone.utc)
+    assert diagnostic.token_expires_at == datetime(
+        2026,
+        7,
+        5,
+        15,
+        0,
+        tzinfo=UTC,
+    )
     assert diagnostic.client_id_mask == "••••••••"
     assert diagnostic.x_token_mask == "••••••••"
-    assert SankhyaGatewayAuthService.cache_key_for(config) not in SankhyaGatewayAuthService._token_cache
+    assert SankhyaGatewayAuthService.cache_key_for(config) not in (
+        SankhyaGatewayAuthService._token_cache
+    )
 
 
 @pytest.mark.asyncio
@@ -164,7 +177,7 @@ async def test_sync_service_testar_conexao_nao_persiste_estado_do_teste(
             client_id_mask="••••••••",
             x_token_mask="••••••••",
             token_obtido=True,
-            token_expires_at=datetime(2026, 7, 5, 15, 0, tzinfo=timezone.utc),
+            token_expires_at=datetime(2026, 7, 5, 15, 0, tzinfo=UTC),
         )
 
     monkeypatch.setattr(SankhyaGatewayAuthService, "test_connection", fake_test_connection)
@@ -205,3 +218,59 @@ async def test_sync_service_testar_conexao_retorna_falha_sanitizada_em_config_in
     assert result.client_id_mask == "••••••••"
     assert result.x_token_mask is None
     assert "sankhya_x_token" in result.mensagem
+
+
+@pytest.mark.asyncio
+async def test_sync_service_testar_conexao_usa_credencial_canonica_ativa(
+    session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    service = SankhyaSyncService(session)
+    operational_config = SankhyaConfig(
+        tenant_id="tenant-gateway",
+        environment="producao",
+        api_base_url="https://gateway.example/api",
+        auth_url="https://gateway.example/login",
+        username="legacy-user",
+        password=encrypt_integration_secret("legacy-password"),
+        token=encrypt_integration_secret("legacy-token"),
+        appkey=encrypt_integration_secret("legacy-appkey"),
+        sync_interval=900,
+        ativo=True,
+    )
+    monkeypatch.setattr(
+        service,
+        "_get_operational_config",
+        AsyncMock(return_value=operational_config),
+    )
+
+    captured: dict[str, object] = {}
+
+    async def fake_test_connection(self, client=None):  # type: ignore[no-untyped-def]
+        captured["auth_model"] = self.auth_model()
+        captured["username"] = self.config.username
+        captured["token"] = self.config.token
+        captured["appkey"] = self.config.appkey
+        captured["password"] = self.config.password
+        return SankhyaGatewayConnectionDiagnostic(
+            sucesso=True,
+            mensagem="ok",
+            ambiente=self.config.environment,
+            base_url=self.config.api_base_url or self.config.ws_url,
+            auth_url=self.config.auth_url or self.config.ws_url,
+            client_id_mask="••••••••",
+            x_token_mask="••••••••",
+            token_obtido=True,
+            token_expires_at=datetime(2026, 7, 5, 15, 0, tzinfo=UTC),
+        )
+
+    monkeypatch.setattr(SankhyaGatewayAuthService, "test_connection", fake_test_connection)
+
+    result = await service.testar_conexao("tenant-gateway")
+
+    assert result.sucesso is True
+    assert captured["auth_model"] == "gateway_legacy_login"
+    assert captured["username"] == "legacy-user"
+    assert decrypt_integration_secret(captured["token"]) == "legacy-token"
+    assert decrypt_integration_secret(captured["appkey"]) == "legacy-appkey"
+    assert decrypt_integration_secret(captured["password"]) == "legacy-password"

@@ -5,14 +5,23 @@
 from __future__ import annotations
 
 import uuid
+from dataclasses import dataclass
 from types import SimpleNamespace
-from typing import Any, cast
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+# Garante que os providers estejam registrados ao carregar o router.
+import integracoes.erp.provider_bootstrap  # noqa: F401
 from core.dependencies import get_session, get_tenant_id, require_tenant_permission
+from integracoes.erp.legacy_provider_resolution import resolve_legacy_sankhya_provider
+from integracoes.erp.provider_contract import ErpProviderRuntime
+from integracoes.erp.provider_registry import (
+    ErpProviderNotRegisteredError,
+    erp_provider_registry,
+)
 from integracoes.erp_readiness_service import ErpReadinessService
 from integracoes.models import (
     ExternalRecordAssociation,
@@ -20,17 +29,6 @@ from integracoes.models import (
     IntegrationFeature,
     MarketplaceIntegracao,
 )
-from integracoes.sankhya.routers import (
-    listar_timeline_sankhya as listar_timeline_sankhya_provider,
-)
-from integracoes.sankhya.routers import (
-    obter_diagnostico_sankhya as obter_diagnostico_sankhya_provider,
-)
-from integracoes.sankhya.schemas import (
-    SankhyaOperationalDiagnosisResponse,
-    SankhyaTimelineItemResponse,
-)
-from integracoes.sankhya.services import SankhyaSyncService
 from integracoes.schemas import (
     ExternalRecordAssociationGovernanceReconcileRequest,
     ExternalRecordAssociationHistoryItemResponse,
@@ -44,6 +42,26 @@ from integracoes.schemas import (
 from integracoes.services import DuplicateAssociationError, ExternalRecordAssociationService
 
 router = APIRouter(prefix="/erp", tags=["Integração ERP"])
+
+_UNCONFIGURED_PROVIDER_SOURCE = "UNCONFIGURED"
+_LEGACY_SANKHYA_SOURCE = "LEGACY_SANKHYA_CONFIG"
+_NOT_CONFIGURED_STATUS = "NOT_CONFIGURED"
+_NOT_CONFIGURED_SUMMARY = "Nenhum ERP configurado para este tenant."
+_NOT_CONFIGURED_RECOMMENDATION = (
+    "Selecione um provider no Console ERP e salve a configuração inicial para liberar "
+    "a operação."
+)
+
+
+@dataclass(frozen=True)
+class ErpRuntimeResolution:
+    """Resultado semântico da resolução do runtime ERP corrente."""
+
+    configured: bool
+    provider_slug: str | None
+    runtime: Any
+    source: str
+    provider_runtime: ErpProviderRuntime | None = None
 
 
 def _sanitize_external_payload(association) -> dict[str, object]:
@@ -160,14 +178,6 @@ def get_erp_readiness_service(
     return ErpReadinessService(db)
 
 
-def get_sankhya_sync_service(
-    db: AsyncSession = Depends(get_session),
-) -> SankhyaSyncService:
-    """Fornece o serviço oficial do provider Sankhya."""
-
-    return SankhyaSyncService(db)
-
-
 def get_external_association_service(
     db: AsyncSession = Depends(get_session),
 ) -> ExternalRecordAssociationService:
@@ -186,51 +196,208 @@ def _runtime_probe(tenant_id: uuid.UUID) -> SimpleNamespace:
     )
 
 
-async def _resolve_active_erp_provider_slug(
+def _extract_runtime_provider_slug(runtime: Any) -> str | None:
+    """Extrai o slug do provider a partir do runtime carregado."""
+
+    provider_slug = getattr(getattr(runtime, "provider", None), "slug", None)
+    if isinstance(provider_slug, str) and provider_slug.strip():
+        return provider_slug.strip().lower()
+    return None
+
+
+def _raise_inconsistent_runtime(runtime: Any) -> None:
+    """Falha de forma explícita quando o runtime canônico vier inconsistente."""
+
+    has_provider = getattr(runtime, "provider", None) is not None
+    has_config = getattr(runtime, "config", None) is not None
+    if has_provider == has_config:
+        return
+    raise HTTPException(
+        status_code=500,
+        detail="Runtime ERP inconsistente: provider e configuração não estão alinhados.",
+    )
+
+
+def _build_unconfigured_readiness() -> dict[str, Any]:
+    """Monta o estado vazio oficial para o readiness do console ERP."""
+
+    return {
+        "status": _NOT_CONFIGURED_STATUS,
+        "label": "Não configurado",
+        "variant": "secondary",
+        "summary": _NOT_CONFIGURED_SUMMARY,
+        "pending": ["selecionar um ERP e salvar a configuração inicial"],
+        "block_reasons": [],
+        "cta_url": "/dashboard/settings/integracoes/erp",
+        "provider_code": None,
+        "provider_display_name": None,
+        "health_status": _NOT_CONFIGURED_STATUS,
+        "capabilities_evaluated": [],
+        "policies_evaluated": [],
+        "pending_links": 0,
+        "conflict_links": 0,
+    }
+
+
+def _build_unconfigured_status_response() -> dict[str, Any]:
+    """Retorna o estado vazio do status ERP sem assumir provider."""
+
+    return {
+        "configurado": False,
+        "ativo": False,
+        "ultimo_sync": None,
+        "proximo_sync": None,
+        "status_conexao": _NOT_CONFIGURED_STATUS,
+        "status_legado": None,
+        "status_canonico": None,
+        "status_origem": _UNCONFIGURED_PROVIDER_SOURCE,
+        "health_origem": _UNCONFIGURED_PROVIDER_SOURCE,
+        "config_id_canonico": None,
+        "lifecycle_state": None,
+        "health_status": _NOT_CONFIGURED_STATUS,
+        "health_summary": _NOT_CONFIGURED_SUMMARY,
+        "last_success_at": None,
+        "last_failure_at": None,
+        "consecutive_failures": 0,
+        "features_habilitadas": [],
+        "policies_resumidas": [],
+        "provider_definition": None,
+        "feature_schema": None,
+        "sync_schema": None,
+        "health_schema": None,
+        "readiness": _build_unconfigured_readiness(),
+    }
+
+
+def _build_unconfigured_health_response() -> dict[str, Any]:
+    """Retorna o health vazio do runtime ERP."""
+
+    return {
+        "configurado": False,
+        "origem": _UNCONFIGURED_PROVIDER_SOURCE,
+        "status": _NOT_CONFIGURED_STATUS,
+        "summary": "Integração ainda não configurada.",
+        "checked_at": None,
+        "last_success_at": None,
+        "last_failure_at": None,
+        "consecutive_failures": 0,
+        "details": None,
+    }
+
+
+def _build_unconfigured_diagnosis_response() -> dict[str, Any]:
+    """Retorna o diagnóstico vazio do runtime ERP."""
+
+    return {
+        "origem": _UNCONFIGURED_PROVIDER_SOURCE,
+        "health_atual": _NOT_CONFIGURED_STATUS,
+        "status_degradacao": "NONE",
+        "ultimo_sucesso_at": None,
+        "ultima_falha_at": None,
+        "falhas_consecutivas": 0,
+        "feature_mais_problematica": None,
+        "jobs_pendentes": 0,
+        "jobs_falhos": 0,
+        "recomendacao_operacional": _NOT_CONFIGURED_RECOMMENDATION,
+    }
+
+
+def _apply_legacy_provider_hint(
+    payload: dict[str, Any],
+    *,
+    provider_slug: str | None,
+) -> dict[str, Any]:
+    """Mantém o fallback legado identificável pelo frontend sem materializar nada."""
+
+    if not provider_slug:
+        return payload
+    readiness_payload = payload.get("readiness")
+    if not isinstance(readiness_payload, dict):
+        payload["readiness"] = {
+            **_build_unconfigured_readiness(),
+            "provider_code": provider_slug,
+        }
+        return payload
+    if readiness_payload.get("provider_code") in {None, ""}:
+        readiness_payload["provider_code"] = provider_slug
+    return payload
+
+
+async def _resolve_active_erp_context(
     *,
     tenant_id: uuid.UUID,
     readiness_service: ErpReadinessService,
-    sankhya_sync_service: SankhyaSyncService,
-) -> str:
-    """Resolve o provider ERP ativo sem duplicar runtime ou queries no router."""
+    db: AsyncSession,
+) -> ErpRuntimeResolution:
+    """Resolve o runtime ERP sem tratar bootstrap tardio como erro de recurso."""
 
     runtime = await readiness_service.carregar_runtime(_runtime_probe(tenant_id))
+    _raise_inconsistent_runtime(runtime)
+    provider_slug = _extract_runtime_provider_slug(runtime)
     if runtime.provider is not None and runtime.config is not None:
-        provider_slug = getattr(runtime.provider, "slug", None)
-        if isinstance(provider_slug, str) and provider_slug:
-            return provider_slug
+        if provider_slug is None:
+            raise HTTPException(
+                status_code=500,
+                detail="Runtime ERP inconsistente: provider ativo sem slug resolvível.",
+            )
 
-    legacy_sankhya_config = await sankhya_sync_service.get_config(str(tenant_id))
-    if legacy_sankhya_config is not None:
-        return "sankhya"
+        # Resolver pelo registry — sem branch por provider_slug.
+        try:
+            provider_runtime = erp_provider_registry.resolve(provider_slug, db)
+        except ErpProviderNotRegisteredError as exc:
+            raise HTTPException(
+                status_code=501,
+                detail=(
+                    "Provider ERP configurado mas sem runtime registrado: "
+                    f"{provider_slug}"
+                ),
+            ) from exc
 
-    raise HTTPException(status_code=404, detail="ERP não configurado")
+        return ErpRuntimeResolution(
+            configured=True,
+            provider_slug=provider_slug,
+            runtime=runtime,
+            source="CANONICAL_RUNTIME",
+            provider_runtime=provider_runtime,
+        )
 
+    # Fallback legado isolado.
+    has_legacy = await resolve_legacy_sankhya_provider(str(tenant_id), db)
+    if has_legacy:
+        try:
+            provider_runtime = erp_provider_registry.resolve("sankhya", db)
+        except ErpProviderNotRegisteredError:
+            provider_runtime = None
 
-def _unsupported_provider_error(provider_slug: str) -> HTTPException:
-    """Erro padronizado para providers ainda fora da superficie ERP."""
+        return ErpRuntimeResolution(
+            configured=True,
+            provider_slug="sankhya",
+            runtime=runtime,
+            source=_LEGACY_SANKHYA_SOURCE,
+            provider_runtime=provider_runtime,
+        )
 
-    return HTTPException(
-        status_code=501,
-        detail=("Provider ERP ainda não suportado pela superfície HTTP ERP: " f"{provider_slug}"),
+    return ErpRuntimeResolution(
+        configured=False,
+        provider_slug=None,
+        runtime=runtime,
+        source=_UNCONFIGURED_PROVIDER_SOURCE,
     )
 
 
-async def _assert_sankhya_provider(
+async def _assert_configured_provider(
     *,
     tenant_id: uuid.UUID,
     readiness_service: ErpReadinessService,
-    sankhya_sync_service: SankhyaSyncService,
-) -> None:
-    """Garante delegação apenas para o provider ERP suportado nesta fase."""
+    db: AsyncSession,
+) -> ErpRuntimeResolution:
+    """Garante delegação apenas para providers ERP com runtime registrado."""
 
-    provider_slug = await _resolve_active_erp_provider_slug(
+    return await _resolve_active_erp_context(
         tenant_id=tenant_id,
         readiness_service=readiness_service,
-        sankhya_sync_service=sankhya_sync_service,
+        db=db,
     )
-    if provider_slug != "sankhya":
-        raise _unsupported_provider_error(provider_slug)
 
 
 @router.get(
@@ -241,16 +408,26 @@ async def _assert_sankhya_provider(
 async def obter_status_erp(
     tenant_id: uuid.UUID = Depends(get_tenant_id),
     readiness_service: ErpReadinessService = Depends(get_erp_readiness_service),
-    sankhya_sync_service: SankhyaSyncService = Depends(get_sankhya_sync_service),
+    db: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
     """Delega a leitura de status ERP para o provider ativo."""
 
-    await _assert_sankhya_provider(
+    resolution = await _assert_configured_provider(
         tenant_id=tenant_id,
         readiness_service=readiness_service,
-        sankhya_sync_service=sankhya_sync_service,
+        db=db,
     )
-    return await sankhya_sync_service.obter_status_detalhado(str(tenant_id))
+    if not resolution.configured or resolution.provider_runtime is None:
+        return _build_unconfigured_status_response()
+    payload = await resolution.provider_runtime.get_status(str(tenant_id))
+    return _apply_legacy_provider_hint(
+        payload,
+        provider_slug=(
+            resolution.provider_slug
+            if resolution.source == _LEGACY_SANKHYA_SOURCE
+            else None
+        ),
+    )
 
 
 @router.get(
@@ -261,16 +438,18 @@ async def obter_status_erp(
 async def obter_health_erp(
     tenant_id: uuid.UUID = Depends(get_tenant_id),
     readiness_service: ErpReadinessService = Depends(get_erp_readiness_service),
-    sankhya_sync_service: SankhyaSyncService = Depends(get_sankhya_sync_service),
+    db: AsyncSession = Depends(get_session),
 ) -> dict[str, Any]:
     """Delega a leitura de health ERP para o provider ativo."""
 
-    await _assert_sankhya_provider(
+    resolution = await _assert_configured_provider(
         tenant_id=tenant_id,
         readiness_service=readiness_service,
-        sankhya_sync_service=sankhya_sync_service,
+        db=db,
     )
-    return await sankhya_sync_service.obter_health_detalhado(str(tenant_id))
+    if not resolution.configured or resolution.provider_runtime is None:
+        return _build_unconfigured_health_response()
+    return await resolution.provider_runtime.get_health(str(tenant_id))
 
 
 @router.get(
@@ -282,21 +461,23 @@ async def listar_jobs_erp(
     limit: int = 20,
     tenant_id: uuid.UUID = Depends(get_tenant_id),
     readiness_service: ErpReadinessService = Depends(get_erp_readiness_service),
-    sankhya_sync_service: SankhyaSyncService = Depends(get_sankhya_sync_service),
+    db: AsyncSession = Depends(get_session),
 ) -> list[dict[str, Any]]:
     """Delega a listagem de jobs ERP para o provider ativo."""
 
-    await _assert_sankhya_provider(
+    resolution = await _assert_configured_provider(
         tenant_id=tenant_id,
         readiness_service=readiness_service,
-        sankhya_sync_service=sankhya_sync_service,
+        db=db,
     )
-    return await sankhya_sync_service.listar_jobs(str(tenant_id), limit=limit)
+    if not resolution.configured or resolution.provider_runtime is None:
+        return []
+    return await resolution.provider_runtime.get_jobs(str(tenant_id), limit=limit)
 
 
 @router.get(
     "/timeline",
-    response_model=list[SankhyaTimelineItemResponse],
+    response_model=list[dict[str, Any]],
     dependencies=[Depends(require_tenant_permission("integrations:logs:view"))],
 )
 async def listar_timeline_erp(
@@ -306,52 +487,46 @@ async def listar_timeline_erp(
     limit: int = 50,
     tenant_id: uuid.UUID = Depends(get_tenant_id),
     readiness_service: ErpReadinessService = Depends(get_erp_readiness_service),
-    sankhya_sync_service: SankhyaSyncService = Depends(get_sankhya_sync_service),
-) -> list[SankhyaTimelineItemResponse]:
+    db: AsyncSession = Depends(get_session),
+) -> list[dict[str, Any]]:
     """Delega a timeline ERP ao provider ativo sem duplicar composicao."""
 
-    await _assert_sankhya_provider(
+    resolution = await _assert_configured_provider(
         tenant_id=tenant_id,
         readiness_service=readiness_service,
-        sankhya_sync_service=sankhya_sync_service,
+        db=db,
     )
-    return cast(
-        list[SankhyaTimelineItemResponse],
-        await listar_timeline_sankhya_provider(
-            status=status,
-            feature_code=feature_code,
-            origem=origem,
-            limit=limit,
-            tenant_id=tenant_id,
-            sync_service=sankhya_sync_service,
-        ),
+    if not resolution.configured or resolution.provider_runtime is None:
+        return []
+    return await resolution.provider_runtime.get_timeline(
+        str(tenant_id),
+        status=status,
+        feature_code=feature_code,
+        origem=origem,
+        limit=limit,
     )
 
 
 @router.get(
     "/diagnostico",
-    response_model=SankhyaOperationalDiagnosisResponse,
+    response_model=dict[str, Any],
     dependencies=[Depends(require_tenant_permission("integrations:view"))],
 )
 async def obter_diagnostico_erp(
     tenant_id: uuid.UUID = Depends(get_tenant_id),
     readiness_service: ErpReadinessService = Depends(get_erp_readiness_service),
-    sankhya_sync_service: SankhyaSyncService = Depends(get_sankhya_sync_service),
-) -> SankhyaOperationalDiagnosisResponse:
+    db: AsyncSession = Depends(get_session),
+) -> dict[str, Any]:
     """Delega o diagnostico ERP ao provider ativo sem regra paralela."""
 
-    await _assert_sankhya_provider(
+    resolution = await _assert_configured_provider(
         tenant_id=tenant_id,
         readiness_service=readiness_service,
-        sankhya_sync_service=sankhya_sync_service,
+        db=db,
     )
-    return cast(
-        SankhyaOperationalDiagnosisResponse,
-        await obter_diagnostico_sankhya_provider(
-            tenant_id=tenant_id,
-            sync_service=sankhya_sync_service,
-        ),
-    )
+    if not resolution.configured or resolution.provider_runtime is None:
+        return _build_unconfigured_diagnosis_response()
+    return await resolution.provider_runtime.get_diagnosis(str(tenant_id))
 
 
 @router.get(
@@ -371,15 +546,15 @@ async def listar_associacoes_erp_pendentes(
     offset: int = Query(0, ge=0),
     current_tenant_id: uuid.UUID = Depends(get_tenant_id),
     readiness_service: ErpReadinessService = Depends(get_erp_readiness_service),
-    sankhya_sync_service: SankhyaSyncService = Depends(get_sankhya_sync_service),
+    db: AsyncSession = Depends(get_session),
     association_service: ExternalRecordAssociationService = Depends(
         get_external_association_service
     ),
 ) -> PaginatedExternalRecordAssociationResponse:
-    await _assert_sankhya_provider(
+    await _assert_configured_provider(
         tenant_id=current_tenant_id,
         readiness_service=readiness_service,
-        sankhya_sync_service=sankhya_sync_service,
+        db=db,
     )
     if tenant_filter is not None and tenant_filter != current_tenant_id:
         raise HTTPException(status_code=403, detail="Filtro de tenant fora do escopo atual")
@@ -457,15 +632,15 @@ async def listar_associacoes_erp(
     offset: int = Query(0, ge=0),
     current_tenant_id: uuid.UUID = Depends(get_tenant_id),
     readiness_service: ErpReadinessService = Depends(get_erp_readiness_service),
-    sankhya_sync_service: SankhyaSyncService = Depends(get_sankhya_sync_service),
+    db: AsyncSession = Depends(get_session),
     association_service: ExternalRecordAssociationService = Depends(
         get_external_association_service
     ),
 ) -> PaginatedExternalRecordAssociationResponse:
-    await _assert_sankhya_provider(
+    await _assert_configured_provider(
         tenant_id=current_tenant_id,
         readiness_service=readiness_service,
-        sankhya_sync_service=sankhya_sync_service,
+        db=db,
     )
     if tenant_filter is not None and tenant_filter != current_tenant_id:
         raise HTTPException(status_code=403, detail="Filtro de tenant fora do escopo atual")
@@ -539,15 +714,15 @@ async def resumo_associacoes_erp(
     tenant_filter: uuid.UUID | None = Query(default=None, alias="tenant_id"),
     current_tenant_id: uuid.UUID = Depends(get_tenant_id),
     readiness_service: ErpReadinessService = Depends(get_erp_readiness_service),
-    sankhya_sync_service: SankhyaSyncService = Depends(get_sankhya_sync_service),
+    db: AsyncSession = Depends(get_session),
     association_service: ExternalRecordAssociationService = Depends(
         get_external_association_service
     ),
 ) -> ExternalRecordAssociationSummaryResponse:
-    await _assert_sankhya_provider(
+    await _assert_configured_provider(
         tenant_id=current_tenant_id,
         readiness_service=readiness_service,
-        sankhya_sync_service=sankhya_sync_service,
+        db=db,
     )
     if tenant_filter is not None and tenant_filter != current_tenant_id:
         raise HTTPException(status_code=403, detail="Filtro de tenant fora do escopo atual")
@@ -570,15 +745,15 @@ async def reconciliar_associacao_erp(
     payload: ExternalRecordAssociationGovernanceReconcileRequest,
     current_tenant_id: uuid.UUID = Depends(get_tenant_id),
     readiness_service: ErpReadinessService = Depends(get_erp_readiness_service),
-    sankhya_sync_service: SankhyaSyncService = Depends(get_sankhya_sync_service),
+    db: AsyncSession = Depends(get_session),
     association_service: ExternalRecordAssociationService = Depends(
         get_external_association_service
     ),
 ) -> ExternalRecordAssociationPendingItemResponse:
-    await _assert_sankhya_provider(
+    await _assert_configured_provider(
         tenant_id=current_tenant_id,
         readiness_service=readiness_service,
-        sankhya_sync_service=sankhya_sync_service,
+        db=db,
     )
 
     association = await association_service.db.get(ExternalRecordAssociation, association_id)

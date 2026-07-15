@@ -8,6 +8,7 @@ import uuid
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -137,6 +138,20 @@ async def obter_config_sankhya(
     if not config:
         raise HTTPException(status_code=404, detail="Sankhya não configurado")
     return await sync_service.obter_config_console(str(tenant_id))
+
+
+@router.delete(
+    "/config",
+    status_code=204,
+    dependencies=[Depends(require_tenant_permission("integrations:configure"))],
+)
+async def remover_config_sankhya(
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    sync_service: SankhyaSyncService = Depends(get_sync_service),
+) -> Response:
+    if not await sync_service.remover_config(str(tenant_id)):
+        raise HTTPException(status_code=404, detail="Sankhya não configurado")
+    return Response(status_code=204)
 
 
 @router.post(

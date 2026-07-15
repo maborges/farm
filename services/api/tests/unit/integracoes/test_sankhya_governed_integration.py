@@ -5,11 +5,13 @@ from pathlib import Path
 from unittest.mock import AsyncMock, call
 
 import pytest
-from sqlalchemy import Column, Table
+from sqlalchemy import Column, Table, func, select, update
 from sqlalchemy import Uuid as UUIDType
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import Base
+from integracoes.models import IntegrationCredential, TenantIntegracao
+from integracoes.sankhya.models import SankhyaConfig
 from integracoes.sankhya.services.auth_service import SankhyaGatewayAuthService
 from integracoes.sankhya.services.sync_service import (
     SankhyaConfigSerializer,
@@ -298,6 +300,95 @@ async def test_painel_erp_expoe_contrato_canonico_do_provider(session: AsyncSess
 
 
 @pytest.mark.asyncio
+async def test_painel_erp_usa_credencial_canonica_ativa_no_load(session: AsyncSession) -> None:
+    service = SankhyaSyncService(session)
+    config = await service.criar_config(
+        tenant_id="tenant-1",
+        sankhya_api_base_url="https://gateway.example/api",
+        sankhya_auth_url="https://gateway.example/login",
+        sankhya_token="legacy-token",
+        sankhya_appkey="legacy-appkey",
+        username="legacy-user",
+        password="legacy-password",
+        sync_interval=900,
+    )
+    await session.execute(
+        update(config.__class__)
+        .where(config.__class__.tenant_id == "tenant-1")
+        .values(token=None, appkey=None, password=None, username="legacy-stale")
+    )
+    await session.commit()
+    session.expire_all()
+
+    payload = await service.obter_config_console("tenant-1")
+
+    assert payload["auth_model"] == "gateway_legacy_login"
+    assert payload["username"] == "legacy-user"
+    assert payload["sankhya_token_configured"] is True
+    assert payload["sankhya_appkey_configured"] is True
+    assert payload["password_configured"] is True
+    assert payload["sankhya_token_mask"] == "••••••••"
+    assert payload["sankhya_appkey_mask"] == "••••••••"
+
+
+@pytest.mark.asyncio
+async def test_atualizacao_sem_segredo_preserva_credencial_ativa_canonica(
+    session: AsyncSession,
+) -> None:
+    service = SankhyaSyncService(session)
+    await service.criar_config(
+        tenant_id="tenant-1",
+        sankhya_api_base_url="https://gateway.example/api",
+        sankhya_auth_url="https://gateway.example/login",
+        sankhya_token="legacy-token",
+        sankhya_appkey="legacy-appkey",
+        username="legacy-user",
+        password="legacy-password",
+        sync_interval=900,
+    )
+    await session.execute(
+        update(SankhyaConfig)
+        .where(SankhyaConfig.tenant_id == "tenant-1")
+        .values(token=None, appkey=None, password=None, username="legacy-stale")
+    )
+    await session.commit()
+    session.expire_all()
+
+    legacy_config = await service.get_config("tenant-1")
+    assert legacy_config is not None
+    before_credential = await session.scalar(
+        select(IntegrationCredential.id)
+        .join(TenantIntegracao, TenantIntegracao.credential_ref_id == IntegrationCredential.id)
+        .where(TenantIntegracao.tenant_id == "tenant-1")
+    )
+
+    updated = await service.atualizar_config(
+        legacy_config,
+        sankhya_api_base_url="https://gateway.example/api/v2",
+        sankhya_auth_url="https://gateway.example/login",
+        username=None,
+        password=None,
+        sync_interval=1200,
+    )
+    after_credential = await session.scalar(
+        select(TenantIntegracao.credential_ref_id).where(TenantIntegracao.tenant_id == "tenant-1")
+    )
+    credential_count = await session.scalar(
+        select(func.count())
+        .select_from(IntegrationCredential)
+        .where(
+            IntegrationCredential.tenant_id == "tenant-1",
+            IntegrationCredential.deleted_at.is_(None),
+            IntegrationCredential.ativo.is_(True),
+        )
+    )
+
+    assert updated.sync_interval == 1200
+    assert before_credential == after_credential
+    assert int(credential_count or 0) == 1
+
+
+@pytest.mark.asyncio
 async def test_atualizacao_sem_nova_senha_mantem_credencial_existente(
     session: AsyncSession,
 ) -> None:
@@ -309,7 +400,6 @@ async def test_atualizacao_sem_nova_senha_mantem_credencial_existente(
         password="segredo-inicial",
         sync_interval=900,
     )
-    encrypted = config.password
 
     updated = await service.atualizar_config(
         config,
@@ -319,7 +409,6 @@ async def test_atualizacao_sem_nova_senha_mantem_credencial_existente(
         sync_interval=1200,
     )
 
-    assert updated.password == encrypted
     assert decrypt_integration_secret(updated.password) == "segredo-inicial"
 
 
@@ -338,8 +427,6 @@ async def test_atualizacao_gateway_sem_reenviar_segredos_mantem_token(
         sankhya_x_token="x-token",
         sync_interval=900,
     )
-    encrypted_client_secret = config.client_secret
-    encrypted_x_token = config.x_token
 
     updated = await service.atualizar_config(
         config,
@@ -352,8 +439,8 @@ async def test_atualizacao_gateway_sem_reenviar_segredos_mantem_token(
         sync_interval=1200,
     )
 
-    assert updated.client_secret == encrypted_client_secret
-    assert updated.x_token == encrypted_x_token
+    assert decrypt_integration_secret(updated.client_secret) == "client-secret"
+    assert decrypt_integration_secret(updated.x_token) == "x-token"
     assert updated.api_base_url == "https://gateway.example/api/v2"
 
 
