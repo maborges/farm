@@ -47,7 +47,6 @@ BLOCKED_NAMES = {
 ALLOWED_MODULES = {
     SERVICES_ROOT / "integracoes" / "erp" / "provider_bootstrap.py",
     SERVICES_ROOT / "integracoes" / "erp" / "providers" / "sankhya_runtime.py",
-    SERVICES_ROOT / "integracoes" / "erp" / "legacy_provider_resolution.py",
 }
 
 

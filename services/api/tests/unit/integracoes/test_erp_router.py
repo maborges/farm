@@ -379,37 +379,6 @@ async def test_diagnostico_erp_delega_para_router_sankhya(
     _active_stub = None
 
 
-@pytest.mark.asyncio
-async def test_status_erp_usa_fallback_legacy_sankhya_quando_runtime_ainda_nao_existe(
-    session: Any,
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    global _active_stub
-    tenant_id = uuid.uuid4()
-    readiness_service = erp_router_module.ErpReadinessService(session)
-
-    stub = _StubSankhyaRuntime(session)
-    stub._status_response = {"configurado": True, "status_origem": "legacy", "readiness": {}}
-    _active_stub = stub
-
-    _patch_runtime_empty(monkeypatch, tenant_id)
-    monkeypatch.setattr(
-        erp_router_module,
-        "resolve_legacy_sankhya_provider",
-        AsyncMock(return_value=True),
-    )
-    _setup_sankhya_registry(monkeypatch)
-
-    response = await erp_router_module.obter_status_erp(
-        tenant_id=tenant_id,
-        readiness_service=readiness_service,
-        db=session,
-    )
-
-    assert response["configurado"] is True
-    assert response["status_origem"] == "legacy"
-    assert response["readiness"]["provider_code"] == "sankhya"
-    _active_stub = None
 
 
 @pytest.mark.asyncio
@@ -421,11 +390,6 @@ async def test_status_erp_retorna_estado_vazio_quando_nao_ha_runtime_nem_compati
     readiness_service = erp_router_module.ErpReadinessService(session)
 
     _patch_runtime_empty(monkeypatch, tenant_id)
-    monkeypatch.setattr(
-        erp_router_module,
-        "resolve_legacy_sankhya_provider",
-        AsyncMock(return_value=False),
-    )
 
     response = await erp_router_module.obter_status_erp(
         tenant_id=tenant_id,
@@ -450,11 +414,6 @@ async def test_health_erp_retorna_estado_vazio_quando_nao_ha_runtime_nem_compati
     readiness_service = erp_router_module.ErpReadinessService(session)
 
     _patch_runtime_empty(monkeypatch, tenant_id)
-    monkeypatch.setattr(
-        erp_router_module,
-        "resolve_legacy_sankhya_provider",
-        AsyncMock(return_value=False),
-    )
 
     response = await erp_router_module.obter_health_erp(
         tenant_id=tenant_id,
@@ -484,11 +443,6 @@ async def test_jobs_erp_retorna_lista_vazia_quando_nao_ha_runtime_nem_compatibil
     readiness_service = erp_router_module.ErpReadinessService(session)
 
     _patch_runtime_empty(monkeypatch, tenant_id)
-    monkeypatch.setattr(
-        erp_router_module,
-        "resolve_legacy_sankhya_provider",
-        AsyncMock(return_value=False),
-    )
 
     response = await erp_router_module.listar_jobs_erp(
         limit=7,
@@ -509,11 +463,6 @@ async def test_timeline_erp_retorna_lista_vazia_quando_nao_ha_runtime_nem_compat
     readiness_service = erp_router_module.ErpReadinessService(session)
 
     _patch_runtime_empty(monkeypatch, tenant_id)
-    monkeypatch.setattr(
-        erp_router_module,
-        "resolve_legacy_sankhya_provider",
-        AsyncMock(return_value=False),
-    )
 
     response = await erp_router_module.listar_timeline_erp(
         tenant_id=tenant_id,
@@ -533,11 +482,6 @@ async def test_diagnostico_erp_retorna_estado_vazio_sem_runtime_ou_legacy(
     readiness_service = erp_router_module.ErpReadinessService(session)
 
     _patch_runtime_empty(monkeypatch, tenant_id)
-    monkeypatch.setattr(
-        erp_router_module,
-        "resolve_legacy_sankhya_provider",
-        AsyncMock(return_value=False),
-    )
 
     response = await erp_router_module.obter_diagnostico_erp(
         tenant_id=tenant_id,

@@ -449,11 +449,6 @@ class TestResolucoesDeEstado:
             "carregar_runtime",
             fake_runtime,
         )
-        monkeypatch.setattr(
-            erp_router_module,
-            "resolve_legacy_sankhya_provider",
-            AsyncMock(return_value=False),
-        )
 
         response = await erp_router_module.obter_status_erp(
             tenant_id=tenant_id,
@@ -529,11 +524,6 @@ class TestResolucoesDeEstado:
             "carregar_runtime",
             fake_runtime,
         )
-        monkeypatch.setattr(
-            erp_router_module,
-            "resolve_legacy_sankhya_provider",
-            AsyncMock(return_value=False),
-        )
 
         response = await erp_router_module.obter_health_erp(
             tenant_id=tenant_id,
@@ -567,11 +557,6 @@ class TestResolucoesDeEstado:
             "carregar_runtime",
             fake_runtime,
         )
-        monkeypatch.setattr(
-            erp_router_module,
-            "resolve_legacy_sankhya_provider",
-            AsyncMock(return_value=False),
-        )
 
         response = await erp_router_module.listar_jobs_erp(
             limit=10,
@@ -603,11 +588,6 @@ class TestResolucoesDeEstado:
             erp_router_module.ErpReadinessService,
             "carregar_runtime",
             fake_runtime,
-        )
-        monkeypatch.setattr(
-            erp_router_module,
-            "resolve_legacy_sankhya_provider",
-            AsyncMock(return_value=False),
         )
 
         response = await erp_router_module.obter_diagnostico_erp(
@@ -737,46 +717,3 @@ class TestExtensibilidade:
 # ---------------------------------------------------------------------------
 
 
-class TestFallbackLegado:
-    """Verifica que o fallback legado continua funcionando isolado."""
-
-    @pytest.mark.asyncio
-    async def test_fallback_legado_ativa_quando_tem_sankhya_config(
-        self,
-        session: Any,
-        monkeypatch: pytest.MonkeyPatch,
-    ) -> None:
-        import integracoes.erp.router as erp_router_module
-
-        tenant_id = uuid.uuid4()
-        readiness_service = erp_router_module.ErpReadinessService(session)
-
-        async def fake_runtime(
-            self: object,
-            implantacao: SimpleNamespace,
-        ) -> SimpleNamespace:
-            return SimpleNamespace(provider=None, config=None)
-
-        monkeypatch.setattr(
-            erp_router_module.ErpReadinessService,
-            "carregar_runtime",
-            fake_runtime,
-        )
-        monkeypatch.setattr(
-            erp_router_module,
-            "resolve_legacy_sankhya_provider",
-            AsyncMock(return_value=True),
-        )
-
-        test_registry = ErpProviderRegistry()
-        test_registry.register("sankhya", StubErpProviderRuntime)
-        monkeypatch.setattr(erp_router_module, "erp_provider_registry", test_registry)
-
-        response = await erp_router_module.obter_status_erp(
-            tenant_id=tenant_id,
-            readiness_service=readiness_service,
-            db=session,
-        )
-
-        assert response["configurado"] is True
-        assert response["readiness"]["provider_code"] == "sankhya"

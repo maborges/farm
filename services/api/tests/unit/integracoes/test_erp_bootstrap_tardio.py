@@ -284,43 +284,6 @@ async def test_remocao_de_erp_persistido_retorna_tenant_para_estado_sem_erp(
     assert int(remaining_legacy or 0) == 0
 
 
-@pytest.mark.asyncio
-async def test_tenant_legado_permanece_funcional_sem_criar_integracao_em_get(
-    session: AsyncSession,
-) -> None:
-    tenant_id = uuid.uuid4()
-    await _seed_sankhya_provider(session)
-    session.add(
-        SankhyaConfig(
-            id=1,
-            tenant_id=str(tenant_id),
-            environment="producao",
-            api_base_url="https://gateway.example/api",
-            auth_url="https://gateway.example/authenticate",
-            sync_interval=900,
-            ativo=True,
-        )
-    )
-    await session.commit()
-
-    before = await _count_rows(session, tenant_id)
-    async with _build_client(session, tenant_id) as client:
-        status = await client.get("/api/v1/integracoes/erp/status")
-        health = await client.get("/api/v1/integracoes/erp/health")
-        jobs = await client.get("/api/v1/integracoes/erp/jobs")
-        timeline = await client.get("/api/v1/integracoes/erp/timeline")
-    after = await _count_rows(session, tenant_id)
-
-    assert before == (1, 0)
-    assert after == (1, 0)
-    assert status.status_code == 200
-    assert status.json()["configurado"] is True
-    assert status.json()["readiness"]["provider_code"] == "sankhya"
-    assert health.status_code == 200
-    assert jobs.status_code == 200
-    assert jobs.json() == []
-    assert timeline.status_code == 200
-    assert isinstance(timeline.json(), list)
 
 
 @pytest.mark.asyncio

@@ -16,7 +16,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 # Garante que os providers estejam registrados ao carregar o router.
 import integracoes.erp.provider_bootstrap  # noqa: F401
 from core.dependencies import get_session, get_tenant_id, require_tenant_permission
-from integracoes.erp.legacy_provider_resolution import resolve_legacy_sankhya_provider
 from integracoes.erp.provider_contract import ErpProviderRuntime
 from integracoes.erp.provider_registry import (
     ErpProviderNotRegisteredError,
@@ -44,7 +43,6 @@ from integracoes.services import DuplicateAssociationError, ExternalRecordAssoci
 router = APIRouter(prefix="/erp", tags=["Integração ERP"])
 
 _UNCONFIGURED_PROVIDER_SOURCE = "UNCONFIGURED"
-_LEGACY_SANKHYA_SOURCE = "LEGACY_SANKHYA_CONFIG"
 _NOT_CONFIGURED_STATUS = "NOT_CONFIGURED"
 _NOT_CONFIGURED_SUMMARY = "Nenhum ERP configurado para este tenant."
 _NOT_CONFIGURED_RECOMMENDATION = (
@@ -302,25 +300,7 @@ def _build_unconfigured_diagnosis_response() -> dict[str, Any]:
     }
 
 
-def _apply_legacy_provider_hint(
-    payload: dict[str, Any],
-    *,
-    provider_slug: str | None,
-) -> dict[str, Any]:
-    """Mantém o fallback legado identificável pelo frontend sem materializar nada."""
 
-    if not provider_slug:
-        return payload
-    readiness_payload = payload.get("readiness")
-    if not isinstance(readiness_payload, dict):
-        payload["readiness"] = {
-            **_build_unconfigured_readiness(),
-            "provider_code": provider_slug,
-        }
-        return payload
-    if readiness_payload.get("provider_code") in {None, ""}:
-        readiness_payload["provider_code"] = provider_slug
-    return payload
 
 
 async def _resolve_active_erp_context(
@@ -361,21 +341,6 @@ async def _resolve_active_erp_context(
             provider_runtime=provider_runtime,
         )
 
-    # Fallback legado isolado.
-    has_legacy = await resolve_legacy_sankhya_provider(str(tenant_id), db)
-    if has_legacy:
-        try:
-            provider_runtime = erp_provider_registry.resolve("sankhya", db)
-        except ErpProviderNotRegisteredError:
-            provider_runtime = None
-
-        return ErpRuntimeResolution(
-            configured=True,
-            provider_slug="sankhya",
-            runtime=runtime,
-            source=_LEGACY_SANKHYA_SOURCE,
-            provider_runtime=provider_runtime,
-        )
 
     return ErpRuntimeResolution(
         configured=False,
@@ -420,14 +385,7 @@ async def obter_status_erp(
     if not resolution.configured or resolution.provider_runtime is None:
         return _build_unconfigured_status_response()
     payload = await resolution.provider_runtime.get_status(str(tenant_id))
-    return _apply_legacy_provider_hint(
-        payload,
-        provider_slug=(
-            resolution.provider_slug
-            if resolution.source == _LEGACY_SANKHYA_SOURCE
-            else None
-        ),
-    )
+    return payload
 
 
 @router.get(
