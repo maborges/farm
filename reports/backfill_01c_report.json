@@ -1,0 +1,1230 @@
+{
+  "mode": "APPLY",
+  "stats": {
+    "NO_EXPLORACAO_RURAL": 86,
+    "CONFLICT": 5,
+    "LINK_CREATED": 16,
+    "ALREADY_CONSISTENT": 18
+  },
+  "records": [
+    {
+      "imovel_rural_id": "00bfb642-ed07-4fc6-a412-88f204891157",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "317a2f33-9e12-40d2-b26a-e22b00fb2f96",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "015b5767-95c3-46ca-be25-c83eb02c41c4",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "c89169d8-d738-4966-8dd1-33e18ee74fe4",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "055bd450-f583-4277-99b6-ffff70f633e2",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "d1409884-fa94-43ff-944c-991e0a334ad2",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "05993416-2fa3-43b7-af59-f357e2d65904",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "9e389a19-5134-40df-9d02-f299e7365007",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "05adbaa5-14f9-4b39-a986-5298e3582223",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "8a5c5796-db34-4085-86de-187707312478",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "086c4f90-ed96-492c-877c-fcbfded75e65",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "d5b7ceb7-a25c-434f-ab16-c4345b5e0b86",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "0925704d-6b78-4fa2-b106-5aadd49848a3",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "0641bfef-5446-44db-b28f-f49322334ca5",
+      "status": "CONFLICT",
+      "propriedade_id": "aa39c648-4c91-4791-972c-c15eb7c2ff76",
+      "exploracao_rural_ids": [
+        "dd3ee33d-7c88-4e32-ae37-30be9626eb9a"
+      ],
+      "reason": "Falha de IntegrityError (prov\u00e1vel uq_propriedade_imovel_principal_ativo)"
+    },
+    {
+      "imovel_rural_id": "0e9384f5-68e7-4db9-b3a1-0597586fb44f",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "4c8894f7-4707-4f33-b28f-4af6664af597",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "0ee71c5d-2072-4add-8d36-f325f64f25c0",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "537214ab-ec66-492e-913a-4c4d318190d1",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "13c5eee9-28e3-4321-91ed-5f69cef0bbcc",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "089022b4-008f-42fe-b739-b622709554d0",
+      "status": "CONFLICT",
+      "propriedade_id": "00e5613b-4567-488b-bae2-aba10f47b486",
+      "exploracao_rural_ids": [
+        "7ca09dbe-5b8c-459d-9570-10ddad598cf7"
+      ],
+      "reason": "Falha de IntegrityError (prov\u00e1vel uq_propriedade_imovel_principal_ativo)"
+    },
+    {
+      "imovel_rural_id": "14b16c92-fcfa-4587-a204-af2a2d6e81bc",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "a3d7eb5f-54c3-4800-9b99-a314b0a6e9c6",
+      "status": "LINK_CREATED",
+      "propriedade_id": "14f08c58-d410-42b3-8c7a-96407e7978a4",
+      "exploracao_rural_ids": [
+        "f384f574-89d0-457b-ae6b-8b511917ae22"
+      ],
+      "reason": null,
+      "created_association_id": "bdda18c7-b650-4ba0-a25f-84f4f8d1e752"
+    },
+    {
+      "imovel_rural_id": "1770b327-9688-46f9-b4b5-095665c3b5d6",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "f8d0d1b7-2320-4898-8eb9-73688b9f1296",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "1fcdc785-e524-4203-bdc5-3792160ee9ca",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "f1313481-7e1e-441b-923c-b71f90b18de1",
+      "status": "LINK_CREATED",
+      "propriedade_id": "e2c81829-b5d1-41ff-b8ea-097ec0d5b35d",
+      "exploracao_rural_ids": [
+        "4d2b544b-34c9-4d07-9437-21b0f3393a9f"
+      ],
+      "reason": null,
+      "created_association_id": "b08789b3-22e6-4ffd-853d-1a5701ea2a6b"
+    },
+    {
+      "imovel_rural_id": "213ae9de-ede9-46fc-8379-9cddce118402",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "67800ab3-34d3-4e61-8624-0b039fb8cf8b",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "22193dfc-24e3-4c24-a7ba-d9c62ad64099",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "6bb6483a-07f9-46ff-99cb-66d02ed485d7",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "26119507-76bd-4c39-a3c9-ba0d1025ec9d",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "6213dbb9-568c-4c93-a53e-e80348e64066",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "28c07cc5-007a-41c4-844f-2e31c4362317",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "63ae2ddb-a307-4967-9fb6-0bc5b63dc6d9",
+      "status": "ALREADY_CONSISTENT",
+      "propriedade_id": "20221258-6261-4464-b42d-f4cfcb5d4b1e",
+      "exploracao_rural_ids": [
+        "ac4afae5-633d-41a1-9d54-6a536e724e32"
+      ],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "294e90c8-bfd5-4072-b045-6e6f7608f562",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "73d52594-ce23-46de-a1ec-d347d4d75f29",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "2b6792f6-ad69-43e7-bc2e-d09d8723e13d",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "41165d7a-cfe9-4901-861c-fe7a4a8599c7",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "2be9a67b-a846-4869-b682-ee5aa2cf038e",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "05ab29ba-1698-4b64-8f46-f6771ecb660b",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "304ca873-2fdf-482b-888d-4616fa77a30e",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "1265185f-220f-4754-a669-560ae395f4d6",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "3146809a-ced9-467d-b7db-6974eb933682",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "6345dc40-66b1-4897-ad8e-f4e45d06722d",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "34edb291-99f9-4799-b88b-cf94df231d59",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "81792163-4a05-480a-8319-790906eed1e6",
+      "status": "ALREADY_CONSISTENT",
+      "propriedade_id": "365122ad-3f1a-4acc-91c3-d4d6c632a208",
+      "exploracao_rural_ids": [
+        "78cc72ed-ccb0-4880-8b34-da9e99b17115"
+      ],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "3a17dd21-5618-4a18-ac43-a19aa703ffcc",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "b1092ada-d7c2-438a-9aa1-c27a183c44cb",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "3a5963e5-ac20-48fb-a0a8-3decba1b3f2d",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "0ae5bbc0-bf3a-4ab2-ab5b-e097d7b3e25c",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "3b503b52-abeb-4da9-9f38-697c1c404c0c",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "372cf01f-a608-4376-b469-3f9fd713e2c8",
+      "status": "LINK_CREATED",
+      "propriedade_id": "59eae7d0-0b7e-4b70-96ac-399a618c99c3",
+      "exploracao_rural_ids": [
+        "8b1c09d3-58da-4b33-b3f4-a14697d6ebf1"
+      ],
+      "reason": null,
+      "created_association_id": "fad29b5f-2d2f-48fa-b627-39a546b8d305"
+    },
+    {
+      "imovel_rural_id": "3c7e237d-725c-4944-b4f6-3bc4cad6ceda",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "c0c37049-6025-4201-a91b-3345329e7ac6",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "3d3ffaf9-68df-4acd-bb63-d996b523199e",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "ed7ac335-bd48-477a-aa9b-607202552915",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "3d58c257-3914-4002-a8ef-3a9ff2566180",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "c04bc032-f66f-4484-8833-11a6a5a3dead",
+      "status": "LINK_CREATED",
+      "propriedade_id": "eba6cceb-6659-4919-8250-0b9c4c7a24fa",
+      "exploracao_rural_ids": [
+        "935f9fcc-b881-4ae2-8b77-a9aa655181ac"
+      ],
+      "reason": null,
+      "created_association_id": "534beb71-f420-463a-82ed-c2ea60717757"
+    },
+    {
+      "imovel_rural_id": "4064f538-6e03-40fa-9ba8-b21d660ccc53",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "40104ef9-d3c2-479b-a87d-2f1e699e9d6b",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "4261ff8e-7db5-4c4c-9e86-5a3d951e7642",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "338cd4f6-246c-4f35-b280-97eeb0bc34be",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "43a6cfe5-4e47-4ba7-8511-1295c8661af5",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "44a5749b-8669-42fd-8997-b10d0a39551d",
+      "status": "ALREADY_CONSISTENT",
+      "propriedade_id": "aa71c721-8c6b-430a-ac05-b83dca1c734e",
+      "exploracao_rural_ids": [
+        "9b7b8bb1-ccc5-4975-a260-67e9788ae1d4"
+      ],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "43d4c795-22e4-410f-a0b2-b936e87a308f",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "9f682edf-69a0-44ec-8d79-ce26564be0d2",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "450c7bc5-01b9-4e89-a6da-4547d7ca1159",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "1c1a0ab4-002d-46e8-856e-0c3785d9ca7d",
+      "status": "ALREADY_CONSISTENT",
+      "propriedade_id": "ba750e34-1fd1-473e-a047-2c2e1beef08c",
+      "exploracao_rural_ids": [
+        "588396aa-d2c9-4997-9cfe-a850cd7e8051"
+      ],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "453260a8-8a74-4a72-880f-c56ef474080b",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "4b02d965-8a15-4eed-bfba-d5bdd3ede723",
+      "status": "ALREADY_CONSISTENT",
+      "propriedade_id": "8a18e573-6e80-4f58-bdf3-35b0e58290aa",
+      "exploracao_rural_ids": [
+        "708e9c86-b7cc-4adb-b8c6-bae5e732f29a"
+      ],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "4a3528e0-7d60-4c15-8e9c-5739a3a07b04",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "8c30131b-c990-4f3b-8906-9ab4eeddeb16",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "4b9f106c-2c85-42df-9152-a45ad37efa70",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "cb9e8004-d077-43ee-8b25-d3ee32a96a30",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "4e9eab03-7c36-4e77-a27d-a3b834e1a08a",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "1828e7b9-77d6-4f70-9a3f-1b6b3cde360f",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "519c2771-57b4-4ab8-89b0-090e8afbae5c",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "05a1a6c7-b380-4c15-bd9f-baaa9d7760f5",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "529ed5fd-c710-48b3-b054-836685ac9028",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "4695850a-11ea-4741-aee6-9a5aee3bb53c",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "537cf72f-db82-4244-97d0-d82ed7affa13",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "4e56359e-246f-4817-99af-4ccc2afbff1e",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "545fe776-33dc-401f-a94b-3c2af1fcb14a",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "7636b157-cad9-46ca-9d6f-d806525e79ff",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "5a1c1990-d64f-456f-9d7b-0e5a2d57b082",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "dc929741-3ef6-4736-9604-864851ae8db3",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "5d812e0b-ab23-48ca-864a-2e2ecaf018e4",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "d8cfe2e4-db73-4f92-8df6-448d04225be8",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "5e922f03-bd5e-4837-85f9-35d50c685288",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "bd32ad86-f06e-42ac-960a-99eb66df75b1",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "65a25674-cea2-46b4-a3b9-32b33f4a0030",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "bca78946-0dc8-469b-a838-9e48e34e3e5b",
+      "status": "ALREADY_CONSISTENT",
+      "propriedade_id": "3c0f6492-1fa4-4b42-b2bd-3ef5c6e63233",
+      "exploracao_rural_ids": [
+        "074b082c-ed23-4cbe-b95d-28193ca4f8cd"
+      ],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "6864152c-3624-4fc2-9cf1-ec906982c722",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "c8ad88b9-ba57-4b16-b630-7cb4e28bf77a",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "68d9e14e-81b7-4804-8fd6-25d7d236568f",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "1623e96f-502b-481f-921f-a263fcd19433",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "695e536f-3766-4169-b09d-ad58104bcd44",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "309013c9-d8ca-4bae-af13-58722af67af0",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "6a88b6db-607c-4537-8b86-7d2cb130cfc1",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "df8c04d1-6bd6-4d7f-bf1a-a93e70d62cc6",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "716a49e5-3719-4948-b6c5-b5c6bd3df79c",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "65b36eb5-0ab0-4a9b-ad47-36a7e3135281",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "75daf58d-80c6-4e13-8c70-930623ff21fe",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "47cbd38b-8ac0-4e15-8a12-890b366ddd0f",
+      "status": "ALREADY_CONSISTENT",
+      "propriedade_id": "6ac8f735-4b5e-4f47-b6e7-c1d0e6ce3524",
+      "exploracao_rural_ids": [
+        "e89b3efe-8bed-4d43-8a12-b497193f52d5"
+      ],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "76610cda-816f-46bd-8e0a-d84383738a00",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "ab681289-9849-406b-9e7a-eca30e9e31fb",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "77eea71a-5712-443e-8ebd-c36161704498",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "9576cf05-19d1-49c1-b5e1-220e95c4fde1",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "78132de4-823d-42e7-9c06-dcd675f55de2",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "c324ad51-8f35-43f5-80f8-dc66adcd580d",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "786a25f2-9861-4e20-82ac-748cd665a61d",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "ae279058-f064-4d0d-86bc-98e448f98f0c",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "7950df9a-035b-47c8-ba39-eb42ba55e75a",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "fbd7ebfb-1f37-4527-8c34-01359d413af3",
+      "status": "ALREADY_CONSISTENT",
+      "propriedade_id": "0f5cc9db-91c1-41d1-83cf-eac01db858a0",
+      "exploracao_rural_ids": [
+        "939d7906-9a64-48f0-919b-aa9053e51629"
+      ],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "7e1b6151-5aa3-4c56-83a0-8e5e6bb0b61a",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "2dec84b7-a0cd-4491-9ae5-7d6886da0213",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "7ebe5e58-1584-4d9c-82a5-2e57948ae097",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "d52f74db-0993-4003-bd79-788d616713b9",
+      "status": "ALREADY_CONSISTENT",
+      "propriedade_id": "c2dfd43d-f129-46e7-9c10-0d2f1f0d017f",
+      "exploracao_rural_ids": [
+        "1055a452-ed34-4aed-ba97-64820ac95aa6"
+      ],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "8439d4ac-e3cf-4b1b-a414-4a6e758a3525",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "801a0dca-498f-4e67-a9e3-8eb49d991ba7",
+      "status": "LINK_CREATED",
+      "propriedade_id": "d27da199-f814-4ef8-8ead-a496fafb4fec",
+      "exploracao_rural_ids": [
+        "ed8026ac-a2b3-45f1-be74-1492939a6d60"
+      ],
+      "reason": null,
+      "created_association_id": "d2d133c9-c6bb-415f-9ddb-bf726f660b62"
+    },
+    {
+      "imovel_rural_id": "855fbc56-631f-474f-8a24-35d0d6aa3d80",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "fbca25a1-af69-4ff1-95bd-d94f626caf6a",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "880388de-b581-430c-a788-981ce1dabf84",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "6eedd389-2260-4b54-8a31-f722637b9cb4",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "8a631acf-d907-4a92-b93f-baca7357734b",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "8b5f519b-953a-4cb2-8ace-243dd93e11f6",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "8b18cc34-3219-49c2-8741-5693b2a3bfc3",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "a9614bc3-9b08-493d-8f26-8ee41e4839f9",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "8fbc6307-7af0-4cda-9cea-e675caa23f65",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "1ab85d97-bb70-4829-a20e-e7c39b18f9a7",
+      "status": "LINK_CREATED",
+      "propriedade_id": "bb67b17f-0c84-4a7e-aa24-43ea4276727d",
+      "exploracao_rural_ids": [
+        "8870f7eb-8e3f-48d6-90f8-06646335a503"
+      ],
+      "reason": null,
+      "created_association_id": "c0fbdf16-6d50-4be7-847d-5ac3db018e72"
+    },
+    {
+      "imovel_rural_id": "901c3a34-8511-4f72-b312-9ea2978bd8e5",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "83ab8e98-fcba-42d8-b797-bd7c0a7162c3",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "91ecece7-79ac-46d0-83bb-fce69a49b6f4",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "bdfdca31-e77e-4803-be28-3c8e9f4ac5f1",
+      "status": "LINK_CREATED",
+      "propriedade_id": "defba6fc-724e-42e9-bcd9-85d61fc1e597",
+      "exploracao_rural_ids": [
+        "acee77c8-ef0a-4cec-bfdb-54e52c3986b6"
+      ],
+      "reason": null,
+      "created_association_id": "17842177-3abf-445c-9976-e87b10606d65"
+    },
+    {
+      "imovel_rural_id": "93715fce-7c19-4420-bbdf-ef587fdd28e1",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "4e74811a-4575-465d-89af-dcc06ffd4b17",
+      "status": "LINK_CREATED",
+      "propriedade_id": "e3d0bc71-3a3f-4a07-9952-565506cc39fb",
+      "exploracao_rural_ids": [
+        "361a128b-dee7-4f27-b49c-3e4a9dce9b83"
+      ],
+      "reason": null,
+      "created_association_id": "3fa24475-2077-4cc7-b798-f5e9914698a4"
+    },
+    {
+      "imovel_rural_id": "997ee17b-b68f-4936-b384-6d3eaa818d5e",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "89f5d11e-a4cd-44bf-ac4c-a5067f2fba82",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "9a667e98-cfb3-45ea-b1ea-eea7c8563bbc",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "f41d98e0-3bbd-4ede-942b-ff081da2edd8",
+      "status": "ALREADY_CONSISTENT",
+      "propriedade_id": "8a163d1a-4662-4004-9196-abff9515074b",
+      "exploracao_rural_ids": [
+        "1b3a7cb2-eb2f-4427-8f48-9899b64cc094"
+      ],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "9a880496-a59b-45fd-82d9-066bc2ade2d8",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "8fb6307f-90de-4967-9254-6fe60c938988",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "9b7df7e9-3515-4fd3-9007-ef1f920b5b89",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "af329df9-c4f8-42c9-ab90-53a00fe755a4",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "9daa52ae-e5ce-498c-a2a5-ca10b389a9b9",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "34c71a42-0d5a-4bf0-acda-8f61cfc9e400",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "9f7207f1-c63a-40c2-b4c3-9db8765cfed1",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "c4691d43-fa60-46d5-afa0-7b575ee142fe",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "a2e23408-4538-4531-964e-d4545ea07197",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "1e28cf07-3d8f-485e-ba25-90003c3876ba",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "a387055a-20b9-41cf-87a2-2e298c0496e6",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "de7d5976-0c7c-4650-b352-a6d038749953",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "a4714673-364e-4f36-b37f-e92d4617b4b9",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "7e2afe95-2583-4ee8-a266-1b4808882c5c",
+      "status": "ALREADY_CONSISTENT",
+      "propriedade_id": "11cee920-2f15-40b2-83f1-dbe121612bb8",
+      "exploracao_rural_ids": [
+        "5cb6eebc-ae82-413e-b8fe-5070d4665386"
+      ],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "a50f092f-bb2f-4eed-a36e-3dcc299b8208",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "aa4ba7ca-4306-4096-9c13-0ed872ac2691",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "a6af4fc5-9428-44b2-b2e9-1789df083d04",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "9bf0ce58-9497-44f2-bfca-0f3ab45b3eef",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "a80cafa3-0438-4451-ac20-8e66bc250472",
+      "tenant_id": "592b906e-0329-44df-8c58-80ca744ae243",
+      "unidade_produtiva_id": "4a7631ca-96d6-419d-9ca9-515775d02c9a",
+      "status": "CONFLICT",
+      "propriedade_id": "a975a4a4-fe47-4837-b038-5b5e412cd6b7",
+      "exploracao_rural_ids": [
+        "5222d877-cbeb-436a-bea1-5860d1cc572a"
+      ],
+      "reason": "Falha de IntegrityError (prov\u00e1vel uq_propriedade_imovel_principal_ativo)"
+    },
+    {
+      "imovel_rural_id": "aa39b65e-30b9-41ea-b34c-d53258150236",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "5f84be82-f978-4607-ad19-3e3e491a1059",
+      "status": "ALREADY_CONSISTENT",
+      "propriedade_id": "71a376b6-6aee-4229-9d55-b35ea2e86168",
+      "exploracao_rural_ids": [
+        "d257cfcb-0955-419b-a4af-9a1f0556cbc6"
+      ],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "ad5dfa55-fd1a-4c38-91cc-f531a9494db7",
+      "tenant_id": "592b906e-0329-44df-8c58-80ca744ae243",
+      "unidade_produtiva_id": "4a7631ca-96d6-419d-9ca9-515775d02c9a",
+      "status": "CONFLICT",
+      "propriedade_id": "a975a4a4-fe47-4837-b038-5b5e412cd6b7",
+      "exploracao_rural_ids": [
+        "5222d877-cbeb-436a-bea1-5860d1cc572a"
+      ],
+      "reason": "Falha de IntegrityError (prov\u00e1vel uq_propriedade_imovel_principal_ativo)"
+    },
+    {
+      "imovel_rural_id": "ae24dea5-648d-4858-8e59-2be51defcbc6",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "8ca7101e-721d-44a5-a06b-6d01a50de917",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "b7c3a9c5-6a7b-45c4-8e8e-d1809d994e94",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "dd49ae19-b8cd-4c01-8856-b6d8246c3505",
+      "status": "ALREADY_CONSISTENT",
+      "propriedade_id": "4cba3a0a-bc54-4d58-b098-4002be3937e9",
+      "exploracao_rural_ids": [
+        "a63c8b47-41f3-488d-bc82-0b33ac52270e"
+      ],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "b8947ac2-7d25-4dff-b628-32ee224027fa",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "39d4ce93-a791-453f-ba14-dbd9c781aa46",
+      "status": "LINK_CREATED",
+      "propriedade_id": "be35d4ed-dca0-40bd-bf5d-f88337f40f16",
+      "exploracao_rural_ids": [
+        "773853a1-b5ec-4c97-8f7c-d47fc29ada94"
+      ],
+      "reason": null,
+      "created_association_id": "546e76dd-6c74-4a69-924c-cd769325faf4"
+    },
+    {
+      "imovel_rural_id": "baf49d22-0f43-4cd1-b9f0-2d8f1828ce95",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "e6fcbacb-ccc2-4169-afff-4fa0ffea5d71",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "bb48625f-5388-452a-8787-5c8d1b84790a",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "08e4d469-8990-4331-9a00-072c4bfb67f4",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "bfbe352c-ca5f-42e9-b248-7e6fe6b90dfe",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "1f3e229b-9cae-4001-8d20-811dacb6445c",
+      "status": "LINK_CREATED",
+      "propriedade_id": "1239abe3-5f0f-420e-a31e-d2e21022fb4d",
+      "exploracao_rural_ids": [
+        "6a82a524-5813-4b0e-935f-7c193e92db6f"
+      ],
+      "reason": null,
+      "created_association_id": "995909bc-0278-4fa5-9d6a-593336792b0d"
+    },
+    {
+      "imovel_rural_id": "c06cce8d-a259-41a6-91e5-084be50fc36e",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "832b2112-1558-4e07-9ea2-cd9104c17159",
+      "status": "ALREADY_CONSISTENT",
+      "propriedade_id": "0353296d-21f0-44fc-af8a-3dd877bee24a",
+      "exploracao_rural_ids": [
+        "25c08503-d244-42c0-a93d-35c308c3113b"
+      ],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "c0ff8425-1cf1-4b5e-9b59-422dd805259a",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "7ce79765-f062-4d9c-a127-9d82d8ce5cf5",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "c1996637-7b0d-4a8c-aa51-031d0f27ebb7",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "14e0976d-9975-46ab-aae3-d96f947c871a",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "c1cc9f33-e4a0-4ef9-b0ad-e0e4daccdea4",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "f1c638d8-762d-4d83-80d9-6cbf97ffcd1d",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "c4b91bb0-5f79-4e20-9066-3f7481363b55",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "9fac3492-69ff-498e-a81a-a42abaf8bbc8",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "c55da93a-d6ff-4e0a-ac41-969a90d4ff3e",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "363a3e3c-f827-4289-bd42-f17584c4e928",
+      "status": "LINK_CREATED",
+      "propriedade_id": "49ea4666-3fd6-48ff-b51d-635b66dbb0c6",
+      "exploracao_rural_ids": [
+        "1f6c2cd1-1e13-4c3d-99c1-f682b535f894"
+      ],
+      "reason": null,
+      "created_association_id": "73573f1d-a2a8-4ad4-b242-6e67158a6ee0"
+    },
+    {
+      "imovel_rural_id": "c8b65b41-12d6-4062-b25c-065c2869c535",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "81e1f496-96ec-4f62-9ffc-5916d302bc72",
+      "status": "LINK_CREATED",
+      "propriedade_id": "bdf24b83-206a-4777-8a04-dbcf7412df77",
+      "exploracao_rural_ids": [
+        "34deda52-22a6-409e-9417-bbe000080fc3"
+      ],
+      "reason": null,
+      "created_association_id": "4d845e48-de6f-4ad0-9b45-1994e835fdbe"
+    },
+    {
+      "imovel_rural_id": "ca7e87da-ade1-4db0-9b25-015800d6c2eb",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "63ec402d-3030-4272-857b-011a742a8ee2",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "ca9717e5-7006-40df-ae84-eda4670095f8",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "61507b34-23e2-4846-ba66-4b26f9b9f326",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "cda234ee-c133-415d-8c05-8956f626b6a7",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "5d28ce66-38f9-4607-92b8-cf9a2f95b42e",
+      "status": "ALREADY_CONSISTENT",
+      "propriedade_id": "fe8811c7-6262-4414-b867-27c5e734d714",
+      "exploracao_rural_ids": [
+        "e54b60a8-a593-4c1a-afc8-47167f883b39"
+      ],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "cf3d2502-e9e2-4e45-ab5b-6a54df20b61e",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "a8c4ca6b-be02-4b65-b484-ce1cdb65f33c",
+      "status": "LINK_CREATED",
+      "propriedade_id": "1e323ee0-d772-4ae3-813d-048f2e45a11e",
+      "exploracao_rural_ids": [
+        "f0dc0ee4-750b-40db-b0f0-0d889228a78b"
+      ],
+      "reason": null,
+      "created_association_id": "0597521b-93a8-46b0-b78c-948917eaae66"
+    },
+    {
+      "imovel_rural_id": "cffb0dcd-66bd-4136-b04e-7e91a58fb443",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "51437227-cd56-429f-be2d-cf7eee58e795",
+      "status": "LINK_CREATED",
+      "propriedade_id": "a5b6c582-101c-4c53-8624-e43baadb4a9f",
+      "exploracao_rural_ids": [
+        "920619b7-777a-4a4f-a58e-7d96eff17d49"
+      ],
+      "reason": null,
+      "created_association_id": "9fcc99f0-13ce-473b-bd7c-254fe0d14379"
+    },
+    {
+      "imovel_rural_id": "d0374792-1013-4203-b0f4-2e4a224ae25e",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "7a87027b-0f93-41c6-827a-f18930bcb0d6",
+      "status": "ALREADY_CONSISTENT",
+      "propriedade_id": "e0a3a06a-5989-4cb2-b1dc-8c31575fa740",
+      "exploracao_rural_ids": [
+        "a3cac3c1-4e35-4d8f-8c8a-e599998eca90"
+      ],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "d0dfa962-7c46-4080-b57c-2dc9b34e17f4",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "d5da775f-96ea-4e1c-9bd8-6181d5f50698",
+      "status": "ALREADY_CONSISTENT",
+      "propriedade_id": "ebfcd5ba-c335-4aea-bb30-204065128d73",
+      "exploracao_rural_ids": [
+        "6b772342-c261-49f9-814a-42f7925b75c1"
+      ],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "d2aab357-f8c2-4ba6-8c06-52ee1725af38",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "a46fe4c3-0801-4890-a3a5-687045902928",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "d312acea-35aa-4cc7-8f65-7bd2aa8ed7cb",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "31b9943d-3078-4803-b674-1635919df974",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "d3a455c1-56ce-4286-a7d1-c8e9427d2fdd",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "73d2cda7-e6b8-4dba-a278-ca95aa89d5ab",
+      "status": "ALREADY_CONSISTENT",
+      "propriedade_id": "39805534-a738-430c-83ef-ae4a1506e39e",
+      "exploracao_rural_ids": [
+        "e4ac877e-fdab-4668-839d-6c0924fe7cc7"
+      ],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "d4456bad-a145-4d33-9a34-6072fc0e8f4e",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "8298f979-1700-4900-b13a-460fa7daee1d",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "d76a7160-29de-4bfa-9796-d4a1741ee4e4",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "efe777d0-2acd-4c9c-9dc0-d4b92a531003",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "d90e9020-3562-4330-bacd-b497f73a2457",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "f8c78c50-80d6-48b9-9824-d6cf8f4bc8ac",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "db562f47-0adc-4bd6-8e8d-3aed7f1ba729",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "a6cdec64-f18e-46f5-baf4-705ed110c4f1",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "de5b7734-0da1-4e57-b32c-f882f9b130fb",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "f3b46f77-fbf2-4949-94a3-9cf9363e0d66",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "de601695-fa0b-42d5-905a-541ae87bafc6",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "f7eb0784-a420-42d5-89d5-a125a83ffa2d",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "e6356279-391f-4fe0-89fd-10e6582ab549",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "b42b6ab1-c329-4f2b-8b01-d68820e4283d",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "ecf4186e-2d28-4d80-90c4-f734dac9f9d0",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "2e6d730c-820f-4291-a686-28ae31f971b6",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "eed8c76b-2081-48be-b96f-bfec9849c080",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "4b71c78b-f421-44f9-8a4b-c6bc0c2326b7",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "f0d16bb8-3116-41c5-9c16-cb1c985ded22",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "b7935752-a15e-497e-80cb-9ef46b33f1e5",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "f22dcf8c-3b01-4fd1-81d5-4939d4d14121",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "2e0bb92b-fdce-494c-9de6-d97d250a890c",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "f6566c1d-d692-4f8a-af5a-ca308124a5a9",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "825efceb-3140-43b8-9f91-3ec303a52146",
+      "status": "LINK_CREATED",
+      "propriedade_id": "5cab2525-bcb9-4736-b0ab-e37dcf3d15ef",
+      "exploracao_rural_ids": [
+        "098e4ce7-e0ed-4dc9-990d-01847ef3e4d7"
+      ],
+      "reason": null,
+      "created_association_id": "366a0fb4-69a3-44e8-825f-89171977f4c3"
+    },
+    {
+      "imovel_rural_id": "f85d5d82-5c03-42c7-9667-9e65ef9f1369",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "733b1e28-8e4a-4c13-aaec-c7f55b5d4161",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "f8e726fb-0f81-49a2-9662-1ece0b5b1d0f",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "f2c0a2b7-41e9-49dc-a30a-c01bbd2b7a32",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "f976a09a-0aa5-4b4e-8287-386c66509105",
+      "tenant_id": "592b906e-0329-44df-8c58-80ca744ae243",
+      "unidade_produtiva_id": "678122a2-700d-4425-a779-043395c2246a",
+      "status": "CONFLICT",
+      "propriedade_id": "b5e596fa-d73e-4c1e-9357-80e0bb8ece53",
+      "exploracao_rural_ids": [
+        "890cd26e-b5d1-48a6-aae5-6934f0e77bf5"
+      ],
+      "reason": "Falha de IntegrityError (prov\u00e1vel uq_propriedade_imovel_principal_ativo)"
+    },
+    {
+      "imovel_rural_id": "fb37555b-eb4d-4641-beaf-3a0069b8c8e4",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "748e8293-6d09-4c26-bed9-f93a7ad05666",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "fbd91918-27e6-4d49-abb4-f8aefe13c7cf",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "a499dc0f-0202-4e5d-9501-5084e373a571",
+      "status": "LINK_CREATED",
+      "propriedade_id": "f9f2146e-a4ba-4bfa-b59d-72a569c02e18",
+      "exploracao_rural_ids": [
+        "2c86fb9d-df89-4864-9229-48eeaa3c50f7"
+      ],
+      "reason": null,
+      "created_association_id": "564e6255-f8eb-4d3c-bf68-09eef536e118"
+    },
+    {
+      "imovel_rural_id": "fdd443eb-e862-48d8-b96b-d28d7baf180c",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "a08e8cbf-cc30-43eb-8b55-0b1f33c6b12f",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "fea7b752-1a2b-473a-9621-3450ad3b375e",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "d0433206-bee8-45b0-955f-44fa87727cee",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    },
+    {
+      "imovel_rural_id": "ff9d3ef2-ac44-4b85-884d-41339ec6a064",
+      "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+      "unidade_produtiva_id": "cf79e9b8-7f7c-4381-954d-78901a0a0c50",
+      "status": "NO_EXPLORACAO_RURAL",
+      "propriedade_id": null,
+      "exploracao_rural_ids": [],
+      "reason": null
+    }
+  ]
+}

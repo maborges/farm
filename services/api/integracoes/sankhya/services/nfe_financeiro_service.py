@@ -18,7 +18,7 @@ from integracoes.sankhya.services.canonical_adapter import SankhyaCanonicalAdapt
 from integracoes.sankhya.services.external_association_helper import (
     SankhyaExternalAssociationHelper,
 )
-from integracoes.sankhya.services.sync_service import SankhyaWSClient
+from integracoes.sankhya.services.sync_service import SankhyaWSClient, get_sankhya_connection_data
 
 
 class SankhyaNFeService:
@@ -29,13 +29,10 @@ class SankhyaNFeService:
         self.adapter = SankhyaCanonicalAdapter(db)
         self.association_helper = SankhyaExternalAssociationHelper(db)
 
-    async def _get_config(self, tenant_id: str) -> SankhyaConfig | None:
-        stmt = select(SankhyaConfig).where(SankhyaConfig.tenant_id == tenant_id)
-        return (await self.db.execute(stmt)).scalar_one_or_none()
-
     async def exportar_nfe(self, tenant_id: str, nfe_data: dict[str, Any]) -> dict[str, Any]:
-        config = await self._get_config(tenant_id)
-        if not config:
+        try:
+            connection_data = await get_sankhya_connection_data(self.db, tenant_id)
+        except ValueError:
             raise Exception("Sankhya não configurado")
 
         job = await self.adapter.start_sync_job(
@@ -44,7 +41,7 @@ class SankhyaNFeService:
             trigger_type=IntegrationJobTrigger.MANUAL,
             request_payload={"operacao": "exportar_nfe"},
         )
-        async with SankhyaWSClient(config) as client:
+        async with SankhyaWSClient(connection_data) as client:
             try:
                 sankhya_data = self._prepare_nfe_data(nfe_data)
                 resultado = await client.executar_ws("NFe", "save", sankhya_data)
@@ -93,8 +90,9 @@ class SankhyaNFeService:
     async def importar_nfe_entrada(
         self, tenant_id: str, periodo_inicio: date, periodo_fim: date
     ) -> int:
-        config = await self._get_config(tenant_id)
-        if not config:
+        try:
+            connection_data = await get_sankhya_connection_data(self.db, tenant_id)
+        except ValueError:
             return 0
 
         importadas = 0
@@ -104,7 +102,7 @@ class SankhyaNFeService:
             trigger_type=IntegrationJobTrigger.PULL,
             request_payload={"operacao": "importar_nfe_entrada"},
         )
-        async with SankhyaWSClient(config) as client:
+        async with SankhyaWSClient(connection_data) as client:
             try:
                 resultado = await client.executar_ws(
                     "NFe",
@@ -248,15 +246,12 @@ class SankhyaFinanceiroService:
         self.adapter = SankhyaCanonicalAdapter(db)
         self.association_helper = SankhyaExternalAssociationHelper(db)
 
-    async def _get_config(self, tenant_id: str) -> SankhyaConfig | None:
-        stmt = select(SankhyaConfig).where(SankhyaConfig.tenant_id == tenant_id)
-        return (await self.db.execute(stmt)).scalar_one_or_none()
-
     async def exportar_contas_pagar(
         self, tenant_id: str, lancamentos: list[dict[str, Any]]
     ) -> dict[str, Any]:
-        config = await self._get_config(tenant_id)
-        if not config:
+        try:
+            connection_data = await get_sankhya_connection_data(self.db, tenant_id)
+        except ValueError:
             raise Exception("Sankhya não configurado")
 
         exportados = 0
@@ -267,7 +262,7 @@ class SankhyaFinanceiroService:
             trigger_type=IntegrationJobTrigger.MANUAL,
             request_payload={"operacao": "exportar_contas_pagar"},
         )
-        async with SankhyaWSClient(config) as client:
+        async with SankhyaWSClient(connection_data) as client:
             for lancamento in lancamentos:
                 try:
                     sankhya_data = self._prepare_lancamento_data(lancamento, "CONTAS_PAGAR")
@@ -298,8 +293,9 @@ class SankhyaFinanceiroService:
     async def exportar_contas_receber(
         self, tenant_id: str, lancamentos: list[dict[str, Any]]
     ) -> dict[str, Any]:
-        config = await self._get_config(tenant_id)
-        if not config:
+        try:
+            connection_data = await get_sankhya_connection_data(self.db, tenant_id)
+        except ValueError:
             raise Exception("Sankhya não configurado")
 
         exportados = 0
@@ -310,7 +306,7 @@ class SankhyaFinanceiroService:
             trigger_type=IntegrationJobTrigger.MANUAL,
             request_payload={"operacao": "exportar_contas_receber"},
         )
-        async with SankhyaWSClient(config) as client:
+        async with SankhyaWSClient(connection_data) as client:
             for lancamento in lancamentos:
                 try:
                     sankhya_data = self._prepare_lancamento_data(lancamento, "CONTAS_RECEBER")
@@ -345,8 +341,9 @@ class SankhyaFinanceiroService:
         periodo_fim: date,
         tipo: str = "AMBOS",
     ) -> int:
-        config = await self._get_config(tenant_id)
-        if not config:
+        try:
+            connection_data = await get_sankhya_connection_data(self.db, tenant_id)
+        except ValueError:
             return 0
 
         importados = 0
@@ -356,7 +353,7 @@ class SankhyaFinanceiroService:
             trigger_type=IntegrationJobTrigger.PULL,
             request_payload={"operacao": "importar_lancamentos", "tipo": tipo},
         )
-        async with SankhyaWSClient(config) as client:
+        async with SankhyaWSClient(connection_data) as client:
             try:
                 resultado = await client.executar_ws(
                     "Lancamento",

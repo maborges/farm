@@ -8,8 +8,22 @@ from typing import Any, ClassVar
 
 import httpx
 
-from integracoes.sankhya.models import SankhyaConfig
 from integracoes.security import decrypt_integration_secret, mask_integration_secret
+
+
+@dataclass(frozen=True)
+class SankhyaConnectionData:
+    environment: str | None = None
+    api_base_url: str | None = None
+    auth_url: str | None = None
+    ws_url: str | None = None
+    client_id: str | None = None
+    client_secret: str | None = None
+    x_token: str | None = None
+    token: str | None = None
+    appkey: str | None = None
+    username: str | None = None
+    password: str | None = None
 
 
 @dataclass(slots=True)
@@ -54,11 +68,11 @@ class SankhyaGatewayAuthService:
 
     _token_cache: ClassVar[dict[str, SankhyaGatewayToken]] = {}
 
-    def __init__(self, config: SankhyaConfig) -> None:
+    def __init__(self, config: SankhyaConnectionData) -> None:
         self.config = config
 
     @classmethod
-    def cache_key_for(cls, config: SankhyaConfig) -> str:
+    def cache_key_for(cls, config: SankhyaConnectionData) -> str:
         return "|".join(
             [
                 (config.environment or "").strip().lower(),

@@ -171,9 +171,7 @@ class ImovelRural(Base):
     tenant_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), index=True
     )
-    unidade_produtiva_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("unidades_produtivas.id", ondelete="RESTRICT"), index=True, nullable=False
-    )
+
     
     nome: Mapped[str] = mapped_column(String(255), nullable=False)
     
@@ -231,7 +229,7 @@ class ImovelRural(Base):
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
     
     # Relacionamentos
-    fazenda = relationship("UnidadeProdutiva")
+
     cartorio = relationship("Cartorio")
     documentos = relationship("DocumentoLegal", back_populates="imovel", cascade="all, delete-orphan")
     contratos_arrendamento = relationship("ContratoArrendamento", back_populates="imovel", cascade="all, delete-orphan")

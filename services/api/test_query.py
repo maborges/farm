@@ -1,20 +1,18 @@
-import asyncio
-from datetime import date
-from sqlalchemy import case, func, select
-from sqlalchemy.dialects import postgresql
-from financeiro.models.receita import Receita
+import psycopg2
 
-hoje = date(2026, 6, 20)
-inicio_mes = date(2026, 6, 1)
+conn = psycopg2.connect("dbname=farm user=borgus")
+cur = conn.cursor()
 
-recebido = func.coalesce(Receita.valor_recebido, Receita.valor_total)
-stmt = select(
-    func.coalesce(func.sum(case(
-        ((Receita.status.in_({"RECEBIDO", "RECEBIDO_PARCIAL"})) & (Receita.data_recebimento >= inicio_mes), recebido),
-        else_=0,
-    )), 0.0).label("total_recebido_mes"),
-    func.coalesce(func.sum(case((Receita.status == "A_RECEBER", Receita.valor_total), else_=0)), 0.0).label("total_a_receber"),
-    func.coalesce(func.sum(case(((Receita.status == "A_RECEBER") & (Receita.data_vencimento < hoje), Receita.valor_total), else_=0)), 0.0).label("total_atrasado_receitas"),
-).where(Receita.tenant_id == '678122a2-700d-4425-a779-043395c2246a', Receita.ativo == True)
+cur.execute("""
+    SELECT DISTINCT up.id as up_id, up.tenant_id, pi.propriedade_id
+    FROM unidades_produtivas up
+    JOIN imoveis_rurais ir ON ir.unidade_produtiva_id = up.id
+    JOIN propriedade_imovel pi ON pi.imovel_rural_id = ir.id
+    LEFT JOIN cadastros_exploracoes_rurais er ON er.unidade_produtiva_id = up.id
+    WHERE er.id IS NULL
+""")
+rows = cur.fetchall()
+print("Orphans:", len(rows))
+for r in rows:
+    print(r)
 
-print(stmt.compile(dialect=postgresql.dialect()))

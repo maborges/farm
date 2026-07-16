@@ -112,7 +112,7 @@ class PropriedadeImovelService:
         propriedade_id: uuid.UUID,
         imovel_rural_id: uuid.UUID,
         *,
-        tipo_vinculo: TipoVinculoPropriedadeImovel = TipoVinculoPropriedadeImovel.PROPRIEDADE_PRINCIPAL,
+        tipo_vinculo: TipoVinculoPropriedadeImovel | None = None,
         origem_documental: str = "Vínculo criado automaticamente pelo cadastro de Imóvel Rural",
         data_inicio: date | None = None,
         usuario_id: uuid.UUID | None = None,
@@ -122,7 +122,6 @@ class PropriedadeImovelService:
         await self._validar_referencias(propriedade_id, imovel_rural_id)
 
         data_inicio = data_inicio or date.today()
-        tipo_vinculo_value = tipo_vinculo.value if isinstance(tipo_vinculo, TipoVinculoPropriedadeImovel) else str(tipo_vinculo)
 
         stmt_existente = (
             select(PropriedadeImovel)
@@ -139,26 +138,40 @@ class PropriedadeImovelService:
         )
         resultado = await self.session.execute(stmt_existente)
         existente = resultado.scalars().first()
+        
+        principal_ativo = await self._buscar_principal_ativo(propriedade_id)
+
+        # Política dinâmica para primeiro vínculo vs secundário
+        tipo_vinculo_value = tipo_vinculo.value if isinstance(tipo_vinculo, TipoVinculoPropriedadeImovel) else (str(tipo_vinculo) if tipo_vinculo else None)
+
+        if not tipo_vinculo_value:
+            if principal_ativo and (not existente or existente.id != principal_ativo.id):
+                tipo_vinculo_value = TipoVinculoPropriedadeImovel.PROPRIEDADE_SECUNDARIA.value
+            else:
+                tipo_vinculo_value = TipoVinculoPropriedadeImovel.PROPRIEDADE_PRINCIPAL.value
+                
+        usar_principal = (
+            vinculo_principal
+            if vinculo_principal is not None
+            else (tipo_vinculo_value == TipoVinculoPropriedadeImovel.PROPRIEDADE_PRINCIPAL.value)
+        )
+
         if existente:
             if existente.ativo and existente.data_fim is None:
                 return existente
 
+            # Se o caller forçou principal explicitamente via tipo_vinculo ou vinculo_principal e há conflito, 
+            # a validação vai travar. Para reaproveitamento ou fallback sem conflito, reativamos com os valores calculados.
             existente.ativo = True
             existente.data_fim = None
             existente.data_inicio = existente.data_inicio or data_inicio
             existente.tipo_vinculo = tipo_vinculo_value
+            existente.vinculo_principal = usar_principal
             existente.origem_documental = origem_documental
             existente.updated_by = usuario_id
             existente.updated_at = datetime.now(timezone.utc)
             await self.session.flush()
             return existente
-
-        principal_ativo = await self._buscar_principal_ativo(propriedade_id)
-        usar_principal = (
-            vinculo_principal
-            if vinculo_principal is not None
-            else tipo_vinculo_value == TipoVinculoPropriedadeImovel.PROPRIEDADE_PRINCIPAL.value and principal_ativo is None
-        )
 
         vinculo = PropriedadeImovel(
             tenant_id=self.tenant_id,
@@ -231,6 +244,38 @@ class PropriedadeImovelService:
         vinculo.updated_by = usuario_id
         vinculo.updated_at = datetime.now(timezone.utc)
         await self.session.flush()
+
+    async def definir_vinculo_principal(
+        self,
+        propriedade_id: uuid.UUID,
+        vinculo_id: uuid.UUID,
+        usuario_id: uuid.UUID | None = None
+    ) -> PropriedadeImovel:
+        """Promove um vínculo a PROPRIEDADE_PRINCIPAL, rebaixando o anterior."""
+        novo_principal = await self.obter(vinculo_id)
+        if novo_principal.propriedade_id != propriedade_id:
+            raise BusinessRuleError("O vínculo não pertence à propriedade informada.")
+        if not novo_principal.ativo:
+            raise BusinessRuleError("Não é possível promover um vínculo inativo.")
+
+        if novo_principal.vinculo_principal:
+            return novo_principal
+
+        principal_atual = await self._buscar_principal_ativo(propriedade_id)
+        if principal_atual:
+            principal_atual.vinculo_principal = False
+            if principal_atual.tipo_vinculo == TipoVinculoPropriedadeImovel.PROPRIEDADE_PRINCIPAL.value:
+                principal_atual.tipo_vinculo = TipoVinculoPropriedadeImovel.PROPRIEDADE_SECUNDARIA.value
+            principal_atual.updated_by = usuario_id
+            principal_atual.updated_at = datetime.now(timezone.utc)
+
+        novo_principal.vinculo_principal = True
+        novo_principal.tipo_vinculo = TipoVinculoPropriedadeImovel.PROPRIEDADE_PRINCIPAL.value
+        novo_principal.updated_by = usuario_id
+        novo_principal.updated_at = datetime.now(timezone.utc)
+
+        await self.session.flush()
+        return novo_principal
 
     async def _validar_referencias(self, propriedade_id: uuid.UUID, imovel_rural_id: uuid.UUID) -> None:
         """Garante que propriedade e imóvel existem no tenant atual."""

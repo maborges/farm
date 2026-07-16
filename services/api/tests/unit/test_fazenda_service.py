@@ -1,3 +1,6 @@
+from decimal import Decimal
+from unittest.mock import AsyncMock, patch
+
 import pytest
 import uuid
 from core.services.unidade_produtiva_service import UnidadeProdutivaService as FazendaService
@@ -30,7 +33,7 @@ class TestTenantIsolation:
         assert fazenda.nome == "Fazenda Santa Cruz do José"
 
     async def test_tenant_b_nao_consegue_ver_nem_alterar_fazenda_do_tenant_a(self, session_a, session_b):
-        from tests.conftest import TENANT_A_ID, TENANT_B_ID
+        from tests.conftest import TENANT_A_ID
 
         service_a = FazendaService(session=session_a, tenant_id=TENANT_A_ID)
         fazenda_a = await service_a.create_fazenda(FazendaCreate(nome="Mato Grosso Sul", area_total_ha=100))
@@ -47,3 +50,36 @@ class TestTenantIsolation:
 
         with pytest.raises(EntityNotFoundError):
             await service_b.update(fazenda_a.id, {"nome": "Tomei Posse", "tenant_id": str(novo_tenant_id)})
+
+    async def test_fazenda_persiste_area_total_calculada_quando_geometria_existe(self, session_a):
+        from tests.conftest import TENANT_A_ID
+
+        service = FazendaService(session=session_a, tenant_id=TENANT_A_ID)
+        geometria = {
+            "type": "Polygon",
+            "coordinates": [
+                [
+                    [-47.0, -16.0],
+                    [-47.0, -16.1],
+                    [-46.9, -16.1],
+                    [-46.9, -16.0],
+                    [-47.0, -16.0],
+                ]
+            ],
+        }
+
+        with patch.object(
+            FazendaService,
+            "_calcular_area_georreferenciada",
+            new=AsyncMock(return_value=Decimal("123.4567")),
+        ):
+            fazenda = await service.create_fazenda(
+                FazendaCreate(
+                    nome="Fazenda Georreferenciada",
+                    area_total_ha=500,
+                    geometria=geometria,
+                    ativo=True,
+                )
+            )
+
+        assert fazenda.area_total_calculada_ha == Decimal("123.4567")

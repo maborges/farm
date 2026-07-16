@@ -461,12 +461,23 @@ class ESGCertificacoesAlertGenerator(BaseAlertGenerator):
             result = await self.session.execute(stmt)
             return result.scalars().first()
         if imovel_rural_id is not None:
-            stmt = select(ImovelRural.unidade_produtiva_id).where(
-                ImovelRural.tenant_id == self.tenant_id,
-                ImovelRural.id == imovel_rural_id,
+            stmt = (
+                select(ExploracaoRural.unidade_produtiva_id)
+                .select_from(PropriedadeImovel)
+                .join(Propriedade, Propriedade.id == PropriedadeImovel.propriedade_id)
+                .join(ExploracaoRural, ExploracaoRural.propriedade_id == Propriedade.id)
+                .where(
+                    PropriedadeImovel.tenant_id == self.tenant_id,
+                    PropriedadeImovel.imovel_rural_id == imovel_rural_id,
+                )
+                .order_by(ExploracaoRural.created_at.desc())
+                .limit(1)
             )
             result = await self.session.execute(stmt)
-            return result.scalars().first()
+            unidade = result.scalars().first()
+            if unidade is not None:
+                return unidade
+            return None
         if propriedade_imovel_id is not None:
             stmt = (
                 select(ExploracaoRural.unidade_produtiva_id)
@@ -484,17 +495,8 @@ class ESGCertificacoesAlertGenerator(BaseAlertGenerator):
             unidade = result.scalars().first()
             if unidade is not None:
                 return unidade
-            stmt = (
-                select(ImovelRural.unidade_produtiva_id)
-                .select_from(PropriedadeImovel)
-                .join(ImovelRural, PropriedadeImovel.imovel_rural_id == ImovelRural.id)
-                .where(
-                    PropriedadeImovel.tenant_id == self.tenant_id,
-                    PropriedadeImovel.id == propriedade_imovel_id,
-                )
-            )
-            result = await self.session.execute(stmt)
-            return result.scalars().first()
+            
+            return None
         return None
 
     def _aplicar_escopo_unidade(
@@ -514,20 +516,19 @@ class ESGCertificacoesAlertGenerator(BaseAlertGenerator):
             )
             .distinct()
         )
-        imoveis = select(ImovelRural.id).where(
-            ImovelRural.tenant_id == tenant_id,
-            ImovelRural.unidade_produtiva_id == unidade_produtiva_id,
+        imoveis = (
+            select(ImovelRural.id)
+            .join(PropriedadeImovel, PropriedadeImovel.imovel_rural_id == ImovelRural.id)
+            .where(
+                PropriedadeImovel.tenant_id == tenant_id,
+                PropriedadeImovel.propriedade_id.in_(propriedades),
+            )
         )
         vinculos = (
             select(PropriedadeImovel.id)
-            .join(Propriedade, Propriedade.id == PropriedadeImovel.propriedade_id)
-            .join(ImovelRural, ImovelRural.id == PropriedadeImovel.imovel_rural_id)
             .where(
                 PropriedadeImovel.tenant_id == tenant_id,
-                or_(
-                    Propriedade.id.in_(propriedades),
-                    ImovelRural.unidade_produtiva_id == unidade_produtiva_id,
-                ),
+                PropriedadeImovel.propriedade_id.in_(propriedades),
             )
         )
         return stmt.where(

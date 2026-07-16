@@ -87,6 +87,27 @@ async def atualizar(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
 
+@router.post("/{vinculo_id}/definir-principal", response_model=PropriedadeImovelRead)
+async def definir_principal(
+    vinculo_id: uuid.UUID,
+    propriedade_id: uuid.UUID,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    user: Usuario = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session),
+):
+    """Promove um vínculo a principal, rebaixando o anterior de forma transacional."""
+    service = PropriedadeImovelService(session, tenant_id)
+    try:
+        vinculo = await service.definir_vinculo_principal(propriedade_id, vinculo_id, usuario_id=user.id)
+        await session.commit()
+        await session.refresh(vinculo)
+        return vinculo
+    except EntityNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except BusinessRuleError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
 @router.delete("/{vinculo_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def inativar(
     vinculo_id: uuid.UUID,

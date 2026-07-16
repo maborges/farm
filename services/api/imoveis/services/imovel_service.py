@@ -200,7 +200,16 @@ class ImovelService:
         )
 
         if unidade_produtiva_id:
-            stmt = stmt.where(ImovelRural.unidade_produtiva_id == unidade_produtiva_id)
+            from core.cadastros.propriedades.propriedade_models import ExploracaoRural
+            from core.cadastros.propriedade_imovel.models import PropriedadeImovel
+            stmt = (
+                stmt.join(PropriedadeImovel, PropriedadeImovel.imovel_rural_id == ImovelRural.id)
+                .join(ExploracaoRural, ExploracaoRural.propriedade_id == PropriedadeImovel.propriedade_id)
+                .where(
+                    ExploracaoRural.unidade_produtiva_id == unidade_produtiva_id,
+                    PropriedadeImovel.ativo.is_(True)
+                )
+            )
 
         result = await self.session.execute(
             stmt.options(
@@ -274,10 +283,17 @@ class ImovelService:
         
         area_fazenda = Decimal(str(fazenda.area_total_ha))
         
+        from core.cadastros.propriedades.propriedade_models import ExploracaoRural
+        from core.cadastros.propriedade_imovel.models import PropriedadeImovel
+        
         # Soma áreas de outros imóveis da fazenda
-        stmt = select(func.sum(ImovelRural.area_total_ha)).where(
-            and_(
-                ImovelRural.unidade_produtiva_id == unidade_produtiva_id,
+        stmt = (
+            select(func.sum(ImovelRural.area_total_ha))
+            .join(PropriedadeImovel, PropriedadeImovel.imovel_rural_id == ImovelRural.id)
+            .join(ExploracaoRural, ExploracaoRural.propriedade_id == PropriedadeImovel.propriedade_id)
+            .where(
+                ExploracaoRural.unidade_produtiva_id == unidade_produtiva_id,
+                PropriedadeImovel.ativo.is_(True),
                 ImovelRural.id != imovel_id,
                 ImovelRural.deleted_at.is_(None)
             )
@@ -593,13 +609,9 @@ class ImovelService:
         await vinculo_service.garantir_vinculo_ativo(
             propriedade_id=propriedade_id,
             imovel_rural_id=imovel.id,
-            tipo_vinculo=tipo_vinculo or TipoVinculoPropriedadeImovel.PROPRIEDADE_PRINCIPAL,
+            tipo_vinculo=tipo_vinculo,
             usuario_id=usuario_id,
-            vinculo_principal=(
-                tipo_vinculo == TipoVinculoPropriedadeImovel.PROPRIEDADE_PRINCIPAL
-                if tipo_vinculo is not None
-                else None
-            ),
+            vinculo_principal=None,
         )
     
     async def excluir_imovel(self, imovel: ImovelRural) -> bool:

@@ -111,6 +111,7 @@ async def test_register_new_tenant_rejeita_cpf_ja_cadastrado(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr("core.services.onboarding_service.email_service.send_registration_confirmation", _noop_async)
+    monkeypatch.setattr("core.utils.cpf_cnpj.validar_cpf", lambda x: True)
 
     unique_suffix = uuid.uuid4().hex[:8]
     plano = PlanoAssinatura(
@@ -132,7 +133,7 @@ async def test_register_new_tenant_rejeita_cpf_ja_cadastrado(
         nome_completo="Usuario Existente",
         apelido="Existente",
         senha_hash="hash",
-        cpf="11122233344",
+        cpf="30784218086",
         ativo=True,
     )
     session.add(usuario_existente)
@@ -146,7 +147,7 @@ async def test_register_new_tenant_rejeita_cpf_ja_cadastrado(
         nome_completo="Novo Produtor",
         apelido="Novo",
         senha="senha123",
-        cpf="11122233344",
+        cpf="30784218086",
         telefone="11999999999",
         nome_produtor="Fazenda Nova",
         cnpj_tenant=None,

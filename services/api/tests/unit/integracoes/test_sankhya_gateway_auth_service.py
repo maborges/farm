@@ -6,28 +6,23 @@ from datetime import datetime, timedelta, timezone
 import httpx
 import pytest
 
-from integracoes.sankhya.models import SankhyaConfig
-from integracoes.sankhya.services.auth_service import SankhyaGatewayAuthService, SankhyaGatewayToken
+from integracoes.sankhya.services.auth_service import SankhyaGatewayAuthService, SankhyaGatewayToken, SankhyaConnectionData
 from integracoes.security import encrypt_integration_secret
 
 
-def _gateway_config() -> SankhyaConfig:
-    return SankhyaConfig(
-        tenant_id="tenant-gateway",
+def _gateway_config() -> SankhyaConnectionData:
+    return SankhyaConnectionData(
         environment="producao",
         api_base_url="https://gateway.example/api",
         auth_url="https://gateway.example/authenticate",
         client_id="client-123",
         client_secret=encrypt_integration_secret("client-secret"),
         x_token=encrypt_integration_secret("x-token"),
-        sync_interval=900,
-        ativo=True,
     )
 
 
-def _legacy_gateway_login_config() -> SankhyaConfig:
-    return SankhyaConfig(
-        tenant_id="tenant-legacy-login",
+def _legacy_gateway_login_config() -> SankhyaConnectionData:
+    return SankhyaConnectionData(
         environment="producao",
         api_base_url="https://gateway.example/api",
         auth_url="https://gateway.example/login",
@@ -35,8 +30,6 @@ def _legacy_gateway_login_config() -> SankhyaConfig:
         password=encrypt_integration_secret("legacy-password"),
         token=encrypt_integration_secret("legacy-token"),
         appkey=encrypt_integration_secret("legacy-appkey"),
-        sync_interval=900,
-        ativo=True,
     )
 
 
@@ -150,14 +143,12 @@ async def test_gateway_auth_renova_quando_cache_expira() -> None:
 
 
 def test_gateway_config_incompleta_rejeita_auth() -> None:
-    config = SankhyaConfig(
-        tenant_id="tenant-incompleto",
+    config = SankhyaConnectionData(
         environment="producao",
         api_base_url="https://gateway.example/api",
         auth_url="https://gateway.example/authenticate",
         client_id="client-123",
         client_secret=encrypt_integration_secret("client-secret"),
-        sync_interval=900,
     )
 
     service = SankhyaGatewayAuthService(config)
@@ -167,10 +158,17 @@ def test_gateway_config_incompleta_rejeita_auth() -> None:
 
 
 def test_legacy_nao_e_fluxo_padrao_quando_gateway_esta_disponivel() -> None:
-    config = _gateway_config()
-    config.ws_url = "https://legacy.example/ws"
-    config.username = "legacy-user"
-    config.password = encrypt_integration_secret("legacy-pass")
+    config = SankhyaConnectionData(
+        environment="producao",
+        api_base_url="https://gateway.example/api",
+        auth_url="https://gateway.example/authenticate",
+        client_id="client-123",
+        client_secret=encrypt_integration_secret("client-secret"),
+        x_token=encrypt_integration_secret("x-token"),
+        ws_url="https://legacy.example/ws",
+        username="legacy-user",
+        password=encrypt_integration_secret("legacy-pass"),
+    )
 
     service = SankhyaGatewayAuthService(config)
 

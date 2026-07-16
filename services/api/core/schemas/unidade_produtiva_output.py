@@ -1,8 +1,10 @@
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from typing import Optional
 from decimal import Decimal
 from datetime import datetime
 import uuid
+
+from .territorio_read import TerritoryReadView
 
 
 class UnidadeProdutivaResponse(BaseModel):
@@ -12,11 +14,6 @@ class UnidadeProdutivaResponse(BaseModel):
     tipo_propriedade: Optional[str] = None
     cpf_cnpj: Optional[str] = None
     inscricao_estadual: Optional[str] = None
-    codigo_car: Optional[str] = None
-    nirf: Optional[str] = None
-    ccir: Optional[str] = None
-    sigef_codigo: Optional[str] = None
-    numero_matricula: Optional[str] = None
     # Localização
     cep: Optional[str] = None
     logradouro: Optional[str] = None
@@ -28,6 +25,7 @@ class UnidadeProdutivaResponse(BaseModel):
     ibge_municipio_codigo: Optional[str] = None
     # Áreas
     area_total_ha: Optional[Decimal] = None
+    area_total_calculada_ha: Optional[Decimal] = None
     area_app_ha: Optional[Decimal] = None
     area_rl_ha: Optional[Decimal] = None
     coordenadas_sede: Optional[str] = None
@@ -36,6 +34,7 @@ class UnidadeProdutivaResponse(BaseModel):
     ativo: bool
     created_at: datetime
     updated_at: datetime
+    territorio: Optional[TerritoryReadView] = None
 
     model_config = ConfigDict(from_attributes=True)
 

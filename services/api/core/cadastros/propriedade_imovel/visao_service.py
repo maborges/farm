@@ -96,27 +96,6 @@ class VisaoTerritorialService:
         if obj:
             return obj
 
-        stmt = (
-            select(Propriedade)
-            .join(PropriedadeImovel, PropriedadeImovel.propriedade_id == Propriedade.id)
-            .join(ImovelRural, ImovelRural.id == PropriedadeImovel.imovel_rural_id)
-            .where(
-                ImovelRural.unidade_produtiva_id == propriedade_id,
-                Propriedade.tenant_id == self.tenant_id,
-                PropriedadeImovel.tenant_id == self.tenant_id,
-                ImovelRural.tenant_id == self.tenant_id,
-                ImovelRural.deleted_at.is_(None),
-            )
-            .order_by(
-                PropriedadeImovel.vinculo_principal.desc(),
-                PropriedadeImovel.ativo.desc(),
-                PropriedadeImovel.data_inicio.desc(),
-                PropriedadeImovel.created_at.desc(),
-            )
-            .options(*options)
-        )
-        result = await self.session.execute(stmt)
-        obj = result.scalars().first()
         if not obj:
             raise EntityNotFoundError("Propriedade não encontrada neste tenant.")
         return obj
@@ -185,7 +164,6 @@ class VisaoTerritorialService:
         return ImovelFundiarioResumo(
             id=imovel.id,
             tenant_id=imovel.tenant_id,
-            unidade_produtiva_id=imovel.unidade_produtiva_id,
             nome=imovel.nome,
             municipio=imovel.municipio,
             uf=imovel.uf,

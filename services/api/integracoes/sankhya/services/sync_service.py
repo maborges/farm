@@ -35,11 +35,73 @@ from integracoes.sankhya.models import (
     SankhyaSyncLog,
 )
 from integracoes.sankhya.schemas import SankhyaTestConnectionResponse
-from integracoes.sankhya.services.auth_service import SankhyaGatewayAuthService
+from integracoes.sankhya.services.auth_service import (
+    SankhyaGatewayAuthService,
+    SankhyaConnectionData,
+)
 from integracoes.sankhya.services.canonical_adapter import SankhyaCanonicalAdapter
 from integracoes.sankhya.services.external_association_helper import (
     SankhyaExternalAssociationHelper,
 )
+
+def build_sankhya_connection_data(config: SankhyaConfig) -> SankhyaConnectionData:
+    return SankhyaConnectionData(
+        environment=config.environment,
+        api_base_url=config.api_base_url,
+        auth_url=config.auth_url,
+        ws_url=config.ws_url,
+        client_id=config.client_id,
+        client_secret=config.client_secret,
+        x_token=config.x_token,
+        token=getattr(config, "token", None),
+        appkey=getattr(config, "appkey", None),
+        username=config.username,
+        password=config.password,
+    )
+
+async def get_sankhya_connection_data(db: AsyncSession, tenant_id: str) -> SankhyaConnectionData:
+    """Busca as configuracoes canônicas e monta a conexão, aplicando fallback para legado se necessário."""
+    stmt_config = select(SankhyaConfig).where(SankhyaConfig.tenant_id == tenant_id)
+    config = (await db.execute(stmt_config)).scalar_one_or_none()
+    if not config:
+        raise ValueError("Sankhya não configurado")
+
+    stmt_tenant = (
+        select(TenantIntegracao)
+        .join(MarketplaceIntegracao, TenantIntegracao.integracao_id == MarketplaceIntegracao.id)
+        .where(
+            TenantIntegracao.tenant_id == tenant_id,
+            MarketplaceIntegracao.slug == "sankhya",
+            TenantIntegracao.scope_type == "TENANT",
+            TenantIntegracao.deleted_at.is_(None),
+        )
+    )
+    tenant_integ = (await db.execute(stmt_tenant)).scalar_one_or_none()
+
+    if tenant_integ and tenant_integ.connection_payload:
+        payload = tenant_integ.connection_payload
+        env = payload.get("sankhya_environment")
+        api_url = payload.get("sankhya_api_base_url") or payload.get("ws_url")
+
+        if not env or not api_url:
+            raise ValueError("Configuração técnica canônica (connection_payload) está incompleta ou inválida.")
+
+        return SankhyaConnectionData(
+            environment=env,
+            api_base_url=api_url,
+            auth_url=payload.get("sankhya_auth_url"),
+            ws_url=payload.get("ws_url"),
+            client_id=payload.get("sankhya_client_id"),
+            client_secret=config.client_secret,
+            x_token=config.x_token,
+            token=getattr(config, "token", None),
+            appkey=getattr(config, "appkey", None),
+            username=config.username,
+            password=config.password,
+        )
+
+    _LOGGER.warning(f"FALLBACK_LEGACY: Usando configurações técnicas do SankhyaConfig ORM para o tenant {tenant_id}.")
+    return build_sankhya_connection_data(config)
 from integracoes.security import (
     decrypt_integration_secret,
     encrypt_integration_secret,
@@ -112,12 +174,12 @@ def _is_sankhya_config_unique_conflict(exc: IntegrityError) -> bool:
 class SankhyaWSClient:
     """Cliente para Web Services Sankhya BPM."""
 
-    def __init__(self, config: SankhyaConfig):
-        self.config = config
-        self.auth_service = SankhyaGatewayAuthService(config)
+    def __init__(self, connection_data: SankhyaConnectionData):
+        self.connection_data = connection_data
+        self.auth_service = SankhyaGatewayAuthService(connection_data)
         self.auth_model = self.auth_service.auth_model()
-        self.base_url = config.api_base_url or config.ws_url or ""
-        self.auth_url = config.auth_url or ""
+        self.base_url = connection_data.api_base_url or connection_data.ws_url or ""
+        self.auth_url = connection_data.auth_url or ""
         self._session: httpx.AsyncClient | None = None
 
     async def __aenter__(self):
@@ -223,7 +285,8 @@ class SankhyaConfigSerializer:
 
     @staticmethod
     def to_response(config: SankhyaConfig) -> dict[str, Any]:
-        auth_service = SankhyaGatewayAuthService(config)
+        connection_data = build_sankhya_connection_data(config)
+        auth_service = SankhyaGatewayAuthService(connection_data)
         return {
             "id": config.id,
             "tenant_id": config.tenant_id,
@@ -382,10 +445,26 @@ class SankhyaSyncService:
         if legacy_config is None:
             return None
         canonical = canonical_config or await self._get_canonical_config(tenant_id)
-        if canonical is None or canonical.credential is None:
+        if canonical is None:
             return legacy_config
+
         operational_config = self._clone_config(legacy_config)
-        self._apply_canonical_credential(operational_config, canonical.credential)
+
+        if canonical.connection_payload:
+            payload = canonical.connection_payload
+            env = payload.get("sankhya_environment")
+            api_url = payload.get("sankhya_api_base_url") or payload.get("ws_url")
+
+            if env and api_url:
+                operational_config.environment = env
+                operational_config.api_base_url = api_url
+                operational_config.auth_url = payload.get("sankhya_auth_url")
+                operational_config.ws_url = payload.get("ws_url")
+                operational_config.client_id = payload.get("sankhya_client_id")
+
+        if canonical.credential is not None:
+            self._apply_canonical_credential(operational_config, canonical.credential)
+
         return operational_config
 
     async def get_config(self, tenant_id: str) -> SankhyaConfig | None:
@@ -543,7 +622,7 @@ class SankhyaSyncService:
             bool(value and value.strip()) for value in (sankhya_token, sankhya_appkey)
         )
 
-        current_auth = SankhyaGatewayAuthService(current) if current else None
+        current_auth = SankhyaGatewayAuthService(build_sankhya_connection_data(current)) if current else None
         current_model = current_auth.auth_model() if current_auth else None
 
         # Respeita o auth_model se for providenciado explicitamente, senão fallback

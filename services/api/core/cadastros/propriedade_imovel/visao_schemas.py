@@ -89,7 +89,6 @@ class MatriculaFundiariaResumo(BaseModel):
 class ImovelFundiarioResumo(BaseModel):
     id: uuid.UUID
     tenant_id: uuid.UUID
-    unidade_produtiva_id: uuid.UUID
     nome: str
     municipio: str
     uf: str

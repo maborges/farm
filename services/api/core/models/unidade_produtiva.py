@@ -28,13 +28,7 @@ class UnidadeProdutiva(Base):
 
     cpf_cnpj: Mapped[str | None] = mapped_column(String(18), nullable=True, comment="CPF (11 dígitos) ou CNPJ (14 dígitos) do proprietário")
     inscricao_estadual: Mapped[str | None] = mapped_column(String(50), nullable=True)
-    # Compatibilidade legada. Não usar como fonte canônica em novos fluxos.
-    # Novos dados fundiários/documentais pertencem a ImovelRural.
-    codigo_car: Mapped[str | None] = mapped_column(String(50), nullable=True, comment="Código CAR no formato SICAR: UF-XXXXXXXXXXXXXXX")
-    nirf: Mapped[str | None] = mapped_column(String(20), nullable=True, comment="Número do Imóvel na Receita Federal")
-    ccir: Mapped[str | None] = mapped_column(String(30), nullable=True, comment="Certificado de Cadastro de Imóvel Rural (INCRA)")
-    sigef_codigo: Mapped[str | None] = mapped_column(String(50), nullable=True, comment="Código SIGEF (INCRA georreferenciamento)")
-    numero_matricula: Mapped[str | None] = mapped_column(String(100), nullable=True, comment="Matrícula legada")
+
 
     # Localização
     cep: Mapped[str | None] = mapped_column(String(9), nullable=True)
@@ -48,6 +42,11 @@ class UnidadeProdutiva(Base):
 
     # Áreas (Numeric para precisão fiscal — ITR, CAR)
     area_total_ha: Mapped[Decimal | None] = mapped_column(Numeric(12, 4), nullable=True)
+    area_total_calculada_ha: Mapped[Decimal | None] = mapped_column(
+        Numeric(12, 4),
+        nullable=True,
+        comment="Área total calculada por georreferenciamento. Campo somente leitura.",
+    )
     area_app_ha: Mapped[Decimal | None] = mapped_column(Numeric(12, 4), nullable=True, comment="Área de Preservação Permanente — referência inicial, calculada via polígonos APP")
     area_rl_ha: Mapped[Decimal | None] = mapped_column(Numeric(12, 4), nullable=True, comment="Área de Reserva Legal — referência inicial, calculada via polígonos RL")
 

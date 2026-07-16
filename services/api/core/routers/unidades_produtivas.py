@@ -10,6 +10,8 @@ from core.schemas.unidade_produtiva_output import UnidadeProdutivaResponse
 from core.services.unidade_produtiva_service import UnidadeProdutivaService
 from core.services.geoprocessamento_service import GeoprocessamentoService
 from core.services.storage_service import StorageService
+from core.schemas.cadastro_completo_input import CadastroCompletoCreate, CadastroCompletoUpdate
+from core.services.cadastro_completo_service import CadastroCompletoService
 
 router = APIRouter(prefix="/unidades-produtivas", tags=["Core — Unidades Produtivas"])
 
@@ -112,6 +114,45 @@ async def remover_unidade_produtiva(
     await session.commit()
 
 
+# =============================================================================
+# CADASTRO COMPLETO (ORQUESTRADOR)
+# =============================================================================
+
+@router.post(
+    "/cadastro-completo",
+    response_model=UnidadeProdutivaResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Cadastra uma nova unidade produtiva com dados fundiários e de propriedade de forma orquestrada",
+    dependencies=[Depends(require_limit("max_fazendas"))],
+)
+async def criar_cadastro_completo(
+    dados: CadastroCompletoCreate,
+    session: AsyncSession = Depends(get_session),
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    user_id: uuid.UUID = Depends(get_user_id),
+    _: None = Depends(require_module("CORE")),
+):
+    svc = CadastroCompletoService(session, tenant_id, user_id)
+    unidade = await svc.criar_cadastro_completo(dados)
+    await session.commit()
+    return unidade
+
+@router.put(
+    "/{unidade_produtiva_id}/cadastro-completo",
+    response_model=UnidadeProdutivaResponse,
+    summary="Atualiza dados da unidade produtiva e orquestra a alteração fundiária oficial",
+)
+async def atualizar_cadastro_completo(
+    unidade_produtiva_id: uuid.UUID,
+    dados: CadastroCompletoUpdate,
+    session: AsyncSession = Depends(get_session),
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    user_id: uuid.UUID = Depends(get_user_id),
+):
+    svc = CadastroCompletoService(session, tenant_id, user_id)
+    unidade = await svc.atualizar_cadastro_completo(unidade_produtiva_id, dados)
+    await session.commit()
+    return unidade
 # =============================================================================
 # UPLOAD DE LOGO
 # =============================================================================
