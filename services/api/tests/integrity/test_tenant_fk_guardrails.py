@@ -410,3 +410,76 @@ async def test_b2_indice_tenant_id(catalog_session: AsyncSession, tabela: str) -
     """), {"tabela": tabela})
     count = result.scalar()
     assert count >= 1, f"B2.4 FALHOU — {tabela} sem índice em tenant_id"
+
+
+# ─────────────────────────────────────────────────────────────
+# Fase TENANT-INTEGRITY-REPAIR-01B3 — Núcleo Multiprovider
+# ─────────────────────────────────────────────────────────────
+
+TABELAS_ONDA_2 = [
+    "tenant_integracoes",
+    "integration_credentials",
+    "integration_external_record_links",
+    "integration_external_record_link_history",
+    "integration_features",
+    "integration_health_snapshots",
+    "integration_jobs",
+    "integration_sync_policies",
+    "integration_versions",
+]
+
+
+# B3.1 — tenant_id é uuid
+@pytest.mark.phase_01b3
+@pytest.mark.parametrize("tabela", TABELAS_ONDA_2)
+async def test_b3_tenant_id_uuid(catalog_session: AsyncSession, tabela: str) -> None:
+    result = await catalog_session.execute(text("""
+        SELECT data_type FROM information_schema.columns
+        WHERE table_schema = 'farms' AND table_name = :tabela AND column_name = 'tenant_id'
+    """), {"tabela": tabela})
+    dtype = result.scalar()
+    assert dtype == "uuid", f"B3.1 FALHOU — {tabela}.tenant_id é {dtype}"
+
+
+# B3.2 — FK validada para farms.tenants
+@pytest.mark.phase_01b3
+@pytest.mark.parametrize("tabela", TABELAS_ONDA_2)
+async def test_b3_fk_para_tenants(catalog_session: AsyncSession, tabela: str) -> None:
+    result = await catalog_session.execute(text("""
+        SELECT COUNT(*) FROM pg_constraint c
+        WHERE c.contype = 'f'
+          AND c.conrelid = ('farms.' || :tabela)::regclass
+          AND c.confrelid = 'farms.tenants'::regclass
+          AND c.convalidated = true
+    """), {"tabela": tabela})
+    count = result.scalar()
+    assert count >= 1, f"B3.2 FALHOU — {tabela} sem FK validada para tenants"
+
+
+# B3.3 — FK não usa CASCADE
+@pytest.mark.phase_01b3
+@pytest.mark.parametrize("tabela", TABELAS_ONDA_2)
+async def test_b3_sem_cascade(catalog_session: AsyncSession, tabela: str) -> None:
+    result = await catalog_session.execute(text("""
+        SELECT COUNT(*) FROM pg_constraint c
+        WHERE c.contype = 'f'
+          AND c.conrelid = ('farms.' || :tabela)::regclass
+          AND c.confrelid = 'farms.tenants'::regclass
+          AND c.confdeltype = 'c'
+    """), {"tabela": tabela})
+    count = result.scalar()
+    assert count == 0, f"B3.3 FALHOU — {tabela} tem FK CASCADE para tenants"
+
+
+# B3.4 — Índice em tenant_id presente
+@pytest.mark.phase_01b3
+@pytest.mark.parametrize("tabela", TABELAS_ONDA_2)
+async def test_b3_indice_tenant_id(catalog_session: AsyncSession, tabela: str) -> None:
+    result = await catalog_session.execute(text("""
+        SELECT COUNT(*) FROM pg_indexes
+        WHERE schemaname = 'farms'
+          AND tablename = :tabela
+          AND indexdef LIKE '%tenant_id%'
+    """), {"tabela": tabela})
+    count = result.scalar()
+    assert count >= 1, f"B3.4 FALHOU — {tabela} sem índice em tenant_id"
