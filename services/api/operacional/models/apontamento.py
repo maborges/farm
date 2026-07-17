@@ -1,7 +1,7 @@
 import uuid
 import enum
 from datetime import datetime, timezone
-from sqlalchemy import String, DateTime, ForeignKey, Float, Numeric, Text, JSON
+from sqlalchemy import String, DateTime, ForeignKey, ForeignKeyConstraint, Float, Numeric, Text, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy import Uuid as UUID
 from core.database import Base
@@ -103,6 +103,15 @@ class ApontamentoUso(Base):
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
+    )
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["tenant_id", "jornada_id"],
+            ["farms.frota_jornadas_equipamento.tenant_id", "farms.frota_jornadas_equipamento.id"],
+            name="fk_fau_tenant_jornada",
+            ondelete="NO ACTION",
+        ),
     )
 
 

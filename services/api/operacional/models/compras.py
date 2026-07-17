@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, date, timezone
-from sqlalchemy import String, Boolean, DateTime, Date, ForeignKey, JSON, Float, Integer
+from sqlalchemy import String, Boolean, DateTime, Date, ForeignKey, ForeignKeyConstraint, JSON, Float, Integer
 from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym
 from sqlalchemy import Uuid as UUID
 from core.database import Base
@@ -65,9 +65,18 @@ class PedidoCompra(Base):
     
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), 
-        default=lambda: datetime.now(timezone.utc), 
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc)
+    )
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["tenant_id", "deposito_id"],
+            ["farms.estoque_depositos.tenant_id", "farms.estoque_depositos.id"],
+            name="fk_cp_tenant_deposito",
+            ondelete="NO ACTION",
+        ),
     )
 
 class ItemPedidoCompra(Base):
