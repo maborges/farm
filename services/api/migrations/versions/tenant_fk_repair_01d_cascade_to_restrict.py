@@ -1,7 +1,7 @@
 """tenant_fk_repair_01d: substituir ON DELETE CASCADE por RESTRICT nas FKs diretas para tenants
 
 Revision ID: tenant_fk_repair_01d
-Revises: tenant_integrity_repair_01b3_multiprovider
+Revises: tenant_integrity_repair_01b5_sankhya
 Create Date: 2026-07-17
 
 Escopo: ~200 FKs diretas farms.X.tenant_id → farms.tenants(id) com ON DELETE CASCADE
@@ -26,7 +26,7 @@ Lotes por domínio (ordem de menor para maior impacto operacional):
 from alembic import op
 
 revision = "tenant_fk_repair_01d"
-down_revision = "tenant_integrity_repair_01b4_iot_auxiliares"
+down_revision = "tenant_integrity_repair_01b5_sankhya"
 branch_labels = None
 depends_on = None
 

@@ -7,6 +7,7 @@ PR que toque models.py ou migrations/.
 Markers:
   phase_01c  — guardrails criados/validados na fase TENANT-INTEGRITY-REPAIR-01C
   phase_01b2 — guardrails criados/validados na fase TENANT-INTEGRITY-REPAIR-01B2 (Onda 1)
+  phase_01b5 — guardrails das tabelas provider-specific Sankhya
   phase_other — guardrails de fases futuras (01B, 01D); falhas são débitos conhecidos
 
 Cobertura:
@@ -550,3 +551,70 @@ async def test_b4_indice_tenant_id(catalog_session: AsyncSession, tabela: str) -
     """), {"tabela": tabela})
     count = result.scalar()
     assert count >= 1, f"B4.4 FALHOU — {tabela} sem índice em tenant_id"
+
+
+# ─────────────────────────────────────────────────────────────
+# Fase TENANT-INTEGRITY-REPAIR-01B5 — Sankhya provider-specific
+# ─────────────────────────────────────────────────────────────
+
+TABELAS_SANKHYA = [
+    "sankhya_config",
+    "sankhya_sync_logs",
+    "sankhya_pessoas",
+    "sankhya_produtos",
+    "sankhya_nfe",
+    "sankhya_lancamentos_financeiros",
+    "sankhya_tabelas",
+]
+
+
+@pytest.mark.phase_01b5
+@pytest.mark.parametrize("tabela", TABELAS_SANKHYA)
+async def test_b5_tenant_id_uuid(catalog_session: AsyncSession, tabela: str) -> None:
+    """Sankhya: tenant_id deve ser uuid após conversão."""
+    result = await catalog_session.execute(text("""
+        SELECT data_type FROM information_schema.columns
+        WHERE table_schema = 'farms' AND table_name = :tabela AND column_name = 'tenant_id'
+    """), {"tabela": tabela})
+    assert result.scalar() == "uuid", f"B5.1 FALHOU — {tabela}.tenant_id ainda não é uuid"
+
+
+@pytest.mark.phase_01b5
+@pytest.mark.parametrize("tabela", TABELAS_SANKHYA)
+async def test_b5_fk_para_tenants(catalog_session: AsyncSession, tabela: str) -> None:
+    """Sankhya: deve haver FK validada para farms.tenants."""
+    result = await catalog_session.execute(text("""
+        SELECT COUNT(*) FROM pg_constraint c
+        WHERE c.contype = 'f'
+          AND c.conrelid = ('farms.' || :tabela)::regclass
+          AND c.confrelid = 'farms.tenants'::regclass
+          AND c.convalidated = true
+    """), {"tabela": tabela})
+    assert result.scalar() >= 1, f"B5.2 FALHOU — {tabela} sem FK validada para tenants"
+
+
+@pytest.mark.phase_01b5
+@pytest.mark.parametrize("tabela", TABELAS_SANKHYA)
+async def test_b5_sem_cascade(catalog_session: AsyncSession, tabela: str) -> None:
+    """Sankhya: a FK de tenant não deve propagar exclusão em cascata."""
+    result = await catalog_session.execute(text("""
+        SELECT COUNT(*) FROM pg_constraint c
+        WHERE c.contype = 'f'
+          AND c.conrelid = ('farms.' || :tabela)::regclass
+          AND c.confrelid = 'farms.tenants'::regclass
+          AND c.confdeltype = 'c'
+    """), {"tabela": tabela})
+    assert result.scalar() == 0, f"B5.3 FALHOU — {tabela} tem FK CASCADE para tenants"
+
+
+@pytest.mark.phase_01b5
+@pytest.mark.parametrize("tabela", TABELAS_SANKHYA)
+async def test_b5_indice_tenant_id(catalog_session: AsyncSession, tabela: str) -> None:
+    """Sankhya: tenant_id deve permanecer indexado."""
+    result = await catalog_session.execute(text("""
+        SELECT COUNT(*) FROM pg_indexes
+        WHERE schemaname = 'farms'
+          AND tablename = :tabela
+          AND indexdef LIKE '%tenant_id%'
+    """), {"tabela": tabela})
+    assert result.scalar() >= 1, f"B5.4 FALHOU — {tabela} sem índice em tenant_id"

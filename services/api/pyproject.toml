@@ -67,6 +67,7 @@ markers = [
     "phase_01b2: guardrails validados na fase TENANT-INTEGRITY-REPAIR-01B2 (Onda 1)",
     "phase_01b3: guardrails validados na fase TENANT-INTEGRITY-REPAIR-01B3 (Núcleo Multiprovider)",
     "phase_01b4: guardrails validados na fase TENANT-INTEGRITY-REPAIR-01B4 (IoT/Auxiliares)",
+    "phase_01b5: guardrails validados na fase TENANT-INTEGRITY-REPAIR-01B5 (Sankhya provider-specific)",
 ]
 
 [tool.setuptools]

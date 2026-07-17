@@ -534,7 +534,8 @@ def test_sankhya_permanece_tenant_scoped_sem_unidade_produtiva() -> None:
     models = SANKHYA_MODELS.read_text(encoding="utf-8")
     routers = SANKHYA_ROUTERS.read_text(encoding="utf-8")
 
-    assert "tenant_id = Column(String(50), nullable=False, unique=True, index=True)" in models
+    assert "UUIDType(as_uuid=False)" in models
+    assert 'ForeignKey("farms.tenants.id", ondelete="NO ACTION")' in models
     assert "unidade_produtiva_id" not in models
     assert "unidade_produtiva_id" not in routers
 

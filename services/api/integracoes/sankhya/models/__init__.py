@@ -15,6 +15,7 @@ from sqlalchemy import (
     String,
     Text,
 )
+from sqlalchemy import Uuid as UUIDType
 
 from core.database import Base
 
@@ -25,7 +26,13 @@ class SankhyaConfig(Base):
     __tablename__ = "sankhya_config"
 
     id = Column(Integer, primary_key=True, index=True)
-    tenant_id = Column(String(50), nullable=False, unique=True, index=True)
+    tenant_id = Column(
+        UUIDType(as_uuid=False),
+        ForeignKey("farms.tenants.id", ondelete="NO ACTION"),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
 
     # Gateway: parâmetros técnicos do provider ERP atual.
     environment = Column(String(30))
@@ -62,7 +69,12 @@ class SankhyaSyncLog(Base):
     __tablename__ = "sankhya_sync_logs"
 
     id = Column(BigInteger, primary_key=True, index=True, autoincrement=True)
-    tenant_id = Column(String(50), nullable=False, index=True)
+    tenant_id = Column(
+        UUIDType(as_uuid=False),
+        ForeignKey("farms.tenants.id", ondelete="NO ACTION"),
+        nullable=False,
+        index=True,
+    )
     config_id = Column(Integer, ForeignKey("sankhya_config.id"))
 
     # Tipo de sincronização
@@ -94,7 +106,12 @@ class SankhyaPessoa(Base):
     __tablename__ = "sankhya_pessoas"
 
     id = Column(Integer, primary_key=True, index=True)
-    tenant_id = Column(String(50), nullable=False, index=True)
+    tenant_id = Column(
+        UUIDType(as_uuid=False),
+        ForeignKey("farms.tenants.id", ondelete="NO ACTION"),
+        nullable=False,
+        index=True,
+    )
 
     # ID Sankhya
     sankhya_id = Column(String(50), nullable=False, unique=True, index=True)
@@ -143,7 +160,12 @@ class SankhyaProduto(Base):
     __tablename__ = "sankhya_produtos"
 
     id = Column(Integer, primary_key=True, index=True)
-    tenant_id = Column(String(50), nullable=False, index=True)
+    tenant_id = Column(
+        UUIDType(as_uuid=False),
+        ForeignKey("farms.tenants.id", ondelete="NO ACTION"),
+        nullable=False,
+        index=True,
+    )
 
     # ID Sankhya
     sankhya_id = Column(String(50), nullable=False, unique=True, index=True)
@@ -188,7 +210,12 @@ class SankhyaNFe(Base):
     __tablename__ = "sankhya_nfe"
 
     id = Column(Integer, primary_key=True, index=True)
-    tenant_id = Column(String(50), nullable=False, index=True)
+    tenant_id = Column(
+        UUIDType(as_uuid=False),
+        ForeignKey("farms.tenants.id", ondelete="NO ACTION"),
+        nullable=False,
+        index=True,
+    )
 
     # ID Sankhya
     sankhya_id = Column(String(50), unique=True, index=True)
@@ -243,7 +270,12 @@ class SankhyaLancamentoFinanceiro(Base):
     __tablename__ = "sankhya_lancamentos_financeiros"
 
     id = Column(Integer, primary_key=True, index=True)
-    tenant_id = Column(String(50), nullable=False, index=True)
+    tenant_id = Column(
+        UUIDType(as_uuid=False),
+        ForeignKey("farms.tenants.id", ondelete="NO ACTION"),
+        nullable=False,
+        index=True,
+    )
 
     # ID Sankhya
     sankhya_id = Column(String(50), unique=True, index=True)
@@ -285,7 +317,12 @@ class SankhyaTabela(Base):
     __tablename__ = "sankhya_tabelas"
 
     id = Column(Integer, primary_key=True, index=True)
-    tenant_id = Column(String(50), nullable=False, index=True)
+    tenant_id = Column(
+        UUIDType(as_uuid=False),
+        ForeignKey("farms.tenants.id", ondelete="NO ACTION"),
+        nullable=False,
+        index=True,
+    )
 
     # Tipo de tabela
     tipo = Column(String(20), nullable=False)  # CFOP, NCM, CST, CSOSN, etc.

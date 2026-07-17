@@ -195,4 +195,5 @@ def test_sankhya_permanece_inteiro_como_provider_specific() -> None:
 
     assert "class SankhyaConfig" in source
     assert "class SankhyaSyncLog" in source
-    assert "tenant_id = Column(String(50), nullable=False, unique=True, index=True)" in source
+    assert "UUIDType(as_uuid=False)" in source
+    assert 'ForeignKey("farms.tenants.id", ondelete="NO ACTION")' in source

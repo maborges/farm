@@ -167,7 +167,8 @@ def test_logs_e_health_possuem_tenant_id_ou_escopo_equivalente() -> None:
     sankhya_routers = _read(SANKHYA_ROUTERS)
 
     assert "`IntegrationHealth`" in arch_01
-    assert "tenant_id = Column(String(50), nullable=False, index=True)" in sankhya_models
+    assert "UUIDType(as_uuid=False)" in sankhya_models
+    assert 'ForeignKey("farms.tenants.id", ondelete="NO ACTION")' in sankhya_models
     assert "status_conexao" in sankhya_routers
     assert "ultimo_sync" in sankhya_routers
 
@@ -177,7 +178,8 @@ def test_sync_jobs_registram_tenant_id_ou_escopo_equivalente() -> None:
     sankhya_routers = _read(SANKHYA_ROUTERS)
 
     assert "class SankhyaSyncLog" in sankhya_models
-    assert "tenant_id = Column(String(50), nullable=False, index=True)" in sankhya_models
+    assert "UUIDType(as_uuid=False)" in sankhya_models
+    assert 'ForeignKey("farms.tenants.id", ondelete="NO ACTION")' in sankhya_models
     assert (
         'log = await sync_service.iniciar_sync_log(tenant_scope, "pessoas", "import")'
         in sankhya_routers
