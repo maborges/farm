@@ -15,7 +15,7 @@ class PrescricaoVRA(Base):
     __tablename__ = "prescricoes_vra"
 
     id = Column(Integer, primary_key=True, index=True)
-    tenant_id = Column(String(50), nullable=False, index=True)
+    tenant_id = Column(PGUUID(as_uuid=True), ForeignKey("farms.tenants.id", ondelete="NO ACTION"), nullable=False, index=True)
     production_unit_id = Column(PGUUID(as_uuid=True), ForeignKey("production_units.id", ondelete="SET NULL"), nullable=True)
     unidade_produtiva_id = Column(PGUUID(as_uuid=True), ForeignKey("unidades_produtivas.id", ondelete="CASCADE"), nullable=False)
     talhao_id = Column(PGUUID(as_uuid=True), ForeignKey("cadastros_areas_rurais.id", ondelete="SET NULL"), nullable=True)

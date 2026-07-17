@@ -6,6 +6,7 @@ PR que toque models.py ou migrations/.
 
 Markers:
   phase_01c  — guardrails criados/validados na fase TENANT-INTEGRITY-REPAIR-01C
+  phase_01b2 — guardrails criados/validados na fase TENANT-INTEGRITY-REPAIR-01B2 (Onda 1)
   phase_other — guardrails de fases futuras (01B, 01D); falhas são débitos conhecidos
 
 Cobertura:
@@ -16,6 +17,10 @@ Cobertura:
   G5 — Nenhuma FK para tenants NOT VALID pendente                  [phase_01c]
   G6 — UNIQUE(tenant_id, id) existe estruturalmente nos 4 pais     [phase_01c]
   G7 — 7 FKs compostas presentes e validadas                       [phase_01c]
+  B2.1 — tenant_id é uuid nas 9 tabelas da Onda 1                  [phase_01b2]
+  B2.2 — FK para farms.tenants validada nas 9 tabelas da Onda 1    [phase_01b2]
+  B2.3 — Nenhuma FK CASCADE para tenants nas tabelas da Onda 1     [phase_01b2]
+  B2.4 — Índice em tenant_id presente nas 9 tabelas da Onda 1      [phase_01b2]
 
 Exceções documentadas (não falham):
   - territory_legacy_backup_01h2 (backup territorial legado — ver 01D)
@@ -102,9 +107,23 @@ AGREGADOS_CRITICOS = [
     },
 ]
 
+# Tabelas da Onda 1 (TENANT-INTEGRITY-REPAIR-01B2)
+TABELAS_ONDA_1 = [
+    "amostras",
+    "diagnosticos",
+    "mapas_fertilidade",
+    "pragas_doencas",
+    "prescricoes_vra",
+    "recomendacoes",
+    "tratamentos",
+    "modelos_ml",
+    "billing_solicitacoes_comerciais_historico",
+]
+
 
 pytestmark_other = pytest.mark.phase_other
 pytestmark_01c = pytest.mark.phase_01c
+pytestmark_01b2 = pytest.mark.phase_01b2
 
 
 # ─────────────────────────────────────────────────────────────
@@ -321,3 +340,73 @@ async def test_g7_fk_composta_presente(
         f"G7 FALHOU — FK composta '{constraint_name}' ausente ou NOT VALID em farms.{tabela}.\n"
         "Executar TENANT-FK-REPAIR-01C step2."
     )
+
+
+# ─────────────────────────────────────────────────────────────
+# B2.1 — tenant_id é uuid nas 9 tabelas da Onda 1             [phase_01b2]
+# ─────────────────────────────────────────────────────────────
+@pytest.mark.phase_01b2
+@pytest.mark.parametrize("tabela", TABELAS_ONDA_1)
+async def test_b2_tenant_id_uuid(catalog_session: AsyncSession, tabela: str) -> None:
+    """Onda 1: tenant_id deve ser uuid após conversão."""
+    result = await catalog_session.execute(text("""
+        SELECT data_type FROM information_schema.columns
+        WHERE table_schema = 'farms'
+          AND table_name   = :tabela
+          AND column_name  = 'tenant_id'
+    """), {"tabela": tabela})
+    dtype = result.scalar()
+    assert dtype == "uuid", f"B2.1 FALHOU — {tabela}.tenant_id ainda é {dtype!r}"
+
+
+# ─────────────────────────────────────────────────────────────
+# B2.2 — FK para farms.tenants validada nas 9 tabelas da Onda 1 [phase_01b2]
+# ─────────────────────────────────────────────────────────────
+@pytest.mark.phase_01b2
+@pytest.mark.parametrize("tabela", TABELAS_ONDA_1)
+async def test_b2_fk_para_tenants(catalog_session: AsyncSession, tabela: str) -> None:
+    """Onda 1: deve haver FK validada para farms.tenants."""
+    result = await catalog_session.execute(text("""
+        SELECT COUNT(*) FROM pg_constraint c
+        WHERE c.contype      = 'f'
+          AND c.conrelid     = ('farms.' || :tabela)::regclass
+          AND c.confrelid    = 'farms.tenants'::regclass
+          AND c.convalidated = true
+    """), {"tabela": tabela})
+    count = result.scalar()
+    assert count >= 1, f"B2.2 FALHOU — {tabela} sem FK validada para tenants"
+
+
+# ─────────────────────────────────────────────────────────────
+# B2.3 — Nenhuma FK CASCADE para tenants nas tabelas da Onda 1 [phase_01b2]
+# ─────────────────────────────────────────────────────────────
+@pytest.mark.phase_01b2
+@pytest.mark.parametrize("tabela", TABELAS_ONDA_1)
+async def test_b2_sem_cascade(catalog_session: AsyncSession, tabela: str) -> None:
+    """Onda 1: novas FKs não devem usar CASCADE."""
+    result = await catalog_session.execute(text("""
+        SELECT COUNT(*) FROM pg_constraint c
+        WHERE c.contype    = 'f'
+          AND c.conrelid   = ('farms.' || :tabela)::regclass
+          AND c.confrelid  = 'farms.tenants'::regclass
+          AND c.confdeltype = 'c'
+    """), {"tabela": tabela})
+    count = result.scalar()
+    assert count == 0, f"B2.3 FALHOU — {tabela} tem FK CASCADE para tenants"
+
+
+# ─────────────────────────────────────────────────────────────
+# B2.4 — Índice em tenant_id presente nas 9 tabelas da Onda 1 [phase_01b2]
+# ─────────────────────────────────────────────────────────────
+@pytest.mark.phase_01b2
+@pytest.mark.parametrize("tabela", TABELAS_ONDA_1)
+async def test_b2_indice_tenant_id(catalog_session: AsyncSession, tabela: str) -> None:
+    """Onda 1: deve haver índice em tenant_id."""
+    result = await catalog_session.execute(text("""
+        SELECT COUNT(*) FROM pg_indexes
+        WHERE schemaname = 'farms'
+          AND tablename  = :tabela
+          AND indexdef  LIKE '%tenant_id%'
+    """), {"tabela": tabela})
+    count = result.scalar()
+    assert count >= 1, f"B2.4 FALHOU — {tabela} sem índice em tenant_id"
