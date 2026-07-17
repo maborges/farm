@@ -61,6 +61,12 @@ asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "session"
 asyncio_default_test_loop_scope = "session"
 testpaths = ["tests"]
+markers = [
+    "phase_01c: guardrails validados na fase TENANT-INTEGRITY-REPAIR-01C (FKs compostas)",
+    "phase_01b2: guardrails validados na fase TENANT-INTEGRITY-REPAIR-01B2 (Onda 1)",
+    "phase_01b3: guardrails validados na fase TENANT-INTEGRITY-REPAIR-01B3 (Núcleo Multiprovider)",
+    "phase_other: guardrails de fases futuras — débitos conhecidos (01B, 01D)",
+]
 
 [tool.setuptools]
 package-dir = {"" = "."}
