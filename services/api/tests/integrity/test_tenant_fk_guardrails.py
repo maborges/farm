@@ -1,18 +1,21 @@
 """
-TENANT-FK-REPAIR-01E — Guardrails automatizados de integridade multi-tenant.
+Guardrails automatizados de integridade multi-tenant.
 
-Estes testes consultam o catálogo PostgreSQL em tempo de execução e falham
-quando qualquer uma das garantias estruturais de isolamento de tenant é violada.
-Devem rodar em CI a cada PR que toque models.py ou migrations/.
+Consulta o catálogo PostgreSQL em tempo de execução. Deve rodar em CI a cada
+PR que toque models.py ou migrations/.
+
+Markers:
+  phase_01c  — guardrails criados/validados na fase TENANT-INTEGRITY-REPAIR-01C
+  phase_other — guardrails de fases futuras (01B, 01D); falhas são débitos conhecidos
 
 Cobertura:
-  G1 — Nenhuma FK direta para tenants com ON DELETE CASCADE
-  G2 — Toda tabela física tenant-scoped possui FK para tenants
-  G3 — Toda tabela tenant-scoped possui índice na coluna tenant_id
-  G4 — Nenhum cruzamento A→B nos 7 agregados críticos
-  G5 — Divergência ORM vs banco: tenant_id declarado mas tabela ausente
-  G6 — FKs NOT VALID pendentes (VALIDATE não executado)
-  G7 — RLS habilitada em tabelas marcadas como protegidas por RLS
+  G1 — Nenhuma FK direta para tenants com ON DELETE CASCADE         [phase_other/01D]
+  G2 — Toda tabela física tenant-scoped possui FK para tenants      [phase_other/01B]
+  G3 — Toda tabela tenant-scoped possui índice na coluna tenant_id  [phase_other/01B]
+  G4 — Nenhum cruzamento A→B nos 7 agregados críticos              [phase_01c]
+  G5 — Nenhuma FK para tenants NOT VALID pendente                  [phase_01c]
+  G6 — UNIQUE(tenant_id, id) existe estruturalmente nos 4 pais     [phase_01c]
+  G7 — 7 FKs compostas presentes e validadas                       [phase_01c]
 
 Exceções documentadas (não falham):
   - territory_legacy_backup_01h2 (backup territorial legado — ver 01D)
@@ -100,9 +103,14 @@ AGREGADOS_CRITICOS = [
 ]
 
 
+pytestmark_other = pytest.mark.phase_other
+pytestmark_01c = pytest.mark.phase_01c
+
+
 # ─────────────────────────────────────────────────────────────
-# G1 — Nenhuma FK para tenants com ON DELETE CASCADE
+# G1 — Nenhuma FK para tenants com ON DELETE CASCADE           [phase_other/01D]
 # ─────────────────────────────────────────────────────────────
+@pytest.mark.phase_other
 async def test_g1_nenhuma_fk_cascade_para_tenants(catalog_session: AsyncSession) -> None:
     """CASCADE em FK para tenants permite exclusão destrutiva silenciosa."""
     result = await catalog_session.execute(text("""
@@ -123,8 +131,9 @@ async def test_g1_nenhuma_fk_cascade_para_tenants(catalog_session: AsyncSession)
 
 
 # ─────────────────────────────────────────────────────────────
-# G2 — Toda tabela física tenant-scoped tem FK para tenants
+# G2 — Toda tabela física tenant-scoped tem FK para tenants    [phase_other/01B]
 # ─────────────────────────────────────────────────────────────
+@pytest.mark.phase_other
 async def test_g2_todas_tabelas_tenant_scoped_tem_fk(catalog_session: AsyncSession) -> None:
     """Tabelas com tenant_id uuid sem FK permitem orphans de tenants inexistentes."""
     result = await catalog_session.execute(text("""
@@ -158,8 +167,9 @@ async def test_g2_todas_tabelas_tenant_scoped_tem_fk(catalog_session: AsyncSessi
 
 
 # ─────────────────────────────────────────────────────────────
-# G3 — Toda tabela tenant-scoped tem índice em tenant_id
+# G3 — Toda tabela tenant-scoped tem índice em tenant_id       [phase_other/01B]
 # ─────────────────────────────────────────────────────────────
+@pytest.mark.phase_other
 async def test_g3_indice_tenant_id_presente(catalog_session: AsyncSession) -> None:
     """Ausência de índice em tenant_id degrada todas as queries filtradas por tenant."""
     result = await catalog_session.execute(text("""
@@ -191,6 +201,7 @@ async def test_g3_indice_tenant_id_presente(catalog_session: AsyncSession) -> No
 # ─────────────────────────────────────────────────────────────
 # G4 — Zero cruzamentos A→B nos 7 agregados críticos
 # ─────────────────────────────────────────────────────────────
+@pytest.mark.phase_01c
 @pytest.mark.parametrize("agg", AGREGADOS_CRITICOS, ids=[a["relacao"] for a in AGREGADOS_CRITICOS])
 async def test_g4_zero_cruzamentos_tenant(catalog_session: AsyncSession, agg: dict) -> None:
     """Filho com tenant_id diferente do pai indica vazamento de dados entre tenants."""
@@ -211,6 +222,7 @@ async def test_g4_zero_cruzamentos_tenant(catalog_session: AsyncSession, agg: di
 # ─────────────────────────────────────────────────────────────
 # G5 — Nenhuma FK para tenants NOT VALID pendente (VALIDATE esquecido)
 # ─────────────────────────────────────────────────────────────
+@pytest.mark.phase_01c
 async def test_g5_nenhuma_fk_not_valid_pendente(catalog_session: AsyncSession) -> None:
     """FK NOT VALID não oferece proteção efetiva — VALIDATE deve ser executado."""
     result = await catalog_session.execute(text("""
@@ -231,30 +243,48 @@ async def test_g5_nenhuma_fk_not_valid_pendente(catalog_session: AsyncSession) -
 
 
 # ─────────────────────────────────────────────────────────────
-# G6 — Unique composto (tenant_id, id) existe nos 4 pais críticos
+# G6 — UNIQUE(tenant_id, id) existe estruturalmente nos 4 pais [phase_01c]
+#
+# Valida pela presença das colunas (tenant_id, id) em constraint UNIQUE,
+# independente do nome atribuído à constraint. Isso é correto porque:
+#   - unidades_produtivas tem uq_unidades_produtivas_tenant_id_id (pré-existente)
+#   - frota_jornadas_equipamento tem uq_frota_jornadas_tenant_id (criado em 01C)
+# A estrutura é o que garante a integridade; o nome é secundário.
 # ─────────────────────────────────────────────────────────────
-@pytest.mark.parametrize("constraint_name,tabela", [
-    ("uq_unidades_produtivas_tenant_id",       "unidades_produtivas"),
-    ("uq_estoque_depositos_tenant_id",          "estoque_depositos"),
-    ("uq_cadastros_equipamentos_tenant_id",     "cadastros_equipamentos"),
-    ("uq_frota_jornadas_equipamento_tenant_id", "frota_jornadas_equipamento"),
+@pytest.mark.phase_01c
+@pytest.mark.parametrize("tabela", [
+    "unidades_produtivas",
+    "estoque_depositos",
+    "cadastros_equipamentos",
+    "frota_jornadas_equipamento",
 ])
 async def test_g6_unique_composto_pai(
     catalog_session: AsyncSession,
-    constraint_name: str,
     tabela: str,
 ) -> None:
-    """UNIQUE(tenant_id, id) no pai é pré-requisito para FK composta no filho."""
+    """UNIQUE(tenant_id, id) estrutural no pai — pré-requisito para FK composta."""
     result = await catalog_session.execute(text("""
-        SELECT COUNT(*) FROM pg_constraint
-        WHERE contype  = 'u'
-          AND conname  = :name
-          AND conrelid = ('farms.' || :tabela)::regclass
-    """), {"name": constraint_name, "tabela": tabela})
+        SELECT COUNT(*) FROM pg_constraint c
+        WHERE c.contype  = 'u'
+          AND c.conrelid = ('farms.' || :tabela)::regclass
+          AND array_length(c.conkey, 1) = 2
+          AND EXISTS (
+              SELECT 1 FROM pg_attribute a
+              WHERE a.attrelid = c.conrelid
+                AND a.attnum   = ANY(c.conkey)
+                AND a.attname  = 'tenant_id'
+          )
+          AND EXISTS (
+              SELECT 1 FROM pg_attribute a
+              WHERE a.attrelid = c.conrelid
+                AND a.attnum   = ANY(c.conkey)
+                AND a.attname  = 'id'
+          )
+    """), {"tabela": tabela})
     count = result.scalar()
 
-    assert count == 1, (
-        f"G6 FALHOU — UNIQUE '{constraint_name}' ausente em farms.{tabela}.\n"
+    assert count >= 1, (
+        f"G6 FALHOU — nenhum UNIQUE(tenant_id, id) encontrado em farms.{tabela}.\n"
         "Executar TENANT-FK-REPAIR-01C step1."
     )
 
@@ -262,6 +292,7 @@ async def test_g6_unique_composto_pai(
 # ─────────────────────────────────────────────────────────────
 # G7 — FKs compostas dos 7 agregados estão presentes
 # ─────────────────────────────────────────────────────────────
+@pytest.mark.phase_01c
 @pytest.mark.parametrize("constraint_name,tabela", [
     ("fk_car_tenant_unidade_produtiva",  "cadastros_areas_rurais"),
     ("fk_ed_tenant_unidade_produtiva",   "estoque_depositos"),
