@@ -123,8 +123,7 @@ class TerritoryReadService:
                 fonte = "CANONICAL_PROPERTY_ASSOCIATION"
                 estado = "CANONICAL"
                 if not principal and secundarios:
-                    avisos.append("Multiplos imóveis secundários, mas nenhum definido como principal.")
-                    principal = secundarios.pop(0) # fallback seguro pra tela
+                    avisos.append("Imóveis vinculados existem, mas nenhum foi definido como principal.")
                     estado = "AMBIGUOUS"
                 
                 # Check conflicts?

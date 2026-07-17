@@ -48,6 +48,7 @@ class ImovelCreate(BaseModel):
     nirf: Optional[str] = Field(None, max_length=20, description="NIRF (Receita Federal)")
     car_numero: Optional[str] = Field(None, max_length=50, description="Número do CAR")
     ccir_numero: Optional[str] = Field(None, max_length=50, description="Número do CCIR")
+    sigef_codigo: Optional[str] = Field(None, max_length=50, description="Código SIGEF")
     propriedade_id: Optional[uuid.UUID] = Field(
         None,
         description="Propriedade existente para criar vínculo canônico com o Imóvel Rural",
@@ -85,6 +86,7 @@ class ImovelUpdate(BaseModel):
     nirf: Optional[str] = Field(None, max_length=20)
     car_numero: Optional[str] = Field(None, max_length=50)
     ccir_numero: Optional[str] = Field(None, max_length=50)
+    sigef_codigo: Optional[str] = Field(None, max_length=50)
     propriedade_id: Optional[uuid.UUID] = None
     tipo_vinculo: Optional[TipoVinculoPropriedadeImovel] = None
     area_total_ha: Optional[Decimal] = None
@@ -105,11 +107,13 @@ class ImovelResponse(BaseModel):
     """Schema de resposta de imóvel."""
     id: uuid.UUID
     tenant_id: uuid.UUID
-    unidade_produtiva_id: uuid.UUID
+    unidade_produtiva_id: Optional[uuid.UUID] = None
     nome: str
     nirf: Optional[str]
     car_numero: Optional[str]
     ccir_numero: Optional[str]
+    sigef_codigo: Optional[str] = None
+    numero_matricula: Optional[str] = None
     area_total_ha: Decimal
     area_aproveitavel_ha: Optional[Decimal]
     area_app_ha: Optional[Decimal]
@@ -125,6 +129,9 @@ class ImovelResponse(BaseModel):
     observacao: Optional[str]
     propriedades_vinculadas_count: int = 0
     vinculo_status: str = "NÃO VINCULADO"
+    propriedade_id: Optional[uuid.UUID] = None
+    propriedade_nome: Optional[str] = None
+    tipo_vinculo: Optional[str] = None
     
     class Config:
         from_attributes = True
@@ -304,6 +311,7 @@ async def create_imovel(
             nirf=data.nirf,
             car_numero=data.car_numero,
             ccir_numero=data.ccir_numero,
+            sigef_codigo=data.sigef_codigo,
             cartorio_id=data.cartorio_id,
             numero_matricula=data.numero_matricula,
             propriedade_id=data.propriedade_id,

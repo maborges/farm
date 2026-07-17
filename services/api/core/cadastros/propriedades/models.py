@@ -221,9 +221,6 @@ class AreaRural(Base):
         remote_side=[id],
         lazy="noload"
     )
-    matriculas: Mapped[list["MatriculaImovel"]] = relationship(
-        back_populates="area", lazy="noload", cascade="all, delete-orphan"
-    )
     registros_ambientais: Mapped[list["RegistroAmbiental"]] = relationship(
         back_populates="area", lazy="noload", cascade="all, delete-orphan"
     )
@@ -237,49 +234,6 @@ class AreaRural(Base):
     arquivos_geo: Mapped[list["ArquivoGeo"]] = relationship(
         back_populates="area_rural", lazy="noload", cascade="all, delete-orphan"
     )
-
-
-# ---------------------------------------------------------------------------
-# MatriculaImovel — documentação cartorial de PROPRIEDADE ou GLEBA
-# ---------------------------------------------------------------------------
-
-class MatriculaImovel(Base):
-    """
-    Matrículas cartoriais vinculadas a uma AreaRural tipo PROPRIEDADE ou GLEBA.
-    Inclui dados fundiários: CAR, NIRF, INCRA.
-    Uma propriedade pode ter múltiplas matrículas (remembramento/desmembramento).
-    """
-    __tablename__ = "cadastros_areas_matriculas"
-
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    area_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
-        ForeignKey("cadastros_areas_rurais.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True
-    )
-
-    numero_matricula: Mapped[str] = mapped_column(String(100), nullable=False)
-    cartorio: Mapped[str | None] = mapped_column(String(200), nullable=True)
-    comarca: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    area_matricula_ha: Mapped[float | None] = mapped_column(Float, nullable=True)
-
-    # Dados cartoriais completos
-    livro: Mapped[str | None] = mapped_column(String(50), nullable=True, comment="Livro do registro cartorial")
-    folha: Mapped[str | None] = mapped_column(String(50), nullable=True, comment="Folha do registro cartorial")
-    data_registro: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, comment="Data do registro em cartório")
-
-    # Registros fundiários
-    car_numero: Mapped[str | None] = mapped_column(String(100), nullable=True, comment="Cadastro Ambiental Rural")
-    nirf: Mapped[str | None] = mapped_column(String(30), nullable=True, comment="Número do Imóvel na Receita Federal")
-    incra: Mapped[str | None] = mapped_column(String(30), nullable=True, comment="Código INCRA do imóvel")
-    ccir: Mapped[str | None] = mapped_column(String(30), nullable=True, comment="Certificado de Cadastro de Imóvel Rural")
-    sncr: Mapped[str | None] = mapped_column(String(30), nullable=True, comment="Sistema Nacional de Cadastro Rural (INCRA)")
-    itr_numero: Mapped[str | None] = mapped_column(String(50), nullable=True, comment="Número do processo ITR na Receita Federal")
-
-    ativo: Mapped[bool] = mapped_column(Boolean, default=True)
-
-    area: Mapped["AreaRural"] = relationship(back_populates="matriculas", lazy="noload")
 
 
 # ---------------------------------------------------------------------------

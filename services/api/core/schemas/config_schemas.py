@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, EmailStr, field_validator
+from pydantic import BaseModel, Field, EmailStr, ConfigDict, field_validator
 from typing import Optional, Dict, List, Any, Literal
 from uuid import UUID
 
@@ -156,6 +156,8 @@ class ConfiguracaoFazendaResponse(BaseModel):
 class ConfiguracaoFazendaUpdate(BaseModel):
     """Payload para atualizar overrides de uma fazenda."""
     overrides: Dict[str, Any] = Field(..., description="Ex: {'fuso_horario': 'America/Cuiaba'}")
+
+    model_config = ConfigDict(extra="forbid")
 
 
 # =============================================================================

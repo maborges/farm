@@ -174,6 +174,7 @@ class VisaoTerritorialService:
             car_numero=imovel.car_numero,
             ccir_numero=imovel.ccir_numero,
             numero_matricula=imovel.numero_matricula,
+            sigef_codigo=imovel.sigef_codigo,
             cartorio=cartorio,
             documentos_resumo=documentos,
             matriculas_resumo=matriculas_resumo,

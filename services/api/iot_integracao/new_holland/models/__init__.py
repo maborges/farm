@@ -2,7 +2,7 @@
 # ruff: noqa: E501, F401, I001, W293
 
 from sqlalchemy import Column, Integer, String, Float, DateTime, Date, ForeignKey, Text, Boolean, JSON
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import backref, relationship
 from datetime import datetime
 
 from core.database import Base
@@ -123,7 +123,7 @@ class CarbonoProjeto(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     tenant_id = Column(String(50), nullable=False, index=True)
-    unidade_produtiva_id = Column(Integer, ForeignKey("unidades_produtivas.id"))
+    unidade_produtiva_id = Column(Integer, ForeignKey("unidades_produtivas.id", ondelete="CASCADE"))
     
     # Identificação
     nome = Column(String(200), nullable=False)
@@ -157,7 +157,10 @@ class CarbonoProjeto(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     # Relacionamentos
-    fazenda = relationship("UnidadeProdutiva", backref="carbono_projetos")
+    fazenda = relationship(
+        "UnidadeProdutiva",
+        backref=backref("carbono_projetos", passive_deletes=True),
+    )
 
 
 class CarbonoRelatorio(Base):

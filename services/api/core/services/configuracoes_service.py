@@ -20,7 +20,9 @@ from core.models.tenant_config import ConfiguracaoTenant
 from core.models.categoria_custom import CategoriaCustom, TipoCategoria
 from core.models.configuracao_fazenda import ConfiguracaoFazenda
 from core.models.historico_configuracao import HistoricoConfiguracao
+from core.models.unidade_produtiva import UnidadeProdutiva
 from core.models.tenant import Tenant
+from core.exceptions import BusinessRuleError, EntityNotFoundError
 
 
 # =============================================================================
@@ -102,6 +104,8 @@ def _slugify(nome: str) -> str:
 # =============================================================================
 
 class ConfiguracoesService:
+    CONFIG_FAZENDA_OVERRIDE_ALLOWLIST: frozenset[str] = frozenset()
+
     def __init__(self, session: AsyncSession, tenant_id: UUID):
         self.session = session
         self.tenant_id = tenant_id
@@ -385,6 +389,7 @@ class ConfiguracoesService:
     # --------------------------------------------------------------------------
 
     async def get_configuracao_fazenda(self, unidade_produtiva_id: UUID) -> Optional[ConfiguracaoFazenda]:
+        await self._carregar_unidade_produtiva_autorizada(unidade_produtiva_id)
         stmt = select(ConfiguracaoFazenda).where(
             and_(
                 ConfiguracaoFazenda.unidade_produtiva_id == unidade_produtiva_id,
@@ -395,6 +400,8 @@ class ConfiguracoesService:
         return result.scalar_one_or_none()
 
     async def set_override_fazenda(self, unidade_produtiva_id: UUID, overrides: dict) -> ConfiguracaoFazenda:
+        await self._carregar_unidade_produtiva_autorizada(unidade_produtiva_id)
+        self._validar_overrides_fazenda(overrides)
         cfg = await self.get_configuracao_fazenda(unidade_produtiva_id)
         if not cfg:
             cfg = ConfiguracaoFazenda(
@@ -405,7 +412,7 @@ class ConfiguracoesService:
             self.session.add(cfg)
         else:
             cfg.overrides = overrides
-        await self.session.commit()
+        await self.session.flush()
         await self.session.refresh(cfg)
         return cfg
 
@@ -422,6 +429,38 @@ class ConfiguracoesService:
         )
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
+
+    async def _carregar_unidade_produtiva_autorizada(self, unidade_produtiva_id: UUID) -> UnidadeProdutiva:
+        """Carrega a UP do tenant corrente sem vazar existência de outros tenants."""
+        stmt = select(UnidadeProdutiva).where(
+            UnidadeProdutiva.id == unidade_produtiva_id,
+            UnidadeProdutiva.tenant_id == self.tenant_id,
+        )
+        if hasattr(UnidadeProdutiva, "deleted_at"):
+            stmt = stmt.where(getattr(UnidadeProdutiva, "deleted_at").is_(None))
+        result = await self.session.execute(stmt)
+        unidade = result.scalar_one_or_none()
+        if unidade is None:
+            raise EntityNotFoundError("Unidade Produtiva não encontrada neste tenant.")
+        return unidade
+
+    def _validar_overrides_fazenda(self, overrides: Dict[str, Any]) -> None:
+        """Congela o bucket JSON enquanto não existir contrato tipado."""
+        if not overrides:
+            return
+
+        chaves_desconhecidas = sorted(set(overrides) - self.CONFIG_FAZENDA_OVERRIDE_ALLOWLIST)
+        if chaves_desconhecidas:
+            logger.bind(
+                event="CONFIG_UP_UNKNOWN_KEY_BLOCKED",
+                tenant_id=str(self.tenant_id),
+                unidade_produtiva_id=None,
+                endpoint="/config/fazenda/{unidade_produtiva_id}",
+                status=422,
+                result="blocked",
+                unknown_keys=chaves_desconhecidas,
+            ).warning("Override por Unidade Produtiva bloqueado por chaves não contratadas.")
+            raise BusinessRuleError("Configuração por Unidade Produtiva congelada: payload com chaves não contratadas.")
 
 
 # =============================================================================

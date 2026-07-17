@@ -99,6 +99,7 @@ class ImovelFundiarioResumo(BaseModel):
     car_numero: Optional[str] = None
     ccir_numero: Optional[str] = None
     numero_matricula: Optional[str] = None
+    sigef_codigo: Optional[str] = None
     cartorio: Optional[CartorioResumo] = None
     documentos_resumo: list[DocumentoFundiarioResumo] = Field(default_factory=list)
     matriculas_resumo: list[MatriculaFundiariaResumo] = Field(default_factory=list)
@@ -141,4 +142,3 @@ class VisaoFundiariaRead(BaseModel):
     vinculos: list[VinculoTerritorialResumo] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)
-

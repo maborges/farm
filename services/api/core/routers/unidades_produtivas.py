@@ -133,9 +133,13 @@ async def criar_cadastro_completo(
     _: None = Depends(require_module("CORE")),
 ):
     svc = CadastroCompletoService(session, tenant_id, user_id)
-    unidade = await svc.criar_cadastro_completo(dados)
-    await session.commit()
-    return unidade
+    try:
+        unidade = await svc.criar_cadastro_completo(dados)
+        await session.commit()
+        return unidade
+    except Exception:
+        await session.rollback()
+        raise
 
 @router.put(
     "/{unidade_produtiva_id}/cadastro-completo",
@@ -150,9 +154,13 @@ async def atualizar_cadastro_completo(
     user_id: uuid.UUID = Depends(get_user_id),
 ):
     svc = CadastroCompletoService(session, tenant_id, user_id)
-    unidade = await svc.atualizar_cadastro_completo(unidade_produtiva_id, dados)
-    await session.commit()
-    return unidade
+    try:
+        unidade = await svc.atualizar_cadastro_completo(unidade_produtiva_id, dados)
+        await session.commit()
+        return unidade
+    except Exception:
+        await session.rollback()
+        raise
 # =============================================================================
 # UPLOAD DE LOGO
 # =============================================================================

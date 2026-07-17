@@ -2,7 +2,7 @@ from decimal import Decimal
 import uuid
 from typing import Optional
 
-from sqlalchemy import func, or_, select, text
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.base_service import BaseService
@@ -126,17 +126,9 @@ class UnidadeProdutivaService(BaseService[UnidadeProdutiva]):
 
     async def hard_delete(self, id: uuid.UUID) -> None:
         """Deleta a Unidade Produtiva limpando dependências.
-        A deleção fundiária agora é gerida separadamente ou via cascata.
+        A deleção fundiária e de módulos satélites é gerida pelo cascade oficial
+        do banco/mapeamento. Não fazemos limpeza manual de tabelas opcionais aqui.
         """
-        from core.cadastros.propriedades.propriedade_models import ExploracaoRural
-        
-        # Remove as explorações rurais que apontam para esta UP (se não for cascata automática)
-        stmt_expl = select(ExploracaoRural).where(ExploracaoRural.unidade_produtiva_id == id)
-        exploracoes = (await self.session.execute(stmt_expl)).scalars().all()
-        for e in exploracoes:
-            await self.session.delete(e)
-
-        # Agora pode prosseguir com o hard_delete da classe base
         await super().hard_delete(id)
 
     async def get(self, id: uuid.UUID) -> Optional[UnidadeProdutiva]:
@@ -156,6 +148,22 @@ class UnidadeProdutivaService(BaseService[UnidadeProdutiva]):
         if unidade is not None:
             await self._aplicar_compatibilidade_saida_territorial(unidade)
         return unidade
+
+    async def list_all(self, skip: int = 0, limit: int = 100, **filters) -> list[UnidadeProdutiva]:
+        """Lista UPs com a visão territorial oficial acoplada para o frontend."""
+        unidades = await super().list_all(skip=skip, limit=limit, **filters)
+        if not unidades:
+            return unidades
+
+        from core.services.territory_read_service import TerritoryReadService
+
+        svc = TerritoryReadService(self.session, self.tenant_id)
+        visoes = await svc.obter_visoes_territoriais_em_lote([unidade.id for unidade in unidades])
+        for unidade in unidades:
+            visao = visoes.get(unidade.id)
+            if visao is not None:
+                setattr(unidade, "territorio", visao)
+        return unidades
 
     # ------------------------------------------------------------------
     # Visão Territorial — Overlay de leitura (EXEC-37 § 8)

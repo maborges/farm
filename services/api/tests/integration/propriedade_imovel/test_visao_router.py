@@ -56,6 +56,7 @@ def _make_vinculo():
             car_numero="CAR-001",
             ccir_numero="CCIR-001",
             numero_matricula="12.345",
+            sigef_codigo="SIGEF-001",
             cartorio=None,
             documentos=[],
             matriculas_resumo=[],
@@ -67,7 +68,6 @@ def _make_imovel_resumo(imovel):
     return ImovelFundiarioResumo(
         id=imovel.id,
         tenant_id=imovel.tenant_id,
-        unidade_produtiva_id=imovel.unidade_produtiva_id,
         nome=imovel.nome,
         municipio=imovel.municipio,
         uf=imovel.uf,
@@ -78,6 +78,7 @@ def _make_imovel_resumo(imovel):
         car_numero=imovel.car_numero,
         ccir_numero=imovel.ccir_numero,
         numero_matricula=imovel.numero_matricula,
+        sigef_codigo=imovel.sigef_codigo,
         cartorio=None,
         documentos_resumo=[],
         matriculas_resumo=[],
@@ -164,7 +165,6 @@ async def test_visao_fundiaria_endpoint_retorna_leitura_agregada():
                 imovel_rural=ImovelFundiarioResumo(
                     id=imovel.id,
                     tenant_id=imovel.tenant_id,
-                    unidade_produtiva_id=imovel.unidade_produtiva_id,
                     nome=imovel.nome,
                     municipio=imovel.municipio,
                     uf=imovel.uf,
@@ -175,6 +175,7 @@ async def test_visao_fundiaria_endpoint_retorna_leitura_agregada():
                     car_numero=imovel.car_numero,
                     ccir_numero=imovel.ccir_numero,
                     numero_matricula=imovel.numero_matricula,
+                    sigef_codigo=imovel.sigef_codigo,
                     cartorio=None,
                     documentos_resumo=[],
                     matriculas_resumo=[],
@@ -218,5 +219,6 @@ async def test_visao_fundiaria_endpoint_retorna_leitura_agregada():
         )
 
     assert response.imovel_rural.nome == "Fazenda Nova"
+    assert response.imovel_rural.sigef_codigo == "SIGEF-001"
     assert response.propriedades_vinculadas[0].nome == "Propriedade A"
     service.obter_visao_fundiaria.assert_awaited_once_with(imovel.id)

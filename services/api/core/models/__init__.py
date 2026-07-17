@@ -29,7 +29,7 @@ from core.cadastros.pessoas.models import (
 
 # Cadastros — propriedades / áreas rurais
 from core.cadastros.propriedades.models import (
-    AreaRural, MatriculaImovel, RegistroAmbiental,
+    AreaRural, RegistroAmbiental,
 )
 from core.cadastros.propriedade_imovel.models import PropriedadeImovel
 

@@ -4,17 +4,16 @@ from fastapi import APIRouter, Depends, Query, UploadFile, File, HTTPException
 from loguru import logger
 
 from core.dependencies import get_session, get_tenant_id
-from .models import AreaRural, MatriculaImovel, RegistroAmbiental
+from .models import AreaRural
 from .schemas import (
     AreaRuralCreate, AreaRuralUpdate, AreaRuralResponse,
-    MatriculaCreate, MatriculaUpdate, MatriculaResponse,
     RegistroAmbientalCreate, RegistroAmbientalUpdate, RegistroAmbientalResponse,
     ValorPatrimonialCreate, ValorPatrimonialUpdate, ValorPatrimonialResponse,
     InfraestruturaCreate, InfraestruturaUpdate, InfraestruturaResponse,
     ArquivoGeoResponse, ArquivoGeoProcessadoResponse,
     SumarioAreasResponse, TipoSoloResponse, TipoIrrigacaoResponse
 )
-from .service import AreaRuralService, MatriculaService, RegistroAmbientalService, ValorPatrimonialService, InfraestruturaService, ArquivoGeoService
+from .service import AreaRuralService, RegistroAmbientalService, ValorPatrimonialService, InfraestruturaService, ArquivoGeoService
 
 router = APIRouter(prefix="/cadastros/areas-rurais", tags=["Cadastros — Propriedades"])
 
@@ -133,56 +132,6 @@ async def listar_tipos_irrigacao(
 ):
     svc = AreaRuralService(AreaRural, session, tenant_id)
     return await svc.listar_tipos_irrigacao()
-
-
-# ---------------------------------------------------------------------------
-# Matrículas
-# ---------------------------------------------------------------------------
-
-@router.get("/{area_id}/matriculas", response_model=list[MatriculaResponse])
-async def listar_matriculas(
-    area_id: uuid.UUID,
-    session=Depends(get_session),
-    tenant_id: uuid.UUID = Depends(get_tenant_id),
-):
-    svc = MatriculaService(session, tenant_id)
-    return await svc.listar(area_id)
-
-
-@router.post("/{area_id}/matriculas", response_model=MatriculaResponse, status_code=201)
-async def criar_matricula(
-    area_id: uuid.UUID,
-    data: MatriculaCreate,
-    session=Depends(get_session),
-    tenant_id: uuid.UUID = Depends(get_tenant_id),
-):
-    svc = MatriculaService(session, tenant_id)
-    payload = data.model_dump()
-    payload["area_id"] = area_id  # garante consistência com o path
-    return await svc.criar(payload)
-
-
-@router.patch("/{area_id}/matriculas/{matricula_id}", response_model=MatriculaResponse)
-async def atualizar_matricula(
-    area_id: uuid.UUID,
-    matricula_id: uuid.UUID,
-    data: MatriculaUpdate,
-    session=Depends(get_session),
-    tenant_id: uuid.UUID = Depends(get_tenant_id),
-):
-    svc = MatriculaService(session, tenant_id)
-    return await svc.atualizar(matricula_id, area_id, data.model_dump(exclude_none=True))
-
-
-@router.delete("/{area_id}/matriculas/{matricula_id}", status_code=204)
-async def remover_matricula(
-    area_id: uuid.UUID,
-    matricula_id: uuid.UUID,
-    session=Depends(get_session),
-    tenant_id: uuid.UUID = Depends(get_tenant_id),
-):
-    svc = MatriculaService(session, tenant_id)
-    await svc.remover(matricula_id, area_id)
 
 
 # ---------------------------------------------------------------------------

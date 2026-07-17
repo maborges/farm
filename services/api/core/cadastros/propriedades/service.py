@@ -5,7 +5,7 @@ from sqlalchemy.orm import selectinload
 
 from core.base_service import BaseService
 from core.exceptions import EntityNotFoundError, BusinessRuleError
-from .models import AreaRural, MatriculaImovel, RegistroAmbiental, ValorPatrimonial, Infraestrutura, ArquivoGeo, StatusProcessamentoGeo, FILHOS_PERMITIDOS, TIPOS_AREA_PRODUTIVA, TIPOS_AREA_AMBIENTAL, TIPOS_INFRAESTRUTURA, TipoSolo, TipoIrrigacao
+from .models import AreaRural, RegistroAmbiental, ValorPatrimonial, Infraestrutura, ArquivoGeo, StatusProcessamentoGeo, FILHOS_PERMITIDOS, TIPOS_AREA_PRODUTIVA, TIPOS_AREA_AMBIENTAL, TIPOS_INFRAESTRUTURA, TipoSolo, TipoIrrigacao
 
 
 class AreaRuralService(BaseService[AreaRural]):
@@ -191,61 +191,6 @@ class AreaRuralService(BaseService[AreaRural]):
             stmt = stmt.where(TipoIrrigacao.ativo == True)
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
-
-
-class MatriculaService:
-    def __init__(self, session: AsyncSession, tenant_id: uuid.UUID):
-        self.session = session
-        self.tenant_id = tenant_id
-
-    async def _verificar_area(self, area_id: uuid.UUID) -> AreaRural:
-        result = await self.session.execute(
-            select(AreaRural).where(AreaRural.id == area_id, AreaRural.tenant_id == self.tenant_id)
-        )
-        obj = result.scalar_one_or_none()
-        if not obj:
-            raise EntityNotFoundError("Área rural não encontrada")
-        return obj
-
-    async def listar(self, area_id: uuid.UUID) -> list[MatriculaImovel]:
-        await self._verificar_area(area_id)
-        result = await self.session.execute(
-            select(MatriculaImovel).where(MatriculaImovel.area_id == area_id)
-        )
-        return list(result.scalars().all())
-
-    async def criar(self, data: dict) -> MatriculaImovel:
-        await self._verificar_area(data["area_id"])
-        obj = MatriculaImovel(**data)
-        self.session.add(obj)
-        await self.session.commit()
-        await self.session.refresh(obj)
-        return obj
-
-    async def atualizar(self, matricula_id: uuid.UUID, area_id: uuid.UUID, data: dict) -> MatriculaImovel:
-        await self._verificar_area(area_id)
-        result = await self.session.execute(
-            select(MatriculaImovel).where(MatriculaImovel.id == matricula_id, MatriculaImovel.area_id == area_id)
-        )
-        obj = result.scalar_one_or_none()
-        if not obj:
-            raise EntityNotFoundError("Matrícula não encontrada")
-        for k, v in data.items():
-            setattr(obj, k, v)
-        await self.session.commit()
-        await self.session.refresh(obj)
-        return obj
-
-    async def remover(self, matricula_id: uuid.UUID, area_id: uuid.UUID) -> None:
-        await self._verificar_area(area_id)
-        result = await self.session.execute(
-            select(MatriculaImovel).where(MatriculaImovel.id == matricula_id, MatriculaImovel.area_id == area_id)
-        )
-        obj = result.scalar_one_or_none()
-        if not obj:
-            raise EntityNotFoundError("Matrícula não encontrada")
-        await self.session.delete(obj)
-        await self.session.commit()
 
 
 class RegistroAmbientalService:

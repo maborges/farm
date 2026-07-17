@@ -77,6 +77,7 @@ def _make_imovel(tenant_id: uuid.UUID):
         car_numero="CAR-001",
         ccir_numero="CCIR-001",
         numero_matricula="12.345",
+        sigef_codigo="SIGEF-001",
         cartorio=_make_cartorio(),
         documentos=[_make_documento()],
     )
@@ -200,6 +201,7 @@ async def test_obter_visao_fundiaria_agrega_dados(service, tenant_id):
     assert visao.imovel_rural.cartorio.nome == "Cartório Central"
     assert len(visao.imovel_rural.documentos_resumo) == 1
     assert len(visao.imovel_rural.matriculas_resumo) == 1
+    assert visao.imovel_rural.sigef_codigo == "SIGEF-001"
     assert visao.propriedades_vinculadas[0].nome == "Propriedade A"
     assert visao.vinculos[0].origem_documental == "Contrato validado"
     service._obter_imovel.assert_awaited_once_with(imovel.id)
@@ -237,21 +239,13 @@ async def test_obter_propriedade_aplica_tenant_filter(service, tenant_id, sessio
     assert "cadastros_propriedades" in stmt_text
 
 
-async def test_obter_propriedade_resolve_por_imovel_vinculado(service, tenant_id, session):
-    propriedade = _make_propriedade(tenant_id)
+async def test_obter_propriedade_nao_resolve_id_de_imovel(service, session):
+    result = MagicMock()
+    result.scalars.return_value.first.return_value = None
+    session.execute.return_value = result
 
-    result_sem_exploracao = MagicMock()
-    result_sem_exploracao.scalars.return_value.first.return_value = None
-
-    result_resolvido = MagicMock()
-    result_resolvido.scalars.return_value.first.return_value = propriedade
-
-    session.execute.side_effect = [result_sem_exploracao, result_resolvido]
-
-    encontrado = await service._obter_propriedade(uuid.uuid4())
-
-    assert encontrado is propriedade
-    assert session.execute.await_count == 2
+    with pytest.raises(EntityNotFoundError):
+        await service._obter_propriedade(uuid.uuid4())
 
 
 async def test_obter_imovel_aplica_tenant_filter(service, tenant_id, session):

@@ -268,6 +268,7 @@ class PropriedadeImovelService:
                 principal_atual.tipo_vinculo = TipoVinculoPropriedadeImovel.PROPRIEDADE_SECUNDARIA.value
             principal_atual.updated_by = usuario_id
             principal_atual.updated_at = datetime.now(timezone.utc)
+            await self.session.flush()
 
         novo_principal.vinculo_principal = True
         novo_principal.tipo_vinculo = TipoVinculoPropriedadeImovel.PROPRIEDADE_PRINCIPAL.value

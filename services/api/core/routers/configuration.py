@@ -3,8 +3,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List, Optional
 from uuid import UUID
+from loguru import logger
 
 from core.dependencies import get_session, get_current_admin, get_current_tenant, get_current_user_claims
+from core.exceptions import BusinessRuleError, EntityNotFoundError
 from core.models.tenant import Tenant
 from core.models.configuration import ConfiguracaoSaaS
 from core.models.tenant_config import ConfiguracaoTenant
@@ -313,20 +315,47 @@ async def remover_categoria(
 # OVERRIDE DE CONFIGURAÇÃO POR FAZENDA
 # =============================================================================
 
-@router.get("/fazenda/{unidade_produtiva_id}", response_model=ConfiguracaoFazendaResponse)
+@router.get("/fazenda/{unidade_produtiva_id}", response_model=ConfiguracaoFazendaResponse, deprecated=True)
 async def get_configuracao_fazenda(
     unidade_produtiva_id: UUID,
     tenant: Tenant = Depends(get_current_tenant),
     session: AsyncSession = Depends(get_session)
 ):
     svc = ConfiguracoesService(session, tenant.id)
-    cfg = await svc.get_configuracao_fazenda(unidade_produtiva_id)
+    try:
+        cfg = await svc.get_configuracao_fazenda(unidade_produtiva_id)
+    except EntityNotFoundError:
+        logger.bind(
+            event="CONFIG_UP_CROSS_TENANT_BLOCKED",
+            tenant_id=str(tenant.id),
+            unidade_produtiva_id=str(unidade_produtiva_id),
+            endpoint="/config/fazenda/{unidade_produtiva_id}",
+            status=404,
+            result="blocked",
+        ).warning("UP não encontrada no tenant atual ao consultar configuração.")
+        raise HTTPException(status_code=404, detail="Unidade Produtiva não encontrada.")
     if not cfg:
+        logger.bind(
+            event="CONFIG_UP_GET",
+            tenant_id=str(tenant.id),
+            unidade_produtiva_id=str(unidade_produtiva_id),
+            endpoint="/config/fazenda/{unidade_produtiva_id}",
+            status=200,
+            result="default",
+        ).info("Consulta de configuração por Unidade Produtiva retornou defaults.")
         return ConfiguracaoFazendaResponse(unidade_produtiva_id=unidade_produtiva_id, overrides={})
+    logger.bind(
+        event="CONFIG_UP_GET",
+        tenant_id=str(tenant.id),
+        unidade_produtiva_id=str(unidade_produtiva_id),
+        endpoint="/config/fazenda/{unidade_produtiva_id}",
+        status=200,
+        result="ok",
+    ).info("Consulta de configuração por Unidade Produtiva concluída.")
     return cfg
 
 
-@router.put("/fazenda/{unidade_produtiva_id}", response_model=ConfiguracaoFazendaResponse)
+@router.put("/fazenda/{unidade_produtiva_id}", response_model=ConfiguracaoFazendaResponse, deprecated=True)
 async def set_configuracao_fazenda(
     unidade_produtiva_id: UUID,
     data: ConfiguracaoFazendaUpdate,
@@ -334,7 +363,38 @@ async def set_configuracao_fazenda(
     session: AsyncSession = Depends(get_session)
 ):
     svc = ConfiguracoesService(session, tenant.id)
-    return await svc.set_override_fazenda(unidade_produtiva_id, data.overrides)
+    try:
+        cfg = await svc.set_override_fazenda(unidade_produtiva_id, data.overrides)
+        await session.commit()
+        logger.bind(
+            event="CONFIG_UP_PUT",
+            tenant_id=str(tenant.id),
+            unidade_produtiva_id=str(unidade_produtiva_id),
+            endpoint="/config/fazenda/{unidade_produtiva_id}",
+            status=200,
+            result="ok",
+        ).info("Atualização de configuração por Unidade Produtiva concluída.")
+        return cfg
+    except EntityNotFoundError:
+        logger.bind(
+            event="CONFIG_UP_CROSS_TENANT_BLOCKED",
+            tenant_id=str(tenant.id),
+            unidade_produtiva_id=str(unidade_produtiva_id),
+            endpoint="/config/fazenda/{unidade_produtiva_id}",
+            status=404,
+            result="blocked",
+        ).warning("UP não encontrada no tenant atual ao atualizar configuração.")
+        raise HTTPException(status_code=404, detail="Unidade Produtiva não encontrada.")
+    except BusinessRuleError as exc:
+        logger.bind(
+            event="CONFIG_UP_UNKNOWN_KEY_BLOCKED",
+            tenant_id=str(tenant.id),
+            unidade_produtiva_id=str(unidade_produtiva_id),
+            endpoint="/config/fazenda/{unidade_produtiva_id}",
+            status=422,
+            result="blocked",
+        ).warning("Payload de configuração por UP bloqueado por contrato congelado.")
+        raise HTTPException(status_code=422, detail=str(exc))
 
 
 # =============================================================================

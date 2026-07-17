@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_
 from sqlalchemy.orm import selectinload
 
-from core.cadastros.propriedade_imovel.models import TipoVinculoPropriedadeImovel
+from core.cadastros.propriedade_imovel.models import PropriedadeImovel, TipoVinculoPropriedadeImovel
 from core.cadastros.propriedade_imovel.service import PropriedadeImovelService
 from imoveis.models.imovel import (
     ImovelRural, Cartorio, MatriculaImovelRural, Benfeitoria, DocumentoLegal,
@@ -180,11 +180,14 @@ class ImovelService:
                 selectinload(ImovelRural.cartorio),
                 selectinload(ImovelRural.documentos),
                 selectinload(ImovelRural.benfeitorias),
-                selectinload(ImovelRural.propriedade_imoveis),
+                selectinload(ImovelRural.propriedade_imoveis).selectinload(PropriedadeImovel.propriedade),
             )
         )
         imovel = result.scalar_one_or_none()
-        return self._anotar_vinculos(imovel) if imovel is not None else None
+        if imovel is None:
+            return None
+        unidade_produtiva_id = await self._resolver_unidade_produtiva_do_imovel(imovel.id, tenant_id)
+        return self._anotar_contexto(imovel, unidade_produtiva_id)
     
     async def get_imoveis_by_fazenda(
         self,
@@ -201,7 +204,6 @@ class ImovelService:
 
         if unidade_produtiva_id:
             from core.cadastros.propriedades.propriedade_models import ExploracaoRural
-            from core.cadastros.propriedade_imovel.models import PropriedadeImovel
             stmt = (
                 stmt.join(PropriedadeImovel, PropriedadeImovel.imovel_rural_id == ImovelRural.id)
                 .join(ExploracaoRural, ExploracaoRural.propriedade_id == PropriedadeImovel.propriedade_id)
@@ -213,11 +215,15 @@ class ImovelService:
 
         result = await self.session.execute(
             stmt.options(
-                selectinload(ImovelRural.propriedade_imoveis),
+                selectinload(ImovelRural.propriedade_imoveis).selectinload(PropriedadeImovel.propriedade),
                 selectinload(ImovelRural.cartorio),
             ).order_by(ImovelRural.nome)
         )
-        return [self._anotar_vinculos(imovel) for imovel in result.scalars().all()]
+        imoveis = []
+        for imovel in result.scalars().all():
+            unidade_produtiva_id = await self._resolver_unidade_produtiva_do_imovel(imovel.id, tenant_id)
+            imoveis.append(self._anotar_contexto(imovel, unidade_produtiva_id))
+        return imoveis
     
     async def validar_nirf_unico(self, nirf: str, tenant_id: uuid.UUID, imovel_id: Optional[uuid.UUID] = None) -> tuple[bool, str]:
         """
@@ -379,6 +385,7 @@ class ImovelService:
         nirf: Optional[str] = None,
         car_numero: Optional[str] = None,
         ccir_numero: Optional[str] = None,
+        sigef_codigo: Optional[str] = None,
         cartorio_id: Optional[uuid.UUID] = None,
         numero_matricula: Optional[str] = None,
         propriedade_id: Optional[uuid.UUID] = None,
@@ -424,7 +431,6 @@ class ImovelService:
         # Cria imóvel
         imovel = ImovelRural(
             tenant_id=tenant_id,
-            unidade_produtiva_id=unidade_produtiva_id,
             nome=nome,
             municipio=municipio,
             uf=uf,
@@ -432,6 +438,7 @@ class ImovelService:
             nirf=nirf,
             car_numero=car_numero,
             ccir_numero=ccir_numero,
+            sigef_codigo=sigef_codigo,
             cartorio_id=cartorio_id,
             numero_matricula=numero_matricula,
             tipo=tipo,
@@ -451,7 +458,7 @@ class ImovelService:
                 usuario_id=created_by,
             )
         
-        return imovel, alertas
+        return self._anotar_contexto(imovel), alertas
 
     async def criar_imovel_sem_validacao(
         self,
@@ -508,7 +515,6 @@ class ImovelService:
 
         imovel = ImovelRural(
             tenant_id=tenant_id,
-            unidade_produtiva_id=unidade_produtiva_id,
             nome=nome,
             municipio=municipio,
             uf=uf,
@@ -534,7 +540,7 @@ class ImovelService:
                 tipo_vinculo=tipo_vinculo,
                 usuario_id=created_by,
             )
-        return imovel
+        return self._anotar_contexto(imovel)
 
 
     async def atualizar_imovel(
@@ -570,8 +576,14 @@ class ImovelService:
             if 'motivo_alteracao_area' not in dados or not dados['motivo_alteracao_area']:
                 raise ValueError("Alteração de área exige justificativa no campo 'motivo_alteracao_area'")
             
+            unidade_produtiva_id = getattr(imovel, "unidade_produtiva_id", None)
+            if unidade_produtiva_id is None:
+                unidade_produtiva_id = await self._resolver_unidade_produtiva_do_imovel(imovel.id, imovel.tenant_id)
+            if unidade_produtiva_id is None:
+                raise ValueError("Não foi possível determinar a unidade produtiva do imóvel para validar a área")
+
             valido, msg, area_fazenda = await self.validar_area_consistente(
-                dados['area_total_ha'], imovel.unidade_produtiva_id, imovel.id
+                dados['area_total_ha'], unidade_produtiva_id, imovel.id
             )
             if not valido:
                 raise ValueError(msg)
@@ -590,6 +602,7 @@ class ImovelService:
                 tipo_vinculo=dados.get("tipo_vinculo"),
                 usuario_id=usuario_id,
             )
+        self._anotar_contexto(imovel)
         
         # Atualiza situação cadastral
         imovel.situacao = await self.calcular_situacao_cadastral(imovel)
@@ -661,6 +674,49 @@ class ImovelService:
         ]
         setattr(imovel, "propriedades_vinculadas_count", len(vinculados_ativos))
         setattr(imovel, "vinculo_status", "VINCULADO" if vinculados_ativos else "NÃO VINCULADO")
+        vinculo_referencia = next(
+            (vinculo for vinculo in vinculados_ativos if getattr(vinculo, "vinculo_principal", False)),
+            None,
+        ) or (vinculados_ativos[0] if vinculados_ativos else None)
+        setattr(imovel, "propriedade_id", getattr(vinculo_referencia, "propriedade_id", None))
+        setattr(
+            imovel,
+            "propriedade_nome",
+            getattr(getattr(vinculo_referencia, "propriedade", None), "nome", None),
+        )
+        setattr(imovel, "tipo_vinculo", getattr(vinculo_referencia, "tipo_vinculo", None))
+        return imovel
+
+    async def _resolver_unidade_produtiva_do_imovel(
+        self,
+        imovel_id: uuid.UUID,
+        tenant_id: uuid.UUID,
+    ) -> Optional[uuid.UUID]:
+        """Resolve a UP a partir do vínculo canônico ativo do imóvel."""
+        from core.cadastros.propriedades.propriedade_models import ExploracaoRural
+        from core.cadastros.propriedade_imovel.models import PropriedadeImovel
+
+        stmt = (
+            select(ExploracaoRural.unidade_produtiva_id)
+            .join(PropriedadeImovel, PropriedadeImovel.propriedade_id == ExploracaoRural.propriedade_id)
+            .where(
+                PropriedadeImovel.imovel_rural_id == imovel_id,
+                PropriedadeImovel.tenant_id == tenant_id,
+                PropriedadeImovel.ativo.is_(True),
+            )
+            .order_by(
+                PropriedadeImovel.vinculo_principal.desc(),
+                PropriedadeImovel.created_at.desc(),
+            )
+            .limit(1)
+        )
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    def _anotar_contexto(self, imovel: ImovelRural, unidade_produtiva_id: uuid.UUID | None = None) -> ImovelRural:
+        """Anota o contexto territorial derivado para serialização e validação."""
+        self._anotar_vinculos(imovel)
+        setattr(imovel, "unidade_produtiva_id", unidade_produtiva_id)
         return imovel
     
     async def get_cartorio_by_id(

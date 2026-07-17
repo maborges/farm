@@ -1,7 +1,7 @@
 import ast
 import os
-import pytest
 from pathlib import Path
+import pytest
 
 # Paths para analisar
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -218,6 +218,24 @@ def test_guardrail_no_cross_tenant_association():
     )
     
     assert vinculo.tenant_id == prop.tenant_id == imovel.tenant_id, "O tenant_id deve ser idêntico em todas as partes da associação"
+
+
+def test_guardrail_hard_delete_nao_conta_com_delete_manual_de_carbono():
+    """O hard delete da UP deve depender do cascade oficial, não de SQL manual em carbono_projetos."""
+    source = Path(BASE_DIR / "core/services/unidade_produtiva_service.py").read_text(encoding="utf-8")
+    assert "DELETE FROM carbono_projetos" not in source
+    assert "_tem_tabela_carbono_projetos" not in source
+
+
+def test_guardrail_carbono_fk_mantem_ondelete_cascade():
+    """O mapping do módulo Carbono deve espelhar a migration oficial com cascade em delete."""
+    from iot_integracao.new_holland.models import CarbonoProjeto
+
+    fk = next(
+        fk for fk in CarbonoProjeto.__table__.foreign_keys
+        if fk.parent.name == "unidade_produtiva_id"
+    )
+    assert fk.ondelete == "CASCADE"
 
 def test_no_new_overlays():
     """

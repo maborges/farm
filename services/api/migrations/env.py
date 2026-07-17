@@ -77,7 +77,7 @@ from core.cadastros.pessoas.models import (
 )
 
 # Propriedades / Áreas Rurais
-from core.cadastros.propriedades.models import AreaRural, MatriculaImovel, RegistroAmbiental, TipoSolo, TipoIrrigacao
+from core.cadastros.propriedades.models import AreaRural, RegistroAmbiental, TipoSolo, TipoIrrigacao
 from core.cadastros.propriedades.propriedade_models import Propriedade, ExploracaoRural, DocumentoExploracao
 
 # Campo PWA

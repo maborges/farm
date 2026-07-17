@@ -85,3 +85,36 @@ async def test_territory_read_service_multiple_imoveis():
     assert res.imovel_principal["nirf"] == "111"
     assert len(res.imoveis_secundarios) == 1
     assert res.imoveis_secundarios[0]["nirf"] == "222"
+
+
+@pytest.mark.asyncio
+async def test_territory_read_service_sem_principal_nao_inventa_fallback():
+    session_mock = AsyncMock()
+    tenant_id = uuid.uuid4()
+    svc = TerritoryReadService(session_mock, tenant_id)
+
+    up_id = uuid.uuid4()
+    prop_id = uuid.uuid4()
+    imovel_id = uuid.uuid4()
+
+    up = UnidadeProdutiva(id=up_id, tenant_id=tenant_id)
+    expl = ExploracaoRural(id=uuid.uuid4(), unidade_produtiva_id=up_id, propriedade_id=prop_id, tenant_id=tenant_id)
+    prop = Propriedade(id=prop_id, tenant_id=tenant_id, nome="Fazenda Sem Principal")
+    assoc = PropriedadeImovel(id=uuid.uuid4(), propriedade_id=prop_id, imovel_rural_id=imovel_id, tenant_id=tenant_id, ativo=True, vinculo_principal=False)
+    imovel = ImovelRural(id=imovel_id, tenant_id=tenant_id, nome="Sítio Sem Principal", nirf="333")
+
+    session_mock.execute.side_effect = [
+        MockQueryBuilder([up]),
+        MockQueryBuilder([expl]),
+        MockQueryBuilder([prop]),
+        MockQueryBuilder([assoc]),
+        MockQueryBuilder([imovel]),
+    ]
+
+    res = await svc.obter_visao_territorial_da_unidade(up_id)
+
+    assert res is not None
+    assert res.imovel_principal is None
+    assert len(res.imoveis_secundarios) == 1
+    assert res.imoveis_secundarios[0]["nirf"] == "333"
+    assert any("principal" in aviso.lower() for aviso in res.avisos)

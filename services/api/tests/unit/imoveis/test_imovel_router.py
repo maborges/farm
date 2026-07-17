@@ -4,6 +4,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from pydantic import TypeAdapter
 
 from core.cadastros.propriedade_imovel.models import TipoVinculoPropriedadeImovel
 from imoveis.models.imovel import SituacaoImovel
@@ -38,6 +39,12 @@ def _make_imovel() -> SimpleNamespace:
     )
 
 
+def _make_imovel_sem_unidade() -> SimpleNamespace:
+    imovel = _make_imovel()
+    imovel.unidade_produtiva_id = None
+    return imovel
+
+
 async def test_list_imoveis_aceita_situacao_all() -> None:
     """`situacao=all` deve listar todos os imóveis sem erro de enum."""
     tenant = SimpleNamespace(id=uuid.uuid4())
@@ -57,6 +64,15 @@ async def test_list_imoveis_aceita_situacao_all() -> None:
 
     assert resultado == [imovel]
     service.get_imoveis_by_fazenda.assert_awaited_once_with(None, tenant.id)
+
+
+async def test_imovel_response_permite_unidade_produtiva_nula() -> None:
+    """Listagens gerais podem expor imóveis ainda sem contexto territorial resolvido."""
+    imovel = _make_imovel_sem_unidade()
+
+    validated = TypeAdapter(list[router_module.ImovelResponse]).validate_python([imovel])
+
+    assert validated[0].unidade_produtiva_id is None
 
 
 async def test_list_imoveis_aplica_filtro_de_situacao() -> None:

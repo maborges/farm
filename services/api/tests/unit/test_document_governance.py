@@ -5,7 +5,7 @@ from __future__ import annotations
 from sqlalchemy import inspect
 
 from core.cadastros.propriedade_imovel.models import PropriedadeImovel
-from core.cadastros.propriedades.models import AreaRural, MatriculaImovel, RegistroAmbiental
+from core.cadastros.propriedades.models import AreaRural, RegistroAmbiental
 from core.cadastros.propriedades.propriedade_models import DocumentoExploracao, ExploracaoRural, Propriedade
 from core.models.unidade_produtiva import UnidadeProdutiva
 from imoveis.models.imovel import (
@@ -33,7 +33,7 @@ def test_propriedades_mantem_fronteira_operacional_sem_documentacao_legal_duplic
     assert "cartorio_id" not in propriedade_columns
     assert "documentos" not in propriedade_relationships
 
-    assert {"codigo_car", "nirf", "ccir", "sigef_codigo"}.issubset(unidade_columns)
+    assert {"codigo_car", "nirf", "ccir", "sigef_codigo", "numero_matricula"}.isdisjoint(unidade_columns)
     assert {"area_app_ha", "area_rl_ha"}.issubset(unidade_columns)
 
 
@@ -72,11 +72,10 @@ def test_propriedade_imovel_e_apenas_a_ponte_canonica() -> None:
 def test_evidencias_operacionais_ficam_em_suporte_territorial() -> None:
     area_relationships = set(inspect(AreaRural).relationships.keys())
 
-    assert {"matriculas", "registros_ambientais", "valores_patrimoniais", "arquivos_geo"}.issubset(
+    assert {"registros_ambientais", "valores_patrimoniais", "arquivos_geo"}.issubset(
         area_relationships
     )
-    assert MatriculaImovel.__tablename__ == "cadastros_areas_matriculas"
+    assert "matriculas" not in area_relationships
     assert RegistroAmbiental.__tablename__ == "cadastros_areas_registros_ambientais"
     assert DocumentoExploracao.__tablename__ == "cadastros_documentos_exploracao"
     assert ExploracaoRural.__tablename__ == "cadastros_exploracoes_rurais"
-

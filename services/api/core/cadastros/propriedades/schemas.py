@@ -122,65 +122,6 @@ class AreaRuralTree(AreaRuralResponse):
 
 
 # ---------------------------------------------------------------------------
-# MatriculaImovel
-# ---------------------------------------------------------------------------
-
-class MatriculaCreate(BaseModel):
-    area_id: uuid.UUID
-    numero_matricula: str
-    cartorio: Optional[str] = None
-    comarca: Optional[str] = None
-    livro: Optional[str] = None
-    folha: Optional[str] = None
-    data_registro: Optional[datetime] = None
-    area_matricula_ha: Optional[float] = None
-    car_numero: Optional[str] = None
-    nirf: Optional[str] = None
-    incra: Optional[str] = None
-    ccir: Optional[str] = None
-    sncr: Optional[str] = None
-    itr_numero: Optional[str] = None
-
-
-class MatriculaUpdate(BaseModel):
-    numero_matricula: Optional[str] = None
-    cartorio: Optional[str] = None
-    comarca: Optional[str] = None
-    livro: Optional[str] = None
-    folha: Optional[str] = None
-    data_registro: Optional[datetime] = None
-    area_matricula_ha: Optional[float] = None
-    car_numero: Optional[str] = None
-    nirf: Optional[str] = None
-    incra: Optional[str] = None
-    ccir: Optional[str] = None
-    sncr: Optional[str] = None
-    itr_numero: Optional[str] = None
-    ativo: Optional[bool] = None
-
-
-class MatriculaResponse(BaseModel):
-    id: uuid.UUID
-    area_id: uuid.UUID
-    numero_matricula: str
-    cartorio: Optional[str]
-    comarca: Optional[str]
-    livro: Optional[str]
-    folha: Optional[str]
-    data_registro: Optional[datetime]
-    area_matricula_ha: Optional[float]
-    car_numero: Optional[str]
-    nirf: Optional[str]
-    incra: Optional[str]
-    ccir: Optional[str]
-    sncr: Optional[str]
-    itr_numero: Optional[str]
-    ativo: bool
-
-    model_config = {"from_attributes": True}
-
-
-# ---------------------------------------------------------------------------
 # RegistroAmbiental
 # ---------------------------------------------------------------------------
 
