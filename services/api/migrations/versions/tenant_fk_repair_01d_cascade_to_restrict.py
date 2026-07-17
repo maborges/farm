@@ -25,6 +25,11 @@ Lotes por domínio (ordem de menor para maior impacto operacional):
 """
 from alembic import op
 
+revision = "tenant_fk_repair_01d"
+down_revision = "tenant_integrity_repair_01b2_onda1"
+branch_labels = None
+depends_on = None
+
 
 def upgrade() -> None:
     op.execute("""
