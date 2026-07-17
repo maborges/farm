@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, date, timezone
-from sqlalchemy import String, Boolean, DateTime, Date, ForeignKey, JSON, Float, Integer, Numeric, Text
+from sqlalchemy import String, Boolean, DateTime, Date, ForeignKey, ForeignKeyConstraint, JSON, Float, Integer, Numeric, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym
 from sqlalchemy import Uuid as UUID
 from core.database import Base
@@ -17,6 +17,15 @@ class Deposito(Base):
     tipo: Mapped[str] = mapped_column(String(50), default="GERAL") # GERAL, COMBUSTIVEL, DEFENSIVOS, PECAS
     localizacao_desc: Mapped[str | None] = mapped_column(String(200))
     ativo: Mapped[bool] = mapped_column(Boolean, default=True)
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["tenant_id", "unidade_produtiva_id"],
+            ["farms.unidades_produtivas.tenant_id", "farms.unidades_produtivas.id"],
+            name="fk_ed_tenant_unidade_produtiva",
+            ondelete="NO ACTION",
+        ),
+    )
 
 class SaldoEstoque(Base):
     """Ponte entre Produto e Depósito para controle de quantidade atual."""

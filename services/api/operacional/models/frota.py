@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import String, DateTime, ForeignKey, Float, Text
+from sqlalchemy import String, DateTime, ForeignKey, ForeignKeyConstraint, Float, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy import Uuid as UUID
 from core.database import Base
@@ -252,6 +252,12 @@ class JornadaEquipamento(Base):
     __table_args__ = (
         Index("ix_frota_jornadas_tenant_equip_data", tenant_id, equipamento_id, data_inicio),
         Index("ix_frota_jornadas_tenant_safra", tenant_id, safra_id),
+        ForeignKeyConstraint(
+            ["tenant_id", "unidade_produtiva_id"],
+            ["farms.unidades_produtivas.tenant_id", "farms.unidades_produtivas.id"],
+            name="fk_fje_tenant_unidade_produtiva",
+            ondelete="NO ACTION",
+        ),
     )
 
 

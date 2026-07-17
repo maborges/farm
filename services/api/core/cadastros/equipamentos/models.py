@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone, date
-from sqlalchemy import String, Boolean, DateTime, Date, Float, Integer, ForeignKey, Text, JSON
+from sqlalchemy import String, Boolean, DateTime, Date, Float, Integer, ForeignKey, ForeignKeyConstraint, Text, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy import Uuid as UUID
 from core.database import Base
@@ -114,6 +114,15 @@ class Equipamento(Base):
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
+    )
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["tenant_id", "unidade_produtiva_id"],
+            ["farms.unidades_produtivas.tenant_id", "farms.unidades_produtivas.id"],
+            name="fk_ce_tenant_unidade_produtiva",
+            ondelete="NO ACTION",
+        ),
     )
 
 

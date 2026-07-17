@@ -1,7 +1,7 @@
 import uuid
 import enum
 from datetime import datetime, timezone
-from sqlalchemy import String, DateTime, ForeignKey, Float, Text
+from sqlalchemy import String, DateTime, ForeignKey, ForeignKeyConstraint, Float, Text
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy import Uuid as UUID
 from core.database import Base
@@ -69,6 +69,12 @@ class Abastecimento(Base):
     from sqlalchemy import Index
     __table_args__ = (
         Index("ix_frota_abast_tenant_equip_data", tenant_id, equipamento_id, data),
+        ForeignKeyConstraint(
+            ["tenant_id", "equipamento_id"],
+            ["farms.cadastros_equipamentos.tenant_id", "farms.cadastros_equipamentos.id"],
+            name="fk_fa_tenant_equipamento",
+            ondelete="CASCADE",
+        ),
     )
 
     created_at: Mapped[datetime] = mapped_column(

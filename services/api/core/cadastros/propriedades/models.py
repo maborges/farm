@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 from decimal import Decimal
-from sqlalchemy import String, Boolean, DateTime, Float, ForeignKey, Text, JSON, Numeric, Index
+from sqlalchemy import String, Boolean, DateTime, Float, ForeignKey, ForeignKeyConstraint, Text, JSON, Numeric, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy import Uuid as UUID
 from core.database import Base
@@ -206,6 +206,15 @@ class AreaRural(Base):
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
+    )
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["tenant_id", "unidade_produtiva_id"],
+            ["farms.unidades_produtivas.tenant_id", "farms.unidades_produtivas.id"],
+            name="fk_car_tenant_unidade_produtiva",
+            ondelete="CASCADE",
+        ),
     )
 
     # Relationships
