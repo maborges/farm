@@ -12,7 +12,7 @@ class SolicitacaoHistorico(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(SAUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     solicitacao_id: Mapped[uuid.UUID] = mapped_column(SAUUID(as_uuid=True), nullable=False, index=True)
-    tenant_id: Mapped[uuid.UUID] = mapped_column(SAUUID(as_uuid=True), nullable=False)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(SAUUID(as_uuid=True), ForeignKey("farms.tenants.id", ondelete="NO ACTION"), nullable=False, index=True)
     usuario_id: Mapped[Optional[uuid.UUID]] = mapped_column(SAUUID(as_uuid=True), nullable=True)
     tipo_evento: Mapped[str] = mapped_column(String(50), nullable=False)
     valor_anterior: Mapped[Optional[str]] = mapped_column(Text(), nullable=True)
