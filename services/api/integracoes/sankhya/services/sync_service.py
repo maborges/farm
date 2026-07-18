@@ -1174,7 +1174,7 @@ class SankhyaSyncService:
         if canonical_config is None:
             return
 
-        now = datetime.now(UTC)
+        now = datetime.now(UTC).replace(tzinfo=None)
         canonical_config.status = "inativa"
         canonical_config.lifecycle_state = IntegrationStatus.REMOVED.value
         canonical_config.deleted_at = now

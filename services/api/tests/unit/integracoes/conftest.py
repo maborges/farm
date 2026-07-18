@@ -1,74 +1,42 @@
-import pytest_asyncio
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from sqlalchemy.pool import StaticPool
-
-from integracoes.models import (
-    ExternalRecordAssociation,
-    IntegrationCredential,
-    IntegrationFeature,
-    IntegrationHealth,
-    IntegrationJob,
-    IntegrationSyncPolicy,
-    IntegrationVersion,
-    MarketplaceIntegracao,
-    TenantIntegracao,
-)
-from integracoes.sankhya.models import SankhyaConfig, SankhyaNFe, SankhyaSyncLog
-
-
-@pytest_asyncio.fixture()
-async def session() -> AsyncSession:
-    engine = create_async_engine(
-        "sqlite+aiosqlite:///:memory:",
-        poolclass=StaticPool,
-        connect_args={"check_same_thread": False},
-    )
-    async with engine.begin() as conn:
-        await conn.run_sync(
-            lambda sync_conn: MarketplaceIntegracao.__table__.create(sync_conn, checkfirst=True)
-        )
-        await conn.run_sync(
-            lambda sync_conn: IntegrationCredential.__table__.create(sync_conn, checkfirst=True)
-        )
-        await conn.run_sync(
-            lambda sync_conn: TenantIntegracao.__table__.create(sync_conn, checkfirst=True)
-        )
-        await conn.run_sync(
-            lambda sync_conn: IntegrationVersion.__table__.create(sync_conn, checkfirst=True)
-        )
-        await conn.run_sync(
-            lambda sync_conn: SankhyaConfig.__table__.create(sync_conn, checkfirst=True)
-        )
-        await conn.run_sync(
-            lambda sync_conn: SankhyaSyncLog.__table__.create(sync_conn, checkfirst=True)
-        )
-        await conn.run_sync(
-            lambda sync_conn: IntegrationFeature.__table__.create(sync_conn, checkfirst=True)
-        )
-        await conn.run_sync(
-            lambda sync_conn: IntegrationSyncPolicy.__table__.create(sync_conn, checkfirst=True)
-        )
-        await conn.run_sync(
-            lambda sync_conn: IntegrationJob.__table__.create(sync_conn, checkfirst=True)
-        )
-        await conn.run_sync(
-            lambda sync_conn: IntegrationHealth.__table__.create(sync_conn, checkfirst=True)
-        )
-        await conn.run_sync(
-            lambda sync_conn: ExternalRecordAssociation.__table__.create(sync_conn, checkfirst=True)
-        )
-        await conn.run_sync(
-            lambda sync_conn: SankhyaNFe.__table__.create(sync_conn, checkfirst=True)
-        )
-
-    session_factory = async_sessionmaker(engine, expire_on_commit=False)
-    async with session_factory() as current:
-        yield current
-
-    await engine.dispose()
-
+# A fixture `session` (PostgreSQL oficial, schema `farms`) é herdada de
+# `tests/conftest.py` — não é redefinida aqui. Um engine SQLite em memória
+# com um subconjunto manual de tabelas era declarado neste arquivo e não
+# incluía `farms.tenants`, causando `NoReferencedTableError` para qualquer
+# model com FK real para `tenant_id` (ver INTEGRATIONS-TEST-INFRA-01).
 import socket
+import uuid
+
 import pytest
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
+
+
+async def criar_tenant_real(
+    session: AsyncSession,
+    *,
+    nome: str = "Tenant Teste Integracoes",
+) -> str:
+    """Insere um tenant real em `tenants` e ativa a RLS da sessão.
+
+    Helper compartilhado por INTEGRATIONS-TEST-INFRA-03A: evita tenants
+    fictícios (`"tenant-legado"`, `"tenant-1"`, etc.) que nunca existem em
+    `tenants`, causando `ForeignKeyViolationError` contra o PostgreSQL oficial.
+    Cada chamada gera um UUID novo — chamar uma única vez por tenant lógico
+    dentro do teste e reutilizar o valor retornado quando o cenário exigir o
+    mesmo tenant em múltiplas operações.
+    """
+    tenant_id = str(uuid.uuid4())
+    await session.execute(
+        text(
+            "INSERT INTO tenants (id, nome, documento, ativo, storage_usado_mb, "
+            "storage_limite_mb, idioma_padrao, created_at, updated_at) "
+            "VALUES (:id, :nome, :doc, true, 0, 10240, 'pt-BR', now(), now())"
+        ),
+        {"id": tenant_id, "nome": nome, "doc": tenant_id[:11]},
+    )
+    await session.execute(text(f"SET app.current_tenant_id = '{tenant_id}'"))
+    return tenant_id
+
 
 @pytest.fixture(autouse=True)
 def mock_dns_globally(monkeypatch):
@@ -88,7 +56,7 @@ def mock_dns_globally(monkeypatch):
             raise TimeoutError("DNS Timeout")
         elif host == "nxdomain.com":
             raise socket.gaierror("Name or service not known")
-        
+
         # Para outros testes no pacote, retorna um IP publico dummy válido
         return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("8.8.8.8", 443))]
 

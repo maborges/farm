@@ -16,6 +16,7 @@ from integracoes.sankhya.services.canonical_adapter import (
     _credential_schema_payload,
 )
 from integracoes.sankhya.services.sync_service import SankhyaSyncService
+from tests.unit.integracoes.conftest import criar_tenant_real
 
 
 @pytest.fixture
@@ -44,7 +45,7 @@ async def test_fluxo_e2e_gateway_oauth_completo(
     mock_dns_globally,
     mock_httpx_auth_ok,
 ) -> None:
-    tenant_id = uuid.uuid4()
+    tenant_id = uuid.UUID(await criar_tenant_real(session))
     sync_service = SankhyaSyncService(session)
 
     payload = SankhyaConfigCreate(
@@ -82,7 +83,7 @@ async def test_fluxo_e2e_legacy_login_nao_cai_no_fallback_oauth(
     mock_dns_globally,
     mock_httpx_auth_ok,
 ) -> None:
-    tenant_id = uuid.uuid4()
+    tenant_id = uuid.UUID(await criar_tenant_real(session))
     sync_service = SankhyaSyncService(session)
 
     payload = SankhyaConfigCreate(
@@ -114,7 +115,7 @@ async def test_save_bloqueia_auth_model_invalido(
     mock_dns_globally,
     mock_httpx_auth_ok,
 ) -> None:
-    tenant_id = uuid.uuid4()
+    tenant_id = uuid.UUID(await criar_tenant_real(session))
     sync_service = SankhyaSyncService(session)
 
     payload = SankhyaConfigCreate(

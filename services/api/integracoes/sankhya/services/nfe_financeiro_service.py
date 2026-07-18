@@ -10,7 +10,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from integracoes.models import IntegrationJobTrigger
 from integracoes.sankhya.models import (
-    SankhyaConfig,
     SankhyaLancamentoFinanceiro,
     SankhyaNFe,
 )

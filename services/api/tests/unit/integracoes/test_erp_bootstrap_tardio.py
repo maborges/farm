@@ -24,6 +24,7 @@ from integracoes.models import (
 )
 from integracoes.sankhya.models import SankhyaConfig
 from integracoes.sankhya.services.sync_service import SankhyaSyncService
+from tests.unit.integracoes.conftest import criar_tenant_real
 
 
 async def _seed_sankhya_provider(session: AsyncSession) -> None:
@@ -34,7 +35,6 @@ async def _seed_sankhya_provider(session: AsyncSession) -> None:
         return
     session.add(
         MarketplaceIntegracao(
-            id=2,
             nome="Sankhya",
             slug="sankhya",
             provider_type="ERP",
@@ -127,7 +127,7 @@ async def _count_rows(session: AsyncSession, tenant_id: uuid.UUID) -> tuple[int,
 async def test_gets_em_tenant_vazio_retorna_estado_vazio_sem_criar_registros(
     session: AsyncSession,
 ) -> None:
-    tenant_id = uuid.uuid4()
+    tenant_id = uuid.UUID(await criar_tenant_real(session))
     await _seed_sankhya_provider(session)
     before = await _count_rows(session, tenant_id)
 
@@ -160,7 +160,7 @@ async def test_gets_em_tenant_vazio_retorna_estado_vazio_sem_criar_registros(
 async def test_primeiro_save_tardio_sem_wizard_nem_implantacao_cria_config_e_integracao(
     session: AsyncSession,
 ) -> None:
-    tenant_id = uuid.uuid4()
+    tenant_id = uuid.UUID(await criar_tenant_real(session))
     await _seed_sankhya_provider(session)
 
     payload = {
@@ -203,7 +203,7 @@ async def test_primeiro_save_tardio_sem_wizard_nem_implantacao_cria_config_e_int
 async def test_remocao_de_erp_persistido_retorna_tenant_para_estado_sem_erp(
     session: AsyncSession,
 ) -> None:
-    tenant_id = uuid.uuid4()
+    tenant_id = uuid.UUID(await criar_tenant_real(session))
     await _seed_sankhya_provider(session)
 
     payload = {
@@ -290,7 +290,7 @@ async def test_remocao_de_erp_persistido_retorna_tenant_para_estado_sem_erp(
 async def test_drift_inverso_resolve_provider_canonico_sem_sankhya_config(
     session: AsyncSession,
 ) -> None:
-    tenant_id = uuid.uuid4()
+    tenant_id = uuid.UUID(await criar_tenant_real(session))
     await _seed_sankhya_provider(session)
     await SankhyaSyncService(session).criar_config(
         tenant_id=str(tenant_id),
@@ -319,7 +319,7 @@ async def test_drift_inverso_resolve_provider_canonico_sem_sankhya_config(
 async def test_integracao_inativa_nao_e_confundida_com_nunca_configurada(
     session: AsyncSession,
 ) -> None:
-    tenant_id = uuid.uuid4()
+    tenant_id = uuid.UUID(await criar_tenant_real(session))
     await _seed_sankhya_provider(session)
     await SankhyaSyncService(session).criar_config(
         tenant_id=str(tenant_id),
@@ -350,7 +350,7 @@ async def test_integracao_inativa_nao_e_confundida_com_nunca_configurada(
 async def test_soft_delete_retorna_estado_vazio_sem_reutilizar_linha_removida(
     session: AsyncSession,
 ) -> None:
-    tenant_id = uuid.uuid4()
+    tenant_id = uuid.UUID(await criar_tenant_real(session))
     await _seed_sankhya_provider(session)
     await SankhyaSyncService(session).criar_config(
         tenant_id=str(tenant_id),

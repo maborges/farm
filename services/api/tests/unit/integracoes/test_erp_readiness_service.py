@@ -6,57 +6,19 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-import pytest_asyncio
-from sqlalchemy import Column, Table, delete, update
-from sqlalchemy import Uuid as UUIDType
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy import delete, text, update
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.database import Base
 from integracoes.erp_readiness_service import ErpReadinessService
 from integracoes.models import (
     ExternalRecordAssociation,
-    IntegrationCredential,
     IntegrationFeature,
     IntegrationHealth,
-    IntegrationJob,
     IntegrationSyncPolicy,
-    IntegrationVersion,
-    MarketplaceIntegracao,
-    TenantIntegracao,
 )
-from integracoes.sankhya.models import SankhyaConfig
 from integracoes.sankhya.services.sync_service import SankhyaSyncService
 
 REPO_ROOT = Path(__file__).resolve().parents[5]
-
-if "domain_event_outbox" not in Base.metadata.tables:
-    Table(
-        "domain_event_outbox",
-        Base.metadata,
-        Column("id", UUIDType(as_uuid=True), primary_key=True),
-    )
-
-
-@pytest_asyncio.fixture()
-async def session() -> AsyncSession:
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
-    async with engine.begin() as conn:
-        await conn.run_sync(lambda sync_conn: MarketplaceIntegracao.__table__.create(sync_conn))
-        await conn.run_sync(lambda sync_conn: IntegrationCredential.__table__.create(sync_conn))
-        await conn.run_sync(lambda sync_conn: TenantIntegracao.__table__.create(sync_conn))
-        await conn.run_sync(lambda sync_conn: IntegrationVersion.__table__.create(sync_conn))
-        await conn.run_sync(lambda sync_conn: SankhyaConfig.__table__.create(sync_conn))
-        await conn.run_sync(lambda sync_conn: IntegrationFeature.__table__.create(sync_conn))
-        await conn.run_sync(lambda sync_conn: IntegrationSyncPolicy.__table__.create(sync_conn))
-        await conn.run_sync(lambda sync_conn: IntegrationJob.__table__.create(sync_conn))
-        await conn.run_sync(lambda sync_conn: IntegrationHealth.__table__.create(sync_conn))
-        await conn.run_sync(lambda sync_conn: ExternalRecordAssociation.__table__.create(sync_conn))
-
-    session_factory = async_sessionmaker(engine, expire_on_commit=False)
-    async with session_factory() as current:
-        yield current
-
-    await engine.dispose()
 
 
 @pytest.fixture(autouse=True)
@@ -87,13 +49,27 @@ def _make_implantacao(
     )
 
 
+async def _criar_tenant_real(session: AsyncSession, tenant_id: uuid.UUID) -> None:
+    await session.execute(
+        text(
+            "INSERT INTO tenants (id, nome, documento, ativo, storage_usado_mb, "
+            "storage_limite_mb, idioma_padrao, created_at, updated_at) "
+            "VALUES (:id, :nome, :doc, true, 0, 10240, 'pt-BR', now(), now())"
+        ),
+        {"id": str(tenant_id), "nome": "Tenant ERP Readiness", "doc": str(tenant_id)[:11]},
+    )
+    await session.execute(text(f"SET app.current_tenant_id = '{tenant_id}'"))
+
+
 async def _materialize_runtime(session: AsyncSession, tenant_id: uuid.UUID) -> None:
+    await _criar_tenant_real(session, tenant_id)
     service = SankhyaSyncService(session)
     await service.criar_config(
         tenant_id=str(tenant_id),
+        auth_model="gateway_oauth_client_credentials",
         sankhya_environment="producao",
-        sankhya_api_base_url="https://gateway.example/api",
-        sankhya_auth_url="https://gateway.example/authenticate",
+        sankhya_api_base_url="https://public.com/api",
+        sankhya_auth_url="https://public.com/authenticate",
         sankhya_client_id="client-123",
         sankhya_client_secret="client-secret",
         sankhya_x_token="x-token",
@@ -158,7 +134,9 @@ async def test_servico_falha_com_capabilities_p0_incompletas(session: AsyncSessi
     tenant_id = uuid.uuid4()
     await _materialize_runtime(session, tenant_id)
     await session.execute(
-        update(IntegrationFeature).where(IntegrationFeature.codigo == "nfe").values(habilitada=False)
+        update(IntegrationFeature)
+        .where(IntegrationFeature.codigo == "nfe")
+        .values(habilitada=False)
     )
     await session.commit()
 
@@ -191,7 +169,9 @@ async def test_servico_pendente_com_policies_ausentes(session: AsyncSession) -> 
 async def test_servico_falha_com_conflito_critico(session: AsyncSession) -> None:
     tenant_id = uuid.uuid4()
     await _materialize_runtime(session, tenant_id)
-    runtime = await ErpReadinessService(session).carregar_runtime(_make_implantacao(tenant_id, declared=True))
+    runtime = await ErpReadinessService(session).carregar_runtime(
+        _make_implantacao(tenant_id, declared=True)
+    )
     assert runtime.config is not None and runtime.provider is not None
     session.add(
         ExternalRecordAssociation(
@@ -221,7 +201,9 @@ async def test_servico_falha_com_conflito_critico(session: AsyncSession) -> None
 async def test_servico_pendente_com_reconciliacao_pendente(session: AsyncSession) -> None:
     tenant_id = uuid.uuid4()
     await _materialize_runtime(session, tenant_id)
-    runtime = await ErpReadinessService(session).carregar_runtime(_make_implantacao(tenant_id, declared=True))
+    runtime = await ErpReadinessService(session).carregar_runtime(
+        _make_implantacao(tenant_id, declared=True)
+    )
     assert runtime.config is not None and runtime.provider is not None
     session.add(
         ExternalRecordAssociation(

@@ -24,6 +24,8 @@ from integracoes.sankhya.services.legacy_reconciliation import (
 from integracoes.sankhya.services.sync_service import SankhyaSyncService
 from integracoes.security import encrypt_integration_secret
 
+from tests.unit.integracoes.conftest import criar_tenant_real
+
 
 @pytest.fixture(autouse=True)
 def _stub_domain_events(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -37,32 +39,49 @@ def _stub_domain_events(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 async def _seed_provider(session: AsyncSession, *, active: bool = True) -> MarketplaceIntegracao:
-    provider = MarketplaceIntegracao(
-        id=2,
-        nome="Sankhya",
-        slug="sankhya",
-        provider_type="ERP",
-        ativa=active,
-        oficial=True,
-        provider_definition={
-            "provider_code": "sankhya",
-            "provider_name": "Sankhya",
-            "display_name": "Sankhya ERP",
-        },
-        connection_schema={"schema_version": 1},
-        credential_schema={"schema_version": 1},
-        feature_schema={"capability_matrix": []},
-        sync_schema={},
-        health_schema={},
-    )
-    session.add(provider)
+    provider = (
+        await session.execute(
+            select(MarketplaceIntegracao).where(MarketplaceIntegracao.slug == "sankhya")
+        )
+    ).scalar_one_or_none()
+    if provider is None:
+        provider = MarketplaceIntegracao(
+            nome="Sankhya",
+            slug="sankhya",
+            provider_type="ERP",
+            ativa=active,
+            oficial=True,
+            provider_definition={
+                "provider_code": "sankhya",
+                "provider_name": "Sankhya",
+                "display_name": "Sankhya ERP",
+            },
+            connection_schema={"schema_version": 1},
+            credential_schema={"schema_version": 1},
+            feature_schema={"capability_matrix": []},
+            sync_schema={},
+            health_schema={},
+        )
+        session.add(provider)
+    else:
+        provider.ativa = active
+        session.add(provider)
     await session.commit()
     return provider
 
 
-def _legacy_config(tenant_id: str, *, active: bool = True) -> SankhyaConfig:
+async def _next_sankhya_config_id(session: AsyncSession) -> int:
+    # sankhya_config.id não possui sequence/default no banco (débito já
+    # registrado); replica o mesmo contorno usado em produção por
+    # SankhyaSyncService (max(id) + 1), sem alterar model ou migration.
+    return (
+        await session.scalar(select(func.coalesce(func.max(SankhyaConfig.id), 0) + 1))
+    ) or 1
+
+
+def _legacy_config(tenant_id: str, *, config_id: int, active: bool = True) -> SankhyaConfig:
     return SankhyaConfig(
-        id=1,
+        id=config_id,
         tenant_id=tenant_id,
         environment="producao",
         api_base_url="https://gateway.example/api",
@@ -82,7 +101,8 @@ def _legacy_config(tenant_id: str, *, active: bool = True) -> SankhyaConfig:
 
 
 async def _seed_legacy_only(session: AsyncSession, tenant_id: str, *, active: bool = True) -> None:
-    session.add(_legacy_config(tenant_id, active=active))
+    config_id = await _next_sankhya_config_id(session)
+    session.add(_legacy_config(tenant_id, config_id=config_id, active=active))
     await session.commit()
 
 
@@ -151,7 +171,7 @@ async def _count_materialized(session: AsyncSession, tenant_id: str) -> dict[str
 async def test_reconcile_legacy_only_dry_run_nao_persiste(
     session: AsyncSession,
 ) -> None:
-    tenant_id = "tenant-legacy-only"
+    tenant_id = await criar_tenant_real(session)
     await _seed_provider(session)
     await _seed_legacy_only(session, tenant_id)
 
@@ -179,7 +199,7 @@ async def test_reconcile_legacy_only_dry_run_nao_persiste(
 async def test_reconcile_legacy_only_execute_cria_dependencias_e_idempotencia(
     session: AsyncSession,
 ) -> None:
-    tenant_id = "tenant-legacy-execute"
+    tenant_id = await criar_tenant_real(session)
     await _seed_provider(session)
     await _seed_legacy_only(session, tenant_id)
 
@@ -210,7 +230,7 @@ async def test_reconcile_legacy_only_execute_cria_dependencias_e_idempotencia(
 
 @pytest.mark.asyncio
 async def test_reconcile_both_consistent_nao_altera(session: AsyncSession) -> None:
-    tenant_id = "tenant-both-consistent"
+    tenant_id = await criar_tenant_real(session)
     await _seed_provider(session)
     await _materialize_runtime(session, tenant_id)
 
@@ -237,7 +257,7 @@ async def test_reconcile_both_consistent_nao_altera(session: AsyncSession) -> No
 async def test_reconcile_ignora_credencial_historica_sem_tratar_como_duplicada(
     session: AsyncSession,
 ) -> None:
-    tenant_id = "tenant-historical-credential"
+    tenant_id = await criar_tenant_real(session)
     await _seed_provider(session)
     await _materialize_runtime(session, tenant_id)
     canonical = await session.scalar(
@@ -268,7 +288,7 @@ async def test_reconcile_ignora_credencial_historica_sem_tratar_como_duplicada(
 
 @pytest.mark.asyncio
 async def test_reconcile_both_divergent_bloqueia(session: AsyncSession) -> None:
-    tenant_id = "tenant-both-divergent"
+    tenant_id = await criar_tenant_real(session)
     await _seed_provider(session)
     await _materialize_runtime(session, tenant_id)
     await session.execute(
@@ -291,7 +311,7 @@ async def test_reconcile_both_divergent_bloqueia(session: AsyncSession) -> None:
 
 @pytest.mark.asyncio
 async def test_reconcile_canonical_only_nao_altera(session: AsyncSession) -> None:
-    tenant_id = "tenant-canonical-only"
+    tenant_id = await criar_tenant_real(session)
     await _seed_provider(session)
     await _materialize_runtime(session, tenant_id)
     await session.execute(delete(SankhyaConfig).where(SankhyaConfig.tenant_id == tenant_id))
@@ -309,7 +329,7 @@ async def test_reconcile_canonical_only_nao_altera(session: AsyncSession) -> Non
 
 @pytest.mark.asyncio
 async def test_reconcile_legacy_soft_deleted(session: AsyncSession) -> None:
-    tenant_id = "tenant-legacy-soft-deleted"
+    tenant_id = await criar_tenant_real(session)
     await _seed_provider(session)
     await _seed_legacy_only(session, tenant_id, active=False)
 
@@ -325,14 +345,14 @@ async def test_reconcile_legacy_soft_deleted(session: AsyncSession) -> None:
 
 @pytest.mark.asyncio
 async def test_reconcile_canonical_soft_deleted(session: AsyncSession) -> None:
-    tenant_id = "tenant-canonical-soft-deleted"
+    tenant_id = await criar_tenant_real(session)
     await _seed_provider(session)
     await _seed_legacy_only(session, tenant_id)
     await _materialize_runtime(session, tenant_id)
     await session.execute(
         update(TenantIntegracao)
         .where(TenantIntegracao.tenant_id == tenant_id)
-        .values(deleted_at=datetime.now(timezone.utc))  # noqa: UP017
+        .values(deleted_at=datetime.now(timezone.utc).replace(tzinfo=None))  # noqa: UP017
     )
     await session.commit()
 
@@ -348,7 +368,7 @@ async def test_reconcile_canonical_soft_deleted(session: AsyncSession) -> None:
 
 @pytest.mark.asyncio
 async def test_reconcile_provider_inativo_bloqueia(session: AsyncSession) -> None:
-    tenant_id = "tenant-provider-inactive"
+    tenant_id = await criar_tenant_real(session)
     await _seed_provider(session, active=False)
     await _seed_legacy_only(session, tenant_id)
 

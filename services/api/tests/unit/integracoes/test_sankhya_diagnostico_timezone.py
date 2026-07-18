@@ -22,6 +22,7 @@ from integracoes.models import (
 )
 from integracoes.sankhya.models import SankhyaSyncLog
 from integracoes.sankhya.services.sync_service import SankhyaSyncService
+from tests.unit.integracoes.conftest import criar_tenant_real
 
 UTC = timezone.utc  # noqa: UP017
 
@@ -46,7 +47,6 @@ async def _seed_sankhya_provider(session: AsyncSession) -> None:
 
     session.add(
         MarketplaceIntegracao(
-            id=2,
             nome="Sankhya",
             slug="sankhya",
             provider_type="ERP",
@@ -108,7 +108,7 @@ async def _materialize_mixed_runtime(
 ) -> tuple[SankhyaSyncService, IntegrationFeature]:
     await _seed_sankhya_provider(session)
     service = SankhyaSyncService(session)
-    await service.criar_config(
+    legacy_config = await service.criar_config(
         tenant_id=str(tenant_id),
         auth_model="gateway_oauth_client_credentials",
         sankhya_environment="producao",
@@ -175,9 +175,8 @@ async def _materialize_mixed_runtime(
     )
     session.add(
         SankhyaSyncLog(
-            id=501,
             tenant_id=str(tenant_id),
-            config_id=1,
+            config_id=legacy_config.id,
             tipo=feature.codigo,
             operacao="import",
             status="sucesso",
@@ -191,9 +190,8 @@ async def _materialize_mixed_runtime(
     )
     session.add(
         SankhyaSyncLog(
-            id=502,
             tenant_id=str(tenant_id),
-            config_id=1,
+            config_id=legacy_config.id,
             tipo=feature.codigo,
             operacao="import",
             status="erro",
@@ -253,7 +251,7 @@ def test_resolve_latest_timestamp_tolera_lista_mista() -> None:
 async def test_diagnostico_operacional_normaliza_naive_e_aware(
     session: AsyncSession,
 ) -> None:
-    tenant_id = uuid.uuid4()
+    tenant_id = uuid.UUID(await criar_tenant_real(session))
     service, feature = await _materialize_mixed_runtime(session, tenant_id)
 
     diagnostico = await service.obter_diagnostico_operacional(str(tenant_id))
@@ -284,7 +282,7 @@ async def test_diagnostico_operacional_normaliza_naive_e_aware(
 async def test_timeline_operacional_ordena_e_serializa_timestamps_mistos(
     session: AsyncSession,
 ) -> None:
-    tenant_id = uuid.uuid4()
+    tenant_id = uuid.UUID(await criar_tenant_real(session))
     service, _ = await _materialize_mixed_runtime(session, tenant_id)
 
     timeline = await service.listar_timeline_operacional(str(tenant_id), limit=20)
@@ -303,7 +301,7 @@ async def test_timeline_operacional_ordena_e_serializa_timestamps_mistos(
 async def test_endpoint_diagnostico_retorna_200_com_dados_mistos(
     session: AsyncSession,
 ) -> None:
-    tenant_id = uuid.uuid4()
+    tenant_id = uuid.UUID(await criar_tenant_real(session))
     _, feature = await _materialize_mixed_runtime(session, tenant_id)
 
     async with _build_client(session, tenant_id) as client:

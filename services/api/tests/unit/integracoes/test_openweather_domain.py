@@ -2,18 +2,17 @@ from __future__ import annotations
 
 # ruff: noqa: I001, E501
 
+import uuid
 from pathlib import Path
 from typing import Any
 
 import httpx
 import pytest
 import pytest_asyncio
-from sqlalchemy import Column, Table, select
-from sqlalchemy import Uuid as UUIDType
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy import select, text
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from alert_engine.models import Domain
-from core.database import Base
 from integracoes.models import (
     IntegrationCredential,
     IntegrationFeature,
@@ -25,7 +24,6 @@ from integracoes.models import (
     IntegrationSyncPolicy,
     MarketplaceIntegracao,
     TenantIntegracao,
-    IntegrationVersion,
 )
 from integracoes.openweather.schemas import OpenWeatherConfigUpsert
 from integracoes.openweather.services import OpenWeatherService
@@ -37,35 +35,23 @@ MAIN_FILE = REPO_ROOT / "services/api/main.py"
 SIDEBAR_FILE = REPO_ROOT / "apps/web/src/components/layout/app-sidebar.tsx"
 CATALOG_FILE = REPO_ROOT / "apps/web/src/app/integracoes/page.tsx"
 
-if "domain_event_outbox" not in Base.metadata.tables:
-    Table(
-        "domain_event_outbox",
-        Base.metadata,
-        Column("id", UUIDType(as_uuid=True), primary_key=True),
-    )
-
 
 @pytest_asyncio.fixture()
-async def session() -> AsyncSession:
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
-    async with engine.begin() as conn:
-        await conn.run_sync(lambda sync_conn: MarketplaceIntegracao.__table__.create(sync_conn))
-        await conn.run_sync(lambda sync_conn: IntegrationCredential.__table__.create(sync_conn))
-        await conn.run_sync(lambda sync_conn: TenantIntegracao.__table__.create(sync_conn))
-        await conn.run_sync(lambda sync_conn: IntegrationFeature.__table__.create(sync_conn))
-        await conn.run_sync(lambda sync_conn: IntegrationSyncPolicy.__table__.create(sync_conn))
-        await conn.run_sync(lambda sync_conn: IntegrationJob.__table__.create(sync_conn))
-        await conn.run_sync(lambda sync_conn: IntegrationHealth.__table__.create(sync_conn))
-        await conn.run_sync(lambda sync_conn: IntegrationVersion.__table__.create(sync_conn))
-
-    session_factory = async_sessionmaker(engine, expire_on_commit=False)
-    async with session_factory() as current:
-        yield current
-
-    await engine.dispose()
+async def tenant_id(session: AsyncSession) -> str:
+    tid = str(uuid.uuid4())
+    await session.execute(
+        text(
+            "INSERT INTO tenants (id, nome, documento, ativo, storage_usado_mb, "
+            "storage_limite_mb, idioma_padrao, created_at, updated_at) "
+            "VALUES (:id, :nome, :doc, true, 0, 10240, 'pt-BR', now(), now())"
+        ),
+        {"id": tid, "nome": "Tenant OpenWeather Teste", "doc": tid[:11]},
+    )
+    await session.execute(text(f"SET app.current_tenant_id = '{tid}'"))
+    return tid
 
 
-async def _save_config(session: AsyncSession, tenant_id: str = "tenant-openweather") -> Any:
+async def _save_config(session: AsyncSession, tenant_id: str) -> Any:
     service = OpenWeatherService(session)
     return await service.salvar_config(
         tenant_id,
@@ -85,6 +71,7 @@ async def _save_config(session: AsyncSession, tenant_id: str = "tenant-openweath
 @pytest.mark.asyncio
 async def test_salvar_config_materializa_provider_features_policies_e_credential_encriptada(
     session: AsyncSession,
+    tenant_id: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     events: list[Any] = []
@@ -97,7 +84,7 @@ async def test_salvar_config_materializa_provider_features_policies_e_credential
         fake_publish,
     )
 
-    config_response = await _save_config(session)
+    config_response = await _save_config(session, tenant_id)
 
     provider = (
         await session.execute(
@@ -106,12 +93,12 @@ async def test_salvar_config_materializa_provider_features_policies_e_credential
     ).scalar_one()
     credential = (
         await session.execute(
-            select(IntegrationCredential).where(IntegrationCredential.tenant_id == "tenant-openweather")
+            select(IntegrationCredential).where(IntegrationCredential.tenant_id == tenant_id)
         )
     ).scalar_one()
     config = (
         await session.execute(
-            select(TenantIntegracao).where(TenantIntegracao.tenant_id == "tenant-openweather")
+            select(TenantIntegracao).where(TenantIntegracao.tenant_id == tenant_id)
         )
     ).scalar_one()
     features = list(
@@ -151,6 +138,7 @@ async def test_salvar_config_materializa_provider_features_policies_e_credential
 @pytest.mark.asyncio
 async def test_atualizacao_sem_nova_api_key_preserva_credencial_existente(
     session: AsyncSession,
+    tenant_id: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     async def fake_publish(event: Any, **_: Any) -> None:
@@ -158,10 +146,10 @@ async def test_atualizacao_sem_nova_api_key_preserva_credencial_existente(
 
     monkeypatch.setattr("integracoes.openweather.services.publish_domain_event_safe", fake_publish)
 
-    await _save_config(session)
+    await _save_config(session, tenant_id)
     service = OpenWeatherService(session)
     await service.salvar_config(
-        "tenant-openweather",
+        tenant_id,
         payload=OpenWeatherConfigUpsert(
             api_key=None,
             api_base_url="https://api.openweathermap.org",
@@ -178,7 +166,7 @@ async def test_atualizacao_sem_nova_api_key_preserva_credencial_existente(
         (
             await session.execute(
                 select(IntegrationCredential).where(
-                    IntegrationCredential.tenant_id == "tenant-openweather"
+                    IntegrationCredential.tenant_id == tenant_id
                 )
             )
         ).scalars()
@@ -191,6 +179,7 @@ async def test_atualizacao_sem_nova_api_key_preserva_credencial_existente(
 @pytest.mark.asyncio
 async def test_rotacao_de_api_key_cria_nova_credencial_e_desativa_a_anterior(
     session: AsyncSession,
+    tenant_id: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     async def fake_publish(event: Any, **_: Any) -> None:
@@ -198,10 +187,10 @@ async def test_rotacao_de_api_key_cria_nova_credencial_e_desativa_a_anterior(
 
     monkeypatch.setattr("integracoes.openweather.services.publish_domain_event_safe", fake_publish)
 
-    await _save_config(session)
+    await _save_config(session, tenant_id)
     service = OpenWeatherService(session)
     await service.salvar_config(
-        "tenant-openweather",
+        tenant_id,
         payload=OpenWeatherConfigUpsert(
             api_key="weather-secret-rotated",
             api_base_url="https://api.openweathermap.org",
@@ -218,7 +207,7 @@ async def test_rotacao_de_api_key_cria_nova_credencial_e_desativa_a_anterior(
         (
             await session.execute(
                 select(IntegrationCredential)
-                .where(IntegrationCredential.tenant_id == "tenant-openweather")
+                .where(IntegrationCredential.tenant_id == tenant_id)
                 .order_by(IntegrationCredential.version_number.asc())
             )
         ).scalars()
@@ -233,6 +222,7 @@ async def test_rotacao_de_api_key_cria_nova_credencial_e_desativa_a_anterior(
 @pytest.mark.asyncio
 async def test_teste_de_conexao_cria_job_health_e_eventos_canonicos(
     session: AsyncSession,
+    tenant_id: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     events: list[Any] = []
@@ -263,9 +253,9 @@ async def test_teste_de_conexao_cria_job_health_e_eventos_canonicos(
     )
     monkeypatch.setattr("integracoes.openweather.services.OpenWeatherClient.fetch_current_weather", fake_fetch)
 
-    await _save_config(session)
+    await _save_config(session, tenant_id)
     service = OpenWeatherService(session)
-    result = await service.testar_conexao("tenant-openweather")
+    result = await service.testar_conexao(tenant_id)
 
     job = (
         await session.execute(select(IntegrationJob).order_by(IntegrationJob.created_at.desc()))
@@ -289,6 +279,7 @@ async def test_teste_de_conexao_cria_job_health_e_eventos_canonicos(
 @pytest.mark.asyncio
 async def test_falha_de_conexao_cria_alerta_e_health_degradado(
     session: AsyncSession,
+    tenant_id: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     events: list[Any] = []
@@ -311,9 +302,9 @@ async def test_falha_de_conexao_cria_alerta_e_health_degradado(
     )
     monkeypatch.setattr("integracoes.openweather.services.OpenWeatherClient.fetch_current_weather", fake_fetch)
 
-    await _save_config(session)
+    await _save_config(session, tenant_id)
     service = OpenWeatherService(session)
-    result = await service.testar_conexao("tenant-openweather")
+    result = await service.testar_conexao(tenant_id)
 
     job = (
         await session.execute(select(IntegrationJob).order_by(IntegrationJob.created_at.desc()))
@@ -323,7 +314,7 @@ async def test_falha_de_conexao_cria_alerta_e_health_degradado(
     ).scalar_one()
 
     assert result.sucesso is False
-    assert "Timeout" in result.mensagem
+    assert "timeout" in result.mensagem.lower()
     assert job.status == IntegrationJobStatus.FAILED.value
     assert health.status == IntegrationHealthStatus.DEGRADED.value
     assert health.consecutive_failures == 1
@@ -359,6 +350,7 @@ async def test_mapeamento_de_health_cobre_auth_error_e_rate_limited(
 @pytest.mark.asyncio
 async def test_status_timeline_e_diagnostico_consolidam_camadas_canonicas(
     session: AsyncSession,
+    tenant_id: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     async def fake_publish(event: Any, **_: Any) -> None:
@@ -384,15 +376,15 @@ async def test_status_timeline_e_diagnostico_consolidam_camadas_canonicas(
     )
     monkeypatch.setattr("integracoes.openweather.services.OpenWeatherClient.fetch_current_weather", fake_fetch)
 
-    await _save_config(session)
+    await _save_config(session, tenant_id)
     service = OpenWeatherService(session)
-    await service.testar_conexao("tenant-openweather")
+    await service.testar_conexao(tenant_id)
 
-    status = await service.obter_status_detalhado("tenant-openweather")
-    health = await service.obter_health_detalhado("tenant-openweather")
-    jobs = await service.listar_jobs("tenant-openweather")
-    timeline = await service.listar_timeline_operacional("tenant-openweather")
-    diagnosis = await service.obter_diagnostico_operacional("tenant-openweather")
+    status = await service.obter_status_detalhado(tenant_id)
+    health = await service.obter_health_detalhado(tenant_id)
+    jobs = await service.listar_jobs(tenant_id)
+    timeline = await service.listar_timeline_operacional(tenant_id)
+    diagnosis = await service.obter_diagnostico_operacional(tenant_id)
 
     assert status["status_origem"] == "canonical"
     assert health["origem"] == "canonical"

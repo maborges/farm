@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from sqlalchemy import Column, Table, select
+from sqlalchemy import Column, Table, func, select
 from sqlalchemy import Uuid as UUIDType
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -41,6 +41,7 @@ from integracoes.sankhya.services.sync_service import (
     _is_sankhya_config_unique_conflict,
 )
 from integracoes.security import decrypt_integration_secret, encrypt_integration_secret
+from tests.unit.integracoes.conftest import criar_tenant_real
 
 REPO_ROOT = Path(__file__).resolve().parents[5]
 ROUTERS_FILE = REPO_ROOT / "services/api/integracoes/sankhya/routers/__init__.py"
@@ -56,10 +57,22 @@ if "domain_event_outbox" not in Base.metadata.tables:
 
 
 
-async def _legacy_sankhya_config(session: AsyncSession) -> SankhyaConfig:
+async def _next_sankhya_config_id(session: AsyncSession) -> int:
+    # sankhya_config.id não possui sequence/default no banco (débito já
+    # registrado); replica o contorno usado em produção por
+    # SankhyaSyncService (max(id) + 1), sem alterar model ou migration.
+    return (
+        await session.scalar(select(func.coalesce(func.max(SankhyaConfig.id), 0) + 1))
+    ) or 1
+
+
+async def _legacy_sankhya_config(
+    session: AsyncSession, tenant_id: str | None = None
+) -> SankhyaConfig:
+    tenant_id = tenant_id or await criar_tenant_real(session)
     service = SankhyaSyncService(session)
     return await service.criar_config(
-        tenant_id="90aa4f2e-c8ce-4e69-a792-eedf505372e4",
+        tenant_id=tenant_id,
         ws_url="https://erp.example/ws",
         username="usuario",
         password="segredo",
@@ -67,10 +80,13 @@ async def _legacy_sankhya_config(session: AsyncSession) -> SankhyaConfig:
     )
 
 
-async def _gateway_sankhya_config(session: AsyncSession) -> SankhyaConfig:
+async def _gateway_sankhya_config(
+    session: AsyncSession, tenant_id: str | None = None
+) -> SankhyaConfig:
+    tenant_id = tenant_id or await criar_tenant_real(session)
     service = SankhyaSyncService(session)
     return await service.criar_config(
-        tenant_id="90aa4f2e-c8ce-4e69-a792-eedf505372e4",
+        tenant_id=tenant_id,
         sankhya_environment="producao",
         sankhya_api_base_url="https://gateway.example/api",
         sankhya_auth_url="https://gateway.example/authenticate",
@@ -280,20 +296,30 @@ async def test_adapter_publica_schema_editavel_no_provider(session: AsyncSession
 
 @pytest.mark.asyncio
 async def test_adapter_atualiza_schema_de_provider_existente(session: AsyncSession) -> None:
-    provider = MarketplaceIntegracao(
-        nome="Sankhya",
-        slug="sankhya",
-        provider_type="ERP",
-        categoria="ERP",
-        ativa=True,
-        oficial=True,
-        connection_schema={"schema_version": 1, "required": [], "optional": [], "fields": []},
-        credential_schema={"schema_version": 1, "required": [], "optional": [], "fields": []},
-        provider_definition={"provider_code": "sankhya"},
-        feature_schema={"capability_matrix": []},
-        sync_schema={},
-        health_schema={},
-    )
+    provider = (
+        await session.execute(
+            select(MarketplaceIntegracao).where(MarketplaceIntegracao.slug == "sankhya")
+        )
+    ).scalar_one_or_none()
+    stub_schema = {"schema_version": 1, "required": [], "optional": [], "fields": []}
+    if provider is None:
+        provider = MarketplaceIntegracao(
+            nome="Sankhya",
+            slug="sankhya",
+            provider_type="ERP",
+            categoria="ERP",
+            ativa=True,
+            oficial=True,
+            connection_schema=stub_schema,
+            credential_schema=stub_schema,
+            provider_definition={"provider_code": "sankhya"},
+            feature_schema={"capability_matrix": []},
+            sync_schema={},
+            health_schema={},
+        )
+    else:
+        provider.connection_schema = stub_schema
+        provider.credential_schema = stub_schema
     session.add(provider)
     await session.commit()
 
@@ -476,8 +502,10 @@ async def test_status_detalhado_retorna_campos_canonicos_quando_existirem(
 async def test_status_detalhado_usa_fallback_legado_sem_camada_canonica(
     session: AsyncSession,
 ) -> None:
+    tenant_id = await criar_tenant_real(session)
     legacy = SankhyaConfig(
-        tenant_id="tenant-legado",
+        id=await _next_sankhya_config_id(session),
+        tenant_id=tenant_id,
         ws_url="https://erp.example/ws",
         username="usuario",
         password=encrypt_integration_secret("segredo"),
@@ -490,8 +518,8 @@ async def test_status_detalhado_usa_fallback_legado_sem_camada_canonica(
     await session.commit()
 
     service = SankhyaSyncService(session)
-    payload = await service.obter_status_detalhado("tenant-legado")
-    health = await service.obter_health_detalhado("tenant-legado")
+    payload = await service.obter_status_detalhado(tenant_id)
+    health = await service.obter_health_detalhado(tenant_id)
 
     assert payload["status_origem"] == "legacy"
     assert payload["health_origem"] == "legacy"
@@ -571,8 +599,10 @@ async def test_timeline_retorna_dados_canonicos_e_legados(
 async def test_timeline_funciona_apenas_com_legado(
     session: AsyncSession,
 ) -> None:
+    tenant_id = await criar_tenant_real(session)
     legacy = SankhyaConfig(
-        tenant_id="tenant-legado-2",
+        id=await _next_sankhya_config_id(session),
+        tenant_id=tenant_id,
         ws_url="https://erp.example/ws",
         username="usuario",
         password=encrypt_integration_secret("segredo"),
@@ -582,8 +612,7 @@ async def test_timeline_funciona_apenas_com_legado(
         ultimo_teste=datetime.utcnow(),
     )
     log = SankhyaSyncLog(
-        id=1,
-        tenant_id="tenant-legado-2",
+        tenant_id=tenant_id,
         tipo="produtos",
         operacao="import",
         status="erro",
@@ -598,7 +627,7 @@ async def test_timeline_funciona_apenas_com_legado(
     await session.commit()
 
     service = SankhyaSyncService(session)
-    timeline = await service.listar_timeline_operacional("tenant-legado-2", limit=20)
+    timeline = await service.listar_timeline_operacional(tenant_id, limit=20)
 
     assert any(item["tipo_registro"] == "legacy_log" for item in timeline)
     assert any(item["tipo_registro"] == "health_snapshot" for item in timeline)

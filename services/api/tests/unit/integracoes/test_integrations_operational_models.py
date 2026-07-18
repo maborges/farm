@@ -3,8 +3,9 @@ from __future__ import annotations
 import uuid
 from pathlib import Path
 
-from sqlalchemy import create_engine, inspect
-from sqlalchemy.orm import Session, sessionmaker
+import pytest
+from sqlalchemy import inspect, text
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from alert_engine.models import Domain
 from integracoes.events import (
@@ -44,17 +45,6 @@ MIGRATION_FILE = (
 )
 SANKHYA_MODELS = REPO_ROOT / "services/api/integracoes/sankhya/models/__init__.py"
 ALERT_MODELS = REPO_ROOT / "services/api/alert_engine/models.py"
-
-
-def _build_session() -> Session:
-    engine = create_engine("sqlite:///:memory:")
-    MarketplaceIntegracao.__table__.create(engine)
-    IntegrationCredential.__table__.create(engine)
-    TenantIntegracao.__table__.create(engine)
-    IntegrationFeature.__table__.create(engine)
-    IntegrationSyncPolicy.__table__.create(engine)
-    factory = sessionmaker(bind=engine)
-    return factory()
 
 
 def test_sync_mode_enum_permanece_estavel() -> None:
@@ -127,43 +117,53 @@ def test_modelos_operacionais_expoem_colunas_canonicas() -> None:
     assert {"last_job_id", "status", "consecutive_failures", "checked_at"} <= health_columns
 
 
-def test_persistencia_basica_feature_e_policy() -> None:
-    session = _build_session()
+@pytest.mark.asyncio
+async def test_persistencia_basica_feature_e_policy(session: AsyncSession) -> None:
+    tenant_id = uuid.uuid4()
+    await session.execute(
+        text(
+            "INSERT INTO tenants (id, nome, documento, ativo, storage_usado_mb, "
+            "storage_limite_mb, idioma_padrao, created_at, updated_at) "
+            "VALUES (:id, :nome, :doc, true, 0, 10240, 'pt-BR', now(), now())"
+        ),
+        {"id": str(tenant_id), "nome": "Tenant Operational Models", "doc": str(tenant_id)[:11]},
+    )
+    await session.execute(text(f"SET app.current_tenant_id = '{tenant_id}'"))
 
     provider = MarketplaceIntegracao(
-        nome="Sankhya",
-        slug="sankhya-operacoes",
+        nome="Provider Teste",
+        slug=f"provider-operacoes-{uuid.uuid4().hex[:8]}",
         categoria="erp",
         provider_type="ERP",
     )
     session.add(provider)
-    session.commit()
-    session.refresh(provider)
+    await session.flush()
+    await session.refresh(provider)
 
     credential = IntegrationCredential(
-        tenant_id="tenant-ops",
+        tenant_id=tenant_id,
         provider_id=provider.id,
         scope_type=IntegrationScope.TENANT.value,
         segredo_criptografado=encrypt_integration_secret("segredo-operacional"),
         version_number=1,
     )
     session.add(credential)
-    session.commit()
-    session.refresh(credential)
+    await session.flush()
+    await session.refresh(credential)
 
     config = TenantIntegracao(
-        tenant_id="tenant-ops",
+        tenant_id=tenant_id,
         integracao_id=provider.id,
         scope_type=IntegrationScope.TENANT.value,
         lifecycle_state=IntegrationStatus.ACTIVE.value,
         credential_ref_id=credential.id,
     )
     session.add(config)
-    session.commit()
-    session.refresh(config)
+    await session.flush()
+    await session.refresh(config)
 
     feature = IntegrationFeature(
-        tenant_id="tenant-ops",
+        tenant_id=tenant_id,
         config_id=config.id,
         provider_id=provider.id,
         codigo="produtos",
@@ -171,11 +171,11 @@ def test_persistencia_basica_feature_e_policy() -> None:
         habilitada=True,
     )
     session.add(feature)
-    session.commit()
-    session.refresh(feature)
+    await session.flush()
+    await session.refresh(feature)
 
     policy = IntegrationSyncPolicy(
-        tenant_id="tenant-ops",
+        tenant_id=tenant_id,
         config_id=config.id,
         feature_id=feature.id,
         provider_id=provider.id,
@@ -183,8 +183,8 @@ def test_persistencia_basica_feature_e_policy() -> None:
         prioridade=IntegrationPolicyPriority.HIGH.value,
     )
     session.add(policy)
-    session.commit()
-    session.refresh(policy)
+    await session.flush()
+    await session.refresh(policy)
 
     assert policy.feature_id == feature.id
     assert policy.config_id == config.id

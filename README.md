@@ -16,7 +16,7 @@ Monorepo dividido em:
 - **apps/web**: Interface Next.js 16 com shadcn/ui e Zustand.
 - **apps/campo**: PWA de campo offline-first, extensão oficial do Caderno de Campo.
 - **services/api**: Backend Python com FastAPI, SQLAlchemy e PostgreSQL.
-- **packages/zod-schemas**: Contratos compartilhados (Shared Schemas).
+- **packages/zod-schemas**: Contratos compartilhados (Shared Schemas).2
 
 Inventário técnico completo (versões, libs, infra): `docs/architecture/architecture-inventory.md`.
 

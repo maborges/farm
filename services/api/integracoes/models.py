@@ -22,9 +22,11 @@ from sqlalchemy import (
 from sqlalchemy import Uuid as UUIDType
 from sqlalchemy.orm import relationship, synonym
 
-_TENANT_FK = ForeignKey("farms.tenants.id", ondelete="NO ACTION")
-
 from core.database import Base
+
+
+def _tenant_fk() -> ForeignKey:
+    return ForeignKey("tenants.id", ondelete="NO ACTION")
 
 
 class IntegrationScope(str, Enum):
@@ -193,7 +195,7 @@ class TenantIntegracao(Base):
     __tablename__ = "tenant_integracoes"
 
     id = Column(Integer, primary_key=True, index=True)
-    tenant_id = Column(UUIDType(as_uuid=True), _TENANT_FK, nullable=False, index=True)
+    tenant_id = Column(UUIDType(as_uuid=True), _tenant_fk(), nullable=False, index=True)
     integracao_id = Column(Integer, ForeignKey("marketplace_integracoes.id"), nullable=False)
     status = Column(String(50), default="ativa")
     configuracoes = Column(JSON, default={})
@@ -237,7 +239,7 @@ class IntegrationCredential(Base):
     )
 
     id = Column(Integer, primary_key=True, index=True)
-    tenant_id = Column(UUIDType(as_uuid=True), _TENANT_FK, nullable=False, index=True)
+    tenant_id = Column(UUIDType(as_uuid=True), _tenant_fk(), nullable=False, index=True)
     provider_id = Column(Integer, ForeignKey("marketplace_integracoes.id"), nullable=False)
     scope_type = Column(String(30), nullable=False, default=IntegrationScope.TENANT.value)
     scope_id = Column(String(50))
@@ -267,7 +269,7 @@ class IntegrationVersion(Base):
     )
 
     id = Column(Integer, primary_key=True, index=True)
-    tenant_id = Column(UUIDType(as_uuid=True), _TENANT_FK, nullable=False, index=True)
+    tenant_id = Column(UUIDType(as_uuid=True), _tenant_fk(), nullable=False, index=True)
     config_id = Column(Integer, ForeignKey("tenant_integracoes.id"), nullable=False)
     credential_ref_id = Column(Integer, ForeignKey("integration_credentials.id"))
     version_number = Column(Integer, nullable=False, default=1)
@@ -293,7 +295,7 @@ class IntegrationFeature(Base):
     )
 
     id = Column(Integer, primary_key=True, index=True)
-    tenant_id = Column(UUIDType(as_uuid=True), _TENANT_FK, nullable=False, index=True)
+    tenant_id = Column(UUIDType(as_uuid=True), _tenant_fk(), nullable=False, index=True)
     config_id = Column(Integer, ForeignKey("tenant_integracoes.id"), nullable=False)
     provider_id = Column(Integer, ForeignKey("marketplace_integracoes.id"), nullable=False)
     codigo = Column(String(80), nullable=False)
@@ -322,7 +324,7 @@ class IntegrationSyncPolicy(Base):
     )
 
     id = Column(Integer, primary_key=True, index=True)
-    tenant_id = Column(UUIDType(as_uuid=True), _TENANT_FK, nullable=False, index=True)
+    tenant_id = Column(UUIDType(as_uuid=True), _tenant_fk(), nullable=False, index=True)
     config_id = Column(Integer, ForeignKey("tenant_integracoes.id"), nullable=False)
     feature_id = Column(Integer, ForeignKey("integration_features.id"), nullable=False)
     provider_id = Column(Integer, ForeignKey("marketplace_integracoes.id"), nullable=False)
@@ -352,7 +354,7 @@ class IntegrationJob(Base):
     __tablename__ = "integration_jobs"
 
     id = Column(UUIDType(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    tenant_id = Column(UUIDType(as_uuid=True), _TENANT_FK, nullable=False, index=True)
+    tenant_id = Column(UUIDType(as_uuid=True), _tenant_fk(), nullable=False, index=True)
     config_id = Column(Integer, ForeignKey("tenant_integracoes.id"), nullable=False)
     feature_id = Column(Integer, ForeignKey("integration_features.id"))
     sync_policy_id = Column(Integer, ForeignKey("integration_sync_policies.id"))
@@ -392,7 +394,7 @@ class IntegrationHealth(Base):
     )
 
     id = Column(Integer, primary_key=True, index=True)
-    tenant_id = Column(UUIDType(as_uuid=True), _TENANT_FK, nullable=False, index=True)
+    tenant_id = Column(UUIDType(as_uuid=True), _tenant_fk(), nullable=False, index=True)
     config_id = Column(Integer, ForeignKey("tenant_integracoes.id"), nullable=False)
     provider_id = Column(Integer, ForeignKey("marketplace_integracoes.id"), nullable=False)
     last_job_id = Column(UUIDType(as_uuid=True), ForeignKey("integration_jobs.id"))
@@ -443,7 +445,7 @@ class ExternalRecordAssociation(Base):
     )
 
     id = Column(UUIDType(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    tenant_id = Column(UUIDType(as_uuid=True), _TENANT_FK, nullable=False, index=True)
+    tenant_id = Column(UUIDType(as_uuid=True), _tenant_fk(), nullable=False, index=True)
     provider_id = Column(Integer, ForeignKey("marketplace_integracoes.id"), nullable=False)
     config_id = Column(Integer, ForeignKey("tenant_integracoes.id"), nullable=False)
     feature_id = Column(Integer, ForeignKey("integration_features.id"))
@@ -505,7 +507,7 @@ class ExternalRecordAssociationHistory(Base):
     )
 
     id = Column(UUIDType(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    tenant_id = Column(UUIDType(as_uuid=True), _TENANT_FK, nullable=False, index=True)
+    tenant_id = Column(UUIDType(as_uuid=True), _tenant_fk(), nullable=False, index=True)
     link_id = Column(
         UUIDType(as_uuid=True),
         ForeignKey("integration_external_record_links.id"),

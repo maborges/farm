@@ -1,17 +1,16 @@
 # ruff: noqa: S105
 from __future__ import annotations
 
+import uuid
 from pathlib import Path
 
 import pytest
-import pytest_asyncio
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from events.outbox_model import DomainEventOutbox
+import events.outbox_model  # noqa: F401 - registra domain_event_outbox no Base.metadata
 from integracoes.models import (
-    ExternalRecordAssociation,
     ExternalRecordAssociationConfidence,
-    ExternalRecordAssociationHistory,
     ExternalRecordAssociationHistoryEvent,
     ExternalRecordAssociationOrigin,
     ExternalRecordAssociationStatus,
@@ -43,41 +42,44 @@ MIGRATION_FILE = (
 )
 
 
-@pytest_asyncio.fixture()
-async def session() -> AsyncSession:
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
-    async with engine.begin() as conn:
-        for table in (
-            DomainEventOutbox.__table__,
-            MarketplaceIntegracao.__table__,
-            IntegrationCredential.__table__,
-            TenantIntegracao.__table__,
-            IntegrationFeature.__table__,
-            IntegrationSyncPolicy.__table__,
-            IntegrationJob.__table__,
-            ExternalRecordAssociation.__table__,
-            ExternalRecordAssociationHistory.__table__,
-        ):
-            await conn.run_sync(table.create)
-
-    session_factory = async_sessionmaker(engine, expire_on_commit=False)
-    async with session_factory() as current:
-        yield current
-
-    await engine.dispose()
+def _is_real_uuid(value: object) -> bool:
+    try:
+        uuid.UUID(str(value))
+    except (ValueError, AttributeError, TypeError):
+        return False
+    return True
 
 
 async def _seed_runtime(
     session: AsyncSession,
     *,
-    tenant_id: str = "tenant-1",
+    tenant_id: str | None = None,
     provider_slug: str = "sankhya",
     provider_name: str = "Sankhya",
     environment: str = "producao",
 ) -> dict[str, object]:
+    """Cria um tenant real (ou reutiliza um já criado nesta transação, quando
+    `tenant_id` já é um UUID real repassado por um `_seed_runtime` anterior) e
+    um provider com slug único. Labels fictícias (ex.: "tenant-1", "tenant-a")
+    são ignoradas em favor de um UUID novo — ver INTEGRATIONS-TEST-INFRA-02.
+    """
+    if tenant_id is not None and _is_real_uuid(tenant_id):
+        tenant_id = str(tenant_id)
+    else:
+        tenant_id = str(uuid.uuid4())
+        await session.execute(
+            text(
+                "INSERT INTO tenants (id, nome, documento, ativo, storage_usado_mb, "
+                "storage_limite_mb, idioma_padrao, created_at, updated_at) "
+                "VALUES (:id, :nome, :doc, true, 0, 10240, 'pt-BR', now(), now())"
+            ),
+            {"id": tenant_id, "nome": "Tenant Association Teste", "doc": tenant_id[:11]},
+        )
+    await session.execute(text(f"SET app.current_tenant_id = '{tenant_id}'"))
+
     provider = MarketplaceIntegracao(
         nome=provider_name,
-        slug=provider_slug,
+        slug=f"{provider_slug}-{uuid.uuid4().hex[:8]}",
         categoria="erp",
         provider_type="ERP",
     )
@@ -168,7 +170,7 @@ def _create_payload(
     last_job_id=None,
 ) -> ExternalRecordAssociationCreate:
     return ExternalRecordAssociationCreate(
-        tenant_id=tenant_id,
+        tenant_id=str(tenant_id),
         provider_id=provider_id,
         config_id=config_id,
         feature_id=feature_id,
@@ -312,6 +314,7 @@ async def test_permited_mesmo_codigo_em_tenants_diferentes(session: AsyncSession
     second = await _seed_runtime(session, tenant_id="tenant-b", provider_slug="provider-b")
     service = ExternalRecordAssociationService(session)
 
+    await session.execute(text(f"SET app.current_tenant_id = '{first['config'].tenant_id}'"))
     one = await service.create_association(
         _create_payload(
             tenant_id=first["config"].tenant_id,
@@ -320,6 +323,7 @@ async def test_permited_mesmo_codigo_em_tenants_diferentes(session: AsyncSession
             feature_id=first["feature"].id,
         )
     )
+    await session.execute(text(f"SET app.current_tenant_id = '{second['config'].tenant_id}'"))
     two = await service.create_association(
         _create_payload(
             tenant_id=second["config"].tenant_id,
@@ -363,7 +367,12 @@ async def test_permited_mesmo_codigo_em_ambientes_diferentes(session: AsyncSessi
 @pytest.mark.asyncio
 async def test_permited_mesmo_codigo_em_providers_diferentes(session: AsyncSession) -> None:
     first = await _seed_runtime(session, provider_slug="sankhya", provider_name="Sankhya")
-    second = await _seed_runtime(session, provider_slug="sap", provider_name="SAP")
+    second = await _seed_runtime(
+        session,
+        tenant_id=first["config"].tenant_id,
+        provider_slug="sap",
+        provider_name="SAP",
+    )
     service = ExternalRecordAssociationService(session)
 
     one = await service.create_association(

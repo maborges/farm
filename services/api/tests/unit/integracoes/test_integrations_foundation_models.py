@@ -1,14 +1,23 @@
 from __future__ import annotations
 
+import uuid
 from pathlib import Path
 
-from sqlalchemy import create_engine, inspect
-from sqlalchemy.orm import Session, sessionmaker
+import pytest
+from sqlalchemy import inspect, text
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from core.models.tenant import Tenant
 from integracoes.models import (
+    ExternalRecordAssociation,
+    ExternalRecordAssociationHistory,
     IntegrationCredential,
+    IntegrationFeature,
+    IntegrationHealth,
+    IntegrationJob,
     IntegrationScope,
     IntegrationStatus,
+    IntegrationSyncPolicy,
     IntegrationVersion,
     MarketplaceIntegracao,
     TenantIntegracao,
@@ -27,16 +36,6 @@ MIGRATION_FILE = (
     REPO_ROOT
     / "services/api/migrations/versions/20260701_integrations_domain_03a_foundation.py"
 )
-
-
-def _build_session() -> Session:
-    engine = create_engine("sqlite:///:memory:")
-    MarketplaceIntegracao.__table__.create(engine)
-    IntegrationCredential.__table__.create(engine)
-    TenantIntegracao.__table__.create(engine)
-    IntegrationVersion.__table__.create(engine)
-    factory = sessionmaker(bind=engine)
-    return factory()
 
 
 def test_integration_scope_enum_permanece_estavel() -> None:
@@ -81,21 +80,61 @@ def test_tenant_integracao_expoe_colunas_canonicas_sem_quebrar_legado() -> None:
     assert "deleted_at" in columns
 
 
-def test_persistencia_basica_provider_credential_config_version() -> None:
-    session = _build_session()
+def test_tenant_fk_resolve_para_tenant_table_no_metadata_compartilhado() -> None:
+    """A FK de tenant_id deve resolver para o objeto Tenant.__table__ real, não
+    apenas comparar a string do target — regressão de INTEGRATIONS-MODEL-FK-REPAIR-02,
+    onde `ForeignKey("farms.tenants.id")` não resolvia contra o Base.metadata
+    compartilhado (Tenant é registrado como "tenants", sem schema explícito).
+    """
+    models_with_tenant_fk = (
+        TenantIntegracao,
+        IntegrationCredential,
+        IntegrationVersion,
+        IntegrationFeature,
+        IntegrationSyncPolicy,
+        IntegrationJob,
+        IntegrationHealth,
+        ExternalRecordAssociation,
+        ExternalRecordAssociationHistory,
+    )
+
+    for model in models_with_tenant_fk:
+        fk = next(iter(model.__table__.c.tenant_id.foreign_keys))
+        assert fk.column.table is Tenant.__table__, (
+            f"{model.__name__}.tenant_id não resolve para Tenant.__table__"
+        )
+        assert fk.ondelete == "NO ACTION"
+
+
+@pytest.mark.asyncio
+async def test_persistencia_basica_provider_credential_config_version(
+    session: AsyncSession,
+) -> None:
+    tenant_id = uuid.uuid4()
+    await session.execute(
+        text(
+            "INSERT INTO tenants (id, nome, documento, ativo, storage_usado_mb, "
+            "storage_limite_mb, idioma_padrao, created_at, updated_at) "
+            "VALUES (:id, :nome, :doc, true, 0, 10240, 'pt-BR', now(), now())"
+        ),
+        {"id": str(tenant_id), "nome": "Tenant Foundation Models", "doc": str(tenant_id)[:11]},
+    )
+    await session.execute(
+        text(f"SET app.current_tenant_id = '{tenant_id}'")
+    )
 
     provider = MarketplaceIntegracao(
-        nome="Sankhya",
-        slug="sankhya",
+        nome="Provider Teste",
+        slug=f"provider-foundation-{uuid.uuid4().hex[:8]}",
         categoria="erp",
         provider_type="ERP",
     )
     session.add(provider)
-    session.commit()
-    session.refresh(provider)
+    await session.flush()
+    await session.refresh(provider)
 
     credential = IntegrationCredential(
-        tenant_id="tenant-1",
+        tenant_id=tenant_id,
         provider_id=provider.id,
         scope_type=IntegrationScope.TENANT.value,
         segredo_criptografado=encrypt_integration_secret("segredo"),
@@ -103,11 +142,11 @@ def test_persistencia_basica_provider_credential_config_version() -> None:
         version_number=1,
     )
     session.add(credential)
-    session.commit()
-    session.refresh(credential)
+    await session.flush()
+    await session.refresh(credential)
 
     config = TenantIntegracao(
-        tenant_id="tenant-1",
+        tenant_id=tenant_id,
         integracao_id=provider.id,
         status="ativa",
         scope_type=IntegrationScope.TENANT.value,
@@ -116,11 +155,11 @@ def test_persistencia_basica_provider_credential_config_version() -> None:
         credential_ref_id=credential.id,
     )
     session.add(config)
-    session.commit()
-    session.refresh(config)
+    await session.flush()
+    await session.refresh(config)
 
     version = IntegrationVersion(
-        tenant_id="tenant-1",
+        tenant_id=tenant_id,
         config_id=config.id,
         credential_ref_id=credential.id,
         version_number=1,
@@ -132,7 +171,7 @@ def test_persistencia_basica_provider_credential_config_version() -> None:
         motivo="bootstrap",
     )
     session.add(version)
-    session.commit()
+    await session.flush()
 
     assert config.provider_id == provider.id
     assert config.integracao_id == provider.id
@@ -196,4 +235,6 @@ def test_sankhya_permanece_inteiro_como_provider_specific() -> None:
     assert "class SankhyaConfig" in source
     assert "class SankhyaSyncLog" in source
     assert "UUIDType(as_uuid=False)" in source
-    assert 'ForeignKey("farms.tenants.id", ondelete="NO ACTION")' in source
+    # A partir de INTEGRATIONS-MODEL-FK-REPAIR-03, a FK usa "tenants.id" (bare),
+    # alinhada ao registro real de Tenant no Base.metadata compartilhado.
+    assert 'ForeignKey("tenants.id", ondelete="NO ACTION")' in source

@@ -357,7 +357,7 @@ class OpenWeatherCanonicalAdapter:
         latest_job = await self._get_latest_job(config.id)
         return OpenWeatherConfigResponse(
             id=config.id,
-            tenant_id=config.tenant_id,
+            tenant_id=str(config.tenant_id),
             provider_id=config.provider_id,
             provider_slug=_OPENWEATHER_SLUG,
             status=config.status,
@@ -1221,11 +1221,10 @@ class OpenWeatherCanonicalAdapter:
         return encrypt_integration_secret(raw_or_encrypted)
 
     @staticmethod
-    def _tenant_uuid(tenant_id: str) -> uuid.UUID:
-        try:
-            return uuid.UUID(tenant_id)
-        except ValueError:
-            return uuid.uuid5(uuid.NAMESPACE_URL, f"openweather-tenant:{tenant_id}")
+    def _tenant_uuid(tenant_id: str | uuid.UUID) -> uuid.UUID:
+        if isinstance(tenant_id, uuid.UUID):
+            return tenant_id
+        return uuid.UUID(str(tenant_id))
 
     @staticmethod
     def _config_entity_uuid(config: TenantIntegracao) -> uuid.UUID:
@@ -1797,8 +1796,15 @@ class OpenWeatherService:
         await self._update_config_last_sync(config, job)
         return first_snapshot, success, message
 
+    @staticmethod
+    def _utc_naive(value: datetime) -> datetime:
+        if value.tzinfo is None:
+            return value
+        return value.astimezone(timezone.utc).replace(tzinfo=None)
+
     async def _update_config_last_sync(self, config: TenantIntegracao, job: IntegrationJob) -> None:
-        config.ultima_sincronizacao = job.finished_at or datetime.now(timezone.utc)
+        last_sync = job.finished_at or datetime.now(timezone.utc)
+        config.ultima_sincronizacao = self._utc_naive(last_sync)
         self.db.add(config)
         await self.db.commit()
         await self.db.refresh(config)

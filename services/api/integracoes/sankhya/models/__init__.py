@@ -28,7 +28,7 @@ class SankhyaConfig(Base):
     id = Column(Integer, primary_key=True, index=True)
     tenant_id = Column(
         UUIDType(as_uuid=False),
-        ForeignKey("farms.tenants.id", ondelete="NO ACTION"),
+        ForeignKey("tenants.id", ondelete="NO ACTION"),
         nullable=False,
         unique=True,
         index=True,
@@ -71,7 +71,7 @@ class SankhyaSyncLog(Base):
     id = Column(BigInteger, primary_key=True, index=True, autoincrement=True)
     tenant_id = Column(
         UUIDType(as_uuid=False),
-        ForeignKey("farms.tenants.id", ondelete="NO ACTION"),
+        ForeignKey("tenants.id", ondelete="NO ACTION"),
         nullable=False,
         index=True,
     )
@@ -108,7 +108,7 @@ class SankhyaPessoa(Base):
     id = Column(Integer, primary_key=True, index=True)
     tenant_id = Column(
         UUIDType(as_uuid=False),
-        ForeignKey("farms.tenants.id", ondelete="NO ACTION"),
+        ForeignKey("tenants.id", ondelete="NO ACTION"),
         nullable=False,
         index=True,
     )
@@ -162,7 +162,7 @@ class SankhyaProduto(Base):
     id = Column(Integer, primary_key=True, index=True)
     tenant_id = Column(
         UUIDType(as_uuid=False),
-        ForeignKey("farms.tenants.id", ondelete="NO ACTION"),
+        ForeignKey("tenants.id", ondelete="NO ACTION"),
         nullable=False,
         index=True,
     )
@@ -212,7 +212,7 @@ class SankhyaNFe(Base):
     id = Column(Integer, primary_key=True, index=True)
     tenant_id = Column(
         UUIDType(as_uuid=False),
-        ForeignKey("farms.tenants.id", ondelete="NO ACTION"),
+        ForeignKey("tenants.id", ondelete="NO ACTION"),
         nullable=False,
         index=True,
     )
@@ -272,7 +272,7 @@ class SankhyaLancamentoFinanceiro(Base):
     id = Column(Integer, primary_key=True, index=True)
     tenant_id = Column(
         UUIDType(as_uuid=False),
-        ForeignKey("farms.tenants.id", ondelete="NO ACTION"),
+        ForeignKey("tenants.id", ondelete="NO ACTION"),
         nullable=False,
         index=True,
     )
@@ -319,7 +319,7 @@ class SankhyaTabela(Base):
     id = Column(Integer, primary_key=True, index=True)
     tenant_id = Column(
         UUIDType(as_uuid=False),
-        ForeignKey("farms.tenants.id", ondelete="NO ACTION"),
+        ForeignKey("tenants.id", ondelete="NO ACTION"),
         nullable=False,
         index=True,
     )

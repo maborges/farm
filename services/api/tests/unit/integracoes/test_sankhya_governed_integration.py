@@ -18,6 +18,7 @@ from integracoes.sankhya.services.sync_service import (
     SankhyaSyncService,
 )
 from integracoes.security import decrypt_integration_secret, is_integration_secret_encrypted
+from tests.unit.integracoes.conftest import criar_tenant_real
 
 REPO_ROOT = Path(__file__).resolve().parents[5]
 SANKHYA_ROUTERS = REPO_ROOT / "services/api/integracoes/sankhya/routers/__init__.py"
@@ -49,9 +50,10 @@ def _stub_canonical_events(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.mark.asyncio
 async def test_senha_e_persistida_protegida(session: AsyncSession) -> None:
+    tenant_id = await criar_tenant_real(session)
     service = SankhyaSyncService(session)
     config = await service.criar_config(
-        tenant_id="tenant-1",
+        tenant_id=tenant_id,
         ws_url="https://erp.example/ws",
         username="usuario",
         password="senha-original",
@@ -65,9 +67,10 @@ async def test_senha_e_persistida_protegida(session: AsyncSession) -> None:
 
 @pytest.mark.asyncio
 async def test_gateway_segredos_sao_persistidos_e_classificados(session: AsyncSession) -> None:
+    tenant_id = await criar_tenant_real(session)
     service = SankhyaSyncService(session)
     config = await service.criar_config(
-        tenant_id="tenant-1",
+        tenant_id=tenant_id,
         sankhya_environment="producao",
         sankhya_api_base_url="https://gateway.example/api",
         sankhya_auth_url="https://gateway.example/authenticate",
@@ -88,24 +91,25 @@ async def test_gateway_segredos_sao_persistidos_e_classificados(session: AsyncSe
 @pytest.mark.asyncio
 async def test_criar_config_define_id_mesmo_em_schema_legado(session: AsyncSession) -> None:
     service = SankhyaSyncService(session)
+    tenant_id_a = await criar_tenant_real(session)
+    tenant_id_b = await criar_tenant_real(session)
 
     first = await service.criar_config(
-        tenant_id="tenant-1",
+        tenant_id=tenant_id_a,
         ws_url="https://erp.example/ws",
         username="usuario-1",
         password="senha-1",
         sync_interval=900,
     )
     second = await service.criar_config(
-        tenant_id="tenant-2",
+        tenant_id=tenant_id_b,
         ws_url="https://erp.example/ws",
         username="usuario-2",
         password="senha-2",
         sync_interval=900,
     )
 
-    assert first.id == 1
-    assert second.id == 2
+    assert second.id == first.id + 1
 
 
 @pytest.mark.asyncio
@@ -113,8 +117,9 @@ async def test_criar_config_restaura_contexto_rls_antes_do_sync_canonico(
     session: AsyncSession,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    tenant_id = await criar_tenant_real(session)
     service = SankhyaSyncService(session)
-    service.db.info["tenant_id"] = "tenant-1"
+    service.db.info["tenant_id"] = tenant_id
 
     restore_mock = AsyncMock()
     sync_mock = AsyncMock()
@@ -123,7 +128,7 @@ async def test_criar_config_restaura_contexto_rls_antes_do_sync_canonico(
     monkeypatch.setattr(service.adapter, "sync_provider_config", sync_mock)
 
     await service.criar_config(
-        tenant_id="tenant-1",
+        tenant_id=tenant_id,
         sankhya_environment="producao",
         sankhya_api_base_url="https://gateway.example/api",
         sankhya_auth_url="https://gateway.example/authenticate",
@@ -134,15 +139,16 @@ async def test_criar_config_restaura_contexto_rls_antes_do_sync_canonico(
     )
 
     assert restore_mock.await_count == 2
-    restore_mock.assert_has_awaits([call("tenant-1"), call("tenant-1")])
+    restore_mock.assert_has_awaits([call(tenant_id), call(tenant_id)])
     sync_mock.assert_awaited_once()
 
 
 @pytest.mark.asyncio
 async def test_resposta_nao_retorna_senha_bruta(session: AsyncSession) -> None:
+    tenant_id = await criar_tenant_real(session)
     service = SankhyaSyncService(session)
     config = await service.criar_config(
-        tenant_id="tenant-1",
+        tenant_id=tenant_id,
         ws_url="https://erp.example/ws",
         username="usuario",
         password="segredo",
@@ -158,9 +164,10 @@ async def test_resposta_nao_retorna_senha_bruta(session: AsyncSession) -> None:
 
 @pytest.mark.asyncio
 async def test_resposta_gateway_nao_retorna_segredos_brutos(session: AsyncSession) -> None:
+    tenant_id = await criar_tenant_real(session)
     service = SankhyaSyncService(session)
     config = await service.criar_config(
-        tenant_id="tenant-1",
+        tenant_id=tenant_id,
         sankhya_environment="sandbox",
         sankhya_api_base_url="https://gateway.example/api",
         sankhya_auth_url="https://gateway.example/authenticate",
@@ -187,9 +194,10 @@ async def test_resposta_gateway_nao_retorna_segredos_brutos(session: AsyncSessio
 async def test_resposta_gateway_legacy_login_retorna_segredos_brutos_nao_expostos(
     session: AsyncSession,
 ) -> None:
+    tenant_id = await criar_tenant_real(session)
     service = SankhyaSyncService(session)
     config = await service.criar_config(
-        tenant_id="tenant-1",
+        tenant_id=tenant_id,
         sankhya_auth_url="https://gateway.example/login",
         sankhya_token="legacy-token",
         sankhya_appkey="legacy-appkey",
@@ -214,6 +222,7 @@ async def test_gateway_oauth_permanece_funcional_sem_colunas_legacy_gateway(
     session: AsyncSession,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    tenant_id = await criar_tenant_real(session)
     service = SankhyaSyncService(session)
 
     async def fake_support() -> bool:
@@ -222,7 +231,7 @@ async def test_gateway_oauth_permanece_funcional_sem_colunas_legacy_gateway(
     monkeypatch.setattr(service, "_supports_legacy_gateway_login_columns", fake_support)
 
     config = await service.criar_config(
-        tenant_id="tenant-1",
+        tenant_id=tenant_id,
         sankhya_environment="sandbox",
         sankhya_api_base_url="https://gateway.example/api",
         sankhya_auth_url="https://gateway.example/authenticate",
@@ -242,6 +251,7 @@ async def test_gateway_legacy_login_exige_migracao_quando_colunas_nao_existirem(
     session: AsyncSession,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    tenant_id = await criar_tenant_real(session)
     service = SankhyaSyncService(session)
 
     async def fake_support() -> bool:
@@ -251,7 +261,7 @@ async def test_gateway_legacy_login_exige_migracao_quando_colunas_nao_existirem(
 
     with pytest.raises(ValueError, match="exige migracao do banco"):
         await service.criar_config(
-            tenant_id="tenant-1",
+            tenant_id=tenant_id,
             sankhya_auth_url="https://gateway.example/login",
             sankhya_token="legacy-token",
             sankhya_appkey="legacy-appkey",
@@ -263,9 +273,10 @@ async def test_gateway_legacy_login_exige_migracao_quando_colunas_nao_existirem(
 
 @pytest.mark.asyncio
 async def test_painel_erp_expoe_contrato_canonico_do_provider(session: AsyncSession) -> None:
+    tenant_id = await criar_tenant_real(session)
     service = SankhyaSyncService(session)
     await service.criar_config(
-        tenant_id="tenant-1",
+        tenant_id=tenant_id,
         sankhya_environment="sandbox",
         sankhya_api_base_url="https://gateway.example/api",
         sankhya_auth_url="https://gateway.example/authenticate",
@@ -275,7 +286,7 @@ async def test_painel_erp_expoe_contrato_canonico_do_provider(session: AsyncSess
         sync_interval=900,
     )
 
-    payload = await service.obter_config_console("tenant-1")
+    payload = await service.obter_config_console(tenant_id)
 
     assert payload["provider_code"] == "sankhya"
     assert payload["provider_name"] == "Sankhya"
@@ -292,7 +303,7 @@ async def test_painel_erp_expoe_contrato_canonico_do_provider(session: AsyncSess
     assert payload["health_schema"]["diagnostics"]["connection_test"] is True
     assert payload["connection_schema"]["required"][0] == "sankhya_environment"
 
-    status_payload = await service.obter_status_detalhado("tenant-1")
+    status_payload = await service.obter_status_detalhado(tenant_id)
 
     assert status_payload["readiness"]["cta_url"] == "/dashboard/settings/integracoes/erp"
     assert status_payload["readiness"]["status"] in {"PENDENTE", "ATENDIDO", "FALHOU", "DISPENSADO"}
@@ -301,9 +312,10 @@ async def test_painel_erp_expoe_contrato_canonico_do_provider(session: AsyncSess
 
 @pytest.mark.asyncio
 async def test_painel_erp_usa_credencial_canonica_ativa_no_load(session: AsyncSession) -> None:
+    tenant_id = await criar_tenant_real(session)
     service = SankhyaSyncService(session)
     config = await service.criar_config(
-        tenant_id="tenant-1",
+        tenant_id=tenant_id,
         sankhya_api_base_url="https://gateway.example/api",
         sankhya_auth_url="https://gateway.example/login",
         sankhya_token="legacy-token",
@@ -314,13 +326,13 @@ async def test_painel_erp_usa_credencial_canonica_ativa_no_load(session: AsyncSe
     )
     await session.execute(
         update(config.__class__)
-        .where(config.__class__.tenant_id == "tenant-1")
+        .where(config.__class__.tenant_id == tenant_id)
         .values(token=None, appkey=None, password=None, username="legacy-stale")
     )
     await session.commit()
     session.expire_all()
 
-    payload = await service.obter_config_console("tenant-1")
+    payload = await service.obter_config_console(tenant_id)
 
     assert payload["auth_model"] == "gateway_legacy_login"
     assert payload["username"] == "legacy-user"
@@ -335,9 +347,10 @@ async def test_painel_erp_usa_credencial_canonica_ativa_no_load(session: AsyncSe
 async def test_atualizacao_sem_segredo_preserva_credencial_ativa_canonica(
     session: AsyncSession,
 ) -> None:
+    tenant_id = await criar_tenant_real(session)
     service = SankhyaSyncService(session)
     await service.criar_config(
-        tenant_id="tenant-1",
+        tenant_id=tenant_id,
         sankhya_api_base_url="https://gateway.example/api",
         sankhya_auth_url="https://gateway.example/login",
         sankhya_token="legacy-token",
@@ -348,18 +361,18 @@ async def test_atualizacao_sem_segredo_preserva_credencial_ativa_canonica(
     )
     await session.execute(
         update(SankhyaConfig)
-        .where(SankhyaConfig.tenant_id == "tenant-1")
+        .where(SankhyaConfig.tenant_id == tenant_id)
         .values(token=None, appkey=None, password=None, username="legacy-stale")
     )
     await session.commit()
     session.expire_all()
 
-    legacy_config = await service.get_config("tenant-1")
+    legacy_config = await service.get_config(tenant_id)
     assert legacy_config is not None
     before_credential = await session.scalar(
         select(IntegrationCredential.id)
         .join(TenantIntegracao, TenantIntegracao.credential_ref_id == IntegrationCredential.id)
-        .where(TenantIntegracao.tenant_id == "tenant-1")
+        .where(TenantIntegracao.tenant_id == tenant_id)
     )
 
     updated = await service.atualizar_config(
@@ -371,13 +384,13 @@ async def test_atualizacao_sem_segredo_preserva_credencial_ativa_canonica(
         sync_interval=1200,
     )
     after_credential = await session.scalar(
-        select(TenantIntegracao.credential_ref_id).where(TenantIntegracao.tenant_id == "tenant-1")
+        select(TenantIntegracao.credential_ref_id).where(TenantIntegracao.tenant_id == tenant_id)
     )
     credential_count = await session.scalar(
         select(func.count())
         .select_from(IntegrationCredential)
         .where(
-            IntegrationCredential.tenant_id == "tenant-1",
+            IntegrationCredential.tenant_id == tenant_id,
             IntegrationCredential.deleted_at.is_(None),
             IntegrationCredential.ativo.is_(True),
         )
@@ -392,9 +405,10 @@ async def test_atualizacao_sem_segredo_preserva_credencial_ativa_canonica(
 async def test_atualizacao_sem_nova_senha_mantem_credencial_existente(
     session: AsyncSession,
 ) -> None:
+    tenant_id = await criar_tenant_real(session)
     service = SankhyaSyncService(session)
     config = await service.criar_config(
-        tenant_id="tenant-1",
+        tenant_id=tenant_id,
         ws_url="https://erp.example/ws",
         username="usuario",
         password="segredo-inicial",
@@ -416,9 +430,10 @@ async def test_atualizacao_sem_nova_senha_mantem_credencial_existente(
 async def test_atualizacao_gateway_sem_reenviar_segredos_mantem_token(
     session: AsyncSession,
 ) -> None:
+    tenant_id = await criar_tenant_real(session)
     service = SankhyaSyncService(session)
     config = await service.criar_config(
-        tenant_id="tenant-1",
+        tenant_id=tenant_id,
         sankhya_environment="producao",
         sankhya_api_base_url="https://gateway.example/api",
         sankhya_auth_url="https://gateway.example/authenticate",
@@ -448,9 +463,10 @@ async def test_atualizacao_gateway_sem_reenviar_segredos_mantem_token(
 async def test_atualizacao_gateway_para_login_legado_persiste_token_e_appkey(
     session: AsyncSession,
 ) -> None:
+    tenant_id = await criar_tenant_real(session)
     service = SankhyaSyncService(session)
     config = await service.criar_config(
-        tenant_id="tenant-1",
+        tenant_id=tenant_id,
         sankhya_api_base_url="https://api.sankhya.com.br/gateway/v1",
         sankhya_auth_url="https://api.sankhya.com.br/authenticate",
         sankhya_client_id="oauth-client",
@@ -482,9 +498,10 @@ async def test_atualizacao_gateway_para_login_legado_persiste_token_e_appkey(
 
 @pytest.mark.asyncio
 async def test_rotacao_de_senha_funciona(session: AsyncSession) -> None:
+    tenant_id = await criar_tenant_real(session)
     service = SankhyaSyncService(session)
     config = await service.criar_config(
-        tenant_id="tenant-1",
+        tenant_id=tenant_id,
         ws_url="https://erp.example/ws",
         username="usuario",
         password="senha-antiga",
@@ -535,7 +552,9 @@ def test_sankhya_permanece_tenant_scoped_sem_unidade_produtiva() -> None:
     routers = SANKHYA_ROUTERS.read_text(encoding="utf-8")
 
     assert "UUIDType(as_uuid=False)" in models
-    assert 'ForeignKey("farms.tenants.id", ondelete="NO ACTION")' in models
+    # FK aponta para "tenants.id" (bare) — resolução de schema via search_path,
+    # não qualificação na string (ver INTEGRATIONS-MODEL-FK-REPAIR-03).
+    assert 'ForeignKey("tenants.id", ondelete="NO ACTION")' in models
     assert "unidade_produtiva_id" not in models
     assert "unidade_produtiva_id" not in routers
 

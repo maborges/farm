@@ -1708,13 +1708,12 @@ class SankhyaCanonicalAdapter:
         return encrypt_integration_secret(raw_or_encrypted)
 
     @staticmethod
-    def _tenant_uuid(tenant_id: str) -> uuid.UUID:
-        try:
-            return uuid.UUID(tenant_id)
-        except ValueError:
-            return uuid.uuid5(uuid.NAMESPACE_URL, f"sankhya-tenant:{tenant_id}")
+    def _tenant_uuid(tenant_id: str | uuid.UUID) -> uuid.UUID:
+        if isinstance(tenant_id, uuid.UUID):
+            return tenant_id
+        return uuid.UUID(str(tenant_id))
 
-    async def _restore_rls_context(self, tenant_id: str | None = None) -> None:
+    async def _restore_rls_context(self, tenant_id: str | uuid.UUID | None = None) -> None:
         bind = self.db.get_bind()
         dialect = getattr(bind, "dialect", None)
         effective_tenant_id = tenant_id or self.db.info.get("tenant_id")
@@ -1724,7 +1723,7 @@ class SankhyaCanonicalAdapter:
         self.db.info["tenant_id"] = effective_tenant_id
         await self.db.execute(
             text("SELECT set_config('app.current_tenant_id', :tenant_id, true)"),
-            {"tenant_id": effective_tenant_id},
+            {"tenant_id": str(effective_tenant_id)},
         )
 
     @staticmethod
