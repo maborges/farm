@@ -31,6 +31,7 @@ async def listar_erps_disponiveis(
         MarketplaceIntegracao.descricao,
         MarketplaceIntegracao.logo_url,
     ).where(MarketplaceIntegracao.provider_type == "ERP")
+    stmt = stmt.where(MarketplaceIntegracao.oficial.is_(True))
 
     if ativa:
         stmt = stmt.where(MarketplaceIntegracao.ativa.is_(True))

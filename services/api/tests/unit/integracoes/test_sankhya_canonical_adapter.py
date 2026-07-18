@@ -571,7 +571,7 @@ async def test_logs_enriquecidos_correlacionam_job_e_mascaram_payloads(
 
 
 @pytest.mark.asyncio
-async def test_timeline_retorna_dados_canonicos_e_legados(
+async def test_timeline_nao_repete_log_legado_vinculado_ao_job_canonico(
     session: AsyncSession,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -590,8 +590,16 @@ async def test_timeline_retorna_dados_canonicos_e_legados(
 
     timeline = await service.listar_timeline_operacional(legacy.tenant_id, limit=20)
 
-    assert any(item["tipo_registro"] == "canonical_job" for item in timeline)
-    assert any(item["tipo_registro"] == "legacy_log" for item in timeline)
+    job_entries = [item for item in timeline if item["tipo_registro"] == "canonical_job"]
+    linked_log_entries = [
+        item
+        for item in timeline
+        if item["tipo_registro"] == "legacy_log"
+        and item["correlation_id"] == job_entries[0]["id"].removeprefix("job:")
+    ]
+
+    assert len(job_entries) == 1
+    assert linked_log_entries == []
     assert any(item["tipo_registro"] == "health_snapshot" for item in timeline)
 
 

@@ -1503,10 +1503,11 @@ class SankhyaSyncService:
         logs = await self.listar_logs_enriquecidos(tenant_id, limit=limit)
         jobs = await self.listar_jobs(tenant_id, limit=limit)
         health = await self.obter_health_detalhado(tenant_id)
+        standalone_logs = self._exclude_logs_linked_to_jobs(logs, jobs)
 
         timeline = [
             *self._build_job_timeline_entries(jobs),
-            *self._build_log_timeline_entries(logs),
+            *self._build_log_timeline_entries(standalone_logs),
             self._build_health_timeline_entry(health),
         ]
         filtered = self._filter_timeline_entries(
@@ -1859,6 +1860,20 @@ class SankhyaSyncService:
                 }
             )
         return entries
+
+    @staticmethod
+    def _exclude_logs_linked_to_jobs(
+        logs: list[dict[str, Any]],
+        jobs: list[dict[str, Any]],
+    ) -> list[dict[str, Any]]:
+        """Mantém somente logs legados que não representam um job canônico já exibido."""
+
+        visible_job_ids = {str(job["id"]) for job in jobs}
+        return [
+            log
+            for log in logs
+            if str(log.get("integration_job_id")) not in visible_job_ids
+        ]
 
     def _build_health_timeline_entry(self, health: dict[str, Any]) -> dict[str, Any]:
         occurred_at = self._normalize_utc_datetime(health.get("checked_at")) or datetime.now(UTC)
