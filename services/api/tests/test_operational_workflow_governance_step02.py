@@ -15,6 +15,7 @@ from agricola.production_units.models import ProductionUnit
 from agricola.safras.models import Safra
 from agricola.tarefas.models import SafraTarefa
 from agricola.tarefas.service import TarefaService
+from core.exceptions import BusinessRuleError
 from core.models.tenant_audit_log import TenantAuditLog
 from notificacoes.models import Notificacao
 
@@ -331,24 +332,18 @@ async def test_operacao_realizada_com_custo_sem_allocation_gera_warning(session:
         production_unit_id=None,
     )
 
+    # SOIL-PLAN-EXEC-04K: operação REALIZADA com custo>0 e ProductionUnit ausente agora
+    # bloqueia a transação inteira (BusinessRuleError), independentemente do modo global
+    # WORKFLOW_ENFORCEMENT_MODE (bloqueio direcionado, não depende de WARNING_ONLY).
+    # O comportamento anterior (apenas warning/notificação, sem bloqueio) foi o próprio
+    # gap identificado em 04J e corrigido nesta etapa.
     svc = OperacaoService(session, tenant_id)
-    await svc.atualizar(operacao.id, OperacaoAgricolaUpdate(status="REALIZADA"))
-    await session.commit()
+    with pytest.raises(BusinessRuleError):
+        await svc.atualizar(operacao.id, OperacaoAgricolaUpdate(status="REALIZADA"))
 
-    notif = (
-        await session.execute(
-            select(Notificacao).where(
-                Notificacao.tenant_id == tenant_id,
-                Notificacao.tipo == "WORKFLOW_OPERACIONAL",
-                Notificacao.origem_id == f"operacao:{operacao.id}:missing_allocation_context",
-            )
-        )
-    ).scalars().first()
     allocations = (
         await session.execute(select(func.count(CostAllocation.id)).where(CostAllocation.tenant_id == tenant_id))
     ).scalar_one()
-
-    assert notif is not None
     assert allocations == 0
 
 

@@ -15,7 +15,6 @@ from agricola.operacoes.models import OperacaoAgricola, OperacaoExecucao
 from agricola.production_units.models import ProductionUnit
 from agricola.safras.models import Safra
 from core.cadastros.produtos.models import Produto
-from core.models.tenant_audit_log import TenantAuditLog
 from notificacoes.models import Notificacao
 from financeiro.models.lancamento import LancamentoFinanceiro
 from operacional.models.estoque import Deposito
@@ -39,7 +38,12 @@ async def _criar_contexto_reconciliacao(session: AsyncSession, tenant_id: uuid.U
 
 
 @pytest.mark.asyncio
-async def test_reconciliacao_detecta_custo_operacional_sem_reflexo_economico(session: AsyncSession, monkeypatch: pytest.MonkeyPatch):
+async def test_reconciliacao_nao_alerta_allocation_de_operacao_sem_despesa(session: AsyncSession, monkeypatch: pytest.MonkeyPatch):
+    """SOIL-PLAN-EXEC-04I: CostAllocation(OPERATION_EXECUTION) sem Despesa(OPERACAO_AGRICOLA)
+    deixou de ser um risco — é o estado normal, já que a despesa não é mais criada. A
+    reconciliação CostAllocation x Despesa(OPERACAO_AGRICOLA) foi aposentada; a de
+    estoque (CostAllocation x LancamentoFinanceiro) continua ativa e é coberta pelo teste
+    `test_reconciliacao_nao_cria_falso_positivo_para_lancamento_estoque_legitimo` abaixo."""
     monkeypatch.setattr(alertas_module, "WORKFLOW_ENFORCEMENT_MODE", alertas_module.WORKFLOW_ENFORCEMENT_WARNING_ONLY)
 
     tenant_id = uuid.uuid4()
@@ -94,7 +98,7 @@ async def test_reconciliacao_detecta_custo_operacional_sem_reflexo_economico(ses
     svc = AlertasAgricolasService(session, tenant_id)
     total = await svc.verificar_reconciliacao_economica()
 
-    assert total == 1
+    assert total == 0
 
     notificacao = (
         await session.execute(
@@ -105,18 +109,7 @@ async def test_reconciliacao_detecta_custo_operacional_sem_reflexo_economico(ses
             )
         )
     ).scalars().first()
-    assert notificacao is not None
-
-    auditorias = (
-        await session.execute(
-            select(TenantAuditLog).where(
-                TenantAuditLog.tenant_id == tenant_id,
-                TenantAuditLog.resource == "operational_workflow_governance",
-                TenantAuditLog.action == "reconcile",
-            )
-        )
-    ).scalars().all()
-    assert auditorias
+    assert notificacao is None
 
 
 @pytest.mark.asyncio

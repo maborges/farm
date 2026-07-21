@@ -681,6 +681,11 @@ class DREAgricolaV1Service(BaseService[Safra]):
         excluidas = 0
 
         for despesa in despesas:
+            # Compras representam aquisição financeira de estoque.
+            # O custo agrícola é reconhecido pelo consumo via CostAllocation.
+            if despesa.origem_tipo == "COMPRA":
+                excluidas += 1
+                continue
             if despesa.origem_tipo == "OPERACAO_AGRICOLA" and despesa.origem_id in alloc_op_ids:
                 excluidas += 1
                 continue

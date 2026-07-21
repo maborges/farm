@@ -3,7 +3,7 @@ import uuid
 from datetime import date, datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy import func, text, delete
+from sqlalchemy import func, text, delete, or_
 from loguru import logger
 from core.exceptions import BusinessRuleError, EntityNotFoundError
 from core.base_service import BaseService
@@ -250,14 +250,38 @@ class OperacaoService(BaseService[OperacaoAgricola]):
 
         return area_aplicada
 
+    MENSAGEM_PRODUCTION_UNIT_AUSENTE = (
+        "Não é possível concluir a operação com custo sem uma unidade produtiva "
+        "econômica válida. Cadastre ou vincule a ProductionUnit da safra e do talhão."
+    )
+    MENSAGEM_PRODUCTION_UNIT_AMBIGUA = (
+        "Existem múltiplas ProductionUnit válidas para esta safra/talhão/cultivo. "
+        "Informe explicitamente a production_unit_id para evitar ambiguidade."
+    )
+
     async def _resolve_production_unit_id(self, dados: OperacaoAgricolaCreate) -> UUID | None:
-        """Resolve a valid production unit for the current safra/talhao.
+        """Resolve deterministicamente a ProductionUnit para a safra/talhão/cultivo atual.
 
         Legacy `AreaRural.unidade_produtiva_id` points to `unidades_produtivas`,
         which is not compatible with the FK expected by `operacoes_agricolas`.
+
+        Caso A (production_unit_id informado): validação estrita via
+        `validate_production_unit_context` (tenant/safra/área/cultivo) — sem fallback.
+
+        Caso B (ausente): busca por chave de domínio. Prioridade: 1) correspondência
+        exata (inclui cultivo, quando informado); 2) unidade ATIVA; 3) apenas uma
+        candidata válida. Duas ou mais candidatas igualmente válidas => ambiguidade.
+
+        Bloqueio: quando a operação será persistida como REALIZADA com custo>0 e
+        nenhuma candidata (ou mais de uma candidata ambígua) for encontrada, lança
+        `BusinessRuleError` — não persiste com NULL nesse cenário.
         """
+        cultivo_id = getattr(dados, "cultivo_id", None)
+        status_final = getattr(dados, "status", None)
+        custo = float(getattr(dados, "custo_total", None) or 0.0)
+        exige_bloqueio = status_final == "REALIZADA" and custo > 0
+
         if dados.production_unit_id:
-            cultivo_id = getattr(dados, "cultivo_id", None)
             pu = await validate_production_unit_context(
                 self.session,
                 tenant_id=self.tenant_id,
@@ -268,27 +292,45 @@ class OperacaoService(BaseService[OperacaoAgricola]):
             )
             return pu.id
 
-        stmt = (
-            select(ProductionUnit.id)
-            .where(
-                ProductionUnit.tenant_id == self.tenant_id,
-                ProductionUnit.safra_id == dados.safra_id,
-                ProductionUnit.area_id == dados.talhao_id,
-            )
-            .order_by(
-                (ProductionUnit.status == "ATIVA").desc(),
-                ProductionUnit.created_at.desc(),
-            )
+        stmt = select(ProductionUnit.id, ProductionUnit.status).where(
+            ProductionUnit.tenant_id == self.tenant_id,
+            ProductionUnit.safra_id == dados.safra_id,
+            ProductionUnit.area_id == dados.talhao_id,
         )
-        production_unit_id = (await self.session.execute(stmt)).scalars().first()
-        if production_unit_id is None:
+        if cultivo_id:
+            stmt = stmt.where(ProductionUnit.cultivo_id == cultivo_id)
+        candidatos = (await self.session.execute(stmt)).all()
+
+        if not candidatos:
+            if exige_bloqueio:
+                raise BusinessRuleError(self.MENSAGEM_PRODUCTION_UNIT_AUSENTE)
             logger.warning(
                 "No production_unit found for operacao; persisting with NULL",
                 safra_id=str(dados.safra_id),
                 talhao_id=str(dados.talhao_id),
                 tenant_id=str(self.tenant_id),
             )
-        return production_unit_id
+            return None
+
+        if len(candidatos) == 1:
+            return candidatos[0].id
+
+        ativas = [c for c in candidatos if c.status == "ATIVA"]
+        if len(ativas) == 1:
+            return ativas[0].id
+
+        # Ambiguidade real: mais de uma candidata igualmente válida (não decidir por
+        # first()/created_at — regra explícita do programa 04K).
+        if exige_bloqueio:
+            raise BusinessRuleError(self.MENSAGEM_PRODUCTION_UNIT_AMBIGUA)
+        logger.warning(
+            "Ambiguous production_unit candidates for operacao; persisting with NULL",
+            safra_id=str(dados.safra_id),
+            talhao_id=str(dados.talhao_id),
+            tenant_id=str(self.tenant_id),
+            candidatos=len(candidatos),
+        )
+        return None
 
     async def _buscar_execucao_existente(self, operacao_id: UUID) -> OperacaoExecucao | None:
         stmt = (
@@ -301,6 +343,62 @@ class OperacaoService(BaseService[OperacaoAgricola]):
             .limit(1)
         )
         return (await self.session.execute(stmt)).scalars().first()
+
+    async def _buscar_execucoes_da_operacao(self, operacao_id: UUID) -> list[OperacaoExecucao]:
+        stmt = select(OperacaoExecucao).where(
+            OperacaoExecucao.operacao_id == operacao_id,
+            OperacaoExecucao.tenant_id == self.tenant_id,
+        )
+        return list((await self.session.execute(stmt)).scalars().all())
+
+    async def _reverter_efeitos_economicos_operacao(
+        self,
+        operacao_id: UUID,
+        *,
+        remover_execucoes: bool = True,
+    ) -> None:
+        """Reverte, na mesma transação, estoque, CostAllocation e Despesa de uma operação.
+
+        `remover_execucoes=False` é usado quando a própria OperacaoAgricola será excluída
+        em seguida (hard_delete): o cascade "all, delete-orphan" já remove as execuções,
+        e apagá-las aqui duplicaria o DELETE. Para transições de status (operação
+        permanece viva), `remover_execucoes=True` remove a execução para que uma futura
+        reexecução não reutilize um registro obsoleto.
+
+        Idempotente por natureza dos vínculos: uma segunda chamada não encontra mais
+        execuções, allocations ou despesa ativa para reverter (já foram removidas/
+        neutralizadas na primeira execução), portanto não produz efeito adicional.
+        """
+        execucoes = await self._buscar_execucoes_da_operacao(operacao_id)
+        execucao_ids = [execucao.id for execucao in execucoes]
+
+        for execucao in execucoes:
+            await self._reverter_movimentos_estoque_operacao(execucao, motivo="cancelamento")
+
+        if execucao_ids:
+            alloc_stmt = select(CostAllocation).where(
+                CostAllocation.tenant_id == self.tenant_id,
+                or_(
+                    CostAllocation.operation_execution_id.in_(execucao_ids),
+                    CostAllocation.source_id.in_(execucao_ids),
+                ),
+            )
+            allocations = list((await self.session.execute(alloc_stmt)).scalars().all())
+            for allocation in allocations:
+                await self.session.delete(allocation)
+
+        despesa = await self._buscar_despesa_existente(operacao_id)
+        if despesa is not None:
+            despesa.ativo = False
+            despesa.status = "CANCELADO"
+            self.session.add(despesa)
+
+        if remover_execucoes:
+            for execucao in execucoes:
+                await self.session.delete(execucao)
+
+        if execucoes or despesa is not None:
+            await self.session.flush()
 
     async def _buscar_despesa_existente(self, operacao_id: UUID) -> Despesa | None:
         stmt = (
@@ -425,6 +523,8 @@ class OperacaoService(BaseService[OperacaoAgricola]):
     async def _reverter_movimentos_estoque_operacao(
         self,
         operacao_execucao: OperacaoExecucao | None,
+        *,
+        motivo: str = "edição",
     ) -> None:
         if operacao_execucao is None:
             return
@@ -465,7 +565,7 @@ class OperacaoService(BaseService[OperacaoAgricola]):
                 custo_unitario=float(movimento.custo_unitario or 0.0),
                 custo_total=float(movimento.custo_total or 0.0),
                 ajuste_de=movimento.id,
-                observacoes=f"Estorno por edição da operação agrícola {operacao_execucao.operacao_id}",
+                observacoes=f"Estorno por {motivo} da operação agrícola {operacao_execucao.operacao_id}",
             )
             produtos_recalculados.add(movimento.produto_id)
 
@@ -511,17 +611,9 @@ class OperacaoService(BaseService[OperacaoAgricola]):
             allocation.allocation_date = operacao.data_realizada
             self.session.add(allocation)
 
-        despesa = await self._buscar_despesa_existente(operacao.id)
-        if despesa is not None:
-            despesa.descricao = f"{operacao.tipo} — {safra_desc} (fase {operacao.fase_safra or 'SEM_FASE'})"[:255]
-            despesa.valor_total = float(operacao.custo_total or 0.0)
-            despesa.valor_pago = float(operacao.custo_total or 0.0)
-            despesa.data_emissao = operacao.data_realizada
-            despesa.data_vencimento = operacao.data_realizada
-            despesa.data_pagamento = operacao.data_realizada
-            despesa.unidade_produtiva_id = unidade_produtiva_id
-            despesa.cultivo_id = operacao.cultivo_id
-            self.session.add(despesa)
+        # Despesa(OPERACAO_AGRICOLA) não é mais criada nem sincronizada (SOIL-PLAN-EXEC-04I).
+        # Registros históricos permanecem intocados; a única operação suportada sobre eles é a
+        # neutralização em `_reverter_efeitos_economicos_operacao`.
 
         if operacao.status == "REALIZADA":
             caderno_svc = CadernoCampoService(self.session, self.tenant_id)
@@ -643,6 +735,11 @@ class OperacaoService(BaseService[OperacaoAgricola]):
                         "Revise ProductionUnit ou o contexto operacional da safra."
                     ),
                 )
+                # Bloqueio direcionado (SOIL-PLAN-EXEC-04K): independente do modo global
+                # WORKFLOW_ENFORCEMENT_MODE (que permanece WARNING_ONLY), operação REALIZADA
+                # com custo>0 e sem ProductionUnit resolvida NUNCA pode ficar sem allocation
+                # quando o tipo exige. O finding acima permanece como evidência/observabilidade.
+                raise BusinessRuleError(self.MENSAGEM_PRODUCTION_UNIT_AUSENTE)
             elif custo_operacional <= 0 and regra.origem == "AGRICOLA_OPERACIONAL":
                 finding = alertas_svc.build_finding(
                     codigo="OPERACAO_AGRICOLA_SEM_CUSTO_NOVO_FLUXO",
@@ -727,7 +824,13 @@ class OperacaoService(BaseService[OperacaoAgricola]):
                     "Revise ProductionUnit, execucao e insumos antes de marcar como realizada."
                 ),
             )
-            return operacao_execucao, None
+            # Bloqueio direcionado (SOIL-PLAN-EXEC-04K): falha ao criar CostAllocation
+            # obrigatória nunca pode deixar a operação REALIZADA silenciosamente sem
+            # apropriação econômica — a transação inteira deve falhar (rollback total).
+            raise BusinessRuleError(
+                "Não foi possível registrar a apropriação econômica (CostAllocation) da "
+                "operação. Revise ProductionUnit, execução e insumos antes de concluir."
+            ) from exc
 
         return operacao_execucao, allocation
 
@@ -1020,52 +1123,6 @@ class OperacaoService(BaseService[OperacaoAgricola]):
                         / float(area_plantada_ha)
                     )
 
-            # 5. Registra Despesa no Financeiro (Módulo Integrado)
-            if custo_total_operacao > 0 and operacao.status == "REALIZADA":
-                from financeiro.models.plano_conta import PlanoConta
-                # Tenta conta analítica de custeio; fallback para qualquer conta de custeio ativa
-                stmt_pc = (
-                    select(PlanoConta.id)
-                    .where(
-                        PlanoConta.tenant_id == self.tenant_id,
-                        PlanoConta.categoria_rfb == "CUSTEIO",
-                        PlanoConta.ativo == True,
-                    )
-                    .order_by(PlanoConta.natureza)  # ANALITICA < SINTETICA alfabeticamente
-                    .limit(1)
-                )
-                plano_id = (await self.session.execute(stmt_pc)).scalar()
-
-                if plano_id:
-                    safra_desc = f"{safra_atual.cultura} {safra_atual.ano_safra}" if safra_atual else str(dados.safra_id)[:8]
-                    descricao = f"{operacao.tipo} — {safra_desc} (fase {fase_safra})"
-                    despesa = Despesa(
-                        id=uuid.uuid4(),
-                        tenant_id=self.tenant_id,
-                        unidade_produtiva_id=unidade_produtiva_id,
-                        plano_conta_id=plano_id,
-                        descricao=descricao[:255],
-                        valor_total=float(custo_total_operacao),
-                        data_emissao=operacao.data_realizada,
-                        data_vencimento=operacao.data_realizada,
-                        data_pagamento=operacao.data_realizada,
-                        status="PAGO",
-                        origem_id=operacao.id,
-                        origem_tipo="OPERACAO_AGRICOLA",
-                    )
-                    self.session.add(despesa)
-                    await self.session.flush()
-                    await AlertasAgricolasService(self.session, self.tenant_id).validar_despesa_origem_leve(
-                        despesa,
-                        origem_id_override=f"despesa:{despesa.id}:operacao_create",
-                        allow_block=True,
-                    )
-                    await AlertasAgricolasService(self.session, self.tenant_id).validar_despesa_automatica_unica_origem(
-                        despesa,
-                        origem_id_override=f"despesa:{despesa.id}:operacao_create",
-                        allow_block=True,
-                    )
-
             # Commit only if ALL operations succeeded (atomicity)
             # 6. TRIGGER: Se operação foi criada com status REALIZADA, cria evento canônico no caderno
             if operacao.status == "REALIZADA":
@@ -1110,6 +1167,12 @@ class OperacaoService(BaseService[OperacaoAgricola]):
             "condicao_clima": "sol"
         }
 
+    async def hard_delete(self, id: UUID) -> None:
+        """Cancela a operação: reverte estoque/CostAllocation/Despesa antes de excluir."""
+        operacao = await self.get_or_fail(id)
+        await self._reverter_efeitos_economicos_operacao(operacao.id, remover_execucoes=False)
+        await super().hard_delete(id)
+
     async def atualizar(self, obj_id: UUID, dados: OperacaoAgricolaUpdate) -> OperacaoAgricola:
         # 1. Busca estado atual antes de atualizar
         operacao_atual = await self.get_or_fail(obj_id)
@@ -1135,11 +1198,69 @@ class OperacaoService(BaseService[OperacaoAgricola]):
             )
         if "custo_total" in dados_dict and dados_dict["custo_total"] is not None:
             dados_dict["custo_total"] = float(dados_dict["custo_total"])
-        operacao = await super().update(obj_id, dados_dict)
+
+        # 2.1 Revalida ProductionUnit quando informada explicitamente na edição
+        # (SOIL-PLAN-EXEC-04K): impede vínculo com unidade de outro tenant/contexto
+        # incompatível ao trocar a unidade econômica de uma operação existente.
+        if "production_unit_id" in dados_dict and dados_dict["production_unit_id"] is not None:
+            safra_id_final = dados_dict.get("safra_id", operacao_atual.safra_id)
+            talhao_id_final = dados_dict.get("talhao_id", operacao_atual.talhao_id)
+            cultivo_id_final = dados_dict.get("cultivo_id", getattr(operacao_atual, "cultivo_id", None))
+            pu = await validate_production_unit_context(
+                self.session,
+                tenant_id=self.tenant_id,
+                production_unit_id=dados_dict["production_unit_id"],
+                safra_id=safra_id_final,
+                area_id=talhao_id_final,
+                cultivo_id=cultivo_id_final,
+            )
+            dados_dict["production_unit_id"] = pu.id
+
+        # A partir daqui, qualquer BusinessRuleError (ex.: ProductionUnit ausente/ambígua,
+        # falha ao criar CostAllocation obrigatória) precisa reverter TUDO nesta chamada
+        # (status, estoque, execução, allocation) — nenhum efeito parcial pode sobreviver
+        # (SOIL-PLAN-EXEC-04K, ordem transacional §11).
+        try:
+            operacao = await self._atualizar_efeitos_operacao(
+                operacao_id=obj_id,
+                dados_dict=dados_dict,
+                insumos_payload=insumos_payload,
+                insumos_anteriores=insumos_anteriores,
+                custo_insumos_anterior=custo_insumos_anterior,
+                operacao_execucao_existente=operacao_execucao_existente,
+                unidade_produtiva_id=unidade_produtiva_id,
+                status_anterior=status_anterior,
+                custo_total_anterior=float(operacao_atual.custo_total or 0.0),
+            )
+        except BusinessRuleError:
+            await self.session.rollback()
+            raise
+
+        return operacao
+
+    async def _atualizar_efeitos_operacao(
+        self,
+        *,
+        operacao_id: UUID,
+        dados_dict: dict,
+        insumos_payload,
+        insumos_anteriores: list,
+        custo_insumos_anterior: float,
+        operacao_execucao_existente: OperacaoExecucao | None,
+        unidade_produtiva_id: UUID,
+        status_anterior: str,
+        custo_total_anterior: float = 0.0,
+    ) -> OperacaoAgricola:
+        operacao = await super().update(operacao_id, dados_dict)
 
         area_alterada = "area_aplicada_ha" in dados_dict
         novo_status = dados_dict.get("status")
         status_mudou_para_realizada = novo_status == "REALIZADA" and status_anterior != "REALIZADA"
+        operacao_saiu_de_realizada = (
+            status_anterior == "REALIZADA"
+            and novo_status is not None
+            and novo_status != "REALIZADA"
+        )
 
         precisa_reprocessar_insumos = (
             insumos_payload is not None
@@ -1147,7 +1268,11 @@ class OperacaoService(BaseService[OperacaoAgricola]):
             or status_mudou_para_realizada
         )
 
-        if precisa_reprocessar_insumos:
+        if operacao_saiu_de_realizada:
+            # Operação deixou de ser REALIZADA: reverte estoque, CostAllocation e Despesa
+            # em vez de reaplicar insumos.
+            await self._reverter_efeitos_economicos_operacao(operacao.id)
+        elif precisa_reprocessar_insumos:
             await self._reverter_movimentos_estoque_operacao(operacao_execucao_existente)
             if insumos_anteriores:
                 await self.session.execute(delete(InsumoOperacao).where(InsumoOperacao.operacao_id == operacao.id))
@@ -1175,7 +1300,7 @@ class OperacaoService(BaseService[OperacaoAgricola]):
             base_manual = (
                 float(dados_dict["custo_total"])
                 if "custo_total" in dados_dict and dados_dict["custo_total"] is not None
-                else max(0.0, float(operacao_atual.custo_total or 0.0) - custo_insumos_anterior)
+                else max(0.0, float(custo_total_anterior or 0.0) - custo_insumos_anterior)
             )
             custo_insumos_novo, ledger_consumos = await self._aplicar_insumos_na_operacao(
                 operacao,

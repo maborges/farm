@@ -1055,33 +1055,10 @@ class AlertasAgricolasService:
         )
 
     async def _detectar_allocation_sem_reflexo_economico(self) -> WorkflowGovernanceFinding | None:
-        op_stmt = (
-            select(
-                CostAllocation.id,
-                CostAllocation.source,
-                CostAllocation.source_id,
-                CostAllocation.amount,
-                OperacaoAgricola.id.label("operacao_id"),
-            )
-            .join(OperacaoExecucao, CostAllocation.operation_execution_id == OperacaoExecucao.id)
-            .join(OperacaoAgricola, OperacaoExecucao.operacao_id == OperacaoAgricola.id)
-            .outerjoin(
-                Despesa,
-                and_(
-                    Despesa.tenant_id == self.tenant_id,
-                    Despesa.origem_tipo == "OPERACAO_AGRICOLA",
-                    Despesa.origem_id == OperacaoAgricola.id,
-                    Despesa.ativo == True,
-                ),
-            )
-            .where(
-                CostAllocation.tenant_id == self.tenant_id,
-                CostAllocation.source == "OPERATION_EXECUTION",
-                CostAllocation.amount > 0,
-                Despesa.id.is_(None),
-            )
-        )
-
+        # A reconciliação CostAllocation (OPERATION_EXECUTION) x Despesa(OPERACAO_AGRICOLA) foi
+        # aposentada em SOIL-PLAN-EXEC-04I: a despesa deixou de ser criada para operações novas, e
+        # CostAllocation passou a ser a única fonte de custo produtivo — a ausência de despesa é o
+        # estado normal, não mais um risco. A reconciliação de estoque abaixo permanece válida.
         estoque_stmt = (
             select(
                 CostAllocation.id,
@@ -1108,27 +1085,21 @@ class AlertasAgricolasService:
             )
         )
 
-        op_rows = list((await self.session.execute(op_stmt)).all())
         estoque_rows = list((await self.session.execute(estoque_stmt)).all())
-        if not op_rows and not estoque_rows:
+        if not estoque_rows:
             return None
 
-        amostras = [
-            *(f"OPERACAO:{row.operacao_id}:{row.id}" for row in op_rows[:10]),
-            *(f"ESTOQUE:{row.movimento_id}:{row.id}" for row in estoque_rows[:10]),
-        ]
         return self._build_finding(
             codigo="CUSTO_OPERACIONAL_SEM_REFLEXO_ECONOMICO",
             titulo="Custo operacional sem reflexo econômico",
             severidade="RISCO_ECONOMICO",
             origem="reconciliacao_economica",
-            rows=[*op_rows, *estoque_rows],
+            rows=estoque_rows,
             mensagem=(
-                f"{len(op_rows) + len(estoque_rows)} apropriação(ões) econômicas não encontraram "
-                "reflexo financeiro compatível em despesa ou lançamento."
+                f"{len(estoque_rows)} apropriação(ões) econômicas de estoque não encontraram "
+                "reflexo financeiro compatível em lançamento."
             ),
             meta={
-                "operacoes_sem_reflexo": len(op_rows),
                 "estoques_sem_lancamento": len(estoque_rows),
             },
         )

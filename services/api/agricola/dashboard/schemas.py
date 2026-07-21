@@ -23,7 +23,7 @@ class FinanceiroResumo(BaseModel):
     valor_total_vendido: float = 0.0  # só as FINALIZADO
 
     # Financeiro Integrado
-    despesa_total: float  # De fin_despesas WHERE origem_tipo = OPERACAO_AGRICOLA
+    despesa_total: float  # Campo legado: custo agrícola realizado (CostAllocation, com fallback por custo_total)
     receita_total: float  # De fin_receitas + comercializacoes
     lucro_bruto: float
     roi_pct: float | None

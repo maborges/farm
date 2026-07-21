@@ -51,19 +51,12 @@ async def test_warning_only_nao_bloqueia_risco_economico_novo(session: AsyncSess
     cultivo_id = await _criar_cultivo(session, tenant_id, safra.id)
     operacao_id = await _criar_operacao(session, tenant_id, safra.id, cultivo_id, area_id, production_unit_id=None)
 
-    await OperacaoService(session, tenant_id).atualizar(operacao_id, OperacaoAgricolaUpdate(status="REALIZADA"))
-    await session.commit()
-
-    notif = (
-        await session.execute(
-            select(Notificacao).where(
-                Notificacao.tenant_id == tenant_id,
-                Notificacao.origem_id == f"operacao:{operacao_id}:missing_allocation_context",
-            )
-        )
-    ).scalars().first()
-
-    assert notif is not None
+    # SOIL-PLAN-EXEC-04K: o bloqueio de "operação REALIZADA com custo sem
+    # ProductionUnit/CostAllocation" é direcionado e não depende do modo global
+    # de enforcement — mesmo em WARNING_ONLY (que continua não bloqueando os
+    # demais alertas), esse caminho específico levanta BusinessRuleError.
+    with pytest.raises(BusinessRuleError):
+        await OperacaoService(session, tenant_id).atualizar(operacao_id, OperacaoAgricolaUpdate(status="REALIZADA"))
 
 
 @pytest.mark.asyncio

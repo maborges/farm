@@ -7,9 +7,14 @@ import pytest
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from agricola.cultivos.models import Cultivo
+from agricola.custos.models import CostAllocation
+from agricola.operacoes.models import OperacaoExecucao
 from agricola.operacoes.schemas import OperacaoAgricolaCreate
 from agricola.operacoes.service import OperacaoService
+from agricola.production_units.models import ProductionUnit
 from agricola.safras.models import Safra, SafraTalhao
+from core.cadastros.propriedades.models import AreaRural
 from core.exceptions import BusinessRuleError
 from core.models import TenantUsuario, UnidadeProdutivaUsuario, Usuario
 from core.operational_context import resolve_unidade_produtiva_context
@@ -111,16 +116,33 @@ async def test_operacao_rejeita_talhao_fora_do_vinculo_explicito_da_safra(
 
 
 @pytest.mark.asyncio
-async def test_operacao_cria_despesa_com_unidade_produtiva_derivada_do_talhao(
+async def test_operacao_cria_allocation_com_production_unit_derivada_do_talhao(
     session: AsyncSession,
     tenant_id: uuid.UUID,
     unidade_produtiva_id: uuid.UUID,
     talhao_id: uuid.UUID,
 ):
+    """Operação com custo deve gerar CostAllocation cuja ProductionUnit pertence à UP do talhão.
+
+    Substitui a expectativa antiga de Despesa(OPERACAO_AGRICOLA) (removida em 04I) por
+    verificação equivalente sobre CostAllocation, que é a fonte de custo produtivo atual.
+    """
     await _criar_plano_custeio(session, tenant_id)
     safra = Safra(id=uuid.uuid4(), tenant_id=tenant_id, ano_safra="2025/26", cultura="MILHO", status="COLHEITA")
     session.add(safra)
     session.add(SafraTalhao(tenant_id=tenant_id, safra_id=safra.id, area_id=talhao_id, principal=True, area_ha=100))
+    cultivo = Cultivo(tenant_id=tenant_id, safra_id=safra.id, cultura="MILHO", status="ATIVO")
+    session.add(cultivo)
+    await session.flush()
+    session.add(ProductionUnit(
+        tenant_id=tenant_id,
+        safra_id=safra.id,
+        cultivo_id=cultivo.id,
+        area_id=talhao_id,
+        percentual_participacao=100,
+        area_ha=100.0,
+        status="ATIVA",
+    ))
     await session.commit()
 
     service = OperacaoService(session, tenant_id)
@@ -146,8 +168,29 @@ async def test_operacao_cria_despesa_com_unidade_produtiva_derivada_do_talhao(
             )
         )
     ).scalars().first()
-    assert despesa is not None
-    assert despesa.unidade_produtiva_id == unidade_produtiva_id
+    assert despesa is None
+
+    allocation = (
+        await session.execute(
+            select(CostAllocation)
+            .join(OperacaoExecucao, CostAllocation.operation_execution_id == OperacaoExecucao.id)
+            .where(
+                CostAllocation.tenant_id == tenant_id,
+                OperacaoExecucao.operacao_id == operacao.id,
+            )
+        )
+    ).scalars().first()
+    assert allocation is not None
+    assert float(allocation.amount) == 250.0
+
+    area_unidade_id = (
+        await session.execute(
+            select(AreaRural.unidade_produtiva_id)
+            .join(ProductionUnit, ProductionUnit.area_id == AreaRural.id)
+            .where(ProductionUnit.id == allocation.production_unit_id)
+        )
+    ).scalar_one()
+    assert area_unidade_id == unidade_produtiva_id
 
 
 @pytest.mark.asyncio

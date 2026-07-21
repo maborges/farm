@@ -426,8 +426,10 @@ async def test_dre_v1_consolida_precedencia_e_nao_duplica_receita_rateio(session
     assert dre.kpis.custo_por_hectare == pytest.approx(98.33, abs=0.01)
     assert dre.kpis.receita_por_hectare == 200.0
     assert dre.kpis.resultado_por_hectare == pytest.approx(101.67, abs=0.01)
-    assert dre.kpis.sujeito_reconciliacao is True
-    assert "CUSTO_OPERACIONAL_SEM_REFLEXO_ECONOMICO" in dre.kpis.warnings_relevantes
+    # SOIL-PLAN-EXEC-04I: CostAllocation(OPERATION_EXECUTION) sem Despesa(OPERACAO_AGRICOLA)
+    # deixou de ser um risco de reconciliação — é o estado normal para operações novas.
+    assert dre.kpis.sujeito_reconciliacao is False
+    assert "CUSTO_OPERACIONAL_SEM_REFLEXO_ECONOMICO" not in dre.kpis.warnings_relevantes
     assert any(item.origem_tipo == "COMERCIALIZACAO" for item in dre.receita.itens)
     assert all(item.origem_tipo != "ROMANEIO_COLHEITA" for item in dre.receita.itens)
     assert any(item.origem_tipo == "FIN_RATEIO" for item in dre.custos_operacionais_detalhe.itens)
@@ -1173,3 +1175,133 @@ async def test_dre_v1_costallocation_prevalece_sobre_estoque_movimento(session: 
     assert dre.custos_diretos_detalhe.total_registros == 1
     assert all(item.fonte_oficial == "CostAllocation" for item in dre.custos_diretos_detalhe.itens)
     assert not any(w.codigo == "MOVIMENTO_COM_CUSTO_SEM_ALLOCATION" for w in dre.warnings)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "consumo_amount,custo_esperado",
+    [
+        (None, 0.0),
+        (2000.0, 2000.0),
+        (10000.0, 10000.0),
+    ],
+)
+async def test_dre_v1_exclui_despesa_compra_incondicionalmente(
+    session: AsyncSession, consumo_amount: float | None, custo_esperado: float
+):
+    """Despesa(origem_tipo=COMPRA) nunca entra na DRE; o custo agrícola vem de CostAllocation."""
+    tenant_id = uuid.uuid4()
+    unidade_id, area_id, safra, cultivo_id, pu, produto, deposito, unidade_ha_id = await _base_contexto(session, tenant_id)
+    plano_despesa = await _criar_plano_conta(session, tenant_id, "Plano Despesa Compra")
+
+    await _criar_despesa(
+        session,
+        tenant_id=tenant_id,
+        unidade_produtiva_id=unidade_id,
+        plano_conta_id=plano_despesa.id,
+        descricao="Compra de insumo",
+        valor_total=10000.0,
+        data_emissao=date.today(),
+        origem_tipo="COMPRA",
+    )
+
+    if consumo_amount is not None:
+        mov = EstoqueMovimento(
+            tenant_id=tenant_id,
+            data_movimento=date.today(),
+            tipo_movimento="ENTRADA",
+            produto_id=produto.id,
+            deposito_id=deposito.id,
+            lote_id=None,
+            quantidade=1.0,
+            unidade_medida_id=unidade_ha_id,
+            custo_unitario=consumo_amount,
+            custo_total=consumo_amount,
+            origem="COMPRA",
+            origem_id=uuid.uuid4(),
+            production_unit_id=pu.id,
+            observacoes="Consumo FIFO",
+        )
+        session.add(mov)
+        await session.flush()
+        await registrar_cost_allocation(
+            session,
+            tenant_id=tenant_id,
+            production_unit_id=pu.id,
+            source="INVENTORY_MOVEMENT",
+            source_id=mov.id,
+            inventory_movement_id=mov.id,
+            amount=consumo_amount,
+            allocation_date=date.today(),
+            cost_category="INSUMO",
+            allocation_method="DIRECT",
+        )
+
+    await session.commit()
+
+    dre = await DREAgricolaV1Service(session, tenant_id).gerar(
+        safra_id=safra.id,
+        production_unit_id=pu.id,
+    )
+
+    assert dre.despesas_operacionais == 0.0
+    assert not any(item.origem_tipo == "COMPRA" for item in dre.despesas_operacionais_detalhe.itens)
+    assert dre.custos_diretos == custo_esperado
+    assert dre.resultado_operacional == -custo_esperado
+
+
+@pytest.mark.asyncio
+async def test_dre_v1_preserva_fallback_historico_despesa_operacao_sem_allocation(
+    session: AsyncSession,
+):
+    """SOIL-PLAN-EXEC-04I: operações novas não criam mais Despesa(OPERACAO_AGRICOLA) — o
+    custo vem exclusivamente de CostAllocation. Este teste documenta explicitamente que a
+    regra de precedência da DRE (excluir despesa apenas quando existe CostAllocation
+    correspondente) é mantida por COMPATIBILIDADE HISTÓRICA: uma Despesa(OPERACAO_AGRICOLA)
+    legada (criada antes de 04I), sem CostAllocation vinculado, ainda é reconhecida como
+    custo — nenhuma nova despesa desse tipo deve ser criada para produzir esse efeito."""
+    tenant_id = uuid.uuid4()
+    unidade_id, area_id, safra, cultivo_id, pu, produto, deposito, unidade_ha_id = (
+        await _base_contexto(session, tenant_id)
+    )
+    plano_despesa = await _criar_plano_conta(session, tenant_id, "Plano Despesa Historica")
+
+    operacao = OperacaoAgricola(
+        tenant_id=tenant_id,
+        safra_id=safra.id,
+        cultivo_id=cultivo_id,
+        production_unit_id=pu.id,
+        talhao_id=area_id,
+        tipo="PLANTIO",
+        descricao="Operação histórica sem CostAllocation",
+        data_realizada=date.today(),
+        custo_total=900.0,
+        status="REALIZADA",
+    )
+    session.add(operacao)
+    await session.flush()
+
+    await _criar_despesa(
+        session,
+        tenant_id=tenant_id,
+        unidade_produtiva_id=unidade_id,
+        plano_conta_id=plano_despesa.id,
+        descricao="Despesa histórica pré-04I",
+        valor_total=900.0,
+        data_emissao=date.today(),
+        origem_tipo="OPERACAO_AGRICOLA",
+        origem_id=operacao.id,
+    )
+    await session.commit()
+
+    dre = await DREAgricolaV1Service(session, tenant_id).gerar(
+        safra_id=safra.id,
+        production_unit_id=pu.id,
+    )
+
+    assert dre.custos_diretos == 0.0
+    assert dre.despesas_operacionais == 900.0
+    assert any(
+        item.origem_id == operacao.id and item.origem_tipo == "OPERACAO_AGRICOLA"
+        for item in dre.despesas_operacionais_detalhe.itens
+    )

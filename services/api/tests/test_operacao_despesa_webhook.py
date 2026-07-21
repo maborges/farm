@@ -1,12 +1,15 @@
 """
-Testes para webhook: Operação → Despesa Automática.
+Testes para o fluxo econômico de criação de operação agrícola (SOIL-PLAN-EXEC-04I).
 
 Valida:
-1. Operação com custo_total > 0 cria Despesa automaticamente
-2. Operação sem custo não cria Despesa
-3. Rastreabilidade via origem_id + origem_tipo
+1. Operação com custo_total > 0 NÃO cria Despesa(OPERACAO_AGRICOLA) — apenas CostAllocation
+2. Operação sem custo não cria CostAllocation
+3. Rastreabilidade via CostAllocation (operation_execution_id/source_id)
 4. Tenant isolation
-5. Integração com PlanoConta (categoria CUSTEIO)
+5. Operação inválida não cria CostAllocation nem Despesa
+
+Nome do arquivo mantido por compatibilidade histórica (era "webhook de despesa automática");
+o comportamento válido a partir de 04I é a ausência dessa despesa.
 """
 from datetime import date
 from uuid import uuid4
@@ -20,27 +23,51 @@ from test_operational_workflow_governance_step03 import (
     _garantir_tenant,
 )
 
+from agricola.custos.models import CostAllocation
+from agricola.operacoes.models import OperacaoExecucao
 from agricola.operacoes.schemas import OperacaoAgricolaCreate
 from agricola.operacoes.service import OperacaoService
 from agricola.safras.models import Safra
 from core.exceptions import EntityNotFoundError
 from financeiro.models.despesa import Despesa
-from financeiro.models.plano_conta import PlanoConta
+
+
+async def _allocations_da_operacao(
+    session: AsyncSession, tenant_id, operacao_id
+) -> list[CostAllocation]:
+    exec_ids = (
+        await session.execute(
+            select(OperacaoExecucao.id).where(OperacaoExecucao.operacao_id == operacao_id)
+        )
+    ).scalars().all()
+    if not exec_ids:
+        return []
+    return list(
+        (
+            await session.execute(
+                select(CostAllocation).where(
+                    CostAllocation.tenant_id == tenant_id,
+                    CostAllocation.operation_execution_id.in_(exec_ids),
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
 
 
 class TestOperacaoDespesaWebhook:
-    """Testes de automação de despesa ao criar operação."""
+    """Testes do efeito econômico da criação de operação agrícola."""
 
     @pytest.mark.asyncio
-    async def test_operacao_com_custo_cria_despesa_automatica(
+    async def test_operacao_com_custo_nao_cria_despesa_mas_cria_allocation(
         self,
         session: AsyncSession,
         tenant_id: str,
         unidade_produtiva_id: str,
         talhao_id: str
     ):
-        """Operação com custo_total > 0 deve criar Despesa automaticamente."""
-        # Setup: Criar safra
+        """Operação com custo_total > 0 não deve criar Despesa; deve criar CostAllocation."""
         safra = Safra(
             id=uuid4(),
             tenant_id=tenant_id,
@@ -49,27 +76,12 @@ class TestOperacaoDespesaWebhook:
             status="COLHEITA",
         )
         session.add(safra)
-
-        # Criar plano de conta para despesa (necessário)
-        plano = PlanoConta(
-            id=uuid4(),
-            tenant_id=tenant_id,
-            codigo="3.01",
-            nome="Custeio - Operações Agrícolas",
-            tipo="DESPESA",
-            categoria_rfb="CUSTEIO",
-            natureza="ANALITICA",
-            ativo=True
-        )
-        session.add(plano)
         await session.commit()
 
         cultivo_id = await _criar_cultivo(session, tenant_id, safra.id)
         await _criar_production_unit(session, tenant_id, safra.id, cultivo_id, talhao_id)
 
-        # Act: Criar operação com custo
         service = OperacaoService(session, tenant_id)
-
         operacao_create = OperacaoAgricolaCreate(
             safra_id=safra.id,
             talhao_id=talhao_id,
@@ -77,34 +89,31 @@ class TestOperacaoDespesaWebhook:
             descricao="Colheita mecanizada",
             data_realizada=date.today(),
             area_aplicada_ha=50.0,
-            custo_total=5000.0,  # ← Custo > 0
-            insumos=[]
+            custo_total=5000.0,
+            insumos=[],
         )
-
         operacao = await service.criar(operacao_create)
 
-        # Assert: Despesa deve ter sido criada
         despesa_stmt = select(Despesa).where(
             Despesa.origem_id == operacao.id,
-            Despesa.origem_tipo == "OPERACAO_AGRICOLA"
+            Despesa.origem_tipo == "OPERACAO_AGRICOLA",
         )
         despesa = (await session.execute(despesa_stmt)).scalars().first()
+        assert despesa is None, "Despesa(OPERACAO_AGRICOLA) não deve mais ser criada (04I)"
 
-        assert despesa is not None, "Despesa não foi criada automaticamente"
-        assert despesa.valor_total == operacao.custo_total
-        assert despesa.status == "PAGO"
-        assert despesa.origem_tipo == "OPERACAO_AGRICOLA"
+        allocations = await _allocations_da_operacao(session, tenant_id, operacao.id)
+        assert len(allocations) == 1
+        assert float(allocations[0].amount) == 5000.0
 
     @pytest.mark.asyncio
-    async def test_operacao_sem_custo_nao_cria_despesa(
+    async def test_operacao_sem_custo_nao_cria_despesa_nem_allocation(
         self,
         session: AsyncSession,
         tenant_id: str,
         unidade_produtiva_id: str,
         talhao_id: str
     ):
-        """Operação com custo_total = 0 não deve criar Despesa."""
-        # Setup
+        """Operação com custo_total = 0 não deve criar Despesa nem CostAllocation."""
         safra = Safra(
             id=uuid4(),
             tenant_id=tenant_id,
@@ -118,9 +127,7 @@ class TestOperacaoDespesaWebhook:
         cultivo_id = await _criar_cultivo(session, tenant_id, safra.id)
         await _criar_production_unit(session, tenant_id, safra.id, cultivo_id, talhao_id)
 
-        # Act: Criar operação COM insumos (mas simulate zero custo)
         service = OperacaoService(session, tenant_id)
-
         operacao_create = OperacaoAgricolaCreate(
             safra_id=safra.id,
             talhao_id=talhao_id,
@@ -128,30 +135,25 @@ class TestOperacaoDespesaWebhook:
             descricao="Plantio manual",
             data_realizada=date.today(),
             area_aplicada_ha=10.0,
-            custo_total=0.0,  # ← Sem custo
-            insumos=[]
+            custo_total=0.0,
+            insumos=[],
         )
-
         operacao = await service.criar(operacao_create)
 
-        # Assert: Despesa NÃO deve ter sido criada
-        despesa_stmt = select(Despesa).where(
-            Despesa.origem_id == operacao.id
-        )
-        despesa = (await session.execute(despesa_stmt)).scalars().first()
+        despesa_stmt = select(Despesa).where(Despesa.origem_id == operacao.id)
+        assert (await session.execute(despesa_stmt)).scalars().first() is None
 
-        assert despesa is None, "Despesa não deveria ter sido criada (custo = 0)"
+        assert await _allocations_da_operacao(session, tenant_id, operacao.id) == []
 
     @pytest.mark.asyncio
-    async def test_rastreabilidade_operacao_despesa(
+    async def test_rastreabilidade_operacao_allocation(
         self,
         session: AsyncSession,
         tenant_id: str,
         unidade_produtiva_id: str,
         talhao_id: str
     ):
-        """Despesa deve ter origem_id linkado à operação para rastreabilidade."""
-        # Setup
+        """CostAllocation deve ter vínculo rastreável (operation_execution_id/allocation_date)."""
         safra = Safra(
             id=uuid4(),
             tenant_id=tenant_id,
@@ -160,61 +162,41 @@ class TestOperacaoDespesaWebhook:
             status="DESENVOLVIMENTO",
         )
         session.add(safra)
-
-        plano = PlanoConta(
-            id=uuid4(),
-            tenant_id=tenant_id,
-            codigo="3.01",
-            nome="Custeio",
-            tipo="DESPESA",
-            categoria_rfb="CUSTEIO",
-            natureza="ANALITICA",
-            ativo=True
-        )
-        session.add(plano)
         await session.commit()
 
         cultivo_id = await _criar_cultivo(session, tenant_id, safra.id)
         await _criar_production_unit(session, tenant_id, safra.id, cultivo_id, talhao_id)
 
-        # Act
+        data_op = date(2025, 6, 15)
         service = OperacaoService(session, tenant_id)
-
         operacao_create = OperacaoAgricolaCreate(
             safra_id=safra.id,
             talhao_id=talhao_id,
             tipo="ADUBAÇÃO",
             descricao="Adubação de cobertura",
-            data_realizada=date.today(),
+            data_realizada=data_op,
             area_aplicada_ha=50.0,
             custo_total=2500.0,
-            insumos=[]
+            insumos=[],
         )
-
         operacao = await service.criar(operacao_create)
 
-        # Assert: Buscar despesa por origem_id
-        despesa_stmt = select(Despesa).where(
-            Despesa.origem_id == operacao.id,
-            Despesa.origem_tipo == "OPERACAO_AGRICOLA"
-        )
-        despesa = (await session.execute(despesa_stmt)).scalars().first()
-
-        assert despesa is not None
-        assert despesa.origem_id == operacao.id
-        assert despesa.origem_tipo == "OPERACAO_AGRICOLA"
-        assert "Adubação" in despesa.descricao or "ADUBAÇÃO" in despesa.descricao
+        allocations = await _allocations_da_operacao(session, tenant_id, operacao.id)
+        assert len(allocations) == 1
+        allocation = allocations[0]
+        assert allocation.source == "OPERATION_EXECUTION"
+        assert allocation.allocation_date == data_op
+        assert float(allocation.amount) == 2500.0
 
     @pytest.mark.asyncio
-    async def test_tenant_isolation_operacao_despesa(
+    async def test_tenant_isolation_operacao_nao_cria_despesa_em_outro_tenant(
         self,
         session: AsyncSession,
         tenant_id: str,
         outro_tenant_id: str,
         talhao_id: str
     ):
-        """Despesa de um tenant não deveria ser criada para operação de outro tenant."""
-        # Setup: Safra de outro tenant
+        """Operação de um tenant não deve gerar Despesa nem CostAllocation em outro tenant."""
         await _garantir_tenant(session, outro_tenant_id)
 
         safra_outro = Safra(
@@ -227,161 +209,30 @@ class TestOperacaoDespesaWebhook:
         session.add(safra_outro)
         await session.commit()
 
-        # Act: Tentar criar operação com tenant_id diferente
-        service = OperacaoService(session, tenant_id)  # ← tenant_id diferente
-
+        service = OperacaoService(session, tenant_id)
         operacao_create = OperacaoAgricolaCreate(
-            safra_id=safra_outro.id,  # ← Safra de outro tenant
+            safra_id=safra_outro.id,
             talhao_id=talhao_id,
             tipo="PULVERIZAÇÃO",
             descricao="Pulverização",
             data_realizada=date.today(),
             area_aplicada_ha=10.0,
             custo_total=1000.0,
-            insumos=[]
+            insumos=[],
         )
 
-        # Assert: EntityNotFoundError pois safra é de outro tenant
         with pytest.raises(EntityNotFoundError):
             await service.criar(operacao_create)
 
     @pytest.mark.asyncio
-    async def test_despesa_descricao_inclui_tipo_e_safra(
+    async def test_operacao_tipo_invalido_nao_cria_despesa_nem_allocation(
         self,
         session: AsyncSession,
         tenant_id: str,
         unidade_produtiva_id: str,
         talhao_id: str
     ):
-        """Despesa deve ter descricção com tipo de operação e safra."""
-        # Setup
-        safra = Safra(
-            id=uuid4(),
-            tenant_id=tenant_id,
-            ano_safra="2025/26",
-            cultura="MILHO",
-            status="COLHEITA",
-        )
-        session.add(safra)
-
-        plano = PlanoConta(
-            id=uuid4(),
-            tenant_id=tenant_id,
-            codigo="3.01",
-            nome="Custeio",
-            tipo="DESPESA",
-            categoria_rfb="CUSTEIO",
-            natureza="ANALITICA",
-            ativo=True
-        )
-        session.add(plano)
-        await session.commit()
-
-        cultivo_id = await _criar_cultivo(session, tenant_id, safra.id)
-        await _criar_production_unit(session, tenant_id, safra.id, cultivo_id, talhao_id)
-
-        # Act
-        service = OperacaoService(session, tenant_id)
-
-        operacao_create = OperacaoAgricolaCreate(
-            safra_id=safra.id,
-            talhao_id=talhao_id,
-            tipo="COLHEITA",
-            descricao="Colheita da safra",
-            data_realizada=date.today(),
-            area_aplicada_ha=50.0,
-            custo_total=5000.0,
-            insumos=[]
-        )
-
-        operacao = await service.criar(operacao_create)
-
-        # Assert: Despesa tem descricção informativa
-        despesa_stmt = select(Despesa).where(
-            Despesa.origem_id == operacao.id
-        )
-        despesa = (await session.execute(despesa_stmt)).scalars().first()
-
-        assert despesa is not None
-        assert "COLHEITA" in despesa.descricao  # Tipo de operação
-        assert "MILHO" in despesa.descricao or "2025/26" in despesa.descricao  # Safra info
-
-    @pytest.mark.asyncio
-    async def test_despesa_data_operacao(
-        self,
-        session: AsyncSession,
-        tenant_id: str,
-        unidade_produtiva_id: str,
-        talhao_id: str
-    ):
-        """Despesa deve usar data_realizada da operação como data de emissão/vencimento."""
-        # Setup
-        data_op = date(2025, 6, 15)
-
-        safra = Safra(
-            id=uuid4(),
-            tenant_id=tenant_id,
-            ano_safra="2025/26",
-            cultura="MILHO",
-            status="COLHEITA",
-        )
-        session.add(safra)
-
-        plano = PlanoConta(
-            id=uuid4(),
-            tenant_id=tenant_id,
-            codigo="3.01",
-            nome="Custeio",
-            tipo="DESPESA",
-            categoria_rfb="CUSTEIO",
-            natureza="ANALITICA",
-            ativo=True
-        )
-        session.add(plano)
-        await session.commit()
-
-        cultivo_id = await _criar_cultivo(session, tenant_id, safra.id)
-        await _criar_production_unit(session, tenant_id, safra.id, cultivo_id, talhao_id)
-
-        # Act
-        service = OperacaoService(session, tenant_id)
-
-        operacao_create = OperacaoAgricolaCreate(
-            safra_id=safra.id,
-            talhao_id=talhao_id,
-            tipo="COLHEITA",
-            descricao="Colheita",
-            data_realizada=data_op,  # ← Data específica
-            area_aplicada_ha=50.0,
-            custo_total=5000.0,
-            insumos=[]
-        )
-
-        operacao = await service.criar(operacao_create)
-
-        # Assert: Despesa tem mesma data
-        despesa_stmt = select(Despesa).where(
-            Despesa.origem_id == operacao.id
-        )
-        despesa = (await session.execute(despesa_stmt)).scalars().first()
-
-        assert despesa.data_emissao == data_op
-        assert despesa.data_vencimento == data_op
-        assert despesa.data_pagamento == data_op
-
-    @pytest.mark.asyncio
-    async def test_operacao_tipo_invalido_nao_cria_despesa(
-        self,
-        session: AsyncSession,
-        tenant_id: str,
-        unidade_produtiva_id: str,
-        talhao_id: str
-    ):
-        """
-        Se operação falha por tipo inválido (RN), despesa não deve ser criada.
-        Testa integração entre validação de RN e webhook.
-        """
-        # Setup
+        """Se a operação falha por tipo inválido (RN), nem Despesa nem allocation são criados."""
         safra = Safra(
             id=uuid4(),
             tenant_id=tenant_id,
@@ -392,30 +243,26 @@ class TestOperacaoDespesaWebhook:
         session.add(safra)
         await session.commit()
 
-        # Act: Tentar criar operação PLANTIO em fase COLHEITA (vai falhar)
         service = OperacaoService(session, tenant_id)
-
         operacao_create = OperacaoAgricolaCreate(
             safra_id=safra.id,
             talhao_id=talhao_id,
-            tipo="PLANTIO",  # ← Tipo NÃO permitido em COLHEITA
+            tipo="PLANTIO",  # não permitido na fase COLHEITA
             descricao="Plantio em COLHEITA (deve falhar)",
             data_realizada=date.today(),
             area_aplicada_ha=10.0,
-            custo_total=1000.0,  # ← Tem custo, mas vai falhar
-            insumos=[]
+            custo_total=1000.0,
+            insumos=[],
         )
 
-        # Assert: Operação falha, e também nenhuma despesa é criada
         from core.exceptions import BusinessRuleError
 
         with pytest.raises(BusinessRuleError):
             await service.criar(operacao_create)
 
-        # Verificar que nenhuma despesa foi criada (mesmo com custo)
         despesa_stmt = select(Despesa).where(
             Despesa.descricao.contains("Plantio em COLHEITA")
         )
-        despesa = (await session.execute(despesa_stmt)).scalars().first()
-
-        assert despesa is None, "Despesa não deveria ter sido criada (operação falhou)"
+        assert (await session.execute(despesa_stmt)).scalars().first() is None
+        # A validação de fase falha antes de a OperacaoAgricola ser persistida, logo não há
+        # OperacaoExecucao/CostAllocation possível para esta tentativa (nada além a verificar).

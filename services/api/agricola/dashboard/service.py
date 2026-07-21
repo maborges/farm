@@ -7,14 +7,14 @@ from sqlalchemy.orm import joinedload
 
 from agricola.safras.models import Safra
 from agricola.cultivos.models import Cultivo, CultivoArea
-from agricola.operacoes.models import OperacaoAgricola
+from agricola.custos.models import CostAllocation
+from agricola.operacoes.models import OperacaoAgricola, OperacaoExecucao
 from agricola.checklist.models import SafraChecklistItem
 from agricola.fenologia.models import SafraFenologiaRegistro, FenologiaEscala
 from agricola.monitoramento.models import MonitoramentoPragas
 from agricola.romaneios.models import RomaneioColheita
 from agricola.safras.models import SAFRA_FASES_ORDEM
 from core.exceptions import EntityNotFoundError
-from financeiro.models.despesa import Despesa
 from financeiro.models.receita import Receita
 from agricola.dashboard.schemas import SafraResumoFinanceiro, FinanceiroResumo
 
@@ -202,8 +202,7 @@ class DashboardAgricolaService:
     async def resumo_financeiro_safra(self, safra_id: UUID) -> SafraResumoFinanceiro:
         """
         Resumo financeiro completo de uma safra:
-        - Operações e custos
-        - Despesas associadas (via origem_id)
+        - Operações e custo realizado (CostAllocation, fallback por custo_total quando não houver)
         - Romaneios e receita
         - Comercializações (vendas reais)
         - Receitas associadas (via origem_id)
@@ -232,18 +231,30 @@ class DashboardAgricolaService:
         )
         operacoes = list((await self.session.execute(stmt_ops)).scalars().all())
         total_operacoes = len(operacoes)
-        custo_operacoes = sum(float(op.custo_total or 0) for op in operacoes)
-        custo_por_ha = custo_operacoes / area_ha if area_ha > 0 else 0
-
-        # 3. Despesas (vinculadas via origem_id)
         operacao_ids = [op.id for op in operacoes]
-        stmt_despesas = select(Despesa).where(
-            Despesa.tenant_id == self.tenant_id,
-            Despesa.origem_tipo == "OPERACAO_AGRICOLA",
-            Despesa.origem_id.in_(operacao_ids) if operacao_ids else False
+
+        # 3. Custo realizado por operação: CostAllocation prevalece; OperacaoAgricola.custo_total
+        # é usado apenas como fallback quando a operação ainda não tem apropriação de custo.
+        alloc_por_operacao: dict[UUID, float] = defaultdict(float)
+        if operacao_ids:
+            stmt_alloc = (
+                select(OperacaoExecucao.operacao_id, func.sum(CostAllocation.amount))
+                .join(CostAllocation, CostAllocation.operation_execution_id == OperacaoExecucao.id)
+                .where(
+                    CostAllocation.tenant_id == self.tenant_id,
+                    OperacaoExecucao.operacao_id.in_(operacao_ids),
+                )
+                .group_by(OperacaoExecucao.operacao_id)
+            )
+            for op_id, total_alloc in (await self.session.execute(stmt_alloc)).all():
+                alloc_por_operacao[op_id] = float(total_alloc or 0)
+
+        custo_operacoes = sum(
+            alloc_por_operacao[op.id] if op.id in alloc_por_operacao else float(op.custo_total or 0)
+            for op in operacoes
         )
-        despesas = list((await self.session.execute(stmt_despesas)).scalars().all())
-        despesa_total = sum(float(d.valor_total or 0) for d in despesas)
+        custo_por_ha = custo_operacoes / area_ha if area_ha > 0 else 0
+        despesa_total = custo_operacoes  # Campo legado: agora reflete o custo agrícola realizado.
 
         # 4. Romaneios
         stmt_romaneios = select(RomaneioColheita).where(
@@ -292,8 +303,8 @@ class DashboardAgricolaService:
         receita_total = receita_romaneios + receita_comercializacoes
 
         # 8. Cálculos financeiros
-        # Custo: usar o menor entre custo_operacoes e despesa_total (evitar dupla contagem)
-        custo_base = min(custo_operacoes, despesa_total) if despesa_total > 0 else custo_operacoes
+        # Custo-base = custo agrícola realizado (CostAllocation com fallback por operação).
+        custo_base = custo_operacoes
         lucro_bruto = receita_total - custo_base
         roi_pct = (lucro_bruto / custo_base * 100) if custo_base > 0 else None
 
