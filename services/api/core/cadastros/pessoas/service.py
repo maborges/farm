@@ -6,6 +6,12 @@ from sqlalchemy.orm import selectinload
 
 from core.base_service import BaseService
 from core.exceptions import EntityNotFoundError, BusinessRuleError
+from integracoes.models import (
+    IntegrationFeature,
+    IntegrationStatus,
+    MarketplaceIntegracao,
+    TenantIntegracao,
+)
 from .models import (
     Pessoa, PessoaPII, PessoaEndereco, PessoaContato, PessoaBancario,
     TipoRelacionamento, PessoaRelacionamento,
@@ -103,6 +109,7 @@ class PessoaService(BaseService[Pessoa]):
         return list(result.scalars().all())
 
     async def criar(self, data: PessoaCreate) -> Pessoa:
+        await self._bloquear_crud_local_se_erp_governa()
         pessoa = Pessoa(
             tenant_id=self.tenant_id,
             tipo=data.tipo,
@@ -148,6 +155,7 @@ class PessoaService(BaseService[Pessoa]):
 
     async def atualizar(self, pessoa_id: uuid.UUID, data: PessoaUpdate) -> Pessoa:
         pessoa = await self._get_pessoa(pessoa_id)
+        await self._bloquear_identidade_local_se_erp_governa(data)
         for field, value in data.model_dump(exclude_none=True).items():
             setattr(pessoa, field, value)
         await self.session.commit()
@@ -174,6 +182,7 @@ class PessoaService(BaseService[Pessoa]):
 
     async def atualizar_pii(self, pessoa_id: uuid.UUID, data: PessoaPIIUpdate) -> PessoaPII:
         await self._get_pessoa(pessoa_id)  # ensures tenant ownership
+        await self._bloquear_crud_local_se_erp_governa()
         stmt = select(PessoaPII).where(PessoaPII.pessoa_id == pessoa_id)
         result = await self.session.execute(stmt)
         pii = result.scalar_one_or_none()
@@ -261,6 +270,7 @@ class PessoaService(BaseService[Pessoa]):
 
     async def adicionar_contato(self, pessoa_id: uuid.UUID, data: ContatoCreate) -> PessoaContato:
         await self._get_pessoa(pessoa_id)
+        await self._bloquear_contato_local_se_erp_governa()
         contato = PessoaContato(pessoa_id=pessoa_id, **data.model_dump())
         self.session.add(contato)
         await self.session.commit()
@@ -269,6 +279,7 @@ class PessoaService(BaseService[Pessoa]):
 
     async def atualizar_contato(self, pessoa_id: uuid.UUID, contato_id: uuid.UUID, data: ContatoUpdate) -> PessoaContato:
         await self._get_pessoa(pessoa_id)
+        await self._bloquear_contato_local_se_erp_governa()
         stmt = select(PessoaContato).where(PessoaContato.id == contato_id, PessoaContato.pessoa_id == pessoa_id)
         result = await self.session.execute(stmt)
         obj = result.scalar_one_or_none()
@@ -282,6 +293,7 @@ class PessoaService(BaseService[Pessoa]):
 
     async def remover_contato(self, pessoa_id: uuid.UUID, contato_id: uuid.UUID) -> None:
         await self._get_pessoa(pessoa_id)
+        await self._bloquear_contato_local_se_erp_governa()
         stmt = select(PessoaContato).where(
             PessoaContato.id == contato_id, PessoaContato.pessoa_id == pessoa_id
         )
@@ -367,3 +379,44 @@ class PessoaService(BaseService[Pessoa]):
         await self.session.commit()
         await self.session.refresh(pessoa)
         return pessoa
+
+    async def _bloquear_identidade_local_se_erp_governa(self, data: PessoaUpdate) -> None:
+        payload = data.model_dump(exclude_none=True)
+        if "nome_exibicao" not in payload:
+            return
+        await self._bloquear_crud_local_se_erp_governa()
+
+    async def _bloquear_contato_local_se_erp_governa(self) -> None:
+        await self._bloquear_crud_local_se_erp_governa()
+
+    async def _bloquear_crud_local_se_erp_governa(self) -> None:
+        if await self._erp_governa_pessoas():
+            raise BusinessRuleError(
+                "Cadastro de Pessoas governado pelo ERP. Use a consulta pelo ID do ERP."
+            )
+
+    async def _erp_governa_pessoas(self) -> bool:
+        stmt = (
+            select(IntegrationFeature.id)
+            .join(TenantIntegracao, IntegrationFeature.config_id == TenantIntegracao.id)
+            .join(MarketplaceIntegracao, TenantIntegracao.integracao_id == MarketplaceIntegracao.id)
+            .where(
+                IntegrationFeature.tenant_id == self.tenant_id,
+                IntegrationFeature.codigo == "pessoas",
+                IntegrationFeature.habilitada.is_(True),
+                IntegrationFeature.deleted_at.is_(None),
+                TenantIntegracao.tenant_id == self.tenant_id,
+                TenantIntegracao.deleted_at.is_(None),
+                TenantIntegracao.lifecycle_state.notin_(
+                    [
+                        IntegrationStatus.DISABLED.value,
+                        IntegrationStatus.REVOKED.value,
+                        IntegrationStatus.REMOVED.value,
+                    ]
+                ),
+                MarketplaceIntegracao.provider_type == "ERP",
+                MarketplaceIntegracao.ativa.is_(True),
+            )
+            .limit(1)
+        )
+        return await self.session.scalar(stmt) is not None

@@ -1,9 +1,10 @@
 """Autenticação gateway da Sankhya."""
+# ruff: noqa: UP017
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import timezone,  datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any, ClassVar
 
 import httpx
@@ -378,54 +379,18 @@ class SankhyaGatewayAuthService:
             return await http_client.post(endpoint, headers=headers)
         elif auth_model == "legacy_ws_basic_auth":
             raise ValueError("Configuração Sankhya LEGACY não utiliza fluxo de token")
-        else:
-            endpoint = self.config.auth_url or ""
-            payloads = [
-                (
-                    "json",
-                    {
-                        "client_id": self.config.client_id,
-                        "client_secret": decrypt_integration_secret(self.config.client_secret),
-                        "grant_type": "client_credentials",
-                    },
-                ),
-                (
-                    "data",
-                    {
-                        "client_id": self.config.client_id,
-                        "client_secret": decrypt_integration_secret(self.config.client_secret),
-                        "grant_type": "client_credentials",
-                    },
-                ),
-                (
-                    "json",
-                    {
-                        "client_id": self.config.client_id,
-                        "client_secret": decrypt_integration_secret(self.config.client_secret),
-                    },
-                ),
-            ]
-            headers = {
-                "Accept": "application/json",
-                "Content-Type": "application/json",
-                "X-Token": decrypt_integration_secret(self.config.x_token),
-            }
 
-        response: httpx.Response | None = None
-        for index, (mode, payload) in enumerate(payloads):
-            request_headers = dict(headers)
-            if mode == "data":
-                request_headers["Content-Type"] = "application/x-www-form-urlencoded"
-            request_kwargs: dict[str, Any] = {"headers": request_headers}
-            if mode == "data":
-                request_kwargs["data"] = payload
-            else:
-                request_kwargs["json"] = payload
-            response = await http_client.post(endpoint, **request_kwargs)
-            if response.status_code not in {400, 401, 415, 422} or index == len(payloads) - 1:
-                break
-        assert response is not None
-        return response
+        endpoint = self.config.auth_url or ""
+        headers = {
+            "Accept": "application/json",
+            "X-Token": decrypt_integration_secret(self.config.x_token),
+        }
+        payload = {
+            "client_id": self.config.client_id,
+            "client_secret": decrypt_integration_secret(self.config.client_secret),
+            "grant_type": "client_credentials",
+        }
+        return await http_client.post(endpoint, headers=headers, data=payload)
 
     @staticmethod
     def _extract_access_token(data: dict[str, Any]) -> str:
@@ -498,7 +463,7 @@ class SankhyaGatewayAuthService:
     @staticmethod
     def _resolve_expiration(data: dict[str, Any]) -> datetime:
         expires_at = data.get("expires_at") or data.get("expiresAt")
-        if isinstance(expires_at, (int, float)):
+        if isinstance(expires_at, int | float):
             return datetime.now(timezone.utc) + timedelta(seconds=max(int(expires_at), 60))
         if isinstance(expires_at, str):
             try:

@@ -58,6 +58,15 @@ def invalidate_session_cache(token_hash: str) -> None:
     _SESSION_CACHE.pop(token_hash, None)
 
 
+async def _activate_session_tenant(session: AsyncSession, tenant_id: uuid.UUID) -> None:
+    """Ativa o contexto RLS do tenant para a sessão atual."""
+    if session.info.get("tenant_id") == tenant_id:
+        return
+    if "postgresql" in DB_URL:
+        await session.execute(text(f"SET LOCAL app.current_tenant_id = '{tenant_id}';"))
+    session.info["tenant_id"] = tenant_id
+
+
 def _is_connection_exhaustion_error(exc: Exception) -> bool:
     """Detecta recusa do Postgres por falta de slots/conexões."""
     if TooManyConnectionsError is not None and isinstance(exc, TooManyConnectionsError):
@@ -139,9 +148,8 @@ async def get_session(request: Request = None) -> AsyncGenerator[AsyncSession, N
     async with async_session_maker() as session:
         tenant_id = _resolve_request_tenant_id(request)
         try:
-            if tenant_id and "postgresql" in DB_URL:
-                await session.execute(text(f"SET LOCAL app.current_tenant_id = '{tenant_id}';"))
-                session.info["tenant_id"] = tenant_id
+            if tenant_id:
+                await _activate_session_tenant(session, tenant_id)
         except (asyncio.TimeoutError, OSError, SQLAlchemyError) as exc:
             logger.error(
                 "Falha ao adquirir sessão do banco de dados",
@@ -252,8 +260,18 @@ async def get_tenant_id(
 ) -> uuid.UUID:
     """Recupera e garante que o usuário pertence ao Tenant que ele está tentando operar."""
     tenant_id_str = claims.get("tenant_id")
+    header_tenant_id_str = request.headers.get("x-tenant-id")
     if tenant_id_str:
-        return uuid.UUID(tenant_id_str)
+        tenant_id = uuid.UUID(tenant_id_str)
+        if header_tenant_id_str:
+            try:
+                header_tenant_id = uuid.UUID(header_tenant_id_str)
+            except ValueError:
+                raise HTTPException(status_code=403, detail=TENANT_CONTEXT_ERROR)
+            if header_tenant_id != tenant_id:
+                raise HTTPException(status_code=403, detail=TENANT_CONTEXT_ERROR)
+        await _activate_session_tenant(session, tenant_id)
+        return tenant_id
 
     user_id_str = claims.get("sub")
     if not user_id_str:
@@ -266,6 +284,24 @@ async def get_tenant_id(
         raise HTTPException(status_code=403, detail="Token inválido: identificador de usuário malformado.")
 
     from core.models.auth import TenantUsuario
+
+    if header_tenant_id_str:
+        try:
+            header_tenant_id = uuid.UUID(header_tenant_id_str)
+        except ValueError:
+            raise HTTPException(status_code=403, detail=TENANT_CONTEXT_ERROR)
+
+        result = await session.execute(
+            select(TenantUsuario.tenant_id).where(
+                TenantUsuario.tenant_id == header_tenant_id,
+                TenantUsuario.usuario_id == user_id,
+                TenantUsuario.status == "ATIVO",
+            )
+        )
+        if result.scalar_one_or_none():
+            await _activate_session_tenant(session, header_tenant_id)
+            return header_tenant_id
+        raise HTTPException(status_code=403, detail=TENANT_CONTEXT_ERROR)
 
     result = await session.execute(
         select(TenantUsuario.tenant_id).where(
@@ -282,6 +318,7 @@ async def get_tenant_id(
             user_id=str(user_id),
             tenant_id=str(resolved_tenant_id),
         )
+        await _activate_session_tenant(session, resolved_tenant_id)
         return resolved_tenant_id
 
     if len(tenant_ids) > 1:

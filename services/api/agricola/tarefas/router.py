@@ -34,7 +34,7 @@ async def listar_tarefas(
     "/safras/{safra_id}/tarefas",
     response_model=TarefaResponse,
     status_code=status.HTTP_201_CREATED,
-    summary="Cria tarefa manual (nasce APROVADA)",
+    summary="Cria tarefa (MANUAL nasce APROVADA; SOLO/TEMPLATE nasce PENDENTE_APROVACAO)",
 )
 async def criar_tarefa(
     safra_id: UUID,
@@ -46,7 +46,6 @@ async def criar_tarefa(
 ):
     user_id = UUID(user["sub"]) if user.get("sub") else None
     svc = TarefaService(session, tenant_id, user_id=user_id)
-    dados.origem = "MANUAL"
     tarefa = await svc.criar(safra_id, dados, user_id=user_id)
     await session.commit()
     await session.refresh(tarefa)

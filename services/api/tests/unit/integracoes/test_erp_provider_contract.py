@@ -28,7 +28,6 @@ from integracoes.erp.provider_registry import (
     erp_provider_registry,
 )
 
-
 # ---------------------------------------------------------------------------
 # Provider fictício de teste (em memória, determinístico)
 # ---------------------------------------------------------------------------
@@ -116,6 +115,25 @@ class StubErpProviderRuntime:
     async def get_capabilities(self, tenant_id: str) -> list[dict[str, Any]]:
         return [{"feature_code": "test_feature", "habilitada": True}]
 
+    async def sync_feature(
+        self,
+        tenant_id: str,
+        feature_code: str,
+        *,
+        scheduled: bool = False,
+    ) -> dict[str, Any]:
+        return {"feature_code": feature_code, "scheduled": scheduled}
+
+    async def get_person_by_external_id(
+        self,
+        tenant_id: str,
+        external_id: str,
+    ) -> dict[str, Any] | None:
+        return {"external_id": external_id, "nome_exibicao": "Pessoa Teste"}
+
+    async def list_people(self, tenant_id: str) -> list[dict[str, Any]]:
+        return []
+
 
 # ---------------------------------------------------------------------------
 # Testes do contrato formal
@@ -142,6 +160,8 @@ class TestErpProviderContract:
             "get_timeline",
             "get_diagnosis",
             "get_capabilities",
+            "get_person_by_external_id",
+            "list_people",
         ]
         for method in expected_methods:
             assert hasattr(ErpProviderRuntime, method), f"Método {method} ausente no contrato"
@@ -467,8 +487,9 @@ class TestResolucoesDeEstado:
         session: Any,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
-        import integracoes.erp.router as erp_router_module
         from fastapi import HTTPException
+
+        import integracoes.erp.router as erp_router_module
 
         tenant_id = uuid.uuid4()
         readiness_service = erp_router_module.ErpReadinessService(session)
@@ -715,5 +736,3 @@ class TestExtensibilidade:
 # ---------------------------------------------------------------------------
 # Teste de fallback legado
 # ---------------------------------------------------------------------------
-
-

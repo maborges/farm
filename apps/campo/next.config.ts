@@ -8,6 +8,16 @@ const withPWA = require("next-pwa")({
   skipWaiting: true,
   disable: process.env.NODE_ENV === "development" && !enablePwaInDev,
   runtimeCaching: [
+    // Regra específica avaliada antes da genérica abaixo: rotas de API
+    // (same-origin, via proxy Next em src/app/api/v1/[...path]/route.ts) nunca
+    // devem ser servidas do cache do Service Worker — respostas carregam
+    // dados de negócio autenticados (tarefas, safras, talhões, etc.) que não
+    // podem sobreviver a uma troca de sessão/tenant no mesmo dispositivo.
+    {
+      urlPattern: /\/api\/v1\/.*/,
+      handler: "NetworkOnly",
+    },
+    // Fallback para os demais recursos (assets estáticos, fontes, ícones).
     {
       urlPattern: /^https?.*/,
       handler: "NetworkFirst",

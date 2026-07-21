@@ -213,7 +213,10 @@ class SankhyaNFeService:
             sincronizado_em=datetime.utcnow(),
         )
 
-        stmt = select(SankhyaNFe).where(SankhyaNFe.chave_acesso == nfe.chave_acesso)
+        stmt = select(SankhyaNFe).where(
+            SankhyaNFe.tenant_id == tenant_id,
+            SankhyaNFe.chave_acesso == nfe.chave_acesso,
+        )
         existing = (await self.db.execute(stmt)).scalar_one_or_none()
         if existing:
             for key, value in nfe.__dict__.items():
@@ -468,6 +471,7 @@ class SankhyaFinanceiroService:
         )
 
         stmt = select(SankhyaLancamentoFinanceiro).where(
+            SankhyaLancamentoFinanceiro.tenant_id == tenant_id,
             SankhyaLancamentoFinanceiro.sankhya_id == lancamento.sankhya_id
         )
         existing = (await self.db.execute(stmt)).scalar_one_or_none()

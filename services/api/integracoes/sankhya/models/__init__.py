@@ -14,6 +14,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
 )
 from sqlalchemy import Uuid as UUIDType
 
@@ -104,6 +105,9 @@ class SankhyaPessoa(Base):
     """Pessoas sincronizadas do Sankhya."""
 
     __tablename__ = "sankhya_pessoas"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "sankhya_id", name="uq_sankhya_pessoas_tenant_external"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     tenant_id = Column(
@@ -114,7 +118,7 @@ class SankhyaPessoa(Base):
     )
 
     # ID Sankhya
-    sankhya_id = Column(String(50), nullable=False, unique=True, index=True)
+    sankhya_id = Column(String(50), nullable=False, index=True)
 
     # Dados básicos
     tipo = Column(String(20))  # FISICA, JURIDICA
@@ -158,6 +162,9 @@ class SankhyaProduto(Base):
     """Produtos sincronizados do Sankhya."""
 
     __tablename__ = "sankhya_produtos"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "sankhya_id", name="uq_sankhya_produtos_tenant_external"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     tenant_id = Column(
@@ -168,7 +175,7 @@ class SankhyaProduto(Base):
     )
 
     # ID Sankhya
-    sankhya_id = Column(String(50), nullable=False, unique=True, index=True)
+    sankhya_id = Column(String(50), nullable=False, index=True)
 
     # Dados básicos
     codigo = Column(String(50), nullable=False)
@@ -208,6 +215,10 @@ class SankhyaNFe(Base):
     """Notas Fiscais sincronizadas com Sankhya."""
 
     __tablename__ = "sankhya_nfe"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "sankhya_id", name="uq_sankhya_nfe_tenant_external"),
+        UniqueConstraint("tenant_id", "chave_acesso", name="uq_sankhya_nfe_tenant_access_key"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     tenant_id = Column(
@@ -218,7 +229,7 @@ class SankhyaNFe(Base):
     )
 
     # ID Sankhya
-    sankhya_id = Column(String(50), unique=True, index=True)
+    sankhya_id = Column(String(50), index=True)
 
     # Tipo
     tipo_operacao = Column(String(20))  # ENTRADA, SAIDA
@@ -229,7 +240,7 @@ class SankhyaNFe(Base):
     modelo = Column(String(10), default="55")
 
     # Chave de acesso
-    chave_acesso = Column(String(44), unique=True, index=True)
+    chave_acesso = Column(String(44), index=True)
 
     # Documentos
     cnpj_emitente = Column(String(18))
@@ -268,6 +279,13 @@ class SankhyaLancamentoFinanceiro(Base):
     """Lançamentos financeiros sincronizados com Sankhya."""
 
     __tablename__ = "sankhya_lancamentos_financeiros"
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "sankhya_id",
+            name="uq_sankhya_lancamentos_tenant_external",
+        ),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     tenant_id = Column(
@@ -278,7 +296,7 @@ class SankhyaLancamentoFinanceiro(Base):
     )
 
     # ID Sankhya
-    sankhya_id = Column(String(50), unique=True, index=True)
+    sankhya_id = Column(String(50), index=True)
 
     # Tipo
     tipo = Column(String(20))  # CONTAS_PAGAR, CONTAS_RECEBER

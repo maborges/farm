@@ -43,6 +43,10 @@ from integracoes.models import (
 )
 from integracoes.sankhya.models import SankhyaConfig
 from integracoes.sankhya.services.auth_service import SankhyaGatewayAuthService
+from integracoes.sankhya.services.gateway_contract import (
+    operation_public_metadata,
+    resolve_gateway_operation,
+)
 from integracoes.schemas import (
     ProviderFieldDefinition,
     ProviderFieldSelectOption,
@@ -59,6 +63,7 @@ _SANKHYA_SLUG = "sankhya"
 _SANKHYA_NAME = "Sankhya"
 _LOG_NAMESPACE = uuid.uuid5(uuid.NAMESPACE_URL, "agrosaas:sankhya:sync-log")
 _LOGGER = logging.getLogger(__name__)
+_HEALTH_SUMMARY_MAX_LENGTH = 200
 T = TypeVar("T")
 
 _TENANT_INTEGRACAO_UNIQUE_CONSTRAINTS = {
@@ -134,6 +139,9 @@ _FEATURE_DEFAULTS: dict[str, dict[str, Any]] = {
             "supported_scopes": _PROVIDER_SCOPES,
             "supported_sync_modes": ["MANUAL", "ON_DEMAND", "SCHEDULED"],
             "runtime_sync_modes": ["MANUAL", "AGENDADO"],
+            "runtime_endpoint": operation_public_metadata(
+                resolve_gateway_operation("PessoaFisica", "findAll")
+            ),
             "dependencies": [],
             "restrictions": [
                 "requer credenciais válidas no gateway Sankhya",
@@ -158,6 +166,9 @@ _FEATURE_DEFAULTS: dict[str, dict[str, Any]] = {
             "supported_scopes": _PROVIDER_SCOPES,
             "supported_sync_modes": ["MANUAL", "ON_DEMAND", "SCHEDULED"],
             "runtime_sync_modes": ["MANUAL", "AGENDADO"],
+            "runtime_endpoint": operation_public_metadata(
+                resolve_gateway_operation("Produto", "findAll")
+            ),
             "dependencies": ["pessoas"],
             "restrictions": [
                 "não redefine ownership do estoque operacional",
@@ -181,7 +192,7 @@ _FEATURE_DEFAULTS: dict[str, dict[str, Any]] = {
             "direction": "ERP_TO_AGROSAAS",
             "supported_scopes": _PROVIDER_SCOPES,
             "supported_sync_modes": ["MANUAL", "ON_DEMAND", "SCHEDULED", "POLLING"],
-            "runtime_sync_modes": ["MANUAL", "AGENDADO", "PULL"],
+            "runtime_sync_modes": ["MANUAL", "PULL"],
             "dependencies": ["pessoas", "produtos"],
             "restrictions": [
                 "cobertura focada no financeiro administrativo do ERP",
@@ -205,7 +216,7 @@ _FEATURE_DEFAULTS: dict[str, dict[str, Any]] = {
             "direction": "EVIDENCE_RETURN",
             "supported_scopes": _PROVIDER_SCOPES,
             "supported_sync_modes": ["MANUAL", "ON_DEMAND", "SCHEDULED", "POLLING"],
-            "runtime_sync_modes": ["MANUAL", "AGENDADO", "PULL"],
+            "runtime_sync_modes": ["MANUAL", "PULL"],
             "dependencies": ["pessoas", "produtos"],
             "restrictions": [
                 "retorno fiscal é tratado como evidência oficial do ERP",
@@ -1305,10 +1316,7 @@ class SankhyaCanonicalAdapter:
             )
             return policy
 
-        policy.mode = defaults["mode"].value
-        policy.prioridade = defaults["prioridade"].value
         policy.settings_payload = _policy_settings_payload(feature.codigo)
-        policy.ativa = True
         self.db.add(policy)
         await self.db.flush()
         return policy
@@ -1420,6 +1428,7 @@ class SankhyaCanonicalAdapter:
         last_success: bool,
         last_job_id: uuid.UUID | None = None,
     ) -> IntegrationHealth:
+        summary = self._limit_health_summary(summary)
         health = await self._get_health_by_config_id(config.id)
         now = datetime.now(timezone.utc)  # noqa: UP017
         if health is None:
@@ -1796,5 +1805,13 @@ class SankhyaCanonicalAdapter:
         error_message: str | None,
     ) -> str:
         if success:
-            return f"Sync Sankhya concluído com sucesso para {feature_code}."
-        return error_message or f"Falha no sync Sankhya para {feature_code}."
+            summary = f"Sync Sankhya concluído com sucesso para {feature_code}."
+        else:
+            summary = error_message or f"Falha no sync Sankhya para {feature_code}."
+        return SankhyaCanonicalAdapter._limit_health_summary(summary)
+
+    @staticmethod
+    def _limit_health_summary(summary: str) -> str:
+        if len(summary) <= _HEALTH_SUMMARY_MAX_LENGTH:
+            return summary
+        return f"{summary[: _HEALTH_SUMMARY_MAX_LENGTH - 1]}…"

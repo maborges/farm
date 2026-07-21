@@ -28,6 +28,25 @@ TENANT_A = uuid.uuid4()
 TENANT_B = uuid.uuid4()
 
 
+def make_request(headers=None):
+    """Cria um Request Starlette mínimo para testes de dependências."""
+    raw_headers = [
+        (key.lower().encode(), value.encode())
+        for key, value in (headers or {}).items()
+    ]
+    return Request({
+        "type": "http",
+        "method": "GET",
+        "path": "/api/v1/cadastros/culturas",
+        "headers": raw_headers,
+        "query_string": b"",
+        "client": ("testclient", 12345),
+        "server": ("testserver", 80),
+        "scheme": "http",
+        "http_version": "1.1",
+    })
+
+
 # ---------------------------------------------------------------------------
 # CORE-TEN-01: Usuário vê apenas dados do seu tenant
 # ---------------------------------------------------------------------------
@@ -91,6 +110,47 @@ def test_claims_contem_tenant_id():
     claims = make_claims(tenant_id=TENANT_A)
     assert claims["tenant_id"] == str(TENANT_A)
     assert claims["tenant_id"] != str(TENANT_B)
+
+
+@pytest.mark.asyncio
+async def test_get_tenant_id_usa_header_validado_quando_jwt_nao_tem_tenant():
+    """CORE-TEN-03: Header seleciona tenant ativo quando JWT ainda não é tenant-scoped."""
+    from core.dependencies import get_tenant_id
+
+    user_id = uuid.uuid4()
+    claims = {"sub": str(user_id), "tenant_id": None}
+    request = make_request({"x-tenant-id": str(TENANT_A)})
+    result_mock = MagicMock()
+    result_mock.scalar_one_or_none.return_value = TENANT_A
+    session = AsyncMock()
+    session.info = {}
+    session.execute.return_value = result_mock
+
+    tenant_id = await get_tenant_id(request, claims, session)
+
+    assert tenant_id == TENANT_A
+    assert session.info["tenant_id"] == TENANT_A
+
+
+@pytest.mark.asyncio
+async def test_get_tenant_id_rejeita_header_sem_vinculo_ativo():
+    """CORE-TEN-03: Header não libera tenant sem vínculo ativo do usuário."""
+    from core.dependencies import get_tenant_id, TENANT_CONTEXT_ERROR
+
+    claims = {"sub": str(uuid.uuid4()), "tenant_id": None}
+    request = make_request({"x-tenant-id": str(TENANT_B)})
+    result_mock = MagicMock()
+    result_mock.scalar_one_or_none.return_value = None
+    session = AsyncMock()
+    session.info = {}
+    session.execute.return_value = result_mock
+
+    with pytest.raises(HTTPException) as exc_info:
+        await get_tenant_id(request, claims, session)
+
+    assert exc_info.value.status_code == 403
+    assert exc_info.value.detail == TENANT_CONTEXT_ERROR
+    assert "tenant_id" not in session.info
 
 
 # ---------------------------------------------------------------------------

@@ -1,4 +1,5 @@
 import asyncio
+
 from loguru import logger
 
 
@@ -34,10 +35,27 @@ async def run_resumo_diario_loop() -> None:
             await asyncio.sleep(60)
 
 
+async def run_erp_sync_loop() -> None:
+    """Executar políticas ERP agendadas no worker oficial de background."""
+    from integracoes.erp.scheduler import run_scheduled_erp_cycle
+
+    while True:
+        try:
+            executed = await run_scheduled_erp_cycle()
+            if executed:
+                logger.info(f"[job] sincronizações ERP executadas: {executed}")
+        except asyncio.CancelledError:
+            break
+        except Exception as exc:
+            logger.error(f"[job] sincronização ERP erro: {exc}")
+        await asyncio.sleep(60)
+
+
 async def run_background_jobs() -> None:
     tasks = [
         asyncio.create_task(run_suspender_vencidos_loop()),
         asyncio.create_task(run_resumo_diario_loop()),
+        asyncio.create_task(run_erp_sync_loop()),
     ]
     try:
         await asyncio.gather(*tasks)
@@ -45,4 +63,3 @@ async def run_background_jobs() -> None:
         for task in tasks:
             task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
-

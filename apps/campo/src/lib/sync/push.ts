@@ -7,10 +7,13 @@ const API_BASE = "/api/v1";
 const MAX_BATCH = 50;
 
 export async function pushSync(): Promise<void> {
-  const session = useSessionStore.getState().session;
-  if (!session) throw new Error("Sessão não encontrada");
-
   while (true) {
+    // Revalidado a cada lote: se a sessão foi invalidada/trocada (logout,
+    // revogação, troca de tenant) entre lotes, a fila local já foi limpa por
+    // clearCacheTables() — encerra sem reutilizar um token removido.
+    const session = useSessionStore.getState().session;
+    if (!session) return;
+
     const pending = await db.sync_queue
       .where("status")
       .equals("PENDING")

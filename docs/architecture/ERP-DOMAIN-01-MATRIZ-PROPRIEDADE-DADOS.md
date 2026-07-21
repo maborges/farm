@@ -268,6 +268,21 @@ Políticas admitidas:
 | Adapters | NÃO_SE_APLICA | AgroSaaS | AgroSaaS | Sim | SEM_SINCRONIZACAO | NAO_SE_APLICA | REQUIRED | P0 | Implementação específica de provider. |
 | Provider-specific config | NÃO_SE_APLICA | AgroSaaS | AgroSaaS | Sim | SEM_SINCRONIZACAO | NAO_SE_APLICA | REQUIRED | P0 | Credenciais, autenticação, paginação, limites e features. |
 
+### 5.1 Política operacional para Pessoas
+
+Quando o tenant não possui ERP configurado ou o recurso Pessoas está desativado, o AgroSaaS mantém o cadastro local normal.
+
+Quando a integração ERP está configurada e o recurso Pessoas está habilitado:
+
+- identidade, documento e contatos principais são atualizados a partir do ERP;
+- base legal LGPD, relacionamentos, anonimização e estado ativo local continuam sob domínio do AgroSaaS;
+- no modo manual, o usuário informa o ID externo na criação ou edição e confirma a promoção para o cadastro canônico;
+- no modo automático `LINKED_ONLY`, somente pessoas com vínculo externo existente são atualizadas;
+- no modo automático `ALL_EXTERNAL`, registros ausentes também podem ser criados, mediante opção explícita;
+- o estado inativo no ERP é registrado no vínculo, mas não desativa automaticamente a pessoa local;
+- pausar a execução da política não devolve a posse dos campos governados ao CRUD local; isso só ocorre ao desabilitar o recurso Pessoas ou remover/desabilitar a integração ERP;
+- a promoção reutiliza `integration_external_record_links` e `integration_sync_policies.settings_payload`, sem tabelas paralelas.
+
 ## 6. Respostas oficiais às questões críticas
 
 ### 6.1 Contrato agrícola nasce onde?

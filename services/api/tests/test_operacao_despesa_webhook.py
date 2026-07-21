@@ -8,16 +8,22 @@ Valida:
 4. Tenant isolation
 5. Integração com PlanoConta (categoria CUSTEIO)
 """
-import pytest
-from uuid import uuid4
 from datetime import date
+from uuid import uuid4
+
+import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from test_operational_workflow_governance_step03 import (
+    _criar_cultivo,
+    _criar_production_unit,
+    _garantir_tenant,
+)
 
-from core.exceptions import EntityNotFoundError
-from agricola.operacoes.service import OperacaoService
 from agricola.operacoes.schemas import OperacaoAgricolaCreate
+from agricola.operacoes.service import OperacaoService
 from agricola.safras.models import Safra
+from core.exceptions import EntityNotFoundError
 from financeiro.models.despesa import Despesa
 from financeiro.models.plano_conta import PlanoConta
 
@@ -38,11 +44,9 @@ class TestOperacaoDespesaWebhook:
         safra = Safra(
             id=uuid4(),
             tenant_id=tenant_id,
-            talhao_id=talhao_id,
             ano_safra="2025/26",
             cultura="MILHO",
             status="COLHEITA",
-            area_plantada_ha=50.0
         )
         session.add(safra)
 
@@ -59,6 +63,9 @@ class TestOperacaoDespesaWebhook:
         )
         session.add(plano)
         await session.commit()
+
+        cultivo_id = await _criar_cultivo(session, tenant_id, safra.id)
+        await _criar_production_unit(session, tenant_id, safra.id, cultivo_id, talhao_id)
 
         # Act: Criar operação com custo
         service = OperacaoService(session, tenant_id)
@@ -101,14 +108,15 @@ class TestOperacaoDespesaWebhook:
         safra = Safra(
             id=uuid4(),
             tenant_id=tenant_id,
-            talhao_id=talhao_id,
             ano_safra="2025/26",
             cultura="MILHO",
             status="PLANTIO",
-            area_plantada_ha=50.0
         )
         session.add(safra)
         await session.commit()
+
+        cultivo_id = await _criar_cultivo(session, tenant_id, safra.id)
+        await _criar_production_unit(session, tenant_id, safra.id, cultivo_id, talhao_id)
 
         # Act: Criar operação COM insumos (mas simulate zero custo)
         service = OperacaoService(session, tenant_id)
@@ -147,11 +155,9 @@ class TestOperacaoDespesaWebhook:
         safra = Safra(
             id=uuid4(),
             tenant_id=tenant_id,
-            talhao_id=talhao_id,
             ano_safra="2025/26",
             cultura="SOJA",
             status="DESENVOLVIMENTO",
-            area_plantada_ha=100.0
         )
         session.add(safra)
 
@@ -167,6 +173,9 @@ class TestOperacaoDespesaWebhook:
         )
         session.add(plano)
         await session.commit()
+
+        cultivo_id = await _criar_cultivo(session, tenant_id, safra.id)
+        await _criar_production_unit(session, tenant_id, safra.id, cultivo_id, talhao_id)
 
         # Act
         service = OperacaoService(session, tenant_id)
@@ -206,14 +215,14 @@ class TestOperacaoDespesaWebhook:
     ):
         """Despesa de um tenant não deveria ser criada para operação de outro tenant."""
         # Setup: Safra de outro tenant
+        await _garantir_tenant(session, outro_tenant_id)
+
         safra_outro = Safra(
             id=uuid4(),
             tenant_id=outro_tenant_id,
-            talhao_id=talhao_id,
             ano_safra="2025/26",
             cultura="MILHO",
             status="DESENVOLVIMENTO",
-            area_plantada_ha=50.0
         )
         session.add(safra_outro)
         await session.commit()
@@ -249,11 +258,9 @@ class TestOperacaoDespesaWebhook:
         safra = Safra(
             id=uuid4(),
             tenant_id=tenant_id,
-            talhao_id=talhao_id,
             ano_safra="2025/26",
             cultura="MILHO",
             status="COLHEITA",
-            area_plantada_ha=50.0
         )
         session.add(safra)
 
@@ -269,6 +276,9 @@ class TestOperacaoDespesaWebhook:
         )
         session.add(plano)
         await session.commit()
+
+        cultivo_id = await _criar_cultivo(session, tenant_id, safra.id)
+        await _criar_production_unit(session, tenant_id, safra.id, cultivo_id, talhao_id)
 
         # Act
         service = OperacaoService(session, tenant_id)
@@ -311,11 +321,9 @@ class TestOperacaoDespesaWebhook:
         safra = Safra(
             id=uuid4(),
             tenant_id=tenant_id,
-            talhao_id=talhao_id,
             ano_safra="2025/26",
             cultura="MILHO",
             status="COLHEITA",
-            area_plantada_ha=50.0
         )
         session.add(safra)
 
@@ -331,6 +339,9 @@ class TestOperacaoDespesaWebhook:
         )
         session.add(plano)
         await session.commit()
+
+        cultivo_id = await _criar_cultivo(session, tenant_id, safra.id)
+        await _criar_production_unit(session, tenant_id, safra.id, cultivo_id, talhao_id)
 
         # Act
         service = OperacaoService(session, tenant_id)
@@ -374,11 +385,9 @@ class TestOperacaoDespesaWebhook:
         safra = Safra(
             id=uuid4(),
             tenant_id=tenant_id,
-            talhao_id=talhao_id,
             ano_safra="2025/26",
             cultura="MILHO",
             status="COLHEITA",
-            area_plantada_ha=50.0
         )
         session.add(safra)
         await session.commit()

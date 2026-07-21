@@ -3,6 +3,7 @@ from __future__ import annotations
 # mypy: disable-error-code=attr-defined
 import uuid
 from pathlib import Path
+from datetime import datetime
 from types import SimpleNamespace
 from typing import Any, cast
 from unittest.mock import AsyncMock, MagicMock
@@ -59,6 +60,18 @@ class _StubSankhyaRuntime:
     async def get_capabilities(self, tenant_id: str) -> list[dict[str, Any]]:
         return []
 
+    async def get_person_by_external_id(
+        self, tenant_id: str, external_id: str
+    ) -> dict[str, Any] | None:
+        return {
+            "external_id": external_id,
+            "tipo": "PJ",
+            "nome_exibicao": "Parceiro ERP",
+        }
+
+    async def list_people(self, tenant_id: str) -> list[dict[str, Any]]:
+        return []
+
 
 # Configurável stub global para uso nos testes
 _active_stub: _StubSankhyaRuntime | None = None
@@ -113,6 +126,29 @@ def _patch_runtime_empty(monkeypatch: pytest.MonkeyPatch, tenant_id: uuid.UUID) 
     monkeypatch.setattr(erp_router_module.ErpReadinessService, "carregar_runtime", fake_runtime)
 
 
+def test_serializa_historico_de_associacao_com_tenant_uuid() -> None:
+    tenant_id = uuid.uuid4()
+    history = SimpleNamespace(
+        id=uuid.uuid4(),
+        tenant_id=tenant_id,
+        link_id=uuid.uuid4(),
+        event_type="CREATED",
+        previous_external_record_id=None,
+        new_external_record_id="42",
+        previous_status=None,
+        new_status="ACTIVE",
+        job_id=None,
+        actor_usuario_id=None,
+        reason=None,
+        details_payload=None,
+        created_at=datetime.utcnow(),
+    )
+
+    response = erp_router_module._serialize_history_item(history)
+
+    assert response.tenant_id == str(tenant_id)
+
+
 @pytest.mark.asyncio
 async def test_status_erp_delega_para_servico_sankhya(
     session: Any,
@@ -136,6 +172,30 @@ async def test_status_erp_delega_para_servico_sankhya(
     )
 
     assert response == {"configurado": True, "status_origem": "canonical"}
+    _active_stub = None
+
+
+@pytest.mark.asyncio
+async def test_lookup_pessoa_delega_ao_provider_ativo(
+    session: Any,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    global _active_stub
+    tenant_id = uuid.uuid4()
+    readiness_service = erp_router_module.ErpReadinessService(session)
+    _active_stub = _StubSankhyaRuntime(session)
+    _patch_runtime_canonical(monkeypatch, tenant_id)
+    _setup_sankhya_registry(monkeypatch)
+
+    response = await erp_router_module.consultar_pessoa_erp(
+        payload=erp_router_module.ErpPersonLookupRequest(external_id="42"),
+        tenant_id=tenant_id,
+        readiness_service=readiness_service,
+        db=session,
+    )
+
+    assert response.external_id == "42"
+    assert response.nome_exibicao == "Parceiro ERP"
     _active_stub = None
 
 
@@ -272,13 +332,18 @@ async def test_sync_completo_erp_dispara_pessoas_e_produtos(
         fake_importar_produtos,
     )
 
-    from integracoes.sankhya.services import SankhyaPessoaService, SankhyaProdutoService, SankhyaSyncService
+    from integracoes.sankhya.services import (
+        SankhyaPessoaService,
+        SankhyaProdutoService,
+        SankhyaSyncService,
+    )
 
     response = await sankhya_router_module.sincronizar_completo(
         tenant_id=tenant_id,
         sync_service=SankhyaSyncService(session),
         pessoa_service=SankhyaPessoaService(session),
         produto_service=SankhyaProdutoService(session),
+        policy_service=SimpleNamespace(garantir_execucao_manual=AsyncMock()),
     )
 
     assert response == {

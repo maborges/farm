@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import uuid
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 from sqlalchemy import text
@@ -48,6 +50,25 @@ def _is_real_uuid(value: object) -> bool:
     except (ValueError, AttributeError, TypeError):
         return False
     return True
+
+
+@pytest.mark.asyncio
+async def test_commit_restaura_contexto_rls_antes_do_refresh() -> None:
+    tenant_id = str(uuid.uuid4())
+    db = SimpleNamespace(
+        commit=AsyncMock(),
+        execute=AsyncMock(),
+        get_bind=lambda: SimpleNamespace(dialect=SimpleNamespace(name="postgresql")),
+        info={"tenant_id": tenant_id},
+    )
+
+    service = ExternalRecordAssociationService(db)  # type: ignore[arg-type]
+    await service._commit_preserving_rls()
+
+    db.commit.assert_awaited_once()
+    statement, parameters = db.execute.await_args.args
+    assert "set_config('app.current_tenant_id'" in str(statement)
+    assert parameters == {"tenant_id": tenant_id}
 
 
 async def _seed_runtime(

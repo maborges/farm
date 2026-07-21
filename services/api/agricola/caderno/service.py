@@ -39,7 +39,7 @@ from agricola.caderno.schemas import (
     EventoCadernoOfflineSyncResult,
     EventoCadernoOficialSync,
 )
-from agricola.operacoes.models import OperacaoAgricola
+from agricola.operacoes.models import OperacaoAgricola, OperacaoExecucao
 from campo.models import DispositivoCampo
 from core.services.storage_service import StorageService
 from core.services.audit_service import _serialize, write_audit_log
@@ -677,12 +677,24 @@ class CadernoCampoService(BaseService[CadernoCampoEntrada]):
 
         payload = mapear_operacao_para_evento_caderno(operacao)
         executor_herdado = operacao.operador_id
-        if operacao.execucoes:
-            # Tenta encontrar o executor efetivo nas execuções
-            for execucao in sorted(operacao.execucoes, key=lambda e: e.data_execucao):
-                if getattr(execucao, "operador_id", None):
-                    executor_herdado = execucao.operador_id
-                    break
+        # Consulta explícita em vez de `operacao.execucoes` (lazy="selectin"):
+        # um objeto apenas criado/flushado nesta mesma unit-of-work não passou
+        # por uma query com eager loading, então o acesso lazy implícito
+        # dispara I/O fora do contexto de greenlet do SQLAlchemy async.
+        execucoes_stmt = (
+            select(OperacaoExecucao)
+            .where(
+                OperacaoExecucao.tenant_id == self.tenant_id,
+                OperacaoExecucao.operacao_id == operacao.id,
+            )
+            .order_by(OperacaoExecucao.data_execucao)
+        )
+        execucoes = (await self.session.execute(execucoes_stmt)).scalars().all()
+        # Tenta encontrar o executor efetivo nas execuções
+        for execucao in execucoes:
+            if getattr(execucao, "operador_id", None):
+                executor_herdado = execucao.operador_id
+                break
 
         entrada = CadernoCampoEntrada(
             tenant_id=self.tenant_id,

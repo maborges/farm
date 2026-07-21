@@ -11,11 +11,14 @@ from agricola.alertas.service import (
 from agricola.caderno.models import CadernoCampoEntrada, CadernoCampoFoto
 from agricola.custos.models import CostAllocation
 from agricola.operacoes.models import OperacaoAgricola, OperacaoExecucao
+from agricola.safras.models import Safra
 from agricola.tarefas.models import SafraTarefa
 from agricola.tarefas.schemas import TarefaCreate, TarefaUpdate, PlanejarOperacaoRequest
 from core.services.audit_service import _serialize, write_audit_log
 from financeiro.models.despesa import Despesa
 from operacional.models.estoque import EstoqueMovimento
+
+STATUS_TAREFA_ATIVA = {"PENDENTE_APROVACAO", "APROVADA", "EM_EXECUCAO", "CONCLUIDA"}
 
 TRANSICOES = {
     "PENDENTE_APROVACAO": ["APROVADA", "CANCELADA"],
@@ -73,6 +76,26 @@ class TarefaService:
         return list((await self.session.execute(stmt)).scalars().all())
 
     async def criar(self, safra_id: uuid.UUID, dados: TarefaCreate, user_id: uuid.UUID | None = None) -> SafraTarefa:
+        # Idempotência: para tarefas originadas de análise de solo, evita duplicar
+        # a mesma recomendação (tenant + analise_solo_id + safra + talhão + tipo)
+        # quando já existe uma tarefa ativa equivalente.
+        if dados.origem == "SOLO" and dados.analise_solo_id is not None:
+            existente = await self._tarefa_solo_ativa_existente(
+                analise_solo_id=dados.analise_solo_id,
+                safra_id=safra_id,
+                talhao_id=dados.talhao_id,
+                tipo=dados.tipo,
+            )
+            if existente:
+                return existente
+
+        # Tarefas automáticas (SOLO/TEMPLATE) herdam a fase atual da safra quando
+        # o chamador não informa `fase` explicitamente. Tarefas MANUAL preservam
+        # a escolha do usuário (inclusive "sem fase") e não sofrem esse preenchimento.
+        fase = dados.fase
+        if fase is None and dados.origem != "MANUAL":
+            fase = await self._fase_atual_safra(safra_id)
+
         # Tarefas manuais nascem APROVADAS; automáticas (SOLO/TEMPLATE) nascem PENDENTE_APROVACAO
         status_inicial = "APROVADA" if dados.origem == "MANUAL" else "PENDENTE_APROVACAO"
         tarefa = SafraTarefa(
@@ -84,7 +107,7 @@ class TarefaService:
             analise_solo_id=dados.analise_solo_id,
             origem=dados.origem,
             tipo=dados.tipo,
-            fase=dados.fase,
+            fase=fase,
             criticidade=dados.criticidade,
             descricao=dados.descricao,
             obs=dados.obs,
@@ -100,6 +123,30 @@ class TarefaService:
         self.session.add(tarefa)
         await self.session.flush()
         return tarefa
+
+    async def _fase_atual_safra(self, safra_id: uuid.UUID) -> str | None:
+        stmt = select(Safra.status).where(
+            Safra.id == safra_id,
+            Safra.tenant_id == self.tenant_id,
+        )
+        return (await self.session.execute(stmt)).scalar_one_or_none()
+
+    async def _tarefa_solo_ativa_existente(
+        self,
+        analise_solo_id: uuid.UUID,
+        safra_id: uuid.UUID,
+        talhao_id: uuid.UUID | None,
+        tipo: str,
+    ) -> SafraTarefa | None:
+        stmt = select(SafraTarefa).where(
+            SafraTarefa.tenant_id == self.tenant_id,
+            SafraTarefa.analise_solo_id == analise_solo_id,
+            SafraTarefa.safra_id == safra_id,
+            SafraTarefa.talhao_id == talhao_id,
+            SafraTarefa.tipo == tipo,
+            SafraTarefa.status.in_(STATUS_TAREFA_ATIVA),
+        )
+        return (await self.session.execute(stmt)).scalars().first()
 
     async def _write_audit(self, action: str, before: SafraTarefa | None, after: SafraTarefa | None) -> None:
         await write_audit_log(
@@ -524,8 +571,11 @@ class TarefaService:
 
     async def gerar_operacao_planejada(self, tarefa_id: uuid.UUID, dados: PlanejarOperacaoRequest) -> OperacaoAgricola:
         tarefa = await self._get(tarefa_id)
-        if tarefa.status not in {"PENDENTE_APROVACAO", "APROVADA"}:
-            raise BusinessRuleError("Apenas tarefas pendentes ou aprovadas podem ser planejadas logisticamente.")
+        if tarefa.status != "APROVADA":
+            raise BusinessRuleError(
+                f"Tarefa com status '{tarefa.status}' não pode gerar operação planejada. "
+                "É necessário aprovar a tarefa antes de planejar logisticamente."
+            )
 
         from agricola.operacoes.models import OperacaoAgricola
         from agricola.operacoes.service import OperacaoService

@@ -19,6 +19,7 @@ from agricola.cultivos.schemas import (
     TarefaSoloGerada,
 )
 from core.cadastros.propriedades.models import AreaRural
+from agricola.production_units.service import ProductionUnitService
 
 
 class CultivoService(BaseService[Cultivo]):
@@ -196,6 +197,7 @@ class CultivoService(BaseService[Cultivo]):
         await self.session.flush()
 
         # Adicionar áreas
+        areas_criadas = []
         for area_data in data.areas:
             area = CultivoArea(
                 tenant_id=self.tenant_id,
@@ -204,8 +206,17 @@ class CultivoService(BaseService[Cultivo]):
                 area_ha=area_data.area_ha,
             )
             self.session.add(area)
+            areas_criadas.append(area)
 
         await self.session.flush()
+
+        # Sincroniza a Production Unit de cada área com o cultivo recém-criado
+        # (nasce com 100% de participação; ajuste manual de consórcio fica na
+        # tela de Production Units, ver docs/chat_gpt/gap-analysis-production-unit.md).
+        pu_svc = ProductionUnitService(self.session, self.tenant_id)
+        for area in areas_criadas:
+            await pu_svc.sincronizar_de_cultivo_area(area, safra_id=safra_id)
+
         await self.session.commit()
         await self.session.refresh(cultivo, ["areas"])
         return cultivo
@@ -279,7 +290,7 @@ class CultivoService(BaseService[Cultivo]):
             ("potassio", "Adubação Potássica", "K₂O"),
             ("nitrogenio", "Adubação Nitrogenada", "N"),
         ]
-        for chave, descricao, nutriente in mapeamento:
+        for chave, descricao, _simbolo in mapeamento:
             rec = recs.get(chave)
             if not rec:
                 continue
@@ -303,13 +314,13 @@ class CultivoService(BaseService[Cultivo]):
                 continue
             qtd_total = round(dose * float(area.area_ha), 2) if dose else None
             tarefas.append(TarefaSoloGerada(
-                nutriente=nutriente,
+                nutriente=chave,
                 descricao=descricao,
                 dose_kg_ha=round(dose, 2),
                 area_ha=float(area.area_ha),
                 quantidade_total_kg=qtd_total,
                 nivel=rec.get("nivel", ""),
-                obs=rec.get("obs"),
+                obs=rec.get("observacao"),
             ))
         return tarefas
 
@@ -367,10 +378,22 @@ class CultivoService(BaseService[Cultivo]):
             CultivoArea.tenant_id == self.tenant_id,
         )
         old_areas = list((await self.session.execute(delete_stmt)).scalars().all())
+        novas_area_ids = {area_data.area_id for area_data in areas_data}
+        areas_removidas = [area for area in old_areas if area.area_id not in novas_area_ids]
         for area in old_areas:
             await self.session.delete(area)
 
+        pu_svc = ProductionUnitService(self.session, self.tenant_id)
+
+        # Encerra (nunca deleta) a Production Unit das áreas que saíram do cultivo —
+        # preserva histórico de CostAllocation/DRE já lançado contra essa unidade.
+        for area in areas_removidas:
+            await pu_svc.encerrar_por_cultivo_area(
+                safra_id=cultivo.safra_id, cultivo_id=cultivo_id, area_id=area.area_id
+            )
+
         # Adicionar novas áreas
+        areas_atuais = []
         for area_data in areas_data:
             area = CultivoArea(
                 tenant_id=self.tenant_id,
@@ -379,8 +402,16 @@ class CultivoService(BaseService[Cultivo]):
                 area_ha=area_data.area_ha,
             )
             self.session.add(area)
+            areas_atuais.append(area)
 
         await self.session.flush()
+
+        # Sincroniza a Production Unit de cada área mantida/nova (reaproveita a PU
+        # existente por área — cultivo_area_id muda a cada sincronização por causa
+        # do DELETE+INSERT acima, mas percentual_participacao/status são preservados).
+        for area in areas_atuais:
+            await pu_svc.sincronizar_de_cultivo_area(area, safra_id=cultivo.safra_id)
+
         await self.session.commit()
         await self.session.refresh(cultivo, ["areas"])
         return cultivo

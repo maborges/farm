@@ -11,7 +11,7 @@ from typing import Any
 
 import httpx
 from sqlalchemy import func, select, text
-from sqlalchemy.exc import IntegrityError, OperationalError, ProgrammingError
+from sqlalchemy.exc import IntegrityError, OperationalError, ProgrammingError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -36,13 +36,26 @@ from integracoes.sankhya.models import (
 )
 from integracoes.sankhya.schemas import SankhyaTestConnectionResponse
 from integracoes.sankhya.services.auth_service import (
-    SankhyaGatewayAuthService,
     SankhyaConnectionData,
+    SankhyaGatewayAuthService,
 )
 from integracoes.sankhya.services.canonical_adapter import SankhyaCanonicalAdapter
 from integracoes.sankhya.services.external_association_helper import (
     SankhyaExternalAssociationHelper,
 )
+from integracoes.sankhya.services.gateway_contract import (
+    SankhyaGatewayAuthorizationError,
+    SankhyaGatewayOperation,
+    build_gateway_service_url,
+    resolve_gateway_operation,
+)
+from integracoes.security import (
+    decrypt_integration_secret,
+    encrypt_integration_secret,
+    mask_integration_secret,
+)
+from integracoes.url_validator import validate_provider_url
+
 
 def build_sankhya_connection_data(config: SankhyaConfig) -> SankhyaConnectionData:
     return SankhyaConnectionData(
@@ -59,8 +72,12 @@ def build_sankhya_connection_data(config: SankhyaConfig) -> SankhyaConnectionDat
         password=config.password,
     )
 
-async def get_sankhya_connection_data(db: AsyncSession, tenant_id: str) -> SankhyaConnectionData:
-    """Busca as configuracoes canônicas e monta a conexão, aplicando fallback para legado se necessário."""
+
+async def get_sankhya_connection_data(
+    db: AsyncSession,
+    tenant_id: str,
+) -> SankhyaConnectionData:
+    """Montar a conexão canônica, com fallback explícito para o legado."""
     stmt_config = select(SankhyaConfig).where(SankhyaConfig.tenant_id == tenant_id)
     config = (await db.execute(stmt_config)).scalar_one_or_none()
     if not config:
@@ -84,7 +101,9 @@ async def get_sankhya_connection_data(db: AsyncSession, tenant_id: str) -> Sankh
         api_url = payload.get("sankhya_api_base_url") or payload.get("ws_url")
 
         if not env or not api_url:
-            raise ValueError("Configuração técnica canônica (connection_payload) está incompleta ou inválida.")
+            raise ValueError(
+                "Configuração técnica canônica (connection_payload) está incompleta ou inválida."
+            )
 
         return SankhyaConnectionData(
             environment=env,
@@ -100,14 +119,12 @@ async def get_sankhya_connection_data(db: AsyncSession, tenant_id: str) -> Sankh
             password=config.password,
         )
 
-    _LOGGER.warning(f"FALLBACK_LEGACY: Usando configurações técnicas do SankhyaConfig ORM para o tenant {tenant_id}.")
+    _LOGGER.warning(
+        "FALLBACK_LEGACY: Usando configurações técnicas do SankhyaConfig ORM para o " "tenant %s.",
+        tenant_id,
+    )
     return build_sankhya_connection_data(config)
-from integracoes.security import (
-    decrypt_integration_secret,
-    encrypt_integration_secret,
-    mask_integration_secret,
-)
-from integracoes.url_validator import validate_provider_url
+
 
 _LOGGER = logging.getLogger(__name__)
 UTC = timezone.utc  # noqa: UP017
@@ -240,6 +257,8 @@ class SankhyaWSClient:
     ) -> dict[str, Any]:
         if self._session is None:
             raise RuntimeError("SankhyaWSClient deve ser usado como context manager")
+        if self.auth_model.startswith("gateway_"):
+            return await self._execute_gateway_operation(service, method)
         soap_envelope = self._build_soap_envelope(service, method, params)
 
         try:
@@ -254,6 +273,178 @@ class SankhyaWSClient:
             raise Exception(f"Erro WS Sankhya: {response.status_code} - {response.text}")
         except Exception as exc:  # pragma: no cover - integração externa
             raise Exception(f"Falha ao executar WS {service}.{method}: {exc}") from exc
+
+    async def buscar_registro(
+        self,
+        service: str,
+        method: str,
+        external_id: str,
+    ) -> dict[str, Any] | None:
+        """Consultar um único registro do Gateway por identificador parametrizado."""
+        operation = resolve_gateway_operation(service, method)
+        if not operation.id_field:
+            raise ValueError(f"Operação {service}.{method} não suporta consulta por ID.")
+        response = await self._request_gateway_lookup(operation, external_id)
+        entities = response.get("responseBody", {}).get("entities", {})
+        records = self._normalize_gateway_entities(entities, operation)
+        return records[0] if records else None
+
+    async def _execute_gateway_operation(self, service: str, method: str) -> dict[str, Any]:
+        operation = resolve_gateway_operation(service, method)
+        records = await self._load_all_gateway_records(operation)
+        return {operation.result_key: records}
+
+    async def _load_all_gateway_records(
+        self,
+        operation: SankhyaGatewayOperation,
+    ) -> list[dict[str, Any]]:
+        records: list[dict[str, Any]] = []
+        page = 0
+        while True:
+            response = await self._request_gateway_page(operation, page)
+            entities = response.get("responseBody", {}).get("entities", {})
+            records.extend(self._normalize_gateway_entities(entities, operation))
+            if str(entities.get("hasMoreResult", "false")).lower() != "true":
+                return records
+            page += 1
+
+    async def _request_gateway_page(
+        self,
+        operation: SankhyaGatewayOperation,
+        page: int,
+    ) -> dict[str, Any]:
+        assert self._session is not None
+        payload = self._build_load_records_payload(operation, page)
+        headers = await self._get_auth_headers()
+        headers.pop("SOAPAction", None)
+        headers.pop("X-Token", None)
+        headers.update({"Accept": "application/json", "Content-Type": "application/json"})
+        response = await self._session.post(
+            build_gateway_service_url(self.base_url, operation),
+            headers=headers,
+            json=payload,
+        )
+        response.raise_for_status()
+        data = response.json()
+        if str(data.get("status")) != "1":
+            self._raise_gateway_error(data, operation)
+        return data
+
+    async def _request_gateway_lookup(
+        self,
+        operation: SankhyaGatewayOperation,
+        external_id: str,
+    ) -> dict[str, Any]:
+        assert self._session is not None
+        payload = self._build_lookup_payload(operation, external_id)
+        headers = await self._gateway_headers()
+        response = await self._session.post(
+            build_gateway_service_url(self.base_url, operation), headers=headers, json=payload
+        )
+        response.raise_for_status()
+        data = response.json()
+        if str(data.get("status")) != "1":
+            self._raise_gateway_error(data, operation)
+        return data
+
+    async def _gateway_headers(self) -> dict[str, str]:
+        headers = await self._get_auth_headers()
+        headers.pop("SOAPAction", None)
+        headers.pop("X-Token", None)
+        headers.update({"Accept": "application/json", "Content-Type": "application/json"})
+        return headers
+
+    @staticmethod
+    def _build_lookup_payload(
+        operation: SankhyaGatewayOperation,
+        external_id: str,
+    ) -> dict[str, Any]:
+        payload = SankhyaWSClient._build_load_records_payload(operation, 0)
+        dataset = payload["requestBody"]["dataSet"]
+        dataset["criteria"] = {
+            "expression": {"$": f"{operation.id_field} = ?"},
+            "parameter": [{"$": external_id, "type": "I"}],
+        }
+        return payload
+
+    @staticmethod
+    def _build_load_records_payload(
+        operation: SankhyaGatewayOperation,
+        page: int,
+    ) -> dict[str, Any]:
+        dataset: dict[str, Any] = {
+            "rootEntity": operation.entity,
+            "ignoreCalculatedFields": "true",
+            "includePresentationFields": "N",
+            "tryJoinedFields": "true",
+            "offsetPage": str(page),
+            "entity": [
+                {
+                    "path": "",
+                    "fieldset": {"list": ",".join(operation.fields)},
+                }
+            ],
+        }
+        if operation.criteria:
+            dataset["criteria"] = {
+                "expression": {"$": operation.criteria},
+                "parameter": list(operation.parameters),
+            }
+        return {
+            "serviceName": operation.service_name,
+            "requestBody": {"dataSet": dataset},
+        }
+
+    @staticmethod
+    def _normalize_gateway_entities(
+        entities: dict[str, Any],
+        operation: SankhyaGatewayOperation,
+    ) -> list[dict[str, Any]]:
+        raw_entities = entities.get("entity") or []
+        items = raw_entities if isinstance(raw_entities, list) else [raw_entities]
+        return [SankhyaWSClient._normalize_gateway_entity(item, operation) for item in items]
+
+    @staticmethod
+    def _normalize_gateway_entity(
+        entity: dict[str, Any],
+        operation: SankhyaGatewayOperation,
+    ) -> dict[str, Any]:
+        result: dict[str, Any] = {}
+        for key, value in entity.items():
+            if key.startswith("_"):
+                continue
+            field_name = key
+            if key.startswith("f") and key[1:].isdigit():
+                field_index = int(key[1:])
+                if field_index >= len(operation.fields):
+                    continue
+                field_name = operation.fields[field_index]
+            normalized_name = operation.aliases.get(field_name, field_name)
+            result[normalized_name] = value.get("$") if isinstance(value, dict) else value
+        return result
+
+    @staticmethod
+    def _gateway_error_message(payload: dict[str, Any]) -> str:
+        message = payload.get("statusMessage") or payload.get("message")
+        if message:
+            return f"Gateway Sankhya recusou a consulta: {message}"
+        return "Gateway Sankhya recusou a consulta sem detalhar o motivo."
+
+    @staticmethod
+    def _raise_gateway_error(
+        payload: dict[str, Any],
+        operation: SankhyaGatewayOperation,
+    ) -> None:
+        """Classificar a recusa retornada pelo Gateway com HTTP 200."""
+        message = SankhyaWSClient._gateway_error_message(payload)
+        normalized = message.casefold()
+        if "não autorizado" in normalized or "nao autorizado" in normalized:
+            raise SankhyaGatewayAuthorizationError(
+                "Integração autenticada, mas sem autorização no Sankhya para "
+                f"{operation.service_name} na entidade {operation.entity}. "
+                "Libere o serviço e o Cadastro de Parceiros na Camada de Autorização para API."
+            )
+        raise ValueError(message)
 
     def _build_soap_envelope(self, service: str, method: str, params: dict[str, Any]) -> str:
         params_xml = "".join(f"<{key}>{value}</{key}>" for key, value in params.items())
@@ -422,9 +613,7 @@ class SankhyaSyncService:
             config.client_secret = None
             config.x_token = None
             config.token = SankhyaSyncService._normalize_secret_value(bundle.get("sankhya_token"))
-            config.appkey = SankhyaSyncService._normalize_secret_value(
-                bundle.get("sankhya_appkey")
-            )
+            config.appkey = SankhyaSyncService._normalize_secret_value(bundle.get("sankhya_appkey"))
             config.username = bundle.get("username")
             config.password = SankhyaSyncService._normalize_secret_value(bundle.get("password"))
             return
@@ -622,7 +811,9 @@ class SankhyaSyncService:
             bool(value and value.strip()) for value in (sankhya_token, sankhya_appkey)
         )
 
-        current_auth = SankhyaGatewayAuthService(build_sankhya_connection_data(current)) if current else None
+        current_auth = (
+            SankhyaGatewayAuthService(build_sankhya_connection_data(current)) if current else None
+        )
         current_model = current_auth.auth_model() if current_auth else None
 
         # Respeita o auth_model se for providenciado explicitamente, senão fallback
@@ -712,9 +903,7 @@ class SankhyaSyncService:
             appkey = None
 
             password_value = (
-                encrypt_integration_secret(password_raw)
-                if password_raw is not None
-                else None
+                encrypt_integration_secret(password_raw) if password_raw is not None else None
             )
         elif auth_model == "gateway_legacy_login":
             username_value = username or sankhya_client_id or username_value
@@ -1259,6 +1448,8 @@ class SankhyaSyncService:
         erro_mensagem: str | None = None,
         tempo_ms: float = 0,
     ) -> None:
+        if not self.db.is_active:
+            await self.db.rollback()
         stmt = select(SankhyaSyncLog).where(SankhyaSyncLog.id == log_id)
         log = (await self.db.execute(stmt)).scalar_one_or_none()
         if not log:
@@ -1869,11 +2060,7 @@ class SankhyaSyncService:
         """Mantém somente logs legados que não representam um job canônico já exibido."""
 
         visible_job_ids = {str(job["id"]) for job in jobs}
-        return [
-            log
-            for log in logs
-            if str(log.get("integration_job_id")) not in visible_job_ids
-        ]
+        return [log for log in logs if str(log.get("integration_job_id")) not in visible_job_ids]
 
     def _build_health_timeline_entry(self, health: dict[str, Any]) -> dict[str, Any]:
         occurred_at = self._normalize_utc_datetime(health.get("checked_at")) or datetime.now(UTC)
@@ -2059,25 +2246,46 @@ class SankhyaPessoaService:
         config = await self._get_config(tenant_id)
         if not config:
             return 0
+        await self.db.commit()
 
         importados = 0
+        erros: list[str] = []
 
         async with SankhyaWSClient(config) as client:
             try:
                 resultado = await client.executar_ws("PessoaFisica", "findAll", {})
                 for pessoa_data in resultado.get("pessoas", []):
+                    await self._restore_rls_context(tenant_id)
                     await self._salvar_pessoa_fisica(tenant_id, pessoa_data)
                     importados += 1
+            except SankhyaGatewayAuthorizationError:
+                await self.db.rollback()
+                raise
+            except SQLAlchemyError:
+                await self.db.rollback()
+                raise
             except Exception as exc:  # pragma: no cover - integração externa
-                print(f"Erro ao importar pessoas físicas: {exc}")
+                await self.db.rollback()
+                erros.append(f"pessoas físicas: {exc}")
 
             try:
                 resultado = await client.executar_ws("PessoaJuridica", "findAll", {})
                 for pessoa_data in resultado.get("pessoas", []):
+                    await self._restore_rls_context(tenant_id)
                     await self._salvar_pessoa_juridica(tenant_id, pessoa_data)
                     importados += 1
+            except SankhyaGatewayAuthorizationError:
+                await self.db.rollback()
+                raise
+            except SQLAlchemyError:
+                await self.db.rollback()
+                raise
             except Exception as exc:  # pragma: no cover - integração externa
-                print(f"Erro ao importar pessoas jurídicas: {exc}")
+                await self.db.rollback()
+                erros.append(f"pessoas jurídicas: {exc}")
+
+        if erros:
+            raise RuntimeError("Falha ao importar " + "; ".join(erros))
 
         if log_id:
             await self._finalizar_log(log_id, True, importados)
@@ -2098,7 +2306,10 @@ class SankhyaPessoaService:
             stmt = stmt.where(SankhyaPessoa.tipo == tipo)
         if ativo is not None:
             stmt = stmt.where(SankhyaPessoa.ativo == ativo)
-        stmt = stmt.offset(skip).limit(limit)
+        stmt = stmt.order_by(
+            SankhyaPessoa.sincronizado_em.desc().nullslast(),
+            SankhyaPessoa.id.desc(),
+        ).offset(skip).limit(limit)
         return list((await self.db.execute(stmt)).scalars().all())
 
     async def _salvar_pessoa_fisica(self, tenant_id: str, data: dict[str, Any]) -> SankhyaPessoa:
@@ -2119,7 +2330,10 @@ class SankhyaPessoaService:
             sincronizado_em=datetime.utcnow(),
         )
 
-        stmt = select(SankhyaPessoa).where(SankhyaPessoa.sankhya_id == pessoa.sankhya_id)
+        stmt = select(SankhyaPessoa).where(
+            SankhyaPessoa.tenant_id == tenant_id,
+            SankhyaPessoa.sankhya_id == pessoa.sankhya_id,
+        )
         existing = (await self.db.execute(stmt)).scalar_one_or_none()
 
         if existing:
@@ -2131,6 +2345,7 @@ class SankhyaPessoaService:
             self.db.add(pessoa)
 
         await self.db.commit()
+        await self._restore_rls_context(tenant_id)
         await self.db.refresh(pessoa)
         await self.association_helper.sync_pessoa(tenant_id, data)
         return pessoa
@@ -2155,7 +2370,10 @@ class SankhyaPessoaService:
             sincronizado_em=datetime.utcnow(),
         )
 
-        stmt = select(SankhyaPessoa).where(SankhyaPessoa.sankhya_id == pessoa.sankhya_id)
+        stmt = select(SankhyaPessoa).where(
+            SankhyaPessoa.tenant_id == tenant_id,
+            SankhyaPessoa.sankhya_id == pessoa.sankhya_id,
+        )
         existing = (await self.db.execute(stmt)).scalar_one_or_none()
 
         if existing:
@@ -2167,6 +2385,7 @@ class SankhyaPessoaService:
             self.db.add(pessoa)
 
         await self.db.commit()
+        await self._restore_rls_context(tenant_id)
         await self.db.refresh(pessoa)
         await self.association_helper.sync_pessoa(tenant_id, data)
         return pessoa
@@ -2174,6 +2393,18 @@ class SankhyaPessoaService:
     async def _get_config(self, tenant_id: str) -> SankhyaConfig | None:
         stmt = select(SankhyaConfig).where(SankhyaConfig.tenant_id == tenant_id)
         return (await self.db.execute(stmt)).scalar_one_or_none()
+
+    async def _restore_rls_context(self, tenant_id: str) -> None:
+        """Restaurar o tenant transacional depois de commits do importador."""
+        bind = self.db.get_bind()
+        dialect = getattr(bind, "dialect", None)
+        if getattr(dialect, "name", "") != "postgresql":
+            return
+        self.db.info["tenant_id"] = tenant_id
+        await self.db.execute(
+            text("SELECT set_config('app.current_tenant_id', :tenant_id, true)"),
+            {"tenant_id": tenant_id},
+        )
 
     async def _finalizar_log(self, log_id: int, sucesso: bool, processados: int) -> None:
         service = SankhyaSyncService(self.db)
@@ -2195,13 +2426,10 @@ class SankhyaProdutoService:
         importados = 0
 
         async with SankhyaWSClient(config) as client:
-            try:
-                resultado = await client.executar_ws("Produto", "findAll", {})
-                for produto_data in resultado.get("produtos", []):
-                    await self._salvar_produto(tenant_id, produto_data)
-                    importados += 1
-            except Exception as exc:  # pragma: no cover - integração externa
-                print(f"Erro ao importar produtos: {exc}")
+            resultado = await client.executar_ws("Produto", "findAll", {})
+            for produto_data in resultado.get("produtos", []):
+                await self._salvar_produto(tenant_id, produto_data)
+                importados += 1
 
         if log_id:
             await self._finalizar_log(log_id, True, importados)
@@ -2237,7 +2465,10 @@ class SankhyaProdutoService:
             sincronizado_em=datetime.utcnow(),
         )
 
-        stmt = select(SankhyaProduto).where(SankhyaProduto.sankhya_id == produto.sankhya_id)
+        stmt = select(SankhyaProduto).where(
+            SankhyaProduto.tenant_id == tenant_id,
+            SankhyaProduto.sankhya_id == produto.sankhya_id,
+        )
         existing = (await self.db.execute(stmt)).scalar_one_or_none()
 
         if existing:

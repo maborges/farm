@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -14,6 +15,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import Base
+from integracoes.erp.policy_service import ErpSyncPolicyService
 from integracoes.models import (
     IntegrationCredential,
     IntegrationFeature,
@@ -54,16 +56,11 @@ if "domain_event_outbox" not in Base.metadata.tables:
     )
 
 
-
-
-
 async def _next_sankhya_config_id(session: AsyncSession) -> int:
     # sankhya_config.id não possui sequence/default no banco (débito já
     # registrado); replica o contorno usado em produção por
     # SankhyaSyncService (max(id) + 1), sem alterar model ou migration.
-    return (
-        await session.scalar(select(func.coalesce(func.max(SankhyaConfig.id), 0) + 1))
-    ) or 1
+    return (await session.scalar(select(func.coalesce(func.max(SankhyaConfig.id), 0) + 1))) or 1
 
 
 async def _legacy_sankhya_config(
@@ -196,6 +193,57 @@ async def test_adapter_cria_config_canonica_features_policies_e_health(
     assert financeiro_policy.settings_payload["default_canonical_mode"] == "POLLING"
     assert financeiro_policy.settings_payload["retry_managed_by"] == "IntegrationSyncPolicy"
     assert any(event.event_type == "integrations.configured" for event in events)
+
+
+@pytest.mark.asyncio
+async def test_politica_publica_endpoint_resolvido_por_cadastro(
+    session: AsyncSession,
+) -> None:
+    config = await _gateway_sankhya_config(session)
+
+    policies = await ErpSyncPolicyService(session).listar(uuid.UUID(config.tenant_id))
+
+    pessoas = next(policy for policy in policies if policy.feature_code == "pessoas")
+    assert pessoas.endpoint_service == "CRUDServiceProvider.loadRecords"
+    assert pessoas.endpoint_entity == "Parceiro"
+    assert pessoas.endpoint_url == (
+        "https://gateway.example/api/gateway/v1/mge/service.sbr"
+        "?serviceName=CRUDServiceProvider.loadRecords&outputType=json"
+    )
+
+
+@pytest.mark.asyncio
+async def test_adapter_preserva_politica_personalizada_ao_atualizar_config(
+    session: AsyncSession,
+) -> None:
+    legacy = await _legacy_sankhya_config(session)
+    policy = (
+        await session.execute(
+            select(IntegrationSyncPolicy)
+            .join(IntegrationFeature, IntegrationSyncPolicy.feature_id == IntegrationFeature.id)
+            .where(
+                IntegrationSyncPolicy.tenant_id == legacy.tenant_id,
+                IntegrationFeature.codigo == "produtos",
+            )
+        )
+    ).scalar_one()
+    policy.mode = "AGENDADO"
+    policy.trigger_expression = "0 * * * *"
+    policy.retry_limite = 5
+    policy.ativa = False
+    await session.commit()
+
+    await SankhyaCanonicalAdapter(session).sync_provider_config(
+        legacy,
+        password_changed=False,
+        reason="config_updated",
+    )
+    await session.refresh(policy)
+
+    assert policy.mode == "AGENDADO"
+    assert policy.trigger_expression == "0 * * * *"
+    assert policy.retry_limite == 5
+    assert policy.ativa is False
 
 
 @pytest.mark.asyncio
@@ -691,6 +739,38 @@ class _FakeWSClient:
 
 
 @pytest.mark.asyncio
+async def test_falha_externa_longa_nao_quebra_persistencia_do_health(
+    session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def fake_publish(event: Any, **_: Any) -> None:
+        return None
+
+    monkeypatch.setattr(
+        "integracoes.sankhya.services.canonical_adapter.publish_domain_event_safe",
+        fake_publish,
+    )
+    legacy = await _legacy_sankhya_config(session)
+    service = SankhyaSyncService(session)
+    log = await service.iniciar_sync_log(legacy.tenant_id, "pessoas", "import")
+    error_message = "Falha no Gateway Sankhya: " + "path inexistente " * 30
+
+    await service.finalizar_sync_log(log.id, False, 0, 1, error_message, 10.0)
+
+    health = await session.scalar(
+        select(IntegrationHealth).where(IntegrationHealth.tenant_id == legacy.tenant_id)
+    )
+    job = await session.scalar(
+        select(IntegrationJob).where(IntegrationJob.id == log.integration_job_id)
+    )
+    assert health is not None
+    assert len(health.summary) == 200
+    assert health.summary.endswith("…")
+    assert job is not None
+    assert job.error_message == error_message
+
+
+@pytest.mark.asyncio
 async def test_nfe_service_conecta_sync_existente_ao_job_canonico(
     session: AsyncSession,
     monkeypatch: pytest.MonkeyPatch,
@@ -806,9 +886,7 @@ async def test_sync_service_reaproveita_config_existente_em_colisao_unica(
             raise IntegrityError(
                 "INSERT",
                 {},
-                sqlite3.IntegrityError(
-                    "UNIQUE constraint failed: sankhya_config.tenant_id"
-                ),
+                sqlite3.IntegrityError("UNIQUE constraint failed: sankhya_config.tenant_id"),
             )
         return None
 
@@ -910,8 +988,7 @@ async def test_adapter_persist_with_unique_retry_reaproveita_linha_existente(
 
 
 @pytest.mark.asyncio
-async def test_adapter_persist_with_unique_retry_propagates_other_integrity_errors(
-) -> None:
+async def test_adapter_persist_with_unique_retry_propagates_other_integrity_errors() -> None:
     class _FakeNestedTransaction:
         async def commit(self) -> None:
             return None

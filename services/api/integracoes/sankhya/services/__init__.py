@@ -5,6 +5,9 @@ from integracoes.sankhya.services.canonical_adapter import SankhyaCanonicalAdapt
 from integracoes.sankhya.services.external_association_helper import (
     SankhyaExternalAssociationHelper,
 )
+from integracoes.sankhya.services.gateway_contract import (
+    SankhyaGatewayAuthorizationError,
+)
 from integracoes.sankhya.services.legacy_reconciliation import (
     LegacySankhyaReconciliationResult,
     LegacySankhyaReconciliationState,
@@ -23,6 +26,7 @@ from integracoes.sankhya.services.sync_service import (
 
 __all__ = [
     "SankhyaGatewayAuthService",
+    "SankhyaGatewayAuthorizationError",
     "SankhyaCanonicalAdapter",
     "LegacySankhyaReconciliationResult",
     "LegacySankhyaReconciliationState",

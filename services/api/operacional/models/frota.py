@@ -254,7 +254,7 @@ class JornadaEquipamento(Base):
         Index("ix_frota_jornadas_tenant_safra", tenant_id, safra_id),
         ForeignKeyConstraint(
             ["tenant_id", "unidade_produtiva_id"],
-            ["farms.unidades_produtivas.tenant_id", "farms.unidades_produtivas.id"],
+            ["unidades_produtivas.tenant_id", "unidades_produtivas.id"],
             name="fk_fje_tenant_unidade_produtiva",
             ondelete="NO ACTION",
         ),

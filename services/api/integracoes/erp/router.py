@@ -16,10 +16,28 @@ from sqlalchemy.ext.asyncio import AsyncSession
 # Garante que os providers estejam registrados ao carregar o router.
 import integracoes.erp.provider_bootstrap  # noqa: F401
 from core.dependencies import get_session, get_tenant_id, require_tenant_permission
+from integracoes.erp.person_service import (
+    ErpPersonConflictError,
+    ErpPersonImportService,
+    ErpPersonNotFoundError,
+)
+from integracoes.erp.policy_service import (
+    ErpSyncPolicyNotFoundError,
+    ErpSyncPolicyService,
+    ErpSyncPolicyValidationError,
+)
 from integracoes.erp.provider_contract import ErpProviderRuntime
 from integracoes.erp.provider_registry import (
     ErpProviderNotRegisteredError,
     erp_provider_registry,
+)
+from integracoes.erp.schemas import (
+    ErpPersonImportRequest,
+    ErpPersonImportResponse,
+    ErpPersonLookupRequest,
+    ErpPersonRecord,
+    ErpSyncPolicyResponse,
+    ErpSyncPolicyUpdate,
 )
 from integracoes.erp_readiness_service import ErpReadinessService
 from integracoes.models import (
@@ -85,7 +103,22 @@ def _build_external_key(association) -> str:
 
 
 def _serialize_history_item(history) -> ExternalRecordAssociationHistoryItemResponse:
-    return ExternalRecordAssociationHistoryItemResponse.model_validate(history)
+    payload = {
+        "id": history.id,
+        "tenant_id": str(history.tenant_id),
+        "link_id": history.link_id,
+        "event_type": history.event_type,
+        "previous_external_record_id": history.previous_external_record_id,
+        "new_external_record_id": history.new_external_record_id,
+        "previous_status": history.previous_status,
+        "new_status": history.new_status,
+        "job_id": history.job_id,
+        "actor_usuario_id": history.actor_usuario_id,
+        "reason": history.reason,
+        "details_payload": history.details_payload,
+        "created_at": history.created_at,
+    }
+    return ExternalRecordAssociationHistoryItemResponse.model_validate(payload)
 
 
 async def _serialize_pending_item(
@@ -97,7 +130,7 @@ async def _serialize_pending_item(
     history = await service.list_history(tenant_id=association.tenant_id, link_id=association.id)
     payload = {
         "id": association.id,
-        "tenant_id": association.tenant_id,
+        "tenant_id": str(association.tenant_id),
         "provider_id": association.provider_id,
         "config_id": association.config_id,
         "feature_id": association.feature_id,
@@ -182,6 +215,103 @@ def get_external_association_service(
     """Fornece o serviço oficial de governança de associações externas."""
 
     return ExternalRecordAssociationService(db)
+
+
+def get_erp_sync_policy_service(
+    db: AsyncSession = Depends(get_session),
+) -> ErpSyncPolicyService:
+    """Fornecer o serviço canônico de políticas ERP."""
+    return ErpSyncPolicyService(db)
+
+
+@router.get(
+    "/policies",
+    response_model=list[ErpSyncPolicyResponse],
+    dependencies=[Depends(require_tenant_permission("integrations:view"))],
+)
+async def listar_politicas_erp(
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    service: ErpSyncPolicyService = Depends(get_erp_sync_policy_service),
+) -> list[ErpSyncPolicyResponse]:
+    """Listar políticas já materializadas para o ERP ativo."""
+    return await service.listar(tenant_id)
+
+
+@router.patch(
+    "/policies/{feature_code}",
+    response_model=ErpSyncPolicyResponse,
+    dependencies=[Depends(require_tenant_permission("integrations:configure"))],
+)
+async def atualizar_politica_erp(
+    feature_code: str,
+    payload: ErpSyncPolicyUpdate,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    service: ErpSyncPolicyService = Depends(get_erp_sync_policy_service),
+) -> ErpSyncPolicyResponse:
+    """Alterar a política de um fluxo sem recriar features ou dados legados."""
+    try:
+        return await service.atualizar(tenant_id, feature_code, payload)
+    except ErpSyncPolicyNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="Fluxo ERP não encontrado.") from exc
+    except ErpSyncPolicyValidationError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+async def _resolve_person_import_service(
+    tenant_id: uuid.UUID,
+    readiness_service: ErpReadinessService,
+    db: AsyncSession,
+) -> ErpPersonImportService:
+    resolution = await _assert_configured_provider(
+        tenant_id=tenant_id, readiness_service=readiness_service, db=db
+    )
+    if not resolution.configured or resolution.provider_runtime is None:
+        raise HTTPException(status_code=409, detail="Nenhum ERP configurado para este tenant.")
+    return ErpPersonImportService(
+        db,
+        resolution.provider_runtime,
+        config_id=resolution.runtime.config.id,
+    )
+
+
+@router.post(
+    "/pessoas/lookup",
+    response_model=ErpPersonRecord,
+    dependencies=[Depends(require_tenant_permission("integrations:view"))],
+)
+async def consultar_pessoa_erp(
+    payload: ErpPersonLookupRequest,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    readiness_service: ErpReadinessService = Depends(get_erp_readiness_service),
+    db: AsyncSession = Depends(get_session),
+) -> ErpPersonRecord:
+    """Consultar uma Pessoa no provider ativo sem persistir dados."""
+    service = await _resolve_person_import_service(tenant_id, readiness_service, db)
+    try:
+        return await service.consultar(tenant_id, payload.external_id)
+    except ErpPersonNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.post(
+    "/pessoas/import",
+    response_model=ErpPersonImportResponse,
+    dependencies=[Depends(require_tenant_permission("integrations:sync"))],
+)
+async def importar_pessoa_erp(
+    payload: ErpPersonImportRequest,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    readiness_service: ErpReadinessService = Depends(get_erp_readiness_service),
+    db: AsyncSession = Depends(get_session),
+) -> ErpPersonImportResponse:
+    """Criar ou atualizar uma pessoa canônica usando somente dados do ERP."""
+    service = await _resolve_person_import_service(tenant_id, readiness_service, db)
+    try:
+        return await service.importar(tenant_id, payload)
+    except ErpPersonNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ErpPersonConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 def _runtime_probe(tenant_id: uuid.UUID) -> SimpleNamespace:
@@ -300,9 +430,6 @@ def _build_unconfigured_diagnosis_response() -> dict[str, Any]:
     }
 
 
-
-
-
 async def _resolve_active_erp_context(
     *,
     tenant_id: uuid.UUID,
@@ -327,10 +454,7 @@ async def _resolve_active_erp_context(
         except ErpProviderNotRegisteredError as exc:
             raise HTTPException(
                 status_code=501,
-                detail=(
-                    "Provider ERP configurado mas sem runtime registrado: "
-                    f"{provider_slug}"
-                ),
+                detail=("Provider ERP configurado mas sem runtime registrado: " f"{provider_slug}"),
             ) from exc
 
         return ErpRuntimeResolution(
@@ -340,7 +464,6 @@ async def _resolve_active_erp_context(
             source="CANONICAL_RUNTIME",
             provider_runtime=provider_runtime,
         )
-
 
     return ErpRuntimeResolution(
         configured=False,

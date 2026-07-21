@@ -169,6 +169,11 @@ async def gerar_tarefas_analise(
 ):
     """Transforma as recomendações da análise em tarefas reais na safra."""
     svc = AnaliseSoloService(session, tenant_id)
-    tarefas_ids = await svc.vincular_e_gerar_tarefas(id, safra_id, user_id=UUID(user["id"]) if "id" in user else None)
+    resultado = await svc.vincular_e_gerar_tarefas(id, safra_id, user_id=UUID(user["id"]) if "id" in user else None)
     await session.commit()
-    return {"tarefas_geradas": [str(tid) for tid in tarefas_ids]}
+    return {
+        "tarefas_geradas": [str(tid) for tid in resultado["tarefas_geradas"]],
+        "tarefas_existentes": [str(tid) for tid in resultado["tarefas_existentes"]],
+        "quantidade_gerada": resultado["quantidade_gerada"],
+        "quantidade_existente": resultado["quantidade_existente"],
+    }

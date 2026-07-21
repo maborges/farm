@@ -5,9 +5,10 @@ import { useForm } from "react-hook-form";
 import type { FieldError, FieldErrors, Resolver } from "react-hook-form";
 import { z } from "zod";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useSessionStore } from "@/lib/stores/session-store";
+import { consumeSessionClearNotice, useSessionStore, type SessionClearNotice } from "@/lib/stores/session-store";
 import bcrypt from "bcryptjs";
 import { CampoButton, CampoPill, CampoSurface } from "@/components/campo/ui";
+import { CampoSessionClearNotice } from "@/components/campo/session-clear-notice";
 
 const API_BASE = "/api/v1";
 
@@ -80,6 +81,11 @@ function ActivateForm() {
   const { register, handleSubmit, formState: { errors } } = useForm<FormData>({ resolver });
   const activationCodeField = register("activation_code");
   const pinField = register("pin");
+  const [clearNotice, setClearNotice] = useState<SessionClearNotice | null>(null);
+
+  useEffect(() => {
+    setClearNotice(consumeSessionClearNotice());
+  }, []);
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
@@ -186,6 +192,8 @@ function ActivateForm() {
                 {reasonMessage}
               </div>
             )}
+
+            {clearNotice && <CampoSessionClearNotice notice={clearNotice} />}
 
             <form onSubmit={handleSubmit(onSubmit)} className="flex w-full flex-col gap-3">
               <div className="flex flex-col gap-1.5">

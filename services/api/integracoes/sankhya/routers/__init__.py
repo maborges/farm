@@ -7,12 +7,16 @@ import time
 import uuid
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.dependencies import get_session, get_tenant_id, require_tenant_permission
+from integracoes.erp.policy_service import (
+    ErpSyncPolicyNotFoundError,
+    ErpSyncPolicyService,
+    ErpSyncPolicyValidationError,
+)
 from integracoes.sankhya.schemas import (
     SankhyaConfigCreate,
     SankhyaConfigResponse,
@@ -30,18 +34,12 @@ from integracoes.sankhya.schemas import (
 )
 from integracoes.sankhya.services import (
     SankhyaFinanceiroService,
+    SankhyaGatewayAuthorizationError,
     SankhyaNFeService,
     SankhyaPessoaService,
     SankhyaProdutoService,
     SankhyaSyncService,
 )
-from integracoes.schemas import (
-    ExternalRecordAssociationGovernanceReconcileRequest,
-    ExternalRecordAssociationHistoryItemResponse,
-    ExternalRecordAssociationPendingItemResponse,
-    ExternalRecordAssociationReconcile,
-)
-from integracoes.services import DuplicateAssociationError, ExternalRecordAssociationService
 
 router = APIRouter(prefix="/sankhya", tags=["Integração Sankhya"])
 
@@ -66,6 +64,26 @@ def get_financeiro_service(db: AsyncSession = Depends(get_session)) -> SankhyaFi
     return SankhyaFinanceiroService(db)
 
 
+def get_policy_service(db: AsyncSession = Depends(get_session)) -> ErpSyncPolicyService:
+    return ErpSyncPolicyService(db)
+
+
+async def _garantir_sync_manual(
+    policy_service: ErpSyncPolicyService,
+    tenant_id: uuid.UUID,
+    feature_code: str,
+) -> None:
+    try:
+        await policy_service.garantir_execucao_manual(tenant_id, feature_code)
+    except ErpSyncPolicyNotFoundError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail="Configure este recurso da integração antes de sincronizar.",
+        ) from exc
+    except ErpSyncPolicyValidationError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
 @router.post(
     "/config",
     response_model=SankhyaConfigResponse,
@@ -83,7 +101,7 @@ async def configurar_sankhya(
 
     if existing:
         try:
-            updated = await sync_service.atualizar_config(
+            await sync_service.atualizar_config(
                 existing,
                 auth_model=config.auth_model,
                 sankhya_environment=config.sankhya_environment,
@@ -104,7 +122,7 @@ async def configurar_sankhya(
         return await sync_service.obter_config_console(tenant_scope)
 
     try:
-        created = await sync_service.criar_config(
+        await sync_service.criar_config(
             tenant_id=tenant_scope,
             auth_model=config.auth_model,
             sankhya_environment=config.sankhya_environment,
@@ -199,23 +217,26 @@ async def sincronizar_pessoas(
     tenant_id: uuid.UUID = Depends(get_tenant_id),
     sync_service: SankhyaSyncService = Depends(get_sync_service),
     pessoa_service: SankhyaPessoaService = Depends(get_pessoa_service),
+    policy_service: ErpSyncPolicyService = Depends(get_policy_service),
 ):
+    await _garantir_sync_manual(policy_service, tenant_id, "pessoas")
     tenant_scope = str(tenant_id)
     log = await sync_service.iniciar_sync_log(tenant_scope, "pessoas", "import")
+    log_id = log.id
 
     try:
         start_time = time.time()
-        importados = await pessoa_service.importar_pessoas(tenant_scope, log.id)
+        importados = await pessoa_service.importar_pessoas(tenant_scope, log_id)
         tempo_ms = (time.time() - start_time) * 1000
-        await sync_service.finalizar_sync_log(log.id, True, importados, 0, None, tempo_ms)
         return {
             "sucesso": True,
             "mensagem": f"{importados} pessoas sincronizadas",
             "tempo_ms": tempo_ms,
         }
     except Exception as exc:
-        await sync_service.finalizar_sync_log(log.id, False, 0, 0, str(exc), 0)
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        await sync_service.finalizar_sync_log(log_id, False, 0, 0, str(exc), 0)
+        status_code = 403 if isinstance(exc, SankhyaGatewayAuthorizationError) else 500
+        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
 
 
 @router.post(
@@ -226,7 +247,9 @@ async def sincronizar_produtos(
     tenant_id: uuid.UUID = Depends(get_tenant_id),
     sync_service: SankhyaSyncService = Depends(get_sync_service),
     produto_service: SankhyaProdutoService = Depends(get_produto_service),
+    policy_service: ErpSyncPolicyService = Depends(get_policy_service),
 ):
+    await _garantir_sync_manual(policy_service, tenant_id, "produtos")
     tenant_scope = str(tenant_id)
     log = await sync_service.iniciar_sync_log(tenant_scope, "produtos", "import")
 
@@ -234,7 +257,6 @@ async def sincronizar_produtos(
         start_time = time.time()
         importados = await produto_service.importar_produtos(tenant_scope, log.id)
         tempo_ms = (time.time() - start_time) * 1000
-        await sync_service.finalizar_sync_log(log.id, True, importados, 0, None, tempo_ms)
         return {
             "sucesso": True,
             "mensagem": f"{importados} produtos sincronizados",
@@ -242,7 +264,8 @@ async def sincronizar_produtos(
         }
     except Exception as exc:
         await sync_service.finalizar_sync_log(log.id, False, 0, 0, str(exc), 0)
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
+        status_code = 403 if isinstance(exc, SankhyaGatewayAuthorizationError) else 500
+        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
 
 
 @router.post(
@@ -254,7 +277,10 @@ async def sincronizar_completo(
     sync_service: SankhyaSyncService = Depends(get_sync_service),
     pessoa_service: SankhyaPessoaService = Depends(get_pessoa_service),
     produto_service: SankhyaProdutoService = Depends(get_produto_service),
+    policy_service: ErpSyncPolicyService = Depends(get_policy_service),
 ):
+    await _garantir_sync_manual(policy_service, tenant_id, "pessoas")
+    await _garantir_sync_manual(policy_service, tenant_id, "produtos")
     tenant_scope = str(tenant_id)
 
     log_pessoas = await sync_service.iniciar_sync_log(tenant_scope, "pessoas", "import")

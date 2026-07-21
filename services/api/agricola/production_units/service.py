@@ -116,6 +116,73 @@ class ProductionUnitService(BaseService[ProductionUnit]):
             result.append(d)
         return result
 
+    async def sincronizar_de_cultivo_area(
+        self, cultivo_area: CultivoArea, safra_id: uuid.UUID
+    ) -> ProductionUnit:
+        """
+        Cria ou atualiza a ProductionUnit correspondente a um CultivoArea, mantendo
+        os dois vínculos (talhão × cultivo) em sincronia.
+
+        Idempotente por (tenant, safra, cultivo, área): reaproveita a PU existente
+        (mesmo que ENCERRADA, reativando-a) em vez de duplicar. `percentual_participacao`
+        nunca é sobrescrito automaticamente — só é definido como 100% na criação inicial;
+        ajustes manuais (ex: consórcio) feitos na tela de Production Units são preservados
+        em sincronizações futuras.
+        """
+        stmt = select(ProductionUnit).where(
+            and_(
+                ProductionUnit.tenant_id == self.tenant_id,
+                ProductionUnit.safra_id == safra_id,
+                ProductionUnit.cultivo_id == cultivo_area.cultivo_id,
+                ProductionUnit.area_id == cultivo_area.area_id,
+            )
+        )
+        pu = (await self.session.execute(stmt)).scalar_one_or_none()
+        if pu:
+            pu.cultivo_area_id = cultivo_area.id
+            pu.area_ha = float(cultivo_area.area_ha)
+            if pu.status == "ENCERRADA":
+                pu.status = "ATIVA"
+            await self.session.flush()
+            return pu
+
+        pu = ProductionUnit(
+            tenant_id=self.tenant_id,
+            safra_id=safra_id,
+            cultivo_id=cultivo_area.cultivo_id,
+            area_id=cultivo_area.area_id,
+            cultivo_area_id=cultivo_area.id,
+            percentual_participacao=100.0,
+            area_ha=float(cultivo_area.area_ha),
+            status="ATIVA",
+        )
+        self.session.add(pu)
+        await self.session.flush()
+        return pu
+
+    async def encerrar_por_cultivo_area(
+        self, safra_id: uuid.UUID, cultivo_id: uuid.UUID, area_id: uuid.UUID
+    ) -> None:
+        """
+        Encerra (nunca deleta) a ProductionUnit correspondente quando o CultivoArea
+        que a originou é removido — preserva o histórico de CostAllocation/DRE já
+        lançado contra essa unidade. Silencioso se não houver PU ativa para o combo
+        (ex: sincronização nunca rodou antes, ou já estava encerrada).
+        """
+        stmt = select(ProductionUnit).where(
+            and_(
+                ProductionUnit.tenant_id == self.tenant_id,
+                ProductionUnit.safra_id == safra_id,
+                ProductionUnit.cultivo_id == cultivo_id,
+                ProductionUnit.area_id == area_id,
+                ProductionUnit.status == "ATIVA",
+            )
+        )
+        pu = (await self.session.execute(stmt)).scalar_one_or_none()
+        if pu:
+            pu.status = "ENCERRADA"
+            await self.session.flush()
+
     async def _get_or_fail_tenant(self, pu_id: uuid.UUID) -> ProductionUnit:
         stmt = select(ProductionUnit).where(
             and_(ProductionUnit.id == pu_id, ProductionUnit.tenant_id == self.tenant_id)

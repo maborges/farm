@@ -115,5 +115,27 @@ class ErpProviderRuntime(Protocol):
         """
         ...
 
+    async def sync_feature(
+        self,
+        tenant_id: str,
+        feature_code: str,
+        *,
+        scheduled: bool = False,
+    ) -> dict[str, Any]:
+        """Executar um fluxo usando o runtime legado oficial do provider."""
+        ...
+
+    async def get_person_by_external_id(
+        self,
+        tenant_id: str,
+        external_id: str,
+    ) -> dict[str, Any] | None:
+        """Consultar uma pessoa no ERP pelo identificador externo."""
+        ...
+
+    async def list_people(self, tenant_id: str) -> list[dict[str, Any]]:
+        """Listar pessoas somente para políticas automáticas de escopo total."""
+        ...
+
 
 __all__ = ["ErpProviderRuntime"]

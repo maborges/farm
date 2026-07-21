@@ -1,10 +1,10 @@
 # ruff: noqa: S105, S106
 from __future__ import annotations
 
-import json
 from datetime import datetime, timezone
 from typing import Any, cast
 from unittest.mock import AsyncMock
+from urllib.parse import parse_qs
 
 import httpx
 import pytest
@@ -83,7 +83,7 @@ async def test_gateway_test_connection_chama_authenticate_e_sanitiza_resposta() 
     async def handler(request: httpx.Request) -> httpx.Response:
         captured["url"] = str(request.url)
         captured["headers"] = dict(request.headers)
-        captured["body"] = json.loads(request.content.decode())
+        captured["body"] = parse_qs(request.content.decode())
         return httpx.Response(
             200,
             json={
@@ -101,9 +101,12 @@ async def test_gateway_test_connection_chama_authenticate_e_sanitiza_resposta() 
 
     assert captured["url"] == "https://gateway.example/authenticate"
     assert captured["headers"]["x-token"] == "x-token"
-    assert captured["body"]["client_id"] == "client-123"
-    assert captured["body"]["client_secret"] == "client-secret"
-    assert captured["body"]["grant_type"] == "client_credentials"
+    assert captured["headers"]["content-type"].startswith(
+        "application/x-www-form-urlencoded"
+    )
+    assert captured["body"]["client_id"] == ["client-123"]
+    assert captured["body"]["client_secret"] == ["client-secret"]
+    assert captured["body"]["grant_type"] == ["client_credentials"]
     assert diagnostic.sucesso is True
     assert diagnostic.token_obtido is True
     assert diagnostic.token_expires_at == datetime(

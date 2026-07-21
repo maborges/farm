@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from sqlalchemy import Select, and_, func, or_, select
+from sqlalchemy import Select, and_, func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from integracoes.models import (
@@ -85,7 +85,7 @@ class ExternalRecordAssociationService:
             actor_usuario_id=payload.created_by_usuario_id,
             reason="association_created",
         )
-        await self.db.commit()
+        await self._commit_preserving_rls()
         await self.db.refresh(association)
         return association
 
@@ -135,7 +135,7 @@ class ExternalRecordAssociationService:
             previous_status=previous_status,
             new_status=association.status,
         )
-        await self.db.commit()
+        await self._commit_preserving_rls()
         await self.db.refresh(association)
         return association
 
@@ -276,7 +276,7 @@ class ExternalRecordAssociationService:
             previous_status=previous_status,
             new_status=association.status,
         )
-        await self.db.commit()
+        await self._commit_preserving_rls()
         await self.db.refresh(association)
         return association
 
@@ -322,7 +322,7 @@ class ExternalRecordAssociationService:
             previous_status=previous_status,
             new_status=association.status,
         )
-        await self.db.commit()
+        await self._commit_preserving_rls()
         await self.db.refresh(association)
         return association
 
@@ -350,7 +350,7 @@ class ExternalRecordAssociationService:
             previous_status=previous_status,
             new_status=association.status,
         )
-        await self.db.commit()
+        await self._commit_preserving_rls()
         await self.db.refresh(association)
         return association
 
@@ -662,7 +662,7 @@ class ExternalRecordAssociationService:
                 previous_status=previous_status,
                 new_status=association.status,
             )
-            await self.db.commit()
+            await self._commit_preserving_rls()
             await self.db.refresh(association)
         return association
 
@@ -700,6 +700,17 @@ class ExternalRecordAssociationService:
         )
         self.db.add(history)
         await self.db.flush()
+
+    async def _commit_preserving_rls(self) -> None:
+        """Confirma alterações e restaura o SET LOCAL usado pelo isolamento tenant."""
+        await self.db.commit()
+        tenant_id = self.db.info.get("tenant_id")
+        bind = self.db.get_bind()
+        if tenant_id and bind.dialect.name == "postgresql":
+            await self.db.execute(
+                text("SELECT set_config('app.current_tenant_id', :tenant_id, true)"),
+                {"tenant_id": str(tenant_id)},
+            )
 
     def _resolve_status_event(self, previous_status: str, new_status: str) -> str:
         if previous_status == ExternalRecordAssociationStatus.INACTIVE.value and new_status == (

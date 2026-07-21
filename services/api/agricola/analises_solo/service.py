@@ -7,8 +7,11 @@ from core.cadastros.produtos.models import ProdutoCultura, SoloParametroCultura
 from core.cadastros.propriedades.models import AreaRural
 from agricola.analises_solo.models import AnaliseSolo, RegraAgronomica
 from agricola.analises_solo.schemas import AnaliseSoloCreate
-from agricola.tarefas.service import TarefaService
+from agricola.tarefas.service import TarefaService, STATUS_TAREFA_ATIVA
 from agricola.tarefas.schemas import TarefaCreate
+from agricola.tarefas.models import SafraTarefa
+from agricola.safras.service import SafraService
+from core.exceptions import BusinessRuleError
 
 
 class AnaliseSoloService(BaseService[AnaliseSolo]):
@@ -529,22 +532,57 @@ class AnaliseSoloService(BaseService[AnaliseSolo]):
             return analise
         return None
 
-    async def vincular_e_gerar_tarefas(self, analise_id: UUID, safra_id: UUID, user_id: UUID | None = None) -> list[UUID]:
+    async def _tarefa_ativa_existente(
+        self, analise_id: UUID, safra_id: UUID, talhao_id: UUID, tipo: str
+    ) -> SafraTarefa | None:
+        """
+        Busca uma SafraTarefa já existente e ativa (não CANCELADA/INVALIDADA)
+        para a mesma combinação tenant+analise_solo+safra+talhao+tipo, garantindo
+        idempotência em chamadas repetidas de vincular_e_gerar_tarefas.
+        """
+        stmt = select(SafraTarefa).where(
+            SafraTarefa.tenant_id == self.tenant_id,
+            SafraTarefa.analise_solo_id == analise_id,
+            SafraTarefa.safra_id == safra_id,
+            SafraTarefa.talhao_id == talhao_id,
+            SafraTarefa.tipo == tipo,
+            SafraTarefa.status.in_(STATUS_TAREFA_ATIVA),
+        )
+        result = await self.session.execute(stmt)
+        return result.scalars().first()
+
+    async def vincular_e_gerar_tarefas(
+        self, analise_id: UUID, safra_id: UUID, user_id: UUID | None = None
+    ) -> dict:
         """
         Gera tarefas de correção de solo com base nas recomendações da análise.
         As tarefas são criadas com origem 'SOLO' e status 'PENDENTE_APROVACAO'.
+
+        Idempotente: se já existir SafraTarefa ativa (PENDENTE_APROVACAO, APROVADA,
+        EM_EXECUCAO ou CONCLUIDA) para a mesma combinação analise+safra+talhao+tipo,
+        nenhuma nova tarefa é criada — a existente é reaproveitada. Tarefas
+        CANCELADA/INVALIDADA não bloqueiam a geração de uma nova tarefa equivalente.
+
+        Retorna dict com tarefas_geradas (novas), tarefas_existentes (reaproveitadas),
+        quantidade_gerada e quantidade_existente.
         """
         analise = await self.get_or_fail(analise_id)
+
+        # Valida que a safra informada existe e pertence ao mesmo tenant da análise.
+        safra_svc = SafraService(self.session, self.tenant_id)
+        await safra_svc.get_or_fail(safra_id)
+
         recomendacoes = await self.gerar_recomendacoes(analise)
-        
+
         # Busca o talhão para saber a área
         stmt_t = select(AreaRural).where(AreaRural.id == analise.talhao_id)
         res_t = await self.session.execute(stmt_t)
         talhao = res_t.scalar_one_or_none()
         area_ha = float(talhao.area_hectares_manual or talhao.area_hectares or 0) if talhao else 0
-        
+
         tarefa_svc = TarefaService(self.session, self.tenant_id)
         tarefas_criadas = []
+        tarefas_existentes = []
 
         # Custos Estimados de Mercado (Fallback)
         # TODO: Buscar de cadastros_produtos.preco_medio se possível
@@ -561,21 +599,25 @@ class AnaliseSoloService(BaseService[AnaliseSolo]):
             dose = float(cal["dose_t_ha"])
             qtd_total_kg = dose * area_ha * 1000
             custo = (dose * area_ha) * PRECOS["CALCARIO"]
-            
-            t = await tarefa_svc.criar(safra_id, TarefaCreate(
-                talhao_id=analise.talhao_id,
-                analise_solo_id=analise.id,
-                origem="SOLO",
-                tipo="CALAGEM",
-                descricao=f"Calagem via análise de solo — Dose: {dose} t/ha",
-                obs=cal["observacao"],
-                prioridade="ALTA",
-                area_ha=area_ha,
-                dose_estimada_kg_ha=dose * 1000,
-                quantidade_total_estimada_kg=qtd_total_kg,
-                custo_estimado=custo
-            ), user_id=user_id)
-            tarefas_criadas.append(t.id)
+
+            existente = await self._tarefa_ativa_existente(analise.id, safra_id, analise.talhao_id, "CALAGEM")
+            if existente:
+                tarefas_existentes.append(existente.id)
+            else:
+                t = await tarefa_svc.criar(safra_id, TarefaCreate(
+                    talhao_id=analise.talhao_id,
+                    analise_solo_id=analise.id,
+                    origem="SOLO",
+                    tipo="CALAGEM",
+                    descricao=f"Calagem via análise de solo — Dose: {dose} t/ha",
+                    obs=cal["observacao"],
+                    prioridade="ALTA",
+                    area_ha=area_ha,
+                    dose_estimada_kg_ha=dose * 1000,
+                    quantidade_total_estimada_kg=qtd_total_kg,
+                    custo_estimado=custo
+                ), user_id=user_id)
+                tarefas_criadas.append(t.id)
 
         # 2. Fósforo (P)
         if recomendacoes.get("fosforo") and recomendacoes["fosforo"].get("rec_p2o5_kg_ha"):
@@ -584,42 +626,50 @@ class AnaliseSoloService(BaseService[AnaliseSolo]):
             qtd_total_kg = dose * area_ha
             custo = qtd_total_kg * PRECOS["P2O5"]
 
-            t = await tarefa_svc.criar(safra_id, TarefaCreate(
-                talhao_id=analise.talhao_id,
-                analise_solo_id=analise.id,
-                origem="SOLO",
-                tipo="ADUBACAO_FOSFORO",
-                descricao=f"Adubação de Fósforo — Dose: {dose} kg/ha de P2O5",
-                obs=p["observacao"],
-                prioridade="ALTA",
-                area_ha=area_ha,
-                dose_estimada_kg_ha=dose,
-                quantidade_total_estimada_kg=qtd_total_kg,
-                custo_estimado=custo
-            ), user_id=user_id)
-            tarefas_criadas.append(t.id)
+            existente = await self._tarefa_ativa_existente(analise.id, safra_id, analise.talhao_id, "ADUBACAO_FOSFORO")
+            if existente:
+                tarefas_existentes.append(existente.id)
+            else:
+                t = await tarefa_svc.criar(safra_id, TarefaCreate(
+                    talhao_id=analise.talhao_id,
+                    analise_solo_id=analise.id,
+                    origem="SOLO",
+                    tipo="ADUBACAO_FOSFORO",
+                    descricao=f"Adubação de Fósforo — Dose: {dose} kg/ha de P2O5",
+                    obs=p["observacao"],
+                    prioridade="ALTA",
+                    area_ha=area_ha,
+                    dose_estimada_kg_ha=dose,
+                    quantidade_total_estimada_kg=qtd_total_kg,
+                    custo_estimado=custo
+                ), user_id=user_id)
+                tarefas_criadas.append(t.id)
 
         # 3. Potássio (K)
         if recomendacoes.get("potassio") and recomendacoes["potassio"].get("rec_k2o_kg_ha"):
             k = recomendacoes["potassio"]
             dose = float(k["rec_k2o_kg_ha"])
             qtd_total_kg = dose * area_ha
-            custo = qtd_total_kg * PRECOS["POTASSIO"]
+            custo = qtd_total_kg * PRECOS["K2O"]
 
-            t = await tarefa_svc.criar(safra_id, TarefaCreate(
-                talhao_id=analise.talhao_id,
-                analise_solo_id=analise.id,
-                origem="SOLO",
-                tipo="ADUBACAO_POTASSIO",
-                descricao=f"Adubação de Potássio — Dose: {dose} kg/ha de K2O",
-                obs=k["observacao"],
-                prioridade="ALTA",
-                area_ha=area_ha,
-                dose_estimada_kg_ha=dose,
-                quantidade_total_estimada_kg=qtd_total_kg,
-                custo_estimado=custo
-            ), user_id=user_id)
-            tarefas_criadas.append(t.id)
+            existente = await self._tarefa_ativa_existente(analise.id, safra_id, analise.talhao_id, "ADUBACAO_POTASSIO")
+            if existente:
+                tarefas_existentes.append(existente.id)
+            else:
+                t = await tarefa_svc.criar(safra_id, TarefaCreate(
+                    talhao_id=analise.talhao_id,
+                    analise_solo_id=analise.id,
+                    origem="SOLO",
+                    tipo="ADUBACAO_POTASSIO",
+                    descricao=f"Adubação de Potássio — Dose: {dose} kg/ha de K2O",
+                    obs=k["observacao"],
+                    prioridade="ALTA",
+                    area_ha=area_ha,
+                    dose_estimada_kg_ha=dose,
+                    quantidade_total_estimada_kg=qtd_total_kg,
+                    custo_estimado=custo
+                ), user_id=user_id)
+                tarefas_criadas.append(t.id)
 
         # 4. Nitrogênio (N)
         if recomendacoes.get("nitrogenio") and recomendacoes["nitrogenio"].get("rec_n_kg_ha"):
@@ -628,19 +678,28 @@ class AnaliseSoloService(BaseService[AnaliseSolo]):
             qtd_total_kg = dose * area_ha
             custo = qtd_total_kg * PRECOS["N"]
 
-            t = await tarefa_svc.criar(safra_id, TarefaCreate(
-                talhao_id=analise.talhao_id,
-                analise_solo_id=analise.id,
-                origem="SOLO",
-                tipo="ADUBACAO_NITROGENIO",
-                descricao=f"Adubação de Nitrogênio — Dose: {dose} kg/ha de N",
-                obs=n["observacao"],
-                prioridade="MEDIA",
-                area_ha=area_ha,
-                dose_estimada_kg_ha=dose,
-                quantidade_total_estimada_kg=qtd_total_kg,
-                custo_estimado=custo
-            ), user_id=user_id)
-            tarefas_criadas.append(t.id)
+            existente = await self._tarefa_ativa_existente(analise.id, safra_id, analise.talhao_id, "ADUBACAO_NITROGENIO")
+            if existente:
+                tarefas_existentes.append(existente.id)
+            else:
+                t = await tarefa_svc.criar(safra_id, TarefaCreate(
+                    talhao_id=analise.talhao_id,
+                    analise_solo_id=analise.id,
+                    origem="SOLO",
+                    tipo="ADUBACAO_NITROGENIO",
+                    descricao=f"Adubação de Nitrogênio — Dose: {dose} kg/ha de N",
+                    obs=n["observacao"],
+                    prioridade="MEDIA",
+                    area_ha=area_ha,
+                    dose_estimada_kg_ha=dose,
+                    quantidade_total_estimada_kg=qtd_total_kg,
+                    custo_estimado=custo
+                ), user_id=user_id)
+                tarefas_criadas.append(t.id)
 
-        return tarefas_criadas
+        return {
+            "tarefas_geradas": tarefas_criadas,
+            "tarefas_existentes": tarefas_existentes,
+            "quantidade_gerada": len(tarefas_criadas),
+            "quantidade_existente": len(tarefas_existentes),
+        }

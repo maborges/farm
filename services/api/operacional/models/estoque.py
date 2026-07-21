@@ -21,7 +21,7 @@ class Deposito(Base):
     __table_args__ = (
         ForeignKeyConstraint(
             ["tenant_id", "unidade_produtiva_id"],
-            ["farms.unidades_produtivas.tenant_id", "farms.unidades_produtivas.id"],
+            ["unidades_produtivas.tenant_id", "unidades_produtivas.id"],
             name="fk_ed_tenant_unidade_produtiva",
             ondelete="NO ACTION",
         ),

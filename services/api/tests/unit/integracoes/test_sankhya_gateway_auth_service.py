@@ -1,12 +1,17 @@
+# ruff: noqa: S105, S106, UP017
 from __future__ import annotations
 
-import json
 from datetime import datetime, timedelta, timezone
+from urllib.parse import parse_qs
 
 import httpx
 import pytest
 
-from integracoes.sankhya.services.auth_service import SankhyaGatewayAuthService, SankhyaGatewayToken, SankhyaConnectionData
+from integracoes.sankhya.services.auth_service import (
+    SankhyaConnectionData,
+    SankhyaGatewayAuthService,
+    SankhyaGatewayToken,
+)
 from integracoes.security import encrypt_integration_secret
 
 
@@ -42,7 +47,7 @@ async def test_gateway_auth_monta_headers_e_body_corretos() -> None:
     async def handler(request: httpx.Request) -> httpx.Response:
         captured["url"] = str(request.url)
         captured["headers"] = request.headers
-        captured["body"] = json.loads(request.content.decode())
+        captured["body"] = parse_qs(request.content.decode())
         return httpx.Response(200, json={"access_token": "token-abc", "expires_in": 120})
 
     client = httpx.AsyncClient(transport=httpx.MockTransport(handler))
@@ -56,9 +61,12 @@ async def test_gateway_auth_monta_headers_e_body_corretos() -> None:
     assert token == "token-abc"
     assert captured["url"] == "https://gateway.example/authenticate"
     assert captured["headers"]["x-token"] == "x-token"
-    assert captured["body"]["client_id"] == "client-123"
-    assert captured["body"]["client_secret"] == "client-secret"
-    assert captured["body"]["grant_type"] == "client_credentials"
+    assert captured["headers"]["content-type"].startswith(
+        "application/x-www-form-urlencoded"
+    )
+    assert captured["body"]["client_id"] == ["client-123"]
+    assert captured["body"]["client_secret"] == ["client-secret"]
+    assert captured["body"]["grant_type"] == ["client_credentials"]
 
 
 @pytest.mark.asyncio

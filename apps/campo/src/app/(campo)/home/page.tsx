@@ -2,12 +2,13 @@
 
 import { useLiveQuery } from "dexie-react-hooks";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { type LucideIcon, BookText, Sprout, Wheat, ShieldHalf, Scale, Syringe, CloudSun, Dna, HeartPulse, Baby, Scissors } from "lucide-react";
 import { db, type CachedRecomendacaoOperacional, type LocalTask } from "@/lib/db";
-import { useSessionStore } from "@/lib/stores/session-store";
+import { consumeSessionClearNotice, useSessionStore, type SessionClearNotice } from "@/lib/stores/session-store";
 import { useSyncStore } from "@/lib/stores/sync-store";
 import { CampoButton, CampoPill, CampoSectionTitle, CampoSurface } from "@/components/campo/ui";
+import { CampoSessionClearNotice } from "@/components/campo/session-clear-notice";
 import { TaskDomainBadge } from "@/components/campo/task-domain-badge";
 import { formatPecuariaTaskType } from "@/lib/pecuaria-tasks";
 import { formatTaskDomainLabel, resolveTaskDomain, type TaskDomain } from "@/lib/task-domain";
@@ -54,6 +55,11 @@ export default function HomePage() {
   const { session } = useSessionStore();
   const { pendingCount } = useSyncStore();
   const [domainFilter, setDomainFilter] = useState<DomainFilter>("ALL");
+  const [clearNotice, setClearNotice] = useState<SessionClearNotice | null>(null);
+
+  useEffect(() => {
+    setClearNotice(consumeSessionClearNotice());
+  }, []);
 
   const hoje = new Date().toISOString().slice(0, 10);
 
@@ -166,6 +172,7 @@ export default function HomePage() {
 
   return (
     <div className="flex flex-col gap-4 pb-28">
+      {clearNotice && <CampoSessionClearNotice notice={clearNotice} />}
       <CampoSurface className="p-4 sm:p-5">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">

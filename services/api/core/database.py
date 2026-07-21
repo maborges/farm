@@ -30,7 +30,13 @@ engine = create_async_engine(
         "pool_recycle": 1800,
         "pool_timeout": settings.db_pool_timeout,
     }),
-    connect_args={"check_same_thread": False} if "sqlite" in DB_URL else {"server_settings": {"search_path": "farms"}}
+    connect_args={"check_same_thread": False} if "sqlite" in DB_URL else {
+        "server_settings": {
+            "search_path": "farms",
+            # Evita conexões penduradas indefinidamente (idle em transação ou query travada).
+            "options": "-c idle_in_transaction_session_timeout=30000 -c statement_timeout=60000",
+        }
+    }
 )
 
 # Fábrica de Sessoes Assíncronas (compatível com SQLAlchemy 1.4 e 2.0)

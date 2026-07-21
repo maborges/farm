@@ -34,6 +34,12 @@ from integracoes.models import (
     MarketplaceIntegracao,
     TenantIntegracao,
 )
+from integracoes.sankhya.models import (
+    SankhyaLancamentoFinanceiro,
+    SankhyaNFe,
+    SankhyaPessoa,
+    SankhyaProduto,
+)
 from integracoes.security import encrypt_integration_secret
 
 REPO_ROOT = Path(__file__).resolve().parents[5]
@@ -115,6 +121,23 @@ def test_modelos_operacionais_expoem_colunas_canonicas() -> None:
         "erros",
     } <= job_columns
     assert {"last_job_id", "status", "consecutive_failures", "checked_at"} <= health_columns
+
+
+def test_staging_sankhya_usa_chaves_externas_compostas_por_tenant() -> None:
+    expected = {
+        SankhyaPessoa: {"uq_sankhya_pessoas_tenant_external"},
+        SankhyaProduto: {"uq_sankhya_produtos_tenant_external"},
+        SankhyaNFe: {
+            "uq_sankhya_nfe_tenant_external",
+            "uq_sankhya_nfe_tenant_access_key",
+        },
+        SankhyaLancamentoFinanceiro: {"uq_sankhya_lancamentos_tenant_external"},
+    }
+
+    for model, constraint_names in expected.items():
+        actual = {constraint.name for constraint in model.__table__.constraints}
+        assert constraint_names <= actual
+        assert model.__table__.c.sankhya_id.unique is not True
 
 
 @pytest.mark.asyncio

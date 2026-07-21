@@ -91,6 +91,28 @@ Este documento lista e agrupa as rotas do Monolito Backend (FastAPI) e a estrutu
 - `/api/v1/iot/john_deere`, `/api/v1/iot/case_ih`
 - `/api/v1/ia-diagnostico/pragas_doencas`, `/api/v1/ia-diagnostico/tratamentos`
 
+### Integrações ERP
+**Módulo**: Integrações / ERP canônico com adapter Sankhya
+- `/api/v1/integracoes/erp/status`, `/health`, `/jobs`, `/timeline`: leitura operacional canônica.
+- `GET /api/v1/integracoes/erp/policies`: políticas dos recursos do ERP ativo no tenant.
+- `PATCH /api/v1/integracoes/erp/policies/{feature_code}`: modo, frequência e controles da política existente.
+- `POST /api/v1/integracoes/erp/pessoas/lookup`: consulta uma pessoa pelo ID externo, sem persistência.
+- `POST /api/v1/integracoes/erp/pessoas/import`: cria ou atualiza a `Pessoa` canônica e reconcilia o vínculo externo.
+- Cada política publica a URL resolvida, o serviço e a entidade externa consumida; esses dados são derivados do contrato do adapter e não são editáveis pelo usuário.
+- `/api/v1/integracoes/sankhya/sync/produtos`: execução manual legada preservada e governada pela política canônica.
+- `/api/v1/integracoes/sankhya/sync/pessoas`: compatibilidade HTTP preservada, mas o modo manual orienta o usuário ao fluxo por ID e não autoriza carga em massa.
+
+**Execução automática**
+- O loop ERP reutiliza `core/background_jobs.py` e o registry de providers.
+- Cada tenant recebe sessão e contexto RLS próprios antes da leitura ou execução.
+- Somente políticas `AGENDADO`, ativas e declaradas pelo adapter em `runtime_sync_modes` são executadas.
+- Para Pessoas, `LINKED_ONLY` atualiza somente vínculos existentes e `ALL_EXTERNAL` importa todo o cadastro do ERP; o segundo exige opção automática explícita.
+
+**Persistência**
+- Configuração e políticas: `tenant_integracoes`, `integration_features` e `integration_sync_policies`.
+- Execuções: `integration_jobs`, mantendo correlação com os logs Sankhya legados.
+- Staging Sankhya: chaves externas são únicas por `(tenant_id, identificador_externo)`, nunca globalmente.
+
 ---
 
 ## ROTAS FRONTEND
@@ -107,6 +129,12 @@ Este documento lista e agrupa as rotas do Monolito Backend (FastAPI) e a estrutu
   - `/cadastros/propriedades/[id]/visao-territorial`
   - `/cadastros/imoveis/[id]/visao-fundiaria`
   - `/dashboard/certificacoes-esg`
+- **Configuração ERP**:
+  - `/dashboard/settings/integracoes`
+  - O editor de regras altera `IntegrationSyncPolicy`; não cria configuração ou tabela paralela.
+- **Cadastro de Pessoas**:
+  - `/cadastros/pessoas` e `/cadastros/pessoas/{id}` consultam/importam pelo ID externo quando o recurso Pessoas do ERP está ativo.
+  - Sem ERP configurado, o cadastro local continua disponível.
 - **Origem dos dados**: Fetch server-side no `page.tsx` -> TanStack Query -> Client Components via `shadcn/ui`.
 - **Status**: RSC implementado como default.
 
