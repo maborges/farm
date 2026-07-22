@@ -294,24 +294,40 @@ class OnboardingService:
         self.session.add(novo_usuario)
         await self.session.flush()  # gera ID sem commit
 
-        # Aceitar convite com o novo user_id
-        await self.aceitar_convite(token, novo_usuario.id)
+        # Aceitar convite — resolve a conta pelo e-mail (já flushed, portanto visível na query)
+        await self.aceitar_convite(token)
         return novo_usuario
 
-    async def aceitar_convite(self, token: str, user_id: uuid.UUID):
+    async def aceitar_convite(self, token: str):
+        """
+        Vincula a conta dona do e-mail convidado ao tenant do convite.
+
+        Não depende de sessão/login: a autorização já veio do convidador ao
+        enviar o convite para aquele e-mail. Provar posse da conta acontece
+        depois, no login normal — não é pré-requisito para criar o vínculo.
+        """
         stmt = select(ConviteAcesso).where(
-            ConviteAcesso.token_convite == token, 
+            ConviteAcesso.token_convite == token,
             ConviteAcesso.status == "PENDENTE"
         )
         convite = (await self.session.execute(stmt)).scalar_one_or_none()
-        
+
         if not convite:
             raise HTTPException(status_code=404, detail="Convite inválido, expirado ou já aceito.")
-            
+
         if convite.data_expiracao < datetime.now(timezone.utc):
             convite.status = "EXPIRADO"
             await self.session.commit()
             raise HTTPException(status_code=400, detail="Convite expirado.")
+
+        usuario_stmt = select(Usuario).where(Usuario.email == convite.email_convidado)
+        usuario = (await self.session.execute(usuario_stmt)).scalar_one_or_none()
+        if not usuario:
+            raise HTTPException(
+                status_code=404,
+                detail="Nenhuma conta encontrada para este e-mail. Cadastre-se primeiro."
+            )
+        user_id = usuario.id
 
         # Vínculo no Tenant
         # Checar unicidade de Vínculo (Regra 10)
@@ -330,8 +346,17 @@ class OnboardingService:
             )
             self.session.add(tu)
             
-        # Vínculo nas Unidades Produtivas
+        # Vínculo nas Unidades Produtivas — lista vazia no convite significa "todas
+        # as UPs atuais do tenant" (documentado em InviteCreateRequest.fazendas_ids).
         unidades_ids = getattr(convite, 'unidades_produtivas_ids', None) or getattr(convite, 'fazendas_ids', [])
+        if not unidades_ids:
+            todas_fazendas = (
+                await self.session.execute(
+                    select(Fazenda.id).where(Fazenda.tenant_id == convite.tenant_id, Fazenda.ativo == True)
+                )
+            ).scalars().all()
+            unidades_ids = [str(f) for f in todas_fazendas]
+
         for fazenda_id_str in unidades_ids:
             check_fu = select(FazendaUsuario).where(
                 FazendaUsuario.usuario_id == user_id,

@@ -436,16 +436,18 @@ async def registrar_via_convite(
     return TokenResponse(access_token=access_token)
 
 
-@router.post("/convites/aceitar", summary="Membro clica no link e aceita a vaga na empresa/fazenda")
+@router.post("/convites/aceitar", summary="Vincula a conta do e-mail convidado ao tenant do convite")
 async def aceitar_convite(
     token: str,
     session: AsyncSession = Depends(get_session),
-    claims: dict = Depends(get_current_user_claims) # Ele precisa ter criado uma conta/logado pra aceitar
 ):
-    user_id = uuid.UUID(claims["sub"])
+    """
+    Não requer autenticação — a autorização já veio do convidador ao enviar
+    o convite para aquele e-mail. Se a conta ainda não existir, o frontend
+    direciona para /convites/registrar.
+    """
     onboard_svc = OnboardingService(session)
-
-    resultado = await onboard_svc.aceitar_convite(token, user_id)
+    resultado = await onboard_svc.aceitar_convite(token)
     return resultado
 
 

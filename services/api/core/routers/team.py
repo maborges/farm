@@ -335,7 +335,7 @@ async def invite_team_member(
         tenant_id=tenant_id,
         email_convidado=data.email,
         perfil_id=perfil_uuid,
-        unidades_produtivas_ids=data.unidades_produtivas_ids,
+        unidades_produtivas_ids=data.fazendas_ids,
         token_convite=token,
         status="PENDENTE",
         data_expiracao=expiracao,
@@ -414,6 +414,124 @@ async def list_pending_invites(
         ))
 
     return invites
+
+
+class FazendaAccessResponse(BaseModel):
+    id: str
+    nome: str
+    role: str
+    perfil_fazenda_id: str | None = None
+    vigencia_inicio: str | None = None
+    vigencia_fim: str | None = None
+
+
+class FazendaAccessInput(BaseModel):
+    unidade_produtiva_id: str
+    perfil_fazenda_id: str | None = None
+    vigencia_inicio: str | None = None
+    vigencia_fim: str | None = None
+
+
+class UpdateMemberFazendasRequest(BaseModel):
+    fazendas: List[FazendaAccessInput]
+
+
+@router.get("/members/{usuario_id}/fazendas", response_model=List[FazendaAccessResponse], dependencies=[Depends(require_tenant_permission("tenant:users:view"))])
+async def get_member_fazendas(
+    usuario_id: str,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    session: AsyncSession = Depends(get_session)
+):
+    """Lista os acessos por unidade produtiva de um membro (vigência e perfil específico)."""
+    try:
+        usuario_uuid = uuid.UUID(usuario_id)
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Identificador inválido.")
+
+    stmt = (
+        select(FazendaUsuario, Fazenda, PerfilAcesso)
+        .join(Fazenda, Fazenda.id == FazendaUsuario.unidade_produtiva_id)
+        .outerjoin(PerfilAcesso, FazendaUsuario.perfil_fazenda_id == PerfilAcesso.id)
+        .where(
+            FazendaUsuario.tenant_id == tenant_id,
+            FazendaUsuario.usuario_id == usuario_uuid,
+        )
+    )
+    rows = (await session.execute(stmt)).all()
+
+    return [
+        FazendaAccessResponse(
+            id=str(fazenda.id),
+            nome=fazenda.nome,
+            role=perfil.nome.lower() if perfil else "operador",
+            perfil_fazenda_id=str(fu.perfil_fazenda_id) if fu.perfil_fazenda_id else None,
+            vigencia_inicio=fu.vigencia_inicio.isoformat() if fu.vigencia_inicio else None,
+            vigencia_fim=fu.vigencia_fim.isoformat() if fu.vigencia_fim else None,
+        )
+        for fu, fazenda, perfil in rows
+    ]
+
+
+@router.put("/members/{usuario_id}/fazendas", dependencies=[Depends(require_tenant_permission("tenant:users:update"))])
+async def update_member_fazendas(
+    usuario_id: str,
+    data: UpdateMemberFazendasRequest,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    session: AsyncSession = Depends(get_session)
+):
+    """Sincroniza os acessos por unidade produtiva de um membro (substitui o conjunto atual)."""
+    try:
+        usuario_uuid = uuid.UUID(usuario_id)
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Identificador inválido.")
+
+    usuario = await session.get(Usuario, usuario_uuid)
+    if not usuario:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Usuário não encontrado.")
+
+    existentes_stmt = select(FazendaUsuario).where(
+        FazendaUsuario.tenant_id == tenant_id,
+        FazendaUsuario.usuario_id == usuario_uuid,
+    )
+    existentes = {fu.unidade_produtiva_id: fu for fu in (await session.execute(existentes_stmt)).scalars().all()}
+
+    enviados_ids = set()
+    for item in data.fazendas:
+        try:
+            up_id = uuid.UUID(item.unidade_produtiva_id)
+            perfil_fazenda_id = uuid.UUID(item.perfil_fazenda_id) if item.perfil_fazenda_id else None
+        except ValueError:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Identificador inválido.")
+
+        fazenda = await session.get(Fazenda, up_id)
+        if not fazenda or fazenda.tenant_id != tenant_id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Unidade produtiva {up_id} não encontrada.")
+
+        vigencia_inicio = datetime.strptime(item.vigencia_inicio, "%Y-%m-%d").date() if item.vigencia_inicio else None
+        vigencia_fim = datetime.strptime(item.vigencia_fim, "%Y-%m-%d").date() if item.vigencia_fim else None
+
+        enviados_ids.add(up_id)
+        if up_id in existentes:
+            fu = existentes[up_id]
+            fu.perfil_fazenda_id = perfil_fazenda_id
+            fu.vigencia_inicio = vigencia_inicio
+            fu.vigencia_fim = vigencia_fim
+        else:
+            session.add(FazendaUsuario(
+                tenant_id=tenant_id,
+                usuario_id=usuario_uuid,
+                unidade_produtiva_id=up_id,
+                perfil_fazenda_id=perfil_fazenda_id,
+                vigencia_inicio=vigencia_inicio,
+                vigencia_fim=vigencia_fim,
+            ))
+
+    for up_id, fu in existentes.items():
+        if up_id not in enviados_ids:
+            await session.delete(fu)
+
+    await session.commit()
+    return {"message": "Acessos atualizados com sucesso"}
 
 
 @router.patch("/users/{tenant_usuario_id}/role", dependencies=[Depends(require_tenant_permission("tenant:users:update"))])
@@ -582,7 +700,8 @@ async def list_available_roles(
             id=str(p.id),
             nome=p.nome,
             is_custom=p.is_custom,
-            descricao=TenantRoles.DESCRIPTIONS.get(p.nome.lower(), None) if not p.is_custom else None
+            descricao=(TenantRoles.DESCRIPTIONS.get(p.nome.lower(), None) if not p.is_custom else p.descricao),
+            permissoes=p.permissoes,
         )
         for p in perfis
     ]

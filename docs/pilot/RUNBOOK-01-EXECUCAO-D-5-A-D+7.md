@@ -49,7 +49,16 @@ Implantação:
 
 Operação:
 
-- `UnidadeProdutiva`, propriedades, imóveis rurais, `PropriedadeImovel`, áreas, talhões, safras, estoque canônico, `CostAllocation`, `Despesa`, romaneio e comercialização.
+- `UnidadeProdutiva`, propriedades, imóveis rurais, `PropriedadeImovel`, áreas, talhões, safras, estoque canônico, romaneio e comercialização.
+
+Motor econômico (decisão consolidada em SOIL-PLAN-EXEC-04I/04J/04K/04M — não reabrir):
+
+- cadeia oficial: `OperacaoAgricola -> OperacaoExecucao -> CostAllocation -> Dashboard -> DRE`;
+- `ProductionUnit` é obrigatória e sua resolução é determinística (sem fallback por `.first()`/`created_at`);
+- `CostAllocation` é a fonte econômica oficial; Dashboard e DRE leem exclusivamente de `CostAllocation`;
+- a operação agrícola não cria mais `Despesa(OPERACAO_AGRICOLA)` (removido em 04I) — não validar nem esperar esse registro;
+- Campo PWA usa exatamente o mesmo `OperacaoService` do Web, sem lógica paralela de custo;
+- dados históricos de Dry Run anteriores (151 registros sem `CostAllocation`, ver SOIL-PLAN-EXEC-04L0) não foram e não devem ser reparados neste ciclo.
 
 ERP:
 
@@ -368,17 +377,23 @@ Fluxo:
 
 `atividade planejada ou equivalente -> Campo PWA -> offline -> retomada de rede -> sync -> estoque -> custo -> evento -> recomendação/alerta`
 
+Cada passo abaixo deve seguir o fluxo obrigatório de validação: preparar cenário → executar fluxo → validar resultado esperado (interface) → validar persistência (banco) → validar regras de negócio → validar eventos → validar Dashboard → validar DRE → registrar evidências → classificar falha, se houver → prosseguir. Resposta correta apenas na interface nunca encerra um passo.
+
 Passos obrigatórios:
 
-1. Selecionar uma operação agrícola mínima do piloto.
-2. Carregar os dados no Campo PWA.
+1. Selecionar uma operação agrícola mínima do piloto vinculada a uma `ProductionUnit` resolvida deterministicamente (confirmar resolução antes de iniciar; se não houver `ProductionUnit` candidata, tratar como bloqueio do passo, não prosseguir por fallback).
+2. Carregar os dados no Campo PWA (confirmar que o Campo consome o mesmo `OperacaoService` do Web, sem lógica paralela).
 3. Desligar a conectividade.
 4. Registrar a operação offline.
 5. Fechar e reabrir o aplicativo.
 6. Restabelecer a conectividade.
-7. Executar o push e validar idempotência.
-8. Confirmar reflexo em estoque e custo.
-9. Validar evento, recomendação ou alerta, quando aplicável.
+7. Executar o push e validar idempotência (reenviar o mesmo push e confirmar ausência de duplicidade).
+8. Validar a execução (`OperacaoExecucao`) e a geração de `CostAllocation` vinculada à `ProductionUnit` correta.
+9. Confirmar reflexo em estoque (movimento/lote/saldo).
+10. Confirmar reflexo no Dashboard (custo realizado por `ProductionUnit`).
+11. Confirmar reflexo na DRE (a operação deve aparecer no escopo construído a partir de `ProductionUnit` com `CostAllocation`).
+12. Confirmar que nenhuma `Despesa(OPERACAO_AGRICOLA)` foi criada pela operação (arquitetura removida em 04I).
+13. Validar evento, recomendação ou alerta, quando aplicável.
 
 Evidências:
 
@@ -386,7 +401,9 @@ Evidências:
 - estado da fila antes e depois do reenvio;
 - resposta de sync sanitizada;
 - movimento de estoque;
-- apropriação de custo ou evidência equivalente;
+- `CostAllocation` gerada (ID, `ProductionUnit`, valor);
+- leitura de Dashboard refletindo o custo realizado;
+- leitura de DRE refletindo a operação no período;
 - evento/alerta/recomendação quando o fluxo o produzir.
 
 ## 16. Cenário C — colheita e comercialização
@@ -517,6 +534,18 @@ cd services/api && .venv/bin/pytest tests/unit/integracoes/test_erp_router.py --
 ```
 
 Esses comandos validam a existência e a coleta das peças críticas do roteiro. Não substituem a execução assistida do Dry Run.
+
+## 20.1 Classificação de desvios por passo
+
+Todo desvio observado em qualquer passo (não apenas ao final) deve ser classificado imediatamente em uma das cinco categorias, antes de decidir prosseguir:
+
+- `CRÍTICA`: impede o piloto — perda de dados, quebra de RLS/isolamento entre tenants, inconsistência econômica (`CostAllocation`/Dashboard/DRE divergentes da execução), impossibilidade de concluir o fluxo, corrupção de dados. Interrompe a execução.
+- `ALTA`: fluxo foi concluído, mas com forte impacto operacional (ex.: retrabalho manual relevante, dado incorreto que exige correção).
+- `MÉDIA`: existe contorno operacional aceitável dentro do fluxo oficial.
+- `BAIXA`: problema visual ou de usabilidade, sem efeito funcional ou econômico.
+- `OBSERVAÇÃO`: melhoria futura identificada; não gera desenvolvimento neste épico nem bloqueia o Dry Run.
+
+Cada desvio registrado deve conter: passo, camada afetada (interface/persistência/regra de negócio/evento/Dashboard/DRE), classificação, evidência e decisão (prosseguir, registrar ressalva ou interromper).
 
 ## 21. Encerramento e decisão
 
