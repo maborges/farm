@@ -67,6 +67,14 @@ Recomendado para ciclo futuro (não aplicado nesta auditoria por estar fora do b
 - Replicar a nota do fluxo obrigatório por etapa (interface→persistência→regra→banco→eventos→Dashboard→DRE→evidência→classificação) nos Cenários A, C e D, hoje descritos apenas como tabela de passos.
 - Detalhar melhor o bloco "Planejamento" (plano de safra, cronograma de insumos) como passos explícitos do D-4, hoje implícito em "atividade planejada ou equivalente".
 
+## 8.1 Ressalva Registrada Durante Execução Assistida — RBAC de Navegação
+
+Durante a execução assistida (Cenário A, teste de perfil customizado "Operador de Campo"), identificou-se que o filtro de permissão do menu lateral (`canSeeTenantItem`) originalmente cobria apenas 22 de 133 itens operacionais — os demais apareciam para qualquer usuário do tenant independente do perfil. Corrigido nesta sessão: 132/133 itens do menu agora têm `permission` mapeada em `apps/web/src/lib/sidebar-config.ts` e `apps/web/src/lib/permission-catalog.ts` (catálogo estendido com os módulos `cadastros`, `sst`, `ambiental`, `ia`, `campo` e recursos adicionais em `pecuaria`/`financeiro`/`operacional`).
+
+**Ressalva remanescente (decisão explícita, não corrigida nesta sessão):** o menu não protege acesso direto por URL ou por botões fora da navegação lateral — não há `middleware.ts` nem gate de página (`PermissionGuard`) na maioria das 274 rotas (`page.tsx`) da aplicação; apenas 5 páginas (Equipe, Perfis) têm proteção própria. Um usuário com perfil restrito que acessar uma URL diretamente verá a casca da tela (layout, formulários, filtros), mas nenhuma chamada de dado real terá sucesso, pois o backend valida `@require_tenant_permission` em todo endpoint e retorna 403.
+
+Classificação: **OBSERVAÇÃO** — não bloqueia o piloto. Dado sensível não vaza (a barreira real está no backend), o gap é de exposição de estrutura/UI, não de dados. Decisão: aceitar por ora; endereçar como item de UX/hardening em ciclo futuro caso vire requisito explícito do cliente.
+
 ## 9. Critérios para Início do Dry Run
 
 Mantidos os critérios de entrada já formalizados na seção 6 do RUNBOOK-01 (ambiente, tenant, Owner/Admin, `UnidadeProdutiva`, usuário operacional, massa mínima, PWA, ERP configurado/dispensado, janela D-5/D+7, responsáveis, contingência). Adicionalmente, para o motor econômico: confirmar que existe ao menos uma `ProductionUnit` resolvível deterministicamente para o cenário mínimo antes de iniciar o Cenário B, evitando bloqueio no meio da execução.
