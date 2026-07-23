@@ -1,26 +1,37 @@
 import uuid
 import re
+import secrets
+import bcrypt
 from datetime import date, timedelta
 from datetime import datetime, timezone
 from typing import List, Optional
-from sqlalchemy import select, func, union_all, literal_column, cast, Numeric
+from sqlalchemy import select, func, union_all, literal_column, cast, Numeric, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from loguru import logger
 
 from agricola.alertas.service import AlertasAgricolasService, WorkflowGovernanceEvent
+from core.config import settings
 from core.exceptions import BusinessRuleError
+from core.services.email_service import email_service
+from core.models.tenant import Tenant
+from core.services.sequencial_service import SequencialService
 from operacional.models.compras import (
     SolicitacaoCompra,
+    SolicitacaoItem,
     CotacaoCompra,
+    CotacaoItem,
+    AlocacaoItem,
     PedidoCompra,
     ItemPedidoCompra,
     RecebimentoParcial,
     ItemRecebimento,
     DevolucaoFornecedor,
     ItemDevolucao,
+    PedidoConfirmacaoFornecedor,
 )
 from operacional.schemas.compras import (
     SolicitacaoCompraCreate,
+    SolicitacaoItemCreate,
     CotacaoSolicitacaoCreate,
     RecebimentoCreate,
 )
@@ -33,7 +44,8 @@ from operacional.services.estoque_service import EstoqueService
 from operacional.schemas.estoque import EntradaEstoqueRequest, LoteCreate, AjusteMovimentoRequest
 from operacional.models.estoque import Deposito, EstoqueMovimento, LoteEstoque, SaldoEstoque
 from operacional.models.compras import Fornecedor
-from operacional.services.fornecedores_service import vincular_fornecedor_a_pessoa_canonica
+from core.cadastros.pessoas.models import Pessoa, PessoaDocumento, PessoaRelacionamento, TipoRelacionamento
+from operacional.services.fornecedores_service import resolve_fornecedor, obter_dados_exibicao_fornecedor
 from operacional.services.estoque_ledger import registrar_ledger_estoque
 
 class ComprasService:
@@ -41,13 +53,10 @@ class ComprasService:
         self.session = session
         self.tenant_id = tenant_id
 
-    def _resolver_custo_recebimento(self, pedido: PedidoCompra) -> float:
-        """
-        Guardrail de valuation:
-        recebimento compra usa o valor do pedido como custo operacional,
-        sem consultar nem reescrever `Produto.preco_medio`.
-        """
-        return float(pedido.valor_unitario)
+    def _resolver_custo_recebimento(self, item_pedido: "ItemPedidoCompra") -> float:
+        """Guardrail de valuation: recebimento de compra usa o valor cotado do
+        item como custo operacional, sem consultar nem reescrever `Produto.preco_medio`."""
+        return float(item_pedido.preco_estimado_unitario or 0.0)
 
     def _parse_condicoes_pagamento_em_dias(self, condicoes_pagamento: str | None) -> int | None:
         if not condicoes_pagamento:
@@ -58,6 +67,70 @@ class ComprasService:
         dias = int(match.group(1))
         return dias if dias >= 0 else None
 
+    async def _montar_fornecedor_response(self, fornecedor: Fornecedor) -> dict:
+        dados = await obter_dados_exibicao_fornecedor(self.session, fornecedor.pessoa_id)
+        return {
+            "id": fornecedor.id,
+            "pessoa_id": fornecedor.pessoa_id,
+            "nome_fantasia": dados["nome_fantasia"],
+            "razao_social": dados["razao_social"],
+            "cnpj_cpf": dados["cnpj_cpf"],
+            "email": dados["email"],
+            "telefone": dados["telefone"],
+            "condicoes_pagamento": fornecedor.condicoes_pagamento,
+            "prazo_entrega_dias": fornecedor.prazo_entrega_dias,
+            "avaliacao": fornecedor.avaliacao,
+        }
+
+    async def listar_fornecedores(self, q: str | None = None) -> list[dict]:
+        """Lista toda Pessoa com papel FORNECEDOR — não só quem já tem linha
+        em compras_fornecedores. Uma pessoa pode ser marcada como fornecedor
+        direto no cadastro de Pessoas, sem nunca ter passado pela tela de
+        Compras; ela precisa aparecer aqui do mesmo jeito. A linha em
+        compras_fornecedores (dados comerciais: condições de pagamento etc.)
+        é criada sob demanda na primeira vez que a pessoa aparece nesta lista."""
+        stmt = (
+            select(Pessoa)
+            .join(PessoaRelacionamento, PessoaRelacionamento.pessoa_id == Pessoa.id)
+            .join(TipoRelacionamento, TipoRelacionamento.id == PessoaRelacionamento.tipo_id)
+            .where(
+                Pessoa.tenant_id == self.tenant_id,
+                Pessoa.ativo == True,
+                TipoRelacionamento.codigo == "FORNECEDOR",
+            )
+        )
+        if q:
+            termo = f"%{q.strip()}%"
+            doc_subq = select(PessoaDocumento.pessoa_id).where(PessoaDocumento.numero.ilike(termo))
+            stmt = stmt.where(or_(Pessoa.nome_exibicao.ilike(termo), Pessoa.id.in_(doc_subq)))
+        stmt = stmt.order_by(Pessoa.nome_exibicao).limit(20)
+        pessoas = (await self.session.execute(stmt)).scalars().all()
+
+        resultado = []
+        for pessoa in pessoas:
+            fornecedor_stmt = select(Fornecedor).where(
+                Fornecedor.pessoa_id == pessoa.id, Fornecedor.tenant_id == self.tenant_id
+            ).limit(1)
+            fornecedor = (await self.session.execute(fornecedor_stmt)).scalar_one_or_none()
+            if fornecedor is None:
+                fornecedor = Fornecedor(tenant_id=self.tenant_id, pessoa_id=pessoa.id)
+                self.session.add(fornecedor)
+                await self.session.flush()
+            resultado.append(await self._montar_fornecedor_response(fornecedor))
+        return resultado
+
+    async def obter_fornecedor_orm(self, fornecedor_id: uuid.UUID) -> Fornecedor | None:
+        stmt = select(Fornecedor).where(
+            Fornecedor.id == fornecedor_id, Fornecedor.tenant_id == self.tenant_id
+        )
+        return (await self.session.execute(stmt)).scalars().first()
+
+    async def obter_fornecedor(self, fornecedor_id: uuid.UUID) -> dict | None:
+        fornecedor = await self.obter_fornecedor_orm(fornecedor_id)
+        if not fornecedor:
+            return None
+        return await self._montar_fornecedor_response(fornecedor)
+
     async def _buscar_ultimo_recebimento(self, pedido_id: uuid.UUID) -> RecebimentoParcial | None:
         stmt = (
             select(RecebimentoParcial)
@@ -67,29 +140,50 @@ class ComprasService:
         )
         return (await self.session.execute(stmt)).scalar_one_or_none()
 
-    async def _resolver_fornecedor_financeiro(
-        self,
-        pedido: PedidoCompra,
-    ) -> tuple[uuid.UUID | None, str | None, Fornecedor | None]:
+    async def _resolver_ou_criar_fornecedor_por_nome(
+        self, nome: str, contato: str | None = None
+    ) -> Fornecedor:
         stmt = (
             select(Fornecedor)
-            .where(
-                Fornecedor.tenant_id == self.tenant_id,
-                Fornecedor.nome_fantasia == pedido.fornecedor_nome,
-            )
+            .join(Pessoa, Pessoa.id == Fornecedor.pessoa_id)
+            .where(Fornecedor.tenant_id == self.tenant_id, Pessoa.nome_exibicao == nome)
             .limit(1)
         )
         fornecedor = (await self.session.execute(stmt)).scalar_one_or_none()
         if fornecedor is None:
-            return None, pedido.fornecedor_nome, None
-
-        if fornecedor.pessoa_id is None:
-            pessoa = await vincular_fornecedor_a_pessoa_canonica(self.session, fornecedor)
-            fornecedor.pessoa_id = pessoa.id
+            pessoa = await resolve_fornecedor(
+                self.session, self.tenant_id, nome_fantasia=nome, telefone=contato
+            )
+            fornecedor = Fornecedor(tenant_id=self.tenant_id, pessoa_id=pessoa.id)
             self.session.add(fornecedor)
             await self.session.flush()
 
-        return fornecedor.pessoa_id, fornecedor.nome_fantasia or pedido.fornecedor_nome, fornecedor
+        return fornecedor
+
+    async def _resolver_fornecedor_financeiro(
+        self,
+        pedido: PedidoCompra,
+    ) -> tuple[uuid.UUID | None, str | None, Fornecedor | None]:
+        fornecedor = (
+            await self.session.get(Fornecedor, pedido.fornecedor_id)
+            if pedido.fornecedor_id is not None
+            else None
+        )
+        if fornecedor is None:
+            # Legado/teste: pedido sem fornecedor_id vinculado — tenta casar por nome.
+            stmt = (
+                select(Fornecedor)
+                .join(Pessoa, Pessoa.id == Fornecedor.pessoa_id)
+                .where(Fornecedor.tenant_id == self.tenant_id, Pessoa.nome_exibicao == pedido.fornecedor_nome)
+                .limit(1)
+            )
+            fornecedor = (await self.session.execute(stmt)).scalar_one_or_none()
+        if fornecedor is None:
+            return None, pedido.fornecedor_nome, None
+
+        pessoa = await self.session.get(Pessoa, fornecedor.pessoa_id)
+        nome = pessoa.nome_exibicao if pessoa else pedido.fornecedor_nome
+        return fornecedor.pessoa_id, nome, fornecedor
 
     async def _resolver_plano_conta_compra(self, produto: Produto) -> uuid.UUID | None:
         codigo_por_tipo = {
@@ -145,12 +239,19 @@ class ComprasService:
         *,
         recebimento: RecebimentoParcial | None = None,
     ) -> Despesa | None:
+        """Gera uma Despesa por recebimento (não por pedido), já que um pedido
+        pode ter múltiplas notas fiscais/recebimentos parciais, cada um com seu
+        próprio vencimento. A idempotência é chaveada por origem_id=recebimento.id."""
+        recebimento = recebimento or await self._buscar_ultimo_recebimento(pedido.id)
+        if recebimento is None:
+            return None
+
         existente = (
             await self.session.execute(
                 select(Despesa).where(
                     Despesa.tenant_id == self.tenant_id,
                     Despesa.origem_tipo == "COMPRA",
-                    Despesa.origem_id == pedido.id,
+                    Despesa.origem_id == recebimento.id,
                     Despesa.ativo == True,
                 ).limit(1)
             )
@@ -158,8 +259,25 @@ class ComprasService:
         if existente is not None:
             return existente
 
-        deposito = await self.session.get(Deposito, pedido.deposito_id)
-        produto = await self.session.get(Produto, pedido.item_id)
+        valor_recebimento = (
+            await self.session.execute(
+                select(func.coalesce(func.sum(ItemRecebimento.quantidade_recebida * ItemRecebimento.preco_real_unitario), 0.0))
+                .where(ItemRecebimento.recebimento_id == recebimento.id)
+            )
+        ).scalar_one()
+        valor_recebimento = float(valor_recebimento or 0.0) or float(pedido.valor_total or 0.0)
+
+        abatimento_adiantamento = 0.0
+        adiantamento_restante = float(pedido.valor_adiantamento or 0.0)
+        if adiantamento_restante > 0:
+            abatimento_adiantamento = min(adiantamento_restante, valor_recebimento)
+            valor_recebimento -= abatimento_adiantamento
+            pedido.valor_adiantamento = adiantamento_restante - abatimento_adiantamento
+            self.session.add(pedido)
+
+        item_principal = await self._get_or_create_item_pedido_principal(pedido)
+        deposito = await self.session.get(Deposito, item_principal.deposito_id)
+        produto = await self.session.get(Produto, item_principal.produto_id)
         if not deposito or deposito.tenant_id != self.tenant_id:
             raise BusinessRuleError("Deposito do pedido indisponível para integração financeira da compra.")
         if not produto or produto.tenant_id != self.tenant_id:
@@ -169,42 +287,47 @@ class ComprasService:
         if plano_conta_id is None:
             raise BusinessRuleError("Nenhum plano de contas de despesa analítica foi encontrado para integrar a compra.")
 
-        recebimento = recebimento or await self._buscar_ultimo_recebimento(pedido.id)
         data_base = (
             recebimento.data_recebimento.date()
-            if recebimento is not None and recebimento.data_recebimento is not None
+            if recebimento.data_recebimento is not None
             else date.today()
         )
 
         pessoa_id, fornecedor_nome, fornecedor = await self._resolver_fornecedor_financeiro(pedido)
         dias_pagamento = self._parse_condicoes_pagamento_em_dias(
-            fornecedor.condicoes_pagamento if fornecedor is not None else None
+            fornecedor.condicoes_pagamento if fornecedor is not None else pedido.condicoes_pagamento
         )
         data_vencimento = data_base + timedelta(days=dias_pagamento or 0)
 
         payload = DespesaCreate(
             unidade_produtiva_id=deposito.unidade_produtiva_id,
             plano_conta_id=plano_conta_id,
-            descricao=f"Compra de {produto.nome}",
-            valor_total=float(pedido.valor_total or 0.0),
+            descricao=f"Compra de {produto.nome} (NF {recebimento.numero_nf or 's/n'})",
+            valor_total=valor_recebimento,
             data_emissao=data_base,
             data_vencimento=data_vencimento,
             competencia=data_base.replace(day=1),
             status="A_PAGAR",
             pessoa_id=pessoa_id,
             fornecedor=fornecedor_nome or pedido.fornecedor_nome,
-            numero_nf=recebimento.numero_nf if recebimento is not None else None,
-            chave_nfe=recebimento.chave_nfe if recebimento is not None else None,
-            nota_fiscal=recebimento.numero_nf if recebimento is not None else None,
-            origem_id=pedido.id,
+            observacoes=(
+                f"Despesa automática do recebimento {recebimento.id} do pedido {pedido.id}."
+                + (f" Abatido adiantamento de {_formatar_moeda_brl(abatimento_adiantamento)}." if abatimento_adiantamento > 0 else "")
+            ),
+            numero_nf=recebimento.numero_nf,
+            chave_nfe=recebimento.chave_nfe,
+            nota_fiscal=recebimento.numero_nf,
+            origem_id=recebimento.id,
             origem_tipo="COMPRA",
-            observacoes=f"Despesa automática do recebimento do pedido {pedido.id}.",
             rateios=[],
         )
         despesas = await DespesaService(self.session, self.tenant_id).create_with_rateio(payload)
         return despesas[0] if despesas else None
 
     async def _get_or_create_item_pedido_principal(self, pedido: PedidoCompra) -> ItemPedidoCompra:
+        """Retorna o primeiro item do pedido — todo PedidoCompra criado pelo
+        fluxo atual (aprovar_cotacao/gerar_pedidos_de_alocacoes) sempre grava
+        ao menos 1 ItemPedidoCompra, então isso nunca deveria faltar."""
         stmt = (
             select(ItemPedidoCompra)
             .where(ItemPedidoCompra.pedido_id == pedido.id)
@@ -212,36 +335,30 @@ class ComprasService:
             .limit(1)
         )
         item = (await self.session.execute(stmt)).scalar_one_or_none()
-        if item is not None:
-            return item
-
-        item = ItemPedidoCompra(
-            id=uuid.uuid4(),
-            pedido_id=pedido.id,
-            produto_id=pedido.item_id,
-            quantidade_solicitada=pedido.quantidade,
-            preco_estimado_unitario=pedido.valor_unitario,
-            quantidade_recebida=0.0,
-            preco_real_unitario=pedido.valor_unitario,
-            status_item="PENDENTE",
-        )
-        self.session.add(item)
-        await self.session.flush()
+        if item is None:
+            raise BusinessRuleError("Pedido sem itens — dados inconsistentes.")
         return item
 
-    def _build_recebimento_fallback(self, pedido: PedidoCompra, item_pedido: ItemPedidoCompra) -> RecebimentoCreate:
+    async def _build_recebimento_fallback(self, pedido: PedidoCompra, item_pedido: ItemPedidoCompra) -> RecebimentoCreate:
+        """Recebimento sem corpo explícito: recebe TODOS os itens do pedido
+        integralmente, ao preço cotado (custo real vem do fluxo explícito
+        via RecebimentoCreate.itens quando o chamador informar valores reais)."""
+        stmt = select(ItemPedidoCompra).where(ItemPedidoCompra.pedido_id == pedido.id)
+        itens_pedido = (await self.session.execute(stmt)).scalars().all() or [item_pedido]
+
         return RecebimentoCreate(
             numero_nf=None,
             chave_nfe=None,
             observacoes="Recebimento materializado por compatibilidade no fluxo legado.",
             itens=[
                 {
-                    "item_pedido_id": item_pedido.id,
-                    "quantidade_recebida": pedido.quantidade,
-                    "preco_real_unitario": self._resolver_custo_recebimento(pedido),
+                    "item_pedido_id": ip.id,
+                    "quantidade_recebida": ip.quantidade_solicitada,
+                    "preco_real_unitario": ip.preco_estimado_unitario or self._resolver_custo_recebimento(ip),
                     "numero_lote_fornecedor": None,
                     "lote_id": None,
                 }
+                for ip in itens_pedido
             ],
         )
 
@@ -336,7 +453,7 @@ class ComprasService:
         item_recebido,
     ) -> tuple[uuid.UUID | None, EstoqueMovimento | None]:
         quantidade = float(item_recebido.quantidade_recebida or 0.0)
-        custo_unitario = float(item_recebido.preco_real_unitario or 0.0) or self._resolver_custo_recebimento(pedido)
+        custo_unitario = float(item_recebido.preco_real_unitario or 0.0) or self._resolver_custo_recebimento(item_pedido)
         if quantidade <= 0 or custo_unitario <= 0:
             await self._registrar_evento_recebimento_critico(
                 pedido=pedido,
@@ -354,6 +471,20 @@ class ComprasService:
             )
             return None, None
 
+        _, _, fornecedor = await self._resolver_fornecedor_financeiro(pedido)
+        if fornecedor is None:
+            await self._registrar_evento_recebimento_critico(
+                pedido=pedido,
+                codigo="RECEBIMENTO_COMPRA_SEM_FORNECEDOR_CADASTRADO_NOVO_FLUXO",
+                titulo="Recebimento sem fornecedor cadastrado vinculado",
+                mensagem=(
+                    f"Nao foi encontrado cadastro de Fornecedor para '{pedido.fornecedor_nome}'. "
+                    "Cadastre o fornecedor em Compras > Fornecedores antes de receber este pedido."
+                ),
+                meta={"item_pedido_id": str(item_pedido.id), "fornecedor_nome": pedido.fornecedor_nome},
+            )
+            return None, None
+
         estoque_svc = EstoqueService(self.session, self.tenant_id)
         lote_id = item_recebido.lote_id
         lote = None
@@ -362,8 +493,8 @@ class ComprasService:
         else:
             lote = await estoque_svc.criar_lote(
                 LoteCreate(
-                    produto_id=pedido.item_id,
-                    deposito_id=pedido.deposito_id,
+                    produto_id=item_pedido.produto_id,
+                    deposito_id=item_pedido.deposito_id,
                     numero_lote=self._gerar_numero_lote_recebimento(pedido, recebimento, item_recebido),
                     quantidade_inicial=quantidade,
                     custo_unitario=custo_unitario,
@@ -378,8 +509,9 @@ class ComprasService:
         try:
             movimento = await estoque_svc.registrar_entrada(
                 EntradaEstoqueRequest(
-                    deposito_id=pedido.deposito_id,
-                    produto_id=pedido.item_id,
+                    deposito_id=item_pedido.deposito_id,
+                    produto_id=item_pedido.produto_id,
+                    fornecedor_id=fornecedor.id,
                     quantidade=quantidade,
                     custo_unitario=custo_unitario,
                     motivo=f"Recebimento de Pedido {pedido.id}",
@@ -408,8 +540,8 @@ class ComprasService:
         saldo = (
             await self.session.execute(
                 select(SaldoEstoque).where(
-                    SaldoEstoque.deposito_id == pedido.deposito_id,
-                    SaldoEstoque.produto_id == pedido.item_id,
+                    SaldoEstoque.deposito_id == item_pedido.deposito_id,
+                    SaldoEstoque.produto_id == item_pedido.produto_id,
                 )
             )
         ).scalar_one_or_none()
@@ -643,24 +775,92 @@ class ComprasService:
         await self.session.flush()
         return devolucao
 
-    async def criar_solicitacao(self, data: SolicitacaoCompraCreate) -> SolicitacaoCompra:
-        """Cria uma nova solicitação de compra interna."""
+    async def criar_solicitacao(
+        self, data: SolicitacaoCompraCreate, solicitante_id: uuid.UUID | None = None,
+    ) -> SolicitacaoCompra:
+        """Cria uma nova solicitação de compra interna (pode ter vários itens).
+
+        `solicitante_id` é quem pediu — só ele poderá encerrar a solicitação
+        (ver encerrar_solicitacao)."""
+        numero = await SequencialService(self.session, self.tenant_id).proximo_numero("compras_solicitacao")
+        primeiro = data.itens[0]
         obj = SolicitacaoCompra(
             tenant_id=self.tenant_id,
-            produto_id=data.item_id,
-            deposito_id=data.deposito_id,
-            quantidade_solicitada=data.quantidade_solicitada,
-            unidade=data.unidade,
+            numero=numero,
+            solicitante_id=solicitante_id,
+            # campos escalares deprecated, espelham o primeiro item p/ telas legadas
+            produto_id=primeiro.produto_id,
+            deposito_id=primeiro.deposito_id,
+            quantidade_solicitada=primeiro.quantidade_solicitada,
+            unidade=primeiro.unidade,
             origem=data.origem,
             origem_id=data.origem_id,
             status="ABERTA"
         )
         self.session.add(obj)
         await self.session.flush()
+
+        for item in data.itens:
+            self.session.add(SolicitacaoItem(
+                solicitacao_id=obj.id,
+                produto_id=item.produto_id,
+                deposito_id=item.deposito_id,
+                quantidade_solicitada=item.quantidade_solicitada,
+                unidade=item.unidade,
+            ))
+        await self.session.flush()
+        obj.itens = await self._enriquecer_itens_solicitacao(obj.id)
+        await self._enriquecer_solicitante_nome(obj)
         return obj
 
+    async def _enriquecer_solicitante_nome(self, obj: SolicitacaoCompra) -> SolicitacaoCompra:
+        from core.models.auth import Usuario
+        obj.solicitante_nome = None
+        if obj.solicitante_id:
+            stmt = select(Usuario.nome_completo).where(Usuario.id == obj.solicitante_id)
+            obj.solicitante_nome = (await self.session.execute(stmt)).scalar_one_or_none()
+        return obj
+
+    async def _enriquecer_itens_solicitacao(self, solicitacao_id: uuid.UUID) -> List[SolicitacaoItem]:
+        from core.cadastros.produtos.models import Produto
+        from operacional.models.estoque import Deposito
+
+        stmt = (
+            select(SolicitacaoItem, Produto.nome, Deposito.nome)
+            .join(Produto, SolicitacaoItem.produto_id == Produto.id)
+            .join(Deposito, SolicitacaoItem.deposito_id == Deposito.id)
+            .where(SolicitacaoItem.solicitacao_id == solicitacao_id)
+        )
+        result = await self.session.execute(stmt)
+        itens = []
+        for item, p_nome, d_nome in result.all():
+            item.produto_nome = p_nome
+            item.deposito_nome = d_nome
+            itens.append(item)
+
+        if not itens:
+            return itens
+
+        stmt_aloc = (
+            select(AlocacaoItem.solicitacao_item_id, func.coalesce(func.sum(AlocacaoItem.quantidade_alocada), 0.0))
+            .where(AlocacaoItem.solicitacao_item_id.in_([i.id for i in itens]))
+            .group_by(AlocacaoItem.solicitacao_item_id)
+        )
+        alocado_por_item = dict((await self.session.execute(stmt_aloc)).all())
+
+        for item in itens:
+            item.quantidade_alocada = alocado_por_item.get(item.id, 0.0)
+            if item.quantidade_alocada <= 0:
+                item.status_atendimento = "PENDENTE"
+            elif item.quantidade_alocada >= item.quantidade_solicitada:
+                item.status_atendimento = "ATENDIDO"
+            else:
+                item.status_atendimento = "PARCIAL"
+
+        return itens
+
     async def listar_solicitacoes(
-        self, 
+        self,
         status: Optional[str] = None,
         produto_id: Optional[uuid.UUID] = None,
         deposito_id: Optional[uuid.UUID] = None
@@ -668,36 +868,31 @@ class ComprasService:
         """Lista solicitações de compra com filtros e dados enriquecidos."""
         from core.cadastros.produtos.models import Produto
         from operacional.models.estoque import Deposito
-        
-        stmt = (
-            select(
-                SolicitacaoCompra,
-                Produto.nome.label("produto_nome"),
-                Deposito.nome.label("deposito_nome")
-            )
-            .join(Produto, SolicitacaoCompra.produto_id == Produto.id)
-            .join(Deposito, SolicitacaoCompra.deposito_id == Deposito.id)
-            .where(SolicitacaoCompra.tenant_id == self.tenant_id)
-        )
-        
+
+        stmt = select(SolicitacaoCompra).where(SolicitacaoCompra.tenant_id == self.tenant_id)
+
         if status:
             stmt = stmt.where(SolicitacaoCompra.status == status)
-        if produto_id:
-            stmt = stmt.where(SolicitacaoCompra.produto_id == produto_id)
-        if deposito_id:
-            stmt = stmt.where(SolicitacaoCompra.deposito_id == deposito_id)
-            
-        stmt = stmt.order_by(SolicitacaoCompra.created_at.desc())
-        
+        if produto_id or deposito_id:
+            stmt = stmt.join(SolicitacaoItem, SolicitacaoItem.solicitacao_id == SolicitacaoCompra.id)
+            if produto_id:
+                stmt = stmt.where(SolicitacaoItem.produto_id == produto_id)
+            if deposito_id:
+                stmt = stmt.where(SolicitacaoItem.deposito_id == deposito_id)
+
+        stmt = stmt.order_by(SolicitacaoCompra.created_at.desc()).distinct()
+
         result = await self.session.execute(stmt)
-        items = []
-        for row in result.all():
-            sol, p_nome, d_nome = row
-            sol.produto_nome = p_nome
-            sol.deposito_nome = d_nome
-            items.append(sol)
-            
-        return items
+        solicitacoes = list(result.scalars().all())
+
+        for sol in solicitacoes:
+            sol.itens = await self._enriquecer_itens_solicitacao(sol.id)
+            if sol.itens:
+                sol.produto_nome = sol.itens[0].produto_nome
+                sol.deposito_nome = sol.itens[0].deposito_nome
+            await self._enriquecer_solicitante_nome(sol)
+
+        return solicitacoes
 
     async def atualizar_status(self, solicitacao_id: uuid.UUID, novo_status: str) -> SolicitacaoCompra:
         """Atualiza o status de uma solicitação de compra."""
@@ -707,70 +902,153 @@ class ComprasService:
         )
         result = await self.session.execute(stmt)
         obj = result.scalar_one_or_none()
-        
+
         if not obj:
             return None
-            
+
         obj.status = novo_status
         await self.session.flush()
-        
-        # Recarregar com nomes para o retorno
-        from core.cadastros.produtos.models import Produto
-        from operacional.models.estoque import Deposito
-        
-        enrich_stmt = (
-            select(Produto.nome, Deposito.nome)
-            .join(Deposito, Deposito.id == obj.deposito_id)
-            .where(Produto.id == obj.produto_id)
+
+        obj.itens = await self._enriquecer_itens_solicitacao(obj.id)
+        if obj.itens:
+            obj.produto_nome = obj.itens[0].produto_nome
+            obj.deposito_nome = obj.itens[0].deposito_nome
+        await self._enriquecer_solicitante_nome(obj)
+
+        return obj
+
+    async def adicionar_item_solicitacao(
+        self, solicitacao_id: uuid.UUID, item: SolicitacaoItemCreate,
+    ) -> SolicitacaoCompra:
+        """Adiciona um novo item a uma solicitação já existente (ainda não encerrada/cancelada)."""
+        from core.exceptions import BusinessRuleError, EntityNotFoundError
+
+        stmt = select(SolicitacaoCompra).where(
+            SolicitacaoCompra.id == solicitacao_id,
+            SolicitacaoCompra.tenant_id == self.tenant_id,
         )
-        enrich_res = (await self.session.execute(enrich_stmt)).first()
-        if enrich_res:
-            obj.produto_nome, obj.deposito_nome = enrich_res
-            
+        obj = (await self.session.execute(stmt)).scalar_one_or_none()
+        if not obj:
+            raise EntityNotFoundError("Solicitação de compra não encontrada")
+        if obj.status in ("ENCERRADA", "CANCELADA"):
+            raise BusinessRuleError("Não é possível adicionar itens a uma solicitação encerrada ou cancelada")
+
+        self.session.add(SolicitacaoItem(
+            solicitacao_id=obj.id,
+            produto_id=item.produto_id,
+            deposito_id=item.deposito_id,
+            quantidade_solicitada=item.quantidade_solicitada,
+            unidade=item.unidade,
+        ))
+        await self.session.flush()
+
+        obj.itens = await self._enriquecer_itens_solicitacao(obj.id)
+        await self._enriquecer_solicitante_nome(obj)
         return obj
 
     async def criar_cotacao(self, solicitacao_id: uuid.UUID, data: CotacaoSolicitacaoCreate) -> CotacaoCompra:
-        """Cria uma cotação para uma solicitação aprovada."""
+        """Cria uma cotação para uma solicitação aprovada (pode cobrir vários itens)."""
         from core.exceptions import BusinessRuleError
-        
+
         # Verificar se a solicitação existe e está aprovada
         solicitacao = await self.session.get(SolicitacaoCompra, solicitacao_id)
         if not solicitacao or solicitacao.tenant_id != self.tenant_id:
             return None
-        
+
         if solicitacao.status != "APROVADA":
             raise BusinessRuleError("Cotações só podem ser registradas para solicitações APROVADAS.")
 
+        itens_solicitacao = await self._enriquecer_itens_solicitacao(solicitacao_id)
+        if not itens_solicitacao:
+            raise BusinessRuleError("Solicitação sem itens.")
+
+        if data.itens:
+            itens_por_id = {i.id: i for i in itens_solicitacao}
+            ids_informados = [item.solicitacao_item_id for item in data.itens]
+            if len(set(ids_informados)) != len(ids_informados):
+                raise BusinessRuleError("Cada item da solicitação só pode aparecer uma vez na cotação.")
+            if not set(ids_informados) <= set(itens_por_id.keys()):
+                raise BusinessRuleError("Um ou mais itens informados não pertencem a esta solicitação.")
+            # Cotação pode ser parcial — o fornecedor nem sempre tem todos os itens.
+            itens_cotados = [(itens_por_id[item.solicitacao_item_id], item.valor_unitario) for item in data.itens]
+        else:
+            if len(itens_solicitacao) != 1 or data.valor_unitario is None:
+                raise BusinessRuleError("Informe 'itens' — esta solicitação tem mais de um item.")
+            itens_cotados = [(itens_solicitacao[0], data.valor_unitario)]
+
+        fornecedor = await self.obter_fornecedor_orm(data.fornecedor_id)
+        if not fornecedor:
+            raise BusinessRuleError("Fornecedor não encontrado.")
+        dados_fornecedor = await obter_dados_exibicao_fornecedor(self.session, fornecedor.pessoa_id)
+        condicoes_pagamento = data.condicoes_pagamento or fornecedor.condicoes_pagamento
+
         # Guardrail: cotação usa histórico compatível; `Produto.preco_medio` não é fonte de verdade.
-        stats = await self.get_historico_precos(solicitacao.produto_id)
-        preco_medio = stats.get("preco_medio", 0)
-        
+        # Calculado por item; o cabeçalho reporta o pior caso entre os itens.
         acima_media = False
         percentual = 0.0
         mensagem = None
-        
-        if preco_medio > 0 and data.valor_unitario > (preco_medio * 1.15):
-            acima_media = True
-            percentual = round(((data.valor_unitario / preco_medio) - 1) * 100, 2)
-            mensagem = f"Cotação {percentual}% acima da média histórica (R$ {preco_medio:,.2f})"
+        valor_total_geral = 0.0
+
+        for sol_item, valor_unitario in itens_cotados:
+            valor_total_geral += round(valor_unitario * sol_item.quantidade_solicitada, 2)
+            stats = await self.get_historico_precos(sol_item.produto_id)
+            preco_medio = stats.get("preco_medio", 0)
+            if preco_medio > 0 and valor_unitario > (preco_medio * 1.15):
+                percentual_item = round(((valor_unitario / preco_medio) - 1) * 100, 2)
+                if percentual_item > percentual:
+                    acima_media = True
+                    percentual = percentual_item
+                    mensagem = f"{sol_item.produto_nome or 'Item'} {percentual_item}% acima da média histórica (R$ {preco_medio:,.2f})"
+
+        numero_cotacao = await SequencialService(self.session, self.tenant_id).proximo_numero("compras_cotacao")
 
         cotacao = CotacaoCompra(
             tenant_id=self.tenant_id,
+            numero=numero_cotacao,
             solicitacao_id=solicitacao_id,
-            fornecedor_nome=data.fornecedor_nome,
-            fornecedor_contato=data.fornecedor_contato,
-            valor_unitario=data.valor_unitario,
-            valor_total=round(data.valor_unitario * solicitacao.quantidade_solicitada, 2),
-            prazo_entrega_dias=data.prazo_entrega_dias,
+            fornecedor_id=fornecedor.id,
+            fornecedor_nome=dados_fornecedor["nome_fantasia"],
+            fornecedor_contato=dados_fornecedor["email"] or dados_fornecedor["telefone"],
+            condicoes_pagamento=condicoes_pagamento,
+            # atalho legado só faz sentido com 1 item
+            valor_unitario=itens_cotados[0][1] if len(itens_cotados) == 1 else None,
+            valor_total=round(valor_total_geral, 2),
+            prazo_entrega_dias=data.prazo_entrega_dias if data.prazo_entrega_dias is not None else fornecedor.prazo_entrega_dias,
             status="RECEBIDA",
             acima_media=acima_media,
             percentual_acima_media=percentual if acima_media else None,
             mensagem_alerta=mensagem
         )
-        
         self.session.add(cotacao)
         await self.session.flush()
+
+        for sol_item, valor_unitario in itens_cotados:
+            self.session.add(CotacaoItem(
+                cotacao_id=cotacao.id,
+                solicitacao_item_id=sol_item.id,
+                produto_id=sol_item.produto_id,
+                quantidade=sol_item.quantidade_solicitada,
+                valor_unitario=valor_unitario,
+                valor_total=round(valor_unitario * sol_item.quantidade_solicitada, 2),
+            ))
+        await self.session.flush()
+        cotacao.itens = await self._enriquecer_itens_cotacao(cotacao.id)
         return cotacao
+
+    async def _enriquecer_itens_cotacao(self, cotacao_id: uuid.UUID) -> List[CotacaoItem]:
+        from core.cadastros.produtos.models import Produto
+
+        stmt = (
+            select(CotacaoItem, Produto.nome)
+            .join(Produto, CotacaoItem.produto_id == Produto.id)
+            .where(CotacaoItem.cotacao_id == cotacao_id)
+        )
+        result = await self.session.execute(stmt)
+        itens = []
+        for item, p_nome in result.all():
+            item.produto_nome = p_nome
+            itens.append(item)
+        return itens
 
     async def listar_cotacoes(self, solicitacao_id: uuid.UUID) -> List[CotacaoCompra]:
         """Lista cotações vinculadas a uma solicitação."""
@@ -782,20 +1060,29 @@ class ComprasService:
             )
             .order_by(CotacaoCompra.valor_total.asc())
         )
-        
+
         result = await self.session.execute(stmt)
         cotacoes = list(result.scalars().all())
-        
+
         solicitacao = await self.session.get(SolicitacaoCompra, solicitacao_id)
-        
-        # Enriquecer com Score de Compra (Step 159)
+        itens_solicitacao = await self._enriquecer_itens_solicitacao(solicitacao_id) if solicitacao else []
+        produto_principal_id = itens_solicitacao[0].produto_id if itens_solicitacao else None
+
+        # Enriquecer com Score de Compra (Step 159) — calculado com base no
+        # item de maior valor da cotação (representativo do fornecedor).
         for cot in cotacoes:
-            # Passar produto_id da solicitação para o cálculo do score
-            res_score = await self.calcular_score_compra(cot, solicitacao.produto_id if solicitacao else None)
+            cot.itens = await self._enriquecer_itens_cotacao(cot.id)
+            item_ref_produto_id = produto_principal_id
+            item_ref_valor_unitario = cot.valor_unitario
+            if cot.itens:
+                item_ref = max(cot.itens, key=lambda i: i.valor_total)
+                item_ref_produto_id = item_ref.produto_id
+                item_ref_valor_unitario = item_ref.valor_unitario
+            res_score = await self.calcular_score_compra(cot, item_ref_produto_id, item_ref_valor_unitario)
             cot.score_compra = res_score["score"]
             cot.classificacao_score = res_score["classificacao"]
             cot.motivos_score = res_score["motivos"]
-            
+
         # Step 160: Ranking Comparativo
         # Ordenação: Score DESC -> Valor ASC -> Prazo ASC
         cotacoes.sort(key=lambda x: (
@@ -803,17 +1090,17 @@ class ComprasService:
             x.valor_total,
             x.prazo_entrega_dias if x.prazo_entrega_dias is not None else 999
         ))
-        
+
         for i, cot in enumerate(cotacoes):
             cot.posicao_ranking = i + 1
             cot.melhor_opcao = (i == 0)
-            
+
             # Step 161: Gerar Explicação Textual
             expl = await self.gerar_explicacao_compra(cot)
             cot.explicacao_compra = expl["explicacao"]
             cot.pontos_fortes = expl["pontos_fortes"]
             cot.pontos_atencao = expl["pontos_atencao"]
-            
+
         return cotacoes
 
     async def aprovar_cotacao(self, solicitacao_id: uuid.UUID, cotacao_id: uuid.UUID) -> Optional[PedidoCompra]:
@@ -829,6 +1116,16 @@ class ComprasService:
         cotacao = (await self.session.execute(stmt_cot)).scalar_one_or_none()
         if not cotacao:
             return None
+
+        if cotacao.status == "APROVADA":
+            stmt_pedido_existente = select(PedidoCompra).where(
+                PedidoCompra.tenant_id == self.tenant_id,
+                PedidoCompra.cotacao_id == cotacao_id
+            )
+            pedido_existente = (await self.session.execute(stmt_pedido_existente)).scalar_one_or_none()
+            if pedido_existente:
+                return pedido_existente
+            raise BusinessRuleError("Esta cotação já foi aprovada.")
 
         solicitacao = await self.session.get(SolicitacaoCompra, solicitacao_id)
         if not solicitacao or solicitacao.status != "APROVADA":
@@ -849,62 +1146,377 @@ class ComprasService:
             o.status = "RECUSADA"
 
         # 3. Calcular Economia (Savings) - Step 163
-        # Savings = (Pior Preço - Preço Escolhido) * Quantidade
-        todas_cotacoes = [cotacao.valor_unitario] + [o.valor_unitario for o in outras]
-        pior_preco_unitario = max(todas_cotacoes)
-        
-        economia_unitaria = pior_preco_unitario - cotacao.valor_unitario
-        economia_absoluta = economia_unitaria * solicitacao.quantidade_solicitada
-        economia_percentual = (economia_unitaria / pior_preco_unitario * 100) if pior_preco_unitario > 0 else 0.0
+        # Savings = soma por item de (Pior valor_total do item entre as cotações recusadas - valor_total escolhido)
+        cotacao.itens = await self._enriquecer_itens_cotacao(cotacao.id)
+        for o in outras:
+            o.itens = await self._enriquecer_itens_cotacao(o.id)
 
-        # 4. Criar Pedido de Compra
+        economia_absoluta = 0.0
+        for item in cotacao.itens:
+            piores = [
+                oi.valor_total for o in outras for oi in o.itens
+                if oi.solicitacao_item_id == item.solicitacao_item_id
+            ]
+            if piores:
+                economia_absoluta += max(piores) - item.valor_total
+        pior_total_geral = max([cotacao.valor_total] + [o.valor_total for o in outras])
+        economia_percentual = (economia_absoluta / pior_total_geral * 100) if pior_total_geral > 0 else 0.0
+
+        # 4. Resolver fornecedor cadastrado — cotações antigas (pré-vínculo com
+        # o cadastro real) ainda podem não ter fornecedor_id; nesse caso,
+        # resolve/cria a partir do texto legado como fallback.
+        if cotacao.fornecedor_id:
+            fornecedor = await self.obter_fornecedor_orm(cotacao.fornecedor_id)
+        else:
+            fornecedor = await self._resolver_ou_criar_fornecedor_por_nome(
+                cotacao.fornecedor_nome, cotacao.fornecedor_contato
+            )
+
+        # 5. Criar Pedido de Compra — condições de pagamento vêm da cotação
+        # vencedora (a negociação real desta compra), não do padrão do cadastro.
+        numero_pedido = await SequencialService(self.session, self.tenant_id).proximo_numero("compras_pedido")
+
         pedido = PedidoCompra(
             tenant_id=self.tenant_id,
+            numero=numero_pedido,
             solicitacao_id=solicitacao_id,
             cotacao_id=cotacao_id,
+            fornecedor_id=fornecedor.id,
             fornecedor_nome=cotacao.fornecedor_nome,
             fornecedor_contato=cotacao.fornecedor_contato,
-            item_id=solicitacao.produto_id,
-            deposito_id=solicitacao.deposito_id,
-            quantidade=solicitacao.quantidade_solicitada,
-            unidade=solicitacao.unidade,
-            valor_unitario=cotacao.valor_unitario,
+            condicoes_pagamento=cotacao.condicoes_pagamento or fornecedor.condicoes_pagamento,
             valor_total=cotacao.valor_total,
             status="ABERTO",
             economia_absoluta=economia_absoluta,
-            economia_percentual=economia_percentual
+            economia_percentual=economia_percentual,
+            usuario_solicitante_id=solicitacao.solicitante_id,
         )
-        
+        self.session.add(pedido)
+        await self.session.flush()
+
+        itens_solicitacao_por_id = {i.id: i for i in await self._enriquecer_itens_solicitacao(solicitacao_id)}
+        for item in cotacao.itens:
+            sol_item = itens_solicitacao_por_id.get(item.solicitacao_item_id)
+            self.session.add(ItemPedidoCompra(
+                pedido_id=pedido.id,
+                produto_id=item.produto_id,
+                deposito_id=sol_item.deposito_id if sol_item else None,
+                unidade=sol_item.unidade if sol_item else "UN",
+                quantidade_solicitada=item.quantidade,
+                preco_estimado_unitario=item.valor_unitario,
+                valor_total=item.valor_total,
+                status_item="PENDENTE",
+            ))
+        await self.session.flush()
+        return pedido
+
+    async def alocar_itens(
+        self, solicitacao_id: uuid.UUID, alocacoes: list,
+    ) -> List[SolicitacaoItem]:
+        """Aloca quantidades de itens da solicitação a cotações/fornecedores
+        específicos. Um item pode receber várias alocações (fornecedores
+        diferentes, quantidades parciais); pode ser chamado várias vezes até
+        completar o item ou até o solicitante encerrar a solicitação.
+
+        `alocacoes`: lista de objetos com `solicitacao_item_id`,
+        `cotacao_item_id`, `quantidade` (ex: AlocacaoItemCreate).
+        """
+        from core.exceptions import BusinessRuleError
+
+        solicitacao = await self.session.get(SolicitacaoCompra, solicitacao_id)
+        if not solicitacao or solicitacao.tenant_id != self.tenant_id:
+            raise BusinessRuleError("Solicitação não encontrada.")
+        if solicitacao.status != "APROVADA":
+            raise BusinessRuleError("Só é possível alocar itens de solicitações APROVADAS.")
+
+        itens_solicitacao = await self._enriquecer_itens_solicitacao(solicitacao_id)
+        itens_por_id = {i.id: i for i in itens_solicitacao}
+        saldo_item = {i.id: i.quantidade_solicitada - i.quantidade_alocada for i in itens_solicitacao}
+
+        cotacao_item_ids = list({a.cotacao_item_id for a in alocacoes})
+        stmt_ci = (
+            select(CotacaoItem, CotacaoCompra.solicitacao_id, CotacaoCompra.status, CotacaoCompra.tenant_id)
+            .join(CotacaoCompra, CotacaoItem.cotacao_id == CotacaoCompra.id)
+            .where(CotacaoItem.id.in_(cotacao_item_ids))
+        )
+        cotacao_itens_por_id = {}
+        for ci, sol_id, cot_status, cot_tenant_id in (await self.session.execute(stmt_ci)).all():
+            cotacao_itens_por_id[ci.id] = (ci, sol_id, cot_status, cot_tenant_id)
+
+        stmt_saldo_ci = (
+            select(AlocacaoItem.cotacao_item_id, func.coalesce(func.sum(AlocacaoItem.quantidade_alocada), 0.0))
+            .where(AlocacaoItem.cotacao_item_id.in_(cotacao_item_ids))
+            .group_by(AlocacaoItem.cotacao_item_id)
+        )
+        alocado_por_cotacao_item = dict((await self.session.execute(stmt_saldo_ci)).all())
+
+        for aloc in alocacoes:
+            entry = cotacao_itens_por_id.get(aloc.cotacao_item_id)
+            if not entry:
+                raise BusinessRuleError("Item de cotação não encontrado.")
+            cotacao_item, cot_solicitacao_id, cot_status, cot_tenant_id = entry
+            if cot_tenant_id != self.tenant_id or cot_solicitacao_id != solicitacao_id:
+                raise BusinessRuleError("Item de cotação não pertence a esta solicitação.")
+            if cot_status == "RECUSADA":
+                raise BusinessRuleError("Não é possível alocar a partir de uma cotação recusada.")
+            if cotacao_item.solicitacao_item_id != aloc.solicitacao_item_id:
+                raise BusinessRuleError("O item de cotação informado não corresponde ao item da solicitação.")
+            if aloc.solicitacao_item_id not in itens_por_id:
+                raise BusinessRuleError("Item da solicitação não encontrado.")
+
+            saldo_cotado = cotacao_item.quantidade - alocado_por_cotacao_item.get(aloc.cotacao_item_id, 0.0)
+            if aloc.quantidade > saldo_cotado + 1e-6:
+                raise BusinessRuleError(
+                    f"Quantidade alocada ({aloc.quantidade}) excede o saldo cotado por este fornecedor ({saldo_cotado})."
+                )
+            saldo_pedido = saldo_item.get(aloc.solicitacao_item_id, 0.0)
+            if aloc.quantidade > saldo_pedido + 1e-6:
+                raise BusinessRuleError(
+                    f"Quantidade alocada ({aloc.quantidade}) excede o saldo pendente do item ({saldo_pedido})."
+                )
+
+            alocado_por_cotacao_item[aloc.cotacao_item_id] = alocado_por_cotacao_item.get(aloc.cotacao_item_id, 0.0) + aloc.quantidade
+            saldo_item[aloc.solicitacao_item_id] = saldo_pedido - aloc.quantidade
+
+            self.session.add(AlocacaoItem(
+                solicitacao_item_id=aloc.solicitacao_item_id,
+                cotacao_item_id=aloc.cotacao_item_id,
+                quantidade_alocada=aloc.quantidade,
+            ))
+
+        await self.session.flush()
+        return await self._enriquecer_itens_solicitacao(solicitacao_id)
+
+    async def gerar_pedidos_de_alocacoes(self, solicitacao_id: uuid.UUID) -> List[PedidoCompra]:
+        """Converte as alocações pendentes (ainda sem pedido) de uma
+        solicitação em pedidos de compra — 1 pedido por fornecedor com itens
+        alocados. Pode gerar vários pedidos numa única chamada."""
+        from core.exceptions import BusinessRuleError
+
+        solicitacao = await self.session.get(SolicitacaoCompra, solicitacao_id)
+        if not solicitacao or solicitacao.tenant_id != self.tenant_id:
+            raise BusinessRuleError("Solicitação não encontrada.")
+
+        stmt = (
+            select(AlocacaoItem, CotacaoItem, CotacaoCompra)
+            .join(CotacaoItem, AlocacaoItem.cotacao_item_id == CotacaoItem.id)
+            .join(CotacaoCompra, CotacaoItem.cotacao_id == CotacaoCompra.id)
+            .where(
+                CotacaoCompra.solicitacao_id == solicitacao_id,
+                AlocacaoItem.pedido_id.is_(None),
+            )
+        )
+        linhas = (await self.session.execute(stmt)).all()
+        if not linhas:
+            return []
+
+        itens_solicitacao_por_id = {i.id: i for i in await self._enriquecer_itens_solicitacao(solicitacao_id)}
+
+        # Maior valor_unitario cotado por item (entre todas as cotações não recusadas),
+        # usado como referência de "pior preço" para o cálculo de economia.
+        stmt_pior = (
+            select(CotacaoItem.solicitacao_item_id, func.max(CotacaoItem.valor_unitario))
+            .join(CotacaoCompra, CotacaoItem.cotacao_id == CotacaoCompra.id)
+            .where(CotacaoCompra.solicitacao_id == solicitacao_id, CotacaoCompra.status != "RECUSADA")
+            .group_by(CotacaoItem.solicitacao_item_id)
+        )
+        pior_valor_unitario_por_item = dict((await self.session.execute(stmt_pior)).all())
+
+        grupos: dict = {}
+        for alocacao, cotacao_item, cotacao in linhas:
+            grupos.setdefault(cotacao.fornecedor_id or cotacao.id, []).append((alocacao, cotacao_item, cotacao))
+
+        pedidos_gerados = []
+        for chave, itens_grupo in grupos.items():
+            _, _, cotacao_ref = itens_grupo[0]
+            if cotacao_ref.fornecedor_id:
+                fornecedor = await self.obter_fornecedor_orm(cotacao_ref.fornecedor_id)
+            else:
+                fornecedor = await self._resolver_ou_criar_fornecedor_por_nome(
+                    cotacao_ref.fornecedor_nome, cotacao_ref.fornecedor_contato
+                )
+
+            valor_total_pedido = sum(a.quantidade_alocada * ci.valor_unitario for a, ci, _ in itens_grupo)
+            economia_absoluta = sum(
+                (pior_valor_unitario_por_item.get(ci.solicitacao_item_id, ci.valor_unitario) - ci.valor_unitario) * a.quantidade_alocada
+                for a, ci, _ in itens_grupo
+            )
+            pior_total = sum(
+                pior_valor_unitario_por_item.get(ci.solicitacao_item_id, ci.valor_unitario) * a.quantidade_alocada
+                for a, ci, _ in itens_grupo
+            )
+            economia_percentual = (economia_absoluta / pior_total * 100) if pior_total > 0 else 0.0
+
+            numero_pedido = await SequencialService(self.session, self.tenant_id).proximo_numero("compras_pedido")
+
+            pedido = PedidoCompra(
+                tenant_id=self.tenant_id,
+                numero=numero_pedido,
+                solicitacao_id=solicitacao_id,
+                cotacao_id=cotacao_ref.id,
+                fornecedor_id=fornecedor.id,
+                fornecedor_nome=cotacao_ref.fornecedor_nome,
+                fornecedor_contato=cotacao_ref.fornecedor_contato,
+                condicoes_pagamento=cotacao_ref.condicoes_pagamento or fornecedor.condicoes_pagamento,
+                valor_total=round(valor_total_pedido, 2),
+                status="ABERTO",
+                economia_absoluta=round(economia_absoluta, 2),
+                economia_percentual=round(economia_percentual, 2),
+                usuario_solicitante_id=solicitacao.solicitante_id,
+            )
+            self.session.add(pedido)
+            await self.session.flush()
+
+            for alocacao, cotacao_item, _ in itens_grupo:
+                sol_item = itens_solicitacao_por_id.get(alocacao.solicitacao_item_id)
+                self.session.add(ItemPedidoCompra(
+                    pedido_id=pedido.id,
+                    produto_id=cotacao_item.produto_id,
+                    deposito_id=sol_item.deposito_id if sol_item else None,
+                    unidade=sol_item.unidade if sol_item else "UN",
+                    quantidade_solicitada=alocacao.quantidade_alocada,
+                    preco_estimado_unitario=cotacao_item.valor_unitario,
+                    valor_total=round(alocacao.quantidade_alocada * cotacao_item.valor_unitario, 2),
+                    status_item="PENDENTE",
+                ))
+                alocacao.pedido_id = pedido.id
+                self.session.add(alocacao)
+
+            pedidos_gerados.append(pedido)
+
+        await self.session.flush()
+        return pedidos_gerados
+
+    async def encerrar_solicitacao(self, solicitacao_id: uuid.UUID, usuario_id: uuid.UUID | None) -> SolicitacaoCompra:
+        """Encerra uma solicitação — inclusive com itens PENDENTE/PARCIAL — a
+        pedido do próprio solicitante, que é quem sabe se o atendimento
+        parcial já resolve a necessidade dele. Só o solicitante pode chamar
+        (registros legados sem solicitante_id não são bloqueados)."""
+        from core.exceptions import BusinessRuleError, TenantViolationError
+
+        solicitacao = await self.session.get(SolicitacaoCompra, solicitacao_id)
+        if not solicitacao or solicitacao.tenant_id != self.tenant_id:
+            raise BusinessRuleError("Solicitação não encontrada.")
+        if solicitacao.solicitante_id is not None and str(solicitacao.solicitante_id) != str(usuario_id):
+            raise TenantViolationError("Apenas quem criou a solicitação pode encerrá-la.")
+        if solicitacao.status not in ("APROVADA", "ABERTA", "EM_ANALISE"):
+            raise BusinessRuleError(f"Não é possível encerrar uma solicitação com status {solicitacao.status}.")
+
+        solicitacao.status = "ENCERRADA"
+        await self.session.flush()
+        solicitacao.itens = await self._enriquecer_itens_solicitacao(solicitacao.id)
+        await self._enriquecer_solicitante_nome(solicitacao)
+        return solicitacao
+
+    async def atualizar_condicoes_pagamento(
+        self, pedido_id: uuid.UUID, condicoes_pagamento: str
+    ) -> PedidoCompra:
+        pedido = await self.session.get(PedidoCompra, pedido_id)
+        if not pedido or pedido.tenant_id != self.tenant_id:
+            raise BusinessRuleError("Pedido não encontrado.")
+        if pedido.status in ("RECEBIDO", "CANCELADO"):
+            raise BusinessRuleError(
+                "Não é possível alterar condições de pagamento de um pedido recebido ou cancelado."
+            )
+        pedido.condicoes_pagamento = condicoes_pagamento
         self.session.add(pedido)
         await self.session.flush()
         return pedido
 
+    async def atualizar_adiantamento(
+        self, pedido_id: uuid.UUID, valor_adiantamento: float
+    ) -> PedidoCompra:
+        pedido = await self.session.get(PedidoCompra, pedido_id)
+        if not pedido or pedido.tenant_id != self.tenant_id:
+            raise BusinessRuleError("Pedido não encontrado.")
+        if pedido.status not in ("ABERTO", "ENVIADO"):
+            raise BusinessRuleError(
+                "Adiantamento só pode ser definido antes da confirmação do fornecedor."
+            )
+        if valor_adiantamento > float(pedido.valor_total or 0.0):
+            raise BusinessRuleError("Adiantamento não pode ser maior que o valor total do pedido.")
+        pedido.valor_adiantamento = valor_adiantamento
+        self.session.add(pedido)
+        await self.session.flush()
+        return pedido
+
+    async def _gerar_despesa_adiantamento(self, pedido: PedidoCompra) -> Despesa | None:
+        """Gera a Despesa de adiantamento — só deve ser chamada após a
+        confirmação de aceite do fornecedor (status CONFIRMADO)."""
+        if not pedido.valor_adiantamento or float(pedido.valor_adiantamento) <= 0:
+            return None
+
+        existente = (
+            await self.session.execute(
+                select(Despesa).where(
+                    Despesa.tenant_id == self.tenant_id,
+                    Despesa.origem_tipo == "COMPRA_ADIANTAMENTO",
+                    Despesa.origem_id == pedido.id,
+                    Despesa.ativo == True,
+                ).limit(1)
+            )
+        ).scalar_one_or_none()
+        if existente is not None:
+            return existente
+
+        item_principal = await self._get_or_create_item_pedido_principal(pedido)
+        deposito = await self.session.get(Deposito, item_principal.deposito_id)
+        produto = await self.session.get(Produto, item_principal.produto_id)
+        if not deposito or deposito.tenant_id != self.tenant_id:
+            raise BusinessRuleError("Deposito do pedido indisponível para integração financeira da compra.")
+        if not produto or produto.tenant_id != self.tenant_id:
+            raise BusinessRuleError("Produto do pedido indisponível para integração financeira da compra.")
+
+        plano_conta_id = await self._resolver_plano_conta_compra(produto)
+        if plano_conta_id is None:
+            raise BusinessRuleError("Nenhum plano de contas de despesa analítica foi encontrado para integrar a compra.")
+
+        pessoa_id, fornecedor_nome, _fornecedor = await self._resolver_fornecedor_financeiro(pedido)
+        hoje = date.today()
+
+        payload = DespesaCreate(
+            unidade_produtiva_id=deposito.unidade_produtiva_id,
+            plano_conta_id=plano_conta_id,
+            descricao=f"Adiantamento de compra de {produto.nome}",
+            valor_total=float(pedido.valor_adiantamento),
+            data_emissao=hoje,
+            data_vencimento=hoje,
+            competencia=hoje.replace(day=1),
+            status="A_PAGAR",
+            pessoa_id=pessoa_id,
+            fornecedor=fornecedor_nome or pedido.fornecedor_nome,
+            origem_id=pedido.id,
+            origem_tipo="COMPRA_ADIANTAMENTO",
+            observacoes=f"Adiantamento pago na confirmação de aceite do pedido {pedido.id}.",
+            rateios=[],
+        )
+        despesas = await DespesaService(self.session, self.tenant_id).create_with_rateio(payload)
+        return despesas[0] if despesas else None
+
     async def listar_pedidos(self) -> List[PedidoCompra]:
         """Lista todos os pedidos de compra com dados enriquecidos."""
-        from core.cadastros.produtos.models import Produto
-        from operacional.models.estoque import Deposito
-        
         stmt = (
-            select(
-                PedidoCompra,
-                Produto.nome.label("item_nome"),
-                Deposito.nome.label("deposito_nome")
-            )
-            .join(Produto, PedidoCompra.item_id == Produto.id)
-            .join(Deposito, PedidoCompra.deposito_id == Deposito.id)
+            select(PedidoCompra)
             .where(PedidoCompra.tenant_id == self.tenant_id)
             .order_by(PedidoCompra.created_at.desc())
         )
-        
+        pedidos = (await self.session.execute(stmt)).scalars().all()
+        return [await self._enriquecer_pedido(ped) for ped in pedidos]
+
+    async def _enriquecer_itens_pedido(self, pedido_id: uuid.UUID) -> List[ItemPedidoCompra]:
+        from core.cadastros.produtos.models import Produto
+
+        stmt = (
+            select(ItemPedidoCompra, Produto.nome)
+            .join(Produto, ItemPedidoCompra.produto_id == Produto.id)
+            .where(ItemPedidoCompra.pedido_id == pedido_id)
+        )
         result = await self.session.execute(stmt)
-        items = []
-        for row in result.all():
-            ped, i_nome, d_nome = row
-            ped.item_nome = i_nome
-            ped.deposito_nome = d_nome
-            items.append(ped)
-            
-        return items
+        itens = []
+        for item, p_nome in result.all():
+            item.produto_nome = p_nome
+            itens.append(item)
+        return itens
 
     async def receber_pedido(
         self,
@@ -919,11 +1531,17 @@ class ComprasService:
             return None
 
         if pedido.status == "RECEBIDO":
-            await self._garantir_despesa_financeira_compra(pedido)
+            recebimentos_existentes = (
+                await self.session.execute(
+                    select(RecebimentoParcial).where(RecebimentoParcial.pedido_id == pedido.id)
+                )
+            ).scalars().all()
+            for rec in recebimentos_existentes:
+                await self._garantir_despesa_financeira_compra(pedido, recebimento=rec)
             return await self._enriquecer_pedido(pedido)  # Já recebido, idempotente
 
         item_pedido = await self._get_or_create_item_pedido_principal(pedido)
-        recebimento_data = data or self._build_recebimento_fallback(pedido, item_pedido)
+        recebimento_data = data or await self._build_recebimento_fallback(pedido, item_pedido)
 
         # 2. Verificar se já existe movimentação para este pedido (idempotência extra)
         stmt_check = select(EstoqueMovimento).where(
@@ -962,7 +1580,7 @@ class ComprasService:
                     recebimento_id=recebimento.id,
                     item_pedido_id=item_alvo.id,
                     quantidade_recebida=float(item_model.quantidade_recebida),
-                    preco_real_unitario=float(item_model.preco_real_unitario or 0.0) or self._resolver_custo_recebimento(pedido),
+                    preco_real_unitario=float(item_model.preco_real_unitario or 0.0) or self._resolver_custo_recebimento(item_alvo),
                     numero_lote_fornecedor=getattr(item_model, "numero_lote_fornecedor", None),
                     lote_id=lote_id,
                 )
@@ -1029,17 +1647,181 @@ class ComprasService:
         pedido.status = novo_status
         self.session.add(pedido)
         await self.session.flush()
+
+        if novo_status == "CANCELADO":
+            await self._reabrir_cotacoes_concorrentes(pedido)
+
         return await self._enriquecer_pedido(pedido)
 
-    async def _enriquecer_pedido(self, pedido: PedidoCompra) -> PedidoCompra:
-        """Adiciona nomes de item e depósito ao objeto do pedido."""
-        from core.cadastros.produtos.models import Produto
+    async def _reabrir_cotacoes_concorrentes(self, pedido: PedidoCompra) -> None:
+        """Ao cancelar um pedido, marca a cotação de origem como perdida e libera
+        as demais cotações da mesma solicitação para uma nova escolha, evitando
+        que o comprador precise recotar do zero."""
+        if not pedido.solicitacao_id:
+            return
+
+        if pedido.cotacao_id:
+            cotacao_perdedora = await self.session.get(CotacaoCompra, pedido.cotacao_id)
+            if cotacao_perdedora and cotacao_perdedora.tenant_id == self.tenant_id:
+                cotacao_perdedora.status = "RECUSADA"
+                self.session.add(cotacao_perdedora)
+
+        stmt = select(CotacaoCompra).where(
+            CotacaoCompra.solicitacao_id == pedido.solicitacao_id,
+            CotacaoCompra.tenant_id == self.tenant_id,
+            CotacaoCompra.id != pedido.cotacao_id,
+        )
+        concorrentes = (await self.session.execute(stmt)).scalars().all()
+        for cotacao in concorrentes:
+            if cotacao.status == "RECUSADA":
+                cotacao.status = "RECEBIDA"
+                self.session.add(cotacao)
+
+        await self.session.flush()
+
+    async def enviar_pedido_fornecedor(self, pedido_id: uuid.UUID) -> PedidoCompra:
+        """Gera link+senha de confirmação e envia e-mail ao fornecedor,
+        marcando o pedido como ENVIADO (aguardando aceite)."""
+        pedido = await self.session.get(PedidoCompra, pedido_id)
+        if not pedido or pedido.tenant_id != self.tenant_id:
+            raise BusinessRuleError("Pedido não encontrado.")
+        if pedido.status not in ("ABERTO", "ENVIADO"):
+            raise BusinessRuleError("Só é possível enviar ao fornecedor pedidos em aberto.")
+        if not pedido.fornecedor_id:
+            raise BusinessRuleError("Pedido sem fornecedor cadastrado vinculado.")
+
+        fornecedor = await self.session.get(Fornecedor, pedido.fornecedor_id)
+        if not fornecedor:
+            raise BusinessRuleError("Fornecedor não encontrado.")
+        dados_fornecedor = await obter_dados_exibicao_fornecedor(self.session, fornecedor.pessoa_id)
+        if not dados_fornecedor["email"]:
+            raise BusinessRuleError(
+                "Fornecedor sem e-mail cadastrado. Cadastre um e-mail antes de enviar o pedido."
+            )
+
+        pendentes = (
+            await self.session.execute(
+                select(PedidoConfirmacaoFornecedor).where(
+                    PedidoConfirmacaoFornecedor.pedido_id == pedido.id,
+                    PedidoConfirmacaoFornecedor.status == "PENDENTE",
+                )
+            )
+        ).scalars().all()
+        for antiga in pendentes:
+            antiga.status = "EXPIRADO"
+            self.session.add(antiga)
+
+        token = secrets.token_urlsafe(32)
+        senha = f"{secrets.randbelow(1_000_000):06d}"
+        senha_hash = bcrypt.hashpw(senha.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+        dias_expiracao = 5
+
+        confirmacao = PedidoConfirmacaoFornecedor(
+            tenant_id=self.tenant_id,
+            pedido_id=pedido.id,
+            token_confirmacao=token,
+            senha_confirmacao_hash=senha_hash,
+            data_expiracao=datetime.now(timezone.utc) + timedelta(days=dias_expiracao),
+        )
+        self.session.add(confirmacao)
+
+        pedido.status = "ENVIADO"
+        self.session.add(pedido)
+        await self.session.flush()
+
+        itens_pedido = await self._enriquecer_itens_pedido(pedido.id)
+        tenant = await self.session.get(Tenant, self.tenant_id)
+        deposito_id_entrega = itens_pedido[0].deposito_id if itens_pedido else None
+        _, endereco_entrega = (
+            await self._resolver_endereco_entrega(deposito_id_entrega) if deposito_id_entrega else (None, None)
+        )
+
+        itens_email = [
+            {
+                "produto_nome": i.produto_nome or "",
+                "quantidade": i.quantidade_solicitada,
+                "unidade": i.unidade,
+                "preco_unitario": _formatar_moeda_brl(i.preco_estimado_unitario),
+                "valor_total": _formatar_moeda_brl(i.valor_total),
+            }
+            for i in itens_pedido
+        ]
+
+        try:
+            await email_service.send_pedido_compra_confirmacao(
+                email=dados_fornecedor["email"],
+                fornecedor_nome=dados_fornecedor["nome_fantasia"],
+                tenant_nome=tenant.nome if tenant else "",
+                itens=itens_email,
+                valor_total=_formatar_moeda_brl(pedido.valor_total),
+                condicoes_pagamento=pedido.condicoes_pagamento or "A combinar",
+                endereco_entrega=endereco_entrega or "A combinar",
+                prazo_entrega_dias=fornecedor.prazo_entrega_dias,
+                token=token,
+                senha_confirmacao=senha,
+                dias_expiracao=dias_expiracao,
+                tenant_id=self.tenant_id,
+                numero_pedido=pedido.numero,
+            )
+        except Exception as e:
+            logger.error(f"Falha ao enviar e-mail de confirmação do pedido {pedido.id}: {e}")
+
+        return await self._enriquecer_pedido(pedido)
+
+    async def _resolver_endereco_entrega(self, deposito_id: uuid.UUID) -> tuple[str | None, str | None]:
+        """Retorna (nome_deposito, endereco_formatado) a partir da Unidade
+        Produtiva vinculada ao depósito — usado no pedido e no e-mail ao
+        fornecedor, para indicar onde a mercadoria deve ser entregue."""
         from operacional.models.estoque import Deposito
-        
-        p = await self.session.get(Produto, pedido.item_id)
-        d = await self.session.get(Deposito, pedido.deposito_id)
-        pedido.item_nome = p.nome if p else "N/A"
-        pedido.deposito_nome = d.nome if d else "N/A"
+        from core.models.unidade_produtiva import UnidadeProdutiva
+
+        deposito = await self.session.get(Deposito, deposito_id)
+        if not deposito:
+            return None, None
+
+        up = await self.session.get(UnidadeProdutiva, deposito.unidade_produtiva_id)
+        if not up:
+            return deposito.nome, None
+
+        partes = [
+            f"{up.logradouro}, {up.numero}" if up.logradouro else None,
+            up.complemento,
+            up.bairro,
+            f"{up.municipio}/{up.uf}" if up.municipio and up.uf else (up.municipio or up.uf),
+            f"CEP {up.cep}" if up.cep else None,
+        ]
+        endereco = ", ".join(p for p in partes if p) or None
+        return deposito.nome, endereco
+
+    async def _enriquecer_pedido(self, pedido: PedidoCompra) -> PedidoCompra:
+        """Adiciona itens, nomes de item/depósito, endereço de entrega e prazo
+        de entrega do fornecedor ao objeto do pedido (atributos transientes,
+        não persistidos — usados só para a resposta da API).
+
+        item_nome/deposito_id/deposito_nome/quantidade/unidade/valor_unitario
+        são campos de conveniência calculados a partir de `itens` — só fazem
+        sentido (ficam preenchidos) quando o pedido tem 1 item só; a UI deve
+        iterar `itens` para o caso geral multi-item."""
+        pedido.itens = await self._enriquecer_itens_pedido(pedido.id)
+        item_unico = pedido.itens[0] if len(pedido.itens) == 1 else None
+
+        pedido.item_nome = item_unico.produto_nome if item_unico else (
+            "Múltiplos itens" if pedido.itens else "N/A"
+        )
+        deposito_id = item_unico.deposito_id if item_unico else None
+        pedido.deposito_id = deposito_id
+        if deposito_id:
+            pedido.deposito_nome, pedido.endereco_entrega = await self._resolver_endereco_entrega(deposito_id)
+        else:
+            pedido.deposito_nome, pedido.endereco_entrega = None, None
+        pedido.deposito_nome = pedido.deposito_nome or "N/A"
+
+        pedido.quantidade = item_unico.quantidade_solicitada if item_unico else None
+        pedido.unidade = item_unico.unidade if item_unico else None
+        pedido.valor_unitario = item_unico.preco_estimado_unitario if item_unico else None
+
+        fornecedor = await self.session.get(Fornecedor, pedido.fornecedor_id) if pedido.fornecedor_id else None
+        pedido.prazo_entrega_dias = fornecedor.prazo_entrega_dias if fornecedor else None
         return pedido
 
     async def gerar_pdf_pedido(self, pedido_id: uuid.UUID) -> bytes:
@@ -1075,12 +1857,13 @@ class ComprasService:
         elements = []
         
         # Cabeçalho
-        elements.append(Paragraph("PEDIDO DE COMPRA", title_style))
+        titulo = f"PEDIDO DE COMPRA {pedido.numero}" if pedido.numero else "PEDIDO DE COMPRA"
+        elements.append(Paragraph(titulo, title_style))
         elements.append(Spacer(1, 12))
-        
+
         # Tabela de Dados Gerais
         data_geral = [
-            ["ID do Pedido:", str(pedido.id)],
+            ["Nº do Pedido:", pedido.numero or str(pedido.id)],
             ["Data do Pedido:", pedido.created_at.strftime("%d/%m/%Y %H:%M")],
             ["Status:", pedido.status]
         ]
@@ -1098,7 +1881,9 @@ class ComprasService:
         elements.append(Paragraph("<b>DADOS DO FORNECEDOR</b>", styles['Normal']))
         data_forn = [
             ["Fornecedor:", pedido.fornecedor_nome],
-            ["Contato:", pedido.fornecedor_contato or "N/A"]
+            ["Contato:", pedido.fornecedor_contato or "N/A"],
+            ["Condições de Pagamento:", pedido.condicoes_pagamento or "A combinar"],
+            ["Prazo de Entrega:", f"{pedido.prazo_entrega_dias} dias" if pedido.prazo_entrega_dias else "A combinar"],
         ]
         t_forn = Table(data_forn, colWidths=[100, 300])
         t_forn.setStyle(TableStyle([
@@ -1109,31 +1894,41 @@ class ComprasService:
         elements.append(Spacer(1, 20))
         
         # Itens do Pedido
-        elements.append(Paragraph("<b>ITENS E ENTREGA</b>", styles['Normal']))
-        header_itens = ["Item", "Qtd", "Un", "Vlr Unit", "Total"]
-        row_itens = [
-            pedido.item_nome,
-            str(pedido.quantidade),
-            pedido.unidade,
-            f"R$ {pedido.valor_unitario:,.2f}",
-            f"R$ {pedido.valor_total:,.2f}"
+        elements.append(Paragraph("<b>ITENS DO PEDIDO</b>", styles['Normal']))
+        elements.append(Spacer(1, 6))
+        header_itens = ["Descrição do produto", "Quantidade", "Preço unitário", "Preço total"]
+        rows_itens = [
+            [
+                item.produto_nome or "N/A",
+                f"{item.quantidade_solicitada:g} {item.unidade}",
+                _formatar_moeda_brl(item.preco_estimado_unitario),
+                _formatar_moeda_brl(item.valor_total),
+            ]
+            for item in pedido.itens
         ]
-        
-        t_itens = Table([header_itens, row_itens], colWidths=[180, 50, 40, 80, 80])
+
+        t_itens = Table([header_itens] + rows_itens, colWidths=[220, 90, 90, 90])
         t_itens.setStyle(TableStyle([
             ('BACKGROUND', (0,0), (-1,0), colors.lightgrey),
             ('TEXTCOLOR', (0,0), (-1,0), colors.black),
-            ('ALIGN', (0,0), (-1,-1), 'CENTER'),
+            ('ALIGN', (0,0), (0,-1), 'LEFT'),
+            ('ALIGN', (1,0), (-1,-1), 'RIGHT'),
             ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
             ('FONTSIZE', (0,0), (-1,-1), 9),
-            ('BOTTOMPADDING', (0,0), (-1,0), 12),
+            ('BOTTOMPADDING', (0,0), (-1,0), 8),
+            ('TOPPADDING', (0,0), (-1,-1), 6),
+            ('BOTTOMPADDING', (0,1), (-1,-1), 6),
             ('GRID', (0,0), (-1,-1), 0.5, colors.grey)
         ]))
         elements.append(t_itens)
+        elements.append(Spacer(1, 8))
+        elements.append(Paragraph(f"<b>Valor total do pedido:</b> {_formatar_moeda_brl(pedido.valor_total)}", styles['Normal']))
         elements.append(Spacer(1, 20))
-        
+
         # Local de Entrega
         elements.append(Paragraph(f"<b>Local de Entrega:</b> {pedido.deposito_nome}", styles['Normal']))
+        if pedido.endereco_entrega:
+            elements.append(Paragraph(f"<b>Endereço:</b> {pedido.endereco_entrega}", styles['Normal']))
         
         doc.build(elements)
         pdf_content = buffer.getvalue()
@@ -1196,13 +1991,14 @@ class ComprasService:
         elements.append(Spacer(1, 20))
         
         # Tabela Comparativa
-        header_table = ["Ranking", "Fornecedor", "Valor Unit", "Valor Total", "Prazo", "Score", "Classificação", "Melhor Opção"]
+        header_table = ["Nº Cotação", "Ranking", "Fornecedor", "Valor Unit", "Valor Total", "Prazo", "Score", "Classificação", "Melhor Opção"]
         rows = []
         for cot in cotacoes:
             rows.append([
+                cot.numero or "-",
                 f"#{cot.posicao_ranking}",
                 cot.fornecedor_nome,
-                f"R$ {cot.valor_unitario:,.2f}",
+                f"R$ {cot.valor_unitario:,.2f}" if cot.valor_unitario is not None else "Múltiplos itens",
                 f"R$ {cot.valor_total:,.2f}",
                 f"{cot.prazo_entrega_dias} dias" if cot.prazo_entrega_dias else "N/A",
                 f"{cot.score_compra:.1f}",
@@ -1210,7 +2006,7 @@ class ComprasService:
                 "SIM" if cot.melhor_opcao else ""
             ])
             
-        t_comp = Table([header_table] + rows, colWidths=[60, 180, 80, 80, 60, 60, 100, 80])
+        t_comp = Table([header_table] + rows, colWidths=[70, 50, 150, 70, 70, 55, 50, 90, 70])
         
         # Estilização da Tabela
         table_style_list = [
@@ -1229,7 +2025,7 @@ class ComprasService:
             if cot.melhor_opcao:
                 table_style_list.append(('BACKGROUND', (0, i+1), (-1, i+1), colors.HexColor("#d1fae5")))
             elif cot.classificacao_score == "RUIM":
-                 table_style_list.append(('TEXTCOLOR', (6, i+1), (6, i+1), colors.red))
+                 table_style_list.append(('TEXTCOLOR', (7, i+1), (7, i+1), colors.red))
                  
         t_comp.setStyle(TableStyle(table_style_list))
         elements.append(t_comp)
@@ -1261,31 +2057,35 @@ class ComprasService:
 
     async def get_historico_precos(self, item_id: uuid.UUID) -> dict:
         """Retorna o histórico de preços de um item e estatísticas básicas."""
-        # 1. Query para Cotações
+        # 1. Query para Cotações — usa CotacaoItem (linha por produto), não o
+        # campo legado CotacaoCompra.valor_unitario, que é NULL em cotações
+        # multi-item e quebraria as agregações abaixo (sum() com None).
         stmt_cot = (
             select(
                 CotacaoCompra.fornecedor_nome,
-                CotacaoCompra.valor_unitario,
+                CotacaoItem.valor_unitario,
                 CotacaoCompra.created_at.label("data"),
                 literal_column("'COTACAO'").label("origem")
             )
-            .join(SolicitacaoCompra, CotacaoCompra.solicitacao_id == SolicitacaoCompra.id)
+            .join(CotacaoItem, CotacaoItem.cotacao_id == CotacaoCompra.id)
             .where(
-                SolicitacaoCompra.produto_id == item_id,
+                CotacaoItem.produto_id == item_id,
                 CotacaoCompra.tenant_id == self.tenant_id
             )
         )
         
-        # 2. Query para Pedidos
+        # 2. Query para Pedidos — via ItemPedidoCompra (um pedido pode ter
+        # múltiplos itens; o preço é por item, não por pedido).
         stmt_ped = (
             select(
                 PedidoCompra.fornecedor_nome,
-                PedidoCompra.valor_unitario,
+                ItemPedidoCompra.preco_estimado_unitario.label("valor_unitario"),
                 PedidoCompra.created_at.label("data"),
                 literal_column("'PEDIDO'").label("origem")
             )
+            .join(PedidoCompra, ItemPedidoCompra.pedido_id == PedidoCompra.id)
             .where(
-                PedidoCompra.item_id == item_id,
+                ItemPedidoCompra.produto_id == item_id,
                 PedidoCompra.tenant_id == self.tenant_id
             )
         )
@@ -1309,8 +2109,9 @@ class ComprasService:
                 "data": row.data,
                 "origem": row.origem
             })
-            precos.append(row.valor_unitario)
-            
+            if row.valor_unitario is not None:
+                precos.append(row.valor_unitario)
+
         # 3. Agregações
         stats = {
             "menor_preco": min(precos) if precos else 0.0,
@@ -1450,14 +2251,21 @@ class ComprasService:
             
         return results
 
-    async def calcular_score_compra(self, cotacao: CotacaoCompra, item_id: Optional[uuid.UUID] = None) -> dict:
+    async def calcular_score_compra(
+        self, cotacao: CotacaoCompra, item_id: Optional[uuid.UUID] = None,
+        valor_unitario: Optional[float] = None,
+    ) -> dict:
         """
         Calcula o score de 0 a 100 para uma cotação baseado em múltiplos critérios.
         Retorna score, classificação e lista de motivos.
+
+        `valor_unitario`: preço a comparar (item de referência). Se omitido, usa
+        `cotacao.valor_unitario` — só existe para cotações de 1 item só.
         """
         score = 0.0
         motivos = []
-        
+        valor_unitario = valor_unitario if valor_unitario is not None else cotacao.valor_unitario
+
         # Tentar obter item_id se não fornecido
         if not item_id:
             try:
@@ -1482,10 +2290,10 @@ class ComprasService:
                 p_ideal = ideal["preco_ideal"]
                 p_max = ideal.get("preco_maximo_recommended", p_ideal * 1.10)
                 
-                if cotacao.valor_unitario <= p_ideal:
+                if valor_unitario <= p_ideal:
                     score += 40
                     motivos.append("Preço excelente (abaixo ou igual à meta ideal)")
-                elif cotacao.valor_unitario <= p_max:
+                elif valor_unitario <= p_max:
                     score += 20
                     motivos.append("Preço dentro da faixa aceitável")
                 else:
@@ -1620,20 +2428,28 @@ class ComprasService:
         exec_res = await self.session.execute(stmt)
         result = exec_res.one_or_none()
         
-        # Melhor Decisão (Maior Economia Absoluta)
-        stmt_best = (
-            select(
-                Produto.nome,
-                PedidoCompra.economia_absoluta
-            )
-            .join(Produto, PedidoCompra.item_id == Produto.id)
+        # Melhor Decisão (Maior Economia Absoluta) — pega o pedido campeão e
+        # usa o nome do primeiro item dele como rótulo (aproximação para
+        # pedidos multi-item, igual ao comportamento anterior de item único).
+        stmt_pedido_best = (
+            select(PedidoCompra.id, PedidoCompra.economia_absoluta)
             .where(PedidoCompra.tenant_id == self.tenant_id)
             .order_by(PedidoCompra.economia_absoluta.desc())
             .limit(1)
         )
-        exec_best = await self.session.execute(stmt_best)
-        best = exec_best.one_or_none()
-        
+        pedido_best = (await self.session.execute(stmt_pedido_best)).one_or_none()
+        best = None
+        if pedido_best:
+            stmt_item_best = (
+                select(Produto.nome)
+                .join(ItemPedidoCompra, ItemPedidoCompra.produto_id == Produto.id)
+                .where(ItemPedidoCompra.pedido_id == pedido_best.id)
+                .order_by(ItemPedidoCompra.id.asc())
+                .limit(1)
+            )
+            nome_item_best = (await self.session.execute(stmt_item_best)).scalar_one_or_none()
+            best = (nome_item_best or "N/A", pedido_best.economia_absoluta)
+
         return {
             "economia_total": float(result.total_absoluto or 0.0) if result else 0.0,
             "economia_media_percentual": float(result.avg_percentual or 0.0) if result else 0.0,
@@ -1692,12 +2508,21 @@ class ComprasService:
         if total_geral == 0:
             return []
 
+        # Item representante de cada pedido (o primeiro) — evita fan-out do
+        # JOIN duplicar/multiplicar economia_absoluta em pedidos multi-item.
+        item_principal_sq = (
+            select(ItemPedidoCompra.pedido_id, ItemPedidoCompra.produto_id)
+            .distinct(ItemPedidoCompra.pedido_id)
+            .order_by(ItemPedidoCompra.pedido_id, ItemPedidoCompra.id.asc())
+        ).subquery()
+
         stmt = (
             select(
                 categoria_macro,
                 func.sum(PedidoCompra.economia_absoluta).label("total_cat")
             )
-            .join(Produto, PedidoCompra.item_id == Produto.id)
+            .join(item_principal_sq, item_principal_sq.c.pedido_id == PedidoCompra.id)
+            .join(Produto, item_principal_sq.c.produto_id == Produto.id)
             .where(
                 PedidoCompra.tenant_id == self.tenant_id,
                 PedidoCompra.economia_absoluta > 0
@@ -1794,3 +2619,139 @@ class ComprasService:
             }
             for row in res.all()
         ]
+
+
+def _formatar_moeda_brl(valor: float) -> str:
+    return f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+async def _listar_itens_pedido_para_exibicao(session, pedido_id: uuid.UUID) -> list["ItemPedidoConfirmacaoPublica"]:
+    """Retorna os itens do pedido formatados para exibição em telas/e-mails
+    que apresentam os produtos em formato de tabela."""
+    from operacional.schemas.compras import ItemPedidoConfirmacaoPublica
+
+    stmt = (
+        select(ItemPedidoCompra, Produto.nome)
+        .join(Produto, ItemPedidoCompra.produto_id == Produto.id)
+        .where(ItemPedidoCompra.pedido_id == pedido_id)
+    )
+    itens = (await session.execute(stmt)).all()
+    return [
+        ItemPedidoConfirmacaoPublica(
+            produto_nome=nome,
+            quantidade=item.quantidade_solicitada,
+            unidade=item.unidade,
+            preco_unitario=item.preco_estimado_unitario,
+            valor_total=item.valor_total,
+        )
+        for item, nome in itens
+    ]
+
+
+async def obter_confirmacao_publica(session, token: str):
+    """Consulta pública (sem tenant/JWT) do estado de um link de confirmação
+    de pedido enviado ao fornecedor. Usada pela tela pública de confirmação."""
+    from operacional.schemas.compras import PedidoConfirmacaoPublicaResponse
+
+    stmt = select(PedidoConfirmacaoFornecedor).where(
+        PedidoConfirmacaoFornecedor.token_confirmacao == token
+    )
+    confirmacao = (await session.execute(stmt)).scalar_one_or_none()
+    if not confirmacao:
+        raise BusinessRuleError("Link de confirmação inválido.")
+
+    if confirmacao.status == "PENDENTE" and confirmacao.data_expiracao < datetime.now(timezone.utc):
+        confirmacao.status = "EXPIRADO"
+        session.add(confirmacao)
+        await session.commit()
+
+    pedido = await session.get(PedidoCompra, confirmacao.pedido_id)
+    if not pedido:
+        raise BusinessRuleError("Pedido não encontrado.")
+
+    fornecedor = await session.get(Fornecedor, pedido.fornecedor_id) if pedido.fornecedor_id else None
+    dados_fornecedor = (
+        await obter_dados_exibicao_fornecedor(session, fornecedor.pessoa_id) if fornecedor else None
+    )
+    tenant = await session.get(Tenant, confirmacao.tenant_id)
+    itens = await _listar_itens_pedido_para_exibicao(session, pedido.id)
+
+    return PedidoConfirmacaoPublicaResponse(
+        status=confirmacao.status,
+        fornecedor_nome=(dados_fornecedor["nome_fantasia"] if dados_fornecedor else pedido.fornecedor_nome),
+        tenant_nome=tenant.nome if tenant else "",
+        itens=itens,
+        valor_total=pedido.valor_total,
+        condicoes_pagamento=pedido.condicoes_pagamento,
+    )
+
+
+async def responder_confirmacao_publica(session, token: str, senha: str, aceito: bool):
+    """Registra o aceite ou a recusa do fornecedor. O token já identifica de
+    forma única o tenant/pedido, então não há parâmetro de tenant aqui."""
+    from operacional.schemas.compras import PedidoConfirmacaoPublicaResponse
+
+    stmt = select(PedidoConfirmacaoFornecedor).where(
+        PedidoConfirmacaoFornecedor.token_confirmacao == token
+    )
+    confirmacao = (await session.execute(stmt)).scalar_one_or_none()
+    if not confirmacao:
+        raise BusinessRuleError("Link de confirmação inválido.")
+    if confirmacao.status != "PENDENTE":
+        raise BusinessRuleError("Este pedido já foi respondido ou o link expirou.")
+    if confirmacao.data_expiracao < datetime.now(timezone.utc):
+        confirmacao.status = "EXPIRADO"
+        session.add(confirmacao)
+        await session.commit()
+        raise BusinessRuleError("Link de confirmação expirado. Solicite o reenvio do pedido.")
+    if confirmacao.tentativas_senha >= 5:
+        raise BusinessRuleError("Número máximo de tentativas excedido. Solicite o reenvio do pedido.")
+
+    senha_valida = bcrypt.checkpw(
+        senha.encode("utf-8"), confirmacao.senha_confirmacao_hash.encode("utf-8")
+    )
+    if not senha_valida:
+        confirmacao.tentativas_senha += 1
+        session.add(confirmacao)
+        await session.commit()
+        raise BusinessRuleError("Senha de confirmação incorreta.")
+
+    pedido = await session.get(PedidoCompra, confirmacao.pedido_id)
+    if not pedido:
+        raise BusinessRuleError("Pedido não encontrado.")
+
+    confirmacao.status = "CONFIRMADO" if aceito else "RECUSADO"
+    confirmacao.respondido_em = datetime.now(timezone.utc)
+    session.add(confirmacao)
+
+    if aceito:
+        pedido.status = "CONFIRMADO"
+        session.add(pedido)
+        await session.flush()
+        svc = ComprasService(session, pedido.tenant_id)
+        await svc._gerar_despesa_adiantamento(pedido)
+        await session.flush()
+    else:
+        pedido.status = "RECUSADO_FORNECEDOR"
+        session.add(pedido)
+        await session.flush()
+        svc = ComprasService(session, pedido.tenant_id)
+        await svc._reabrir_cotacoes_concorrentes(pedido)
+
+    await session.commit()
+
+    fornecedor = await session.get(Fornecedor, pedido.fornecedor_id) if pedido.fornecedor_id else None
+    dados_fornecedor = (
+        await obter_dados_exibicao_fornecedor(session, fornecedor.pessoa_id) if fornecedor else None
+    )
+    tenant = await session.get(Tenant, pedido.tenant_id)
+    itens = await _listar_itens_pedido_para_exibicao(session, pedido.id)
+
+    return PedidoConfirmacaoPublicaResponse(
+        status=confirmacao.status,
+        fornecedor_nome=(dados_fornecedor["nome_fantasia"] if dados_fornecedor else pedido.fornecedor_nome),
+        tenant_nome=tenant.nome if tenant else "",
+        itens=itens,
+        valor_total=pedido.valor_total,
+        condicoes_pagamento=pedido.condicoes_pagamento,
+    )

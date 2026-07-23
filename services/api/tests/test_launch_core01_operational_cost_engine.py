@@ -14,6 +14,8 @@ from core.cadastros.produtos.models import Produto
 from financeiro.models.despesa import Despesa
 from financeiro.models.plano_conta import PlanoConta
 from operacional.models.estoque import Deposito
+from operacional.models.compras import Fornecedor
+from core.cadastros.pessoas.models import Pessoa
 from operacional.schemas.abastecimento import AbastecimentoCreate
 from operacional.schemas.estoque import EntradaEstoqueRequest
 from operacional.schemas.frota import ItemOrdemServicoCreate, OrdemServicoCreate, OrdemServicoUpdate
@@ -81,6 +83,17 @@ async def _criar_deposito(session: AsyncSession, tenant_id: uuid.UUID, unidade_p
     await session.commit()
     await session.refresh(deposito)
     return deposito
+
+
+async def _criar_fornecedor(session: AsyncSession, tenant_id: uuid.UUID) -> Fornecedor:
+    pessoa = Pessoa(id=uuid.uuid4(), tenant_id=tenant_id, tipo="PJ", nome_exibicao="Fornecedor Core01", base_legal="CONTRATO", ativo=True)
+    session.add(pessoa)
+    await session.flush()
+    fornecedor = Fornecedor(id=uuid.uuid4(), tenant_id=tenant_id, pessoa_id=pessoa.id)
+    session.add(fornecedor)
+    await session.commit()
+    await session.refresh(fornecedor)
+    return fornecedor
 
 
 async def _criar_colaborador(
@@ -215,10 +228,12 @@ async def test_fechamento_os_gera_pecas_manutencao_e_despesa_unica(session: Asyn
     await _criar_jornada_raw(session, tenant_id, equipamento.id, up_id, operador.id, safra.id, area_id)
     produto = await _criar_produto(session, tenant_id, preco_medio=30.0)
     deposito = await _criar_deposito(session, tenant_id, up_id)
+    fornecedor = await _criar_fornecedor(session, tenant_id)
     await EstoqueService(session, tenant_id).registrar_entrada(
         EntradaEstoqueRequest(
             deposito_id=deposito.id,
             produto_id=produto.id,
+            fornecedor_id=fornecedor.id,
             quantidade=10.0,
             custo_unitario=30.0,
             motivo="Carga inicial OS",

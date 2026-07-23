@@ -16,6 +16,7 @@ from tests.integration.helpers import garantir_assinatura
 # ---------------------------------------------------------------------------
 
 FORNECEDOR_ID = uuid.UUID("cc000001-0000-0000-0000-000000000001")
+FORNECEDOR_ID_2 = uuid.UUID("cc000002-0000-0000-0000-000000000002")
 DEPOSITO_ID   = uuid.UUID("ff000001-0000-0000-0000-000000000001")
 
 
@@ -35,7 +36,7 @@ async def _garantir_suporte(session):
     await session.execute(text("""
         INSERT INTO cadastros_produtos
             (id, tenant_id, nome, tipo, unidade_medida, estoque_minimo, preco_medio, ativo)
-        VALUES (:id, :tenant_id, 'Fertilizante NPK', 'INSUMO', 'KG', 0, 0.0, true)
+        VALUES (:id, :tenant_id, 'Fertilizante NPK', 'FERTILIZANTE', 'KG', 0, 0.0, true)
         ON CONFLICT (id) DO NOTHING
     """), {"id": str(PRODUTO_ID), "tenant_id": str(TENANT_ID)})
 
@@ -52,12 +53,38 @@ async def _garantir_suporte(session):
         ON CONFLICT (id) DO NOTHING
     """), {"id": str(USER_ID)})
 
-    # Fornecedor
+    # Fornecedor (papel sobre Pessoa)
+    pessoa_fornecedor_id = uuid.uuid5(uuid.NAMESPACE_URL, f"pessoa-fornecedor-{FORNECEDOR_ID}")
     await session.execute(text("""
-        INSERT INTO compras_fornecedores (id, tenant_id, nome_fantasia)
-        VALUES (:id, :tenant_id, 'Fornecedor ABC')
+        INSERT INTO cadastros_pessoas (id, tenant_id, tipo, nome_exibicao, base_legal, ativo, tags, created_at, updated_at)
+        VALUES (:id, :tenant_id, 'PJ', 'Fornecedor ABC', 'CONTRATO', true, '[]', NOW(), NOW())
         ON CONFLICT (id) DO NOTHING
-    """), {"id": str(FORNECEDOR_ID), "tenant_id": str(TENANT_ID)})
+    """), {"id": str(pessoa_fornecedor_id), "tenant_id": str(TENANT_ID)})
+    await session.execute(text("""
+        INSERT INTO compras_fornecedores (id, tenant_id, pessoa_id)
+        VALUES (:id, :tenant_id, :pessoa_id)
+        ON CONFLICT (id) DO NOTHING
+    """), {"id": str(FORNECEDOR_ID), "tenant_id": str(TENANT_ID), "pessoa_id": str(pessoa_fornecedor_id)})
+
+    pessoa_fornecedor_2_id = uuid.uuid5(uuid.NAMESPACE_URL, f"pessoa-fornecedor-{FORNECEDOR_ID_2}")
+    await session.execute(text("""
+        INSERT INTO cadastros_pessoas (id, tenant_id, tipo, nome_exibicao, base_legal, ativo, tags, created_at, updated_at)
+        VALUES (:id, :tenant_id, 'PJ', 'Fornecedor XYZ', 'CONTRATO', true, '[]', NOW(), NOW())
+        ON CONFLICT (id) DO NOTHING
+    """), {"id": str(pessoa_fornecedor_2_id), "tenant_id": str(TENANT_ID)})
+    await session.execute(text("""
+        INSERT INTO compras_fornecedores (id, tenant_id, pessoa_id)
+        VALUES (:id, :tenant_id, :pessoa_id)
+        ON CONFLICT (id) DO NOTHING
+    """), {"id": str(FORNECEDOR_ID_2), "tenant_id": str(TENANT_ID), "pessoa_id": str(pessoa_fornecedor_2_id)})
+
+    # Plano de contas de despesa analítica p/ integração financeira do recebimento (ver
+    # ComprasService._resolver_plano_conta_compra — FERTILIZANTE -> código 3.02).
+    await session.execute(text("""
+        INSERT INTO fin_planos_conta (id, tenant_id, codigo, nome, tipo, natureza, ativo, created_at, updated_at)
+        VALUES (:id, :tenant_id, '3.02', 'Fertilizantes', 'DESPESA', 'ANALITICA', true, NOW(), NOW())
+        ON CONFLICT DO NOTHING
+    """), {"id": str(uuid.uuid5(uuid.NAMESPACE_URL, f"plano-conta-3.02-{TENANT_ID}")), "tenant_id": str(TENANT_ID)})
 
     await garantir_assinatura(session, TENANT_ID)
     await session.commit()
@@ -192,7 +219,7 @@ async def test_adicionar_cotacao_solicitacao(client, session, headers_operaciona
     cotacao = await client.post(
         f"/api/v1/compras/solicitacoes/{solicitacao_id}/cotacoes",
         json={
-            "fornecedor_nome": "Fornecedor Teste",
+            "fornecedor_id": str(FORNECEDOR_ID),
             "valor_unitario": 3.50,
             "prazo_entrega_dias": 5,
         },
@@ -238,7 +265,7 @@ async def test_aprovar_cotacao_gera_pedido(client, session, headers_operacional)
     cotacao = await client.post(
         f"/api/v1/compras/solicitacoes/{solicitacao_id}/cotacoes",
         json={
-            "fornecedor_nome": "Fornecedor Teste",
+            "fornecedor_id": str(FORNECEDOR_ID),
             "valor_unitario": 3.50,
             "prazo_entrega_dias": 5,
         },
@@ -252,6 +279,114 @@ async def test_aprovar_cotacao_gera_pedido(client, session, headers_operacional)
     )
     assert aprovacao.status_code in (200, 201), aprovacao.text
     assert aprovacao.json()["status"] == "ABERTO"
+
+
+# ---------------------------------------------------------------------------
+# Alocação item×fornecedor: atendimento parcial por múltiplos fornecedores,
+# múltiplos pedidos gerados, encerramento restrito ao solicitante.
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_alocacao_parcial_multi_fornecedor_gera_multiplos_pedidos(client, session, headers_operacional):
+    await _garantir_suporte(session)
+
+    r = await client.post(
+        "/api/v1/compras/solicitacoes",
+        json={
+            "produto_id": str(PRODUTO_ID),
+            "deposito_id": str(DEPOSITO_ID),
+            "quantidade_solicitada": 100.0,
+            "unidade": "KG",
+        },
+        headers=headers_operacional,
+    )
+    assert r.status_code == 201
+    solicitacao_id = r.json()["id"]
+    solicitacao_item_id = r.json()["itens"][0]["id"]
+
+    await client.patch(
+        f"/api/v1/compras/solicitacoes/{solicitacao_id}/status",
+        json={"status": "APROVADA"},
+        headers=headers_operacional,
+    )
+
+    cot_a = await client.post(
+        f"/api/v1/compras/solicitacoes/{solicitacao_id}/cotacoes",
+        json={"fornecedor_id": str(FORNECEDOR_ID), "valor_unitario": 3.50, "prazo_entrega_dias": 5},
+        headers=headers_operacional,
+    )
+    assert cot_a.status_code == 201, cot_a.text
+    cotacao_item_a_id = cot_a.json()["itens"][0]["id"]
+
+    cot_b = await client.post(
+        f"/api/v1/compras/solicitacoes/{solicitacao_id}/cotacoes",
+        json={"fornecedor_id": str(FORNECEDOR_ID_2), "valor_unitario": 4.00, "prazo_entrega_dias": 3},
+        headers=headers_operacional,
+    )
+    assert cot_b.status_code == 201, cot_b.text
+    cotacao_item_b_id = cot_b.json()["itens"][0]["id"]
+
+    alocacao = await client.post(
+        f"/api/v1/compras/solicitacoes/{solicitacao_id}/alocar",
+        json={"itens": [
+            {"solicitacao_item_id": solicitacao_item_id, "cotacao_item_id": cotacao_item_a_id, "quantidade": 60.0},
+            {"solicitacao_item_id": solicitacao_item_id, "cotacao_item_id": cotacao_item_b_id, "quantidade": 30.0},
+        ]},
+        headers=headers_operacional,
+    )
+    assert alocacao.status_code == 200, alocacao.text
+    item_apos_alocar = alocacao.json()["itens"][0]
+    assert item_apos_alocar["quantidade_alocada"] == 90.0
+    assert item_apos_alocar["status_atendimento"] == "PARCIAL"
+
+    pedidos = await client.post(
+        f"/api/v1/compras/solicitacoes/{solicitacao_id}/gerar-pedidos",
+        headers=headers_operacional,
+    )
+    assert pedidos.status_code == 200, pedidos.text
+    pedidos_json = pedidos.json()
+    assert len(pedidos_json) == 2
+    valores = sorted(p["valor_total"] for p in pedidos_json)
+    assert valores == [120.0, 210.0]  # 30*4.00 e 60*3.50
+
+    # Item continua PARCIAL (100 pedidos, 90 alocados) — encerramento é decisão do solicitante.
+    solicitacao_atual = await client.get(
+        f"/api/v1/compras/solicitacoes?status=APROVADA",
+        headers=headers_operacional,
+    )
+    item_atual = next(
+        s for s in solicitacao_atual.json() if s["id"] == solicitacao_id
+    )["itens"][0]
+    assert item_atual["status_atendimento"] == "PARCIAL"
+
+    # Encerrar com outro usuário (não o solicitante) deve ser barrado.
+    from datetime import timedelta
+    from unittest.mock import MagicMock
+    from core.services.auth_service import AuthService
+
+    outro_token = AuthService(MagicMock()).create_access_token({
+        "sub": str(uuid.uuid4()),
+        "tenant_id": str(TENANT_ID),
+        "modules": ["CORE", "O1_FROTA", "O2_ESTOQUE", "O3_COMPRAS"],
+        "fazendas_auth": [{"id": str(FAZENDA_ID), "role": "admin"}],
+        "is_superuser": False,
+        "plan_tier": "PROFISSIONAL",
+    }, expires_delta=timedelta(hours=1))
+    outro_usuario_headers = dict(headers_operacional)
+    outro_usuario_headers["Authorization"] = f"Bearer {outro_token}"
+
+    encerrar_negado = await client.post(
+        f"/api/v1/compras/solicitacoes/{solicitacao_id}/encerrar",
+        headers=outro_usuario_headers,
+    )
+    assert encerrar_negado.status_code == 403, encerrar_negado.text
+
+    encerrar_ok = await client.post(
+        f"/api/v1/compras/solicitacoes/{solicitacao_id}/encerrar",
+        headers=headers_operacional,
+    )
+    assert encerrar_ok.status_code == 200, encerrar_ok.text
+    assert encerrar_ok.json()["status"] == "ENCERRADA"
 
 
 # ---------------------------------------------------------------------------
@@ -291,7 +426,7 @@ async def test_receber_pedido_gera_entrada_estoque(client, session, headers_oper
     cotacao = await client.post(
         f"/api/v1/compras/solicitacoes/{solicitacao_id}/cotacoes",
         json={
-            "fornecedor_nome": "Fornecedor Teste",
+            "fornecedor_id": str(FORNECEDOR_ID),
             "valor_unitario": 3.50,
             "prazo_entrega_dias": 5,
         },

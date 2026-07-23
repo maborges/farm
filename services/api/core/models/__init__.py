@@ -19,6 +19,7 @@ from .admin_audit_log import AdminAuditLog
 from .tenant_audit_log import TenantAuditLog
 from .module_usage import ModuleUsageStat
 from .crm import PipelineEstagio, LeadCRM, AtividadeCRM
+from .sequencial import SequencialContador
 
 # Cadastros — pessoas
 from core.cadastros.pessoas.models import (
@@ -76,4 +77,7 @@ from pecuaria.models.manejo import ManejoLote
 from operacional.models.frota import PlanoManutencao, OrdemServico, ItemOrdemServico, RegistroManutencao
 from operacional.models.estoque import Deposito, SaldoEstoque, LoteEstoque, RequisicaoMaterial, ItemRequisicao, ReservaEstoque
 from operacional.models.estoque_implantacao import EstoqueImplantacaoSessao, EstoqueImplantacaoItem
-from operacional.models.compras import Fornecedor, PedidoCompra, ItemPedidoCompra, CotacaoFornecedor
+from operacional.models.compras import (
+    Fornecedor, PedidoCompra, ItemPedidoCompra, CotacaoFornecedor,
+    CotacaoCompra, CotacaoItem, SolicitacaoCompra, SolicitacaoItem, AlocacaoItem,
+)

@@ -1,30 +1,46 @@
 import pytest
 import uuid
 from httpx import AsyncClient
-from operacional.models.compras import SolicitacaoCompra, CotacaoCompra, PedidoCompra
+from sqlalchemy import text
+from operacional.models.compras import SolicitacaoCompra, CotacaoCompra, PedidoCompra, ItemPedidoCompra
 from operacional.models.estoque import Deposito
 from core.cadastros.produtos.models import Produto
 from operacional.services.compras_service import ComprasService
 
 @pytest.mark.asyncio
-async def test_explicacao_assistente_compra_step161(client: AsyncClient, headers_operacional: dict, session, unidade_produtiva_id):
+async def test_explicacao_assistente_compra_step161(client: AsyncClient, headers_operacional: dict, session):
     """
     Testa a geração de explicações textuais do assistente de compra (Step 161).
     """
+    # NOTA: não usar o fixture global `unidade_produtiva_id` — ele cria a fazenda
+    # sob um tenant diferente do usado por headers_operacional.
     tenant_id = uuid.UUID(headers_operacional["X-Tenant-ID"])
     item_id = uuid.uuid4()
     solicitacao_id = uuid.uuid4()
     deposito_id = uuid.uuid4()
-    
+    unidade_produtiva_id = uuid.uuid4()
+
+    await session.execute(text("""
+        INSERT INTO unidades_produtivas (id, tenant_id, nome, ativo, created_at, updated_at)
+        VALUES (:id, :tenant_id, 'Fazenda Teste Assistente', true, NOW(), NOW())
+        ON CONFLICT (id) DO NOTHING
+    """), {"id": str(unidade_produtiva_id), "tenant_id": str(tenant_id)})
+
     # Infra
     session.add(Produto(id=item_id, tenant_id=tenant_id, nome="Item Assistente", tipo="PECA", ativo=True))
     session.add(Deposito(id=deposito_id, tenant_id=tenant_id, unidade_produtiva_id=unidade_produtiva_id, nome="D1", ativo=True))
     await session.flush()
     
     # Adicionar Histórico para garantir score BOA (Preço Médio de 20.0)
+    pedido_historico_id = uuid.uuid4()
     session.add(PedidoCompra(
-        id=uuid.uuid4(), tenant_id=tenant_id, item_id=item_id, fornecedor_nome="Antigo",
-        valor_unitario=20.0, quantidade=1, valor_total=20.0, status="CONCLUIDO", deposito_id=deposito_id
+        id=pedido_historico_id, tenant_id=tenant_id, fornecedor_nome="Antigo",
+        valor_total=20.0, status="CONCLUIDO",
+    ))
+    await session.flush()
+    session.add(ItemPedidoCompra(
+        id=uuid.uuid4(), pedido_id=pedido_historico_id, produto_id=item_id, deposito_id=deposito_id,
+        unidade="UN", quantidade_solicitada=1, preco_estimado_unitario=20.0, valor_total=20.0,
     ))
     
     solicitacao = SolicitacaoCompra(

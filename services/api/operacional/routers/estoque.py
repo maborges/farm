@@ -259,7 +259,8 @@ async def criar_requisicao(
     svc = _svc(session, tenant)
     result = await svc.criar_requisicao(data, usuario.id)
     await session.commit()
-    return result
+    # commit() expira a relação `itens` (lazy="noload"); repopular para a resposta.
+    return await svc._carregar_itens_requisicao(result)
 
 
 @router.get("/requisicoes", response_model=List[RequisicaoResponse])
@@ -283,7 +284,7 @@ async def aprovar_requisicao(
     svc = _svc(session, tenant)
     result = await svc.aprovar_requisicao(req_id, data, usuario.id)
     await session.commit()
-    return result
+    return await svc._carregar_itens_requisicao(result)
 
 
 @router.patch("/requisicoes/{req_id}/separar", response_model=RequisicaoResponse)
@@ -295,7 +296,7 @@ async def separar_requisicao(
     svc = _svc(session, tenant)
     result = await svc.atualizar_status_requisicao(req_id, "SEPARANDO")
     await session.commit()
-    return result
+    return await svc._carregar_itens_requisicao(result)
 
 
 @router.patch("/requisicoes/{req_id}/entregar", response_model=RequisicaoResponse)
@@ -308,7 +309,7 @@ async def entregar_requisicao(
     svc = _svc(session, tenant)
     result = await svc.entregar_requisicao(req_id, data)
     await session.commit()
-    return result
+    return await svc._carregar_itens_requisicao(result)
 
 
 @router.patch("/requisicoes/{req_id}/recusar", response_model=RequisicaoResponse)
@@ -320,7 +321,7 @@ async def recusar_requisicao(
     svc = _svc(session, tenant)
     result = await svc.atualizar_status_requisicao(req_id, "RECUSADA")
     await session.commit()
-    return result
+    return await svc._carregar_itens_requisicao(result)
 
 
 # ── Reservas de Estoque ────────────────────────────────────────────────────────

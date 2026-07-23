@@ -10,6 +10,8 @@ from loguru import logger
 
 from core.base_service import BaseService
 from core.exceptions import BusinessRuleError, EntityNotFoundError
+from core.services.sequencial_service import SequencialService
+from core.models.auth import Usuario
 from core.models.unidade_produtiva import UnidadeProdutiva
 from core.cadastros.propriedades.models import AreaRural
 from agricola.cultivos.models import Cultivo, CultivoArea
@@ -25,6 +27,7 @@ from operacional.models.estoque import (
     Deposito, EstoqueMovimento, SaldoEstoque,
     LoteEstoque, RequisicaoMaterial, ItemRequisicao, ReservaEstoque,
 )
+from operacional.models.compras import Fornecedor
 from core.cadastros.models import ProdutoCatalogo
 from operacional.schemas.estoque import (
     DepositoCreate, DepositoUpdate,
@@ -425,6 +428,7 @@ class EstoqueService(BaseService[SaldoEstoque]):
         origem_tipo: str | None = None,
         lote_id: UUID | None = None,
         production_unit_id: UUID | None = None,
+        fornecedor_id: UUID | None = None,
     ) -> EstoqueMovimento:
         await validate_deposito_context(self.session, tenant_id=self.tenant_id, deposito_id=deposito_id)
         await self._get_produto_or_fail(produto_id)
@@ -448,6 +452,7 @@ class EstoqueService(BaseService[SaldoEstoque]):
             origem=origem_tipo or "MANUAL",
             origem_id=origem_id,
             production_unit_id=production_unit_id,
+            fornecedor_id=fornecedor_id,
             observacoes=motivo,
         )
 
@@ -467,6 +472,12 @@ class EstoqueService(BaseService[SaldoEstoque]):
     async def registrar_entrada(self, data: EntradaEstoqueRequest) -> EstoqueMovimento:
         await validate_deposito_context(self.session, tenant_id=self.tenant_id, deposito_id=data.deposito_id)
         await self._get_produto_or_fail(data.produto_id)
+        stmt_fornecedor = select(Fornecedor).where(
+            Fornecedor.id == data.fornecedor_id, Fornecedor.tenant_id == self.tenant_id
+        )
+        fornecedor = (await self.session.execute(stmt_fornecedor)).scalars().first()
+        if not fornecedor:
+            raise BusinessRuleError("Fornecedor informado não encontrado.")
         if data.lote_id:
             await validate_lote_context(
                 self.session,
@@ -506,6 +517,7 @@ class EstoqueService(BaseService[SaldoEstoque]):
             origem_id=data.origem_id,
             origem_tipo=data.origem_tipo or "MANUAL",
             lote_id=data.lote_id,
+            fornecedor_id=data.fornecedor_id,
         )
         await self.session.flush()
         await self.session.refresh(mov)
@@ -1094,9 +1106,28 @@ class EstoqueService(BaseService[SaldoEstoque]):
 
     # ── Requisições de Material ────────────────────────────────────────────
 
+    async def _enriquecer_nomes_requisicao(self, req: RequisicaoMaterial) -> RequisicaoMaterial:
+        usuario_ids = [uid for uid in (req.solicitante_id, req.aprovador_id) if uid]
+        if usuario_ids:
+            stmt_u = select(Usuario.id, Usuario.nome_completo).where(Usuario.id.in_(usuario_ids))
+            nomes = dict((await self.session.execute(stmt_u)).all())
+            req.solicitante_nome = nomes.get(req.solicitante_id)
+            req.aprovador_nome = nomes.get(req.aprovador_id) if req.aprovador_id else None
+        return req
+
+    async def _carregar_itens_requisicao(self, req: RequisicaoMaterial) -> RequisicaoMaterial:
+        """`RequisicaoMaterial.itens` é lazy='noload' — precisa ser carregado
+        explicitamente para a resposta da API não vir sempre com itens=[]."""
+        stmt = select(ItemRequisicao).where(ItemRequisicao.requisicao_id == req.id)
+        req.itens = list((await self.session.execute(stmt)).scalars().all())
+        await self._enriquecer_nomes_requisicao(req)
+        return req
+
     async def criar_requisicao(self, data: RequisicaoCreate, solicitante_id: UUID) -> RequisicaoMaterial:
+        numero = await SequencialService(self.session, self.tenant_id).proximo_numero("estoque_requisicao")
         req = RequisicaoMaterial(
             tenant_id=self.tenant_id,
+            numero=numero,
             unidade_produtiva_id=data.unidade_produtiva_id,
             solicitante_id=solicitante_id,
             data_necessidade=data.data_necessidade,
@@ -1118,7 +1149,7 @@ class EstoqueService(BaseService[SaldoEstoque]):
             self.session.add(item)
         await self.session.flush()
         await self.session.refresh(req)
-        return req
+        return await self._carregar_itens_requisicao(req)
 
     async def listar_requisicoes(
         self,
@@ -1134,7 +1165,10 @@ class EstoqueService(BaseService[SaldoEstoque]):
         if solicitante_id:
             stmt = stmt.where(RequisicaoMaterial.solicitante_id == solicitante_id)
         stmt = stmt.order_by(RequisicaoMaterial.data_solicitacao.desc())
-        return list((await self.session.execute(stmt)).scalars().all())
+        requisicoes = list((await self.session.execute(stmt)).scalars().all())
+        for req in requisicoes:
+            await self._carregar_itens_requisicao(req)
+        return requisicoes
 
     async def aprovar_requisicao(
         self, req_id: UUID, data: RequisicaoAprovarRequest, aprovador_id: UUID
@@ -1162,6 +1196,8 @@ class EstoqueService(BaseService[SaldoEstoque]):
         req.status = "APROVADA"
         await self.session.flush()
         await self.session.refresh(req)
+        req.itens = list(itens)
+        await self._enriquecer_nomes_requisicao(req)
         return req
 
     async def entregar_requisicao(
@@ -1207,6 +1243,8 @@ class EstoqueService(BaseService[SaldoEstoque]):
         req.status = "ENTREGUE"
         await self.session.flush()
         await self.session.refresh(req)
+        req.itens = list(itens)
+        await self._enriquecer_nomes_requisicao(req)
         return req
 
     async def atualizar_status_requisicao(self, req_id: UUID, novo_status: str) -> RequisicaoMaterial:
@@ -1219,7 +1257,7 @@ class EstoqueService(BaseService[SaldoEstoque]):
         req.status = novo_status
         await self.session.flush()
         await self.session.refresh(req)
-        return req
+        return await self._carregar_itens_requisicao(req)
 
     # ── Reservas de Estoque ────────────────────────────────────────────────
 

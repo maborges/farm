@@ -105,16 +105,16 @@ async def _buscar_fornecedor_legado_por_documento(
     if not normalizado:
         return None
 
-    stmt = select(Fornecedor).where(
-        Fornecedor.tenant_id == tenant_id,
-        Fornecedor.cnpj_cpf.is_not(None),
+    stmt = (
+        select(Fornecedor)
+        .join(PessoaDocumento, PessoaDocumento.pessoa_id == Fornecedor.pessoa_id)
+        .where(
+            Fornecedor.tenant_id == tenant_id,
+            PessoaDocumento.numero == normalizado,
+        )
+        .limit(1)
     )
-    fornecedores = (await session.execute(stmt)).scalars().all()
-
-    for fornecedor in fornecedores:
-        if normalizar_documento(fornecedor.cnpj_cpf) == normalizado:
-            return fornecedor
-    return None
+    return (await session.execute(stmt)).scalar_one_or_none()
 
 
 async def _obter_tipo_fornecedor(
@@ -125,7 +125,6 @@ async def _obter_tipo_fornecedor(
         select(TipoRelacionamento)
         .where(
             TipoRelacionamento.codigo == FORNECEDOR_CODIGO,
-            TipoRelacionamento.ativo == True,
             or_(TipoRelacionamento.tenant_id == tenant_id, TipoRelacionamento.tenant_id.is_(None)),
         )
         .order_by(TipoRelacionamento.tenant_id.is_not(None).desc())
@@ -136,7 +135,7 @@ async def _obter_tipo_fornecedor(
         return tipo
 
     tipo = TipoRelacionamento(
-        tenant_id=tenant_id,
+        tenant_id=None,
         codigo=FORNECEDOR_CODIGO,
         nome="Fornecedor",
         descricao="Fornecedor criado a partir do modulo de Compras",
@@ -171,16 +170,69 @@ async def _garantir_relacionamento_fornecedor(
     await session.flush()
 
 
-async def _adicionar_contatos_iniciais(
+async def _sincronizar_contato(
     session: AsyncSession,
     pessoa_id: uuid.UUID,
-    email: str | None,
-    telefone: str | None,
+    tipo: str,
+    valor: str | None,
 ) -> None:
-    if email:
-        session.add(PessoaContato(pessoa_id=pessoa_id, tipo="EMAIL", valor=email, principal=True))
-    if telefone:
-        session.add(PessoaContato(pessoa_id=pessoa_id, tipo="TELEFONE", valor=telefone, principal=True))
+    """Cria ou atualiza o contato principal do tipo informado — roda sempre
+    (não só na criação da Pessoa), para que edições no cadastro de Fornecedor
+    fiquem sincronizadas com a aba de Contatos da Pessoa."""
+    if not valor:
+        return
+
+    stmt = (
+        select(PessoaContato)
+        .where(
+            PessoaContato.pessoa_id == pessoa_id,
+            PessoaContato.tipo == tipo,
+            PessoaContato.principal == True,
+        )
+        .limit(1)
+    )
+    contato = (await session.execute(stmt)).scalar_one_or_none()
+    if contato:
+        if contato.valor != valor:
+            contato.valor = valor
+            session.add(contato)
+    else:
+        session.add(PessoaContato(pessoa_id=pessoa_id, tipo=tipo, valor=valor, principal=True))
+
+
+async def _sincronizar_documento(
+    session: AsyncSession,
+    pessoa_id: uuid.UUID,
+    tipo_documento: str,
+    numero: str,
+    razao_social: str | None,
+    nome_fantasia: str | None,
+) -> None:
+    stmt = (
+        select(PessoaDocumento)
+        .where(PessoaDocumento.pessoa_id == pessoa_id, PessoaDocumento.tipo == tipo_documento)
+        .limit(1)
+    )
+    doc = (await session.execute(stmt)).scalar_one_or_none()
+    if doc:
+        doc.numero = numero
+        if tipo_documento == "CNPJ":
+            doc.razao_social = razao_social or doc.razao_social
+            doc.nome_fantasia = nome_fantasia or doc.nome_fantasia
+        else:
+            doc.nome_completo = nome_fantasia or doc.nome_completo
+        session.add(doc)
+    else:
+        session.add(
+            PessoaDocumento(
+                pessoa_id=pessoa_id,
+                tipo=tipo_documento,
+                numero=numero,
+                razao_social=razao_social if tipo_documento == "CNPJ" else None,
+                nome_fantasia=nome_fantasia if tipo_documento == "CNPJ" else None,
+                nome_completo=nome_fantasia if tipo_documento == "CPF" else None,
+            )
+        )
 
 
 async def resolve_fornecedor(
@@ -193,7 +245,9 @@ async def resolve_fornecedor(
     email: str | None = None,
     telefone: str | None = None,
 ) -> Pessoa:
-    """Resolve or creates the canonical Pessoa for a supplier from Compras."""
+    """Resolve (ou cria) a Pessoa canônica de um fornecedor, sempre
+    sincronizando documento e contatos — inclusive em atualizações, não só
+    na criação (bug corrigido: antes só sincronizava na primeira vez)."""
     nome_exibicao = nome_fantasia or razao_social or "Fornecedor"
     documento = normalizar_documento(cnpj_cpf)
     tipo_documento = tipo_documento_fornecedor(cnpj_cpf)
@@ -213,41 +267,45 @@ async def resolve_fornecedor(
         session.add(pessoa)
         await session.flush()
 
-        if documento and tipo_documento:
-            session.add(
-                PessoaDocumento(
-                    pessoa_id=pessoa.id,
-                    tipo=tipo_documento,
-                    numero=documento,
-                    razao_social=razao_social if tipo_documento == "CNPJ" else None,
-                    nome_fantasia=nome_fantasia if tipo_documento == "CNPJ" else None,
-                    nome_completo=nome_fantasia if tipo_documento == "CPF" else None,
-                )
-            )
-        await _adicionar_contatos_iniciais(session, pessoa.id, email, telefone)
+    if documento and tipo_documento:
+        await _sincronizar_documento(session, pessoa.id, tipo_documento, documento, razao_social, nome_fantasia)
+
+    await _sincronizar_contato(session, pessoa.id, "EMAIL", email)
+    await _sincronizar_contato(session, pessoa.id, "TELEFONE", telefone)
 
     tipo_fornecedor = await _obter_tipo_fornecedor(session, tenant_id)
     await _garantir_relacionamento_fornecedor(session, pessoa.id, tipo_fornecedor.id)
     return pessoa
 
 
-async def vincular_fornecedor_a_pessoa_canonica(
-    session: AsyncSession,
-    fornecedor: Fornecedor,
-) -> Pessoa:
-    pessoa = await resolve_fornecedor(
-        session,
-        fornecedor.tenant_id,
-        nome_fantasia=fornecedor.nome_fantasia,
-        cnpj_cpf=fornecedor.cnpj_cpf,
-        razao_social=fornecedor.razao_social,
-        email=fornecedor.email,
-        telefone=fornecedor.telefone,
-    )
-    fornecedor.pessoa_id = pessoa.id
-    session.add(fornecedor)
-    await session.flush()
-    return pessoa
+async def obter_dados_exibicao_fornecedor(session: AsyncSession, pessoa_id: uuid.UUID) -> dict:
+    """Monta nome_fantasia/razao_social/cnpj_cpf/email/telefone a partir de
+    Pessoa/PessoaDocumento/PessoaContato — única fonte de verdade desses dados."""
+    pessoa = await session.get(Pessoa, pessoa_id)
+
+    doc_stmt = select(PessoaDocumento).where(
+        PessoaDocumento.pessoa_id == pessoa_id,
+        PessoaDocumento.tipo.in_(["CNPJ", "CPF"]),
+    ).limit(1)
+    documento = (await session.execute(doc_stmt)).scalar_one_or_none()
+
+    email_stmt = select(PessoaContato).where(
+        PessoaContato.pessoa_id == pessoa_id, PessoaContato.tipo == "EMAIL"
+    ).order_by(PessoaContato.principal.desc()).limit(1)
+    contato_email = (await session.execute(email_stmt)).scalar_one_or_none()
+
+    tel_stmt = select(PessoaContato).where(
+        PessoaContato.pessoa_id == pessoa_id, PessoaContato.tipo.in_(["TELEFONE", "CELULAR"])
+    ).order_by(PessoaContato.principal.desc()).limit(1)
+    contato_telefone = (await session.execute(tel_stmt)).scalar_one_or_none()
+
+    return {
+        "nome_fantasia": (documento.nome_fantasia if documento else None) or (pessoa.nome_exibicao if pessoa else None),
+        "razao_social": documento.razao_social if documento else None,
+        "cnpj_cpf": documento.numero if documento else None,
+        "email": contato_email.valor if contato_email else None,
+        "telefone": contato_telefone.valor if contato_telefone else None,
+    }
 
 
 async def salvar_fornecedor_legado(
@@ -280,15 +338,10 @@ async def salvar_fornecedor_legado(
         if fornecedor is None:
             fornecedor = await _buscar_fornecedor_legado_por_documento(session, tenant_id, cnpj_cpf)
         if fornecedor is None:
-            fornecedor = Fornecedor(tenant_id=tenant_id)
+            fornecedor = Fornecedor(tenant_id=tenant_id, pessoa_id=pessoa.id)
             created = True
 
-    fornecedor.nome_fantasia = nome_fantasia
-    fornecedor.razao_social = razao_social
-    fornecedor.cnpj_cpf = cnpj_cpf
     fornecedor.pessoa_id = pessoa.id
-    fornecedor.email = email
-    fornecedor.telefone = telefone
     fornecedor.condicoes_pagamento = condicoes_pagamento
     fornecedor.prazo_entrega_dias = prazo_entrega_dias
     fornecedor.avaliacao = avaliacao

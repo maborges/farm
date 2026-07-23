@@ -236,11 +236,6 @@ async def test_detector_classifica_inconsistencias_operacionais(session: AsyncSe
     pedido = PedidoCompra(
         tenant_id=tenant_id,
         fornecedor_nome="Fornecedor Workflow",
-        item_id=produto.id,
-        deposito_id=deposito.id,
-        quantidade=100.0,
-        unidade="KG",
-        valor_unitario=22.0,
         valor_total=2200.0,
         status="RECEBIDO",
     )

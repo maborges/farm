@@ -1,20 +1,48 @@
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, model_validator
 from typing import Optional, List, Literal
 from datetime import datetime
 import uuid
 
 
 # ── Solicitação de Compra (Step 147) ──────────────────────────────────────────
+# Uma solicitação pode pedir vários produtos (ver `itens`). Os campos escalares
+# (produto_id/deposito_id/quantidade_solicitada/unidade) são um atalho legado
+# para o caso de 1 item só — se `itens` não for enviado, viram automaticamente
+# uma lista de 1 item.
 
-class SolicitacaoCompraCreate(BaseModel):
-    item_id: uuid.UUID = Field(..., alias="produto_id")
+class SolicitacaoItemCreate(BaseModel):
+    produto_id: uuid.UUID
     deposito_id: uuid.UUID
     quantidade_solicitada: float = Field(..., gt=0)
     unidade: str = Field(..., max_length=20)
+
+
+class SolicitacaoCompraCreate(BaseModel):
+    itens: Optional[List[SolicitacaoItemCreate]] = Field(None, min_length=1)
+
+    # Atalho legado para 1 item só (ver docstring acima).
+    item_id: Optional[uuid.UUID] = Field(None, alias="produto_id")
+    deposito_id: Optional[uuid.UUID] = None
+    quantidade_solicitada: Optional[float] = Field(None, gt=0)
+    unidade: Optional[str] = Field(None, max_length=20)
+
     origem: str = Field("MANUAL", description="REPOSICAO_ESTOQUE | MANUAL")
     origem_id: Optional[str] = Field(None, max_length=50)
 
     model_config = ConfigDict(populate_by_name=True)
+
+    @model_validator(mode="after")
+    def _normalizar_itens(self):
+        if not self.itens:
+            if not (self.item_id and self.deposito_id and self.quantidade_solicitada and self.unidade):
+                raise ValueError("Informe 'itens' (lista) ou os campos produto_id/deposito_id/quantidade_solicitada/unidade.")
+            self.itens = [SolicitacaoItemCreate(
+                produto_id=self.item_id,
+                deposito_id=self.deposito_id,
+                quantidade_solicitada=self.quantidade_solicitada,
+                unidade=self.unidade,
+            )]
+        return self
 
 
 class FornecedorConsistenciaResponse(BaseModel):
@@ -24,15 +52,37 @@ class FornecedorConsistenciaResponse(BaseModel):
     variacao_percentual: float
     classificacao: str
 
-class SolicitacaoCompraResponse(BaseModel):
+
+class SolicitacaoItemResponse(BaseModel):
     id: uuid.UUID
-    tenant_id: uuid.UUID
-    produto_id: uuid.UUID = Field(..., serialization_alias="item_id")
+    produto_id: uuid.UUID
     produto_nome: Optional[str] = None
     deposito_id: uuid.UUID
     deposito_nome: Optional[str] = None
     quantidade_solicitada: float
     unidade: str
+    quantidade_alocada: float = 0.0
+    status_atendimento: Literal["PENDENTE", "PARCIAL", "ATENDIDO"] = "PENDENTE"
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class SolicitacaoCompraResponse(BaseModel):
+    id: uuid.UUID
+    numero: Optional[str] = None
+    tenant_id: uuid.UUID
+    solicitante_id: Optional[uuid.UUID] = None
+    solicitante_nome: Optional[str] = None
+    itens: List[SolicitacaoItemResponse] = []
+
+    # Atalho legado: espelha o primeiro item, para telas ainda não migradas.
+    produto_id: Optional[uuid.UUID] = Field(None, serialization_alias="item_id")
+    produto_nome: Optional[str] = None
+    deposito_id: Optional[uuid.UUID] = None
+    deposito_nome: Optional[str] = None
+    quantidade_solicitada: Optional[float] = None
+    unidade: Optional[str] = None
+
     origem: str
     origem_id: Optional[str]
     status: str
@@ -132,21 +182,48 @@ class DevolucaoResponse(BaseModel):
 
 
 # ── Cotação de Preços (Step 149) ──────────────────────────────────────────────
+# Uma cotação pode cobrir vários itens da solicitação (ver `itens`). O atalho
+# legado `valor_unitario` cota o item único de solicitações de 1 item só.
+
+class CotacaoItemCreate(BaseModel):
+    solicitacao_item_id: uuid.UUID
+    valor_unitario: float = Field(..., gt=0)
+
 
 class CotacaoSolicitacaoCreate(BaseModel):
-    fornecedor_nome: str = Field(..., max_length=150)
-    fornecedor_contato: Optional[str] = Field(None, max_length=150)
-    valor_unitario: float = Field(..., gt=0)
+    fornecedor_id: uuid.UUID
+    condicoes_pagamento: Optional[str] = Field(None, max_length=100)
     prazo_entrega_dias: Optional[int] = Field(None, ge=0)
+
+    itens: Optional[List[CotacaoItemCreate]] = Field(None, min_length=1)
+
+    # Atalho legado: cota o item único da solicitação (só válido se ela tiver 1 item).
+    valor_unitario: Optional[float] = Field(None, gt=0)
+
+
+class CotacaoItemResponse(BaseModel):
+    id: uuid.UUID
+    solicitacao_item_id: uuid.UUID
+    produto_id: uuid.UUID
+    produto_nome: Optional[str] = None
+    quantidade: float
+    valor_unitario: float
+    valor_total: float
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class CotacaoSolicitacaoResponse(BaseModel):
     id: uuid.UUID
     tenant_id: uuid.UUID
+    numero: Optional[str] = None
     solicitacao_id: uuid.UUID
+    itens: List[CotacaoItemResponse] = []
+    fornecedor_id: Optional[uuid.UUID] = None
     fornecedor_nome: str
     fornecedor_contato: Optional[str]
-    valor_unitario: float
+    condicoes_pagamento: Optional[str] = None
+    valor_unitario: Optional[float] = None
     valor_total: float
     prazo_entrega_dias: Optional[int]
     status: str
@@ -176,29 +253,71 @@ class CotacaoSolicitacaoResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+# ── Alocação item×fornecedor ───────────────────────────────────────────────────
+# O comprador escolhe, por item da solicitação, quanto comprar de qual cotação
+# (fornecedor) — pode dividir o mesmo item entre vários fornecedores/quantidades
+# parciais. Ver ComprasService.alocar_itens / gerar_pedidos_de_alocacoes.
+
+class AlocacaoItemCreate(BaseModel):
+    solicitacao_item_id: uuid.UUID
+    cotacao_item_id: uuid.UUID
+    quantidade: float = Field(..., gt=0)
+
+
+class AlocacaoRequest(BaseModel):
+    itens: List[AlocacaoItemCreate] = Field(..., min_length=1)
+
+
 # ── Pedido de Compra (Step 150) ────────────────────────────────────────────────
+# Um pedido pode ter vários itens (ver `itens`, tabela compras_itens_pedido).
+# Os campos escalares abaixo (item_id/quantidade/valor_unitario etc) espelham o
+# primeiro item, mantidos para telas ainda não migradas.
+
+class ItemPedidoResponse(BaseModel):
+    id: uuid.UUID
+    produto_id: uuid.UUID
+    produto_nome: Optional[str] = None
+    deposito_id: Optional[uuid.UUID] = None
+    quantidade_solicitada: float
+    unidade: str
+    preco_estimado_unitario: float
+    valor_total: float
+    quantidade_recebida: float
+    status_item: str
+
+    model_config = ConfigDict(from_attributes=True)
+
 
 class PedidoCompraResponse(BaseModel):
     id: uuid.UUID
     tenant_id: uuid.UUID
+    numero: Optional[str] = None
     solicitacao_id: Optional[uuid.UUID] = None
     cotacao_id: Optional[uuid.UUID] = None
-    
+
+    fornecedor_id: Optional[uuid.UUID] = None
     fornecedor_nome: str
     fornecedor_contato: Optional[str] = None
-    
-    item_id: uuid.UUID
+    condicoes_pagamento: Optional[str] = None
+    valor_adiantamento: Optional[float] = None
+
+    itens: List[ItemPedidoResponse] = []
+
+    # Campos de conveniência calculados a partir de `itens` (não persistidos em
+    # colunas próprias) — só ficam preenchidos quando o pedido tem 1 item só;
+    # em pedidos multi-item, a UI deve iterar `itens`.
     item_nome: Optional[str] = None
-    deposito_id: uuid.UUID
+    deposito_id: Optional[uuid.UUID] = None
     deposito_nome: Optional[str] = None
-    
-    quantidade: float
-    unidade: str
-    valor_unitario: float
+    endereco_entrega: Optional[str] = None
+    prazo_entrega_dias: Optional[int] = None
+
+    quantidade: Optional[float] = None
+    unidade: Optional[str] = None
+    valor_unitario: Optional[float] = None
     valor_total: float
-    
+
     status: str
-    data_pedido: datetime
     created_at: datetime
     updated_at: datetime
 
@@ -207,6 +326,38 @@ class PedidoCompraResponse(BaseModel):
 
 class PedidoCompraStatusUpdate(BaseModel):
     status: Literal["ABERTO", "ENVIADO", "RECEBIDO", "CANCELADO"]
+
+
+class CondicoesPagamentoUpdate(BaseModel):
+    condicoes_pagamento: str = Field(..., min_length=1, max_length=100)
+
+
+class AdiantamentoUpdate(BaseModel):
+    valor_adiantamento: float = Field(..., ge=0)
+
+
+# ── Confirmação de Pedido pelo Fornecedor (link + senha por e-mail) ────────────
+
+class ItemPedidoConfirmacaoPublica(BaseModel):
+    produto_nome: str
+    quantidade: float
+    unidade: str
+    preco_unitario: float
+    valor_total: float
+
+
+class PedidoConfirmacaoPublicaResponse(BaseModel):
+    status: Literal["PENDENTE", "CONFIRMADO", "RECUSADO", "EXPIRADO"]
+    fornecedor_nome: str
+    tenant_nome: str
+    itens: list[ItemPedidoConfirmacaoPublica]
+    valor_total: float
+    condicoes_pagamento: Optional[str] = None
+
+
+class ConfirmacaoAceiteRequest(BaseModel):
+    senha: str = Field(..., min_length=1, max_length=20)
+    aceito: bool
 
 
 # ── Inteligência de Compra (Step 153) ──────────────────────────────────────────

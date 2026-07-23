@@ -1,11 +1,22 @@
 import pytest
 import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
-from operacional.models.compras import SolicitacaoCompra, CotacaoCompra, PedidoCompra
+from operacional.models.compras import SolicitacaoCompra, CotacaoCompra, CotacaoItem, PedidoCompra, ItemPedidoCompra, Fornecedor
 from operacional.models.estoque import Deposito
 from core.cadastros.produtos.models import Produto
+from core.cadastros.pessoas.models import Pessoa
 from operacional.services.compras_service import ComprasService
 from operacional.schemas.compras import SolicitacaoCompraCreate, CotacaoSolicitacaoCreate
+
+
+async def _criar_fornecedor(session: AsyncSession, tenant_id: uuid.UUID, nome: str) -> Fornecedor:
+    pessoa = Pessoa(id=uuid.uuid4(), tenant_id=tenant_id, tipo="PJ", nome_exibicao=nome, base_legal="CONTRATO", ativo=True)
+    session.add(pessoa)
+    await session.flush()
+    fornecedor = Fornecedor(id=uuid.uuid4(), tenant_id=tenant_id, pessoa_id=pessoa.id)
+    session.add(fornecedor)
+    await session.flush()
+    return fornecedor
 
 @pytest.mark.asyncio
 async def test_compras_price_alerts_step154(
@@ -64,22 +75,36 @@ async def test_compras_price_alerts_step154(
         solicitacao_id=sol.id,
         cotacao_id=None,
         fornecedor_nome="Forn Antigo",
-        item_id=produto.id,
-        deposito_id=deposito.id,
-        quantidade=10.0,
-        unidade="KG",
-        valor_unitario=11.0,
         valor_total=110.0,
         status="RECEBIDO"
     )
     session.add_all([cot_hist, ped_hist])
     await session.flush()
+    session.add(CotacaoItem(
+        cotacao_id=cot_hist.id,
+        solicitacao_item_id=sol.itens[0].id,
+        produto_id=produto.id,
+        quantidade=10.0,
+        valor_unitario=9.0,
+        valor_total=90.0,
+    ))
+    session.add(ItemPedidoCompra(
+        pedido_id=ped_hist.id,
+        produto_id=produto.id,
+        deposito_id=deposito.id,
+        unidade="KG",
+        quantidade_solicitada=10.0,
+        preco_estimado_unitario=11.0,
+        valor_total=110.0,
+    ))
+    await session.flush()
     
     # Média = (9 + 11) / 2 = 10.0
     
     # 3. Teste: Cotação DENTRO do limite (11.0 < 10.0 * 1.15)
+    forn_justo = await _criar_fornecedor(session, tenant_uuid, "Forn Justo")
     data_ok = CotacaoSolicitacaoCreate(
-        fornecedor_nome="Forn Justo",
+        fornecedor_id=forn_justo.id,
         valor_unitario=11.0
     )
     cot_ok = await svc.criar_cotacao(sol.id, data_ok)
@@ -87,8 +112,9 @@ async def test_compras_price_alerts_step154(
     assert cot_ok.percentual_acima_media is None
     
     # 4. Teste: Cotação ACIMA do limite (12.0 > 10.0 * 1.15)
+    forn_caro = await _criar_fornecedor(session, tenant_uuid, "Forn Caro")
     data_alerta = CotacaoSolicitacaoCreate(
-        fornecedor_nome="Forn Caro",
+        fornecedor_id=forn_caro.id,
         valor_unitario=12.0
     )
     cot_alerta = await svc.criar_cotacao(sol.id, data_alerta)
@@ -118,8 +144,9 @@ async def test_compras_price_alerts_step154(
     sol_nova.status = "APROVADA"
     await session.flush()
     
+    forn_qualquer = await _criar_fornecedor(session, tenant_uuid, "Forn Qualquer")
     cot_novo = await svc.criar_cotacao(sol_nova.id, CotacaoSolicitacaoCreate(
-        fornecedor_nome="Forn Qualquer",
+        fornecedor_id=forn_qualquer.id,
         valor_unitario=100.0
     ))
     assert cot_novo.acima_media is False

@@ -1,21 +1,31 @@
 import pytest
 import uuid
 from httpx import AsyncClient
+from sqlalchemy import text
 from operacional.models.compras import SolicitacaoCompra, CotacaoCompra
 from operacional.models.estoque import Deposito
 from core.cadastros.produtos.models import Produto
 from operacional.services.compras_service import ComprasService
 
 @pytest.mark.asyncio
-async def test_ranking_comparativo_cotacoes_step160(client: AsyncClient, headers_operacional: dict, session, unidade_produtiva_id):
+async def test_ranking_comparativo_cotacoes_step160(client: AsyncClient, headers_operacional: dict, session):
     """
     Testa a lógica de ranking comparativo de cotações (Step 160).
     """
+    # NOTA: não usar o fixture global `unidade_produtiva_id` — ele cria a fazenda
+    # sob um tenant diferente do usado por headers_operacional.
     tenant_id = uuid.UUID(headers_operacional["X-Tenant-ID"])
     item_id = uuid.uuid4()
     solicitacao_id = uuid.uuid4()
     deposito_id = uuid.uuid4()
-    
+    unidade_produtiva_id = uuid.uuid4()
+
+    await session.execute(text("""
+        INSERT INTO unidades_produtivas (id, tenant_id, nome, ativo, created_at, updated_at)
+        VALUES (:id, :tenant_id, 'Fazenda Teste Ranking', true, NOW(), NOW())
+        ON CONFLICT (id) DO NOTHING
+    """), {"id": str(unidade_produtiva_id), "tenant_id": str(tenant_id)})
+
     # Criar Infraestrutura mínima
     session.add(Produto(id=item_id, tenant_id=tenant_id, nome="Item Ranking", tipo="PECA", ativo=True))
     session.add(Deposito(id=deposito_id, tenant_id=tenant_id, unidade_produtiva_id=unidade_produtiva_id, nome="D1", ativo=True))

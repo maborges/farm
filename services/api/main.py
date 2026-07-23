@@ -52,6 +52,7 @@ from operacional.routers import qualidade as router_qualidade
 from operacional.routers import relatorios as operacional_relatorios
 from operacional.routers import dashboard as operacional_dashboard
 from operacional.routers import compras
+from operacional.routers import compras_publico
 from operacional.routers import apontamento as router_apontamento
 from operacional.routers import abastecimento as router_abastecimento
 from operacional.routers import checklist as router_checklist
@@ -314,6 +315,7 @@ app.include_router(estoque_implantacao.router, prefix="/api/v1")
 app.include_router(oficina.router, prefix="/api/v1")
 app.include_router(operacional_relatorios.router, prefix="/api/v1")
 app.include_router(compras.router, prefix="/api/v1")
+app.include_router(compras_publico.router, prefix="/api/v1")
 app.include_router(router_apontamento.router, prefix="/api/v1")
 app.include_router(router_abastecimento.router, prefix="/api/v1")
 app.include_router(router_checklist.router, prefix="/api/v1")

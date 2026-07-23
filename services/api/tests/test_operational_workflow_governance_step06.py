@@ -11,6 +11,7 @@ import agricola.alertas.service as alertas_module
 from core.cadastros.produtos.models import Produto
 from core.exceptions import BusinessRuleError
 from operacional.models.compras import DevolucaoFornecedor, ItemDevolucao, PedidoCompra, Fornecedor
+from core.cadastros.pessoas.models import Pessoa
 from operacional.models.estoque import EstoqueMovimento, LoteEstoque, SaldoEstoque
 from operacional.routers.compras import atualizar_status_devolucao
 from operacional.schemas.compras import DevolucaoStatusUpdate
@@ -27,10 +28,13 @@ async def _criar_recebimento_base(session: AsyncSession, tenant_id: uuid.UUID):
     unidade_id = await _criar_unidade_produtiva(session, tenant_id)
     produto = await _criar_produto(session, tenant_id, preco_medio=77.0)
     deposito = await _criar_deposito(session, tenant_id, unidade_id)
+    pessoa = Pessoa(id=uuid.uuid4(), tenant_id=tenant_id, tipo="PJ", nome_exibicao="Fornecedor Step06", base_legal="CONTRATO", ativo=True)
+    session.add(pessoa)
+    await session.flush()
     fornecedor = Fornecedor(
         id=uuid.uuid4(),
         tenant_id=tenant_id,
-        nome_fantasia="Fornecedor Step06",
+        pessoa_id=pessoa.id,
     )
     session.add(fornecedor)
     await session.flush()

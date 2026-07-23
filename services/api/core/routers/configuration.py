@@ -20,6 +20,7 @@ from core.schemas.config_schemas import (
     HistoricoConfiguracaoItem,
     OnboardingConfigRequest,
     SegurancaConfigResponse, SegurancaConfigUpdate,
+    SequencialConfigResponse, SequencialConfigUpdate, SequencialResetRequest,
 )
 from core.services.configuracoes_service import (
     ConfiguracoesService, UnidadeAreaConverter, seed_categorias_padrao
@@ -121,6 +122,56 @@ async def update_tenant_config(
     await session.commit()
     await session.refresh(config)
     return config
+
+
+# =============================================================================
+# CÓDIGOS DE REFERÊNCIA (SEQUENCIAIS) — ex: PED-2026-000123
+# =============================================================================
+
+@router.get("/sequenciais", response_model=List[SequencialConfigResponse])
+async def list_sequenciais_config(
+    tenant: Tenant = Depends(get_current_tenant),
+    session: AsyncSession = Depends(get_session),
+):
+    service = ConfiguracoesService(session, tenant.id)
+    return await service.get_sequenciais_config()
+
+
+@router.put("/sequenciais/{entidade}", response_model=SequencialConfigResponse)
+async def update_sequencial_config(
+    entidade: str,
+    data: SequencialConfigUpdate,
+    tenant: Tenant = Depends(get_current_tenant),
+    session: AsyncSession = Depends(get_session),
+    claims: dict = Depends(get_current_user_claims),
+):
+    service = ConfiguracoesService(session, tenant.id)
+    try:
+        return await service.set_sequencial_config(
+            entidade, data.prefixo, data.digitos, data.escopo,
+            usuario_id=claims.get("sub"),
+        )
+    except EntityNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.post("/sequenciais/{entidade}/resetar", response_model=SequencialConfigResponse)
+async def resetar_sequencial_config(
+    entidade: str,
+    data: SequencialResetRequest,
+    tenant: Tenant = Depends(get_current_tenant),
+    session: AsyncSession = Depends(get_session),
+    claims: dict = Depends(get_current_user_claims),
+):
+    service = ConfiguracoesService(session, tenant.id)
+    try:
+        return await service.resetar_sequencial(
+            entidade, data.ultimo_numero, usuario_id=claims.get("sub"),
+        )
+    except EntityNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except BusinessRuleError as e:
+        raise HTTPException(status_code=422, detail=str(e))
 
 
 # =============================================================================

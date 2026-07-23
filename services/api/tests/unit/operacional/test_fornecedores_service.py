@@ -3,12 +3,19 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from core.cadastros.pessoas.models import Pessoa, PessoaContato, PessoaDocumento, PessoaRelacionamento, TipoRelacionamento
+from core.cadastros.pessoas.models import Pessoa, PessoaContato, PessoaDocumento, TipoRelacionamento
 from operacional.models.compras import Fornecedor
 from operacional.services import fornecedores_service as service
 
 
 pytestmark = pytest.mark.asyncio
+
+
+class FakeResult:
+    """Simula um ResultProxy vazio — usado para simular 'nenhum registro
+    existente ainda' nas checagens de sincronização (_sincronizar_*)."""
+    def scalar_one_or_none(self):
+        return None
 
 
 class FakeSession:
@@ -17,6 +24,9 @@ class FakeSession:
 
     def add(self, obj):
         self.added.append(obj)
+
+    async def execute(self, *_args, **_kwargs):
+        return FakeResult()
 
     async def flush(self):
         for obj in self.added:
@@ -60,7 +70,10 @@ async def test_resolve_fornecedor_cria_pessoa_documento_e_papel(monkeypatch):
     garantir_rel.assert_awaited_once_with(session, pessoa.id, tipo_rel.id)
 
 
-async def test_resolve_fornecedor_reutiliza_pessoa_existente_por_documento(monkeypatch):
+async def test_resolve_fornecedor_reutiliza_pessoa_existente_e_sincroniza_contato(monkeypatch):
+    """Regressão do bug original: mesmo quando a Pessoa já existe (match por
+    documento), documento e contatos devem ser sincronizados — antes só
+    aconteciam na primeira criação da Pessoa."""
     session = FakeSession()
     tenant_id = uuid.uuid4()
     pessoa_existente = Pessoa(
@@ -83,10 +96,18 @@ async def test_resolve_fornecedor_reutiliza_pessoa_existente_por_documento(monke
         tenant_id,
         nome_fantasia="Fornecedor ABC Atualizado",
         cnpj_cpf="12345678000190",
+        email="novo-email@fornecedor.test",
     )
 
+    documentos = [obj for obj in session.added if isinstance(obj, PessoaDocumento)]
+    contatos = [obj for obj in session.added if isinstance(obj, PessoaContato)]
+
     assert pessoa.id == pessoa_existente.id
-    assert not any(isinstance(obj, PessoaDocumento) for obj in session.added)
+    assert len(documentos) == 1
+    assert documentos[0].pessoa_id == pessoa_existente.id
+    assert len(contatos) == 1
+    assert contatos[0].tipo == "EMAIL"
+    assert contatos[0].valor == "novo-email@fornecedor.test"
     garantir_rel.assert_awaited_once_with(session, pessoa_existente.id, tipo_rel.id)
 
 
@@ -128,7 +149,7 @@ async def test_salvar_fornecedor_legado_nao_duplica_mesmo_documento(monkeypatch)
     assert created_a is True
     assert created_b is False
     assert fornecedor_b.id == fornecedor_a.id
-    assert fornecedor_b.email == "segundo@fornecedor.test"
+    assert fornecedor_b.pessoa_id == pessoa.id
     assert fornecedor_b.condicoes_pagamento == "28 dias"
     assert fornecedor_b.prazo_entrega_dias == 4
     assert fornecedor_b.avaliacao == 4.5
@@ -178,8 +199,7 @@ async def test_salvar_fornecedor_legado_reutiliza_registro_sem_pessoa_id_e_mante
     legado = Fornecedor(
         id=uuid.uuid4(),
         tenant_id=tenant_id,
-        nome_fantasia="Fornecedor Legado",
-        cnpj_cpf="12.345.678/0001-90",
+        pessoa_id=pessoa.id,
         condicoes_pagamento="7 dias",
         prazo_entrega_dias=2,
         avaliacao=3.0,
@@ -207,12 +227,12 @@ async def test_salvar_fornecedor_legado_reutiliza_registro_sem_pessoa_id_e_mante
     assert created is False
     assert fornecedor.id == legado.id
     assert fornecedor.pessoa_id == pessoa.id
-    assert fornecedor.nome_fantasia == "Fornecedor Legado Atualizado"
-    assert fornecedor.email == "financeiro@fornecedor.test"
-    assert fornecedor.telefone == "1133334444"
     assert fornecedor.condicoes_pagamento == "21 dias"
     assert fornecedor.prazo_entrega_dias == 5
     assert fornecedor.avaliacao == 4.8
+    assert kwargs["nome_fantasia"] == "Fornecedor Legado Atualizado"
+    assert kwargs["email"] == "financeiro@fornecedor.test"
+    assert kwargs["telefone"] == "1133334444"
     assert "condicoes_pagamento" not in kwargs
     assert "prazo_entrega_dias" not in kwargs
     assert "avaliacao" not in kwargs

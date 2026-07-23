@@ -10,7 +10,7 @@ from agricola.cadastros.models import Cultura
 from agricola.colheita.models import ProdutoColhido
 from core.cadastros.commodities.models import Commodity
 from core.cadastros.produtos.models import Produto, ProdutoAgricola, ProdutoCultura, ProdutoEPI, ProdutoEstoque
-from operacional.models.compras import ItemPedidoCompra, PedidoCompra, SolicitacaoCompra
+from operacional.models.compras import ItemPedidoCompra, SolicitacaoCompra
 from operacional.models.estoque import EstoqueMovimento, LoteEstoque, SaldoEstoque
 from pecuaria.models.manejo import ManejoLote
 
@@ -79,7 +79,6 @@ def test_compras_estoque_e_pecuaria_usam_produto_sem_cadastro_paralelo() -> None
     expected_target = "cadastros_produtos.id"
 
     for model, field in (
-        (PedidoCompra, "item_id"),
         (ItemPedidoCompra, "produto_id"),
         (SolicitacaoCompra, "produto_id"),
         (SaldoEstoque, "produto_id"),

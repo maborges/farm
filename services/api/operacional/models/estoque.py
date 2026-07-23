@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, date, timezone
-from sqlalchemy import String, Boolean, DateTime, Date, ForeignKey, ForeignKeyConstraint, JSON, Float, Integer, Numeric, Text
+from sqlalchemy import String, Boolean, DateTime, Date, ForeignKey, ForeignKeyConstraint, JSON, Float, Integer, Numeric, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym
 from sqlalchemy import Uuid as UUID
 from core.database import Base
@@ -73,6 +73,10 @@ class RequisicaoMaterial(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+
+    # Código de referência legível (ex: REQ-2026-000123). Ver core/sequenciais_config.py.
+    numero: Mapped[str | None] = mapped_column(String(30), nullable=True, index=True)
+
     unidade_produtiva_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("unidades_produtivas.id"), index=True)
     solicitante_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("usuarios.id"))
     aprovador_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=True)
@@ -84,6 +88,12 @@ class RequisicaoMaterial(Base):
     origem_tipo: Mapped[str] = mapped_column(String(30), default="OUTRO")
     origem_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     observacoes: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
+    itens: Mapped[list["ItemRequisicao"]] = relationship(back_populates="requisicao", lazy="noload")
+
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "numero", name="uq_estoque_requisicoes_tenant_numero"),
+    )
 
 
 class ItemRequisicao(Base):
@@ -98,6 +108,8 @@ class ItemRequisicao(Base):
     quantidade_aprovada: Mapped[float | None] = mapped_column(Float, nullable=True)
     quantidade_entregue: Mapped[float | None] = mapped_column(Float, nullable=True)
     observacoes: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+    requisicao: Mapped["RequisicaoMaterial"] = relationship(back_populates="itens")
 
 
 class ReservaEstoque(Base):
@@ -146,6 +158,9 @@ class EstoqueMovimento(Base):
     )
     production_unit_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("production_units.id", ondelete="SET NULL"), nullable=True
+    )
+    fornecedor_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("compras_fornecedores.id", ondelete="SET NULL"), nullable=True, index=True
     )
     numero_lote: Mapped[str | None] = mapped_column(String(100), nullable=True)
     ajuste_de: Mapped[uuid.UUID | None] = mapped_column(

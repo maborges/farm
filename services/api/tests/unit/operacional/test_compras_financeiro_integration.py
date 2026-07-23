@@ -17,6 +17,9 @@ class _ScalarResult:
     def scalar_one_or_none(self):
         return self._value
 
+    def scalar_one(self):
+        return self._value
+
 
 @pytest.mark.asyncio
 async def test_parse_condicoes_pagamento_em_dias():
@@ -50,7 +53,9 @@ async def test_garantir_despesa_financeira_compra_cria_conta_a_pagar():
     svc._resolver_plano_conta_compra = AsyncMock(return_value=plano_id)
     svc._resolver_fornecedor_financeiro = AsyncMock(return_value=(None, "Fornecedor X", None))
 
+    recebimento_id = uuid.uuid4()
     recebimento = SimpleNamespace(
+        id=recebimento_id,
         data_recebimento=SimpleNamespace(date=lambda: date(2026, 6, 26)),
         numero_nf="NF-1",
         chave_nfe="123",
@@ -60,6 +65,8 @@ async def test_garantir_despesa_financeira_compra_cria_conta_a_pagar():
         deposito_id=deposito_id,
         item_id=produto_id,
         valor_total=500.0,
+        valor_adiantamento=None,
+        condicoes_pagamento=None,
         fornecedor_nome="Fornecedor X",
     )
 
@@ -74,11 +81,11 @@ async def test_garantir_despesa_financeira_compra_cria_conta_a_pagar():
     payload = despesa_service.create_with_rateio.await_args.args[0]
     assert payload.unidade_produtiva_id == unidade_id
     assert payload.plano_conta_id == plano_id
-    assert payload.descricao == "Compra de MAP"
+    assert payload.descricao == "Compra de MAP (NF NF-1)"
     assert payload.valor_total == 500.0
     assert payload.status == "A_PAGAR"
     assert payload.numero_nf == "NF-1"
-    assert payload.origem_id == pedido_id
+    assert payload.origem_id == recebimento_id
     assert payload.origem_tipo == "COMPRA"
 
 

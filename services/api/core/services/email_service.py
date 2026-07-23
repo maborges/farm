@@ -1,5 +1,6 @@
 import aiosmtplib
 from email.message import EmailMessage
+from email.utils import make_msgid, formatdate
 from jinja2 import Environment, FileSystemLoader
 import os
 import uuid
@@ -45,10 +46,17 @@ class EmailService:
         """Método interno para envio via SMTP dinâmico."""
         config = await self._get_smtp_config(tenant_id)
         
+        from_email = config.get("from", settings.mail_from)
+
         message = EmailMessage()
-        message["From"] = config.get("from", settings.mail_from)
+        message["From"] = from_email
         message["To"] = to_email
         message["Subject"] = subject
+        # Sem Date/Message-ID, provedores como Gmail costumam classificar a
+        # mensagem como spam ou descartá-la silenciosamente — o SMTP aceita
+        # o envio (sem erro), mas o destinatário nunca recebe.
+        message["Date"] = formatdate(localtime=True)
+        message["Message-ID"] = make_msgid(domain=from_email.split("@")[-1] if "@" in from_email else None)
         message.add_alternative(html_content, subtype="html")
 
         try:
@@ -56,7 +64,6 @@ class EmailService:
             port = int(config.get("port", 587))
             user = config.get("user")
             pwd = config.get("pass")
-            from_email = config.get("from", settings.mail_from)
 
             if not host:
                 raise RuntimeError("SMTP host não configurado.")
@@ -163,6 +170,39 @@ class EmailService:
             data_solicitacao=datetime.now().strftime("%d/%m/%Y às %H:%M")
         )
         await self._send(email, "Recuperação de Senha - AgroSaaS 🔑", html, tenant_id)
+
+    async def send_pedido_compra_confirmacao(
+        self,
+        email: str,
+        fornecedor_nome: str,
+        tenant_nome: str,
+        itens: list[dict],
+        valor_total: str,
+        condicoes_pagamento: str,
+        endereco_entrega: str,
+        prazo_entrega_dias: int | None,
+        token: str,
+        senha_confirmacao: str,
+        dias_expiracao: int,
+        tenant_id: uuid.UUID = None,
+        numero_pedido: str | None = None,
+    ):
+        template = self.env.get_template("emails/pedido_compra_confirmacao.html")
+        html = template.render(
+            fornecedor_nome=fornecedor_nome,
+            tenant_nome=tenant_nome,
+            itens=itens,
+            valor_total=valor_total,
+            condicoes_pagamento=condicoes_pagamento,
+            endereco_entrega=endereco_entrega,
+            prazo_entrega_dias=prazo_entrega_dias,
+            confirmacao_url=f"{settings.frontend_url}/pedido-compra/confirmar?token={token}",
+            senha_confirmacao=senha_confirmacao,
+            dias_expiracao=dias_expiracao,
+            numero_pedido=numero_pedido,
+        )
+        assunto = f"Pedido de Compra {numero_pedido} — {tenant_nome} aguarda sua confirmação" if numero_pedido else f"Pedido de Compra — {tenant_nome} aguarda sua confirmação"
+        await self._send(email, assunto, html, tenant_id)
 
     async def send_trial_notice(self, email: str, nome: str, nome_produtor: str, nome_plano: str, dias_trial: int, data_vencimento, tenant_id: uuid.UUID = None):
         """Envia e-mail com aviso de período de trial para nova assinatura."""

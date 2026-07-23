@@ -22,7 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_
 from typing import List
 import uuid
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone, timedelta, date
 import secrets
 
 from core.dependencies import (
@@ -674,6 +674,67 @@ async def resend_invite(
         return {"message": "Convite renovado, mas o envio do e-mail falhou (Verifique seu SMTP)."}
 
     return {"message": "Convite reenviado com sucesso!"}
+
+
+class MinhaPermissaoResponse(BaseModel):
+    perfil_nome: str | None
+    permissoes: dict
+    origem: str  # "fazenda" (override por UP) ou "tenant" (perfil padrão)
+
+
+@router.get("/me/permissoes", response_model=MinhaPermissaoResponse)
+async def get_minhas_permissoes(
+    unidade_produtiva_id: uuid.UUID | None = None,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    current_user: Usuario = Depends(get_current_user),
+    session: AsyncSession = Depends(get_session)
+):
+    """
+    Resolve a permissão efetiva do usuário logado no tenant atual — considerando
+    o override de perfil por unidade produtiva (`perfil_fazenda_id`), se houver
+    e estiver dentro da vigência. Usado pelo frontend para re-sincronizar o menu
+    ao trocar de UP, já que o token/sessão não carrega isso automaticamente.
+    """
+    tu_stmt = select(TenantUsuario).where(
+        TenantUsuario.tenant_id == tenant_id,
+        TenantUsuario.usuario_id == current_user.id,
+        TenantUsuario.status == "ATIVO",
+    )
+    tenant_usuario = (await session.execute(tu_stmt)).scalar_one_or_none()
+    if not tenant_usuario:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Acesso ao tenant negado.")
+
+    if tenant_usuario.is_owner:
+        return MinhaPermissaoResponse(perfil_nome="Proprietário", permissoes={"granted": ["*"]}, origem="tenant")
+
+    perfil_efetivo: PerfilAcesso | None = None
+    origem = "tenant"
+
+    if unidade_produtiva_id is not None:
+        fu_stmt = select(FazendaUsuario).where(
+            FazendaUsuario.tenant_id == tenant_id,
+            FazendaUsuario.usuario_id == current_user.id,
+            FazendaUsuario.unidade_produtiva_id == unidade_produtiva_id,
+        )
+        fazenda_usuario = (await session.execute(fu_stmt)).scalar_one_or_none()
+        if fazenda_usuario and fazenda_usuario.perfil_fazenda_id:
+            vigente = (
+                (fazenda_usuario.vigencia_inicio is None or fazenda_usuario.vigencia_inicio <= date.today())
+                and (fazenda_usuario.vigencia_fim is None or fazenda_usuario.vigencia_fim >= date.today())
+            )
+            if vigente:
+                perfil_efetivo = await session.get(PerfilAcesso, fazenda_usuario.perfil_fazenda_id)
+                origem = "fazenda"
+
+    if perfil_efetivo is None and tenant_usuario.perfil_id:
+        perfil_efetivo = await session.get(PerfilAcesso, tenant_usuario.perfil_id)
+        origem = "tenant"
+
+    return MinhaPermissaoResponse(
+        perfil_nome=perfil_efetivo.nome if perfil_efetivo else None,
+        permissoes=(perfil_efetivo.permissoes if perfil_efetivo else {"granted": []}),
+        origem=origem,
+    )
 
 
 @router.get("/roles", response_model=List[PerfilResponse], dependencies=[Depends(require_tenant_permission("tenant:permissions:view"))])

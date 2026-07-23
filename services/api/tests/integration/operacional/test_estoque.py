@@ -19,6 +19,7 @@ from tests.integration.helpers import garantir_assinatura
 DEPOSITO_A_ID = uuid.UUID("ff000001-0000-0000-0000-000000000001")
 DEPOSITO_B_ID = uuid.UUID("ff000002-0000-0000-0000-000000000002")
 PRODUTO_ID    = uuid.UUID("ff000003-0000-0000-0000-000000000003")
+FORNECEDOR_ID = uuid.UUID("ff000004-0000-0000-0000-000000000004")
 
 
 # ---------------------------------------------------------------------------
@@ -53,6 +54,18 @@ async def _garantir_suporte(session):
         ON CONFLICT (id) DO NOTHING
     """), {"id": str(PRODUTO_ID), "tenant_id": str(TENANT_ID)})
 
+    pessoa_fornecedor_id = uuid.uuid5(uuid.NAMESPACE_URL, f"pessoa-fornecedor-{FORNECEDOR_ID}")
+    await session.execute(text("""
+        INSERT INTO cadastros_pessoas (id, tenant_id, tipo, nome_exibicao, base_legal, ativo, tags, created_at, updated_at)
+        VALUES (:id, :tenant_id, 'PJ', 'Fornecedor Teste', 'CONTRATO', true, '[]', NOW(), NOW())
+        ON CONFLICT (id) DO NOTHING
+    """), {"id": str(pessoa_fornecedor_id), "tenant_id": str(TENANT_ID)})
+    await session.execute(text("""
+        INSERT INTO compras_fornecedores (id, tenant_id, pessoa_id)
+        VALUES (:id, :tenant_id, :pessoa_id)
+        ON CONFLICT (id) DO NOTHING
+    """), {"id": str(FORNECEDOR_ID), "tenant_id": str(TENANT_ID), "pessoa_id": str(pessoa_fornecedor_id)})
+
     await garantir_assinatura(session, TENANT_ID)
     await session.commit()
 
@@ -71,6 +84,7 @@ async def test_entrada_estoque(client, session, headers_operacional):
         json={
             "produto_id": str(PRODUTO_ID),
             "deposito_id": str(DEPOSITO_A_ID),
+            "fornecedor_id": str(FORNECEDOR_ID),
             "quantidade": 100.0,
             "custo_unitario": 45.0,
             "motivo": "Compra direta",
@@ -97,6 +111,7 @@ async def test_saida_estoque(client, session, headers_operacional):
     await client.post("/api/v1/estoque/movimentacoes/entrada", json={
         "produto_id": str(PRODUTO_ID),
         "deposito_id": str(DEPOSITO_A_ID),
+        "fornecedor_id": str(FORNECEDOR_ID),
         "quantidade": 200.0,
         "custo_unitario": 45.0,
     }, headers=headers_operacional)
@@ -128,6 +143,7 @@ async def test_transferencia_entre_depositos(client, session, headers_operaciona
     await client.post("/api/v1/estoque/movimentacoes/entrada", json={
         "produto_id": str(PRODUTO_ID),
         "deposito_id": str(DEPOSITO_A_ID),
+        "fornecedor_id": str(FORNECEDOR_ID),
         "quantidade": 300.0,
         "custo_unitario": 45.0,
     }, headers=headers_operacional)

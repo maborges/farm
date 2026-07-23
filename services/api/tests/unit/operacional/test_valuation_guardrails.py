@@ -3,9 +3,21 @@ import uuid
 import pytest
 
 from core.cadastros.produtos.models import Produto
+from core.cadastros.pessoas.models import Pessoa
+from operacional.models.compras import Fornecedor
 from operacional.models.estoque import Deposito, LoteEstoque, SaldoEstoque
 from operacional.schemas.estoque import EntradaEstoqueRequest, SaidaEstoqueRequest
 from operacional.services.estoque_service import EstoqueService
+
+
+async def _criar_fornecedor(session, tenant_id, nome="Fornecedor Guardrail"):
+    pessoa = Pessoa(id=uuid.uuid4(), tenant_id=tenant_id, tipo="PJ", nome_exibicao=nome, base_legal="CONTRATO", ativo=True)
+    session.add(pessoa)
+    await session.flush()
+    fornecedor = Fornecedor(id=uuid.uuid4(), tenant_id=tenant_id, pessoa_id=pessoa.id)
+    session.add(fornecedor)
+    await session.flush()
+    return fornecedor
 
 
 async def _criar_deposito(session, tenant_id, unidade_produtiva_id, nome="Depósito Guardrail"):
@@ -39,6 +51,7 @@ async def test_entrada_nao_reescreve_preco_medio_do_produto(
         ativo=True,
     )
     session.add(produto)
+    fornecedor = await _criar_fornecedor(session, tenant_id)
     await session.commit()
 
     svc = EstoqueService(session, tenant_id)
@@ -46,6 +59,7 @@ async def test_entrada_nao_reescreve_preco_medio_do_produto(
         EntradaEstoqueRequest(
             deposito_id=deposito.id,
             produto_id=produto.id,
+            fornecedor_id=fornecedor.id,
             quantidade=10.0,
             custo_unitario=45.0,
             motivo="Entrada teste",

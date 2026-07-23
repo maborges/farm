@@ -13,7 +13,8 @@ from financeiro.models.despesa import Despesa
 from financeiro.models.plano_conta import PlanoConta
 from financeiro.services.relatorio_service import RelatorioService
 from notificacoes.models import Notificacao
-from operacional.models.compras import Fornecedor, ItemRecebimento, PedidoCompra, RecebimentoParcial
+from operacional.models.compras import Fornecedor, ItemPedidoCompra, ItemRecebimento, PedidoCompra, RecebimentoParcial
+from core.cadastros.pessoas.models import Pessoa, PessoaContato
 from operacional.models.estoque import Deposito, EstoqueMovimento, LoteEstoque, SaldoEstoque
 from operacional.schemas.compras import RecebimentoCreate
 from tests.integration.helpers import garantir_assinatura
@@ -77,12 +78,15 @@ async def _criar_fornecedor(
     nome: str = "Fornecedor Step05",
     condicoes_pagamento: str = "28 dias",
 ) -> Fornecedor:
+    pessoa = Pessoa(id=uuid.uuid4(), tenant_id=tenant_id, tipo="PJ", nome_exibicao=nome, base_legal="CONTRATO", ativo=True)
+    session.add(pessoa)
+    await session.flush()
+    session.add(PessoaContato(id=uuid.uuid4(), pessoa_id=pessoa.id, tipo="EMAIL", valor="financeiro@step05.test", principal=True))
     fornecedor = Fornecedor(
         id=uuid.uuid4(),
         tenant_id=tenant_id,
-        nome_fantasia=nome,
+        pessoa_id=pessoa.id,
         condicoes_pagamento=condicoes_pagamento,
-        email="financeiro@step05.test",
     )
     session.add(fornecedor)
     await session.commit()
@@ -104,15 +108,21 @@ async def _criar_pedido(
         tenant_id=tenant_id,
         fornecedor_nome="Fornecedor Step05",
         fornecedor_contato="contato@step05.test",
-        item_id=produto_id,
-        deposito_id=deposito_id,
-        quantidade=quantidade,
-        unidade="KG",
-        valor_unitario=valor_unitario,
         valor_total=quantidade * valor_unitario,
         status="ABERTO",
     )
     session.add(pedido)
+    await session.flush()
+    session.add(ItemPedidoCompra(
+        id=uuid.uuid4(),
+        pedido_id=pedido.id,
+        produto_id=produto_id,
+        deposito_id=deposito_id,
+        unidade="KG",
+        quantidade_solicitada=quantidade,
+        preco_estimado_unitario=valor_unitario,
+        valor_total=quantidade * valor_unitario,
+    ))
     await session.commit()
     await session.refresh(pedido)
     return pedido

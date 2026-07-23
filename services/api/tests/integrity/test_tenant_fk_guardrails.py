@@ -26,6 +26,16 @@ Cobertura:
 Exceções documentadas (não falham):
   - territory_legacy_backup_01h2 (backup territorial legado — ver 01D)
   - email_logs (ON DELETE NO ACTION deliberado)
+
+Débito conhecido (2026-07-23): fk_cp_tenant_deposito (compras_pedidos.deposito_id)
+foi removida junto com a coluna no saneamento dos campos legados de item único
+(ver migration 20260723e_ped_drop_legado — deposito_id/item_id/quantidade/
+unidade/valor_unitario saíram de compras_pedidos, substituídos por
+ItemPedidoCompra/compras_itens_pedido). compras_itens_pedido.deposito_id NUNCA
+teve FK composta de tenant equivalente (tabela não tem tenant_id próprio,
+herda o tenant via pedido_id) — gap pré-existente desde a introdução do
+multi-item, não introduzido por esta remoção. Cobertura G7 para esse
+relacionamento fica em aberto.
 """
 import pytest
 from sqlalchemy import text
@@ -67,15 +77,6 @@ AGREGADOS_CRITICOS = [
         "col_filho": "tenant_id",
         "col_fk": "unidade_produtiva_id",
         "pai": "unidades_produtivas",
-        "col_pai_tenant": "tenant_id",
-        "col_pai_id": "id",
-    },
-    {
-        "relacao": "compras_pedidos → estoque_depositos",
-        "filho": "compras_pedidos",
-        "col_filho": "tenant_id",
-        "col_fk": "deposito_id",
-        "pai": "estoque_depositos",
         "col_pai_tenant": "tenant_id",
         "col_pai_id": "id",
     },
@@ -317,7 +318,6 @@ async def test_g6_unique_composto_pai(
     ("fk_car_tenant_unidade_produtiva",  "cadastros_areas_rurais"),
     ("fk_ed_tenant_unidade_produtiva",   "estoque_depositos"),
     ("fk_ce_tenant_unidade_produtiva",   "cadastros_equipamentos"),
-    ("fk_cp_tenant_deposito",            "compras_pedidos"),
     ("fk_fje_tenant_unidade_produtiva",  "frota_jornadas_equipamento"),
     ("fk_fau_tenant_jornada",            "frota_apontamentos_uso"),
     ("fk_fa_tenant_equipamento",         "frota_abastecimentos"),

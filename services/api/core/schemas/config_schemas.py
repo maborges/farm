@@ -40,6 +40,38 @@ class TenantConfigUpdate(BaseModel):
 
 
 # =============================================================================
+# CÓDIGOS DE REFERÊNCIA (SEQUENCIAIS) — ex: PED-2026-000123
+# =============================================================================
+
+class SequencialConfigResponse(BaseModel):
+    entidade: str
+    label: str
+    prefixo: str
+    digitos: int
+    escopo: Literal["ANO", "GLOBAL"]
+    personalizado: bool = False
+    ultimo_numero: int = 0
+
+
+class SequencialConfigUpdate(BaseModel):
+    prefixo: str = Field(..., min_length=2, max_length=6)
+    digitos: int = Field(..., ge=4, le=8)
+    escopo: Literal["ANO", "GLOBAL"]
+
+    @field_validator("prefixo")
+    @classmethod
+    def prefixo_alfanumerico_maiusculo(cls, v: str) -> str:
+        v = v.strip().upper()
+        if not v.isalnum():
+            raise ValueError("Prefixo deve conter apenas letras e números.")
+        return v
+
+
+class SequencialResetRequest(BaseModel):
+    ultimo_numero: int = Field(..., ge=0, description="Próximo código emitido será ultimo_numero + 1.")
+
+
+# =============================================================================
 # SCHEMAS DE CONFIGURAÇÕES GLOBAIS
 # =============================================================================
 

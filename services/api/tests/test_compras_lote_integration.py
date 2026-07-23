@@ -21,6 +21,7 @@ from operacional.models.compras import (
     DevolucaoFornecedor, ItemDevolucao, Fornecedor,
 )
 from core.cadastros.produtos.models import Produto
+from core.cadastros.pessoas.models import Pessoa
 from core.models import Usuario
 from operacional.routers.compras import atualizar_status_devolucao
 from operacional.schemas.compras import DevolucaoStatusUpdate
@@ -39,6 +40,16 @@ async def criar_usuario(session: AsyncSession, suffix: str = "teste") -> Usuario
     session.add(usuario)
     await session.flush()
     return usuario
+
+
+async def criar_fornecedor(session: AsyncSession, tenant_id, nome: str = "Fornecedor Teste") -> Fornecedor:
+    pessoa = Pessoa(id=uuid4(), tenant_id=tenant_id, tipo="PJ", nome_exibicao=nome, base_legal="CONTRATO", ativo=True)
+    session.add(pessoa)
+    await session.flush()
+    fornecedor = Fornecedor(id=uuid4(), tenant_id=tenant_id, pessoa_id=pessoa.id)
+    session.add(fornecedor)
+    await session.flush()
+    return fornecedor
 
 
 class TestComprasLoteIntegration:
@@ -91,7 +102,7 @@ class TestComprasLoteIntegration:
             id=uuid4(),
             tenant_id=tenant_uuid,
             usuario_solicitante_id=usuario.id,
-            deposito_destino_id=deposito.id,
+            fornecedor_nome="Fornecedor Teste",
             status="APROVADO",
         )
         session.add(pedido)
@@ -102,6 +113,7 @@ class TestComprasLoteIntegration:
             id=uuid4(),
             pedido_id=pedido.id,
             produto_id=produto.id,
+            deposito_id=deposito.id,
             quantidade_solicitada=1000.0,
             preco_estimado_unitario=15.0,
             quantidade_recebida=0.0,
@@ -420,7 +432,7 @@ class TestComprasLoteIntegration:
             id=uuid4(),
             tenant_id=tenant_uuid,
             usuario_solicitante_id=usuario.id,
-            deposito_destino_id=deposito.id,
+            fornecedor_nome="Fornecedor Teste",
             status="APROVADO",
         )
         session.add(pedido)
@@ -430,6 +442,7 @@ class TestComprasLoteIntegration:
             id=uuid4(),
             pedido_id=pedido.id,
             produto_id=produto.id,
+            deposito_id=deposito.id,
             quantidade_solicitada=500.0,
             preco_estimado_unitario=25.0,
             status_item="PENDENTE",
@@ -498,13 +511,7 @@ class TestComprasLoteIntegration:
         )
         session.add(deposito)
 
-        fornecedor = Fornecedor(
-            id=uuid4(),
-            tenant_id=tenant_uuid,
-            nome_fantasia="Fornecedor XYZ",
-        )
-        session.add(fornecedor)
-        await session.flush()
+        fornecedor = await criar_fornecedor(session, tenant_uuid, nome="Fornecedor XYZ")
 
         # ── Create LoteEstoque with 1000 kg ──────────────────────────────
         lote = LoteEstoque(
@@ -621,13 +628,7 @@ class TestComprasLoteIntegration:
         )
         session.add(deposito)
 
-        fornecedor = Fornecedor(
-            id=uuid4(),
-            tenant_id=tenant_uuid,
-            nome_fantasia="Fornecedor",
-        )
-        session.add(fornecedor)
-        await session.flush()
+        fornecedor = await criar_fornecedor(session, tenant_uuid)
 
         # Batch is exhausted (quantity = 0, status = ESGOTADO)
         lote = LoteEstoque(

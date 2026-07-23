@@ -106,6 +106,7 @@ class SaldoMinimoUpdateRequest(BaseModel):
 class EntradaEstoqueRequest(BaseModel):
     deposito_id: uuid.UUID
     produto_id: uuid.UUID
+    fornecedor_id: uuid.UUID
     quantidade: float = Field(..., gt=0)
     custo_unitario: float = Field(0.0, ge=0)
     motivo: Optional[str] = Field(None, max_length=255)
@@ -161,6 +162,7 @@ class MovimentacaoResponse(BaseModel):
     motivo: Optional[str]
     origem_id: Optional[uuid.UUID]
     origem_tipo: Optional[str]
+    fornecedor_id: Optional[uuid.UUID] = None
     data_movimentacao: datetime
     model_config = ConfigDict(from_attributes=True)
 
@@ -217,9 +219,12 @@ class ItemRequisicaoResponse(BaseModel):
 
 class RequisicaoResponse(BaseModel):
     id: uuid.UUID
+    numero: Optional[str] = None
     unidade_produtiva_id: uuid.UUID
     solicitante_id: uuid.UUID
+    solicitante_nome: Optional[str] = None
     aprovador_id: Optional[uuid.UUID]
+    aprovador_nome: Optional[str] = None
     data_solicitacao: datetime
     data_necessidade: Optional[date]
     status: str

@@ -16,6 +16,7 @@ from financeiro.models.despesa import Despesa
 from financeiro.models.lancamento import LancamentoFinanceiro
 from financeiro.models.plano_conta import PlanoConta
 from operacional.models.compras import DevolucaoFornecedor, Fornecedor, ItemDevolucao, PedidoCompra
+from core.cadastros.pessoas.models import Pessoa
 from operacional.models.estoque import EstoqueMovimento
 from agricola.tarefas.models import SafraTarefa
 from test_operational_workflow_governance_step03 import (
@@ -201,11 +202,6 @@ async def test_step10_relatorio_lista_inconsistencias_e_sugestoes(session: Async
         cotacao_id=None,
         fornecedor_nome="Fornecedor Legado",
         fornecedor_contato=None,
-        item_id=produto.id,
-        deposito_id=deposito.id,
-        quantidade=10.0,
-        unidade="UN",
-        valor_unitario=10.0,
         valor_total=100.0,
         status="RECEBIDO",
         economia_absoluta=0.0,
@@ -213,9 +209,12 @@ async def test_step10_relatorio_lista_inconsistencias_e_sugestoes(session: Async
     )
     session.add(pedido)
 
+    pessoa = Pessoa(id=uuid.uuid4(), tenant_id=tenant_id, tipo="PJ", nome_exibicao="Fornecedor Step10", base_legal="CONTRATO", ativo=True)
+    session.add(pessoa)
+    await session.flush()
     fornecedor = Fornecedor(
         tenant_id=tenant_id,
-        nome_fantasia="Fornecedor Step10",
+        pessoa_id=pessoa.id,
     )
     session.add(fornecedor)
     await session.flush()

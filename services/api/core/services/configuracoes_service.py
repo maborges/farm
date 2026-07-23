@@ -207,6 +207,91 @@ class ConfiguracoesService:
     # ANO AGRÍCOLA
     # --------------------------------------------------------------------------
 
+    # --------------------------------------------------------------------------
+    # CÓDIGOS DE REFERÊNCIA (SEQUENCIAIS) — ex: PED-2026-000123
+    # --------------------------------------------------------------------------
+
+    async def get_sequenciais_config(self) -> List[Dict[str, Any]]:
+        """Lista o padrão vigente (default da aplicação ou personalização do
+        tenant) para cada entidade registrada em core/sequenciais_config.py."""
+        from datetime import date
+        from core.sequenciais_config import SEQUENCIAL_CONFIG
+        from core.models.sequencial import SequencialContador
+
+        overrides = {
+            c.chave: c.valor
+            for c in await self.get_configuracoes_por_categoria("sequenciais")
+        }
+        resultado = []
+        for entidade, default in SEQUENCIAL_CONFIG.items():
+            override = overrides.get(entidade)
+            cfg = {**default, **override} if override else default
+            ano = date.today().year if cfg["escopo"] == "ANO" else None
+            stmt = select(SequencialContador).where(
+                SequencialContador.tenant_id == self.tenant_id,
+                SequencialContador.entidade == entidade,
+                SequencialContador.ano == ano,
+            )
+            contador = (await self.session.execute(stmt)).scalar_one_or_none()
+            resultado.append({
+                "entidade": entidade,
+                "label": default["label"],
+                "prefixo": cfg["prefixo"],
+                "digitos": cfg["digitos"],
+                "escopo": cfg["escopo"],
+                "personalizado": override is not None,
+                "ultimo_numero": contador.ultimo_numero if contador else 0,
+            })
+        return resultado
+
+    async def set_sequencial_config(
+        self, entidade: str, prefixo: str, digitos: int, escopo: str,
+        usuario_id: Optional[UUID] = None,
+    ) -> Dict[str, Any]:
+        from core.sequenciais_config import SEQUENCIAL_CONFIG
+
+        if entidade not in SEQUENCIAL_CONFIG:
+            raise EntityNotFoundError(f"Entidade '{entidade}' não possui código de referência configurável.")
+
+        await self.set_configuracao(
+            categoria="sequenciais",
+            chave=entidade,
+            valor={"prefixo": prefixo, "digitos": digitos, "escopo": escopo},
+            descricao=f"Formato do código de referência de {SEQUENCIAL_CONFIG[entidade]['label']}",
+            usuario_id=usuario_id,
+        )
+        configs = await self.get_sequenciais_config()
+        return next(c for c in configs if c["entidade"] == entidade)
+
+    async def resetar_sequencial(
+        self, entidade: str, ultimo_numero: int, usuario_id: Optional[UUID] = None,
+    ) -> Dict[str, Any]:
+        """Ajusta manualmente o último número emitido de uma entidade — útil ao
+        migrar de um controle legado, para que a numeração continue a partir dele
+        em vez de reiniciar do zero."""
+        from core.sequenciais_config import SEQUENCIAL_CONFIG
+        from core.services.sequencial_service import SequencialService
+
+        if entidade not in SEQUENCIAL_CONFIG:
+            raise EntityNotFoundError(f"Entidade '{entidade}' não possui código de referência configurável.")
+        if ultimo_numero < 0:
+            raise BusinessRuleError("O último número emitido não pode ser negativo.")
+
+        await SequencialService(self.session, self.tenant_id).resetar_contador(entidade, ultimo_numero)
+
+        historico = HistoricoConfiguracao(
+            tenant_id=self.tenant_id,
+            campo_alterado=f"sequenciais.{entidade}.ultimo_numero",
+            valor_anterior=None,
+            valor_novo={"ultimo_numero": ultimo_numero},
+            alterado_por=usuario_id,
+        )
+        self.session.add(historico)
+        await self.session.commit()
+
+        configs = await self.get_sequenciais_config()
+        return next(c for c in configs if c["entidade"] == entidade)
+
     async def get_ano_agricola(self) -> Dict[str, int]:
         config_inicio = await self.get_configuracao("ano_agricola", "mes_inicio")
         config_fim = await self.get_configuracao("ano_agricola", "mes_fim")

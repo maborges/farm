@@ -2,36 +2,32 @@ import pytest
 from httpx import AsyncClient
 import uuid
 from datetime import datetime, timezone
+from sqlalchemy import text
 from operacional.models.compras import PedidoCompra
 
 @pytest.mark.asyncio
 async def test_economia_por_fornecedor_agrupamento(client: AsyncClient, session, headers_operacional: dict):
     """Garante agrupamento correto por fornecedor_nome."""
     valid_tenant_id = uuid.UUID("aaaaaaaa-0000-0000-0000-000000000001")
-    valid_item_id = uuid.UUID("cc000001-0000-0000-0000-000000000001")
-    valid_deposito_id = uuid.UUID("ff000001-0000-0000-0000-000000000001")
 
     new_headers = headers_operacional.copy()
     new_headers["X-Tenant-ID"] = str(valid_tenant_id)
 
     p1 = PedidoCompra(
         id=uuid.uuid4(), tenant_id=valid_tenant_id,
-        fornecedor_nome="AgroSup Ltda", item_id=valid_item_id, deposito_id=valid_deposito_id,
-        quantidade=1, unidade="UN", valor_unitario=100.0, valor_total=100.0,
+        fornecedor_nome="AgroSup Ltda", valor_total=100.0,
         economia_absoluta=600.0, economia_percentual=15.0, status="ABERTO",
         created_at=datetime(2026, 4, 1, tzinfo=timezone.utc)
     )
     p2 = PedidoCompra(
         id=uuid.uuid4(), tenant_id=valid_tenant_id,
-        fornecedor_nome="AgroSup Ltda", item_id=valid_item_id, deposito_id=valid_deposito_id,
-        quantidade=1, unidade="UN", valor_unitario=100.0, valor_total=100.0,
+        fornecedor_nome="AgroSup Ltda", valor_total=100.0,
         economia_absoluta=400.0, economia_percentual=10.0, status="ABERTO",
         created_at=datetime(2026, 4, 2, tzinfo=timezone.utc)
     )
     p3 = PedidoCompra(
         id=uuid.uuid4(), tenant_id=valid_tenant_id,
-        fornecedor_nome="Campo Verde", item_id=valid_item_id, deposito_id=valid_deposito_id,
-        quantidade=1, unidade="UN", valor_unitario=100.0, valor_total=100.0,
+        fornecedor_nome="Campo Verde", valor_total=100.0,
         economia_absoluta=200.0, economia_percentual=5.0, status="ABERTO",
         created_at=datetime(2026, 4, 3, tzinfo=timezone.utc)
     )
@@ -84,13 +80,16 @@ async def test_economia_por_fornecedor_percentual(client: AsyncClient, session, 
 async def test_economia_por_fornecedor_isolamento_tenant(client: AsyncClient, session, headers_operacional: dict):
     """Garante isolamento por tenant."""
     outro_tenant = uuid.UUID("cccccccc-0000-0000-0000-000000000003")
-    valid_item_id = uuid.UUID("cc000001-0000-0000-0000-000000000001")
-    valid_deposito_id = uuid.UUID("ff000001-0000-0000-0000-000000000001")
+
+    await session.execute(text("""
+        INSERT INTO tenants (id, nome, documento, ativo, storage_usado_mb, storage_limite_mb, idioma_padrao, created_at, updated_at)
+        VALUES (:id, 'Tenant Invasor', :doc, true, 0, 10240, 'pt-BR', NOW(), NOW())
+        ON CONFLICT (id) DO NOTHING
+    """), {"id": str(outro_tenant), "doc": str(outro_tenant)[:11]})
 
     p_outro = PedidoCompra(
         id=uuid.uuid4(), tenant_id=outro_tenant,
-        fornecedor_nome="Fornecedor Invasor", item_id=valid_item_id, deposito_id=valid_deposito_id,
-        quantidade=1, unidade="UN", valor_unitario=50.0, valor_total=50.0,
+        fornecedor_nome="Fornecedor Invasor", valor_total=50.0,
         economia_absoluta=8888.0, economia_percentual=50.0, status="ABERTO",
         created_at=datetime(2026, 4, 5, tzinfo=timezone.utc)
     )
