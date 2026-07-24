@@ -9,6 +9,29 @@ from core.exceptions import EntityNotFoundError, BusinessRuleError
 from .models import Marca, ModeloProduto, CategoriaProduto, Produto, ProdutoAgricola, ProdutoEstoque, ProdutoEPI, ProdutoCultura, SoloParametroCultura
 
 
+# Categorias-sistema (tenant_id NULL) semeadas na migration 20260723f,
+# equivalentes ao TipoProduto legado — usadas só para derivar Produto.tipo
+# automaticamente a partir da categoria escolhida no formulário (tipo deixou
+# de ser um campo editável; ver CLAUDE.md / brainstorm de unificação).
+CATEGORIA_SISTEMA_PARA_TIPO: dict[uuid.UUID, str] = {
+    uuid.UUID("11111111-ca70-0000-0000-000000000001"): "SEMENTE",
+    uuid.UUID("11111111-ca70-0000-0000-000000000002"): "DEFENSIVO",
+    uuid.UUID("11111111-ca70-0000-0000-000000000003"): "FERTILIZANTE",
+    uuid.UUID("11111111-ca70-0000-0000-000000000004"): "INOCULANTE",
+    uuid.UUID("11111111-ca70-0000-0000-000000000005"): "ADJUVANTE",
+    uuid.UUID("11111111-ca70-0000-0000-000000000006"): "RACAO",
+    uuid.UUID("11111111-ca70-0000-0000-000000000007"): "MEDICAMENTO",
+    uuid.UUID("11111111-ca70-0000-0000-000000000008"): "VACINA",
+    uuid.UUID("11111111-ca70-0000-0000-000000000009"): "MINERAL",
+    uuid.UUID("11111111-ca70-0000-0000-000000000010"): "PECA",
+    uuid.UUID("11111111-ca70-0000-0000-000000000011"): "LUBRIFICANTE",
+    uuid.UUID("11111111-ca70-0000-0000-000000000012"): "COMBUSTIVEL",
+    uuid.UUID("11111111-ca70-0000-0000-000000000013"): "MATERIAL_GERAL",
+    uuid.UUID("11111111-ca70-0000-0000-000000000014"): "EPI",
+    uuid.UUID("11111111-ca70-0000-0000-000000000015"): "SERVICO",
+}
+
+
 _PRODUTO_LOADS = [
     selectinload(Produto.marca_rel),
     selectinload(Produto.modelo_rel),
@@ -188,11 +211,32 @@ class ProdutoService(BaseService[Produto]):
             stmt = stmt.where(or_(Produto.nome.ilike(f"%{q}%"), Produto.codigo_interno.ilike(f"%{q}%")))
         return list((await self.session.execute(stmt)).scalars().all())
 
+    async def _derivar_tipo_de_categoria(self, categoria_id: Optional[uuid.UUID]) -> str:
+        """Sobe a árvore de categoria até achar uma categoria-sistema
+        conhecida e retorna o TipoProduto equivalente. `tipo` não é mais
+        escolhido pelo usuário — é só um espelho de compatibilidade para
+        código legado que ainda filtra/agrupa por ele."""
+        atual_id = categoria_id
+        visitados = set()
+        for _ in range(10):
+            if atual_id is None or atual_id in visitados:
+                break
+            if atual_id in CATEGORIA_SISTEMA_PARA_TIPO:
+                return CATEGORIA_SISTEMA_PARA_TIPO[atual_id]
+            visitados.add(atual_id)
+            categoria = (await self.session.execute(
+                select(CategoriaProduto.parent_id).where(CategoriaProduto.id == atual_id)
+            )).scalar_one_or_none()
+            atual_id = categoria
+        return "OUTRO"
+
     async def criar_produto(self, data) -> Produto:
         payload = data.model_dump(exclude={"detalhe_agricola", "detalhe_estoque", "detalhe_epi"})
         # Guardrail: campos operacionais deixam de ser escritos pelo catálogo.
         payload.pop("estoque_minimo", None)
         payload.pop("preco_ultima_compra", None)
+        if not payload.get("tipo"):
+            payload["tipo"] = await self._derivar_tipo_de_categoria(payload.get("categoria_id"))
         produto = Produto(tenant_id=self.tenant_id, **payload)
         if data.detalhe_agricola:
             produto.detalhe_agricola = ProdutoAgricola(**data.detalhe_agricola.model_dump())
@@ -224,9 +268,11 @@ class ProdutoService(BaseService[Produto]):
         )).scalar_one_or_none()
         if not obj:
             raise EntityNotFoundError("Produto não encontrado")
-        payload = data.model_dump(exclude_none=True, exclude={"estoque_minimo", "preco_ultima_compra", "detalhe_agricola", "detalhe_estoque", "detalhe_epi"})
+        payload = data.model_dump(exclude_none=True, exclude={"estoque_minimo", "preco_ultima_compra", "detalhe_agricola", "detalhe_estoque", "detalhe_epi", "tipo"})
         for k, v in payload.items():
             setattr(obj, k, v)
+        if "categoria_id" in payload:
+            obj.tipo = await self._derivar_tipo_de_categoria(payload["categoria_id"])
 
         if data.detalhe_agricola is not None:
             if obj.detalhe_agricola:

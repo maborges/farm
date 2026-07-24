@@ -185,7 +185,46 @@ class ComprasService:
         nome = pessoa.nome_exibicao if pessoa else pedido.fornecedor_nome
         return fornecedor.pessoa_id, nome, fornecedor
 
+    async def _resolver_plano_conta_por_categoria(self, categoria_id: uuid.UUID | None) -> uuid.UUID | None:
+        """Sobe a árvore de CategoriaProduto (produto → categoria → ... → raiz)
+        até achar um PlanoConta do tenant vinculado (categoria_produto_id).
+        Substitui o mapeamento fixo por Produto.tipo quando o tenant já
+        configurou o vínculo categoria→plano de contas."""
+        from core.cadastros.produtos.models import CategoriaProduto
+
+        atual_id = categoria_id
+        visitados = set()
+        for _ in range(10):  # guardrail contra ciclo acidental na árvore
+            if atual_id is None or atual_id in visitados:
+                break
+            visitados.add(atual_id)
+
+            stmt = (
+                select(PlanoConta.id)
+                .where(
+                    PlanoConta.tenant_id == self.tenant_id,
+                    PlanoConta.categoria_produto_id == atual_id,
+                    PlanoConta.tipo == "DESPESA",
+                    PlanoConta.natureza == "ANALITICA",
+                    PlanoConta.ativo == True,
+                )
+                .limit(1)
+            )
+            plano_id = (await self.session.execute(stmt)).scalar_one_or_none()
+            if plano_id is not None:
+                return plano_id
+
+            categoria = await self.session.get(CategoriaProduto, atual_id)
+            atual_id = categoria.parent_id if categoria else None
+        return None
+
     async def _resolver_plano_conta_compra(self, produto: Produto) -> uuid.UUID | None:
+        plano_por_categoria = await self._resolver_plano_conta_por_categoria(produto.categoria_id)
+        if plano_por_categoria is not None:
+            return plano_por_categoria
+
+        # Fallback legado: mapeamento fixo por Produto.tipo, usado enquanto o
+        # tenant não vincula PlanoConta.categoria_produto_id às categorias.
         codigo_por_tipo = {
             "SEMENTE": "3.01",
             "INOCULANTE": "3.01",
@@ -266,6 +305,11 @@ class ComprasService:
             )
         ).scalar_one()
         valor_recebimento = float(valor_recebimento or 0.0) or float(pedido.valor_total or 0.0)
+        if valor_recebimento <= 0:
+            # Recebimento sem valuation (custo unitário zerado) — nada a pagar,
+            # não há Despesa para gerar. O alerta de "sem valuation" já é
+            # emitido em outro fluxo (ver _registrar_evento_recebimento_critico).
+            return None
 
         abatimento_adiantamento = 0.0
         adiantamento_restante = float(pedido.valor_adiantamento or 0.0)
@@ -896,6 +940,8 @@ class ComprasService:
 
     async def atualizar_status(self, solicitacao_id: uuid.UUID, novo_status: str) -> SolicitacaoCompra:
         """Atualiza o status de uma solicitação de compra."""
+        from core.exceptions import BusinessRuleError
+
         stmt = select(SolicitacaoCompra).where(
             SolicitacaoCompra.id == solicitacao_id,
             SolicitacaoCompra.tenant_id == self.tenant_id
@@ -905,6 +951,22 @@ class ComprasService:
 
         if not obj:
             return None
+
+        if novo_status == "CANCELADA":
+            pedidos = (
+                await self.session.execute(
+                    select(PedidoCompra).where(PedidoCompra.solicitacao_id == solicitacao_id)
+                )
+            ).scalars().all()
+            if any(p.status == "RECEBIDO" for p in pedidos):
+                raise BusinessRuleError(
+                    "Esta solicitação já tem pedido(s) recebido(s) — não é possível cancelar. "
+                    "Trate a devolução pelo próprio pedido, se necessário."
+                )
+            for pedido in pedidos:
+                if pedido.status != "CANCELADO":
+                    pedido.status = "CANCELADO"
+                    self.session.add(pedido)
 
         obj.status = novo_status
         await self.session.flush()
@@ -940,6 +1002,73 @@ class ComprasService:
             quantidade_solicitada=item.quantidade_solicitada,
             unidade=item.unidade,
         ))
+        await self.session.flush()
+
+        obj.itens = await self._enriquecer_itens_solicitacao(obj.id)
+        await self._enriquecer_solicitante_nome(obj)
+        return obj
+
+    async def _get_solicitacao_e_item(
+        self, solicitacao_id: uuid.UUID, item_id: uuid.UUID,
+    ) -> tuple[SolicitacaoCompra, SolicitacaoItem]:
+        from core.exceptions import BusinessRuleError, EntityNotFoundError
+
+        stmt = select(SolicitacaoCompra).where(
+            SolicitacaoCompra.id == solicitacao_id,
+            SolicitacaoCompra.tenant_id == self.tenant_id,
+        )
+        obj = (await self.session.execute(stmt)).scalar_one_or_none()
+        if not obj:
+            raise EntityNotFoundError("Solicitação de compra não encontrada")
+        if obj.status in ("ENCERRADA", "CANCELADA"):
+            raise BusinessRuleError("Não é possível alterar itens de uma solicitação encerrada ou cancelada.")
+
+        item = (await self.session.execute(
+            select(SolicitacaoItem).where(
+                SolicitacaoItem.id == item_id,
+                SolicitacaoItem.solicitacao_id == solicitacao_id,
+            )
+        )).scalar_one_or_none()
+        if not item:
+            raise EntityNotFoundError("Item da solicitação não encontrado")
+        return obj, item
+
+    async def atualizar_item_solicitacao(
+        self, solicitacao_id: uuid.UUID, item_id: uuid.UUID, data: "SolicitacaoItemUpdate",
+    ) -> SolicitacaoCompra:
+        """Atualiza a quantidade de um item da solicitação (ainda não encerrada/cancelada)."""
+        obj, item = await self._get_solicitacao_e_item(solicitacao_id, item_id)
+        item.quantidade_solicitada = data.quantidade_solicitada
+        self.session.add(item)
+        await self.session.flush()
+
+        obj.itens = await self._enriquecer_itens_solicitacao(obj.id)
+        await self._enriquecer_solicitante_nome(obj)
+        return obj
+
+    async def remover_item_solicitacao(
+        self, solicitacao_id: uuid.UUID, item_id: uuid.UUID,
+    ) -> SolicitacaoCompra:
+        """Remove um item da solicitação — bloqueado se for o último item, ou
+        se já existir cotação registrada para ele (evita apagar cotação em
+        cascata sem o usuário perceber)."""
+        from core.exceptions import BusinessRuleError
+
+        obj, item = await self._get_solicitacao_e_item(solicitacao_id, item_id)
+
+        total_itens = (await self.session.execute(
+            select(func.count(SolicitacaoItem.id)).where(SolicitacaoItem.solicitacao_id == solicitacao_id)
+        )).scalar_one()
+        if total_itens <= 1:
+            raise BusinessRuleError("A solicitação precisa ter ao menos 1 item — cancele a solicitação em vez de remover o último item.")
+
+        tem_cotacao = (await self.session.execute(
+            select(func.count(CotacaoItem.id)).where(CotacaoItem.solicitacao_item_id == item_id)
+        )).scalar_one()
+        if tem_cotacao > 0:
+            raise BusinessRuleError("Este item já tem cotação registrada — remova a cotação antes de excluir o item.")
+
+        await self.session.delete(item)
         await self.session.flush()
 
         obj.itens = await self._enriquecer_itens_solicitacao(obj.id)
@@ -1130,6 +1259,27 @@ class ComprasService:
         solicitacao = await self.session.get(SolicitacaoCompra, solicitacao_id)
         if not solicitacao or solicitacao.status != "APROVADA":
             raise BusinessRuleError("A solicitação deve estar em status APROVADA.")
+
+        # Guardrail: "Aprovar" recusa TODAS as outras cotações da solicitação
+        # (modelo "1 cotação vence tudo") — incompatível com o fluxo de
+        # Alocação por Item, que permite dividir a quantidade de um item
+        # entre cotações/fornecedores diferentes quando nenhum fornecedor
+        # sozinho atende a quantidade solicitada. Se já existe alguma
+        # alocação parcial registrada para esta solicitação, bloqueia aqui
+        # em vez de recusar silenciosamente cotações já comprometidas.
+        tem_alocacao = (
+            await self.session.execute(
+                select(func.count(AlocacaoItem.id))
+                .join(SolicitacaoItem, AlocacaoItem.solicitacao_item_id == SolicitacaoItem.id)
+                .where(SolicitacaoItem.solicitacao_id == solicitacao_id)
+            )
+        ).scalar_one()
+        if tem_alocacao > 0:
+            raise BusinessRuleError(
+                "Esta solicitação já tem alocação parcial entre fornecedores em andamento. "
+                "Use 'Alocação por Item' e 'Gerar Pedidos' em vez de 'Aprovar' — aprovar uma "
+                "cotação aqui recusaria as demais e destruiria a divisão já feita."
+            )
 
         # 2. Marcar cotação como APROVADA e outras como RECUSADA
         cotacao.status = "APROVADA"
@@ -1541,7 +1691,15 @@ class ComprasService:
             return await self._enriquecer_pedido(pedido)  # Já recebido, idempotente
 
         item_pedido = await self._get_or_create_item_pedido_principal(pedido)
-        recebimento_data = data or await self._build_recebimento_fallback(pedido, item_pedido)
+        if data is None:
+            recebimento_data = await self._build_recebimento_fallback(pedido, item_pedido)
+        elif not data.itens:
+            # Cabeçalho (NF/chave/observações) veio explícito, mas sem itens —
+            # completa com o fallback (recebe todos os itens do pedido).
+            fallback = await self._build_recebimento_fallback(pedido, item_pedido)
+            recebimento_data = data.model_copy(update={"itens": fallback.itens})
+        else:
+            recebimento_data = data
 
         # 2. Verificar se já existe movimentação para este pedido (idempotência extra)
         stmt_check = select(EstoqueMovimento).where(

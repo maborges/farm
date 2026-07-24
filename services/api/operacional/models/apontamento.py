@@ -108,7 +108,7 @@ class ApontamentoUso(Base):
     __table_args__ = (
         ForeignKeyConstraint(
             ["tenant_id", "jornada_id"],
-            ["farms.frota_jornadas_equipamento.tenant_id", "farms.frota_jornadas_equipamento.id"],
+            ["frota_jornadas_equipamento.tenant_id", "frota_jornadas_equipamento.id"],
             name="fk_fau_tenant_jornada",
             ondelete="NO ACTION",
         ),

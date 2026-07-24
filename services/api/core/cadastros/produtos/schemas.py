@@ -213,7 +213,10 @@ class ProdutoEPIResponse(ProdutoEPICreate):
 
 class ProdutoCreate(BaseModel):
     nome: str
-    tipo: str
+    # Deprecado: derivado automaticamente de categoria_id (ver ProdutoService).
+    # Mantido opcional só por compatibilidade com integrações antigas —
+    # não deve mais ser exposto como campo editável no formulário.
+    tipo: Optional[str] = None
     unidade_medida: str = "UN"
     codigo_interno: Optional[str] = None
     sku: Optional[str] = None

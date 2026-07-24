@@ -19,16 +19,20 @@ from operacional.services.compras_service import ComprasService
 from test_operational_workflow_governance_step05 import (
     _criar_deposito,
     _criar_pedido,
+    _criar_plano_conta,
     _criar_produto,
 )
 from test_operational_workflow_governance_step03 import _criar_unidade_produtiva, _garantir_tenant
+from tests.integration.helpers import garantir_assinatura
 
 
 async def _criar_recebimento_base(session: AsyncSession, tenant_id: uuid.UUID):
+    await garantir_assinatura(session, tenant_id)
     unidade_id = await _criar_unidade_produtiva(session, tenant_id)
     produto = await _criar_produto(session, tenant_id, preco_medio=77.0)
     deposito = await _criar_deposito(session, tenant_id, unidade_id)
-    pessoa = Pessoa(id=uuid.uuid4(), tenant_id=tenant_id, tipo="PJ", nome_exibicao="Fornecedor Step06", base_legal="CONTRATO", ativo=True)
+    await _criar_plano_conta(session, tenant_id, codigo="9.99", nome="Genérico")
+    pessoa = Pessoa(id=uuid.uuid4(), tenant_id=tenant_id, tipo="PJ", nome_exibicao="Fornecedor Step05", base_legal="CONTRATO", ativo=True)
     session.add(pessoa)
     await session.flush()
     fornecedor = Fornecedor(

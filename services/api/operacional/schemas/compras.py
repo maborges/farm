@@ -17,6 +17,10 @@ class SolicitacaoItemCreate(BaseModel):
     unidade: str = Field(..., max_length=20)
 
 
+class SolicitacaoItemUpdate(BaseModel):
+    quantidade_solicitada: float = Field(..., gt=0)
+
+
 class SolicitacaoCompraCreate(BaseModel):
     itens: Optional[List[SolicitacaoItemCreate]] = Field(None, min_length=1)
 

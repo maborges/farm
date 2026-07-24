@@ -58,6 +58,15 @@ class PlanoConta(Base):
     # Categorias de sistema não podem ser deletadas
     is_sistema: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
+    # Vínculo com a árvore de categorias de produto (cadastros_categorias_produto).
+    # Usado para resolver automaticamente o plano de contas de despesa ao gerar
+    # lançamentos de compra (ver ComprasService._resolver_plano_conta_compra),
+    # substituindo o mapeamento fixo por Produto.tipo (enum legado).
+    categoria_produto_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("cadastros_categorias_produto.id", ondelete="SET NULL"),
+        nullable=True, index=True,
+    )
+
     ativo: Mapped[bool] = mapped_column(Boolean, default=True)
 
     created_at: Mapped[datetime] = mapped_column(

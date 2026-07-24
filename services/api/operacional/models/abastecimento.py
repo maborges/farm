@@ -71,7 +71,7 @@ class Abastecimento(Base):
         Index("ix_frota_abast_tenant_equip_data", tenant_id, equipamento_id, data),
         ForeignKeyConstraint(
             ["tenant_id", "equipamento_id"],
-            ["farms.cadastros_equipamentos.tenant_id", "farms.cadastros_equipamentos.id"],
+            ["cadastros_equipamentos.tenant_id", "cadastros_equipamentos.id"],
             name="fk_fa_tenant_equipamento",
             ondelete="CASCADE",
         ),

@@ -20,6 +20,7 @@ from operacional.schemas.compras import (
     DevolucaoCreate, DevolucaoStatusUpdate, DevolucaoResponse,
     SolicitacaoCompraCreate, SolicitacaoCompraResponse, SolicitacaoCompraStatusUpdate,
     SolicitacaoItemCreate,
+    SolicitacaoItemUpdate,
     CotacaoSolicitacaoCreate, CotacaoSolicitacaoResponse,
     AlocacaoRequest,
     PedidoCompraResponse, PedidoCompraStatusUpdate, CondicoesPagamentoUpdate, AdiantamentoUpdate,
@@ -420,6 +421,49 @@ async def adicionar_item_solicitacao(
     svc = ComprasService(session, tenant.id)
     try:
         solicitacao = await svc.adicionar_item_solicitacao(id, data)
+        await session.commit()
+    except EntityNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except BusinessRuleError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    await session.refresh(solicitacao)
+    solicitacao.itens = await svc._enriquecer_itens_solicitacao(solicitacao.id)
+    return solicitacao
+
+
+@router.patch("/solicitacoes/{id}/itens/{item_id}", response_model=SolicitacaoCompraResponse)
+async def atualizar_item_solicitacao(
+    id: uuid.UUID,
+    item_id: uuid.UUID,
+    data: SolicitacaoItemUpdate,
+    tenant: Tenant = Depends(get_current_tenant),
+    session: AsyncSession = Depends(get_session),
+):
+    """Atualiza a quantidade de um item de uma solicitação já existente."""
+    svc = ComprasService(session, tenant.id)
+    try:
+        solicitacao = await svc.atualizar_item_solicitacao(id, item_id, data)
+        await session.commit()
+    except EntityNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except BusinessRuleError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    await session.refresh(solicitacao)
+    solicitacao.itens = await svc._enriquecer_itens_solicitacao(solicitacao.id)
+    return solicitacao
+
+
+@router.delete("/solicitacoes/{id}/itens/{item_id}", response_model=SolicitacaoCompraResponse)
+async def remover_item_solicitacao(
+    id: uuid.UUID,
+    item_id: uuid.UUID,
+    tenant: Tenant = Depends(get_current_tenant),
+    session: AsyncSession = Depends(get_session),
+):
+    """Remove um item de uma solicitação já existente."""
+    svc = ComprasService(session, tenant.id)
+    try:
+        solicitacao = await svc.remover_item_solicitacao(id, item_id)
         await session.commit()
     except EntityNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))

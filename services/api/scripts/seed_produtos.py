@@ -1,8 +1,9 @@
 """
-Seed: produtos padrão do sistema para tenants existentes.
+Seed: produtos padrão globais da plataforma.
 
 Cria produtos realistas de entrada (insumos, peças, EPIs, etc.)
-associados às marcas, modelos e categorias já existentes.
+associados às marcas, modelos e categorias globais já existentes.
+Os produtos são gravados com tenant_id=NULL para servirem como catálogo padrão.
 
 Uso:
     cd services/api
@@ -18,7 +19,6 @@ from core.cadastros.produtos.models import (
     Marca, ModeloProduto, CategoriaProduto, Produto,
     ProdutoAgricola, ProdutoEstoque, ProdutoEPI,
 )
-from core.models.tenant import Tenant
 
 # ---------------------------------------------------------------------------
 # Produtos padrão
@@ -820,17 +820,6 @@ PRODUTOS = [
 
 async def seed():
     async with async_session_maker() as session:
-        # Carregar tenants
-        stmt_tenants = select(Tenant)
-        tenants = list((await session.execute(stmt_tenants)).scalars().all())
-        if not tenants:
-            print("Nenhum tenant encontrado. Crie um tenant antes de rodar este seed.")
-            return
-
-        print(f"Tenants encontrados: {len(tenants)}")
-        for t in tenants:
-            print(f"  - {t.id} | {getattr(t, 'nome', getattr(t, 'razao_social', 'N/A'))}")
-
         # Carregar marcas (sistema)
         marca_map: dict[str, object] = {}
         stmt = select(Marca).where(Marca.tenant_id.is_(None))
@@ -849,98 +838,64 @@ async def seed():
         for c in (await session.execute(stmt)).scalars().all():
             cat_map[c.nome] = c
 
-        for tenant in tenants:
-            print(f"\n── Produtos para tenant {tenant.id} ──────────────")
+        print("\n── Produtos padrão globais (tenant_id=NULL) ──────────────")
+        for produto_padrao in PRODUTOS:
+            item = dict(produto_padrao)
+            marca_nome = item.pop("marca", None)
+            modelo_nome = item.pop("modelo", None)
+            cat_nome = item.pop("categoria", None)
+            detalhe_agricola = item.pop("detalhe_agricola", None)
+            detalhe_estoque = item.pop("detalhe_estoque", None)
+            detalhe_epi = item.pop("detalhe_epi", None)
 
-            for item in PRODUTOS:
-                marca_nome = item.pop("marca", None)
-                modelo_nome = item.pop("modelo", None)
-                cat_nome = item.pop("categoria", None)
-                detalhe_agricola = item.pop("detalhe_agricola", None)
-                detalhe_estoque = item.pop("detalhe_estoque", None)
-                detalhe_epi = item.pop("detalhe_epi", None)
-
-                # Resolver FK marca
-                marca_obj = None
-                if marca_nome:
-                    marca_obj = marca_map.get(marca_nome)
-                    if not marca_obj:
-                        print(f"  ✗ Marca '{marca_nome}' não encontrada para {item['nome']}")
-                        continue
-
-                # Resolver FK modelo
-                modelo_obj = None
-                if modelo_nome:
-                    modelo_obj = modelo_map.get(modelo_nome)
-                    if not modelo_obj:
-                        print(f"  ⚠ Modelo '{modelo_nome}' não encontrado para {item['nome']}")
-
-                # Resolver FK categoria
-                categoria_obj = None
-                if cat_nome:
-                    categoria_obj = cat_map.get(cat_nome)
-                    if not categoria_obj:
-                        print(f"  ✗ Categoria '{cat_nome}' não encontrada para {item['nome']}")
-                        continue
-
-                # Verificar se já existe pelo codigo_interno neste tenant
-                stmt = select(Produto).where(
-                    Produto.codigo_interno == item["codigo_interno"],
-                    Produto.tenant_id == tenant.id,
-                )
-                existing = (await session.execute(stmt)).scalar_one_or_none()
-                if existing:
-                    print(f"  ✓ {item['nome']} já existe")
-                    # Re-pop keys for next tenant iteration
-                    item["marca"] = marca_nome
-                    item["modelo"] = modelo_nome
-                    item["categoria"] = cat_nome
-                    if detalhe_agricola:
-                        item["detalhe_agricola"] = detalhe_agricola
-                    if detalhe_estoque:
-                        item["detalhe_estoque"] = detalhe_estoque
-                    if detalhe_epi:
-                        item["detalhe_epi"] = detalhe_epi
+            marca_obj = None
+            if marca_nome:
+                marca_obj = marca_map.get(marca_nome)
+                if not marca_obj:
+                    print(f"  ✗ Marca '{marca_nome}' não encontrada para {item['nome']}")
                     continue
 
-                produto = Produto(
-                    tenant_id=tenant.id,
-                    marca_id=marca_obj.id if marca_obj else None,
-                    modelo_id=modelo_obj.id if modelo_obj else None,
-                    categoria_id=categoria_obj.id if categoria_obj else None,
-                    ativo=True,
-                    **item,
-                )
-                session.add(produto)
-                await session.flush()
+            modelo_obj = None
+            if modelo_nome:
+                modelo_obj = modelo_map.get(modelo_nome)
+                if not modelo_obj:
+                    print(f"  ⚠ Modelo '{modelo_nome}' não encontrado para {item['nome']}")
 
-                # Extensão agrícola
-                if detalhe_agricola:
-                    ext = ProdutoAgricola(produto_id=produto.id, **detalhe_agricola)
-                    session.add(ext)
+            categoria_obj = None
+            if cat_nome:
+                categoria_obj = cat_map.get(cat_nome)
+                if not categoria_obj:
+                    print(f"  ✗ Categoria '{cat_nome}' não encontrada para {item['nome']}")
+                    continue
 
-                # Extensão estoque
-                if detalhe_estoque:
-                    ext = ProdutoEstoque(produto_id=produto.id, **detalhe_estoque)
-                    session.add(ext)
+            stmt = select(Produto).where(
+                Produto.codigo_interno == item["codigo_interno"],
+                Produto.tenant_id.is_(None),
+            )
+            existing = (await session.execute(stmt)).scalar_one_or_none()
+            if existing:
+                print(f"  ✓ {item['nome']} já existe")
+                continue
 
-                # Extensão EPI
-                if detalhe_epi:
-                    ext = ProdutoEPI(produto_id=produto.id, **detalhe_epi)
-                    session.add(ext)
+            produto = Produto(
+                tenant_id=None,
+                marca_id=marca_obj.id if marca_obj else None,
+                modelo_id=modelo_obj.id if modelo_obj else None,
+                categoria_id=categoria_obj.id if categoria_obj else None,
+                ativo=True,
+                **item,
+            )
+            session.add(produto)
+            await session.flush()
 
-                print(f"  + {item['nome']} criado")
+            if detalhe_agricola:
+                session.add(ProdutoAgricola(produto_id=produto.id, **detalhe_agricola))
+            if detalhe_estoque:
+                session.add(ProdutoEstoque(produto_id=produto.id, **detalhe_estoque))
+            if detalhe_epi:
+                session.add(ProdutoEPI(produto_id=produto.id, **detalhe_epi))
 
-                # Re-pop keys for next tenant
-                item["marca"] = marca_nome
-                item["modelo"] = modelo_nome
-                item["categoria"] = cat_nome
-                if detalhe_agricola:
-                    item["detalhe_agricola"] = detalhe_agricola
-                if detalhe_estoque:
-                    item["detalhe_estoque"] = detalhe_estoque
-                if detalhe_epi:
-                    item["detalhe_epi"] = detalhe_epi
+            print(f"  + {item['nome']} criado")
 
         await session.commit()
     print("\nSeed de produtos concluído.")

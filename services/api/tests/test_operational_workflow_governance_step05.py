@@ -138,9 +138,12 @@ async def test_recebimento_novo_gera_lote_movimento_saldo_step05(session: AsyncS
 
     tenant_id = uuid.uuid4()
     await _garantir_tenant(session, tenant_id)
+    await garantir_assinatura(session, tenant_id)
     unidade_id = await _criar_unidade_produtiva(session, tenant_id)
     produto = await _criar_produto(session, tenant_id, preco_medio=99.0)
     deposito = await _criar_deposito(session, tenant_id, unidade_id)
+    await _criar_plano_conta(session, tenant_id, codigo="9.99", nome="Genérico")
+    await _criar_fornecedor(session, tenant_id)
     pedido = await _criar_pedido(session, tenant_id, produto.id, deposito.id, quantidade=25.0, valor_unitario=42.0)
 
     recebido = await ComprasService(session, tenant_id).receber_pedido(pedido.id)
@@ -218,12 +221,15 @@ async def test_recebimento_gera_conta_a_pagar_step05(session: AsyncSession, monk
     )
     await session.commit()
 
+    recebimento = (
+        await session.execute(select(RecebimentoParcial).where(RecebimentoParcial.pedido_id == pedido.id))
+    ).scalars().first()
     despesa = (
         await session.execute(
             select(Despesa).where(
                 Despesa.tenant_id == tenant_id,
                 Despesa.origem_tipo == "COMPRA",
-                Despesa.origem_id == pedido.id,
+                Despesa.origem_id == recebimento.id,
             )
         )
     ).scalars().first()
@@ -265,12 +271,15 @@ async def test_recebimento_financeiro_idempotente_step05(session: AsyncSession, 
     await svc.receber_pedido(pedido.id)
     await session.commit()
 
+    recebimento = (
+        await session.execute(select(RecebimentoParcial).where(RecebimentoParcial.pedido_id == pedido.id))
+    ).scalars().first()
     total_despesas = (
         await session.execute(
             select(func.count(Despesa.id)).where(
                 Despesa.tenant_id == tenant_id,
                 Despesa.origem_tipo == "COMPRA",
-                Despesa.origem_id == pedido.id,
+                Despesa.origem_id == recebimento.id,
             )
         )
     ).scalar_one()
@@ -322,9 +331,12 @@ async def test_pedido_so_vira_recebido_apos_materializacao_step05(session: Async
 
     tenant_id = uuid.uuid4()
     await _garantir_tenant(session, tenant_id)
+    await garantir_assinatura(session, tenant_id)
     unidade_id = await _criar_unidade_produtiva(session, tenant_id)
     produto = await _criar_produto(session, tenant_id)
     deposito = await _criar_deposito(session, tenant_id, unidade_id)
+    await _criar_plano_conta(session, tenant_id, codigo="9.99", nome="Genérico")
+    await _criar_fornecedor(session, tenant_id)
     pedido = await _criar_pedido(session, tenant_id, produto.id, deposito.id)
 
     await ComprasService(session, tenant_id).receber_pedido(pedido.id)
@@ -355,9 +367,12 @@ async def test_recebimento_sem_valuation_gera_warning_no_warning_only(session: A
 
     tenant_id = uuid.uuid4()
     await _garantir_tenant(session, tenant_id)
+    await garantir_assinatura(session, tenant_id)
     unidade_id = await _criar_unidade_produtiva(session, tenant_id)
     produto = await _criar_produto(session, tenant_id, preco_medio=0.0)
     deposito = await _criar_deposito(session, tenant_id, unidade_id)
+    await _criar_plano_conta(session, tenant_id, codigo="9.99", nome="Genérico")
+    await _criar_fornecedor(session, tenant_id)
     pedido = await _criar_pedido(session, tenant_id, produto.id, deposito.id, valor_unitario=0.0)
 
     await ComprasService(session, tenant_id).receber_pedido(pedido.id)

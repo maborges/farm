@@ -674,6 +674,7 @@ class AlertasAgricolasService:
                 Despesa.origem_tipo == despesa.origem_tipo,
                 Despesa.origem_id == despesa.origem_id,
                 Despesa.ativo == True,
+                Despesa.id != despesa.id,
             )
         )
         if despesa.grupo_parcela_id is not None:
