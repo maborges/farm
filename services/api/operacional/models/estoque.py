@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, date, timezone
-from sqlalchemy import String, Boolean, DateTime, Date, ForeignKey, ForeignKeyConstraint, JSON, Float, Integer, Numeric, Text, UniqueConstraint
+from sqlalchemy import String, Boolean, DateTime, Date, ForeignKey, ForeignKeyConstraint, JSON, Float, Integer, Numeric, Text, UniqueConstraint, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym
 from sqlalchemy import Uuid as UUID
 from core.database import Base
@@ -38,7 +38,35 @@ class SaldoEstoque(Base):
     quantidade_atual: Mapped[float] = mapped_column(Float, default=0.0)
     quantidade_reservada: Mapped[float] = mapped_column(Float, default=0.0)
     estoque_minimo: Mapped[float | None] = mapped_column(Numeric(18, 6), nullable=True)
+    estoque_maximo: Mapped[float | None] = mapped_column(Numeric(18, 6), nullable=True)
     ultima_atualizacao: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+
+class EstoqueLocalizacao(Base):
+    """Endereço físico (corredor/prateleira/posição) de um produto dentro de um
+    depósito. Um mesmo produto pode ter várias localizações no mesmo depósito
+    (quantidade fracionada entre elas)."""
+    __tablename__ = "estoque_localizacoes"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    deposito_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("estoque_depositos.id", ondelete="CASCADE"), index=True)
+    produto_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("cadastros_produtos.id", ondelete="CASCADE"), index=True)
+
+    corredor: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    prateleira: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    posicao: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    codigo_localizacao: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True, comment="Etiqueta/código do endereço físico, para leitor de código de barras")
+    observacao_livre: Mapped[str | None] = mapped_column(String(200), nullable=True)
+
+    quantidade: Mapped[float] = mapped_column(Numeric(18, 6), default=0.0, nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (
+        Index("ix_estloc_produto_deposito", produto_id, deposito_id),
+    )
 
 class LoteEstoque(Base):
     """Rastreabilidade por lote de produto (defensivos, sementes, ração)."""

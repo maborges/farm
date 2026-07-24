@@ -16,12 +16,12 @@ from operacional.models.compras import (
     SolicitacaoCompra, CotacaoCompra
 )
 from operacional.schemas.compras import (
-    RecebimentoCreate, RecebimentoResponse,
+    RecebimentoCreate, RecebimentoResponse, EstornoRecebimentoRequest,
     DevolucaoCreate, DevolucaoStatusUpdate, DevolucaoResponse,
     SolicitacaoCompraCreate, SolicitacaoCompraResponse, SolicitacaoCompraStatusUpdate,
     SolicitacaoItemCreate,
     SolicitacaoItemUpdate,
-    CotacaoSolicitacaoCreate, CotacaoSolicitacaoResponse,
+    CotacaoSolicitacaoCreate, CotacaoSolicitacaoResponse, CotacaoItemUpdate, CotacaoUpdate,
     AlocacaoRequest,
     PedidoCompraResponse, PedidoCompraStatusUpdate, CondicoesPagamentoUpdate, AdiantamentoUpdate,
     PrecoHistoricoResponse, MelhorFornecedorResponse, PrecoIdealResponse,
@@ -251,11 +251,12 @@ async def receber_pedido(
     pedido_id: uuid.UUID,
     data: RecebimentoCreate | None = None,
     tenant: Tenant = Depends(get_current_tenant),
+    claims: dict = Depends(get_current_user_claims),
     session: AsyncSession = Depends(get_session),
 ):
     svc = ComprasService(session, tenant.id)
     try:
-        pedido = await svc.receber_pedido(pedido_id, data=data)
+        pedido = await svc.receber_pedido(pedido_id, data=data, recebido_por_id=claims.get("sub"))
     except BusinessRuleError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     if not pedido:
@@ -263,6 +264,27 @@ async def receber_pedido(
 
     await session.commit()
     return {"message": "Pedido marcado como recebido", "pedido_id": str(pedido.id), "status": pedido.status}
+
+
+@router.post("/pedidos/{pedido_id}/estornar-recebimento", response_model=PedidoCompraResponse)
+async def estornar_recebimento_pedido(
+    pedido_id: uuid.UUID,
+    data: EstornoRecebimentoRequest,
+    tenant: Tenant = Depends(get_current_tenant),
+    claims: dict = Depends(get_current_user_claims),
+    session: AsyncSession = Depends(get_session),
+):
+    """Desfaz um recebimento feito por engano — só permitido enquanto o
+    estoque recebido ainda não foi consumido."""
+    svc = ComprasService(session, tenant.id)
+    try:
+        pedido = await svc.estornar_recebimento(pedido_id, motivo=data.motivo, usuario_id=claims.get("sub"))
+    except BusinessRuleError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    await session.commit()
+    await session.refresh(pedido)
+    return await svc._enriquecer_pedido(pedido)
 
 
 async def atualizar_status_devolucao(
@@ -564,6 +586,49 @@ async def list_cotacoes_solicitacao(
 ):
     svc = ComprasService(session, tenant.id)
     return await svc.listar_cotacoes(id)
+
+
+@router.patch("/solicitacoes/{id}/cotacoes/{cotacao_id}", response_model=CotacaoSolicitacaoResponse)
+async def atualizar_cotacao(
+    id: uuid.UUID,
+    cotacao_id: uuid.UUID,
+    data: CotacaoUpdate,
+    tenant: Tenant = Depends(get_current_tenant),
+    session: AsyncSession = Depends(get_session),
+):
+    """Corrige condições de pagamento / prazo de entrega de uma cotação —
+    só permitido enquanto RECEBIDA."""
+    svc = ComprasService(session, tenant.id)
+    try:
+        cotacao = await svc.atualizar_cotacao(id, cotacao_id, data.condicoes_pagamento, data.prazo_entrega_dias)
+        await session.commit()
+        return cotacao
+    except EntityNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except BusinessRuleError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+
+
+@router.patch("/solicitacoes/{id}/cotacoes/{cotacao_id}/itens/{item_id}", response_model=CotacaoSolicitacaoResponse)
+async def atualizar_item_cotacao(
+    id: uuid.UUID,
+    cotacao_id: uuid.UUID,
+    item_id: uuid.UUID,
+    data: CotacaoItemUpdate,
+    tenant: Tenant = Depends(get_current_tenant),
+    session: AsyncSession = Depends(get_session),
+):
+    """Corrige o valor unitário de um item de uma cotação (ex: erro de
+    digitação) — só permitido enquanto a cotação está RECEBIDA."""
+    svc = ComprasService(session, tenant.id)
+    try:
+        cotacao = await svc.atualizar_item_cotacao(id, cotacao_id, item_id, data.valor_unitario, data.quantidade_atendida)
+        await session.commit()
+        return cotacao
+    except EntityNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except BusinessRuleError as e:
+        raise HTTPException(status_code=422, detail=str(e))
 
 
 @router.get("/analytics/economia", response_model=EconomiaAnalyticsResponse)

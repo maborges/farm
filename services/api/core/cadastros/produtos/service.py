@@ -235,6 +235,12 @@ class ProdutoService(BaseService[Produto]):
         # Guardrail: campos operacionais deixam de ser escritos pelo catálogo.
         payload.pop("estoque_minimo", None)
         payload.pop("preco_ultima_compra", None)
+        if payload.get("produto_referencia_id"):
+            referencia = (await self.session.execute(
+                select(Produto).where(Produto.id == payload["produto_referencia_id"], Produto.tenant_id.is_(None))
+            )).scalar_one_or_none()
+            if not referencia:
+                raise EntityNotFoundError("Produto padrão de referência não encontrado")
         if not payload.get("tipo"):
             payload["tipo"] = await self._derivar_tipo_de_categoria(payload.get("categoria_id"))
         produto = Produto(tenant_id=self.tenant_id, **payload)
@@ -301,13 +307,46 @@ class ProdutoService(BaseService[Produto]):
         )).scalar_one()
         return res
 
+    async def _produto_em_uso(self, produto_id: uuid.UUID) -> bool:
+        """Verifica se o produto já foi usado em algum fluxo operacional
+        (compras, estoque, requisições, manutenção, manejo). Se sim, não pode
+        ser excluído de vez — só desativado."""
+        from operacional.models.compras import SolicitacaoItem, ItemPedidoCompra, ItemDevolucao, CotacaoItem
+        from operacional.models.estoque import LoteEstoque, ItemRequisicao, ReservaEstoque, EstoqueMovimento
+        from operacional.models.frota import ItemOrdemServico
+        from agricola.operacoes.models import InsumoOperacao
+        from pecuaria.models.manejo import ManejoLote
+        from pecuaria.animal.models import EventoAnimal
+
+        tabelas_produto_id = [
+            SolicitacaoItem, ItemPedidoCompra, ItemDevolucao, CotacaoItem,
+            LoteEstoque, ItemRequisicao, ReservaEstoque, EstoqueMovimento,
+            ItemOrdemServico, InsumoOperacao, ManejoLote, EventoAnimal,
+        ]
+        for modelo in tabelas_produto_id:
+            existe = (await self.session.execute(
+                select(modelo.id).where(modelo.produto_id == produto_id).limit(1)
+            )).scalar_one_or_none()
+            if existe:
+                return True
+        return False
+
     async def remover_produto(self, produto_id: uuid.UUID) -> None:
         obj = (await self.session.execute(
             select(Produto).where(Produto.id == produto_id, Produto.tenant_id == self.tenant_id)
         )).scalar_one_or_none()
         if not obj:
             raise EntityNotFoundError("Produto não encontrado")
-        obj.ativo = False
+
+        if await self._produto_em_uso(produto_id):
+            obj.ativo = False
+            return
+
+        for detalhe in (obj.detalhe_agricola, obj.detalhe_estoque, obj.detalhe_epi):
+            if detalhe:
+                await self.session.delete(detalhe)
+        await self.session.flush()
+        await self.session.delete(obj)
 
     # ── Culturas ──────────────────────────────────────────────────────────────
 

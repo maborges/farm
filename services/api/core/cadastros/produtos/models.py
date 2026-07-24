@@ -250,6 +250,13 @@ class Produto(Base):
         UUID(as_uuid=True), ForeignKey("cadastros_categorias_produto.id", ondelete="SET NULL"), nullable=True, index=True
     )
 
+    # Referência ao produto padrão do sistema (tenant_id NULL) que originou este produto,
+    # quando criado a partir de cópia. Usado para análise comparativa entre tenants.
+    # Não sincroniza — o produto do tenant é livre para editar tudo, exceto unidade_medida.
+    produto_referencia_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("cadastros_produtos.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+
     # Imagem
     imagem_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
 

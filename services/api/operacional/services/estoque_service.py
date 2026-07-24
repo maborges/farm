@@ -25,7 +25,7 @@ from core.operational_context import (
 )
 from operacional.models.estoque import (
     Deposito, EstoqueMovimento, SaldoEstoque,
-    LoteEstoque, RequisicaoMaterial, ItemRequisicao, ReservaEstoque,
+    LoteEstoque, RequisicaoMaterial, ItemRequisicao, ReservaEstoque, EstoqueLocalizacao,
 )
 from operacional.models.compras import Fornecedor
 from core.cadastros.models import ProdutoCatalogo
@@ -42,6 +42,7 @@ from operacional.schemas.estoque import (
     RequisicaoCreate, RequisicaoAprovarRequest, RequisicaoEntregarRequest,
     ReservaCreate, ReservaCancelarRequest, ReservaConsumirRequest,
     AuditoriaMovimentacaoResponse,
+    EstoqueLocalizacaoCreate, EstoqueLocalizacaoUpdate, EstoqueLocalizacaoResponse,
 )
 from operacional.services.estoque_ledger import registrar_ledger_estoque
 from financeiro.models.lancamento import LancamentoFinanceiro
@@ -270,7 +271,9 @@ class EstoqueService(BaseService[SaldoEstoque]):
                     preco_medio=produto.preco_medio if produto else 0.0,
                     unidade_medida=produto.unidade_medida if produto else "",
                     estoque_minimo=estoque_minimo,
+                    estoque_maximo=s.estoque_maximo,
                     abaixo_minimo=estoque_minimo is not None and disponivel <= estoque_minimo,
+                    acima_maximo=s.estoque_maximo is not None and disponivel > s.estoque_maximo,
                     ultima_atualizacao=s.ultima_atualizacao,
                 )
             )
@@ -285,11 +288,86 @@ class EstoqueService(BaseService[SaldoEstoque]):
         saldo.estoque_minimo = estoque_minimo
         self.session.add(saldo)
         await self.session.flush()
-        
+
         # Verificar se já está abaixo do novo mínimo
         await self._verificar_e_notificar_estoque_baixo(saldo)
-        
+
         return saldo
+
+    async def atualizar_estoque_maximo(self, saldo_id: UUID, estoque_maximo: float) -> SaldoEstoque:
+        stmt = select(SaldoEstoque).where(SaldoEstoque.id == saldo_id)
+        saldo = (await self.session.execute(stmt)).scalars().first()
+        if not saldo:
+            raise EntityNotFoundError("Saldo não encontrado.")
+        await validate_deposito_context(self.session, tenant_id=self.tenant_id, deposito_id=saldo.deposito_id)
+        saldo.estoque_maximo = estoque_maximo
+        self.session.add(saldo)
+        await self.session.flush()
+        return saldo
+
+    # ── Localização física ───────────────────────────────────────────────────
+
+    async def listar_localizacoes(
+        self, produto_id: UUID | None = None, deposito_id: UUID | None = None,
+    ) -> list[EstoqueLocalizacaoResponse]:
+        stmt = select(EstoqueLocalizacao).where(EstoqueLocalizacao.tenant_id == self.tenant_id)
+        if produto_id:
+            stmt = stmt.where(EstoqueLocalizacao.produto_id == produto_id)
+        if deposito_id:
+            stmt = stmt.where(EstoqueLocalizacao.deposito_id == deposito_id)
+        locs = (await self.session.execute(stmt)).scalars().all()
+        if not locs:
+            return []
+
+        produtos = {p.id: p for p in (await self.session.execute(
+            select(ProdutoCatalogo).where(ProdutoCatalogo.id.in_({l.produto_id for l in locs}))
+        )).scalars().all()}
+        depositos = {d.id: d for d in (await self.session.execute(
+            select(Deposito).where(Deposito.id.in_({l.deposito_id for l in locs}))
+        )).scalars().all()}
+
+        return [
+            EstoqueLocalizacaoResponse(
+                id=l.id, deposito_id=l.deposito_id, produto_id=l.produto_id,
+                produto_nome=produtos.get(l.produto_id).nome if produtos.get(l.produto_id) else None,
+                deposito_nome=depositos.get(l.deposito_id).nome if depositos.get(l.deposito_id) else None,
+                corredor=l.corredor, prateleira=l.prateleira, posicao=l.posicao,
+                codigo_localizacao=l.codigo_localizacao, observacao_livre=l.observacao_livre,
+                quantidade=l.quantidade,
+            )
+            for l in locs
+        ]
+
+    async def criar_localizacao(self, data: EstoqueLocalizacaoCreate) -> EstoqueLocalizacao:
+        await validate_deposito_context(self.session, tenant_id=self.tenant_id, deposito_id=data.deposito_id)
+        await self._get_produto_or_fail(data.produto_id)
+        obj = EstoqueLocalizacao(tenant_id=self.tenant_id, **data.model_dump())
+        self.session.add(obj)
+        await self.session.flush()
+        await self.session.refresh(obj)
+        return obj
+
+    async def _get_localizacao(self, localizacao_id: UUID) -> EstoqueLocalizacao:
+        obj = (await self.session.execute(
+            select(EstoqueLocalizacao).where(
+                EstoqueLocalizacao.id == localizacao_id, EstoqueLocalizacao.tenant_id == self.tenant_id
+            )
+        )).scalar_one_or_none()
+        if not obj:
+            raise EntityNotFoundError("Localização não encontrada.")
+        return obj
+
+    async def atualizar_localizacao(self, localizacao_id: UUID, data: EstoqueLocalizacaoUpdate) -> EstoqueLocalizacao:
+        obj = await self._get_localizacao(localizacao_id)
+        for k, v in data.model_dump(exclude_none=True).items():
+            setattr(obj, k, v)
+        await self.session.flush()
+        await self.session.refresh(obj)
+        return obj
+
+    async def remover_localizacao(self, localizacao_id: UUID) -> None:
+        obj = await self._get_localizacao(localizacao_id)
+        await self.session.delete(obj)
 
     async def listar_alertas_reposicao(self) -> list[AlertaEstoqueItem]:
         saldos = await self.listar_saldos()

@@ -91,7 +91,9 @@ class SaldoResponse(BaseModel):
     unidade_medida: str
     preco_medio: float = 0.0
     estoque_minimo: Optional[float] = None
+    estoque_maximo: Optional[float] = None
     abaixo_minimo: bool
+    acima_maximo: bool = False
     ultima_atualizacao: datetime
     model_config = ConfigDict(from_attributes=True)
 
@@ -99,6 +101,48 @@ class SaldoResponse(BaseModel):
 class SaldoMinimoUpdateRequest(BaseModel):
     deposito_id: uuid.UUID
     estoque_minimo: float = Field(..., ge=0)
+
+
+class SaldoMaximoUpdateRequest(BaseModel):
+    deposito_id: uuid.UUID
+    estoque_maximo: float = Field(..., ge=0)
+
+
+# ── Localização física ──────────────────────────────────────────────────────
+
+class EstoqueLocalizacaoCreate(BaseModel):
+    deposito_id: uuid.UUID
+    produto_id: uuid.UUID
+    corredor: Optional[str] = Field(None, max_length=20)
+    prateleira: Optional[str] = Field(None, max_length=20)
+    posicao: Optional[str] = Field(None, max_length=20)
+    codigo_localizacao: Optional[str] = Field(None, max_length=50)
+    observacao_livre: Optional[str] = Field(None, max_length=200)
+    quantidade: float = Field(0.0, ge=0)
+
+
+class EstoqueLocalizacaoUpdate(BaseModel):
+    corredor: Optional[str] = Field(None, max_length=20)
+    prateleira: Optional[str] = Field(None, max_length=20)
+    posicao: Optional[str] = Field(None, max_length=20)
+    codigo_localizacao: Optional[str] = Field(None, max_length=50)
+    observacao_livre: Optional[str] = Field(None, max_length=200)
+    quantidade: Optional[float] = Field(None, ge=0)
+
+
+class EstoqueLocalizacaoResponse(BaseModel):
+    id: uuid.UUID
+    deposito_id: uuid.UUID
+    produto_id: uuid.UUID
+    produto_nome: Optional[str] = None
+    deposito_nome: Optional[str] = None
+    corredor: Optional[str]
+    prateleira: Optional[str]
+    posicao: Optional[str]
+    codigo_localizacao: Optional[str]
+    observacao_livre: Optional[str]
+    quantidade: float
+    model_config = ConfigDict(from_attributes=True)
 
 
 # ── Movimentações ─────────────────────────────────────────────────────────────

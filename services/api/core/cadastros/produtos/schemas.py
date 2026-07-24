@@ -228,6 +228,8 @@ class ProdutoCreate(BaseModel):
     fabricante: Optional[str] = None
     referencia_fabricante: Optional[str] = None
     categoria_id: Optional[uuid.UUID] = None
+    # Produto padrão do sistema (tenant_id NULL) usado como base, quando criado por cópia.
+    produto_referencia_id: Optional[uuid.UUID] = None
     imagem_url: Optional[str] = None
     qtd_conteudo: Optional[float] = None
     unidade_conteudo: Optional[str] = None
@@ -242,9 +244,10 @@ class ProdutoCreate(BaseModel):
 
 
 class ProdutoUpdate(BaseModel):
+    # unidade_medida NÃO é editável — travada na criação para não invalidar
+    # histórico de estoque/consumo e análises comparativas com o produto de referência.
     nome: Optional[str] = None
     tipo: Optional[str] = None
-    unidade_medida: Optional[str] = None
     codigo_interno: Optional[str] = None
     sku: Optional[str] = None
     codigo_barras: Optional[str] = None
@@ -284,6 +287,7 @@ class ProdutoResponse(BaseModel):
     fabricante: Optional[str]
     referencia_fabricante: Optional[str]
     categoria_id: Optional[uuid.UUID]
+    produto_referencia_id: Optional[uuid.UUID]
     imagem_url: Optional[str]
     qtd_conteudo: Optional[float]
     unidade_conteudo: Optional[str]

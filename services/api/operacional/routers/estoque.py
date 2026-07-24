@@ -15,10 +15,11 @@ from operacional.schemas.estoque import (
     EntradaEstoqueRequest, SaidaEstoqueRequest,
     AjusteEstoqueRequest, AjusteMovimentoRequest, TransferenciaEstoqueRequest,
     MovimentacaoResponse, AlertaEstoqueItem, AuditoriaMovimentacaoResponse,
-    SaldoMinimoUpdateRequest,
+    SaldoMinimoUpdateRequest, SaldoMaximoUpdateRequest,
     LoteCreate, LoteUpdate, LoteResponse,
     RequisicaoCreate, RequisicaoAprovarRequest, RequisicaoEntregarRequest, RequisicaoResponse,
     ReservaCreate, ReservaCancelarRequest, ReservaConsumirRequest, ReservaResponse,
+    EstoqueLocalizacaoCreate, EstoqueLocalizacaoUpdate, EstoqueLocalizacaoResponse,
 )
 
 router = APIRouter(prefix="/estoque", tags=["Operacional — Estoque"], dependencies=[Depends(require_module("O2_ESTOQUE"))])
@@ -136,6 +137,65 @@ async def atualizar_estoque_minimo(
 ):
     svc = _svc(session, tenant)
     return await svc.atualizar_estoque_minimo(saldo_id, data.estoque_minimo)
+
+
+@router.patch("/saldos/{saldo_id}/maximo", response_model=SaldoResponse)
+async def atualizar_estoque_maximo(
+    saldo_id: uuid.UUID,
+    data: SaldoMaximoUpdateRequest,
+    tenant: Tenant = Depends(get_current_tenant),
+    session: AsyncSession = Depends(get_session),
+):
+    svc = _svc(session, tenant)
+    return await svc.atualizar_estoque_maximo(saldo_id, data.estoque_maximo)
+
+
+# ── Localização física ───────────────────────────────────────────────────────
+
+@router.get("/localizacoes", response_model=List[EstoqueLocalizacaoResponse])
+async def listar_localizacoes(
+    produto_id: Optional[uuid.UUID] = Query(None),
+    deposito_id: Optional[uuid.UUID] = Query(None),
+    tenant: Tenant = Depends(get_current_tenant),
+    session: AsyncSession = Depends(get_session),
+):
+    return await _svc(session, tenant).listar_localizacoes(produto_id, deposito_id)
+
+
+@router.post("/localizacoes", response_model=EstoqueLocalizacaoResponse, status_code=201)
+async def criar_localizacao(
+    data: EstoqueLocalizacaoCreate,
+    tenant: Tenant = Depends(get_current_tenant),
+    session: AsyncSession = Depends(get_session),
+):
+    svc = _svc(session, tenant)
+    result = await svc.criar_localizacao(data)
+    await session.commit()
+    return result
+
+
+@router.patch("/localizacoes/{localizacao_id}", response_model=EstoqueLocalizacaoResponse)
+async def atualizar_localizacao(
+    localizacao_id: uuid.UUID,
+    data: EstoqueLocalizacaoUpdate,
+    tenant: Tenant = Depends(get_current_tenant),
+    session: AsyncSession = Depends(get_session),
+):
+    svc = _svc(session, tenant)
+    result = await svc.atualizar_localizacao(localizacao_id, data)
+    await session.commit()
+    return result
+
+
+@router.delete("/localizacoes/{localizacao_id}", status_code=204)
+async def remover_localizacao(
+    localizacao_id: uuid.UUID,
+    tenant: Tenant = Depends(get_current_tenant),
+    session: AsyncSession = Depends(get_session),
+):
+    svc = _svc(session, tenant)
+    await svc.remover_localizacao(localizacao_id)
+    await session.commit()
 
 
 @router.get("/saldos", response_model=List[SaldoResponse])

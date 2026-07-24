@@ -117,6 +117,10 @@ class RecebimentoCreate(BaseModel):
     itens: Optional[List[ItemRecebimentoCreate]] = None
 
 
+class EstornoRecebimentoRequest(BaseModel):
+    motivo: str = Field(..., min_length=3, max_length=500)
+
+
 class ItemRecebimentoResponse(BaseModel):
     id: uuid.UUID
     item_pedido_id: uuid.UUID
@@ -192,6 +196,10 @@ class DevolucaoResponse(BaseModel):
 class CotacaoItemCreate(BaseModel):
     solicitacao_item_id: uuid.UUID
     valor_unitario: float = Field(..., gt=0)
+    # Quantidade que o fornecedor efetivamente atende deste item — pode ser
+    # menor que o solicitado (cotação parcial). Se omitido, assume o total
+    # solicitado. Nunca pode superar Solicitacao Item.quantidade_solicitada.
+    quantidade_atendida: Optional[float] = Field(None, gt=0)
 
 
 class CotacaoSolicitacaoCreate(BaseModel):
@@ -203,6 +211,17 @@ class CotacaoSolicitacaoCreate(BaseModel):
 
     # Atalho legado: cota o item único da solicitação (só válido se ela tiver 1 item).
     valor_unitario: Optional[float] = Field(None, gt=0)
+    quantidade_atendida: Optional[float] = Field(None, gt=0)
+
+
+class CotacaoItemUpdate(BaseModel):
+    valor_unitario: float = Field(..., gt=0)
+    quantidade_atendida: Optional[float] = Field(None, gt=0)
+
+
+class CotacaoUpdate(BaseModel):
+    condicoes_pagamento: Optional[str] = Field(None, max_length=100)
+    prazo_entrega_dias: Optional[int] = Field(None, ge=0)
 
 
 class CotacaoItemResponse(BaseModel):
@@ -213,6 +232,10 @@ class CotacaoItemResponse(BaseModel):
     quantidade: float
     valor_unitario: float
     valor_total: float
+    # True quando já existe alocação deste item convertida em pedido — o
+    # fornecedor "fechou" o que ofertou e não deve mais aparecer como opção
+    # para alocar o saldo pendente do item da solicitação.
+    tem_pedido_gerado: bool = False
 
     model_config = ConfigDict(from_attributes=True)
 

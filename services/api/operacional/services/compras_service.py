@@ -1098,12 +1098,28 @@ class ComprasService:
                 raise BusinessRuleError("Cada item da solicitação só pode aparecer uma vez na cotação.")
             if not set(ids_informados) <= set(itens_por_id.keys()):
                 raise BusinessRuleError("Um ou mais itens informados não pertencem a esta solicitação.")
-            # Cotação pode ser parcial — o fornecedor nem sempre tem todos os itens.
-            itens_cotados = [(itens_por_id[item.solicitacao_item_id], item.valor_unitario) for item in data.itens]
+            # Cotação pode ser parcial — o fornecedor nem sempre tem todos os itens
+            # nem a quantidade cheia (quantidade_atendida < quantidade_solicitada).
+            itens_cotados = []
+            for item in data.itens:
+                sol_item = itens_por_id[item.solicitacao_item_id]
+                qtd_atendida = item.quantidade_atendida if item.quantidade_atendida is not None else sol_item.quantidade_solicitada
+                if qtd_atendida > sol_item.quantidade_solicitada:
+                    raise BusinessRuleError(
+                        f"Quantidade atendida de '{sol_item.produto_nome or 'item'}' ({qtd_atendida}) "
+                        f"não pode ser maior que a solicitada ({sol_item.quantidade_solicitada})."
+                    )
+                itens_cotados.append((sol_item, item.valor_unitario, qtd_atendida))
         else:
             if len(itens_solicitacao) != 1 or data.valor_unitario is None:
                 raise BusinessRuleError("Informe 'itens' — esta solicitação tem mais de um item.")
-            itens_cotados = [(itens_solicitacao[0], data.valor_unitario)]
+            sol_item = itens_solicitacao[0]
+            qtd_atendida = data.quantidade_atendida if data.quantidade_atendida is not None else sol_item.quantidade_solicitada
+            if qtd_atendida > sol_item.quantidade_solicitada:
+                raise BusinessRuleError(
+                    f"Quantidade atendida ({qtd_atendida}) não pode ser maior que a solicitada ({sol_item.quantidade_solicitada})."
+                )
+            itens_cotados = [(sol_item, data.valor_unitario, qtd_atendida)]
 
         fornecedor = await self.obter_fornecedor_orm(data.fornecedor_id)
         if not fornecedor:
@@ -1118,8 +1134,8 @@ class ComprasService:
         mensagem = None
         valor_total_geral = 0.0
 
-        for sol_item, valor_unitario in itens_cotados:
-            valor_total_geral += round(valor_unitario * sol_item.quantidade_solicitada, 2)
+        for sol_item, valor_unitario, qtd_atendida in itens_cotados:
+            valor_total_geral += round(valor_unitario * qtd_atendida, 2)
             stats = await self.get_historico_precos(sol_item.produto_id)
             preco_medio = stats.get("preco_medio", 0)
             if preco_medio > 0 and valor_unitario > (preco_medio * 1.15):
@@ -1151,14 +1167,14 @@ class ComprasService:
         self.session.add(cotacao)
         await self.session.flush()
 
-        for sol_item, valor_unitario in itens_cotados:
+        for sol_item, valor_unitario, qtd_atendida in itens_cotados:
             self.session.add(CotacaoItem(
                 cotacao_id=cotacao.id,
                 solicitacao_item_id=sol_item.id,
                 produto_id=sol_item.produto_id,
-                quantidade=sol_item.quantidade_solicitada,
+                quantidade=qtd_atendida,
                 valor_unitario=valor_unitario,
-                valor_total=round(valor_unitario * sol_item.quantidade_solicitada, 2),
+                valor_total=round(valor_unitario * qtd_atendida, 2),
             ))
         await self.session.flush()
         cotacao.itens = await self._enriquecer_itens_cotacao(cotacao.id)
@@ -1173,11 +1189,140 @@ class ComprasService:
             .where(CotacaoItem.cotacao_id == cotacao_id)
         )
         result = await self.session.execute(stmt)
+        pares = result.all()
+
+        stmt_com_pedido = (
+            select(AlocacaoItem.cotacao_item_id)
+            .where(
+                AlocacaoItem.cotacao_item_id.in_([item.id for item, _ in pares]),
+                AlocacaoItem.pedido_id.isnot(None),
+            )
+            .distinct()
+        )
+        cotacao_item_ids_com_pedido = {
+            row[0] for row in (await self.session.execute(stmt_com_pedido)).all()
+        }
+
         itens = []
-        for item, p_nome in result.all():
+        for item, p_nome in pares:
             item.produto_nome = p_nome
+            item.tem_pedido_gerado = item.id in cotacao_item_ids_com_pedido
             itens.append(item)
         return itens
+
+    async def atualizar_item_cotacao(
+        self, solicitacao_id: uuid.UUID, cotacao_id: uuid.UUID, item_id: uuid.UUID, valor_unitario: float,
+        quantidade_atendida: Optional[float] = None,
+    ) -> CotacaoCompra:
+        """Corrige o valor unitário de um item de uma cotação já registrada
+        (ex: erro de digitação). Só permitido enquanto a cotação ainda está
+        RECEBIDA — depois de aprovada, o valor já virou pedido de compra e
+        corrigir aqui deixaria pedido e cotação divergentes."""
+        from core.exceptions import BusinessRuleError, EntityNotFoundError
+
+        cotacao = (await self.session.execute(
+            select(CotacaoCompra).where(
+                CotacaoCompra.id == cotacao_id,
+                CotacaoCompra.tenant_id == self.tenant_id,
+                CotacaoCompra.solicitacao_id == solicitacao_id,
+            )
+        )).scalar_one_or_none()
+        if not cotacao:
+            raise EntityNotFoundError("Cotação não encontrada.")
+
+        if cotacao.status != "RECEBIDA":
+            raise BusinessRuleError(
+                "Só é possível editar uma cotação enquanto ela está RECEBIDA. "
+                "Esta já foi aprovada ou recusada."
+            )
+
+        item = (await self.session.execute(
+            select(CotacaoItem).where(CotacaoItem.id == item_id, CotacaoItem.cotacao_id == cotacao_id)
+        )).scalar_one_or_none()
+        if not item:
+            raise EntityNotFoundError("Item da cotação não encontrado.")
+
+        tem_alocacao = (await self.session.execute(
+            select(func.count(AlocacaoItem.id)).where(AlocacaoItem.cotacao_item_id == item_id)
+        )).scalar_one()
+        if tem_alocacao:
+            raise BusinessRuleError("Este item já foi alocado em uma compra — não é possível alterar o valor.")
+
+        if valor_unitario <= 0:
+            raise BusinessRuleError("Valor unitário deve ser maior que zero.")
+
+        if quantidade_atendida is not None:
+            sol_item = await self.session.get(SolicitacaoItem, item.solicitacao_item_id)
+            if quantidade_atendida > sol_item.quantidade_solicitada:
+                raise BusinessRuleError(
+                    f"Quantidade atendida ({quantidade_atendida}) não pode ser maior "
+                    f"que a solicitada ({sol_item.quantidade_solicitada})."
+                )
+            item.quantidade = quantidade_atendida
+
+        item.valor_unitario = valor_unitario
+        item.valor_total = round(valor_unitario * item.quantidade, 2)
+        await self.session.flush()
+
+        todos_itens = (await self.session.execute(
+            select(CotacaoItem).where(CotacaoItem.cotacao_id == cotacao_id)
+        )).scalars().all()
+        cotacao.valor_total = round(sum(i.valor_total for i in todos_itens), 2)
+        if len(todos_itens) == 1:
+            cotacao.valor_unitario = todos_itens[0].valor_unitario
+
+        acima_media = False
+        percentual = 0.0
+        mensagem = None
+        for i in todos_itens:
+            stats = await self.get_historico_precos(i.produto_id)
+            preco_medio = stats.get("preco_medio", 0)
+            if preco_medio > 0 and i.valor_unitario > (preco_medio * 1.15):
+                percentual_item = round(((i.valor_unitario / preco_medio) - 1) * 100, 2)
+                if percentual_item > percentual:
+                    acima_media = True
+                    percentual = percentual_item
+                    mensagem = f"{i.produto_nome or 'Item'} {percentual_item}% acima da média histórica (R$ {preco_medio:,.2f})"
+        cotacao.acima_media = acima_media
+        cotacao.percentual_acima_media = percentual if acima_media else None
+        cotacao.mensagem_alerta = mensagem
+
+        await self.session.flush()
+        cotacao.itens = await self._enriquecer_itens_cotacao(cotacao.id)
+        return cotacao
+
+    async def atualizar_cotacao(
+        self, solicitacao_id: uuid.UUID, cotacao_id: uuid.UUID,
+        condicoes_pagamento: Optional[str], prazo_entrega_dias: Optional[int],
+    ) -> CotacaoCompra:
+        """Corrige condições de pagamento / prazo de entrega de uma cotação
+        já registrada. Só permitido enquanto RECEBIDA."""
+        from core.exceptions import BusinessRuleError, EntityNotFoundError
+
+        cotacao = (await self.session.execute(
+            select(CotacaoCompra).where(
+                CotacaoCompra.id == cotacao_id,
+                CotacaoCompra.tenant_id == self.tenant_id,
+                CotacaoCompra.solicitacao_id == solicitacao_id,
+            )
+        )).scalar_one_or_none()
+        if not cotacao:
+            raise EntityNotFoundError("Cotação não encontrada.")
+
+        if cotacao.status != "RECEBIDA":
+            raise BusinessRuleError(
+                "Só é possível editar uma cotação enquanto ela está RECEBIDA. "
+                "Esta já foi aprovada ou recusada."
+            )
+
+        if condicoes_pagamento is not None:
+            cotacao.condicoes_pagamento = condicoes_pagamento
+        if prazo_entrega_dias is not None:
+            cotacao.prazo_entrega_dias = prazo_entrega_dias
+
+        await self.session.flush()
+        cotacao.itens = await self._enriquecer_itens_cotacao(cotacao.id)
+        return cotacao
 
     async def listar_cotacoes(self, solicitacao_id: uuid.UUID) -> List[CotacaoCompra]:
         """Lista cotações vinculadas a uma solicitação."""
@@ -1701,13 +1846,25 @@ class ComprasService:
         else:
             recebimento_data = data
 
-        # 2. Verificar se já existe movimentação para este pedido (idempotência extra)
+        # 2. Verificar se já existe movimentação para este pedido (idempotência extra).
+        # Movimentos "COMPRA" já totalmente revertidos por um estorno (AJUSTE com
+        # ajuste_de apontando pra eles, ver estornar_recebimento) não contam como
+        # recebimento ativo — senão um receber-depois-de-estornar fica travado achando
+        # que já foi recebido, sem nunca rematerializar estoque/itens.
         stmt_check = select(EstoqueMovimento).where(
             EstoqueMovimento.origem == "COMPRA",
             EstoqueMovimento.origem_id == pedido.id,
             EstoqueMovimento.tenant_id == self.tenant_id
         )
-        existing_mov = (await self.session.execute(stmt_check)).scalar_one_or_none()
+        compra_movs = (await self.session.execute(stmt_check)).scalars().all()
+        revertidos_ids = set()
+        if compra_movs:
+            stmt_revertidos = select(EstoqueMovimento.ajuste_de).where(
+                EstoqueMovimento.origem == "AJUSTE",
+                EstoqueMovimento.ajuste_de.in_([m.id for m in compra_movs]),
+            )
+            revertidos_ids = {row[0] for row in (await self.session.execute(stmt_revertidos)).all()}
+        existing_mov = any(m.id not in revertidos_ids for m in compra_movs)
 
         recebimento = RecebimentoParcial(
             pedido_id=pedido.id,
@@ -1757,7 +1914,165 @@ class ComprasService:
         self.session.add(pedido)
         await self.session.flush()
         await self._garantir_despesa_financeira_compra(pedido, recebimento=recebimento)
-        
+
+        return await self._enriquecer_pedido(pedido)
+
+    async def _status_anterior_ao_recebimento(self, pedido_id: uuid.UUID) -> str:
+        """Infere o status do pedido antes de ter sido marcado RECEBIDO, com
+        base no histórico de confirmação com o fornecedor (não há campo de
+        status anterior persistido)."""
+        confirmacoes = (
+            await self.session.execute(
+                select(PedidoConfirmacaoFornecedor.status)
+                .where(PedidoConfirmacaoFornecedor.pedido_id == pedido_id)
+                .order_by(PedidoConfirmacaoFornecedor.data_expiracao.desc())
+            )
+        ).scalars().all()
+        if any(s == "CONFIRMADO" for s in confirmacoes):
+            return "CONFIRMADO"
+        if confirmacoes:
+            return "ENVIADO"
+        return "ABERTO"
+
+    async def estornar_recebimento(
+        self, pedido_id: uuid.UUID, motivo: str, usuario_id: uuid.UUID | None = None,
+    ) -> PedidoCompra:
+        """Desfaz um recebimento feito por engano: reverte estoque (lote/saldo),
+        desativa a despesa gerada e apaga o registro de recebimento — só é
+        permitido enquanto nada do estoque recebido foi consumido. Se já houve
+        consumo, o caminho correto é registrar uma Devolução ao Fornecedor.
+
+        `motivo` é obrigatório e fica registrado no movimento de estorno e no
+        log de auditoria — é a justificativa de por que o recebimento foi
+        desfeito (rastreabilidade para fiscal/financeiro)."""
+        if not motivo or not motivo.strip():
+            raise BusinessRuleError("Informe a justificativa do estorno.")
+
+        pedido = await self.session.get(PedidoCompra, pedido_id)
+        if not pedido or pedido.tenant_id != self.tenant_id:
+            raise BusinessRuleError("Pedido não encontrado.")
+        if pedido.status != "RECEBIDO":
+            raise BusinessRuleError("Só é possível estornar um pedido que esteja RECEBIDO.")
+
+        status_antes = pedido.status
+
+        movimentos = (
+            await self.session.execute(
+                select(EstoqueMovimento).where(
+                    EstoqueMovimento.tenant_id == self.tenant_id,
+                    EstoqueMovimento.origem == "COMPRA",
+                    EstoqueMovimento.origem_id == pedido.id,
+                )
+            )
+        ).scalars().all()
+        if not movimentos:
+            raise BusinessRuleError("Nenhum movimento de estoque encontrado para este recebimento.")
+
+        # 1ª passada: valida que nada foi consumido antes de mexer em qualquer dado.
+        saldos_por_movimento = {}
+        for mov in movimentos:
+            saldo = (
+                await self.session.execute(
+                    select(SaldoEstoque).where(
+                        SaldoEstoque.deposito_id == mov.deposito_id,
+                        SaldoEstoque.produto_id == mov.produto_id,
+                    )
+                )
+            ).scalar_one_or_none()
+            if saldo is None or saldo.quantidade_atual + 1e-6 < float(mov.quantidade):
+                produto = await self.session.get(Produto, mov.produto_id)
+                raise BusinessRuleError(
+                    f"Não é possível estornar: o estoque de '{produto.nome if produto else mov.produto_id}' "
+                    "recebido neste pedido já foi parcialmente consumido. Registre uma Devolução ao "
+                    "Fornecedor para corrigir este caso."
+                )
+            saldos_por_movimento[mov.id] = saldo
+
+        # 2ª passada: reverte estoque via movimento de ajuste referenciando o original
+        # (estoque_movimentos é append-only no banco — correções usam ajuste_de, nunca DELETE).
+        for mov in movimentos:
+            saldo = saldos_por_movimento[mov.id]
+            saldo.quantidade_atual -= float(mov.quantidade)
+            self.session.add(saldo)
+            if mov.lote_id:
+                lote = await self.session.get(LoteEstoque, mov.lote_id)
+                if lote:
+                    lote.quantidade_atual = max(0.0, float(lote.quantidade_atual) - float(mov.quantidade))
+                    if lote.quantidade_atual <= 0:
+                        lote.status = "ESGOTADO"
+                    self.session.add(lote)
+
+            await registrar_ledger_estoque(
+                self.session,
+                tenant_id=self.tenant_id,
+                produto_id=mov.produto_id,
+                deposito_id=mov.deposito_id,
+                lote_id=mov.lote_id,
+                tipo_movimento="AJUSTE",
+                quantidade=-float(mov.quantidade),
+                custo_unitario=float(mov.custo_unitario) if mov.custo_unitario else None,
+                origem="AJUSTE",
+                origem_id=pedido.id,
+                ajuste_de=mov.id,
+                observacoes=f"Estorno de recebimento (pedido {pedido.id}): {motivo.strip()}",
+            )
+
+        # Desativa (não apaga) a despesa financeira gerada — preserva auditoria.
+        recebimentos = (
+            await self.session.execute(
+                select(RecebimentoParcial).where(RecebimentoParcial.pedido_id == pedido.id)
+            )
+        ).scalars().all()
+        for rec in recebimentos:
+            despesas = (
+                await self.session.execute(
+                    select(Despesa).where(
+                        Despesa.tenant_id == self.tenant_id,
+                        Despesa.origem_tipo == "COMPRA",
+                        Despesa.origem_id == rec.id,
+                    )
+                )
+            ).scalars().all()
+            for despesa in despesas:
+                despesa.ativo = False
+                self.session.add(despesa)
+
+            itens_recebimento = (
+                await self.session.execute(
+                    select(ItemRecebimento).where(ItemRecebimento.recebimento_id == rec.id)
+                )
+            ).scalars().all()
+            for item_rec in itens_recebimento:
+                await self.session.delete(item_rec)
+            await self.session.delete(rec)
+
+        itens_pedido = (
+            await self.session.execute(
+                select(ItemPedidoCompra).where(ItemPedidoCompra.pedido_id == pedido.id)
+            )
+        ).scalars().all()
+        for item in itens_pedido:
+            item.quantidade_recebida = 0.0
+            item.preco_real_unitario = None
+            item.status_item = "PENDENTE"
+            self.session.add(item)
+
+        pedido.status = await self._status_anterior_ao_recebimento(pedido.id)
+        self.session.add(pedido)
+        await self.session.flush()
+
+        from core.services.audit_service import write_audit_log
+        await write_audit_log(
+            self.session,
+            tenant_id=self.tenant_id,
+            user_id=usuario_id,
+            action="ESTORNO_RECEBIMENTO",
+            resource="compras_pedidos",
+            resource_id=pedido.id,
+            payload_before={"status": status_antes},
+            payload_after={"status": pedido.status, "motivo": motivo.strip()},
+        )
+
         return await self._enriquecer_pedido(pedido)
 
     async def atualizar_status_pedido(self, pedido_id: uuid.UUID, novo_status: str) -> PedidoCompra:
