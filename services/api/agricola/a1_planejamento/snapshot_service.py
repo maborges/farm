@@ -2,7 +2,7 @@ import uuid
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.exceptions import EntityNotFoundError
@@ -79,7 +79,7 @@ class SnapshotCustoService:
     async def _capturar_servico(self, tipo_servico_id: uuid.UUID) -> tuple[Decimal, dict[str, Any]]:
         stmt = select(TipoServico).where(
             TipoServico.id == tipo_servico_id,
-            TipoServico.tenant_id == self.tenant_id,
+            or_(TipoServico.tenant_id == self.tenant_id, TipoServico.tenant_id.is_(None)),
         )
         tipo_servico = (await self.session.execute(stmt)).scalar_one_or_none()
         if not tipo_servico:
