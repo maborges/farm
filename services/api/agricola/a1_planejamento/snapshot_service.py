@@ -12,6 +12,7 @@ from core.cadastros.pessoas.models import Pessoa
 from operacional.services.frota_custo_service import FrotaCustoService
 from operacional.services.frota_dashboard_service import FrotaDashboardService
 from rh.models import ColaboradorRH
+from core.cadastros.tipos_servico.models import TipoServico
 
 
 class SnapshotCustoService:
@@ -34,8 +35,9 @@ class SnapshotCustoService:
             return await self._capturar_maquina(origem_id)
         if origem_tipo == "PESSOA":
             return await self._capturar_pessoa(origem_id, unidade)
-        # SERVICO e MANUAL: sem cadastro mestre resolvível ainda — usa o
-        # custo_unitario informado no payload, sem gerar snapshot.
+        if origem_tipo == "SERVICO":
+            return await self._capturar_servico(origem_id)
+        # MANUAL: sem cadastro mestre — usa o custo_unitario informado no payload.
         return None, None
 
     async def _capturar_produto(self, produto_id: uuid.UUID) -> tuple[Decimal, dict[str, Any]]:
@@ -71,6 +73,24 @@ class SnapshotCustoService:
             "horimetro_atual": equipamento.horimetro_atual,
             "custo_total_acumulado": custo_total_acumulado,
             "custo_hora": str(preco),
+        }
+        return preco, snapshot
+
+    async def _capturar_servico(self, tipo_servico_id: uuid.UUID) -> tuple[Decimal, dict[str, Any]]:
+        stmt = select(TipoServico).where(
+            TipoServico.id == tipo_servico_id,
+            TipoServico.tenant_id == self.tenant_id,
+        )
+        tipo_servico = (await self.session.execute(stmt)).scalar_one_or_none()
+        if not tipo_servico:
+            raise EntityNotFoundError(f"Tipo de serviço {tipo_servico_id} não encontrado.")
+
+        preco = Decimal(str(tipo_servico.custo_referencia or 0))
+        snapshot = {
+            "tipo_servico_id": str(tipo_servico_id),
+            "nome": tipo_servico.nome,
+            "unidade_medida": tipo_servico.unidade_medida,
+            "custo_referencia": str(preco),
         }
         return preco, snapshot
 

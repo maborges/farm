@@ -63,6 +63,7 @@ from core.cadastros.router import router as router_core_cadastros
 from core.cadastros.propriedades.propriedade_router import router as router_propriedades_econ
 from core.cadastros.pessoas.router import router as router_pessoas, router_tipos as router_tipos_relacionamento
 from core.cadastros.equipamentos.router import router as router_equipamentos
+from core.cadastros.tipos_servico.router import router as router_tipos_servico
 from core.cadastros.propriedades.router import router as router_areas_rurais
 from core.cadastros.propriedades.visao_router import router as router_visao_territorial
 from certificacoes_esg.router import router as router_certificacoes_esg
@@ -333,6 +334,7 @@ app.include_router(router_propriedades_econ, prefix="/api/v1")
 app.include_router(router_pessoas, prefix="/api/v1")
 app.include_router(router_tipos_relacionamento, prefix="/api/v1")
 app.include_router(router_equipamentos, prefix="/api/v1")
+app.include_router(router_tipos_servico, prefix="/api/v1")
 app.include_router(router_areas_rurais, prefix="/api/v1")
 app.include_router(router_visao_territorial, prefix="/api/v1")
 app.include_router(router_certificacoes_esg, prefix="/api/v1")
