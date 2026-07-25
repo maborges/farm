@@ -47,6 +47,9 @@ class LoteResponse(BaseModel):
     metadata_json: Optional[dict] = None
     status: str
     created_at: datetime
+    # True quando o lote foi zerado por um estorno de recebimento (não por
+    # consumo normal) — ver ComprasService.estornar_recebimento.
+    esgotado_por_estorno: bool = False
     model_config = ConfigDict(from_attributes=True)
 TipoMovimentacao = Literal["ENTRADA", "SAIDA", "TRANSFERENCIA", "AJUSTE"]
 

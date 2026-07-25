@@ -13,6 +13,8 @@ from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, Tabl
 from agricola.alertas.service import AlertasAgricolasService
 from agricola.custos.operational_cost_service import OperationalCostAllocationService, OperationalCostInput
 from core.base_service import BaseService
+from core.exceptions import BusinessRuleError
+from core.cadastros.pessoas.models import Pessoa, PessoaDocumento, PessoaRelacionamento, TipoRelacionamento
 from rh.models import (
     Departamento, EsocialEvento, ColaboradorRH, LancamentoDiaria, Empreitada,
     ItemSegurancaRH, EntregaSegurancaRH, DocumentoSST
@@ -22,6 +24,68 @@ from rh.schemas import (
     ColaboradorCreate, DiariaCreate, EmpreitadaCreate,
     ItemSegurancaCreate, EntregaSegurancaCreate, DocumentoSSTCreate,
 )
+
+COLABORADOR_CODIGO = "COLABORADOR"
+
+
+async def obter_dados_exibicao_colaborador(session: AsyncSession, pessoa_id: UUID) -> dict:
+    """Monta nome/cpf a partir de Pessoa/PessoaDocumento — única fonte de
+    verdade desses dados (mesmo padrão de obter_dados_exibicao_fornecedor)."""
+    pessoa = await session.get(Pessoa, pessoa_id)
+    doc = (await session.execute(
+        select(PessoaDocumento).where(
+            PessoaDocumento.pessoa_id == pessoa_id, PessoaDocumento.tipo == "CPF",
+        ).limit(1)
+    )).scalar_one_or_none()
+    return {
+        "nome": pessoa.nome_exibicao if pessoa else None,
+        "cpf": doc.numero if doc else None,
+    }
+
+
+async def _enriquecer_colaboradores(session: AsyncSession, colaboradores: list[ColaboradorRH]) -> list[ColaboradorRH]:
+    if not colaboradores:
+        return colaboradores
+    pessoa_ids = [c.pessoa_id for c in colaboradores]
+
+    pessoas = {p.id: p for p in (
+        await session.execute(select(Pessoa).where(Pessoa.id.in_(pessoa_ids)))
+    ).scalars().all()}
+    docs = {d.pessoa_id: d for d in (
+        await session.execute(
+            select(PessoaDocumento).where(
+                PessoaDocumento.pessoa_id.in_(pessoa_ids), PessoaDocumento.tipo == "CPF",
+            )
+        )
+    ).scalars().all()}
+
+    for col in colaboradores:
+        pessoa = pessoas.get(col.pessoa_id)
+        col.nome = pessoa.nome_exibicao if pessoa else None
+        col.cpf = docs[col.pessoa_id].numero if col.pessoa_id in docs else None
+    return colaboradores
+
+
+async def _garantir_vinculo_colaborador(session: AsyncSession, tenant_id: UUID, pessoa_id: UUID) -> None:
+    """Garante que a Pessoa tenha o vínculo COLABORADOR (idempotente) —
+    mesmo tipo exibido/gerenciado em /cadastros/tipos-relacionamento."""
+    tipo = (await session.execute(
+        select(TipoRelacionamento).where(
+            TipoRelacionamento.codigo == COLABORADOR_CODIGO,
+            TipoRelacionamento.tenant_id.is_(None),
+        )
+    )).scalar_one_or_none()
+    if not tipo:
+        return
+
+    existente = (await session.execute(
+        select(PessoaRelacionamento).where(
+            PessoaRelacionamento.pessoa_id == pessoa_id,
+            PessoaRelacionamento.tipo_id == tipo.id,
+        )
+    )).scalar_one_or_none()
+    if not existente:
+        session.add(PessoaRelacionamento(pessoa_id=pessoa_id, tipo_id=tipo.id))
 
 
 class EsocialEventoService(BaseService[EsocialEvento]):
@@ -99,7 +163,31 @@ class ColaboradorService(BaseService[ColaboradorRH]):
         super().__init__(ColaboradorRH, session, tenant_id)
 
     async def criar(self, dados: ColaboradorCreate) -> ColaboradorRH:
-        return await self.create(dados.model_dump())
+        pessoa = await self.session.get(Pessoa, dados.pessoa_id)
+        if not pessoa or pessoa.tenant_id != self.tenant_id:
+            raise BusinessRuleError("Pessoa não encontrada.")
+
+        col = await self.create(dados.model_dump())
+        await self._garantir_vinculo(dados.pessoa_id)
+        await self.session.flush()
+        dados_pessoa = await obter_dados_exibicao_colaborador(self.session, dados.pessoa_id)
+        col.nome = dados_pessoa["nome"]
+        col.cpf = dados_pessoa["cpf"]
+        return col
+
+    async def _garantir_vinculo(self, pessoa_id: UUID) -> None:
+        await _garantir_vinculo_colaborador(self.session, self.tenant_id, pessoa_id)
+
+    async def listar(self, **filters) -> list[ColaboradorRH]:
+        colaboradores = await self.list_all(**filters)
+        return await _enriquecer_colaboradores(self.session, colaboradores)
+
+    async def obter(self, colaborador_id: UUID) -> ColaboradorRH:
+        col = await self.get_or_fail(colaborador_id)
+        dados_pessoa = await obter_dados_exibicao_colaborador(self.session, col.pessoa_id)
+        col.nome = dados_pessoa["nome"]
+        col.cpf = dados_pessoa["cpf"]
+        return col
 
     async def desativar(self, colaborador_id: UUID) -> ColaboradorRH:
         col = await self.get_or_fail(colaborador_id)

@@ -558,7 +558,7 @@ class ComprasService:
                     fornecedor_id=fornecedor.id,
                     quantidade=quantidade,
                     custo_unitario=custo_unitario,
-                    motivo=f"Recebimento de Pedido {pedido.id}",
+                    motivo=f"Recebimento de Pedido {pedido.numero or pedido.id}",
                     origem_id=pedido.id,
                     origem_tipo="COMPRA",
                     lote_id=lote_id,
@@ -1800,18 +1800,34 @@ class ComprasService:
 
     async def _enriquecer_itens_pedido(self, pedido_id: uuid.UUID) -> List[ItemPedidoCompra]:
         from core.cadastros.produtos.models import Produto
+        from operacional.models.estoque import Deposito
 
         stmt = (
-            select(ItemPedidoCompra, Produto.nome)
+            select(ItemPedidoCompra, Produto.nome, Deposito.nome)
             .join(Produto, ItemPedidoCompra.produto_id == Produto.id)
+            .outerjoin(Deposito, ItemPedidoCompra.deposito_id == Deposito.id)
             .where(ItemPedidoCompra.pedido_id == pedido_id)
         )
         result = await self.session.execute(stmt)
         itens = []
-        for item, p_nome in result.all():
+        for item, p_nome, d_nome in result.all():
             item.produto_nome = p_nome
+            item.deposito_nome = d_nome
             itens.append(item)
         return itens
+
+    async def _resolver_resumo_entrega_pedido(
+        self, itens: List[ItemPedidoCompra]
+    ) -> tuple[uuid.UUID | None, str, str | None]:
+        """Resolve o resumo de entrega do pedido a partir dos depósitos dos itens."""
+        deposito_ids = {item.deposito_id for item in itens if item.deposito_id}
+        if not deposito_ids:
+            return None, "Depósito vinculado ao pedido", None
+        if len(deposito_ids) > 1:
+            return None, "Múltiplos depósitos", None
+        deposito_id = next(iter(deposito_ids))
+        deposito_nome, endereco = await self._resolver_endereco_entrega(deposito_id)
+        return deposito_id, deposito_nome or "Depósito vinculado ao item", endereco
 
     async def receber_pedido(
         self,
@@ -1956,7 +1972,7 @@ class ComprasService:
 
         status_antes = pedido.status
 
-        movimentos = (
+        todos_compra = (
             await self.session.execute(
                 select(EstoqueMovimento).where(
                     EstoqueMovimento.tenant_id == self.tenant_id,
@@ -1965,8 +1981,25 @@ class ComprasService:
                 )
             )
         ).scalars().all()
-        if not movimentos:
+        if not todos_compra:
             raise BusinessRuleError("Nenhum movimento de estoque encontrado para este recebimento.")
+
+        # Só reverte movimentos "COMPRA" que ainda não foram revertidos antes —
+        # senão um segundo estorno (depois de um receber-de-novo) reverteria de
+        # novo um movimento já zerado, decrementando o saldo em dobro.
+        ja_revertidos = {
+            row[0] for row in (
+                await self.session.execute(
+                    select(EstoqueMovimento.ajuste_de).where(
+                        EstoqueMovimento.origem == "AJUSTE",
+                        EstoqueMovimento.ajuste_de.in_([m.id for m in todos_compra]),
+                    )
+                )
+            ).all()
+        }
+        movimentos = [m for m in todos_compra if m.id not in ja_revertidos]
+        if not movimentos:
+            raise BusinessRuleError("Este recebimento já foi estornado anteriormente.")
 
         # 1ª passada: valida que nada foi consumido antes de mexer em qualquer dado.
         saldos_por_movimento = {}
@@ -1988,11 +2021,24 @@ class ComprasService:
                 )
             saldos_por_movimento[mov.id] = saldo
 
+        # Restaura o CMPM para o valor de antes da(s) entrada(s) estornada(s) — usa o
+        # custo_medio_anterior do movimento mais antigo por saldo, cobrindo o caso de
+        # mais de um movimento (mesmo produto/depósito) sendo estornado de uma vez.
+        mais_antigo_por_saldo: dict = {}
+        for mov in movimentos:
+            saldo = saldos_por_movimento[mov.id]
+            atual = mais_antigo_por_saldo.get(saldo.id)
+            if atual is None or mov.created_at < atual.created_at:
+                mais_antigo_por_saldo[saldo.id] = mov
+
         # 2ª passada: reverte estoque via movimento de ajuste referenciando o original
         # (estoque_movimentos é append-only no banco — correções usam ajuste_de, nunca DELETE).
         for mov in movimentos:
             saldo = saldos_por_movimento[mov.id]
             saldo.quantidade_atual -= float(mov.quantidade)
+            if mais_antigo_por_saldo.get(saldo.id) is mov:
+                custo_anterior = mov.custo_medio_anterior
+                saldo.custo_medio = float(custo_anterior) if custo_anterior is not None else None
             self.session.add(saldo)
             if mov.lote_id:
                 lote = await self.session.get(LoteEstoque, mov.lote_id)
@@ -2014,7 +2060,9 @@ class ComprasService:
                 origem="AJUSTE",
                 origem_id=pedido.id,
                 ajuste_de=mov.id,
-                observacoes=f"Estorno de recebimento (pedido {pedido.id}): {motivo.strip()}",
+                observacoes=f"Estorno de recebimento (pedido {pedido.numero or pedido.id}): {motivo.strip()}",
+                custo_medio_anterior=float(mov.custo_medio_resultante) if mov.custo_medio_resultante is not None else None,
+                custo_medio_resultante=float(saldo.custo_medio) if saldo.custo_medio is not None else None,
             )
 
         # Desativa (não apaga) a despesa financeira gerada — preserva auditoria.
@@ -2281,13 +2329,9 @@ class ComprasService:
         pedido.item_nome = item_unico.produto_nome if item_unico else (
             "Múltiplos itens" if pedido.itens else "N/A"
         )
-        deposito_id = item_unico.deposito_id if item_unico else None
-        pedido.deposito_id = deposito_id
-        if deposito_id:
-            pedido.deposito_nome, pedido.endereco_entrega = await self._resolver_endereco_entrega(deposito_id)
-        else:
-            pedido.deposito_nome, pedido.endereco_entrega = None, None
-        pedido.deposito_nome = pedido.deposito_nome or "N/A"
+        pedido.deposito_id, pedido.deposito_nome, pedido.endereco_entrega = (
+            await self._resolver_resumo_entrega_pedido(pedido.itens)
+        )
 
         pedido.quantidade = item_unico.quantidade_solicitada if item_unico else None
         pedido.unidade = item_unico.unidade if item_unico else None

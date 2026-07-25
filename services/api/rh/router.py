@@ -158,7 +158,7 @@ async def listar_colaboradores(
         filters["ativo"] = ativo
     if tipo_contrato:
         filters["tipo_contrato"] = tipo_contrato
-    return await svc.list_all(**filters)
+    return await svc.listar(**filters)
 
 
 @router.post("/colaboradores", response_model=ColaboradorResponse, status_code=status.HTTP_201_CREATED)

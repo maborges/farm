@@ -39,6 +39,11 @@ class SaldoEstoque(Base):
     quantidade_reservada: Mapped[float] = mapped_column(Float, default=0.0)
     estoque_minimo: Mapped[float | None] = mapped_column(Numeric(18, 6), nullable=True)
     estoque_maximo: Mapped[float | None] = mapped_column(Numeric(18, 6), nullable=True)
+    # Custo Médio Ponderado Móvel (CMPM/Kardex) — só muda em entradas; saídas,
+    # transferências e ajustes negativos consomem a este custo sem alterá-lo.
+    # Nunca é zerado quando o saldo esgota (fica "congelado" até a próxima
+    # entrada recalcular). Ver EstoqueService.registrar_entrada.
+    custo_medio: Mapped[float | None] = mapped_column(Numeric(15, 4), nullable=True)
     ultima_atualizacao: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
@@ -194,6 +199,11 @@ class EstoqueMovimento(Base):
     ajuste_de: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("estoque_movimentos.id", ondelete="SET NULL"), nullable=True
     )
+    # Snapshot do CMPM (SaldoEstoque.custo_medio) antes/depois deste movimento —
+    # dá o kardex completo direto pelo ledger, sem recálculo, e permite reverter
+    # o custo médio com precisão em estornos (ver ComprasService.estornar_recebimento).
+    custo_medio_anterior: Mapped[float | None] = mapped_column(Numeric(15, 4), nullable=True)
+    custo_medio_resultante: Mapped[float | None] = mapped_column(Numeric(15, 4), nullable=True)
     observacoes: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
 

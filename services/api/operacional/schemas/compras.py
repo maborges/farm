@@ -305,6 +305,7 @@ class ItemPedidoResponse(BaseModel):
     produto_id: uuid.UUID
     produto_nome: Optional[str] = None
     deposito_id: Optional[uuid.UUID] = None
+    deposito_nome: Optional[str] = None
     quantidade_solicitada: float
     unidade: str
     preco_estimado_unitario: float

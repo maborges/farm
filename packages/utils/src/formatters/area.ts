@@ -1,3 +1,5 @@
+import { DEFAULT_LOCALE, parseDecimalBR } from "./number";
+
 /**
  * Formatadores de área para o domínio rural brasileiro.
  * Unidades: hectare (ha), alqueire (al), acre, m².
@@ -7,7 +9,7 @@ const ALQUEIRE_PAULISTA_HA = 2.42; // 1 alqueire paulista = 2,42 ha
 const ALQUEIRE_MINEIRO_HA = 4.84;  // 1 alqueire mineiro = 4,84 ha
 const ACRE_HA = 0.404686;
 
-const AREA_FORMATTER = new Intl.NumberFormat("pt-BR", {
+const AREA_FORMATTER = new Intl.NumberFormat(DEFAULT_LOCALE, {
   minimumFractionDigits: 2,
   maximumFractionDigits: 4,
 });
@@ -17,7 +19,7 @@ const AREA_FORMATTER = new Intl.NumberFormat("pt-BR", {
  * @example formatHectares(125.5) → "125,5000 ha"
  */
 export function formatHectares(value: number, decimals = 4): string {
-  return `${new Intl.NumberFormat("pt-BR", {
+  return `${new Intl.NumberFormat(DEFAULT_LOCALE, {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
   }).format(value)} ha`;
@@ -28,7 +30,7 @@ export function formatHectares(value: number, decimals = 4): string {
  * @example formatHectaresCompact(125.5) → "125,5 ha"
  */
 export function formatHectaresCompact(value: number): string {
-  return `${new Intl.NumberFormat("pt-BR", {
+  return `${new Intl.NumberFormat(DEFAULT_LOCALE, {
     minimumFractionDigits: 1,
     maximumFractionDigits: 1,
   }).format(value)} ha`;
@@ -71,6 +73,5 @@ export function formatM2AsHa(m2: number): string {
  * @example parseHectares("125,5000 ha") → 125.5
  */
 export function parseHectares(value: string): number {
-  const cleaned = value.replace(/\sha$/, "").replace(/\./g, "").replace(",", ".");
-  return parseFloat(cleaned);
+  return parseDecimalBR(value.replace(/\sha$/, ""));
 }

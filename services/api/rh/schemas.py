@@ -70,8 +70,7 @@ class EsocialEventoResponse(BaseModel):
 # ── Colaborador ───────────────────────────────────────────────────────────────
 
 class ColaboradorCreate(BaseModel):
-    nome: str
-    cpf: Optional[str] = None
+    pessoa_id: UUID
     cargo: Optional[str] = None
     tipo_contrato: str = "DIARISTA"
     valor_diaria: Optional[float] = None
@@ -81,9 +80,21 @@ class ColaboradorCreate(BaseModel):
     observacoes: Optional[str] = None
 
 
-class ColaboradorResponse(ColaboradorCreate):
+class ColaboradorResponse(BaseModel):
     id: UUID
     tenant_id: UUID
+    pessoa_id: UUID
+    # Sempre resolvidos a partir de Pessoa/PessoaDocumento — nunca duplicados
+    # na tabela rh_colaboradores (ver rh/service.py: obter_dados_exibicao_colaborador).
+    nome: Optional[str] = None
+    cpf: Optional[str] = None
+    cargo: Optional[str] = None
+    tipo_contrato: str
+    valor_diaria: Optional[float] = None
+    valor_hora: Optional[float] = None
+    data_admissao: Optional[date] = None
+    unidade_produtiva_id: Optional[UUID] = None
+    observacoes: Optional[str] = None
     ativo: bool
     created_at: datetime
 

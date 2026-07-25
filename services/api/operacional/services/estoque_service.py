@@ -27,7 +27,7 @@ from operacional.models.estoque import (
     Deposito, EstoqueMovimento, SaldoEstoque,
     LoteEstoque, RequisicaoMaterial, ItemRequisicao, ReservaEstoque, EstoqueLocalizacao,
 )
-from operacional.models.compras import Fornecedor
+from operacional.models.compras import Fornecedor, PedidoCompra
 from core.cadastros.models import ProdutoCatalogo
 from operacional.schemas.estoque import (
     DepositoCreate, DepositoUpdate,
@@ -268,7 +268,7 @@ class EstoqueService(BaseService[SaldoEstoque]):
                     quantidade_atual=s.quantidade_atual,
                     quantidade_reservada=s.quantidade_reservada,
                     quantidade_disponivel=disponivel,
-                    preco_medio=produto.preco_medio if produto else 0.0,
+                    preco_medio=float(s.custo_medio) if s.custo_medio is not None else (produto.preco_medio if produto else 0.0),
                     unidade_medida=produto.unidade_medida if produto else "",
                     estoque_minimo=estoque_minimo,
                     estoque_maximo=s.estoque_maximo,
@@ -479,7 +479,24 @@ class EstoqueService(BaseService[SaldoEstoque]):
                 LoteEstoque.data_validade <= limite,
             )
         stmt = stmt.order_by(LoteEstoque.data_validade.asc().nullslast())
-        return list((await self.session.execute(stmt)).scalars().all())
+        lotes = list((await self.session.execute(stmt)).scalars().all())
+
+        # Marca lotes ESGOTADOS que foram zerados por estorno de recebimento
+        # (AJUSTE com ajuste_de preenchido), para diferenciar de esgotamento
+        # por consumo normal na UI.
+        ids_esgotados = [l.id for l in lotes if l.status == "ESGOTADO"]
+        lotes_estornados: set = set()
+        if ids_esgotados:
+            stmt_estorno = select(EstoqueMovimento.lote_id).where(
+                EstoqueMovimento.lote_id.in_(ids_esgotados),
+                EstoqueMovimento.origem == "AJUSTE",
+                EstoqueMovimento.ajuste_de.isnot(None),
+            ).distinct()
+            lotes_estornados = {row[0] for row in (await self.session.execute(stmt_estorno)).all()}
+        for lote in lotes:
+            lote.esgotado_por_estorno = lote.id in lotes_estornados
+
+        return lotes
 
     async def _atualizar_status_lotes_vencidos(self) -> None:
         """Marca automaticamente lotes vencidos."""
@@ -507,6 +524,8 @@ class EstoqueService(BaseService[SaldoEstoque]):
         lote_id: UUID | None = None,
         production_unit_id: UUID | None = None,
         fornecedor_id: UUID | None = None,
+        custo_medio_anterior: float | None = None,
+        custo_medio_resultante: float | None = None,
     ) -> EstoqueMovimento:
         await validate_deposito_context(self.session, tenant_id=self.tenant_id, deposito_id=deposito_id)
         await self._get_produto_or_fail(produto_id)
@@ -532,6 +551,8 @@ class EstoqueService(BaseService[SaldoEstoque]):
             production_unit_id=production_unit_id,
             fornecedor_id=fornecedor_id,
             observacoes=motivo,
+            custo_medio_anterior=custo_medio_anterior,
+            custo_medio_resultante=custo_medio_resultante,
         )
 
     async def _descontar_lote(self, lote_id: UUID, quantidade: float) -> LoteEstoque:
@@ -566,14 +587,8 @@ class EstoqueService(BaseService[SaldoEstoque]):
             )
 
         saldo = await self._get_ou_criar_saldo(data.deposito_id, data.produto_id)
-        saldo.quantidade_atual += data.quantidade
-
-        # Atualiza saldo do lote se informado
-        if data.lote_id:
-            stmt_lote = select(LoteEstoque).where(LoteEstoque.id == data.lote_id)
-            lote = (await self.session.execute(stmt_lote)).scalars().first()
-            if lote:
-                lote.quantidade_atual += data.quantidade
+        qtd_antes = float(saldo.quantidade_atual)
+        custo_medio_antes = float(saldo.custo_medio) if saldo.custo_medio is not None else None
 
         custo_unitario = (
             data.custo_unitario
@@ -584,6 +599,25 @@ class EstoqueService(BaseService[SaldoEstoque]):
                 lote_id=data.lote_id,
             )
         )
+
+        # CMPM (Custo Médio Ponderado Móvel/Kardex): só entrada recalcula o
+        # custo médio. Se não havia saldo/custo anterior, o custo médio novo
+        # é o próprio custo da entrada (equivale a "resetar" naturalmente).
+        if qtd_antes <= 0 or custo_medio_antes is None:
+            custo_medio_novo = custo_unitario
+        else:
+            custo_medio_novo = (
+                (qtd_antes * custo_medio_antes) + (data.quantidade * custo_unitario)
+            ) / (qtd_antes + data.quantidade)
+        saldo.custo_medio = custo_medio_novo
+        saldo.quantidade_atual += data.quantidade
+
+        # Atualiza saldo do lote se informado
+        if data.lote_id:
+            stmt_lote = select(LoteEstoque).where(LoteEstoque.id == data.lote_id)
+            lote = (await self.session.execute(stmt_lote)).scalars().first()
+            if lote:
+                lote.quantidade_atual += data.quantidade
 
         mov = await self._registrar_movimento(
             deposito_id=data.deposito_id,
@@ -596,6 +630,8 @@ class EstoqueService(BaseService[SaldoEstoque]):
             origem_tipo=data.origem_tipo or "MANUAL",
             lote_id=data.lote_id,
             fornecedor_id=data.fornecedor_id,
+            custo_medio_anterior=custo_medio_antes,
+            custo_medio_resultante=custo_medio_novo,
         )
         await self.session.flush()
         await self.session.refresh(mov)
@@ -888,6 +924,8 @@ class EstoqueService(BaseService[SaldoEstoque]):
                 deposito_id=data.deposito_id,
                 lote_id=data.lote_id,
             )
+            # Saída consome ao custo médio vigente — não recalcula o CMPM.
+            custo_medio_atual = float(saldo.custo_medio) if saldo.custo_medio is not None else None
             mov = await self._registrar_movimento(
                 deposito_id=data.deposito_id, produto_id=data.produto_id,
                 tipo="SAIDA", quantidade=data.quantidade,
@@ -895,6 +933,8 @@ class EstoqueService(BaseService[SaldoEstoque]):
                 motivo=data.motivo, origem_id=data.origem_id,
                 origem_tipo=data.origem_tipo or "MANUAL",
                 lote_id=data.lote_id,
+                custo_medio_anterior=custo_medio_atual,
+                custo_medio_resultante=custo_medio_atual,
             )
             if data.safra_id and custo_unit and custo_unit > 0:
                 await self._criar_lancamento_insumo(
@@ -934,6 +974,9 @@ class EstoqueService(BaseService[SaldoEstoque]):
         saldo = await self._get_ou_criar_saldo(data.deposito_id, data.produto_id)
         diff = data.quantidade_nova - saldo.quantidade_atual
         saldo.quantidade_atual = data.quantidade_nova
+        # Ajuste de inventário não tem custo próprio (só corrige contagem) —
+        # custo médio permanece o mesmo, seja o ajuste positivo ou negativo.
+        custo_medio_atual = float(saldo.custo_medio) if saldo.custo_medio is not None else None
         mov = await self._registrar_movimento(
             deposito_id=data.deposito_id,
             produto_id=data.produto_id,
@@ -941,6 +984,8 @@ class EstoqueService(BaseService[SaldoEstoque]):
             quantidade=diff,
             motivo=data.motivo,
             origem_tipo="AJUSTE",
+            custo_medio_anterior=custo_medio_atual,
+            custo_medio_resultante=custo_medio_atual,
         )
         await self.session.flush()
         await self.session.refresh(mov)
@@ -976,9 +1021,13 @@ class EstoqueService(BaseService[SaldoEstoque]):
         if not saldo_orig or saldo_orig.quantidade_atual < data.quantidade:
             raise BusinessRuleError("Saldo insuficiente no depósito de origem.")
 
+        # Origem: saída — custo médio não muda.
+        custo_medio_orig = float(saldo_orig.custo_medio) if saldo_orig.custo_medio is not None else None
         saldo_orig.quantidade_atual -= data.quantidade
+
         saldo_dest = await self._get_ou_criar_saldo(data.deposito_destino_id, data.produto_id)
-        saldo_dest.quantidade_atual += data.quantidade
+        qtd_antes_dest = float(saldo_dest.quantidade_atual)
+        custo_medio_antes_dest = float(saldo_dest.custo_medio) if saldo_dest.custo_medio is not None else None
 
         motivo = data.motivo or "Transferência entre depósitos"
         transferencia_id = uuid.uuid4()
@@ -986,17 +1035,32 @@ class EstoqueService(BaseService[SaldoEstoque]):
             data.produto_id,
             deposito_id=data.deposito_origem_id,
         )
+
+        # Destino: entrada carregando o custo da origem — recalcula o CMPM do depósito destino.
+        if qtd_antes_dest <= 0 or custo_medio_antes_dest is None:
+            custo_medio_novo_dest = custo_unitario
+        else:
+            custo_medio_novo_dest = (
+                (qtd_antes_dest * custo_medio_antes_dest) + (data.quantidade * (custo_unitario or 0.0))
+            ) / (qtd_antes_dest + data.quantidade)
+        saldo_dest.custo_medio = custo_medio_novo_dest
+        saldo_dest.quantidade_atual += data.quantidade
+
         mov_saida = await self._registrar_movimento(
             deposito_id=data.deposito_origem_id, produto_id=data.produto_id,
             tipo="TRANSFERENCIA", quantidade=-data.quantidade,
             custo_unitario=custo_unitario,
             motivo=motivo, origem_id=transferencia_id, origem_tipo="TRANSFERENCIA",
+            custo_medio_anterior=custo_medio_orig,
+            custo_medio_resultante=custo_medio_orig,
         )
         mov_entrada = await self._registrar_movimento(
             deposito_id=data.deposito_destino_id, produto_id=data.produto_id,
             tipo="TRANSFERENCIA", quantidade=data.quantidade,
             custo_unitario=custo_unitario,
             motivo=motivo, origem_id=transferencia_id, origem_tipo="TRANSFERENCIA",
+            custo_medio_anterior=custo_medio_antes_dest,
+            custo_medio_resultante=custo_medio_novo_dest,
         )
         await self.session.flush()
         await self.session.refresh(mov_saida)
@@ -1030,6 +1094,7 @@ class EstoqueService(BaseService[SaldoEstoque]):
             stmt = stmt.where(EstoqueMovimento.deposito_id == deposito_id)
 
         rows = (await self.session.execute(stmt)).all()
+        numeros_pedido = await self._mapear_numeros_pedido_compra([mov for mov, _, _ in rows])
         result = []
         for mov, p_nome, d_nome in rows:
             mov_dict = {c.name: getattr(mov, c.name) for c in mov.__table__.columns}
@@ -1039,9 +1104,47 @@ class EstoqueService(BaseService[SaldoEstoque]):
             mov_dict["tipo"] = mov.tipo_movimento
             mov_dict["origem_tipo"] = mov.origem
             mov_dict["data_movimentacao"] = mov.data_movimento
-            mov_dict["motivo"] = mov.observacoes
+            mov_dict["motivo"] = self._formatar_motivo_movimento(mov, numeros_pedido)
             result.append(mov_dict)
         return result
+
+    async def _mapear_numeros_pedido_compra(self, movimentos: list[EstoqueMovimento]) -> dict[UUID, str]:
+        pedido_ids = {
+            mov.origem_id
+            for mov in movimentos
+            if self._movimento_referencia_pedido_compra(mov) and mov.origem_id is not None
+        }
+        if not pedido_ids:
+            return {}
+
+        rows = (
+            await self.session.execute(
+                select(PedidoCompra.id, PedidoCompra.numero).where(
+                    PedidoCompra.tenant_id == self.tenant_id,
+                    PedidoCompra.id.in_(pedido_ids),
+                )
+            )
+        ).all()
+        return {pedido_id: numero for pedido_id, numero in rows if numero}
+
+    def _formatar_motivo_movimento(
+        self,
+        mov: EstoqueMovimento,
+        numeros_pedido: dict[UUID, str],
+    ) -> str | None:
+        if mov.origem == "COMPRA" and mov.origem_id in numeros_pedido:
+            return f"Recebimento de Pedido {numeros_pedido[mov.origem_id]}"
+        if mov.origem == "AJUSTE" and mov.origem_id in numeros_pedido and mov.observacoes:
+            return mov.observacoes.replace(str(mov.origem_id), numeros_pedido[mov.origem_id])
+        return mov.observacoes
+
+    def _movimento_referencia_pedido_compra(self, mov: EstoqueMovimento) -> bool:
+        return mov.origem == "COMPRA" or (
+            mov.origem == "AJUSTE"
+            and bool(mov.ajuste_de)
+            and bool(mov.observacoes)
+            and "Estorno de recebimento" in mov.observacoes
+        )
 
     async def obter_movimentacao(self, movimentacao_id: UUID) -> dict:
         stmt = (
@@ -1069,7 +1172,8 @@ class EstoqueService(BaseService[SaldoEstoque]):
         mov_dict["tipo"] = mov.tipo_movimento
         mov_dict["origem_tipo"] = mov.origem
         mov_dict["data_movimentacao"] = mov.data_movimento
-        mov_dict["motivo"] = mov.observacoes
+        numeros_pedido = await self._mapear_numeros_pedido_compra([mov])
+        mov_dict["motivo"] = self._formatar_motivo_movimento(mov, numeros_pedido)
         return mov_dict
 
     async def ajustar_movimentacao(self, movimentacao_id: UUID, data: AjusteMovimentoRequest) -> EstoqueMovimento:

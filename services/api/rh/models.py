@@ -27,10 +27,12 @@ class Departamento(Base):
 
 class ColaboradorRH(Base):
     """
-    Especialização de Pessoa para o contexto de RH.
+    Especialização de Pessoa para o contexto de RH (mesmo padrão de
+    operacional.models.compras.Fornecedor — "papel sobre Pessoa").
 
-    pessoa_id é FK obrigatória para cadastros_pessoas.
-    Dados de identificação (nome, CPF) ficam em cadastros_pessoas + cadastros_pessoas_documentos.
+    pessoa_id é FK obrigatória para cadastros_pessoas. Nome, CPF e demais
+    dados de identificação NUNCA são duplicados aqui — sempre lidos de
+    Pessoa/PessoaDocumento (ver rh/service.py: obter_dados_exibicao_colaborador).
     Dados bancários (para pagamento de salário/diária) ficam em cadastros_pessoas_bancario.
     """
     __tablename__ = "rh_colaboradores"
@@ -42,17 +44,13 @@ class ColaboradorRH(Base):
     unidade_produtiva_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("unidades_produtivas.id", ondelete="SET NULL"), nullable=True, index=True
     )
-    pessoa_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("cadastros_pessoas.id", ondelete="CASCADE"), nullable=True, index=True
+    pessoa_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("cadastros_pessoas.id", ondelete="CASCADE"), nullable=False, index=True
     )
 
     departamento_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("rh_departamentos.id", ondelete="SET NULL"), nullable=True, index=True
     )
-
-    # Dados de identificação (denormalizados para uso sem cadastros_pessoas)
-    nome: Mapped[str] = mapped_column(String(200), nullable=False)
-    cpf: Mapped[str | None] = mapped_column(String(14), nullable=True, index=True)
 
     # Dados exclusivos do contexto RH (não existem em Pessoa)
     cargo: Mapped[str | None] = mapped_column(String(100), nullable=True)

@@ -1,23 +1,25 @@
+import { DEFAULT_LOCALE, parseDecimalBR } from "./number";
+
 /**
  * Formatadores de moeda para o domínio rural brasileiro.
  * Padrão: Real Brasileiro (BRL), localidade pt-BR.
  */
 
-const BRL_FORMATTER = new Intl.NumberFormat("pt-BR", {
+const BRL_FORMATTER = new Intl.NumberFormat(DEFAULT_LOCALE, {
   style: "currency",
   currency: "BRL",
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
 });
 
-const BRL_COMPACT_FORMATTER = new Intl.NumberFormat("pt-BR", {
+const BRL_COMPACT_FORMATTER = new Intl.NumberFormat(DEFAULT_LOCALE, {
   style: "currency",
   currency: "BRL",
   notation: "compact",
   maximumFractionDigits: 1,
 });
 
-const DECIMAL_FORMATTER = new Intl.NumberFormat("pt-BR", {
+const DECIMAL_FORMATTER = new Intl.NumberFormat(DEFAULT_LOCALE, {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
 });
@@ -45,7 +47,7 @@ export function formatBRLCompact(value: number): string {
  * @example formatDecimalBR(1250.5) → "1.250,50"
  */
 export function formatDecimalBR(value: number, decimals = 2): string {
-  return new Intl.NumberFormat("pt-BR", {
+  return new Intl.NumberFormat(DEFAULT_LOCALE, {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
   }).format(value);
@@ -64,9 +66,5 @@ export function formatCustoHa(value: number): string {
  * @example parseBRL("R$ 1.250,50") → 1250.5
  */
 export function parseBRL(value: string): number {
-  const cleaned = value
-    .replace(/[R$\s]/g, "")
-    .replace(/\./g, "")
-    .replace(",", ".");
-  return parseFloat(cleaned);
+  return parseDecimalBR(value);
 }

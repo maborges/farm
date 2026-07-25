@@ -9,6 +9,7 @@ export * from "./formatters/currency";
 export * from "./formatters/area";
 export * from "./formatters/weight";
 export * from "./formatters/date";
+export * from "./formatters/number";
 
 // Constantes de domínio
 export * from "./constants/culturas";

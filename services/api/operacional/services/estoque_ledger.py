@@ -113,6 +113,8 @@ async def registrar_ledger_estoque(
     ajuste_de: UUID | None = None,
     observacoes: str | None = None,
     numero_lote_legado: str | None = None,
+    custo_medio_anterior: float | None = None,
+    custo_medio_resultante: float | None = None,
 ) -> EstoqueMovimento:
     origem = _normalizar_origem(origem)
 
@@ -150,6 +152,8 @@ async def registrar_ledger_estoque(
         numero_lote=numero_lote,
         ajuste_de=ajuste_de,
         observacoes=observacoes,
+        custo_medio_anterior=custo_medio_anterior,
+        custo_medio_resultante=custo_medio_resultante,
     )
     session.add(movimento)
     return movimento

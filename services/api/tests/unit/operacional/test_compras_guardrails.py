@@ -86,6 +86,7 @@ async def test_criar_cotacao_usa_historico_compativel_e_nao_snapshot_de_produto(
                 prazo_entrega_dias=3,
                 itens=None,
                 valor_unitario=11.5,
+                quantidade_atendida=None,
             ),
         )
 
@@ -132,7 +133,11 @@ async def test_receber_pedido_usa_valor_do_pedido_como_custo_operacional(
 
     mock_session.get.side_effect = _mock_get
     exec_results = []
-    for scalar_value in (None, SimpleNamespace(id=uuid.uuid4(), quantidade_atual=20.0)):
+    for scalar_value in (
+        None,
+        SimpleNamespace(id=uuid.uuid4(), quantidade_atual=20.0),
+        SimpleNamespace(id=uuid.uuid4(), quantidade_atual=20.0),
+    ):
         mock_result = MagicMock()
         mock_result.scalar_one_or_none.return_value = scalar_value
         exec_results.append(mock_result)
@@ -165,3 +170,35 @@ async def test_receber_pedido_usa_valor_do_pedido_como_custo_operacional(
     assert entrada_req.custo_unitario == 37.5
     assert entrada_req.quantidade == 20.0
     assert pedido.status == "RECEBIDO"
+
+
+@pytest.mark.asyncio
+async def test_resumo_entrega_pedido_multi_item_nao_retorna_na(compras_service):
+    deposito_a = uuid.uuid4()
+    deposito_b = uuid.uuid4()
+
+    deposito_id, deposito_nome, endereco = await compras_service._resolver_resumo_entrega_pedido([
+        SimpleNamespace(deposito_id=deposito_a),
+        SimpleNamespace(deposito_id=deposito_b),
+    ])
+
+    assert deposito_id is None
+    assert deposito_nome == "Múltiplos depósitos"
+    assert endereco is None
+
+
+@pytest.mark.asyncio
+async def test_resumo_entrega_pedido_multi_item_mesmo_deposito_resolve_nome(compras_service):
+    deposito_id = uuid.uuid4()
+    compras_service._resolver_endereco_entrega = AsyncMock(
+        return_value=("Depósito Compras", "Estrada 1, 100")
+    )
+
+    resumo_id, deposito_nome, endereco = await compras_service._resolver_resumo_entrega_pedido([
+        SimpleNamespace(deposito_id=deposito_id),
+        SimpleNamespace(deposito_id=deposito_id),
+    ])
+
+    assert resumo_id == deposito_id
+    assert deposito_nome == "Depósito Compras"
+    assert endereco == "Estrada 1, 100"
