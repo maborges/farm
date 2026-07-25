@@ -6,7 +6,6 @@ from core.exceptions import BusinessRuleError
 
 from agricola.cultivos.models import Cultivo  # noqa: F401 - registers relationship target
 from agricola.safras.models import Safra, SafraTalhao
-from agricola.operacoes.models import OperacaoAgricola
 from agricola.production_units.models import ProductionUnit
 from agricola.custos.models import CostAllocation
 from agricola.a1_planejamento.models import ItemOrcamentoSafra
@@ -59,20 +58,6 @@ class CustosService:
             .group_by(CostAllocation.cost_category)
         )
         items = (await self.session.execute(stmt_alloc)).all()
-
-        if not items:
-            # Compatibilidade legada. Não usar OperacaoAgricola.custo_total como
-            # fonte canônica em novos fluxos quando CostAllocation estiver disponível.
-            usou_fallback_operacional = True
-            fonte_apuracao = "OPERACAO_AGRICOLA_FALLBACK"
-            stmt_ops = select(
-                OperacaoAgricola.tipo.label("categoria"),
-                func.sum(OperacaoAgricola.custo_total).label("total"),
-            ).filter_by(
-                safra_id=safra_id,
-                tenant_id=self.tenant_id,
-            ).group_by(OperacaoAgricola.tipo)
-            items = (await self.session.execute(stmt_ops)).all()
 
         for row in items:
             valor = float(row.total or 0)

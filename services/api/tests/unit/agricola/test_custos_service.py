@@ -50,15 +50,15 @@ async def test_resumo_safra_prefere_cost_allocation_com_fonte_oficial():
 
 
 @pytest.mark.asyncio
-async def test_resumo_safra_explicitamente_explica_fallback_operacional():
+async def test_resumo_safra_sem_cost_allocation_reporta_zero():
+    """O fallback (OperacaoAgricola) foi removido em 2026-07-25 depois de
+    corrigirmos a causa raiz do CostAllocation vazio (migration de backfill
+    20260725c + fix do SnapshotCustoService). Sem CostAllocation, o
+    realizado é zero em vez de usar uma fonte não confiável."""
     tenant_id = uuid.uuid4()
     safra_id = uuid.uuid4()
 
     safra = SimpleNamespace(id=safra_id, tenant_id=tenant_id, custo_previsto_ha=None)
-    rows = [
-        SimpleNamespace(categoria="TRATOR", total=150.0),
-        SimpleNamespace(categoria="COLHEITA", total=350.0),
-    ]
 
     session = AsyncMock()
     session.execute = AsyncMock(
@@ -67,7 +67,6 @@ async def test_resumo_safra_explicitamente_explica_fallback_operacional():
             _result(scalar_one=12.5),
             _result(scalar_one=0.0),
             _result(all_=[]),
-            _result(all_=rows),
             _result(scalar_one=0.0),
         ]
     )
@@ -75,10 +74,10 @@ async def test_resumo_safra_explicitamente_explica_fallback_operacional():
     service = CustosService(session, tenant_id)
     resumo = await service.get_resumo_safra(safra_id)
 
-    assert resumo.fonte_apuracao == "OPERACAO_AGRICOLA_FALLBACK"
-    assert resumo.usou_fallback_operacional is True
-    assert resumo.custo_total_realizado == 500.0
-    assert resumo.custo_realizado_por_ha == 40.0
+    assert resumo.fonte_apuracao == "COST_ALLOCATION"
+    assert resumo.usou_fallback_operacional is False
+    assert resumo.custo_total_realizado == 0.0
+    assert resumo.custo_realizado_por_ha == 0.0
     assert resumo.orcamento_previsto_total is None
     assert resumo.desvio_orcamento_pct is None
-    assert len(resumo.breakdown) == 2
+    assert len(resumo.breakdown) == 0
