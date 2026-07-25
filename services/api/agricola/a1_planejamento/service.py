@@ -8,13 +8,11 @@ from sqlalchemy import func
 from core.exceptions import BusinessRuleError, EntityNotFoundError
 from agricola.safras.models import Safra, SafraTalhao
 from agricola.cultivos.models import Cultivo, CultivoArea
-from agricola.operacoes.models import OperacaoAgricola
 from agricola.a1_planejamento.models import ItemOrcamentoSafra
 from agricola.a1_planejamento.snapshot_service import SnapshotCustoService
 from agricola.production_units.models import ProductionUnit
 from agricola.custos.models import CostAllocation
 from core.cadastros.propriedades.models import AreaRural
-from financeiro.models.rateio import Rateio
 from agricola.a1_planejamento.schemas import (
     ItemOrcamentoCreate,
     ItemOrcamentoUpdate,
@@ -228,50 +226,9 @@ class PlanejamentoService:
         custo = round(float(custo_area_sum) / area_base, 2) if custo_area_sum and area_base > 0 else None
         return prod, preco, custo
 
-    async def _get_realizado_operacao_rateio(self, safra_id: uuid.UUID, area_ha: float) -> OrcamentoRealizado:
-        """Cálculo legado (pré-CostAllocation), mantido só como fallback — ver
-        _get_realizado para quando ele é usado."""
-        ops_stmt = select(OperacaoAgricola).where(
-            OperacaoAgricola.safra_id == safra_id,
-            OperacaoAgricola.tenant_id == self.tenant_id,
-        )
-        operacoes = list((await self.session.execute(ops_stmt)).scalars().all())
-        cat_real: dict[str, float] = defaultdict(float)
-        custo_ops = 0.0
-        for op in operacoes:
-            custo_ops += float(op.custo_total or 0)
-            cat_real[op.tipo] += float(op.custo_total or 0)
-
-        rat_stmt = select(Rateio).where(
-            Rateio.tenant_id == self.tenant_id,
-            Rateio.safra_id == safra_id,
-        )
-        rateios = list((await self.session.execute(rat_stmt)).scalars().all())
-        custo_rateios = sum(float(r.valor_rateado) for r in rateios)
-        if custo_rateios > 0:
-            cat_real["DESPESA_FINANCEIRA"] = cat_real.get("DESPESA_FINANCEIRA", 0.0) + custo_rateios
-
-        custo_real_total = custo_ops + custo_rateios
-        return OrcamentoRealizado(
-            custo_operacoes=round(custo_ops, 2),
-            custo_rateios=round(custo_rateios, 2),
-            custo_total=round(custo_real_total, 2),
-            custo_por_ha=round(custo_real_total / area_ha, 2) if area_ha else 0.0,
-            por_categoria=self._por_categoria(cat_real, area_ha, custo_real_total),
-        )
-
     async def _get_realizado(self, safra_id: uuid.UUID, area_ha: float) -> OrcamentoRealizado:
         """Realizado vem de CostAllocation — mesmo motor de custo usado no
-        restante do sistema (frota, RH, insumos, rateios financeiros).
-
-        Fallback temporário: enquanto existirem tenants/ambientes com operações
-        REALIZADA que não geraram CostAllocation (dado legado ou seed que não
-        passou pela service layer — ver investigação de 2026-07-25), se não
-        houver NENHUM CostAllocation para as production units da safra, cai
-        para o cálculo antigo (OperacaoAgricola + Rateio) em vez de reportar
-        R$ 0,00 de realizado. Remover este fallback quando confirmarmos que
-        CostAllocation está sendo gerado de forma confiável em produção.
-        """
+        restante do sistema (frota, RH, insumos, rateios financeiros)."""
         pu_stmt = select(ProductionUnit.id).where(
             ProductionUnit.safra_id == safra_id,
             ProductionUnit.tenant_id == self.tenant_id,
@@ -285,9 +242,6 @@ class PlanejamentoService:
                 CostAllocation.production_unit_id.in_(production_unit_ids),
             )
             allocations = list((await self.session.execute(ca_stmt)).scalars().all())
-
-        if not allocations:
-            return await self._get_realizado_operacao_rateio(safra_id, area_ha)
 
         cat_real: dict[str, float] = defaultdict(float)
         custo_ops = 0.0

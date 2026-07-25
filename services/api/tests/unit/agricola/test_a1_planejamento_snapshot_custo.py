@@ -256,29 +256,27 @@ async def test_get_realizado_sem_production_units_cai_no_fallback_legado():
 
 
 @pytest.mark.asyncio
-async def test_get_realizado_sem_cost_allocation_mas_com_production_units_usa_fallback():
-    """Caso real encontrado em staging: production_units existem, mas
-    CostAllocation está vazio para elas (operações realizadas antes da
-    integração, ou dado inserido fora da service layer). Não deve reportar
-    R$ 0,00 de realizado — cai para OperacaoAgricola+Rateio."""
+async def test_get_realizado_sem_cost_allocation_com_production_units_reporta_zero():
+    """Production units existem mas não há CostAllocation vinculado a elas.
+
+    O fallback (OperacaoAgricola+Rateio) foi removido em 2026-07-25 depois
+    de corrigirmos a causa raiz (migration de backfill 20260725c) — não
+    deve mais haver esse cenário em produção, então o realizado é zero.
+    """
     tenant_id = uuid.uuid4()
     safra_id = uuid.uuid4()
     pu_id = uuid.uuid4()
-
-    operacoes = [SimpleNamespace(custo_total=6200.0, tipo="ADUBAÇÃO")]
 
     session = AsyncMock()
     session.execute = AsyncMock(
         side_effect=[
             _result(scalars_all=[pu_id]),   # production units
             _result(scalars_all=[]),        # CostAllocation (vazio)
-            _result(scalars_all=operacoes), # fallback: operacoes_agricolas
-            _result(scalars_all=[]),        # fallback: rateios
         ]
     )
 
     service = PlanejamentoService(session, tenant_id)
     realizado = await service._get_realizado(safra_id, area_ha=10.0)
 
-    assert realizado.custo_total == 6200.0
-    assert realizado.custo_operacoes == 6200.0
+    assert realizado.custo_total == 0.0
+    assert realizado.por_categoria == []
