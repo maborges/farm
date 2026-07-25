@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime, timezone
 from collections import defaultdict
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -9,6 +10,9 @@ from agricola.safras.models import Safra, SafraTalhao
 from agricola.cultivos.models import Cultivo, CultivoArea
 from agricola.operacoes.models import OperacaoAgricola
 from agricola.a1_planejamento.models import ItemOrcamentoSafra
+from agricola.a1_planejamento.snapshot_service import SnapshotCustoService
+from agricola.production_units.models import ProductionUnit
+from agricola.custos.models import CostAllocation
 from core.cadastros.propriedades.models import AreaRural
 from financeiro.models.rateio import Rateio
 from agricola.a1_planejamento.schemas import (
@@ -52,7 +56,19 @@ class PlanejamentoService:
 
     async def criar_item(self, safra_id: uuid.UUID, data: ItemOrcamentoCreate) -> ItemOrcamentoSafra:
         await self._get_safra(safra_id)
-        custo_total = round(data.quantidade * data.custo_unitario, 2)
+
+        custo_unitario_snapshot = None
+        snapshot_data = None
+        capturado_em = None
+        custo_unitario_legado = data.custo_unitario or 0
+
+        if data.origem_tipo != "MANUAL" and data.origem_id is not None:
+            custo_unitario_snapshot, snapshot_data = await SnapshotCustoService(
+                self.session, self.tenant_id
+            ).capturar(data.origem_tipo, data.origem_id, data.unidade)
+            capturado_em = datetime.now(timezone.utc)
+            custo_unitario_legado = float(custo_unitario_snapshot or 0)
+
         item = ItemOrcamentoSafra(
             tenant_id=self.tenant_id,
             safra_id=safra_id,
@@ -62,11 +78,18 @@ class PlanejamentoService:
             descricao=data.descricao,
             quantidade=data.quantidade,
             unidade=data.unidade,
-            custo_unitario=data.custo_unitario,
-            custo_total=custo_total,
+            origem_tipo=data.origem_tipo,
+            origem_id=data.origem_id,
+            custo_unitario=custo_unitario_legado,
+            custo_unitario_snapshot=custo_unitario_snapshot,
+            custo_unitario_ajustado=data.custo_unitario_ajustado,
+            snapshot_data=snapshot_data,
+            capturado_em=capturado_em,
+            custo_total=0,
             ordem=data.ordem,
             observacoes=data.observacoes,
         )
+        item.custo_total = round(float(item.quantidade) * item.custo_unitario_efetivo, 2)
         self.session.add(item)
         await self.session.flush()
         await self.session.commit()
@@ -74,6 +97,12 @@ class PlanejamentoService:
         return item
 
     async def atualizar_item(self, item_id: uuid.UUID, data: ItemOrcamentoUpdate) -> ItemOrcamentoSafra:
+        """Atualiza um item de orçamento.
+
+        origem_tipo/origem_id e o snapshot capturado na criação são imutáveis —
+        só quantidade, custo_unitario_ajustado e os demais campos descritivos
+        podem ser alterados aqui. Para trocar a origem, crie um novo item.
+        """
         stmt = select(ItemOrcamentoSafra).where(
             ItemOrcamentoSafra.id == item_id,
             ItemOrcamentoSafra.tenant_id == self.tenant_id,
@@ -83,12 +112,15 @@ class PlanejamentoService:
             raise EntityNotFoundError(f"Item de orçamento {item_id} não encontrado.")
 
         updates = data.model_dump(exclude_unset=True)
+        updates.pop("origem_tipo", None)
+        updates.pop("origem_id", None)
         for field, value in updates.items():
             setattr(item, field, value)
 
-        # Recalcula custo_total se quantidade ou custo_unitario mudaram
-        if "quantidade" in updates or "custo_unitario" in updates:
-            item.custo_total = round(float(item.quantidade) * float(item.custo_unitario), 2)
+        # custo_total é sempre recalculado a partir do custo_unitario_efetivo
+        # (ajustado > snapshot > legado), nunca confiando em recálculo do client.
+        if updates.keys() & {"quantidade", "custo_unitario", "custo_unitario_ajustado"}:
+            item.custo_total = round(float(item.quantidade) * item.custo_unitario_efetivo, 2)
 
         self.session.add(item)
         await self.session.flush()
@@ -196,6 +228,87 @@ class PlanejamentoService:
         custo = round(float(custo_area_sum) / area_base, 2) if custo_area_sum and area_base > 0 else None
         return prod, preco, custo
 
+    async def _get_realizado_operacao_rateio(self, safra_id: uuid.UUID, area_ha: float) -> OrcamentoRealizado:
+        """Cálculo legado (pré-CostAllocation), mantido só como fallback — ver
+        _get_realizado para quando ele é usado."""
+        ops_stmt = select(OperacaoAgricola).where(
+            OperacaoAgricola.safra_id == safra_id,
+            OperacaoAgricola.tenant_id == self.tenant_id,
+        )
+        operacoes = list((await self.session.execute(ops_stmt)).scalars().all())
+        cat_real: dict[str, float] = defaultdict(float)
+        custo_ops = 0.0
+        for op in operacoes:
+            custo_ops += float(op.custo_total or 0)
+            cat_real[op.tipo] += float(op.custo_total or 0)
+
+        rat_stmt = select(Rateio).where(
+            Rateio.tenant_id == self.tenant_id,
+            Rateio.safra_id == safra_id,
+        )
+        rateios = list((await self.session.execute(rat_stmt)).scalars().all())
+        custo_rateios = sum(float(r.valor_rateado) for r in rateios)
+        if custo_rateios > 0:
+            cat_real["DESPESA_FINANCEIRA"] = cat_real.get("DESPESA_FINANCEIRA", 0.0) + custo_rateios
+
+        custo_real_total = custo_ops + custo_rateios
+        return OrcamentoRealizado(
+            custo_operacoes=round(custo_ops, 2),
+            custo_rateios=round(custo_rateios, 2),
+            custo_total=round(custo_real_total, 2),
+            custo_por_ha=round(custo_real_total / area_ha, 2) if area_ha else 0.0,
+            por_categoria=self._por_categoria(cat_real, area_ha, custo_real_total),
+        )
+
+    async def _get_realizado(self, safra_id: uuid.UUID, area_ha: float) -> OrcamentoRealizado:
+        """Realizado vem de CostAllocation — mesmo motor de custo usado no
+        restante do sistema (frota, RH, insumos, rateios financeiros).
+
+        Fallback temporário: enquanto existirem tenants/ambientes com operações
+        REALIZADA que não geraram CostAllocation (dado legado ou seed que não
+        passou pela service layer — ver investigação de 2026-07-25), se não
+        houver NENHUM CostAllocation para as production units da safra, cai
+        para o cálculo antigo (OperacaoAgricola + Rateio) em vez de reportar
+        R$ 0,00 de realizado. Remover este fallback quando confirmarmos que
+        CostAllocation está sendo gerado de forma confiável em produção.
+        """
+        pu_stmt = select(ProductionUnit.id).where(
+            ProductionUnit.safra_id == safra_id,
+            ProductionUnit.tenant_id == self.tenant_id,
+        )
+        production_unit_ids = list((await self.session.execute(pu_stmt)).scalars().all())
+
+        allocations = []
+        if production_unit_ids:
+            ca_stmt = select(CostAllocation).where(
+                CostAllocation.tenant_id == self.tenant_id,
+                CostAllocation.production_unit_id.in_(production_unit_ids),
+            )
+            allocations = list((await self.session.execute(ca_stmt)).scalars().all())
+
+        if not allocations:
+            return await self._get_realizado_operacao_rateio(safra_id, area_ha)
+
+        cat_real: dict[str, float] = defaultdict(float)
+        custo_ops = 0.0
+        custo_rateios = 0.0
+        for alloc in allocations:
+            valor = float(alloc.amount or 0)
+            cat_real[alloc.cost_category] += valor
+            if alloc.source == "FIN_RATEIO" or alloc.fin_rateio_id is not None:
+                custo_rateios += valor
+            else:
+                custo_ops += valor
+
+        custo_real_total = custo_ops + custo_rateios
+        return OrcamentoRealizado(
+            custo_operacoes=round(custo_ops, 2),
+            custo_rateios=round(custo_rateios, 2),
+            custo_total=round(custo_real_total, 2),
+            custo_por_ha=round(custo_real_total / area_ha, 2) if area_ha else 0.0,
+            por_categoria=self._por_categoria(cat_real, area_ha, custo_real_total),
+        )
+
     async def get_orcamento(self, safra_id: uuid.UUID) -> OrcamentoSafraResponse:
         safra = await self._get_safra(safra_id)
 
@@ -254,37 +367,9 @@ class PlanejamentoService:
                 por_categoria=[],
             )
 
-        # ── Realizado: operações agrícolas ────────────────────────────────
-        ops_stmt = select(OperacaoAgricola).where(
-            OperacaoAgricola.safra_id == safra_id,
-            OperacaoAgricola.tenant_id == self.tenant_id,
-        )
-        operacoes = list((await self.session.execute(ops_stmt)).scalars().all())
-        cat_real: dict[str, float] = defaultdict(float)
-        custo_ops = 0.0
-        for op in operacoes:
-            custo_ops += float(op.custo_total or 0)
-            cat_real[op.tipo] += float(op.custo_total or 0)
-
-        # Rateios financeiros vinculados a esta safra
-        rat_stmt = select(Rateio).where(
-            Rateio.tenant_id == self.tenant_id,
-            Rateio.safra_id == safra_id,
-        )
-        rateios = list((await self.session.execute(rat_stmt)).scalars().all())
-        custo_rateios = sum(float(r.valor_rateado) for r in rateios)
-        # Rateios entram como categoria OUTROS para não duplicar com operações
-        if custo_rateios > 0:
-            cat_real["DESPESA_FINANCEIRA"] = cat_real.get("DESPESA_FINANCEIRA", 0.0) + custo_rateios
-
-        custo_real_total = custo_ops + custo_rateios
-        realizado = OrcamentoRealizado(
-            custo_operacoes=round(custo_ops, 2),
-            custo_rateios=round(custo_rateios, 2),
-            custo_total=round(custo_real_total, 2),
-            custo_por_ha=round(custo_real_total / area_ha, 2),
-            por_categoria=self._por_categoria(cat_real, area_ha, custo_real_total),
-        )
+        # ── Realizado: CostAllocation das production units da safra ───────
+        realizado = await self._get_realizado(safra_id, area_ha)
+        custo_real_total = realizado.custo_total
 
         # ── Desvio ────────────────────────────────────────────────────────
         desvio: DesvioOrcamento | None = None

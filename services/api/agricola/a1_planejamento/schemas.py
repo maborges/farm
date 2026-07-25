@@ -8,6 +8,8 @@ CategoriaOrcamento = Literal[
     "COMBUSTIVEL", "MAO_DE_OBRA", "SERVICO", "SEGURO", "OUTROS",
 ]
 
+OrigemItemOrcamento = Literal["PRODUTO", "MAQUINA", "PESSOA", "SERVICO", "MANUAL"]
+
 
 # ── Itens do Orçamento ────────────────────────────────────────────────────────
 
@@ -18,13 +20,20 @@ class ItemOrcamentoCreate(BaseModel):
     descricao: str = Field(..., min_length=2, max_length=200)
     quantidade: float = Field(..., gt=0)
     unidade: str = Field(..., min_length=1, max_length=20)
-    custo_unitario: float = Field(..., gt=0)
+    origem_tipo: OrigemItemOrcamento = "MANUAL"
+    origem_id: Optional[uuid.UUID] = None
+    custo_unitario: Optional[float] = Field(None, gt=0)
+    custo_unitario_ajustado: Optional[float] = Field(None, gt=0)
     ordem: int = Field(0, ge=0)
     observacoes: Optional[str] = None
 
     @model_validator(mode="after")
-    def calcular_custo_total(self) -> "ItemOrcamentoCreate":
-        # custo_total é derivado, calculado no service
+    def validar_origem(self) -> "ItemOrcamentoCreate":
+        if self.origem_tipo == "MANUAL":
+            if self.custo_unitario is None:
+                raise ValueError("custo_unitario é obrigatório quando origem_tipo=MANUAL")
+        elif self.origem_id is None:
+            raise ValueError("origem_id é obrigatório quando origem_tipo != MANUAL")
         return self
 
 
@@ -36,6 +45,7 @@ class ItemOrcamentoUpdate(BaseModel):
     quantidade: Optional[float] = Field(None, gt=0)
     unidade: Optional[str] = Field(None, min_length=1, max_length=20)
     custo_unitario: Optional[float] = Field(None, gt=0)
+    custo_unitario_ajustado: Optional[float] = Field(None, gt=0)
     ordem: Optional[int] = Field(None, ge=0)
     observacoes: Optional[str] = None
 
@@ -49,7 +59,14 @@ class ItemOrcamentoResponse(BaseModel):
     descricao: str
     quantidade: float
     unidade: str
+    origem_tipo: str
+    origem_id: Optional[uuid.UUID]
     custo_unitario: float
+    custo_unitario_snapshot: Optional[float]
+    custo_unitario_ajustado: Optional[float]
+    custo_unitario_efetivo: float
+    snapshot_data: Optional[dict]
+    capturado_em: Optional[datetime]
     custo_total: float
     ordem: int
     observacoes: Optional[str]
