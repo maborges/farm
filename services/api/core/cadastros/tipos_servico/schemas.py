@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, computed_field
 from typing import Optional
 from datetime import datetime
 from decimal import Decimal
@@ -23,7 +23,7 @@ class TipoServicoUpdate(BaseModel):
 
 class TipoServicoResponse(BaseModel):
     id: uuid.UUID
-    tenant_id: uuid.UUID
+    tenant_id: Optional[uuid.UUID]
     nome: str
     unidade_medida: str
     custo_referencia: Optional[Decimal]
@@ -33,3 +33,9 @@ class TipoServicoResponse(BaseModel):
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+    @computed_field  # type: ignore[misc]
+    @property
+    def is_global(self) -> bool:
+        """Catálogo padrão do sistema (tenant_id NULL) — somente leitura para o tenant."""
+        return self.tenant_id is None
