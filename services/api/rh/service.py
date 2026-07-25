@@ -178,9 +178,13 @@ class ColaboradorService(BaseService[ColaboradorRH]):
     async def _garantir_vinculo(self, pessoa_id: UUID) -> None:
         await _garantir_vinculo_colaborador(self.session, self.tenant_id, pessoa_id)
 
-    async def listar(self, **filters) -> list[ColaboradorRH]:
+    async def listar(self, q: str | None = None, **filters) -> list[ColaboradorRH]:
         colaboradores = await self.list_all(**filters)
-        return await _enriquecer_colaboradores(self.session, colaboradores)
+        colaboradores = await _enriquecer_colaboradores(self.session, colaboradores)
+        if q:
+            termo = q.strip().lower()
+            colaboradores = [c for c in colaboradores if termo in (c.nome or "").lower()]
+        return colaboradores
 
     async def obter(self, colaborador_id: UUID) -> ColaboradorRH:
         col = await self.get_or_fail(colaborador_id)

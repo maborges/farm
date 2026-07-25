@@ -148,6 +148,7 @@ async def dashboard_rh(
 async def listar_colaboradores(
     ativo: Optional[bool] = Query(True),
     tipo_contrato: Optional[str] = Query(None),
+    q: Optional[str] = Query(None, description="Busca por nome"),
     session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module(MODULE)),
@@ -158,7 +159,7 @@ async def listar_colaboradores(
         filters["ativo"] = ativo
     if tipo_contrato:
         filters["tipo_contrato"] = tipo_contrato
-    return await svc.listar(**filters)
+    return await svc.listar(q=q, **filters)
 
 
 @router.post("/colaboradores", response_model=ColaboradorResponse, status_code=status.HTTP_201_CREATED)

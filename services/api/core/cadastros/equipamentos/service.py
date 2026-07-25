@@ -36,6 +36,7 @@ class EquipamentoService(BaseService[Equipamento]):
         tipo: Optional[str] = None,
         status: Optional[str] = None,
         unidade_produtiva_id: Optional[uuid.UUID] = None,
+        q: Optional[str] = None,
         skip: int = 0,
         limit: int | None = None,
     ) -> list[Equipamento]:
@@ -44,6 +45,8 @@ class EquipamentoService(BaseService[Equipamento]):
             stmt = stmt.where(Equipamento.tipo == tipo)
         if status:
             stmt = stmt.where(Equipamento.status == status)
+        if q:
+            stmt = stmt.where(Equipamento.nome.ilike(f"%{q}%"))
         if unidade_produtiva_id:
             agora = datetime.now(timezone.utc)
             allocated_ids = (

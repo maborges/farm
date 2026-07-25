@@ -23,11 +23,12 @@ async def listar(
     tipo: Optional[str] = Query(None),
     status_filter: Optional[str] = Query(None, alias="status"),
     unidade_produtiva_id: Optional[uuid.UUID] = Query(None),
+    q: Optional[str] = Query(None, description="Busca por nome"),
     session: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
 ):
     svc = EquipamentoService(session, tenant_id)
-    return await svc.listar(tipo=tipo, status=status_filter, unidade_produtiva_id=unidade_produtiva_id)
+    return await svc.listar(tipo=tipo, status=status_filter, unidade_produtiva_id=unidade_produtiva_id, q=q)
 
 
 @router.post("/", response_model=EquipamentoResponse, status_code=201)
