@@ -16,7 +16,7 @@ from sqlalchemy.future import select
 from core.exceptions import EntityNotFoundError
 from agricola.romaneios.service import RomaneioService
 from agricola.romaneios.schemas import RomaneioColheitaCreate
-from agricola.safras.models import Safra
+from agricola.safras.models import Safra, SafraTalhao
 from financeiro.models.receita import Receita
 from financeiro.models.plano_conta import PlanoConta
 
@@ -37,13 +37,15 @@ class TestRomaneioReceitaWebhook:
         safra = Safra(
             id=uuid4(),
             tenant_id=tenant_id,
-            talhao_id=talhao_id,
             ano_safra="2025/26",
             cultura="MILHO",
             status="COLHEITA",
-            area_plantada_ha=50.0
         )
         session.add(safra)
+        session.add(SafraTalhao(
+            id=uuid4(), tenant_id=tenant_id, safra_id=safra.id,
+            area_id=talhao_id, area_ha=50.0, principal=True,
+        ))
         await session.commit()
 
         # Criar plano de conta para receita (necessário para criar Receita)
@@ -101,13 +103,15 @@ class TestRomaneioReceitaWebhook:
         safra = Safra(
             id=uuid4(),
             tenant_id=tenant_id,
-            talhao_id=talhao_id,
             ano_safra="2025/26",
             cultura="MILHO",
             status="COLHEITA",
-            area_plantada_ha=50.0
         )
         session.add(safra)
+        session.add(SafraTalhao(
+            id=uuid4(), tenant_id=tenant_id, safra_id=safra.id,
+            area_id=talhao_id, area_ha=50.0, principal=True,
+        ))
         await session.commit()
 
         # Act: Criar romaneio SEM preco (receita_total = 0 ou None)
@@ -147,13 +151,15 @@ class TestRomaneioReceitaWebhook:
         safra = Safra(
             id=uuid4(),
             tenant_id=tenant_id,
-            talhao_id=talhao_id,
             ano_safra="2025/26",
             cultura="SOJA",
             status="COLHEITA",
-            area_plantada_ha=100.0
         )
         session.add(safra)
+        session.add(SafraTalhao(
+            id=uuid4(), tenant_id=tenant_id, safra_id=safra.id,
+            area_id=talhao_id, area_ha=100.0, principal=True,
+        ))
 
         plano = PlanoConta(
             id=uuid4(),
@@ -209,13 +215,15 @@ class TestRomaneioReceitaWebhook:
         safra_outro = Safra(
             id=uuid4(),
             tenant_id=outro_tenant_id,
-            talhao_id=talhao_id,
             ano_safra="2025/26",
             cultura="MILHO",
             status="COLHEITA",
-            area_plantada_ha=50.0
         )
         session.add(safra_outro)
+        session.add(SafraTalhao(
+            id=uuid4(), tenant_id=outro_tenant_id, safra_id=safra_outro.id,
+            area_id=talhao_id, area_ha=50.0, principal=True,
+        ))
         await session.commit()
 
         # Act: Tentar criar romaneio com tenant_id diferente
@@ -249,13 +257,15 @@ class TestRomaneioReceitaWebhook:
         safra = Safra(
             id=uuid4(),
             tenant_id=tenant_id,
-            talhao_id=talhao_id,
             ano_safra="2025/26",
             cultura="MILHO",
             status="COLHEITA",
-            area_plantada_ha=100.0
         )
         session.add(safra)
+        session.add(SafraTalhao(
+            id=uuid4(), tenant_id=tenant_id, safra_id=safra.id,
+            area_id=talhao_id, area_ha=100.0, principal=True,
+        ))
 
         plano = PlanoConta(
             id=uuid4(),
@@ -316,13 +326,15 @@ class TestRomaneioReceitaWebhook:
         safra = Safra(
             id=uuid4(),
             tenant_id=tenant_id,
-            talhao_id=talhao_id,
             ano_safra="2025/26",
             cultura="SOJA",
             status="COLHEITA",
-            area_plantada_ha=50.0  # ← Necessário para calcular produtividade
         )
         session.add(safra)
+        session.add(SafraTalhao(  # ← Necessário para calcular produtividade
+            id=uuid4(), tenant_id=tenant_id, safra_id=safra.id,
+            area_id=talhao_id, area_ha=50.0, principal=True,
+        ))
 
         plano = PlanoConta(
             id=uuid4(),

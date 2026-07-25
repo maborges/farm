@@ -3,7 +3,7 @@ from uuid import UUID
 from datetime import date
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from core.exceptions import BusinessRuleError
+from core.exceptions import BusinessRuleError, EntityNotFoundError
 from core.base_service import BaseService
 
 from sqlalchemy import func
@@ -46,9 +46,12 @@ class RomaneioService(BaseService[RomaneioColheita]):
         """
         fallback = self._params_para_cultura(safra_obj.cultura if safra_obj else None)
 
-        if safra_obj and safra_obj.commodity_id:
+        # Safra não tem mais commodity_id próprio (campo migrou para Cultivo);
+        # getattr evita AttributeError quando safra_obj não carrega esse atributo.
+        commodity_id = getattr(safra_obj, "commodity_id", None) if safra_obj else None
+        if commodity_id:
             from core.cadastros.commodities.models import Commodity
-            commodity = await self.session.get(Commodity, safra_obj.commodity_id)
+            commodity = await self.session.get(Commodity, commodity_id)
             if commodity:
                 return {
                     "umidade_padrao": float(commodity.umidade_padrao_pct or fallback["umidade_padrao"]),
@@ -98,14 +101,19 @@ class RomaneioService(BaseService[RomaneioColheita]):
     async def criar(self, dados: RomaneioColheitaCreate) -> RomaneioColheita:
         dados_dict = dados.model_dump()
 
-        # 1. Busca safra e commodity
+        # 1. Busca safra e commodity — sempre com filtro de tenant (nunca .get() puro
+        # por PK, que vazaria dados de outro tenant caso o id exista globalmente).
         from agricola.safras.models import Safra as SafraModel
         safra_obj = await self.session.get(SafraModel, dados.safra_id)
+        if safra_obj is None or safra_obj.tenant_id != self.tenant_id:
+            raise EntityNotFoundError(f"Safra {dados.safra_id} não encontrada.")
         params = await self._params_da_safra(safra_obj)
 
-        # Deriva commodity_id da safra (se não informado)
-        if safra_obj and safra_obj.commodity_id:
-            dados_dict.setdefault("commodity_id", safra_obj.commodity_id)
+        # Deriva commodity_id da safra (se não informado) — Safra não tem mais
+        # commodity_id próprio (campo migrou para Cultivo); getattr evita AttributeError.
+        safra_commodity_id = getattr(safra_obj, "commodity_id", None) if safra_obj else None
+        if safra_commodity_id:
+            dados_dict.setdefault("commodity_id", safra_commodity_id)
 
         # 2. Calcular o peso líquido bruto
         peso_bruto = dados_dict.get('peso_bruto_kg', 0)

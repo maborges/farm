@@ -9,6 +9,19 @@ from agricola.caderno.schemas import EventoCadernoOfflinePayload, EvidenciaOffli
 from agricola.caderno.service import CadernoCampoService
 from agricola.caderno.models import EPIEntrega, CadernoCampoEntrada
 from rh.models import ColaboradorRH
+from core.cadastros.pessoas.models import Pessoa
+
+
+async def _criar_colaborador(session, tenant_id: uuid.UUID, nome: str) -> ColaboradorRH:
+    """ColaboradorRH é um papel sobre Pessoa (migration 20260724c) — nome/cpf
+    não existem mais na tabela rh_colaboradores, sempre via Pessoa."""
+    pessoa = Pessoa(id=uuid.uuid4(), tenant_id=tenant_id, tipo="PF", nome_exibicao=nome)
+    session.add(pessoa)
+    await session.flush()
+    colaborador = ColaboradorRH(id=uuid.uuid4(), tenant_id=tenant_id, pessoa_id=pessoa.id, ativo=True)
+    session.add(colaborador)
+    return colaborador
+
 
 async def _ensure_caderno_offline_schema(session) -> None:
     for ddl in [
@@ -174,14 +187,7 @@ async def test_sync_offline_epi_entrega(session):
     safra_id, talhao_id, device = await _seed_context(session, tenant_id)
     
     # Seed ColaboradorRH
-    colaborador = ColaboradorRH(
-        id=uuid.uuid4(),
-        tenant_id=tenant_id,
-        nome="João da Silva",
-        cpf="123.456.789-00",
-        ativo=True,
-    )
-    session.add(colaborador)
+    colaborador = await _criar_colaborador(session, tenant_id, "João da Silva")
     await session.commit()
 
     svc = CadernoCampoService(session, tenant_id)
@@ -244,13 +250,11 @@ async def test_epi_sync_tenant_isolation(session):
     tenant_b = uuid.uuid4()
     
     safra_a, talhao_a, device_a = await _seed_context(session, tenant_a)
-    colab_a = ColaboradorRH(id=uuid.uuid4(), tenant_id=tenant_a, nome="Trabalhador A", ativo=True)
-    session.add(colab_a)
-    
+    colab_a = await _criar_colaborador(session, tenant_a, "Trabalhador A")
+
     safra_b, talhao_b, device_b = await _seed_context(session, tenant_b)
-    colab_b = ColaboradorRH(id=uuid.uuid4(), tenant_id=tenant_b, nome="Trabalhador B", ativo=True)
-    session.add(colab_b)
-    
+    colab_b = await _criar_colaborador(session, tenant_b, "Trabalhador B")
+
     await session.commit()
 
     svc_a = CadernoCampoService(session, tenant_a)

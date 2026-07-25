@@ -1,13 +1,18 @@
 from __future__ import annotations
 
 import uuid
+from contextlib import asynccontextmanager
 from types import SimpleNamespace
 
 import pytest
 import pytest_asyncio
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+
+from core.database import Base
+from tests.conftest import _get_db_url
 
 import core.dependencies as core_dependencies
 import integracoes.erp.router as erp_router_module
@@ -36,33 +41,43 @@ pytestmark = pytest.mark.asyncio
 
 @pytest_asyncio.fixture()
 async def session() -> AsyncSession:
-    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
-    async with engine.begin() as conn:
-        for table in (
-            Tenant.__table__,
-            Usuario.__table__,
-            PerfilAcesso.__table__,
-            TenantUsuario.__table__,
-            MarketplaceIntegracao.__table__,
-            IntegrationCredential.__table__,
-            TenantIntegracao.__table__,
-            IntegrationFeature.__table__,
-            IntegrationSyncPolicy.__table__,
-            IntegrationJob.__table__,
-            ExternalRecordAssociation.__table__,
-            ExternalRecordAssociationHistory.__table__,
-            IntegrationHealth.__table__,
-        ):
-            await conn.run_sync(table.create)
+    """Override local: mesmo Postgres do conftest raiz, mas com pool de 1 conexão.
 
-    session_factory = async_sessionmaker(engine, expire_on_commit=False)
-    async with session_factory() as current:
-        yield current
+    Este módulo seta `app.current_tenant_id` (exigido pelas policies de RLS em
+    integration_credentials/tenant_integracoes/integration_jobs) e faz múltiplos
+    commits ao longo do seed. Com o pool default (>1 conexão), cada commit() pode
+    devolver a conexão e o próximo checkout pegar outra física — perdendo o SET,
+    que é por conexão/sessão, não por transação. pool_size=1 garante que é sempre
+    a mesma conexão física em todo o teste.
+    """
+    engine = create_async_engine(
+        _get_db_url(),
+        pool_size=1,
+        max_overflow=0,
+        connect_args={"server_settings": {"search_path": "farms"}},
+    )
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all, checkfirst=True)
+    except Exception:
+        pass
 
+    async_session = async_sessionmaker(engine, expire_on_commit=False)
+    async with async_session() as sess:
+        yield sess
+        try:
+            await sess.rollback()
+        except Exception:
+            pass
     await engine.dispose()
 
 
 async def _seed_access(session: AsyncSession, *, tenant_id: uuid.UUID, user_id: uuid.UUID) -> None:
+    # RLS em tabelas como integration_credentials exige app.current_tenant_id na sessão
+    # (mesma variável setada por core/dependencies.py no fluxo real de request). Usa SET
+    # (não SET LOCAL) para persistir através dos múltiplos commits desta função de seed —
+    # e a fixture `session` deste módulo garante pool_size=1 para o SET não se perder.
+    await session.execute(text(f"SET app.current_tenant_id = '{tenant_id}';"))
     session.add(
         Tenant(
             id=tenant_id,
@@ -82,6 +97,10 @@ async def _seed_access(session: AsyncSession, *, tenant_id: uuid.UUID, user_id: 
             ativo=True,
         )
     )
+    # flush explícito: sem relationship() entre Usuario/TenantUsuario, o unit-of-work
+    # do SQLAlchemy não garante a ordem dos inserts no mesmo flush (visto em Postgres
+    # real — o SQLite antigo não impunha a FK e mascarava o problema).
+    await session.flush()
     session.add(
         TenantUsuario(
             id=uuid.uuid4(),
@@ -98,20 +117,33 @@ async def _seed_runtime(
     session: AsyncSession,
     *,
     tenant_id: str,
-    provider_slug: str = "sankhya",
+    provider_slug: str | None = None,
     feature_code: str = "pessoas",
     environment: str = "producao",
 ) -> dict[str, object]:
-    provider = MarketplaceIntegracao(
-        nome="Sankhya",
-        slug=provider_slug,
-        categoria="erp",
-        provider_type="ERP",
-    )
-    session.add(provider)
-    await session.commit()
-    await session.refresh(provider)
+    # O runtime da Sankhya (integracoes/sankhya/routers.py) só reconhece o slug fixo
+    # "sankhya" — não pode ser aleatório. Como isso roda contra Postgres real e
+    # compartilhado entre testes (sem reset de schema), reaproveita o registro se
+    # outro teste já o criou (unique constraint em slug), em vez de recriar.
+    provider_slug = provider_slug or "sankhya"
+    provider = (
+        await session.execute(select(MarketplaceIntegracao).where(MarketplaceIntegracao.slug == provider_slug))
+    ).scalar_one_or_none()
+    if provider is None:
+        provider = MarketplaceIntegracao(
+            nome="Sankhya",
+            slug=provider_slug,
+            categoria="erp",
+            provider_type="ERP",
+        )
+        session.add(provider)
+        await session.commit()
+        await session.refresh(provider)
 
+    # Reafirma o GUC de RLS antes de cada insert em tabela protegida — nesta suíte,
+    # rodando contra Postgres real e compartilhado entre testes, o valor setado em
+    # _seed_access nem sempre sobrevive até aqui de forma confiável.
+    await session.execute(text(f"SET app.current_tenant_id = '{tenant_id}';"))
     credential = IntegrationCredential(
         tenant_id=tenant_id,
         provider_id=provider.id,
@@ -123,6 +155,7 @@ async def _seed_runtime(
     await session.commit()
     await session.refresh(credential)
 
+    await session.execute(text(f"SET app.current_tenant_id = '{tenant_id}';"))
     config = TenantIntegracao(
         tenant_id=tenant_id,
         integracao_id=provider.id,
@@ -158,6 +191,7 @@ async def _seed_runtime(
     await session.commit()
     await session.refresh(policy)
 
+    await session.execute(text(f"SET app.current_tenant_id = '{tenant_id}';"))
     job = IntegrationJob(
         tenant_id=tenant_id,
         config_id=config.id,
@@ -179,7 +213,12 @@ async def _seed_runtime(
     }
 
 
-def _create_async_client(session: AsyncSession, tenant_id: uuid.UUID, user_id: uuid.UUID) -> AsyncClient:
+@asynccontextmanager
+async def _create_async_client(session: AsyncSession, tenant_id: uuid.UUID, user_id: uuid.UUID):
+    # get_tenant_id sobrescrito por lambda simples abaixo — sem o SET LOCAL que
+    # core/dependencies.py faz por request real. Reafirma aqui para a leitura via
+    # HTTP enxergar o tenant certo sob RLS (não o último tenant setado no seed).
+    await session.execute(text(f"SET app.current_tenant_id = '{tenant_id}';"))
     app = FastAPI()
     app.include_router(sankhya_router_module.router, prefix="/api/v1/integracoes")
     app.include_router(erp_router_module.router, prefix="/api/v1/integracoes")
@@ -191,7 +230,8 @@ def _create_async_client(session: AsyncSession, tenant_id: uuid.UUID, user_id: u
         id=user_id
     )
     transport = ASGITransport(app=app)
-    return AsyncClient(transport=transport, base_url="http://test")
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        yield client
 
 
 async def _seed_pending_association(
@@ -208,6 +248,9 @@ async def _seed_pending_association(
     secondary_keys: dict[str, str] | None = None,
     metadata_json: dict[str, str] | None = None,
 ) -> ExternalRecordAssociation:
+    # get_tenant_id é sobrescrito por lambda simples em _create_async_client (sem
+    # o SET LOCAL que core/dependencies.py faz por request) — precisa reafirmar aqui.
+    await session.execute(text(f"SET app.current_tenant_id = '{tenant_id}';"))
     service = ExternalRecordAssociationService(session)
     association = await service.create_association(
         ExternalRecordAssociationCreate(
@@ -238,6 +281,7 @@ async def _seed_active_local_association(
     feature_id: int,
     local_record_id: str,
 ) -> ExternalRecordAssociation:
+    await session.execute(text(f"SET app.current_tenant_id = '{tenant_id}';"))
     service = ExternalRecordAssociationService(session)
     return await service.create_association(
         ExternalRecordAssociationCreate(
