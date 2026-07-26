@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, date
-from sqlalchemy import String, Text, ForeignKey, Date, DateTime, Integer, Index, UniqueConstraint
+from sqlalchemy import String, Text, ForeignKey, Date, DateTime, Integer, Numeric, Index, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy import Uuid as UUIDType
 from core.database import Base
@@ -93,4 +93,66 @@ class PlanoOperacionalTarefa(Base):
         UniqueConstraint("plano_operacional_id", "safra_tarefa_id", name="uq_plano_operacional_tarefa"),
         Index("ix_plano_op_tarefas_tenant_plano", "tenant_id", "plano_operacional_id"),
         Index("ix_plano_op_tarefas_safra_tarefa", "safra_tarefa_id"),
+    )
+
+
+class PlanoOperacionalTarefaInsumo(Base):
+    """
+    Produto comercial escolhido para atender uma necessidade agronômica dentro de
+    um item de plano (Fase 3 do PLANO-OPERACIONAL-01).
+
+    Ponte entre a necessidade técnica (`SafraTarefaNecessidade` — quanto preciso)
+    e o produto real do catálogo (`Produto` — o que vou usar), com um snapshot de
+    disponibilidade/custo tirado no momento da simulação. Nesta fase é só
+    SIMULAÇÃO: nenhuma reserva de estoque é criada (isso só entra na Fase 4,
+    estendendo `ReservaEstoque` já existente em operacional/models/estoque.py) —
+    os campos `quantidade_reservada`/`quantidade_faltante` aqui refletem o saldo
+    já reservado por OUTROS fluxos no momento da leitura, não uma reserva nova.
+    """
+    __tablename__ = "planos_operacionais_tarefas_insumos"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    plano_operacional_tarefa_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("planos_operacionais_tarefas.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    safra_tarefa_necessidade_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUIDType, ForeignKey("safra_tarefa_necessidades.id", ondelete="SET NULL"), nullable=True
+    )
+    produto_id: Mapped[uuid.UUID] = mapped_column(
+        UUIDType, ForeignKey("cadastros_produtos.id"), nullable=False, index=True
+    )
+    deposito_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUIDType, ForeignKey("estoque_depositos.id", ondelete="SET NULL"), nullable=True
+    )
+
+    dose_planejada: Mapped[float | None] = mapped_column(Numeric(12, 4), nullable=True)
+    unidade_dose: Mapped[str] = mapped_column(String(20), nullable=False)
+    quantidade_planejada: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False)
+
+    # Snapshot tirado no momento do cálculo (recalculável em RASCUNHO via
+    # "recalcular disponibilidade" — nunca gravado por trigger/movimento real).
+    quantidade_disponivel_snapshot: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
+    quantidade_reservada: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
+    quantidade_faltante: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
+
+    custo_unitario_snapshot: Mapped[float | None] = mapped_column(Numeric(15, 4), nullable=True)
+    custo_total_estimado: Mapped[float | None] = mapped_column(Numeric(15, 2), nullable=True)
+    # Ex.: "PRODUTO_PRECO_MEDIO" | "CUSTO_INCOMPLETO" | "MANUAL" — nunca inventa
+    # valor: se não há preço confiável, fonte_custo="CUSTO_INCOMPLETO" e o custo
+    # fica None (sinalização explícita, ver relatório de auditoria §7).
+    fonte_custo: Mapped[str | None] = mapped_column(String(30), nullable=True)
+
+    substitui_item_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUIDType, ForeignKey("planos_operacionais_tarefas_insumos.id", ondelete="SET NULL"), nullable=True
+    )
+
+    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        Index("ix_plano_op_tarefa_insumos_tenant_item", "tenant_id", "plano_operacional_tarefa_id"),
+        Index("ix_plano_op_tarefa_insumos_produto", "produto_id"),
     )

@@ -1,19 +1,31 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import select
+from sqlalchemy import select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.base_service import BaseService
 from core.exceptions import BusinessRuleError, EntityNotFoundError
-from agricola.planejamento_operacional.models import PlanoOperacional, PlanoOperacionalTarefa
+from agricola.planejamento_operacional.models import (
+    PlanoOperacional,
+    PlanoOperacionalTarefa,
+    PlanoOperacionalTarefaInsumo,
+)
 from agricola.planejamento_operacional.schemas import (
     PlanoOperacionalCreate,
     PlanoOperacionalUpdate,
     PlanoOperacionalTarefaCreate,
     PlanoOperacionalTarefaUpdate,
+    PlanoOperacionalTarefaInsumoCreate,
+    PlanoOperacionalTarefaInsumoUpdate,
 )
 from agricola.safras.models import Safra
-from agricola.tarefas.models import SafraTarefa
+from agricola.tarefas.models import SafraTarefa, SafraTarefaNecessidade
+from core.cadastros.produtos.models import Produto
+from operacional.models.estoque import SaldoEstoque, Deposito
+
+# Planos nesses status não aceitam mais simulação/edição de insumos — a decisão
+# já foi congelada (aprovação real de reserva/custo entra na Fase 4).
+PLANO_STATUS_FECHADO_PARA_SIMULACAO = {"APROVADO", "EM_EXECUCAO", "CONCLUIDO", "CANCELADO"}
 
 STATUS_ITEM_VALIDOS = {
     "NAO_ANALISADA", "AGUARDANDO_DEFINICAO", "PRONTA", "AGUARDANDO_COMPRA",
@@ -198,5 +210,173 @@ class PlanoOperacionalService(BaseService[PlanoOperacional]):
         stmt = select(PlanoOperacionalTarefa).where(
             PlanoOperacionalTarefa.tenant_id == self.tenant_id,
             PlanoOperacionalTarefa.plano_operacional_id == plano_id,
+        )
+        return list((await self.session.execute(stmt)).scalars().all())
+
+    # ------------------------------------------------------------------
+    # Insumos do item de plano (PlanoOperacionalTarefaInsumo) — Fase 3
+    # ------------------------------------------------------------------
+
+    async def _get_plano_e_item(self, plano_id: uuid.UUID, item_id: uuid.UUID) -> tuple[PlanoOperacional, PlanoOperacionalTarefa]:
+        plano = await self.get_or_fail(plano_id)
+        item = await self._get_item_or_fail(plano_id, item_id)
+        return plano, item
+
+    def _validar_plano_editavel_para_insumo(self, plano: PlanoOperacional) -> None:
+        if plano.status in PLANO_STATUS_FECHADO_PARA_SIMULACAO:
+            raise BusinessRuleError(
+                f"Plano com status '{plano.status}' não aceita mais simulação/edição de insumos."
+            )
+
+    async def _validar_produto(self, produto_id: uuid.UUID) -> Produto:
+        stmt = select(Produto).where(
+            Produto.id == produto_id,
+            or_(Produto.tenant_id.is_(None), Produto.tenant_id == self.tenant_id),
+        )
+        produto = (await self.session.execute(stmt)).scalars().first()
+        if not produto:
+            raise EntityNotFoundError(f"Produto {produto_id} não encontrado.")
+        return produto
+
+    async def _calcular_disponibilidade(
+        self, produto_id: uuid.UUID, deposito_id: uuid.UUID | None
+    ) -> tuple[float, float]:
+        """Soma `SaldoEstoque` (físico e reservado por OUTROS fluxos, ex.: compras)
+        do produto, escopado ao tenant via join com `Deposito`, e opcionalmente a
+        um depósito específico. Não cria nem altera nenhuma reserva — leitura pura,
+        consistente com o guardrail A do relatório de auditoria (reserva nunca é
+        um lançamento/campo tocado fora do fluxo próprio de `ReservaEstoque`)."""
+        stmt = (
+            select(
+                func.coalesce(func.sum(SaldoEstoque.quantidade_atual), 0.0),
+                func.coalesce(func.sum(SaldoEstoque.quantidade_reservada), 0.0),
+            )
+            .select_from(SaldoEstoque)
+            .join(Deposito, SaldoEstoque.deposito_id == Deposito.id)
+            .where(
+                Deposito.tenant_id == self.tenant_id,
+                SaldoEstoque.produto_id == produto_id,
+            )
+        )
+        if deposito_id:
+            stmt = stmt.where(SaldoEstoque.deposito_id == deposito_id)
+        saldo_fisico, saldo_reservado = (await self.session.execute(stmt)).first()
+        return float(saldo_fisico or 0.0), float(saldo_reservado or 0.0)
+
+    def _resolver_custo_produto(self, produto: Produto) -> tuple[float | None, str]:
+        # Nunca inventa valor: sem preco_medio confiável (>0), sinaliza
+        # CUSTO_INCOMPLETO em vez de gravar um custo fictício (ver relatório §7).
+        if produto.preco_medio and produto.preco_medio > 0:
+            return float(produto.preco_medio), "PRODUTO_PRECO_MEDIO"
+        return None, "CUSTO_INCOMPLETO"
+
+    async def _montar_snapshot(self, insumo: PlanoOperacionalTarefaInsumo) -> None:
+        produto = await self._validar_produto(insumo.produto_id)
+        saldo_fisico, saldo_reservado = await self._calcular_disponibilidade(insumo.produto_id, insumo.deposito_id)
+        saldo_disponivel = saldo_fisico - saldo_reservado
+
+        insumo.quantidade_disponivel_snapshot = saldo_disponivel
+        insumo.quantidade_reservada = saldo_reservado
+        insumo.quantidade_faltante = max(0.0, float(insumo.quantidade_planejada) - saldo_disponivel)
+
+        custo_unitario, fonte_custo = self._resolver_custo_produto(produto)
+        insumo.custo_unitario_snapshot = custo_unitario
+        insumo.custo_total_estimado = (
+            round(custo_unitario * float(insumo.quantidade_planejada), 2) if custo_unitario is not None else None
+        )
+        insumo.fonte_custo = fonte_custo
+
+    async def adicionar_insumo(
+        self, plano_id: uuid.UUID, item_id: uuid.UUID, dados: PlanoOperacionalTarefaInsumoCreate
+    ) -> PlanoOperacionalTarefaInsumo:
+        plano, item = await self._get_plano_e_item(plano_id, item_id)
+        self._validar_plano_editavel_para_insumo(plano)
+        await self._validar_produto(dados.produto_id)
+
+        if dados.safra_tarefa_necessidade_id:
+            stmt = select(SafraTarefaNecessidade).where(
+                SafraTarefaNecessidade.id == dados.safra_tarefa_necessidade_id,
+                SafraTarefaNecessidade.tenant_id == self.tenant_id,
+                SafraTarefaNecessidade.safra_tarefa_id == item.safra_tarefa_id,
+            )
+            necessidade = (await self.session.execute(stmt)).scalars().first()
+            if not necessidade:
+                raise EntityNotFoundError(
+                    f"Necessidade {dados.safra_tarefa_necessidade_id} não encontrada nesta tarefa."
+                )
+
+        insumo = PlanoOperacionalTarefaInsumo(
+            id=uuid.uuid4(),
+            tenant_id=self.tenant_id,
+            plano_operacional_tarefa_id=item_id,
+            safra_tarefa_necessidade_id=dados.safra_tarefa_necessidade_id,
+            produto_id=dados.produto_id,
+            deposito_id=dados.deposito_id,
+            dose_planejada=dados.dose_planejada,
+            unidade_dose=dados.unidade_dose,
+            quantidade_planejada=dados.quantidade_planejada,
+        )
+        await self._montar_snapshot(insumo)
+        self.session.add(insumo)
+        await self.session.flush()
+        return insumo
+
+    async def recalcular_insumo(
+        self, plano_id: uuid.UUID, item_id: uuid.UUID, insumo_id: uuid.UUID
+    ) -> PlanoOperacionalTarefaInsumo:
+        """Reprocessa o snapshot (disponibilidade/custo) com os dados atuais de
+        estoque/produto — só permitido enquanto o plano ainda está em simulação."""
+        plano, _ = await self._get_plano_e_item(plano_id, item_id)
+        self._validar_plano_editavel_para_insumo(plano)
+        insumo = await self._get_insumo_or_fail(item_id, insumo_id)
+        await self._montar_snapshot(insumo)
+        self.session.add(insumo)
+        await self.session.flush()
+        return insumo
+
+    async def _get_insumo_or_fail(
+        self, item_id: uuid.UUID, insumo_id: uuid.UUID
+    ) -> PlanoOperacionalTarefaInsumo:
+        stmt = select(PlanoOperacionalTarefaInsumo).where(
+            PlanoOperacionalTarefaInsumo.id == insumo_id,
+            PlanoOperacionalTarefaInsumo.plano_operacional_tarefa_id == item_id,
+            PlanoOperacionalTarefaInsumo.tenant_id == self.tenant_id,
+        )
+        insumo = (await self.session.execute(stmt)).scalars().first()
+        if not insumo:
+            raise EntityNotFoundError(f"Insumo {insumo_id} não encontrado neste item de plano.")
+        return insumo
+
+    async def atualizar_insumo(
+        self, plano_id: uuid.UUID, item_id: uuid.UUID, insumo_id: uuid.UUID, dados: PlanoOperacionalTarefaInsumoUpdate
+    ) -> PlanoOperacionalTarefaInsumo:
+        plano, _ = await self._get_plano_e_item(plano_id, item_id)
+        self._validar_plano_editavel_para_insumo(plano)
+        insumo = await self._get_insumo_or_fail(item_id, insumo_id)
+
+        dados_dict = dados.model_dump(exclude_unset=True)
+        for campo, valor in dados_dict.items():
+            setattr(insumo, campo, valor)
+
+        # Qualquer mudança em produto/depósito/quantidade invalida o snapshot anterior.
+        await self._montar_snapshot(insumo)
+        self.session.add(insumo)
+        await self.session.flush()
+        return insumo
+
+    async def remover_insumo(self, plano_id: uuid.UUID, item_id: uuid.UUID, insumo_id: uuid.UUID) -> None:
+        plano, _ = await self._get_plano_e_item(plano_id, item_id)
+        self._validar_plano_editavel_para_insumo(plano)
+        insumo = await self._get_insumo_or_fail(item_id, insumo_id)
+        # Hard delete seguro aqui: é só decisão de planejamento/simulação, nenhum
+        # estoque_movimentos ou OperacaoExecucao real foi criado a partir disto.
+        await self.session.delete(insumo)
+        await self.session.flush()
+
+    async def listar_insumos(self, plano_id: uuid.UUID, item_id: uuid.UUID) -> list[PlanoOperacionalTarefaInsumo]:
+        await self._get_plano_e_item(plano_id, item_id)
+        stmt = select(PlanoOperacionalTarefaInsumo).where(
+            PlanoOperacionalTarefaInsumo.tenant_id == self.tenant_id,
+            PlanoOperacionalTarefaInsumo.plano_operacional_tarefa_id == item_id,
         )
         return list((await self.session.execute(stmt)).scalars().all())

@@ -13,6 +13,9 @@ from agricola.planejamento_operacional.schemas import (
     PlanoOperacionalTarefaCreate,
     PlanoOperacionalTarefaUpdate,
     PlanoOperacionalTarefaResponse,
+    PlanoOperacionalTarefaInsumoCreate,
+    PlanoOperacionalTarefaInsumoUpdate,
+    PlanoOperacionalTarefaInsumoResponse,
 )
 from agricola.planejamento_operacional.service import PlanoOperacionalService
 
@@ -193,3 +196,99 @@ async def remover_tarefa_do_plano(
     await session.commit()
     await session.refresh(item)
     return item
+
+
+@router.post(
+    "/{plano_id}/tarefas/{item_id}/insumos",
+    response_model=PlanoOperacionalTarefaInsumoResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Escolhe um produto comercial para atender a necessidade da tarefa (simulação)",
+)
+async def adicionar_insumo(
+    plano_id: UUID,
+    item_id: UUID,
+    dados: PlanoOperacionalTarefaInsumoCreate,
+    session: AsyncSession = Depends(get_session),
+    tenant_id: UUID = Depends(get_tenant_id),
+    _: None = Depends(require_tenant_permission("agricola:planejamento_operacional:editar")),
+):
+    svc = PlanoOperacionalService(session, tenant_id)
+    insumo = await svc.adicionar_insumo(plano_id, item_id, dados)
+    await session.commit()
+    await session.refresh(insumo)
+    return insumo
+
+
+@router.get(
+    "/{plano_id}/tarefas/{item_id}/insumos",
+    response_model=List[PlanoOperacionalTarefaInsumoResponse],
+    summary="Lista os insumos escolhidos para a tarefa dentro do plano",
+)
+async def listar_insumos(
+    plano_id: UUID,
+    item_id: UUID,
+    session: AsyncSession = Depends(get_session),
+    tenant_id: UUID = Depends(get_tenant_id),
+    _: None = Depends(require_tenant_permission("agricola:planejamento_operacional:visualizar")),
+):
+    svc = PlanoOperacionalService(session, tenant_id)
+    return await svc.listar_insumos(plano_id, item_id)
+
+
+@router.patch(
+    "/{plano_id}/tarefas/{item_id}/insumos/{insumo_id}",
+    response_model=PlanoOperacionalTarefaInsumoResponse,
+    summary="Atualiza um insumo planejado (recalcula snapshot de disponibilidade/custo)",
+)
+async def atualizar_insumo(
+    plano_id: UUID,
+    item_id: UUID,
+    insumo_id: UUID,
+    dados: PlanoOperacionalTarefaInsumoUpdate,
+    session: AsyncSession = Depends(get_session),
+    tenant_id: UUID = Depends(get_tenant_id),
+    _: None = Depends(require_tenant_permission("agricola:planejamento_operacional:editar")),
+):
+    svc = PlanoOperacionalService(session, tenant_id)
+    insumo = await svc.atualizar_insumo(plano_id, item_id, insumo_id, dados)
+    await session.commit()
+    await session.refresh(insumo)
+    return insumo
+
+
+@router.post(
+    "/{plano_id}/tarefas/{item_id}/insumos/{insumo_id}/recalcular",
+    response_model=PlanoOperacionalTarefaInsumoResponse,
+    summary="Recalcula o snapshot de disponibilidade/custo do insumo com dados atuais",
+)
+async def recalcular_insumo(
+    plano_id: UUID,
+    item_id: UUID,
+    insumo_id: UUID,
+    session: AsyncSession = Depends(get_session),
+    tenant_id: UUID = Depends(get_tenant_id),
+    _: None = Depends(require_tenant_permission("agricola:planejamento_operacional:editar")),
+):
+    svc = PlanoOperacionalService(session, tenant_id)
+    insumo = await svc.recalcular_insumo(plano_id, item_id, insumo_id)
+    await session.commit()
+    await session.refresh(insumo)
+    return insumo
+
+
+@router.delete(
+    "/{plano_id}/tarefas/{item_id}/insumos/{insumo_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Remove um insumo planejado",
+)
+async def remover_insumo(
+    plano_id: UUID,
+    item_id: UUID,
+    insumo_id: UUID,
+    session: AsyncSession = Depends(get_session),
+    tenant_id: UUID = Depends(get_tenant_id),
+    _: None = Depends(require_tenant_permission("agricola:planejamento_operacional:editar")),
+):
+    svc = PlanoOperacionalService(session, tenant_id)
+    await svc.remover_insumo(plano_id, item_id, insumo_id)
+    await session.commit()
