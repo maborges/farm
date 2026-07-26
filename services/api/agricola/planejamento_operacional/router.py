@@ -18,6 +18,7 @@ from agricola.planejamento_operacional.schemas import (
     PlanoOperacionalTarefaInsumoResponse,
 )
 from agricola.planejamento_operacional.service import PlanoOperacionalService
+from operacional.schemas.compras import SolicitacaoCompraResponse
 
 router = APIRouter(
     prefix="/agricola/planejamento-operacional",
@@ -353,3 +354,24 @@ async def aprovar_item(
     await session.commit()
     await session.refresh(item)
     return item
+
+
+@router.post(
+    "/{plano_id}/tarefas/{item_id}/insumos/{insumo_id}/solicitar-compra",
+    response_model=SolicitacaoCompraResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Solicita a compra da quantidade faltante deste insumo (ação explícita, idempotente)",
+)
+async def solicitar_compra_insumo(
+    plano_id: UUID,
+    item_id: UUID,
+    insumo_id: UUID,
+    session: AsyncSession = Depends(get_session),
+    tenant_id: UUID = Depends(get_tenant_id),
+    user: dict = Depends(get_current_user_claims),
+    _: None = Depends(require_tenant_permission("agricola:planejamento_operacional:editar")),
+):
+    svc = PlanoOperacionalService(session, tenant_id, _user_id(user))
+    solicitacao = await svc.solicitar_compra_insumo(plano_id, item_id, insumo_id)
+    await session.commit()
+    return solicitacao

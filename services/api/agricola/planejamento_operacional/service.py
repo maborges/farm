@@ -24,6 +24,13 @@ from core.cadastros.produtos.models import Produto
 from operacional.models.estoque import SaldoEstoque, Deposito, ReservaEstoque
 from operacional.services.estoque_service import EstoqueService
 from operacional.schemas.estoque import ReservaCreate
+from operacional.models.compras import SolicitacaoCompra
+from operacional.services.compras_service import ComprasService
+from operacional.schemas.compras import SolicitacaoCompraCreate, SolicitacaoItemCreate
+
+# Status de SolicitacaoCompra que ainda contam como "pendência em aberto" para
+# fins de idempotência — ver _get_solicitacao_ativa_do_insumo.
+SOLICITACAO_COMPRA_STATUS_ENCERRADOS = {"ENCERRADA", "CANCELADA"}
 
 # Planos nesses status não aceitam mais simulação/edição de insumos — a decisão
 # já foi congelada (aprovação real de reserva/custo entra na Fase 4).
@@ -542,3 +549,64 @@ class PlanoOperacionalService(BaseService[PlanoOperacional]):
         self.session.add(item)
         await self.session.flush()
         return item
+
+    # ------------------------------------------------------------------
+    # Integração com Compras (Fase 5) — nunca silenciosa: sempre uma ação
+    # explícita do usuário, nunca disparada automaticamente ao detectar falta.
+    # ------------------------------------------------------------------
+
+    async def _get_solicitacao_ativa_do_insumo(self, insumo_id: uuid.UUID) -> SolicitacaoCompra | None:
+        stmt = select(SolicitacaoCompra).where(
+            SolicitacaoCompra.tenant_id == self.tenant_id,
+            SolicitacaoCompra.origem == "PLANO_OPERACIONAL",
+            SolicitacaoCompra.origem_id == str(insumo_id),
+            SolicitacaoCompra.status.notin_(SOLICITACAO_COMPRA_STATUS_ENCERRADOS),
+        )
+        return (await self.session.execute(stmt)).scalars().first()
+
+    async def solicitar_compra_insumo(
+        self, plano_id: uuid.UUID, item_id: uuid.UUID, insumo_id: uuid.UUID
+    ) -> SolicitacaoCompra:
+        """Cria uma `SolicitacaoCompra` (reaproveitando `ComprasService.
+        criar_solicitacao`, já maduro — não recria pedido/cotação/fornecedor)
+        para a quantidade faltante do insumo. Idempotente: uma solicitação
+        ativa (não encerrada/cancelada) já existente para este insumo é
+        retornada em vez de duplicada. Requer confirmação explícita do
+        usuário — nunca é disparada automaticamente ao detectar falta."""
+        await self._get_plano_e_item(plano_id, item_id)
+        insumo = await self._get_insumo_or_fail(item_id, insumo_id)
+
+        await self._montar_snapshot(insumo)  # garante que a falta reflete o saldo atual
+        self.session.add(insumo)
+        await self.session.flush()
+
+        if not insumo.quantidade_faltante or insumo.quantidade_faltante <= 0:
+            raise BusinessRuleError(
+                "Este insumo não tem quantidade faltante — não há necessidade de solicitar compra."
+            )
+        if not insumo.deposito_id:
+            raise BusinessRuleError(
+                "Defina o depósito do insumo antes de solicitar compra "
+                "(não escolhemos automaticamente sem saldo suficiente para confirmar o destino)."
+            )
+
+        solicitacao_existente = await self._get_solicitacao_ativa_do_insumo(insumo.id)
+        if solicitacao_existente:
+            return solicitacao_existente
+
+        compras_svc = ComprasService(self.session, self.tenant_id)
+        return await compras_svc.criar_solicitacao(
+            SolicitacaoCompraCreate(
+                itens=[
+                    SolicitacaoItemCreate(
+                        produto_id=insumo.produto_id,
+                        deposito_id=insumo.deposito_id,
+                        quantidade_solicitada=float(insumo.quantidade_faltante),
+                        unidade=insumo.unidade_dose,
+                    )
+                ],
+                origem="PLANO_OPERACIONAL",
+                origem_id=str(insumo.id),
+            ),
+            solicitante_id=self.user_id,
+        )
