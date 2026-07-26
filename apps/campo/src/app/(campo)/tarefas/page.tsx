@@ -8,6 +8,7 @@ import { db } from "@/lib/db";
 import { CampoSectionTitle, CampoSurface, CampoButton } from "@/components/campo/ui";
 import { TaskDomainBadge } from "@/components/campo/task-domain-badge";
 import { resolveTaskDomain, type TaskDomain, formatTaskDomainLabel } from "@/lib/task-domain";
+import { formatInt, formatDate } from "@/lib/format";
 
 type DomainFilter = "ALL" | TaskDomain;
 
@@ -66,7 +67,7 @@ export default function TarefasPage() {
           </span>
           <div>
             <h1 className="text-base font-bold tracking-tight text-foreground">Tarefas</h1>
-            <p className="text-xs text-muted-foreground">{total} tarefa{total !== 1 ? "s" : ""} no total</p>
+            <p className="text-xs text-muted-foreground">{formatInt(total)} tarefa{total !== 1 ? "s" : ""} no total</p>
           </div>
         </div>
 
@@ -99,7 +100,7 @@ export default function TarefasPage() {
             title="Em execução"
             action={
               <span className="rounded-full bg-sky-100 px-2.5 py-0.5 text-[11px] font-semibold text-sky-700 dark:bg-sky-950/40 dark:text-sky-200">
-                {filteredEmExecucao.length}
+                {formatInt(filteredEmExecucao.length)}
               </span>
             }
           />
@@ -128,7 +129,7 @@ export default function TarefasPage() {
             title="Atrasadas"
             action={
               <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-semibold text-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
-                {atrasadas.length}
+                {formatInt(atrasadas.length)}
               </span>
             }
           />
@@ -157,7 +158,7 @@ export default function TarefasPage() {
             title="Programadas para hoje"
             action={
               <span className="rounded-full bg-muted px-2.5 py-0.5 text-[11px] font-semibold text-muted-foreground">
-                {hoje_.length}
+                {formatInt(hoje_.length)}
               </span>
             }
           />
@@ -186,7 +187,7 @@ export default function TarefasPage() {
             title="Tarefas futuras"
             action={
               <span className="rounded-full bg-muted px-2.5 py-0.5 text-[11px] font-semibold text-muted-foreground">
-                {futuras.length}
+                {formatInt(futuras.length)}
               </span>
             }
           />
@@ -274,7 +275,7 @@ function TarefaRow({
         <p className="mt-1.5 truncate text-sm font-semibold text-foreground">{title}</p>
         {dataProgramada && (
           <p className="mt-0.5 text-[11px] text-muted-foreground">
-            {new Date(`${dataProgramada}T00:00:00`).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })}
+            {formatDate(dataProgramada)}
           </p>
         )}
       </div>

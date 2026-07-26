@@ -461,9 +461,15 @@ class OperacaoService(BaseService[OperacaoAgricola]):
     def _montar_descricao_caderno(self, operacao: OperacaoAgricola) -> str:
         descricao = operacao.tipo
         if operacao.area_aplicada_ha:
-            descricao += f"\nÁrea: {operacao.area_aplicada_ha} ha"
+            area_val = float(operacao.area_aplicada_ha)
+            area_str = f"{area_val:,.4f}".rstrip("0").rstrip(".") if "." in f"{area_val:,.4f}" else f"{area_val:,.0f}"
+            area_pt = area_str.replace(",", "X").replace(".", ",").replace("X", ".")
+            descricao += f"\nÁrea: {area_pt} ha"
         if operacao.custo_total:
-            descricao += f"\nCusto: R$ {operacao.custo_total:.2f}"
+            custo_val = float(operacao.custo_total)
+            custo_str = f"{custo_val:,.2f}"
+            custo_pt = custo_str.replace(",", "X").replace(".", ",").replace("X", ".")
+            descricao += f"\nCusto: R$ {custo_pt}"
         return descricao
 
     async def _aplicar_insumos_na_operacao(

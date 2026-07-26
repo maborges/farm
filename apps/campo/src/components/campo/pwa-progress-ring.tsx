@@ -1,5 +1,7 @@
 "use client";
 
+import { formatInt } from "@/lib/format";
+
 interface PwaProgressRingProps {
   done: number;
   total: number;
@@ -21,7 +23,7 @@ export function PwaProgressRing({ done, total, label }: PwaProgressRingProps) {
           {label ?? "Progresso de hoje"}
         </p>
         <p className="text-[11px] font-semibold text-foreground">
-          {done}/{total} <span className="font-normal text-muted-foreground">tarefas</span>
+          {formatInt(done)}/{formatInt(total)} <span className="font-normal text-muted-foreground">tarefas</span>
         </p>
       </div>
 

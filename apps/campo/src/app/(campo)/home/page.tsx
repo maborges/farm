@@ -13,6 +13,7 @@ import { PwaAlertStrip } from "@/components/campo/pwa-alert-strip";
 import { PwaProgressRing } from "@/components/campo/pwa-progress-ring";
 import { resolveTaskDomain } from "@/lib/task-domain";
 import { CampoButton } from "@/components/campo/ui";
+import { formatInt } from "@/lib/format";
 
 function resolveGreeting(): string {
   const hour = new Date().getHours();
@@ -125,21 +126,21 @@ export default function HomePage() {
     if (atrasadas.length > 0) {
       items.push({
         id: "atrasadas",
-        label: `${atrasadas.length} tarefa${atrasadas.length !== 1 ? "s" : ""} atrasada${atrasadas.length !== 1 ? "s" : ""}`,
+        label: `${formatInt(atrasadas.length)} tarefa${atrasadas.length !== 1 ? "s" : ""} atrasada${atrasadas.length !== 1 ? "s" : ""}`,
         severity: "warning",
       });
     }
     if (urgentRecomendacoes.length > 0) {
       items.push({
         id: "recomendacoes-urgentes",
-        label: `${urgentRecomendacoes.length} recomendação${urgentRecomendacoes.length !== 1 ? "ões" : ""} urgente${urgentRecomendacoes.length !== 1 ? "s" : ""}`,
+        label: `${formatInt(urgentRecomendacoes.length)} recomendaç${urgentRecomendacoes.length !== 1 ? "ões" : "ão"} urgente${urgentRecomendacoes.length !== 1 ? "s" : ""}`,
         severity: "urgent",
       });
     }
     if (pendingCount > 0) {
       items.push({
         id: "sync-pending",
-        label: `${pendingCount} registro${pendingCount !== 1 ? "s" : ""} aguardando sincronização`,
+        label: `${formatInt(pendingCount)} registro${pendingCount !== 1 ? "s" : ""} aguardando sincronização`,
         severity: "info",
       });
     }
@@ -231,7 +232,7 @@ export default function HomePage() {
             className="w-full rounded-2xl py-3"
             onClick={() => router.push("/sync")}
           >
-            Sincronizar {pendingCount} item{pendingCount !== 1 ? "s" : ""} pendente{pendingCount !== 1 ? "s" : ""}
+            Sincronizar {formatInt(pendingCount)} item{pendingCount !== 1 ? "s" : ""} pendente{pendingCount !== 1 ? "s" : ""}
           </CampoButton>
         </div>
       )}

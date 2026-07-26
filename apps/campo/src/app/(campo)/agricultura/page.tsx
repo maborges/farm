@@ -10,6 +10,7 @@ import { PwaModuleNav } from "@/components/campo/pwa-module-nav";
 import { PwaQuickAction } from "@/components/campo/pwa-quick-action";
 import { CampoSectionTitle, CampoSurface } from "@/components/campo/ui";
 import { TaskDomainBadge } from "@/components/campo/task-domain-badge";
+import { formatInt, formatDate } from "@/lib/format";
 
 const QUICK_ACTIONS = [
   { key: "caderno", label: "Caderno", icon: BookText, path: "/caderno" },
@@ -98,7 +99,7 @@ export default function AgriculturaPage() {
             description="Tarefas iniciadas neste dispositivo."
             action={
               <span className="rounded-full bg-sky-100 px-2.5 py-0.5 text-[11px] font-semibold text-sky-700 dark:bg-sky-950/40 dark:text-sky-200">
-                {emExecucao.length}
+                {formatInt(emExecucao.length)}
               </span>
             }
           />
@@ -126,7 +127,7 @@ export default function AgriculturaPage() {
             title="Programadas para hoje"
             action={
               <span className="rounded-full bg-[var(--campo-pwa-agro-light)] px-2.5 py-0.5 text-[11px] font-semibold text-[var(--campo-pwa-agro-dark-text)] dark:text-[var(--campo-pwa-agro)]">
-                {hoje_.length}
+                {formatInt(hoje_.length)}
               </span>
             }
           />
@@ -154,7 +155,7 @@ export default function AgriculturaPage() {
             title="Atrasadas"
             action={
               <span className="rounded-full bg-amber-100 px-2.5 py-0.5 text-[11px] font-semibold text-amber-700 dark:bg-amber-950/40 dark:text-amber-200">
-                {atrasadas.length}
+                {formatInt(atrasadas.length)}
               </span>
             }
           />
@@ -277,7 +278,7 @@ function AgricolaTaskCard({
         <p className="mt-1.5 truncate text-sm font-semibold text-foreground">{title}</p>
         {dataProgramada && (
           <p className="mt-0.5 text-[11px] text-muted-foreground">
-            {new Date(`${dataProgramada}T00:00:00`).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })}
+            {formatDate(dataProgramada)}
           </p>
         )}
       </div>

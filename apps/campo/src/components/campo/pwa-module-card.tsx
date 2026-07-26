@@ -1,6 +1,7 @@
 "use client";
 
 import { type LucideIcon } from "lucide-react";
+import { formatInt } from "@/lib/format";
 
 type ModuleColor = "agro" | "pecuaria";
 
@@ -116,7 +117,7 @@ export function PwaModuleCard({
             c.badgeText,
           ].join(" ")}
         >
-          {taskCount} tarefa{taskCount !== 1 ? "s" : ""}
+          {formatInt(taskCount)} tarefa{taskCount !== 1 ? "s" : ""}
         </span>
 
         {urgentCount > 0 && (
@@ -127,7 +128,7 @@ export function PwaModuleCard({
               c.urgentText,
             ].join(" ")}
           >
-            {urgentCount} urgente{urgentCount !== 1 ? "s" : ""}
+            {formatInt(urgentCount)} urgente{urgentCount !== 1 ? "s" : ""}
           </span>
         )}
       </div>

@@ -65,7 +65,7 @@ Parar de forma limpa: `pkill -f "uvicorn main:app"`
 cd /opt/lampp/htdocs/farm
 source .venv/bin/activate
 python scripts/run_worker.py
-```
+``` 
 
 ### Frontend Web
 ```bash

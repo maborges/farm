@@ -26,6 +26,7 @@ import {
 import { useGps } from "@/hooks/useGps";
 import { useCamera } from "@/hooks/useCamera";
 import { useSessionStore } from "@/lib/stores/session-store";
+import { formatSafraStatus, formatDescricao } from "@/lib/format";
 import {
   CampoButton,
   CampoPill,
@@ -662,7 +663,7 @@ export default function CadernoPage() {
                       <option key={safra.id} value={safra.id}>
                         {safra.ano_safra}
                         {safra.cultura ? ` · ${safra.cultura}` : ""}
-                        {safra.status ? ` · ${safra.status}` : ""}
+                        {safra.status ? ` · ${formatSafraStatus(safra.status)}` : ""}
                       </option>
                     ))}
                   </select>
@@ -696,7 +697,7 @@ export default function CadernoPage() {
               </p>
               <div className="grid gap-2 text-sm">
                 <Row label="Unidade produtiva" value={fazendaAtual?.nome ?? "Selecione"} />
-                <Row label="Safra" value={safraAtual?.ano_safra ?? "Selecione"} />
+                <Row label="Safra" value={safraAtual ? `${safraAtual.ano_safra}${safraAtual.cultura ? ` · ${safraAtual.cultura}` : ""}${safraAtual.status ? ` · ${formatSafraStatus(safraAtual.status)}` : ""}` : "Selecione"} />
                 <Row label="Talhão" value={talhaoAtual?.nome ?? "Selecione"} />
               </div>
               <p className="text-sm leading-6 text-muted-foreground">
@@ -769,7 +770,7 @@ export default function CadernoPage() {
               </p>
               <div className="grid gap-2 text-sm">
                 <Row label="Unidade produtiva" value={fazendaAtual?.nome ?? "—"} />
-                <Row label="Safra" value={safraAtual?.ano_safra ?? "—"} />
+                <Row label="Safra" value={safraAtual ? `${safraAtual.ano_safra}${safraAtual.cultura ? ` · ${safraAtual.cultura}` : ""}${safraAtual.status ? ` · ${formatSafraStatus(safraAtual.status)}` : ""}` : "—"} />
                 <Row label="Talhão" value={talhaoAtual?.nome ?? "—"} />
                 <Row label="Tipo" value={EVENT_LABELS[tipoEvento] ?? tipoEvento} />
               </div>
@@ -807,10 +808,10 @@ export default function CadernoPage() {
                 </p>
                 <div className="mt-3 grid gap-2 text-sm">
                   <Row label="Unidade produtiva" value={fazendaAtual?.nome ?? "—"} />
-                  <Row label="Safra" value={safraAtual?.ano_safra ?? "—"} />
+                  <Row label="Safra" value={safraAtual ? `${safraAtual.ano_safra}${safraAtual.cultura ? ` · ${safraAtual.cultura}` : ""}${safraAtual.status ? ` · ${formatSafraStatus(safraAtual.status)}` : ""}` : "—"} />
                   <Row label="Talhão" value={talhaoAtual?.nome ?? "—"} />
                   <Row label="Tipo" value={EVENT_LABELS[tipoEvento] ?? tipoEvento} />
-                  <Row label="Descrição" value={descricao.trim() || EVENT_LABELS[tipoEvento]} />
+                  <Row label="Descrição" value={formatDescricao(descricao.trim()) || EVENT_LABELS[tipoEvento]} />
                   <Row label="Fotos" value={`${preparedEvidence.length}`} />
                 </div>
               </CampoSurface>
@@ -877,7 +878,7 @@ export default function CadernoPage() {
                   <div className="grid gap-2 text-sm md:grid-cols-2">
                     <Row label="Safra" value={entry.safra_nome ?? entry.safra_id.slice(0, 8)} />
                     <Row label="Talhão" value={entry.talhao_nome ?? entry.talhao_id ?? "—"} />
-                    <Row label="Descrição" value={entry.descricao || "—"} />
+                    <Row label="Descrição" value={formatDescricao(entry.descricao) || "—"} />
                     <Row label="Status local" value={entry.status_evento} />
                   </div>
 
@@ -1026,7 +1027,7 @@ export default function CadernoPage() {
                   <div className="grid gap-2 text-sm md:grid-cols-2">
                     <Row label="Status oficial conhecido" value={entry.status_evento} />
                     <Row label="Estado documental" value={entry.documental_status ?? "—"} />
-                    <Row label="Descrição" value={entry.descricao || "—"} />
+                    <Row label="Descrição" value={formatDescricao(entry.descricao) || "—"} />
                     <Row label="Reconciliação" value={entry.reconciled_at ? new Date(entry.reconciled_at).toLocaleString("pt-BR") : "Pendente"} />
                   </div>
 
@@ -1070,7 +1071,7 @@ export default function CadernoPage() {
 
                   <div className="grid gap-2 text-sm md:grid-cols-2">
                     <Row label="Status do evento" value={entry.status_evento} />
-                    <Row label="Descrição" value={entry.descricao || "—"} />
+                    <Row label="Descrição" value={formatDescricao(entry.descricao) || "—"} />
                     <Row label="Versão vigente" value={entry.versao_vigente ? "Sim" : "Não"} />
                     <Row label="Origem invalidada" value={entry.origem_invalidada ? "Sim" : "Não"} />
                   </div>
@@ -1100,7 +1101,7 @@ export default function CadernoPage() {
         <CampoSectionTitle
           eyebrow="Caderno Oficial"
           title="Timeline Oficial"
-          description="Fonte canônica recebida do servidor. Aprovação, rejeição, retificação e invalidação aparecem aqui."
+          description="Registros oficiais do servidor. Aprovação, rejeição, retificação e invalidação aparecem aqui."
         />
         <div className="flex flex-col gap-3">
           {officialRecent.length === 0 ? (
@@ -1125,7 +1126,7 @@ export default function CadernoPage() {
                 </div>
 
                 <div className="grid gap-2 text-sm md:grid-cols-2">
-                  <Row label="Descrição" value={entry.descricao || "—"} />
+                  <Row label="Descrição" value={formatDescricao(entry.descricao) || "—"} />
                   <Row label="Status do evento" value={entry.status_evento} />
                   <Row label="Versão vigente" value={entry.versao_vigente ? "Sim" : "Não"} />
                   <Row label="Origem invalidada" value={entry.origem_invalidada ? "Sim" : "Não"} />
