@@ -9,6 +9,7 @@ from agricola.planejamento_operacional.models import (
     PlanoOperacional,
     PlanoOperacionalTarefa,
     PlanoOperacionalTarefaInsumo,
+    PlanoOperacionalTarefaMaoObra,
 )
 from agricola.planejamento_operacional.schemas import (
     PlanoOperacionalCreate,
@@ -17,10 +18,14 @@ from agricola.planejamento_operacional.schemas import (
     PlanoOperacionalTarefaUpdate,
     PlanoOperacionalTarefaInsumoCreate,
     PlanoOperacionalTarefaInsumoUpdate,
+    PlanoOperacionalTarefaMaoObraCreate,
+    PlanoOperacionalTarefaMaoObraUpdate,
 )
 from agricola.safras.models import Safra
 from agricola.tarefas.models import SafraTarefa, SafraTarefaNecessidade
 from core.cadastros.produtos.models import Produto
+from core.cadastros.tipos_servico.models import TipoServico
+from rh.models import ColaboradorRH
 from operacional.models.estoque import SaldoEstoque, Deposito, ReservaEstoque
 from operacional.services.estoque_service import EstoqueService
 from operacional.schemas.estoque import ReservaCreate
@@ -610,3 +615,134 @@ class PlanoOperacionalService(BaseService[PlanoOperacional]):
             ),
             solicitante_id=self.user_id,
         )
+
+    # ------------------------------------------------------------------
+    # Mão de obra do item de plano (Fase 6)
+    # ------------------------------------------------------------------
+
+    async def _validar_tipo_servico(self, tipo_servico_id: uuid.UUID) -> TipoServico:
+        stmt = select(TipoServico).where(
+            TipoServico.id == tipo_servico_id,
+            or_(TipoServico.tenant_id.is_(None), TipoServico.tenant_id == self.tenant_id),
+        )
+        tipo_servico = (await self.session.execute(stmt)).scalars().first()
+        if not tipo_servico:
+            raise EntityNotFoundError(f"Tipo de serviço {tipo_servico_id} não encontrado.")
+        return tipo_servico
+
+    def _resolver_custo_hora(
+        self, tipo_servico: TipoServico, colaborador: ColaboradorRH | None
+    ) -> tuple[float | None, str]:
+        # Prioriza o custo real da pessoa alocada; cai para a referência do
+        # tipo de serviço só quando não há pessoa definida ainda. Nunca inventa
+        # valor: sem nenhuma fonte confiável (>0), sinaliza CUSTO_INCOMPLETO.
+        if colaborador:
+            if colaborador.valor_hora and colaborador.valor_hora > 0:
+                return float(colaborador.valor_hora), "PESSOA_VALOR_HORA"
+            if colaborador.valor_diaria and colaborador.valor_diaria > 0:
+                return float(colaborador.valor_diaria) / 8.0, "PESSOA_VALOR_HORA"
+        if tipo_servico.custo_referencia and tipo_servico.custo_referencia > 0:
+            return float(tipo_servico.custo_referencia), "TIPO_SERVICO_CUSTO_REFERENCIA"
+        return None, "CUSTO_INCOMPLETO"
+
+    async def _montar_snapshot_mao_obra(self, mao_obra: PlanoOperacionalTarefaMaoObra) -> None:
+        tipo_servico = await self._validar_tipo_servico(mao_obra.tipo_servico_id)
+
+        colaborador = None
+        if mao_obra.pessoa_id:
+            stmt = select(ColaboradorRH).where(
+                ColaboradorRH.tenant_id == self.tenant_id,
+                ColaboradorRH.pessoa_id == mao_obra.pessoa_id,
+            )
+            colaborador = (await self.session.execute(stmt)).scalars().first()
+
+        custo_hora, fonte_custo = self._resolver_custo_hora(tipo_servico, colaborador)
+        mao_obra.custo_hora_snapshot = custo_hora
+        mao_obra.fonte_custo = fonte_custo
+        if custo_hora is not None and mao_obra.horas_estimadas:
+            mao_obra.custo_total_estimado = round(
+                custo_hora * float(mao_obra.horas_estimadas) * mao_obra.quantidade_pessoas, 2
+            )
+        else:
+            mao_obra.custo_total_estimado = None
+
+    async def _calcular_horas_estimadas(
+        self, item: PlanoOperacionalTarefa, dados: PlanoOperacionalTarefaMaoObraCreate
+    ) -> float:
+        if dados.horas_estimadas is not None:
+            return dados.horas_estimadas
+        tarefa = await self.session.get(SafraTarefa, item.safra_tarefa_id)
+        area_ha = float(tarefa.area_ha) if tarefa and tarefa.area_ha else 0.0
+        return dados.horas_fixas + dados.horas_por_hectare * area_ha
+
+    async def adicionar_mao_obra(
+        self, plano_id: uuid.UUID, item_id: uuid.UUID, dados: PlanoOperacionalTarefaMaoObraCreate
+    ) -> PlanoOperacionalTarefaMaoObra:
+        plano, item = await self._get_plano_e_item(plano_id, item_id)
+        self._validar_plano_editavel_para_insumo(plano)
+        await self._validar_tipo_servico(dados.tipo_servico_id)
+
+        horas_estimadas = await self._calcular_horas_estimadas(item, dados)
+        mao_obra = PlanoOperacionalTarefaMaoObra(
+            id=uuid.uuid4(),
+            tenant_id=self.tenant_id,
+            plano_operacional_tarefa_id=item_id,
+            tipo_servico_id=dados.tipo_servico_id,
+            pessoa_id=dados.pessoa_id,
+            funcao=dados.funcao,
+            quantidade_pessoas=dados.quantidade_pessoas,
+            horas_estimadas=horas_estimadas,
+        )
+        await self._montar_snapshot_mao_obra(mao_obra)
+        self.session.add(mao_obra)
+        await self.session.flush()
+        return mao_obra
+
+    async def _get_mao_obra_or_fail(
+        self, item_id: uuid.UUID, mao_obra_id: uuid.UUID
+    ) -> PlanoOperacionalTarefaMaoObra:
+        stmt = select(PlanoOperacionalTarefaMaoObra).where(
+            PlanoOperacionalTarefaMaoObra.id == mao_obra_id,
+            PlanoOperacionalTarefaMaoObra.plano_operacional_tarefa_id == item_id,
+            PlanoOperacionalTarefaMaoObra.tenant_id == self.tenant_id,
+        )
+        mao_obra = (await self.session.execute(stmt)).scalars().first()
+        if not mao_obra:
+            raise EntityNotFoundError(f"Necessidade de mão de obra {mao_obra_id} não encontrada neste item.")
+        return mao_obra
+
+    async def atualizar_mao_obra(
+        self, plano_id: uuid.UUID, item_id: uuid.UUID, mao_obra_id: uuid.UUID, dados: PlanoOperacionalTarefaMaoObraUpdate
+    ) -> PlanoOperacionalTarefaMaoObra:
+        plano, _ = await self._get_plano_e_item(plano_id, item_id)
+        self._validar_plano_editavel_para_insumo(plano)
+        mao_obra = await self._get_mao_obra_or_fail(item_id, mao_obra_id)
+
+        dados_dict = dados.model_dump(exclude_unset=True)
+        if "tipo_servico_id" in dados_dict:
+            await self._validar_tipo_servico(dados_dict["tipo_servico_id"])
+
+        for campo, valor in dados_dict.items():
+            setattr(mao_obra, campo, valor)
+
+        await self._montar_snapshot_mao_obra(mao_obra)
+        self.session.add(mao_obra)
+        await self.session.flush()
+        return mao_obra
+
+    async def remover_mao_obra(self, plano_id: uuid.UUID, item_id: uuid.UUID, mao_obra_id: uuid.UUID) -> None:
+        plano, _ = await self._get_plano_e_item(plano_id, item_id)
+        self._validar_plano_editavel_para_insumo(plano)
+        mao_obra = await self._get_mao_obra_or_fail(item_id, mao_obra_id)
+        # Hard delete seguro: é só estimativa de planejamento, nada realizado
+        # foi criado a partir disto (equipe/execução ficam em OperacaoAgricola).
+        await self.session.delete(mao_obra)
+        await self.session.flush()
+
+    async def listar_mao_obra(self, plano_id: uuid.UUID, item_id: uuid.UUID) -> list[PlanoOperacionalTarefaMaoObra]:
+        await self._get_plano_e_item(plano_id, item_id)
+        stmt = select(PlanoOperacionalTarefaMaoObra).where(
+            PlanoOperacionalTarefaMaoObra.tenant_id == self.tenant_id,
+            PlanoOperacionalTarefaMaoObra.plano_operacional_tarefa_id == item_id,
+        )
+        return list((await self.session.execute(stmt)).scalars().all())

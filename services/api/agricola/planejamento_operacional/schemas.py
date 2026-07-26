@@ -105,3 +105,40 @@ class PlanoOperacionalTarefaInsumoResponse(BaseModel):
     reserva_estoque_id: Optional[UUID]
     created_at: datetime
     updated_at: datetime
+
+
+class PlanoOperacionalTarefaMaoObraCreate(BaseModel):
+    tipo_servico_id: UUID
+    pessoa_id: Optional[UUID] = None
+    funcao: Optional[str] = Field(None, max_length=100)
+    quantidade_pessoas: int = Field(1, gt=0)
+    # Se `horas_estimadas` for informado, prevalece sobre a fórmula abaixo.
+    horas_estimadas: Optional[float] = Field(None, gt=0)
+    horas_fixas: float = Field(0.0, ge=0)
+    horas_por_hectare: float = Field(0.0, ge=0)
+
+
+class PlanoOperacionalTarefaMaoObraUpdate(BaseModel):
+    tipo_servico_id: Optional[UUID] = None
+    pessoa_id: Optional[UUID] = None
+    funcao: Optional[str] = Field(None, max_length=100)
+    quantidade_pessoas: Optional[int] = Field(None, gt=0)
+    horas_estimadas: Optional[float] = Field(None, gt=0)
+
+
+class PlanoOperacionalTarefaMaoObraResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    tenant_id: UUID
+    plano_operacional_tarefa_id: UUID
+    tipo_servico_id: UUID
+    pessoa_id: Optional[UUID]
+    funcao: Optional[str]
+    quantidade_pessoas: int
+    horas_estimadas: Optional[float]
+    custo_hora_snapshot: Optional[float]
+    custo_total_estimado: Optional[float]
+    fonte_custo: Optional[str]
+    created_at: datetime
+    updated_at: datetime

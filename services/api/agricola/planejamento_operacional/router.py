@@ -16,6 +16,9 @@ from agricola.planejamento_operacional.schemas import (
     PlanoOperacionalTarefaInsumoCreate,
     PlanoOperacionalTarefaInsumoUpdate,
     PlanoOperacionalTarefaInsumoResponse,
+    PlanoOperacionalTarefaMaoObraCreate,
+    PlanoOperacionalTarefaMaoObraUpdate,
+    PlanoOperacionalTarefaMaoObraResponse,
 )
 from agricola.planejamento_operacional.service import PlanoOperacionalService
 from operacional.schemas.compras import SolicitacaoCompraResponse
@@ -375,3 +378,79 @@ async def solicitar_compra_insumo(
     solicitacao = await svc.solicitar_compra_insumo(plano_id, item_id, insumo_id)
     await session.commit()
     return solicitacao
+
+
+@router.post(
+    "/{plano_id}/tarefas/{item_id}/mao-obra",
+    response_model=PlanoOperacionalTarefaMaoObraResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Adiciona necessidade de mão de obra estimada ao item de plano",
+)
+async def adicionar_mao_obra(
+    plano_id: UUID,
+    item_id: UUID,
+    dados: PlanoOperacionalTarefaMaoObraCreate,
+    session: AsyncSession = Depends(get_session),
+    tenant_id: UUID = Depends(get_tenant_id),
+    _: None = Depends(require_tenant_permission("agricola:planejamento_operacional:editar")),
+):
+    svc = PlanoOperacionalService(session, tenant_id)
+    mao_obra = await svc.adicionar_mao_obra(plano_id, item_id, dados)
+    await session.commit()
+    await session.refresh(mao_obra)
+    return mao_obra
+
+
+@router.get(
+    "/{plano_id}/tarefas/{item_id}/mao-obra",
+    response_model=List[PlanoOperacionalTarefaMaoObraResponse],
+    summary="Lista as necessidades de mão de obra do item de plano",
+)
+async def listar_mao_obra(
+    plano_id: UUID,
+    item_id: UUID,
+    session: AsyncSession = Depends(get_session),
+    tenant_id: UUID = Depends(get_tenant_id),
+    _: None = Depends(require_tenant_permission("agricola:planejamento_operacional:visualizar")),
+):
+    svc = PlanoOperacionalService(session, tenant_id)
+    return await svc.listar_mao_obra(plano_id, item_id)
+
+
+@router.patch(
+    "/{plano_id}/tarefas/{item_id}/mao-obra/{mao_obra_id}",
+    response_model=PlanoOperacionalTarefaMaoObraResponse,
+    summary="Atualiza uma necessidade de mão de obra (recalcula snapshot de custo)",
+)
+async def atualizar_mao_obra(
+    plano_id: UUID,
+    item_id: UUID,
+    mao_obra_id: UUID,
+    dados: PlanoOperacionalTarefaMaoObraUpdate,
+    session: AsyncSession = Depends(get_session),
+    tenant_id: UUID = Depends(get_tenant_id),
+    _: None = Depends(require_tenant_permission("agricola:planejamento_operacional:editar")),
+):
+    svc = PlanoOperacionalService(session, tenant_id)
+    mao_obra = await svc.atualizar_mao_obra(plano_id, item_id, mao_obra_id, dados)
+    await session.commit()
+    await session.refresh(mao_obra)
+    return mao_obra
+
+
+@router.delete(
+    "/{plano_id}/tarefas/{item_id}/mao-obra/{mao_obra_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Remove uma necessidade de mão de obra do item de plano",
+)
+async def remover_mao_obra(
+    plano_id: UUID,
+    item_id: UUID,
+    mao_obra_id: UUID,
+    session: AsyncSession = Depends(get_session),
+    tenant_id: UUID = Depends(get_tenant_id),
+    _: None = Depends(require_tenant_permission("agricola:planejamento_operacional:editar")),
+):
+    svc = PlanoOperacionalService(session, tenant_id)
+    await svc.remover_mao_obra(plano_id, item_id, mao_obra_id)
+    await session.commit()
