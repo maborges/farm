@@ -233,11 +233,78 @@ class CampoAgricolaSyncService:
                 "A tarefa precisa estar concluída para gerar efeitos agrícolas."
             )
 
+        if task.operacao_agricola_id:
+            return await self._concluir_operacao_vinculada(task)
         if task.type in {"APLICACAO_DEFENSIVO", "APLICACAO_FERTILIZANTE"}:
             return await self._materializar_aplicacao(task)
         if task.type == "COLHEITA_REGISTRO":
             return await self._materializar_colheita(task)
         raise BusinessRuleError(f"Tipo de tarefa agrícola não suportado: {task.type}")
+
+    async def _concluir_operacao_vinculada(self, task: TarefaCampo) -> dict[str, Any]:
+        """Tarefa nasceu de uma OS já existente (agricola/tarefas): marca REALIZADA e
+        reprocessa os insumos que o operador informou em `task.dados` durante a
+        execução (mesma convenção usada por `_materializar_aplicacao`), para que
+        baixa de estoque e custo/despesa aconteçam mesmo neste caminho."""
+        from agricola.operacoes.models import OperacaoAgricola
+        from agricola.operacoes.schemas import OperacaoAgricolaUpdate, InsumoOperacaoCreate
+        from agricola.operacoes.service import OperacaoService
+
+        operacao = await self.session.get(OperacaoAgricola, task.operacao_agricola_id)
+        if not operacao or operacao.tenant_id != self.tenant_id:
+            raise BusinessRuleError("Operação agrícola vinculada não localizada para esta tarefa.")
+
+        if operacao.status != "REALIZADA":
+            dados = dict(task.dados or {})
+            area_aplicada_ha = float(operacao.area_aplicada_ha or 0.0)
+
+            def _montar_insumo(item: dict) -> InsumoOperacaoCreate | None:
+                produto_id = _to_uuid(item.get("produto_id") or item.get("insumo_id"))
+                quantidade = float(item.get("quantidade") or item.get("dose_por_ha") or 0.0)
+                if produto_id is None or quantidade <= 0:
+                    return None
+                return InsumoOperacaoCreate(
+                    produto_id=produto_id,
+                    dose_por_ha=quantidade,
+                    unidade=str(item.get("unidade") or "UN"),
+                    area_aplicada=area_aplicada_ha,
+                )
+
+            insumos_informados = dados.get("insumos")
+            insumos_payload: list[InsumoOperacaoCreate] = []
+            if isinstance(insumos_informados, list) and insumos_informados:
+                for item in insumos_informados:
+                    insumo = _montar_insumo(item)
+                    if insumo:
+                        insumos_payload.append(insumo)
+            elif dados.get("insumo_id"):
+                insumo = _montar_insumo(dados)
+                if insumo:
+                    insumos_payload.append(insumo)
+
+            update_kwargs: dict[str, Any] = {
+                "status": "REALIZADA",
+                "data_realizada": self._data_referencia(task).date(),
+            }
+            custo_informado = dados.get("custo_total") or dados.get("custo_mao_obra")
+            if custo_informado:
+                update_kwargs["custo_total"] = float(custo_informado)
+            if insumos_payload:
+                update_kwargs["insumos"] = insumos_payload
+
+            await OperacaoService(self.session, self.tenant_id).atualizar(
+                operacao.id,
+                OperacaoAgricolaUpdate.model_construct(**update_kwargs),
+            )
+        return await self._marcar_sync_agricola(
+            task.id,
+            {
+                "status": "SYNCED",
+                "tipo_materializacao": "OPERACAO_AGRICOLA_VINCULADA",
+                "operacao_id": str(operacao.id),
+                "data_processamento": datetime.utcnow().isoformat(),
+            },
+        )
 
     async def _materializar_aplicacao(self, task: TarefaCampo) -> dict[str, Any]:
         from agricola.operacoes.models import OperacaoAgricola
@@ -1314,6 +1381,53 @@ class TarefaProgramadaService:
             operador_id=data.operador_id,
             dispositivo_id=data.dispositivo_id,
             dados=data.dados,
+            status="PENDENTE",
+            fotos=[],
+            localizacao_status="INDISPONIVEL",
+            client_created_at=now,
+            client_updated_at=now,
+        )
+        self.session.add(task)
+        await self.session.flush()
+        return task
+
+    async def criar_vinculada_operacao(
+        self,
+        *,
+        safra_tarefa_id: uuid.UUID,
+        operacao_agricola_id: uuid.UUID,
+        titulo: str,
+        type: str,
+        data_programada,
+        unidade_produtiva_id: uuid.UUID | None,
+        area_rural_id: uuid.UUID | None,
+        operador_id: uuid.UUID | None,
+        prioridade: str = "NORMAL",
+    ) -> TarefaCampo:
+        """Cria a TarefaCampo espelho de uma OS gerada em agricola/tarefas.
+
+        Ao concluir esta tarefa, `processar_tarefa_campo` marca a OperacaoAgricola
+        vinculada como REALIZADA em vez de tentar criar uma nova (ver
+        `operacao_agricola_id`).
+        """
+        now = datetime.utcnow()
+        task = TarefaCampo(
+            tenant_id=self.tenant_id,
+            user_id=self.user_id or uuid.uuid4(),
+            client_id=str(uuid.uuid4()),
+            origem="PROGRAMADA",
+            status_execucao="PENDENTE",
+            titulo=titulo,
+            type=type,
+            module="agricola",
+            data_programada=data_programada,
+            prioridade=prioridade,
+            unidade_produtiva_id=unidade_produtiva_id,
+            area_rural_id=area_rural_id,
+            operador_id=operador_id,
+            safra_tarefa_id=safra_tarefa_id,
+            operacao_agricola_id=operacao_agricola_id,
+            dados={},
             status="PENDENTE",
             fotos=[],
             localizacao_status="INDISPONIVEL",

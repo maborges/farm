@@ -221,7 +221,8 @@ async def planejar_operacao(
     _: None = Depends(require_module(MODULE)),
     user: dict = Depends(require_role(["agronomo", "admin", "gerente"])),
 ):
-    svc = TarefaService(session, tenant_id)
+    user_id = UUID(user["sub"]) if user.get("sub") else None
+    svc = TarefaService(session, tenant_id, user_id)
     operacao = await svc.gerar_operacao_planejada(tarefa_id, dados)
     await session.commit()
     await session.refresh(operacao)

@@ -36,6 +36,21 @@ TAREFA_TIPO_PARA_OPERACAO_TIPO: dict[str, str] = {
     "OUTRO": "OUTROS",
 }
 
+# OperacaoAgricola.tipo (canônico) -> TarefaCampo.type (vocabulário do app/PWA de
+# campo, ver TIPO_LABEL em apps/web .../campo/tarefas/page.tsx). Usado ao espelhar
+# a OS gerada em campo_tarefas para o operador executar.
+OPERACAO_TIPO_PARA_CAMPO_TYPE: dict[str, str] = {
+    "ADUBAÇÃO": "APLICACAO_FERTILIZANTE",
+    "PULVERIZAÇÃO": "APLICACAO_DEFENSIVO",
+    "COLHEITA": "COLHEITA_REGISTRO",
+    "PLANTIO": "PLANTIO_REGISTRO",
+    "PREPARO_SOLO": "PREPARO_SOLO",
+    "IRRIGAÇÃO": "IRRIGACAO_EVENTO",
+    "CALAGEM": "PREPARO_SOLO",
+    "OPERAÇÃO_MECANIZADA": "OPERACAO_MECANIZADA",
+    "OUTROS": "OUTROS_AGRICOLA",
+}
+
 TRANSICOES = {
     "PENDENTE_APROVACAO": ["APROVADA", "CANCELADA"],
     "APROVADA":           ["EM_EXECUCAO", "CANCELADA"],
@@ -586,7 +601,16 @@ class TarefaService:
                 )
 
     async def gerar_operacao_planejada(self, tarefa_id: uuid.UUID, dados: PlanejarOperacaoRequest) -> OperacaoAgricola:
-        tarefa = await self._get(tarefa_id)
+        # Lock a linha da tarefa para evitar corrida em cliques duplicados: dois
+        # requests concorrentes gerariam duas OS/TarefaCampo para a mesma tarefa
+        # se ambos passassem pelo SELECT "op_existente" antes do primeiro commitar.
+        stmt_lock = select(SafraTarefa).where(
+            SafraTarefa.id == tarefa_id,
+            SafraTarefa.tenant_id == self.tenant_id,
+        ).with_for_update()
+        tarefa = (await self.session.execute(stmt_lock)).scalars().first()
+        if not tarefa:
+            raise EntityNotFoundError(f"Tarefa {tarefa_id} não encontrada.")
         if tarefa.status != "APROVADA":
             raise BusinessRuleError(
                 f"Tarefa com status '{tarefa.status}' não pode gerar operação planejada. "
@@ -601,6 +625,13 @@ class TarefaService:
         from agricola.operacoes.models import OperacaoAgricola
         from agricola.operacoes.service import OperacaoService
         from agricola.operacoes.schemas import OperacaoAgricolaCreate, InsumoOperacaoCreate
+        from core.cadastros.propriedades.models import AreaRural
+
+        # TarefaCampo/AreaRural usam o modelo LEGADO de fazenda (unidades_produtivas),
+        # diferente de OperacaoAgricola.production_unit_id (modelo novo production_units)
+        # — não são o mesmo espaço de UUIDs, não confundir os dois ao popular a ponte.
+        talhao = await self.session.get(AreaRural, tarefa.talhao_id)
+        unidade_produtiva_legado_id = talhao.unidade_produtiva_id if talhao else None
 
         stmt = select(OperacaoAgricola).where(
             OperacaoAgricola.tenant_id == self.tenant_id,
@@ -609,6 +640,26 @@ class TarefaService:
         )
         op_existente = (await self.session.execute(stmt)).scalars().first()
         if op_existente:
+            from campo.models import TarefaCampo
+            campo_stmt = select(TarefaCampo).where(
+                TarefaCampo.tenant_id == self.tenant_id,
+                TarefaCampo.operacao_agricola_id == op_existente.id,
+            )
+            campo_existente = (await self.session.execute(campo_stmt)).scalars().first()
+            if not campo_existente:
+                from campo.service import TarefaProgramadaService
+                campo_svc = TarefaProgramadaService(self.session, self.tenant_id, self.user_id)
+                await campo_svc.criar_vinculada_operacao(
+                    safra_tarefa_id=tarefa.id,
+                    operacao_agricola_id=op_existente.id,
+                    titulo=tarefa.descricao or f"{op_existente.tipo} — {tarefa.tipo}",
+                    type=OPERACAO_TIPO_PARA_CAMPO_TYPE.get(op_existente.tipo, "OUTROS_AGRICOLA"),
+                    data_programada=dados.data_prevista,
+                    unidade_produtiva_id=unidade_produtiva_legado_id,
+                    area_rural_id=tarefa.talhao_id,
+                    operador_id=dados.operador_id,
+                    prioridade="ALTA" if tarefa.criticidade == "CRITICA" else "NORMAL",
+                )
             return op_existente
 
         insumos_create = []
@@ -628,7 +679,7 @@ class TarefaService:
             tarefa_id=tarefa.id,
             tipo=TAREFA_TIPO_PARA_OPERACAO_TIPO.get(tarefa.tipo, tarefa.tipo),
             descricao=tarefa.descricao or f"Operação planejada a partir da tarefa {tarefa.tipo}",
-            fase_safra=tarefa.fase,
+            fase_safra=None,  # auto-preenche com a fase ATUAL da safra (tarefa.fase é a fase no momento da criação, pode estar desatualizada)
             data_prevista=dados.data_prevista,
             data_realizada=dados.data_prevista,
             area_aplicada_ha=tarefa.area_ha or 1.0,
@@ -641,4 +692,18 @@ class TarefaService:
 
         op_svc = OperacaoService(self.session, self.tenant_id)
         operacao = await op_svc.criar(op_create)
+
+        from campo.service import TarefaProgramadaService
+        campo_svc = TarefaProgramadaService(self.session, self.tenant_id, self.user_id)
+        await campo_svc.criar_vinculada_operacao(
+            safra_tarefa_id=tarefa.id,
+            operacao_agricola_id=operacao.id,
+            titulo=tarefa.descricao or f"{operacao.tipo} — {tarefa.tipo}",
+            type=OPERACAO_TIPO_PARA_CAMPO_TYPE.get(operacao.tipo, "OUTROS_AGRICOLA"),
+            data_programada=dados.data_prevista,
+            unidade_produtiva_id=unidade_produtiva_legado_id,
+            area_rural_id=tarefa.talhao_id,
+            operador_id=dados.operador_id,
+            prioridade="ALTA" if tarefa.criticidade == "CRITICA" else "NORMAL",
+        )
         return operacao

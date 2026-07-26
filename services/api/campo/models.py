@@ -101,6 +101,16 @@ class TarefaCampo(Base):
     client_created_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     client_updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
+    # Origem agrícola (preenchido quando a tarefa de campo nasce de uma OS gerada em
+    # agricola/tarefas via /tarefas/{id}/planejar-operacao). Ao concluir esta tarefa,
+    # a OperacaoAgricola vinculada é marcada REALIZADA em vez de gerar uma nova.
+    safra_tarefa_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("safra_tarefas.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    operacao_agricola_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("operacoes_agricolas.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 

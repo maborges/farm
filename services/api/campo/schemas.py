@@ -319,6 +319,8 @@ class TarefaProgramadaResponse(BaseModel):
     unidade_produtiva_id: uuid.UUID | None
     area_rural_id: uuid.UUID | None
     lote_id: uuid.UUID | None
+    safra_tarefa_id: uuid.UUID | None = None
+    operacao_agricola_id: uuid.UUID | None = None
     dados: dict[str, Any]
     fotos: list[str]
     iniciada_em: datetime | None
