@@ -32,6 +32,7 @@ from operacional.schemas.estoque import ReservaCreate
 from operacional.models.compras import SolicitacaoCompra
 from operacional.services.compras_service import ComprasService
 from operacional.schemas.compras import SolicitacaoCompraCreate, SolicitacaoItemCreate
+from agricola.a1_planejamento.snapshot_service import SnapshotCustoService
 
 # Status de SolicitacaoCompra que ainda contam como "pendência em aberto" para
 # fins de idempotência — ver _get_solicitacao_ativa_do_insumo.
@@ -282,15 +283,20 @@ class PlanoOperacionalService(BaseService[PlanoOperacional]):
         saldo_fisico, saldo_reservado = (await self.session.execute(stmt)).first()
         return float(saldo_fisico or 0.0), float(saldo_reservado or 0.0)
 
-    def _resolver_custo_produto(self, produto: Produto) -> tuple[float | None, str]:
-        # Nunca inventa valor: sem preco_medio confiável (>0), sinaliza
-        # CUSTO_INCOMPLETO em vez de gravar um custo fictício (ver relatório §7).
-        if produto.preco_medio and produto.preco_medio > 0:
-            return float(produto.preco_medio), "PRODUTO_PRECO_MEDIO"
+    async def _resolver_custo_produto(self, produto_id: uuid.UUID, unidade: str) -> tuple[float | None, str]:
+        # Reaproveita o SnapshotCustoService já existente (agricola/a1_planejamento),
+        # a mesma fonte de captura de custo usada no orçamento de safra — não
+        # duplica lógica de "ler preço do cadastro mestre" (ver relatório §7/§12).
+        # Nunca inventa valor: capturar() sempre retorna um Decimal (0 quando o
+        # cadastro não tem preço), então tratamos 0/None como CUSTO_INCOMPLETO.
+        snapshot_svc = SnapshotCustoService(self.session, self.tenant_id)
+        preco, _ = await snapshot_svc.capturar("PRODUTO", produto_id, unidade)
+        if preco and preco > 0:
+            return float(preco), "PRODUTO_PRECO_MEDIO"
         return None, "CUSTO_INCOMPLETO"
 
     async def _montar_snapshot(self, insumo: PlanoOperacionalTarefaInsumo) -> None:
-        produto = await self._validar_produto(insumo.produto_id)
+        await self._validar_produto(insumo.produto_id)
         saldo_fisico, saldo_reservado = await self._calcular_disponibilidade(insumo.produto_id, insumo.deposito_id)
         saldo_disponivel = saldo_fisico - saldo_reservado
 
@@ -298,7 +304,7 @@ class PlanoOperacionalService(BaseService[PlanoOperacional]):
         insumo.quantidade_reservada = saldo_reservado
         insumo.quantidade_faltante = max(0.0, float(insumo.quantidade_planejada) - saldo_disponivel)
 
-        custo_unitario, fonte_custo = self._resolver_custo_produto(produto)
+        custo_unitario, fonte_custo = await self._resolver_custo_produto(insumo.produto_id, insumo.unidade_dose)
         insumo.custo_unitario_snapshot = custo_unitario
         insumo.custo_total_estimado = (
             round(custo_unitario * float(insumo.quantidade_planejada), 2) if custo_unitario is not None else None
@@ -630,23 +636,30 @@ class PlanoOperacionalService(BaseService[PlanoOperacional]):
             raise EntityNotFoundError(f"Tipo de serviço {tipo_servico_id} não encontrado.")
         return tipo_servico
 
-    def _resolver_custo_hora(
-        self, tipo_servico: TipoServico, colaborador: ColaboradorRH | None
+    async def _resolver_custo_hora(
+        self, tipo_servico_id: uuid.UUID, colaborador: ColaboradorRH | None
     ) -> tuple[float | None, str]:
-        # Prioriza o custo real da pessoa alocada; cai para a referência do
-        # tipo de serviço só quando não há pessoa definida ainda. Nunca inventa
-        # valor: sem nenhuma fonte confiável (>0), sinaliza CUSTO_INCOMPLETO.
+        # Reaproveita o SnapshotCustoService já existente — mesma fonte de custo
+        # do orçamento de safra (agricola/a1_planejamento). Prioriza o custo real
+        # da pessoa alocada (ColaboradorRH.id, não pessoa_id — o service espera o
+        # id do colaborador); cai para a referência do tipo de serviço só quando
+        # não há pessoa definida ainda. Nunca inventa valor: sem fonte confiável
+        # (>0), sinaliza CUSTO_INCOMPLETO. `unidade="hora"` força o service a usar
+        # `valor_hora` (não `valor_diaria`) — nossa estimativa é sempre em horas.
+        snapshot_svc = SnapshotCustoService(self.session, self.tenant_id)
+
         if colaborador:
-            if colaborador.valor_hora and colaborador.valor_hora > 0:
-                return float(colaborador.valor_hora), "PESSOA_VALOR_HORA"
-            if colaborador.valor_diaria and colaborador.valor_diaria > 0:
-                return float(colaborador.valor_diaria) / 8.0, "PESSOA_VALOR_HORA"
-        if tipo_servico.custo_referencia and tipo_servico.custo_referencia > 0:
-            return float(tipo_servico.custo_referencia), "TIPO_SERVICO_CUSTO_REFERENCIA"
+            preco, _ = await snapshot_svc.capturar("PESSOA", colaborador.id, "hora")
+            if preco and preco > 0:
+                return float(preco), "PESSOA_VALOR_HORA"
+
+        preco, _ = await snapshot_svc.capturar("SERVICO", tipo_servico_id, "hora")
+        if preco and preco > 0:
+            return float(preco), "TIPO_SERVICO_CUSTO_REFERENCIA"
         return None, "CUSTO_INCOMPLETO"
 
     async def _montar_snapshot_mao_obra(self, mao_obra: PlanoOperacionalTarefaMaoObra) -> None:
-        tipo_servico = await self._validar_tipo_servico(mao_obra.tipo_servico_id)
+        await self._validar_tipo_servico(mao_obra.tipo_servico_id)
 
         colaborador = None
         if mao_obra.pessoa_id:
@@ -656,7 +669,7 @@ class PlanoOperacionalService(BaseService[PlanoOperacional]):
             )
             colaborador = (await self.session.execute(stmt)).scalars().first()
 
-        custo_hora, fonte_custo = self._resolver_custo_hora(tipo_servico, colaborador)
+        custo_hora, fonte_custo = await self._resolver_custo_hora(mao_obra.tipo_servico_id, colaborador)
         mao_obra.custo_hora_snapshot = custo_hora
         mao_obra.fonte_custo = fonte_custo
         if custo_hora is not None and mao_obra.horas_estimadas:
