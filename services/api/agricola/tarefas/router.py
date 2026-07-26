@@ -5,7 +5,15 @@ from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.dependencies import get_session, get_tenant_id, require_module, require_role
-from agricola.tarefas.schemas import TarefaCreate, TarefaUpdate, TarefaResponse, PlanejarOperacaoRequest
+from agricola.tarefas.schemas import (
+    TarefaCreate,
+    TarefaUpdate,
+    TarefaResponse,
+    PlanejarOperacaoRequest,
+    SafraTarefaNecessidadeCreate,
+    SafraTarefaNecessidadeUpdate,
+    SafraTarefaNecessidadeResponse,
+)
 from agricola.operacoes.schemas import OperacaoAgricolaResponse
 from agricola.tarefas.service import TarefaService
 
@@ -227,3 +235,78 @@ async def planejar_operacao(
     await session.commit()
     await session.refresh(operacao)
     return operacao
+
+
+@router.post(
+    "/tarefas/{tarefa_id}/necessidades",
+    response_model=SafraTarefaNecessidadeResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Adiciona uma necessidade agronômica estruturada à tarefa",
+)
+async def adicionar_necessidade(
+    tarefa_id: UUID,
+    dados: SafraTarefaNecessidadeCreate,
+    session: AsyncSession = Depends(get_session),
+    tenant_id: UUID = Depends(get_tenant_id),
+    _: None = Depends(require_module(MODULE)),
+    user: dict = Depends(require_role(["agronomo", "admin", "gerente"])),
+):
+    svc = TarefaService(session, tenant_id)
+    necessidade = await svc.adicionar_necessidade(tarefa_id, dados)
+    await session.commit()
+    await session.refresh(necessidade)
+    return necessidade
+
+
+@router.get(
+    "/tarefas/{tarefa_id}/necessidades",
+    response_model=List[SafraTarefaNecessidadeResponse],
+    summary="Lista as necessidades agronômicas da tarefa",
+)
+async def listar_necessidades(
+    tarefa_id: UUID,
+    session: AsyncSession = Depends(get_session),
+    tenant_id: UUID = Depends(get_tenant_id),
+    _: None = Depends(require_module(MODULE)),
+):
+    svc = TarefaService(session, tenant_id)
+    return await svc.listar_necessidades(tarefa_id)
+
+
+@router.patch(
+    "/tarefas/{tarefa_id}/necessidades/{necessidade_id}",
+    response_model=SafraTarefaNecessidadeResponse,
+    summary="Atualiza uma necessidade agronômica da tarefa",
+)
+async def atualizar_necessidade(
+    tarefa_id: UUID,
+    necessidade_id: UUID,
+    dados: SafraTarefaNecessidadeUpdate,
+    session: AsyncSession = Depends(get_session),
+    tenant_id: UUID = Depends(get_tenant_id),
+    _: None = Depends(require_module(MODULE)),
+    user: dict = Depends(require_role(["agronomo", "admin", "gerente"])),
+):
+    svc = TarefaService(session, tenant_id)
+    necessidade = await svc.atualizar_necessidade(tarefa_id, necessidade_id, dados)
+    await session.commit()
+    await session.refresh(necessidade)
+    return necessidade
+
+
+@router.delete(
+    "/tarefas/{tarefa_id}/necessidades/{necessidade_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Remove uma necessidade agronômica da tarefa",
+)
+async def remover_necessidade(
+    tarefa_id: UUID,
+    necessidade_id: UUID,
+    session: AsyncSession = Depends(get_session),
+    tenant_id: UUID = Depends(get_tenant_id),
+    _: None = Depends(require_module(MODULE)),
+    user: dict = Depends(require_role(["agronomo", "admin", "gerente"])),
+):
+    svc = TarefaService(session, tenant_id)
+    await svc.remover_necessidade(tarefa_id, necessidade_id)
+    await session.commit()

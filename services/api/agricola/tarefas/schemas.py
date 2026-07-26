@@ -9,6 +9,9 @@ class TarefaCreate(BaseModel):
     production_unit_id: Optional[UUID] = None
     cultivo_area_id: Optional[UUID] = None
     analise_solo_id: Optional[UUID] = None
+    grupo_geracao_id: Optional[UUID] = Field(
+        None, description="Marca tarefas nascidas juntas na mesma ação de geração em lote"
+    )
     origem: str = "MANUAL"
     tipo: str = Field(..., description="CALAGEM|ADUBACAO_FOSFORO|ADUBACAO_POTASSIO|ADUBACAO_NITROGENIO|GRADAGEM|PLANTIO|PULVERIZACAO|IRRIGACAO|COLHEITA|OUTRO")
     fase: Optional[str] = Field(None, description="Fase da safra")
@@ -46,6 +49,7 @@ class TarefaResponse(BaseModel):
     production_unit_id: Optional[UUID]
     cultivo_area_id: Optional[UUID]
     analise_solo_id: Optional[UUID]
+    grupo_geracao_id: Optional[UUID]
     origem: str
     tipo: str
     fase: Optional[str]
@@ -86,3 +90,42 @@ class PlanejarOperacaoRequest(BaseModel):
     maquina_id: Optional[UUID] = None
     implemento: Optional[str] = None
     insumos: list[PlanejarInsumoRequest] = []
+
+
+class SafraTarefaNecessidadeCreate(BaseModel):
+    categoria: str = Field(..., description="CORRETIVO|FERTILIZANTE|DEFENSIVO|SEMENTE|COMBUSTIVEL|OUTRO")
+    tipo_aplicacao: Optional[str] = None
+    unidade_referencia: str = Field(..., min_length=1, max_length=20)
+    dose_tecnica: Optional[float] = None
+    quantidade_tecnica: Optional[float] = None
+    area_referencia_ha: Optional[float] = None
+    origem_calculo: str = "MANUAL"
+    parametros_calculo: Optional[dict] = None
+
+
+class SafraTarefaNecessidadeUpdate(BaseModel):
+    categoria: Optional[str] = None
+    tipo_aplicacao: Optional[str] = None
+    unidade_referencia: Optional[str] = None
+    dose_tecnica: Optional[float] = None
+    quantidade_tecnica: Optional[float] = None
+    area_referencia_ha: Optional[float] = None
+    parametros_calculo: Optional[dict] = None
+
+
+class SafraTarefaNecessidadeResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    tenant_id: UUID
+    safra_tarefa_id: UUID
+    categoria: str
+    tipo_aplicacao: Optional[str]
+    unidade_referencia: str
+    dose_tecnica: Optional[float]
+    quantidade_tecnica: Optional[float]
+    area_referencia_ha: Optional[float]
+    origem_calculo: str
+    parametros_calculo: Optional[dict]
+    created_at: datetime
+    updated_at: datetime

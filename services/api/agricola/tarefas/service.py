@@ -12,8 +12,14 @@ from agricola.caderno.models import CadernoCampoEntrada, CadernoCampoFoto
 from agricola.custos.models import CostAllocation
 from agricola.operacoes.models import OperacaoAgricola, OperacaoExecucao
 from agricola.safras.models import Safra
-from agricola.tarefas.models import SafraTarefa
-from agricola.tarefas.schemas import TarefaCreate, TarefaUpdate, PlanejarOperacaoRequest
+from agricola.tarefas.models import SafraTarefa, SafraTarefaNecessidade
+from agricola.tarefas.schemas import (
+    TarefaCreate,
+    TarefaUpdate,
+    PlanejarOperacaoRequest,
+    SafraTarefaNecessidadeCreate,
+    SafraTarefaNecessidadeUpdate,
+)
 from core.services.audit_service import _serialize, write_audit_log
 from financeiro.models.despesa import Despesa
 from operacional.models.estoque import EstoqueMovimento
@@ -136,6 +142,7 @@ class TarefaService:
             production_unit_id=dados.production_unit_id,
             cultivo_area_id=dados.cultivo_area_id,
             analise_solo_id=dados.analise_solo_id,
+            grupo_geracao_id=dados.grupo_geracao_id,
             origem=dados.origem,
             tipo=dados.tipo,
             fase=fase,
@@ -707,3 +714,63 @@ class TarefaService:
             prioridade="ALTA" if tarefa.criticidade == "CRITICA" else "NORMAL",
         )
         return operacao
+
+    # ------------------------------------------------------------------
+    # Necessidade agronômica estruturada (Fase 2 do PLANO-OPERACIONAL-01)
+    # ------------------------------------------------------------------
+
+    async def adicionar_necessidade(
+        self, tarefa_id: uuid.UUID, dados: SafraTarefaNecessidadeCreate
+    ) -> SafraTarefaNecessidade:
+        await self._get(tarefa_id)  # valida existência + tenant
+        necessidade = SafraTarefaNecessidade(
+            tenant_id=self.tenant_id,
+            safra_tarefa_id=tarefa_id,
+            categoria=dados.categoria,
+            tipo_aplicacao=dados.tipo_aplicacao,
+            unidade_referencia=dados.unidade_referencia,
+            dose_tecnica=dados.dose_tecnica,
+            quantidade_tecnica=dados.quantidade_tecnica,
+            area_referencia_ha=dados.area_referencia_ha,
+            origem_calculo=dados.origem_calculo,
+            parametros_calculo=dados.parametros_calculo,
+        )
+        self.session.add(necessidade)
+        await self.session.flush()
+        return necessidade
+
+    async def listar_necessidades(self, tarefa_id: uuid.UUID) -> list[SafraTarefaNecessidade]:
+        await self._get(tarefa_id)
+        stmt = select(SafraTarefaNecessidade).where(
+            SafraTarefaNecessidade.tenant_id == self.tenant_id,
+            SafraTarefaNecessidade.safra_tarefa_id == tarefa_id,
+        )
+        return list((await self.session.execute(stmt)).scalars().all())
+
+    async def _get_necessidade_or_fail(
+        self, tarefa_id: uuid.UUID, necessidade_id: uuid.UUID
+    ) -> SafraTarefaNecessidade:
+        stmt = select(SafraTarefaNecessidade).where(
+            SafraTarefaNecessidade.id == necessidade_id,
+            SafraTarefaNecessidade.safra_tarefa_id == tarefa_id,
+            SafraTarefaNecessidade.tenant_id == self.tenant_id,
+        )
+        necessidade = (await self.session.execute(stmt)).scalars().first()
+        if not necessidade:
+            raise EntityNotFoundError(f"Necessidade {necessidade_id} não encontrada nesta tarefa.")
+        return necessidade
+
+    async def atualizar_necessidade(
+        self, tarefa_id: uuid.UUID, necessidade_id: uuid.UUID, dados: SafraTarefaNecessidadeUpdate
+    ) -> SafraTarefaNecessidade:
+        necessidade = await self._get_necessidade_or_fail(tarefa_id, necessidade_id)
+        for campo, valor in dados.model_dump(exclude_unset=True).items():
+            setattr(necessidade, campo, valor)
+        self.session.add(necessidade)
+        await self.session.flush()
+        return necessidade
+
+    async def remover_necessidade(self, tarefa_id: uuid.UUID, necessidade_id: uuid.UUID) -> None:
+        necessidade = await self._get_necessidade_or_fail(tarefa_id, necessidade_id)
+        await self.session.delete(necessidade)
+        await self.session.flush()
