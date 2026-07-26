@@ -351,6 +351,27 @@ class OperacaoService(BaseService[OperacaoAgricola]):
         )
         return list((await self.session.execute(stmt)).scalars().all())
 
+    async def _execucao_ids_com_ledger(self, execucao_ids: list[UUID]) -> set[UUID]:
+        """IDs de execução que têm `estoque_movimentos` apontando para elas.
+
+        Essas execuções nunca podem ser fisicamente excluídas: `estoque_movimentos.
+        operacao_execucao_id` é ON DELETE SET NULL, e um UPDATE/DELETE em
+        `estoque_movimentos` é rejeitado pela trigger `tg_estoque_movimentos_append_only`
+        (ledger imutável). O estorno de estoque já é feito via lançamento DEVOLUCAO
+        (`_reverter_movimentos_estoque_operacao`), sem apagar o histórico original.
+        """
+        if not execucao_ids:
+            return set()
+        stmt = (
+            select(EstoqueMovimento.operacao_execucao_id)
+            .where(
+                EstoqueMovimento.tenant_id == self.tenant_id,
+                EstoqueMovimento.operacao_execucao_id.in_(execucao_ids),
+            )
+            .distinct()
+        )
+        return {row[0] for row in (await self.session.execute(stmt)).all()}
+
     async def _reverter_efeitos_economicos_operacao(
         self,
         operacao_id: UUID,
@@ -363,7 +384,9 @@ class OperacaoService(BaseService[OperacaoAgricola]):
         em seguida (hard_delete): o cascade "all, delete-orphan" já remove as execuções,
         e apagá-las aqui duplicaria o DELETE. Para transições de status (operação
         permanece viva), `remover_execucoes=True` remove a execução para que uma futura
-        reexecução não reutilize um registro obsoleto.
+        reexecução não reutilize um registro obsoleto — EXCETO se a execução já tem
+        `estoque_movimentos` (ledger append-only) apontando para ela, caso em que a
+        exclusão é sempre pulada (ver `_execucao_ids_com_ledger`).
 
         Idempotente por natureza dos vínculos: uma segunda chamada não encontra mais
         execuções, allocations ou despesa ativa para reverter (já foram removidas/
@@ -394,7 +417,10 @@ class OperacaoService(BaseService[OperacaoAgricola]):
             self.session.add(despesa)
 
         if remover_execucoes:
+            ids_com_ledger = await self._execucao_ids_com_ledger(execucao_ids)
             for execucao in execucoes:
+                if execucao.id in ids_com_ledger:
+                    continue
                 await self.session.delete(execucao)
 
         if execucoes or despesa is not None:
@@ -1168,8 +1194,28 @@ class OperacaoService(BaseService[OperacaoAgricola]):
         }
 
     async def hard_delete(self, id: UUID) -> None:
-        """Cancela a operação: reverte estoque/CostAllocation/Despesa antes de excluir."""
+        """Cancela a operação: reverte estoque/CostAllocation/Despesa antes de excluir.
+
+        Se alguma execução da operação já tem `estoque_movimentos` (ledger append-only)
+        apontando para ela, a exclusão física é bloqueada: excluir a OperacaoAgricola
+        cascateia (FK CASCADE) a exclusão da OperacaoExecucao, e a FK
+        `estoque_movimentos.operacao_execucao_id` (ON DELETE SET NULL) gera um UPDATE
+        na tabela append-only, rejeitado pela trigger `tg_estoque_movimentos_append_only`.
+        Nesse caso a operação vira registro histórico imutável e a exclusão é recusada
+        antes de qualquer reversão (nada é alterado).
+        """
         operacao = await self.get_or_fail(id)
+        execucoes = await self._buscar_execucoes_da_operacao(operacao.id)
+        execucao_ids = [execucao.id for execucao in execucoes]
+        ids_com_ledger = await self._execucao_ids_com_ledger(execucao_ids)
+
+        if ids_com_ledger:
+            raise BusinessRuleError(
+                "Esta operação já possui movimentações de estoque registradas (ledger "
+                "append-only) e não pode ser excluída. Para desfazer seus efeitos, "
+                "atualize o status da operação (ex.: volte para PLANEJADA) em vez de excluí-la."
+            )
+
         await self._reverter_efeitos_economicos_operacao(operacao.id, remover_execucoes=False)
         await super().hard_delete(id)
 
