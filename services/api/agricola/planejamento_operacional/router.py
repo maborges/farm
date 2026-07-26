@@ -1,0 +1,195 @@
+from uuid import UUID
+from typing import List, Optional
+
+from fastapi import APIRouter, Depends, status, Query
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from core.constants import Modulos
+from core.dependencies import get_session, get_tenant_id, get_current_user_claims, require_module, require_tenant_permission
+from agricola.planejamento_operacional.schemas import (
+    PlanoOperacionalCreate,
+    PlanoOperacionalUpdate,
+    PlanoOperacionalResponse,
+    PlanoOperacionalTarefaCreate,
+    PlanoOperacionalTarefaUpdate,
+    PlanoOperacionalTarefaResponse,
+)
+from agricola.planejamento_operacional.service import PlanoOperacionalService
+
+router = APIRouter(
+    prefix="/agricola/planejamento-operacional",
+    tags=["Agrícola - Planejamento Operacional em Lote"],
+    dependencies=[Depends(require_module(Modulos.AGRICOLA_PLANEJAMENTO))],
+)
+
+
+def _user_id(user: dict) -> UUID | None:
+    sub = user.get("sub")
+    return UUID(sub) if sub else None
+
+
+@router.post(
+    "/",
+    response_model=PlanoOperacionalResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Cria um Planejamento Operacional em Lote (nasce RASCUNHO)",
+)
+async def criar_plano(
+    dados: PlanoOperacionalCreate,
+    session: AsyncSession = Depends(get_session),
+    tenant_id: UUID = Depends(get_tenant_id),
+    user: dict = Depends(get_current_user_claims),
+    _: None = Depends(require_tenant_permission("agricola:planejamento_operacional:criar")),
+):
+    svc = PlanoOperacionalService(session, tenant_id, _user_id(user))
+    plano = await svc.criar(dados)
+    plano.criado_por = _user_id(user)
+    await session.commit()
+    await session.refresh(plano)
+    return plano
+
+
+@router.get(
+    "/",
+    response_model=List[PlanoOperacionalResponse],
+    summary="Lista Planejamentos Operacionais do tenant",
+)
+async def listar_planos(
+    safra_id: Optional[UUID] = Query(None),
+    status_filtro: Optional[str] = Query(None, alias="status"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
+    session: AsyncSession = Depends(get_session),
+    tenant_id: UUID = Depends(get_tenant_id),
+    _: None = Depends(require_tenant_permission("agricola:planejamento_operacional:visualizar")),
+):
+    svc = PlanoOperacionalService(session, tenant_id)
+    return await svc.list_all(skip=skip, limit=limit, safra_id=safra_id, status=status_filtro)
+
+
+@router.get(
+    "/{plano_id}",
+    response_model=PlanoOperacionalResponse,
+    summary="Detalha um Planejamento Operacional",
+)
+async def obter_plano(
+    plano_id: UUID,
+    session: AsyncSession = Depends(get_session),
+    tenant_id: UUID = Depends(get_tenant_id),
+    _: None = Depends(require_tenant_permission("agricola:planejamento_operacional:visualizar")),
+):
+    svc = PlanoOperacionalService(session, tenant_id)
+    return await svc.get_or_fail(plano_id)
+
+
+@router.patch(
+    "/{plano_id}",
+    response_model=PlanoOperacionalResponse,
+    summary="Atualiza o cabeçalho do plano (apenas RASCUNHO/EM_ANALISE)",
+)
+async def atualizar_plano(
+    plano_id: UUID,
+    dados: PlanoOperacionalUpdate,
+    session: AsyncSession = Depends(get_session),
+    tenant_id: UUID = Depends(get_tenant_id),
+    _: None = Depends(require_tenant_permission("agricola:planejamento_operacional:editar")),
+):
+    svc = PlanoOperacionalService(session, tenant_id)
+    plano = await svc.atualizar(plano_id, dados)
+    await session.commit()
+    await session.refresh(plano)
+    return plano
+
+
+@router.post(
+    "/{plano_id}/avancar",
+    response_model=PlanoOperacionalResponse,
+    summary="Avança o status do plano (ex.: aprovar, cancelar)",
+)
+async def avancar_status_plano(
+    plano_id: UUID,
+    novo_status: str = Query(..., description="Novo status do plano"),
+    session: AsyncSession = Depends(get_session),
+    tenant_id: UUID = Depends(get_tenant_id),
+    user: dict = Depends(get_current_user_claims),
+    _: None = Depends(require_tenant_permission("agricola:planejamento_operacional:aprovar")),
+):
+    svc = PlanoOperacionalService(session, tenant_id, _user_id(user))
+    plano = await svc.avancar_status(plano_id, novo_status)
+    await session.commit()
+    await session.refresh(plano)
+    return plano
+
+
+@router.post(
+    "/{plano_id}/tarefas",
+    response_model=PlanoOperacionalTarefaResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Adiciona uma SafraTarefa (já aprovada) ao plano",
+)
+async def adicionar_tarefa(
+    plano_id: UUID,
+    dados: PlanoOperacionalTarefaCreate,
+    session: AsyncSession = Depends(get_session),
+    tenant_id: UUID = Depends(get_tenant_id),
+    _: None = Depends(require_tenant_permission("agricola:planejamento_operacional:editar")),
+):
+    svc = PlanoOperacionalService(session, tenant_id)
+    item = await svc.adicionar_tarefa(plano_id, dados)
+    await session.commit()
+    await session.refresh(item)
+    return item
+
+
+@router.get(
+    "/{plano_id}/tarefas",
+    response_model=List[PlanoOperacionalTarefaResponse],
+    summary="Lista as tarefas associadas ao plano",
+)
+async def listar_tarefas_do_plano(
+    plano_id: UUID,
+    session: AsyncSession = Depends(get_session),
+    tenant_id: UUID = Depends(get_tenant_id),
+    _: None = Depends(require_tenant_permission("agricola:planejamento_operacional:visualizar")),
+):
+    svc = PlanoOperacionalService(session, tenant_id)
+    return await svc.listar_itens(plano_id)
+
+
+@router.patch(
+    "/{plano_id}/tarefas/{item_id}",
+    response_model=PlanoOperacionalTarefaResponse,
+    summary="Atualiza o estado de uma tarefa dentro do plano",
+)
+async def atualizar_item_plano(
+    plano_id: UUID,
+    item_id: UUID,
+    dados: PlanoOperacionalTarefaUpdate,
+    session: AsyncSession = Depends(get_session),
+    tenant_id: UUID = Depends(get_tenant_id),
+    _: None = Depends(require_tenant_permission("agricola:planejamento_operacional:editar")),
+):
+    svc = PlanoOperacionalService(session, tenant_id)
+    item = await svc.atualizar_item(plano_id, item_id, dados)
+    await session.commit()
+    await session.refresh(item)
+    return item
+
+
+@router.delete(
+    "/{plano_id}/tarefas/{item_id}",
+    response_model=PlanoOperacionalTarefaResponse,
+    summary="Remove (logicamente) uma tarefa do plano",
+)
+async def remover_tarefa_do_plano(
+    plano_id: UUID,
+    item_id: UUID,
+    session: AsyncSession = Depends(get_session),
+    tenant_id: UUID = Depends(get_tenant_id),
+    _: None = Depends(require_tenant_permission("agricola:planejamento_operacional:editar")),
+):
+    svc = PlanoOperacionalService(session, tenant_id)
+    item = await svc.remover_tarefa(plano_id, item_id)
+    await session.commit()
+    await session.refresh(item)
+    return item
