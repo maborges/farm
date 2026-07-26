@@ -292,3 +292,64 @@ async def remover_insumo(
     svc = PlanoOperacionalService(session, tenant_id)
     await svc.remover_insumo(plano_id, item_id, insumo_id)
     await session.commit()
+
+
+@router.post(
+    "/{plano_id}/tarefas/{item_id}/insumos/{insumo_id}/reservar",
+    response_model=PlanoOperacionalTarefaInsumoResponse,
+    summary="Cria reserva real de estoque para este insumo",
+)
+async def reservar_insumo(
+    plano_id: UUID,
+    item_id: UUID,
+    insumo_id: UUID,
+    session: AsyncSession = Depends(get_session),
+    tenant_id: UUID = Depends(get_tenant_id),
+    user: dict = Depends(get_current_user_claims),
+    _: None = Depends(require_tenant_permission("agricola:planejamento_operacional:aprovar")),
+):
+    svc = PlanoOperacionalService(session, tenant_id, _user_id(user))
+    insumo = await svc.reservar_insumo(plano_id, item_id, insumo_id)
+    await session.commit()
+    await session.refresh(insumo)
+    return insumo
+
+
+@router.delete(
+    "/{plano_id}/tarefas/{item_id}/insumos/{insumo_id}/reserva",
+    response_model=PlanoOperacionalTarefaInsumoResponse,
+    summary="Libera a reserva de estoque deste insumo",
+)
+async def liberar_reserva_insumo(
+    plano_id: UUID,
+    item_id: UUID,
+    insumo_id: UUID,
+    session: AsyncSession = Depends(get_session),
+    tenant_id: UUID = Depends(get_tenant_id),
+    _: None = Depends(require_tenant_permission("agricola:planejamento_operacional:editar")),
+):
+    svc = PlanoOperacionalService(session, tenant_id)
+    insumo = await svc.liberar_reserva_insumo(plano_id, item_id, insumo_id)
+    await session.commit()
+    await session.refresh(insumo)
+    return insumo
+
+
+@router.post(
+    "/{plano_id}/tarefas/{item_id}/aprovar",
+    response_model=PlanoOperacionalTarefaResponse,
+    summary="Aprova o item (reserva parcialmente os insumos disponíveis)",
+)
+async def aprovar_item(
+    plano_id: UUID,
+    item_id: UUID,
+    session: AsyncSession = Depends(get_session),
+    tenant_id: UUID = Depends(get_tenant_id),
+    user: dict = Depends(get_current_user_claims),
+    _: None = Depends(require_tenant_permission("agricola:planejamento_operacional:aprovar")),
+):
+    svc = PlanoOperacionalService(session, tenant_id, _user_id(user))
+    item = await svc.aprovar_item(plano_id, item_id)
+    await session.commit()
+    await session.refresh(item)
+    return item

@@ -103,11 +103,12 @@ class PlanoOperacionalTarefaInsumo(Base):
 
     Ponte entre a necessidade técnica (`SafraTarefaNecessidade` — quanto preciso)
     e o produto real do catálogo (`Produto` — o que vou usar), com um snapshot de
-    disponibilidade/custo tirado no momento da simulação. Nesta fase é só
-    SIMULAÇÃO: nenhuma reserva de estoque é criada (isso só entra na Fase 4,
-    estendendo `ReservaEstoque` já existente em operacional/models/estoque.py) —
-    os campos `quantidade_reservada`/`quantidade_faltante` aqui refletem o saldo
-    já reservado por OUTROS fluxos no momento da leitura, não uma reserva nova.
+    disponibilidade/custo. Antes de reservar (Fase 3), `quantidade_reservada`
+    reflete apenas o saldo já reservado por OUTROS fluxos, lido de `ReservaEstoque`
+    via `SaldoEstoque.quantidade_reservada` — nenhuma reserva nova é criada até
+    `reserva_estoque_id` ser preenchido (Fase 4, `PlanoOperacionalService.
+    reservar_insumo`, que reaproveita `ReservaEstoque`/`EstoqueService.
+    criar_reserva` já existentes em vez de recriar o conceito).
     """
     __tablename__ = "planos_operacionais_tarefas_insumos"
 
@@ -147,6 +148,12 @@ class PlanoOperacionalTarefaInsumo(Base):
 
     substitui_item_id: Mapped[uuid.UUID | None] = mapped_column(
         UUIDType, ForeignKey("planos_operacionais_tarefas_insumos.id", ondelete="SET NULL"), nullable=True
+    )
+
+    # Preenchido pela Fase 4 ao reservar de fato (`reservar_insumo`). NULL =
+    # ainda em simulação ou reserva já liberada/consumida e desvinculada.
+    reserva_estoque_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUIDType, ForeignKey("estoque_reservas.id", ondelete="SET NULL"), nullable=True
     )
 
     created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)

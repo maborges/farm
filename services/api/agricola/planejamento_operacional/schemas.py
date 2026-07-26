@@ -102,5 +102,6 @@ class PlanoOperacionalTarefaInsumoResponse(BaseModel):
     custo_total_estimado: Optional[float]
     fonte_custo: Optional[str]
     substitui_item_id: Optional[UUID]
+    reserva_estoque_id: Optional[UUID]
     created_at: datetime
     updated_at: datetime

@@ -21,7 +21,9 @@ from agricola.planejamento_operacional.schemas import (
 from agricola.safras.models import Safra
 from agricola.tarefas.models import SafraTarefa, SafraTarefaNecessidade
 from core.cadastros.produtos.models import Produto
-from operacional.models.estoque import SaldoEstoque, Deposito
+from operacional.models.estoque import SaldoEstoque, Deposito, ReservaEstoque
+from operacional.services.estoque_service import EstoqueService
+from operacional.schemas.estoque import ReservaCreate
 
 # Planos nesses status não aceitam mais simulação/edição de insumos — a decisão
 # já foi congelada (aprovação real de reserva/custo entra na Fase 4).
@@ -84,6 +86,11 @@ class PlanoOperacionalService(BaseService[PlanoOperacional]):
             raise BusinessRuleError(
                 f"Transição de status '{plano.status}' -> '{novo_status}' não é permitida."
             )
+
+        if novo_status == "CANCELADO":
+            # Reservas ativas de insumos deste plano nunca podem sobreviver ao
+            # cancelamento do plano — senão o estoque fica bloqueado para sempre.
+            await self._liberar_todas_reservas_do_plano(plano_id)
 
         update_kwargs: dict = {"status": novo_status}
         if novo_status == "APROVADO":
@@ -355,10 +362,16 @@ class PlanoOperacionalService(BaseService[PlanoOperacional]):
         insumo = await self._get_insumo_or_fail(item_id, insumo_id)
 
         dados_dict = dados.model_dump(exclude_unset=True)
+        # Mudar produto/depósito/quantidade invalida uma reserva já feita para os
+        # dados antigos — libera antes de aplicar, para não deixar estoque preso
+        # a um insumo que não existe mais desse jeito.
+        campos_sensiveis = {"produto_id", "deposito_id", "quantidade_planejada"}
+        if insumo.reserva_estoque_id and campos_sensiveis & dados_dict.keys():
+            await self.liberar_reserva_insumo(plano_id, item_id, insumo_id)
+
         for campo, valor in dados_dict.items():
             setattr(insumo, campo, valor)
 
-        # Qualquer mudança em produto/depósito/quantidade invalida o snapshot anterior.
         await self._montar_snapshot(insumo)
         self.session.add(insumo)
         await self.session.flush()
@@ -368,6 +381,8 @@ class PlanoOperacionalService(BaseService[PlanoOperacional]):
         plano, _ = await self._get_plano_e_item(plano_id, item_id)
         self._validar_plano_editavel_para_insumo(plano)
         insumo = await self._get_insumo_or_fail(item_id, insumo_id)
+        if insumo.reserva_estoque_id:
+            await self.liberar_reserva_insumo(plano_id, item_id, insumo_id)
         # Hard delete seguro aqui: é só decisão de planejamento/simulação, nenhum
         # estoque_movimentos ou OperacaoExecucao real foi criado a partir disto.
         await self.session.delete(insumo)
@@ -380,3 +395,150 @@ class PlanoOperacionalService(BaseService[PlanoOperacional]):
             PlanoOperacionalTarefaInsumo.plano_operacional_tarefa_id == item_id,
         )
         return list((await self.session.execute(stmt)).scalars().all())
+
+    # ------------------------------------------------------------------
+    # Reserva real de estoque e aprovação parcial (Fase 4)
+    # ------------------------------------------------------------------
+
+    async def _resolver_deposito_para_reserva(self, insumo: PlanoOperacionalTarefaInsumo) -> uuid.UUID:
+        if insumo.deposito_id:
+            return insumo.deposito_id
+
+        stmt = (
+            select(SaldoEstoque.deposito_id)
+            .select_from(SaldoEstoque)
+            .join(Deposito, SaldoEstoque.deposito_id == Deposito.id)
+            .where(
+                Deposito.tenant_id == self.tenant_id,
+                SaldoEstoque.produto_id == insumo.produto_id,
+                (SaldoEstoque.quantidade_atual - SaldoEstoque.quantidade_reservada) >= float(insumo.quantidade_planejada),
+            )
+        )
+        candidatos = list((await self.session.execute(stmt)).scalars().all())
+        if len(candidatos) == 1:
+            return candidatos[0]
+        if not candidatos:
+            raise BusinessRuleError(
+                "Nenhum depósito tem saldo suficiente para reservar este insumo. "
+                "Solicite compra ou informe o depósito manualmente."
+            )
+        raise BusinessRuleError(
+            "Mais de um depósito tem saldo suficiente para este produto. "
+            "Defina explicitamente o depósito do insumo antes de reservar."
+        )
+
+    async def reservar_insumo(
+        self, plano_id: uuid.UUID, item_id: uuid.UUID, insumo_id: uuid.UUID
+    ) -> PlanoOperacionalTarefaInsumo:
+        """Cria uma reserva real (`ReservaEstoque`) para o insumo, revalidando
+        saldo na mesma transação com lock de linha em `SaldoEstoque` — ordem de
+        lock fixada pelo ponto B do relatório de auditoria: reserva/estoque
+        sempre ANTES de qualquer chamada a `gerar_operacao_planejada` (que já
+        lockeia `SafraTarefa` internamente), para nunca invertê-la em outra
+        rotina e criar deadlock cruzado.
+        """
+        plano, item = await self._get_plano_e_item(plano_id, item_id)
+        self._validar_plano_editavel_para_insumo(plano)
+        insumo = await self._get_insumo_or_fail(item_id, insumo_id)
+
+        if insumo.reserva_estoque_id:
+            reserva_existente = await self.session.get(ReservaEstoque, insumo.reserva_estoque_id)
+            if reserva_existente and reserva_existente.status == "ATIVA":
+                return insumo  # idempotente: já reservado, não duplica
+
+        deposito_id = await self._resolver_deposito_para_reserva(insumo)
+
+        stmt_lock = select(SaldoEstoque).where(
+            SaldoEstoque.deposito_id == deposito_id,
+            SaldoEstoque.produto_id == insumo.produto_id,
+        ).with_for_update()
+        saldo = (await self.session.execute(stmt_lock)).scalars().first()
+        disponivel = (float(saldo.quantidade_atual) - float(saldo.quantidade_reservada)) if saldo else 0.0
+
+        if disponivel < float(insumo.quantidade_planejada):
+            insumo.deposito_id = deposito_id
+            await self._montar_snapshot(insumo)
+            self.session.add(insumo)
+            await self.session.flush()
+            raise BusinessRuleError(
+                f"Saldo insuficiente para reservar este insumo: disponível {disponivel:.2f}, "
+                f"necessário {float(insumo.quantidade_planejada):.2f}."
+            )
+
+        estoque_svc = EstoqueService(self.session, self.tenant_id)
+        reserva = await estoque_svc.criar_reserva(
+            ReservaCreate(
+                produto_id=insumo.produto_id,
+                deposito_id=deposito_id,
+                quantidade=float(insumo.quantidade_planejada),
+                motivo=f"Planejamento Operacional — item {item_id}",
+                referencia_tipo="PLANO_OPERACIONAL",
+                referencia_id=insumo.id,
+            ),
+            usuario_id=self.user_id,
+        )
+        insumo.deposito_id = deposito_id
+        insumo.reserva_estoque_id = reserva.id
+        await self._montar_snapshot(insumo)
+        self.session.add(insumo)
+        await self.session.flush()
+        return insumo
+
+    async def liberar_reserva_insumo(
+        self, plano_id: uuid.UUID, item_id: uuid.UUID, insumo_id: uuid.UUID
+    ) -> PlanoOperacionalTarefaInsumo:
+        """Cancela a reserva ativa do insumo (se houver) e devolve o saldo
+        reservado. Intencionalmente NÃO bloqueado por `_validar_plano_editavel_
+        para_insumo`: precisa funcionar mesmo com o plano já CANCELADO/APROVADO
+        (é exatamente quando uma reserva precisa ser liberada)."""
+        await self._get_plano_e_item(plano_id, item_id)
+        insumo = await self._get_insumo_or_fail(item_id, insumo_id)
+        if insumo.reserva_estoque_id:
+            estoque_svc = EstoqueService(self.session, self.tenant_id)
+            reserva = await self.session.get(ReservaEstoque, insumo.reserva_estoque_id)
+            if reserva and reserva.status == "ATIVA":
+                await estoque_svc.cancelar_reserva(reserva.id)
+            insumo.reserva_estoque_id = None
+            await self._montar_snapshot(insumo)
+            self.session.add(insumo)
+            await self.session.flush()
+        return insumo
+
+    async def _liberar_todas_reservas_do_plano(self, plano_id: uuid.UUID) -> None:
+        itens = await self.listar_itens(plano_id)
+        for item in itens:
+            insumos = await self.listar_insumos(plano_id, item.id)
+            for insumo in insumos:
+                if insumo.reserva_estoque_id:
+                    await self.liberar_reserva_insumo(plano_id, item.id, insumo.id)
+
+    async def aprovar_item(self, plano_id: uuid.UUID, item_id: uuid.UUID) -> PlanoOperacionalTarefa:
+        """Aprovação PARCIAL: tenta reservar todos os insumos do item. Insumos
+        sem saldo suficiente não travam os demais — o item fica PRONTA (tudo
+        reservado), AGUARDANDO_COMPRA (nada reservado) ou PARCIALMENTE_ATENDIDA
+        (alguns sim, outros não), permitindo que o plano avance com o que já
+        está disponível enquanto o resto aguarda compra."""
+        plano, item = await self._get_plano_e_item(plano_id, item_id)
+        self._validar_plano_editavel_para_insumo(plano)
+        insumos = await self.listar_insumos(plano_id, item_id)
+        if not insumos:
+            raise BusinessRuleError("Item de plano sem insumos definidos não pode ser aprovado.")
+
+        sucesso = 0
+        for insumo in insumos:
+            try:
+                await self.reservar_insumo(plano_id, item_id, insumo.id)
+                sucesso += 1
+            except BusinessRuleError:
+                continue
+
+        if sucesso == len(insumos):
+            item.status_planejamento = "PRONTA"
+        elif sucesso == 0:
+            item.status_planejamento = "AGUARDANDO_COMPRA"
+        else:
+            item.status_planejamento = "PARCIALMENTE_ATENDIDA"
+
+        self.session.add(item)
+        await self.session.flush()
+        return item
