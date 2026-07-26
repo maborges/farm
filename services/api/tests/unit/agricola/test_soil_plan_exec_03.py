@@ -196,12 +196,19 @@ def _make_tarefa(*, status: str) -> SafraTarefa:
     )
 
 
+def _mock_result(first_return):
+    return MagicMock(scalars=MagicMock(return_value=MagicMock(first=MagicMock(return_value=first_return))))
+
+
 async def test_tarefa_pendente_aprovacao_bloqueia_operacao_planejada():
     session = _make_session()
     tenant_id = uuid.uuid4()
     tarefa = _make_tarefa(status="PENDENTE_APROVACAO")
     service = TarefaService(session, tenant_id)
-    service._get = AsyncMock(return_value=tarefa)
+
+    # gerar_operacao_planejada busca a tarefa via SELECT ... FOR UPDATE (lock
+    # contra corrida em cliques duplicados), não mais via self._get().
+    session.execute.return_value = _mock_result(tarefa)
 
     dados = PlanejarOperacaoRequest(data_prevista=date.today(), insumos=[])
 
@@ -214,15 +221,17 @@ async def test_tarefa_aprovada_gera_operacao_planejada():
     tenant_id = uuid.uuid4()
     tarefa = _make_tarefa(status="APROVADA")
     service = TarefaService(session, tenant_id)
-    service._get = AsyncMock(return_value=tarefa)
 
-    # Nenhuma operação PLANEJADA existente ainda
-    session.execute.return_value = MagicMock(scalars=MagicMock(return_value=MagicMock(first=MagicMock(return_value=None))))
+    # 1ª chamada: SELECT ... FOR UPDATE da tarefa (lock). 2ª chamada: checagem
+    # de operação PLANEJADA já existente (nenhuma ainda).
+    session.execute.side_effect = [_mock_result(tarefa), _mock_result(None)]
+    session.get = AsyncMock(return_value=None)  # AreaRural do talhão (sem fazenda legada no teste)
 
     operacao_criada = MagicMock(status="PLANEJADA")
     dados = PlanejarOperacaoRequest(data_prevista=date.today(), insumos=[])
 
-    with patch("agricola.operacoes.service.OperacaoService.criar", new=AsyncMock(return_value=operacao_criada)):
+    with patch("agricola.operacoes.service.OperacaoService.criar", new=AsyncMock(return_value=operacao_criada)), \
+         patch("campo.service.TarefaProgramadaService.criar_vinculada_operacao", new=AsyncMock()):
         operacao = await service.gerar_operacao_planejada(tarefa.id, dados)
 
     assert operacao.status == "PLANEJADA"
