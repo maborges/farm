@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Plus, House, RefreshCw, BookText, Sprout, Wheat, Scale, Syringe, Sparkles, type LucideIcon } from "lucide-react";
+import { Plus, House, RefreshCw, BookText, ClipboardList, type LucideIcon } from "lucide-react";
 import { useSessionStore } from "@/lib/stores/session-store";
 import { useSyncStore } from "@/lib/stores/sync-store";
 
@@ -18,55 +18,22 @@ type NavItem = {
   icon: LucideIcon;
 };
 
+// 4 itens fixos — atalhos de ação ficam dentro dos módulos (/agricultura, /pecuaria)
 const BASE_ITEMS: NavItem[] = [
   { key: "home", label: "Início", href: "/home", icon: House },
-  { key: "sync", label: "Sincronizar", href: "/sync", icon: RefreshCw },
+  { key: "tarefas", label: "Tarefas", href: "/tarefas", icon: ClipboardList },
+  { key: "sync", label: "Sync", href: "/sync", icon: RefreshCw },
   { key: "caderno", label: "Caderno", href: "/caderno", icon: BookText },
 ];
 
-function getQuickItems(modules: string[]): NavItem[] {
-  const items: NavItem[] = [
-    { key: "recomendacoes", label: "Recomendações", href: "/recomendacoes", icon: Sparkles },
-  ];
-  const hasAgricola = modules.includes("agricola");
-  const hasPecuaria = modules.includes("pecuaria");
-
-  if (hasAgricola && hasPecuaria) {
-    return [
-      ...items,
-      { key: "aplicacao", label: "Aplicação", href: "/campo/aplicacao", icon: Sprout },
-      { key: "pesagem", label: "Pesagem", href: "/campo/pesagem", icon: Scale },
-      { key: "vacinacao", label: "Vacinação", href: "/campo/vacinacao", icon: Syringe },
-    ];
-  }
-
-  if (hasAgricola) {
-    return [
-      ...items,
-      { key: "aplicacao", label: "Aplicação", href: "/campo/aplicacao", icon: Sprout },
-      { key: "colheita", label: "Colheita", href: "/campo/colheita", icon: Wheat },
-    ];
-  }
-
-  if (hasPecuaria) {
-    return [
-      ...items,
-      { key: "pesagem", label: "Pesagem", href: "/campo/pesagem", icon: Scale },
-      { key: "vacinacao", label: "Vacinação", href: "/campo/vacinacao", icon: Syringe },
-    ];
-  }
-
-  return items;
-}
+const SHOW_NAV_ROUTES = new Set(["/home", "/sync", "/caderno", "/agricultura", "/pecuaria", "/tarefas", "/recomendacoes"]);
 
 export function CampoBottomNav() {
   const pathname = usePathname();
-  const { session } = useSessionStore();
   const { isOnline, pendingCount, status } = useSyncStore();
 
-  const shouldShow = pathname === "/home" || pathname === "/sync" || pathname === "/caderno";
-  const quickItems = getQuickItems(session?.modules ?? []);
-  const items = [...BASE_ITEMS, ...quickItems];
+  const shouldShow = SHOW_NAV_ROUTES.has(pathname);
+  const items = BASE_ITEMS;
   const [isRendered, setIsRendered] = useState(shouldShow);
   const [hasScrolled, setHasScrolled] = useState(false);
 

@@ -61,7 +61,7 @@ export default function CampoLayout({ children }: { children: React.ReactNode })
         </div>
 
         <main className="flex-1 px-4 pb-28 pt-4 sm:px-6 lg:pb-6">
-          <div className="w-full">{children}</div>
+          <div className="campo-pwa-page w-full">{children}</div>
         </main>
         <CampoBottomNav />
       </div>

@@ -19,6 +19,14 @@ function resolveCampoAvatarUrl(url?: string) {
   return url;
 }
 
+/** Gera uma cor HSL determinística baseada na inicial do nome do usuário. */
+function resolveAvatarColor(name: string): string {
+  const code = (name.trim().charCodeAt(0) || 65) % 360;
+  // Evitar hues muito próximos do vermelho (0°) para não parecer erro
+  const hue = code < 20 ? code + 40 : code;
+  return `hsl(${hue}, 55%, 42%)`;
+}
+
 export function CampoTopAppBar({
   pendingCount,
   isOnline,
@@ -34,6 +42,7 @@ export function CampoTopAppBar({
   const [dialogOpen, setDialogOpen] = useState(false);
   const avatarSrc = resolveCampoAvatarUrl(session?.user_avatar_url);
   const userInitial = (session?.user_name ?? "O").trim().charAt(0).toUpperCase();
+  const avatarColor = resolveAvatarColor(session?.user_name ?? "O");
 
   const fazendas = useLiveQuery(async () => {
     const ids = session?.fazenda_ids ?? [];
@@ -68,8 +77,8 @@ export function CampoTopAppBar({
                   : "cursor-default text-foreground"
               )}
             >
-              <span className="flex size-7 shrink-0 items-center justify-center rounded-2xl bg-muted/75 text-muted-foreground">
-                <Warehouse className="size-3.5 opacity-85" />
+              <span className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-[var(--campo-pwa-agro-light)] dark:bg-[var(--campo-pwa-agro-bg)] text-[var(--campo-pwa-agro-dark-text)] dark:text-[var(--campo-pwa-agro)]">
+                <Warehouse className="size-3.5" />
               </span>
               <span className="min-w-0">
                 <span className="block truncate text-sm font-semibold leading-4 text-foreground">
@@ -95,7 +104,10 @@ export function CampoTopAppBar({
               label="GPS"
             />
 
-            <div className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-accent text-[11px] font-semibold text-accent-foreground shadow-sm">
+            <div
+              className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border shadow-sm text-[11px] font-semibold text-white"
+              style={avatarSrc ? undefined : { background: avatarColor }}
+            >
               {avatarSrc ? (
                 <img src={avatarSrc} alt={session?.user_name ?? "Operador"} className="h-full w-full object-cover" />
               ) : (
