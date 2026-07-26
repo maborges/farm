@@ -1140,7 +1140,7 @@ class OperacaoService(BaseService[OperacaoAgricola]):
                 if tarefa and tarefa.tenant_id == self.tenant_id:
                     tarefa.status = "CONCLUIDA"
                     tarefa.operacao_id = operacao.id
-                    tarefa.concluida_em = datetime.now(timezone.utc)
+                    tarefa.concluida_em = datetime.utcnow()
 
             await self.session.commit()
 
@@ -1345,6 +1345,17 @@ class OperacaoService(BaseService[OperacaoAgricola]):
                     f"Entrada canônica no caderno: {operacao.tipo} → safra {operacao.safra_id}",
                     entrada_id=str(entrada.id),
                 )
+
+                # 4. Conclui a tarefa vinculada automaticamente (mesmo comportamento de criar()) —
+                # fecha o ciclo planejamento->campo para Ordens de Serviço geradas via
+                # /tarefas/{id}/planejar-operacao e depois marcadas como REALIZADA aqui.
+                if operacao.tarefa_id:
+                    from agricola.tarefas.models import SafraTarefa
+                    tarefa = await self.session.get(SafraTarefa, operacao.tarefa_id)
+                    if tarefa and tarefa.tenant_id == self.tenant_id:
+                        tarefa.status = "CONCLUIDA"
+                        tarefa.operacao_id = operacao.id
+                        tarefa.concluida_em = datetime.utcnow()
 
         if operacao.status == "REALIZADA":
             await self._garantir_execucao_e_allocation_leves(

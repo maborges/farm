@@ -20,6 +20,22 @@ from operacional.models.estoque import EstoqueMovimento
 
 STATUS_TAREFA_ATIVA = {"PENDENTE_APROVACAO", "APROVADA", "EM_EXECUCAO", "CONCLUIDA"}
 
+# SafraTarefa.tipo usa uma taxonomia mais granular (ex: origem de análise de solo,
+# que discrimina N/P/K) do que OperacaoAgricola.tipo (validado contra
+# DEFAULT_TIPO_FASES). Mapeia para o tipo canônico ao gerar a ordem de serviço.
+TAREFA_TIPO_PARA_OPERACAO_TIPO: dict[str, str] = {
+    "ADUBACAO_NITROGENIO": "ADUBAÇÃO",
+    "ADUBACAO_FOSFORO": "ADUBAÇÃO",
+    "ADUBACAO_POTASSIO": "ADUBAÇÃO",
+    "CALAGEM": "CALAGEM",
+    "GRADAGEM": "PREPARO_SOLO",
+    "PLANTIO": "PLANTIO",
+    "PULVERIZACAO": "PULVERIZAÇÃO",
+    "IRRIGACAO": "IRRIGAÇÃO",
+    "COLHEITA": "COLHEITA",
+    "OUTRO": "OUTROS",
+}
+
 TRANSICOES = {
     "PENDENTE_APROVACAO": ["APROVADA", "CANCELADA"],
     "APROVADA":           ["EM_EXECUCAO", "CANCELADA"],
@@ -576,6 +592,11 @@ class TarefaService:
                 f"Tarefa com status '{tarefa.status}' não pode gerar operação planejada. "
                 "É necessário aprovar a tarefa antes de planejar logisticamente."
             )
+        if tarefa.talhao_id is None:
+            raise BusinessRuleError(
+                "Esta tarefa não está vinculada a um talhão específico. "
+                "Edite a tarefa e defina o talhão antes de gerar a ordem de serviço."
+            )
 
         from agricola.operacoes.models import OperacaoAgricola
         from agricola.operacoes.service import OperacaoService
@@ -605,7 +626,7 @@ class TarefaService:
             cultivo_id=None,
             production_unit_id=tarefa.production_unit_id,
             tarefa_id=tarefa.id,
-            tipo=tarefa.tipo,
+            tipo=TAREFA_TIPO_PARA_OPERACAO_TIPO.get(tarefa.tipo, tarefa.tipo),
             descricao=tarefa.descricao or f"Operação planejada a partir da tarefa {tarefa.tipo}",
             fase_safra=tarefa.fase,
             data_prevista=dados.data_prevista,
