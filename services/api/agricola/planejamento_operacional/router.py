@@ -19,8 +19,19 @@ from agricola.planejamento_operacional.schemas import (
     PlanoOperacionalTarefaMaoObraCreate,
     PlanoOperacionalTarefaMaoObraUpdate,
     PlanoOperacionalTarefaMaoObraResponse,
+    PlanoOperacionalTarefaMaquinarioCreate,
+    PlanoOperacionalTarefaMaquinarioUpdate,
+    PlanoOperacionalTarefaMaquinarioResponse,
+    GerarOSLoteRequest,
+    GerarOSLoteResponse,
+    GerarOSResultado,
 )
 from agricola.planejamento_operacional.service import PlanoOperacionalService
+from agricola.receitas_aplicacao.schemas import (
+    AplicarReceitaRequest,
+    AplicarReceitaResponse,
+    AplicarReceitaResultado,
+)
 from operacional.schemas.compras import SolicitacaoCompraResponse
 
 router = APIRouter(
@@ -381,6 +392,43 @@ async def solicitar_compra_insumo(
 
 
 @router.post(
+    "/{plano_id}/aplicar-receita",
+    response_model=AplicarReceitaResponse,
+    summary="Aplica uma Receita de Aplicação (produto+dose/ha e mão de obra) a várias tarefas do plano de uma vez",
+)
+async def aplicar_receita(
+    plano_id: UUID,
+    dados: AplicarReceitaRequest,
+    session: AsyncSession = Depends(get_session),
+    tenant_id: UUID = Depends(get_tenant_id),
+    user: dict = Depends(get_current_user_claims),
+    _: None = Depends(require_tenant_permission("agricola:planejamento_operacional:editar")),
+):
+    svc = PlanoOperacionalService(session, tenant_id, _user_id(user))
+    resultados = await svc.aplicar_receita(plano_id, dados.receita_id, dados.plano_operacional_tarefa_ids)
+    await session.commit()
+    return AplicarReceitaResponse(resultados=[AplicarReceitaResultado(**r) for r in resultados])
+
+
+@router.post(
+    "/{plano_id}/gerar-os",
+    response_model=GerarOSLoteResponse,
+    summary="Gera a Ordem de Serviço (OperacaoAgricola) em lote para os itens PRONTA selecionados do plano",
+)
+async def gerar_os_lote(
+    plano_id: UUID,
+    dados: GerarOSLoteRequest,
+    session: AsyncSession = Depends(get_session),
+    tenant_id: UUID = Depends(get_tenant_id),
+    user: dict = Depends(get_current_user_claims),
+    _: None = Depends(require_tenant_permission("agricola:planejamento_operacional:aprovar")),
+):
+    svc = PlanoOperacionalService(session, tenant_id, _user_id(user))
+    resultados = await svc.gerar_os_lote(plano_id, dados.itens)
+    return GerarOSLoteResponse(resultados=[GerarOSResultado(**r) for r in resultados])
+
+
+@router.post(
     "/{plano_id}/tarefas/{item_id}/mao-obra",
     response_model=PlanoOperacionalTarefaMaoObraResponse,
     status_code=status.HTTP_201_CREATED,
@@ -453,4 +501,80 @@ async def remover_mao_obra(
 ):
     svc = PlanoOperacionalService(session, tenant_id)
     await svc.remover_mao_obra(plano_id, item_id, mao_obra_id)
+    await session.commit()
+
+
+@router.post(
+    "/{plano_id}/tarefas/{item_id}/maquinario",
+    response_model=PlanoOperacionalTarefaMaquinarioResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Adiciona necessidade de maquinário (máquina/implemento) ao item de plano",
+)
+async def adicionar_maquinario(
+    plano_id: UUID,
+    item_id: UUID,
+    dados: PlanoOperacionalTarefaMaquinarioCreate,
+    session: AsyncSession = Depends(get_session),
+    tenant_id: UUID = Depends(get_tenant_id),
+    _: None = Depends(require_tenant_permission("agricola:planejamento_operacional:editar")),
+):
+    svc = PlanoOperacionalService(session, tenant_id)
+    maquinario = await svc.adicionar_maquinario(plano_id, item_id, dados)
+    await session.commit()
+    await session.refresh(maquinario)
+    return maquinario
+
+
+@router.get(
+    "/{plano_id}/tarefas/{item_id}/maquinario",
+    response_model=List[PlanoOperacionalTarefaMaquinarioResponse],
+    summary="Lista as necessidades de maquinário do item de plano",
+)
+async def listar_maquinario(
+    plano_id: UUID,
+    item_id: UUID,
+    session: AsyncSession = Depends(get_session),
+    tenant_id: UUID = Depends(get_tenant_id),
+    _: None = Depends(require_tenant_permission("agricola:planejamento_operacional:visualizar")),
+):
+    svc = PlanoOperacionalService(session, tenant_id)
+    return await svc.listar_maquinario(plano_id, item_id)
+
+
+@router.patch(
+    "/{plano_id}/tarefas/{item_id}/maquinario/{maquinario_id}",
+    response_model=PlanoOperacionalTarefaMaquinarioResponse,
+    summary="Atualiza uma necessidade de maquinário (recalcula snapshot de custo)",
+)
+async def atualizar_maquinario(
+    plano_id: UUID,
+    item_id: UUID,
+    maquinario_id: UUID,
+    dados: PlanoOperacionalTarefaMaquinarioUpdate,
+    session: AsyncSession = Depends(get_session),
+    tenant_id: UUID = Depends(get_tenant_id),
+    _: None = Depends(require_tenant_permission("agricola:planejamento_operacional:editar")),
+):
+    svc = PlanoOperacionalService(session, tenant_id)
+    maquinario = await svc.atualizar_maquinario(plano_id, item_id, maquinario_id, dados)
+    await session.commit()
+    await session.refresh(maquinario)
+    return maquinario
+
+
+@router.delete(
+    "/{plano_id}/tarefas/{item_id}/maquinario/{maquinario_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Remove uma necessidade de maquinário do item de plano",
+)
+async def remover_maquinario(
+    plano_id: UUID,
+    item_id: UUID,
+    maquinario_id: UUID,
+    session: AsyncSession = Depends(get_session),
+    tenant_id: UUID = Depends(get_tenant_id),
+    _: None = Depends(require_tenant_permission("agricola:planejamento_operacional:editar")),
+):
+    svc = PlanoOperacionalService(session, tenant_id)
+    await svc.remover_maquinario(plano_id, item_id, maquinario_id)
     await session.commit()

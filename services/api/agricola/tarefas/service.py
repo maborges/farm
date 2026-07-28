@@ -40,6 +40,11 @@ TAREFA_TIPO_PARA_OPERACAO_TIPO: dict[str, str] = {
     "IRRIGACAO": "IRRIGAÇÃO",
     "COLHEITA": "COLHEITA",
     "OUTRO": "OUTROS",
+    # Tipo consolidado gerado por analises_solo/service.py quando a tarefa junta
+    # mais de uma necessidade (ex.: calagem + adubação fosfatada/potássica/
+    # nitrogenada) em uma única tarefa — não corresponde a um tipo canônico
+    # único de OperacaoAgricola, então cai no bucket genérico.
+    "CORRECAO_SOLO": "OUTROS",
 }
 
 # OperacaoAgricola.tipo (canônico) -> TarefaCampo.type (vocabulário do app/PWA de
@@ -691,7 +696,10 @@ class TarefaService:
             data_realizada=dados.data_prevista,
             area_aplicada_ha=tarefa.area_ha or 1.0,
             maquina_id=dados.maquina_id,
-            implemento=dados.implemento,
+            # `OperacaoAgricola.implemento` continua String (fora de escopo mudar
+            # para FK aqui — ver relatório); serializa o UUID do cadastro de
+            # Equipamento escolhido no planejamento para preservar rastreabilidade.
+            implemento=str(dados.implemento_id) if dados.implemento_id else None,
             operador_id=dados.operador_id,
             status="PLANEJADA",
             insumos=insumos_create,

@@ -593,107 +593,83 @@ class AnaliseSoloService(BaseService[AnaliseSolo]):
             "N": 4.50           # R$ / kg
         }
 
-        # 1. Calagem
+        # Reúne os itens necessários (calagem + NPK) numa única tarefa consolidada
+        # em vez de uma tarefa por nutriente — os produtos comerciais de cada item
+        # só são escolhidos depois, na etapa de Planejamento Operacional.
+        itens: list[dict] = []
+
         if recomendacoes.get("calagem") and recomendacoes["calagem"]["necessaria"]:
             cal = recomendacoes["calagem"]
             dose = float(cal["dose_t_ha"])
             qtd_total_kg = dose * area_ha * 1000
-            custo = (dose * area_ha) * PRECOS["CALCARIO"]
+            itens.append({
+                "tipo": "CALAGEM",
+                "descricao": f"Calagem — Dose: {dose} t/ha",
+                "observacao": cal["observacao"],
+                "custo": (dose * area_ha) * PRECOS["CALCARIO"],
+            })
 
-            existente = await self._tarefa_ativa_existente(analise.id, safra_id, analise.talhao_id, "CALAGEM")
-            if existente:
-                tarefas_existentes.append(existente.id)
-            else:
-                t = await tarefa_svc.criar(safra_id, TarefaCreate(
-                    talhao_id=analise.talhao_id,
-                    analise_solo_id=analise.id,
-                    origem="SOLO",
-                    tipo="CALAGEM",
-                    descricao=f"Calagem via análise de solo — Dose: {dose} t/ha",
-                    obs=cal["observacao"],
-                    prioridade="ALTA",
-                    area_ha=area_ha,
-                    dose_estimada_kg_ha=dose * 1000,
-                    quantidade_total_estimada_kg=qtd_total_kg,
-                    custo_estimado=custo
-                ), user_id=user_id)
-                tarefas_criadas.append(t.id)
-
-        # 2. Fósforo (P)
         if recomendacoes.get("fosforo") and recomendacoes["fosforo"].get("rec_p2o5_kg_ha"):
             p = recomendacoes["fosforo"]
             dose = float(p["rec_p2o5_kg_ha"])
             qtd_total_kg = dose * area_ha
-            custo = qtd_total_kg * PRECOS["P2O5"]
+            itens.append({
+                "tipo": "ADUBACAO_FOSFORO",
+                "descricao": f"Adubação de Fósforo — Dose: {dose} kg/ha de P2O5",
+                "observacao": p["observacao"],
+                "custo": qtd_total_kg * PRECOS["P2O5"],
+            })
 
-            existente = await self._tarefa_ativa_existente(analise.id, safra_id, analise.talhao_id, "ADUBACAO_FOSFORO")
-            if existente:
-                tarefas_existentes.append(existente.id)
-            else:
-                t = await tarefa_svc.criar(safra_id, TarefaCreate(
-                    talhao_id=analise.talhao_id,
-                    analise_solo_id=analise.id,
-                    origem="SOLO",
-                    tipo="ADUBACAO_FOSFORO",
-                    descricao=f"Adubação de Fósforo — Dose: {dose} kg/ha de P2O5",
-                    obs=p["observacao"],
-                    prioridade="ALTA",
-                    area_ha=area_ha,
-                    dose_estimada_kg_ha=dose,
-                    quantidade_total_estimada_kg=qtd_total_kg,
-                    custo_estimado=custo
-                ), user_id=user_id)
-                tarefas_criadas.append(t.id)
-
-        # 3. Potássio (K)
         if recomendacoes.get("potassio") and recomendacoes["potassio"].get("rec_k2o_kg_ha"):
             k = recomendacoes["potassio"]
             dose = float(k["rec_k2o_kg_ha"])
             qtd_total_kg = dose * area_ha
-            custo = qtd_total_kg * PRECOS["K2O"]
+            itens.append({
+                "tipo": "ADUBACAO_POTASSIO",
+                "descricao": f"Adubação de Potássio — Dose: {dose} kg/ha de K2O",
+                "observacao": k["observacao"],
+                "custo": qtd_total_kg * PRECOS["K2O"],
+            })
 
-            existente = await self._tarefa_ativa_existente(analise.id, safra_id, analise.talhao_id, "ADUBACAO_POTASSIO")
-            if existente:
-                tarefas_existentes.append(existente.id)
-            else:
-                t = await tarefa_svc.criar(safra_id, TarefaCreate(
-                    talhao_id=analise.talhao_id,
-                    analise_solo_id=analise.id,
-                    origem="SOLO",
-                    tipo="ADUBACAO_POTASSIO",
-                    descricao=f"Adubação de Potássio — Dose: {dose} kg/ha de K2O",
-                    obs=k["observacao"],
-                    prioridade="ALTA",
-                    area_ha=area_ha,
-                    dose_estimada_kg_ha=dose,
-                    quantidade_total_estimada_kg=qtd_total_kg,
-                    custo_estimado=custo
-                ), user_id=user_id)
-                tarefas_criadas.append(t.id)
-
-        # 4. Nitrogênio (N)
         if recomendacoes.get("nitrogenio") and recomendacoes["nitrogenio"].get("rec_n_kg_ha"):
             n = recomendacoes["nitrogenio"]
             dose = float(n["rec_n_kg_ha"])
             qtd_total_kg = dose * area_ha
-            custo = qtd_total_kg * PRECOS["N"]
+            itens.append({
+                "tipo": "ADUBACAO_NITROGENIO",
+                "descricao": f"Adubação de Nitrogênio — Dose: {dose} kg/ha de N",
+                "observacao": n["observacao"],
+                "custo": qtd_total_kg * PRECOS["N"],
+            })
 
-            existente = await self._tarefa_ativa_existente(analise.id, safra_id, analise.talhao_id, "ADUBACAO_NITROGENIO")
+        if itens:
+            tipo_consolidado = itens[0]["tipo"] if len(itens) == 1 else "CORRECAO_SOLO"
+
+            existente = await self._tarefa_ativa_existente(analise.id, safra_id, analise.talhao_id, tipo_consolidado)
             if existente:
                 tarefas_existentes.append(existente.id)
             else:
+                descricao = (
+                    itens[0]["descricao"]
+                    if len(itens) == 1
+                    else f"Correção de solo — {', '.join(i['descricao'].split(' — ')[0] for i in itens)}"
+                )
+                obs = "\n".join(
+                    f"{i['descricao']}" + (f" — {i['observacao']}" if i["observacao"] else "")
+                    for i in itens
+                )
+                custo_total = sum(i["custo"] for i in itens)
+
                 t = await tarefa_svc.criar(safra_id, TarefaCreate(
                     talhao_id=analise.talhao_id,
                     analise_solo_id=analise.id,
                     origem="SOLO",
-                    tipo="ADUBACAO_NITROGENIO",
-                    descricao=f"Adubação de Nitrogênio — Dose: {dose} kg/ha de N",
-                    obs=n["observacao"],
-                    prioridade="MEDIA",
+                    tipo=tipo_consolidado,
+                    descricao=descricao,
+                    obs=obs,
+                    prioridade="ALTA",
                     area_ha=area_ha,
-                    dose_estimada_kg_ha=dose,
-                    quantidade_total_estimada_kg=qtd_total_kg,
-                    custo_estimado=custo
+                    custo_estimado=custo_total,
                 ), user_id=user_id)
                 tarefas_criadas.append(t.id)
 

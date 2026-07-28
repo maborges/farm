@@ -34,6 +34,33 @@ const STATUS_LABEL: Record<string, string> = {
   CANCELADA: "Cancelada",
 };
 
+const TASK_TYPE_LABEL: Record<string, string> = {
+  APLICACAO_DEFENSIVO: "Aplicação de Defensivo",
+  APLICACAO_FERTILIZANTE: "Aplicação de Fertilizante",
+  COLHEITA_REGISTRO: "Registro de Colheita",
+  PREPARO_SOLO: "Preparo de Solo",
+  PLANTIO_REGISTRO: "Plantio",
+  IRRIGACAO_EVENTO: "Irrigação",
+  MONITORAMENTO_PRAGA: "Monitoramento de Praga",
+  AMOSTRAGEM_SOLO: "Amostragem de Solo",
+  PESAGEM: "Pesagem",
+  PESAGEM_ANIMAL: "Pesagem de Animal",
+  VACINACAO: "Vacinação",
+  VACINACAO_LOTE: "Vacinação de Lote",
+  COBERTURA: "Cobertura",
+  DIAGNOSTICO_PRENHEZ: "Diagnóstico de Prenhez",
+  DESMAME: "Desmama",
+  MEDICACAO_ANIMAL: "Medicação Animal",
+  MOVIMENTACAO_LOTE: "Movimentação de Lote",
+  PARTO: "Parto",
+  PARTO_REGISTRO: "Registro de Parto",
+  MORTE_REGISTRO: "Registro de Morte",
+  INSEMINACAO: "Inseminação",
+  ABASTECIMENTO_MAQUINA: "Abastecimento de Máquina",
+  MANUTENCAO_OCORRENCIA: "Ocorrência de Manutenção",
+  CHECKLIST_CAMPO: "Checklist de Campo",
+};
+
 export default function TarefaDetailPage() {
   const router = useRouter();
   const { id } = useParams() as { id: string };
@@ -45,6 +72,7 @@ export default function TarefaDetailPage() {
   const [saving, setSaving] = useState(false);
 
   const task = useLiveQuery(() => db.tasks.get(id), [id]);
+  const colaboradores = useLiveQuery(() => db.colaboradores.toArray(), []);
 
   const talhao = useLiveQuery(
     async () => task?.talhao_id ? db.talhoes.get(task.talhao_id) : undefined,
@@ -60,6 +88,17 @@ export default function TarefaDetailPage() {
 
   const fazenda = useLiveQuery(
     async () => task?.fazenda_id ? db.fazendas.get(task.fazenda_id) : undefined,
+    [task?.fazenda_id]
+  );
+
+  const pessoasOperacionais = useLiveQuery(
+    async () => {
+      if (!task?.fazenda_id) return [];
+      return db.pessoas_operacionais
+        .where("unidade_produtiva_id")
+        .equals(task.fazenda_id)
+        .toArray();
+    },
     [task?.fazenda_id]
   );
 
@@ -86,6 +125,13 @@ export default function TarefaDetailPage() {
   const pecuariaTask = isPecuariaTaskType(task.type);
   const taskDomain = resolveTaskDomain(task);
   const taskDados = task.dados ?? {};
+  const operadorNome = resolveOperadorName(
+    task.operador_id,
+    colaboradores,
+    pessoasOperacionais,
+    session?.user_id,
+    session?.user_name
+  );
   const safraId = typeof taskDados.safra_id === "string" ? taskDados.safra_id : undefined;
   const safra = safras?.find((item) => item.id === safraId);
   const animaisIds = Array.isArray(taskDados.animais_ids)
@@ -232,6 +278,8 @@ export default function TarefaDetailPage() {
             value={new Date(task.data_programada + "T00:00:00").toLocaleDateString("pt-BR")}
           />
         )}
+        <InfoRow label="Tipo" value={formatTaskType(task.type)} />
+        <InfoRow label="Operador" value={operadorNome} />
         <InfoRow label="Prioridade" value={PRIORIDADE_LABEL[task.prioridade] ?? task.prioridade} />
         {task.origem === "PROGRAMADA" && !isMinhasTarefa && (
           <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
@@ -250,7 +298,7 @@ export default function TarefaDetailPage() {
         <CampoSurface className="flex flex-col gap-2 p-4 text-sm">
           <p className="mb-1 text-[11px] uppercase tracking-[0.18em] text-primary">Instruções</p>
           {Object.entries(task.dados).map(([k, v]) => (
-            <InfoRow key={k} label={k} value={String(v)} />
+            <InfoRow key={k} label={formatTaskDataLabel(k)} value={formatTaskDataValue(k, v, operadorNome)} />
           ))}
         </CampoSurface>
       )}
@@ -353,17 +401,68 @@ function InfoRow({ label, value }: { label: string; value: string }) {
 }
 
 function formatTaskType(type: string): string {
+  return TASK_TYPE_LABEL[type] ?? formatPecuariaTaskType(type) ?? formatCodeLabel(type);
+}
+
+function formatCodeLabel(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function resolveOperadorName(
+  operadorId: string | undefined,
+  colaboradores: Array<{ id: string; nome: string }> | undefined,
+  pessoasOperacionais: Array<{ id: string; pessoa_id: string; nome_exibicao: string }> | undefined,
+  sessionUserId?: string,
+  sessionUserName?: string
+): string {
+  if (!operadorId) return "—";
+  if (operadorId === sessionUserId && sessionUserName) return sessionUserName;
+
+  const colaborador = colaboradores?.find((item) => item.id === operadorId);
+  if (colaborador?.nome) return colaborador.nome;
+
+  const pessoa = pessoasOperacionais?.find((item) => item.pessoa_id === operadorId || item.id === operadorId);
+  if (pessoa?.nome_exibicao) return pessoa.nome_exibicao;
+
+  return `${operadorId.slice(0, 8)}…`;
+}
+
+function formatTaskDataLabel(key: string): string {
   const map: Record<string, string> = {
-    APLICACAO_DEFENSIVO: "Aplicação de Defensivo",
-    APLICACAO_FERTILIZANTE: "Aplicação de Fertilizante",
-    PLANTIO_REGISTRO: "Plantio",
-    COLHEITA_REGISTRO: "Registro de Colheita",
-    PESAGEM: "Pesagem",
-    PESAGEM_ANIMAL: "Pesagem de Animal",
-    VACINACAO: "Vacinação",
-    VACINACAO_LOTE: "Vacinação de Lote",
-    PARTO_REGISTRO: "Registro de Parto",
-    MONITORAMENTO_PRAGA: "Monitoramento de Praga",
+    tipo: "Tipo",
+    type: "Tipo",
+    operador_id: "Operador",
+    operador: "Operador",
+    operador_nome: "Operador",
   };
-  return map[type] ?? formatPecuariaTaskType(type);
+  return map[key] ?? formatCodeLabel(key);
+}
+
+function formatTaskDataValue(key: string, value: unknown, operadorNome: string): string {
+  if (value === null || typeof value === "undefined" || value === "") return "—";
+
+  if ((key === "operador_id" || key === "operador") && typeof value === "string") {
+    return operadorNome !== "—" ? operadorNome : `${value.slice(0, 8)}…`;
+  }
+
+  if ((key === "tipo" || key === "type") && typeof value === "string") {
+    return formatTaskType(value);
+  }
+
+  if (typeof value === "string") {
+    return value.includes("_") ? formatCodeLabel(value) : value;
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item)).join(", ");
+  }
+
+  if (typeof value === "object") {
+    return JSON.stringify(value);
+  }
+
+  return String(value);
 }

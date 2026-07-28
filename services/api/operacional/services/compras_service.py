@@ -891,6 +891,7 @@ class ComprasService:
             .group_by(AlocacaoItem.solicitacao_item_id)
         )
         alocado_por_item = dict((await self.session.execute(stmt_aloc)).all())
+        await self._preencher_ultima_compra_itens(itens)
 
         for item in itens:
             item.quantidade_alocada = alocado_por_item.get(item.id, 0.0)
@@ -902,6 +903,39 @@ class ComprasService:
                 item.status_atendimento = "PARCIAL"
 
         return itens
+
+    async def _preencher_ultima_compra_itens(self, itens: List[SolicitacaoItem]) -> None:
+        produto_ids = {item.produto_id for item in itens}
+        if not produto_ids:
+            return
+
+        ultimas = (
+            select(
+                ItemPedidoCompra.produto_id.label("produto_id"),
+                ItemPedidoCompra.preco_estimado_unitario.label("valor_unitario"),
+                PedidoCompra.created_at.label("data_compra"),
+                func.row_number().over(
+                    partition_by=ItemPedidoCompra.produto_id,
+                    order_by=PedidoCompra.created_at.desc(),
+                ).label("rn"),
+            )
+            .join(PedidoCompra, ItemPedidoCompra.pedido_id == PedidoCompra.id)
+            .where(
+                PedidoCompra.tenant_id == self.tenant_id,
+                ItemPedidoCompra.produto_id.in_(produto_ids),
+            )
+        ).subquery()
+
+        rows = await self.session.execute(
+            select(ultimas.c.produto_id, ultimas.c.valor_unitario, ultimas.c.data_compra)
+            .where(ultimas.c.rn == 1)
+        )
+        por_produto = {row.produto_id: row for row in rows.all()}
+
+        for item in itens:
+            row = por_produto.get(item.produto_id)
+            item.valor_ultima_compra = float(row.valor_unitario) if row is not None and row.valor_unitario is not None else None
+            item.data_ultima_compra = row.data_compra if row is not None else None
 
     async def listar_solicitacoes(
         self,

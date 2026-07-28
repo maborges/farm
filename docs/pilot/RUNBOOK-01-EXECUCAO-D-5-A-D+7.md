@@ -375,33 +375,44 @@ Fluxo:
 
 Fluxo:
 
-`atividade planejada ou equivalente -> Campo PWA -> offline -> retomada de rede -> sync -> estoque -> custo -> evento -> recomendação/alerta`
+`tarefas aprovadas (SafraTarefa) -> consolidação em Plano Operacional em lote -> aplicação de receita/insumos/mão de obra -> geração da operação planejada -> Campo PWA -> offline -> retomada de rede -> sync -> execução/cancelamento da tarefa -> estoque -> custo -> evento -> recomendação/alerta`
 
 Cada passo abaixo deve seguir o fluxo obrigatório de validação: preparar cenário → executar fluxo → validar resultado esperado (interface) → validar persistência (banco) → validar regras de negócio → validar eventos → validar Dashboard → validar DRE → registrar evidências → classificar falha, se houver → prosseguir. Resposta correta apenas na interface nunca encerra um passo.
 
+**Nota de escopo (2026-07-27):** os passos 1–5 abaixo cobrem o épico de Planejamento Operacional em Lote (`services/api/agricola/planejamento_operacional/`) e o submódulo `receitas_aplicacao`. No momento da redação desta atualização, backend (models/schemas/service/router/migration, registrado em `main.py`) está pronto mas ainda não commitado; frontend de cadastro de receitas e de seleção múltipla no plano ainda não foi implementado (ver `docs/brainstorm-receitas-aplicacao-planejamento-operacional.md`). Se o frontend ainda não estiver disponível quando este Dry Run for executado, os passos 3–4 podem ser testados via chamada direta ao endpoint (`POST /api/v1/agricola/planejamento-operacional/{plano_id}/aplicar-receita`) e registrados como ressalva, não como bloqueador.
+
 Passos obrigatórios:
 
-1. Selecionar uma operação agrícola mínima do piloto vinculada a uma `ProductionUnit` resolvida deterministicamente (confirmar resolução antes de iniciar; se não houver `ProductionUnit` candidata, tratar como bloqueio do passo, não prosseguir por fallback).
-2. Carregar os dados no Campo PWA (confirmar que o Campo consome o mesmo `OperacaoService` do Web, sem lógica paralela).
-3. Desligar a conectividade.
-4. Registrar a operação offline.
-5. Fechar e reabrir o aplicativo.
-6. Restabelecer a conectividade.
-7. Executar o push e validar idempotência (reenviar o mesmo push e confirmar ausência de duplicidade).
-8. Validar a execução (`OperacaoExecucao`) e a geração de `CostAllocation` vinculada à `ProductionUnit` correta.
-9. Confirmar reflexo em estoque (movimento/lote/saldo).
-10. Confirmar reflexo no Dashboard (custo realizado por `ProductionUnit`).
-11. Confirmar reflexo na DRE (a operação deve aparecer no escopo construído a partir de `ProductionUnit` com `CostAllocation`).
-12. Confirmar que nenhuma `Despesa(OPERACAO_AGRICOLA)` foi criada pela operação (arquitetura removida em 04I).
-13. Validar evento, recomendação ou alerta, quando aplicável.
+1. Selecionar um conjunto de `SafraTarefa` aprovadas da mesma safra/UP (idealmente tarefas-irmãs geradas por uma mesma análise de solo, um talhão cada) e consolidá-las em um Plano Operacional em lote (`PlanoOperacional`). Confirmar na interface (ou via `GET` do plano) o total consolidado por produto e a mão de obra total estimada, somando as tarefas selecionadas.
+2. Confirmar que o plano permite aprovação/programação parcial: reservar/aprovar apenas as tarefas cujo insumo já está disponível em estoque, deixando as demais pendentes de compra (validar que o sistema não força tudo-ou-nada).
+3. Cadastrar (ou reaproveitar) uma Receita de Aplicação (produto + dose/ha + mão de obra padrão) e aplicá-la em lote às tarefas selecionadas do plano via `aplicar-receita`. Validar que cada `PlanoOperacionalTarefaInsumo`/`PlanoOperacionalTarefaMaoObra` criado corresponde à dose × área do talhão (`AreaRural.area_hectares_manual|area_hectares`), e não a um valor fixo por tarefa.
+4. Validar isolamento de tenant no `aplicar-receita`: tentar aplicar receita a um `plano_operacional_tarefa_id` de outro plano/tenant e confirmar rejeição (não deve ser possível cruzar planos).
+5. A partir do plano consolidado e com receita aplicada, gerar a operação planejada (`PlanejarOperacaoRequest -> TarefaService.gerar_operacao_planejada`) vinculada a uma `ProductionUnit` resolvida deterministicamente (confirmar resolução antes de iniciar; se não houver `ProductionUnit` candidata, tratar como bloqueio do passo, não prosseguir por fallback).
+6. Carregar os dados no Campo PWA (confirmar que o Campo consome o mesmo `OperacaoService` do Web, sem lógica paralela).
+7. Desligar a conectividade.
+8. Registrar no Campo PWA o retorno da tarefa: cobrir pelo menos dois desfechos em execuções separadas — (a) tarefa **executada** (com quantidade real de insumo/mão de obra, podendo divergir do planejado) e (b) tarefa **cancelada**/não executada (validar que o motivo de cancelamento é obrigatório e que nenhum estoque/custo é baixado indevidamente).
+9. Fechar e reabrir o aplicativo.
+10. Restabelecer a conectividade.
+11. Executar o push e validar idempotência (reenviar o mesmo push e confirmar ausência de duplicidade), para os dois desfechos (executada e cancelada).
+12. Validar a execução (`OperacaoExecucao`) e a geração de `CostAllocation` vinculada à `ProductionUnit` correta — apenas para a tarefa executada. Confirmar que a tarefa cancelada não gera `CostAllocation` nem movimento de estoque.
+13. Confirmar reflexo em estoque (movimento/lote/saldo) apenas para a tarefa executada, e comparar a quantidade consumida real com a planejada pela receita (dose × área).
+14. Confirmar reflexo no Dashboard (custo realizado por `ProductionUnit`) refletindo somente a tarefa executada.
+15. Confirmar reflexo na DRE (a operação deve aparecer no escopo construído a partir de `ProductionUnit` com `CostAllocation`).
+16. Confirmar que nenhuma `Despesa(OPERACAO_AGRICOLA)` foi criada pela operação (arquitetura removida em 04I).
+17. Confirmar que o status da `SafraTarefa`/plano reflete corretamente cada desfecho (executada vs. cancelada) na tela de acompanhamento do plano.
+18. Validar evento, recomendação ou alerta, quando aplicável.
 
 Evidências:
 
-- registro offline no dispositivo;
+- plano operacional consolidado (ID, tarefas incluídas, total por produto, mão de obra total);
+- receita de aplicação usada e resultado do `aplicar-receita` (insumos/mão de obra gerados por tarefa);
+- tentativa de IDOR entre planos/tenants no `aplicar-receita` (rejeitada);
+- registro offline no dispositivo, para os dois desfechos (executada e cancelada);
 - estado da fila antes e depois do reenvio;
 - resposta de sync sanitizada;
-- movimento de estoque;
-- `CostAllocation` gerada (ID, `ProductionUnit`, valor);
+- movimento de estoque (apenas tarefa executada) com comparação planejado vs. realizado;
+- `CostAllocation` gerada (ID, `ProductionUnit`, valor) apenas para a tarefa executada;
+- confirmação de ausência de `CostAllocation`/estoque para a tarefa cancelada, com motivo de cancelamento registrado;
 - leitura de Dashboard refletindo o custo realizado;
 - leitura de DRE refletindo a operação no período;
 - evento/alerta/recomendação quando o fluxo o produzir.

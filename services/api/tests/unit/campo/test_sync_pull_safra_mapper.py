@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from datetime import date
 
 import pytest
@@ -379,7 +379,7 @@ async def test_sync_pull_reflete_tarefa_invalidada_recente(session, tenant_id):
     await session.commit()
 
     svc = SyncService(session, tenant_id, device)
-    data = await svc.pull(datetime.utcnow() - timedelta(days=1))
+    data = await svc.pull(datetime.now(timezone.utc) - timedelta(days=1))
 
     assert len(data["tarefas_pendentes"]) == 1
     assert data["tarefas_pendentes"][0]["status_execucao"] == "INVALIDADA"

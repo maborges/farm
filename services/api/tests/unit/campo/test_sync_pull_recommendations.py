@@ -66,6 +66,7 @@ async def test_sync_pull_falha_em_recomendacoes_nao_bloqueia_sync_principal(sess
 
 
 async def _bootstrap_context(session, tenant_id: uuid.UUID) -> None:
+    await session.execute(text(f"SET app.current_tenant_id = '{tenant_id}';"))
     await session.execute(
         text(
             "INSERT INTO tenants (id, nome, documento, ativo, storage_usado_mb, storage_limite_mb, idioma_padrao, created_at, updated_at) "

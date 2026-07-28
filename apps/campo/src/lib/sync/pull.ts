@@ -209,6 +209,7 @@ export async function pullSync(): Promise<void> {
 
   const res = await fetch(`${API_BASE}/sync/pull?${params}`, {
     headers: { Authorization: `Bearer ${session.device_token}` },
+    cache: "no-store",
   });
 
   if (!res.ok) {

@@ -81,6 +81,81 @@ async def _seed_pessoa_and_relacionamentos(
     await session.commit()
     return pessoa_id
 
+async def _seed_colaborador(
+    session,
+    tenant_id: uuid.UUID,
+    unidade_produtiva_id: uuid.UUID,
+    nome_exibicao: str,
+    cpf: str,
+) -> uuid.UUID:
+    pessoa_id = uuid.uuid4()
+    colaborador_id = uuid.uuid4()
+    await session.execute(
+        text(
+            "INSERT INTO cadastros_pessoas (id, tenant_id, tipo, nome_exibicao, base_legal, ativo, created_at, updated_at) "
+            "VALUES (:id, :tenant_id, 'PF', :nome, 'CONTRATO', true, now(), now()) "
+            "ON CONFLICT DO NOTHING"
+        ),
+        {"id": str(pessoa_id), "tenant_id": str(tenant_id), "nome": nome_exibicao},
+    )
+    await session.execute(
+        text(
+            "INSERT INTO cadastros_pessoas_documentos (id, pessoa_id, tipo, numero, updated_at) "
+            "VALUES (:id, :pessoa_id, 'CPF', :cpf, now()) "
+            "ON CONFLICT DO NOTHING"
+        ),
+        {"id": str(uuid.uuid4()), "pessoa_id": str(pessoa_id), "cpf": cpf},
+    )
+    await session.execute(
+        text(
+            "INSERT INTO rh_colaboradores (id, tenant_id, unidade_produtiva_id, pessoa_id, cargo, tipo_contrato, ativo, created_at, updated_at) "
+            "VALUES (:id, :tenant_id, :up_id, :pessoa_id, 'Operador', 'DIARISTA', true, now(), now()) "
+            "ON CONFLICT DO NOTHING"
+        ),
+        {
+            "id": str(colaborador_id),
+            "tenant_id": str(tenant_id),
+            "up_id": str(unidade_produtiva_id),
+            "pessoa_id": str(pessoa_id),
+        },
+    )
+    await session.commit()
+    return colaborador_id
+
+async def test_sync_pull_colaboradores_usa_dados_da_pessoa(session, tenant_id):
+    unidade_produtiva_id = uuid.uuid4()
+    await _ensure_tenant_and_unit(session, tenant_id, unidade_produtiva_id)
+    unique_suffix = uuid.uuid4().hex[:8]
+    nome = f"Maria Operadora {unique_suffix}"
+    cpf = str(uuid.uuid4().int % 10**11).zfill(11)
+    colaborador_id = await _seed_colaborador(
+        session,
+        tenant_id,
+        unidade_produtiva_id,
+        nome,
+        cpf,
+    )
+
+    device = DispositivoCampo(
+        id=uuid.uuid4(),
+        tenant_id=tenant_id,
+        user_id=uuid.uuid4(),
+        nome="Tablet A",
+        fazenda_ids=[unidade_produtiva_id],
+        modulos=["agricola"],
+        status="ATIVO",
+        expires_at=datetime.utcnow(),
+    )
+
+    data = await SyncService(session, tenant_id, device).pull(None)
+
+    assert {
+        "id": str(colaborador_id),
+        "nome": nome,
+        "cpf": cpf,
+        "cargo": "Operador",
+    } in data["colaboradores"]
+
 async def test_sync_pull_pessoas_operacionais_valida(session, tenant_id):
     unidade_produtiva_id = uuid.uuid4()
     await _ensure_tenant_and_unit(session, tenant_id, unidade_produtiva_id)

@@ -1546,14 +1546,16 @@ class EstoqueService(BaseService[SaldoEstoque]):
 
         return [
             AlertaEstoqueItem(
+                id=s.id,
                 produto_id=s.produto_id,
+                deposito_id=s.deposito_id,
                 produto_nome=s.produto_nome,
                 deposito_nome=s.deposito_nome,
                 quantidade_atual=s.quantidade_atual,
                 estoque_minimo=prods[s.produto_id].estoque_minimo if s.produto_id in prods else 0.0,
                 unidade_medida=s.unidade_medida,
-                deficit=round(
-                    (prods[s.produto_id].estoque_minimo if s.produto_id in prods else 0.0) - s.quantidade_atual, 4
+                quantidade_sugerida=round(
+                    max(0.0, (prods[s.produto_id].estoque_minimo if s.produto_id in prods else 0.0) - s.quantidade_atual), 4
                 ),
             )
             for s in saldos if s.abaixo_minimo

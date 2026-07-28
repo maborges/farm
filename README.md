@@ -71,6 +71,14 @@ python scripts/run_worker.py
 ```bash
 cd /opt/lampp/htdocs/farm/apps/web
 pnpm run dev
+
+antes de rodar verifique se nao tem processo rodando
+ps -ef | grep "next dev"
+kill <PID>
+
+se não funcionar pode ser so lock antigo
+rm -f /opt/lampp/htdocs/farm/apps/web/.next/dev/lock
+
 ```
 Roda em `http://localhost:3000`.
 

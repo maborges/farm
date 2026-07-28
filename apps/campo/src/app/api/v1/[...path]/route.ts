@@ -27,6 +27,15 @@ function buildTargetUrl(request: NextRequest, path: string[]) {
   return target;
 }
 
+function withNoStoreHeaders(headers: Headers) {
+  const nextHeaders = new Headers(headers);
+  nextHeaders.set("cache-control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  nextHeaders.set("pragma", "no-cache");
+  nextHeaders.set("expires", "0");
+  nextHeaders.delete("etag");
+  return nextHeaders;
+}
+
 async function proxy(request: NextRequest, ctx: { params: Promise<{ path: string[] }> }) {
   const { path } = await ctx.params;
   const targetUrl = buildTargetUrl(request, path);
@@ -41,13 +50,14 @@ async function proxy(request: NextRequest, ctx: { params: Promise<{ path: string
       method,
       headers,
       body: body && body.byteLength > 0 ? body : undefined,
+      cache: "no-store",
       redirect: "follow",
     });
 
     return new NextResponse(response.body, {
       status: response.status,
       statusText: response.statusText,
-      headers: response.headers,
+      headers: withNoStoreHeaders(response.headers),
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Proxy fetch failed";

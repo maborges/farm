@@ -48,6 +48,22 @@ def _priority_rank(priority: str) -> int:
     return _RECOMMENDATION_PRIORITY_RANK.get(priority, 0)
 
 
+def _as_utc_naive(value: datetime | None) -> datetime | None:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value
+    return value.astimezone(timezone.utc).replace(tzinfo=None)
+
+
+def _as_utc_aware(value: datetime | None) -> datetime | None:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
 def _make_device_jwt(device: DispositivoCampo, user_name: str, user_avatar_url: str | None) -> str:
     now = datetime.now(timezone.utc)
     payload = {
@@ -597,6 +613,8 @@ class SyncService:
         from agricola.cultivos.models import Cultivo  # noqa: F401
         from agricola.safras.models import Safra
 
+        last_sync_at_naive = _as_utc_naive(last_sync_at)
+        last_sync_at_aware = _as_utc_aware(last_sync_at)
         fazenda_ids = [uuid.UUID(str(fazenda_id)) for fazenda_id in self.device.fazenda_ids]
 
         # Safras ativas associadas ao tenant (base para o seletor de caderno no PWA)
@@ -661,20 +679,37 @@ class SyncService:
         )
         insumos_rows = (await self.session.execute(stmt_i)).scalars().all()
 
+        from core.cadastros.pessoas.models import Pessoa, PessoaDocumento, PessoaRelacionamento, TipoRelacionamento
+
         # Colaboradores ativos do tenant
         from rh.models import ColaboradorRH
 
-        stmt_c = select(ColaboradorRH).where(
-            and_(
-                ColaboradorRH.tenant_id == self.tenant_id,
-                ColaboradorRH.ativo == True,
+        stmt_c = (
+            select(
+                ColaboradorRH,
+                Pessoa.nome_exibicao.label("nome_exibicao"),
+                PessoaDocumento.numero.label("cpf"),
+            )
+            .join(Pessoa, Pessoa.id == ColaboradorRH.pessoa_id)
+            .outerjoin(
+                PessoaDocumento,
+                and_(
+                    PessoaDocumento.pessoa_id == ColaboradorRH.pessoa_id,
+                    PessoaDocumento.tipo == "CPF",
+                ),
+            )
+            .where(
+                and_(
+                    ColaboradorRH.tenant_id == self.tenant_id,
+                    ColaboradorRH.ativo == True,
+                    Pessoa.tenant_id == self.tenant_id,
+                    Pessoa.ativo == True,
+                )
             )
         )
-        colaboradores_rows = (await self.session.execute(stmt_c)).scalars().all()
+        colaboradores_rows = (await self.session.execute(stmt_c)).all()
 
         # Pessoas operacionais (Fase 2B)
-        from core.cadastros.pessoas.models import Pessoa, PessoaRelacionamento, TipoRelacionamento
-
         hoje_date = date.today()
         stmt_p = (
             select(
@@ -729,12 +764,12 @@ class SyncService:
         # 3. Programadas explicitamente atribuídas ao dispositivo, mesmo que futuras
         hoje = date.today()
         status_sincronizavel = TarefaCampo.status_execucao.in_(["PENDENTE", "EM_EXECUCAO"])
-        if last_sync_at:
+        if last_sync_at_naive:
             status_sincronizavel = or_(
                 status_sincronizavel,
                 and_(
                     TarefaCampo.status_execucao.in_(["CONCLUIDA", "CANCELADA", "INVALIDADA"]),
-                    TarefaCampo.updated_at >= last_sync_at,
+                    TarefaCampo.updated_at >= last_sync_at_naive,
                 ),
             )
         stmt_task = select(TarefaCampo).where(
@@ -778,7 +813,7 @@ class SyncService:
         caderno_svc = CadernoCampoService(self.session, self.tenant_id)
         eventos_caderno_oficiais = await caderno_svc.listar_eventos_oficiais_para_sync(
             unidade_produtiva_ids=list(fazenda_ids),
-            updated_after=last_sync_at,
+            updated_after=last_sync_at_naive,
         )
 
         # Tombstones desde o último sync
@@ -788,11 +823,11 @@ class SyncService:
             "tarefas": [],
             "insumos": [],
         }
-        if last_sync_at:
+        if last_sync_at_naive:
             stmt_tomb = select(SyncTombstone).where(
                 and_(
                     SyncTombstone.tenant_id == self.tenant_id,
-                    SyncTombstone.deleted_at > last_sync_at,
+                    SyncTombstone.deleted_at > last_sync_at_naive,
                 )
             )
             for t in (await self.session.execute(stmt_tomb)).scalars().all():
@@ -801,7 +836,7 @@ class SyncService:
 
         recomendacoes_operacionais = await self._listar_recomendacoes_operacionais(
             fazenda_ids=fazenda_ids,
-            last_sync_at=last_sync_at,
+            last_sync_at=last_sync_at_aware,
         )
         recomendacoes_climaticas = self._build_recomendacoes_climaticas(recomendacoes_operacionais)
 
@@ -871,11 +906,11 @@ class SyncService:
             "colaboradores": [
                 {
                     "id": str(c.id),
-                    "nome": c.nome,
-                    "cpf": c.cpf,
+                    "nome": nome_exibicao or "Colaborador",
+                    "cpf": cpf,
                     "cargo": c.cargo,
                 }
-                for c in colaboradores_rows
+                for c, nome_exibicao, cpf in colaboradores_rows
             ],
             "pessoas_operacionais": pessoas_operacionais,
             "tarefas_pendentes": [

@@ -1,7 +1,7 @@
 from pydantic import BaseModel, ConfigDict, Field
 from uuid import UUID
 from datetime import datetime, date
-from typing import Optional
+from typing import Optional, List
 
 
 class PlanoOperacionalCreate(BaseModel):
@@ -142,3 +142,57 @@ class PlanoOperacionalTarefaMaoObraResponse(BaseModel):
     fonte_custo: Optional[str]
     created_at: datetime
     updated_at: datetime
+
+
+class PlanoOperacionalTarefaMaquinarioCreate(BaseModel):
+    maquina_id: Optional[UUID] = None
+    implemento_id: Optional[UUID] = None
+    # Ao menos um de maquina_id/implemento_id é exigido — validado no service
+    # (não no schema, para poder dar mensagem de negócio consistente).
+    horas_estimadas: Optional[float] = Field(None, gt=0)
+
+
+class PlanoOperacionalTarefaMaquinarioUpdate(BaseModel):
+    maquina_id: Optional[UUID] = None
+    implemento_id: Optional[UUID] = None
+    horas_estimadas: Optional[float] = Field(None, gt=0)
+
+
+class PlanoOperacionalTarefaMaquinarioResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    tenant_id: UUID
+    plano_operacional_tarefa_id: UUID
+    maquina_id: Optional[UUID]
+    implemento_id: Optional[UUID]
+    horas_estimadas: Optional[float]
+    custo_hora_maquina_snapshot: Optional[float]
+    custo_hora_implemento_snapshot: Optional[float]
+    custo_total_estimado: Optional[float]
+    fonte_custo: Optional[str]
+    created_at: datetime
+    updated_at: datetime
+
+
+class GerarOSItemInput(BaseModel):
+    plano_operacional_tarefa_id: UUID
+    data_prevista: date
+    operador_id: Optional[UUID] = None
+    maquina_id: Optional[UUID] = None
+    implemento_id: Optional[UUID] = None
+
+
+class GerarOSLoteRequest(BaseModel):
+    itens: List[GerarOSItemInput] = Field(..., min_length=1)
+
+
+class GerarOSResultado(BaseModel):
+    plano_operacional_tarefa_id: UUID
+    sucesso: bool
+    operacao_agricola_id: Optional[UUID] = None
+    erro: Optional[str] = None
+
+
+class GerarOSLoteResponse(BaseModel):
+    resultados: List[GerarOSResultado]

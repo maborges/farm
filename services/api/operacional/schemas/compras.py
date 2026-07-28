@@ -67,6 +67,8 @@ class SolicitacaoItemResponse(BaseModel):
     unidade: str
     quantidade_alocada: float = 0.0
     status_atendimento: Literal["PENDENTE", "PARCIAL", "ATENDIDO"] = "PENDENTE"
+    valor_ultima_compra: Optional[float] = None
+    data_ultima_compra: Optional[datetime] = None
 
     model_config = ConfigDict(from_attributes=True)
 

@@ -10,6 +10,7 @@ from agricola.planejamento_operacional.models import (
     PlanoOperacionalTarefa,
     PlanoOperacionalTarefaInsumo,
     PlanoOperacionalTarefaMaoObra,
+    PlanoOperacionalTarefaMaquinario,
 )
 from agricola.planejamento_operacional.schemas import (
     PlanoOperacionalCreate,
@@ -20,11 +21,15 @@ from agricola.planejamento_operacional.schemas import (
     PlanoOperacionalTarefaInsumoUpdate,
     PlanoOperacionalTarefaMaoObraCreate,
     PlanoOperacionalTarefaMaoObraUpdate,
+    PlanoOperacionalTarefaMaquinarioCreate,
+    PlanoOperacionalTarefaMaquinarioUpdate,
 )
 from agricola.safras.models import Safra
 from agricola.tarefas.models import SafraTarefa, SafraTarefaNecessidade
+from agricola.tarefas.schemas import TarefaUpdate
 from core.cadastros.produtos.models import Produto
 from core.cadastros.tipos_servico.models import TipoServico
+from core.cadastros.equipamentos.models import Equipamento
 from rh.models import ColaboradorRH
 from operacional.models.estoque import SaldoEstoque, Deposito, ReservaEstoque
 from operacional.services.estoque_service import EstoqueService
@@ -759,3 +764,310 @@ class PlanoOperacionalService(BaseService[PlanoOperacional]):
             PlanoOperacionalTarefaMaoObra.plano_operacional_tarefa_id == item_id,
         )
         return list((await self.session.execute(stmt)).scalars().all())
+
+    # ------------------------------------------------------------------
+    # Maquinário do item de plano (máquina + implemento)
+    # ------------------------------------------------------------------
+
+    async def _validar_equipamento(self, equipamento_id: uuid.UUID) -> Equipamento:
+        stmt = select(Equipamento).where(
+            Equipamento.id == equipamento_id,
+            Equipamento.tenant_id == self.tenant_id,
+        )
+        equipamento = (await self.session.execute(stmt)).scalars().first()
+        if not equipamento:
+            raise EntityNotFoundError(f"Equipamento {equipamento_id} não encontrado.")
+        return equipamento
+
+    async def _resolver_custo_maquinario(
+        self, maquina_id: uuid.UUID | None, implemento_id: uuid.UUID | None
+    ) -> tuple[float | None, float | None, str]:
+        # Reaproveita o SnapshotCustoService com origem_tipo="MAQUINA" — mesmo
+        # caminho já usado no orçamento de safra (custo/hora real via
+        # FrotaCustoService.obter_custo_equipamento). Implemento é o mesmo
+        # cadastro de Equipamento, só outro registro; nenhuma lógica de custo
+        # nova é criada aqui. Nunca inventa valor: sem custo/hora (>0) a
+        # parcela correspondente fica None.
+        snapshot_svc = SnapshotCustoService(self.session, self.tenant_id)
+
+        custo_maquina = None
+        custo_implemento = None
+        if maquina_id:
+            preco, _ = await snapshot_svc.capturar("MAQUINA", maquina_id, "hora")
+            if preco and preco > 0:
+                custo_maquina = float(preco)
+        if implemento_id:
+            preco, _ = await snapshot_svc.capturar("MAQUINA", implemento_id, "hora")
+            if preco and preco > 0:
+                custo_implemento = float(preco)
+
+        if custo_maquina is not None and custo_implemento is not None:
+            fonte_custo = "MAQUINA_E_IMPLEMENTO"
+        elif custo_maquina is not None:
+            fonte_custo = "SO_MAQUINA"
+        elif custo_implemento is not None:
+            fonte_custo = "SO_IMPLEMENTO"
+        else:
+            fonte_custo = "CUSTO_INCOMPLETO"
+        return custo_maquina, custo_implemento, fonte_custo
+
+    async def _montar_snapshot_maquinario(self, maquinario: PlanoOperacionalTarefaMaquinario) -> None:
+        if maquinario.maquina_id:
+            await self._validar_equipamento(maquinario.maquina_id)
+        if maquinario.implemento_id:
+            await self._validar_equipamento(maquinario.implemento_id)
+
+        custo_maquina, custo_implemento, fonte_custo = await self._resolver_custo_maquinario(
+            maquinario.maquina_id, maquinario.implemento_id
+        )
+        maquinario.custo_hora_maquina_snapshot = custo_maquina
+        maquinario.custo_hora_implemento_snapshot = custo_implemento
+        maquinario.fonte_custo = fonte_custo
+
+        custo_hora_total = (custo_maquina or 0) + (custo_implemento or 0)
+        if fonte_custo != "CUSTO_INCOMPLETO" and maquinario.horas_estimadas:
+            maquinario.custo_total_estimado = round(custo_hora_total * float(maquinario.horas_estimadas), 2)
+        else:
+            maquinario.custo_total_estimado = None
+
+    async def adicionar_maquinario(
+        self, plano_id: uuid.UUID, item_id: uuid.UUID, dados: PlanoOperacionalTarefaMaquinarioCreate
+    ) -> PlanoOperacionalTarefaMaquinario:
+        plano, item = await self._get_plano_e_item(plano_id, item_id)
+        self._validar_plano_editavel_para_insumo(plano)
+        if not dados.maquina_id and not dados.implemento_id:
+            raise BusinessRuleError(
+                "Informe ao menos uma máquina ou um implemento para adicionar necessidade de maquinário."
+            )
+
+        maquinario = PlanoOperacionalTarefaMaquinario(
+            id=uuid.uuid4(),
+            tenant_id=self.tenant_id,
+            plano_operacional_tarefa_id=item_id,
+            maquina_id=dados.maquina_id,
+            implemento_id=dados.implemento_id,
+            horas_estimadas=dados.horas_estimadas,
+        )
+        await self._montar_snapshot_maquinario(maquinario)
+        self.session.add(maquinario)
+        await self.session.flush()
+        return maquinario
+
+    async def _get_maquinario_or_fail(
+        self, item_id: uuid.UUID, maquinario_id: uuid.UUID
+    ) -> PlanoOperacionalTarefaMaquinario:
+        stmt = select(PlanoOperacionalTarefaMaquinario).where(
+            PlanoOperacionalTarefaMaquinario.id == maquinario_id,
+            PlanoOperacionalTarefaMaquinario.plano_operacional_tarefa_id == item_id,
+            PlanoOperacionalTarefaMaquinario.tenant_id == self.tenant_id,
+        )
+        maquinario = (await self.session.execute(stmt)).scalars().first()
+        if not maquinario:
+            raise EntityNotFoundError(f"Necessidade de maquinário {maquinario_id} não encontrada neste item.")
+        return maquinario
+
+    async def atualizar_maquinario(
+        self,
+        plano_id: uuid.UUID,
+        item_id: uuid.UUID,
+        maquinario_id: uuid.UUID,
+        dados: PlanoOperacionalTarefaMaquinarioUpdate,
+    ) -> PlanoOperacionalTarefaMaquinario:
+        plano, _ = await self._get_plano_e_item(plano_id, item_id)
+        self._validar_plano_editavel_para_insumo(plano)
+        maquinario = await self._get_maquinario_or_fail(item_id, maquinario_id)
+
+        dados_dict = dados.model_dump(exclude_unset=True)
+        for campo, valor in dados_dict.items():
+            setattr(maquinario, campo, valor)
+
+        if not maquinario.maquina_id and not maquinario.implemento_id:
+            raise BusinessRuleError(
+                "A necessidade de maquinário precisa manter ao menos uma máquina ou um implemento."
+            )
+
+        await self._montar_snapshot_maquinario(maquinario)
+        self.session.add(maquinario)
+        await self.session.flush()
+        return maquinario
+
+    async def remover_maquinario(self, plano_id: uuid.UUID, item_id: uuid.UUID, maquinario_id: uuid.UUID) -> None:
+        plano, _ = await self._get_plano_e_item(plano_id, item_id)
+        self._validar_plano_editavel_para_insumo(plano)
+        maquinario = await self._get_maquinario_or_fail(item_id, maquinario_id)
+        # Hard delete seguro: só estimativa de planejamento (mesma justificativa
+        # usada em remover_mao_obra).
+        await self.session.delete(maquinario)
+        await self.session.flush()
+
+    async def listar_maquinario(
+        self, plano_id: uuid.UUID, item_id: uuid.UUID
+    ) -> list[PlanoOperacionalTarefaMaquinario]:
+        await self._get_plano_e_item(plano_id, item_id)
+        stmt = select(PlanoOperacionalTarefaMaquinario).where(
+            PlanoOperacionalTarefaMaquinario.tenant_id == self.tenant_id,
+            PlanoOperacionalTarefaMaquinario.plano_operacional_tarefa_id == item_id,
+        )
+        return list((await self.session.execute(stmt)).scalars().all())
+
+    # ------------------------------------------------------------------
+    # Aplicação em lote de Receita de Aplicação (evita lançar insumo/mão de
+    # obra um a um por tarefa quando várias tarefas do plano usam o mesmo
+    # pacote — ex.: mesma pulverização em vários talhões).
+    # ------------------------------------------------------------------
+
+    async def aplicar_receita(
+        self,
+        plano_id: uuid.UUID,
+        receita_id: uuid.UUID,
+        plano_operacional_tarefa_ids: list[uuid.UUID],
+    ) -> list[dict]:
+        # Import local para evitar dependência circular entre os dois módulos
+        # (receitas_aplicacao não depende de planejamento_operacional).
+        from agricola.receitas_aplicacao.service import ReceitaAplicacaoService
+        from agricola.tarefas.service import TarefaService
+
+        receita_svc = ReceitaAplicacaoService(self.session, self.tenant_id, self.user_id)
+        await receita_svc.get_or_fail(receita_id)  # valida existência + tenant
+        insumos_receita = await receita_svc.listar_insumos(receita_id)
+        mao_obra_receita = await receita_svc.listar_mao_obra(receita_id)
+
+        resultados = []
+        for item_id in plano_operacional_tarefa_ids:
+            plano, item = await self._get_plano_e_item(plano_id, item_id)
+            self._validar_plano_editavel_para_insumo(plano)
+
+            tarefa = await self.session.get(SafraTarefa, item.safra_tarefa_id)
+            area_ha = float(tarefa.area_ha) if tarefa and tarefa.area_ha else 0.0
+
+            insumos_criados = 0
+            for insumo_receita in insumos_receita:
+                quantidade = float(insumo_receita.dose_ha) * area_ha
+                if quantidade <= 0:
+                    raise BusinessRuleError(
+                        f"A tarefa {item_id} não tem área de talhão cadastrada — "
+                        "não é possível calcular a quantidade a partir da dose/ha da receita."
+                    )
+                await self.adicionar_insumo(
+                    plano_id, item_id,
+                    PlanoOperacionalTarefaInsumoCreate(
+                        produto_id=insumo_receita.produto_id,
+                        deposito_id=insumo_receita.deposito_id,
+                        dose_planejada=float(insumo_receita.dose_ha),
+                        unidade_dose=insumo_receita.unidade_dose,
+                        quantidade_planejada=quantidade,
+                    ),
+                )
+                insumos_criados += 1
+
+            mao_obra_criada = 0
+            for mo in mao_obra_receita:
+                await self.adicionar_mao_obra(
+                    plano_id, item_id,
+                    PlanoOperacionalTarefaMaoObraCreate(
+                        tipo_servico_id=mo.tipo_servico_id,
+                        funcao=mo.funcao,
+                        quantidade_pessoas=mo.quantidade_pessoas,
+                        horas_fixas=float(mo.horas_fixas),
+                        horas_por_hectare=float(mo.horas_por_hectare),
+                    ),
+                )
+                mao_obra_criada += 1
+
+            # Ressincroniza o "Agronômico" (SafraTarefa.custo_estimado) com o
+            # custo real dos produtos da receita — snapshot, mesmo padrão já
+            # usado nos insumos (custo_unitario_snapshot). Antes deste ponto,
+            # custo_estimado vinha só da estimativa de preço de mercado fixo em
+            # analises_solo/service.py, sem relação com o preço real do tenant.
+            insumos_item = await self.listar_insumos(plano_id, item_id)
+            mao_obra_item = await self.listar_mao_obra(plano_id, item_id)
+            custo_total_item = (
+                sum(i.custo_total_estimado or 0 for i in insumos_item)
+                + sum(m.custo_total_estimado or 0 for m in mao_obra_item)
+            )
+            tarefa_svc = TarefaService(self.session, self.tenant_id, self.user_id)
+            await tarefa_svc.atualizar(item.safra_tarefa_id, TarefaUpdate(custo_estimado=custo_total_item))
+
+            resultados.append({
+                "plano_operacional_tarefa_id": item_id,
+                "insumos_criados": insumos_criados,
+                "mao_obra_criada": mao_obra_criada,
+            })
+        return resultados
+
+    # ------------------------------------------------------------------
+    # Geração de OS em lote — fecha o ciclo do plano: sem isto, aprovar/
+    # reservar insumos em lote não tinha efeito nenhum na execução real
+    # (o operador de campo nunca via a tarefa, ver TarefaCampo/PWA).
+    # ------------------------------------------------------------------
+
+    async def gerar_os_lote(self, plano_id: uuid.UUID, itens: list) -> list[dict]:
+        from agricola.tarefas.service import TarefaService
+        from agricola.tarefas.schemas import PlanejarOperacaoRequest, PlanejarInsumoRequest
+
+        await self.get_or_fail(plano_id)  # valida existência + tenant
+        tarefa_svc = TarefaService(self.session, self.tenant_id, self.user_id)
+
+        resultados = []
+        for item_input in itens:
+            item_id = item_input.plano_operacional_tarefa_id
+            try:
+                item = await self._get_item_or_fail(plano_id, item_id)
+                if item.status_planejamento != "PRONTA":
+                    raise BusinessRuleError(
+                        f"Item com status '{item.status_planejamento}' não está pronto para gerar OS "
+                        "(insumos precisam estar totalmente reservados)."
+                    )
+
+                tarefa = await self.session.get(SafraTarefa, item.safra_tarefa_id)
+                if not tarefa:
+                    raise EntityNotFoundError(f"Tarefa {item.safra_tarefa_id} não encontrada.")
+                area_ha = float(tarefa.area_ha) if tarefa.area_ha else 0.0
+
+                insumos_item = await self.listar_insumos(plano_id, item_id)
+                insumos_request = []
+                for insumo in insumos_item:
+                    dose_por_ha = float(insumo.dose_planejada) if insumo.dose_planejada else None
+                    if not dose_por_ha and area_ha > 0:
+                        dose_por_ha = float(insumo.quantidade_planejada) / area_ha
+                    if not dose_por_ha:
+                        raise BusinessRuleError(
+                            f"Insumo {insumo.produto_id} sem dose/ha calculável (tarefa sem área definida) "
+                            "— não é possível gerar a OS."
+                        )
+                    insumos_request.append(PlanejarInsumoRequest(
+                        produto_id=insumo.produto_id,
+                        dose_por_ha=dose_por_ha,
+                        unidade=insumo.unidade_dose,
+                    ))
+
+                operacao = await tarefa_svc.gerar_operacao_planejada(
+                    item.safra_tarefa_id,
+                    PlanejarOperacaoRequest(
+                        data_prevista=item_input.data_prevista,
+                        operador_id=item_input.operador_id,
+                        maquina_id=item_input.maquina_id,
+                        implemento_id=item_input.implemento_id,
+                        insumos=insumos_request,
+                    ),
+                )
+                item.status_planejamento = "PROGRAMADA"
+                self.session.add(item)
+                await self.session.flush()
+                await self.session.commit()
+
+                resultados.append({
+                    "plano_operacional_tarefa_id": item_id,
+                    "sucesso": True,
+                    "operacao_agricola_id": operacao.id,
+                    "erro": None,
+                })
+            except (BusinessRuleError, EntityNotFoundError) as e:
+                await self.session.rollback()
+                resultados.append({
+                    "plano_operacional_tarefa_id": item_id,
+                    "sucesso": False,
+                    "operacao_agricola_id": None,
+                    "erro": str(e),
+                })
+        return resultados

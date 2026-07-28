@@ -88,7 +88,7 @@ class PlanejarOperacaoRequest(BaseModel):
     data_prevista: date
     operador_id: Optional[UUID] = None
     maquina_id: Optional[UUID] = None
-    implemento: Optional[str] = None
+    implemento_id: Optional[UUID] = None
     insumos: list[PlanejarInsumoRequest] = []
 
 

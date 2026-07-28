@@ -207,3 +207,48 @@ class PlanoOperacionalTarefaMaoObra(Base):
     __table_args__ = (
         Index("ix_plano_op_tarefa_mao_obra_tenant_item", "tenant_id", "plano_operacional_tarefa_id"),
     )
+
+
+class PlanoOperacionalTarefaMaquinario(Base):
+    """
+    Necessidade de maquinário (máquina + implemento) estimada para um item de
+    plano — espelha `PlanoOperacionalTarefaMaoObra`, mas para custo de frota.
+
+    Reaproveita o mesmo `SnapshotCustoService` (`origem_tipo="MAQUINA"`) já
+    usado por `_capturar_maquina`, que calcula custo/hora real via
+    `FrotaCustoService.obter_custo_equipamento` (custo acumulado / horímetro
+    do `Equipamento`) — implemento é o mesmo cadastro de Equipamento, só outro
+    registro. Nunca inventa valor: sem custo/hora confiável ou sem
+    `horas_estimadas`, `custo_total_estimado=None` e `fonte_custo` sinaliza a
+    lacuna (mesma disciplina defensiva da mão de obra).
+    """
+    __tablename__ = "planos_operacionais_tarefas_maquinario"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    plano_operacional_tarefa_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("planos_operacionais_tarefas.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    maquina_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUIDType, ForeignKey("cadastros_equipamentos.id", ondelete="SET NULL"), nullable=True
+    )
+    implemento_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUIDType, ForeignKey("cadastros_equipamentos.id", ondelete="SET NULL"), nullable=True
+    )
+
+    horas_estimadas: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
+
+    custo_hora_maquina_snapshot: Mapped[float | None] = mapped_column(Numeric(15, 4), nullable=True)
+    custo_hora_implemento_snapshot: Mapped[float | None] = mapped_column(Numeric(15, 4), nullable=True)
+    custo_total_estimado: Mapped[float | None] = mapped_column(Numeric(15, 2), nullable=True)
+    # Ex.: "MAQUINA_E_IMPLEMENTO" | "SO_MAQUINA" | "SO_IMPLEMENTO" | "CUSTO_INCOMPLETO"
+    fonte_custo: Mapped[str | None] = mapped_column(String(30), nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        Index("ix_plano_op_tarefa_maquinario_tenant_item", "tenant_id", "plano_operacional_tarefa_id"),
+    )
