@@ -514,6 +514,7 @@ class TenantPermissions:
             "estoque:*",
             "rh:*",
             "ambiental:*",
+            "recommendations:*",
         ],
 
         "gerente": [
@@ -531,6 +532,12 @@ class TenantPermissions:
             "estoque:implantacao_assistida:list",
             "estoque:implantacao_assistida:create",
             "estoque:implantacao_assistida:edit",
+            "recommendations:view",
+            "recommendations:accept",
+            "recommendations:postpone",
+            "recommendations:execute",
+            "recommendations:dismiss",
+            "recommendations:reopen",
         ],
 
         "agronomo": [
@@ -543,6 +550,9 @@ class TenantPermissions:
 
             # Visualização de outros módulos
             "operacional:view",
+            "recommendations:view",
+            "recommendations:accept",
+            "recommendations:execute",
             "rh:view",
         ],
 
@@ -564,6 +574,9 @@ class TenantPermissions:
             "operacional:ordens_servico:*",
             "estoque:implantacao_assistida:view",
             "estoque:implantacao_assistida:list",
+            "recommendations:view",
+            "recommendations:accept",
+            "recommendations:execute",
         ],
 
         "consultor": [
@@ -577,6 +590,7 @@ class TenantPermissions:
             "operacional:view",
             "estoque:implantacao_assistida:view",
             "estoque:implantacao_assistida:list",
+            "recommendations:view",
         ],
 
         "financeiro": [
@@ -592,6 +606,7 @@ class TenantPermissions:
             "agricola:custos:view",
             "pecuaria:custos:view",
             "operacional:custos:view",
+            "recommendations:view",
         ],
 
         "auditor": [
@@ -614,6 +629,7 @@ class TenantPermissions:
             "estoque:*:view",
             "estoque:*:list",
             "estoque:*:export",
+            "recommendations:view",
         ],
     }
 

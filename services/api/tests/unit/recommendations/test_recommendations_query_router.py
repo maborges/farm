@@ -18,6 +18,7 @@ from recommendations.schemas import RecommendationCandidate
 
 
 ADMIN_USER_ID = uuid.UUID("eeeeeeee-0000-0000-0000-000000000005")
+MEMBER_USER_ID = uuid.UUID("eeeeeeee-0000-0000-0000-000000000014")
 pytestmark = pytest.mark.integration
 recommendations_router_module = importlib.import_module("recommendations.router")
 
@@ -35,6 +36,18 @@ async def _ensure_tenant(session, tenant_id: uuid.UUID) -> None:
             """
         ),
         {"id": str(tenant_id), "nome": f"Tenant {tenant_id.hex[:8]}", "documento": tenant_id.hex[:11]},
+    )
+    await session.commit()
+    await RecommendationLifecycleService(session, tenant_id)._set_rls_context()
+    await session.execute(
+        text(
+            "INSERT INTO tenant_usuarios (id, tenant_id, usuario_id, is_owner, status, created_at) "
+            "SELECT :id, :tenant_id, :usuario_id, true, 'ATIVO', now() "
+            "WHERE NOT EXISTS ("
+            "SELECT 1 FROM tenant_usuarios WHERE tenant_id = :tenant_id AND usuario_id = :usuario_id"
+            ")"
+        ),
+        {"id": str(uuid.uuid4()), "tenant_id": str(tenant_id), "usuario_id": str(ADMIN_USER_ID)},
     )
     await session.commit()
 
@@ -74,7 +87,15 @@ async def _seed_recommendation(
     return recommendation
 
 
-async def _set_created_at(session, recommendation_id: uuid.UUID, created_at: datetime) -> None:
+async def _set_created_at(
+    session,
+    tenant_id: uuid.UUID,
+    recommendation_id: uuid.UUID,
+    created_at: datetime,
+) -> None:
+    # `_seed_recommendation` commits its transaction. Reapply the official
+    # transactional RLS context before this direct fixture-preparation UPDATE.
+    await RecommendationLifecycleService(session, tenant_id)._set_rls_context()
     await session.execute(
         text(
             """
@@ -105,6 +126,59 @@ async def _ensure_unidade_produtiva(session, tenant_id: uuid.UUID, unidade_produ
             "nome": f"Unidade {unidade_produtiva_id.hex[:8]}",
         },
     )
+    await session.commit()
+
+
+async def _grant_member(
+    session,
+    tenant_id: uuid.UUID,
+    unidade_produtiva_id: uuid.UUID | None,
+    permissions: list[str],
+) -> None:
+    await RecommendationLifecycleService(session, tenant_id)._set_rls_context()
+    profile_id = uuid.uuid4()
+    await session.execute(
+        text(
+            "INSERT INTO usuarios (id, email, username, senha_hash, is_superuser, ativo, created_at, updated_at) "
+            "VALUES (:id, :email, :username, 'x', false, true, now(), now()) ON CONFLICT DO NOTHING"
+        ),
+        {"id": str(MEMBER_USER_ID), "email": "recommendation-member@test.local", "username": "recommendation_member"},
+    )
+    await session.execute(
+        text(
+            "INSERT INTO perfis_acesso (id, tenant_id, nome, descricao, is_custom, permissoes, created_at) "
+            "VALUES (:id, :tenant_id, :nome, :descricao, true, CAST(:permissoes AS json), now())"
+        ),
+        {
+            "id": str(profile_id),
+            "tenant_id": str(tenant_id),
+            "nome": f"recommendations-{profile_id.hex[:8]}",
+            "descricao": "Recommendation test profile",
+            "permissoes": '{"granted": ' + str(permissions).replace("'", '"') + '}',
+        },
+    )
+    await session.execute(
+        text(
+            "INSERT INTO tenant_usuarios (id, tenant_id, usuario_id, perfil_id, is_owner, status, created_at) "
+            "VALUES (:id, :tenant_id, :usuario_id, :perfil_id, false, 'ATIVO', now())"
+        ),
+        {"id": str(uuid.uuid4()), "tenant_id": str(tenant_id), "usuario_id": str(MEMBER_USER_ID), "perfil_id": str(profile_id)},
+    )
+    if unidade_produtiva_id is not None:
+        await session.execute(
+            text(
+                "INSERT INTO unidade_produtiva_usuarios "
+                "(id, tenant_id, unidade_produtiva_id, usuario_id, perfil_fazenda_id, created_at) "
+                "VALUES (:id, :tenant_id, :unidade_id, :usuario_id, :perfil_id, now())"
+            ),
+            {
+                "id": str(uuid.uuid4()),
+                "tenant_id": str(tenant_id),
+                "unidade_id": str(unidade_produtiva_id),
+                "usuario_id": str(MEMBER_USER_ID),
+                "perfil_id": str(profile_id),
+            },
+        )
     await session.commit()
 
 
@@ -236,8 +310,18 @@ async def test_list_filters_by_period(session, tenant_id: uuid.UUID) -> None:
         scope_id="scope-old",
     )
 
-    await _set_created_at(session, recent.id, datetime(2026, 6, 20, 10, 0, tzinfo=timezone.utc))
-    await _set_created_at(session, old.id, datetime(2026, 5, 15, 10, 0, tzinfo=timezone.utc))
+    await _set_created_at(
+        session,
+        tenant,
+        recent.id,
+        datetime(2026, 6, 20, 10, 0, tzinfo=timezone.utc),
+    )
+    await _set_created_at(
+        session,
+        tenant,
+        old.id,
+        datetime(2026, 5, 15, 10, 0, tzinfo=timezone.utc),
+    )
 
     async with _build_client(session, tenant) as client:
         response = await client.get(
@@ -335,6 +419,42 @@ async def test_reopen_endpoint_reopens_dismissed_recommendation(session, tenant_
 
     assert response.status_code == 200
     assert response.json()["status"] == "REOPENED"
+
+
+@pytest.mark.asyncio
+async def test_member_without_unit_access_cannot_read_recommendation(session) -> None:
+    tenant = uuid.uuid4()
+    unit_id = uuid.uuid4()
+    await _ensure_tenant(session, tenant)
+    await _ensure_unidade_produtiva(session, tenant, unit_id)
+    recommendation = await _seed_recommendation(
+        session, tenant, domain="FIELD", priority="HIGH", rule_code="FIELD_SCOPE", scope_id="scope", unidade_produtiva_id=unit_id
+    )
+    await _grant_member(session, tenant, None, ["recommendations:view"])
+
+    async with _build_client(session, tenant, MEMBER_USER_ID) as client:
+        response = await client.get(f"/api/v1/recommendations/{recommendation.id}")
+
+    assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_member_with_view_permission_cannot_accept_recommendation(session) -> None:
+    tenant = uuid.uuid4()
+    unit_id = uuid.uuid4()
+    await _ensure_tenant(session, tenant)
+    await _ensure_unidade_produtiva(session, tenant, unit_id)
+    recommendation = await _seed_recommendation(
+        session, tenant, domain="FIELD", priority="HIGH", rule_code="FIELD_VIEW", scope_id="scope", unidade_produtiva_id=unit_id
+    )
+    await _grant_member(session, tenant, unit_id, ["recommendations:view"])
+
+    async with _build_client(session, tenant, MEMBER_USER_ID) as client:
+        allowed = await client.get(f"/api/v1/recommendations/{recommendation.id}")
+        rejected = await client.post(f"/api/v1/recommendations/{recommendation.id}/accept")
+
+    assert allowed.status_code == 200
+    assert rejected.status_code == 403
 
 
 def test_api_layer_does_not_import_frontend_alert_engine_or_providers() -> None:

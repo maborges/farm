@@ -11,6 +11,15 @@ from alert_engine.models import OperationalAlert, AlertStatus
 
 
 class ClimaRecommendationService:
+    """Compatibilidade temporária do contrato climático legado.
+
+    O endpoint ``/climatico/recomendacoes/{unidade_produtiva_id}`` e o
+    dashboard climático Web ainda consomem o formato por operação deste
+    serviço. Novas regras climáticas pertencem exclusivamente ao
+    ``ClimaRecommendationProvider``. Este serviço só poderá ser removido após
+    a migração desse contrato e a confirmação de que não há consumidores.
+    """
+
     def __init__(self, session: AsyncSession, tenant_id: UUID):
         self.session = session
         self.tenant_id = tenant_id

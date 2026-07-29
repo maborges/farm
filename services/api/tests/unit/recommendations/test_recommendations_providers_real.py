@@ -9,7 +9,10 @@ from sqlalchemy import func, select, text
 from agricola.a1_planejamento.models import ItemOrcamentoSafra
 from agricola.climatico.models import RegistroClima
 from agricola.caderno.models import CadernoCampoEntrada
+from agricola.cultivos.models import Cultivo
+from agricola.custos.models import CostAllocation
 from agricola.operacoes.models import OperacaoAgricola
+from agricola.production_units.models import ProductionUnit
 from core.cadastros.propriedades.models import AreaRural
 from agricola.safras.models import Safra, SafraTalhao
 from financeiro.models.despesa import Despesa
@@ -18,6 +21,7 @@ from financeiro.models.plano_conta import PlanoConta
 from financeiro.models.receita import Receita
 from recommendations import register_default_recommendation_providers
 from recommendations.engine import RecommendationEngine
+from recommendations.enums import RecommendationPriority
 from recommendations.models import RecommendationResult
 from recommendations.providers import (
     AgriculturaRecommendationProvider,
@@ -210,6 +214,54 @@ async def _seed_operacoes(session, tenant_id: uuid.UUID, safra_id: uuid.UUID, ta
     await session.commit()
 
 
+async def _seed_custo_oficial_safra(
+    session,
+    tenant_id: uuid.UUID,
+    safra_id: uuid.UUID,
+    talhao_id: uuid.UUID,
+    *,
+    amount: float,
+    allocation_tenant_id: uuid.UUID | None = None,
+) -> uuid.UUID:
+    """Seed the canonical economic chain used by the agricultural provider."""
+    cultivo = Cultivo(
+        id=uuid.uuid4(),
+        tenant_id=tenant_id,
+        safra_id=safra_id,
+        cultura="MILHO",
+        status="ATIVO",
+    )
+    session.add(cultivo)
+    await session.flush()
+    production_unit = ProductionUnit(
+        id=uuid.uuid4(),
+        tenant_id=tenant_id,
+        safra_id=safra_id,
+        cultivo_id=cultivo.id,
+        area_id=talhao_id,
+        area_ha=10.0,
+        status="ATIVA",
+    )
+    session.add(production_unit)
+    await session.flush()
+    session.add(
+        CostAllocation(
+            id=uuid.uuid4(),
+            tenant_id=allocation_tenant_id or tenant_id,
+            production_unit_id=production_unit.id,
+            source="MANUAL",
+            source_id=uuid.uuid4(),
+            cost_category="INSUMO",
+            amount=amount,
+            allocation_date=date.today(),
+            allocation_method="DIRECT",
+            allocation_basis=10.0,
+        )
+    )
+    await session.commit()
+    return production_unit.id
+
+
 async def _seed_financeiro(session, tenant_id: uuid.UUID, unidade_produtiva_id: uuid.UUID, safra_id: uuid.UUID) -> None:
     despesa_pc = PlanoConta(
         id=uuid.uuid4(),
@@ -367,7 +419,19 @@ async def test_agricultura_provider_generates_candidates_from_context(session, t
     safra_id = await _seed_safra(session, tenant_id)
     talhao_id = await _seed_safra_talhao(session, tenant_id, safra_id, unidade_produtiva_id)
     await _seed_operacoes(session, tenant_id, safra_id, talhao_id)
+    await _seed_custo_oficial_safra(
+        session,
+        tenant_id,
+        safra_id,
+        talhao_id,
+        amount=1200.0,
+    )
     provider = AgriculturaRecommendationProvider(session)
+    allocations_before = int(
+        (await session.execute(
+            select(func.count(CostAllocation.id)).where(CostAllocation.tenant_id == tenant_id)
+        )).scalar_one()
+    )
 
     candidates = await provider.evaluate(
         _context(tenant_id, domain="AGRICULTURE", scope_id=str(safra_id), unidade_produtiva_id=unidade_produtiva_id),
@@ -386,7 +450,77 @@ async def test_agricultura_provider_generates_candidates_from_context(session, t
     assert all(isinstance(item, RecommendationCandidate) for item in candidates)
     assert any(item.rule_code == "AGRI_SAFRA_SEM_MOVIMENTACAO_RECENTE" for item in candidates)
     assert any(item.rule_code == "AGRI_OPERACAO_ATRASADA" for item in candidates)
-    assert any(item.rule_code == "AGRI_CUSTO_ACIMA_PREVISTO" for item in candidates)
+    custo_candidate = next(item for item in candidates if item.rule_code == "AGRI_CUSTO_ACIMA_PREVISTO")
+    assert custo_candidate.priority == RecommendationPriority.URGENT
+    assert custo_candidate.context["source"] == "ORCAMENTO_SAFRA"
+    assert custo_candidate.context["custo_realizado_total"] == 1200.0
+    assert custo_candidate.context["orcamento_previsto_total"] == 900.0
+    assert custo_candidate.context["desvio_orcamento_pct"] > 10
+    assert custo_candidate.dedupe_key == (
+        f"agricultura:{tenant_id}:{unidade_produtiva_id}:{safra_id}:AGRI_CUSTO_ACIMA_PREVISTO"
+    )
+    allocations_after = int(
+        (await session.execute(
+            select(func.count(CostAllocation.id)).where(CostAllocation.tenant_id == tenant_id)
+        )).scalar_one()
+    )
+    assert allocations_after == allocations_before
+
+
+@pytest.mark.asyncio
+async def test_agricultura_provider_does_not_generate_cost_rule_without_official_allocation(
+    session,
+    tenant_id: uuid.UUID,
+) -> None:
+    unidade_produtiva_id = await _ensure_unidade_produtiva(session, tenant_id)
+    safra_id = await _seed_safra(session, tenant_id)
+    talhao_id = await _seed_safra_talhao(session, tenant_id, safra_id, unidade_produtiva_id)
+    await _seed_operacoes(session, tenant_id, safra_id, talhao_id)
+
+    candidates = await AgriculturaRecommendationProvider(session).evaluate(
+        _context(
+            tenant_id,
+            domain="AGRICULTURE",
+            scope_id=str(safra_id),
+            unidade_produtiva_id=unidade_produtiva_id,
+        ),
+        [],
+    )
+
+    assert all(item.rule_code != "AGRI_CUSTO_ACIMA_PREVISTO" for item in candidates)
+
+
+@pytest.mark.asyncio
+async def test_agricultura_provider_ignores_cost_allocation_from_another_tenant(
+    session,
+    tenant_id: uuid.UUID,
+    outro_tenant_id: uuid.UUID,
+) -> None:
+    await _ensure_tenant(session, outro_tenant_id)
+    unidade_produtiva_id = await _ensure_unidade_produtiva(session, tenant_id)
+    safra_id = await _seed_safra(session, tenant_id)
+    talhao_id = await _seed_safra_talhao(session, tenant_id, safra_id, unidade_produtiva_id)
+    await _seed_operacoes(session, tenant_id, safra_id, talhao_id)
+    await _seed_custo_oficial_safra(
+        session,
+        tenant_id,
+        safra_id,
+        talhao_id,
+        amount=1200.0,
+        allocation_tenant_id=outro_tenant_id,
+    )
+
+    candidates = await AgriculturaRecommendationProvider(session).evaluate(
+        _context(
+            tenant_id,
+            domain="AGRICULTURE",
+            scope_id=str(safra_id),
+            unidade_produtiva_id=unidade_produtiva_id,
+        ),
+        [],
+    )
+
+    assert all(item.rule_code != "AGRI_CUSTO_ACIMA_PREVISTO" for item in candidates)
 
 
 @pytest.mark.asyncio

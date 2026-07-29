@@ -4,7 +4,7 @@ import uuid
 from datetime import date, datetime, timedelta, timezone
 from typing import Any
 
-from sqlalchemy import case, func, select, text
+from sqlalchemy import case, func, or_, select, text, true
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.exceptions import EntityNotFoundError
@@ -42,6 +42,9 @@ class RecommendationQueryService:
         end_date: date | None = None,
         limit: int = 20,
         offset: int = 0,
+        authorized_unit_ids: tuple[uuid.UUID, ...] = (),
+        allow_tenant_wide: bool = False,
+        allow_all_units: bool = False,
     ) -> PaginatedResponse[RecommendationResultResponse]:
         """List persisted recommendations with tenant-safe filters.
 
@@ -73,6 +76,9 @@ class RecommendationQueryService:
             scope_id,
             start_date,
             end_date,
+        )
+        where_clause.append(
+            self._access_filter(authorized_unit_ids, allow_tenant_wide, allow_all_units)
         )
         total = await self._count(where_clause)
         items = await self._fetch_items(where_clause, limit=limit, offset=offset)
@@ -164,3 +170,18 @@ class RecommendationQueryService:
             text("SELECT set_config('app.current_tenant_id', :tenant_id, true)"),
             {"tenant_id": str(self.tenant_id)},
         )
+
+    @staticmethod
+    def _access_filter(
+        authorized_unit_ids: tuple[uuid.UUID, ...],
+        allow_tenant_wide: bool,
+        allow_all_units: bool,
+    ):
+        if allow_all_units:
+            return true()
+        filters = []
+        if authorized_unit_ids:
+            filters.append(RecommendationResult.unidade_produtiva_id.in_(authorized_unit_ids))
+        if allow_tenant_wide:
+            filters.append(RecommendationResult.unidade_produtiva_id.is_(None))
+        return or_(*filters) if filters else RecommendationResult.id.is_(None)

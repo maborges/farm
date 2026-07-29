@@ -51,11 +51,32 @@ async def run_erp_sync_loop() -> None:
         await asyncio.sleep(60)
 
 
+async def run_recommendation_scheduler_loop() -> None:
+    """Execute the canonical recommendation scheduler through the shared worker."""
+    from recommendations.scheduler import run_scheduled_recommendation_cycle
+
+    while True:
+        try:
+            executed = await run_scheduled_recommendation_cycle()
+            logger.bind(component="background_jobs", tenants_executed=executed).info(
+                "recommendation_scheduler_cycle_finished"
+            )
+        except asyncio.CancelledError:
+            break
+        except Exception as exc:
+            logger.bind(component="background_jobs").exception(
+                "recommendation_scheduler_cycle_failed",
+                exception_type=exc.__class__.__name__,
+            )
+        await asyncio.sleep(300)
+
+
 async def run_background_jobs() -> None:
     tasks = [
         asyncio.create_task(run_suspender_vencidos_loop()),
         asyncio.create_task(run_resumo_diario_loop()),
         asyncio.create_task(run_erp_sync_loop()),
+        asyncio.create_task(run_recommendation_scheduler_loop()),
     ]
     try:
         await asyncio.gather(*tasks)

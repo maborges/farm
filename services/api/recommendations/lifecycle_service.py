@@ -201,6 +201,30 @@ class RecommendationLifecycleService:
             terminal_field="expired_at",
         )
 
+    async def expire_due_recommendations(
+        self,
+        now: datetime | None = None,
+    ) -> int:
+        """Expire active recommendations whose validity window has elapsed."""
+        await self._set_rls_context()
+        current_time = now or datetime.now(timezone.utc)
+        expirable_statuses = (
+            RecommendationStatus.CREATED.value,
+            RecommendationStatus.VIEWED.value,
+            RecommendationStatus.POSTPONED.value,
+            RecommendationStatus.REOPENED.value,
+        )
+        stmt = select(RecommendationResult.id).where(
+            RecommendationResult.tenant_id == self.tenant_id,
+            RecommendationResult.status.in_(expirable_statuses),
+            RecommendationResult.expires_at.is_not(None),
+            RecommendationResult.expires_at <= current_time,
+        )
+        recommendation_ids = (await self.session.execute(stmt)).scalars().all()
+        for recommendation_id in recommendation_ids:
+            await self.expire(recommendation_id, automatic=True)
+        return len(recommendation_ids)
+
     async def supersede(
         self,
         recommendation_id: uuid.UUID,

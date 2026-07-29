@@ -107,3 +107,8 @@ class AlertEngineEventSubscriber(EventSubscriber):
                 ],
             },
         )
+
+
+# Importing registers the official Recommendation subscriber in this existing
+# default registry loading path; no second event registry is created.
+from recommendations.event_subscriber import RecommendationEventSubscriber  # noqa: E402, F401

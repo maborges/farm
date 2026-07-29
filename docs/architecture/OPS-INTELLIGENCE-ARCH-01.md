@@ -1,356 +1,141 @@
 # OPS-INTELLIGENCE-ARCH-01
 
-## Arquitetura Recomendada do Motor de Inteligência Operacional
+## Arquitetura Canônica do Motor Global de Recomendações
 
 ## Status
 
-- Tipo: arquitetura alvo
-- Escopo: auditoria e definição oficial
-- Implementação: não iniciada neste documento
+- Tipo: arquitetura canônica em operação controlada.
+- Núcleo oficial: `services/api/recommendations/`.
+- Estado: fundação, providers, persistência, lifecycle, API, consumidores Web/Campo e notificações já estão implementados.
+- Consolidação: scheduler, Event/Outbox e RBAC estão ativos; a compatibilidade climática legada foi auditada e permanece controlada enquanto houver consumidores.
 
 ## Resumo Executivo
 
-O AgroSaaS já possui infraestrutura transversal suficiente para suportar um motor global de inteligência operacional, mas essa infraestrutura está incompleta na camada de recomendações.
+O AgroSaaS já possui um Motor Global de Recomendações. `services/api/recommendations/` é a única fronteira oficial para gerar, persistir, deduplicar, expor e acompanhar recomendações operacionais.
 
-Hoje o projeto já tem:
+O clima participa desse motor por `ClimaRecommendationProvider`. O serviço climático legado (`services/api/agricola/climatico/recommendation_service.py`) não é, e não deve se tornar, o núcleo global.
 
-- `Alert Engine` oficial com domínios, categorias, severidades, prioridade, deduplicação e lifecycle em `services/api/alert_engine/*`
-- `Domain Events` com publicação segura e `Outbox` em `services/api/events/*`
-- `Notification Dispatcher` oficial em `services/api/notifications/*`
-- scheduler interno do `Alert Engine` em `services/api/alert_engine/scheduler.py`
-- consumo de recomendações no `apps/web` e no `apps/campo`
-
-Hoje o projeto ainda não tem:
-
-- contrato global de `Recommendation`
-- persistência oficial de recomendações
-- lifecycle oficial de recomendação
-- deduplicação transversal de recomendação
-- auditoria transversal do que foi sugerido, aceito, executado, descartado ou expirado
+O trabalho restante é conectar de forma produtiva o scheduler e os gatilhos Event/Outbox, explicitar RBAC do lifecycle e retirar compatibilidades legadas quando não houver consumidores. Não se deve criar outro engine, registry, tabela, API, read model, scheduler ou fluxo de notificações.
 
 ## Veredicto Arquitetural
 
-O `Recommendation Engine` climático não deve evoluir sozinho como motor global.
-
-Também não é recomendado manter motores completamente independentes por domínio.
-
-A recomendação é:
-
-- criar um **Recommendation Engine global oficial**
-- com **rule providers por domínio**
-- reutilizando a infraestrutura transversal já pronta
-- sem fundir recomendação com alerta
-
-Em termos práticos:
+Preservar o motor global existente, com providers especializados por domínio:
 
 ```text
-OperationalContext
-  -> RecommendationRuleProvider (por domínio)
+Fato de domínio / alerta / indicador
+  -> OperationalContext + RecommendationSignal
+  -> RecommendationProvider do domínio
   -> RecommendationEngine
-  -> RecommendationResult
-  -> RecommendationLifecycle
-  -> Notification / Dashboard / Campo
+  -> RecommendationLifecycleService
+  -> RecommendationResult persistido
+  -> Web / sync Campo / notificação elegível
+  -> decisão humana explícita
 ```
 
-## Por que o motor climático não deve virar o motor global diretamente
+`Alert Engine` e `Recommendation Engine` são complementares, mas independentes:
 
-O serviço climático atual em `services/api/agricola/climatico/recommendation_service.py` é útil como prova de conceito, mas é acoplado demais ao domínio climático:
+- alerta detecta, materializa risco e mantém seu próprio lifecycle;
+- recomendação organiza uma ação sugerida e mantém lifecycle próprio;
+- uma recomendação não é um alerta, e um alerta não autoriza execução automática.
 
-- depende diretamente de `RegistroClima`
-- usa tipos fixos de operação (`PULVERIZACAO`, `COLHEITA`, `ADUBACAO`, `GERAL`)
-- usa thresholds específicos de clima
-- constrói respostas diretamente no formato do domínio climático
-- não possui lifecycle próprio
-- não persiste recomendação
-- não possui contrato de governança cross-domain
+## Domínio Oficial Implementado
 
-Além disso, ele já mostra sinais de acoplamento frágil:
+### Núcleo e contratos
 
-- consulta `OperationalAlert` para enriquecer a recomendação
-- porém os alertas climáticos são persistidos com `source_id=str(reg.id)` no generator de clima
-- enquanto o serviço climático consulta alertas por `source_id == unidade_produtiva_id`
-
-Isso indica que o motor climático atual deve ser tratado como **provider/regra legada de clima**, e não como núcleo oficial global.
-
-## Diretriz Oficial
-
-### 1. Separar `Alert Engine` de `Recommendation Engine`
-
-O `Alert Engine` já é oficial e deve continuar responsável por:
-
-- detectar risco
-- materializar alerta
-- manter lifecycle de alerta
-- consolidar severidade, prioridade e dedupe
-
-O `Recommendation Engine` proposto deve ser responsável por:
-
-- transformar sinais oficiais em ação sugerida
-- organizar prioridade operacional
-- explicar contexto e justificativa
-- expor próximos passos
-- registrar decisão humana
-
-### 2. Recommendation Engine global com providers por domínio
-
-O núcleo deve ser único.
-
-As regras devem ser especializadas por domínio.
-
-Modelo recomendado:
-
-```text
-RecommendationEngine
-  -> AgricultureRecommendationProvider
-  -> LivestockRecommendationProvider
-  -> InventoryRecommendationProvider
-  -> FleetRecommendationProvider
-  -> FinanceRecommendationProvider
-  -> ESGRecommendationProvider
-  -> FieldRecommendationProvider
-  -> WizardRecommendationProvider
-```
-
-Isso preserva:
-
-- governança única
-- contratos homogêneos
-- UI consistente
-- auditoria única
-
-Sem forçar:
-
-- uma regra climática a conhecer hedge
-- uma regra de frota a conhecer vacinação
-- uma regra de estoque a conhecer checklist do wizard
-
-### 3. Recomendação é domínio assistido
-
-Pelo `agrosaas-domain-map`, recomendação pertence ao domínio assistido.
-
-Portanto:
-
-- recomendação não executa operação
-- recomendação não recalcula DRE oficial
-- recomendação não substitui workflow operacional
-- recomendação não substitui aprovação humana
+| Componente | Evidência | Responsabilidade |
+| --- | --- | --- |
+| `RecommendationEngine` | `services/api/recommendations/engine.py` | Orquestra providers, contabiliza a execução e entrega candidatos ao lifecycle. |
+| `RecommendationProvider` | `services/api/recommendations/provider.py` | Contrato abstrato; avalia contexto e sinais, retornando somente `RecommendationCandidate`. |
+| Registry | `services/api/recommendations/registry.py` e `providers/__init__.py` | Registro explícito e único dos providers. |
+| `OperationalContext` e `RecommendationSignal` | `services/api/recommendations/schemas.py` | Contratos de entrada tenant-aware para recorte operacional e sinais. |
+| `RecommendationCandidate` | `services/api/recommendations/schemas.py` | Contrato de saída do provider antes da persistência. |
+| `RecommendationResult` | `services/api/recommendations/models.py` | Read model persistido oficial da recomendação. |
+| `RecommendationLifecycleService` | `services/api/recommendations/lifecycle_service.py` | Criação/atualização, dedupe, transições e auditoria. |
+| `RecommendationSchedulerService` e runner | `services/api/recommendations/scheduler.py` e `runner.py` | Execução controlada por tenant, unidade, domínio, lote e `dry_run`. |
+| Notification bridge | `services/api/recommendations/notification_bridge.py` | Tradução opcional de itens novos, ativos e elegíveis para o dispatcher oficial. |
+| Router e query layer | `services/api/recommendations/router.py` e `query_service.py` | Listagem, detalhe, métricas e ações explícitas de lifecycle. |
 
-## Domínio Oficial Recomendado
+### Persistência, isolamento e lifecycle
 
-### Entidades conceituais
-
-```text
-OperationalContext
-  - tenant_id
-  - unidade_produtiva_id
-  - domain
-  - scope_type
-  - scope_id
-  - source_alert_ids[]
-  - source_event_ids[]
-  - source_indicator_ids[]
-  - payload
+As tabelas oficiais são `recommendation_results` e `recommendation_lifecycle_events`, criadas pela migration `20260703_ops_intelligence_02_recommendations_foundation.py`.
 
-RecommendationRule
-  - code
-  - domain
-  - version
-  - execution_mode
-  - severity_mapping
-  - eligibility_rules
-
-RecommendationResult
-  - recommendation_id
-  - tenant_id
-  - unidade_produtiva_id
-  - domain
-  - category
-  - rule_code
-  - status
-  - priority
-  - confidence
-  - title
-  - summary
-  - rationale
-  - action_label
-  - action_url
-  - scope_type
-  - scope_id
-  - source_alert_ids[]
-  - source_event_ids[]
-  - source_indicator_ids[]
-  - context
-  - dedupe_key
-  - expires_at
-
-RecommendationLifecycle
-  - CREATED
-  - VIEWED
-  - ACCEPTED
-  - DISMISSED
-  - EXECUTED
-  - EXPIRED
-  - REOPENED
-```
-
-### Responsabilidades
-
-Quem produz recomendações:
-
-- providers de domínio
-- regras determinísticas
-- eventualmente LLMs assistivos como enriquecimento, nunca como fonte única
-
-Quem consome:
-
-- `apps/web`
-- `apps/campo`
-- rotas analíticas e dashboards executivos
-- mecanismos de notificação quando permitido por política
-
-Quem persiste:
-
-- o domínio oficial de recomendações
-
-Quem executa:
-
-- usuário humano
-- ou fluxo assistido explícito já governado por outro módulo
-
-Quem fecha:
-
-- usuário
-- ou policy/lifecycle automática
-
-Quem audita:
-
-- trilha de lifecycle
-- `TenantAuditLog`
-- eventos estruturados
-
-## Reaproveitamento Recomendado
-
-### Reaproveitar sem mudanças conceituais
-
-- `DomainEvent` e `publish_domain_event_safe` em `services/api/events/helpers.py`
-- `Outbox` e `DomainEventOutboxRelay` em `services/api/events/*`
-- `AlertSchedulerService` e `AlertGeneratorRunner` como referência de execução
-- `NotificationDispatcher` em `services/api/notifications/dispatcher.py`
-- RLS e `tenant_id`
-- RBAC atual
-
-### Reaproveitar com adaptação
+- ambas possuem `tenant_id`, RLS habilitado e `FORCE ROW LEVEL SECURITY`;
+- o dedupe é único para recomendações ativas por `tenant_id + dedupe_key`;
+- o lifecycle suporta `CREATED`, `VIEWED`, `ACCEPTED`, `DISMISSED`, `POSTPONED`, `EXECUTED`, `EXPIRED`, `AUTO_EXPIRED`, `SUPERSEDED` e `REOPENED`;
+- cada alteração de lifecycle gera evento próprio e trilha de auditoria;
+- `RecommendationResult` é o único read model canônico; fontes de domínio não devem materializar cópias paralelas.
 
-- `ClimaRecommendationService`
-  - reaproveitar apenas a lógica de regra
-  - não reaproveitar como núcleo arquitetural
+### Providers existentes
 
-- `RecomendacoesOperacionaisEconomicasAgricolaV1Service`
-  - reaproveitar como provider agrícola assistido
-  - manter como upstream governado do domínio agrícola
+O registry padrão já registra os seguintes providers em `services/api/recommendations/providers/`:
 
-- `FrotaInteligenciaService`
-  - reaproveitar heurísticas e fatores de risco
-  - converter para provider de recomendação
+- `ClimaRecommendationProvider`;
+- `AgriculturaRecommendationProvider`;
+- `FinanceiroRecommendationProvider`;
+- `PecuariaRecommendationProvider`;
+- `EstoqueRecommendationProvider`;
+- `FrotaRecommendationProvider`;
+- `ESGRecommendationProvider`;
+- `WizardRecommendationProvider`;
+- `CampoRecommendationProvider`.
 
-- `LancamentoService.gerar_recomendacoes`
-  - reaproveitar regras financeiras determinísticas
-  - mover para provider financeiro quando o épico de implementação começar
+Cada provider especializa regras e fontes do próprio domínio. Ele não é dono de persistência, lifecycle, notificação, execução operacional ou UI.
 
-### Não reaproveitar como fonte oficial
+### Consumidores integrados
 
-- strings soltas de `recomendacao_operacional`
-- recomendações derivadas diretamente em responses de dashboard
-- sugestões locais sem persistência
+- **API:** `services/api/recommendations/router.py`, incluído em `/api/v1/recommendations`, fornece leitura, métricas e ações de lifecycle autenticadas.
+- **Web:** `/dashboard/inteligencia-operacional/recomendacoes`, `apps/web/src/hooks/use-recommendations.ts` e `recommendations-dashboard-client.tsx` consomem o read model e expõem ações explícitas.
+- **Campo:** `services/api/campo/service.py` projeta `recommendation_results` no `sync/pull`; o PWA mantém snapshot Dexie em `recomendacoes_operacionais` e o consome em `/recomendacoes`. O pull não reavalia providers.
+- **Notificações:** `RecommendationNotificationBridge` reutiliza `NotificationDispatcher` e sua policy/dedupe. Apenas recomendações novas, ativas, não expiradas e de prioridade `HIGH` ou `URGENT` são elegíveis.
+- **Eventos reativos:** `RecommendationEventSubscriber` é registrado no `EventSubscriberRegistry` oficial, recebe a entrega do `DomainEventOutboxRelay` e delega o mapeamento a `RecommendationEventMapper`. A primeira ativação cobre `campo.sync.falha` para o provider `campo`; o subscriber produz `RecommendationSignal` e `OperationalContext`, aplica RLS e chama o `RecommendationEngine` existente. Ele não contém regras de provider, persistência direta ou dispatch direto de notificações.
 
-## Padrão de Execução Recomendado
+## Diretrizes de Reuso
 
-### Scheduled path
+Reutilizar a infraestrutura existente sem criar fluxos paralelos:
 
-```text
-Scheduler
-  -> RecommendationEngine
-  -> Domain Providers
-  -> persist RecommendationResult
-  -> optional notifications
-```
+- `Domain Events` e `Outbox` para gatilhos assíncronos confiáveis;
+- Alert Engine como produtor de risco/sinal quando aplicável, sem fundir os domínios;
+- `RecommendationProvider` para regras de domínio;
+- `RecommendationLifecycleService` para persistência, dedupe e auditoria;
+- `RecommendationSchedulerService` para processamento em lote;
+- `RecommendationNotificationBridge` para comunicação elegível;
+- RLS, `tenant_id`, RBAC existente, `TenantAuditLog`, sync Campo e consumidores Web atuais.
 
-### Event-driven path
+O serviço climático legado pode ser mantido somente como compatibilidade temporária para consumidores antigos. Regras novas de clima pertencem exclusivamente ao `ClimaRecommendationProvider`.
 
-```text
-Domain Event
-  -> Outbox
-  -> EventPublisher
-  -> Recommendation subscriber/dispatcher
-  -> RecommendationEngine
-  -> persist RecommendationResult
-```
+## Guardrails Mandatórios
 
-### Read-model path
+- Não criar segundo `RecommendationEngine`.
+- Não criar segundo registry de providers.
+- Não criar segunda tabela/read model de recommendation results.
+- Não criar scheduler paralelo; integrar o `RecommendationSchedulerService` ao mecanismo de jobs existente.
+- Não criar fluxo paralelo de notificações; reutilizar o notification bridge e dispatcher oficiais.
+- Providers não persistem diretamente.
+- Providers não notificam diretamente.
+- Providers não executam mutações operacionais.
+- Web e Campo somente consomem o read model; o Campo continua offline-first e não roda providers durante `sync/pull`.
+- Recomendações não executam operações automaticamente; aceite e execução são decisões humanas explícitas ou fluxos assistidos já governados por outro domínio.
+- Alertas e recomendações mantêm dedupe, lifecycle e auditoria independentes.
+- Toda consulta, persistência e job deve preservar `tenant_id`, RLS e RBAC.
 
-```text
-Dashboard / Campo
-  -> query RecommendationResult
-  -> hydrate UI
-  -> user action updates lifecycle
-```
+## Roadmap Arquitetural Restante
 
-## Governança
+### OPS-INTELLIGENCE-12 — Ativação produtiva controlada
 
-### Regras mandatórias
+Conectar o `RecommendationSchedulerService` ao scheduler/background job existente, com execução tenant-aware, lotes, idempotência, telemetria e isolamento de falhas.
 
-- nenhuma recomendação executa mutação por conta própria
-- recomendação precisa apontar a fonte oficial
-- recomendação precisa referenciar `source_alert_ids`, `source_event_ids` ou `source_indicator_ids`
-- toda recomendação precisa ter `dedupe_key`
-- toda recomendação precisa respeitar `tenant_id`
-- toda recomendação precisa suportar expiração e reabertura
+### OPS-INTELLIGENCE-13 — Subscriber Event/Outbox
 
-### Fronteiras
+Ativado para `campo.sync.falha` por meio do Outbox e barramento oficiais. Próximas ativações devem exigir contrato publicado com tenant, escopo e dados suficientes, preservando o mapper e o subscriber canônicos.
 
-- Econômico continua upstream da recomendação financeira
-- Territorial/Fundiário não pode ser duplicado por recomendações
-- Campo continua offline-first; o cliente apenas consome snapshot e registra decisões locais
-- Wizard continua governando pendências e bloqueios; o engine apenas sugere
+### OPS-INTELLIGENCE-14 — RBAC explícito de lifecycle
 
-## Roadmap Arquitetural
+Ativado no router oficial com `RecommendationAuthorizationService`, reutilizando `TenantUsuario`, `PerfilAcesso`, `FazendaUsuario` e `TenantPermissions`. As ações humanas usam permissões `recommendations:*` e validam a unidade produtiva real da recomendação; scheduler, subscriber e lifecycle automático continuam caminhos internos sem identidade humana.
 
-### Épico 1
+### OPS-INTELLIGENCE-15 — Retirada gradual de compatibilidades legadas
 
-- modelagem oficial de recommendation
-- contratos e lifecycle
-- subscriber/dispatcher de recommendation
-
-### Épico 2
-
-- provider climático
-- provider agrícola
-- provider financeiro
-
-### Épico 3
-
-- provider pecuária
-- provider estoque
-- provider frota
-
-### Épico 4
-
-- provider ESG
-- provider wizard
-- provider campo
-
-### Épico 5
-
-- UI unificada
-- analytics de aceitação/execução
-- telemetria de qualidade das recomendações
+Auditoria concluída. `ClimaRecommendationService` permanece como compatibilidade necessária: a rota `/climatico/recomendacoes/{unidade_produtiva_id}` é pública no backend e o dashboard climático Web ainda a consome. O Campo já usa `recommendation_results` e apenas projeta seu formato climático offline. Não houve remoção porque o provider global não tem paridade contratual por operação (`PULVERIZACAO`, `COLHEITA`, `ADUBACAO`, `GERAL`). A retirada só é autorizada após migrar o consumidor Web para o read model oficial, definir a paridade funcional aprovada e comprovar ausência de consumidores.
 
 ## Decisão Final
 
-Arquitetura recomendada:
-
-- **motor global oficial de recomendações**
-- **providers por domínio**
-- **reuso da infraestrutura de eventos, outbox, alertas, notificações, RLS e RBAC**
-- **ClimaRecommendationService reaproveitado apenas como provider/rule set legado**
-
+O Motor Global de Recomendações já está implementado e deve ser preservado como infraestrutura única do domínio assistido. A evolução autorizada é ativar, governar e simplificar o que já existe — nunca recriar sua fundação.

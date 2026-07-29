@@ -38,6 +38,21 @@ async def _ensure_tenant(session, tenant_id: uuid.UUID) -> None:
         {"id": str(tenant_id), "nome": f"Tenant {tenant_id.hex[:8]}", "documento": tenant_id.hex[:11]},
     )
     await session.commit()
+    # A rota de métricas é uma ação humana governada pelo RBAC. A fixture
+    # representa o owner autenticado usado por `_build_client`, não um bypass
+    # de autorização.
+    await RecommendationLifecycleService(session, tenant_id)._set_rls_context()
+    await session.execute(
+        text(
+            "INSERT INTO tenant_usuarios (id, tenant_id, usuario_id, is_owner, status, created_at) "
+            "SELECT :id, :tenant_id, :usuario_id, true, 'ATIVO', now() "
+            "WHERE NOT EXISTS ("
+            "SELECT 1 FROM tenant_usuarios WHERE tenant_id = :tenant_id AND usuario_id = :usuario_id"
+            ")"
+        ),
+        {"id": str(uuid.uuid4()), "tenant_id": str(tenant_id), "usuario_id": str(ADMIN_USER_ID)},
+    )
+    await session.commit()
 
 
 async def _seed_recommendation(

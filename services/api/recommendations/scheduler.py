@@ -8,10 +8,16 @@ from uuid import UUID, uuid4
 
 from loguru import logger
 from pydantic import BaseModel, ConfigDict, Field
+from sqlalchemy import select, text
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from core.database import async_session_maker
+from core.models.tenant import Tenant
 
 from .engine import RecommendationEngineResult
 from .enums import RecommendationDomain
+from .lifecycle_service import RecommendationLifecycleService
 from .provider import RecommendationProvider
 from .registry import RecommendationProviderRegistry, recommendation_provider_registry
 from .runner import RecommendationExecutionRunner
@@ -27,6 +33,7 @@ class RecommendationSchedulerExecution(BaseModel):
     candidate_count: int = 0
     created: int = 0
     updated: int = 0
+    expired: int = 0
     errors: int = 0
     duration_ms: int = 0
     batch_index: int = 0
@@ -48,6 +55,7 @@ class RecommendationSchedulerResult(BaseModel):
     candidates_total: int = 0
     recommendations_created: int = 0
     recommendations_updated: int = 0
+    recommendations_expired: int = 0
     errors: int = 0
     duration_ms: int = 0
     started_at: datetime | None = None
@@ -178,10 +186,12 @@ class RecommendationSchedulerService:
                     batch_index=batch_index,
                     status=execution.status,
                     candidates=execution.candidate_count,
-                    created=execution.created,
-                    updated=execution.updated,
-                    errors=execution.errors,
+                    recommendations_generated=execution.created,
+                    recommendations_updated=execution.updated,
+                    recommendations_expired=execution.expired,
+                    failures=execution.errors,
                     duration_ms=execution.duration_ms,
+                    dry_run=dry_run,
                 ).info("recommendation_scheduler_provider_finished")
 
         result.duration_ms = int((perf_counter() - start) * 1000)
@@ -192,6 +202,7 @@ class RecommendationSchedulerService:
             candidates_total=result.candidates_total,
             recommendations_created=result.recommendations_created,
             recommendations_updated=result.recommendations_updated,
+            recommendations_expired=result.recommendations_expired,
             errors=result.errors,
             total_batches=result.total_batches,
             duration_ms=result.duration_ms,
@@ -317,6 +328,7 @@ class RecommendationSchedulerService:
         result.candidates_total += execution.candidate_count
         result.recommendations_created += execution.created
         result.recommendations_updated += execution.updated
+        result.recommendations_expired += execution.expired
         result.errors += execution.errors
         result.provider_names.append(execution.provider_name)
         result.executions.append(execution)
@@ -345,3 +357,153 @@ async def run_scheduled_recommendations(
         signals=signals,
     )
     return RecommendationEngineRunResultResponse.model_validate(result.model_dump())
+
+
+_SCHEDULER_ADVISORY_LOCK = 7_184_202_607_29
+
+
+async def run_scheduled_recommendation_cycle(
+    *,
+    dry_run: bool = False,
+    batch_size: int = 10,
+    max_batches: int | None = None,
+) -> int:
+    """Run the existing recommendation scheduler once for each active tenant."""
+    async with async_session_maker() as lock_session:
+        if not await _acquire_scheduler_lock(lock_session):
+            logger.bind(component="recommendation_scheduler_cycle").debug(
+                "recommendation_scheduler_cycle_skipped",
+                reason="lock_busy",
+            )
+            return 0
+        try:
+            tenant_ids = await _list_active_tenant_ids()
+            completed = 0
+            for tenant_id in tenant_ids:
+                result = await _run_tenant_cycle(
+                    tenant_id,
+                    dry_run=dry_run,
+                    batch_size=batch_size,
+                    max_batches=max_batches,
+                )
+                if result is not None:
+                    completed += 1
+            return completed
+        finally:
+            await _release_scheduler_lock(lock_session)
+
+
+async def _run_tenant_cycle(
+    tenant_id: UUID,
+    *,
+    dry_run: bool,
+    batch_size: int,
+    max_batches: int | None,
+) -> RecommendationSchedulerResult | None:
+    """Run providers in one isolated RLS session and commit their aggregate result."""
+    async with async_session_maker() as session:
+        await _set_tenant_context(session, tenant_id)
+        started_at = perf_counter()
+        try:
+            lifecycle = RecommendationLifecycleService(session, tenant_id)
+            expired = 0 if dry_run else await lifecycle.expire_due_recommendations()
+            result = await RecommendationSchedulerService(session).run_scheduled_recommendations(
+                tenant_id=tenant_id,
+                dry_run=dry_run,
+                batch_size=batch_size,
+                max_batches=max_batches,
+            )
+            result.recommendations_expired = expired
+            if not dry_run:
+                await session.commit()
+            logger.bind(
+                component="recommendation_scheduler_cycle",
+                tenant_id=str(tenant_id),
+                provider="all",
+                duration_ms=int((perf_counter() - started_at) * 1000),
+                recommendations_generated=result.recommendations_created,
+                recommendations_updated=result.recommendations_updated,
+                recommendations_expired=expired,
+                failures=result.errors,
+                dry_run=dry_run,
+            ).info("recommendation_scheduler_tenant_finished")
+            return result
+        except Exception as exc:
+            await session.rollback()
+            logger.bind(
+                component="recommendation_scheduler_cycle",
+                tenant_id=str(tenant_id),
+                provider="all",
+                duration_ms=int((perf_counter() - started_at) * 1000),
+                recommendations_generated=0,
+                recommendations_updated=0,
+                recommendations_expired=0,
+                failures=1,
+                dry_run=dry_run,
+                exception_type=exc.__class__.__name__,
+            ).exception("recommendation_scheduler_tenant_failed")
+            return None
+        finally:
+            await _clear_tenant_context(session)
+
+
+async def _acquire_scheduler_lock(session: AsyncSession) -> bool:
+    """Acquire the PostgreSQL advisory lock used to prevent overlapping cycles."""
+    if session.get_bind().dialect.name != "postgresql":
+        return True
+    return bool(
+        await session.scalar(
+            text("SELECT pg_try_advisory_lock(:lock_id)"),
+            {"lock_id": _SCHEDULER_ADVISORY_LOCK},
+        )
+    )
+
+
+async def _release_scheduler_lock(session: AsyncSession) -> None:
+    """Release the cycle lock before returning its connection to the pool."""
+    if session.get_bind().dialect.name == "postgresql":
+        try:
+            await session.execute(
+                text("SELECT pg_advisory_unlock(:lock_id)"),
+                {"lock_id": _SCHEDULER_ADVISORY_LOCK},
+            )
+        except DBAPIError as exc:
+            # PostgreSQL releases session advisory locks when the connection
+            # closes. A connection lost during a long tenant cycle therefore
+            # has no lock left to release; invalidating it avoids returning a
+            # broken connection to the pool without turning cleanup into a
+            # false scheduler-cycle failure.
+            if "connection is closed" not in str(exc.orig).lower():
+                raise
+            logger.bind(component="recommendation_scheduler_cycle").warning(
+                "recommendation_scheduler_lock_released_by_connection_close"
+            )
+            await session.invalidate()
+
+
+async def _list_active_tenant_ids() -> list[UUID]:
+    """List scheduler targets without sharing tenant sessions between iterations."""
+    async with async_session_maker() as session:
+        rows = await session.execute(select(Tenant.id).where(Tenant.ativo.is_(True)))
+        return list(rows.scalars())
+
+
+async def _set_tenant_context(session: AsyncSession, tenant_id: UUID) -> None:
+    """Set the RLS tenant context for the whole worker session."""
+    session.info["tenant_id"] = str(tenant_id)
+    await session.execute(
+        text("SELECT set_config('app.current_tenant_id', :tenant_id, false)"),
+        {"tenant_id": str(tenant_id)},
+    )
+
+
+async def _clear_tenant_context(session: AsyncSession) -> None:
+    """Reset RLS state before the pooled connection can be reused."""
+    try:
+        await session.rollback()
+        await session.execute(text("RESET app.current_tenant_id"))
+        await session.commit()
+        session.info.pop("tenant_id", None)
+    except Exception:
+        await session.invalidate()
+        raise
