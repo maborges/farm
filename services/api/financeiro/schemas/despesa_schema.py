@@ -79,6 +79,13 @@ class DespesaUpdate(BaseModel):
     observacoes: Optional[str] = None
 
 
+class BaixaDespesaRequest(BaseModel):
+    data_pagamento: date
+    valor_pago: float = Field(..., gt=0)
+    forma_pagamento: FormasPagamento
+    conta_bancaria_pagamento_id: uuid.UUID
+
+
 class DespesaResponse(BaseModel):
     id: uuid.UUID
     tenant_id: uuid.UUID
@@ -94,6 +101,7 @@ class DespesaResponse(BaseModel):
     competencia: Optional[date]
     status: str
     forma_pagamento: Optional[str]
+    conta_bancaria_pagamento_id: Optional[uuid.UUID]
     grupo_parcela_id: Optional[uuid.UUID]
     numero_parcela: Optional[int]
     total_parcelas: Optional[int]
@@ -122,6 +130,7 @@ class DespesaListItem(BaseModel):
     data_vencimento: date
     data_pagamento: Optional[date]
     status: str
+    conta_bancaria_pagamento_id: Optional[uuid.UUID]
     numero_parcela: Optional[int]
     total_parcelas: Optional[int]
 

@@ -52,6 +52,7 @@ Este submódulo registra eventos financeiros, não a origem econômica oficial d
 9. Anexos (notas fiscais, comprovantes) são opcionais; máximo 5 por lançamento, 10 MB cada.
 10. Campo `observacao` é texto livre, máximo 500 caracteres.
 11. `Receita` e `Despesa` são registros financeiros; não devem ser tratados como equivalentes diretos de `LancamentoFinanceiro`, `CostAllocation` ou `EstoqueMovimento`.
+12. Na baixa de uma despesa, a conta bancária de origem é obrigatória, deve estar ativa e pertencer ao mesmo tenant; quando vinculada a uma unidade produtiva, deve ser a mesma da despesa.
 
 ## Entidades de Dados Principais
 
@@ -103,7 +104,7 @@ Este submódulo registra eventos financeiros, não a origem econômica oficial d
 6. Opcionalmente anexa comprovante (drag-and-drop ou seleção de arquivo).
 7. Salva como "Previsto" ou marca "Já pago/recebido" para efetivar imediatamente.
 8. O lançamento aparece na listagem com filtros por período, tipo, categoria e status.
-9. Para efetivar um lançamento previsto, usuário clica em "Baixar" e informa a data de pagamento.
+9. Para efetivar um lançamento previsto, usuário clica em "Baixar" e informa data, valor, forma de pagamento e a conta bancária de origem.
 10. Lançamentos efetivados refletem automaticamente no Fluxo de Caixa.
 
 ## Casos Extremos e Exceções

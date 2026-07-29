@@ -1,7 +1,6 @@
 from core.dependencies import require_tenant_permission
 from datetime import date
 from fastapi import APIRouter, Depends, status, Query
-from pydantic import BaseModel
 from typing import List, Optional
 import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,6 +11,7 @@ from financeiro.schemas.despesa_schema import (
     DespesaUpdate,
     DespesaResponse,
     DespesaListItem,
+    BaixaDespesaRequest,
 )
 from financeiro.services.despesa_service import DespesaService
 
@@ -115,12 +115,6 @@ async def excluir_despesa(
     await db.commit()
 
 
-class BaixaDespesaRequest(BaseModel):
-    data_pagamento: date
-    valor_pago: float
-    forma_pagamento: str
-
-
 @router.post("/{despesa_id}/baixar", response_model=DespesaResponse)
 async def baixar_despesa(
     despesa_id: uuid.UUID,
@@ -128,14 +122,9 @@ async def baixar_despesa(
     tenant_id: uuid.UUID = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_session),
 ):
-    """Marca a despesa como PAGO."""
+    """Marca a despesa como paga e registra a conta bancária de origem."""
     svc = DespesaService(db, tenant_id)
-    despesa = await svc.get_or_fail(despesa_id)
-    despesa.data_pagamento = payload.data_pagamento
-    despesa.valor_pago = payload.valor_pago
-    despesa.forma_pagamento = payload.forma_pagamento
-    despesa.status = "PAGO"
-    db.add(despesa)
+    despesa = await svc.baixar(despesa_id, payload)
     await db.commit()
     await db.refresh(despesa)
     return despesa

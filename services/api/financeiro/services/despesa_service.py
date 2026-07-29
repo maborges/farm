@@ -19,9 +19,10 @@ from core.operational_context import (
 )
 from agricola.custos.allocation_service import registrar_allocations_fin_rateio
 from financeiro.models.despesa import Despesa
+from financeiro.models.conciliacao import ContaBancaria
 from financeiro.models.rateio import Rateio
 from financeiro.models.plano_conta import PlanoConta
-from financeiro.schemas.despesa_schema import DespesaCreate, DespesaUpdate
+from financeiro.schemas.despesa_schema import BaixaDespesaRequest, DespesaCreate, DespesaUpdate
 
 
 class DespesaService(BaseService[Despesa]):
@@ -255,3 +256,48 @@ class DespesaService(BaseService[Despesa]):
         )
         await self.session.refresh(despesa)
         return despesa
+
+    async def baixar(self, despesa_id: uuid.UUID, dados: BaixaDespesaRequest) -> Despesa:
+        """Registra a quitação e a conta bancária de origem de uma despesa.
+
+        Args:
+            despesa_id: Identificador da despesa do tenant atual.
+            dados: Dados efetivos do pagamento, incluindo sua conta de origem.
+
+        Returns:
+            A despesa atualizada.
+
+        Raises:
+            BusinessRuleError: Se a conta não estiver ativa ou não pertencer ao contexto da despesa.
+        """
+        despesa = await self.get_or_fail(despesa_id)
+        conta = await self._obter_conta_pagamento(dados.conta_bancaria_pagamento_id)
+        self._validar_unidade_conta_pagamento(despesa, conta)
+        despesa.data_pagamento = dados.data_pagamento
+        despesa.valor_pago = dados.valor_pago
+        despesa.forma_pagamento = dados.forma_pagamento
+        despesa.conta_bancaria_pagamento_id = conta.id
+        despesa.status = "PAGO"
+        self.session.add(despesa)
+        await self.session.flush()
+        await self.session.refresh(despesa)
+        return despesa
+
+    async def _obter_conta_pagamento(self, conta_id: uuid.UUID) -> ContaBancaria:
+        conta = (
+            await self.session.execute(
+                select(ContaBancaria).where(
+                    ContaBancaria.id == conta_id,
+                    ContaBancaria.tenant_id == self.tenant_id,
+                    ContaBancaria.ativa == True,
+                )
+            )
+        ).scalar_one_or_none()
+        if conta is None:
+            raise BusinessRuleError("Conta bancária de pagamento indisponível ou inacessível.")
+        return conta
+
+    @staticmethod
+    def _validar_unidade_conta_pagamento(despesa: Despesa, conta: ContaBancaria) -> None:
+        if conta.unidade_produtiva_id and conta.unidade_produtiva_id != despesa.unidade_produtiva_id:
+            raise BusinessRuleError("A conta bancária pertence a outra unidade produtiva.")

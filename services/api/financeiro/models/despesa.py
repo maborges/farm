@@ -70,6 +70,13 @@ class Despesa(Base):
         String(20), nullable=True,
         comment="PIX, BOLETO, TRANSFERENCIA, DINHEIRO, CARTAO, CHEQUE, DEBITO_AUTOMATICO"
     )
+    conta_bancaria_pagamento_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("fin_contas_bancarias.id", ondelete="RESTRICT"),
+        nullable=True,
+        index=True,
+        comment="Conta bancária de origem usada na baixa do pagamento",
+    )
 
     # Parcelamento
     grupo_parcela_id: Mapped[uuid.UUID | None] = mapped_column(

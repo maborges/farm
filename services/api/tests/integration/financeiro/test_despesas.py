@@ -16,6 +16,7 @@ from tests.integration.helpers import garantir_assinatura
 # ---------------------------------------------------------------------------
 
 PLANO_DESPESA_ID = uuid.UUID("eeeeeeee-0000-0000-0000-000000000020")
+CONTA_BANCARIA_ID = uuid.UUID("eeeeeeee-0000-0000-0000-000000000030")
 
 
 async def _garantir_suporte(session):
@@ -37,6 +38,16 @@ async def _garantir_suporte(session):
         VALUES (:id, :tenant_id, '5.1.01', 'Insumos Agrícolas', 'DESPESA', 'DEBITO', true, NOW(), NOW())
         ON CONFLICT (id) DO NOTHING
     """), {"id": str(PLANO_DESPESA_ID), "tenant_id": str(TENANT_ID)})
+
+    await session.execute(text("""
+        INSERT INTO fin_contas_bancarias (id, tenant_id, unidade_produtiva_id, nome, banco, tipo, ativa, created_at)
+        VALUES (:id, :tenant_id, :unidade_produtiva_id, 'Conta principal', '001', 'CORRENTE', true, NOW())
+        ON CONFLICT (id) DO NOTHING
+    """), {
+        "id": str(CONTA_BANCARIA_ID),
+        "tenant_id": str(TENANT_ID),
+        "unidade_produtiva_id": str(FAZENDA_ID),
+    })
 
     await garantir_assinatura(session, TENANT_ID)
     await session.commit()
@@ -218,11 +229,13 @@ async def test_baixar_despesa(client, session, headers_financeiro):
             "data_pagamento": str(date.today()),
             "valor_pago": 5000.0,
             "forma_pagamento": "PIX",
+            "conta_bancaria_pagamento_id": str(CONTA_BANCARIA_ID),
         },
         headers=headers_financeiro,
     )
     assert baixa.status_code in (200, 201), baixa.text
     assert baixa.json()["status"] == "PAGO"
+    assert baixa.json()["conta_bancaria_pagamento_id"] == str(CONTA_BANCARIA_ID)
 
 
 # ---------------------------------------------------------------------------
