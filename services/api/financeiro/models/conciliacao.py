@@ -20,6 +20,15 @@ class ContaBancaria(Base):
     conta: Mapped[str | None] = mapped_column(String(30))
     tipo: Mapped[str] = mapped_column(String(20), default="CORRENTE")       # CORRENTE | POUPANCA | INVESTIMENTO
     ativa: Mapped[bool] = mapped_column(Boolean, default=True)
+    convenio_pagamentos: Mapped[str | None] = mapped_column(
+        String(40), nullable=True, comment="Contrato ou convênio para remessa de pagamentos"
+    )
+    layout_remessa: Mapped[str | None] = mapped_column(
+        String(20), nullable=True, comment="Layout contratado para remessa, por exemplo CNAB240"
+    )
+    homologada_para_remessa: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False, comment="Libera geração de remessa após homologação bancária"
+    )
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 

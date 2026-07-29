@@ -17,6 +17,11 @@ from financeiro.models.despesa import Despesa
 from financeiro.models.receita import Receita
 from financeiro.models.plano_conta import PlanoConta
 from financeiro.models.conciliacao import ContaBancaria, LancamentoBancario
+from financeiro.models.ordem_pagamento import ItemOrdemPagamento, OrdemPagamento
+from core.exceptions import BusinessRuleError, EntityNotFoundError
+
+
+BANCOS_COM_REMESSA_CNAB240 = {"001", "237", "748", "756"}
 
 
 # ── OFX Parser ────────────────────────────────────────────────────────────────
@@ -116,6 +121,100 @@ class ConciliacaoService:
             setattr(conta, "saldo_atual", float(saldo))
             contas.append(conta)
         return contas
+
+    async def configurar_remessa(self, conta_id: uuid.UUID, dados: dict) -> ContaBancaria:
+        """Configura o convênio de remessa de uma conta do tenant.
+
+        Args:
+            conta_id: Conta bancária a configurar.
+            dados: Convênio, layout e situação de homologação informados pelo usuário.
+
+        Returns:
+            Conta bancária atualizada.
+
+        Raises:
+            BusinessRuleError: Se a configuração não permitir uma remessa segura.
+        """
+        conta = await self._obter_conta_tenant(conta_id)
+        self._validar_configuracao_remessa(conta, dados)
+        for campo, valor in dados.items():
+            setattr(conta, campo, valor)
+        self.session.add(conta)
+        await self.session.flush()
+        await self.session.refresh(conta)
+        return conta
+
+    async def validar_remessa(self, conta_id: uuid.UUID) -> ContaBancaria:
+        """Confirma que uma conta pode gerar remessa de pagamentos."""
+        conta = await self._obter_conta_tenant(conta_id)
+        if not conta.ativa:
+            raise BusinessRuleError("A conta bancária está inativa para remessas.")
+        if conta.banco not in BANCOS_COM_REMESSA_CNAB240:
+            raise BusinessRuleError("O banco desta conta ainda não possui suporte de remessa CNAB 240.")
+        if not conta.homologada_para_remessa:
+            raise BusinessRuleError("A conta bancária não está homologada para remessas.")
+        if not conta.convenio_pagamentos or not conta.layout_remessa:
+            raise BusinessRuleError("Informe o convênio e o layout de remessa antes de gerar pagamentos.")
+        return conta
+
+    async def simular_retorno_ordem(self, ordem_id: uuid.UUID, aprovado: bool) -> OrdemPagamento:
+        """Processa um retorno bancário fictício, exclusivo de homologação."""
+        ordem = (await self.session.execute(select(OrdemPagamento).where(
+            OrdemPagamento.id == ordem_id, OrdemPagamento.tenant_id == self.tenant_id
+        ))).scalar_one_or_none()
+        if ordem is None:
+            raise EntityNotFoundError("Ordem de pagamento indisponível ou não encontrada.")
+        if ordem.ambiente != "HOMOLOGACAO":
+            raise BusinessRuleError("A simulação de retorno é permitida somente em homologação.")
+        if ordem.status != "PRONTA_PARA_REMESSA":
+            raise BusinessRuleError("O retorno desta ordem já foi processado.")
+        itens = list((await self.session.execute(select(ItemOrdemPagamento).where(
+            ItemOrdemPagamento.ordem_pagamento_id == ordem.id, ItemOrdemPagamento.tenant_id == self.tenant_id
+        ))).scalars().all())
+        for item in itens:
+            await self._processar_item_retorno_simulado(ordem, item, aprovado)
+        ordem.status = "LIQUIDADA_SIMULADA" if aprovado else "REJEITADA_SIMULADA"
+        self.session.add(ordem)
+        await self.session.flush()
+        return ordem
+
+    async def _processar_item_retorno_simulado(self, ordem: OrdemPagamento, item: ItemOrdemPagamento, aprovado: bool) -> None:
+        despesa = (await self.session.execute(select(Despesa).where(Despesa.id == item.despesa_id, Despesa.tenant_id == self.tenant_id))).scalar_one()
+        item.status = "LIQUIDADO_SIMULADO" if aprovado else "REJEITADO_SIMULADO"
+        if not aprovado:
+            item.motivo_rejeicao = "Rejeição simulada de homologação"
+            despesa.status = "LIBERADO_PAGAMENTO"
+            self.session.add(despesa)
+            return
+        despesa.status = "PAGO"
+        despesa.valor_pago = item.valor
+        despesa.data_pagamento = ordem.data_pagamento
+        despesa.conta_bancaria_pagamento_id = ordem.conta_bancaria_id
+        self.session.add(LancamentoBancario(tenant_id=self.tenant_id, conta_id=ordem.conta_bancaria_id, data=ordem.data_pagamento, valor=-item.valor, descricao=f"DRY RUN ordem {ordem.id}", tipo="DEBIT", status_conciliacao="CONCILIADO", despesa_id=despesa.id))
+        self.session.add(despesa)
+
+    async def _obter_conta_tenant(self, conta_id: uuid.UUID) -> ContaBancaria:
+        conta = (
+            await self.session.execute(
+                select(ContaBancaria).where(
+                    ContaBancaria.id == conta_id,
+                    ContaBancaria.tenant_id == self.tenant_id,
+                )
+            )
+        ).scalar_one_or_none()
+        if conta is None:
+            raise EntityNotFoundError("Conta bancária indisponível ou não encontrada.")
+        return conta
+
+    @staticmethod
+    def _validar_configuracao_remessa(conta: ContaBancaria, dados: dict) -> None:
+        homologada = dados.get("homologada_para_remessa", conta.homologada_para_remessa)
+        convenio = dados.get("convenio_pagamentos", conta.convenio_pagamentos)
+        layout = dados.get("layout_remessa", conta.layout_remessa)
+        if homologada and conta.banco not in BANCOS_COM_REMESSA_CNAB240:
+            raise BusinessRuleError("Este banco ainda não possui suporte de remessa CNAB 240.")
+        if homologada and (not convenio or not layout):
+            raise BusinessRuleError("Informe convênio e layout antes de homologar a conta para remessa.")
 
     async def excluir_conta(self, conta_id: uuid.UUID) -> None:
         from sqlalchemy import func

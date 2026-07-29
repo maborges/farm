@@ -42,7 +42,10 @@ async def _garantir_suporte(session):
     await session.execute(text("""
         INSERT INTO fin_contas_bancarias (id, tenant_id, unidade_produtiva_id, nome, banco, tipo, ativa, created_at)
         VALUES (:id, :tenant_id, :unidade_produtiva_id, 'Conta principal', '001', 'CORRENTE', true, NOW())
-        ON CONFLICT (id) DO NOTHING
+        ON CONFLICT (id) DO UPDATE SET
+            convenio_pagamentos = NULL,
+            layout_remessa = NULL,
+            homologada_para_remessa = false
     """), {
         "id": str(CONTA_BANCARIA_ID),
         "tenant_id": str(TENANT_ID),
@@ -236,6 +239,36 @@ async def test_baixar_despesa(client, session, headers_financeiro):
     assert baixa.status_code in (200, 201), baixa.text
     assert baixa.json()["status"] == "PAGO"
     assert baixa.json()["conta_bancaria_pagamento_id"] == str(CONTA_BANCARIA_ID)
+
+
+@pytest.mark.asyncio
+async def test_remessa_exige_conta_homologada(client, session, headers_financeiro):
+    """FIN-DES-08: integração bancária não libera remessa sem homologação."""
+    await _garantir_suporte(session)
+
+    bloqueada = await client.post(
+        f"/api/v1/financeiro/integracao/contas-bancarias/{CONTA_BANCARIA_ID}/validar-remessa",
+        headers=headers_financeiro,
+    )
+    assert bloqueada.status_code == 400
+
+    configurada = await client.patch(
+        f"/api/v1/financeiro/integracao/contas-bancarias/{CONTA_BANCARIA_ID}/remessa",
+        json={
+            "convenio_pagamentos": "CONVENIO-TESTE",
+            "layout_remessa": "CNAB240",
+            "homologada_para_remessa": True,
+        },
+        headers=headers_financeiro,
+    )
+    assert configurada.status_code == 200, configurada.text
+
+    liberada = await client.post(
+        f"/api/v1/financeiro/integracao/contas-bancarias/{CONTA_BANCARIA_ID}/validar-remessa",
+        headers=headers_financeiro,
+    )
+    assert liberada.status_code == 200, liberada.text
+    assert liberada.json()["homologada_para_remessa"] is True
 
 
 # ---------------------------------------------------------------------------

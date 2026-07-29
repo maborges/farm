@@ -4,7 +4,7 @@ from datetime import date, datetime
 import uuid
 
 FormasPagamento = Literal["PIX", "BOLETO", "TRANSFERENCIA", "DINHEIRO", "CARTAO", "CHEQUE", "DEBITO_AUTOMATICO"]
-StatusDespesa = Literal["A_PAGAR", "PAGO", "PAGO_PARCIAL", "ATRASADO", "CANCELADO"]
+StatusDespesa = Literal["A_PAGAR", "LIBERADO_PAGAMENTO", "EM_ORDEM_PAGAMENTO", "PAGO", "PAGO_PARCIAL", "ATRASADO", "CANCELADO"]
 
 
 class RateioCreate(BaseModel):

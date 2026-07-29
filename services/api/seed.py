@@ -9,12 +9,14 @@ from core.models import Tenant, Fazenda
 # grupos_fazendas removed
 from core.models.billing import PlanoAssinatura, AssinaturaTenant
 from agricola.safras.models import Safra
+from agricola.cultivos.models import Cultivo
 from core.cadastros.propriedades.models import AreaRural
 from agricola.cadastros.models import Cultura
 from agricola.operacoes.models import OperacaoAgricola
 from financeiro.models.plano_conta import PlanoConta
 from financeiro.models.despesa import Despesa
 from financeiro.models.rateio import Rateio
+from financeiro.models.conciliacao import ContaBancaria
 from pecuaria.models.piquete import Piquete
 from pecuaria.animal.models import LoteAnimal as LoteBovino
 
@@ -34,6 +36,7 @@ SEED_MODELS = (
     OperacaoAgricola,
     PlanoConta,
     Despesa,
+    ContaBancaria,
     Piquete,
     LoteBovino,
 )
@@ -206,6 +209,14 @@ async def init_db():
         )
         session.add(despesa)
         await session.flush()
+
+        # Contas exclusivamente fictícias para ordens e retornos de homologação.
+        session.add_all([
+            ContaBancaria(tenant_id=tenant_id, unidade_produtiva_id=unidade_produtiva_id, nome="DRY RUN — Banco do Brasil", banco="001", agencia="0001", conta="12345-6", tipo="CORRENTE", ativa=True, convenio_pagamentos="HML-BB-0001", layout_remessa="CNAB240", homologada_para_remessa=True),
+            ContaBancaria(tenant_id=tenant_id, unidade_produtiva_id=unidade_produtiva_id, nome="DRY RUN — Bradesco", banco="237", agencia="1234", conta="123456-7", tipo="CORRENTE", ativa=True, convenio_pagamentos="HML-BRAD-0001", layout_remessa="CNAB240", homologada_para_remessa=True),
+            ContaBancaria(tenant_id=tenant_id, unidade_produtiva_id=unidade_produtiva_id, nome="DRY RUN — Sicredi", banco="748", agencia="0111", conta="12345-6", tipo="CORRENTE", ativa=True, convenio_pagamentos="HML-SIC-0001", layout_remessa="CNAB240", homologada_para_remessa=True),
+            ContaBancaria(tenant_id=tenant_id, unidade_produtiva_id=unidade_produtiva_id, nome="DRY RUN — Sicoob", banco="756", agencia="2222", conta="12345-6", tipo="CORRENTE", ativa=True, convenio_pagamentos="HML-SCO-0001", layout_remessa="CNAB240", homologada_para_remessa=True),
+        ])
 
         # 8. Pecuária
         piquete = Piquete(

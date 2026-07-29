@@ -361,7 +361,9 @@ async def test_dre_v1_consolida_precedencia_e_nao_duplica_receita_rateio(session
         data_emissao=date.today(),
         data_vencimento=date.today(),
         status="PAGO",
-        origem_tipo="FIN_RATEIO",
+        # O rateio é a ponte oficial de apropriação; a despesa não precisa
+        # carregar uma origem artificial para ser deduplicada na DRE.
+        origem_tipo=None,
         origem_id=None,
         ativo=True,
     )
@@ -409,31 +411,33 @@ async def test_dre_v1_consolida_precedencia_e_nao_duplica_receita_rateio(session
         unidade_produtiva_id=unidade_id,
     )
 
-    assert dre.receita_bruta == 6000.0
+    assert dre.receita_bruta == 11000.0
     assert dre.deducoes == 0.0
-    assert dre.receita_liquida == 6000.0
+    assert dre.receita_liquida == 11000.0
     assert dre.custos_diretos == 2500.0
     assert dre.custos_operacionais == 300.0
     assert dre.despesas_operacionais == 150.0
-    assert dre.margem_bruta == 3500.0
-    assert dre.resultado_operacional == 3050.0
+    assert dre.margem_bruta == 8500.0
+    assert dre.resultado_operacional == 8050.0
     assert dre.kpis.area_total_ha == 30.0
-    assert dre.kpis.receita_liquida == 6000.0
+    assert dre.kpis.receita_liquida == 11000.0
     assert dre.kpis.custo_operacional_total == 2950.0
-    assert dre.kpis.margem_bruta == 3500.0
-    assert dre.kpis.resultado_operacional == 3050.0
-    assert dre.kpis.margem_pct == pytest.approx(50.83, abs=0.01)
+    assert dre.kpis.margem_bruta == 8500.0
+    assert dre.kpis.resultado_operacional == 8050.0
+    assert dre.kpis.margem_pct == pytest.approx(73.18, abs=0.01)
     assert dre.kpis.custo_por_hectare == pytest.approx(98.33, abs=0.01)
-    assert dre.kpis.receita_por_hectare == 200.0
-    assert dre.kpis.resultado_por_hectare == pytest.approx(101.67, abs=0.01)
+    assert dre.kpis.receita_por_hectare == pytest.approx(366.67, abs=0.01)
+    assert dre.kpis.resultado_por_hectare == pytest.approx(268.33, abs=0.01)
     # SOIL-PLAN-EXEC-04I: CostAllocation(OPERATION_EXECUTION) sem Despesa(OPERACAO_AGRICOLA)
     # deixou de ser um risco de reconciliação — é o estado normal para operações novas.
     assert dre.kpis.sujeito_reconciliacao is False
     assert "CUSTO_OPERACIONAL_SEM_REFLEXO_ECONOMICO" not in dre.kpis.warnings_relevantes
     assert any(item.origem_tipo == "COMERCIALIZACAO" for item in dre.receita.itens)
-    assert all(item.origem_tipo != "ROMANEIO_COLHEITA" for item in dre.receita.itens)
+    saldo_romaneio = next(item for item in dre.receita.itens if item.origem_tipo == "ROMANEIO_COLHEITA")
+    assert saldo_romaneio.valor == 5000.0
+    assert saldo_romaneio.meta["saldo_percentual"] == 0.5
     assert any(item.origem_tipo == "FIN_RATEIO" for item in dre.custos_operacionais_detalhe.itens)
-    assert not any(item.origem_tipo == "FIN_RATEIO" for item in dre.despesas_operacionais_detalhe.itens)
+    assert not any(item.meta.get("despesa_id") == str(despesa_rateio.id) for item in dre.despesas_operacionais_detalhe.itens)
 
 
 @pytest.mark.asyncio

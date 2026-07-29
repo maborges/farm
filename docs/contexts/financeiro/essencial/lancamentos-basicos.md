@@ -22,7 +22,7 @@ Submódulo responsável pelo registro de todas as movimentações financeiras da
 
 O submódulo opera em regime de caixa por padrão (data do efetivo pagamento/recebimento), mas armazena também a data de competência para relatórios futuros.
 
-Este submódulo registra eventos financeiros, não a origem econômica oficial do AgroSaaS. A semântica oficial entre receita, despesa, realização financeira, apropriação econômica e valuation deve seguir [Matriz de Precedência Econômica Oficial](../../../architecture/economic-source-precedence.md).
+Este submódulo registra eventos financeiros, não a origem econômica oficial do AgroSaaS. A semântica oficial entre receita, despesa, realização financeira, apropriação econômica e valuation deve seguir [Matriz de Precedência Econômica Oficial](../../../architecture/economic-source-precedence.md). A tela `/dashboard/financeiro/dre` consome a DRE Agrícola v1: despesas rateadas à safra são consolidadas pela apropriação econômica (`CostAllocation`) e não pelo pagamento bancário.
 
 ## Personas — Quem usa este submódulo
 
@@ -53,6 +53,11 @@ Este submódulo registra eventos financeiros, não a origem econômica oficial d
 10. Campo `observacao` é texto livre, máximo 500 caracteres.
 11. `Receita` e `Despesa` são registros financeiros; não devem ser tratados como equivalentes diretos de `LancamentoFinanceiro`, `CostAllocation` ou `EstoqueMovimento`.
 12. Na baixa de uma despesa, a conta bancária de origem é obrigatória, deve estar ativa e pertencer ao mesmo tenant; quando vinculada a uma unidade produtiva, deve ser a mesma da despesa.
+13. A geração de remessa exige que a conta bancária esteja ativa, possua convênio e layout cadastrados e esteja homologada para remessa. A homologação é independente por conta bancária.
+
+## Remessas bancárias
+
+A preparação de pagamentos em lote usa o layout CNAB 240 e suporta parametrização para Banco do Brasil (001), Bradesco (237), Sicredi (748) e Sicoob (756). O sistema não deve gerar ou enviar remessa por uma conta sem homologação bancária explícita; enquanto a homologação não for concluída, a conta permanece bloqueada para integração.
 
 ## Entidades de Dados Principais
 

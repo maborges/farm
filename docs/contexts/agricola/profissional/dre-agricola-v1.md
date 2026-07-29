@@ -60,6 +60,7 @@ Documentar a janela temporal da DRE agrícola v1 e as regras de fallback por fon
 - Fallback: `data_emissao` quando `competencia` estiver ausente.
 - A linha só entra na DRE consolidada se cair dentro de `data_inicio` / `data_fim` pela data econômica escolhida.
 - `LancamentoFinanceiro` de recebimento não substitui `Receita` como linha principal.
+- Em venda parcial, a receita de `COMERCIALIZACAO` reconhece a quantidade vendida e o romaneio conserva apenas o saldo físico ainda não comercializado como estimativa; uma comercialização parcial não elimina nem duplica o romaneio inteiro.
 
 ### CostAllocation
 

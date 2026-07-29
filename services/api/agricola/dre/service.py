@@ -337,6 +337,8 @@ class DREAgricolaV1Service(BaseService[Safra]):
         receita_excluida_total = 0
         deducoes = 0.0
         romaneios_lookup_por_pu: dict[UUID, dict[UUID, RomaneioColheita]] = defaultdict(dict)
+        quantidade_comercializada: dict[UUID, float] = defaultdict(float)
+        produtos_por_romaneio: dict[UUID, dict[UUID, float]] = defaultdict(dict)
 
         # Receita de comercialização tem precedência sobre romaneio na mesma PU.
         stmt_comm = (
@@ -371,6 +373,9 @@ class DREAgricolaV1Service(BaseService[Safra]):
 
         comm_por_pu: dict[UUID, list[DRESourceItem]] = defaultdict(list)
         for receita, comercializacao, produto_colhido, pu in comm_rows:
+            if produto_colhido.romaneio_id is not None:
+                quantidade_comercializada[produto_colhido.romaneio_id] += float(comercializacao.quantidade or 0)
+                produtos_por_romaneio[produto_colhido.romaneio_id][produto_colhido.id] = float(produto_colhido.quantidade or 0)
             item = DRESourceItem(
                 natureza="RECEITA_OPERACIONAL",
                 fonte_oficial="Receita",
@@ -436,6 +441,8 @@ class DREAgricolaV1Service(BaseService[Safra]):
 
             romaneios_por_pu[pu_id].append(romaneio)
             romaneios_lookup_por_pu[pu_id][romaneio.id] = romaneio
+            if produto_colhido is not None:
+                produtos_por_romaneio[romaneio.id][produto_colhido.id] = float(produto_colhido.quantidade or 0)
             item = DRESourceItem(
                 natureza="RECEITA_OPERACIONAL",
                 fonte_oficial="Receita",
@@ -455,30 +462,12 @@ class DREAgricolaV1Service(BaseService[Safra]):
             )
             rom_por_pu[pu_id].append(item)
 
-        for pu_id, items in comm_por_pu.items():
+        for items in comm_por_pu.values():
             receitas_items.extend(items)
 
+        romaneios_processados: set[UUID] = set()
         for pu_id, items in rom_por_pu.items():
-            if pu_id in comm_por_pu:
-                receita_excluida_total += len(items)
-                warnings.append(
-                    DREWarning(
-                        codigo="RECEITA_ROMANEIO_SUPERADA_POR_COMERCIALIZACAO",
-                        titulo="Receita de romaneio suprimida por comercialização",
-                        severidade="WARNING_LEVE",
-                        mensagem="Quando há receita de comercialização na mesma ProductionUnit, o romaneio é tratado como reflexo e não entra na DRE consolidada.",
-                        origem="dre_agricola_v1",
-                        amostras=[str(pu_id)],
-                        meta={
-                            "production_unit_id": str(pu_id),
-                            "receitas_romaneio_excluidas": len(items),
-                        },
-                    )
-                )
-                continue
-
             for item in items:
-                receitas_items.append(item)
                 romaneio_id = item.meta.get("romaneio_id")
                 romaneio = None
                 if romaneio_id is not None:
@@ -488,9 +477,33 @@ class DREAgricolaV1Service(BaseService[Safra]):
                         romaneio_uuid = None
                     if romaneio_uuid is not None:
                         romaneio = romaneios_lookup_por_pu.get(pu_id, {}).get(romaneio_uuid)
-                if romaneio and romaneio.preco_saca and romaneio.sacas_60kg is not None:
-                    bruto_est = float(romaneio.peso_liquido_kg or 0) / 60.0 * float(romaneio.preco_saca or 0)
+                if romaneio is None or romaneio.id in romaneios_processados:
+                    continue
+                romaneios_processados.add(romaneio.id)
+                quantidade_produzida = sum(produtos_por_romaneio[romaneio.id].values())
+                quantidade_vendida = quantidade_comercializada[romaneio.id]
+                item, excluida, warning = self._calcular_saldo_romaneio(
+                    item,
+                    romaneio,
+                    quantidade_produzida,
+                    quantidade_vendida,
+                    pu_id,
+                )
+                receitas_items.append(item)
+                receita_excluida_total += excluida
+                if warning:
+                    warnings.append(warning)
+                if romaneio.preco_saca and romaneio.sacas_60kg is not None:
+                    saldo_percentual = item.meta.get("saldo_percentual", 1.0)
+                    bruto_est = (
+                        float(romaneio.peso_liquido_kg or 0)
+                        / 60.0
+                        * float(romaneio.preco_saca or 0)
+                        * float(saldo_percentual)
+                    )
                     deducoes += max(bruto_est - float(item.valor), 0.0)
+
+        receitas_items = [item for item in receitas_items if item.valor > 0]
 
         valor_total = round(sum(item.valor for item in receitas_items), 2)
         fontes = defaultdict(float)
@@ -504,6 +517,32 @@ class DREAgricolaV1Service(BaseService[Safra]):
             fontes={k: round(v, 2) for k, v in sorted(fontes.items())},
         )
         return section, deducoes, warnings, receita_excluida_total
+
+    @staticmethod
+    def _calcular_saldo_romaneio(
+        item: DRESourceItem,
+        romaneio: RomaneioColheita,
+        quantidade_produzida: float,
+        quantidade_vendida: float,
+        production_unit_id: UUID,
+    ) -> tuple[DRESourceItem, int, DREWarning | None]:
+        """Mantém no romaneio somente a parcela da produção ainda não comercializada."""
+        if quantidade_vendida <= 0:
+            return item, 0, None
+        if quantidade_produzida <= 0:
+            return item.model_copy(update={"valor": 0.0}), 1, DREWarning(
+                codigo="ROMANEIO_SEM_QUANTIDADE_PARA_RECONCILIAR_VENDA",
+                titulo="Romaneio sem quantidade para calcular saldo comercial",
+                severidade="WARNING_LEVE",
+                mensagem="A receita comercializada foi considerada, mas o saldo estimado do romaneio foi excluído por não haver quantidade produzida rastreável.",
+                origem="dre_agricola_v1",
+                amostras=[str(romaneio.id)],
+                meta={"production_unit_id": str(production_unit_id)},
+            )
+        saldo_percentual = max(quantidade_produzida - quantidade_vendida, 0.0) / quantidade_produzida
+        saldo_valor = round(item.valor * saldo_percentual, 2)
+        meta = {**item.meta, "quantidade_produzida": quantidade_produzida, "quantidade_comercializada": quantidade_vendida, "saldo_percentual": saldo_percentual}
+        return item.model_copy(update={"valor": saldo_valor, "meta": meta}), int(saldo_valor == 0), None
 
     async def _consolidar_costs(
         self,
@@ -654,7 +693,7 @@ class DREAgricolaV1Service(BaseService[Safra]):
         op_ids = [d.origem_id for d in despesas if d.origem_tipo == "OPERACAO_AGRICOLA" and d.origem_id is not None]
         os_ids = [d.origem_id for d in despesas if d.origem_tipo == "ORDEM_SERVICO" and d.origem_id is not None]
         ab_ids = [d.origem_id for d in despesas if d.origem_tipo == "ABASTECIMENTO" and d.origem_id is not None]
-        rateio_despesa_ids = [d.id for d in despesas if d.origem_tipo == "FIN_RATEIO"]
+        rateio_despesa_ids = [d.id for d in despesas]
 
         operacoes_map = {
             row.id: row
@@ -681,6 +720,16 @@ class DREAgricolaV1Service(BaseService[Safra]):
         excluidas = 0
 
         for despesa in despesas:
+            rateios_da_despesa = rateios_por_despesa.get(despesa.id, [])
+            rateios_da_safra = [
+                rateio for rateio in rateios_da_despesa if rateio.safra_id == scope["safra_id"]
+            ]
+
+            # Um rateio pertence somente à safra informada. Nunca atribuir a outra safra
+            # pelo simples fato de a despesa estar vinculada à mesma unidade produtiva.
+            if rateios_da_despesa and not rateios_da_safra:
+                continue
+
             # Compras representam aquisição financeira de estoque.
             # O custo agrícola é reconhecido pelo consumo via CostAllocation.
             if despesa.origem_tipo == "COMPRA":
@@ -692,7 +741,7 @@ class DREAgricolaV1Service(BaseService[Safra]):
             if despesa.origem_tipo in {"ORDEM_SERVICO", "ABASTECIMENTO"} and despesa.origem_id in alloc_mov_origin_ids:
                 excluidas += 1
                 continue
-            if despesa.origem_tipo == "FIN_RATEIO" and any(rateio.id in alloc_rateio_ids for rateio in rateios_por_despesa.get(despesa.id, [])):
+            if any(rateio.id in alloc_rateio_ids for rateio in rateios_da_safra):
                 excluidas += 1
                 continue
             if self._despesa_tem_allocation_canonica(despesa, alloc_source_ids):
@@ -708,8 +757,8 @@ class DREAgricolaV1Service(BaseService[Safra]):
             elif despesa.origem_tipo == "ABASTECIMENTO" and despesa.origem_id in abastecimentos_map:
                 ab_obj = abastecimentos_map[despesa.origem_id]
                 pu_id = scope["production_unit_lookup"].get((ab_obj.safra_id, ab_obj.talhao_id))
-            elif despesa.origem_tipo == "FIN_RATEIO" and rateios_por_despesa.get(despesa.id):
-                rateio = rateios_por_despesa[despesa.id][0]
+            elif rateios_da_safra:
+                rateio = rateios_da_safra[0]
                 pu_id = scope["production_unit_lookup"].get((rateio.safra_id, rateio.talhao_id))
 
             if pu_ids and pu_id is not None and pu_id not in pu_ids:
@@ -718,7 +767,11 @@ class DREAgricolaV1Service(BaseService[Safra]):
                 # Sem como atribuir ao PU escolhido, não entra na DRE filtrada por PU.
                 continue
 
-            valor = float(despesa.valor_total or 0)
+            valor = (
+                sum(float(rateio.valor_rateado or 0) for rateio in rateios_da_safra)
+                if rateios_da_safra
+                else float(despesa.valor_total or 0)
+            )
             total += valor
             items.append(
                 DRESourceItem(

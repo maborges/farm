@@ -8,11 +8,12 @@ Router de Integrações Financeiras:
 """
 import uuid
 from datetime import date
-from typing import Optional, List
+from typing import Literal, Optional, List
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 import io
 
@@ -52,6 +53,9 @@ class ContaBancariaResponse(BaseModel):
     ativa: bool
     unidade_produtiva_id: Optional[uuid.UUID]
     saldo_atual: float = 0.0
+    convenio_pagamentos: Optional[str]
+    layout_remessa: Optional[str]
+    homologada_para_remessa: bool
 
     model_config = {"from_attributes": True}
 
@@ -76,6 +80,20 @@ class ConciliarRequest(BaseModel):
     receita_id: Optional[uuid.UUID] = None
 
 
+class ConfigurarRemessaRequest(BaseModel):
+    convenio_pagamentos: Optional[str] = None
+    layout_remessa: Optional[Literal["CNAB240"]] = None
+    homologada_para_remessa: bool
+
+
+class RetornoSimuladoRequest(BaseModel):
+    aprovado: bool
+
+class CriarOrdemRequest(BaseModel):
+    conta_bancaria_id: uuid.UUID
+    despesa_ids: list[uuid.UUID]
+
+
 # ── Contas Bancárias ──────────────────────────────────────────────────────────
 
 @router.post("/contas-bancarias", response_model=ContaBancariaResponse, status_code=201)
@@ -98,6 +116,111 @@ async def listar_contas_bancarias(
 ):
     svc = ConciliacaoService(db, tenant_id)
     return await svc.listar_contas()
+
+
+@router.patch("/contas-bancarias/{conta_id}/remessa", response_model=ContaBancariaResponse)
+async def configurar_remessa_conta_bancaria(
+    conta_id: uuid.UUID,
+    dados: ConfigurarRemessaRequest,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_session),
+):
+    """Configura a homologação da conta para geração de remessas."""
+    svc = ConciliacaoService(db, tenant_id)
+    conta = await svc.configurar_remessa(conta_id, dados.model_dump())
+    await db.commit()
+    return conta
+
+
+@router.post("/contas-bancarias/{conta_id}/validar-remessa", response_model=ContaBancariaResponse)
+async def validar_remessa_conta_bancaria(
+    conta_id: uuid.UUID,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_session),
+):
+    """Impede que integrações gerem remessas sem conta homologada."""
+    svc = ConciliacaoService(db, tenant_id)
+    return await svc.validar_remessa(conta_id)
+
+
+@router.post("/ordens-pagamento/{ordem_id:uuid}/simular-retorno")
+async def simular_retorno_ordem_pagamento(
+    ordem_id: uuid.UUID,
+    dados: RetornoSimuladoRequest,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_session),
+):
+    """Processa um retorno fictício de homologação, sem qualquer envio externo."""
+    svc = ConciliacaoService(db, tenant_id)
+    ordem = await svc.simular_retorno_ordem(ordem_id, dados.aprovado)
+    await db.commit()
+    return {"id": str(ordem.id), "status": ordem.status}
+
+
+@router.get("/ordens-pagamento/candidatos")
+async def listar_candidatos_ordem_pagamento(
+    tenant_id: uuid.UUID = Depends(get_tenant_id), db: AsyncSession = Depends(get_session),
+):
+    """Lista títulos liberados que ainda podem compor uma ordem de pagamento."""
+    from financeiro.models.despesa import Despesa
+    linhas = (await db.execute(select(Despesa).where(
+        Despesa.tenant_id == tenant_id, Despesa.ativo == True, Despesa.status == "LIBERADO_PAGAMENTO"
+    ).order_by(Despesa.data_vencimento))).scalars().all()
+    return [{"id": str(d.id), "descricao": d.descricao, "fornecedor": d.fornecedor, "valor_total": float(d.valor_total), "data_vencimento": d.data_vencimento.isoformat()} for d in linhas]
+
+
+@router.get("/ordens-pagamento")
+async def listar_ordens_pagamento(
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_session),
+):
+    """Lista os lotes de pagamento do tenant para acompanhamento da homologação."""
+    from financeiro.models.ordem_pagamento import OrdemPagamento
+    from financeiro.models.conciliacao import ContaBancaria
+
+    linhas = (
+        await db.execute(
+            select(OrdemPagamento, ContaBancaria.nome)
+            .join(ContaBancaria, ContaBancaria.id == OrdemPagamento.conta_bancaria_id)
+            .where(OrdemPagamento.tenant_id == tenant_id)
+            .order_by(OrdemPagamento.created_at.desc())
+        )
+    ).all()
+    return [
+        {
+            "id": str(ordem.id),
+            "status": ordem.status,
+            "ambiente": ordem.ambiente,
+            "banco_codigo": ordem.banco_codigo,
+            "conta_nome": conta_nome,
+            "data_pagamento": ordem.data_pagamento.isoformat(),
+            "total_valor": float(ordem.total_valor),
+            "created_at": ordem.created_at.isoformat(),
+        }
+        for ordem, conta_nome in linhas
+    ]
+
+
+@router.post("/ordens-pagamento")
+async def criar_ordem_pagamento(dados: CriarOrdemRequest, tenant_id: uuid.UUID = Depends(get_tenant_id), db: AsyncSession = Depends(get_session)):
+    from financeiro.models.ordem_pagamento import OrdemPagamento, ItemOrdemPagamento
+    from financeiro.models.despesa import Despesa
+    if not dados.despesa_ids:
+        raise HTTPException(status_code=400, detail="Selecione ao menos um título para a ordem de pagamento.")
+    if len(dados.despesa_ids) != len(set(dados.despesa_ids)):
+        raise HTTPException(status_code=400, detail="Há títulos duplicados na seleção.")
+    svc = ConciliacaoService(db, tenant_id)
+    conta = await svc.validar_remessa(dados.conta_bancaria_id)
+    despesas = list((await db.execute(select(Despesa).where(Despesa.tenant_id == tenant_id, Despesa.id.in_(dados.despesa_ids), Despesa.status == "LIBERADO_PAGAMENTO"))).scalars().all())
+    if len(despesas) != len(set(dados.despesa_ids)):
+        raise HTTPException(status_code=400, detail="Selecione somente títulos liberados para pagamento.")
+    ordem = OrdemPagamento(tenant_id=tenant_id, conta_bancaria_id=conta.id, data_pagamento=date.today(), banco_codigo=conta.banco or "", ambiente="HOMOLOGACAO", status="PRONTA_PARA_REMESSA", total_valor=sum(float(d.valor_total) for d in despesas))
+    db.add(ordem); await db.flush()
+    for despesa in despesas:
+        db.add(ItemOrdemPagamento(tenant_id=tenant_id, ordem_pagamento_id=ordem.id, despesa_id=despesa.id, valor=despesa.valor_total, forma_pagamento="PIX", favorecido_snapshot=despesa.fornecedor or "Favorecido não informado"))
+        despesa.status = "EM_ORDEM_PAGAMENTO"; db.add(despesa)
+    await db.commit()
+    return {"id": str(ordem.id), "status": ordem.status, "total_valor": float(ordem.total_valor)}
 
 
 @router.delete("/contas-bancarias/{conta_id}", status_code=204)
