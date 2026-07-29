@@ -64,6 +64,63 @@ def _as_utc_aware(value: datetime | None) -> datetime | None:
     return value.astimezone(timezone.utc)
 
 
+def _montar_dados_contexto_safra(
+    safra_id: uuid.UUID,
+    ano_safra: str,
+    cultura: str | None,
+) -> dict[str, str]:
+    """Monta o contexto agrícola mínimo consumido pelo PWA offline."""
+    dados = {"safra_id": str(safra_id), "safra_nome": ano_safra}
+    if cultura:
+        dados["cultura"] = cultura
+    return dados
+
+
+def _enriquecer_dados_com_contexto_safra(
+    dados: dict[str, Any] | None,
+    contexto: dict[str, str] | None,
+) -> dict[str, Any]:
+    """Preserva os dados da tarefa e aplica o contexto agrícola canônico."""
+    resultado = dict(dados or {})
+    if contexto:
+        resultado.update(contexto)
+    return resultado
+
+
+def _enriquecer_dados_com_nome_operador(
+    dados: dict[str, Any], nome_operador: str | None
+) -> dict[str, Any]:
+    """Inclui o nome do operador para exibição offline quando disponível."""
+    resultado = dict(dados)
+    if nome_operador:
+        resultado["operador_nome"] = nome_operador
+    return resultado
+
+
+async def _buscar_contexto_safra_tarefa(
+    session: AsyncSession,
+    tenant_id: uuid.UUID,
+    safra_tarefa_id: uuid.UUID,
+) -> dict[str, str]:
+    """Busca o contexto de safra de uma tarefa agrícola respeitando o tenant."""
+    from agricola.safras.models import Safra
+    from agricola.tarefas.models import SafraTarefa
+
+    stmt = (
+        select(SafraTarefa.safra_id, Safra.ano_safra, Safra.cultura)
+        .join(Safra, Safra.id == SafraTarefa.safra_id)
+        .where(
+            SafraTarefa.id == safra_tarefa_id,
+            SafraTarefa.tenant_id == tenant_id,
+            Safra.tenant_id == tenant_id,
+        )
+    )
+    contexto = (await session.execute(stmt)).one_or_none()
+    if contexto is None:
+        return {}
+    return _montar_dados_contexto_safra(*contexto)
+
+
 def _make_device_jwt(device: DispositivoCampo, user_name: str, user_avatar_url: str | None) -> str:
     now = datetime.now(timezone.utc)
     payload = {
@@ -792,11 +849,6 @@ class SyncService:
                             TarefaCampo.dispositivo_id == None,
                             TarefaCampo.dispositivo_id == self.device.id,
                         ),
-                        or_(
-                            TarefaCampo.operador_id == None,
-                            TarefaCampo.operador_id == self.device.user_id,
-                            TarefaCampo.dispositivo_id == self.device.id,
-                        ),
                     ),
                     # Tarefa atribuída diretamente ao dispositivo
                     and_(
@@ -809,6 +861,8 @@ class SyncService:
             )
         )
         tarefas_rows = (await self.session.execute(stmt_task)).scalars().all()
+        contextos_safra = await self._buscar_contextos_safra_tarefas(tarefas_rows)
+        nomes_operadores = await self._buscar_nomes_operadores(tarefas_rows)
 
         caderno_svc = CadernoCampoService(self.session, self.tenant_id)
         eventos_caderno_oficiais = await caderno_svc.listar_eventos_oficiais_para_sync(
@@ -926,7 +980,13 @@ class SyncService:
                     "data_programada": t.data_programada,
                     "prioridade": t.prioridade,
                     "operador_id": t.operador_id,
-                    "dados": t.dados,
+                    "dados": _enriquecer_dados_com_nome_operador(
+                        _enriquecer_dados_com_contexto_safra(
+                            t.dados,
+                            contextos_safra.get(t.safra_tarefa_id),
+                        ),
+                        nomes_operadores.get(t.operador_id),
+                    ),
                     "unidade_produtiva_id": t.unidade_produtiva_id,
                     "area_rural_id": t.area_rural_id,
                     "lote_id": t.lote_id,
@@ -945,6 +1005,50 @@ class SyncService:
             "recomendacoes_climaticas": recomendacoes_climaticas,
             "tombstones": tombstones,
         }
+
+    async def _buscar_contextos_safra_tarefas(
+        self, tarefas: list[TarefaCampo]
+    ) -> dict[uuid.UUID, dict[str, str]]:
+        """Retorna o contexto agrícola das tarefas espelhadas no lote do pull."""
+        tarefa_ids = [t.safra_tarefa_id for t in tarefas if t.safra_tarefa_id]
+        if not tarefa_ids:
+            return {}
+
+        from agricola.safras.models import Safra
+        from agricola.tarefas.models import SafraTarefa
+
+        stmt = (
+            select(SafraTarefa.id, SafraTarefa.safra_id, Safra.ano_safra, Safra.cultura)
+            .join(Safra, Safra.id == SafraTarefa.safra_id)
+            .where(
+                SafraTarefa.id.in_(tarefa_ids),
+                SafraTarefa.tenant_id == self.tenant_id,
+                Safra.tenant_id == self.tenant_id,
+            )
+        )
+        rows = (await self.session.execute(stmt)).all()
+        return {
+            tarefa_id: _montar_dados_contexto_safra(safra_id, ano_safra, cultura)
+            for tarefa_id, safra_id, ano_safra, cultura in rows
+        }
+
+    async def _buscar_nomes_operadores(
+        self, tarefas: list[TarefaCampo]
+    ) -> dict[uuid.UUID, str]:
+        """Retorna os nomes dos operadores atribuídos às tarefas sincronizadas."""
+        operador_ids = list({t.operador_id for t in tarefas if t.operador_id})
+        if not operador_ids:
+            return {}
+
+        from core.cadastros.pessoas.models import Pessoa
+
+        stmt = select(Pessoa.id, Pessoa.nome_exibicao).where(
+            Pessoa.id.in_(operador_ids),
+            Pessoa.tenant_id == self.tenant_id,
+            Pessoa.ativo == True,
+        )
+        rows = (await self.session.execute(stmt)).all()
+        return {pessoa_id: nome for pessoa_id, nome in rows}
 
     async def _listar_recomendacoes_operacionais(
         self,
@@ -1206,7 +1310,10 @@ class SyncService:
                 self.tarefas_pecuaria_sync.append(task.id)
             if (
                 task.module == "agricola"
-                and task.type in _TIPOS_TAREFA_AGRICOLA_MATERIALIZAVEIS
+                and (
+                    task.type in _TIPOS_TAREFA_AGRICOLA_MATERIALIZAVEIS
+                    or task.operacao_agricola_id is not None
+                )
                 and task.status_execucao == "CONCLUIDA"
             ):
                 self.tarefas_agricola_sync.append(task.id)
@@ -1277,7 +1384,10 @@ class SyncService:
                     self.tarefas_pecuaria_sync.append(task.id)
                 if (
                     task.module == "agricola"
-                    and task.type in _TIPOS_TAREFA_AGRICOLA_MATERIALIZAVEIS
+                    and (
+                        task.type in _TIPOS_TAREFA_AGRICOLA_MATERIALIZAVEIS
+                        or task.operacao_agricola_id is not None
+                    )
                     and task.status_execucao == "CONCLUIDA"
                 ):
                     self.tarefas_agricola_sync.append(task.id)
@@ -1346,8 +1456,10 @@ def _aplicar_status_execucao(task: TarefaCampo, novo: str, payload: dict) -> Non
         if not task.iniciada_em:
             task.iniciada_em = datetime.utcnow()
     elif novo == "CONCLUIDA":
-        if task.status_execucao != "EM_EXECUCAO":
-            raise BusinessRuleError("Só é possível CONCLUIR uma tarefa que está EM_EXECUCAO")
+        if task.status_execucao not in {"PENDENTE", "EM_EXECUCAO"}:
+            raise BusinessRuleError("Só é possível CONCLUIR uma tarefa pendente ou em execução")
+        if task.status_execucao == "PENDENTE" and not task.iniciada_em:
+            task.iniciada_em = datetime.utcnow()
         task.status_execucao = "CONCLUIDA"
         task.concluida_em = datetime.utcnow()
         if payload.get("obs"):
@@ -1446,6 +1558,11 @@ class TarefaProgramadaService:
         `operacao_agricola_id`).
         """
         now = datetime.utcnow()
+        dados = await _buscar_contexto_safra_tarefa(
+            self.session,
+            self.tenant_id,
+            safra_tarefa_id,
+        )
         task = TarefaCampo(
             tenant_id=self.tenant_id,
             user_id=self.user_id or uuid.uuid4(),
@@ -1462,7 +1579,7 @@ class TarefaProgramadaService:
             operador_id=operador_id,
             safra_tarefa_id=safra_tarefa_id,
             operacao_agricola_id=operacao_agricola_id,
-            dados={},
+            dados=dados,
             status="PENDENTE",
             fotos=[],
             localizacao_status="INDISPONIVEL",

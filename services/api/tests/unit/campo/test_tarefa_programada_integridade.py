@@ -8,6 +8,7 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from campo.models import TarefaCampo
+from campo.schemas import TarefaProgramadaUpdate
 from campo.service import TarefaProgramadaService
 from core.exceptions import BusinessRuleError, EntityNotFoundError
 
@@ -59,6 +60,23 @@ async def test_tarefa_pendente_pode_ser_cancelada():
     updated = await service.cancelar(task.id)
 
     assert updated.status_execucao == "CANCELADA"
+    session.flush.assert_awaited_once()
+
+
+async def test_atualizar_tarefa_remove_dispositivo_quando_recebe_null():
+    session = AsyncMock(spec=AsyncSession)
+    session.flush = AsyncMock()
+    task = _make_task("PENDENTE")
+    task.dispositivo_id = uuid.uuid4()
+    service = TarefaProgramadaService(session, task.tenant_id, uuid.uuid4())
+    service.get_or_fail = AsyncMock(return_value=task)
+
+    updated = await service.atualizar(
+        task.id,
+        TarefaProgramadaUpdate(dispositivo_id=None),
+    )
+
+    assert updated.dispositivo_id is None
     session.flush.assert_awaited_once()
 
 

@@ -351,6 +351,48 @@ class CultivoService(BaseService[Cultivo]):
         ).options(selectinload(Cultivo.areas)).order_by(Cultivo.cultura)
         return list((await self.session.execute(stmt)).scalars().all())
 
+    async def montar_responses(self, cultivos: list[Cultivo]) -> list[CultivoResponse]:
+        """Serializa cultivos + áreas, calculando `correcao_status` por talhão a
+        partir das SafraTarefa (origem="SOLO") vinculadas — não é um campo
+        armazenado, então nunca fica desatualizado em relação ao andamento real
+        da tarefa/operação no campo."""
+        from agricola.tarefas.models import SafraTarefa
+
+        area_ids = [area.id for cultivo in cultivos for area in cultivo.areas]
+        status_por_area: dict[uuid.UUID, list[str]] = defaultdict(list)
+        if area_ids:
+            stmt = select(SafraTarefa.cultivo_area_id, SafraTarefa.status).where(
+                SafraTarefa.tenant_id == self.tenant_id,
+                SafraTarefa.origem == "SOLO",
+                SafraTarefa.cultivo_area_id.in_(area_ids),
+            )
+            for cultivo_area_id, tarefa_status in (await self.session.execute(stmt)).all():
+                status_por_area[cultivo_area_id].append(tarefa_status)
+
+        responses = []
+        for cultivo in cultivos:
+            response = CultivoResponse.model_validate(cultivo)
+            for area_response in response.areas:
+                area_response.correcao_status = self._calcular_correcao_status(
+                    area_response.analise_status,
+                    status_por_area.get(area_response.id, []),
+                )
+            responses.append(response)
+        return responses
+
+    async def montar_response(self, cultivo: Cultivo) -> CultivoResponse:
+        return (await self.montar_responses([cultivo]))[0]
+
+    @staticmethod
+    def _calcular_correcao_status(analise_status: str, tarefas_status: list[str]) -> str:
+        if analise_status != "SELECIONADA":
+            return "SEM_ANALISE"
+        if not tarefas_status:
+            return "AGUARDANDO_PROGRAMACAO"
+        if any(status == "CONCLUIDA" for status in tarefas_status):
+            return "CORRECAO_CONCLUIDA"
+        return "CORRECAO_PENDENTE"
+
     async def get_area_total(self, cultivo_id: uuid.UUID) -> float:
         """Retorna a área total (em hectares) do cultivo."""
         stmt = select(func.sum(CultivoArea.area_ha)).where(

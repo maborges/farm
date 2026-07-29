@@ -120,7 +120,8 @@ export default function TarefaDetailPage() {
   }
 
   const isMinhasTarefa =
-    !task.operador_id || task.operador_id === session?.user_id;
+    (!task.operador_id || task.operador_id === session?.user_id) ||
+    (!!task.dispositivo_id && task.dispositivo_id === session?.device_id);
   const cadernoTipo = mapTaskTypeToCadernoTipo(task.type);
   const pecuariaTask = isPecuariaTaskType(task.type);
   const taskDomain = resolveTaskDomain(task);
@@ -130,7 +131,8 @@ export default function TarefaDetailPage() {
     colaboradores,
     pessoasOperacionais,
     session?.user_id,
-    session?.user_name
+    session?.user_name,
+    taskDados.operador_nome
   );
   const safraId = typeof taskDados.safra_id === "string" ? taskDados.safra_id : undefined;
   const safra = safras?.find((item) => item.id === safraId);
@@ -147,7 +149,7 @@ export default function TarefaDetailPage() {
     ? taskDados.cultura_nome
     : typeof taskDados.cultura === "string"
       ? taskDados.cultura
-      : undefined;
+      : safra?.cultura_nome ?? safra?.cultura ?? undefined;
 
   const canStart = task.status_execucao === "PENDENTE" && isMinhasTarefa;
   const canFinish = task.status_execucao === "EM_EXECUCAO" && isMinhasTarefa;
@@ -416,9 +418,13 @@ function resolveOperadorName(
   colaboradores: Array<{ id: string; nome: string }> | undefined,
   pessoasOperacionais: Array<{ id: string; pessoa_id: string; nome_exibicao: string }> | undefined,
   sessionUserId?: string,
-  sessionUserName?: string
+  sessionUserName?: string,
+  operadorNomePayload?: unknown
 ): string {
   if (!operadorId) return "—";
+  if (typeof operadorNomePayload === "string" && operadorNomePayload.trim()) {
+    return operadorNomePayload;
+  }
   if (operadorId === sessionUserId && sessionUserName) return sessionUserName;
 
   const colaborador = colaboradores?.find((item) => item.id === operadorId);

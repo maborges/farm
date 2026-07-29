@@ -97,13 +97,19 @@ async function pushTaskSync(session: LocalSession, pending: SyncQueueItem[]): Pr
           synced: false,
         });
       } else {
-        // Erro: incrementa tentativas
+        // Erro: incrementa tentativas e sinaliza na tarefa para o usuário ver
+        // (ex.: BusinessRuleError do servidor não some sozinho com retry)
         const newAttempts = (queueItem.attempts ?? 0) + 1;
         const newStatus: SyncQueueItem["status"] = newAttempts >= 5 ? "FAILED" : "PENDING";
+        const errorMessage = result.error_message ?? "Erro desconhecido";
         await db.sync_queue.update(queueItem.id, {
           status: newStatus,
           attempts: newAttempts,
-          last_error: result.error_message ?? "Erro desconhecido",
+          last_error: errorMessage,
+        });
+        await db.tasks.update(queueItem.entity_id, {
+          sync_conflict: `Falha ao sincronizar: ${errorMessage}`,
+          synced: false,
         });
       }
     }

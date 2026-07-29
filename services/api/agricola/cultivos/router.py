@@ -26,7 +26,7 @@ async def listar_cultivos(
 ):
     service = CultivoService(session, tenant_id)
     cultivos = await service.listar_por_safra(safra_id)
-    return [CultivoResponse.model_validate(c) for c in cultivos]
+    return await service.montar_responses(cultivos)
 
 
 @router.post("/{safra_id}/cultivos", response_model=CultivoResponse, status_code=status.HTTP_201_CREATED)
@@ -39,7 +39,7 @@ async def criar_cultivo(
 ):
     service = CultivoService(session, tenant_id)
     cultivo = await service.criar_com_areas(safra_id, cultivo_in)
-    return CultivoResponse.model_validate(cultivo)
+    return await service.montar_response(cultivo)
 
 
 @router.get("/{safra_id}/cultivos/{cultivo_id}", response_model=CultivoResponse)
@@ -52,7 +52,7 @@ async def get_cultivo(
     service = CultivoService(session, tenant_id)
     try:
         cultivo = await service.get_com_areas(cultivo_id)
-        return CultivoResponse.model_validate(cultivo)
+        return await service.montar_response(cultivo)
     except EntityNotFoundError:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cultivo não encontrado.")
 
@@ -70,7 +70,7 @@ async def atualizar_cultivo(
     try:
         cultivo = await service.atualizar_com_areas(cultivo_id, cultivo_in.model_dump(exclude_unset=True))
         await session.commit()
-        return CultivoResponse.model_validate(cultivo)
+        return await service.montar_response(cultivo)
     except EntityNotFoundError:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cultivo não encontrado.")
 
@@ -108,7 +108,9 @@ async def vincular_analise_area(
     service = CultivoService(session, tenant_id)
     try:
         area = await service.vincular_analise(area_id, dados)
-        return CultivoAreaResponse.model_validate(area)
+        response = CultivoAreaResponse.model_validate(area)
+        response.correcao_status = service._calcular_correcao_status(response.analise_status, [])
+        return response
     except EntityNotFoundError:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="CultivoArea não encontrado.")
 
@@ -150,6 +152,6 @@ async def sincronizar_areas(
     service = CultivoService(session, tenant_id)
     try:
         cultivo = await service.sincronizar_areas(cultivo_id, areas_in)
-        return CultivoResponse.model_validate(cultivo)
+        return await service.montar_response(cultivo)
     except EntityNotFoundError:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cultivo não encontrado.")

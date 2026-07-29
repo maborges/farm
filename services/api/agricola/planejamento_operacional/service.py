@@ -247,10 +247,21 @@ class PlanoOperacionalService(BaseService[PlanoOperacional]):
         item = await self._get_item_or_fail(plano_id, item_id)
         return plano, item
 
-    def _validar_plano_editavel_para_insumo(self, plano: PlanoOperacional) -> None:
+    def _validar_plano_editavel_para_insumo(
+        self, plano: PlanoOperacional, item: PlanoOperacionalTarefa | None = None
+    ) -> None:
         if plano.status in PLANO_STATUS_FECHADO_PARA_SIMULACAO:
             raise BusinessRuleError(
                 f"Plano com status '{plano.status}' não aceita mais simulação/edição de insumos."
+            )
+        # Uma vez que a OS (OperacaoAgricola + TarefaCampo) já foi gerada para este
+        # item, ele sai do domínio de simulação/planejamento — mexer em insumo, mão
+        # de obra, maquinário ou receita aqui não é mais refletido na OS já criada e
+        # possivelmente já sincronizada com o campo.
+        if item is not None and item.status_planejamento == "PROGRAMADA":
+            raise BusinessRuleError(
+                "Este item já teve a OS gerada — não é mais possível editar "
+                "insumos, mão de obra, maquinário ou receita dele neste plano."
             )
 
     async def _validar_produto(self, produto_id: uuid.UUID) -> Produto:
@@ -320,7 +331,7 @@ class PlanoOperacionalService(BaseService[PlanoOperacional]):
         self, plano_id: uuid.UUID, item_id: uuid.UUID, dados: PlanoOperacionalTarefaInsumoCreate
     ) -> PlanoOperacionalTarefaInsumo:
         plano, item = await self._get_plano_e_item(plano_id, item_id)
-        self._validar_plano_editavel_para_insumo(plano)
+        self._validar_plano_editavel_para_insumo(plano, item)
         await self._validar_produto(dados.produto_id)
 
         if dados.safra_tarefa_necessidade_id:
@@ -356,8 +367,8 @@ class PlanoOperacionalService(BaseService[PlanoOperacional]):
     ) -> PlanoOperacionalTarefaInsumo:
         """Reprocessa o snapshot (disponibilidade/custo) com os dados atuais de
         estoque/produto — só permitido enquanto o plano ainda está em simulação."""
-        plano, _ = await self._get_plano_e_item(plano_id, item_id)
-        self._validar_plano_editavel_para_insumo(plano)
+        plano, item = await self._get_plano_e_item(plano_id, item_id)
+        self._validar_plano_editavel_para_insumo(plano, item)
         insumo = await self._get_insumo_or_fail(item_id, insumo_id)
         await self._montar_snapshot(insumo)
         self.session.add(insumo)
@@ -380,8 +391,8 @@ class PlanoOperacionalService(BaseService[PlanoOperacional]):
     async def atualizar_insumo(
         self, plano_id: uuid.UUID, item_id: uuid.UUID, insumo_id: uuid.UUID, dados: PlanoOperacionalTarefaInsumoUpdate
     ) -> PlanoOperacionalTarefaInsumo:
-        plano, _ = await self._get_plano_e_item(plano_id, item_id)
-        self._validar_plano_editavel_para_insumo(plano)
+        plano, item = await self._get_plano_e_item(plano_id, item_id)
+        self._validar_plano_editavel_para_insumo(plano, item)
         insumo = await self._get_insumo_or_fail(item_id, insumo_id)
 
         dados_dict = dados.model_dump(exclude_unset=True)
@@ -401,8 +412,8 @@ class PlanoOperacionalService(BaseService[PlanoOperacional]):
         return insumo
 
     async def remover_insumo(self, plano_id: uuid.UUID, item_id: uuid.UUID, insumo_id: uuid.UUID) -> None:
-        plano, _ = await self._get_plano_e_item(plano_id, item_id)
-        self._validar_plano_editavel_para_insumo(plano)
+        plano, item = await self._get_plano_e_item(plano_id, item_id)
+        self._validar_plano_editavel_para_insumo(plano, item)
         insumo = await self._get_insumo_or_fail(item_id, insumo_id)
         if insumo.reserva_estoque_id:
             await self.liberar_reserva_insumo(plano_id, item_id, insumo_id)
@@ -461,7 +472,7 @@ class PlanoOperacionalService(BaseService[PlanoOperacional]):
         rotina e criar deadlock cruzado.
         """
         plano, item = await self._get_plano_e_item(plano_id, item_id)
-        self._validar_plano_editavel_para_insumo(plano)
+        self._validar_plano_editavel_para_insumo(plano, item)
         insumo = await self._get_insumo_or_fail(item_id, insumo_id)
 
         if insumo.reserva_estoque_id:
@@ -542,7 +553,7 @@ class PlanoOperacionalService(BaseService[PlanoOperacional]):
         (alguns sim, outros não), permitindo que o plano avance com o que já
         está disponível enquanto o resto aguarda compra."""
         plano, item = await self._get_plano_e_item(plano_id, item_id)
-        self._validar_plano_editavel_para_insumo(plano)
+        self._validar_plano_editavel_para_insumo(plano, item)
         insumos = await self.listar_insumos(plano_id, item_id)
         if not insumos:
             raise BusinessRuleError("Item de plano sem insumos definidos não pode ser aprovado.")
@@ -589,7 +600,8 @@ class PlanoOperacionalService(BaseService[PlanoOperacional]):
         ativa (não encerrada/cancelada) já existente para este insumo é
         retornada em vez de duplicada. Requer confirmação explícita do
         usuário — nunca é disparada automaticamente ao detectar falta."""
-        await self._get_plano_e_item(plano_id, item_id)
+        plano, item = await self._get_plano_e_item(plano_id, item_id)
+        self._validar_plano_editavel_para_insumo(plano, item)
         insumo = await self._get_insumo_or_fail(item_id, insumo_id)
 
         await self._montar_snapshot(insumo)  # garante que a falta reflete o saldo atual
@@ -697,7 +709,7 @@ class PlanoOperacionalService(BaseService[PlanoOperacional]):
         self, plano_id: uuid.UUID, item_id: uuid.UUID, dados: PlanoOperacionalTarefaMaoObraCreate
     ) -> PlanoOperacionalTarefaMaoObra:
         plano, item = await self._get_plano_e_item(plano_id, item_id)
-        self._validar_plano_editavel_para_insumo(plano)
+        self._validar_plano_editavel_para_insumo(plano, item)
         await self._validar_tipo_servico(dados.tipo_servico_id)
 
         horas_estimadas = await self._calcular_horas_estimadas(item, dados)
@@ -732,8 +744,8 @@ class PlanoOperacionalService(BaseService[PlanoOperacional]):
     async def atualizar_mao_obra(
         self, plano_id: uuid.UUID, item_id: uuid.UUID, mao_obra_id: uuid.UUID, dados: PlanoOperacionalTarefaMaoObraUpdate
     ) -> PlanoOperacionalTarefaMaoObra:
-        plano, _ = await self._get_plano_e_item(plano_id, item_id)
-        self._validar_plano_editavel_para_insumo(plano)
+        plano, item = await self._get_plano_e_item(plano_id, item_id)
+        self._validar_plano_editavel_para_insumo(plano, item)
         mao_obra = await self._get_mao_obra_or_fail(item_id, mao_obra_id)
 
         dados_dict = dados.model_dump(exclude_unset=True)
@@ -749,8 +761,8 @@ class PlanoOperacionalService(BaseService[PlanoOperacional]):
         return mao_obra
 
     async def remover_mao_obra(self, plano_id: uuid.UUID, item_id: uuid.UUID, mao_obra_id: uuid.UUID) -> None:
-        plano, _ = await self._get_plano_e_item(plano_id, item_id)
-        self._validar_plano_editavel_para_insumo(plano)
+        plano, item = await self._get_plano_e_item(plano_id, item_id)
+        self._validar_plano_editavel_para_insumo(plano, item)
         mao_obra = await self._get_mao_obra_or_fail(item_id, mao_obra_id)
         # Hard delete seguro: é só estimativa de planejamento, nada realizado
         # foi criado a partir disto (equipe/execução ficam em OperacaoAgricola).
@@ -834,7 +846,7 @@ class PlanoOperacionalService(BaseService[PlanoOperacional]):
         self, plano_id: uuid.UUID, item_id: uuid.UUID, dados: PlanoOperacionalTarefaMaquinarioCreate
     ) -> PlanoOperacionalTarefaMaquinario:
         plano, item = await self._get_plano_e_item(plano_id, item_id)
-        self._validar_plano_editavel_para_insumo(plano)
+        self._validar_plano_editavel_para_insumo(plano, item)
         if not dados.maquina_id and not dados.implemento_id:
             raise BusinessRuleError(
                 "Informe ao menos uma máquina ou um implemento para adicionar necessidade de maquinário."
@@ -873,8 +885,8 @@ class PlanoOperacionalService(BaseService[PlanoOperacional]):
         maquinario_id: uuid.UUID,
         dados: PlanoOperacionalTarefaMaquinarioUpdate,
     ) -> PlanoOperacionalTarefaMaquinario:
-        plano, _ = await self._get_plano_e_item(plano_id, item_id)
-        self._validar_plano_editavel_para_insumo(plano)
+        plano, item = await self._get_plano_e_item(plano_id, item_id)
+        self._validar_plano_editavel_para_insumo(plano, item)
         maquinario = await self._get_maquinario_or_fail(item_id, maquinario_id)
 
         dados_dict = dados.model_dump(exclude_unset=True)
@@ -892,8 +904,8 @@ class PlanoOperacionalService(BaseService[PlanoOperacional]):
         return maquinario
 
     async def remover_maquinario(self, plano_id: uuid.UUID, item_id: uuid.UUID, maquinario_id: uuid.UUID) -> None:
-        plano, _ = await self._get_plano_e_item(plano_id, item_id)
-        self._validar_plano_editavel_para_insumo(plano)
+        plano, item = await self._get_plano_e_item(plano_id, item_id)
+        self._validar_plano_editavel_para_insumo(plano, item)
         maquinario = await self._get_maquinario_or_fail(item_id, maquinario_id)
         # Hard delete seguro: só estimativa de planejamento (mesma justificativa
         # usada em remover_mao_obra).
@@ -935,7 +947,7 @@ class PlanoOperacionalService(BaseService[PlanoOperacional]):
         resultados = []
         for item_id in plano_operacional_tarefa_ids:
             plano, item = await self._get_plano_e_item(plano_id, item_id)
-            self._validar_plano_editavel_para_insumo(plano)
+            self._validar_plano_editavel_para_insumo(plano, item)
 
             tarefa = await self.session.get(SafraTarefa, item.safra_tarefa_id)
             area_ha = float(tarefa.area_ha) if tarefa and tarefa.area_ha else 0.0

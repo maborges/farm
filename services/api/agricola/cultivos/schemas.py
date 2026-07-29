@@ -18,6 +18,10 @@ class CultivoAreaResponse(BaseModel):
     analise_solo_id: UUID | None = None
     regiao_analise: str | None = None
     analise_status: str = "NAO_SELECIONADA"
+    # Calculado a partir das SafraTarefa (origem="SOLO") geradas para este talhão —
+    # não confundir com analise_status, que só indica se há laudo vinculado.
+    # SEM_ANALISE | AGUARDANDO_PROGRAMACAO | CORRECAO_PENDENTE | CORRECAO_CONCLUIDA
+    correcao_status: str = "SEM_ANALISE"
 
 
 class CultivoAreaAnalisePatch(BaseModel):

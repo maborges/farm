@@ -227,13 +227,8 @@ class SafraService(BaseService[Safra]):
         fase_anterior = safra.status
         upd: dict = {"status": novo_status}
 
-        # Preenche datas automáticas na transição
-        if novo_status == "PLANTIO" and not safra.data_plantio_real:
-            upd["data_plantio_real"] = date.today()
-        elif novo_status == "ENCERRADA" and not safra.data_colheita_real:
-            upd["data_colheita_real"] = date.today()
-
         safra = await self.atualizar(safra_id, SafraUpdate(**upd))
+        await self._registrar_data_real_cultivos(safra_id, novo_status)
 
         # Registra no histórico
         historico = SafraFaseHistorico(
@@ -251,6 +246,27 @@ class SafraService(BaseService[Safra]):
         await self.session.flush()
 
         return safra
+
+    async def _registrar_data_real_cultivos(self, safra_id: UUID, fase: str) -> None:
+        """Registra a data real da fase nos cultivos da safra, quando aplicável."""
+        campo_por_fase = {
+            "PLANTIO": "data_plantio_real",
+            "ENCERRADA": "data_colheita_real",
+        }
+        campo = campo_por_fase.get(fase)
+        if campo is None:
+            return
+
+        coluna = getattr(Cultivo, campo)
+        await self.session.execute(
+            update(Cultivo)
+            .where(
+                Cultivo.safra_id == safra_id,
+                Cultivo.tenant_id == self.tenant_id,
+                coluna.is_(None),
+            )
+            .values({campo: date.today()})
+        )
 
     async def listar_historico(self, safra_id: UUID) -> list[SafraFaseHistorico]:
         await self.get_or_fail(safra_id)  # garante tenant isolation

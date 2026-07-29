@@ -75,16 +75,65 @@ class ConciliacaoService:
         self.tenant_id = tenant_id
 
     async def criar_conta(self, dados: dict) -> ContaBancaria:
+        saldo_inicial = dados.pop("saldo_inicial", 0.0)
         dados["tenant_id"] = self.tenant_id
         conta = ContaBancaria(**dados)
         self.session.add(conta)
         await self.session.flush()
+        
+        if saldo_inicial != 0.0:
+            from datetime import datetime, timezone
+            lancamento = LancamentoBancario(
+                tenant_id=self.tenant_id,
+                conta_id=conta.id,
+                data=datetime.now(timezone.utc).date(),
+                valor=saldo_inicial,
+                descricao="Saldo Inicial",
+                tipo="CREDIT" if saldo_inicial > 0 else "DEBIT",
+                status_conciliacao="CONCILIADO"
+            )
+            self.session.add(lancamento)
+            await self.session.flush()
+
         await self.session.refresh(conta)
+        setattr(conta, "saldo_atual", saldo_inicial)
         return conta
 
     async def listar_contas(self) -> list[ContaBancaria]:
-        stmt = select(ContaBancaria).where(ContaBancaria.tenant_id == self.tenant_id)
-        return list((await self.session.execute(stmt)).scalars().all())
+        from sqlalchemy import func
+        stmt = (
+            select(
+                ContaBancaria,
+                func.coalesce(func.sum(LancamentoBancario.valor), 0.0).label("saldo_atual")
+            )
+            .outerjoin(LancamentoBancario, ContaBancaria.id == LancamentoBancario.conta_id)
+            .where(ContaBancaria.tenant_id == self.tenant_id)
+            .group_by(ContaBancaria.id)
+        )
+        result = await self.session.execute(stmt)
+        contas = []
+        for conta, saldo in result.all():
+            setattr(conta, "saldo_atual", float(saldo))
+            contas.append(conta)
+        return contas
+
+    async def excluir_conta(self, conta_id: uuid.UUID) -> None:
+        from sqlalchemy import func
+        from fastapi import HTTPException
+        
+        stmt = select(func.count(LancamentoBancario.id)).where(
+            LancamentoBancario.conta_id == conta_id,
+            LancamentoBancario.descricao != "Saldo Inicial"
+        )
+        count = (await self.session.execute(stmt)).scalar()
+        
+        if count > 0:
+            raise HTTPException(status_code=400, detail="Não é possível excluir a conta pois já existem movimentações reais.")
+            
+        stmt_conta = select(ContaBancaria).where(ContaBancaria.id == conta_id, ContaBancaria.tenant_id == self.tenant_id)
+        conta = (await self.session.execute(stmt_conta)).scalar_one_or_none()
+        if conta:
+            await self.session.delete(conta)
 
     async def importar_ofx(self, conta_id: uuid.UUID, ofx_content: str) -> dict:
         """

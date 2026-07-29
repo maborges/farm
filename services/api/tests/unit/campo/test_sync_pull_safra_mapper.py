@@ -8,6 +8,7 @@ import pytest
 
 from agricola.caderno.schemas import EntradaCreate
 from agricola.caderno.service import CadernoCampoService
+from agricola.tarefas.models import SafraTarefa
 from campo.models import DispositivoCampo, TarefaCampo
 from campo.service import SyncService
 from core.models import Usuario
@@ -124,7 +125,7 @@ async def test_sync_pull_usa_area_hectares_manual_do_talhao(session, tenant_id):
     assert data["talhoes"][0]["area_ha"] == pytest.approx(123.4567, rel=1e-6)
 
 
-async def test_sync_pull_inclui_tarefa_programada_futura_atribuida_ao_dispositivo(session, tenant_id):
+async def test_sync_pull_inclui_tarefa_sem_dispositivo_para_qualquer_operador_autorizado(session, tenant_id):
     await session.execute(
         text(
             "INSERT INTO tenants (id, nome, documento, ativo, storage_usado_mb, storage_limite_mb, idioma_padrao, created_at, updated_at) "
@@ -168,22 +169,55 @@ async def test_sync_pull_inclui_tarefa_programada_futura_atribuida_ao_dispositiv
     )
     session.add(device)
 
+    safra_id = uuid.uuid4()
+    await session.execute(
+        text(
+            """
+            INSERT INTO safras (id, tenant_id, ano_safra, cultura, status, created_at, updated_at)
+            VALUES (:id, :tenant_id, '2025/26', 'Soja', 'PLANEJADA', now(), now())
+            """
+        ),
+        {"id": str(safra_id), "tenant_id": str(tenant_id)},
+    )
+    safra_tarefa = SafraTarefa(
+        id=uuid.uuid4(),
+        tenant_id=tenant_id,
+        safra_id=safra_id,
+        origem="MANUAL",
+        tipo="PULVERIZACAO",
+        descricao="Aplicação programada",
+        status="APROVADA",
+    )
+    session.add(safra_tarefa)
+    operador_id = uuid.uuid4()
+    await session.execute(
+        text(
+            """
+            INSERT INTO cadastros_pessoas (id, tenant_id, tipo, nome_exibicao, base_legal, ativo, created_at, updated_at)
+            VALUES (:id, :tenant_id, 'PF', 'João Operador', 'CONTRATO', true, now(), now())
+            """
+        ),
+        {"id": str(operador_id), "tenant_id": str(tenant_id)},
+    )
+
     task = TarefaCampo(
         id=uuid.uuid4(),
         tenant_id=tenant_id,
-        dispositivo_id=device.id,
+        dispositivo_id=None,
         user_id=user.id,
         client_id=str(uuid.uuid4()),
         origem="PROGRAMADA",
         status_execucao="PENDENTE",
         titulo="Tarefa Futura",
-        data_programada=date.today() + timedelta(days=3),
+        data_programada=date.today(),
         prioridade="NORMAL",
         type="APLICACAO_DEFENSIVO",
         module="agricola",
         unidade_produtiva_id=unidade_produtiva_id,
+        operador_id=operador_id,
         status="PENDENTE",
         dados={},
+        safra_tarefa_id=safra_tarefa.id,
         fotos=[],
         localizacao_status="INDISPONIVEL",
         client_created_at=datetime.utcnow(),
@@ -196,7 +230,13 @@ async def test_sync_pull_inclui_tarefa_programada_futura_atribuida_ao_dispositiv
     data = await svc.pull(None)
 
     assert len(data["tarefas_pendentes"]) == 1
-    assert data["tarefas_pendentes"][0]["dispositivo_id"] == device.id
+    assert data["tarefas_pendentes"][0]["dispositivo_id"] is None
+    assert data["tarefas_pendentes"][0]["dados"] == {
+        "safra_id": str(safra_id),
+        "safra_nome": "2025/26",
+        "cultura": "Soja",
+        "operador_nome": "João Operador",
+    }
 
 
 async def test_sync_pull_inclui_eventos_canonicos_do_caderno(session, tenant_id):

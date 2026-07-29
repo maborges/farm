@@ -1231,6 +1231,21 @@ class OperacaoService(BaseService[OperacaoAgricola]):
         status_anterior = operacao_atual.status
         insumos_anteriores = list(operacao_atual.insumos or [])
         custo_insumos_anterior = sum(float(insumo.custo_total or 0.0) for insumo in insumos_anteriores)
+        # Snapshot em valores planos: `insumos_anteriores` é reaproveitado depois do
+        # DELETE em _atualizar_efeitos_operacao, e reler atributos de instâncias ORM
+        # já apagadas do banco levanta InvalidRequestError ("has been deleted").
+        insumos_anteriores_snapshot = [
+            InsumoOperacaoCreate(
+                produto_id=insumo.produto_id,
+                lote_insumo=insumo.lote_insumo,
+                lote_estoque_id=insumo.lote_estoque_id,
+                unidade_medida_id=insumo.unidade_medida_id,
+                dose_por_ha=float(insumo.dose_por_ha),
+                unidade=insumo.unidade,
+                area_aplicada=float(insumo.area_aplicada) if insumo.area_aplicada is not None else None,
+            )
+            for insumo in insumos_anteriores
+        ]
         operacao_execucao_existente = await self._buscar_execucao_existente(obj_id)
         unidade_produtiva_id = await self._get_unidade_produtiva_id_for_talhao(operacao_atual.talhao_id)
 
@@ -1278,6 +1293,7 @@ class OperacaoService(BaseService[OperacaoAgricola]):
                 dados_dict=dados_dict,
                 insumos_payload=insumos_payload,
                 insumos_anteriores=insumos_anteriores,
+                insumos_anteriores_snapshot=insumos_anteriores_snapshot,
                 custo_insumos_anterior=custo_insumos_anterior,
                 operacao_execucao_existente=operacao_execucao_existente,
                 unidade_produtiva_id=unidade_produtiva_id,
@@ -1297,6 +1313,7 @@ class OperacaoService(BaseService[OperacaoAgricola]):
         dados_dict: dict,
         insumos_payload,
         insumos_anteriores: list,
+        insumos_anteriores_snapshot: list,
         custo_insumos_anterior: float,
         operacao_execucao_existente: OperacaoExecucao | None,
         unidade_produtiva_id: UUID,
@@ -1328,21 +1345,15 @@ class OperacaoService(BaseService[OperacaoAgricola]):
             await self._reverter_movimentos_estoque_operacao(operacao_execucao_existente)
             if insumos_anteriores:
                 await self.session.execute(delete(InsumoOperacao).where(InsumoOperacao.operacao_id == operacao.id))
+                # `operacao.insumos` (relationship já carregada, com "all, delete-orphan")
+                # ainda referencia os objetos apagados pelo bulk delete acima; sem expirar
+                # o unit-of-work tenta reconciliar essas instâncias no próximo flush e
+                # explode com InvalidRequestError("Instance has been deleted").
+                self.session.expire(operacao, ["insumos"])
                 await self.session.flush()
 
             if insumos_payload is None:
-                insumos_reaplicados = [
-                    InsumoOperacaoCreate(
-                        produto_id=insumo.produto_id,
-                        lote_insumo=insumo.lote_insumo,
-                        lote_estoque_id=insumo.lote_estoque_id,
-                        unidade_medida_id=insumo.unidade_medida_id,
-                        dose_por_ha=float(insumo.dose_por_ha),
-                        unidade=insumo.unidade,
-                        area_aplicada=float(insumo.area_aplicada) if insumo.area_aplicada is not None else None,
-                    )
-                    for insumo in insumos_anteriores
-                ]
+                insumos_reaplicados = insumos_anteriores_snapshot
             else:
                 insumos_reaplicados = [
                     item if isinstance(item, InsumoOperacaoCreate) else InsumoOperacaoCreate(**item)

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import date, datetime, timezone, timedelta
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from sqlalchemy import text
@@ -54,6 +55,37 @@ async def test_tarefa_programada_preenche_client_timestamps(session, tenant_id):
     assert tarefa.client_created_at is not None
     assert tarefa.client_updated_at is not None
     assert tarefa.client_created_at == tarefa.client_updated_at
+
+
+async def test_tarefa_vinculada_operacao_inclui_contexto_da_safra():
+    safra_id = uuid.uuid4()
+    session = AsyncMock()
+    session.add = MagicMock()
+    session.flush = AsyncMock()
+    session.execute = AsyncMock(
+        return_value=MagicMock(
+            one_or_none=MagicMock(return_value=(safra_id, "2025/26", "Soja"))
+        )
+    )
+    service = TarefaProgramadaService(session, uuid.uuid4(), uuid.uuid4())
+
+    await service.criar_vinculada_operacao(
+        safra_tarefa_id=uuid.uuid4(),
+        operacao_agricola_id=uuid.uuid4(),
+        titulo="Aplicação",
+        type="APLICACAO_DEFENSIVO",
+        data_programada=date.today(),
+        unidade_produtiva_id=uuid.uuid4(),
+        area_rural_id=uuid.uuid4(),
+        operador_id=None,
+    )
+
+    tarefa = session.add.call_args.args[0]
+    assert tarefa.dados == {
+        "safra_id": str(safra_id),
+        "safra_nome": "2025/26",
+        "cultura": "Soja",
+    }
 
 
 async def test_sync_push_update_aceita_client_updated_at_com_timezone(session, tenant_id):

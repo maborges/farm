@@ -4,7 +4,9 @@ AGR-SAF-01..05: CRUD e filtros via API REST
 """
 import pytest
 import uuid
-from sqlalchemy import text
+from sqlalchemy import select, text
+
+from agricola.cultivos.models import Cultivo
 
 # IDs herdados do conftest de integração
 from tests.integration.conftest import TENANT_ID, FAZENDA_ID, TALHAO_ID
@@ -194,6 +196,20 @@ async def test_avancar_fase_safra(client, session, headers_agricola):
     )
     if get_resp.status_code == 200:
         assert get_resp.json()["status"] == "PREPARO_SOLO"
+
+    plantio_resp = await client.post(
+        f"/api/v1/safras/{safra_id}/avancar-fase/PLANTIO",
+        json={"observacao": "Iniciando o plantio"},
+        headers=headers_agricola,
+    )
+    assert plantio_resp.status_code in (200, 201), plantio_resp.text
+
+    cultivo = (
+        await session.execute(
+            select(Cultivo).where(Cultivo.safra_id == uuid.UUID(safra_id))
+        )
+    ).scalar_one()
+    assert cultivo.data_plantio_real is not None
 
 
 # ---------------------------------------------------------------------------

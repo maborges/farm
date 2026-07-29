@@ -39,6 +39,7 @@ class ContaBancariaCreate(BaseModel):
     conta: Optional[str] = None
     tipo: str = "CORRENTE"
     unidade_produtiva_id: Optional[uuid.UUID] = None
+    saldo_inicial: float = 0.0
 
 
 class ContaBancariaResponse(BaseModel):
@@ -50,6 +51,7 @@ class ContaBancariaResponse(BaseModel):
     tipo: str
     ativa: bool
     unidade_produtiva_id: Optional[uuid.UUID]
+    saldo_atual: float = 0.0
 
     model_config = {"from_attributes": True}
 
@@ -96,6 +98,17 @@ async def listar_contas_bancarias(
 ):
     svc = ConciliacaoService(db, tenant_id)
     return await svc.listar_contas()
+
+
+@router.delete("/contas-bancarias/{conta_id}", status_code=204)
+async def excluir_conta_bancaria(
+    conta_id: uuid.UUID,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_session),
+):
+    svc = ConciliacaoService(db, tenant_id)
+    await svc.excluir_conta(conta_id)
+    await db.commit()
 
 
 # ── Importação OFX ────────────────────────────────────────────────────────────
