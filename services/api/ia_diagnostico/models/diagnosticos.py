@@ -14,7 +14,7 @@ class Diagnosticos(Base):
     __tablename__ = "diagnosticos"
 
     id = Column(Integer, primary_key=True, index=True)
-    tenant_id = Column(UUID(as_uuid=True), ForeignKey("farms.tenants.id", ondelete="NO ACTION"), nullable=False, index=True)
+    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="NO ACTION"), nullable=False, index=True)
     
     # Adicionar campos específicos aqui
     # nome = Column(String(200), nullable=False)

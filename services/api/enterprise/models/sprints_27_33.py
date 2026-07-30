@@ -232,7 +232,7 @@ class ConfinamentoLote(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     tenant_id = Column(String(50), nullable=False)
-    unidade_produtiva_id = Column(Integer, ForeignKey("unidades_produtivas.id"))
+    unidade_produtiva_id = Column(String(36), ForeignKey("unidades_produtivas.id"))
     
     # Identificação
     codigo = Column(String(50), nullable=False)
@@ -309,7 +309,7 @@ class Cocho(Base):
     data = Column(Date, nullable=False)
     turno = Column(String(20))  # manhã, tarde
     
-    responsavel_id = Column(Integer, ForeignKey("usuarios.id"))
+    responsavel_id = Column(String(36), ForeignKey("usuarios.id"))
     
     created_at = Column(DateTime, default=datetime.utcnow)
 
