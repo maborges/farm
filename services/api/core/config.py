@@ -28,7 +28,9 @@ class Settings(BaseSettings):
     pagamentos_webhook_secret: str = ""
     frontend_url: str = "http://localhost:3000"
     storage_public_base_url: str = ""
-    run_embedded_jobs: bool = True
+    # A API não deve executar o worker no processo web por padrão. Ambientes
+    # que realmente hospedam o worker precisam habilitá-lo explicitamente.
+    run_embedded_jobs: bool = False
     integrations_secret_key: str = ""
     allow_origins: list[str] = [
         "http://localhost:3000",
