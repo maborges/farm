@@ -23,6 +23,9 @@ class Usuario(Base):
     is_superuser: Mapped[bool] = mapped_column(Boolean, default=False)
     ativo: Mapped[bool] = mapped_column(Boolean, default=True)
 
+    # Preferências de interface do usuário
+    navigation_mode: Mapped[str] = mapped_column(String(20), default="SIDEBAR", server_default="SIDEBAR", nullable=False)
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 

@@ -7,7 +7,7 @@ from core.dependencies import get_session, get_current_user_claims, get_current_
 from core.schemas.auth_schemas import LoginRequest, UserCreateRequest, UserUpdateRequest, TokenResponse, UsuarioMeResponse, CreateSubscriptionRequest, CreateSubscriptionResponse
 from core.schemas.auth_schemas import (
     LoginDesbloqueioRequest, LoginDesbloqueioResponse,
-    LoginTentativasInfoResponse
+    LoginTentativasInfoResponse, NavigationPreferenceUpdate
 )
 from core.schemas.auth_schemas import (
     ForgotPasswordRequest, ForgotPasswordResponse,
@@ -48,6 +48,18 @@ async def get_me(claims: dict = Depends(get_current_user_claims), session: Async
     user_id = uuid.UUID(claims["sub"])
     return await svc.get_user_me(user_id)
 
+
+@router.patch("/me/preferences/navigation", summary="Atualiza a preferência de modo de navegação do usuário (Sidebar x Mega Menu)")
+async def update_navigation_preference(
+    dados: NavigationPreferenceUpdate,
+    claims: dict = Depends(get_current_user_claims),
+    session: AsyncSession = Depends(get_session)
+):
+    svc = AuthService(session)
+    user_id = uuid.UUID(claims["sub"])
+    # Chama o método que vamos criar no auth_service
+    await svc.update_navigation_preference(user_id, dados.navigation_mode)
+    return {"navigation_mode": dados.navigation_mode}
 
 @router.get("/my-tenants", summary="Lista os tenants acessíveis pelo usuário logado (sem validação de billing)")
 async def get_my_tenants(claims: dict = Depends(get_current_user_claims), session: AsyncSession = Depends(get_session)):

@@ -82,6 +82,7 @@ class UsuarioMeResponse(BaseModel):
     apelido: Optional[str] = None
     foto_perfil_url: Optional[str]
     is_superuser: bool
+    navigation_mode: str = "SIDEBAR"
     tenants: List[TenantAcessoResponse]
 
 class UserCreateRequest(BaseModel):
@@ -108,6 +109,10 @@ class UserUpdateRequest(BaseModel):
     apelido: Optional[str] = Field(None, min_length=1, max_length=20)
     telefone: Optional[str] = None
     foto_perfil_url: Optional[str] = None
+
+class NavigationPreferenceUpdate(BaseModel):
+    model_config = {"extra": "forbid"}
+    navigation_mode: str = Field(..., pattern="^(SIDEBAR|MEGA_MENU)$")
 
 class ChangePasswordRequest(BaseModel):
     """Alteração de senha pelo próprio usuário (requer senha atual)."""

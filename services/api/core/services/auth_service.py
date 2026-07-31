@@ -500,9 +500,20 @@ class AuthService:
             apelido=user.apelido,
             foto_perfil_url=user.foto_perfil_url,
             is_superuser=user.is_superuser,
+            navigation_mode=user.navigation_mode,
             tenants=tenants_response
         )
         return response
+
+    async def update_navigation_preference(self, user_id: uuid.UUID, navigation_mode: str) -> None:
+        stmt = select(Usuario).where(Usuario.id == user_id)
+        user = (await self.session.execute(stmt)).scalar_one_or_none()
+        if not user:
+            raise HTTPException(status_code=404, detail="Usuário não encontrado")
+
+        user.navigation_mode = navigation_mode
+        self.session.add(user)
+        await self.session.commit()
 
     # ==================== CRIAÇÃO DE NOVA ASSINATURA ====================
 
