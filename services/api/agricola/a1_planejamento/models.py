@@ -49,12 +49,15 @@ class ItemOrcamentoSafra(Base):
         UUID(as_uuid=True), ForeignKey("production_units.id", ondelete="SET NULL"), nullable=True
     )
 
-    # SEMENTE, FERTILIZANTE, DEFENSIVO, COMBUSTIVEL, MAO_DE_OBRA, SERVICO, SEGURO, OUTROS
+    # SEMENTE, FERTILIZANTE, DEFENSIVO, MATERIAL, MAQUINARIO, COMBUSTIVEL, MAO_DE_OBRA, SERVICO, SEGURO, OUTROS
     categoria: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
     descricao: Mapped[str] = mapped_column(String(200), nullable=False)
 
     quantidade: Mapped[float] = mapped_column(Numeric(14, 4), nullable=False)
     unidade: Mapped[str] = mapped_column(String(20), nullable=False, comment="kg, L, sc, d/H, ha, etc.")
+    unidade_medida_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("unidades_medida.id", ondelete="SET NULL"), nullable=True
+    )
     custo_unitario: Mapped[float] = mapped_column(Numeric(14, 4), nullable=False)
     custo_total: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False)
 

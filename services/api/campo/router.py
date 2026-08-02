@@ -386,6 +386,7 @@ async def atualizar_tarefa_programada(
 @router.get("/tarefas", response_model=list[TarefaProgramadaResponse])
 async def listar_tarefas_programadas(
     fazenda_id: uuid.UUID | None = Query(default=None),
+    safra_id: uuid.UUID | None = Query(default=None),
     data_inicio: date | None = Query(default=None),
     data_fim: date | None = Query(default=None),
     status_execucao: str | None = Query(default=None),
@@ -398,6 +399,7 @@ async def listar_tarefas_programadas(
     svc = TarefaProgramadaService(session, tenant_id, user_id)
     return await svc.listar(
         fazenda_id=fazenda_id,
+        safra_id=safra_id,
         data_inicio=data_inicio,
         data_fim=data_fim,
         status_execucao=status_execucao,

@@ -8,10 +8,10 @@ Modelo de escopo:
   tenant_id = NULL  →  UoM global — disponível para todos os tenants.
   tenant_id = <id>  →  UoM customizada por tenant — fora deste escopo.
 
-Regras de canônica:
-  Cada dimensão (massa, volume, area…) tem exatamente 1 unidade canônica
-  (eh_canonica=True, fator_canonico=1). As demais expressam seu fator em
-  relação à canônica. Ex: SC60 → massa → fator_canonico=60 (60 kg).
+Regras de unidade-base:
+  Cada dimensão (massa, volume, area…) tem exatamente 1 unidade-base
+  (eh_unidade_base=True, fator_referencia=1). As demais expressam seu fator em
+  relação à unidade-base. Ex: SC60 → massa → fator_referencia=60 (60 kg).
 
 Conversões (unidades_medida_conversoes):
   cultura = NULL  →  conversão genérica, válida para qualquer cultura.
@@ -20,7 +20,7 @@ Conversões (unidades_medida_conversoes):
 
 Garantias do banco (Step 14):
   • uq_unidades_medida_codigo_global     — código único por escopo global
-  • uq_unidades_medida_canonica_global   — 1 canônica por dimensão global
+  • uq_unidades_medida_base_global   — 1 unidade-base por dimensão global
   • uq_unidades_medida_conversoes_escopo — par (origem, destino, cultura) único
   • ck_unidades_medida_conversoes_fator_positivo
   • ck_unidades_medida_conversoes_unidades_distintas
@@ -54,19 +54,20 @@ router = APIRouter(
 # ---------------------------------------------------------------------------
 
 class UomCreate(BaseModel):
-    codigo: str = Field(..., max_length=16, description="Código único da UoM. Normalizado para UPPERCASE.")
+    codigo: str = Field(..., max_length=16, description="Código único da UoM. Case-sensitive (ex: símbolos ISO 80000 como 'h', 'min').")
     nome: str = Field(..., max_length=80)
     dimensao: str = Field(..., max_length=24, description="Ex: massa, volume, area, moeda, contagem")
-    codigo_canonico: str = Field(..., max_length=16, description="Código da UoM canônica desta dimensão")
-    fator_canonico: float = Field(..., gt=0, description="Quantidade de unidades canônicas que 1 desta UoM equivale")
+    codigo_referencia: str = Field(..., max_length=16, description="Código da UoM de referência (unidade-base) desta dimensão")
+    fator_referencia: float = Field(..., gt=0, description="Quantidade de unidades-base que 1 desta UoM equivale")
     casas_decimais: int = Field(2, ge=0, le=6)
-    eh_canonica: bool = Field(False, description="True apenas para a unidade-base da dimensão (fator_canonico deve ser 1)")
+    eh_unidade_base: bool = Field(False, description="True apenas para a unidade-base da dimensão (fator_referencia deve ser 1)")
     ativo: bool = True
 
-    @field_validator("codigo", "codigo_canonico", mode="before")
+    @field_validator("codigo", "codigo_referencia", mode="before")
     @classmethod
     def normalizar_codigo(cls, v: str) -> str:
-        return v.strip().upper()
+        # Não força maiúsculo: símbolos ISO 80000 (h, min, s, d, a) são case-sensitive.
+        return v.strip()
 
     @field_validator("dimensao", mode="before")
     @classmethod
@@ -77,16 +78,17 @@ class UomCreate(BaseModel):
 class UomUpdate(BaseModel):
     nome: Optional[str] = Field(None, max_length=80)
     dimensao: Optional[str] = Field(None, max_length=24)
-    codigo_canonico: Optional[str] = Field(None, max_length=16)
-    fator_canonico: Optional[float] = Field(None, gt=0)
+    codigo_referencia: Optional[str] = Field(None, max_length=16)
+    fator_referencia: Optional[float] = Field(None, gt=0)
     casas_decimais: Optional[int] = Field(None, ge=0, le=6)
-    eh_canonica: Optional[bool] = None
+    eh_unidade_base: Optional[bool] = None
     ativo: Optional[bool] = None
 
-    @field_validator("codigo_canonico", mode="before")
+    @field_validator("codigo_referencia", mode="before")
     @classmethod
     def normalizar_codigo(cls, v: Optional[str]) -> Optional[str]:
-        return v.strip().upper() if v else v
+        # Não força maiúsculo: símbolos ISO 80000 (h, min, s, d, a) são case-sensitive.
+        return v.strip() if v else v
 
     @field_validator("dimensao", mode="before")
     @classmethod
@@ -99,10 +101,10 @@ class UomResponse(BaseModel):
     codigo: str
     nome: str
     dimensao: str
-    codigo_canonico: str
-    fator_canonico: float
+    codigo_referencia: str
+    fator_referencia: float
     casas_decimais: int
-    eh_canonica: bool
+    eh_unidade_base: bool
     sistema: bool
     ativo: bool
     tenant_id: Optional[uuid.UUID]
@@ -182,14 +184,14 @@ async def _get_conversao_or_404(session: AsyncSession, conv_id: uuid.UUID) -> Un
     return conv
 
 
-async def _assert_canonica_livre(
+async def _assert_unidade_base_livre(
     session: AsyncSession, dimensao: str, exclude_id: uuid.UUID | None = None
 ) -> None:
-    """Garante que não existe outra canônica global para a dimensão."""
+    """Garante que não existe outra unidade-base global para a dimensão."""
     stmt = select(UnidadeMedida.id).where(
         and_(
             UnidadeMedida.dimensao == dimensao,
-            UnidadeMedida.eh_canonica == True,  # noqa: E712
+            UnidadeMedida.eh_unidade_base == True,  # noqa: E712
             UnidadeMedida.tenant_id.is_(None),
         )
     )
@@ -198,8 +200,8 @@ async def _assert_canonica_livre(
     if (await session.execute(stmt)).scalar_one_or_none():
         raise HTTPException(
             status_code=422,
-            detail=f"Já existe uma unidade canônica para a dimensão '{dimensao}'. "
-                   "Altere a existente para eh_canonica=False antes de promover outra.",
+            detail=f"Já existe uma unidade-base para a dimensão '{dimensao}'. "
+                   "Altere a existente para eh_unidade_base=False antes de promover outra.",
         )
 
 
@@ -242,8 +244,8 @@ async def create_uom(
     if exists:
         raise HTTPException(status_code=409, detail=f"Código '{data.codigo}' já existe.")
 
-    if data.eh_canonica:
-        await _assert_canonica_livre(session, data.dimensao)
+    if data.eh_unidade_base:
+        await _assert_unidade_base_livre(session, data.dimensao)
 
     uom = UnidadeMedida(id=uuid.uuid4(), tenant_id=None, sistema=True, **data.model_dump())
     session.add(uom)
@@ -272,9 +274,9 @@ async def update_uom(
     """Atualiza UoM global. Código não pode ser alterado após criação."""
     uom = await _get_uom_or_404(session, uom_id)
 
-    if data.eh_canonica is True and not uom.eh_canonica:
+    if data.eh_unidade_base is True and not uom.eh_unidade_base:
         dimensao = data.dimensao or uom.dimensao
-        await _assert_canonica_livre(session, dimensao, exclude_id=uom_id)
+        await _assert_unidade_base_livre(session, dimensao, exclude_id=uom_id)
 
     for field, value in data.model_dump(exclude_unset=True).items():
         setattr(uom, field, value)
@@ -293,14 +295,14 @@ async def delete_uom(
     """
     Soft-delete: marca ativo=False. Não remove do banco.
     FK RESTRICT impede desativação de UoMs referenciadas.
-    UoM canônica não pode ser desativada sem designar outra antes.
+    A unidade-base não pode ser desativada sem designar outra antes.
     """
     uom = await _get_uom_or_404(session, uom_id)
-    if uom.eh_canonica:
+    if uom.eh_unidade_base:
         raise HTTPException(
             status_code=422,
-            detail="Unidade canônica não pode ser desativada. "
-                   "Promova outra UoM como canônica desta dimensão antes.",
+            detail="Unidade-base não pode ser desativada. "
+                   "Promova outra UoM como unidade-base desta dimensão antes.",
         )
     uom.ativo = False
     await session.commit()

@@ -191,6 +191,12 @@ class PlanoOperacionalTarefaMaoObra(Base):
     pessoa_id: Mapped[uuid.UUID | None] = mapped_column(
         UUIDType, ForeignKey("cadastros_pessoas.id", ondelete="SET NULL"), nullable=True
     )
+    # Rastreia de qual necessidade técnica (categoria MAO_DE_OBRA/SERVICO do
+    # template) este registro veio, quando criado via aplicação em lote no
+    # Plano Operacional — mesmo padrão de PlanoOperacionalTarefaInsumo.
+    safra_tarefa_necessidade_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUIDType, ForeignKey("safra_tarefa_necessidades.id", ondelete="SET NULL"), nullable=True, index=True
+    )
 
     funcao: Mapped[str | None] = mapped_column(String(100), nullable=True)
     quantidade_pessoas: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
@@ -236,6 +242,9 @@ class PlanoOperacionalTarefaMaquinario(Base):
     )
     implemento_id: Mapped[uuid.UUID | None] = mapped_column(
         UUIDType, ForeignKey("cadastros_equipamentos.id", ondelete="SET NULL"), nullable=True
+    )
+    safra_tarefa_necessidade_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUIDType, ForeignKey("safra_tarefa_necessidades.id", ondelete="SET NULL"), nullable=True, index=True
     )
 
     horas_estimadas: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)

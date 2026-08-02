@@ -1621,6 +1621,7 @@ class TarefaProgramadaService:
     async def listar(
         self,
         fazenda_id: uuid.UUID | None = None,
+        safra_id: uuid.UUID | None = None,
         data_inicio: date | None = None,
         data_fim: date | None = None,
         status_execucao: str | None = None,
@@ -1633,6 +1634,22 @@ class TarefaProgramadaService:
         ]
         if fazenda_id:
             filters.append(TarefaCampo.unidade_produtiva_id == fazenda_id)
+        if safra_id:
+            from agricola.cultivos.models import Cultivo, CultivoArea
+            from agricola.tarefas.models import SafraTarefa
+
+            talhoes_safra = (
+                select(CultivoArea.area_id)
+                .join(Cultivo, Cultivo.id == CultivoArea.cultivo_id)
+                .where(Cultivo.safra_id == safra_id)
+            )
+            tarefas_safra = select(SafraTarefa.id).where(SafraTarefa.safra_id == safra_id)
+            filters.append(
+                or_(
+                    TarefaCampo.area_rural_id.in_(talhoes_safra),
+                    TarefaCampo.safra_tarefa_id.in_(tarefas_safra),
+                )
+            )
         if data_inicio:
             filters.append(TarefaCampo.data_programada >= data_inicio)
         if data_fim:

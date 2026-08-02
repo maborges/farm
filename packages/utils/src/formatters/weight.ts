@@ -52,14 +52,14 @@ export function formatArroba(value: number): string {
 
 /**
  * Formata sacas com cultura específica.
- * @example formatSacas(100, "soja") → "100,00 sc/60kg"
+ * @example formatSacas(100, "soja") → "100,00 sc (60 kg)"
  */
 export function formatSacas(value: number, cultura?: CulturaWeight): string {
   const kg = cultura ? SACA_KG_MAP[cultura] : 60;
   return `${new Intl.NumberFormat("pt-BR", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  }).format(value)} sc/${kg}kg`;
+  }).format(value)} sc (${kg} kg)`;
 }
 
 /**

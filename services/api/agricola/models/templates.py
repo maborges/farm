@@ -118,7 +118,10 @@ class OperationTemplateItem(Base):
     
     dose_sugerida: Mapped[float | None] = mapped_column(Numeric(12, 4), nullable=True)
     unidade: Mapped[str | None] = mapped_column(String(20), nullable=True)
-    
+    unidade_medida_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("unidades_medida.id", ondelete="SET NULL"), nullable=True
+    )
+
     can_generate_task: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     ordem: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 

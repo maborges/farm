@@ -23,21 +23,6 @@ from agricola.templates.service import PhaseTemplateService, OperationTemplateSe
 
 router = APIRouter(prefix="/backoffice/tabelas/agro-templates", tags=["Backoffice - Templates Agrícolas"])
 
-@router.get("/{id}", response_model=PhaseTemplateDetail | OperationTemplateDetail)
-async def get_template_detail_generic(
-    id: UUID,
-    type: str = Query("phase"),
-    db: AsyncSession = Depends(get_db),
-    admin=Depends(get_current_admin)
-):
-    """Retorna detalhes do template (fase ou operação) baseado no parâmetro type."""
-    if type == "phase":
-        service = PhaseTemplateService(db, None)
-        return await service.get_with_details(id)
-    else:
-        service = OperationTemplateService(db, None)
-        return await service.get_with_details(id)
-
 # --- Phase Templates (Global) ---
 
 @router.get("/phase", response_model=List[PhaseTemplateRead])

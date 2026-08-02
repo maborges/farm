@@ -4,7 +4,7 @@ from datetime import datetime
 import uuid
 
 CategoriaOrcamento = Literal[
-    "SEMENTE", "FERTILIZANTE", "DEFENSIVO",
+    "SEMENTE", "FERTILIZANTE", "DEFENSIVO", "MATERIAL", "MAQUINARIO",
     "COMBUSTIVEL", "MAO_DE_OBRA", "SERVICO", "SEGURO", "OUTROS",
 ]
 
@@ -20,6 +20,7 @@ class ItemOrcamentoCreate(BaseModel):
     descricao: str = Field(..., min_length=2, max_length=200)
     quantidade: float = Field(..., gt=0)
     unidade: str = Field(..., min_length=1, max_length=20)
+    unidade_medida_id: Optional[uuid.UUID] = None
     origem_tipo: OrigemItemOrcamento = "MANUAL"
     origem_id: Optional[uuid.UUID] = None
     custo_unitario: Optional[float] = Field(None, gt=0)
@@ -44,6 +45,7 @@ class ItemOrcamentoUpdate(BaseModel):
     descricao: Optional[str] = Field(None, min_length=2, max_length=200)
     quantidade: Optional[float] = Field(None, gt=0)
     unidade: Optional[str] = Field(None, min_length=1, max_length=20)
+    unidade_medida_id: Optional[uuid.UUID] = None
     custo_unitario: Optional[float] = Field(None, gt=0)
     custo_unitario_ajustado: Optional[float] = Field(None, gt=0)
     ordem: Optional[int] = Field(None, ge=0)
@@ -59,6 +61,7 @@ class ItemOrcamentoResponse(BaseModel):
     descricao: str
     quantidade: float
     unidade: str
+    unidade_medida_id: Optional[uuid.UUID]
     origem_tipo: str
     origem_id: Optional[uuid.UUID]
     custo_unitario: float

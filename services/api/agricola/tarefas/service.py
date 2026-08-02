@@ -737,6 +737,7 @@ class TarefaService:
             categoria=dados.categoria,
             tipo_aplicacao=dados.tipo_aplicacao,
             unidade_referencia=dados.unidade_referencia,
+            unidade_medida_id=dados.unidade_medida_id,
             dose_tecnica=dados.dose_tecnica,
             quantidade_tecnica=dados.quantidade_tecnica,
             area_referencia_ha=dados.area_referencia_ha,

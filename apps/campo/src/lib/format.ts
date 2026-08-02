@@ -50,10 +50,10 @@ export function formatHa(value: number): string {
 
 /**
  * Formata uma porcentagem inteira.
- * Ex: 73 → "73%"
+ * Ex: 73 → "73 %"
  */
 export function formatPct(value: number): string {
-  return `${Math.round(value)}%`;
+  return `${Math.round(value)} %`;
 }
 
 /**
@@ -120,4 +120,3 @@ export function formatDescricao(text?: string | null): string {
       return !isNaN(val) ? `Custo: ${formatBRL(val)}` : `Custo: R$ ${num}`;
     });
 }
-

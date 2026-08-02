@@ -76,6 +76,7 @@ class PlanejamentoService:
             descricao=data.descricao,
             quantidade=data.quantidade,
             unidade=data.unidade,
+            unidade_medida_id=data.unidade_medida_id,
             origem_tipo=data.origem_tipo,
             origem_id=data.origem_id,
             custo_unitario=custo_unitario_legado,

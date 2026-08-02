@@ -1,7 +1,19 @@
 from pydantic import BaseModel, ConfigDict
 from uuid import UUID
 from datetime import datetime
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Literal
+
+
+SafraFase = Literal[
+    "PLANEJAMENTO",
+    "PLANEJADA",
+    "PREPARO_SOLO",
+    "PLANTIO",
+    "DESENVOLVIMENTO",
+    "COLHEITA",
+    "POS_COLHEITA",
+    "ENCERRADA",
+]
 
 
 # --- Phase Templates ---
@@ -54,7 +66,7 @@ class PhaseGateRuleRead(PhaseGateRuleBase):
 
 class PhaseTemplateBase(BaseModel):
     cultura: Optional[str] = None
-    fase: str
+    fase: SafraFase
     titulo: str
     descricao: Optional[str] = None
     ativo: bool = True
@@ -65,7 +77,7 @@ class PhaseTemplateCreate(PhaseTemplateBase):
 
 class PhaseTemplateUpdate(BaseModel):
     cultura: Optional[str] = None
-    fase: Optional[str] = None
+    fase: Optional[SafraFase] = None
     titulo: Optional[str] = None
     descricao: Optional[str] = None
     ativo: Optional[bool] = None
@@ -91,11 +103,23 @@ class OperationTemplateItemBase(BaseModel):
     descricao: Optional[str] = None
     dose_sugerida: Optional[float] = None
     unidade: Optional[str] = None
+    unidade_medida_id: Optional[UUID] = None
     can_generate_task: bool = True
     ordem: int = 0
 
 class OperationTemplateItemCreate(OperationTemplateItemBase):
     dependency_ids: List[UUID] = []
+
+class OperationTemplateItemUpdate(BaseModel):
+    tipo: Optional[str] = None
+    titulo: Optional[str] = None
+    descricao: Optional[str] = None
+    dose_sugerida: Optional[float] = None
+    unidade: Optional[str] = None
+    unidade_medida_id: Optional[UUID] = None
+    can_generate_task: Optional[bool] = None
+    ordem: Optional[int] = None
+    dependency_ids: Optional[List[UUID]] = None
 
 class OperationTemplateItemRead(OperationTemplateItemBase):
     id: UUID
@@ -105,7 +129,7 @@ class OperationTemplateItemRead(OperationTemplateItemBase):
 
 class OperationTemplateBase(BaseModel):
     cultura: Optional[str] = None
-    fase: Optional[str] = None
+    fase: Optional[SafraFase] = None
     titulo: str
     descricao: Optional[str] = None
     ativo: bool = True
@@ -116,7 +140,7 @@ class OperationTemplateCreate(OperationTemplateBase):
 
 class OperationTemplateUpdate(BaseModel):
     cultura: Optional[str] = None
-    fase: Optional[str] = None
+    fase: Optional[SafraFase] = None
     titulo: Optional[str] = None
     descricao: Optional[str] = None
     ativo: Optional[bool] = None

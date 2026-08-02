@@ -96,6 +96,7 @@ class SafraTarefaNecessidadeCreate(BaseModel):
     categoria: str = Field(..., description="CORRETIVO|FERTILIZANTE|DEFENSIVO|SEMENTE|COMBUSTIVEL|OUTRO")
     tipo_aplicacao: Optional[str] = None
     unidade_referencia: str = Field(..., min_length=1, max_length=20)
+    unidade_medida_id: Optional[UUID] = None
     dose_tecnica: Optional[float] = None
     quantidade_tecnica: Optional[float] = None
     area_referencia_ha: Optional[float] = None
@@ -107,6 +108,7 @@ class SafraTarefaNecessidadeUpdate(BaseModel):
     categoria: Optional[str] = None
     tipo_aplicacao: Optional[str] = None
     unidade_referencia: Optional[str] = None
+    unidade_medida_id: Optional[UUID] = None
     dose_tecnica: Optional[float] = None
     quantidade_tecnica: Optional[float] = None
     area_referencia_ha: Optional[float] = None
@@ -122,6 +124,7 @@ class SafraTarefaNecessidadeResponse(BaseModel):
     categoria: str
     tipo_aplicacao: Optional[str]
     unidade_referencia: str
+    unidade_medida_id: Optional[UUID]
     dose_tecnica: Optional[float]
     quantidade_tecnica: Optional[float]
     area_referencia_ha: Optional[float]

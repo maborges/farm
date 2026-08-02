@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const CategoriaOrcamentoSchema = z.enum([
-  "SEMENTE", "FERTILIZANTE", "DEFENSIVO",
+  "SEMENTE", "FERTILIZANTE", "DEFENSIVO", "MATERIAL", "MAQUINARIO",
   "COMBUSTIVEL", "MAO_DE_OBRA", "SERVICO", "SEGURO", "OUTROS"
 ], { message: "Categoria de orçamento inválida" });
 
@@ -21,6 +21,7 @@ export const ItemOrcamentoCreateSchema = z
     descricao: z.string().min(2, "A descrição deve ter pelo menos 2 caracteres").max(200, "A descrição suporta até 200 caracteres"),
     quantidade: z.number().nonnegative("A quantidade não pode ser negativa"),
     unidade: z.string().min(1, "A unidade é obrigatória").max(20),
+    unidade_medida_id: z.string().uuid().nullable().optional(),
     origem_tipo: OrigemItemOrcamentoSchema.default("MANUAL"),
     origem_id: z.string().uuid().nullable().optional(),
     custo_unitario: z.number().nonnegative("O custo unitário não pode ser negativo").nullable().optional(),
@@ -45,6 +46,7 @@ export const ItemOrcamentoUpdateSchema = z.object({
   descricao: z.string().min(2, "A descrição deve ter pelo menos 2 caracteres").max(200).nullable().optional(),
   quantidade: z.number().positive("A quantidade deve ser maior que 0").nullable().optional(),
   unidade: z.string().min(1).max(20).nullable().optional(),
+  unidade_medida_id: z.string().uuid().nullable().optional(),
   custo_unitario: z.number().positive("O custo unitário deve ser maior que 0").nullable().optional(),
   custo_unitario_ajustado: z.number().positive("O ajuste deve ser maior que 0").nullable().optional(),
   ordem: z.number().int().nonnegative().nullable().optional(),

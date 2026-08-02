@@ -83,6 +83,70 @@ class PlanoOperacionalTarefaInsumoUpdate(BaseModel):
     quantidade_planejada: Optional[float] = Field(None, gt=0)
 
 
+class SugestaoProdutoOrcamentoResponse(BaseModel):
+    """
+    Candidato a produto comercial para uma SafraTarefaNecessidade, resolvido a
+    partir de itens já lançados no orçamento da safra (mesma categoria,
+    origem_tipo=PRODUTO) — não substitui a escolha do usuário, só evita
+    escolher de novo um produto que já foi decidido no orçamento.
+    """
+    model_config = ConfigDict(from_attributes=True)
+
+    item_orcamento_id: UUID
+    produto_id: UUID
+    produto_nome: str
+    descricao: str
+    unidade: str
+    custo_unitario_efetivo: float
+
+
+class InsumoConsolidadoResponse(BaseModel):
+    """
+    Uma linha agrupada de necessidade técnica (mesma categoria + mesmo item de
+    origem) somada entre TODAS as tarefas do plano — para o usuário configurar
+    o recurso UMA VEZ e aplicar de uma vez às tarefas pendentes, em vez de
+    entrar tarefa por tarefa.
+
+    `tipo_recurso` diz qual fluxo de aplicação usar:
+      INSUMO      -> produto comercial (PlanoOperacionalTarefaInsumo)
+      MAQUINARIO  -> máquina/implemento (PlanoOperacionalTarefaMaquinario)
+      MAO_DE_OBRA -> tipo de serviço + pessoa (PlanoOperacionalTarefaMaoObra)
+    """
+    chave_grupo: str
+    categoria: str
+    titulo: str
+    unidade: str
+    quantidade_total: float
+    quantidade_tarefas: int
+    quantidade_pendentes: int
+    necessidade_ids_pendentes: List[UUID]
+    tipo_recurso: str = "INSUMO"
+
+
+class AplicarInsumoLoteRequest(BaseModel):
+    necessidade_ids: List[UUID] = Field(..., min_length=1)
+    produto_id: UUID
+    deposito_id: Optional[UUID] = None
+
+
+class AplicarInsumoLoteResponse(BaseModel):
+    quantidade_aplicada: int
+    quantidade_ignorada: int
+
+
+class AplicarMaquinarioLoteRequest(BaseModel):
+    necessidade_ids: List[UUID] = Field(..., min_length=1)
+    maquina_id: Optional[UUID] = None
+    implemento_id: Optional[UUID] = None
+
+
+class AplicarMaoObraLoteRequest(BaseModel):
+    necessidade_ids: List[UUID] = Field(..., min_length=1)
+    tipo_servico_id: UUID
+    pessoa_id: Optional[UUID] = None
+    quantidade_pessoas: int = Field(1, gt=0)
+
+
 class PlanoOperacionalTarefaInsumoResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

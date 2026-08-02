@@ -16,6 +16,12 @@ from agricola.planejamento_operacional.schemas import (
     PlanoOperacionalTarefaInsumoCreate,
     PlanoOperacionalTarefaInsumoUpdate,
     PlanoOperacionalTarefaInsumoResponse,
+    SugestaoProdutoOrcamentoResponse,
+    InsumoConsolidadoResponse,
+    AplicarInsumoLoteRequest,
+    AplicarInsumoLoteResponse,
+    AplicarMaquinarioLoteRequest,
+    AplicarMaoObraLoteRequest,
     PlanoOperacionalTarefaMaoObraCreate,
     PlanoOperacionalTarefaMaoObraUpdate,
     PlanoOperacionalTarefaMaoObraResponse,
@@ -232,6 +238,90 @@ async def adicionar_insumo(
     await session.commit()
     await session.refresh(insumo)
     return insumo
+
+
+@router.get(
+    "/necessidades/{necessidade_id}/sugestoes-produto",
+    response_model=List[SugestaoProdutoOrcamentoResponse],
+    summary="Sugere produtos já escolhidos no orçamento da safra para essa necessidade técnica",
+)
+async def sugerir_produtos_orcamento(
+    necessidade_id: UUID,
+    session: AsyncSession = Depends(get_session),
+    tenant_id: UUID = Depends(get_tenant_id),
+    _: None = Depends(require_tenant_permission("agricola:planejamento_operacional:visualizar")),
+):
+    svc = PlanoOperacionalService(session, tenant_id)
+    return await svc.sugerir_produtos_orcamento(necessidade_id)
+
+
+@router.get(
+    "/{plano_id}/insumos-consolidados",
+    response_model=List[InsumoConsolidadoResponse],
+    summary="Agrupa as necessidades técnicas de todas as tarefas do plano por categoria+item, somando quantidade",
+)
+async def listar_insumos_consolidados(
+    plano_id: UUID,
+    session: AsyncSession = Depends(get_session),
+    tenant_id: UUID = Depends(get_tenant_id),
+    _: None = Depends(require_tenant_permission("agricola:planejamento_operacional:visualizar")),
+):
+    svc = PlanoOperacionalService(session, tenant_id)
+    return await svc.listar_insumos_consolidados(plano_id)
+
+
+@router.post(
+    "/{plano_id}/insumos-consolidados/aplicar",
+    response_model=AplicarInsumoLoteResponse,
+    summary="Aplica o mesmo produto comercial a várias necessidades de uma vez (uma tarefa por necessidade)",
+)
+async def aplicar_insumo_lote(
+    plano_id: UUID,
+    dados: AplicarInsumoLoteRequest,
+    session: AsyncSession = Depends(get_session),
+    tenant_id: UUID = Depends(get_tenant_id),
+    _: None = Depends(require_tenant_permission("agricola:planejamento_operacional:editar")),
+):
+    svc = PlanoOperacionalService(session, tenant_id)
+    resultado = await svc.aplicar_insumo_lote(plano_id, dados)
+    await session.commit()
+    return resultado
+
+
+@router.post(
+    "/{plano_id}/insumos-consolidados/aplicar-maquinario",
+    response_model=AplicarInsumoLoteResponse,
+    summary="Aplica a mesma máquina/implemento a várias necessidades de maquinário de uma vez",
+)
+async def aplicar_maquinario_lote(
+    plano_id: UUID,
+    dados: AplicarMaquinarioLoteRequest,
+    session: AsyncSession = Depends(get_session),
+    tenant_id: UUID = Depends(get_tenant_id),
+    _: None = Depends(require_tenant_permission("agricola:planejamento_operacional:editar")),
+):
+    svc = PlanoOperacionalService(session, tenant_id)
+    resultado = await svc.aplicar_maquinario_lote(plano_id, dados)
+    await session.commit()
+    return resultado
+
+
+@router.post(
+    "/{plano_id}/insumos-consolidados/aplicar-mao-obra",
+    response_model=AplicarInsumoLoteResponse,
+    summary="Aplica o mesmo tipo de serviço/pessoa a várias necessidades de mão de obra de uma vez",
+)
+async def aplicar_mao_obra_lote(
+    plano_id: UUID,
+    dados: AplicarMaoObraLoteRequest,
+    session: AsyncSession = Depends(get_session),
+    tenant_id: UUID = Depends(get_tenant_id),
+    _: None = Depends(require_tenant_permission("agricola:planejamento_operacional:editar")),
+):
+    svc = PlanoOperacionalService(session, tenant_id)
+    resultado = await svc.aplicar_mao_obra_lote(plano_id, dados)
+    await session.commit()
+    return resultado
 
 
 @router.get(

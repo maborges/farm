@@ -23,10 +23,17 @@ from agricola.planejamento_operacional.schemas import (
     PlanoOperacionalTarefaMaoObraUpdate,
     PlanoOperacionalTarefaMaquinarioCreate,
     PlanoOperacionalTarefaMaquinarioUpdate,
+    SugestaoProdutoOrcamentoResponse,
+    InsumoConsolidadoResponse,
+    AplicarInsumoLoteRequest,
+    AplicarInsumoLoteResponse,
+    AplicarMaquinarioLoteRequest,
+    AplicarMaoObraLoteRequest,
 )
 from agricola.safras.models import Safra
 from agricola.tarefas.models import SafraTarefa, SafraTarefaNecessidade
 from agricola.tarefas.schemas import TarefaUpdate
+from agricola.a1_planejamento.models import ItemOrcamentoSafra
 from core.cadastros.produtos.models import Produto
 from core.cadastros.tipos_servico.models import TipoServico
 from core.cadastros.equipamentos.models import Equipamento
@@ -326,6 +333,296 @@ class PlanoOperacionalService(BaseService[PlanoOperacional]):
             round(custo_unitario * float(insumo.quantidade_planejada), 2) if custo_unitario is not None else None
         )
         insumo.fonte_custo = fonte_custo
+
+    # Necessidade não usa exatamente o vocabulário de CategoriaOrcamento
+    # (tem CORRETIVO, que no orçamento é lançado como FERTILIZANTE).
+    _CATEGORIA_NECESSIDADE_PARA_ORCAMENTO = {"CORRETIVO": "FERTILIZANTE", "OUTRO": "OUTROS"}
+
+    # Categoria da necessidade -> qual fluxo de aplicação em lote usar.
+    _CATEGORIA_PARA_TIPO_RECURSO = {
+        "MAQUINARIO": "MAQUINARIO",
+        "MAO_DE_OBRA": "MAO_DE_OBRA",
+        "SERVICO": "MAO_DE_OBRA",
+    }
+
+    async def listar_insumos_consolidados(self, plano_id: uuid.UUID) -> list[InsumoConsolidadoResponse]:
+        """
+        Agrupa as necessidades técnicas de TODAS as tarefas do plano por
+        categoria+item de origem (ex.: "FERTILIZANTE — NPK 20-05-20"), somando
+        a quantidade entre talhões — para configurar o produto comercial uma
+        vez e aplicar a todas as tarefas pendentes de uma vez, em vez de entrar
+        tarefa por tarefa.
+        """
+        await self.get_or_fail(plano_id)  # valida existência/tenant do plano
+
+        itens_stmt = select(PlanoOperacionalTarefa).where(
+            PlanoOperacionalTarefa.plano_operacional_id == plano_id,
+            PlanoOperacionalTarefa.tenant_id == self.tenant_id,
+        )
+        itens = (await self.session.execute(itens_stmt)).scalars().all()
+        tarefa_id_por_safra_tarefa = {item.safra_tarefa_id: item for item in itens}
+        if not tarefa_id_por_safra_tarefa:
+            return []
+
+        nec_stmt = select(SafraTarefaNecessidade).where(
+            SafraTarefaNecessidade.tenant_id == self.tenant_id,
+            SafraTarefaNecessidade.safra_tarefa_id.in_(tarefa_id_por_safra_tarefa.keys()),
+        )
+        necessidades = (await self.session.execute(nec_stmt)).scalars().all()
+        if not necessidades:
+            return []
+
+        item_ids = [item.id for item in tarefa_id_por_safra_tarefa.values()]
+        ja_aplicadas: set = set()
+        for Model in (PlanoOperacionalTarefaInsumo, PlanoOperacionalTarefaMaoObra, PlanoOperacionalTarefaMaquinario):
+            stmt = select(Model.safra_tarefa_necessidade_id).where(
+                Model.plano_operacional_tarefa_id.in_(item_ids),
+                Model.safra_tarefa_necessidade_id.is_not(None),
+            )
+            ja_aplicadas.update(row[0] for row in (await self.session.execute(stmt)).all())
+
+        grupos: dict[str, dict] = {}
+        for nec in necessidades:
+            titulo = (nec.parametros_calculo or {}).get("titulo_item") or nec.categoria
+            chave = f"{nec.categoria}::{titulo}"
+            g = grupos.setdefault(chave, {
+                "chave_grupo": chave,
+                "categoria": nec.categoria,
+                "titulo": titulo,
+                "unidade": nec.unidade_referencia,
+                "quantidade_total": 0.0,
+                "quantidade_tarefas": 0,
+                "quantidade_pendentes": 0,
+                "necessidade_ids_pendentes": [],
+                "tipo_recurso": self._CATEGORIA_PARA_TIPO_RECURSO.get(nec.categoria, "INSUMO"),
+            })
+            g["quantidade_total"] += float(nec.quantidade_tecnica or 0)
+            g["quantidade_tarefas"] += 1
+            if nec.id not in ja_aplicadas:
+                g["quantidade_pendentes"] += 1
+                g["necessidade_ids_pendentes"].append(nec.id)
+
+        return [InsumoConsolidadoResponse(**g) for g in grupos.values()]
+
+    async def aplicar_insumo_lote(
+        self, plano_id: uuid.UUID, dados: AplicarInsumoLoteRequest
+    ) -> AplicarInsumoLoteResponse:
+        """Aplica o mesmo produto comercial a várias necessidades de uma vez (uma por tarefa)."""
+        plano = await self.get_or_fail(plano_id)
+        await self._validar_produto(dados.produto_id)
+
+        itens_stmt = select(PlanoOperacionalTarefa).where(
+            PlanoOperacionalTarefa.plano_operacional_id == plano_id,
+            PlanoOperacionalTarefa.tenant_id == self.tenant_id,
+        )
+        itens_por_safra_tarefa = {
+            item.safra_tarefa_id: item
+            for item in (await self.session.execute(itens_stmt)).scalars().all()
+        }
+
+        aplicadas = 0
+        ignoradas = 0
+        for necessidade_id in dados.necessidade_ids:
+            necessidade = await self.session.get(SafraTarefaNecessidade, necessidade_id)
+            if not necessidade or necessidade.tenant_id != self.tenant_id:
+                ignoradas += 1
+                continue
+            item = itens_por_safra_tarefa.get(necessidade.safra_tarefa_id)
+            if item is None:
+                ignoradas += 1
+                continue
+            try:
+                self._validar_plano_editavel_para_insumo(plano, item)
+            except BusinessRuleError:
+                ignoradas += 1
+                continue
+
+            ja_existe_stmt = select(PlanoOperacionalTarefaInsumo.id).where(
+                PlanoOperacionalTarefaInsumo.plano_operacional_tarefa_id == item.id,
+                PlanoOperacionalTarefaInsumo.safra_tarefa_necessidade_id == necessidade_id,
+            )
+            if (await self.session.execute(ja_existe_stmt)).scalar_one_or_none():
+                ignoradas += 1
+                continue
+
+            insumo = PlanoOperacionalTarefaInsumo(
+                id=uuid.uuid4(),
+                tenant_id=self.tenant_id,
+                plano_operacional_tarefa_id=item.id,
+                safra_tarefa_necessidade_id=necessidade_id,
+                produto_id=dados.produto_id,
+                deposito_id=dados.deposito_id,
+                dose_planejada=necessidade.dose_tecnica,
+                unidade_dose=necessidade.unidade_referencia,
+                quantidade_planejada=necessidade.quantidade_tecnica or 0,
+            )
+            await self._montar_snapshot(insumo)
+            self.session.add(insumo)
+            aplicadas += 1
+
+        await self.session.flush()
+        return AplicarInsumoLoteResponse(quantidade_aplicada=aplicadas, quantidade_ignorada=ignoradas)
+
+    async def aplicar_maquinario_lote(
+        self, plano_id: uuid.UUID, dados: AplicarMaquinarioLoteRequest
+    ) -> AplicarInsumoLoteResponse:
+        """Aplica a mesma máquina/implemento a várias necessidades de MAQUINARIO de uma vez."""
+        plano = await self.get_or_fail(plano_id)
+        if not dados.maquina_id and not dados.implemento_id:
+            raise BusinessRuleError("Informe ao menos uma máquina ou um implemento.")
+
+        itens_stmt = select(PlanoOperacionalTarefa).where(
+            PlanoOperacionalTarefa.plano_operacional_id == plano_id,
+            PlanoOperacionalTarefa.tenant_id == self.tenant_id,
+        )
+        itens_por_safra_tarefa = {
+            item.safra_tarefa_id: item
+            for item in (await self.session.execute(itens_stmt)).scalars().all()
+        }
+
+        aplicadas = 0
+        ignoradas = 0
+        for necessidade_id in dados.necessidade_ids:
+            necessidade = await self.session.get(SafraTarefaNecessidade, necessidade_id)
+            if not necessidade or necessidade.tenant_id != self.tenant_id:
+                ignoradas += 1
+                continue
+            item = itens_por_safra_tarefa.get(necessidade.safra_tarefa_id)
+            if item is None:
+                ignoradas += 1
+                continue
+            try:
+                self._validar_plano_editavel_para_insumo(plano, item)
+            except BusinessRuleError:
+                ignoradas += 1
+                continue
+
+            ja_existe_stmt = select(PlanoOperacionalTarefaMaquinario.id).where(
+                PlanoOperacionalTarefaMaquinario.plano_operacional_tarefa_id == item.id,
+                PlanoOperacionalTarefaMaquinario.safra_tarefa_necessidade_id == necessidade_id,
+            )
+            if (await self.session.execute(ja_existe_stmt)).scalar_one_or_none():
+                ignoradas += 1
+                continue
+
+            maquinario = PlanoOperacionalTarefaMaquinario(
+                id=uuid.uuid4(),
+                tenant_id=self.tenant_id,
+                plano_operacional_tarefa_id=item.id,
+                safra_tarefa_necessidade_id=necessidade_id,
+                maquina_id=dados.maquina_id,
+                implemento_id=dados.implemento_id,
+                horas_estimadas=necessidade.quantidade_tecnica,
+            )
+            await self._montar_snapshot_maquinario(maquinario)
+            self.session.add(maquinario)
+            aplicadas += 1
+
+        await self.session.flush()
+        return AplicarInsumoLoteResponse(quantidade_aplicada=aplicadas, quantidade_ignorada=ignoradas)
+
+    async def aplicar_mao_obra_lote(
+        self, plano_id: uuid.UUID, dados: AplicarMaoObraLoteRequest
+    ) -> AplicarInsumoLoteResponse:
+        """Aplica o mesmo tipo de serviço/pessoa a várias necessidades de MAO_DE_OBRA/SERVICO de uma vez."""
+        plano = await self.get_or_fail(plano_id)
+        await self._validar_tipo_servico(dados.tipo_servico_id)
+
+        itens_stmt = select(PlanoOperacionalTarefa).where(
+            PlanoOperacionalTarefa.plano_operacional_id == plano_id,
+            PlanoOperacionalTarefa.tenant_id == self.tenant_id,
+        )
+        itens_por_safra_tarefa = {
+            item.safra_tarefa_id: item
+            for item in (await self.session.execute(itens_stmt)).scalars().all()
+        }
+
+        aplicadas = 0
+        ignoradas = 0
+        for necessidade_id in dados.necessidade_ids:
+            necessidade = await self.session.get(SafraTarefaNecessidade, necessidade_id)
+            if not necessidade or necessidade.tenant_id != self.tenant_id:
+                ignoradas += 1
+                continue
+            item = itens_por_safra_tarefa.get(necessidade.safra_tarefa_id)
+            if item is None:
+                ignoradas += 1
+                continue
+            try:
+                self._validar_plano_editavel_para_insumo(plano, item)
+            except BusinessRuleError:
+                ignoradas += 1
+                continue
+
+            ja_existe_stmt = select(PlanoOperacionalTarefaMaoObra.id).where(
+                PlanoOperacionalTarefaMaoObra.plano_operacional_tarefa_id == item.id,
+                PlanoOperacionalTarefaMaoObra.safra_tarefa_necessidade_id == necessidade_id,
+            )
+            if (await self.session.execute(ja_existe_stmt)).scalar_one_or_none():
+                ignoradas += 1
+                continue
+
+            mao_obra = PlanoOperacionalTarefaMaoObra(
+                id=uuid.uuid4(),
+                tenant_id=self.tenant_id,
+                plano_operacional_tarefa_id=item.id,
+                safra_tarefa_necessidade_id=necessidade_id,
+                tipo_servico_id=dados.tipo_servico_id,
+                pessoa_id=dados.pessoa_id,
+                quantidade_pessoas=dados.quantidade_pessoas,
+                horas_estimadas=necessidade.quantidade_tecnica,
+            )
+            await self._montar_snapshot_mao_obra(mao_obra)
+            self.session.add(mao_obra)
+            aplicadas += 1
+
+        await self.session.flush()
+        return AplicarInsumoLoteResponse(quantidade_aplicada=aplicadas, quantidade_ignorada=ignoradas)
+
+    async def sugerir_produtos_orcamento(
+        self, safra_tarefa_necessidade_id: uuid.UUID
+    ) -> list[SugestaoProdutoOrcamentoResponse]:
+        """
+        Sugere produtos já escolhidos no orçamento da safra (mesma categoria,
+        origem_tipo=PRODUTO) para preencher o produto comercial de uma
+        necessidade técnica — evita escolher de novo algo já decidido lá.
+        Não substitui a busca manual: quando não há candidato, retorna vazio.
+        """
+        necessidade = await self.session.get(SafraTarefaNecessidade, safra_tarefa_necessidade_id)
+        if not necessidade or necessidade.tenant_id != self.tenant_id:
+            raise EntityNotFoundError(f"Necessidade {safra_tarefa_necessidade_id} não encontrada.")
+
+        tarefa = await self.session.get(SafraTarefa, necessidade.safra_tarefa_id)
+        if not tarefa:
+            raise EntityNotFoundError(f"Tarefa {necessidade.safra_tarefa_id} não encontrada.")
+
+        categoria_orcamento = self._CATEGORIA_NECESSIDADE_PARA_ORCAMENTO.get(
+            necessidade.categoria, necessidade.categoria
+        )
+
+        stmt = (
+            select(ItemOrcamentoSafra, Produto.nome)
+            .join(Produto, Produto.id == ItemOrcamentoSafra.origem_id)
+            .where(
+                ItemOrcamentoSafra.tenant_id == self.tenant_id,
+                ItemOrcamentoSafra.safra_id == tarefa.safra_id,
+                ItemOrcamentoSafra.categoria == categoria_orcamento,
+                ItemOrcamentoSafra.origem_tipo == "PRODUTO",
+                ItemOrcamentoSafra.origem_id.is_not(None),
+            )
+        )
+        rows = (await self.session.execute(stmt)).all()
+        return [
+            SugestaoProdutoOrcamentoResponse(
+                item_orcamento_id=item.id,
+                produto_id=item.origem_id,
+                produto_nome=produto_nome,
+                descricao=item.descricao,
+                unidade=item.unidade,
+                custo_unitario_efetivo=item.custo_unitario_efetivo,
+            )
+            for item, produto_nome in rows
+        ]
 
     async def adicionar_insumo(
         self, plano_id: uuid.UUID, item_id: uuid.UUID, dados: PlanoOperacionalTarefaInsumoCreate

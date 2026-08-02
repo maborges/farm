@@ -86,17 +86,18 @@ class BaseService(Generic[T]):
         await self.session.flush()
 
         resource_id = getattr(db_obj, "id", None)
-        await write_audit_log(
-            self.session,
-            tenant_id=self.tenant_id,
-            user_id=self.user_id,
-            action="create",
-            resource=self.model.__tablename__,
-            resource_id=resource_id,
-            payload_before=None,
-            payload_after=_serialize(db_obj),
-            ip_address=self.ip_address,
-        )
+        if self.tenant_id is not None:
+            await write_audit_log(
+                self.session,
+                tenant_id=self.tenant_id,
+                user_id=self.user_id,
+                action="create",
+                resource=self.model.__tablename__,
+                resource_id=resource_id,
+                payload_before=None,
+                payload_after=_serialize(db_obj),
+                ip_address=self.ip_address,
+            )
         return db_obj
 
     async def update(self, id: Any, obj_in: BaseModel | dict) -> T:
@@ -116,17 +117,18 @@ class BaseService(Generic[T]):
         self.session.add(db_obj)
         await self.session.flush()
 
-        await write_audit_log(
-            self.session,
-            tenant_id=self.tenant_id,
-            user_id=self.user_id,
-            action="update",
-            resource=self.model.__tablename__,
-            resource_id=getattr(db_obj, "id", None),
-            payload_before=payload_before,
-            payload_after=_serialize(db_obj),
-            ip_address=self.ip_address,
-        )
+        if self.tenant_id is not None:
+            await write_audit_log(
+                self.session,
+                tenant_id=self.tenant_id,
+                user_id=self.user_id,
+                action="update",
+                resource=self.model.__tablename__,
+                resource_id=getattr(db_obj, "id", None),
+                payload_before=payload_before,
+                payload_after=_serialize(db_obj),
+                ip_address=self.ip_address,
+            )
         return db_obj
 
     async def hard_delete(self, id: Any) -> None:
@@ -137,14 +139,15 @@ class BaseService(Generic[T]):
         await self.session.delete(db_obj)
         await self.session.flush()
 
-        await write_audit_log(
-            self.session,
-            tenant_id=self.tenant_id,
-            user_id=self.user_id,
-            action="delete",
-            resource=self.model.__tablename__,
-            resource_id=resource_id,
-            payload_before=payload_before,
-            payload_after=None,
-            ip_address=self.ip_address,
-        )
+        if self.tenant_id is not None:
+            await write_audit_log(
+                self.session,
+                tenant_id=self.tenant_id,
+                user_id=self.user_id,
+                action="delete",
+                resource=self.model.__tablename__,
+                resource_id=resource_id,
+                payload_before=payload_before,
+                payload_after=None,
+                ip_address=self.ip_address,
+            )

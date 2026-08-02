@@ -349,6 +349,8 @@ app.include_router(router_avaliacoes, prefix="/api/v1")
 app.include_router(router_propriedade_imovel, prefix="/api/v1")
 app.include_router(router_imoveis, prefix="/api/v1")
 app.include_router(unidades_produtivas.router, prefix="/api/v1")
+from core.measurements.router import router as router_unidades_medida
+app.include_router(router_unidades_medida, prefix="/api/v1")
 app.include_router(wizard_router, prefix="/api/v1")
 from agricola.safras.router import router as router_safras
 from agricola.cultivos.router import router as router_cultivos

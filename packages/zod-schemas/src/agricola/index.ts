@@ -9,3 +9,4 @@ export * from "./beneficiamento";
 export * from "./planejamento";
 export * from "./agronomo";
 export * from "./agronomico";
+export * from "./template";

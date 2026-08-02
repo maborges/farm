@@ -8,7 +8,7 @@ Cria as fundações do Measurement Engine exigido pelo núcleo operacional da sa
   - Tabela `unidades_medida` — unidades canônicas (massa, volume, area, tempo, etc.)
   - Tabela `unidades_medida_conversoes` — conversões não-lineares ou por cultura
   - Seed de unidades de sistema (tenant_id=NULL, sistema=true):
-    KG, G, TON, SC60, SC50, L, ML, M3, HA, M2, HR_MAQ, HR_HOMEM, UN, BRL
+    KG, G, TON, SC60, SC50, L, ML, M3, HA, M2, HM, HH, UN, BRL
 
 Pré-requisito para steps 17 (operacoes_execucoes.unidade_medida_id) e 18
 (estoque_movimentos.unidade_medida_id). Nenhuma mudança destrutiva.
@@ -283,8 +283,8 @@ def upgrade() -> None:
           (gen_random_uuid(), NULL, 'M3',       'Metro cúbico',     'volume',       'L',       1000.000000000, true, true, 4, false),
           (gen_random_uuid(), NULL, 'HA',       'Hectare',          'area',         'HA',      1.000000000,    true, true, 2, true),
           (gen_random_uuid(), NULL, 'M2',       'Metro quadrado',   'area',         'HA',      0.000100000,    true, true, 0, false),
-          (gen_random_uuid(), NULL, 'HR_MAQ',   'Hora de máquina',  'hora_maquina', 'HR_MAQ',  1.000000000,    true, true, 2, true),
-          (gen_random_uuid(), NULL, 'HR_HOMEM', 'Hora homem',       'hora_homem',   'HR_HOMEM',1.000000000,    true, true, 2, true),
+          (gen_random_uuid(), NULL, 'HM',       'Hora-máquina',     'hora_maquina', 'HM',      1.000000000,    true, true, 2, true),
+          (gen_random_uuid(), NULL, 'HH',       'Homem-hora',       'hora_homem',   'HH',      1.000000000,    true, true, 2, true),
           (gen_random_uuid(), NULL, 'UN',       'Unidade',          'contagem',     'UN',      1.000000000,    true, true, 0, true),
           (gen_random_uuid(), NULL, 'BRL',      'Real brasileiro',  'moeda',        'BRL',     1.000000000,    true, true, 2, true)
         ON CONFLICT DO NOTHING

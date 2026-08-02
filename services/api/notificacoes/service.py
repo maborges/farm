@@ -116,41 +116,63 @@ class NotificacaoService(BaseService[Notificacao]):
             else:
                 return None
 
-        # --- IA: Gerar Mensagem Inteligente (Step 196) ---
-        mensagem_final = dados.mensagem
-        if dados.nivel in ["WARNING", "DANGER"] or dados.tipo == "OPORTUNIDADE":
-            mensagem_final = await self.gerar_mensagem_ia(dados)
-
         notif = await self.create({
             "tipo": dados.tipo,
             "titulo": dados.titulo,
-            "mensagem": mensagem_final,
+            "mensagem": dados.mensagem,
             "nivel": dados.nivel,
             "origem": dados.origem,
             "origem_id": dados.origem_id,
             "meta": dados.meta,
             "usuario_id": user.id if user else None,
         })
+        # Não commitamos aqui se a sessão é gerida externamente, mas o código original dava commit.
+        # Mantendo o commit original para não quebrar fluxos que dependem disso.
         await self.session.commit()
         await self.session.refresh(notif)
         
-        # Envio proativo de email para notificações críticas (DANGER) ou Oportunidades
-        if (notif.nivel == "DANGER" or dados.tipo == "OPORTUNIDADE") and email_resp and enviar_por_email:
-            import asyncio
-            from notificacoes.email_service import enviar_email
-            
-            assunto = f"AgroSaaS — Alerta Inteligente: {notif.titulo}"
-            asyncio.create_task(enviar_email(email_resp, assunto, notif.mensagem))
+        import asyncio
+        from core.database import async_session_maker
         
-        await manager.push(str(self.tenant_id), {
-            "tipo": "nova_notificacao",
-            "id": str(notif.id),
-            "notificacao_tipo": notif.tipo,
-            "titulo": notif.titulo,
-            "mensagem": notif.mensagem,
-            "nivel": notif.nivel,
-            "created_at": notif.created_at.isoformat(),
-        })
+        async def _atualizar_e_notificar():
+            msg_final = dados.mensagem
+            if dados.nivel in ["WARNING", "DANGER"] or dados.tipo == "OPORTUNIDADE":
+                try:
+                    # Usar uma nova sessão para não interferir na sessão atual
+                    async with async_session_maker() as bg_session:
+                        bg_svc = NotificacaoService(bg_session, self.tenant_id)
+                        msg_final = await bg_svc.gerar_mensagem_ia(dados)
+                        if msg_final != dados.mensagem:
+                            notif_db = await bg_session.get(Notificacao, notif.id)
+                            if notif_db:
+                                notif_db.mensagem = msg_final
+                                await bg_session.commit()
+                except Exception as e:
+                    logger.error(f"Erro no background task de IA: {e}")
+
+            # Envio proativo de email
+            if (notif.nivel == "DANGER" or dados.tipo == "OPORTUNIDADE") and email_resp and enviar_por_email:
+                from notificacoes.email_service import enviar_email
+                assunto = f"AgroSaaS — Alerta Inteligente: {notif.titulo}"
+                await enviar_email(email_resp, assunto, msg_final)
+            
+            # Websocket Push
+            try:
+                await manager.push(str(self.tenant_id), {
+                    "tipo": "nova_notificacao",
+                    "id": str(notif.id),
+                    "notificacao_tipo": notif.tipo,
+                    "titulo": notif.titulo,
+                    "mensagem": msg_final,
+                    "nivel": notif.nivel,
+                    "created_at": notif.created_at.isoformat(),
+                })
+            except Exception as e:
+                logger.error(f"Erro ao enviar WS push: {e}")
+
+        # Dispara IA e notificações de saída (email/ws) em background
+        asyncio.create_task(_atualizar_e_notificar())
+        
         return notif
 
     async def gerar_mensagem_ia(self, dados: NotificacaoCreate) -> str:

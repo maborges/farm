@@ -36,6 +36,23 @@ export const UNIDADES_INSUMO = [
 ] as const;
 export type UnidadeInsumo = (typeof UNIDADES_INSUMO)[number];
 
+/**
+ * Símbolos para apresentação conforme ISO 80000 / SI.
+ *
+ * Os identificadores de persistência (por exemplo, `m2`, `m3` e `cc`) são
+ * mantidos por compatibilidade com a API. Nunca os use diretamente na UI.
+ */
+export const UNIDADE_SIMBOLO: Record<string, string> = {
+  m2: "m²",
+  m3: "m³",
+  cc: "cm³",
+};
+
+/** Retorna o símbolo de apresentação da unidade sem alterar seu código interno. */
+export function formatUnidadeSimbolo(unidade: string): string {
+  return UNIDADE_SIMBOLO[unidade] ?? unidade;
+}
+
 export const UNIDADE_LABEL: Record<string, string> = {
   ha: "Hectare (ha)",
   alq: "Alqueire",
@@ -49,13 +66,13 @@ export const UNIDADE_LABEL: Record<string, string> = {
   L: "Litro (L)",
   mL: "Mililitro (mL)",
   m3: "Metro cúbico (m³)",
-  cc: "Centímetro cúbico (cc)",
-  "kg/ha": "kg por hectare",
-  "L/ha": "L por hectare",
-  "sc/ha": "Sacas por hectare",
-  "g/ha": "g por hectare",
-  "mL/ha": "mL por hectare",
-  "t/ha": "Toneladas por hectare",
+  cc: "Centímetro cúbico (cm³)",
+  "kg/ha": "Quilograma por hectare (kg ha⁻¹)",
+  "L/ha": "Litro por hectare (L ha⁻¹)",
+  "sc/ha": "Saca por hectare (sc ha⁻¹)",
+  "g/ha": "Grama por hectare (g ha⁻¹)",
+  "mL/ha": "Mililitro por hectare (mL ha⁻¹)",
+  "t/ha": "Tonelada por hectare (t ha⁻¹)",
   "%": "Porcentagem (%)",
   ppm: "Partes por milhão (ppm)",
   un: "Unidade (un)",

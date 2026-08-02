@@ -55,7 +55,7 @@ class EstoqueService(BaseService[SaldoEstoque]):
     async def _get_produto(self, produto_id: UUID) -> ProdutoCatalogo | None:
         stmt = select(ProdutoCatalogo).where(
             ProdutoCatalogo.id == produto_id,
-            ProdutoCatalogo.tenant_id == self.tenant_id,
+            or_(ProdutoCatalogo.tenant_id.is_(None), ProdutoCatalogo.tenant_id == self.tenant_id),
         )
         return (await self.session.execute(stmt)).scalars().first()
 
@@ -237,7 +237,10 @@ class EstoqueService(BaseService[SaldoEstoque]):
             
         depositos = {d.id: d for d in (await self.session.execute(dep_stmt)).scalars().all()}
 
-        prod_stmt = select(ProdutoCatalogo).where(ProdutoCatalogo.tenant_id == self.tenant_id, ProdutoCatalogo.ativo == True)
+        prod_stmt = select(ProdutoCatalogo).where(
+            or_(ProdutoCatalogo.tenant_id.is_(None), ProdutoCatalogo.tenant_id == self.tenant_id),
+            ProdutoCatalogo.ativo == True,
+        )
         if produto_id:
             prod_stmt = prod_stmt.where(ProdutoCatalogo.id == produto_id)
         produtos = {p.id: p for p in (await self.session.execute(prod_stmt)).scalars().all()}
@@ -785,7 +788,7 @@ class EstoqueService(BaseService[SaldoEstoque]):
     ) -> EstoqueMovimento:
         """Busca o produto pelo nome e registra a saída."""
         stmt = select(ProdutoCatalogo).where(
-            ProdutoCatalogo.tenant_id == self.tenant_id,
+            or_(ProdutoCatalogo.tenant_id.is_(None), ProdutoCatalogo.tenant_id == self.tenant_id),
             ProdutoCatalogo.nome.ilike(f"%{nome_insumo}%"),
             ProdutoCatalogo.ativo == True
         ).limit(1)

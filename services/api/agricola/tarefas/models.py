@@ -129,10 +129,13 @@ class SafraTarefaNecessidade(Base):
         ForeignKey("safra_tarefas.id", ondelete="CASCADE"), nullable=False, index=True
     )
 
-    # CORRETIVO | FERTILIZANTE | DEFENSIVO | SEMENTE | COMBUSTIVEL | OUTRO
+    # CORRETIVO | FERTILIZANTE | DEFENSIVO | SEMENTE | MATERIAL | COMBUSTIVEL | OUTRO | MAQUINARIO | MAO_DE_OBRA | SERVICO
     categoria: Mapped[str] = mapped_column(String(20), nullable=False)
     tipo_aplicacao: Mapped[str | None] = mapped_column(String(50), nullable=True)
     unidade_referencia: Mapped[str] = mapped_column(String(20), nullable=False)
+    unidade_medida_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUIDType(as_uuid=True), ForeignKey("unidades_medida.id", ondelete="SET NULL"), nullable=True
+    )
 
     dose_tecnica: Mapped[float | None] = mapped_column(Numeric(12, 4), nullable=True)
     quantidade_tecnica: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
