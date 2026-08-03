@@ -1,6 +1,6 @@
 # Checklist por Fase — de template estático a processo rastreável
 
-> Design em 2026-08-03; **implementado e testado no mesmo dia** (ver seção 8). Escopo do que ficou fora: resolução automática de talhão para `TAREFA_CAMPO` (ver 8.1) e UI de "Minhas Pendências"/"sem responsável" (backend pronto, frontend pendente).
+> Design em 2026-08-03; **implementado e testado no mesmo dia** (ver seção 8), incluindo a UI de "Minhas Pendências"/"sem responsável" (ver 8.2). Escopo do que ainda fica fora: resolução automática de talhão para `TAREFA_CAMPO` (ver 8.1) e notificação via motor de recomendações.
 
 ## 1. Problema identificado pelo usuário
 
@@ -109,10 +109,17 @@ Dados de teste limpos ao final (nenhum ledger de estoque tocado, produto de test
 ### 8.1 O que ficou fora desta rodada (intencional)
 
 - **Resolução automática de talhão para `TAREFA_CAMPO`**: o método `vincular_operacao(item_id, operacao_agricola_id)` existe no service, mas nada cria a OS automaticamente — quem gerar a OS (fluxo normal de Plano Operacional) precisa vincular manualmente ao item do checklist. Gerar OS "às cegas" sem talhão definido seria inventar uma decisão de UX que não foi discutida.
-- **UI de "Minhas Pendências" / "Pendências sem responsável"**: endpoints `GET /checklist/minhas-pendencias` e `GET /checklist/sem-responsavel` prontos e funcionais no backend; nenhuma tela nova foi criada no frontend ainda (só os botões "Assumir"/"Justificar" dentro do card do item, que já funcionam).
-- **Notificação por e-mail via motor de recomendações** (seção 3.5/6 do desenho original): não implementada nesta rodada — os campos `responsavel_id`/`prazo_resposta` existem e são gravados, mas nenhuma regra nova foi adicionada a `recommendations/providers/agricultura_provider.py` para notificar automaticamente. Seguir o mesmo padrão de `AGRI_COLHEITA_SEM_ROMANEIO` quando for feito.
+- **Notificação por e-mail via motor de recomendações** (seção 3.5/6 do desenho original): não implementada — os campos `responsavel_id`/`prazo_resposta` existem e são gravados, mas nenhuma regra nova foi adicionada a `recommendations/providers/agricultura_provider.py` para notificar automaticamente. Seguir o mesmo padrão de `AGRI_COLHEITA_SEM_ROMANEIO` quando for feito.
 - **Combobox de produto** no formulário de template: por ora é um campo de texto livre para o UUID do produto (`produto_id_padrao`), não um seletor com busca. Funcional mas pouco amigável — trocar por um combobox de produtos quando houver tempo.
+
+### 8.2 UI de "Minhas Pendências" — implementada (2026-08-03)
+
+Novo componente `apps/web/src/components/agricola/minhas-pendencias-checklist.tsx`, autocontido (fetch próprio via `useQuery`, sem depender do orchestrator de fetch do dashboard global) — consome `GET /checklist/minhas-pendencias` e `GET /checklist/sem-responsavel`. Duas seções: "Atribuídas a mim" e "Sem responsável" (com botão "Assumir" chamando `POST .../checklist/itens/{id}/assumir`). Cada card linka para `/agricola/safras/{safra_id}/checklist`. O componente retorna `null` quando não há nenhuma pendência (não polui a tela à toa).
+
+Plugado em `app/(dashboard)/dashboard/agricola/page.tsx`, logo abaixo do `PageHeader` — essa página foi escolhida por já ser o dashboard agrícola central (não o dashboard global multi-módulo, que tem um fetch orchestration mais complexo e não valia a pena mexer para esse escopo).
+
+**Validado**: `tsc --noEmit` sem erros novos; smoke test HTTP (Puppeteer + Chromium local) confirmou a rota carrega com status 200 e sem erros de runtime no console. **Não validado visualmente com sessão autenticada** — o smoke test bateu no redirecionamento de login (esperado, sem sessão configurada no browser headless); a lógica de dados em si (endpoints, veredito, assumir) já foi validada por integração real contra o Postgres na seção 8.
 
 ## 9. Como retomar
 
-Núcleo funcional (avaliação de estoque, assumir, override, veredito de 3 níveis, `avancar_fase` já respeitando o novo veredito) está pronto e testado. Pendências, em ordem de prioridade: (1) UI de Minhas Pendências/sem responsável, (2) notificação via recomendações, (3) combobox de produto no form de template, (4) decidir e implementar a criação de OS a partir de `TAREFA_CAMPO` (depende de resolver a questão do talhão).
+Núcleo funcional completo: avaliação de estoque, assumir, override, veredito de 3 níveis, `avancar_fase` respeitando o novo veredito, e UI de Minhas Pendências/sem responsável — tudo pronto e testado. Pendências restantes, em ordem de prioridade: (1) notificação via recomendações, (2) combobox de produto no form de template, (3) decidir e implementar a criação de OS a partir de `TAREFA_CAMPO` (depende de resolver a questão do talhão), (4) validação visual com sessão real no navegador.
