@@ -134,13 +134,23 @@ Todos os passos passaram:
 
 Dados de teste (produto `[TESTE] Tesoura de poda`, requisição, OS) foram limpos preservando o ledger `estoque_movimentos` (append-only) — o produto de teste ficou no catálogo por estar referenciado no ledger, seguindo o mesmo padrão de limpeza já usado nas fases anteriores.
 
+## 7.1 Alerta automático "colheita sem romaneio" — implementado (2026-08-03)
+
+Em vez de um cron/notificação novo, a regra foi adicionada ao motor de recomendações operacionais já existente (`recommendations/providers/agricultura_provider.py`), que roda em loop assíncrono no backend (`core/background_jobs.py` → `run_recommendation_scheduler_loop`) e já é sincronizado automaticamente para o app de campo (`recomendacoes_operacionais` no `sync/pull.ts`) — sem precisar de infraestrutura nova.
+
+- Nova regra `AGRI_COLHEITA_SEM_ROMANEIO`, prioridade `HIGH`, reaproveitando 100% a query já existente `RomaneioService.listar_pendentes_de_romaneio(safra_id)` (a mesma que alimenta o banner manual em `/agricola/safras/[id]/romaneios`).
+- Um candidato agregado por safra (não um por tarefa) — segue o mesmo padrão das outras regras desse provider — com `total_pendentes`, lista dos até 5 talhões afetados, e a data da colheita mais antiga sem romaneio.
+- `action_target` aponta para `/agricola/safras/{id}/romaneios`, a mesma tela do painel manual.
+- **Testado** via integração real contra o tenant `7cff0925-417a-41f0-8aba-271b16052477`: detectou corretamente 4 colheitas pendentes de romaneio e gerou o candidato com os dados certos (talhões, datas, action_target).
+
+Arquivo alterado: só `recommendations/providers/agricultura_provider.py` (import de `RomaneioService`, bloco de avaliação, 2 métodos auxiliares). Nenhuma migration, nenhum router novo.
+
 ## 8. Pendente para a próxima sessão
 
-1. **Teste manual da UI no dispositivo/navegador** (toque, PIN pad, accordion de requisições) — a lógica de negócio por trás já está validada ponta a ponta.
-2. Alerta automático (cron) para "colheita sem romaneio" — painel de pendências (abordagem manual) já existe; notificação proativa foi adiada, só retomar se o usuário pedir.
-3. Possíveis ajustes de UX no fluxo de Plano Operacional/Requisições ainda não cobertos.
+1. **Teste manual da UI no dispositivo/navegador** (toque, PIN pad, accordion de requisições, e agora também a recomendação de colheita sem romaneio aparecendo no app de campo) — a lógica de negócio por trás já está validada ponta a ponta.
+2. Possíveis ajustes de UX no fluxo de Plano Operacional/Requisições ainda não cobertos.
 
-Item "conectar necessidade de maquinário à requisição" **fechado** (ver 6.1) — não é mais pendência.
+Itens "conectar necessidade de maquinário à requisição" (ver 6.1) e "alerta automático de colheita sem romaneio" (ver 7.1) **fechados** — não são mais pendências.
 
 ## 9. Como retomar
 

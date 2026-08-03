@@ -10,6 +10,7 @@ from agricola.a1_planejamento.models import ItemOrcamentoSafra
 from agricola.caderno.models import CadernoCampoEntrada
 from agricola.custos.service import CustosService
 from agricola.operacoes.models import OperacaoAgricola
+from agricola.romaneios.service import RomaneioService
 from agricola.safras.models import Safra, SafraTalhao
 
 from ..enums import RecommendationActionType, RecommendationDomain, RecommendationPriority, RecommendationSourceType
@@ -136,6 +137,40 @@ class AgriculturaRecommendationProvider(RecommendationProvider):
                 )
             )
 
+        colheitas_pendentes = await self._colheitas_sem_romaneio(context.tenant_id, safra_id)
+        if colheitas_pendentes:
+            candidatos.append(
+                self._candidate(
+                    context,
+                    safra_id=safra_id,
+                    rule_code="AGRI_COLHEITA_SEM_ROMANEIO",
+                    title="Colheita sem romaneio lançado",
+                    summary=f"{len(colheitas_pendentes)} colheita(s) concluída(s) no campo ainda sem romaneio lançado.",
+                    rationale="Sem romaneio, a colheita não gera entrada de estoque nem rastreabilidade — a quantidade colhida fica invisível para o sistema.",
+                    priority=RecommendationPriority.HIGH,
+                    confidence=Decimal("0.95"),
+                    action_label="Lançar romaneio",
+                    action_target=self._romaneios_target(safra_id),
+                    source_type=RecommendationSourceType.EVENT,
+                    source_signal_ids=signal_ids,
+                    context_data={
+                        "source": "TarefaCampo",
+                        "total_pendentes": len(colheitas_pendentes),
+                        "talhoes": [
+                            {"talhao_id": str(c.talhao_id) if c.talhao_id else None, "talhao_nome": c.talhao_nome}
+                            for c in colheitas_pendentes[:5]
+                        ],
+                        "mais_antiga_concluida_em": (
+                            mais_antiga.isoformat()
+                            if (mais_antiga := min(
+                                (c.concluida_em for c in colheitas_pendentes if c.concluida_em), default=None
+                            ))
+                            else None
+                        ),
+                    },
+                )
+            )
+
         if candidatos:
             candidatos.append(
                 self._candidate(
@@ -244,6 +279,9 @@ class AgriculturaRecommendationProvider(RecommendationProvider):
             return {"talhao_id": talhao_id, "idade_dias": idade_dias}
         return None
 
+    async def _colheitas_sem_romaneio(self, tenant_id: UUID, safra_id: UUID) -> list:
+        return await RomaneioService(self.session, tenant_id).listar_pendentes_de_romaneio(safra_id=safra_id)
+
     async def _budget_gap(self, context: OperationalContext, safra_id: UUID) -> dict[str, object] | None:
         resumo = await CustosService(self.session, context.tenant_id).get_resumo_safra(safra_id)
         if resumo.orcamento_previsto_total is None or resumo.desvio_orcamento_pct is None:
@@ -303,6 +341,10 @@ class AgriculturaRecommendationProvider(RecommendationProvider):
     @staticmethod
     def _target(safra_id: UUID) -> str:
         return f"/agricola/safras/{safra_id}/inteligencia-operacional"
+
+    @staticmethod
+    def _romaneios_target(safra_id: UUID) -> str:
+        return f"/agricola/safras/{safra_id}/romaneios"
 
     @staticmethod
     def _dedupe_key(context: OperationalContext, safra_id: UUID, rule_code: str) -> str:
