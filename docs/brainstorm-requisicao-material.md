@@ -110,15 +110,31 @@ Implementado:
 
 Máquinas/veículos pesados (trator, colhedora etc.) continuam em `Equipamento`/`EquipamentoAlocacao` — esse fluxo não foi alterado.
 
-## 7. Pendente para a próxima sessão
+## 7. Teste de integração — fluxo completo com ferramenta (2026-08-03)
 
-1. **Teste manual/E2E do fluxo de campo** (retirada e devolução, insumos e agora também ferramentas) em ambiente real, já que não há automação de browser neste sandbox.
+Executado teste real contra o Postgres (tenant `7cff0925-417a-41f0-8aba-271b16052477`), reproduzindo o cenário do ERP: OS com uma ferramenta (`Produto tipo=FERRAMENTA`, "10 tesouras de poda" em estoque) → requisição gerada automaticamente → aprovada → retirada confirmada com quantidade **conferida divergente da solicitada** (2 em vez de 3) → tentativa de devolução acima do saldo (rejeitada) → devolução parcial válida (1 unidade).
+
+Todos os passos passaram:
+- `produto_nome`/`unidade_medida` vieram populados corretamente no item da requisição.
+- Retirada com quantidade divergente da solicitada foi aceita e o saldo baixou pela quantidade **conferida** (10 → 8), não pela solicitada — confirma a decisão de arquitetura "Opção A".
+- Devolução de 5 unidades (acima do saldo retirado de 2) foi corretamente rejeitada com mensagem exata.
+- Devolução parcial de 1 unidade foi aceita, `quantidade_devolvida` registrada, saldo voltou a 9.
+
+**Não coberto neste teste**: verificação de PIN real (`DispositivoService.verificar_pin`) — não havia nenhum `DispositivoCampo` ATIVO com `pin_hash` cadastrado nesse tenant no momento do teste. A checagem de PIN em si já tinha sido validada na Fase 2 (ver seção 3, "PIN errado rejeitado (401), PIN certo aceito"); o que ficou sem cobertura agora foi só a combinação PIN+ferramenta na mesma chamada, que é trivial dado que o código de verificação de PIN não depende do tipo de produto.
+
+**Não coberto ainda**: a UI do app de campo em si (telas, toque, PIN pad visual) — isso continua exigindo teste manual no dispositivo/navegador, pois não há Playwright/Chromium neste sandbox.
+
+Dados de teste (produto `[TESTE] Tesoura de poda`, requisição, OS) foram limpos preservando o ledger `estoque_movimentos` (append-only) — o produto de teste ficou no catálogo por estar referenciado no ledger, seguindo o mesmo padrão de limpeza já usado nas fases anteriores.
+
+## 8. Pendente para a próxima sessão
+
+1. **Teste manual da UI no dispositivo/navegador** (toque, PIN pad, accordion de requisições) — a lógica de negócio por trás já está validada ponta a ponta.
 2. **Conectar `NecessidadeRecurso` (MAQUINARIO) à geração automática de requisição**, se o usuário confirmar que quer que ferramentas apareçam automaticamente na requisição da OS em vez de serem adicionadas manualmente.
 3. Alerta automático (cron) para "colheita sem romaneio" — painel de pendências (abordagem manual) já existe; notificação proativa foi adiada, só retomar se o usuário pedir.
 4. Possíveis ajustes de UX no fluxo de Plano Operacional/Requisições ainda não cobertos.
 
-## 8. Como retomar
+## 9. Como retomar
 
-- Backend 100% pronto e testado para o fluxo completo (web + campo), incluindo `produto_nome`/`unidade_medida`, `operacao_agricola_id` no sync pull, e agora `TipoProduto.FERRAMENTA`.
-- Frontend do app de campo implementado mas sem teste manual/E2E ainda — validar no dispositivo antes de considerar fechado.
+- Backend 100% pronto, testado (unitário/integração real) para o fluxo completo (web + campo), incluindo `produto_nome`/`unidade_medida`, `operacao_agricola_id` no sync pull, e `TipoProduto.FERRAMENTA` com o mesmo pipeline de retirada/devolução validado ponta a ponta.
+- Frontend do app de campo implementado mas só a UI em si (toque/PIN pad) falta validar manualmente — a lógica por trás já rodou com sucesso contra o banco real.
 - Ferramentas de baixo valor já podem ser cadastradas e fluir pelo pipeline de requisição; falta só decidir se a geração automática a partir da OS deve incluir necessidades de maquinário.
