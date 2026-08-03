@@ -3044,7 +3044,7 @@ class ComprasService:
         
         # Mapeamento simplificado de TipoProduto -> Categoria Macro (INSUMOS vs OPERACOES)
         tipo_insumos = ["SEMENTE", "DEFENSIVO", "FERTILIZANTE", "INOCULANTE", "ADJUVANTE", "RACAO", "MEDICAMENTO", "VACINA", "MINERAL"]
-        tipo_operacoes = ["PECA", "LUBRIFICANTE", "COMBUSTIVEL", "MATERIAL_GERAL", "SERVICO"]
+        tipo_operacoes = ["PECA", "LUBRIFICANTE", "COMBUSTIVEL", "MATERIAL_GERAL", "FERRAMENTA", "SERVICO"]
         
         categoria_macro = case(
             (Produto.tipo.in_(tipo_insumos), "INSUMOS"),

@@ -30,6 +30,10 @@ class TipoProduto(str, enum.Enum):
     LUBRIFICANTE    = "LUBRIFICANTE"
     COMBUSTIVEL     = "COMBUSTIVEL"
     MATERIAL_GERAL  = "MATERIAL_GERAL"  # materiais de uso geral
+    FERRAMENTA      = "FERRAMENTA"      # ferramentas/equipamentos de baixo valor e múltiplas
+                                         # unidades idênticas (enxada, tesoura de poda, pulverizador
+                                         # costal) — controlados por quantidade na Requisição de
+                                         # Material, não patrimônio individual (ver Equipamento p/ isso)
 
     # Segurança
     EPI             = "EPI"             # Equipamento de Proteção Individual

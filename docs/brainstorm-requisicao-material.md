@@ -93,15 +93,32 @@ Arquivos novos/alterados:
 
 **Não testado ainda**: fluxo ponta a ponta no dispositivo/emulador real (sem Playwright/Chromium neste sandbox). `tsc --noEmit` passou sem novos erros (só um erro pré-existente não relacionado em `page.tsx:193`). Recomendado testar manualmente: OS com requisição pendente → abrir tarefa em execução no app → conferir itens → confirmar com PIN → verificar que status vira ENTREGUE e que a seção de devolução aparece.
 
-## 6. Pendente para a próxima sessão
+## 6. Ferramentas/patrimônio — investigação e decisão (2026-08-03)
 
-1. **Teste manual/E2E do fluxo de campo** (retirada e devolução) em ambiente real, já que não há automação de browser neste sandbox.
-2. **Devolução de ferramentas/patrimônio** — ainda não investigado. Usuário classificou como "domínio diferente" — checar se já existe alocação de equipamento/frota antes de desenhar. Ideia levantada: se ferramentas também virarem itens de `RequisicaoMaterial`, dá para reaproveitar o mesmo fluxo adicionando `observacao`/`fotos` opcionais no item; se for patrimônio à parte (nº de série, estado de conservação), precisa de tela própria.
+Investigação encontrou dois catálogos hoje desconectados:
+- `Produto`/`ItemRequisicao` (consumíveis, já com `quantidade_devolvida`).
+- `Equipamento`/`EquipamentoAlocacao` (`core/cadastros/equipamentos/models.py`) — máquinas/veículos pesados (`TipoEquipamento`: TRATOR, COLHEDORA, PLANTADEIRA, PULVERIZADOR, IMPLEMENTO, VEICULO, IRRIGACAO, OUTRO), com campo `patrimonio` e alocação por unidade produtiva/responsável — sem vínculo a OS/requisição nem `data_devolucao`.
+
+Decisão do usuário: "Máquinas e Equipamentos" no sentido de ERP cobre tudo, do trator à tesoura de poda — mas **ferramentas de baixo valor com múltiplas unidades idênticas** (enxada, tesoura de poda, pulverizador costal) devem ser controladas **por quantidade**, sem cadastro patrimonial individual obrigatório. Isso é exatamente a forma de um insumo — então a decisão foi **reaproveitar o catálogo de produtos** em vez de estender `Equipamento`.
+
+Implementado:
+- `core/cadastros/produtos/models.py`: novo valor `FERRAMENTA` no enum `TipoProduto` (campo é `String(30)`, não enum nativo do Postgres — sem migration necessária).
+- `operacional/services/compras_service.py` (`obter_economia_por_categoria`): `FERRAMENTA` adicionado à lista `tipo_operacoes` (categoria "OPERACOES" no relatório de economia por categoria).
+- `apps/web/.../estoque/_components/EstoqueDialogs.tsx`: opção "Ferramenta" no select de categoria do cadastro de produto.
+
+**Gap intencionalmente não fechado agora**: a geração automática de requisição a partir da OS (`criar_requisicao_a_partir_de_operacao`) só lê `InsumoOperacao` — ferramentas cadastradas como `Produto tipo=FERRAMENTA` fluem pelo pipeline de retirada/devolução já construído (incluindo as telas do app de campo), mas hoje só entram numa requisição se adicionadas manualmente (tela web de requisições). Existe também um sistema **separado** de "necessidade de maquinário" (`NecessidadeRecurso`, tipo `MAQUINARIO`, em `agricola/a1_planejamento/models.py`) ligado ao planejamento de tarefas — decidiu-se **não conectar os dois ainda**, para não expandir o escopo sem necessidade confirmada.
+
+Máquinas/veículos pesados (trator, colhedora etc.) continuam em `Equipamento`/`EquipamentoAlocacao` — esse fluxo não foi alterado.
+
+## 7. Pendente para a próxima sessão
+
+1. **Teste manual/E2E do fluxo de campo** (retirada e devolução, insumos e agora também ferramentas) em ambiente real, já que não há automação de browser neste sandbox.
+2. **Conectar `NecessidadeRecurso` (MAQUINARIO) à geração automática de requisição**, se o usuário confirmar que quer que ferramentas apareçam automaticamente na requisição da OS em vez de serem adicionadas manualmente.
 3. Alerta automático (cron) para "colheita sem romaneio" — painel de pendências (abordagem manual) já existe; notificação proativa foi adiada, só retomar se o usuário pedir.
 4. Possíveis ajustes de UX no fluxo de Plano Operacional/Requisições ainda não cobertos.
 
-## 7. Como retomar
+## 8. Como retomar
 
-- Backend 100% pronto e testado para o fluxo completo (web + campo), incluindo o complemento de `produto_nome`/`unidade_medida` e `operacao_agricola_id` no sync pull.
+- Backend 100% pronto e testado para o fluxo completo (web + campo), incluindo `produto_nome`/`unidade_medida`, `operacao_agricola_id` no sync pull, e agora `TipoProduto.FERRAMENTA`.
 - Frontend do app de campo implementado mas sem teste manual/E2E ainda — validar no dispositivo antes de considerar fechado.
-- Depois disso, próximo item de escopo é ferramentas/patrimônio (item 2 acima).
+- Ferramentas de baixo valor já podem ser cadastradas e fluir pelo pipeline de requisição; falta só decidir se a geração automática a partir da OS deve incluir necessidades de maquinário.
