@@ -70,6 +70,7 @@ export default function TarefaDetailPage() {
 
   const [obs, setObs] = useState("");
   const [saving, setSaving] = useState(false);
+  const [quantidadeReal, setQuantidadeReal] = useState<string | null>(null);
 
   const task = useLiveQuery(() => db.tasks.get(id), [id]);
   const colaboradores = useLiveQuery(() => db.colaboradores.toArray(), []);
@@ -151,6 +152,14 @@ export default function TarefaDetailPage() {
       ? taskDados.cultura
       : safra?.cultura_nome ?? safra?.cultura ?? undefined;
 
+  const isAplicacaoInsumo =
+    (task.type === "APLICACAO_DEFENSIVO" || task.type === "APLICACAO_FERTILIZANTE") &&
+    typeof taskDados.insumo_id === "string" &&
+    taskDados.insumo_id.length > 0;
+  const quantidadePlanejada = typeof taskDados.quantidade === "number" ? taskDados.quantidade : undefined;
+  const unidadeInsumo = typeof taskDados.unidade === "string" ? taskDados.unidade : "UN";
+  const quantidadeRealValue = quantidadeReal ?? (quantidadePlanejada !== undefined ? String(quantidadePlanejada) : "");
+
   const canStart = task.status_execucao === "PENDENTE" && isMinhasTarefa;
   const canFinish = task.status_execucao === "EM_EXECUCAO" && isMinhasTarefa;
   const isDone =
@@ -172,8 +181,15 @@ export default function TarefaDetailPage() {
 
   async function handleConcluir() {
     if (!canFinish) return;
+    if (isAplicacaoInsumo && (!quantidadeRealValue || Number(quantidadeRealValue) < 0)) {
+      alert("Informe a quantidade realmente utilizada do insumo.");
+      return;
+    }
     setSaving(true);
     try {
+      const dadosAjustados = isAplicacaoInsumo
+        ? { ...task.dados, quantidade: Number(quantidadeRealValue) }
+        : undefined;
       await executarTarefa(id, {
         status_execucao: "CONCLUIDA",
         obs: obs.trim() || undefined,
@@ -181,6 +197,7 @@ export default function TarefaDetailPage() {
         localizacao_status: gps.status === "DISPONIVEL" ? "DISPONIVEL" : "INDISPONIVEL",
         latitude: gps.latitude ?? undefined,
         longitude: gps.longitude ?? undefined,
+        dados: dadosAjustados,
       });
       router.replace("/home");
     } catch (err) {
@@ -311,6 +328,29 @@ export default function TarefaDetailPage() {
       ) : canFinish ? (
         <div className="flex flex-col gap-4">
           <GpsWarning status={gps.status} onRetry={gps.capture} />
+
+          {isAplicacaoInsumo && (
+            <CampoSurface className="flex flex-col gap-2 p-4">
+              <label className="text-[11px] uppercase tracking-[0.18em] text-primary">
+                Quantidade realmente utilizada ({unidadeInsumo})
+              </label>
+              <input
+                type="number"
+                inputMode="decimal"
+                step="any"
+                min={0}
+                placeholder={quantidadePlanejada !== undefined ? String(quantidadePlanejada) : "0"}
+                value={quantidadeRealValue}
+                onChange={(e) => setQuantidadeReal(e.target.value)}
+                className="w-full rounded-sm border border-border bg-card px-4 py-3 text-sm outline-none transition-colors focus:border-ring focus:bg-muted"
+              />
+              {quantidadePlanejada !== undefined && (
+                <p className="text-xs text-muted-foreground">
+                  Planejado: {quantidadePlanejada} {unidadeInsumo}. Se sobrou insumo, informe só o que foi usado — a diferença não será baixada do estoque.
+                </p>
+              )}
+            </CampoSurface>
+          )}
 
           <CampoSurface className="p-4">
             <textarea

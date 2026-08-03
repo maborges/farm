@@ -7,6 +7,7 @@ class RomaneioColheitaCreate(BaseModel):
     safra_id: UUID
     talhao_id: UUID
     production_unit_id: UUID | None = None
+    tarefa_campo_id: UUID | None = None
     numero_romaneio: str | None = None
     data_colheita: date
     turno: str | None = None
@@ -41,6 +42,14 @@ class RomaneioColheitaUpdate(BaseModel):
     observacoes: str | None = None
 
 
+class ColheitaPendenteRomaneio(BaseModel):
+    tarefa_campo_id: UUID
+    safra_id: UUID | None = None
+    talhao_id: UUID | None = None
+    talhao_nome: str | None = None
+    concluida_em: datetime | None = None
+
+
 class RomaneioKPIs(BaseModel):
     total_romaneios: int
     total_sacas: float
@@ -54,6 +63,7 @@ class RomaneioColheitaResponse(BaseModel):
     safra_id: UUID
     talhao_id: UUID
     production_unit_id: UUID | None = None
+    tarefa_campo_id: UUID | None = None
     commodity_id: UUID | None
     numero_romaneio: str | None
     data_colheita: date

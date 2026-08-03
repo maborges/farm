@@ -18,6 +18,7 @@ from operacional.schemas.estoque import (
     SaldoMinimoUpdateRequest, SaldoMaximoUpdateRequest,
     LoteCreate, LoteUpdate, LoteResponse,
     RequisicaoCreate, RequisicaoAprovarRequest, RequisicaoEntregarRequest, RequisicaoResponse,
+    ConfirmarRetiradaRequest, ConfirmarDevolucaoRequest,
     ReservaCreate, ReservaCancelarRequest, ReservaConsumirRequest, ReservaResponse,
     EstoqueLocalizacaoCreate, EstoqueLocalizacaoUpdate, EstoqueLocalizacaoResponse,
 )
@@ -370,6 +371,36 @@ async def entregar_requisicao(
     result = await svc.entregar_requisicao(req_id, data)
     await session.commit()
     return await svc._carregar_itens_requisicao(result)
+
+
+@router.post("/requisicoes/{req_id}/confirmar-retirada", response_model=RequisicaoResponse)
+async def confirmar_retirada_requisicao(
+    req_id: uuid.UUID,
+    data: ConfirmarRetiradaRequest,
+    tenant: Tenant = Depends(get_current_tenant),
+    session: AsyncSession = Depends(get_session),
+):
+    """Confirma a retirada física do material (reautenticação por e-mail+senha),
+    baixando o estoque pela quantidade conferida por quem retira."""
+    svc = _svc(session, tenant)
+    result = await svc.confirmar_retirada_requisicao(req_id, data)
+    await session.commit()
+    return await svc._carregar_itens_requisicao(result)
+
+
+@router.post("/requisicoes/{req_id}/confirmar-devolucao", response_model=RequisicaoResponse)
+async def confirmar_devolucao_requisicao(
+    req_id: uuid.UUID,
+    data: ConfirmarDevolucaoRequest,
+    tenant: Tenant = Depends(get_current_tenant),
+    session: AsyncSession = Depends(get_session),
+):
+    """Confirma devolução de sobra de insumo (reautenticação por e-mail+senha),
+    estornando ao estoque."""
+    svc = _svc(session, tenant)
+    result = await svc.confirmar_devolucao_requisicao(req_id, data)
+    await session.commit()
+    return result
 
 
 @router.patch("/requisicoes/{req_id}/recusar", response_model=RequisicaoResponse)

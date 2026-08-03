@@ -324,7 +324,7 @@ class ComprasService:
         produto = await self.session.get(Produto, item_principal.produto_id)
         if not deposito or deposito.tenant_id != self.tenant_id:
             raise BusinessRuleError("Deposito do pedido indisponível para integração financeira da compra.")
-        if not produto or produto.tenant_id != self.tenant_id:
+        if not produto or (produto.tenant_id is not None and produto.tenant_id != self.tenant_id):
             raise BusinessRuleError("Produto do pedido indisponível para integração financeira da compra.")
 
         plano_conta_id = await self._resolver_plano_conta_compra(produto)
@@ -1793,7 +1793,7 @@ class ComprasService:
         produto = await self.session.get(Produto, item_principal.produto_id)
         if not deposito or deposito.tenant_id != self.tenant_id:
             raise BusinessRuleError("Deposito do pedido indisponível para integração financeira da compra.")
-        if not produto or produto.tenant_id != self.tenant_id:
+        if not produto or (produto.tenant_id is not None and produto.tenant_id != self.tenant_id):
             raise BusinessRuleError("Produto do pedido indisponível para integração financeira da compra.")
 
         plano_conta_id = await self._resolver_plano_conta_compra(produto)

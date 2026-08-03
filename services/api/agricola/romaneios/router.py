@@ -11,6 +11,7 @@ from agricola.romaneios.schemas import (
     RomaneioColheitaUpdate,
     RomaneioColheitaResponse,
     RomaneioKPIs,
+    ColheitaPendenteRomaneio,
 )
 from agricola.romaneios.service import RomaneioService
 
@@ -40,6 +41,17 @@ async def kpis_romaneios(
 ):
     svc = RomaneioService(session, tenant_id)
     return await svc.kpis_safra(safra_id=safra_id, unidade_produtiva_id=unidade_produtiva_id)
+
+@router.get("/pendentes", response_model=List[ColheitaPendenteRomaneio])
+async def listar_colheitas_pendentes_de_romaneio(
+    safra_id: UUID | None = None,
+    session: AsyncSession = Depends(get_session),
+    tenant_id: UUID = Depends(get_tenant_id),
+    _: None = Depends(require_module("A5_COLHEITA")),
+):
+    """Colheitas concluídas no campo que ainda não têm romaneio lançado."""
+    svc = RomaneioService(session, tenant_id)
+    return await svc.listar_pendentes_de_romaneio(safra_id=safra_id)
 
 @router.get("/", response_model=List[RomaneioColheitaResponse])
 async def listar_romaneios(

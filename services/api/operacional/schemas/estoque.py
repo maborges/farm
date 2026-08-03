@@ -252,6 +252,40 @@ class RequisicaoEntregarRequest(BaseModel):
     itens: List[ItemEntregaUpdate]
 
 
+class ItemConferidoUpdate(BaseModel):
+    item_id: uuid.UUID
+    quantidade_conferida: float = Field(..., ge=0)
+
+
+class ConfirmarRetiradaRequest(BaseModel):
+    itens: List[ItemConferidoUpdate] = Field(..., min_length=1)
+    email: str = Field(..., description="E-mail de quem está retirando — pode diferir do usuário logado")
+    senha: str = Field(..., min_length=1)
+
+
+class ItemDevolvidoUpdate(BaseModel):
+    item_id: uuid.UUID
+    quantidade_devolvida: float = Field(..., gt=0)
+
+
+class ConfirmarDevolucaoRequest(BaseModel):
+    itens: List[ItemDevolvidoUpdate] = Field(..., min_length=1)
+    email: str = Field(..., description="E-mail de quem está devolvendo — pode diferir do usuário logado")
+    senha: str = Field(..., min_length=1)
+
+
+class RequisicaoConfirmacaoResponse(BaseModel):
+    id: uuid.UUID
+    requisicao_id: uuid.UUID
+    tipo: str
+    usuario_id: uuid.UUID
+    metodo: str
+    email_informado: Optional[str] = None
+    confirmado_em: datetime
+
+    model_config = {"from_attributes": True}
+
+
 class ItemRequisicaoResponse(BaseModel):
     id: uuid.UUID
     produto_id: uuid.UUID
@@ -260,6 +294,7 @@ class ItemRequisicaoResponse(BaseModel):
     quantidade_solicitada: float
     quantidade_aprovada: Optional[float]
     quantidade_entregue: Optional[float]
+    quantidade_devolvida: Optional[float] = None
     observacoes: Optional[str]
     model_config = ConfigDict(from_attributes=True)
 

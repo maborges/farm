@@ -26,6 +26,7 @@ from core.operational_context import (
 from operacional.models.estoque import (
     Deposito, EstoqueMovimento, SaldoEstoque,
     LoteEstoque, RequisicaoMaterial, ItemRequisicao, ReservaEstoque, EstoqueLocalizacao,
+    RequisicaoConfirmacao,
 )
 from operacional.models.compras import Fornecedor, PedidoCompra
 from core.cadastros.models import ProdutoCatalogo
@@ -40,6 +41,7 @@ from operacional.schemas.estoque import (
     AlertaEstoqueItem,
     LoteCreate, LoteUpdate,
     RequisicaoCreate, RequisicaoAprovarRequest, RequisicaoEntregarRequest,
+    ConfirmarRetiradaRequest, ConfirmarDevolucaoRequest, ItemEntregaUpdate,
     ReservaCreate, ReservaCancelarRequest, ReservaConsumirRequest,
     AuditoriaMovimentacaoResponse,
     EstoqueLocalizacaoCreate, EstoqueLocalizacaoUpdate, EstoqueLocalizacaoResponse,
@@ -1336,6 +1338,72 @@ class EstoqueService(BaseService[SaldoEstoque]):
         await self.session.refresh(req)
         return await self._carregar_itens_requisicao(req)
 
+    async def criar_requisicao_a_partir_de_operacao(
+        self,
+        operacao: OperacaoAgricola,
+        *,
+        unidade_produtiva_id: UUID,
+        solicitante_id: UUID,
+        data_necessidade: date | None = None,
+    ) -> RequisicaoMaterial | None:
+        """Auto-gera a requisição de material (picking list) ao confirmar uma OS
+        (gerar_operacao_planejada). Idempotente: não duplica se já existir uma
+        requisição para esta operação. Pode haver mais de uma requisição por OS
+        (complementos), então esta função só cobre a geração inicial."""
+        stmt_existente = select(RequisicaoMaterial).where(
+            RequisicaoMaterial.tenant_id == self.tenant_id,
+            RequisicaoMaterial.operacao_agricola_id == operacao.id,
+        )
+        if (await self.session.execute(stmt_existente)).scalars().first():
+            return None
+
+        from agricola.operacoes.models import InsumoOperacao
+        stmt_insumos = select(InsumoOperacao).where(InsumoOperacao.operacao_id == operacao.id)
+        insumos = list((await self.session.execute(stmt_insumos)).scalars().all())
+        if not insumos:
+            return None
+
+        numero = await SequencialService(self.session, self.tenant_id).proximo_numero("estoque_requisicao")
+        req = RequisicaoMaterial(
+            tenant_id=self.tenant_id,
+            numero=numero,
+            unidade_produtiva_id=unidade_produtiva_id,
+            solicitante_id=solicitante_id,
+            data_necessidade=data_necessidade,
+            origem_tipo="ORDEM_SERVICO",
+            origem_id=operacao.id,
+            operacao_agricola_id=operacao.id,
+            observacoes=f"Gerada automaticamente ao confirmar a OS {operacao.id} ({operacao.tipo}).",
+            status="PENDENTE",
+        )
+        self.session.add(req)
+        await self.session.flush()
+
+        for insumo in insumos:
+            item = ItemRequisicao(
+                requisicao_id=req.id,
+                produto_id=insumo.produto_id,
+                quantidade_solicitada=float(insumo.quantidade_total or 0.0),
+                observacoes=f"Insumo planejado da OS — dose {insumo.dose_por_ha} {insumo.unidade}/ha",
+            )
+            self.session.add(item)
+
+        await self.session.flush()
+        await self.session.refresh(req)
+        return await self._carregar_itens_requisicao(req)
+
+    async def listar_requisicoes_por_operacao(self, operacao_agricola_id: UUID) -> list[RequisicaoMaterial]:
+        """Requisições (pode ser mais de uma — inicial + complementos) vinculadas
+        a uma OS, para o app de campo mostrar o que precisa retirar/devolver."""
+        stmt = select(RequisicaoMaterial).where(
+            RequisicaoMaterial.tenant_id == self.tenant_id,
+            RequisicaoMaterial.operacao_agricola_id == operacao_agricola_id,
+        ).order_by(RequisicaoMaterial.data_solicitacao.asc())
+        requisicoes = list((await self.session.execute(stmt)).scalars().all())
+        for req in requisicoes:
+            await self._carregar_itens_requisicao(req)
+        return requisicoes
+
     async def listar_requisicoes(
         self,
         unidade_produtiva_id: UUID | None = None,
@@ -1426,6 +1494,186 @@ class EstoqueService(BaseService[SaldoEstoque]):
             item.lote_id = upd.lote_id
 
         req.status = "ENTREGUE"
+        await self.session.flush()
+        await self.session.refresh(req)
+        req.itens = list(itens)
+        await self._enriquecer_nomes_requisicao(req)
+        return req
+
+    async def _verificar_credencial_step_up(self, email: str, senha: str) -> Usuario:
+        """Reautentica por e-mail+senha (pode ser pessoa diferente do usuário
+        logado — quem efetivamente retira/devolve o material). Valida que o
+        usuário resolvido pertence a este tenant."""
+        from core.models.auth import TenantUsuario
+        from core.services.auth_service import AuthService
+
+        stmt = select(Usuario).where(func.lower(Usuario.email) == email.strip().lower())
+        usuario = (await self.session.execute(stmt)).scalars().first()
+        if not usuario or not usuario.ativo or not usuario.senha_hash:
+            raise BusinessRuleError("Credenciais inválidas.")
+
+        vinculo = (await self.session.execute(select(TenantUsuario).where(
+            TenantUsuario.tenant_id == self.tenant_id,
+            TenantUsuario.usuario_id == usuario.id,
+            TenantUsuario.status == "ATIVO",
+        ))).scalars().first()
+        if not vinculo:
+            raise BusinessRuleError("Credenciais inválidas.")
+
+        if not AuthService(self.session).verify_password(senha, usuario.senha_hash):
+            raise BusinessRuleError("Credenciais inválidas.")
+
+        return usuario
+
+    async def confirmar_retirada_requisicao(
+        self, req_id: UUID, data: ConfirmarRetiradaRequest
+    ) -> RequisicaoMaterial:
+        """Confirma a retirada física do material com reautenticação (e-mail+senha)."""
+        usuario = await self._verificar_credencial_step_up(data.email, data.senha)
+        return await self._confirmar_retirada_interno(
+            req_id, data.itens, usuario=usuario, metodo="SENHA", email_informado=data.email,
+        )
+
+    async def confirmar_retirada_requisicao_dispositivo(
+        self, req_id: UUID, device_user_id: UUID, itens: list,
+    ) -> RequisicaoMaterial:
+        """Confirma retirada via app de campo, já reautenticado por PIN do
+        dispositivo (ver `campo.service.DispositivoService.verificar_pin`)."""
+        usuario = await self.session.get(Usuario, device_user_id)
+        if not usuario:
+            raise EntityNotFoundError(f"Usuário {device_user_id} não encontrado.")
+        return await self._confirmar_retirada_interno(
+            req_id, itens, usuario=usuario, metodo="TOKEN_DISPOSITIVO", email_informado=None,
+        )
+
+    async def _confirmar_retirada_interno(
+        self, req_id: UUID, itens: list, *, usuario: Usuario, metodo: str, email_informado: str | None,
+    ) -> RequisicaoMaterial:
+        """A quantidade CONFERIDA por quem retira é a que efetivamente baixa do
+        estoque — pode diferir do solicitado/aprovado."""
+        entrega_itens = [
+            ItemEntregaUpdate(item_id=item.item_id, quantidade_entregue=item.quantidade_conferida, lote_id=None)
+            for item in itens
+        ]
+        requisicao = await self.entregar_requisicao(req_id, RequisicaoEntregarRequest(itens=entrega_itens))
+
+        self.session.add(RequisicaoConfirmacao(
+            tenant_id=self.tenant_id,
+            requisicao_id=req_id,
+            tipo="RETIRADA",
+            usuario_id=usuario.id,
+            metodo=metodo,
+            email_informado=email_informado,
+        ))
+        await self.session.flush()
+        return requisicao
+
+    async def confirmar_devolucao_requisicao(
+        self, req_id: UUID, data: ConfirmarDevolucaoRequest
+    ) -> RequisicaoMaterial:
+        """Confirma devolução de sobra de insumo com reautenticação (e-mail+senha)."""
+        usuario = await self._verificar_credencial_step_up(data.email, data.senha)
+        return await self._confirmar_devolucao_interno(
+            req_id, data.itens, usuario=usuario, metodo="SENHA", email_informado=data.email,
+        )
+
+    async def confirmar_devolucao_requisicao_dispositivo(
+        self, req_id: UUID, device_user_id: UUID, itens: list,
+    ) -> RequisicaoMaterial:
+        """Confirma devolução via app de campo, já reautenticado por PIN do
+        dispositivo (ver `campo.service.DispositivoService.verificar_pin`)."""
+        usuario = await self.session.get(Usuario, device_user_id)
+        if not usuario:
+            raise EntityNotFoundError(f"Usuário {device_user_id} não encontrado.")
+        return await self._confirmar_devolucao_interno(
+            req_id, itens, usuario=usuario, metodo="TOKEN_DISPOSITIVO", email_informado=None,
+        )
+
+    async def _confirmar_devolucao_interno(
+        self, req_id: UUID, itens_devolvidos: list, *, usuario: Usuario, metodo: str, email_informado: str | None,
+    ) -> RequisicaoMaterial:
+        """Estorna ao estoque (ledger DEVOLUCAO) — mesmo padrão de estorno já
+        usado em `_reverter_movimentos_estoque_operacao` (agricola/operacoes/service.py)."""
+        stmt = select(RequisicaoMaterial).where(
+            RequisicaoMaterial.id == req_id, RequisicaoMaterial.tenant_id == self.tenant_id
+        )
+        req = (await self.session.execute(stmt)).scalars().first()
+        if not req:
+            raise EntityNotFoundError(f"Requisição {req_id} não encontrada.")
+        if req.status != "ENTREGUE":
+            raise BusinessRuleError(
+                f"Só é possível devolver sobra de uma requisição 'ENTREGUE' (status atual: '{req.status}')."
+            )
+
+        item_map = {i.item_id: i for i in itens_devolvidos}
+        stmt_itens = select(ItemRequisicao).where(ItemRequisicao.requisicao_id == req_id)
+        itens = (await self.session.execute(stmt_itens)).scalars().all()
+
+        safra_id = await self._resolver_safra_contexto_requisicao(req)
+
+        for item in itens:
+            if item.id not in item_map:
+                continue
+            upd = item_map[item.id]
+            qtd_ja_devolvida = float(item.quantidade_devolvida or 0.0)
+            qtd_entregue = float(item.quantidade_entregue or 0.0)
+            if qtd_ja_devolvida + upd.quantidade_devolvida > qtd_entregue:
+                raise BusinessRuleError(
+                    f"Item {item.id}: devolução ({upd.quantidade_devolvida}) excede o saldo "
+                    f"retirado ainda não devolvido ({qtd_entregue - qtd_ja_devolvida})."
+                )
+            if not item.deposito_id:
+                raise BusinessRuleError(f"Item {item.id} sem depósito definido para devolução.")
+
+            stmt_saida_original = select(EstoqueMovimento).where(
+                EstoqueMovimento.tenant_id == self.tenant_id,
+                EstoqueMovimento.origem_tipo == "REQUISICAO",
+                EstoqueMovimento.origem_id == req_id,
+                EstoqueMovimento.produto_id == item.produto_id,
+                EstoqueMovimento.tipo_movimento == "SAIDA",
+            ).order_by(EstoqueMovimento.created_at.asc())
+            saida_original = (await self.session.execute(stmt_saida_original)).scalars().first()
+            if saida_original is None:
+                raise BusinessRuleError(
+                    f"Item {item.id}: nenhuma saída de estoque encontrada para esta requisição — "
+                    "não é possível devolver o que não foi retirado."
+                )
+
+            custo_unit = await self._resolver_custo_unitario_contextual(
+                item.produto_id, deposito_id=item.deposito_id, lote_id=item.lote_id,
+            )
+            stmt_saldo = select(SaldoEstoque).where(
+                SaldoEstoque.produto_id == item.produto_id,
+                SaldoEstoque.deposito_id == item.deposito_id,
+            )
+            saldo = (await self.session.execute(stmt_saldo)).scalars().first()
+            if saldo:
+                saldo.quantidade_atual += upd.quantidade_devolvida
+
+            await registrar_ledger_estoque(
+                self.session,
+                tenant_id=self.tenant_id,
+                tipo_movimento="DEVOLUCAO",
+                origem="REQUISICAO",
+                origem_id=req_id,
+                produto_id=item.produto_id,
+                deposito_id=item.deposito_id,
+                lote_id=item.lote_id,
+                quantidade=upd.quantidade_devolvida,
+                custo_unitario=custo_unit,
+                ajuste_de=saida_original.id,
+                observacoes=f"Devolução de sobra — requisição {req_id}",
+            )
+            item.quantidade_devolvida = qtd_ja_devolvida + upd.quantidade_devolvida
+
+        self.session.add(RequisicaoConfirmacao(
+            tenant_id=self.tenant_id,
+            requisicao_id=req_id,
+            tipo="DEVOLUCAO",
+            usuario_id=usuario.id,
+            metodo=metodo,
+            email_informado=email_informado,
+        ))
         await self.session.flush()
         await self.session.refresh(req)
         req.itens = list(itens)

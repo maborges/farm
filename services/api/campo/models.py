@@ -21,6 +21,11 @@ class DispositivoCampo(Base):
 
     nome: Mapped[str] = mapped_column(String(100), nullable=False)
     device_fingerprint: Mapped[str | None] = mapped_column(String(256), nullable=True, unique=True)
+    # Hash bcrypt do PIN definido pelo operador na ativação — persistido para
+    # permitir reautenticação server-side (REQUISICAO-MATERIAL-01 Fase 2),
+    # ex.: confirmar retirada/devolução de material no almoxarifado a partir
+    # do app de campo. Antes desta coluna, o PIN só era validado client-side.
+    pin_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
     activation_code: Mapped[str | None] = mapped_column(String(8), nullable=True)
     activation_code_expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 

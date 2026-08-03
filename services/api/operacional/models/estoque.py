@@ -113,6 +113,10 @@ class RequisicaoMaterial(Base):
     unidade_produtiva_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("unidades_produtivas.id"), index=True)
     solicitante_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("usuarios.id"))
     aprovador_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=True)
+    operacao_agricola_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("operacoes_agricolas.id", ondelete="SET NULL"), nullable=True, index=True,
+        comment="Vínculo formal com a OS que originou esta requisição (auto-gerada ao confirmar a OS). Pode haver mais de uma requisição por OS (complementos)."
+    )
     data_solicitacao: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     data_necessidade: Mapped[date | None] = mapped_column(Date, nullable=True)
     # PENDENTE, APROVADA, SEPARANDO, ENTREGUE, RECUSADA, CANCELADA
@@ -140,9 +144,27 @@ class ItemRequisicao(Base):
     quantidade_solicitada: Mapped[float] = mapped_column(Float, nullable=False)
     quantidade_aprovada: Mapped[float | None] = mapped_column(Float, nullable=True)
     quantidade_entregue: Mapped[float | None] = mapped_column(Float, nullable=True)
+    quantidade_devolvida: Mapped[float | None] = mapped_column(Float, nullable=True)
     observacoes: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     requisicao: Mapped["RequisicaoMaterial"] = relationship(back_populates="itens")
+
+
+class RequisicaoConfirmacao(Base):
+    """Assinatura eletrônica (reautenticação) de retirada ou devolução de
+    material de uma requisição — REQUISICAO-MATERIAL-01 Fase 2."""
+    __tablename__ = "estoque_requisicao_confirmacoes"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), index=True)
+    requisicao_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("estoque_requisicoes.id", ondelete="CASCADE"), index=True)
+    # RETIRADA | DEVOLUCAO
+    tipo: Mapped[str] = mapped_column(String(20), nullable=False)
+    usuario_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=False)
+    # SENHA (web, e-mail+senha) | TOKEN_DISPOSITIVO (app de campo)
+    metodo: Mapped[str] = mapped_column(String(20), nullable=False)
+    email_informado: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    confirmado_em: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
 
 
 class ReservaEstoque(Base):

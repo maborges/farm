@@ -61,6 +61,10 @@ class SafraTarefa(Base):
     # CRITICA bloqueia o avanço de fase caso não esteja concluída/cancelada
     criticidade: Mapped[str] = mapped_column(String(15), nullable=False, default="NORMAL")
 
+    # Ordem de execução dentro da fase/talhão (herdada de PhaseTemplateTask.ordem
+    # quando a tarefa nasce de um template). Tarefas manuais ficam com 0.
+    ordem: Mapped[int] = mapped_column(default=0, nullable=False)
+
     descricao: Mapped[str] = mapped_column(String(300), nullable=False)
     obs: Mapped[str | None] = mapped_column(Text, nullable=True)
 

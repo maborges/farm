@@ -95,6 +95,79 @@ class PhaseTemplateService(BaseService[PhaseTemplate]):
             raise BusinessRuleError("Não é possível excluir um template global do sistema.")
         await self.hard_delete(template_id)
 
+    async def _get_own_template_or_fail(self, template_id: UUID) -> PhaseTemplate:
+        """Garante que o template pertence ao tenant atual (nunca um template global)."""
+        obj = await self.get_with_details(template_id)
+        if obj.tenant_id is None:
+            raise BusinessRuleError("Não é possível alterar itens de um template global do sistema.")
+        return obj
+
+    async def criar_checklist_item(self, template_id: UUID, dados) -> PhaseTemplateChecklistItem:
+        template = await self._get_own_template_or_fail(template_id)
+        item = PhaseTemplateChecklistItem(**dados.model_dump(), phase_template_id=template.id)
+        self.session.add(item)
+        await self.session.flush()
+        return item
+
+    async def atualizar_checklist_item(self, template_id: UUID, item_id: UUID, dados) -> PhaseTemplateChecklistItem:
+        template = await self._get_own_template_or_fail(template_id)
+        stmt = select(PhaseTemplateChecklistItem).where(
+            PhaseTemplateChecklistItem.id == item_id,
+            PhaseTemplateChecklistItem.phase_template_id == template.id,
+        )
+        item = (await self.session.execute(stmt)).scalar_one_or_none()
+        if not item:
+            raise BusinessRuleError("Item de checklist não encontrado neste template.")
+        for key, val in dados.model_dump(exclude_unset=True).items():
+            setattr(item, key, val)
+        await self.session.flush()
+        return item
+
+    async def excluir_checklist_item(self, template_id: UUID, item_id: UUID) -> None:
+        template = await self._get_own_template_or_fail(template_id)
+        stmt = select(PhaseTemplateChecklistItem).where(
+            PhaseTemplateChecklistItem.id == item_id,
+            PhaseTemplateChecklistItem.phase_template_id == template.id,
+        )
+        item = (await self.session.execute(stmt)).scalar_one_or_none()
+        if not item:
+            raise BusinessRuleError("Item de checklist não encontrado neste template.")
+        await self.session.delete(item)
+        await self.session.flush()
+
+    async def criar_task(self, template_id: UUID, dados) -> PhaseTemplateTask:
+        template = await self._get_own_template_or_fail(template_id)
+        task = PhaseTemplateTask(**dados.model_dump(), phase_template_id=template.id)
+        self.session.add(task)
+        await self.session.flush()
+        return task
+
+    async def atualizar_task(self, template_id: UUID, task_id: UUID, dados) -> PhaseTemplateTask:
+        template = await self._get_own_template_or_fail(template_id)
+        stmt = select(PhaseTemplateTask).where(
+            PhaseTemplateTask.id == task_id,
+            PhaseTemplateTask.phase_template_id == template.id,
+        )
+        task = (await self.session.execute(stmt)).scalar_one_or_none()
+        if not task:
+            raise BusinessRuleError("Tarefa não encontrada neste template.")
+        for key, val in dados.model_dump(exclude_unset=True).items():
+            setattr(task, key, val)
+        await self.session.flush()
+        return task
+
+    async def excluir_task(self, template_id: UUID, task_id: UUID) -> None:
+        template = await self._get_own_template_or_fail(template_id)
+        stmt = select(PhaseTemplateTask).where(
+            PhaseTemplateTask.id == task_id,
+            PhaseTemplateTask.phase_template_id == template.id,
+        )
+        task = (await self.session.execute(stmt)).scalar_one_or_none()
+        if not task:
+            raise BusinessRuleError("Tarefa não encontrada neste template.")
+        await self.session.delete(task)
+        await self.session.flush()
+
     async def duplicar_global(self, global_template_id: UUID) -> PhaseTemplate:
         """Cria uma cópia de um template global para o tenant atual."""
         global_tmpl = await self.get_with_details(global_template_id)
@@ -341,6 +414,7 @@ class TemplateApplicationService:
                 criticidade=tmpl_task.criticidade,
                 descricao=tmpl_task.titulo,
                 obs=tmpl_task.descricao,
+                ordem=tmpl_task.ordem,
                 status="PENDENTE_APROVACAO"
             )
             self.session.add(tarefa)

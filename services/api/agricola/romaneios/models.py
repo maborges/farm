@@ -21,6 +21,12 @@ class RomaneioColheita(Base):
         comment="Commodity colhida (derivada de safra.commodity_id, mas explícito para queries)"
     )
     
+    tarefa_campo_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("campo_tarefas.id", ondelete="SET NULL"),
+        nullable=True, index=True,
+        comment="Tarefa de campo de colheita que originou este romaneio, quando lançado a partir do painel de pendências"
+    )
+
     numero_romaneio: Mapped[str | None] = mapped_column(String(30))
     data_colheita: Mapped[date] = mapped_column(Date, nullable=False)
     turno: Mapped[str | None] = mapped_column(String(10))

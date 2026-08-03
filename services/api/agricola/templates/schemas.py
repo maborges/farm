@@ -28,6 +28,13 @@ class PhaseTemplateChecklistItemBase(BaseModel):
 class PhaseTemplateChecklistItemCreate(PhaseTemplateChecklistItemBase):
     pass
 
+class PhaseTemplateChecklistItemUpdate(BaseModel):
+    titulo: Optional[str] = None
+    descricao: Optional[str] = None
+    obrigatorio: Optional[bool] = None
+    ordem: Optional[int] = None
+    ativo: Optional[bool] = None
+
 class PhaseTemplateChecklistItemRead(PhaseTemplateChecklistItemBase):
     id: UUID
     phase_template_id: UUID
@@ -43,6 +50,13 @@ class PhaseTemplateTaskBase(BaseModel):
 
 class PhaseTemplateTaskCreate(PhaseTemplateTaskBase):
     pass
+
+class PhaseTemplateTaskUpdate(BaseModel):
+    tipo: Optional[str] = None
+    titulo: Optional[str] = None
+    descricao: Optional[str] = None
+    criticidade: Optional[str] = None
+    ordem: Optional[int] = None
 
 class PhaseTemplateTaskRead(PhaseTemplateTaskBase):
     id: UUID

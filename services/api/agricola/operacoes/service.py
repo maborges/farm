@@ -472,6 +472,45 @@ class OperacaoService(BaseService[OperacaoAgricola]):
             descricao += f"\nCusto: R$ {custo_pt}"
         return descricao
 
+    async def _requisicao_entregue_da_operacao(self, operacao_id: UUID):
+        """Retorna a RequisicaoMaterial ENTREGUE vinculada a esta OS, se houver.
+        Quando existe, o estoque já saiu do almoxarifado pela conferência da
+        requisição (REQUISICAO-MATERIAL-01) — a operação NÃO deve baixar de
+        novo via FIFO, sob risco de dupla baixa do mesmo insumo."""
+        from operacional.models.estoque import RequisicaoMaterial, ItemRequisicao
+
+        stmt = select(RequisicaoMaterial).where(
+            RequisicaoMaterial.tenant_id == self.tenant_id,
+            RequisicaoMaterial.operacao_agricola_id == operacao_id,
+            RequisicaoMaterial.status == "ENTREGUE",
+        )
+        requisicao = (await self.session.execute(stmt)).scalars().first()
+        if requisicao is None:
+            return None, {}
+
+        stmt_itens = select(ItemRequisicao).where(ItemRequisicao.requisicao_id == requisicao.id)
+        itens = (await self.session.execute(stmt_itens)).scalars().all()
+        itens_por_produto: dict[UUID, list] = {}
+        for item in itens:
+            itens_por_produto.setdefault(item.produto_id, []).append(item)
+        return requisicao, itens_por_produto
+
+    async def _custo_ja_baixado_via_requisicao(self, requisicao_id: UUID, produto_id: UUID) -> tuple[float, float]:
+        """Soma quantidade/custo já baixados (SAIDA) para este produto por esta
+        requisição — para refletir o custo real no InsumoOperacao sem gerar novo
+        movimento de estoque (o movimento já existe, criado por entregar_requisicao)."""
+        stmt = select(EstoqueMovimento).where(
+            EstoqueMovimento.tenant_id == self.tenant_id,
+            EstoqueMovimento.origem_tipo == "REQUISICAO",
+            EstoqueMovimento.origem_id == requisicao_id,
+            EstoqueMovimento.produto_id == produto_id,
+            EstoqueMovimento.tipo_movimento == "SAIDA",
+        )
+        movimentos = (await self.session.execute(stmt)).scalars().all()
+        quantidade = sum(abs(float(m.quantidade)) for m in movimentos)
+        custo_total = sum(float(m.custo_total or 0.0) for m in movimentos)
+        return quantidade, custo_total
+
     async def _aplicar_insumos_na_operacao(
         self,
         operacao: OperacaoAgricola,
@@ -482,6 +521,12 @@ class OperacaoService(BaseService[OperacaoAgricola]):
     ) -> tuple[float, list[dict]]:
         custo_total_insumos = 0.0
         ledger_consumos: list[dict] = []
+
+        requisicao_entregue, itens_requisicao_por_produto = (
+            await self._requisicao_entregue_da_operacao(operacao.id)
+            if operacao.status == "REALIZADA"
+            else (None, {})
+        )
 
         for insumo in insumos_data:
             quantidade_total = insumo.dose_por_ha * (insumo.area_aplicada or area_base_ha)
@@ -498,7 +543,24 @@ class OperacaoService(BaseService[OperacaoAgricola]):
                 )
                 raise EntityNotFoundError("Produto/Insumo", insumo.produto_id)
 
-            if operacao.status == "REALIZADA":
+            ja_baixado_via_requisicao = (
+                requisicao_entregue is not None and insumo.produto_id in itens_requisicao_por_produto
+            )
+
+            if ja_baixado_via_requisicao:
+                # Estoque já saiu na conferência da requisição — usa a quantidade
+                # efetivamente conferida/entregue (não a planejada) e o custo do
+                # movimento já registrado, sem baixar de novo.
+                quantidade_total = sum(
+                    float(item.quantidade_entregue or 0.0)
+                    for item in itens_requisicao_por_produto[insumo.produto_id]
+                )
+                _, custo_item = await self._custo_ja_baixado_via_requisicao(
+                    requisicao_entregue.id, insumo.produto_id
+                )
+                custo_unitario = custo_item / quantidade_total if quantidade_total > 0 else 0.0
+
+            elif operacao.status == "REALIZADA":
                 consumo = await consumir_lotes_fifo(
                     session=self.session,
                     produto_id=insumo.produto_id,

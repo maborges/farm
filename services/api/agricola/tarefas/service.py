@@ -1,6 +1,7 @@
 import uuid
 from datetime import datetime
 from dataclasses import dataclass
+from loguru import logger
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, or_
 from core.exceptions import EntityNotFoundError, BusinessRuleError
@@ -672,6 +673,7 @@ class TarefaService:
                     operador_id=dados.operador_id,
                     prioridade="ALTA" if tarefa.criticidade == "CRITICA" else "NORMAL",
                 )
+            await self._gerar_requisicao_material(op_existente, unidade_produtiva_legado_id, dados)
             return op_existente
 
         insumos_create = []
@@ -708,6 +710,8 @@ class TarefaService:
         op_svc = OperacaoService(self.session, self.tenant_id)
         operacao = await op_svc.criar(op_create)
 
+        await self._gerar_requisicao_material(operacao, unidade_produtiva_legado_id, dados)
+
         from campo.service import TarefaProgramadaService
         campo_svc = TarefaProgramadaService(self.session, self.tenant_id, self.user_id)
         await campo_svc.criar_vinculada_operacao(
@@ -722,6 +726,29 @@ class TarefaService:
             prioridade="ALTA" if tarefa.criticidade == "CRITICA" else "NORMAL",
         )
         return operacao
+
+    async def _gerar_requisicao_material(self, operacao, unidade_produtiva_legado_id, dados) -> None:
+        """Auto-gera a requisição de material (picking list) ao confirmar a OS,
+        para o almoxarifado separar os insumos antes da execução em campo
+        (REQUISICAO-MATERIAL-01, Fase 1). Best-effort: sem unidade produtiva
+        legada resolvida não há como criar a requisição (campo obrigatório),
+        segue sem bloquear a geração da OS."""
+        if unidade_produtiva_legado_id is None:
+            return
+        from operacional.services.estoque_service import EstoqueService
+
+        solicitante_id = dados.operador_id or self.user_id
+        if solicitante_id is None:
+            return
+        try:
+            await EstoqueService(self.session, self.tenant_id).criar_requisicao_a_partir_de_operacao(
+                operacao,
+                unidade_produtiva_id=unidade_produtiva_legado_id,
+                solicitante_id=solicitante_id,
+                data_necessidade=dados.data_prevista,
+            )
+        except Exception as e:
+            logger.warning(f"Falha ao gerar requisição de material para OS {operacao.id}: {e}")
 
     # ------------------------------------------------------------------
     # Necessidade agronômica estruturada (Fase 2 do PLANO-OPERACIONAL-01)

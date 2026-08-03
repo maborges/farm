@@ -113,7 +113,7 @@ export async function executarTarefa(taskId: string, payload: ExecucaoPayload): 
   }
 
   if (payload.dados) {
-    changes.dados = payload.dados;
+    changes.dados = { ...(changes.dados ?? task.dados), ...payload.dados };
   }
 
   await db.tasks.update(taskId, changes);

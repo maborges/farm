@@ -8,7 +8,9 @@ from core.base_service import BaseService
 
 from sqlalchemy import func
 from agricola.romaneios.models import RomaneioColheita
-from agricola.romaneios.schemas import RomaneioColheitaCreate, RomaneioColheitaUpdate, RomaneioKPIs
+from agricola.romaneios.schemas import (
+    RomaneioColheitaCreate, RomaneioColheitaUpdate, RomaneioKPIs, ColheitaPendenteRomaneio,
+)
 from agricola.qualidade_resolver import resolver_qualidade_efetiva
 
 class RomaneioService(BaseService[RomaneioColheita]):
@@ -294,6 +296,47 @@ class RomaneioService(BaseService[RomaneioColheita]):
 
         updated = await self.update(id, patch)
         return updated
+
+    async def listar_pendentes_de_romaneio(self, safra_id: UUID | None = None) -> list[ColheitaPendenteRomaneio]:
+        """Tarefas de campo de colheita já concluídas que ainda não têm
+        romaneio lançado (RomaneioColheita.tarefa_campo_id vinculado)."""
+        from campo.models import TarefaCampo
+        from agricola.tarefas.models import SafraTarefa
+        from core.cadastros.propriedades.models import AreaRural
+
+        stmt = (
+            select(
+                TarefaCampo.id,
+                SafraTarefa.safra_id,
+                TarefaCampo.area_rural_id,
+                AreaRural.nome,
+                TarefaCampo.concluida_em,
+            )
+            .outerjoin(SafraTarefa, SafraTarefa.id == TarefaCampo.safra_tarefa_id)
+            .outerjoin(AreaRural, AreaRural.id == TarefaCampo.area_rural_id)
+            .outerjoin(RomaneioColheita, RomaneioColheita.tarefa_campo_id == TarefaCampo.id)
+            .where(
+                TarefaCampo.tenant_id == self.tenant_id,
+                TarefaCampo.type == "COLHEITA_REGISTRO",
+                TarefaCampo.status_execucao == "CONCLUIDA",
+                RomaneioColheita.id.is_(None),
+            )
+        )
+        if safra_id:
+            stmt = stmt.where(SafraTarefa.safra_id == safra_id)
+        stmt = stmt.order_by(TarefaCampo.concluida_em.desc())
+
+        rows = (await self.session.execute(stmt)).all()
+        return [
+            ColheitaPendenteRomaneio(
+                tarefa_campo_id=row.id,
+                safra_id=row.safra_id,
+                talhao_id=row.area_rural_id,
+                talhao_nome=row.nome,
+                concluida_em=row.concluida_em,
+            )
+            for row in rows
+        ]
 
     async def kpis_safra(self, safra_id: UUID | None = None, unidade_produtiva_id: UUID | None = None) -> RomaneioKPIs:
         filters = [RomaneioColheita.tenant_id == self.tenant_id]

@@ -495,6 +495,93 @@ async def invalidar_tarefa(
 
 
 # ---------------------------------------------------------------------------
+# Requisições de material — autenticados com device_token + PIN pessoal
+# ---------------------------------------------------------------------------
+
+@router.get("/requisicoes", response_model=list[dict])
+async def listar_requisicoes_campo(
+    device_id: uuid.UUID,
+    operacao_agricola_id: uuid.UUID,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    """Requisições (picking list) vinculadas à OS da tarefa — pode haver mais
+    de uma (inicial + complementos)."""
+    from operacional.services.estoque_service import EstoqueService
+
+    device = await _get_device_from_token(device_id, request, session)
+    svc = EstoqueService(session, device.tenant_id)
+    requisicoes = await svc.listar_requisicoes_por_operacao(operacao_agricola_id)
+    from operacional.schemas.estoque import RequisicaoResponse
+    return [RequisicaoResponse.model_validate(r).model_dump(mode="json") for r in requisicoes]
+
+
+@router.post("/requisicoes/{req_id}/confirmar-retirada", response_model=dict)
+async def confirmar_retirada_campo(
+    req_id: uuid.UUID,
+    body: dict,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    """Confirma retirada de material a partir do app de campo — reautentica
+    por PIN pessoal do operador do dispositivo (não é o mesmo PIN local do
+    app; validado aqui contra o hash guardado no servidor na ativação)."""
+    from operacional.services.estoque_service import EstoqueService
+    from operacional.schemas.estoque import ItemConferidoUpdate, RequisicaoResponse
+
+    device_id = uuid.UUID(body["device_id"])
+    device = await _get_device_from_token(device_id, request, session)
+
+    disp_svc = DispositivoService(session, device.tenant_id)
+    try:
+        await disp_svc.verificar_pin(device_id, body["pin"])
+    except (EntityNotFoundError, BusinessRuleError) as exc:
+        raise HTTPException(status_code=401, detail=str(exc))
+
+    itens = [ItemConferidoUpdate(**item) for item in body.get("itens", [])]
+    est_svc = EstoqueService(session, device.tenant_id)
+    try:
+        requisicao = await est_svc.confirmar_retirada_requisicao_dispositivo(req_id, device.user_id, itens)
+        await session.commit()
+    except (EntityNotFoundError, BusinessRuleError) as exc:
+        await session.rollback()
+        raise HTTPException(status_code=422, detail=str(exc))
+    return RequisicaoResponse.model_validate(requisicao).model_dump(mode="json")
+
+
+@router.post("/requisicoes/{req_id}/confirmar-devolucao", response_model=dict)
+async def confirmar_devolucao_campo(
+    req_id: uuid.UUID,
+    body: dict,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    """Confirma devolução de sobra de insumo a partir do app de campo — mesma
+    reautenticação por PIN do dispositivo usada na retirada."""
+    from operacional.services.estoque_service import EstoqueService
+    from operacional.schemas.estoque import ItemDevolvidoUpdate, RequisicaoResponse
+
+    device_id = uuid.UUID(body["device_id"])
+    device = await _get_device_from_token(device_id, request, session)
+
+    disp_svc = DispositivoService(session, device.tenant_id)
+    try:
+        await disp_svc.verificar_pin(device_id, body["pin"])
+    except (EntityNotFoundError, BusinessRuleError) as exc:
+        raise HTTPException(status_code=401, detail=str(exc))
+
+    itens = [ItemDevolvidoUpdate(**item) for item in body.get("itens", [])]
+    est_svc = EstoqueService(session, device.tenant_id)
+    try:
+        requisicao = await est_svc.confirmar_devolucao_requisicao_dispositivo(req_id, device.user_id, itens)
+        await session.commit()
+    except (EntityNotFoundError, BusinessRuleError) as exc:
+        await session.rollback()
+        raise HTTPException(status_code=422, detail=str(exc))
+    return RequisicaoResponse.model_validate(requisicao).model_dump(mode="json")
+
+
+# ---------------------------------------------------------------------------
 # Sync — autenticados com device_token
 # ---------------------------------------------------------------------------
 

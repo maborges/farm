@@ -173,6 +173,24 @@ class DispositivoService:
         await self.session.flush()
         return device
 
+    async def verificar_pin(self, device_id: uuid.UUID, pin: str) -> DispositivoCampo:
+        """Reautenticação do operador do dispositivo por PIN pessoal — usada
+        antes de ações sensíveis no app de campo (ex.: confirmar retirada/
+        devolução de material do almoxarifado). Server-side, diferente da
+        checagem local (bcrypt no cliente) já existente no app."""
+        from core.services.auth_service import AuthService
+
+        device = await self.session.get(DispositivoCampo, device_id)
+        if not device or device.tenant_id != self.tenant_id:
+            raise EntityNotFoundError(f"Dispositivo {device_id} não encontrado.")
+        if device.status != "ATIVO":
+            raise BusinessRuleError("Dispositivo não está ativo.")
+        if not device.pin_hash:
+            raise BusinessRuleError("Dispositivo sem PIN cadastrado — reative o dispositivo.")
+        if not AuthService(self.session).verify_password(pin, device.pin_hash):
+            raise BusinessRuleError("PIN inválido.")
+        return device
+
     async def ativar(self, req: DeviceActivateRequest) -> tuple[DispositivoCampo, str]:
         result = await self.session.execute(
             select(DispositivoCampo).where(
@@ -199,6 +217,7 @@ class DispositivoService:
 
         # Marca fingerprint e ativa
         device.device_fingerprint = req.device_fingerprint
+        device.pin_hash = req.pin_hash
         device.status = "ATIVO"
         device.activation_code = None
         device.activation_code_expires_at = None
@@ -1664,7 +1683,27 @@ class TarefaProgramadaService:
             .offset(skip)
             .limit(limit)
         )
-        return list(result.scalars().all())
+        tarefas = list(result.scalars().all())
+
+        # Enriquece com a fase da safra vinculada (não é coluna de TarefaCampo,
+        # atribuída dinamicamente para o schema de resposta pegar via from_attributes).
+        from agricola.tarefas.models import SafraTarefa
+
+        safra_tarefa_ids = [t.safra_tarefa_id for t in tarefas if t.safra_tarefa_id]
+        fase_por_safra_tarefa: dict[uuid.UUID, str | None] = {}
+        if safra_tarefa_ids:
+            rows = (
+                await self.session.execute(
+                    select(SafraTarefa.id, SafraTarefa.fase).where(
+                        SafraTarefa.id.in_(safra_tarefa_ids)
+                    )
+                )
+            ).all()
+            fase_por_safra_tarefa = {row.id: row.fase for row in rows}
+        for t in tarefas:
+            t.fase = fase_por_safra_tarefa.get(t.safra_tarefa_id) if t.safra_tarefa_id else None
+
+        return tarefas
 
     async def get_or_fail(self, tarefa_id: uuid.UUID) -> TarefaCampo:
         result = await self.session.execute(

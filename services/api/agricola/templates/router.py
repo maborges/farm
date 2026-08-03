@@ -11,8 +11,8 @@ from agricola.templates.schemas import (
     PhaseTemplateRead, PhaseTemplateDetail, PhaseTemplateCreate, PhaseTemplateUpdate,
     OperationTemplateRead, OperationTemplateDetail, OperationTemplateCreate, OperationTemplateUpdate,
     ApplyPhaseTemplateRequest, ApplyOperationTemplateRequest,
-    PhaseTemplateChecklistItemRead, PhaseTemplateChecklistItemCreate,
-    PhaseTemplateTaskRead, PhaseTemplateTaskCreate,
+    PhaseTemplateChecklistItemRead, PhaseTemplateChecklistItemCreate, PhaseTemplateChecklistItemUpdate,
+    PhaseTemplateTaskRead, PhaseTemplateTaskCreate, PhaseTemplateTaskUpdate,
     PhaseGateRuleRead, PhaseGateRuleCreate,
     OperationTemplateItemRead, OperationTemplateItemCreate, OperationTemplateItemUpdate,
 )
@@ -104,6 +104,93 @@ async def duplicar_phase_template(
     await db.commit()
     await db.refresh(obj)
     return obj
+
+
+# --- Itens de Phase Template (Tenant) ---
+
+@router.post("/phase/{template_id}/checklist-items", response_model=PhaseTemplateChecklistItemRead)
+async def criar_phase_checklist_item(
+    template_id: UUID,
+    dados: PhaseTemplateChecklistItemCreate,
+    db: AsyncSession = Depends(get_db),
+    tenant_id: UUID = Depends(get_tenant_id),
+    _permission: None = Depends(require_tenant_permission("agricola:template:editar")),
+):
+    service = PhaseTemplateService(db, tenant_id)
+    item = await service.criar_checklist_item(template_id, dados)
+    await db.commit()
+    await db.refresh(item)
+    return item
+
+@router.put("/phase/{template_id}/checklist-items/{item_id}", response_model=PhaseTemplateChecklistItemRead)
+async def atualizar_phase_checklist_item(
+    template_id: UUID,
+    item_id: UUID,
+    dados: PhaseTemplateChecklistItemUpdate,
+    db: AsyncSession = Depends(get_db),
+    tenant_id: UUID = Depends(get_tenant_id),
+    _permission: None = Depends(require_tenant_permission("agricola:template:editar")),
+):
+    service = PhaseTemplateService(db, tenant_id)
+    item = await service.atualizar_checklist_item(template_id, item_id, dados)
+    await db.commit()
+    await db.refresh(item)
+    return item
+
+@router.delete("/phase/{template_id}/checklist-items/{item_id}")
+async def excluir_phase_checklist_item(
+    template_id: UUID,
+    item_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    tenant_id: UUID = Depends(get_tenant_id),
+    _permission: None = Depends(require_tenant_permission("agricola:template:editar")),
+):
+    service = PhaseTemplateService(db, tenant_id)
+    await service.excluir_checklist_item(template_id, item_id)
+    await db.commit()
+    return {"status": "success"}
+
+@router.post("/phase/{template_id}/tasks", response_model=PhaseTemplateTaskRead)
+async def criar_phase_task(
+    template_id: UUID,
+    dados: PhaseTemplateTaskCreate,
+    db: AsyncSession = Depends(get_db),
+    tenant_id: UUID = Depends(get_tenant_id),
+    _permission: None = Depends(require_tenant_permission("agricola:template:editar")),
+):
+    service = PhaseTemplateService(db, tenant_id)
+    task = await service.criar_task(template_id, dados)
+    await db.commit()
+    await db.refresh(task)
+    return task
+
+@router.put("/phase/{template_id}/tasks/{task_id}", response_model=PhaseTemplateTaskRead)
+async def atualizar_phase_task(
+    template_id: UUID,
+    task_id: UUID,
+    dados: PhaseTemplateTaskUpdate,
+    db: AsyncSession = Depends(get_db),
+    tenant_id: UUID = Depends(get_tenant_id),
+    _permission: None = Depends(require_tenant_permission("agricola:template:editar")),
+):
+    service = PhaseTemplateService(db, tenant_id)
+    task = await service.atualizar_task(template_id, task_id, dados)
+    await db.commit()
+    await db.refresh(task)
+    return task
+
+@router.delete("/phase/{template_id}/tasks/{task_id}")
+async def excluir_phase_task(
+    template_id: UUID,
+    task_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    tenant_id: UUID = Depends(get_tenant_id),
+    _permission: None = Depends(require_tenant_permission("agricola:template:editar")),
+):
+    service = PhaseTemplateService(db, tenant_id)
+    await service.excluir_task(template_id, task_id)
+    await db.commit()
+    return {"status": "success"}
 
 
 # --- Operation Templates ---
