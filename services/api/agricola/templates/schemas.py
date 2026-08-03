@@ -18,12 +18,18 @@ SafraFase = Literal[
 
 # --- Phase Templates ---
 
+TipoResultadoChecklist = Literal["TAREFA_CAMPO", "SOLICITACAO_ESTOQUE", "MANUAL"]
+
+
 class PhaseTemplateChecklistItemBase(BaseModel):
     titulo: str
     descricao: Optional[str] = None
     obrigatorio: bool = False
     ordem: int = 0
     ativo: bool = True
+    tipo_resultado: TipoResultadoChecklist = "MANUAL"
+    produto_id_padrao: Optional[UUID] = None
+    quantidade_minima: Optional[float] = None
 
 class PhaseTemplateChecklistItemCreate(PhaseTemplateChecklistItemBase):
     pass
@@ -34,6 +40,9 @@ class PhaseTemplateChecklistItemUpdate(BaseModel):
     obrigatorio: Optional[bool] = None
     ordem: Optional[int] = None
     ativo: Optional[bool] = None
+    tipo_resultado: Optional[TipoResultadoChecklist] = None
+    produto_id_padrao: Optional[UUID] = None
+    quantidade_minima: Optional[float] = None
 
 class PhaseTemplateChecklistItemRead(PhaseTemplateChecklistItemBase):
     id: UUID

@@ -230,6 +230,11 @@ class SafraService(BaseService[Safra]):
         safra = await self.atualizar(safra_id, SafraUpdate(**upd))
         await self._registrar_data_real_cultivos(safra_id, novo_status)
 
+        observacao_final = observacao
+        if status_checklist.veredito == "OK_PARCIAL":
+            aviso = "Avanço com pendências em OK parcial no checklist (override manual justificado)."
+            observacao_final = f"{observacao_final} — {aviso}" if observacao_final else aviso
+
         # Registra no histórico
         historico = SafraFaseHistorico(
             safra_id=safra_id,
@@ -237,7 +242,7 @@ class SafraService(BaseService[Safra]):
             fase_anterior=fase_anterior,
             fase_nova=novo_status,
             usuario_id=usuario_id,
-            observacao=observacao,
+            observacao=observacao_final,
             dados_fase=dados_fase,
             forcou_avanco=forcar_avanco,
             justificativa_avanco=justificativa_forcar_avanco if forcar_avanco else None,

@@ -1,6 +1,7 @@
 from core.dependencies import require_tenant_permission
 from fastapi import APIRouter, Depends, status
 from uuid import UUID
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.dependencies import get_tenant_id, require_module, require_role, get_session
@@ -8,6 +9,7 @@ from agricola.checklist.schemas import (
     ChecklistTemplateCreate, ChecklistTemplateUpdate, ChecklistTemplateResponse,
     ChecklistItemConcluidoUpdate, ChecklistItemAdicionar,
     SafraChecklistItemResponse, ChecklistFaseStatus,
+    ChecklistItemOverrideRequest, ChecklistItemAtribuirRequest,
 )
 from agricola.checklist.service import ChecklistTemplateService, SafraChecklistService
 from agricola.safras.models import SAFRA_FASES_ORDEM
@@ -97,12 +99,17 @@ async def gerar_checklist_fase(
     safra_id: UUID,
     fase: str,
     cultura: str,
+    deposito_id: UUID | None = None,
     session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A1_PLANEJAMENTO")),
+    user: dict = Depends(require_role(["agronomo", "admin", "operador"])),
 ):
     svc = SafraChecklistService(session, tenant_id)
-    return await svc.gerar_para_fase(safra_id, cultura, fase.upper())
+    usuario_id = UUID(user["sub"]) if user.get("sub") else None
+    itens = await svc.gerar_para_fase(safra_id, cultura, fase.upper(), deposito_id=deposito_id, usuario_id=usuario_id)
+    await session.commit()
+    return itens
 
 
 @router.get(
@@ -184,3 +191,107 @@ async def adicionar_item_checklist(
     item = await svc.adicionar_item(safra_id, fase.upper(), dados)
     await session.commit()
     return item
+
+
+@router.post(
+    "/safras/{safra_id}/checklist/itens/{item_id}/assumir",
+    response_model=SafraChecklistItemResponse,
+    summary="Usuário logado assume um item de checklist sem responsável",
+)
+async def assumir_item_checklist(
+    safra_id: UUID,
+    item_id: UUID,
+    session: AsyncSession = Depends(get_session),
+    tenant_id: UUID = Depends(get_tenant_id),
+    _: None = Depends(require_module("A1_PLANEJAMENTO")),
+    user: dict = Depends(require_role(["agronomo", "admin", "operador"])),
+):
+    svc = SafraChecklistService(session, tenant_id)
+    item = await svc.assumir_item(item_id, UUID(user["sub"]))
+    await session.commit()
+    return item
+
+
+@router.patch(
+    "/safras/{safra_id}/checklist/itens/{item_id}/atribuir",
+    response_model=SafraChecklistItemResponse,
+    summary="Atribui explicitamente um item de checklist a um responsável",
+)
+async def atribuir_item_checklist(
+    safra_id: UUID,
+    item_id: UUID,
+    dados: ChecklistItemAtribuirRequest,
+    session: AsyncSession = Depends(get_session),
+    tenant_id: UUID = Depends(get_tenant_id),
+    _: None = Depends(require_module("A1_PLANEJAMENTO")),
+    user: dict = Depends(require_role(["agronomo", "admin"])),
+):
+    svc = SafraChecklistService(session, tenant_id)
+    item = await svc.atribuir_item(item_id, dados.responsavel_id, dados.prazo_resposta)
+    await session.commit()
+    return item
+
+
+@router.patch(
+    "/safras/{safra_id}/checklist/itens/{item_id}/override",
+    response_model=SafraChecklistItemResponse,
+    summary="Override manual do veredito (ex.: compra já providenciada)",
+)
+async def override_item_checklist(
+    safra_id: UUID,
+    item_id: UUID,
+    dados: ChecklistItemOverrideRequest,
+    session: AsyncSession = Depends(get_session),
+    tenant_id: UUID = Depends(get_tenant_id),
+    _: None = Depends(require_module("A1_PLANEJAMENTO")),
+    user: dict = Depends(require_role(["agronomo", "admin", "operador"])),
+):
+    svc = SafraChecklistService(session, tenant_id)
+    usuario_id = UUID(user["sub"]) if user.get("sub") else None
+    item = await svc.override_manual(item_id, dados.status_verificacao, dados.justificativa, usuario_id)
+    await session.commit()
+    return item
+
+
+@router.get(
+    "/checklist/minhas-pendencias",
+    response_model=list[SafraChecklistItemResponse],
+    summary="Itens de checklist atribuídos ao usuário logado",
+)
+async def minhas_pendencias_checklist(
+    session: AsyncSession = Depends(get_session),
+    tenant_id: UUID = Depends(get_tenant_id),
+    _: None = Depends(require_module("A1_PLANEJAMENTO")),
+    user: dict = Depends(require_role(["agronomo", "admin", "operador"])),
+):
+    from agricola.checklist.models import SafraChecklistItem
+    usuario_id = UUID(user["sub"])
+    stmt = select(SafraChecklistItem).where(
+        SafraChecklistItem.tenant_id == tenant_id,
+        SafraChecklistItem.responsavel_id == usuario_id,
+        SafraChecklistItem.concluido == False,
+        SafraChecklistItem.cancelado == False,
+    ).order_by(SafraChecklistItem.prazo_resposta.asc().nullslast())
+    return list((await session.execute(stmt)).scalars().all())
+
+
+@router.get(
+    "/checklist/sem-responsavel",
+    response_model=list[SafraChecklistItemResponse],
+    summary="Itens de checklist sem responsável, disponíveis para assumir",
+)
+async def sem_responsavel_checklist(
+    session: AsyncSession = Depends(get_session),
+    tenant_id: UUID = Depends(get_tenant_id),
+    _: None = Depends(require_module("A1_PLANEJAMENTO")),
+    user: dict = Depends(require_role(["agronomo", "admin", "operador"])),
+):
+    from agricola.checklist.models import SafraChecklistItem
+    stmt = select(SafraChecklistItem).where(
+        SafraChecklistItem.tenant_id == tenant_id,
+        SafraChecklistItem.responsavel_id.is_(None),
+        SafraChecklistItem.tipo_resultado != "TAREFA_CAMPO",
+        SafraChecklistItem.concluido == False,
+        SafraChecklistItem.cancelado == False,
+    ).order_by(SafraChecklistItem.prazo_resposta.asc().nullslast())
+    return list((await session.execute(stmt)).scalars().all())

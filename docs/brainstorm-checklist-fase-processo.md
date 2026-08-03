@@ -1,6 +1,6 @@
-# Checklist por Fase — de template estático a processo rastreável (design, não implementado)
+# Checklist por Fase — de template estático a processo rastreável
 
-> Sessão de brainstorming em 2026-08-03. Nada foi implementado ainda — só o desenho, para retomar em outra sessão.
+> Design em 2026-08-03; **implementado e testado no mesmo dia** (ver seção 8). Escopo do que ficou fora: resolução automática de talhão para `TAREFA_CAMPO` (ver 8.1) e UI de "Minhas Pendências"/"sem responsável" (backend pronto, frontend pendente).
 
 ## 1. Problema identificado pelo usuário
 
@@ -94,6 +94,25 @@ Proposto: para cada item obrigatório, computa `status_verificacao` (a partir do
 - Ferramentas/patrimônio como resultado de checklist (fora de escopo, seria outro `tipo_resultado` futuro).
 - Qualquer UI de "inbox" genérica de TODOs — a entrega inicial usa a recomendação já existente como canal, sem tela dedicada de inbox.
 
-## 7. Como retomar
+## 8. Implementação (2026-08-03)
 
-Nenhum código foi escrito. Próximo passo ao retomar: confirmar o modelo de dados da seção 4 com o usuário, depois seguir a ordem "migrations → models → service → router → frontend" padrão do projeto (`CLAUDE.md` §6.1).
+Migration `20260803_checklist_processo` aplicada; models, service, schemas e routers atualizados; frontend (`safra-checklist.tsx` + formulário de template) atualizado. Testado por integração real contra o Postgres (não só leitura de código):
+
+- `SOLICITACAO_ESTOQUE` com saldo insuficiente → `status_verificacao=BLOQUEANTE`, veredito da fase = `BLOQUEANTE`.
+- `assumir_item`: primeira chamada atribui `responsavel_id`; segunda chamada (item já atribuído) rejeitada corretamente.
+- `override_manual` com justificativa → `status_verificacao=OK_PARCIAL`; veredito da fase passa a `OK_PARCIAL` (libera avanço, com aviso).
+- `SOLICITACAO_ESTOQUE` com saldo suficiente → gera `ReservaEstoque` de verdade (reaproveitando `EstoqueService.criar_reserva`, já existente) e marca `OK`.
+- Item `MANUAL` marcado concluído → `status_verificacao=OK` sincronizado.
+
+Dados de teste limpos ao final (nenhum ledger de estoque tocado, produto de teste sem movimentos foi removido por completo).
+
+### 8.1 O que ficou fora desta rodada (intencional)
+
+- **Resolução automática de talhão para `TAREFA_CAMPO`**: o método `vincular_operacao(item_id, operacao_agricola_id)` existe no service, mas nada cria a OS automaticamente — quem gerar a OS (fluxo normal de Plano Operacional) precisa vincular manualmente ao item do checklist. Gerar OS "às cegas" sem talhão definido seria inventar uma decisão de UX que não foi discutida.
+- **UI de "Minhas Pendências" / "Pendências sem responsável"**: endpoints `GET /checklist/minhas-pendencias` e `GET /checklist/sem-responsavel` prontos e funcionais no backend; nenhuma tela nova foi criada no frontend ainda (só os botões "Assumir"/"Justificar" dentro do card do item, que já funcionam).
+- **Notificação por e-mail via motor de recomendações** (seção 3.5/6 do desenho original): não implementada nesta rodada — os campos `responsavel_id`/`prazo_resposta` existem e são gravados, mas nenhuma regra nova foi adicionada a `recommendations/providers/agricultura_provider.py` para notificar automaticamente. Seguir o mesmo padrão de `AGRI_COLHEITA_SEM_ROMANEIO` quando for feito.
+- **Combobox de produto** no formulário de template: por ora é um campo de texto livre para o UUID do produto (`produto_id_padrao`), não um seletor com busca. Funcional mas pouco amigável — trocar por um combobox de produtos quando houver tempo.
+
+## 9. Como retomar
+
+Núcleo funcional (avaliação de estoque, assumir, override, veredito de 3 níveis, `avancar_fase` já respeitando o novo veredito) está pronto e testado. Pendências, em ordem de prioridade: (1) UI de Minhas Pendências/sem responsável, (2) notificação via recomendações, (3) combobox de produto no form de template, (4) decidir e implementar a criação de OS a partir de `TAREFA_CAMPO` (depende de resolver a questão do talhão).

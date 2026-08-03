@@ -47,6 +47,14 @@ class PhaseTemplateChecklistItem(Base):
     ordem: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     ativo: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
+    # TAREFA_CAMPO | SOLICITACAO_ESTOQUE | MANUAL — decide o que a instância
+    # do item (SafraChecklistItem) gera ao entrar na fase. Ver
+    # docs/brainstorm-checklist-fase-processo.md.
+    tipo_resultado: Mapped[str] = mapped_column(String(30), nullable=False, default="MANUAL")
+    # Só usados quando tipo_resultado == SOLICITACAO_ESTOQUE:
+    produto_id_padrao: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("cadastros_produtos.id", ondelete="SET NULL"), nullable=True)
+    quantidade_minima: Mapped[float | None] = mapped_column(nullable=True)
+
     template: Mapped["PhaseTemplate"] = relationship("PhaseTemplate", back_populates="checklist_items")
 
 

@@ -1,7 +1,10 @@
 from pydantic import BaseModel, ConfigDict, Field
 from uuid import UUID
-from datetime import datetime
-from typing import Optional
+from datetime import date, datetime
+from typing import Literal, Optional
+
+TipoResultadoChecklist = Literal["TAREFA_CAMPO", "SOLICITACAO_ESTOQUE", "MANUAL"]
+StatusVerificacaoChecklist = Literal["PENDENTE", "OK", "OK_PARCIAL", "BLOQUEANTE"]
 
 
 # --- Templates ---
@@ -13,6 +16,9 @@ class ChecklistTemplateCreate(BaseModel):
     descricao: str | None = None
     obrigatorio: bool = False
     ordem: int = 0
+    tipo_resultado: TipoResultadoChecklist = "MANUAL"
+    produto_id_padrao: Optional[UUID] = None
+    quantidade_minima: Optional[float] = Field(None, gt=0)
 
 
 class ChecklistTemplateUpdate(BaseModel):
@@ -21,6 +27,9 @@ class ChecklistTemplateUpdate(BaseModel):
     obrigatorio: bool | None = None
     ordem: int | None = None
     ativo: bool | None = None
+    tipo_resultado: Optional[TipoResultadoChecklist] = None
+    produto_id_padrao: Optional[UUID] = None
+    quantidade_minima: Optional[float] = Field(None, gt=0)
 
 
 class ChecklistTemplateResponse(BaseModel):
@@ -35,6 +44,9 @@ class ChecklistTemplateResponse(BaseModel):
     ativo: bool
     is_system: bool
     created_at: datetime
+    tipo_resultado: TipoResultadoChecklist = "MANUAL"
+    produto_id_padrao: Optional[UUID] = None
+    quantidade_minima: Optional[float] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -72,7 +84,28 @@ class SafraChecklistItemResponse(BaseModel):
     motivo_cancelamento: str | None
     created_at: datetime
 
+    tipo_resultado: TipoResultadoChecklist = "MANUAL"
+    operacao_agricola_id: UUID | None = None
+    reserva_estoque_id: UUID | None = None
+    requisicao_material_id: UUID | None = None
+    responsavel_id: UUID | None = None
+    prazo_resposta: date | None = None
+    status_verificacao: StatusVerificacaoChecklist = "PENDENTE"
+    justificativa_ok_parcial: str | None = None
+
     model_config = ConfigDict(from_attributes=True)
+
+
+class ChecklistItemOverrideRequest(BaseModel):
+    """Override manual do veredito — ex.: saldo ainda insuficiente mas o
+    pedido de compra já foi providenciado."""
+    status_verificacao: Literal["OK", "OK_PARCIAL"]
+    justificativa: str = Field(..., min_length=3, max_length=500)
+
+
+class ChecklistItemAtribuirRequest(BaseModel):
+    responsavel_id: UUID
+    prazo_resposta: Optional[date] = None
 
 
 class ChecklistFaseStatus(BaseModel):
@@ -81,4 +114,5 @@ class ChecklistFaseStatus(BaseModel):
     concluidos: int
     obrigatorios_pendentes: int
     pode_avancar: bool
+    veredito: Literal["OK", "OK_PARCIAL", "BLOQUEANTE"] = "OK"
     itens: list[SafraChecklistItemResponse]
