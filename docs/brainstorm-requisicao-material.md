@@ -145,15 +145,39 @@ Em vez de um cron/notificação novo, a regra foi adicionada ao motor de recomen
 
 Arquivo alterado: só `recommendations/providers/agricultura_provider.py` (import de `RomaneioService`, bloco de avaliação, 2 métodos auxiliares). Nenhuma migration, nenhum router novo.
 
-## 8. Pendente para a próxima sessão
+## 8. Teste E2E real no app de campo — concluído (2026-08-03)
 
-1. **Teste manual da UI no dispositivo/navegador** (toque, PIN pad, accordion de requisições, e agora também a recomendação de colheita sem romaneio aparecendo no app de campo) — a lógica de negócio por trás já está validada ponta a ponta.
-2. Possíveis ajustes de UX no fluxo de Plano Operacional/Requisições ainda não cobertos.
+Este ambiente não tem Playwright pré-instalado, mas um binário Chromium local (`~/.chromium-browser-snapshots`) foi encontrado e usado via `puppeteer-core` (instalado ad-hoc, não faz parte do projeto) para dirigir o app de verdade — não um teste de código, cliques reais em um browser real contra os servidores já rodando (API :8000, campo :3002).
 
-Itens "conectar necessidade de maquinário à requisição" (ver 6.1) e "alerta automático de colheita sem romaneio" (ver 7.1) **fechados** — não são mais pendências.
+**Cenário montado no banco**: dispositivo `PENDENTE` com código de ativação, OS `PLANEJADA` com uma ferramenta (`[E2E] Tesoura de poda`, `TipoProduto.FERRAMENTA`), requisição gerada automaticamente e aprovada, tarefa de campo `EM_EXECUCAO` vinculada à OS.
 
-## 9. Como retomar
+**Fluxo percorrido de ponta a ponta pela UI real**:
+1. `/activate` — preencheu código + PIN, submeteu, ativação real via `POST /campo/devices/activate`.
+2. Tela de PIN (`/pin`, aparece a cada carregamento de página — `isAuthenticated` é estado em memória, não persiste) — PIN digitado clicando nos botões do teclado numérico real.
+3. Navegação client-side via nav inferior "Tarefas" → clique no card da tarefa de teste.
+4. Seção "Requisições de Material" renderizada corretamente: número da requisição, status, nome do produto, quantidade.
+5. "Confirmar Retirada" → bottom sheet de conferência com quantidade pré-preenchida (`Solicitado: 2 UN`) → "Continuar" → teclado de PIN → PIN digitado → retirada confirmada de verdade.
+6. "Registrar Devolução" → quantidade pré-preenchida com saldo não devolvido (`Saldo entregue não devolvido: 2 UN`) → PIN → devolução confirmada de verdade.
 
-- Backend 100% pronto, testado (unitário/integração real) para o fluxo completo (web + campo), incluindo `produto_nome`/`unidade_medida`, `operacao_agricola_id` no sync pull, e `TipoProduto.FERRAMENTA` com o mesmo pipeline de retirada/devolução validado ponta a ponta.
-- Frontend do app de campo implementado mas só a UI em si (toque/PIN pad) falta validar manualmente — a lógica por trás já rodou com sucesso contra o banco real.
-- Ferramentas de baixo valor já podem ser cadastradas e fluir pelo pipeline de requisição. Maquinário pesado permanece deliberadamente fora desse pipeline (ver 6.1).
+**Validado no banco após cada etapa** (não só na tela):
+- Retirada: `requisicao.status=ENTREGUE`, `quantidade_entregue=2`, saldo em estoque `10→8`, `RequisicaoConfirmacao(tipo=RETIRADA, metodo=TOKEN_DISPOSITIVO)`.
+- Devolução: `quantidade_devolvida=2`, saldo voltou `8→10`, `RequisicaoConfirmacao(tipo=DEVOLUCAO, metodo=TOKEN_DISPOSITIVO)`.
+
+**Bug encontrado e corrigido durante o teste** (não era visível por leitura de código):
+`apps/campo/.../tarefa/[id]/page.tsx` — o `operacao_agricola_id` (adicionado a `task.dados` só para uso interno da seção de Requisições) vazava para a seção "Instruções" genérica, aparecendo como "Operacao Agricola Id: 136fa5d8-..." pro operador. Corrigido filtrando chaves internas (`INTERNAL_TASK_DATA_KEYS`) do render dessa seção.
+
+**Dados de teste removidos** ao final, preservando o ledger `estoque_movimentos` (append-only) — só o produto `[E2E] Tesoura de poda` ficou no catálogo, por estar referenciado no ledger (mesmo padrão de limpeza já usado nesta feature).
+
+## 9. Pendente para a próxima sessão
+
+1. Possíveis ajustes de UX no fluxo de Plano Operacional/Requisições ainda não cobertos.
+2. Testar visualmente em um dispositivo real (celular/tablet) além do smoke test automatizado — telas pequenas, teclado virtual do SO, câmera para fotos.
+
+Itens "conectar necessidade de maquinário à requisição" (ver 6.1), "alerta automático de colheita sem romaneio" (ver 7.1) e "teste manual/E2E do app de campo" (ver 8) **fechados**.
+
+## 10. Como retomar
+
+- Backend 100% pronto e testado (unitário, integração real, e agora E2E via browser real) para o fluxo completo (web + campo).
+- Frontend do app de campo testado ponta a ponta com sucesso, incluindo o bug de vazamento de campo técnico já corrigido.
+- Ferramentas de baixo valor já podem ser cadastradas e fluir pelo pipeline de requisição, validado com dados reais. Maquinário pesado permanece deliberadamente fora desse pipeline (ver 6.1).
+- Feature considerada **funcionalmente completa**; o que resta é validação em dispositivo físico real e ajustes de UX menores, não bloqueadores.

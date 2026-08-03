@@ -21,6 +21,10 @@ import { RequisicoesSection } from "@/components/campo/requisicoes-section";
 
 import { ArrowLeft, Play, Check } from "lucide-react";
 
+// Campos técnicos usados internamente (ex.: vínculo com a OS para a seção de
+// Requisições de Material) — não são instrução para o operador, não exibir.
+const INTERNAL_TASK_DATA_KEYS = new Set(["operacao_agricola_id"]);
+
 const PRIORIDADE_LABEL: Record<string, string> = {
   URGENTE: "Urgente",
   ALTA: "Alta",
@@ -315,12 +319,14 @@ export default function TarefaDetailPage() {
       </CampoSurface>
 
       {/* Dados da tarefa */}
-      {Object.keys(task.dados).length > 0 && !pecuariaTask && (
+      {Object.keys(task.dados).filter((k) => !INTERNAL_TASK_DATA_KEYS.has(k)).length > 0 && !pecuariaTask && (
         <CampoSurface className="flex flex-col gap-2 p-4 text-sm">
           <p className="mb-1 text-[11px] uppercase tracking-[0.18em] text-primary">Instruções</p>
-          {Object.entries(task.dados).map(([k, v]) => (
-            <InfoRow key={k} label={formatTaskDataLabel(k)} value={formatTaskDataValue(k, v, operadorNome)} />
-          ))}
+          {Object.entries(task.dados)
+            .filter(([k]) => !INTERNAL_TASK_DATA_KEYS.has(k))
+            .map(([k, v]) => (
+              <InfoRow key={k} label={formatTaskDataLabel(k)} value={formatTaskDataValue(k, v, operadorNome)} />
+            ))}
         </CampoSurface>
       )}
 
