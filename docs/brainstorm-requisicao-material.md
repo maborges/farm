@@ -106,9 +106,17 @@ Implementado:
 - `operacional/services/compras_service.py` (`obter_economia_por_categoria`): `FERRAMENTA` adicionado à lista `tipo_operacoes` (categoria "OPERACOES" no relatório de economia por categoria).
 - `apps/web/.../estoque/_components/EstoqueDialogs.tsx`: opção "Ferramenta" no select de categoria do cadastro de produto.
 
-**Gap intencionalmente não fechado agora**: a geração automática de requisição a partir da OS (`criar_requisicao_a_partir_de_operacao`) só lê `InsumoOperacao` — ferramentas cadastradas como `Produto tipo=FERRAMENTA` fluem pelo pipeline de retirada/devolução já construído (incluindo as telas do app de campo), mas hoje só entram numa requisição se adicionadas manualmente (tela web de requisições). Existe também um sistema **separado** de "necessidade de maquinário" (`NecessidadeRecurso`, tipo `MAQUINARIO`, em `agricola/a1_planejamento/models.py`) ligado ao planejamento de tarefas — decidiu-se **não conectar os dois ainda**, para não expandir o escopo sem necessidade confirmada.
+**Gap intencionalmente não fechado**: a geração automática de requisição a partir da OS (`criar_requisicao_a_partir_de_operacao`) só lê `InsumoOperacao` — ferramentas cadastradas como `Produto tipo=FERRAMENTA` fluem pelo pipeline de retirada/devolução já construído (incluindo as telas do app de campo), mas hoje só entram numa requisição se adicionadas manualmente (tela web de requisições).
 
 Máquinas/veículos pesados (trator, colhedora etc.) continuam em `Equipamento`/`EquipamentoAlocacao` — esse fluxo não foi alterado.
+
+### 6.1 Decisão final: não conectar necessidade de maquinário à Requisição (2026-08-03)
+
+Investigação mais profunda corrigiu uma suposição anterior deste doc: o "sistema separado de necessidade de maquinário" ligado ao planejamento é o modelo `PlanoOperacionalTarefaMaquinario` (`agricola/planejamento_operacional/models.py:218`), cujos campos `maquina_id`/`implemento_id` referenciam **`cadastros_equipamentos.id` (`Equipamento`)**, não `Produto`. Ou seja, a necessidade de maquinário do planejamento já é sobre equipamento pesado (trator, implemento) — o mesmo domínio de `EquipamentoAlocacao`, que tem seu próprio fluxo de "check-out" por responsável/unidade produtiva.
+
+Não existe hoje, no planejamento, uma "necessidade de ferramenta pequena" (enxada, tesoura) — só `MAQUINARIO` (equipamento pesado) e `MAO_DE_OBRA` (pessoa). Conectar essa necessidade à requisição automática misturaria equipamento pesado com o catálogo de produtos, exatamente a complexidade que a decisão da seção 6 evitou.
+
+**Decisão**: não conectar. São dois fluxos separados por design — `Equipamento`/`EquipamentoAlocacao` para maquinário pesado, Requisição de Material para almoxarifado (incluindo ferramentas pequenas, via `TipoProduto.FERRAMENTA`). Sem caso de uso concreto pedindo a ponte, o investimento não se justifica agora. Reabrir só se surgir um pedido específico (ex.: operador querer confirmar reserva de trator na mesma tela de requisição).
 
 ## 7. Teste de integração — fluxo completo com ferramenta (2026-08-03)
 
@@ -129,12 +137,13 @@ Dados de teste (produto `[TESTE] Tesoura de poda`, requisição, OS) foram limpo
 ## 8. Pendente para a próxima sessão
 
 1. **Teste manual da UI no dispositivo/navegador** (toque, PIN pad, accordion de requisições) — a lógica de negócio por trás já está validada ponta a ponta.
-2. **Conectar `NecessidadeRecurso` (MAQUINARIO) à geração automática de requisição**, se o usuário confirmar que quer que ferramentas apareçam automaticamente na requisição da OS em vez de serem adicionadas manualmente.
-3. Alerta automático (cron) para "colheita sem romaneio" — painel de pendências (abordagem manual) já existe; notificação proativa foi adiada, só retomar se o usuário pedir.
-4. Possíveis ajustes de UX no fluxo de Plano Operacional/Requisições ainda não cobertos.
+2. Alerta automático (cron) para "colheita sem romaneio" — painel de pendências (abordagem manual) já existe; notificação proativa foi adiada, só retomar se o usuário pedir.
+3. Possíveis ajustes de UX no fluxo de Plano Operacional/Requisições ainda não cobertos.
+
+Item "conectar necessidade de maquinário à requisição" **fechado** (ver 6.1) — não é mais pendência.
 
 ## 9. Como retomar
 
 - Backend 100% pronto, testado (unitário/integração real) para o fluxo completo (web + campo), incluindo `produto_nome`/`unidade_medida`, `operacao_agricola_id` no sync pull, e `TipoProduto.FERRAMENTA` com o mesmo pipeline de retirada/devolução validado ponta a ponta.
 - Frontend do app de campo implementado mas só a UI em si (toque/PIN pad) falta validar manualmente — a lógica por trás já rodou com sucesso contra o banco real.
-- Ferramentas de baixo valor já podem ser cadastradas e fluir pelo pipeline de requisição; falta só decidir se a geração automática a partir da OS deve incluir necessidades de maquinário.
+- Ferramentas de baixo valor já podem ser cadastradas e fluir pelo pipeline de requisição. Maquinário pesado permanece deliberadamente fora desse pipeline (ver 6.1).
