@@ -13,7 +13,8 @@ import {
 } from "@/lib/requisicoes-api";
 
 const STATUS_LABEL: Record<string, string> = {
-  PENDENTE: "Pendente",
+  PENDENTE: "Aguardando separação no almoxarifado",
+  SEPARANDO: "Em separação no almoxarifado",
   APROVADA: "Aprovada — aguardando retirada",
   ENTREGUE: "Retirada confirmada",
   RECUSADA: "Recusada",
@@ -106,7 +107,11 @@ function RequisicaoItem({
     return acc + Math.max(entregue - devolvido, 0);
   }, 0);
 
-  const podeRetirar = requisicao.status === "APROVADA" || requisicao.status === "PENDENTE";
+  // Backend só aceita entrega/retirada em APROVADA ou SEPARANDO (ver
+  // EstoqueService.entregar_requisicao) — PENDENTE é o estado inicial antes do
+  // almoxarifado aprovar, mostrar o botão nesse status geraria um erro confuso
+  // só depois do operador digitar o PIN inteiro.
+  const podeRetirar = requisicao.status === "APROVADA" || requisicao.status === "SEPARANDO";
   const podeDevolver = requisicao.status === "ENTREGUE" && saldoNaoDevolvidoTotal > 0;
 
   return (
@@ -211,6 +216,10 @@ function ConfirmacaoSheet({
       )
     : requisicao.itens;
 
+  const temQuantidadeValida = isDevolucao
+    ? itensRelevantes.some((item) => Number(quantidades[item.id] ?? 0) > 0)
+    : true;
+
   async function handleSubmitPin(pin: string) {
     setLoading(true);
     setPinError(null);
@@ -296,9 +305,14 @@ function ConfirmacaoSheet({
                 );
               })}
             </div>
-            <CampoButton size="lg" onClick={() => setStep("PIN")}>
+            <CampoButton size="lg" onClick={() => setStep("PIN")} disabled={!temQuantidadeValida}>
               Continuar
             </CampoButton>
+            {!temQuantidadeValida && (
+              <p className="text-center text-xs text-muted-foreground">
+                Informe ao menos uma quantidade maior que zero para continuar.
+              </p>
+            )}
           </>
         ) : (
           <PinPad loading={loading} error={pinError} onSubmit={handleSubmitPin} />
