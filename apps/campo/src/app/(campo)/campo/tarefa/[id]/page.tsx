@@ -17,6 +17,7 @@ import { useSessionStore } from "@/lib/stores/session-store";
 import { CampoShell, CampoSurface, CampoButton } from "@/components/campo/ui";
 import { CampoPill } from "@/components/campo/ui";
 import { resolveTaskDomain } from "@/lib/task-domain";
+import { RequisicoesSection } from "@/components/campo/requisicoes-section";
 
 import { ArrowLeft, Play, Check } from "lucide-react";
 
@@ -159,6 +160,7 @@ export default function TarefaDetailPage() {
   const quantidadePlanejada = typeof taskDados.quantidade === "number" ? taskDados.quantidade : undefined;
   const unidadeInsumo = typeof taskDados.unidade === "string" ? taskDados.unidade : "UN";
   const quantidadeRealValue = quantidadeReal ?? (quantidadePlanejada !== undefined ? String(quantidadePlanejada) : "");
+  const operacaoAgricolaId = typeof taskDados.operacao_agricola_id === "string" ? taskDados.operacao_agricola_id : undefined;
 
   const canStart = task.status_execucao === "PENDENTE" && isMinhasTarefa;
   const canFinish = task.status_execucao === "EM_EXECUCAO" && isMinhasTarefa;
@@ -320,6 +322,11 @@ export default function TarefaDetailPage() {
             <InfoRow key={k} label={formatTaskDataLabel(k)} value={formatTaskDataValue(k, v, operadorNome)} />
           ))}
         </CampoSurface>
+      )}
+
+      {/* Requisições de material — só para tarefas nascidas de OS, durante a execução */}
+      {operacaoAgricolaId && task.status_execucao === "EM_EXECUCAO" && (
+        <RequisicoesSection operacaoAgricolaId={operacaoAgricolaId} />
       )}
 
       {/* Execução — só aparece se pode agir */}

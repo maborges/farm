@@ -999,13 +999,16 @@ class SyncService:
                     "data_programada": t.data_programada,
                     "prioridade": t.prioridade,
                     "operador_id": t.operador_id,
-                    "dados": _enriquecer_dados_com_nome_operador(
-                        _enriquecer_dados_com_contexto_safra(
-                            t.dados,
-                            contextos_safra.get(t.safra_tarefa_id),
+                    "dados": {
+                        **_enriquecer_dados_com_nome_operador(
+                            _enriquecer_dados_com_contexto_safra(
+                                t.dados,
+                                contextos_safra.get(t.safra_tarefa_id),
+                            ),
+                            nomes_operadores.get(t.operador_id),
                         ),
-                        nomes_operadores.get(t.operador_id),
-                    ),
+                        **({"operacao_agricola_id": str(t.operacao_agricola_id)} if t.operacao_agricola_id else {}),
+                    },
                     "unidade_produtiva_id": t.unidade_produtiva_id,
                     "area_rural_id": t.area_rural_id,
                     "lote_id": t.lote_id,

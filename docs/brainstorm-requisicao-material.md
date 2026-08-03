@@ -47,7 +47,7 @@ Reautenticação:
 - Frontend `/suprimentos/requisicoes`: dialog unificado de confirmação (e-mail pré-preenchido editável + senha + quantidade conferida por item); botão "Registrar devolução" quando há saldo não devolvido.
 - **Testado**: senha errada rejeitada, devolução acima do saldo rejeitada com mensagem exata, fluxo feliz completo validado no banco real.
 
-### Fase 2 (app de campo) — Backend — ✅ COMPLETO E TESTADO — Frontend — ❌ NÃO INICIADO
+### Fase 2 (app de campo) — Backend — ✅ COMPLETO E TESTADO — Frontend — ✅ IMPLEMENTADO (2026-08-03, aguarda teste manual no dispositivo)
 
 - `DispositivoCampo.pin_hash` persistido na ativação (antes era recebido e descartado — bug corrigido).
 - `DispositivoService.verificar_pin(device_id, pin)` — valida via bcrypt.
@@ -69,17 +69,39 @@ Reautenticação:
 ```
 Todas aplicadas com `alembic upgrade head`. (Uma migration `quantidade_real_utilizada` foi criada e depois revertida/apagada — decisão errada, corrigida antes de seguir; ver histórico de sessão se precisar do detalhe.)
 
-## 5. Pendente para a próxima sessão
+## 5. Frontend do app de campo — o que foi implementado (2026-08-03)
 
-1. **App de campo (apps/campo) — frontend**, consumindo os 3 endpoints já prontos:
-   - Tela de listagem de requisições da OS (pode haver mais de uma).
-   - Tela de confirmação de retirada com teclado de PIN, checklist de itens com campo de quantidade conferida.
-   - Tela de confirmação de devolução (sobra de insumos).
-2. **Devolução de ferramentas/patrimônio** — ainda não investigado. Usuário classificou como "domínio diferente" — checar se já existe alocação de equipamento/frota antes de desenhar.
+Decisões fechadas via brainstorming antes de codar:
+- Seção "Requisições de Material" aparece dentro da tela de detalhe da tarefa (`apps/campo/.../campo/tarefa/[id]/page.tsx`), não em rota separada.
+- Só aparece quando a tarefa tem `operacao_agricola_id` (nasceu de OS) **e** está `EM_EXECUCAO` — some depois de concluída.
+- Múltiplas requisições da mesma OS aparecem como lista/accordion (não abas/rotas separadas).
+- PIN só é pedido no momento de confirmar (retirada ou devolução), em modal — não bloqueia a tela inteira.
+- Checklist de retirada vem pré-preenchido com a quantidade solicitada, editável, com badge "Divergente" quando o valor mudar.
+- Devolução vem pré-preenchida com o saldo não devolvido (entregue − já devolvido), editável só para baixo.
+- Ferramentas/patrimônio explicitamente adiado — só insumos por enquanto.
+
+Arquivos novos/alterados:
+- **Backend** (pequeno complemento descoberto na implementação, não estava no escopo original documentado):
+  - `services/api/operacional/schemas/estoque.py`: `ItemRequisicaoResponse` ganhou `produto_nome` e `unidade_medida` (faltavam para exibição na UI).
+  - `services/api/operacional/services/estoque_service.py`: `_carregar_itens_requisicao` agora busca `ProdutoCatalogo` em lote e popula os dois campos acima via atributo dinâmico (mesmo padrão já usado em outros pontos do projeto, ex. enriquecimento de `fase` em `TarefaProgramadaService.listar`).
+  - `services/api/campo/service.py`: `pull()` (sync) agora injeta `operacao_agricola_id` dentro de `dados` de cada tarefa em `tarefas_pendentes` — antes não ia para o dispositivo, então o app não tinha como saber a qual OS a tarefa pertencia.
+- **Frontend (apps/campo)**:
+  - `src/lib/requisicoes-api.ts` — cliente HTTP para os 3 endpoints (`GET /campo/requisicoes`, `POST .../confirmar-retirada`, `POST .../confirmar-devolucao`), autenticado com `device_token` (Bearer) + `device_id`, seguindo o mesmo padrão de `session-store.ts`.
+  - `src/components/campo/pin-pad.tsx` — teclado numérico de 6 dígitos extraído/reaproveitado do padrão já usado em `(auth)/pin/page.tsx`.
+  - `src/components/campo/requisicoes-section.tsx` — seção completa: lista/accordion de requisições, checklist de conferência com destaque de divergência, `BottomSheet` (padrão já existente no app) com 2 passos (conferência → PIN) para retirada e devolução.
+  - `src/app/(campo)/campo/tarefa/[id]/page.tsx` — importa e renderiza `<RequisicoesSection>` quando `task.dados.operacao_agricola_id` existe e `status_execucao === "EM_EXECUCAO"`.
+
+**Não testado ainda**: fluxo ponta a ponta no dispositivo/emulador real (sem Playwright/Chromium neste sandbox). `tsc --noEmit` passou sem novos erros (só um erro pré-existente não relacionado em `page.tsx:193`). Recomendado testar manualmente: OS com requisição pendente → abrir tarefa em execução no app → conferir itens → confirmar com PIN → verificar que status vira ENTREGUE e que a seção de devolução aparece.
+
+## 6. Pendente para a próxima sessão
+
+1. **Teste manual/E2E do fluxo de campo** (retirada e devolução) em ambiente real, já que não há automação de browser neste sandbox.
+2. **Devolução de ferramentas/patrimônio** — ainda não investigado. Usuário classificou como "domínio diferente" — checar se já existe alocação de equipamento/frota antes de desenhar. Ideia levantada: se ferramentas também virarem itens de `RequisicaoMaterial`, dá para reaproveitar o mesmo fluxo adicionando `observacao`/`fotos` opcionais no item; se for patrimônio à parte (nº de série, estado de conservação), precisa de tela própria.
 3. Alerta automático (cron) para "colheita sem romaneio" — painel de pendências (abordagem manual) já existe; notificação proativa foi adiada, só retomar se o usuário pedir.
 4. Possíveis ajustes de UX no fluxo de Plano Operacional/Requisições ainda não cobertos.
 
-## 6. Como retomar
+## 7. Como retomar
 
-- Backend 100% pronto e testado para o fluxo completo (web + campo). Não precisa mexer em backend a menos que apareça bug.
-- Próximo passo natural é criar as telas em `apps/campo/src/app/(campo)/campo/`, seguindo o padrão Dexie/IndexedDB + sync queue já usado nas outras telas de tarefa desse app.
+- Backend 100% pronto e testado para o fluxo completo (web + campo), incluindo o complemento de `produto_nome`/`unidade_medida` e `operacao_agricola_id` no sync pull.
+- Frontend do app de campo implementado mas sem teste manual/E2E ainda — validar no dispositivo antes de considerar fechado.
+- Depois disso, próximo item de escopo é ferramentas/patrimônio (item 2 acima).

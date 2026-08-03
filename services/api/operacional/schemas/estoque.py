@@ -289,6 +289,8 @@ class RequisicaoConfirmacaoResponse(BaseModel):
 class ItemRequisicaoResponse(BaseModel):
     id: uuid.UUID
     produto_id: uuid.UUID
+    produto_nome: Optional[str] = None
+    unidade_medida: Optional[str] = None
     deposito_id: Optional[uuid.UUID]
     lote_id: Optional[uuid.UUID]
     quantidade_solicitada: float

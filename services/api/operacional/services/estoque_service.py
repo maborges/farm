@@ -1306,7 +1306,17 @@ class EstoqueService(BaseService[SaldoEstoque]):
         """`RequisicaoMaterial.itens` é lazy='noload' — precisa ser carregado
         explicitamente para a resposta da API não vir sempre com itens=[]."""
         stmt = select(ItemRequisicao).where(ItemRequisicao.requisicao_id == req.id)
-        req.itens = list((await self.session.execute(stmt)).scalars().all())
+        itens = list((await self.session.execute(stmt)).scalars().all())
+        produto_ids = {item.produto_id for item in itens}
+        produtos: dict[uuid.UUID, ProdutoCatalogo] = {}
+        if produto_ids:
+            stmt_p = select(ProdutoCatalogo).where(ProdutoCatalogo.id.in_(produto_ids))
+            produtos = {p.id: p for p in (await self.session.execute(stmt_p)).scalars().all()}
+        for item in itens:
+            produto = produtos.get(item.produto_id)
+            item.produto_nome = produto.nome if produto else None
+            item.unidade_medida = produto.unidade_medida if produto else None
+        req.itens = itens
         await self._enriquecer_nomes_requisicao(req)
         return req
 
