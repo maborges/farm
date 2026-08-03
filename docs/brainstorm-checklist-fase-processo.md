@@ -110,7 +110,7 @@ Dados de teste limpos ao final (nenhum ledger de estoque tocado, produto de test
 
 - **Resolução automática de talhão para `TAREFA_CAMPO`**: o método `vincular_operacao(item_id, operacao_agricola_id)` existe no service, mas nada cria a OS automaticamente — quem gerar a OS (fluxo normal de Plano Operacional) precisa vincular manualmente ao item do checklist. Gerar OS "às cegas" sem talhão definido seria inventar uma decisão de UX que não foi discutida.
 - **Notificação por e-mail via motor de recomendações** (seção 3.5/6 do desenho original): não implementada — os campos `responsavel_id`/`prazo_resposta` existem e são gravados, mas nenhuma regra nova foi adicionada a `recommendations/providers/agricultura_provider.py` para notificar automaticamente. Seguir o mesmo padrão de `AGRI_COLHEITA_SEM_ROMANEIO` quando for feito.
-- **Combobox de produto** no formulário de template: por ora é um campo de texto livre para o UUID do produto (`produto_id_padrao`), não um seletor com busca. Funcional mas pouco amigável — trocar por um combobox de produtos quando houver tempo.
+- ~~**Combobox de produto** no formulário de template~~ — **implementado** (2026-08-03): trocado o campo de texto livre por `ProdutoCombobox` (componente já existente, reutilizado de outras telas do módulo agrícola), com busca por nome.
 
 ### 8.2 UI de "Minhas Pendências" — implementada (2026-08-03)
 
@@ -122,4 +122,6 @@ Plugado em `app/(dashboard)/dashboard/agricola/page.tsx`, logo abaixo do `PageHe
 
 ## 9. Como retomar
 
-Núcleo funcional completo: avaliação de estoque, assumir, override, veredito de 3 níveis, `avancar_fase` respeitando o novo veredito, e UI de Minhas Pendências/sem responsável — tudo pronto e testado. Pendências restantes, em ordem de prioridade: (1) notificação via recomendações, (2) combobox de produto no form de template, (3) decidir e implementar a criação de OS a partir de `TAREFA_CAMPO` (depende de resolver a questão do talhão), (4) validação visual com sessão real no navegador.
+Núcleo funcional completo: avaliação de estoque, assumir, override, veredito de 3 níveis, `avancar_fase` respeitando o novo veredito, e UI de Minhas Pendências/sem responsável — tudo pronto e testado. Pendências restantes, em ordem de prioridade: (1) notificação via recomendações, (2) decidir e implementar a criação de OS a partir de `TAREFA_CAMPO` (depende de resolver a questão do talhão).
+
+Validação visual com sessão real no navegador **concluída** (2026-08-03): login real, widget de Minhas Pendências, ação "Assumir" (com atualização em tempo real confirmada) e tela de checklist da safra, tudo testado via Puppeteer + Chromium contra os servidores reais, zero erros de runtime.
