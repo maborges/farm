@@ -204,6 +204,17 @@ async def listar_talhoes_safra(
     """Retorna todos os talhões associados à safra."""
     svc = SafraService(session, tenant_id)
     talhoes = await svc.listar_talhoes(id)
+
+    from core.cadastros.propriedades.models import AreaRural
+    from sqlalchemy import select as _select
+    area_ids = [t.area_id for t in talhoes]
+    nomes: dict = {}
+    if area_ids:
+        stmt_nomes = _select(AreaRural.id, AreaRural.nome).where(AreaRural.id.in_(area_ids))
+        nomes = dict((await session.execute(stmt_nomes)).all())
+    for t in talhoes:
+        t.nome = nomes.get(t.area_id)
+
     return [SafraTalhaoResponse.model_validate(t) for t in talhoes]
 
 

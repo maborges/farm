@@ -207,6 +207,45 @@ class SafraChecklistService(BaseService[SafraChecklistItem]):
         await self.session.flush()
         return item
 
+    async def gerar_operacao(self, item_id: UUID, talhao_id: UUID, usuario_id: UUID | None) -> SafraChecklistItem:
+        """Gera uma OS (`OperacaoAgricola`, status PLANEJADA) a partir de um item
+        TAREFA_CAMPO do checklist e já vincula ao item. O talhão é sempre
+        escolhido pelo usuário no momento da geração — a safra pode ter mais
+        de um talhão e não há regra automática de escolha (ver
+        docs/brainstorm-checklist-fase-processo.md, seção 8.4)."""
+        item = await self.get_or_fail(item_id)
+        if item.tipo_resultado != "TAREFA_CAMPO":
+            raise BusinessRuleError("Item não é do tipo TAREFA_CAMPO.")
+        if item.operacao_agricola_id is not None:
+            raise BusinessRuleError("Item já tem uma OS vinculada.")
+
+        from core.cadastros.propriedades.models import AreaRural
+        from agricola.operacoes.models import OperacaoAgricola
+        from agricola.operacoes.service import OperacaoService
+        from agricola.operacoes.schemas import OperacaoAgricolaCreate
+
+        talhao = await self.session.get(AreaRural, talhao_id)
+        if not talhao or talhao.tenant_id != self.tenant_id:
+            raise BusinessRuleError(f"Talhão {talhao_id} não encontrado.")
+
+        hoje = date.today()
+        op_create = OperacaoAgricolaCreate(
+            safra_id=item.safra_id,
+            talhao_id=talhao_id,
+            tipo="OUTROS",
+            descricao=item.titulo,
+            data_prevista=hoje,
+            data_realizada=hoje,
+            area_aplicada_ha=float(talhao.area_hectares) if talhao.area_hectares else 1.0,
+            status="PLANEJADA",
+        )
+        op_svc = OperacaoService(self.session, self.tenant_id)
+        operacao = await op_svc.criar(op_create)
+
+        item.operacao_agricola_id = operacao.id
+        await self.session.flush()
+        return item
+
     async def vincular_operacao(self, item_id: UUID, operacao_agricola_id: UUID) -> SafraChecklistItem:
         """Liga uma OS (criada pelo fluxo normal de Plano Operacional) a um
         item TAREFA_CAMPO do checklist."""

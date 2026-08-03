@@ -1,6 +1,6 @@
 # Checklist por Fase — de template estático a processo rastreável
 
-> Design em 2026-08-03; **implementado e testado no mesmo dia** (ver seção 8), incluindo a UI de "Minhas Pendências"/"sem responsável" (ver 8.2). Escopo do que ainda fica fora: resolução automática de talhão para `TAREFA_CAMPO` (ver 8.1) e notificação via motor de recomendações.
+> Design em 2026-08-03; **implementado e testado no mesmo dia**, incluindo geração de OS a partir de `TAREFA_CAMPO` (ver 8.4). Nenhum item do desenho original ficou de fora.
 
 ## 1. Problema identificado pelo usuário
 
@@ -108,7 +108,7 @@ Dados de teste limpos ao final (nenhum ledger de estoque tocado, produto de test
 
 ### 8.1 O que ficou fora desta rodada (intencional)
 
-- **Resolução automática de talhão para `TAREFA_CAMPO`**: o método `vincular_operacao(item_id, operacao_agricola_id)` existe no service, mas nada cria a OS automaticamente — quem gerar a OS (fluxo normal de Plano Operacional) precisa vincular manualmente ao item do checklist. Gerar OS "às cegas" sem talhão definido seria inventar uma decisão de UX que não foi discutida.
+- ~~**Resolução automática de talhão para `TAREFA_CAMPO`**~~ — **implementada** (2026-08-03), ver 8.4. Decisão do usuário: sempre perguntar o talhão ao usuário (sem regra automática de escolha).
 - ~~**Notificação por e-mail via motor de recomendações**~~ — **implementada** (2026-08-03), ver 8.3.
 - ~~**Combobox de produto** no formulário de template~~ — **implementado** (2026-08-03): trocado o campo de texto livre por `ProdutoCombobox` (componente já existente, reutilizado de outras telas do módulo agrícola), com busca por nome.
 
@@ -122,7 +122,7 @@ Plugado em `app/(dashboard)/dashboard/agricola/page.tsx`, logo abaixo do `PageHe
 
 ## 9. Como retomar
 
-Núcleo funcional completo: avaliação de estoque, assumir, override, veredito de 3 níveis, `avancar_fase` respeitando o novo veredito, UI de Minhas Pendências/sem responsável, combobox de produto e notificação via recomendações — tudo pronto e testado. Única pendência restante: decidir e implementar a criação de OS a partir de `TAREFA_CAMPO` (depende de resolver a questão do talhão).
+Núcleo funcional **100% completo**: avaliação de estoque, assumir, override, veredito de 3 níveis, `avancar_fase` respeitando o novo veredito, UI de Minhas Pendências/sem responsável, combobox de produto, notificação via recomendações e geração de OS a partir de `TAREFA_CAMPO` — tudo pronto e testado por integração real. Nenhuma pendência restante do desenho original.
 
 Validação visual com sessão real no navegador **concluída** (2026-08-03): login real, widget de Minhas Pendências, ação "Assumir" (com atualização em tempo real confirmada) e tela de checklist da safra, tudo testado via Puppeteer + Chromium contra os servidores reais, zero erros de runtime.
 
@@ -136,3 +136,19 @@ Nova regra `AGRI_CHECKLIST_TODO_PRAZO` em `recommendations/providers/agricultura
 - `dedupe_key` por item (`checklist_todo:{item_id}`), diferente do padrão por-safra usado nas outras regras deste provider — necessário porque pode haver múltiplos itens/responsáveis na mesma safra.
 
 **Testado** por integração real: item com prazo vencido há 2 dias gerou candidato com `priority=URGENT` e `notification_recipients=[email correto do responsável]`. Dado de teste removido ao final.
+
+### 8.4 Geração de OS a partir de `TAREFA_CAMPO` — implementada (2026-08-03)
+
+Decisão do usuário: **sempre perguntar o talhão ao usuário** — sem regra automática (nem "um talhão por safra", nem "gera pra todos os talhões"), porque a ação de um item de checklist pode ser específica de um talhão só.
+
+- `SafraChecklistService.gerar_operacao(item_id, talhao_id, usuario_id)` — valida `tipo_resultado == TAREFA_CAMPO` e que o item ainda não tem OS vinculada, cria a `OperacaoAgricola` via `OperacaoService.criar` (reaproveitado, não duplicado) com `tipo="OUTROS"`, `descricao=item.titulo`, `status="PLANEJADA"`, `data_prevista=data_realizada=hoje`, `area_aplicada_ha` a partir de `AreaRural.area_hectares` do talhão escolhido (fallback 1.0 se nulo) — e liga a OS ao item.
+- Novo endpoint `POST /safras/{safra_id}/checklist/itens/{item_id}/gerar-operacao`, body `{talhao_id}`.
+- `GET /safras/{id}/talhoes` (já existente) ganhou o campo `nome` na resposta (antes só tinha `area_id`), pra alimentar o seletor de talhão sem precisar de outro endpoint.
+- Frontend (`safra-checklist.tsx`): botão "Gerar OS" nos itens `TAREFA_CAMPO` sem `operacao_agricola_id`, abre dialog com `Select` de talhão (busca `GET /safras/{id}/talhoes` só quando o dialog abre) e chama o endpoint novo.
+
+**Bugs reais encontrados e corrigidos durante o teste de integração** (não visíveis por leitura de código — a reutilização de `OperacaoService.criar` trouxe validações já existentes que o teste expôs):
+1. `AreaRural` não tem campo `area_efetiva_ha` (usado por engano, copiando um padrão de outro componente) — o campo certo é `area_hectares`. Sem essa correção, a área aplicada usava sempre o fallback `1.0`, que estourava a validação de "área aplicada não pode exceder a área do talhão" em talhões pequenos.
+2. `tipo="OUTRO"` não existe na lookup table de tipos de operação — o valor correto é `"OUTROS"` (plural). `OperacaoService.criar` já valida isso e rejeitou o valor errado com uma mensagem clara.
+3. Confirmado que `OperacaoService.criar` já valida `validate_safra_area_link` (o talhão precisa estar de fato vinculado à safra via `Cultivo`/`CultivoArea`) — rejeitou corretamente um talhão de teste que não pertencia à safra, sem eu precisar reimplementar essa checagem.
+
+Depois dos ajustes, teste passou: OS real criada com `status=PLANEJADA`, talhão e descrição corretos, item ficou com `operacao_agricola_id` preenchido, e uma segunda tentativa de gerar OS pro mesmo item foi corretamente rejeitada ("Item já tem uma OS vinculada.").

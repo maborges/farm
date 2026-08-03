@@ -10,6 +10,7 @@ from agricola.checklist.schemas import (
     ChecklistItemConcluidoUpdate, ChecklistItemAdicionar,
     SafraChecklistItemResponse, ChecklistFaseStatus,
     ChecklistItemOverrideRequest, ChecklistItemAtribuirRequest,
+    ChecklistItemGerarOperacaoRequest,
 )
 from agricola.checklist.service import ChecklistTemplateService, SafraChecklistService
 from agricola.safras.models import SAFRA_FASES_ORDEM
@@ -249,6 +250,27 @@ async def override_item_checklist(
     svc = SafraChecklistService(session, tenant_id)
     usuario_id = UUID(user["sub"]) if user.get("sub") else None
     item = await svc.override_manual(item_id, dados.status_verificacao, dados.justificativa, usuario_id)
+    await session.commit()
+    return item
+
+
+@router.post(
+    "/safras/{safra_id}/checklist/itens/{item_id}/gerar-operacao",
+    response_model=SafraChecklistItemResponse,
+    summary="Gera uma OS a partir de um item TAREFA_CAMPO e vincula ao item",
+)
+async def gerar_operacao_item_checklist(
+    safra_id: UUID,
+    item_id: UUID,
+    dados: ChecklistItemGerarOperacaoRequest,
+    session: AsyncSession = Depends(get_session),
+    tenant_id: UUID = Depends(get_tenant_id),
+    _: None = Depends(require_module("A1_PLANEJAMENTO")),
+    user: dict = Depends(require_role(["agronomo", "admin", "operador"])),
+):
+    svc = SafraChecklistService(session, tenant_id)
+    usuario_id = UUID(user["sub"]) if user.get("sub") else None
+    item = await svc.gerar_operacao(item_id, dados.talhao_id, usuario_id)
     await session.commit()
     return item
 

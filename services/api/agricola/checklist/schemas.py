@@ -108,6 +108,10 @@ class ChecklistItemAtribuirRequest(BaseModel):
     prazo_resposta: Optional[date] = None
 
 
+class ChecklistItemGerarOperacaoRequest(BaseModel):
+    talhao_id: UUID
+
+
 class ChecklistFaseStatus(BaseModel):
     fase: str
     total: int

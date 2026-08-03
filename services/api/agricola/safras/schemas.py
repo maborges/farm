@@ -122,6 +122,7 @@ class SafraTalhaoResponse(BaseModel):
     area_id: UUID
     principal: bool
     area_ha: float | None
+    nome: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
