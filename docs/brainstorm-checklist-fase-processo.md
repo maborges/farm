@@ -109,7 +109,7 @@ Dados de teste limpos ao final (nenhum ledger de estoque tocado, produto de test
 ### 8.1 O que ficou fora desta rodada (intencional)
 
 - **Resolução automática de talhão para `TAREFA_CAMPO`**: o método `vincular_operacao(item_id, operacao_agricola_id)` existe no service, mas nada cria a OS automaticamente — quem gerar a OS (fluxo normal de Plano Operacional) precisa vincular manualmente ao item do checklist. Gerar OS "às cegas" sem talhão definido seria inventar uma decisão de UX que não foi discutida.
-- **Notificação por e-mail via motor de recomendações** (seção 3.5/6 do desenho original): não implementada — os campos `responsavel_id`/`prazo_resposta` existem e são gravados, mas nenhuma regra nova foi adicionada a `recommendations/providers/agricultura_provider.py` para notificar automaticamente. Seguir o mesmo padrão de `AGRI_COLHEITA_SEM_ROMANEIO` quando for feito.
+- ~~**Notificação por e-mail via motor de recomendações**~~ — **implementada** (2026-08-03), ver 8.3.
 - ~~**Combobox de produto** no formulário de template~~ — **implementado** (2026-08-03): trocado o campo de texto livre por `ProdutoCombobox` (componente já existente, reutilizado de outras telas do módulo agrícola), com busca por nome.
 
 ### 8.2 UI de "Minhas Pendências" — implementada (2026-08-03)
@@ -122,6 +122,17 @@ Plugado em `app/(dashboard)/dashboard/agricola/page.tsx`, logo abaixo do `PageHe
 
 ## 9. Como retomar
 
-Núcleo funcional completo: avaliação de estoque, assumir, override, veredito de 3 níveis, `avancar_fase` respeitando o novo veredito, e UI de Minhas Pendências/sem responsável — tudo pronto e testado. Pendências restantes, em ordem de prioridade: (1) notificação via recomendações, (2) decidir e implementar a criação de OS a partir de `TAREFA_CAMPO` (depende de resolver a questão do talhão).
+Núcleo funcional completo: avaliação de estoque, assumir, override, veredito de 3 níveis, `avancar_fase` respeitando o novo veredito, UI de Minhas Pendências/sem responsável, combobox de produto e notificação via recomendações — tudo pronto e testado. Única pendência restante: decidir e implementar a criação de OS a partir de `TAREFA_CAMPO` (depende de resolver a questão do talhão).
 
 Validação visual com sessão real no navegador **concluída** (2026-08-03): login real, widget de Minhas Pendências, ação "Assumir" (com atualização em tempo real confirmada) e tela de checklist da safra, tudo testado via Puppeteer + Chromium contra os servidores reais, zero erros de runtime.
+
+### 8.3 Notificação via motor de recomendações — implementada (2026-08-03)
+
+Nova regra `AGRI_CHECKLIST_TODO_PRAZO` em `recommendations/providers/agricultura_provider.py`: gera um candidato por item de checklist com `responsavel_id` atribuído e `tipo_resultado != TAREFA_CAMPO` (que já tem responsável via `operador_id` da OS/tarefa de campo, não precisa desse canal), ainda não concluído.
+
+- Prioridade escalona pelo prazo: `URGENT` se vencido, `HIGH` se vence em até 2 dias, `NORMAL` caso contrário ou sem prazo definido.
+- `notification_recipients=[email do responsável]` no `context` — usa o canal já existente em `recommendations/notification_bridge.py:255`, sem infraestrutura nova.
+- `action_target` aponta para `/agricola/safras/{id}/checklist`.
+- `dedupe_key` por item (`checklist_todo:{item_id}`), diferente do padrão por-safra usado nas outras regras deste provider — necessário porque pode haver múltiplos itens/responsáveis na mesma safra.
+
+**Testado** por integração real: item com prazo vencido há 2 dias gerou candidato com `priority=URGENT` e `notification_recipients=[email correto do responsável]`. Dado de teste removido ao final.

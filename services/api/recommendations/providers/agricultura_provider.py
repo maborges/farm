@@ -171,6 +171,51 @@ class AgriculturaRecommendationProvider(RecommendationProvider):
                 )
             )
 
+        todo_itens = await self._checklist_todo_pendentes(context.tenant_id, safra_id)
+        for item, email in todo_itens:
+            dias_restantes = (item.prazo_resposta - date.today()).days if item.prazo_resposta else None
+            if dias_restantes is not None and dias_restantes < 0:
+                prioridade_todo = RecommendationPriority.URGENT
+            elif dias_restantes is not None and dias_restantes <= 2:
+                prioridade_todo = RecommendationPriority.HIGH
+            else:
+                prioridade_todo = RecommendationPriority.NORMAL
+
+            prazo_label = f" até {item.prazo_resposta.strftime('%d/%m/%Y')}" if item.prazo_resposta else ""
+            candidatos.append(
+                RecommendationCandidate(
+                    tenant_id=context.tenant_id,
+                    unidade_produtiva_id=context.unidade_produtiva_id,
+                    domain=RecommendationDomain.AGRICULTURE,
+                    priority=prioridade_todo,
+                    source_type=RecommendationSourceType.EVENT,
+                    action_type=RecommendationActionType.OPEN_ROUTE,
+                    provider_name=self.provider_name,
+                    rule_code="AGRI_CHECKLIST_TODO_PRAZO",
+                    scope_type="SAFRA_CHECKLIST_ITEM",
+                    scope_id=str(item.id),
+                    title="Pendência de checklist atribuída a você",
+                    summary=f'"{item.titulo}" precisa da sua ação{prazo_label}.',
+                    rationale="Item de checklist sem tarefa de campo por trás depende de acompanhamento manual do responsável atribuído.",
+                    dedupe_key=f"agricultura:{context.tenant_id}:checklist_todo:{item.id}",
+                    source_signal_ids=signal_ids,
+                    confidence=Decimal("0.90"),
+                    action_label="Abrir checklist",
+                    action_target=self._checklist_target(safra_id),
+                    context={
+                        "source": "SafraChecklistItem",
+                        "item_id": str(item.id),
+                        "fase": item.fase,
+                        "tipo_resultado": item.tipo_resultado,
+                        "prazo_resposta": item.prazo_resposta.isoformat() if item.prazo_resposta else None,
+                        "dias_restantes": dias_restantes,
+                        "notification_recipients": [email] if email else [],
+                        "safra_id": str(safra_id),
+                        "generated_at": context.generated_at.isoformat(),
+                    },
+                )
+            )
+
         if candidatos:
             candidatos.append(
                 self._candidate(
@@ -282,6 +327,27 @@ class AgriculturaRecommendationProvider(RecommendationProvider):
     async def _colheitas_sem_romaneio(self, tenant_id: UUID, safra_id: UUID) -> list:
         return await RomaneioService(self.session, tenant_id).listar_pendentes_de_romaneio(safra_id=safra_id)
 
+    async def _checklist_todo_pendentes(self, tenant_id: UUID, safra_id: UUID) -> list[tuple[object, str | None]]:
+        """Itens de checklist com responsável atribuído (tipo_resultado !=
+        TAREFA_CAMPO, que já tem responsável via operador_id da OS/tarefa de
+        campo) ainda não concluídos — notificados por e-mail direcionado."""
+        from agricola.checklist.models import SafraChecklistItem
+        from core.models.auth import Usuario
+
+        stmt = (
+            select(SafraChecklistItem, Usuario.email)
+            .join(Usuario, Usuario.id == SafraChecklistItem.responsavel_id)
+            .where(
+                SafraChecklistItem.tenant_id == tenant_id,
+                SafraChecklistItem.safra_id == safra_id,
+                SafraChecklistItem.responsavel_id.is_not(None),
+                SafraChecklistItem.tipo_resultado != "TAREFA_CAMPO",
+                SafraChecklistItem.concluido == False,  # noqa: E712
+                SafraChecklistItem.cancelado == False,  # noqa: E712
+            )
+        )
+        return list((await self.session.execute(stmt)).all())
+
     async def _budget_gap(self, context: OperationalContext, safra_id: UUID) -> dict[str, object] | None:
         resumo = await CustosService(self.session, context.tenant_id).get_resumo_safra(safra_id)
         if resumo.orcamento_previsto_total is None or resumo.desvio_orcamento_pct is None:
@@ -345,6 +411,10 @@ class AgriculturaRecommendationProvider(RecommendationProvider):
     @staticmethod
     def _romaneios_target(safra_id: UUID) -> str:
         return f"/agricola/safras/{safra_id}/romaneios"
+
+    @staticmethod
+    def _checklist_target(safra_id: UUID) -> str:
+        return f"/agricola/safras/{safra_id}/checklist"
 
     @staticmethod
     def _dedupe_key(context: OperationalContext, safra_id: UUID, rule_code: str) -> str:
