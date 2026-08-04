@@ -536,7 +536,7 @@ class DREAgricolaV1Service(BaseService[Safra]):
                 severidade="WARNING_LEVE",
                 mensagem="A receita comercializada foi considerada, mas o saldo estimado do romaneio foi excluído por não haver quantidade produzida rastreável.",
                 origem="dre_agricola_v1",
-                amostras=[str(romaneio.id)],
+                amostras=[romaneio.numero_romaneio or f"Romaneio {str(romaneio.id)[:8]}"],
                 meta={"production_unit_id": str(production_unit_id)},
             )
         saldo_percentual = max(quantidade_produzida - quantidade_vendida, 0.0) / quantidade_produzida
@@ -912,7 +912,7 @@ class DREAgricolaV1Service(BaseService[Safra]):
                     codigo="DESPESA_SUPRIMIDA_POR_PRECEDENCIA",
                     titulo="Despesa excluída por camada econômica superior",
                     severidade="WARNING_LEVE",
-                    mensagem="Algumas despesas foram excluídas da DRE porque já estavam representadas por CostAllocation ou outra camada superior.",
+                    mensagem="Algumas despesas foram excluídas da DRE porque já estavam representadas por apropriação de custo (rateio) ou outra camada econômica superior.",
                     origem="dre_agricola_v1",
                     amostras=[str(despesas_excluidas)],
                     meta={"quantidade_excluida": despesas_excluidas},
@@ -936,9 +936,14 @@ class DREAgricolaV1Service(BaseService[Safra]):
                             codigo="MOVIMENTO_COM_CUSTO_SEM_ALLOCATION",
                             titulo="Movimento de estoque com custo sem apropriação",
                             severidade="RISCO_ECONOMICO",
-                            mensagem="Há movimento de estoque com custo e sem CostAllocation na unidade filtrada.",
+                            mensagem="Há movimento de estoque com custo e sem apropriação (rateio de custo) na unidade filtrada.",
                             origem="estoque_movimentos",
-                            amostras=[str(m.id) for m in sem_alloc[:5]],
+                            amostras=[
+                                f"Movimento {m.tipo_movimento}"
+                                f"{' — lote ' + m.numero_lote if m.numero_lote else ''}"
+                                f" ({m.data_movimento.strftime('%d/%m/%Y')}) · custo R$ {float(m.custo_total or 0):.2f}"
+                                for m in sem_alloc[:5]
+                            ],
                             meta={"quantidade": len(sem_alloc)},
                             )
                     )

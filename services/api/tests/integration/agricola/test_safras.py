@@ -86,6 +86,38 @@ async def test_criar_safra_dados_validos(client, session, headers_agricola):
     assert "ano_safra" in data
 
 
+@pytest.mark.asyncio
+async def test_listar_talhoes_da_safra_inclui_areas_dos_cultivos(client, session, headers_agricola):
+    """O seletor de romaneio deve receber talhões de safras do fluxo atual."""
+    await _garantir_talhao(session)
+
+    response = await client.post(
+        "/api/v1/safras/",
+        json={
+            "ano_safra": f"2{uuid.uuid4().int % 900 + 100}",
+            "cultivos": [{
+                "cultura": "SOJA",
+                "areas": [{"area_id": str(TALHAO_ID), "area_ha": 50.0}],
+            }],
+        },
+        headers=headers_agricola,
+    )
+    assert response.status_code == 201, response.text
+
+    talhoes_response = await client.get(
+        f"/api/v1/safras/{response.json()['id']}/talhoes",
+        headers=headers_agricola,
+    )
+    assert talhoes_response.status_code == 200, talhoes_response.text
+    talhoes = talhoes_response.json()
+    assert len(talhoes) == 1
+    assert talhoes[0]["safra_id"] == response.json()["id"]
+    assert talhoes[0]["area_id"] == str(TALHAO_ID)
+    assert talhoes[0]["area_ha"] == 50.0
+    assert talhoes[0]["area_total_ha"] == 100.0
+    assert talhoes[0]["nome"] == "Talhão Integração"
+
+
 # ---------------------------------------------------------------------------
 # AGR-SAF-02: Safra com nome duplicado (mesmo talhão + ano + cultura)
 # ---------------------------------------------------------------------------

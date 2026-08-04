@@ -123,6 +123,7 @@ class SafraTalhaoResponse(BaseModel):
     principal: bool
     area_ha: float | None
     nome: str | None = None
+    area_total_ha: float | None = None
 
     model_config = ConfigDict(from_attributes=True)
 

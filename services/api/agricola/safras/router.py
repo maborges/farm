@@ -203,19 +203,42 @@ async def listar_talhoes_safra(
 ):
     """Retorna todos os talhões associados à safra."""
     svc = SafraService(session, tenant_id)
-    talhoes = await svc.listar_talhoes(id)
+    talhoes_legado = await svc.listar_talhoes(id)
+    areas_cultivos = await svc.listar_areas_cultivos(id)
+
+    # Safras novas vinculam talhões aos seus cultivos; as antigas usam safra_talhoes.
+    # Mantemos um item por área para o seletor e priorizamos o vínculo legado quando ambos existem.
+    talhoes_por_area = {talhao.area_id: talhao for talhao in talhoes_legado}
+    for area_cultivo in areas_cultivos:
+        talhoes_por_area.setdefault(area_cultivo.area_id, area_cultivo)
 
     from core.cadastros.propriedades.models import AreaRural
     from sqlalchemy import select as _select
-    area_ids = [t.area_id for t in talhoes]
-    nomes: dict = {}
+    area_ids = list(talhoes_por_area)
+    dados_areas: dict = {}
     if area_ids:
-        stmt_nomes = _select(AreaRural.id, AreaRural.nome).where(AreaRural.id.in_(area_ids))
-        nomes = dict((await session.execute(stmt_nomes)).all())
-    for t in talhoes:
-        t.nome = nomes.get(t.area_id)
+        stmt_areas = _select(
+            AreaRural.id,
+            AreaRural.nome,
+            AreaRural.area_hectares,
+        ).where(AreaRural.id.in_(area_ids))
+        dados_areas = {
+            area_id: (nome, area_hectares)
+            for area_id, nome, area_hectares in (await session.execute(stmt_areas)).all()
+        }
 
-    return [SafraTalhaoResponse.model_validate(t) for t in talhoes]
+    return [
+        SafraTalhaoResponse(
+            id=talhao.id,
+            safra_id=id,
+            area_id=area_id,
+            principal=getattr(talhao, "principal", False),
+            area_ha=talhao.area_ha,
+            nome=dados_areas.get(area_id, (None, None))[0],
+            area_total_ha=dados_areas.get(area_id, (None, None))[1],
+        )
+        for area_id, talhao in talhoes_por_area.items()
+    ]
 
 
 @router.put("/{id}/talhoes", response_model=list[SafraTalhaoResponse])

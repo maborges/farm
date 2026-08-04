@@ -105,3 +105,4 @@ async def excluir_romaneio(
 ):
     svc = RomaneioService(session, tenant_id)
     await svc.hard_delete(id)
+    await session.commit()

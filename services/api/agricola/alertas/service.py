@@ -1231,7 +1231,7 @@ class AlertasAgricolasService:
             origem="estoque_movimentos",
             rows=rows,
             mensagem=(
-                f"{len(rows)} movimento(s) de estoque possuem custo e reflexo financeiro, mas sem CostAllocation."
+                f"{len(rows)} movimento(s) de estoque possuem custo e reflexo financeiro, mas sem apropriação de custo (rateio)."
             ),
             meta={
                 "origens": sorted({row.origem for row in rows if row.origem}),
@@ -1242,6 +1242,9 @@ class AlertasAgricolasService:
         op_stmt = (
             select(
                 OperacaoAgricola.id.label("operacao_id"),
+                OperacaoAgricola.tipo.label("operacao_tipo"),
+                OperacaoAgricola.descricao.label("operacao_descricao"),
+                OperacaoAgricola.data_realizada.label("operacao_data"),
                 OperacaoAgricola.custo_total.label("valor_operacional"),
                 func.coalesce(func.sum(CostAllocation.amount), 0).label("valor_apropriado"),
                 (OperacaoAgricola.custo_total - func.coalesce(func.sum(CostAllocation.amount), 0)).label("diferenca"),
@@ -1261,13 +1264,22 @@ class AlertasAgricolasService:
                 OperacaoAgricola.custo_total > 0,
                 OperacaoAgricola.status == "REALIZADA",
             )
-            .group_by(OperacaoAgricola.id, OperacaoAgricola.custo_total)
+            .group_by(
+                OperacaoAgricola.id,
+                OperacaoAgricola.tipo,
+                OperacaoAgricola.descricao,
+                OperacaoAgricola.data_realizada,
+                OperacaoAgricola.custo_total,
+            )
             .having(func.abs(func.coalesce(func.sum(CostAllocation.amount), 0) - OperacaoAgricola.custo_total) > 0.01)
         )
 
         mov_stmt = (
             select(
                 EstoqueMovimento.id.label("movimento_id"),
+                EstoqueMovimento.tipo_movimento.label("movimento_tipo"),
+                EstoqueMovimento.numero_lote.label("movimento_numero_lote"),
+                EstoqueMovimento.data_movimento.label("movimento_data"),
                 EstoqueMovimento.custo_total.label("valor_operacional"),
                 func.coalesce(func.sum(CostAllocation.amount), 0).label("valor_apropriado"),
                 (EstoqueMovimento.custo_total - func.coalesce(func.sum(CostAllocation.amount), 0)).label("diferenca"),
@@ -1286,7 +1298,13 @@ class AlertasAgricolasService:
                 EstoqueMovimento.custo_total > 0,
                 EstoqueMovimento.origem.in_(["COMPRA", "ORDEM_SERVICO", "OPERACAO_EXECUCAO"]),
             )
-            .group_by(EstoqueMovimento.id, EstoqueMovimento.custo_total)
+            .group_by(
+                EstoqueMovimento.id,
+                EstoqueMovimento.tipo_movimento,
+                EstoqueMovimento.numero_lote,
+                EstoqueMovimento.data_movimento,
+                EstoqueMovimento.custo_total,
+            )
             .having(func.abs(func.coalesce(func.sum(CostAllocation.amount), 0) - EstoqueMovimento.custo_total) > 0.01)
         )
 
@@ -1307,19 +1325,32 @@ class AlertasAgricolasService:
         else:
             severidade = "RISCO_ECONOMICO"
 
-        return self._build_finding(
+        amostras = [
+            f"OS {row.operacao_tipo} — {row.operacao_descricao} ({row.operacao_data.strftime('%d/%m/%Y')}) · diferença R$ {abs(float(row.diferenca or 0)):.2f}"
+            for row in op_rows[:5]
+        ] + [
+            f"Movimento {row.movimento_tipo}"
+            f"{' — lote ' + row.movimento_numero_lote if row.movimento_numero_lote else ''}"
+            f" ({row.movimento_data.strftime('%d/%m/%Y')}) · diferença R$ {abs(float(row.diferenca or 0)):.2f}"
+            for row in mov_rows[:5]
+        ]
+
+        return self.build_finding(
             codigo="DIVERGENCIA_VALOR_OPERACIONAL_APROPRIADO",
             titulo="Divergência entre custo operacional e valor apropriado",
             severidade=severidade,
             origem="reconciliacao_economica",
-            rows=[*op_rows, *mov_rows],
+            total=len(op_rows) + len(mov_rows),
             mensagem=(
                 f"{len(op_rows) + len(mov_rows)} registro(s) apresentam diferença relevante entre custo operacional e valor apropriado."
             ),
+            amostras=amostras,
             meta={
                 "operacoes_divergentes": len(op_rows),
                 "movimentos_divergentes": len(mov_rows),
                 "maior_diferenca": round(maior_diferenca, 2),
+                "operacao_ids": [str(row.operacao_id) for row in op_rows[:10]],
+                "movimento_ids": [str(row.movimento_id) for row in mov_rows[:10]],
             },
         )
 
@@ -1355,6 +1386,11 @@ class AlertasAgricolasService:
             for key in ("id", "source", "source_id"):
                 if key in mapping:
                     return str(mapping[key])
+            for key, value in mapping.items():
+                if key == "id" or key.endswith("_id"):
+                    return str(value)
+            if mapping:
+                return str(next(iter(mapping.values())))
         return str(row)
 
     def _classificar_tipo_relatorio(self, codigo: str) -> str:

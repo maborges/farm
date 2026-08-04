@@ -391,6 +391,19 @@ class SafraService(BaseService[Safra]):
         )
         return list((await self.session.execute(stmt)).scalars().all())
 
+    async def listar_areas_cultivos(self, safra_id: UUID) -> list[CultivoArea]:
+        """Retorna os talhões vinculados aos cultivos da safra atual."""
+        stmt = (
+            select(CultivoArea)
+            .join(Cultivo, Cultivo.id == CultivoArea.cultivo_id)
+            .where(
+                Cultivo.safra_id == safra_id,
+                Cultivo.tenant_id == self.tenant_id,
+                CultivoArea.tenant_id == self.tenant_id,
+            )
+        )
+        return list((await self.session.execute(stmt)).scalars().all())
+
     async def sincronizar_talhoes(
         self,
         safra_id: UUID,
