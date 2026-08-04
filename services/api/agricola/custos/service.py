@@ -16,7 +16,7 @@ class CustosService:
         self.session = session
         self.tenant_id = tenant_id
 
-    async def get_resumo_safra(self, safra_id: UUID) -> ReumoCustosSafraResponse:
+    async def get_resumo_safra(self, safra_id: UUID, talhao_id: UUID | None = None) -> ReumoCustosSafraResponse:
         # Busca a Safra para ter a area
         stmt_safra = select(Safra).filter_by(id=safra_id, tenant_id=self.tenant_id)
         result_safra = await self.session.execute(stmt_safra)
@@ -25,19 +25,23 @@ class CustosService:
         if not safra:
             raise BusinessRuleError("Safra não encontrada.")
             
-        area_pu = (await self.session.execute(
-            select(func.coalesce(func.sum(ProductionUnit.area_ha), 0)).where(
-                ProductionUnit.tenant_id == self.tenant_id,
-                ProductionUnit.safra_id == safra_id,
-                ProductionUnit.status != "CANCELADA",
-            )
-        )).scalar_one()
-        area_talhoes = (await self.session.execute(
-            select(func.coalesce(func.sum(SafraTalhao.area_ha), 0)).where(
-                SafraTalhao.tenant_id == self.tenant_id,
-                SafraTalhao.safra_id == safra_id,
-            )
-        )).scalar_one()
+        stmt_area_pu = select(func.coalesce(func.sum(ProductionUnit.area_ha), 0)).where(
+            ProductionUnit.tenant_id == self.tenant_id,
+            ProductionUnit.safra_id == safra_id,
+            ProductionUnit.status != "CANCELADA",
+        )
+        if talhao_id:
+            stmt_area_pu = stmt_area_pu.where(ProductionUnit.area_id == talhao_id)
+        area_pu = (await self.session.execute(stmt_area_pu)).scalar_one()
+
+        area_talhoes = 0
+        if not talhao_id:
+            area_talhoes = (await self.session.execute(
+                select(func.coalesce(func.sum(SafraTalhao.area_ha), 0)).where(
+                    SafraTalhao.tenant_id == self.tenant_id,
+                    SafraTalhao.safra_id == safra_id,
+                )
+            )).scalar_one()
         area_ha = float(area_pu or area_talhoes or 1.0)
         
         breakdowns = []
@@ -57,6 +61,8 @@ class CustosService:
             )
             .group_by(CostAllocation.cost_category)
         )
+        if talhao_id:
+            stmt_alloc = stmt_alloc.where(ProductionUnit.area_id == talhao_id)
         items = (await self.session.execute(stmt_alloc)).all()
 
         for row in items:

@@ -13,7 +13,7 @@ class AgricolaTalhaoService:
     def __init__(self, session: AsyncSession, tenant_id: uuid.UUID):
         self.session = session
         self.tenant_id = tenant_id
-        self.area_svc = AreaRuralService(session, tenant_id)
+        self.area_svc = AreaRuralService(AreaRural, session, tenant_id)
 
     async def listar_talhoes_com_cultivo(self, unidade_produtiva_id: uuid.UUID | None = None) -> List[dict]:
         """
@@ -33,7 +33,7 @@ class AgricolaTalhaoService:
             # Regra: Cultivo cuja área vinculada é este talhão, status não cancelado/encerrado,
             # e preferencialmente da safra vigente.
             stmt = (
-                select(Cultivo, Safra.nome.label("safra_nome"))
+                select(Cultivo, Safra.ano_safra.label("safra_nome"))
                 .join(CultivoArea, Cultivo.id == CultivoArea.cultivo_id)
                 .join(Safra, Cultivo.safra_id == Safra.id)
                 .where(

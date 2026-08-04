@@ -80,6 +80,31 @@ class ComercializacaoService:
         await self.session.refresh(obj)
         return obj
 
+    async def get_receita_por_safra(
+        self,
+        safra_id: uuid.UUID,
+        talhao_id: uuid.UUID | None = None,
+    ) -> float:
+        """Soma valor_total das comercializações originadas de produtos colhidos
+        da safra (e opcionalmente talhão) informados. Só considera vendas
+        efetivamente confirmadas — RASCUNHO e CANCELADO não contam como receita real."""
+        from agricola.colheita.models import ProdutoColhido
+
+        stmt = (
+            select(ComercializacaoCommodity.valor_total)
+            .join(ProdutoColhido, ProdutoColhido.id == ComercializacaoCommodity.produto_colhido_id)
+            .where(
+                ComercializacaoCommodity.tenant_id == self.tenant_id,
+                ComercializacaoCommodity.status.notin_(["RASCUNHO", "CANCELADO"]),
+                ProdutoColhido.safra_id == safra_id,
+            )
+        )
+        if talhao_id:
+            stmt = stmt.where(ProdutoColhido.talhao_id == talhao_id)
+
+        valores = (await self.session.execute(stmt)).scalars().all()
+        return float(sum(valores))
+
     async def obter(self, comercializacao_id: uuid.UUID) -> ComercializacaoCommodity:
         stmt = select(ComercializacaoCommodity).where(
             ComercializacaoCommodity.id == comercializacao_id,
