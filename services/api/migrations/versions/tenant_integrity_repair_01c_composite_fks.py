@@ -9,7 +9,7 @@ from alembic import op
 revision = "tenant_integrity_repair_01c"
 down_revision = "265b28773962"
 branch_labels = None
-depends_on = None
+depends_on = ("20260716_config_up_security_freeze",)
 
 
 def upgrade() -> None:
