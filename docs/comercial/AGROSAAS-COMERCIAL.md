@@ -76,6 +76,29 @@ Tudo culmina na **DRE Agrícola**. Um painel executivo direto, isento de imposto
 
 ---
 
+## 9.5. Integração Operacional: do Planejamento ao Almoxarifado
+
+Um dos maiores diferenciais do AgroSaaS é fechar o ciclo entre o que foi **planejado** e o que foi **fisicamente retirado e usado** no campo — eliminando a maior fonte de perda silenciosa de insumos em fazendas: a divergência entre "o que saiu do papel" e "o que realmente saiu do almoxarifado".
+
+### A. Requisição de Material (Picking List Automático)
+Ao confirmar uma Ordem de Serviço (OS) de campo, o sistema gera automaticamente uma **Requisição de Material** — uma lista de separação para o almoxarifado, já com os insumos e quantidades previstas para aquela tarefa. O responsável pelo estoque separa fisicamente os itens e o operador de campo confere a quantidade recebida no ato da retirada, assinando digitalmente (senha na web ou PIN no aplicativo de campo). **É nesse momento de conferência física — e não na simples criação da OS — que o estoque é efetivamente baixado**, pela quantidade realmente retirada. Isso garante que o saldo de estoque sempre reflita a realidade do almoxarifado, não uma previsão de planejamento.
+
+### B. Devolução de Sobra de Insumos
+Quando o operador usa menos insumo do que foi retirado (ex.: sobrou meio saco de adubo), ele registra a devolução parcial diretamente no aplicativo, com o mesmo controle de assinatura eletrônica. O sistema impede devoluções inconsistentes (não é possível devolver mais do que foi retirado), garantindo que o saldo do almoxarifado e o custo real lançado na Safra sejam sempre exatos — sem sobra "perdida" ou reaproveitada sem controle.
+
+### C. Ferramentas e Equipamentos de Uso Compartilhado
+Ferramentas de menor valor e uso frequente (enxadas, tesouras de poda, pulverizadores costais) seguem o **mesmo fluxo de retirada e devolução por quantidade** dos insumos, dando ao gestor visibilidade de quantas unidades estão em campo e com quem, a qualquer momento — sem depender de planilha ou controle informal. *(Controle de check-out/check-in de maquinário pesado individual, como tratores e colhedoras, está no roadmap de evolução do módulo de Frota.)*
+
+### D. Compras e Reposição de Estoque
+O módulo de Compras cobre cotação com múltiplos fornecedores, emissão de pedido de compra e recebimento no almoxarifado, dando ao produtor comparação de preço e prazo antes de repor o estoque. *(A geração automática de sugestão de compra a partir do planejamento consolidado de uma safra inteira é a próxima etapa do roadmap de Planejamento Operacional.)*
+
+### Benefício para o produtor
+- Zero dupla contagem: o insumo só sai do estoque quando fisicamente confirmado, nunca duas vezes pela mesma tarefa.
+- Rastreabilidade de ponta a ponta: cada saco de adubo ou litro de defensivo tem nome de quem retirou, quando e para qual talhão.
+- Redução de perdas: sobras retornam ao estoque de forma auditável, ao invés de se perderem ou serem usadas sem registro.
+
+---
+
 ## 10. Aderência ao Projeto Raízes (Sustentabilidade e Rastreabilidade)
 A plataforma AgroSaaS foi arquitetada não apenas para gestão financeira, mas para se conectar perfeitamente a iniciativas de valor agregado, como o **Projeto Raízes** (rastreabilidade e originação do grão à xícara):
 - **Conexão e Storytelling de Origem:** O sistema é capaz de exportar um *Passaporte de Rastreabilidade* comercial contendo os polígonos (desenho no mapa) dos talhões, cruzando com os registros sanitários. Isso permite que um QR Code seja impresso na saca de café, garantindo que o consumidor final conheça a história real daquela fazenda (storytelling) e assegurando que não houve desmatamento nas áreas produzidas (Conformidade EUDR - Regulação Anti-Desmatamento Europeia).
