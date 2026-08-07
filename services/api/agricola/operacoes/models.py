@@ -96,7 +96,7 @@ class OperacaoExecucao(Base):
     created_at: Mapped[datetime] = mapped_column(server_default=text("(CURRENT_TIMESTAMP)"))
     updated_at: Mapped[datetime] = mapped_column(server_default=text("(CURRENT_TIMESTAMP)"), onupdate=datetime.utcnow)
 
-    operacao: Mapped["OperacaoAgricola"] = relationship(back_populates="execucoes")
+    operacao: Mapped["OperacaoAgricola"] = relationship(back_populates="execucoes", lazy="noload")
 
 class InsumoOperacao(Base):
     __tablename__ = "insumos_operacao"
@@ -121,4 +121,4 @@ class InsumoOperacao(Base):
     data_reentrada: Mapped[date | None] = mapped_column(Date)
     epi_necessario: Mapped[list[str] | None] = mapped_column(JSON)
 
-    operacao: Mapped["OperacaoAgricola"] = relationship(back_populates="insumos")
+    operacao: Mapped["OperacaoAgricola"] = relationship(back_populates="insumos", lazy="noload")

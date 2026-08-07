@@ -437,58 +437,72 @@ class LoteComercialService(BaseService[CadernoLoteComercial]):
         data_ultima_calibracao = None
         conformidade_sanitaria = None
 
+        operacao_ids = {ev.operacao_id for ev in events if ev.operacao_id}
         operacoes_com_maquina = []
-        for ev in events:
-            if ev.operacao_id:
-                from agricola.operacoes.models import OperacaoAgricola
-                op = await self.session.get(OperacaoAgricola, ev.operacao_id)
-                if op and op.maquina_id:
-                    operacoes_com_maquina.append(op)
+        if operacao_ids:
+            from agricola.operacoes.models import OperacaoAgricola
+
+            ops_stmt = select(OperacaoAgricola).where(OperacaoAgricola.id.in_(operacao_ids))
+            operacoes_com_maquina = [
+                op for op in (await self.session.execute(ops_stmt)).scalars().all()
+                if op.maquina_id
+            ]
 
         if operacoes_com_maquina:
             from core.cadastros.equipamentos.models import Equipamento, EquipamentoCalibracao
             from operacional.models.checklist import ChecklistRealizado, ChecklistModelo
-            from sqlalchemy import Date, func
 
             equipamento_calibrado = False
             conformidade_sanitaria = False
 
             maquinas_ids = {op.maquina_id for op in operacoes_com_maquina}
-            for mq_id in maquinas_ids:
-                mq = await self.session.get(Equipamento, mq_id)
-                if mq and mq.tipo == "PULVERIZADOR":
-                    # Busca última calibração da máquina
-                    calib_stmt = (
-                        select(EquipamentoCalibracao)
-                        .where(
-                            EquipamentoCalibracao.equipamento_id == mq_id,
-                            EquipamentoCalibracao.tenant_id == self.tenant_id
-                        )
-                        .order_by(EquipamentoCalibracao.data_calibracao.desc())
-                        .limit(1)
+
+            equipamentos_stmt = select(Equipamento).where(Equipamento.id.in_(maquinas_ids))
+            pulverizadores_ids = {
+                eq.id for eq in (await self.session.execute(equipamentos_stmt)).scalars().all()
+                if eq.tipo == "PULVERIZADOR"
+            }
+
+            if pulverizadores_ids:
+                # Última calibração de cada pulverizador (uma query para todos)
+                calib_stmt = (
+                    select(EquipamentoCalibracao)
+                    .where(
+                        EquipamentoCalibracao.equipamento_id.in_(pulverizadores_ids),
+                        EquipamentoCalibracao.tenant_id == self.tenant_id,
                     )
-                    last_calib = (await self.session.execute(calib_stmt)).scalars().first()
+                    .order_by(EquipamentoCalibracao.equipamento_id, EquipamentoCalibracao.data_calibracao.desc())
+                )
+                ultima_calibracao_por_maquina: dict = {}
+                for calib in (await self.session.execute(calib_stmt)).scalars().all():
+                    ultima_calibracao_por_maquina.setdefault(calib.equipamento_id, calib)
+
+                # Checklists sanitários aprovados dos equipamentos (uma query para todos)
+                checklists_stmt = (
+                    select(ChecklistRealizado)
+                    .join(ChecklistModelo)
+                    .where(
+                        ChecklistRealizado.tenant_id == self.tenant_id,
+                        ChecklistRealizado.equipamento_id.in_(pulverizadores_ids),
+                        ChecklistRealizado.liberado_para_uso == True,
+                        (ChecklistModelo.nome.ilike("%sanit%") | ChecklistModelo.nome.ilike("%limpez%") | ChecklistModelo.nome.ilike("%higien%"))
+                    )
+                )
+                checklists_aprovados_set = {
+                    (chk.equipamento_id, chk.data_hora.date() if isinstance(chk.data_hora, datetime) else chk.data_hora)
+                    for chk in (await self.session.execute(checklists_stmt)).scalars().all()
+                }
+
+                for mq_id in pulverizadores_ids:
+                    last_calib = ultima_calibracao_por_maquina.get(mq_id)
                     if last_calib:
                         equipamento_calibrado = True
                         data_ultima_calibracao = last_calib.data_calibracao.isoformat()
 
-                    # Verifica se houve checklist sanitário aprovado nos dias das operações
                     checklists_aprovados = True
                     for op in operacoes_com_maquina:
                         if op.maquina_id == mq_id:
-                            chk_stmt = (
-                                select(ChecklistRealizado)
-                                .join(ChecklistModelo)
-                                .where(
-                                    ChecklistRealizado.tenant_id == self.tenant_id,
-                                    ChecklistRealizado.equipamento_id == mq_id,
-                                    ChecklistRealizado.liberado_para_uso == True,
-                                    func.cast(ChecklistRealizado.data_hora, Date) == op.data_realizada,
-                                    (ChecklistModelo.nome.ilike("%sanit%") | ChecklistModelo.nome.ilike("%limpez%") | ChecklistModelo.nome.ilike("%higien%"))
-                                )
-                            )
-                            chk = (await self.session.execute(chk_stmt)).scalars().first()
-                            if not chk:
+                            if (mq_id, op.data_realizada) not in checklists_aprovados_set:
                                 checklists_aprovados = False
                                 break
                     if checklists_aprovados:

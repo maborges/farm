@@ -426,6 +426,15 @@ class SafraService(BaseService[Safra]):
         )
         await self.session.flush()
 
+        areas_stmt = select(AreaRural).where(
+            AreaRural.id.in_(talhao_ids),
+            AreaRural.tenant_id == self.tenant_id,
+        )
+        areas_por_id = {
+            area.id: area
+            for area in (await self.session.execute(areas_stmt)).scalars().all()
+        }
+
         novos = []
         for tid in talhao_ids:
             # Procura area_ha com chaves como str (UUID) ou UUID direto
@@ -435,12 +444,7 @@ class SafraService(BaseService[Safra]):
 
             # Validar se area_ha foi informado
             if area_ha_valor is not None:
-                # Buscar área cadastrada do talhão
-                area_stmt = select(AreaRural).where(
-                    AreaRural.id == tid,
-                    AreaRural.tenant_id == self.tenant_id,
-                )
-                area = (await self.session.execute(area_stmt)).scalars().first()
+                area = areas_por_id.get(tid)
 
                 if not area:
                     raise BusinessRuleError(f"Talhão {tid} não encontrado.")
