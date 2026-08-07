@@ -2105,13 +2105,15 @@ class ComprasService:
                 select(RecebimentoParcial).where(RecebimentoParcial.pedido_id == pedido.id)
             )
         ).scalars().all()
-        for rec in recebimentos:
+        recebimento_ids = [rec.id for rec in recebimentos]
+
+        if recebimento_ids:
             despesas = (
                 await self.session.execute(
                     select(Despesa).where(
                         Despesa.tenant_id == self.tenant_id,
                         Despesa.origem_tipo == "COMPRA",
-                        Despesa.origem_id == rec.id,
+                        Despesa.origem_id.in_(recebimento_ids),
                     )
                 )
             ).scalars().all()
@@ -2121,11 +2123,13 @@ class ComprasService:
 
             itens_recebimento = (
                 await self.session.execute(
-                    select(ItemRecebimento).where(ItemRecebimento.recebimento_id == rec.id)
+                    select(ItemRecebimento).where(ItemRecebimento.recebimento_id.in_(recebimento_ids))
                 )
             ).scalars().all()
             for item_rec in itens_recebimento:
                 await self.session.delete(item_rec)
+
+        for rec in recebimentos:
             await self.session.delete(rec)
 
         itens_pedido = (

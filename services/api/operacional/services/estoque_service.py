@@ -1320,6 +1320,49 @@ class EstoqueService(BaseService[SaldoEstoque]):
         await self._enriquecer_nomes_requisicao(req)
         return req
 
+    async def _carregar_itens_requisicoes_em_lote(
+        self, requisicoes: list[RequisicaoMaterial]
+    ) -> list[RequisicaoMaterial]:
+        """Versão em lote de `_carregar_itens_requisicao` — evita N+1 ao popular
+        itens/nomes de produto/nomes de usuário para uma lista de requisições."""
+        if not requisicoes:
+            return requisicoes
+
+        req_ids = [req.id for req in requisicoes]
+        stmt_itens = select(ItemRequisicao).where(ItemRequisicao.requisicao_id.in_(req_ids))
+        todos_itens = list((await self.session.execute(stmt_itens)).scalars().all())
+
+        produto_ids = {item.produto_id for item in todos_itens}
+        produtos: dict[uuid.UUID, ProdutoCatalogo] = {}
+        if produto_ids:
+            stmt_p = select(ProdutoCatalogo).where(ProdutoCatalogo.id.in_(produto_ids))
+            produtos = {p.id: p for p in (await self.session.execute(stmt_p)).scalars().all()}
+
+        itens_por_requisicao: dict[uuid.UUID, list[ItemRequisicao]] = {}
+        for item in todos_itens:
+            produto = produtos.get(item.produto_id)
+            item.produto_nome = produto.nome if produto else None
+            item.unidade_medida = produto.unidade_medida if produto else None
+            itens_por_requisicao.setdefault(item.requisicao_id, []).append(item)
+
+        usuario_ids = {
+            uid
+            for req in requisicoes
+            for uid in (req.solicitante_id, req.aprovador_id)
+            if uid
+        }
+        nomes_usuario: dict[uuid.UUID, str] = {}
+        if usuario_ids:
+            stmt_u = select(Usuario.id, Usuario.nome_completo).where(Usuario.id.in_(usuario_ids))
+            nomes_usuario = dict((await self.session.execute(stmt_u)).all())
+
+        for req in requisicoes:
+            req.itens = itens_por_requisicao.get(req.id, [])
+            req.solicitante_nome = nomes_usuario.get(req.solicitante_id)
+            req.aprovador_nome = nomes_usuario.get(req.aprovador_id) if req.aprovador_id else None
+
+        return requisicoes
+
     async def criar_requisicao(self, data: RequisicaoCreate, solicitante_id: UUID) -> RequisicaoMaterial:
         numero = await SequencialService(self.session, self.tenant_id).proximo_numero("estoque_requisicao")
         req = RequisicaoMaterial(
@@ -1410,9 +1453,7 @@ class EstoqueService(BaseService[SaldoEstoque]):
             RequisicaoMaterial.operacao_agricola_id == operacao_agricola_id,
         ).order_by(RequisicaoMaterial.data_solicitacao.asc())
         requisicoes = list((await self.session.execute(stmt)).scalars().all())
-        for req in requisicoes:
-            await self._carregar_itens_requisicao(req)
-        return requisicoes
+        return await self._carregar_itens_requisicoes_em_lote(requisicoes)
 
     async def listar_requisicoes(
         self,
@@ -1429,9 +1470,7 @@ class EstoqueService(BaseService[SaldoEstoque]):
             stmt = stmt.where(RequisicaoMaterial.solicitante_id == solicitante_id)
         stmt = stmt.order_by(RequisicaoMaterial.data_solicitacao.desc())
         requisicoes = list((await self.session.execute(stmt)).scalars().all())
-        for req in requisicoes:
-            await self._carregar_itens_requisicao(req)
-        return requisicoes
+        return await self._carregar_itens_requisicoes_em_lote(requisicoes)
 
     async def aprovar_requisicao(
         self, req_id: UUID, data: RequisicaoAprovarRequest, aprovador_id: UUID
