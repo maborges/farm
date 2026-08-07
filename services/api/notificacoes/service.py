@@ -7,8 +7,8 @@ from fastapi import WebSocket
 from loguru import logger
 
 from core.base_service import BaseService
-from notificacoes.models import Notificacao
-from notificacoes.schemas import NotificacaoCreate
+from notificacoes.models import Notificacao, NotificacaoPreferencia
+from notificacoes.schemas import NotificacaoCreate, NotificacaoPreferenciaUpdate
 
 
 class NotificationManager:
@@ -285,3 +285,48 @@ Exemplo de saída: 🚨 Margem caiu para 8%. Recomendamos revisar custos operaci
             )
         )
         return (await self.session.execute(stmt)).scalar() or 0
+
+    async def listar_preferencias(self, usuario_id: UUID) -> list[NotificacaoPreferencia]:
+        stmt = select(NotificacaoPreferencia).where(
+            NotificacaoPreferencia.tenant_id == self.tenant_id,
+            NotificacaoPreferencia.usuario_id == usuario_id,
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def upsert_preferencia(
+        self, usuario_id: UUID, tipo: str, dados: NotificacaoPreferenciaUpdate
+    ) -> NotificacaoPreferencia:
+        import uuid
+
+        stmt = select(NotificacaoPreferencia).where(
+            NotificacaoPreferencia.tenant_id == self.tenant_id,
+            NotificacaoPreferencia.usuario_id == usuario_id,
+            NotificacaoPreferencia.tipo == tipo,
+        )
+        pref = (await self.session.execute(stmt)).scalar_one_or_none()
+
+        if pref:
+            pref.email_ativo = dados.email_ativo
+            pref.sistema_ativo = dados.sistema_ativo
+            pref.whatsapp_ativo = dados.whatsapp_ativo
+            pref.horario_envio = dados.horario_envio
+            pref.nivel_sensibilidade = dados.nivel_sensibilidade
+            pref.updated_at = datetime.now(timezone.utc)
+        else:
+            pref = NotificacaoPreferencia(
+                id=uuid.uuid4(),
+                tenant_id=self.tenant_id,
+                usuario_id=usuario_id,
+                tipo=tipo,
+                email_ativo=dados.email_ativo,
+                sistema_ativo=dados.sistema_ativo,
+                whatsapp_ativo=dados.whatsapp_ativo,
+                horario_envio=dados.horario_envio,
+                nivel_sensibilidade=dados.nivel_sensibilidade,
+            )
+            self.session.add(pref)
+
+        await self.session.commit()
+        await self.session.refresh(pref)
+        return pref

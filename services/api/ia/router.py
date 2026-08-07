@@ -14,12 +14,12 @@ from core.dependencies import (
     get_session, get_tenant_id, get_current_user_claims,
     get_current_tenant
 )
-from core.models.billing import AssinaturaTenant, PlanoAssinatura
 from core.models.tenant import Tenant
 from core.models.solicitacoes_comerciais import SolicitacaoComercial
 from ia.usage_service import (
     consultar_uso_mensal, consultar_creditos, solicitar_creditos,
     consultar_uso_hibrido, LIMITES_MENSAIS,
+    consultar_tier_assinatura, consultar_historico_uso, buscar_solicitacao_creditos_aberta,
 )
 from ia.models import IAUso
 from financeiro.schemas.lancamento_schema import SimulacaoDREPayload, ResumoDiarioResponse
@@ -260,23 +260,10 @@ class RegistroHistoricoIA(BaseModel):
     custo_estimado: Optional[float] = None
 
 
-def _assinatura_ativa_filter():
-    return AssinaturaTenant.status.in_(["ATIVA", "TRIAL"])
-
-
 async def _get_tier(tenant_id: uuid.UUID, session: AsyncSession, claims: dict) -> str | None:
     tier_str = claims.get("plan_tier")
     if not tier_str:
-        stmt = (
-            select(PlanoAssinatura.plan_tier)
-            .join(AssinaturaTenant, AssinaturaTenant.plano_id == PlanoAssinatura.id)
-            .where(
-                AssinaturaTenant.tenant_id == tenant_id,
-                _assinatura_ativa_filter(),
-                AssinaturaTenant.tipo_assinatura == "TENANT",
-            ).limit(1)
-        )
-        tier_str = (await session.execute(stmt)).scalar_one_or_none()
+        tier_str = await consultar_tier_assinatura(tenant_id, session)
     return tier_str
 
 
@@ -314,13 +301,7 @@ async def historico_uso_ia(
     tenant_id: uuid.UUID = Depends(get_tenant_id),
     session: AsyncSession = Depends(get_session),
 ):
-    stmt = (
-        select(IAUso)
-        .where(IAUso.tenant_id == tenant_id)
-        .order_by(desc(IAUso.created_at))
-        .limit(limit)
-    )
-    registros = list((await session.execute(stmt)).scalars().all())
+    registros = await consultar_historico_uso(tenant_id, session, limit)
     return [
         RegistroHistoricoIA(
             data=r.created_at,
@@ -403,17 +384,7 @@ async def checkout_creditos_ia(
     _validar_margem(margem_info["margem_percentual"])
 
     # Busca solicitação ABERTA mais recente do tenant
-    stmt = (
-        select(SolicitacaoComercial)
-        .where(
-            SolicitacaoComercial.tenant_id == tenant_id,
-            SolicitacaoComercial.tipo == "CREDITOS_IA",
-            SolicitacaoComercial.status == "ABERTA",
-        )
-        .order_by(desc(SolicitacaoComercial.created_at))
-        .limit(1)
-    )
-    solicitacao = (await session.execute(stmt)).scalar_one_or_none()
+    solicitacao = await buscar_solicitacao_creditos_aberta(tenant_id, session)
 
     detalhes_economicos = {
         "quantidade": body.quantidade,

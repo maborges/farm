@@ -10,7 +10,6 @@ from core.database import async_session_maker
 from notificacoes.models import Notificacao
 from notificacoes.schemas import NotificacaoCreate, NotificacaoResponse, MarcarLidasRequest, NotificacaoPreferenciaUpdate, NotificacaoPreferenciaResponse
 from notificacoes.service import NotificacaoService, manager
-from notificacoes.models import NotificacaoPreferencia
 from notificacoes.alertas_engine import AlertasEngine
 from core.dependencies import get_current_user
 
@@ -66,14 +65,9 @@ async def listar_preferencias(
     tenant_id: UUID = Depends(get_tenant_id),
     current_user: dict = Depends(get_current_user),
 ):
-    from sqlalchemy import select
     usuario_id = UUID(current_user["sub"])
-    stmt = select(NotificacaoPreferencia).where(
-        NotificacaoPreferencia.tenant_id == tenant_id,
-        NotificacaoPreferencia.usuario_id == usuario_id
-    )
-    result = await session.execute(stmt)
-    return list(result.scalars().all())
+    svc = NotificacaoService(session, tenant_id)
+    return await svc.listar_preferencias(usuario_id)
 
 
 @router.patch("/preferencias/{tipo}", response_model=NotificacaoPreferenciaResponse)
@@ -84,42 +78,9 @@ async def atualizar_preferencia(
     tenant_id: UUID = Depends(get_tenant_id),
     current_user: dict = Depends(get_current_user),
 ):
-    from sqlalchemy import select
-    from datetime import datetime, timezone
-    import uuid
     usuario_id = UUID(current_user["sub"])
-    
-    stmt = select(NotificacaoPreferencia).where(
-        NotificacaoPreferencia.tenant_id == tenant_id,
-        NotificacaoPreferencia.usuario_id == usuario_id,
-        NotificacaoPreferencia.tipo == tipo
-    )
-    pref = (await session.execute(stmt)).scalar_one_or_none()
-    
-    if pref:
-        pref.email_ativo = dados.email_ativo
-        pref.sistema_ativo = dados.sistema_ativo
-        pref.whatsapp_ativo = dados.whatsapp_ativo
-        pref.horario_envio = dados.horario_envio
-        pref.nivel_sensibilidade = dados.nivel_sensibilidade
-        pref.updated_at = datetime.now(timezone.utc)
-    else:
-        pref = NotificacaoPreferencia(
-            id=uuid.uuid4(),
-            tenant_id=tenant_id,
-            usuario_id=usuario_id,
-            tipo=tipo,
-            email_ativo=dados.email_ativo,
-            sistema_ativo=dados.sistema_ativo,
-            whatsapp_ativo=dados.whatsapp_ativo,
-            horario_envio=dados.horario_envio,
-            nivel_sensibilidade=dados.nivel_sensibilidade,
-        )
-        session.add(pref)
-        
-    await session.commit()
-    await session.refresh(pref)
-    return pref
+    svc = NotificacaoService(session, tenant_id)
+    return await svc.upsert_preferencia(usuario_id, tipo, dados)
 
 
 @router.post("/demo")

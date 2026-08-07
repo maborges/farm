@@ -11,10 +11,12 @@ from decimal import Decimal
 from typing import Optional
 
 from loguru import logger
-from sqlalchemy import select, func, and_
+from sqlalchemy import select, func, and_, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.constants import PlanTier
+from core.models.billing import AssinaturaTenant, PlanoAssinatura
+from core.models.solicitacoes_comerciais import SolicitacaoComercial
 from ia.models import IAUso, IACreditosPacote
 
 # Limite mensal de chamadas bem-sucedidas de IA por tier
@@ -252,3 +254,53 @@ async def registrar_uso_ia(
         await session.flush()
     except Exception as exc:
         logger.warning(f"Falha ao registrar uso de IA (tenant={tenant_id}): {exc}")
+
+
+async def consultar_tier_assinatura(
+    tenant_id: uuid.UUID,
+    session: AsyncSession,
+) -> str | None:
+    """Retorna o plan_tier da assinatura ativa/trial do tenant."""
+    stmt = (
+        select(PlanoAssinatura.plan_tier)
+        .join(AssinaturaTenant, AssinaturaTenant.plano_id == PlanoAssinatura.id)
+        .where(
+            AssinaturaTenant.tenant_id == tenant_id,
+            AssinaturaTenant.status.in_(["ATIVA", "TRIAL"]),
+            AssinaturaTenant.tipo_assinatura == "TENANT",
+        ).limit(1)
+    )
+    return (await session.execute(stmt)).scalar_one_or_none()
+
+
+async def consultar_historico_uso(
+    tenant_id: uuid.UUID,
+    session: AsyncSession,
+    limit: int = 20,
+) -> list[IAUso]:
+    """Retorna os últimos registros de uso de IA do tenant."""
+    stmt = (
+        select(IAUso)
+        .where(IAUso.tenant_id == tenant_id)
+        .order_by(desc(IAUso.created_at))
+        .limit(limit)
+    )
+    return list((await session.execute(stmt)).scalars().all())
+
+
+async def buscar_solicitacao_creditos_aberta(
+    tenant_id: uuid.UUID,
+    session: AsyncSession,
+) -> SolicitacaoComercial | None:
+    """Retorna a solicitação ABERTA mais recente de créditos de IA do tenant."""
+    stmt = (
+        select(SolicitacaoComercial)
+        .where(
+            SolicitacaoComercial.tenant_id == tenant_id,
+            SolicitacaoComercial.tipo == "CREDITOS_IA",
+            SolicitacaoComercial.status == "ABERTA",
+        )
+        .order_by(desc(SolicitacaoComercial.created_at))
+        .limit(1)
+    )
+    return (await session.execute(stmt)).scalar_one_or_none()
