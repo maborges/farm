@@ -57,7 +57,12 @@ async def despesas_vencendo(
     return await svc.listar_vencendo(dias=dias, unidade_produtiva_id=unidade_produtiva_id)
 
 
-@router.post("/", response_model=List[DespesaResponse], status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/",
+    response_model=List[DespesaResponse],
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_tenant_permission("financeiro:*"))],
+)
 async def criar_despesa(
     payload: DespesaCreate,
     tenant_id: uuid.UUID = Depends(get_tenant_id),
@@ -84,7 +89,11 @@ async def obter_despesa(
     return await svc.get_or_fail(despesa_id)
 
 
-@router.patch("/{despesa_id}", response_model=DespesaResponse)
+@router.patch(
+    "/{despesa_id}",
+    response_model=DespesaResponse,
+    dependencies=[Depends(require_tenant_permission("financeiro:*"))],
+)
 async def atualizar_despesa(
     despesa_id: uuid.UUID,
     payload: DespesaUpdate,
@@ -101,7 +110,11 @@ async def atualizar_despesa(
     return resultado
 
 
-@router.delete("/{despesa_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{despesa_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_tenant_permission("financeiro:*"))],
+)
 async def excluir_despesa(
     despesa_id: uuid.UUID,
     tenant_id: uuid.UUID = Depends(get_tenant_id),
@@ -115,7 +128,11 @@ async def excluir_despesa(
     await db.commit()
 
 
-@router.post("/{despesa_id}/baixar", response_model=DespesaResponse)
+@router.post(
+    "/{despesa_id}/baixar",
+    response_model=DespesaResponse,
+    dependencies=[Depends(require_tenant_permission("financeiro:*"))],
+)
 async def baixar_despesa(
     despesa_id: uuid.UUID,
     payload: BaixaDespesaRequest,

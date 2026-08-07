@@ -56,7 +56,12 @@ async def receitas_vencendo(
     return await svc.listar_vencendo(dias=dias, unidade_produtiva_id=unidade_produtiva_id)
 
 
-@router.post("/", response_model=List[ReceitaResponse], status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/",
+    response_model=List[ReceitaResponse],
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_tenant_permission("financeiro:*"))],
+)
 async def criar_receita(
     payload: ReceitaCreate,
     tenant_id: uuid.UUID = Depends(get_tenant_id),
@@ -83,7 +88,11 @@ async def obter_receita(
     return await svc.get_or_fail(receita_id)
 
 
-@router.patch("/{receita_id}", response_model=ReceitaResponse)
+@router.patch(
+    "/{receita_id}",
+    response_model=ReceitaResponse,
+    dependencies=[Depends(require_tenant_permission("financeiro:*"))],
+)
 async def atualizar_receita(
     receita_id: uuid.UUID,
     payload: ReceitaUpdate,
@@ -100,7 +109,11 @@ async def atualizar_receita(
     return resultado
 
 
-@router.delete("/{receita_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{receita_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_tenant_permission("financeiro:*"))],
+)
 async def excluir_receita(
     receita_id: uuid.UUID,
     tenant_id: uuid.UUID = Depends(get_tenant_id),
@@ -120,7 +133,11 @@ class BaixaReceitaRequest(BaseModel):
     forma_recebimento: str
 
 
-@router.post("/{receita_id}/baixar", response_model=ReceitaResponse)
+@router.post(
+    "/{receita_id}/baixar",
+    response_model=ReceitaResponse,
+    dependencies=[Depends(require_tenant_permission("financeiro:*"))],
+)
 async def baixar_receita(
     receita_id: uuid.UUID,
     payload: BaixaReceitaRequest,

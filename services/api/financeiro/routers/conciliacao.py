@@ -26,7 +26,10 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/conciliacao", tags=["Conciliação Bancária"], dependencies=[Depends(require_module("F1_TESOURARIA"))])
 
 
-@router.post("/upload-extrato")
+@router.post(
+    "/upload-extrato",
+    dependencies=[Depends(require_tenant_permission("financeiro:*"))],
+)
 async def upload_extrato(
     arquivo: UploadFile = File(..., description="Arquivo OFX do extrato bancário"),
     conta_bancaria_id: Optional[str] = None,
@@ -137,7 +140,10 @@ async def listar_lancamentos_pendentes(
     }
 
 
-@router.post("/conciliar-automatico")
+@router.post(
+    "/conciliar-automatico",
+    dependencies=[Depends(require_tenant_permission("financeiro:*"))],
+)
 async def conciliar_automatico(
     transacoes_extrato: List[dict],
     lancamentos_sistema: List[dict],
@@ -173,7 +179,10 @@ async def conciliar_automatico(
         )
 
 
-@router.post("/conciliar-manual")
+@router.post(
+    "/conciliar-manual",
+    dependencies=[Depends(require_tenant_permission("financeiro:*"))],
+)
 async def conciliar_manual(
     transacao_extrato_id: str,
     lancamento_sistema_id: str,
@@ -209,7 +218,10 @@ async def conciliar_manual(
         )
 
 
-@router.post("/aprovar-conciliacao")
+@router.post(
+    "/aprovar-conciliacao",
+    dependencies=[Depends(require_tenant_permission("financeiro:*"))],
+)
 async def aprovar_conciliacao(
     sugestoes: List[dict],
     tenant: Tenant = Depends(get_current_tenant),
@@ -269,7 +281,10 @@ async def get_resumo_conciliacao(
     }
 
 
-@router.delete("/desfazer-conciliacao/{conciliacao_id}")
+@router.delete(
+    "/desfazer-conciliacao/{conciliacao_id}",
+    dependencies=[Depends(require_tenant_permission("financeiro:*"))],
+)
 async def desfazer_conciliacao(
     conciliacao_id: str,
     tenant: Tenant = Depends(get_current_tenant),

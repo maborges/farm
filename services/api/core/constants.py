@@ -515,6 +515,10 @@ class TenantPermissions:
             "rh:*",
             "ambiental:*",
             "recommendations:*",
+            "certificacoes_esg:*",
+            "wizard:*",
+            "campo:*",
+            "enterprise:*",
         ],
 
         "gerente": [
@@ -547,6 +551,7 @@ class TenantPermissions:
 
             # Módulo agrícola completo
             "agricola:*",
+            "certificacoes_esg:*",
 
             # Visualização de outros módulos
             "operacional:view",
@@ -564,6 +569,7 @@ class TenantPermissions:
             "agricola:operacoes:*",
             "agricola:defensivos:view",
             "agricola:monitoramento:*",
+            "campo:*",
 
             # Pecuária - manejo
             "pecuaria:manejo:*",

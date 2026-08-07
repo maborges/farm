@@ -4,7 +4,7 @@ from uuid import UUID
 from datetime import date
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.dependencies import get_tenant_id, get_session, require_module
+from core.dependencies import get_tenant_id, get_session, require_module, require_tenant_permission
 from rh.schemas import (
     EsocialEventoCreate, EsocialEventoUpdate, EsocialEventoResponse,
     DepartamentoCreate, DepartamentoUpdate, DepartamentoResponse,
@@ -50,6 +50,7 @@ async def registrar_evento_esocial(
     session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module(MODULE)),
+    __: None = Depends(require_tenant_permission("rh:*")),
 ):
     svc = EsocialEventoService(session, tenant_id)
     ev = await svc.criar(dados)
@@ -65,6 +66,7 @@ async def atualizar_evento_esocial(
     session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module(MODULE)),
+    __: None = Depends(require_tenant_permission("rh:*")),
 ):
     svc = EsocialEventoService(session, tenant_id)
     ev = await svc.atualizar(evento_id, dados)
@@ -91,6 +93,7 @@ async def criar_departamento(
     session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module(MODULE)),
+    __: None = Depends(require_tenant_permission("rh:*")),
 ):
     svc = DepartamentoService(session, tenant_id)
     dep = await svc.criar(dados)
@@ -106,6 +109,7 @@ async def atualizar_departamento(
     session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module(MODULE)),
+    __: None = Depends(require_tenant_permission("rh:*")),
 ):
     svc = DepartamentoService(session, tenant_id)
     dep = await svc.atualizar(departamento_id, dados)
@@ -122,6 +126,7 @@ async def desativar_departamento(
     session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module(MODULE)),
+    __: None = Depends(require_tenant_permission("rh:*")),
 ):
     svc = DepartamentoService(session, tenant_id)
     dep = await svc.get_or_fail(departamento_id)
@@ -168,6 +173,7 @@ async def criar_colaborador(
     session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module(MODULE)),
+    __: None = Depends(require_tenant_permission("rh:*")),
 ):
     svc = ColaboradorService(session, tenant_id)
     col = await svc.criar(dados)
@@ -182,6 +188,7 @@ async def desativar_colaborador(
     session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module(MODULE)),
+    __: None = Depends(require_tenant_permission("rh:*")),
 ):
     svc = ColaboradorService(session, tenant_id)
     await svc.desativar(colaborador_id)
@@ -210,6 +217,7 @@ async def lancar_diaria(
     session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module(MODULE)),
+    __: None = Depends(require_tenant_permission("rh:*")),
 ):
     svc = DiariaService(session, tenant_id)
     diaria = await svc.criar(dados)
@@ -224,6 +232,7 @@ async def pagar_diarias(
     session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module(MODULE)),
+    __: None = Depends(require_tenant_permission("rh:*")),
 ):
     svc = DiariaService(session, tenant_id)
     count = await svc.pagar_lote(dados.ids, dados.data_pagamento)
@@ -250,6 +259,7 @@ async def criar_empreitada(
     session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module(MODULE)),
+    __: None = Depends(require_tenant_permission("rh:*")),
 ):
     svc = EmpreitadaService(session, tenant_id)
     emp = await svc.criar(dados)
@@ -265,6 +275,7 @@ async def concluir_empreitada(
     session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module(MODULE)),
+    __: None = Depends(require_tenant_permission("rh:*")),
 ):
     svc = EmpreitadaService(session, tenant_id)
     return await svc.concluir(empreitada_id, dados.quantidade_final, dados.data_fim)
@@ -298,6 +309,7 @@ async def criar_item_seguranca(
     session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(MODULE_DEPENDENCY),
+    __: None = Depends(require_tenant_permission("rh:*")),
 ):
     svc = SegurancaTrabalhoService(session, tenant_id)
     item = await svc.criar_item(dados)
@@ -324,6 +336,7 @@ async def registrar_entrega_seguranca(
     session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(MODULE_DEPENDENCY),
+    __: None = Depends(require_tenant_permission("rh:*")),
 ):
     svc = SegurancaTrabalhoService(session, tenant_id)
     try:
@@ -351,6 +364,7 @@ async def registrar_documento_sst(
     session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module(MODULE_SEGURANCA)),
+    __: None = Depends(require_tenant_permission("rh:*")),
 ):
     svc = SegurancaTrabalhoService(session, tenant_id)
     try:
@@ -383,6 +397,7 @@ async def pagar_empreitada(
     session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module(MODULE)),
+    __: None = Depends(require_tenant_permission("rh:*")),
 ):
     svc = EmpreitadaService(session, tenant_id)
     return await svc.pagar(empreitada_id, data_pagamento)

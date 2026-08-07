@@ -76,7 +76,9 @@ async def list_fornecedores(
     return resultado
 
 
-@router.post("/fornecedores", response_model=FornecedorResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/fornecedores", response_model=FornecedorResponse, status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_tenant_permission("operacional:*"))]
+)
 async def create_fornecedor(
     data: FornecedorCreate,
     tenant: Tenant = Depends(get_current_tenant),
@@ -116,7 +118,9 @@ async def get_fornecedor(
     return forn
 
 
-@router.put("/fornecedores/{fornecedor_id}", response_model=FornecedorResponse)
+@router.put("/fornecedores/{fornecedor_id}", response_model=FornecedorResponse,
+    dependencies=[Depends(require_tenant_permission("operacional:*"))]
+)
 async def update_fornecedor(
     fornecedor_id: uuid.UUID,
     data: FornecedorCreate,
@@ -164,7 +168,9 @@ async def get_pedido(
     return await svc._enriquecer_pedido(ped)
 
 
-@router.patch("/pedidos/{pedido_id}/status", response_model=PedidoCompraResponse)
+@router.patch("/pedidos/{pedido_id}/status", response_model=PedidoCompraResponse,
+    dependencies=[Depends(require_tenant_permission("operacional:*"))]
+)
 async def update_pedido_status(
     pedido_id: uuid.UUID,
     data: PedidoCompraStatusUpdate,
@@ -181,7 +187,9 @@ async def update_pedido_status(
     return await svc._enriquecer_pedido(pedido)
 
 
-@router.post("/pedidos/{pedido_id}/enviar", response_model=PedidoCompraResponse)
+@router.post("/pedidos/{pedido_id}/enviar", response_model=PedidoCompraResponse,
+    dependencies=[Depends(require_tenant_permission("operacional:*"))]
+)
 async def enviar_pedido_fornecedor(
     pedido_id: uuid.UUID,
     tenant: Tenant = Depends(get_current_tenant),
@@ -193,7 +201,9 @@ async def enviar_pedido_fornecedor(
     return await svc._enriquecer_pedido(pedido)
 
 
-@router.patch("/pedidos/{pedido_id}/condicoes-pagamento", response_model=PedidoCompraResponse)
+@router.patch("/pedidos/{pedido_id}/condicoes-pagamento", response_model=PedidoCompraResponse,
+    dependencies=[Depends(require_tenant_permission("operacional:*"))]
+)
 async def update_condicoes_pagamento(
     pedido_id: uuid.UUID,
     data: CondicoesPagamentoUpdate,
@@ -207,7 +217,9 @@ async def update_condicoes_pagamento(
     return pedido
 
 
-@router.patch("/pedidos/{pedido_id}/adiantamento", response_model=PedidoCompraResponse)
+@router.patch("/pedidos/{pedido_id}/adiantamento", response_model=PedidoCompraResponse,
+    dependencies=[Depends(require_tenant_permission("operacional:*"))]
+)
 async def update_adiantamento(
     pedido_id: uuid.UUID,
     data: AdiantamentoUpdate,
@@ -246,7 +258,9 @@ async def get_pedido_pdf(
     )
 
 
-@router.patch("/pedidos/{pedido_id}/receber", status_code=200)
+@router.patch("/pedidos/{pedido_id}/receber", status_code=200,
+    dependencies=[Depends(require_tenant_permission("operacional:*"))]
+)
 async def receber_pedido(
     pedido_id: uuid.UUID,
     data: RecebimentoCreate | None = None,
@@ -266,7 +280,9 @@ async def receber_pedido(
     return {"message": "Pedido marcado como recebido", "pedido_id": str(pedido.id), "status": pedido.status}
 
 
-@router.post("/pedidos/{pedido_id}/estornar-recebimento", response_model=PedidoCompraResponse)
+@router.post("/pedidos/{pedido_id}/estornar-recebimento", response_model=PedidoCompraResponse,
+    dependencies=[Depends(require_tenant_permission("operacional:*"))]
+)
 async def estornar_recebimento_pedido(
     pedido_id: uuid.UUID,
     data: EstornoRecebimentoRequest,
@@ -388,7 +404,9 @@ async def get_preco_ideal_item(
 
 # --- SOLICITAÇÕES DE COMPRA (Step 147-150) ---
 
-@router.post("/solicitacoes", response_model=SolicitacaoCompraResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/solicitacoes", response_model=SolicitacaoCompraResponse, status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_tenant_permission("operacional:*"))]
+)
 async def create_solicitacao_compra(
     data: SolicitacaoCompraCreate,
     tenant: Tenant = Depends(get_current_tenant),
@@ -416,7 +434,9 @@ async def list_solicitacoes_compra(
     return await svc.listar_solicitacoes(status=status, produto_id=item_id, deposito_id=deposito_id)
 
 
-@router.patch("/solicitacoes/{id}/status", response_model=SolicitacaoCompraResponse)
+@router.patch("/solicitacoes/{id}/status", response_model=SolicitacaoCompraResponse,
+    dependencies=[Depends(require_tenant_permission("operacional:*"))]
+)
 async def update_solicitacao_status(
     id: uuid.UUID,
     data: SolicitacaoCompraStatusUpdate,
@@ -432,7 +452,9 @@ async def update_solicitacao_status(
     return solicitacao
 
 
-@router.post("/solicitacoes/{id}/itens", response_model=SolicitacaoCompraResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/solicitacoes/{id}/itens", response_model=SolicitacaoCompraResponse, status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_tenant_permission("operacional:*"))]
+)
 async def adicionar_item_solicitacao(
     id: uuid.UUID,
     data: SolicitacaoItemCreate,
@@ -453,7 +475,9 @@ async def adicionar_item_solicitacao(
     return solicitacao
 
 
-@router.patch("/solicitacoes/{id}/itens/{item_id}", response_model=SolicitacaoCompraResponse)
+@router.patch("/solicitacoes/{id}/itens/{item_id}", response_model=SolicitacaoCompraResponse,
+    dependencies=[Depends(require_tenant_permission("operacional:*"))]
+)
 async def atualizar_item_solicitacao(
     id: uuid.UUID,
     item_id: uuid.UUID,
@@ -475,7 +499,9 @@ async def atualizar_item_solicitacao(
     return solicitacao
 
 
-@router.delete("/solicitacoes/{id}/itens/{item_id}", response_model=SolicitacaoCompraResponse)
+@router.delete("/solicitacoes/{id}/itens/{item_id}", response_model=SolicitacaoCompraResponse,
+    dependencies=[Depends(require_tenant_permission("operacional:*"))]
+)
 async def remover_item_solicitacao(
     id: uuid.UUID,
     item_id: uuid.UUID,
@@ -496,7 +522,9 @@ async def remover_item_solicitacao(
     return solicitacao
 
 
-@router.post("/solicitacoes/{id}/cotacoes", response_model=CotacaoSolicitacaoResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/solicitacoes/{id}/cotacoes", response_model=CotacaoSolicitacaoResponse, status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_tenant_permission("operacional:*"))]
+)
 async def create_cotacao_solicitacao(
     id: uuid.UUID,
     data: CotacaoSolicitacaoCreate,
@@ -515,7 +543,9 @@ async def create_cotacao_solicitacao(
         raise HTTPException(status_code=422, detail=str(e))
 
 
-@router.post("/solicitacoes/{id}/alocar", response_model=SolicitacaoCompraResponse)
+@router.post("/solicitacoes/{id}/alocar", response_model=SolicitacaoCompraResponse,
+    dependencies=[Depends(require_tenant_permission("operacional:*"))]
+)
 async def alocar_itens_solicitacao(
     id: uuid.UUID,
     data: AlocacaoRequest,
@@ -536,7 +566,9 @@ async def alocar_itens_solicitacao(
     return solicitacao
 
 
-@router.post("/solicitacoes/{id}/gerar-pedidos", response_model=List[PedidoCompraResponse])
+@router.post("/solicitacoes/{id}/gerar-pedidos", response_model=List[PedidoCompraResponse],
+    dependencies=[Depends(require_tenant_permission("operacional:*"))]
+)
 async def gerar_pedidos_solicitacao(
     id: uuid.UUID,
     tenant: Tenant = Depends(get_current_tenant),
@@ -558,7 +590,9 @@ async def gerar_pedidos_solicitacao(
     return resultado
 
 
-@router.post("/solicitacoes/{id}/encerrar", response_model=SolicitacaoCompraResponse)
+@router.post("/solicitacoes/{id}/encerrar", response_model=SolicitacaoCompraResponse,
+    dependencies=[Depends(require_tenant_permission("operacional:*"))]
+)
 async def encerrar_solicitacao_compra(
     id: uuid.UUID,
     tenant: Tenant = Depends(get_current_tenant),
@@ -588,7 +622,9 @@ async def list_cotacoes_solicitacao(
     return await svc.listar_cotacoes(id)
 
 
-@router.patch("/solicitacoes/{id}/cotacoes/{cotacao_id}", response_model=CotacaoSolicitacaoResponse)
+@router.patch("/solicitacoes/{id}/cotacoes/{cotacao_id}", response_model=CotacaoSolicitacaoResponse,
+    dependencies=[Depends(require_tenant_permission("operacional:*"))]
+)
 async def atualizar_cotacao(
     id: uuid.UUID,
     cotacao_id: uuid.UUID,
@@ -609,7 +645,9 @@ async def atualizar_cotacao(
         raise HTTPException(status_code=422, detail=str(e))
 
 
-@router.patch("/solicitacoes/{id}/cotacoes/{cotacao_id}/itens/{item_id}", response_model=CotacaoSolicitacaoResponse)
+@router.patch("/solicitacoes/{id}/cotacoes/{cotacao_id}/itens/{item_id}", response_model=CotacaoSolicitacaoResponse,
+    dependencies=[Depends(require_tenant_permission("operacional:*"))]
+)
 async def atualizar_item_cotacao(
     id: uuid.UUID,
     cotacao_id: uuid.UUID,
@@ -706,7 +744,9 @@ async def get_comparativo_cotacoes_pdf(
     )
 
 
-@router.patch("/solicitacoes/{solicitacao_id}/cotacoes/{cotacao_id}/aprovar", response_model=PedidoCompraResponse)
+@router.patch("/solicitacoes/{solicitacao_id}/cotacoes/{cotacao_id}/aprovar", response_model=PedidoCompraResponse,
+    dependencies=[Depends(require_tenant_permission("operacional:*"))]
+)
 async def aprovar_cotacao_solicitacao(
     solicitacao_id: uuid.UUID,
     cotacao_id: uuid.UUID,

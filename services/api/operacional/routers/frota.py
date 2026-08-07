@@ -90,6 +90,7 @@ router = APIRouter(prefix="/frota", tags=["Frota — Maquinários"])
     "/checklists",
     response_model=ChecklistOperacionalResponse,
     status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_tenant_permission("operacional:*"))]
 )
 async def criar_checklist_operacional(
     dados: ChecklistOperacionalCreate,
@@ -125,7 +126,9 @@ async def listar_checklists_operacionais(
     )
 
 
-@router.post("/checklists/respostas", response_model=ChecklistOperacionalPreenchimentoResponse)
+@router.post("/checklists/respostas", response_model=ChecklistOperacionalPreenchimentoResponse,
+    dependencies=[Depends(require_tenant_permission("operacional:*"))]
+)
 async def registrar_respostas_checklist_operacional(
     dados: ChecklistOperacionalPreenchimentoCreate,
     session: AsyncSession = Depends(get_session),
@@ -201,7 +204,9 @@ async def listar_manutencao_preventiva_por_equipamento(
     )
 
 
-@router.post("/manutencao-preventiva/{plano_id}/gerar-os", response_model=GerarOsPreventivaResponse)
+@router.post("/manutencao-preventiva/{plano_id}/gerar-os", response_model=GerarOsPreventivaResponse,
+    dependencies=[Depends(require_tenant_permission("operacional:*"))]
+)
 async def gerar_os_preventiva(
     plano_id: UUID,
     unidade_produtiva_id: UUID | None = None,
@@ -336,6 +341,7 @@ async def obter_disponibilidade_equipamento(
 @router.post(
     "/disponibilidade/equipamentos/{equipamento_id}/bloquear",
     response_model=FrotaDisponibilidadeBloqueioResponse,
+    dependencies=[Depends(require_tenant_permission("operacional:*"))]
 )
 async def bloquear_equipamento_operacional(
     equipamento_id: UUID,
@@ -357,6 +363,7 @@ async def bloquear_equipamento_operacional(
 @router.post(
     "/disponibilidade/equipamentos/{equipamento_id}/liberar",
     response_model=FrotaDisponibilidadeBloqueioResponse,
+    dependencies=[Depends(require_tenant_permission("operacional:*"))]
 )
 async def liberar_equipamento_operacional(
     equipamento_id: UUID,
@@ -451,7 +458,9 @@ async def listar_jornadas_frota(
     )
 
 
-@router.post("/jornadas", response_model=FrotaJornadaDetailResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/jornadas", response_model=FrotaJornadaDetailResponse, status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_tenant_permission("operacional:*"))]
+)
 async def criar_jornada_frota(
     dados: FrotaJornadaCreate,
     session: AsyncSession = Depends(get_session),
@@ -478,7 +487,9 @@ async def detalhar_jornada_frota(
     return await svc.obter_jornada(jornada_id)
 
 
-@router.patch("/jornadas/{jornada_id}", response_model=FrotaJornadaDetailResponse)
+@router.patch("/jornadas/{jornada_id}", response_model=FrotaJornadaDetailResponse,
+    dependencies=[Depends(require_tenant_permission("operacional:*"))]
+)
 async def atualizar_jornada_frota(
     jornada_id: UUID,
     dados: FrotaJornadaUpdate,
@@ -491,7 +502,9 @@ async def atualizar_jornada_frota(
     return await svc.atualizar_jornada(jornada_id, dados)
 
 
-@router.post("/jornadas/{jornada_id}/finalizar", response_model=FrotaJornadaDetailResponse)
+@router.post("/jornadas/{jornada_id}/finalizar", response_model=FrotaJornadaDetailResponse,
+    dependencies=[Depends(require_tenant_permission("operacional:*"))]
+)
 async def finalizar_jornada_frota(
     jornada_id: UUID,
     dados: FrotaJornadaFinalizarRequest,
@@ -507,7 +520,9 @@ async def finalizar_jornada_frota(
     return await svc.finalizar_jornada(jornada_id, dados)
 
 
-@router.post("/jornadas/{jornada_id}/cancelar", response_model=FrotaJornadaDetailResponse)
+@router.post("/jornadas/{jornada_id}/cancelar", response_model=FrotaJornadaDetailResponse,
+    dependencies=[Depends(require_tenant_permission("operacional:*"))]
+)
 async def cancelar_jornada_frota(
     jornada_id: UUID,
     dados: FrotaJornadaCancelarRequest | None = None,
@@ -613,7 +628,9 @@ async def obter_frota_agricultura_operacoes(
     svc = FrotaAgriculturaService(session, tenant_id)
     return await svc.obter_operacoes(unidade_produtiva_id=unidade_produtiva_id)
 
-@router.post("/", response_model=MaquinarioResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=MaquinarioResponse, status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_tenant_permission("operacional:*"))]
+)
 async def criar_maquinario(
     dados: MaquinarioCreate,
     session: AsyncSession = Depends(get_session),
@@ -650,7 +667,9 @@ async def detalhar_maquinario(
     svc = FrotaService(session, tenant_id)
     return await svc.get_or_fail(id)
 
-@router.patch("/{id}", response_model=MaquinarioResponse)
+@router.patch("/{id}", response_model=MaquinarioResponse,
+    dependencies=[Depends(require_tenant_permission("operacional:*"))]
+)
 async def atualizar_maquinario(
     id: UUID,
     dados: MaquinarioUpdate,
@@ -666,7 +685,9 @@ async def atualizar_maquinario(
 
 # --- Planos de Manutenção ---
 
-@router.post("/planos/", response_model=PlanoManutencaoResponse)
+@router.post("/planos/", response_model=PlanoManutencaoResponse,
+    dependencies=[Depends(require_tenant_permission("operacional:*"))]
+)
 async def criar_plano(
     dados: PlanoManutencaoCreate,
     session: AsyncSession = Depends(get_session),
@@ -693,7 +714,9 @@ async def listar_planos(
 
 # --- Ordens de Serviço ---
 
-@router.post("/os/", response_model=OrdemServicoResponse)
+@router.post("/os/", response_model=OrdemServicoResponse,
+    dependencies=[Depends(require_tenant_permission("operacional:*"))]
+)
 async def abrir_ordem_servico(
     dados: OrdemServicoCreate,
     session: AsyncSession = Depends(get_session),
@@ -704,7 +727,9 @@ async def abrir_ordem_servico(
     svc = FrotaService(session, tenant_id)
     return await svc.abrir_os(dados, usuario_id=user_id)
 
-@router.post("/os/{os_id}/itens", response_model=ItemOrdemServicoResponse)
+@router.post("/os/{os_id}/itens", response_model=ItemOrdemServicoResponse,
+    dependencies=[Depends(require_tenant_permission("operacional:*"))]
+)
 async def adicionar_peça_os(
     os_id: UUID,
     dados: ItemOrdemServicoCreate,
@@ -716,7 +741,9 @@ async def adicionar_peça_os(
     svc = FrotaService(session, tenant_id)
     return await svc.adicionar_item_os(os_id, dados, usuario_id=user_id)
 
-@router.patch("/os/{os_id}/fechar", response_model=OrdemServicoResponse)
+@router.patch("/os/{os_id}/fechar", response_model=OrdemServicoResponse,
+    dependencies=[Depends(require_tenant_permission("operacional:*"))]
+)
 async def fechar_ordem_servico(
     os_id: UUID,
     dados: OrdemServicoUpdate,
@@ -730,7 +757,9 @@ async def fechar_ordem_servico(
 
 # --- Importação de Dados ---
 
-@router.post("/importar/abastecimentos", status_code=status.HTTP_200_OK)
+@router.post("/importar/abastecimentos", status_code=status.HTTP_200_OK,
+    dependencies=[Depends(require_tenant_permission("operacional:*"))]
+)
 async def importar_abastecimentos(
     file: UploadFile = File(...),
     session: AsyncSession = Depends(get_session),
@@ -742,7 +771,9 @@ async def importar_abastecimentos(
     svc = FrotaImportService(session, tenant_id)
     return await svc.importar_abastecimentos(csv_text)
 
-@router.post("/importar/manutencoes", status_code=status.HTTP_200_OK)
+@router.post("/importar/manutencoes", status_code=status.HTTP_200_OK,
+    dependencies=[Depends(require_tenant_permission("operacional:*"))]
+)
 async def importar_manutencoes(
     file: UploadFile = File(...),
     session: AsyncSession = Depends(get_session),
@@ -766,7 +797,9 @@ async def listar_regras_automacao(
     svc = FrotaAutomacaoService(session, tenant_id)
     return await svc.listar_regras()
 
-@router.patch("/inteligencia/regras/{regra_id}", response_model=FrotaRegraInteligenteSchema)
+@router.patch("/inteligencia/regras/{regra_id}", response_model=FrotaRegraInteligenteSchema,
+    dependencies=[Depends(require_tenant_permission("operacional:*"))]
+)
 async def atualizar_regra_automacao(
     regra_id: UUID,
     dados: FrotaRegraInteligenteUpdate,

@@ -32,7 +32,12 @@ from financeiro.services.cenario_service import CenarioFinanceiroService
 router = APIRouter(prefix="/lancamentos", tags=["Financeiro — Lançamentos"])
 
 
-@router.post("/", response_model=LancamentoResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/",
+    response_model=LancamentoResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_tenant_permission("financeiro:*"))],
+)
 async def criar_lancamento(
     dados: LancamentoCreate,
     tenant_id: uuid.UUID = Depends(get_tenant_id),
@@ -54,7 +59,11 @@ async def criar_lancamento(
     return lancamento
 
 
-@router.patch("/{lancamento_id}", response_model=LancamentoResponse)
+@router.patch(
+    "/{lancamento_id}",
+    response_model=LancamentoResponse,
+    dependencies=[Depends(require_tenant_permission("financeiro:*"))],
+)
 async def editar_lancamento(
     lancamento_id: uuid.UUID,
     dados: LancamentoUpdate,
@@ -253,7 +262,11 @@ async def simular_dre(
     )
 
 
-@router.post("/dre/cenarios", response_model=CenarioSafraResponse)
+@router.post(
+    "/dre/cenarios",
+    response_model=CenarioSafraResponse,
+    dependencies=[Depends(require_tenant_permission("financeiro:*"))],
+)
 async def salvar_cenario(
     payload: CenarioSafraCreate,
     tenant_id: uuid.UUID = Depends(get_tenant_id),
@@ -275,7 +288,10 @@ async def listar_cenarios(
     return await svc.listar(safra_id)
 
 
-@router.delete("/dre/cenarios/{cenario_id}")
+@router.delete(
+    "/dre/cenarios/{cenario_id}",
+    dependencies=[Depends(require_tenant_permission("financeiro:*"))],
+)
 async def deletar_cenario(
     cenario_id: uuid.UUID,
     tenant_id: uuid.UUID = Depends(get_tenant_id),
@@ -287,7 +303,11 @@ async def deletar_cenario(
     return {"status": "sucesso"}
 
 
-@router.patch("/dre/cenarios/{cenario_id}/escolher", response_model=CenarioSafraResponse)
+@router.patch(
+    "/dre/cenarios/{cenario_id}/escolher",
+    response_model=CenarioSafraResponse,
+    dependencies=[Depends(require_tenant_permission("financeiro:*"))],
+)
 async def escolher_cenario(
     cenario_id: uuid.UUID,
     tenant_id: uuid.UUID = Depends(get_tenant_id),

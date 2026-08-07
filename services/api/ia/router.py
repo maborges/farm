@@ -2580,9 +2580,13 @@ async def get_autopilot_config(
 async def update_autopilot_config(
     body: AutopilotConfigUpdate,
     tenant_id: uuid.UUID = Depends(get_tenant_id),
+    claims: dict = Depends(get_current_user_claims),
     session: AsyncSession = Depends(get_session)
 ):
     """Atualiza as configurações de autopilot do tenant (Step 210)."""
+    is_owner = claims.get("role") == "owner" or claims.get("is_owner") is True or claims.get("role") == "admin"
+    if not is_owner:
+        raise HTTPException(status_code=403, detail="Acesso restrito a proprietários e administradores do tenant.")
     updates = body.dict(exclude_unset=True)
     config = await IAAutopilotService.update_config(session, tenant_id, updates)
     return AutopilotConfigResponse(

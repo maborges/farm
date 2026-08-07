@@ -96,7 +96,12 @@ class CriarOrdemRequest(BaseModel):
 
 # ── Contas Bancárias ──────────────────────────────────────────────────────────
 
-@router.post("/contas-bancarias", response_model=ContaBancariaResponse, status_code=201)
+@router.post(
+    "/contas-bancarias",
+    response_model=ContaBancariaResponse,
+    status_code=201,
+    dependencies=[Depends(require_tenant_permission("financeiro:*"))],
+)
 async def criar_conta_bancaria(
     dados: ContaBancariaCreate,
     tenant_id: uuid.UUID = Depends(get_tenant_id),
@@ -118,7 +123,11 @@ async def listar_contas_bancarias(
     return await svc.listar_contas()
 
 
-@router.patch("/contas-bancarias/{conta_id}/remessa", response_model=ContaBancariaResponse)
+@router.patch(
+    "/contas-bancarias/{conta_id}/remessa",
+    response_model=ContaBancariaResponse,
+    dependencies=[Depends(require_tenant_permission("financeiro:*"))],
+)
 async def configurar_remessa_conta_bancaria(
     conta_id: uuid.UUID,
     dados: ConfigurarRemessaRequest,
@@ -132,7 +141,11 @@ async def configurar_remessa_conta_bancaria(
     return conta
 
 
-@router.post("/contas-bancarias/{conta_id}/validar-remessa", response_model=ContaBancariaResponse)
+@router.post(
+    "/contas-bancarias/{conta_id}/validar-remessa",
+    response_model=ContaBancariaResponse,
+    dependencies=[Depends(require_tenant_permission("financeiro:*"))],
+)
 async def validar_remessa_conta_bancaria(
     conta_id: uuid.UUID,
     tenant_id: uuid.UUID = Depends(get_tenant_id),
@@ -143,7 +156,10 @@ async def validar_remessa_conta_bancaria(
     return await svc.validar_remessa(conta_id)
 
 
-@router.post("/ordens-pagamento/{ordem_id:uuid}/simular-retorno")
+@router.post(
+    "/ordens-pagamento/{ordem_id:uuid}/simular-retorno",
+    dependencies=[Depends(require_tenant_permission("financeiro:*"))],
+)
 async def simular_retorno_ordem_pagamento(
     ordem_id: uuid.UUID,
     dados: RetornoSimuladoRequest,
@@ -201,7 +217,10 @@ async def listar_ordens_pagamento(
     ]
 
 
-@router.post("/ordens-pagamento")
+@router.post(
+    "/ordens-pagamento",
+    dependencies=[Depends(require_tenant_permission("financeiro:*"))],
+)
 async def criar_ordem_pagamento(dados: CriarOrdemRequest, tenant_id: uuid.UUID = Depends(get_tenant_id), db: AsyncSession = Depends(get_session)):
     from financeiro.models.ordem_pagamento import OrdemPagamento, ItemOrdemPagamento
     from financeiro.models.despesa import Despesa
@@ -223,7 +242,11 @@ async def criar_ordem_pagamento(dados: CriarOrdemRequest, tenant_id: uuid.UUID =
     return {"id": str(ordem.id), "status": ordem.status, "total_valor": float(ordem.total_valor)}
 
 
-@router.delete("/contas-bancarias/{conta_id}", status_code=204)
+@router.delete(
+    "/contas-bancarias/{conta_id}",
+    status_code=204,
+    dependencies=[Depends(require_tenant_permission("financeiro:*"))],
+)
 async def excluir_conta_bancaria(
     conta_id: uuid.UUID,
     tenant_id: uuid.UUID = Depends(get_tenant_id),
@@ -236,7 +259,10 @@ async def excluir_conta_bancaria(
 
 # ── Importação OFX ────────────────────────────────────────────────────────────
 
-@router.post("/contas-bancarias/{conta_id}/importar-ofx")
+@router.post(
+    "/contas-bancarias/{conta_id}/importar-ofx",
+    dependencies=[Depends(require_tenant_permission("financeiro:*"))],
+)
 async def importar_ofx(
     conta_id: uuid.UUID,
     arquivo: UploadFile = File(...),
@@ -281,7 +307,11 @@ async def sugestoes_conciliacao(
     return await svc.sugerir_conciliacao(conta_id)
 
 
-@router.patch("/lancamentos/{lancamento_id}/conciliar", response_model=LancamentoBancarioResponse)
+@router.patch(
+    "/lancamentos/{lancamento_id}/conciliar",
+    response_model=LancamentoBancarioResponse,
+    dependencies=[Depends(require_tenant_permission("financeiro:*"))],
+)
 async def conciliar_lancamento(
     lancamento_id: uuid.UUID,
     dados: ConciliarRequest,
@@ -297,7 +327,11 @@ async def conciliar_lancamento(
     return lanc
 
 
-@router.patch("/lancamentos/{lancamento_id}/ignorar", response_model=LancamentoBancarioResponse)
+@router.patch(
+    "/lancamentos/{lancamento_id}/ignorar",
+    response_model=LancamentoBancarioResponse,
+    dependencies=[Depends(require_tenant_permission("financeiro:*"))],
+)
 async def ignorar_lancamento(
     lancamento_id: uuid.UUID,
     tenant_id: uuid.UUID = Depends(get_tenant_id),

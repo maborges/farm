@@ -6,7 +6,7 @@ from typing import List, Optional
 from datetime import date
 
 from core.database import get_db
-from core.dependencies import get_current_tenant, require_module
+from core.dependencies import get_current_tenant, require_module, require_tenant_permission
 from enterprise.services.sprints_27_33_service import (
     MRVService, ESGService, PisciculturaService,
     ConfinamentoService, GeneticaService, HedgingService,
@@ -56,7 +56,9 @@ def get_colaborador_service(db: Session = Depends(get_db)) -> ColaboradorService
 # SPRINT 27 - MRV
 # ============================================
 
-@router.post("/mrv/projetos", response_model=None)
+@router.post("/mrv/projetos", response_model=None,
+    dependencies=[Depends(require_tenant_permission("enterprise:*"))]
+)
 def criar_projeto_mrv(
     nome: str,
     metodologia: str,
@@ -68,7 +70,9 @@ def criar_projeto_mrv(
     return service.criar_projeto(tenant_id, nome, metodologia, area_ha)
 
 
-@router.post("/mrv/relatorios", response_model=None)
+@router.post("/mrv/relatorios", response_model=None,
+    dependencies=[Depends(require_tenant_permission("enterprise:*"))]
+)
 def gerar_relatorio_mrv(
     projeto_id: int,
     periodo_inicio: date,
@@ -83,7 +87,9 @@ def gerar_relatorio_mrv(
 # SPRINT 28 - ESG
 # ============================================
 
-@router.post("/esg/indicadores", response_model=None)
+@router.post("/esg/indicadores", response_model=None,
+    dependencies=[Depends(require_tenant_permission("enterprise:*"))]
+)
 def registrar_indicador_esg(
     categoria: str,
     nome: str,
@@ -96,7 +102,9 @@ def registrar_indicador_esg(
     return service.registrar_indicador(tenant_id, categoria, nome, valor, periodo)
 
 
-@router.post("/esg/relatorios", response_model=None)
+@router.post("/esg/relatorios", response_model=None,
+    dependencies=[Depends(require_tenant_permission("enterprise:*"))]
+)
 def gerar_relatorio_esg(
     ano: int,
     tenant_id: str = Depends(get_current_tenant),
@@ -110,7 +118,9 @@ def gerar_relatorio_esg(
 # SPRINT 28 - PISCICULTURA
 # ============================================
 
-@router.post("/piscicultura/tanques", response_model=None)
+@router.post("/piscicultura/tanques", response_model=None,
+    dependencies=[Depends(require_tenant_permission("enterprise:*"))]
+)
 def criar_tanque(
     nome: str,
     volume_m3: float,
@@ -122,7 +132,9 @@ def criar_tanque(
     return service.criar_tanque(tenant_id, nome, volume_m3, especie)
 
 
-@router.post("/piscicultura/arracoamento", response_model=None)
+@router.post("/piscicultura/arracoamento", response_model=None,
+    dependencies=[Depends(require_tenant_permission("enterprise:*"))]
+)
 def registrar_arracoamento(
     tanque_id: int,
     quantidade: float,
@@ -134,7 +146,9 @@ def registrar_arracoamento(
     return service.registrar_arracoamento(tanque_id, quantidade, tipo_racao, data)
 
 
-@router.post("/piscicultura/pesagem", response_model=None)
+@router.post("/piscicultura/pesagem", response_model=None,
+    dependencies=[Depends(require_tenant_permission("enterprise:*"))]
+)
 def registrar_pesagem(
     tanque_id: int,
     total_peixes: int,
@@ -150,7 +164,9 @@ def registrar_pesagem(
 # SPRINT 29 - CONFINAMENTO
 # ============================================
 
-@router.post("/confinamento/lotes", response_model=None)
+@router.post("/confinamento/lotes", response_model=None,
+    dependencies=[Depends(require_tenant_permission("enterprise:*"))]
+)
 def criar_lote_confinamento(
     codigo: str,
     total_animais: int,
@@ -163,7 +179,9 @@ def criar_lote_confinamento(
     return service.criar_lote(tenant_id, codigo, total_animais, peso_inicial, data_entrada)
 
 
-@router.post("/confinamento/racoes", response_model=None)
+@router.post("/confinamento/racoes", response_model=None,
+    dependencies=[Depends(require_tenant_permission("enterprise:*"))]
+)
 def criar_racao_tmr(
     nome: str,
     ingredientes: dict,
@@ -179,7 +197,9 @@ def criar_racao_tmr(
 # SPRINT 30 - GENÉTICA
 # ============================================
 
-@router.post("/genetica/racas", response_model=None)
+@router.post("/genetica/racas", response_model=None,
+    dependencies=[Depends(require_tenant_permission("enterprise:*"))]
+)
 def cadastrar_raca(
     nome: str,
     especie: str,
@@ -190,7 +210,9 @@ def cadastrar_raca(
     return service.cadastrar_raca(nome, especie, origem)
 
 
-@router.post("/genetica/acasalamentos", response_model=None)
+@router.post("/genetica/acasalamentos", response_model=None,
+    dependencies=[Depends(require_tenant_permission("enterprise:*"))]
+)
 def sugerir_acasalamento(
     matriz_id: int,
     reprodutor_id: int,
@@ -205,7 +227,9 @@ def sugerir_acasalamento(
 # SPRINT 31 - HEDGING
 # ============================================
 
-@router.post("/hedging/contratos", response_model=None)
+@router.post("/hedging/contratos", response_model=None,
+    dependencies=[Depends(require_tenant_permission("enterprise:*"))]
+)
 def criar_contrato_futuro(
     commodity: str,
     mercado: str,
@@ -220,7 +244,9 @@ def criar_contrato_futuro(
     return service.criar_contrato(tenant_id, commodity, mercado, codigo, tipo, quantidade, preco)
 
 
-@router.post("/hedging/registros", response_model=None)
+@router.post("/hedging/registros", response_model=None,
+    dependencies=[Depends(require_tenant_permission("enterprise:*"))]
+)
 def registrar_hedge(
     contrato_id: int,
     tipo: str,
@@ -238,7 +264,9 @@ def registrar_hedge(
 # SPRINT 32 - IOT SENSORES
 # ============================================
 
-@router.post("/iot/sensores", response_model=None)
+@router.post("/iot/sensores", response_model=None,
+    dependencies=[Depends(require_tenant_permission("enterprise:*"))]
+)
 def cadastrar_sensor(
     nome: str,
     tipo: str,
@@ -250,7 +278,9 @@ def cadastrar_sensor(
     return service.cadastrar_sensor(tenant_id, nome, tipo, protocolo)
 
 
-@router.post("/iot/leituras", response_model=None)
+@router.post("/iot/leituras", response_model=None,
+    dependencies=[Depends(require_tenant_permission("enterprise:*"))]
+)
 def registrar_leitura_sensor(
     sensor_id: int,
     valor: float,
@@ -265,7 +295,9 @@ def registrar_leitura_sensor(
 # SPRINT 33 - ILPF
 # ============================================
 
-@router.post("/ilpf/modulos", response_model=None)
+@router.post("/ilpf/modulos", response_model=None,
+    dependencies=[Depends(require_tenant_permission("enterprise:*"))]
+)
 def criar_modulo_ilpf(
     nome: str,
     tipo_ilpf: str,
@@ -283,7 +315,9 @@ def criar_modulo_ilpf(
 # SPRINT 33 - APP COLABORADORES
 # ============================================
 
-@router.post("/colaboradores/apontamentos", response_model=None)
+@router.post("/colaboradores/apontamentos", response_model=None,
+    dependencies=[Depends(require_tenant_permission("enterprise:*"))]
+)
 def registrar_apontamento(
     colaborador_id: int,
     data: date,

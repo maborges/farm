@@ -48,7 +48,11 @@ async def listar_arvore(
     return await svc.listar_arvore(tipo=tipo)
 
 
-@router.post("/seed", status_code=status.HTTP_200_OK)
+@router.post(
+    "/seed",
+    status_code=status.HTTP_200_OK,
+    dependencies=[Depends(require_tenant_permission("financeiro:*"))],
+)
 async def seed_categorias_padrao(
     tenant_id: uuid.UUID = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_session),
@@ -63,7 +67,12 @@ async def seed_categorias_padrao(
     return {"criados": criados, "mensagem": f"{criados} categorias adicionadas ao plano de contas."}
 
 
-@router.post("", response_model=PlanoContaResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    response_model=PlanoContaResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_tenant_permission("financeiro:*"))],
+)
 async def criar_plano(
     payload: PlanoContaCreate,
     tenant_id: uuid.UUID = Depends(get_tenant_id),
@@ -88,7 +97,11 @@ async def obter_plano(
     return await svc.get_or_fail(plano_id)
 
 
-@router.patch("/{plano_id}", response_model=PlanoContaResponse)
+@router.patch(
+    "/{plano_id}",
+    response_model=PlanoContaResponse,
+    dependencies=[Depends(require_tenant_permission("financeiro:*"))],
+)
 async def atualizar_plano(
     plano_id: uuid.UUID,
     payload: PlanoContaUpdate,
@@ -103,7 +116,11 @@ async def atualizar_plano(
     return resultado
 
 
-@router.delete("/{plano_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{plano_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_tenant_permission("financeiro:*"))],
+)
 async def deletar_plano(
     plano_id: uuid.UUID,
     tenant_id: uuid.UUID = Depends(get_tenant_id),

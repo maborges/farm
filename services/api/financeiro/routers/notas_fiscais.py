@@ -157,6 +157,7 @@ async def criar_nota(
     session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module(MODULE)),
+    __: None = Depends(require_tenant_permission("financeiro:*")),
 ):
     nota = NotaFiscal(tenant_id=tenant_id, **dados.model_dump(exclude_none=True))
     session.add(nota)
@@ -172,6 +173,7 @@ async def atualizar_nota(
     session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module(MODULE)),
+    __: None = Depends(require_tenant_permission("financeiro:*")),
 ):
     nota = (await session.execute(
         select(NotaFiscal).where(NotaFiscal.id == nota_id, NotaFiscal.tenant_id == tenant_id)

@@ -9,7 +9,7 @@ from loguru import logger
 from sqlalchemy import select, and_
 
 from core.config import settings
-from core.dependencies import get_session, get_tenant_id, get_user_id
+from core.dependencies import get_session, get_tenant_id, get_user_id, require_tenant_permission
 from core.exceptions import EntityNotFoundError, BusinessRuleError, TenantViolationError
 from alert_engine.models import Domain
 from events import DomainEvent, publish_domain_event_safe
@@ -187,7 +187,12 @@ async def _get_device_from_token(
 # Devices — gerenciados por usuários com JWT normal
 # ---------------------------------------------------------------------------
 
-@router.post("/devices", response_model=DeviceCreateResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/devices",
+    response_model=DeviceCreateResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_tenant_permission("campo:*"))],
+)
 async def criar_dispositivo(
     data: DeviceCreate,
     tenant_id: uuid.UUID = Depends(get_tenant_id),
@@ -255,7 +260,11 @@ async def ativar_dispositivo(
         raise HTTPException(status_code=403, detail=str(exc))
 
 
-@router.post("/devices/revoke", status_code=status.HTTP_204_NO_CONTENT)
+@router.post(
+    "/devices/revoke",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_tenant_permission("campo:*"))],
+)
 async def revogar_dispositivo(
     req: DeviceRevokeRequest,
     tenant_id: uuid.UUID = Depends(get_tenant_id),
@@ -271,7 +280,11 @@ async def revogar_dispositivo(
         raise HTTPException(status_code=404, detail=str(exc))
 
 
-@router.post("/devices/reactivate", response_model=DeviceCreateResponse)
+@router.post(
+    "/devices/reactivate",
+    response_model=DeviceCreateResponse,
+    dependencies=[Depends(require_tenant_permission("campo:*"))],
+)
 async def reativar_dispositivo(
     req: DeviceReactivateRequest,
     tenant_id: uuid.UUID = Depends(get_tenant_id),
@@ -342,7 +355,12 @@ async def get_device_self(
 # Tarefas Programadas — gerenciadas pelo backoffice (apps/web)
 # ---------------------------------------------------------------------------
 
-@router.post("/tarefas", response_model=TarefaProgramadaResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/tarefas",
+    response_model=TarefaProgramadaResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_tenant_permission("campo:*"))],
+)
 async def criar_tarefa_programada(
     data: TarefaProgramadaCreate,
     tenant_id: uuid.UUID = Depends(get_tenant_id),
@@ -361,7 +379,11 @@ async def criar_tarefa_programada(
         raise HTTPException(status_code=500, detail=str(exc))
 
 
-@router.patch("/tarefas/{tarefa_id}", response_model=TarefaProgramadaResponse)
+@router.patch(
+    "/tarefas/{tarefa_id}",
+    response_model=TarefaProgramadaResponse,
+    dependencies=[Depends(require_tenant_permission("campo:*"))],
+)
 async def atualizar_tarefa_programada(
     tarefa_id: uuid.UUID,
     data: TarefaProgramadaUpdate,
@@ -422,7 +444,11 @@ async def get_tarefa(
         raise HTTPException(status_code=404, detail=str(exc))
 
 
-@router.patch("/tarefas/{tarefa_id}/execucao", response_model=TarefaProgramadaResponse)
+@router.patch(
+    "/tarefas/{tarefa_id}/execucao",
+    response_model=TarefaProgramadaResponse,
+    dependencies=[Depends(require_tenant_permission("campo:*"))],
+)
 async def atualizar_execucao(
     tarefa_id: uuid.UUID,
     data: ExecucaoUpdate,
@@ -445,7 +471,11 @@ async def atualizar_execucao(
         raise HTTPException(status_code=422, detail=str(exc))
 
 
-@router.delete("/tarefas/{tarefa_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/tarefas/{tarefa_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_tenant_permission("campo:*"))],
+)
 async def cancelar_tarefa(
     tarefa_id: uuid.UUID,
     tenant_id: uuid.UUID = Depends(get_tenant_id),
@@ -461,7 +491,11 @@ async def cancelar_tarefa(
         raise HTTPException(status_code=404, detail=str(exc))
 
 
-@router.post("/tarefas/{tarefa_id}/invalidar", response_model=TarefaProgramadaResponse)
+@router.post(
+    "/tarefas/{tarefa_id}/invalidar",
+    response_model=TarefaProgramadaResponse,
+    dependencies=[Depends(require_tenant_permission("campo:*"))],
+)
 async def invalidar_tarefa(
     tarefa_id: uuid.UUID,
     body: TarefaProgramadaInvalidarRequest,

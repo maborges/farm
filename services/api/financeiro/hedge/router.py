@@ -68,6 +68,7 @@ router = APIRouter(
     response_model=ContratoFuturoResponse,
     status_code=http_status.HTTP_201_CREATED,
     summary="Cria instrumento de hedge (contrato futuro)",
+    dependencies=[Depends(require_tenant_permission("financeiro:*"))],
 )
 async def criar_contrato(
     data: ContratoFuturoCreate,
@@ -120,6 +121,7 @@ async def listar_contratos(
     response_model=HedgeRegistroResponse,
     status_code=http_status.HTTP_201_CREATED,
     summary="Registra operação de hedge",
+    dependencies=[Depends(require_tenant_permission("financeiro:*"))],
 )
 async def criar_registro(
     data: HedgeRegistroCreate,

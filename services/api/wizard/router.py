@@ -8,7 +8,7 @@ from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from core.dependencies import get_current_user, get_session, get_tenant_id
+from core.dependencies import get_current_user, get_session, get_tenant_id, require_tenant_permission
 from core.models.auth import Usuario
 from wizard.checklist_engine import ChecklistEngine
 from wizard.models import ImplantacaoOperacional, PendenciaSeverity, PendenciaStatus, WizardStatus
@@ -490,6 +490,7 @@ async def _validate_erp_payload(session: AsyncSession, diagnostico: dict | None)
     "/iniciar",
     response_model=WizardResumoResponse,
     status_code=status.HTTP_200_OK,
+    dependencies=[Depends(require_tenant_permission("wizard:*"))]
 )
 async def iniciar_wizard(
     request: Request,
@@ -530,6 +531,7 @@ async def iniciar_wizard(
     "/configurar-carga",
     response_model=WizardResumoResponse,
     status_code=status.HTTP_200_OK,
+    dependencies=[Depends(require_tenant_permission("wizard:*"))]
 )
 async def configurar_carga_wizard(
     request: Request,
@@ -609,7 +611,9 @@ async def listar_checklist(
     return await _build_checklist_response(session, implantacao)
 
 
-@router.post("/checklist/reavaliar", response_model=WizardChecklistResponse)
+@router.post("/checklist/reavaliar", response_model=WizardChecklistResponse,
+    dependencies=[Depends(require_tenant_permission("wizard:*"))]
+)
 async def reavaliar_checklist(
     request: Request,
     session: AsyncSession = SESSION_DEP,
@@ -664,7 +668,9 @@ async def listar_pendencias(
     ]
 
 
-@router.post("/pausar", response_model=WizardResumoResponse)
+@router.post("/pausar", response_model=WizardResumoResponse,
+    dependencies=[Depends(require_tenant_permission("wizard:*"))]
+)
 async def pausar_wizard(
     request: Request,
     body: WizardActionRequest | None = None,
@@ -689,7 +695,9 @@ async def pausar_wizard(
     return await _build_resumo(session, implantacao)
 
 
-@router.post("/retomar", response_model=WizardResumoResponse)
+@router.post("/retomar", response_model=WizardResumoResponse,
+    dependencies=[Depends(require_tenant_permission("wizard:*"))]
+)
 async def retomar_wizard(
     request: Request,
     body: WizardActionRequest | None = None,
@@ -714,7 +722,9 @@ async def retomar_wizard(
     return await _build_resumo(session, implantacao)
 
 
-@router.post("/bloquear", response_model=WizardResumoResponse)
+@router.post("/bloquear", response_model=WizardResumoResponse,
+    dependencies=[Depends(require_tenant_permission("wizard:*"))]
+)
 async def bloquear_wizard(
     request: Request,
     body: WizardActionRequest | None = None,
@@ -739,7 +749,9 @@ async def bloquear_wizard(
     return await _build_resumo(session, implantacao)
 
 
-@router.post("/desbloquear", response_model=WizardResumoResponse)
+@router.post("/desbloquear", response_model=WizardResumoResponse,
+    dependencies=[Depends(require_tenant_permission("wizard:*"))]
+)
 async def desbloquear_wizard(
     request: Request,
     body: WizardActionRequest | None = None,
@@ -764,7 +776,9 @@ async def desbloquear_wizard(
     return await _build_resumo(session, implantacao)
 
 
-@router.post("/pronto-go-live", response_model=WizardResumoResponse)
+@router.post("/pronto-go-live", response_model=WizardResumoResponse,
+    dependencies=[Depends(require_tenant_permission("wizard:*"))]
+)
 async def pronto_go_live(
     request: Request,
     body: WizardActionRequest | None = None,
@@ -790,7 +804,9 @@ async def pronto_go_live(
     return await _build_resumo(session, implantacao)
 
 
-@router.post("/go-live", response_model=WizardResumoResponse)
+@router.post("/go-live", response_model=WizardResumoResponse,
+    dependencies=[Depends(require_tenant_permission("wizard:*"))]
+)
 async def executar_go_live(
     request: Request,
     body: WizardActionRequest | None = None,
@@ -816,7 +832,9 @@ async def executar_go_live(
     return await _build_resumo(session, implantacao)
 
 
-@router.post("/estabilizar", response_model=WizardResumoResponse)
+@router.post("/estabilizar", response_model=WizardResumoResponse,
+    dependencies=[Depends(require_tenant_permission("wizard:*"))]
+)
 async def estabilizar_wizard(
     request: Request,
     body: WizardActionRequest | None = None,
@@ -841,7 +859,9 @@ async def estabilizar_wizard(
     return await _build_resumo(session, implantacao)
 
 
-@router.post("/concluir", response_model=WizardResumoResponse)
+@router.post("/concluir", response_model=WizardResumoResponse,
+    dependencies=[Depends(require_tenant_permission("wizard:*"))]
+)
 async def concluir_wizard(
     body: WizardActionRequest | None = None,
     session: AsyncSession = SESSION_DEP,
@@ -860,7 +880,9 @@ async def concluir_wizard(
     return await _build_resumo(session, implantacao)
 
 
-@router.post("/cancelar", response_model=WizardResumoResponse)
+@router.post("/cancelar", response_model=WizardResumoResponse,
+    dependencies=[Depends(require_tenant_permission("wizard:*"))]
+)
 async def cancelar_wizard(
     body: WizardActionRequest | None = None,
     session: AsyncSession = SESSION_DEP,

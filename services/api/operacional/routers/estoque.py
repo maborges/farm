@@ -48,7 +48,7 @@ async def listar_lotes(
     "/lotes",
     response_model=LoteResponse,
     status_code=201,
-    dependencies=[Depends(require_limit("storage_limite_mb"))],  # ← Valida limite de storage!
+    dependencies=[Depends(require_tenant_permission("operacional:*")), Depends(require_limit("storage_limite_mb"))],  # ← Valida limite de storage!
 )
 async def criar_lote(
     data: LoteCreate,
@@ -61,7 +61,9 @@ async def criar_lote(
     return result
 
 
-@router.patch("/lotes/{lote_id}", response_model=LoteResponse)
+@router.patch("/lotes/{lote_id}", response_model=LoteResponse,
+    dependencies=[Depends(require_tenant_permission("operacional:*"))]
+)
 async def atualizar_lote(
     lote_id: uuid.UUID,
     data: LoteUpdate,
@@ -94,7 +96,9 @@ async def listar_depositos(
     return await _svc(session, tenant).listar_depositos(unidade_produtiva_id)
 
 
-@router.post("/depositos", response_model=DepositoResponse, status_code=201)
+@router.post("/depositos", response_model=DepositoResponse, status_code=201,
+    dependencies=[Depends(require_tenant_permission("operacional:*"))]
+)
 async def criar_deposito(
     data: DepositoCreate,
     tenant: Tenant = Depends(get_current_tenant),
@@ -106,7 +110,9 @@ async def criar_deposito(
     return result
 
 
-@router.patch("/depositos/{deposito_id}", response_model=DepositoResponse)
+@router.patch("/depositos/{deposito_id}", response_model=DepositoResponse,
+    dependencies=[Depends(require_tenant_permission("operacional:*"))]
+)
 async def atualizar_deposito(
     deposito_id: uuid.UUID,
     data: DepositoUpdate,
@@ -129,7 +135,9 @@ async def listar_alertas_reposicao(
     return await _svc(session, tenant).listar_alertas_reposicao()
 
 
-@router.patch("/saldos/{saldo_id}/minimo", response_model=SaldoResponse)
+@router.patch("/saldos/{saldo_id}/minimo", response_model=SaldoResponse,
+    dependencies=[Depends(require_tenant_permission("operacional:*"))]
+)
 async def atualizar_estoque_minimo(
     saldo_id: uuid.UUID,
     data: SaldoMinimoUpdateRequest,
@@ -140,7 +148,9 @@ async def atualizar_estoque_minimo(
     return await svc.atualizar_estoque_minimo(saldo_id, data.estoque_minimo)
 
 
-@router.patch("/saldos/{saldo_id}/maximo", response_model=SaldoResponse)
+@router.patch("/saldos/{saldo_id}/maximo", response_model=SaldoResponse,
+    dependencies=[Depends(require_tenant_permission("operacional:*"))]
+)
 async def atualizar_estoque_maximo(
     saldo_id: uuid.UUID,
     data: SaldoMaximoUpdateRequest,
@@ -163,7 +173,9 @@ async def listar_localizacoes(
     return await _svc(session, tenant).listar_localizacoes(produto_id, deposito_id)
 
 
-@router.post("/localizacoes", response_model=EstoqueLocalizacaoResponse, status_code=201)
+@router.post("/localizacoes", response_model=EstoqueLocalizacaoResponse, status_code=201,
+    dependencies=[Depends(require_tenant_permission("operacional:*"))]
+)
 async def criar_localizacao(
     data: EstoqueLocalizacaoCreate,
     tenant: Tenant = Depends(get_current_tenant),
@@ -175,7 +187,9 @@ async def criar_localizacao(
     return result
 
 
-@router.patch("/localizacoes/{localizacao_id}", response_model=EstoqueLocalizacaoResponse)
+@router.patch("/localizacoes/{localizacao_id}", response_model=EstoqueLocalizacaoResponse,
+    dependencies=[Depends(require_tenant_permission("operacional:*"))]
+)
 async def atualizar_localizacao(
     localizacao_id: uuid.UUID,
     data: EstoqueLocalizacaoUpdate,
@@ -188,7 +202,9 @@ async def atualizar_localizacao(
     return result
 
 
-@router.delete("/localizacoes/{localizacao_id}", status_code=204)
+@router.delete("/localizacoes/{localizacao_id}", status_code=204,
+    dependencies=[Depends(require_tenant_permission("operacional:*"))]
+)
 async def remover_localizacao(
     localizacao_id: uuid.UUID,
     tenant: Tenant = Depends(get_current_tenant),
@@ -241,7 +257,9 @@ async def obter_movimentacao(
     return await _svc(session, tenant).obter_movimentacao(movimentacao_id)
 
 
-@router.post("/movimentacoes/{movimentacao_id}/ajustar", response_model=MovimentacaoResponse)
+@router.post("/movimentacoes/{movimentacao_id}/ajustar", response_model=MovimentacaoResponse,
+    dependencies=[Depends(require_tenant_permission("operacional:*"))]
+)
 async def ajustar_movimentacao(
     movimentacao_id: uuid.UUID,
     data: AjusteMovimentoRequest,
@@ -260,7 +278,9 @@ async def obter_auditoria_movimentacao(
     return await _svc(session, tenant).get_auditoria_movimentacao(movimentacao_id)
 
 
-@router.post("/movimentacoes/entrada", response_model=MovimentacaoResponse, status_code=201)
+@router.post("/movimentacoes/entrada", response_model=MovimentacaoResponse, status_code=201,
+    dependencies=[Depends(require_tenant_permission("operacional:*"))]
+)
 async def registrar_entrada(
     data: EntradaEstoqueRequest,
     tenant: Tenant = Depends(get_current_tenant),
@@ -272,7 +292,9 @@ async def registrar_entrada(
     return result
 
 
-@router.post("/movimentacoes/saida", response_model=MovimentacaoResponse, status_code=201)
+@router.post("/movimentacoes/saida", response_model=MovimentacaoResponse, status_code=201,
+    dependencies=[Depends(require_tenant_permission("operacional:*"))]
+)
 async def registrar_saida(
     data: SaidaEstoqueRequest,
     tenant: Tenant = Depends(get_current_tenant),
@@ -284,7 +306,9 @@ async def registrar_saida(
     return result
 
 
-@router.post("/movimentacoes/ajuste", response_model=MovimentacaoResponse, status_code=201)
+@router.post("/movimentacoes/ajuste", response_model=MovimentacaoResponse, status_code=201,
+    dependencies=[Depends(require_tenant_permission("operacional:*"))]
+)
 async def registrar_ajuste(
     data: AjusteEstoqueRequest,
     tenant: Tenant = Depends(get_current_tenant),
@@ -296,7 +320,9 @@ async def registrar_ajuste(
     return result
 
 
-@router.post("/movimentacoes/transferencia", response_model=List[MovimentacaoResponse], status_code=201)
+@router.post("/movimentacoes/transferencia", response_model=List[MovimentacaoResponse], status_code=201,
+    dependencies=[Depends(require_tenant_permission("operacional:*"))]
+)
 async def registrar_transferencia(
     data: TransferenciaEstoqueRequest,
     tenant: Tenant = Depends(get_current_tenant),
@@ -310,7 +336,9 @@ async def registrar_transferencia(
 
 # ── Requisições de Material ────────────────────────────────────────────────────
 
-@router.post("/requisicoes", response_model=RequisicaoResponse, status_code=201)
+@router.post("/requisicoes", response_model=RequisicaoResponse, status_code=201,
+    dependencies=[Depends(require_tenant_permission("operacional:*"))]
+)
 async def criar_requisicao(
     data: RequisicaoCreate,
     tenant: Tenant = Depends(get_current_tenant),
@@ -334,7 +362,9 @@ async def listar_requisicoes(
     return await _svc(session, tenant).listar_requisicoes(unidade_produtiva_id, status)
 
 
-@router.patch("/requisicoes/{req_id}/aprovar", response_model=RequisicaoResponse)
+@router.patch("/requisicoes/{req_id}/aprovar", response_model=RequisicaoResponse,
+    dependencies=[Depends(require_tenant_permission("operacional:*"))]
+)
 async def aprovar_requisicao(
     req_id: uuid.UUID,
     data: RequisicaoAprovarRequest,
@@ -348,7 +378,9 @@ async def aprovar_requisicao(
     return await svc._carregar_itens_requisicao(result)
 
 
-@router.patch("/requisicoes/{req_id}/separar", response_model=RequisicaoResponse)
+@router.patch("/requisicoes/{req_id}/separar", response_model=RequisicaoResponse,
+    dependencies=[Depends(require_tenant_permission("operacional:*"))]
+)
 async def separar_requisicao(
     req_id: uuid.UUID,
     tenant: Tenant = Depends(get_current_tenant),
@@ -360,7 +392,9 @@ async def separar_requisicao(
     return await svc._carregar_itens_requisicao(result)
 
 
-@router.patch("/requisicoes/{req_id}/entregar", response_model=RequisicaoResponse)
+@router.patch("/requisicoes/{req_id}/entregar", response_model=RequisicaoResponse,
+    dependencies=[Depends(require_tenant_permission("operacional:*"))]
+)
 async def entregar_requisicao(
     req_id: uuid.UUID,
     data: RequisicaoEntregarRequest,
@@ -373,7 +407,9 @@ async def entregar_requisicao(
     return await svc._carregar_itens_requisicao(result)
 
 
-@router.post("/requisicoes/{req_id}/confirmar-retirada", response_model=RequisicaoResponse)
+@router.post("/requisicoes/{req_id}/confirmar-retirada", response_model=RequisicaoResponse,
+    dependencies=[Depends(require_tenant_permission("operacional:*"))]
+)
 async def confirmar_retirada_requisicao(
     req_id: uuid.UUID,
     data: ConfirmarRetiradaRequest,
@@ -388,7 +424,9 @@ async def confirmar_retirada_requisicao(
     return await svc._carregar_itens_requisicao(result)
 
 
-@router.post("/requisicoes/{req_id}/confirmar-devolucao", response_model=RequisicaoResponse)
+@router.post("/requisicoes/{req_id}/confirmar-devolucao", response_model=RequisicaoResponse,
+    dependencies=[Depends(require_tenant_permission("operacional:*"))]
+)
 async def confirmar_devolucao_requisicao(
     req_id: uuid.UUID,
     data: ConfirmarDevolucaoRequest,
@@ -403,7 +441,9 @@ async def confirmar_devolucao_requisicao(
     return result
 
 
-@router.patch("/requisicoes/{req_id}/recusar", response_model=RequisicaoResponse)
+@router.patch("/requisicoes/{req_id}/recusar", response_model=RequisicaoResponse,
+    dependencies=[Depends(require_tenant_permission("operacional:*"))]
+)
 async def recusar_requisicao(
     req_id: uuid.UUID,
     tenant: Tenant = Depends(get_current_tenant),
@@ -428,7 +468,9 @@ async def listar_reservas(
     return await _svc(session, tenant).listar_reservas(produto_id, deposito_id, status or None)
 
 
-@router.post("/reservas", response_model=ReservaResponse, status_code=201)
+@router.post("/reservas", response_model=ReservaResponse, status_code=201,
+    dependencies=[Depends(require_tenant_permission("operacional:*"))]
+)
 async def criar_reserva(
     data: ReservaCreate,
     tenant: Tenant = Depends(get_current_tenant),
@@ -441,7 +483,9 @@ async def criar_reserva(
     return result
 
 
-@router.patch("/reservas/{reserva_id}/cancelar", response_model=ReservaResponse)
+@router.patch("/reservas/{reserva_id}/cancelar", response_model=ReservaResponse,
+    dependencies=[Depends(require_tenant_permission("operacional:*"))]
+)
 async def cancelar_reserva(
     reserva_id: uuid.UUID,
     data: ReservaCancelarRequest = ReservaCancelarRequest(),
@@ -454,7 +498,9 @@ async def cancelar_reserva(
     return result
 
 
-@router.patch("/reservas/{reserva_id}/consumir", response_model=ReservaResponse)
+@router.patch("/reservas/{reserva_id}/consumir", response_model=ReservaResponse,
+    dependencies=[Depends(require_tenant_permission("operacional:*"))]
+)
 async def consumir_reserva(
     reserva_id: uuid.UUID,
     data: ReservaConsumirRequest = ReservaConsumirRequest(),

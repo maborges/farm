@@ -39,7 +39,7 @@ from certificacoes_esg.models import (
     StatusPassaporte,
 )
 from certificacoes_esg.service import CertificacoesESGService
-from core.dependencies import get_session, get_tenant_id, get_user_id
+from core.dependencies import get_session, get_tenant_id, get_user_id, require_tenant_permission
 
 
 router = APIRouter(prefix="/certificacoes-esg", tags=["Certificações / ESG"])
@@ -55,7 +55,9 @@ def _service(session: AsyncSession, tenant_id: uuid.UUID, user_id: uuid.UUID | N
     return CertificacoesESGService(session, tenant_id, user_id=_user_id_or_unauthorized(user_id))
 
 
-@router.post("/evidencias", response_model=EvidenciaCertificacaoResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/evidencias", response_model=EvidenciaCertificacaoResponse, status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_tenant_permission("certificacoes_esg:*"))]
+)
 async def criar_evidencia(
     dados: EvidenciaCertificacaoCreate,
     tenant_id: uuid.UUID = Depends(get_tenant_id),
@@ -100,6 +102,7 @@ async def listar_evidencias(
     "/nao-conformidades",
     response_model=NaoConformidadeCertificacaoResponse,
     status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_tenant_permission("certificacoes_esg:*"))]
 )
 async def criar_nao_conformidade(
     dados: NaoConformidadeCertificacaoCreate,
@@ -148,7 +151,9 @@ async def listar_nao_conformidades(
     return stmt
 
 
-@router.patch("/nao-conformidades/{nao_conformidade_id}/status", response_model=NaoConformidadeCertificacaoResponse)
+@router.patch("/nao-conformidades/{nao_conformidade_id}/status", response_model=NaoConformidadeCertificacaoResponse,
+    dependencies=[Depends(require_tenant_permission("certificacoes_esg:*"))]
+)
 async def atualizar_status_nao_conformidade(
     nao_conformidade_id: uuid.UUID,
     dados: NaoConformidadeStatusUpdate,
@@ -165,7 +170,9 @@ async def atualizar_status_nao_conformidade(
     return obj
 
 
-@router.post("/planos-acao", response_model=PlanoAcaoCertificacaoResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/planos-acao", response_model=PlanoAcaoCertificacaoResponse, status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_tenant_permission("certificacoes_esg:*"))]
+)
 async def criar_plano_acao(
     dados: PlanoAcaoCertificacaoCreate,
     tenant_id: uuid.UUID = Depends(get_tenant_id),
@@ -209,7 +216,9 @@ async def listar_planos_acao(
     )
 
 
-@router.patch("/planos-acao/{plano_acao_id}/status", response_model=PlanoAcaoCertificacaoResponse)
+@router.patch("/planos-acao/{plano_acao_id}/status", response_model=PlanoAcaoCertificacaoResponse,
+    dependencies=[Depends(require_tenant_permission("certificacoes_esg:*"))]
+)
 async def atualizar_status_plano_acao(
     plano_acao_id: uuid.UUID,
     dados: PlanoAcaoStatusUpdate,
@@ -223,7 +232,9 @@ async def atualizar_status_plano_acao(
     return obj
 
 
-@router.post("/relatorios-esg", response_model=RelatorioESGResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/relatorios-esg", response_model=RelatorioESGResponse, status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_tenant_permission("certificacoes_esg:*"))]
+)
 async def criar_relatorio_esg(
     dados: RelatorioESGCreate,
     tenant_id: uuid.UUID = Depends(get_tenant_id),
@@ -261,7 +272,9 @@ async def listar_relatorios_esg(
     )
 
 
-@router.patch("/relatorios-esg/{id}/status", response_model=RelatorioESGResponse)
+@router.patch("/relatorios-esg/{id}/status", response_model=RelatorioESGResponse,
+    dependencies=[Depends(require_tenant_permission("certificacoes_esg:*"))]
+)
 async def atualizar_status_relatorio_esg(
     id: uuid.UUID,
     dados: RelatorioESGUpdateStatus,
@@ -275,7 +288,9 @@ async def atualizar_status_relatorio_esg(
     return obj
 
 
-@router.post("/relatorios-esg/{id}/indicadores", response_model=RelatorioESGIndicadorResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/relatorios-esg/{id}/indicadores", response_model=RelatorioESGIndicadorResponse, status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_tenant_permission("certificacoes_esg:*"))]
+)
 async def adicionar_indicador_relatorio_esg(
     id: uuid.UUID,
     dados: RelatorioESGIndicadorCreate,
@@ -301,7 +316,9 @@ async def listar_indicadores_relatorio_esg(
     return await _service(session, tenant_id, user_id).listar_indicadores_relatorio_esg(id)
 
 
-@router.post("/relatorios-esg/{id}/evidencias", response_model=RelatorioESGEvidenciaResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/relatorios-esg/{id}/evidencias", response_model=RelatorioESGEvidenciaResponse, status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_tenant_permission("certificacoes_esg:*"))]
+)
 async def vincular_evidencia_relatorio_esg(
     id: uuid.UUID,
     dados: RelatorioESGEvidenciaCreate,
@@ -327,7 +344,9 @@ async def listar_evidencias_relatorio_esg(
     return await _service(session, tenant_id, user_id).listar_evidencias_relatorio_esg(id)
 
 
-@router.post("/passaportes", response_model=PassaporteRastreabilidadeResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/passaportes", response_model=PassaporteRastreabilidadeResponse, status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_tenant_permission("certificacoes_esg:*"))]
+)
 async def criar_passaporte_rastreabilidade(
     dados: PassaporteRastreabilidadeCreate,
     tenant_id: uuid.UUID = Depends(get_tenant_id),
@@ -365,7 +384,9 @@ async def listar_passaportes_rastreabilidade(
     )
 
 
-@router.patch("/passaportes/{id}/status", response_model=PassaporteRastreabilidadeResponse)
+@router.patch("/passaportes/{id}/status", response_model=PassaporteRastreabilidadeResponse,
+    dependencies=[Depends(require_tenant_permission("certificacoes_esg:*"))]
+)
 async def atualizar_status_passaporte_rastreabilidade(
     id: uuid.UUID,
     dados: PassaporteRastreabilidadeUpdateStatus,
@@ -379,7 +400,9 @@ async def atualizar_status_passaporte_rastreabilidade(
     return obj
 
 
-@router.post("/passaportes/{id}/eventos", response_model=PassaporteRastreabilidadeEventoResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/passaportes/{id}/eventos", response_model=PassaporteRastreabilidadeEventoResponse, status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_tenant_permission("certificacoes_esg:*"))]
+)
 async def adicionar_evento_passaporte(
     id: uuid.UUID,
     dados: PassaporteRastreabilidadeEventoCreate,
@@ -405,7 +428,9 @@ async def listar_eventos_passaporte(
     return await _service(session, tenant_id, user_id).listar_eventos_passaporte(id)
 
 
-@router.post("/passaportes/{id}/evidencias", response_model=PassaporteRastreabilidadeEvidenciaResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/passaportes/{id}/evidencias", response_model=PassaporteRastreabilidadeEvidenciaResponse, status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_tenant_permission("certificacoes_esg:*"))]
+)
 async def vincular_evidencia_passaporte(
     id: uuid.UUID,
     dados: PassaporteRastreabilidadeEvidenciaCreate,
