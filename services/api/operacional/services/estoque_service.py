@@ -203,10 +203,16 @@ class EstoqueService(BaseService[SaldoEstoque]):
         await self.session.refresh(dep)
         return dep
 
-    async def listar_depositos(self, unidade_produtiva_id: UUID | None = None) -> list[Deposito]:
+    async def listar_depositos(
+        self,
+        unidade_produtiva_id: UUID | None = None,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> list[Deposito]:
         stmt = select(Deposito).where(Deposito.tenant_id == self.tenant_id)
         if unidade_produtiva_id:
             stmt = stmt.where(Deposito.unidade_produtiva_id == unidade_produtiva_id)
+        stmt = stmt.offset(skip).limit(limit)
         return list((await self.session.execute(stmt)).scalars().all())
 
     # ── Saldos ────────────────────────────────────────────────────────────
@@ -226,10 +232,12 @@ class EstoqueService(BaseService[SaldoEstoque]):
         return saldo
 
     async def listar_saldos(
-        self, 
+        self,
         unidade_produtiva_id: UUID | None = None,
         produto_id: UUID | None = None,
-        deposito_id: UUID | None = None
+        deposito_id: UUID | None = None,
+        skip: int = 0,
+        limit: int = 100,
     ) -> list[SaldoResponse]:
         dep_stmt = select(Deposito).where(Deposito.tenant_id == self.tenant_id, Deposito.ativo == True)
         if unidade_produtiva_id:
@@ -255,7 +263,8 @@ class EstoqueService(BaseService[SaldoEstoque]):
         )
         if produto_id:
             saldo_stmt = saldo_stmt.where(SaldoEstoque.produto_id == produto_id)
-            
+        saldo_stmt = saldo_stmt.offset(skip).limit(limit)
+
         saldos = (await self.session.execute(saldo_stmt)).scalars().all()
 
         result = []
@@ -313,13 +322,18 @@ class EstoqueService(BaseService[SaldoEstoque]):
     # ── Localização física ───────────────────────────────────────────────────
 
     async def listar_localizacoes(
-        self, produto_id: UUID | None = None, deposito_id: UUID | None = None,
+        self,
+        produto_id: UUID | None = None,
+        deposito_id: UUID | None = None,
+        skip: int = 0,
+        limit: int = 100,
     ) -> list[EstoqueLocalizacaoResponse]:
         stmt = select(EstoqueLocalizacao).where(EstoqueLocalizacao.tenant_id == self.tenant_id)
         if produto_id:
             stmt = stmt.where(EstoqueLocalizacao.produto_id == produto_id)
         if deposito_id:
             stmt = stmt.where(EstoqueLocalizacao.deposito_id == deposito_id)
+        stmt = stmt.offset(skip).limit(limit)
         locs = (await self.session.execute(stmt)).scalars().all()
         if not locs:
             return []
@@ -464,6 +478,8 @@ class EstoqueService(BaseService[SaldoEstoque]):
         deposito_id: UUID | None = None,
         vencendo_em_dias: int | None = None,
         apenas_ativos: bool = True,
+        skip: int = 0,
+        limit: int = 100,
     ) -> list[LoteEstoque]:
         # Garante acesso apenas a depósitos do tenant
         dep_stmt = select(Deposito.id).where(Deposito.tenant_id == self.tenant_id)
@@ -483,7 +499,7 @@ class EstoqueService(BaseService[SaldoEstoque]):
                 LoteEstoque.data_validade != None,
                 LoteEstoque.data_validade <= limite,
             )
-        stmt = stmt.order_by(LoteEstoque.data_validade.asc().nullslast())
+        stmt = stmt.order_by(LoteEstoque.data_validade.asc().nullslast()).offset(skip).limit(limit)
         lotes = list((await self.session.execute(stmt)).scalars().all())
 
         # Marca lotes ESGOTADOS que foram zerados por estorno de recebimento
@@ -1460,6 +1476,8 @@ class EstoqueService(BaseService[SaldoEstoque]):
         unidade_produtiva_id: UUID | None = None,
         status: str | None = None,
         solicitante_id: UUID | None = None,
+        skip: int = 0,
+        limit: int = 100,
     ) -> list[RequisicaoMaterial]:
         stmt = select(RequisicaoMaterial).where(RequisicaoMaterial.tenant_id == self.tenant_id)
         if unidade_produtiva_id:
@@ -1468,7 +1486,7 @@ class EstoqueService(BaseService[SaldoEstoque]):
             stmt = stmt.where(RequisicaoMaterial.status == status)
         if solicitante_id:
             stmt = stmt.where(RequisicaoMaterial.solicitante_id == solicitante_id)
-        stmt = stmt.order_by(RequisicaoMaterial.data_solicitacao.desc())
+        stmt = stmt.order_by(RequisicaoMaterial.data_solicitacao.desc()).offset(skip).limit(limit)
         requisicoes = list((await self.session.execute(stmt)).scalars().all())
         return await self._carregar_itens_requisicoes_em_lote(requisicoes)
 
@@ -1807,6 +1825,8 @@ class EstoqueService(BaseService[SaldoEstoque]):
         produto_id: UUID | None = None,
         deposito_id: UUID | None = None,
         status: str | None = "ATIVA",
+        skip: int = 0,
+        limit: int = 100,
     ) -> list[ReservaEstoque]:
         # Filtra apenas reservas do tenant (via depósitos)
         dep_stmt = select(Deposito.id).where(Deposito.tenant_id == self.tenant_id)
@@ -1820,6 +1840,7 @@ class EstoqueService(BaseService[SaldoEstoque]):
             stmt = stmt.where(ReservaEstoque.deposito_id == deposito_id)
         if status:
             stmt = stmt.where(ReservaEstoque.status == status)
+        stmt = stmt.offset(skip).limit(limit)
         return list((await self.session.execute(stmt)).scalars().all())
 
     async def _get_reserva(self, reserva_id: UUID) -> ReservaEstoque:

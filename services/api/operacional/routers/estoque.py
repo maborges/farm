@@ -38,10 +38,14 @@ async def listar_lotes(
     deposito_id: Optional[uuid.UUID] = Query(None),
     vencendo_em_dias: Optional[int] = Query(None, description="Lotes vencendo nos próximos N dias"),
     apenas_ativos: bool = Query(True),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
     tenant: Tenant = Depends(get_current_tenant),
     session: AsyncSession = Depends(get_session),
 ):
-    return await _svc(session, tenant).listar_lotes(produto_id, deposito_id, vencendo_em_dias, apenas_ativos)
+    return await _svc(session, tenant).listar_lotes(
+        produto_id, deposito_id, vencendo_em_dias, apenas_ativos, skip=skip, limit=limit
+    )
 
 
 @router.post(
@@ -90,10 +94,12 @@ async def alertas_validade(
 @router.get("/depositos", response_model=List[DepositoResponse])
 async def listar_depositos(
     unidade_produtiva_id: Optional[uuid.UUID] = Query(None),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
     tenant: Tenant = Depends(get_current_tenant),
     session: AsyncSession = Depends(get_session),
 ):
-    return await _svc(session, tenant).listar_depositos(unidade_produtiva_id)
+    return await _svc(session, tenant).listar_depositos(unidade_produtiva_id, skip=skip, limit=limit)
 
 
 @router.post("/depositos", response_model=DepositoResponse, status_code=201,
@@ -167,10 +173,12 @@ async def atualizar_estoque_maximo(
 async def listar_localizacoes(
     produto_id: Optional[uuid.UUID] = Query(None),
     deposito_id: Optional[uuid.UUID] = Query(None),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
     tenant: Tenant = Depends(get_current_tenant),
     session: AsyncSession = Depends(get_session),
 ):
-    return await _svc(session, tenant).listar_localizacoes(produto_id, deposito_id)
+    return await _svc(session, tenant).listar_localizacoes(produto_id, deposito_id, skip=skip, limit=limit)
 
 
 @router.post("/localizacoes", response_model=EstoqueLocalizacaoResponse, status_code=201,
@@ -220,10 +228,14 @@ async def listar_saldos(
     unidade_produtiva_id: Optional[uuid.UUID] = Query(None),
     produto_id: Optional[uuid.UUID] = Query(None),
     deposito_id: Optional[uuid.UUID] = Query(None),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
     tenant: Tenant = Depends(get_current_tenant),
     session: AsyncSession = Depends(get_session),
 ):
-    return await _svc(session, tenant).listar_saldos(unidade_produtiva_id, produto_id, deposito_id)
+    return await _svc(session, tenant).listar_saldos(
+        unidade_produtiva_id, produto_id, deposito_id, skip=skip, limit=limit
+    )
 
 
 @router.get("/alertas", response_model=List[AlertaEstoqueItem])
@@ -356,10 +368,14 @@ async def criar_requisicao(
 async def listar_requisicoes(
     unidade_produtiva_id: Optional[uuid.UUID] = Query(None),
     status: Optional[str] = Query(None),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
     tenant: Tenant = Depends(get_current_tenant),
     session: AsyncSession = Depends(get_session),
 ):
-    return await _svc(session, tenant).listar_requisicoes(unidade_produtiva_id, status)
+    return await _svc(session, tenant).listar_requisicoes(
+        unidade_produtiva_id, status, skip=skip, limit=limit
+    )
 
 
 @router.patch("/requisicoes/{req_id}/aprovar", response_model=RequisicaoResponse,
@@ -462,10 +478,14 @@ async def listar_reservas(
     produto_id: Optional[uuid.UUID] = Query(None),
     deposito_id: Optional[uuid.UUID] = Query(None),
     status: Optional[str] = Query("ATIVA", description="ATIVA | CONSUMIDA | CANCELADA | (vazio=todos)"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
     tenant: Tenant = Depends(get_current_tenant),
     session: AsyncSession = Depends(get_session),
 ):
-    return await _svc(session, tenant).listar_reservas(produto_id, deposito_id, status or None)
+    return await _svc(session, tenant).listar_reservas(
+        produto_id, deposito_id, status or None, skip=skip, limit=limit
+    )
 
 
 @router.post("/reservas", response_model=ReservaResponse, status_code=201,

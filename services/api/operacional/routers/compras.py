@@ -1,5 +1,5 @@
 from core.dependencies import require_tenant_permission
-from fastapi import APIRouter, Depends, HTTPException, status, Response
+from fastapi import APIRouter, Depends, HTTPException, status, Response, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from typing import List, Optional
@@ -146,11 +146,13 @@ async def update_fornecedor(
 
 @router.get("/pedidos", response_model=List[PedidoCompraResponse])
 async def list_pedidos(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
     tenant: Tenant = Depends(get_current_tenant),
     session: AsyncSession = Depends(get_session)
 ):
     svc = ComprasService(session, tenant.id)
-    return await svc.listar_pedidos()
+    return await svc.listar_pedidos(skip=skip, limit=limit)
 
 
 @router.get("/pedidos/{pedido_id}", response_model=PedidoCompraResponse)
@@ -427,11 +429,15 @@ async def list_solicitacoes_compra(
     status: Optional[str] = None,
     item_id: Optional[uuid.UUID] = None,
     deposito_id: Optional[uuid.UUID] = None,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
     tenant: Tenant = Depends(get_current_tenant),
     session: AsyncSession = Depends(get_session)
 ):
     svc = ComprasService(session, tenant.id)
-    return await svc.listar_solicitacoes(status=status, produto_id=item_id, deposito_id=deposito_id)
+    return await svc.listar_solicitacoes(
+        status=status, produto_id=item_id, deposito_id=deposito_id, skip=skip, limit=limit
+    )
 
 
 @router.patch("/solicitacoes/{id}/status", response_model=SolicitacaoCompraResponse,

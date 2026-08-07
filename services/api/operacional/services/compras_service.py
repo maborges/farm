@@ -941,7 +941,9 @@ class ComprasService:
         self,
         status: Optional[str] = None,
         produto_id: Optional[uuid.UUID] = None,
-        deposito_id: Optional[uuid.UUID] = None
+        deposito_id: Optional[uuid.UUID] = None,
+        skip: int = 0,
+        limit: int = 100,
     ) -> List[SolicitacaoCompra]:
         """Lista solicitações de compra com filtros e dados enriquecidos."""
         from core.cadastros.produtos.models import Produto
@@ -958,7 +960,7 @@ class ComprasService:
             if deposito_id:
                 stmt = stmt.where(SolicitacaoItem.deposito_id == deposito_id)
 
-        stmt = stmt.order_by(SolicitacaoCompra.created_at.desc()).distinct()
+        stmt = stmt.order_by(SolicitacaoCompra.created_at.desc()).distinct().offset(skip).limit(limit)
 
         result = await self.session.execute(stmt)
         solicitacoes = list(result.scalars().all())
@@ -1822,12 +1824,14 @@ class ComprasService:
         despesas = await DespesaService(self.session, self.tenant_id).create_with_rateio(payload)
         return despesas[0] if despesas else None
 
-    async def listar_pedidos(self) -> List[PedidoCompra]:
+    async def listar_pedidos(self, skip: int = 0, limit: int = 100) -> List[PedidoCompra]:
         """Lista todos os pedidos de compra com dados enriquecidos."""
         stmt = (
             select(PedidoCompra)
             .where(PedidoCompra.tenant_id == self.tenant_id)
             .order_by(PedidoCompra.created_at.desc())
+            .offset(skip)
+            .limit(limit)
         )
         pedidos = (await self.session.execute(stmt)).scalars().all()
         return [await self._enriquecer_pedido(ped) for ped in pedidos]
