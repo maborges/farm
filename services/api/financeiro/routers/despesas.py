@@ -28,6 +28,8 @@ async def listar_despesas(
     status_filtro: Optional[str] = Query(None, alias="status"),
     vencimento_de: Optional[date] = Query(None, description="Filtrar vencimento a partir desta data"),
     vencimento_ate: Optional[date] = Query(None, description="Filtrar vencimento até esta data"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_session),
 ):
@@ -38,6 +40,8 @@ async def listar_despesas(
         status=status_filtro,
         vencimento_de=vencimento_de,
         vencimento_ate=vencimento_ate,
+        skip=skip,
+        limit=limit,
     )
 
 

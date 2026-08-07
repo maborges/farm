@@ -290,11 +290,15 @@ async def listar_lancamentos(
     status: Optional[str] = Query(None, description="NAO_CONCILIADO | CONCILIADO | IGNORADO"),
     data_de: Optional[date] = Query(None),
     data_ate: Optional[date] = Query(None),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_session),
 ):
     svc = ConciliacaoService(db, tenant_id)
-    return await svc.listar_lancamentos(conta_id, status=status, data_de=data_de, data_ate=data_ate)
+    return await svc.listar_lancamentos(
+        conta_id, status=status, data_de=data_de, data_ate=data_ate, skip=skip, limit=limit
+    )
 
 
 @router.get("/contas-bancarias/{conta_id}/sugestoes")

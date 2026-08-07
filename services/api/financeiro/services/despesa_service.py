@@ -1,5 +1,4 @@
 import uuid
-from decimal import Decimal, ROUND_HALF_UP
 from datetime import date, timedelta
 from typing import List, Optional
 from dateutil.relativedelta import relativedelta
@@ -23,6 +22,7 @@ from financeiro.models.conciliacao import ContaBancaria
 from financeiro.models.rateio import Rateio
 from financeiro.models.plano_conta import PlanoConta
 from financeiro.schemas.despesa_schema import BaixaDespesaRequest, DespesaCreate, DespesaUpdate
+from financeiro.services.parcelamento_utils import calcular_parcelas
 
 
 class DespesaService(BaseService[Despesa]):
@@ -101,19 +101,6 @@ class DespesaService(BaseService[Despesa]):
             allow_block=allow_block,
         )
 
-    def _calcular_parcelas(self, valor_total: float, total_parcelas: int) -> list[float]:
-        """
-        Divide o valor total em parcelas com centavos corretos.
-        A diferença de arredondamento vai para a última parcela.
-        """
-        valor_dec = Decimal(str(valor_total))
-        parcela_base = (valor_dec / total_parcelas).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
-        parcelas = [float(parcela_base)] * total_parcelas
-        diferenca = float(valor_dec - parcela_base * total_parcelas)
-        if diferenca != 0:
-            parcelas[-1] = round(parcelas[-1] + diferenca, 2)
-        return parcelas
-
     async def create_with_rateio(self, obj_in: DespesaCreate) -> list[Despesa]:
         """
         Cria uma despesa com suporte a parcelamento e rateio.
@@ -131,7 +118,7 @@ class DespesaService(BaseService[Despesa]):
         total_parcelas = obj_in.total_parcelas or 1
 
         grupo_parcela_id = uuid.uuid4() if total_parcelas > 1 else None
-        valores = self._calcular_parcelas(obj_in.valor_total, total_parcelas)
+        valores = calcular_parcelas(obj_in.valor_total, total_parcelas)
 
         despesas_criadas: list[Despesa] = []
 

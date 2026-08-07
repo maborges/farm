@@ -293,11 +293,13 @@ class ConciliacaoService:
         status: Optional[str] = None,
         data_de: Optional[date] = None,
         data_ate: Optional[date] = None,
+        skip: int = 0,
+        limit: int = 100,
     ) -> list[LancamentoBancario]:
         stmt = select(LancamentoBancario).where(
             LancamentoBancario.tenant_id == self.tenant_id,
             LancamentoBancario.conta_id == conta_id,
-        ).order_by(LancamentoBancario.data.desc())
+        ).order_by(LancamentoBancario.data.desc()).offset(skip).limit(limit)
         if status:
             stmt = stmt.where(LancamentoBancario.status_conciliacao == status)
         if data_de:
