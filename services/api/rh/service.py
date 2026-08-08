@@ -28,6 +28,32 @@ from rh.schemas import (
 COLABORADOR_CODIGO = "COLABORADOR"
 
 
+async def _apropriar_custo_e_validar_alertas(
+    session: AsyncSession,
+    tenant_id: UUID,
+    cost_input: OperationalCostInput,
+    origem_sufixo: str,
+):
+    """Processa a apropriação de custo (CostAllocation/despesa) e, se uma despesa
+    foi gerada, valida os alertas financeiros associados. Compartilhado entre
+    pagamento de diárias e empreitadas — mesma sequência, só muda a origem."""
+    resultado = await OperationalCostAllocationService(session, tenant_id).process(cost_input)
+    if resultado.despesa is not None:
+        origem_id_override = f"despesa:{resultado.despesa.id}:{origem_sufixo}"
+        alertas = AlertasAgricolasService(session, tenant_id)
+        await alertas.validar_despesa_origem_leve(
+            resultado.despesa,
+            origem_id_override=origem_id_override,
+            allow_block=True,
+        )
+        await alertas.validar_despesa_automatica_unica_origem(
+            resultado.despesa,
+            origem_id_override=origem_id_override,
+            allow_block=True,
+        )
+    return resultado
+
+
 async def obter_dados_exibicao_colaborador(session: AsyncSession, pessoa_id: UUID) -> dict:
     """Monta nome/cpf a partir de Pessoa/PessoaDocumento — única fonte de
     verdade desses dados (mesmo padrão de obter_dados_exibicao_fornecedor)."""
@@ -107,6 +133,8 @@ class EsocialEventoService(BaseService[EsocialEvento]):
         tipo_evento: str | None = None,
         status: str | None = None,
         periodo: str | None = None,
+        skip: int = 0,
+        limit: int | None = None,
     ) -> list[EsocialEvento]:
         from sqlalchemy.future import select
         stmt = (
@@ -120,6 +148,8 @@ class EsocialEventoService(BaseService[EsocialEvento]):
             stmt = stmt.where(EsocialEvento.status == status)
         if periodo:
             stmt = stmt.where(EsocialEvento.periodo_apuracao == periodo)
+        if limit is not None:
+            stmt = stmt.offset(skip).limit(limit)
         return list((await self.session.execute(stmt)).scalars().all())
 
 
@@ -137,7 +167,7 @@ class DepartamentoService(BaseService[Departamento]):
         self.session.add(dep)
         return dep
 
-    async def listar_com_contagem(self) -> list[dict]:
+    async def listar_com_contagem(self, skip: int = 0, limit: int | None = None) -> list[dict]:
         from sqlalchemy import func
         stmt = (
             _select_func(Departamento, func.count(ColaboradorRH.id).label("total_colaboradores"))
@@ -149,6 +179,8 @@ class DepartamentoService(BaseService[Departamento]):
             .group_by(Departamento.id)
             .order_by(Departamento.nome)
         )
+        if limit is not None:
+            stmt = stmt.offset(skip).limit(limit)
         rows = (await self.session.execute(stmt)).all()
         result = []
         for dep, total in rows:
@@ -178,8 +210,8 @@ class ColaboradorService(BaseService[ColaboradorRH]):
     async def _garantir_vinculo(self, pessoa_id: UUID) -> None:
         await _garantir_vinculo_colaborador(self.session, self.tenant_id, pessoa_id)
 
-    async def listar(self, q: str | None = None, **filters) -> list[ColaboradorRH]:
-        colaboradores = await self.list_all(**filters)
+    async def listar(self, q: str | None = None, skip: int = 0, limit: int = 100, **filters) -> list[ColaboradorRH]:
+        colaboradores = await self.list_all(skip=skip, limit=limit, **filters)
         colaboradores = await _enriquecer_colaboradores(self.session, colaboradores)
         if q:
             termo = q.strip().lower()
@@ -215,6 +247,8 @@ class DiariaService(BaseService[LancamentoDiaria]):
         status: str | None = None,
         data_inicio: date | None = None,
         data_fim: date | None = None,
+        skip: int = 0,
+        limit: int = 100,
     ) -> list[LancamentoDiaria]:
         stmt = (
             select(LancamentoDiaria)
@@ -228,7 +262,7 @@ class DiariaService(BaseService[LancamentoDiaria]):
             stmt = stmt.where(LancamentoDiaria.data >= data_inicio)
         if data_fim:
             stmt = stmt.where(LancamentoDiaria.data <= data_fim)
-        stmt = stmt.order_by(LancamentoDiaria.data.desc())
+        stmt = stmt.order_by(LancamentoDiaria.data.desc()).offset(skip).limit(limit)
         return list((await self.session.execute(stmt)).scalars().all())
 
     async def pagar_lote(self, ids: list[UUID], data_pagamento: date | None = None) -> int:
@@ -246,10 +280,11 @@ class DiariaService(BaseService[LancamentoDiaria]):
             )
         )
         rows = list((await self.session.execute(stmt_fetch)).all())
-        custo_service = OperationalCostAllocationService(self.session, self.tenant_id)
         for diaria, unidade_produtiva_id in rows:
             unidade_contexto = diaria.unidade_produtiva_id or unidade_produtiva_id
-            resultado = await custo_service.process(
+            await _apropriar_custo_e_validar_alertas(
+                self.session,
+                self.tenant_id,
                 OperationalCostInput(
                     tenant_id=self.tenant_id,
                     unidade_produtiva_id=unidade_contexto,
@@ -263,19 +298,9 @@ class DiariaService(BaseService[LancamentoDiaria]):
                     data_competencia=dp,
                     descricao=f"RH — Diária: {diaria.atividade}",
                     criar_despesa=unidade_contexto is not None,
-                )
+                ),
+                "rh_diaria",
             )
-            if resultado.despesa is not None:
-                await AlertasAgricolasService(self.session, self.tenant_id).validar_despesa_origem_leve(
-                    resultado.despesa,
-                    origem_id_override=f"despesa:{resultado.despesa.id}:rh_diaria",
-                    allow_block=True,
-                )
-                await AlertasAgricolasService(self.session, self.tenant_id).validar_despesa_automatica_unica_origem(
-                    resultado.despesa,
-                    origem_id_override=f"despesa:{resultado.despesa.id}:rh_diaria",
-                    allow_block=True,
-                )
 
         stmt = (
             update(LancamentoDiaria)
@@ -310,6 +335,8 @@ class EmpreitadaService(BaseService[Empreitada]):
         self,
         colaborador_id: UUID | None = None,
         status_filter: str | None = None,
+        skip: int = 0,
+        limit: int = 100,
     ) -> list[Empreitada]:
         stmt = (
             select(Empreitada)
@@ -319,7 +346,7 @@ class EmpreitadaService(BaseService[Empreitada]):
             stmt = stmt.where(Empreitada.colaborador_id == colaborador_id)
         if status_filter:
             stmt = stmt.where(Empreitada.status == status_filter)
-        stmt = stmt.order_by(Empreitada.data_inicio.desc())
+        stmt = stmt.order_by(Empreitada.data_inicio.desc()).offset(skip).limit(limit)
         return list((await self.session.execute(stmt)).scalars().all())
 
     async def criar(self, dados: EmpreitadaCreate) -> Empreitada:
@@ -348,7 +375,9 @@ class EmpreitadaService(BaseService[Empreitada]):
         stmt_faz = select(ColaboradorRH.unidade_produtiva_id).where(ColaboradorRH.id == emp.colaborador_id)
         unidade_produtiva_id = (await self.session.execute(stmt_faz)).scalar()
         unidade_contexto = emp.unidade_produtiva_id or unidade_produtiva_id
-        resultado = await OperationalCostAllocationService(self.session, self.tenant_id).process(
+        await _apropriar_custo_e_validar_alertas(
+            self.session,
+            self.tenant_id,
             OperationalCostInput(
                 tenant_id=self.tenant_id,
                 unidade_produtiva_id=unidade_contexto,
@@ -362,19 +391,9 @@ class EmpreitadaService(BaseService[Empreitada]):
                 data_competencia=dp,
                 descricao=f"RH — Empreitada: {emp.descricao}",
                 criar_despesa=unidade_contexto is not None,
-            )
+            ),
+            "rh_empreitada",
         )
-        if resultado.despesa is not None:
-            await AlertasAgricolasService(self.session, self.tenant_id).validar_despesa_origem_leve(
-                resultado.despesa,
-                origem_id_override=f"despesa:{resultado.despesa.id}:rh_empreitada",
-                allow_block=True,
-            )
-            await AlertasAgricolasService(self.session, self.tenant_id).validar_despesa_automatica_unica_origem(
-                resultado.despesa,
-                origem_id_override=f"despesa:{resultado.despesa.id}:rh_empreitada",
-                allow_block=True,
-            )
 
         await self.session.commit()
         await self.session.refresh(emp)
@@ -455,12 +474,14 @@ class SegurancaTrabalhoService:
         )
         return (await self.session.execute(stmt)).scalar_one_or_none()
 
-    async def listar_itens(self) -> list[ItemSegurancaRH]:
+    async def listar_itens(self, skip: int = 0, limit: int | None = None) -> list[ItemSegurancaRH]:
         stmt = (
             select(ItemSegurancaRH)
             .where(ItemSegurancaRH.tenant_id == self.tenant_id)
             .order_by(ItemSegurancaRH.tipo, ItemSegurancaRH.nome)
         )
+        if limit is not None:
+            stmt = stmt.offset(skip).limit(limit)
         return list((await self.session.execute(stmt)).scalars().all())
 
     async def criar_item(self, dados: ItemSegurancaCreate) -> ItemSegurancaRH:
@@ -472,6 +493,8 @@ class SegurancaTrabalhoService:
         self,
         colaborador_id: UUID | None = None,
         item_id: UUID | None = None,
+        skip: int = 0,
+        limit: int | None = None,
     ) -> list[EntregaSegurancaRH]:
         stmt = select(EntregaSegurancaRH).where(EntregaSegurancaRH.tenant_id == self.tenant_id)
         if colaborador_id:
@@ -479,6 +502,8 @@ class SegurancaTrabalhoService:
         if item_id:
             stmt = stmt.where(EntregaSegurancaRH.item_id == item_id)
         stmt = stmt.order_by(EntregaSegurancaRH.data_entrega.desc(), EntregaSegurancaRH.created_at.desc())
+        if limit is not None:
+            stmt = stmt.offset(skip).limit(limit)
         return list((await self.session.execute(stmt)).scalars().all())
 
     async def registrar_entrega(self, dados: EntregaSegurancaCreate) -> EntregaSegurancaRH:
@@ -512,12 +537,14 @@ class SegurancaTrabalhoService:
         self.session.add(entrega)
         return entrega
 
-    async def listar_documentos(self) -> list[DocumentoSST]:
+    async def listar_documentos(self, skip: int = 0, limit: int | None = None) -> list[DocumentoSST]:
         stmt = (
             select(DocumentoSST)
             .where(DocumentoSST.tenant_id == self.tenant_id)
             .order_by(DocumentoSST.data_vencimento.is_(None), DocumentoSST.data_vencimento.asc(), DocumentoSST.data_emissao.desc())
         )
+        if limit is not None:
+            stmt = stmt.offset(skip).limit(limit)
         return list((await self.session.execute(stmt)).scalars().all())
 
     async def registrar_documento(self, dados: DocumentoSSTCreate) -> DocumentoSST:
@@ -530,11 +557,9 @@ class SegurancaTrabalhoService:
         self.session.add(doc)
         return doc
 
-    async def get_resumo(self) -> dict:
+    @staticmethod
+    def _montar_resumo(itens: list, entregas: list, docs: list) -> dict:
         hoje = date.today()
-        itens = await self.listar_itens()
-        entregas = await self.listar_entregas()
-        docs = await self.listar_documentos()
 
         documentos_vencendo_30d = sum(
             1 for doc in docs
@@ -553,11 +578,17 @@ class SegurancaTrabalhoService:
             "documentos_vencidos": documentos_vencidos,
         }
 
-    async def gerar_pdf_nr31(self) -> bytes:
-        resumo = await self.get_resumo()
+    async def get_resumo(self) -> dict:
         itens = await self.listar_itens()
         entregas = await self.listar_entregas()
         docs = await self.listar_documentos()
+        return self._montar_resumo(itens, entregas, docs)
+
+    async def gerar_pdf_nr31(self) -> bytes:
+        itens = await self.listar_itens()
+        entregas = await self.listar_entregas()
+        docs = await self.listar_documentos()
+        resumo = self._montar_resumo(itens, entregas, docs)
 
         import io
 

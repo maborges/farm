@@ -36,12 +36,14 @@ async def listar_eventos_esocial(
     tipo_evento: Optional[str] = Query(None),
     status: Optional[str] = Query(None),
     periodo: Optional[str] = Query(None),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
     session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module(MODULE)),
 ):
     svc = EsocialEventoService(session, tenant_id)
-    return await svc.listar_filtrado(tipo_evento, status, periodo)
+    return await svc.listar_filtrado(tipo_evento, status, periodo, skip=skip, limit=limit)
 
 
 @router.post("/esocial/eventos", response_model=EsocialEventoResponse, status_code=status.HTTP_201_CREATED)
@@ -79,12 +81,14 @@ async def atualizar_evento_esocial(
 
 @router.get("/departamentos", response_model=List[DepartamentoResponse])
 async def listar_departamentos(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
     session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module(MODULE)),
 ):
     svc = DepartamentoService(session, tenant_id)
-    return await svc.listar_com_contagem()
+    return await svc.listar_com_contagem(skip=skip, limit=limit)
 
 
 @router.post("/departamentos", response_model=DepartamentoResponse, status_code=status.HTTP_201_CREATED)
@@ -154,6 +158,8 @@ async def listar_colaboradores(
     ativo: Optional[bool] = Query(True),
     tipo_contrato: Optional[str] = Query(None),
     q: Optional[str] = Query(None, description="Busca por nome"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
     session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module(MODULE)),
@@ -164,7 +170,7 @@ async def listar_colaboradores(
         filters["ativo"] = ativo
     if tipo_contrato:
         filters["tipo_contrato"] = tipo_contrato
-    return await svc.listar(q=q, **filters)
+    return await svc.listar(q=q, skip=skip, limit=limit, **filters)
 
 
 @router.post("/colaboradores", response_model=ColaboradorResponse, status_code=status.HTTP_201_CREATED)
@@ -203,12 +209,14 @@ async def listar_diarias(
     status: Optional[str] = Query(None),
     data_inicio: Optional[date] = Query(None),
     data_fim: Optional[date] = Query(None),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
     session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module(MODULE)),
 ):
     svc = DiariaService(session, tenant_id)
-    return await svc.listar_filtrado(colaborador_id, status, data_inicio, data_fim)
+    return await svc.listar_filtrado(colaborador_id, status, data_inicio, data_fim, skip=skip, limit=limit)
 
 
 @router.post("/diarias", response_model=DiariaResponse, status_code=status.HTTP_201_CREATED)
@@ -245,12 +253,14 @@ async def pagar_diarias(
 async def listar_empreitadas(
     colaborador_id: Optional[UUID] = Query(None),
     status_filter: Optional[str] = Query(None),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
     session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module(MODULE)),
 ):
     svc = EmpreitadaService(session, tenant_id)
-    return await svc.listar_filtrado(colaborador_id, status_filter)
+    return await svc.listar_filtrado(colaborador_id, status_filter, skip=skip, limit=limit)
 
 
 @router.post("/empreitadas", response_model=EmpreitadaResponse, status_code=status.HTTP_201_CREATED)
@@ -295,12 +305,14 @@ async def resumo_seguranca(
 
 @router.get("/seguranca/itens", response_model=List[ItemSegurancaResponse])
 async def listar_itens_seguranca(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
     session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(MODULE_DEPENDENCY),
 ):
     svc = SegurancaTrabalhoService(session, tenant_id)
-    return await svc.listar_itens()
+    return await svc.listar_itens(skip=skip, limit=limit)
 
 
 @router.post("/seguranca/itens", response_model=ItemSegurancaResponse, status_code=status.HTTP_201_CREATED)
@@ -322,12 +334,14 @@ async def criar_item_seguranca(
 async def listar_entregas_seguranca(
     colaborador_id: Optional[UUID] = Query(None),
     item_id: Optional[UUID] = Query(None),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
     session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(MODULE_DEPENDENCY),
 ):
     svc = SegurancaTrabalhoService(session, tenant_id)
-    return await svc.listar_entregas(colaborador_id, item_id)
+    return await svc.listar_entregas(colaborador_id, item_id, skip=skip, limit=limit)
 
 
 @router.post("/seguranca/entregas", response_model=EntregaSegurancaResponse, status_code=status.HTTP_201_CREATED)
@@ -350,12 +364,14 @@ async def registrar_entrega_seguranca(
 
 @router.get("/seguranca/documentos", response_model=List[DocumentoSSTResponse])
 async def listar_documentos_sst(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
     session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module(MODULE_SEGURANCA)),
 ):
     svc = SegurancaTrabalhoService(session, tenant_id)
-    return await svc.listar_documentos()
+    return await svc.listar_documentos(skip=skip, limit=limit)
 
 
 @router.post("/seguranca/documentos", response_model=DocumentoSSTResponse, status_code=status.HTTP_201_CREATED)
