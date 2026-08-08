@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 from typing import List
 import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,6 +17,8 @@ router = APIRouter(
 @router.get("", response_model=List[PiqueteResponse])
 async def listar_piquetes(
     unidade_produtiva_id: uuid.UUID | None = None,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_session),
 ):
@@ -24,8 +26,10 @@ async def listar_piquetes(
     svc = PiqueteService(tenant_id)
     svc.session = db
     if unidade_produtiva_id:
-        return await svc.listar_por_fazenda(db, unidade_produtiva_id=unidade_produtiva_id)
-    return await svc.list_all()
+        return await svc.listar_por_fazenda(
+            db, unidade_produtiva_id=unidade_produtiva_id, skip=skip, limit=limit
+        )
+    return await svc.list_all(skip=skip, limit=limit)
 
 
 @router.post("", response_model=PiqueteResponse, status_code=status.HTTP_201_CREATED)

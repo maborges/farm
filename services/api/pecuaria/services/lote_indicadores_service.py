@@ -12,6 +12,7 @@ from core.exceptions import EntityNotFoundError
 from operacional.models.estoque import EstoqueMovimento
 from pecuaria.animal.models import Animal, EventoAnimal, LoteAnimal
 from pecuaria.schemas.lote_indicadores_schema import LoteIndicadoresResponse
+from pecuaria.services.gmd_utils import calcular_gmd
 
 
 class LoteIndicadoresService:
@@ -186,8 +187,9 @@ class LoteIndicadoresService:
                 data_anterior = None
             if data_anterior and peso_anterior is not None and peso_kg is not None:
                 dias = (data_evento - data_anterior).days
-                if dias > 0:
-                    gm_ds.append(round((float(peso_kg) - peso_anterior) / dias, 3))
+                gmd = calcular_gmd(peso_kg, peso_anterior, dias)
+                if gmd is not None:
+                    gm_ds.append(gmd)
             peso_anterior = float(peso_kg) if peso_kg is not None else peso_anterior
             data_anterior = data_evento
         return gm_ds

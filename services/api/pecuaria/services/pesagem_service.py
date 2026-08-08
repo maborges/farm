@@ -7,6 +7,7 @@ from fastapi import HTTPException
 from core.base_service import BaseService
 from pecuaria.animal.models import Animal, EventoAnimal
 from pecuaria.schemas.pesagem_schema import PesagemCreate, PesagemResponse
+from pecuaria.services.gmd_utils import calcular_gmd
 
 class PesagemService(BaseService[EventoAnimal]):
     def __init__(self, db: AsyncSession, tenant_id: UUID):
@@ -42,22 +43,36 @@ class PesagemService(BaseService[EventoAnimal]):
         
         await self.session.commit()
 
-        # Precisamos do GMD para a resposta, então geramos a lista inteira ou apenas para o evento recém salvo.
-        # Retornar direto os dados (na criação podemos omitir o GMD ou calculá-lo listando todos)
-        # Vamos usar a lógica de listar todos para retornar a resposta correta com GMD.
-        pesagens = await self.listar_pesagens(animal_id)
-        
-        # Encontrar a pesagem que acabamos de salvar na lista já processada
-        for p in pesagens:
-            if p.id == evento.id:
-                return p
+        # GMD do evento recém-criado: busca só a pesagem cronologicamente anterior
+        # (não relista todo o histórico do animal para achar esse único dado).
+        anterior_stmt = (
+            select(EventoAnimal)
+            .where(
+                EventoAnimal.animal_id == animal_id,
+                EventoAnimal.tenant_id == self.tenant_id,
+                EventoAnimal.tipo == "PESAGEM",
+                EventoAnimal.data_evento < obj_in.data_evento,
+            )
+            .order_by(desc(EventoAnimal.data_evento))
+            .limit(1)
+        )
+        anterior = (await self.session.execute(anterior_stmt)).scalars().first()
 
-        # Fallback (improvável)
+        dias_desde_anterior = None
+        gmd = None
+        if anterior and anterior.peso_kg is not None and evento.peso_kg is not None:
+            dias = (evento.data_evento - anterior.data_evento).days
+            gmd = calcular_gmd(evento.peso_kg, anterior.peso_kg, dias)
+            if gmd is not None:
+                dias_desde_anterior = dias
+
         return PesagemResponse(
             id=evento.id,
             animal_id=evento.animal_id,
             data_evento=evento.data_evento,
             peso_kg=evento.peso_kg, # type: ignore
+            dias_desde_anterior=dias_desde_anterior,
+            gmd_periodo=gmd,
             observacoes=evento.observacoes,
             tarefa_campo_id=evento.tarefa_campo_id,
             operador_id=evento.operador_id
@@ -94,9 +109,9 @@ class PesagemService(BaseService[EventoAnimal]):
 
             if data_anterior and peso_anterior is not None and evt.peso_kg is not None:
                 dias = (evt.data_evento - data_anterior).days
-                if dias > 0:
+                gmd = calcular_gmd(evt.peso_kg, peso_anterior, dias)
+                if gmd is not None:
                     dias_desde_anterior = dias
-                    gmd = round((evt.peso_kg - peso_anterior) / dias, 3)
 
             responses.append(PesagemResponse(
                 id=evt.id,

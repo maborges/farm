@@ -1,5 +1,5 @@
 import uuid
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 from typing import List
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -23,6 +23,8 @@ router = APIRouter(
 async def listar_lotes(
     unidade_produtiva_id: uuid.UUID | None = None,
     categoria: str | None = None,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
     db: AsyncSession = Depends(get_session),
 ):
@@ -34,7 +36,7 @@ async def listar_lotes(
     if categoria:
         filters["categoria"] = categoria
     svc.session = db
-    return await svc.list_all(**filters)
+    return await svc.list_all(skip=skip, limit=limit, **filters)
 
 
 @router.post("", response_model=LoteBovinoResponse, status_code=status.HTTP_201_CREATED)

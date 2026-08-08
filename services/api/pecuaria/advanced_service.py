@@ -25,8 +25,14 @@ class PecuariaAdvancedService:
 
     # ── Genética ─────────────────────────────────────────────────────────────
 
-    async def listar_genetica(self) -> list[AnimalGenetica]:
-        stmt = select(AnimalGenetica).where(AnimalGenetica.tenant_id == self.tenant_id).order_by(AnimalGenetica.created_at.desc())
+    async def listar_genetica(self, skip: int = 0, limit: int = 100) -> list[AnimalGenetica]:
+        stmt = (
+            select(AnimalGenetica)
+            .where(AnimalGenetica.tenant_id == self.tenant_id)
+            .order_by(AnimalGenetica.created_at.desc())
+            .offset(skip)
+            .limit(limit)
+        )
         return list((await self.session.execute(stmt)).scalars().all())
 
     async def criar_genetica(self, dados: dict) -> AnimalGenetica:
@@ -36,8 +42,14 @@ class PecuariaAdvancedService:
         await self.session.refresh(obj)
         return obj
 
-    async def listar_sugestoes(self) -> list[SugestaoAcasalamento]:
-        stmt = select(SugestaoAcasalamento).where(SugestaoAcasalamento.tenant_id == self.tenant_id).order_by(SugestaoAcasalamento.created_at.desc())
+    async def listar_sugestoes(self, skip: int = 0, limit: int = 100) -> list[SugestaoAcasalamento]:
+        stmt = (
+            select(SugestaoAcasalamento)
+            .where(SugestaoAcasalamento.tenant_id == self.tenant_id)
+            .order_by(SugestaoAcasalamento.created_at.desc())
+            .offset(skip)
+            .limit(limit)
+        )
         return list((await self.session.execute(stmt)).scalars().all())
 
     async def criar_sugestao(self, dados: dict) -> SugestaoAcasalamento:
@@ -170,8 +182,14 @@ class PecuariaAdvancedService:
 
     # ── Confinamento ────────────────────────────────────────────────────────
 
-    async def listar_confinamentos(self) -> list[ConfinamentoLote]:
-        stmt = select(ConfinamentoLote).where(ConfinamentoLote.tenant_id == self.tenant_id).order_by(ConfinamentoLote.created_at.desc())
+    async def listar_confinamentos(self, skip: int = 0, limit: int = 100) -> list[ConfinamentoLote]:
+        stmt = (
+            select(ConfinamentoLote)
+            .where(ConfinamentoLote.tenant_id == self.tenant_id)
+            .order_by(ConfinamentoLote.created_at.desc())
+            .offset(skip)
+            .limit(limit)
+        )
         return list((await self.session.execute(stmt)).scalars().all())
 
     async def criar_confinamento(self, dados: dict) -> ConfinamentoLote:
@@ -181,8 +199,14 @@ class PecuariaAdvancedService:
         await self.session.refresh(obj)
         return obj
 
-    async def listar_racoes(self) -> list[RacaoTMR]:
-        stmt = select(RacaoTMR).where(RacaoTMR.tenant_id == self.tenant_id).order_by(RacaoTMR.created_at.desc())
+    async def listar_racoes(self, skip: int = 0, limit: int = 100) -> list[RacaoTMR]:
+        stmt = (
+            select(RacaoTMR)
+            .where(RacaoTMR.tenant_id == self.tenant_id)
+            .order_by(RacaoTMR.created_at.desc())
+            .offset(skip)
+            .limit(limit)
+        )
         return list((await self.session.execute(stmt)).scalars().all())
 
     async def criar_racao(self, dados: dict) -> RacaoTMR:
@@ -192,8 +216,14 @@ class PecuariaAdvancedService:
         await self.session.refresh(obj)
         return obj
 
-    async def listar_cochos(self) -> list[Cocho]:
-        stmt = select(Cocho).where(Cocho.tenant_id == self.tenant_id).order_by(Cocho.created_at.desc())
+    async def listar_cochos(self, skip: int = 0, limit: int = 100) -> list[Cocho]:
+        stmt = (
+            select(Cocho)
+            .where(Cocho.tenant_id == self.tenant_id)
+            .order_by(Cocho.created_at.desc())
+            .offset(skip)
+            .limit(limit)
+        )
         return list((await self.session.execute(stmt)).scalars().all())
 
     async def criar_cocho(self, dados: dict) -> Cocho:

@@ -20,7 +20,7 @@ class PiqueteService(BaseService[Piquete]):
         super().__init__(Piquete, None, tenant_id)
 
     async def listar_por_fazenda(
-        self, db: AsyncSession, *, unidade_produtiva_id: uuid.UUID
+        self, db: AsyncSession, *, unidade_produtiva_id: uuid.UUID, skip: int = 0, limit: int = 100
     ) -> list[Piquete]:
         """Lista piquetes ativos de uma fazenda específica."""
         stmt = (
@@ -31,6 +31,8 @@ class PiqueteService(BaseService[Piquete]):
                 self.model.ativo == True,
             )
             .order_by(self.model.nome)
+            .offset(skip)
+            .limit(limit)
         )
         result = await db.execute(stmt)
         return list(result.scalars().all())

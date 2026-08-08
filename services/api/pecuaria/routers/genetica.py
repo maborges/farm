@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 
@@ -30,11 +30,13 @@ async def dashboard(
 
 @router.get("/animais", response_model=List[PecuariaGeneticaResponse])
 async def listar(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
     tenant_id=Depends(get_tenant_id),
     session: AsyncSession = Depends(get_session),
 ):
     svc = PecuariaAdvancedService(session, tenant_id)
-    return await svc.listar_genetica()
+    return await svc.listar_genetica(skip=skip, limit=limit)
 
 
 @router.post("/animais", response_model=PecuariaGeneticaResponse, status_code=status.HTTP_201_CREATED)
@@ -52,11 +54,13 @@ async def criar(
 
 @router.get("/acasalamentos", response_model=List[PecuariaSugestaoResponse])
 async def listar_sugestoes(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
     tenant_id=Depends(get_tenant_id),
     session: AsyncSession = Depends(get_session),
 ):
     svc = PecuariaAdvancedService(session, tenant_id)
-    return await svc.listar_sugestoes()
+    return await svc.listar_sugestoes(skip=skip, limit=limit)
 
 
 @router.post("/acasalamentos", response_model=PecuariaSugestaoResponse, status_code=status.HTTP_201_CREATED)
