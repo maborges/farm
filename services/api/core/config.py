@@ -24,6 +24,11 @@ class Settings(BaseSettings):
     stripe_secret_key: str = ""
     stripe_webhook_secret: str = ""
 
+    # Asaas Config
+    asaas_api_key: str = ""
+    asaas_api_url: str = "https://sandbox.asaas.com/api/v3"
+    asaas_webhook_token: str = ""
+
     # Pagamentos Webhook (mock/genérico)
     pagamentos_webhook_secret: str = ""
     frontend_url: str = "http://localhost:3000"

@@ -3,13 +3,36 @@ Router para webhooks do Asaas.
 
 Recebe notificações de eventos de pagamento do gateway Asaas.
 """
+import secrets
+
 from fastapi import APIRouter, HTTPException, Request, status
 from loguru import logger
 
+from core.config import settings
 from core.database import async_session_maker
 from core.services.asaas_service import AsaasService
 
 router = APIRouter(prefix="/webhooks", tags=["Webhooks"])
+
+
+def _validar_assinatura_asaas(request: Request) -> None:
+    """Valida o token de autenticação do webhook Asaas (header asaas-access-token).
+
+    O Asaas reenvia, em cada chamada de webhook, o valor configurado como
+    "Token de autenticação" no painel de integrações. Sem essa checagem,
+    qualquer requisição externa poderia forjar eventos de pagamento/cobrança.
+    """
+    if not settings.asaas_webhook_token:
+        logger.warning(
+            "ASAAS_WEBHOOK_TOKEN não configurado — validação de assinatura do "
+            "webhook Asaas está desabilitada. Configure antes de ir para produção."
+        )
+        return
+
+    token_recebido = request.headers.get("asaas-access-token", "")
+    if not secrets.compare_digest(token_recebido, settings.asaas_webhook_token):
+        logger.error("Webhook Asaas rejeitado: token de autenticação inválido ou ausente.")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token inválido.")
 
 
 @router.post(
@@ -30,12 +53,13 @@ async def webhook_asaas(request: Request):
     - PAYMENT_RESTORED: Cobrança restaurada
 
     **Segurança:**
-    - TODO: Implementar validação de assinatura do webhook
-    - TODO: Validar IP de origem (whitelist Asaas)
+    - Valida o header `asaas-access-token` contra `settings.asaas_webhook_token`.
 
     **Documentação Asaas:**
     https://docs.asaas.com/reference/webhooks
     """
+    _validar_assinatura_asaas(request)
+
     try:
         # Receber payload
         payload = await request.json()
