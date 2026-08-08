@@ -314,11 +314,13 @@ async def reativar_dispositivo(
 
 @router.get("/devices", response_model=list[DeviceResponse])
 async def listar_dispositivos(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
     session: AsyncSession = Depends(get_session),
 ):
     svc = DispositivoService(session, tenant_id)
-    return await svc.listar()
+    return await svc.listar(skip=skip, limit=limit)
 
 
 @router.get("/devices/me", response_model=DeviceSelfResponse)

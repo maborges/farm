@@ -144,6 +144,16 @@ _TIPOS_TAREFA_AGRICOLA_MATERIALIZAVEIS = {
     "COLHEITA_REGISTRO",
 }
 
+_TIPOS_TAREFA_PECUARIA_MATERIALIZAVEIS = {
+    "PESAGEM",
+    "VACINACAO",
+    "COBERTURA",
+    "INSEMINACAO",
+    "DIAGNOSTICO_PRENHEZ",
+    "PARTO",
+    "DESMAME",
+}
+
 
 class DispositivoService:
     def __init__(self, session: AsyncSession, tenant_id: uuid.UUID):
@@ -284,11 +294,13 @@ class DispositivoService:
 
         return device, activation_code
 
-    async def listar(self) -> list[DispositivoCampo]:
+    async def listar(self, skip: int = 0, limit: int = 100) -> list[DispositivoCampo]:
         result = await self.session.execute(
             select(DispositivoCampo)
             .where(DispositivoCampo.tenant_id == self.tenant_id)
             .order_by(DispositivoCampo.created_at.desc())
+            .offset(skip)
+            .limit(limit)
         )
         return list(result.scalars().all())
 
@@ -1317,16 +1329,7 @@ class SyncService:
 
             if (
                 task.module == "pecuaria"
-                and task.type
-                in {
-                    "PESAGEM",
-                    "VACINACAO",
-                    "COBERTURA",
-                    "INSEMINACAO",
-                    "DIAGNOSTICO_PRENHEZ",
-                    "PARTO",
-                    "DESMAME",
-                }
+                and task.type in _TIPOS_TAREFA_PECUARIA_MATERIALIZAVEIS
                 and task.status_execucao == "CONCLUIDA"
             ):
                 self.tarefas_pecuaria_sync.append(task.id)
@@ -1391,16 +1394,7 @@ class SyncService:
 
                 if (
                     task.module == "pecuaria"
-                    and task.type
-                    in {
-                        "PESAGEM",
-                        "VACINACAO",
-                        "COBERTURA",
-                        "INSEMINACAO",
-                        "DIAGNOSTICO_PRENHEZ",
-                        "PARTO",
-                        "DESMAME",
-                    }
+                    and task.type in _TIPOS_TAREFA_PECUARIA_MATERIALIZAVEIS
                     and task.status_execucao == "CONCLUIDA"
                 ):
                     self.tarefas_pecuaria_sync.append(task.id)
