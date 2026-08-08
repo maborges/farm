@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from sqlalchemy.orm import selectinload
@@ -403,7 +403,11 @@ async def review_invoice(
     return {"id": invoice_id, "novo_status": fatura.status}
 
 @router.get("/users", dependencies=[Depends(get_current_admin)])
-async def list_global_users(session: AsyncSession = Depends(get_session)):
+async def list_global_users(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
+    session: AsyncSession = Depends(get_session),
+):
     """Lista todos os usuários da plataforma com seus vínculos."""
 
     # Busca usuários, nomes dos tenants e se é owner
@@ -417,6 +421,8 @@ async def list_global_users(session: AsyncSession = Depends(get_session)):
         .outerjoin(Tenant, TenantUsuario.tenant_id == Tenant.id)
         .group_by(Usuario.id)
         .order_by(Usuario.created_at.desc())
+        .offset(skip)
+        .limit(limit)
     )
     result = await session.execute(stmt)
 
@@ -515,13 +521,19 @@ async def reset_user_password(
     }
 
 @router.get("/tickets", response_model=List[dict], dependencies=[Depends(get_current_admin)])
-async def list_all_tickets(session: AsyncSession = Depends(get_session)):
+async def list_all_tickets(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
+    session: AsyncSession = Depends(get_session),
+):
     """Lista todos os chamados da plataforma para o administrador."""
     stmt = (
         select(ChamadoSuporte, Tenant.nome.label("tenant_nome"), Usuario.nome_completo.label("usuario_nome"))
         .join(Tenant, ChamadoSuporte.tenant_id == Tenant.id)
         .join(Usuario, ChamadoSuporte.usuario_abertura_id == Usuario.id)
         .order_by(ChamadoSuporte.created_at.desc())
+        .offset(skip)
+        .limit(limit)
     )
     result = await session.execute(stmt)
     

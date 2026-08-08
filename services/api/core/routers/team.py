@@ -211,31 +211,50 @@ async def list_team_members(
     result = await session.execute(stmt)
     rows = result.all()
 
-    members = []
-    for tenant_usuario, usuario, perfil_acesso in rows:
-        # Buscar fazendas do usuário
+    usuario_ids = [usuario.id for _, usuario, _ in rows]
+
+    fazendas_por_usuario: dict[uuid.UUID, list[tuple[Fazenda, "FazendaUsuario"]]] = {}
+    if usuario_ids:
         stmt_fazendas = (
             select(Fazenda, FazendaUsuario)
             .join(FazendaUsuario, Fazenda.id == FazendaUsuario.unidade_produtiva_id)
             .where(
                 and_(
                     FazendaUsuario.tenant_id == tenant_id,
-                    FazendaUsuario.usuario_id == usuario.id
+                    FazendaUsuario.usuario_id.in_(usuario_ids)
                 )
             )
         )
         result_fazendas = await session.execute(stmt_fazendas)
-        fazendas_rows = result_fazendas.all()
+        for fazenda, fazenda_usuario in result_fazendas.all():
+            fazendas_por_usuario.setdefault(fazenda_usuario.usuario_id, []).append(
+                (fazenda, fazenda_usuario)
+            )
 
+    perfil_fazenda_ids = {
+        fazenda_usuario.perfil_fazenda_id
+        for fazendas_rows in fazendas_por_usuario.values()
+        for _, fazenda_usuario in fazendas_rows
+        if fazenda_usuario.perfil_fazenda_id
+    }
+    perfis_fazenda_por_id: dict[uuid.UUID, PerfilAcesso] = {}
+    if perfil_fazenda_ids:
+        result_perfis = await session.execute(
+            select(PerfilAcesso).where(PerfilAcesso.id.in_(perfil_fazenda_ids))
+        )
+        perfis_fazenda_por_id = {p.id: p for p in result_perfis.scalars().all()}
+
+    members = []
+    for tenant_usuario, usuario, perfil_acesso in rows:
         fazendas_simple = []
         fazendas_com_perfil = []
 
-        for fazenda, fazenda_usuario in fazendas_rows:
+        for fazenda, fazenda_usuario in fazendas_por_usuario.get(usuario.id, []):
             fazendas_simple.append(FazendaSimple(id=str(fazenda.id), nome=fazenda.nome))
 
             # Se tem perfil específico nesta fazenda
             if fazenda_usuario.perfil_fazenda_id:
-                perfil_faz = await session.get(PerfilAcesso, fazenda_usuario.perfil_fazenda_id)
+                perfil_faz = perfis_fazenda_por_id.get(fazenda_usuario.perfil_fazenda_id)
                 if perfil_faz:
                     fazendas_com_perfil.append({
                         "unidade_produtiva_id": str(fazenda.id),

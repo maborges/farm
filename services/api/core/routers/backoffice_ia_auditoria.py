@@ -622,10 +622,15 @@ async def resumo_solicitacoes(
 
 
 async def _mock_enviar_crm(payload: dict) -> bool:
-    """Mock de integração CRM. Retorna True (sucesso). Substituir por chamada real."""
+    """Nenhuma integração real com CRM externo está implementada no sistema.
+    Retorna sempre False para que o chamador registre status ERRO — nunca
+    fingir sucesso ("ENVIADO") de um envio que não ocorreu de fato."""
     from loguru import logger
-    logger.info(f"[crm_mock] Payload enviado ao CRM: {payload}")
-    return True
+    logger.warning(
+        f"[crm_mock] Integração real com CRM externo não implementada. "
+        f"Payload que seria enviado: {payload}"
+    )
+    return False
 
 
 @router.post("/creditos/solicitacoes/{solicitacao_id}/enviar-crm")

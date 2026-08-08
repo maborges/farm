@@ -60,10 +60,12 @@ def test_rota_enviar_crm_metodo_post():
 # ── mock CRM ──────────────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
-async def test_mock_enviar_crm_retorna_true():
+async def test_mock_enviar_crm_retorna_false_sem_integracao_real():
+    """Sem integração real com CRM externo implementada, o mock deve retornar
+    False (status ERRO) em vez de fingir sucesso ("ENVIADO")."""
     from core.routers.backoffice_ia_auditoria import _mock_enviar_crm
     result = await _mock_enviar_crm({"test": "payload"})
-    assert result is True
+    assert result is False
 
 
 # ── payload montado corretamente ─────────────────────────────────────────────

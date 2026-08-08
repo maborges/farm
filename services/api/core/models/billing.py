@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime, timezone, date
+from decimal import Decimal
 from sqlalchemy import String, Boolean, DateTime, ForeignKey, Numeric, JSON, Text, Date, Integer, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy import Uuid as UUID
@@ -19,10 +20,10 @@ class PlanoAssinatura(Base):
     # Limites de usuários (para pricing dinâmico)
     limite_usuarios_minimo: Mapped[int] = mapped_column(default=1, comment="Quantidade mínima de usuários para este plano")
     limite_usuarios_maximo: Mapped[int | None] = mapped_column(default=None, comment="Quantidade máxima de usuários. NULL = ilimitado")
-    limite_hectares: Mapped[float | None] = mapped_column(Numeric(10,2))
-    
-    preco_mensal: Mapped[float] = mapped_column(Numeric(10,2), default=0.0)
-    preco_anual: Mapped[float] = mapped_column(Numeric(10,2), default=0.0)
+    limite_hectares: Mapped[Decimal | None] = mapped_column(Numeric(10,2))
+
+    preco_mensal: Mapped[Decimal] = mapped_column(Numeric(10,2), default=Decimal("0.00"))
+    preco_anual: Mapped[Decimal] = mapped_column(Numeric(10,2), default=Decimal("0.00"))
     
     # Tier do plano — governa profundidade de funcionalidades em todos os módulos
     # BASICO: funcionalidades simples | PROFISSIONAL: rateio/cenários | ENTERPRISE: IA/benchmarking
@@ -149,7 +150,7 @@ class Fatura(Base):
     assinatura_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("assinaturas_tenant.id", ondelete="CASCADE"), nullable=False)
     tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False)
 
-    valor: Mapped[float] = mapped_column(Numeric(10,2), nullable=False)
+    valor: Mapped[Decimal] = mapped_column(Numeric(10,2), nullable=False)
     data_vencimento: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     
     status: Mapped[str] = mapped_column(String(30), default="ABERTA") # ABERTA, EM_ANALISE, PAGA, REJEITADA, VENCIDA

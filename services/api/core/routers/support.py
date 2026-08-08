@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List
@@ -48,11 +48,19 @@ async def create_ticket(
 
 @router.get("/tickets", response_model=List[ChamadoSuporteResponse])
 async def list_my_tickets(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
     tenant: Tenant = Depends(get_current_tenant),
     session: AsyncSession = Depends(get_session)
 ):
     """Lista todos os chamados da empresa logada."""
-    stmt = select(ChamadoSuporte).where(ChamadoSuporte.tenant_id == tenant.id).order_by(ChamadoSuporte.created_at.desc())
+    stmt = (
+        select(ChamadoSuporte)
+        .where(ChamadoSuporte.tenant_id == tenant.id)
+        .order_by(ChamadoSuporte.created_at.desc())
+        .offset(skip)
+        .limit(limit)
+    )
     result = await session.execute(stmt)
     return result.scalars().all()
 
