@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import date, datetime
 from typing import Any
 
@@ -18,6 +19,8 @@ from integracoes.sankhya.services.external_association_helper import (
     SankhyaExternalAssociationHelper,
 )
 from integracoes.sankhya.services.sync_service import SankhyaWSClient, get_sankhya_connection_data
+
+logger = logging.getLogger(__name__)
 
 
 class SankhyaNFeService:
@@ -135,7 +138,7 @@ class SankhyaNFeService:
                     trigger_type=IntegrationJobTrigger.PULL,
                     request_payload={"operacao": "importar_nfe_entrada", "job_id": str(job.id)},
                 )
-                print(f"Erro ao importar NFe entrada: {exc}")
+                logger.exception("Erro ao importar NFe entrada (tenant_id=%s)", tenant_id)
 
         return importadas
 
@@ -398,7 +401,7 @@ class SankhyaFinanceiroService:
                         "job_id": str(job.id),
                     },
                 )
-                print(f"Erro ao importar lançamentos: {exc}")
+                logger.exception("Erro ao importar lançamentos (tenant_id=%s)", tenant_id)
 
         return importados
 

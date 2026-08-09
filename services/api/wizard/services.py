@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import uuid
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
@@ -31,6 +32,8 @@ from wizard.models import (
     WizardStatus,
 )
 from wizard.state_engine import transicionar_implantacao
+
+logger = logging.getLogger(__name__)
 
 try:
     from datetime import UTC
@@ -165,7 +168,7 @@ def _is_legacy_empty_uuid_error(exc: DBAPIError) -> bool:
 async def _sanitize_legacy_nullable_uuid_columns_for_model(
     session: AsyncSession,
     *,
-    model: type[BaseException] | Any,
+    model: type[Any],
     column_names: tuple[str, ...],
 ) -> None:
     table_name = model.__table__.name
@@ -205,8 +208,11 @@ async def _sanitize_legacy_nullable_uuid_columns_for_model(
                         text(f"btrim(coalesce({column_name}::text, '')) = ''")
                     )
                 )
-        except Exception:  # noqa: S110
-            pass
+        except Exception:
+            logger.warning(
+                "Falha ao sanitizar coluna legada %s.%s", table_name, column_name,
+                exc_info=True,
+            )
     await session.flush()
 
 

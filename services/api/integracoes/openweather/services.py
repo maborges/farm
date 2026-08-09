@@ -17,6 +17,7 @@ from alert_engine.models import Category, Domain, Priority, Severity, TriggerTyp
 from alert_engine.schemas import OperationalAlertCreate
 from alert_engine.service import AlertLifecycleService
 from events import publish_domain_event_safe
+from integracoes.payload_masking import mask_sensitive_payload
 from integracoes.events import (
     IntegrationConfigured,
     IntegrationCredentialRotated,
@@ -457,7 +458,7 @@ class OpenWeatherCanonicalAdapter:
             "last_success_at": health.last_success_at,
             "last_failure_at": health.last_failure_at,
             "consecutive_failures": health.consecutive_failures,
-            "details": health.details_payload,
+            "details": mask_sensitive_payload(health.details_payload),
         }
 
     async def listar_jobs(
@@ -1378,8 +1379,8 @@ class OpenWeatherCanonicalAdapter:
             "sucessos": job.sucessos,
             "erros": job.erros,
             "correlation_id": str(job.correlation_id) if job.correlation_id else None,
-            "result_payload": job.result_payload,
-            "error_payload": error_payload,
+            "result_payload": mask_sensitive_payload(job.result_payload),
+            "error_payload": mask_sensitive_payload(error_payload),
         }
 
     def _build_job_timeline_entries(

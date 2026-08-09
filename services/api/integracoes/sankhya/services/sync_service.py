@@ -17,6 +17,7 @@ from sqlalchemy.orm import selectinload
 
 from core.config import settings
 from integracoes.erp_readiness_service import ErpReadinessService
+from integracoes.payload_masking import mask_sensitive_payload
 from integracoes.models import (
     IntegrationCredential,
     IntegrationFeature,
@@ -248,8 +249,8 @@ class SankhyaWSClient:
                 content=soap_envelope,
             )
             return response.status_code == 200
-        except Exception as exc:  # pragma: no cover - integração externa
-            print(f"Erro ao testar conexão Sankhya: {exc}")
+        except Exception:  # pragma: no cover - integração externa
+            _LOGGER.exception("Erro ao testar conexão Sankhya")
             return False
 
     async def executar_ws(
@@ -1957,27 +1958,7 @@ class SankhyaSyncService:
         return None
 
     def _mask_sensitive_payload(self, payload: Any) -> Any:
-        if isinstance(payload, dict):
-            masked: dict[str, Any] = {}
-            for key, value in payload.items():
-                lowered = key.lower()
-                if any(
-                    token in lowered
-                    for token in (
-                        "password",
-                        "token",
-                        "secret",
-                        "private_key",
-                        "certificate",
-                    )
-                ):
-                    masked[key] = "••••••••"
-                else:
-                    masked[key] = self._mask_sensitive_payload(value)
-            return masked
-        if isinstance(payload, list):
-            return [self._mask_sensitive_payload(item) for item in payload]
-        return payload
+        return mask_sensitive_payload(payload)
 
     def _build_job_timeline_entries(
         self,

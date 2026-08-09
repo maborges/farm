@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import uuid
 
 from fastapi import APIRouter, Depends, Request, status
@@ -10,6 +11,7 @@ from sqlalchemy.orm import selectinload
 
 from core.dependencies import get_current_user, get_session, get_tenant_id, require_tenant_permission
 from core.models.auth import Usuario
+from integracoes.models import MarketplaceIntegracao
 from wizard.checklist_engine import ChecklistEngine
 from wizard.models import ImplantacaoOperacional, PendenciaSeverity, PendenciaStatus, WizardStatus
 from wizard.schemas import (
@@ -29,6 +31,8 @@ from wizard.services import (
     sanitize_legacy_wizard_nullable_uuid_columns as _sanitize_legacy_uuids,
 )
 from wizard.state_engine import can_transition
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/wizard", tags=["Wizard — Implantacao"])
 SESSION_DEP = Depends(get_session)
@@ -430,10 +434,8 @@ async def wizard_status(
         implantacao_id = implantacao.id
         implantacao = await _recarregar_implantacao_ativa(session, tenant_id, implantacao_id)
         return await _build_resumo(session, implantacao)
-    except Exception as e:
-        import traceback
-        with open("/tmp/wizard_error.log", "a") as f:
-            f.write(f"\nError in wizard_status:\n{traceback.format_exc()}\n")
+    except Exception:
+        logger.exception("Erro ao obter status do wizard (tenant_id=%s)", tenant_id)
         raise
 
 
@@ -465,9 +467,6 @@ async def _validate_erp_payload(session: AsyncSession, diagnostico: dict | None)
         )
 
     if erp_id:
-        from integracoes.models import MarketplaceIntegracao
-        from sqlalchemy import select
-
         stmt = select(MarketplaceIntegracao).where(MarketplaceIntegracao.id == erp_id)
         result = await session.execute(stmt)
         provider = result.scalar_one_or_none()

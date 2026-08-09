@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 # Garante que os providers estejam registrados ao carregar o router.
 import integracoes.erp.provider_bootstrap  # noqa: F401
 from core.dependencies import get_session, get_tenant_id, require_tenant_permission
+from integracoes.payload_masking import mask_sensitive_payload
 from integracoes.erp.person_service import (
     ErpPersonConflictError,
     ErpPersonImportService,
@@ -115,7 +116,7 @@ def _serialize_history_item(history) -> ExternalRecordAssociationHistoryItemResp
         "job_id": history.job_id,
         "actor_usuario_id": history.actor_usuario_id,
         "reason": history.reason,
-        "details_payload": history.details_payload,
+        "details_payload": mask_sensitive_payload(history.details_payload),
         "created_at": history.created_at,
     }
     return ExternalRecordAssociationHistoryItemResponse.model_validate(payload)
