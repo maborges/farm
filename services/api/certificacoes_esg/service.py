@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -58,6 +59,8 @@ BLOCKED_ORIGINS = {
     "SIGEF",
     "AREA_OPERACIONAL",
 }
+
+logger = logging.getLogger(__name__)
 
 
 class CertificacoesESGService:
@@ -209,6 +212,8 @@ class CertificacoesESGService:
         tipo_evidencia: Any | None = None,
         responsavel_pessoa_id: uuid.UUID | None = None,
         publico: bool | None = None,
+        skip: int = 0,
+        limit: int = 100,
     ) -> list[EvidenciaCertificacao]:
         stmt = self._query_tenant(EvidenciaCertificacao)
         if programa_id is not None:
@@ -231,7 +236,7 @@ class CertificacoesESGService:
             stmt = stmt.where(EvidenciaCertificacao.responsavel_pessoa_id == responsavel_pessoa_id)
         if publico is not None:
             stmt = stmt.where(EvidenciaCertificacao.publico.is_(publico))
-        stmt = stmt.order_by(EvidenciaCertificacao.created_at.desc())
+        stmt = stmt.order_by(EvidenciaCertificacao.created_at.desc()).offset(skip).limit(limit)
         return list((await self.session.execute(stmt)).scalars().all())
 
     async def listar_nao_conformidades(
@@ -247,6 +252,8 @@ class CertificacoesESGService:
         propriedade_imovel_id: uuid.UUID | None = None,
         severidade: Any | None = None,
         status: StatusNaoConformidade | None = None,
+        skip: int = 0,
+        limit: int = 100,
     ) -> list[NaoConformidadeCertificacao]:
         """Lista não conformidades respeitando tenant e filtros de domínio."""
         stmt = self._query_tenant(NaoConformidadeCertificacao)
@@ -270,7 +277,9 @@ class CertificacoesESGService:
             stmt = stmt.where(NaoConformidadeCertificacao.severidade == severidade)
         if status is not None:
             stmt = stmt.where(NaoConformidadeCertificacao.status == status)
-        stmt = stmt.order_by(NaoConformidadeCertificacao.detectada_em.desc(), NaoConformidadeCertificacao.created_at.desc())
+        stmt = stmt.order_by(
+            NaoConformidadeCertificacao.detectada_em.desc(), NaoConformidadeCertificacao.created_at.desc()
+        ).offset(skip).limit(limit)
         return list((await self.session.execute(stmt)).scalars().all())
 
     async def criar_nao_conformidade(
@@ -389,8 +398,6 @@ class CertificacoesESGService:
         titulo = self._normalize_text(dados.titulo, "titulo")
         descricao = self._normalize_text(dados.descricao, "descricao")
         prazo = dados.prazo or (self._agora() + timedelta(days=30))
-        if dados.concluido_em is not None and dados.concluido_em < self._agora():
-            raise BusinessRuleError("concluido_em deve ser maior ou igual a created_at.")
 
         obj = PlanoAcaoCertificacao(
             tenant_id=self.tenant_id,
@@ -442,6 +449,8 @@ class CertificacoesESGService:
         propriedade_imovel_id: uuid.UUID | None = None,
         prioridade: Any | None = None,
         status: StatusPlanoAcao | None = None,
+        skip: int = 0,
+        limit: int = 100,
     ) -> list[PlanoAcaoCertificacao]:
         """Lista planos de ação respeitando tenant e filtros de domínio."""
         stmt = self._query_tenant(PlanoAcaoCertificacao)
@@ -463,7 +472,9 @@ class CertificacoesESGService:
             stmt = stmt.where(PlanoAcaoCertificacao.prioridade == prioridade)
         if status is not None:
             stmt = stmt.where(PlanoAcaoCertificacao.status == status)
-        stmt = stmt.order_by(PlanoAcaoCertificacao.prazo.asc(), PlanoAcaoCertificacao.created_at.desc())
+        stmt = stmt.order_by(
+            PlanoAcaoCertificacao.prazo.asc(), PlanoAcaoCertificacao.created_at.desc()
+        ).offset(skip).limit(limit)
         return list((await self.session.execute(stmt)).scalars().all())
 
     async def _validar_relatorio_base(self, programa_id: uuid.UUID | None) -> None:
@@ -502,6 +513,8 @@ class CertificacoesESGService:
         propriedade_imovel_id: uuid.UUID | None = None,
         status: StatusRelatorioESG | None = None,
         publico: bool | None = None,
+        skip: int = 0,
+        limit: int = 100,
     ) -> list[RelatorioESG]:
         stmt = self._query_tenant(RelatorioESG)
         if programa_id is not None:
@@ -516,8 +529,28 @@ class CertificacoesESGService:
             stmt = stmt.where(RelatorioESG.status == status)
         if publico is not None:
             stmt = stmt.where(RelatorioESG.publico.is_(publico))
-        stmt = stmt.order_by(RelatorioESG.created_at.desc())
+        stmt = stmt.order_by(RelatorioESG.created_at.desc()).offset(skip).limit(limit)
         return list((await self.session.execute(stmt)).scalars().all())
+
+    def _publicar_com_snapshot_hash(self, obj: Any, publicado_em: datetime | None) -> None:
+        """Aplica publicado_em e recalcula snapshot_hash de forma determinística.
+
+        Compartilhado entre RelatorioESG e PassaporteRastreabilidade: ambos exigem
+        snapshot_json presente e travam o hash a partir dele ao publicar.
+        """
+        if publicado_em is not None:
+            obj.publicado_em = publicado_em
+        elif obj.publicado_em is None:
+            obj.publicado_em = self._agora()
+
+        if obj.snapshot_json is None:
+            raise BusinessRuleError("snapshot_json é obrigatório quando status for PUBLICADO.")
+
+        obj.snapshot_hash = calculate_snapshot_hash(obj.snapshot_json)
+        logger.info(
+            "Publicação com snapshot_hash: tenant_id=%s tipo=%s id=%s",
+            self.tenant_id, type(obj).__name__, obj.id,
+        )
 
     async def atualizar_status_relatorio_esg(
         self,
@@ -538,21 +571,15 @@ class CertificacoesESGService:
                 obj.snapshot_hash = dados.snapshot_hash or obj.snapshot_hash
 
         if dados.status == StatusRelatorioESG.PUBLICADO:
-            if dados.publicado_em is not None:
-                obj.publicado_em = dados.publicado_em
-            elif obj.publicado_em is None:
-                obj.publicado_em = self._agora()
-            
-            if obj.snapshot_json is None:
-                raise BusinessRuleError("snapshot_json é obrigatório quando status for PUBLICADO.")
-            
-            # Cálculo automático do hash
-            obj.snapshot_hash = calculate_snapshot_hash(obj.snapshot_json)
+            self._publicar_com_snapshot_hash(obj, dados.publicado_em)
         elif dados.status == StatusRelatorioESG.CANCELADO:
             if dados.cancelado_em is not None:
                 obj.cancelado_em = dados.cancelado_em
             elif obj.cancelado_em is None:
                 obj.cancelado_em = self._agora()
+            logger.info(
+                "Relatório ESG cancelado: tenant_id=%s id=%s", self.tenant_id, obj.id,
+            )
         self.session.add(obj)
         await self.session.flush()
         await self.session.refresh(obj)
@@ -657,6 +684,8 @@ class CertificacoesESGService:
         propriedade_imovel_id: uuid.UUID | None = None,
         status: StatusPassaporte | None = None,
         publico: bool | None = None,
+        skip: int = 0,
+        limit: int = 100,
     ) -> list[PassaporteRastreabilidade]:
         stmt = self._query_tenant(PassaporteRastreabilidade)
         if programa_id is not None:
@@ -671,7 +700,7 @@ class CertificacoesESGService:
             stmt = stmt.where(PassaporteRastreabilidade.status == status)
         if publico is not None:
             stmt = stmt.where(PassaporteRastreabilidade.publico.is_(publico))
-        stmt = stmt.order_by(PassaporteRastreabilidade.created_at.desc())
+        stmt = stmt.order_by(PassaporteRastreabilidade.created_at.desc()).offset(skip).limit(limit)
         return list((await self.session.execute(stmt)).scalars().all())
 
     async def atualizar_status_passaporte_rastreabilidade(
@@ -699,17 +728,8 @@ class CertificacoesESGService:
             obj.publico = dados.publico
 
         if dados.status == StatusPassaporte.PUBLICADO:
-            if dados.publicado_em is not None:
-                obj.publicado_em = dados.publicado_em
-            elif obj.publicado_em is None:
-                obj.publicado_em = self._agora()
-            
-            if obj.snapshot_json is None:
-                raise BusinessRuleError("snapshot_json é obrigatório quando status for PUBLICADO.")
-                
-            # Cálculo automático do hash
-            obj.snapshot_hash = calculate_snapshot_hash(obj.snapshot_json)
-            
+            self._publicar_com_snapshot_hash(obj, dados.publicado_em)
+
             # Se for publicado e público, gerar token se não existir
             if obj.publico:
                 if not obj.public_token:
@@ -722,6 +742,9 @@ class CertificacoesESGService:
                 obj.revogado_em = dados.revogado_em
             elif obj.revogado_em is None:
                 obj.revogado_em = self._agora()
+            logger.info(
+                "Passaporte de rastreabilidade revogado: tenant_id=%s id=%s", self.tenant_id, obj.id,
+            )
         self.session.add(obj)
         await self.session.flush()
         await self.session.refresh(obj)

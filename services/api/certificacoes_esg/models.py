@@ -168,6 +168,7 @@ class ProgramaCertificacao(Base):
         back_populates="programa",
         cascade="all, delete-orphan",
         passive_deletes=True,
+        lazy="noload",
     )
 
     __table_args__ = (
@@ -219,16 +220,18 @@ class ChecklistCertificacao(Base):
         onupdate=sa.func.current_timestamp(),
     )
 
-    programa: Mapped["ProgramaCertificacao"] = relationship(back_populates="checklists")
+    programa: Mapped["ProgramaCertificacao"] = relationship(back_populates="checklists", lazy="noload")
     criterios: Mapped[List["CriterioCertificacao"]] = relationship(
         back_populates="checklist",
         cascade="all, delete-orphan",
         passive_deletes=True,
+        lazy="noload",
     )
     avaliacoes: Mapped[List["AvaliacaoCertificacao"]] = relationship(
         back_populates="checklist",
         cascade="all, delete-orphan",
         passive_deletes=True,
+        lazy="noload",
     )
 
     __table_args__ = (
@@ -275,7 +278,7 @@ class CriterioCertificacao(Base):
         onupdate=sa.func.current_timestamp(),
     )
 
-    checklist: Mapped["ChecklistCertificacao"] = relationship(back_populates="criterios")
+    checklist: Mapped["ChecklistCertificacao"] = relationship(back_populates="criterios", lazy="noload")
 
     __table_args__ = (
         CheckConstraint("peso >= 0", name="ck_certificacao_criterios_peso_nao_negativo"),
@@ -326,7 +329,7 @@ class AvaliacaoCertificacao(Base):
         onupdate=sa.func.current_timestamp(),
     )
 
-    checklist: Mapped["ChecklistCertificacao"] = relationship(back_populates="avaliacoes")
+    checklist: Mapped["ChecklistCertificacao"] = relationship(back_populates="avaliacoes", lazy="noload")
 
     __table_args__ = (
         CheckConstraint("nota >= 0", name="ck_certificacao_avaliacoes_nota_nao_negativa"),
@@ -696,11 +699,13 @@ class RelatorioESG(Base):
         back_populates="relatorio",
         cascade="all, delete-orphan",
         passive_deletes=True,
+        lazy="noload",
     )
     evidencias: Mapped[List["RelatorioESGEvidencia"]] = relationship(
         back_populates="relatorio",
         cascade="all, delete-orphan",
         passive_deletes=True,
+        lazy="noload",
     )
 
     __table_args__ = (
@@ -768,7 +773,7 @@ class RelatorioESGIndicador(Base):
         onupdate=sa.func.current_timestamp(),
     )
 
-    relatorio: Mapped["RelatorioESG"] = relationship(back_populates="indicadores")
+    relatorio: Mapped["RelatorioESG"] = relationship(back_populates="indicadores", lazy="noload")
 
     __table_args__ = (
         CheckConstraint("btrim(nome) <> ''", name="ck_esg_relatorio_indicadores_nome_nao_vazio"),
@@ -804,7 +809,7 @@ class RelatorioESGEvidencia(Base):
         server_default=sa.text("CURRENT_TIMESTAMP"),
     )
 
-    relatorio: Mapped["RelatorioESG"] = relationship(back_populates="evidencias")
+    relatorio: Mapped["RelatorioESG"] = relationship(back_populates="evidencias", lazy="noload")
 
     __table_args__ = (
         Index("ix_esg_relatorio_evidencias_tenant_relatorio", "tenant_id", "relatorio_id"),
@@ -892,6 +897,9 @@ class PassaporteRastreabilidade(Base):
         onupdate=sa.func.current_timestamp(),
     )
 
+    # lazy default (não "noload"): estas duas relações são carregadas via
+    # selectinload() explícito em public_router.py — "noload" no mapper
+    # bloquearia esses eager-loads explícitos.
     eventos: Mapped[List["PassaporteRastreabilidadeEvento"]] = relationship(
         back_populates="passaporte",
         cascade="all, delete-orphan",
@@ -960,7 +968,7 @@ class PassaporteRastreabilidadeEvento(Base):
         server_default=sa.text("CURRENT_TIMESTAMP"),
     )
 
-    passaporte: Mapped["PassaporteRastreabilidade"] = relationship(back_populates="eventos")
+    passaporte: Mapped["PassaporteRastreabilidade"] = relationship(back_populates="eventos", lazy="noload")
 
     __table_args__ = (
         CheckConstraint("btrim(titulo) <> ''", name="ck_passaporte_eventos_titulo_nao_vazio"),
@@ -999,7 +1007,7 @@ class PassaporteRastreabilidadeEvidencia(Base):
         server_default=sa.text("CURRENT_TIMESTAMP"),
     )
 
-    passaporte: Mapped["PassaporteRastreabilidade"] = relationship(back_populates="evidencias")
+    passaporte: Mapped["PassaporteRastreabilidade"] = relationship(back_populates="evidencias", lazy="noload")
 
     __table_args__ = (
         Index("ix_passaporte_evidencias_tenant_passaporte", "tenant_id", "passaporte_id"),

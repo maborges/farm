@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import date, datetime
+from decimal import Decimal
 from typing import Any
 from enum import Enum
 
@@ -298,9 +299,9 @@ class RelatorioESGIndicadorCreate(BaseModel):
     evidencia_id: uuid.UUID | None = None
     nome: str = Field(..., min_length=1, max_length=200)
     categoria: str | None = Field(default=None, max_length=120)
-    valor: float | None = None
+    valor: Decimal | None = None
     unidade: str | None = Field(default=None, max_length=40)
-    score: float | None = None
+    score: Decimal | None = None
     metodologia: str | None = None
 
     @model_validator(mode="after")
@@ -321,9 +322,9 @@ class RelatorioESGIndicadorResponse(BaseModel):
     evidencia_id: uuid.UUID | None = None
     nome: str
     categoria: str | None = None
-    valor: float | None = None
+    valor: Decimal | None = None
     unidade: str | None = None
-    score: float | None = None
+    score: Decimal | None = None
     metodologia: str | None = None
     created_at: datetime
     updated_at: datetime

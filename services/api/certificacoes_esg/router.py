@@ -81,6 +81,8 @@ async def listar_evidencias(
     propriedade_imovel_id: uuid.UUID | None = Query(None),
     tipo_evidencia: TipoEvidencia | None = Query(None),
     publico: bool | None = Query(None),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
     user_id: uuid.UUID | None = Depends(get_user_id),
     session: AsyncSession = Depends(get_session),
@@ -95,6 +97,8 @@ async def listar_evidencias(
         propriedade_imovel_id=propriedade_imovel_id,
         tipo_evidencia=tipo_evidencia,
         publico=publico,
+        skip=skip,
+        limit=limit,
     )
 
 
@@ -131,6 +135,8 @@ async def listar_nao_conformidades(
     propriedade_imovel_id: uuid.UUID | None = Query(None),
     severidade: SeveridadeNaoConformidade | None = Query(None),
     status: StatusNaoConformidade | None = Query(None),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
     user_id: uuid.UUID | None = Depends(get_user_id),
     session: AsyncSession = Depends(get_session),
@@ -147,6 +153,8 @@ async def listar_nao_conformidades(
         propriedade_imovel_id=propriedade_imovel_id,
         severidade=severidade,
         status=status,
+        skip=skip,
+        limit=limit,
     )
     return stmt
 
@@ -199,6 +207,8 @@ async def listar_planos_acao(
     propriedade_imovel_id: uuid.UUID | None = Query(None),
     prioridade: PrioridadePlanoAcao | None = Query(None),
     status: StatusPlanoAcao | None = Query(None),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
     user_id: uuid.UUID | None = Depends(get_user_id),
     session: AsyncSession = Depends(get_session),
@@ -213,6 +223,8 @@ async def listar_planos_acao(
         propriedade_imovel_id=propriedade_imovel_id,
         prioridade=prioridade,
         status=status,
+        skip=skip,
+        limit=limit,
     )
 
 
@@ -258,6 +270,8 @@ async def listar_relatorios_esg(
     propriedade_imovel_id: uuid.UUID | None = Query(None),
     status: StatusRelatorioESG | None = Query(None),
     publico: bool | None = Query(None),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
     user_id: uuid.UUID | None = Depends(get_user_id),
     session: AsyncSession = Depends(get_session),
@@ -269,6 +283,8 @@ async def listar_relatorios_esg(
         propriedade_imovel_id=propriedade_imovel_id,
         status=status,
         publico=publico,
+        skip=skip,
+        limit=limit,
     )
 
 
@@ -370,6 +386,8 @@ async def listar_passaportes_rastreabilidade(
     propriedade_imovel_id: uuid.UUID | None = Query(None),
     status: StatusPassaporte | None = Query(None),
     publico: bool | None = Query(None),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
     user_id: uuid.UUID | None = Depends(get_user_id),
     session: AsyncSession = Depends(get_session),
@@ -381,6 +399,8 @@ async def listar_passaportes_rastreabilidade(
         propriedade_imovel_id=propriedade_imovel_id,
         status=status,
         publico=publico,
+        skip=skip,
+        limit=limit,
     )
 
 
