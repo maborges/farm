@@ -217,6 +217,9 @@ class TenantIntegracao(Base):
     credential_ref_id = Column(Integer, ForeignKey("integration_credentials.id"))
     deleted_at = Column(DateTime)
 
+    # lazy default (não "noload"): estas duas relações são carregadas via
+    # selectinload() explícito em sync_service.py e legacy_reconciliation.py —
+    # "noload" no mapper bloquearia esses eager-loads explícitos.
     integracao = relationship("MarketplaceIntegracao")
     credential = relationship("IntegrationCredential", foreign_keys=[credential_ref_id])
 
@@ -253,7 +256,7 @@ class IntegrationCredential(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
     deleted_at = Column(DateTime)
 
-    provider = relationship("MarketplaceIntegracao")
+    provider = relationship("MarketplaceIntegracao", lazy="noload")
 
 
 class IntegrationVersion(Base):
@@ -278,8 +281,8 @@ class IntegrationVersion(Base):
     autor_usuario_id = Column(String(50))
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
-    config = relationship("TenantIntegracao", foreign_keys=[config_id])
-    credential = relationship("IntegrationCredential", foreign_keys=[credential_ref_id])
+    config = relationship("TenantIntegracao", foreign_keys=[config_id], lazy="noload")
+    credential = relationship("IntegrationCredential", foreign_keys=[credential_ref_id], lazy="noload")
 
 
 class IntegrationFeature(Base):
@@ -308,8 +311,8 @@ class IntegrationFeature(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
     deleted_at = Column(DateTime)
 
-    config = relationship("TenantIntegracao", foreign_keys=[config_id])
-    provider = relationship("MarketplaceIntegracao", foreign_keys=[provider_id])
+    config = relationship("TenantIntegracao", foreign_keys=[config_id], lazy="noload")
+    provider = relationship("MarketplaceIntegracao", foreign_keys=[provider_id], lazy="noload")
 
 
 class IntegrationSyncPolicy(Base):
@@ -343,9 +346,9 @@ class IntegrationSyncPolicy(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
     deleted_at = Column(DateTime)
 
-    config = relationship("TenantIntegracao", foreign_keys=[config_id])
-    feature = relationship("IntegrationFeature", foreign_keys=[feature_id])
-    provider = relationship("MarketplaceIntegracao", foreign_keys=[provider_id])
+    config = relationship("TenantIntegracao", foreign_keys=[config_id], lazy="noload")
+    feature = relationship("IntegrationFeature", foreign_keys=[feature_id], lazy="noload")
+    provider = relationship("MarketplaceIntegracao", foreign_keys=[provider_id], lazy="noload")
 
 
 class IntegrationJob(Base):
@@ -376,10 +379,10 @@ class IntegrationJob(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
-    config = relationship("TenantIntegracao", foreign_keys=[config_id])
-    feature = relationship("IntegrationFeature", foreign_keys=[feature_id])
-    sync_policy = relationship("IntegrationSyncPolicy", foreign_keys=[sync_policy_id])
-    provider = relationship("MarketplaceIntegracao", foreign_keys=[provider_id])
+    config = relationship("TenantIntegracao", foreign_keys=[config_id], lazy="noload")
+    feature = relationship("IntegrationFeature", foreign_keys=[feature_id], lazy="noload")
+    sync_policy = relationship("IntegrationSyncPolicy", foreign_keys=[sync_policy_id], lazy="noload")
+    provider = relationship("MarketplaceIntegracao", foreign_keys=[provider_id], lazy="noload")
 
 
 class IntegrationHealth(Base):
@@ -414,9 +417,9 @@ class IntegrationHealth(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
-    config = relationship("TenantIntegracao", foreign_keys=[config_id])
-    provider = relationship("MarketplaceIntegracao", foreign_keys=[provider_id])
-    last_job = relationship("IntegrationJob", foreign_keys=[last_job_id])
+    config = relationship("TenantIntegracao", foreign_keys=[config_id], lazy="noload")
+    provider = relationship("MarketplaceIntegracao", foreign_keys=[provider_id], lazy="noload")
+    last_job = relationship("IntegrationJob", foreign_keys=[last_job_id], lazy="noload")
 
 
 class ExternalRecordAssociation(Base):
@@ -483,10 +486,10 @@ class ExternalRecordAssociation(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
     deleted_at = Column(DateTime)
 
-    provider = relationship("MarketplaceIntegracao", foreign_keys=[provider_id])
-    config = relationship("TenantIntegracao", foreign_keys=[config_id])
-    feature = relationship("IntegrationFeature", foreign_keys=[feature_id])
-    last_job = relationship("IntegrationJob", foreign_keys=[last_job_id])
+    provider = relationship("MarketplaceIntegracao", foreign_keys=[provider_id], lazy="noload")
+    config = relationship("TenantIntegracao", foreign_keys=[config_id], lazy="noload")
+    feature = relationship("IntegrationFeature", foreign_keys=[feature_id], lazy="noload")
+    last_job = relationship("IntegrationJob", foreign_keys=[last_job_id], lazy="noload")
 
 
 class ExternalRecordAssociationHistory(Base):
@@ -524,5 +527,5 @@ class ExternalRecordAssociationHistory(Base):
     details_payload = Column(JSON)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
-    link = relationship("ExternalRecordAssociation", foreign_keys=[link_id])
-    job = relationship("IntegrationJob", foreign_keys=[job_id])
+    link = relationship("ExternalRecordAssociation", foreign_keys=[link_id], lazy="noload")
+    job = relationship("IntegrationJob", foreign_keys=[job_id], lazy="noload")

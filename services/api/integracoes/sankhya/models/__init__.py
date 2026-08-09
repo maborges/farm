@@ -12,6 +12,7 @@ from sqlalchemy import (
     Float,
     ForeignKey,
     Integer,
+    Numeric,
     String,
     Text,
     UniqueConstraint,
@@ -192,8 +193,8 @@ class SankhyaProduto(Base):
     unidade = Column(String(10), default="UN")
 
     # Preços
-    preco_custo = Column(Float)
-    preco_venda = Column(Float)
+    preco_custo = Column(Numeric(15, 2))
+    preco_venda = Column(Numeric(15, 2))
 
     # Controle
     controle_estoque = Column(Boolean, default=True)
@@ -247,15 +248,15 @@ class SankhyaNFe(Base):
     cnpj_destinatario = Column(String(18))
 
     # Valores
-    valor_total = Column(Float)
-    valor_produtos = Column(Float)
-    valor_frete = Column(Float)
-    valor_seguro = Column(Float)
-    valor_desconto = Column(Float)
-    valor_ipi = Column(Float)
-    valor_icms = Column(Float)
-    valor_pis = Column(Float)
-    valor_cofins = Column(Float)
+    valor_total = Column(Numeric(15, 2))
+    valor_produtos = Column(Numeric(15, 2))
+    valor_frete = Column(Numeric(15, 2))
+    valor_seguro = Column(Numeric(15, 2))
+    valor_desconto = Column(Numeric(15, 2))
+    valor_ipi = Column(Numeric(15, 2))
+    valor_icms = Column(Numeric(15, 2))
+    valor_pis = Column(Numeric(15, 2))
+    valor_cofins = Column(Numeric(15, 2))
 
     # Datas
     data_emissao = Column(Date)
@@ -303,8 +304,8 @@ class SankhyaLancamentoFinanceiro(Base):
 
     # Dados do lançamento
     numero_documento = Column(String(50))
-    valor = Column(Float, nullable=False)
-    valor_saldo = Column(Float)
+    valor = Column(Numeric(15, 2), nullable=False)
+    valor_saldo = Column(Numeric(15, 2))
 
     # Datas
     data_lancamento = Column(Date)
