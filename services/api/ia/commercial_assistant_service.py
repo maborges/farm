@@ -506,27 +506,13 @@ CONTEXTO:
             )
             return {**heur, "log_id": log_id, "contexto": contexto}
 
+        from ia.anthropic_client import chamar_anthropic, get_ia_model
+
         prompt = cls._montar_prompt(contexto, mensagem_usuario)
-        model = os.getenv("IA_MODEL", "claude-haiku-4-5-20251001")
+        model = get_ia_model()
 
         try:
-            async with httpx.AsyncClient(timeout=20.0) as client:
-                resp = await client.post(
-                    "https://api.anthropic.com/v1/messages",
-                    headers={
-                        "x-api-key": api_key,
-                        "anthropic-version": "2023-06-01",
-                        "content-type": "application/json",
-                    },
-                    json={
-                        "model": model,
-                        "max_tokens": 500,
-                        "messages": [{"role": "user", "content": prompt}],
-                    },
-                )
-                resp.raise_for_status()
-
-            content = resp.json()["content"][0]["text"].strip()
+            content = await chamar_anthropic(prompt, max_tokens=500, timeout=20.0)
             start = content.find("{")
             end = content.rfind("}") + 1
             parsed = json.loads(content[start:end])

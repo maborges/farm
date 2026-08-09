@@ -301,32 +301,10 @@ async def _chamar_ia(
     prompt_template: str | None = None,
 ) -> EstrategiaCompra:
     """Chama Anthropic Claude. Lança exceção se falhar."""
-    import httpx
+    from ia.anthropic_client import chamar_anthropic
 
-    api_key = os.getenv("ANTHROPIC_API_KEY", "")
-    if not api_key:
-        raise ValueError("ANTHROPIC_API_KEY não configurada")
-
-    model = os.getenv("IA_MODEL", "claude-haiku-4-5-20251001")
     prompt = _montar_prompt(ctx, feedback_negativo or [], template=prompt_template)
-
-    async with httpx.AsyncClient(timeout=15.0) as client:
-        resp = await client.post(
-            "https://api.anthropic.com/v1/messages",
-            headers={
-                "x-api-key": api_key,
-                "anthropic-version": "2023-06-01",
-                "content-type": "application/json",
-            },
-            json={
-                "model": model,
-                "max_tokens": 512,
-                "messages": [{"role": "user", "content": prompt}],
-            },
-        )
-        resp.raise_for_status()
-
-    content = resp.json()["content"][0]["text"].strip()
+    content = await chamar_anthropic(prompt, max_tokens=512, timeout=15.0)
     start = content.find("{")
     end = content.rfind("}") + 1
     parsed = json.loads(content[start:end])

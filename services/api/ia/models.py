@@ -456,7 +456,7 @@ class IAGrowthExperimento(Base):
     started_at = Column(DateTime(timezone=True), nullable=True)
     ended_at = Column(DateTime(timezone=True), nullable=True)
 
-    variantes = relationship("IAGrowthExperimentoVariante", back_populates="experimento", cascade="all, delete-orphan")
+    variantes = relationship("IAGrowthExperimentoVariante", back_populates="experimento", cascade="all, delete-orphan", lazy="noload")
 
     __table_args__ = (
         Index("ix_ia_growth_exp_tenant_ctx_status", "tenant_id", "contexto", "status"),
@@ -476,7 +476,7 @@ class IAGrowthExperimentoVariante(Base):
     ativo = Column(Boolean, nullable=False, default=True)
     origem_copy = Column(String(20), nullable=False, default="HEURISTICA") # HEURISTICA | LLM (Growth-11)
 
-    experimento = relationship("IAGrowthExperimento", back_populates="variantes")
+    experimento = relationship("IAGrowthExperimento", back_populates="variantes", lazy="noload")
 
     __table_args__ = (
         Index("ix_ia_growth_variantes_exp", "experimento_id"),

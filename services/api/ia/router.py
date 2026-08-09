@@ -1594,6 +1594,8 @@ async def _registrar_historico_prompt(
 @router.get("/prompts/versoes", response_model=list[PromptVersaoResponse])
 async def listar_versoes_prompt(
     contexto: str = Query(CONTEXTO_COMPRAS_ESTRATEGIA),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
     session: AsyncSession = Depends(get_session),
 ):
@@ -1608,6 +1610,8 @@ async def listar_versoes_prompt(
             or_(IAPromptVersao.tenant_id == tenant_id, IAPromptVersao.tenant_id.is_(None)),
         )
         .order_by(desc(IAPromptVersao.created_at))
+        .offset(skip)
+        .limit(limit)
     )
     rows = (await session.execute(stmt)).scalars().all()
     return [
@@ -1748,6 +1752,8 @@ async def ativar_versao_prompt(
 @router.get("/prompts/versoes/{versao_id}/historico", response_model=list[PromptVersaoHistoricoResponse])
 async def listar_historico_versao_prompt(
     versao_id: uuid.UUID,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
     session: AsyncSession = Depends(get_session),
 ):
@@ -1771,6 +1777,8 @@ async def listar_historico_versao_prompt(
         .outerjoin(Usuario, Usuario.id == IAPromptVersaoHistorico.usuario_id)
         .where(IAPromptVersaoHistorico.prompt_versao_id == versao_id)
         .order_by(desc(IAPromptVersaoHistorico.created_at))
+        .offset(skip)
+        .limit(limit)
     )
     rows = (await session.execute(stmt)).all()
 

@@ -204,32 +204,10 @@ async def analisar_dre_safra(
         return res
 
 async def _chamar_ia_dre(ctx: ContextoDRE) -> AnaliseDREIA:
-    import httpx
-    
-    api_key = os.getenv("ANTHROPIC_API_KEY", "")
-    if not api_key:
-        raise ValueError("ANTHROPIC_API_KEY não configurada")
+    from ia.anthropic_client import chamar_anthropic
 
     prompt = _montar_prompt_dre(ctx)
-    model = os.getenv("IA_MODEL", "claude-haiku-4-5-20251001")
-
-    async with httpx.AsyncClient(timeout=20.0) as client:
-        resp = await client.post(
-            "https://api.anthropic.com/v1/messages",
-            headers={
-                "x-api-key": api_key,
-                "anthropic-version": "2023-06-01",
-                "content-type": "application/json",
-            },
-            json={
-                "model": model,
-                "max_tokens": 800,
-                "messages": [{"role": "user", "content": prompt}],
-            },
-        )
-        resp.raise_for_status()
-
-    content = resp.json()["content"][0]["text"].strip()
+    content = await chamar_anthropic(prompt, max_tokens=800, timeout=20.0)
     start = content.find("{")
     end = content.rfind("}") + 1
     parsed = json.loads(content[start:end])
@@ -337,32 +315,10 @@ Responda EXCLUSIVAMENTE em formato JSON:
 }}"""
 
 async def _chamar_ia_simulacao(ctx: ContextoSimulacao) -> AnaliseSimulacaoIA:
-    import httpx
-    
-    api_key = os.getenv("ANTHROPIC_API_KEY", "")
-    if not api_key:
-        raise ValueError("ANTHROPIC_API_KEY não configurada")
+    from ia.anthropic_client import chamar_anthropic
 
     prompt = _montar_prompt_simulacao(ctx)
-    model = os.getenv("IA_MODEL", "claude-haiku-4-5-20251001")
-
-    async with httpx.AsyncClient(timeout=20.0) as client:
-        resp = await client.post(
-            "https://api.anthropic.com/v1/messages",
-            headers={
-                "x-api-key": api_key,
-                "anthropic-version": "2023-06-01",
-                "content-type": "application/json",
-            },
-            json={
-                "model": model,
-                "max_tokens": 800,
-                "messages": [{"role": "user", "content": prompt}],
-            },
-        )
-        resp.raise_for_status()
-
-    content = resp.json()["content"][0]["text"].strip()
+    content = await chamar_anthropic(prompt, max_tokens=800, timeout=20.0)
     start = content.find("{")
     end = content.rfind("}") + 1
     parsed = json.loads(content[start:end])
@@ -693,32 +649,10 @@ async def recomendar_cenario_safra(
         return res
 
 async def _chamar_ia_recomendacao(ctx: ContextoCenarios) -> RecomendacaoCenarioIA:
-    import httpx
-    
-    api_key = os.getenv("ANTHROPIC_API_KEY", "")
-    if not api_key:
-        raise ValueError("ANTHROPIC_API_KEY não configurada")
+    from ia.anthropic_client import chamar_anthropic
 
     prompt = _montar_prompt_recomendacao(ctx)
-    model = os.getenv("IA_MODEL", "claude-haiku-4-5-20251001")
-
-    async with httpx.AsyncClient(timeout=25.0) as client:
-        resp = await client.post(
-            "https://api.anthropic.com/v1/messages",
-            headers={
-                "x-api-key": api_key,
-                "anthropic-version": "2023-06-01",
-                "content-type": "application/json",
-            },
-            json={
-                "model": model,
-                "max_tokens": 1000,
-                "messages": [{"role": "user", "content": prompt}],
-            },
-        )
-        resp.raise_for_status()
-
-    content = resp.json()["content"][0]["text"].strip()
+    content = await chamar_anthropic(prompt, max_tokens=1000, timeout=25.0)
     start = content.find("{")
     end = content.rfind("}") + 1
     parsed = json.loads(content[start:end])

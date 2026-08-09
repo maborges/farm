@@ -239,32 +239,10 @@ async def gerar_resumo_consultivo(
 
 async def _chamar_ia(ctx: ContextoSafra) -> ResumoConsultivo:
     """Chama Anthropic Claude via API. Requer ANTHROPIC_API_KEY no ambiente."""
-    import httpx
-
-    api_key = os.getenv("ANTHROPIC_API_KEY", "")
-    if not api_key:
-        raise ValueError("ANTHROPIC_API_KEY não configurada")
+    from ia.anthropic_client import chamar_anthropic
 
     prompt = _montar_prompt(ctx)
-    model = os.getenv("IA_MODEL", "claude-haiku-4-5-20251001")
-
-    async with httpx.AsyncClient(timeout=15.0) as client:
-        resp = await client.post(
-            "https://api.anthropic.com/v1/messages",
-            headers={
-                "x-api-key": api_key,
-                "anthropic-version": "2023-06-01",
-                "content-type": "application/json",
-            },
-            json={
-                "model": model,
-                "max_tokens": 512,
-                "messages": [{"role": "user", "content": prompt}],
-            },
-        )
-        resp.raise_for_status()
-
-    content = resp.json()["content"][0]["text"].strip()
+    content = await chamar_anthropic(prompt, max_tokens=512, timeout=15.0)
 
     # Extrai JSON da resposta (pode vir com texto extra)
     start = content.find("{")
