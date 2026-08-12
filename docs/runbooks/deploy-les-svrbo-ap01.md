@@ -354,6 +354,17 @@ CREATE DATABASE agrosaas OWNER agrosaas;
 \q
 ```
 
+> **Nota — divergência real no `LES-SVRBO-AP01` (registrada em 2026-08-10):** nesta instalação específica o banco não se chama `agrosaas` nem o usuário de conexão é `agrosaas`. O `DATABASE_URL` real em produção é:
+> ```
+> postgresql+asyncpg://borgus:<senha>@127.0.0.1:5432/farms
+> ```
+> Banco `farms`, usuário `borgus`, schema de dados também chamado `farms` (não `public`). **Antes de rodar qualquer comando deste runbook que assuma `agrosaas`/`agrosaas` como nome de banco/usuário, confirme primeiro:**
+> ```bash
+> sudo -u agrosaas cat /opt/agrosaas/services/api/.env.local | grep DATABASE_URL
+> sudo -u postgres psql -l
+> ```
+> Se as tabelas estiverem em um schema diferente de `public` (como `farms`), qualifique o schema nas queries: `select * from farms.alembic_version;` em vez de `select * from alembic_version;` — sem o prefixo, `psql` como `postgres` não encontra a tabela porque o `search_path` padrão do superusuário não inclui esse schema.
+
 ### 9.6 Restringir o acesso do PostgreSQL ao host local
 
 ### Onde executar
@@ -401,17 +412,25 @@ sudo systemctl restart postgresql-16
 ### Onde executar
 - `No servidor como root`
 
+> **Atenção — mismatch de versão do `pg_dump` observado no `LES-SVRBO-AP01`:** o servidor tem dois PostgreSQL instalados (13.23 via pacote padrão do Rocky e 16.14 via PGDG, que é o realmente em uso — confirme com `sudo systemctl list-unit-files | grep postgresql`). O `pg_dump` do `PATH` (`/usr/bin/pg_dump`) é da versão 13 e falha com `server version mismatch` contra um servidor 16. **Sempre use o binário versionado correspondente:**
+> ```bash
+> ls /usr/pgsql-*/bin/pg_dump   # confirme qual versão existe
+> ```
+> e substitua `pg_dump` por `/usr/pgsql-16/bin/pg_dump` (ajuste o número conforme o resultado) em todos os comandos abaixo. O mesmo vale para `pg_restore`, `psql` e `createdb` dessa versão se necessário.
+
 ### Backup lógico
 
 ```bash
-sudo -u postgres pg_dump -Fc agrosaas | sudo tee "/srv/agrosaas/backups/agrosaas-$(date +%F).dump" > /dev/null
+sudo -u postgres /usr/pgsql-16/bin/pg_dump -Fc agrosaas | sudo tee "/srv/agrosaas/backups/agrosaas-$(date +%F).dump" > /dev/null
 ```
+
+Troque `agrosaas` pelo nome real do banco desta instalação (ver nota da seção 9.5 — no `LES-SVRBO-AP01` é `farms`).
 
 ### Restauração lógica
 
 ```bash
 sudo -u postgres createdb agrosaas_restore
-sudo -u postgres pg_restore -d agrosaas_restore /srv/agrosaas/backups/agrosaas-YYYY-MM-DD.dump
+sudo -u postgres /usr/pgsql-16/bin/pg_restore -d agrosaas_restore /srv/agrosaas/backups/agrosaas-YYYY-MM-DD.dump
 ```
 
 ### Validação rápida no banco
@@ -419,6 +438,44 @@ sudo -u postgres pg_restore -d agrosaas_restore /srv/agrosaas/backups/agrosaas-Y
 ```bash
 sudo -u postgres psql -d agrosaas -c "select now();"
 ```
+
+### 9.8 Ownership de tabelas — pré-requisito para migrations com `ALTER TABLE`
+
+Se as tabelas do schema de dados pertencerem a um usuário diferente do usuário de conexão da aplicação (ex.: tabelas criadas por `postgres` enquanto a app conecta como `borgus`/`agrosaas`), qualquer migration Alembic que faça `ALTER COLUMN`/`ALTER TABLE` falha com:
+
+```text
+asyncpg.exceptions.InsufficientPrivilegeError: must be owner of table <nome_da_tabela>
+```
+
+DML (select/insert/update/delete) funciona normalmente mesmo sem ser owner — por isso o problema só aparece na hora de rodar uma migration com DDL, não no dia a dia da aplicação. Como o Postgres assume DDL transacional, uma migration que falha assim é revertida por completo (confirme com `select version_num from <schema>.alembic_version;` antes e depois — não deve ter avançado).
+
+**Correção (rodar uma única vez, como root):**
+
+```bash
+sudo -u postgres psql -d <nome_do_banco> <<'EOF'
+DO $$
+DECLARE r record;
+BEGIN
+  FOR r IN SELECT tablename FROM pg_tables WHERE schemaname = '<schema>' LOOP
+    EXECUTE format('ALTER TABLE %I.%I OWNER TO <usuario_da_app>', '<schema>', r.tablename);
+  END LOOP;
+  FOR r IN SELECT sequencename FROM pg_sequences WHERE schemaname = '<schema>' LOOP
+    EXECUTE format('ALTER SEQUENCE %I.%I OWNER TO <usuario_da_app>', '<schema>', r.sequencename);
+  END LOOP;
+  FOR r IN SELECT viewname FROM pg_views WHERE schemaname = '<schema>' LOOP
+    EXECUTE format('ALTER VIEW %I.%I OWNER TO <usuario_da_app>', '<schema>', r.viewname);
+  END LOOP;
+END $$;
+EOF
+```
+
+Valide com:
+
+```bash
+sudo -u postgres psql -d <nome_do_banco> -c "select tableowner, count(*) from pg_tables where schemaname='<schema>' group by tableowner;"
+```
+
+No `LES-SVRBO-AP01` (2026-08-10): banco `farms`, schema `farms`, usuário da app `borgus` — 322 tabelas transferidas de `postgres` para `borgus`. Depois dessa correção, novas migrations com DDL passam a funcionar sem erro de privilégio.
 
 ### 9.8 Copiar o banco local para produção
 
@@ -918,6 +975,11 @@ sudo systemctl enable --now agrosaas-worker
 
 Como o acesso público será feito só pelas portas `80` e `443`, o Nginx deve ser o ponto de entrada.
 
+> **Nota — configuração real observada no `LES-SVRBO-AP01` (2026-08-10):** o arquivo `/etc/nginx/conf.d/agrosaas.conf` em produção é mais enxuto que o exemplo abaixo — só tem `location /api/` (proxy para o backend, sem strip de prefixo) e `location /` (proxy para o frontend). **Não existem blocos `/health`, `/health/ready`, `/docs` nem `/openapi.json`** — esses endpoints não são expostos publicamente nessa instalação, só via `127.0.0.1:8000` diretamente no servidor. Portanto:
+> - `curl http://<ip-publico>/health` retorna 404 (cai na rota `/` do Next.js) — isso é esperado, não é falha de deploy.
+> - Para checar a saúde do backend publicamente, use `curl http://<ip-publico>/api/health` **somente se** a rota estiver de fato montada sob `/api/` no `main.py`; caso contrário, valide sempre via SSH direto em `127.0.0.1:8000/health`.
+> - Antes de assumir que o exemplo abaixo bate com a config real, rode `sudo cat /etc/nginx/conf.d/agrosaas.conf` e compare.
+
 ### 19.1 Criar o arquivo de site
 
 ### Onde executar
@@ -1116,22 +1178,25 @@ sudo journalctl -u nginx -f
 
 ## 23. Atualização de versão
 
-### Onde executar
-- `No servidor como usuário agrosaas`
-
 ### Passos
 
-1. Entre no diretório do projeto.
+0. **Como root:** backup do banco antes de qualquer migration (seção 9.7/9.8 — confirme nome do banco e binário `pg_dump` da versão certa primeiro).
+1. **Como usuário `agrosaas`:** entre no diretório do projeto.
 2. Faça `git pull --ff-only` no repositório principal.
 3. Atualize o submódulo `apps/web` para o commit referenciado.
 4. Atualize dependências se necessário.
-5. Rode `alembic upgrade head`.
+5. Rode `alembic upgrade head`. Se falhar com `InsufficientPrivilegeError: must be owner of table ...`, veja a seção 9.8 (ownership) — **como root**, corrija o ownership e repita o `alembic upgrade head`.
 6. Rode `pnpm --filter web build`.
-7. Reinicie os serviços.
+7. **Como root:** reinicie os serviços.
 
 ### Comandos
 
 ```bash
+# 0. Backup — como root, ANTES de tudo
+sudo -u postgres /usr/pgsql-16/bin/pg_dump -Fc <nome_do_banco> | sudo tee "/srv/agrosaas/backups/<nome_do_banco>-antes-deploy-$(date +%F-%H%M).dump" > /dev/null
+
+# 1-6. Como usuário agrosaas
+sudo -iu agrosaas
 cd /opt/agrosaas
 git pull --ff-only
 git submodule sync -- apps/web
@@ -1139,13 +1204,28 @@ git submodule update --init apps/web
 
 cd /opt/agrosaas/services/api
 source .venv/bin/activate
-.venv/bin/alembic upgrade head
+alembic upgrade head
 
 cd /opt/agrosaas
 pnpm --filter web build
+exit   # volta a root
 
+# 7. Restart — como root
 sudo systemctl restart agrosaas-api agrosaas-web agrosaas-worker nginx
 ```
+
+### Smoke test pós-deploy
+
+```bash
+# no servidor via SSH (127.0.0.1 só funciona ali, não da máquina cliente)
+curl http://127.0.0.1:8000/health
+curl http://127.0.0.1:8000/health/ready
+
+# da máquina cliente
+curl -I http://<ip-publico>/
+```
+
+Use `curl` sem `-I` para checar o corpo da resposta de `/health` — os endpoints de health não implementam `HEAD`, então `curl -I` retorna `405 Method Not Allowed` mesmo com o serviço saudável (falso alarme conhecido).
 
 ## 24. Reversão rápida
 
