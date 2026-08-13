@@ -1,9 +1,10 @@
-from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, Query, status, Body
+from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect, Query, status, Body, HTTPException
 import asyncio
 from loguru import logger
 from typing import List, Optional
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 from core.dependencies import get_tenant_id, get_session, get_current_admin
 from core.database import async_session_maker
@@ -14,6 +15,9 @@ from notificacoes.alertas_engine import AlertasEngine
 from core.dependencies import get_current_user
 
 router = APIRouter(prefix="/notificacoes", tags=["Notificações"])
+
+# Intervalo máximo sem atividade do cliente antes de revalidar usuário/tenant no banco.
+REVALIDATE_INTERVAL_SECONDS = 5 * 60
 
 
 # ── REST ──────────────────────────────────────────────────────────────────────
@@ -88,7 +92,11 @@ async def gerar_demo(
     session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
 ):
-    """Cria notificações de demonstração para testar o sistema."""
+    """Cria notificações de demonstração para testar o sistema. Indisponível em produção."""
+    from core.config import settings
+    if settings.environment == "production":
+        raise HTTPException(status_code=404, detail="Recurso indisponível.")
+
     svc = NotificacaoService(session, tenant_id)
     demos = [
         NotificacaoCreate(
@@ -172,6 +180,57 @@ async def verificar_alertas_automaticos(
 
 # ── WebSocket ─────────────────────────────────────────────────────────────────
 
+async def _autenticar_ws_notificacoes(token: str) -> str | None:
+    """
+    Valida o JWT do WebSocket e confirma no banco que o usuário está ativo
+    e vinculado (status ATIVO) ao tenant informado no token.
+
+    Mesmo padrão de validação usado em core/routers/support_ws.py — o token
+    chega via query param (não é possível reaproveitar get_current_user_claims/
+    get_tenant_id, que dependem de Authorization header via Request), mas a
+    checagem de usuário/tenant ativos no banco é obrigatória, igual ao REST.
+
+    Retorna o tenant_id validado, ou None se a autenticação falhar.
+    """
+    from core.config import settings
+    from jose import jwt as jose_jwt, JWTError
+
+    try:
+        payload = jose_jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
+    except JWTError:
+        return None
+
+    user_id_str = payload.get("sub")
+    tenant_id_str = payload.get("tenant_id")
+    if not user_id_str or not tenant_id_str:
+        return None
+
+    try:
+        user_id = UUID(user_id_str)
+        tenant_id = UUID(tenant_id_str)
+    except ValueError:
+        return None
+
+    from core.models.auth import Usuario, TenantUsuario
+
+    async with async_session_maker() as session:
+        usuario = await session.get(Usuario, user_id)
+        if not usuario or not usuario.ativo:
+            return None
+
+        result = await session.execute(
+            select(TenantUsuario.id).where(
+                TenantUsuario.tenant_id == tenant_id,
+                TenantUsuario.usuario_id == user_id,
+                TenantUsuario.status == "ATIVO",
+            )
+        )
+        if result.scalar_one_or_none() is None:
+            return None
+
+    return tenant_id_str
+
+
 @router.websocket("/ws")
 async def ws_notificacoes(
     websocket: WebSocket,
@@ -181,16 +240,8 @@ async def ws_notificacoes(
     WebSocket de notificações em tempo real.
     Conecte com: ws://<host>/api/v1/notificacoes/ws?token=<jwt>
     """
-    from core.config import settings
-    from jose import jwt as jose_jwt, JWTError
-
-    try:
-        payload = jose_jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
-        tenant_id: str = payload.get("tenant_id", "")
-        if not tenant_id:
-            await websocket.close(code=1008)
-            return
-    except JWTError:
+    tenant_id = await _autenticar_ws_notificacoes(token)
+    if not tenant_id:
         await websocket.close(code=1008)
         return
 
@@ -202,9 +253,24 @@ async def ws_notificacoes(
             count = await svc.total_nao_lidas()
             await websocket.send_json({"tipo": "init", "nao_lidas": count})
 
-        # Listen for client-side actions (e.g. mark as read)
+        # Listen for client-side actions (e.g. mark as read). A conexão fica
+        # aberta por horas — sem revalidar periodicamente, um usuário
+        # desativado ou removido do tenant continuaria recebendo pushes até
+        # a conexão cair por outro motivo. A cada REVALIDATE_INTERVAL_SECONDS
+        # sem mensagem do cliente, reautentica; se o token/usuário/tenant não
+        # forem mais válidos, encerra a conexão.
         while True:
-            data = await websocket.receive_json()
+            try:
+                data = await asyncio.wait_for(
+                    websocket.receive_json(), timeout=REVALIDATE_INTERVAL_SECONDS
+                )
+            except asyncio.TimeoutError:
+                if not await _autenticar_ws_notificacoes(token):
+                    manager.disconnect(tenant_id, websocket)
+                    await websocket.close(code=1008)
+                    return
+                continue
+
             action = data.get("action")
 
             if action == "marcar_lidas":
