@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     pagamentos_webhook_secret: str = ""
     frontend_url: str = "http://localhost:3000"
     storage_public_base_url: str = ""
+    whatsapp_comercial_numero: str = ""
+    # "development" | "staging" | "production" — controla recursos de demonstração/depuração
+    environment: str = "development"
     # A API não deve executar o worker no processo web por padrão. Ambientes
     # que realmente hospedam o worker precisam habilitá-lo explicitamente.
     run_embedded_jobs: bool = False

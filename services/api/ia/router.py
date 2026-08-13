@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from core.database import get_db
+from core.config import settings
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc, Integer as sa_Integer
 from pydantic import BaseModel, Field
@@ -183,9 +184,6 @@ CUSTO_ESTIMADO_CREDITO_IA = Decimal("0.035")
 # Margem mínima aceitável (percentual). Checkout abaixo disso é bloqueado.
 MARGEM_MINIMA_IA_PERCENTUAL = Decimal("30")
 
-_WHATSAPP_NUMERO = "5511999999999"  # substituir pelo número comercial real
-
-
 def _calcular_valor(quantidade: int) -> Decimal:
     for minimo, preco_unitario in _PRECO_POR_CREDITO:
         if quantidade >= minimo:
@@ -214,12 +212,18 @@ def _validar_margem(margem_percentual: Decimal) -> None:
 
 
 def _gerar_link_pagamento(protocolo: str, quantidade: int, valor: Decimal) -> str:
+    numero = settings.whatsapp_comercial_numero
+    if not numero:
+        raise HTTPException(
+            status_code=503,
+            detail="Canal de pagamento via WhatsApp não configurado. Contate o suporte.",
+        )
     valor_fmt = f"R$ {valor:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
     mensagem = (
         f"Olá! Gostaria de finalizar a compra de {quantidade} créditos de IA "
         f"(protocolo {protocolo}). Valor: {valor_fmt}."
     )
-    return f"https://wa.me/{_WHATSAPP_NUMERO}?text={urllib.parse.quote(mensagem)}"
+    return f"https://wa.me/{numero}?text={urllib.parse.quote(mensagem)}"
 
 
 class CheckoutPayload(BaseModel):

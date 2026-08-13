@@ -346,7 +346,7 @@ async def list_invoices(session: AsyncSession = Depends(get_session)):
 async def review_invoice(
     invoice_id: uuid.UUID,
     review: ReviewInvoiceRequest,
-    admin: Usuario = Depends(get_current_admin),
+    admin_claims: dict = Depends(get_current_admin),
     session: AsyncSession = Depends(get_session)
 ):
     """Aprova ou Rejeita um pagamento enviado pelo produtor."""
@@ -367,16 +367,24 @@ async def review_invoice(
         raise HTTPException(status_code=404, detail="Fatura ou proprietário indisponível ou não encontrado.")
     
     fatura, tenant, plano, owner_email, owner_nome = row
-    
+
+    admin_id_str = admin_claims.get("sub")
+    if not admin_id_str:
+        raise HTTPException(status_code=403, detail="Token administrativo inválido.")
+    try:
+        admin_id = uuid.UUID(admin_id_str)
+    except ValueError:
+        raise HTTPException(status_code=403, detail="Token administrativo inválido.")
+
     from datetime import datetime, timezone
-    
+
     if review.aprovado:
         fatura.status = "PAGA"
     else:
         fatura.status = "REJEITADA"
         fatura.justificativa_rejeicao = review.justificativa
-        
-    fatura.operador_revisao_id = admin.id
+
+    fatura.operador_revisao_id = admin_id
     fatura.data_aprovacao_rejeicao = datetime.now(timezone.utc)
     
     await session.commit()

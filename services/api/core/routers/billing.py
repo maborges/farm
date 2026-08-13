@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Body
+from fastapi import APIRouter, Depends, HTTPException, status, Body, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from typing import List
@@ -10,6 +10,7 @@ from core.models.billing import AssinaturaTenant, PlanoAssinatura, Fatura
 from core.models.unidade_produtiva import UnidadeProdutiva as Fazenda
 from core.models.auth import TenantUsuario
 from core.schemas.billing_schemas import FaturaResponse, PlanoAssinaturaResponse
+from core.services.storage_service import StorageService, increment_storage
 
 router = APIRouter(prefix="/billing", tags=["Billing / Conta"])
 
@@ -165,26 +166,42 @@ async def list_my_invoices(tenant: Tenant = Depends(get_current_tenant), session
 @router.post("/invoices/{invoice_id}/pay")
 async def register_payment_proof(
     invoice_id: uuid.UUID,
-    url_comprovante: str,
+    arquivo: UploadFile = File(..., description="Comprovante de pagamento (PDF, JPEG ou PNG). Máx 5MB."),
     tenant: Tenant = Depends(get_current_tenant),
     session: AsyncSession = Depends(get_session)
 ):
-    """Envia o comprovante de pagamento (mockando upload por enquanto)."""
+    """Envia o comprovante de pagamento (upload real via StorageService)."""
     fatura = await session.get(Fatura, invoice_id)
     if not fatura or fatura.tenant_id != tenant.id:
         raise HTTPException(status_code=404, detail="Fatura indisponível ou não encontrada.")
-    
+
     if fatura.status == "PAGA":
         raise HTTPException(status_code=400, detail="Esta fatura já está paga.")
 
+    allowed = {"application/pdf", "image/jpeg", "image/png"}
+    if arquivo.content_type not in allowed:
+        raise HTTPException(status_code=400, detail=f"Tipo não suportado. Use: {', '.join(allowed)}")
+
+    content = await arquivo.read()
+    if len(content) > 5 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="Comprovante deve ter no máximo 5MB.")
+
+    ext = {"application/pdf": ".pdf", "image/jpeg": ".jpg", "image/png": ".png"}.get(arquivo.content_type, ".pdf")
+    filename = f"{uuid.uuid4().hex[:12]}{ext}"
+    storage_path = f"static/comprovantes/{tenant.id}/{invoice_id}/{filename}"
+
+    StorageService.save_blob(content, storage_path)
+    await increment_storage(session, tenant.id, len(content))
+    url_comprovante = StorageService.public_url(storage_path)
+
     from datetime import datetime, timezone
-    
+
     fatura.url_comprovante = url_comprovante
     fatura.data_envio_comprovante = datetime.now(timezone.utc)
     fatura.status = "EM_ANALISE"
-    
+
     await session.commit()
-    return {"message": "Comprovante enviado para análise!"}
+    return {"message": "Comprovante enviado para análise!", "url_comprovante": url_comprovante}
 
 @router.get("/plans", response_model=List[PlanoAssinaturaResponse])
 async def list_available_plans(session: AsyncSession = Depends(get_session)):
