@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from loguru import logger
 from sqlalchemy import case, desc, func, select, text
@@ -143,7 +143,78 @@ class AlertLifecycleService:
             payload_after=_serialize(alert),
         )
         logger.debug("Alert created with dedupe key {}", obj_in.dedupe_key)
+        await self._notificar_usuarios(alert)
         return alert
+
+    async def _notificar_usuarios(self, alert: OperationalAlert) -> None:
+        """Espelha o alerta recém-criado em `Notificacao` para aparecer no sino do frontend.
+
+        `alert_engine/` grava em `operational_alerts`, visível só no card-resumo
+        do dashboard (`GET /alerts/summary`) — sem isso os alertas nunca chegam
+        ao usuário via WS/sino. Só na criação (não em update de alerta já ativo),
+        para não reabrir notificação de algo que já estava sendo tratado.
+
+        Usa uma sessão própria (`async_session_maker`), não `self.session`: o
+        chamador (scheduler/dispatcher) pode estar dentro de um SAVEPOINT
+        (`session.begin_nested()`, usado no modo `dry_run`) e
+        `NotificacaoService.criar_e_push` faz `commit()` internamente — chamar
+        commit() dentro do savepoint do caller quebra a transação dele
+        (`ResourceClosedError` observado em produção deste fix). Trade-off aceito:
+        em `dry_run` (preview, sem persistir o alerta de verdade) a notificação
+        ainda seria criada — não crítico hoje porque `dry_run` só roda sob demanda,
+        não no scheduler periódico.
+        """
+        from core.database import async_session_maker
+        from notificacoes.schemas import NotificacaoCreate
+        from notificacoes.service import NotificacaoService
+
+        nivel_map = {
+            Severity.INFO.value: "INFO",
+            Severity.WARNING.value: "WARNING",
+            Severity.CRITICAL.value: "DANGER",
+            Severity.EMERGENCY.value: "DANGER",
+        }
+        try:
+            meta = {"alert_id": str(alert.id), "dedupe_key": alert.dedupe_key, "domain": alert.domain}
+            acoes = self._acoes_para_alerta(alert)
+            if acoes:
+                meta["acoes"] = acoes
+            async with async_session_maker() as bg_session:
+                svc = NotificacaoService(bg_session, self.tenant_id)
+                await svc.criar_sem_duplicar(
+                    NotificacaoCreate(
+                        tipo=alert.source_type,
+                        titulo=alert.title,
+                        mensagem=alert.message,
+                        nivel=nivel_map.get(alert.severity, "INFO"),
+                        origem="alert_engine",
+                        origem_id=alert.source_id or str(alert.id),
+                        meta=meta,
+                    )
+                )
+        except Exception as exc:  # pragma: no cover - defensive isolation
+            logger.exception(f"Falha ao espelhar alert_engine alert {alert.id} em Notificacao: {exc}")
+
+    @staticmethod
+    def _acoes_para_alerta(alert: OperationalAlert) -> list[dict] | None:
+        """Mapa fixo de ações one-click por `source_type`, quando a permissão
+        já é resolvível em `notificacoes/service.py::_filtrar_acoes_por_permissao`.
+
+        Não confiável para todo `source_type` — só os mapeados aqui ganham botão;
+        os demais aparecem só como texto informativo (comportamento anterior).
+        """
+        if alert.source_type == "AGRICULTURA_OPERACAO_ATRASADA" and alert.source_id:
+            nova_data = (date.today() + timedelta(days=3)).isoformat()
+            return [
+                {
+                    "label": "Adiar +3 dias",
+                    "acao": "adiar",
+                    "endpoint": f"/operacoes/{alert.source_id}",
+                    "method": "PATCH",
+                    "body": {"data_prevista": nova_data},
+                }
+            ]
+        return None
 
     async def acknowledge_alert(
         self,

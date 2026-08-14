@@ -363,7 +363,7 @@ Exemplo de saída: 🚨 Margem caiu para 8%. Recomendamos revisar custos operaci
             # (nenhuma Depends de RBAC no endpoint) — qualquer usuário do tenant
             # com sessão válida já pode chamá-lo, então não há nada a filtrar aqui.
             meta["acoes"] = acoes
-        elif notif.tipo == "TAREFAS_ATRASADAS":
+        elif notif.tipo == "AGRICULTURA_OPERACAO_ATRASADA":
             from core.dependencies import resolver_role_tenant_usuario
 
             role = await resolver_role_tenant_usuario(self.session, self.tenant_id, usuario_id)

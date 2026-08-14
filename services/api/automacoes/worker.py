@@ -70,11 +70,45 @@ async def run_followup_check():
         await db.close()
 
 
-async def run_worker_loop(interval: int = 60):
+async def run_alerts_check():
+    """Roda os dois motores de alertas automáticos, em sessões isoladas.
+
+    Nenhum dos dois era chamado automaticamente antes (só via endpoint admin
+    manual `POST /notificacoes/alertas/verificar` para o primeiro; o segundo
+    nunca era chamado em lugar nenhum de produção). Ver memória do projeto
+    project_tres_sistemas_alertas_mapeados para o histórico da duplicação.
+    """
+    from notificacoes.alertas_engine import AlertasEngine
+    from alert_engine.scheduler import run_scheduled_alerts as run_alert_engine_scheduler
+
+    db = await get_db_session()
+    try:
+        resultado = await AlertasEngine().verificar_todos_tenants()
+        logger.info(f"AlertasEngine: {resultado}")
+    except Exception as e:
+        logger.error(f"Erro no AlertasEngine (notificacoes): {e}")
+
+    try:
+        resultado_alert_engine = await run_alert_engine_scheduler(db)
+        logger.info(f"alert_engine scheduler: {resultado_alert_engine}")
+    except Exception as e:
+        logger.error(f"Erro no alert_engine scheduler: {e}")
+    finally:
+        await db.close()
+
+
+async def run_worker_loop(interval: int = 60, alerts_check_every_n_cycles: int = 10):
+    """Ciclo padrão a cada `interval`s; alertas automáticos rodam a cada
+    `alerts_check_every_n_cycles` ciclos (não precisam da mesma cadência de
+    automações/follow-ups — são varreduras mais pesadas, diárias por natureza)."""
     logger.info(f"Iniciando Scheduler Worker de Automações. Ciclo: {interval}s")
+    ciclo = 0
     while True:
         await process_automations()
         await run_followup_check()
+        ciclo += 1
+        if ciclo % alerts_check_every_n_cycles == 0:
+            await run_alerts_check()
         await asyncio.sleep(interval)
 
 if __name__ == "__main__":
