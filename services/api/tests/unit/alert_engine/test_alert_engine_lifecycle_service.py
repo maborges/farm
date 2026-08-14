@@ -79,6 +79,13 @@ async def _count_lifecycle_events(session, tenant_id: uuid.UUID) -> int:
 
 @pytest.mark.asyncio
 async def test_create_alert_and_create_lifecycle_event(session, tenant_id: uuid.UUID) -> None:
+    # tenant novo por teste (não o `tenant_id` fixo da fixture): esse teste
+    # faz asserção de contagem exata, e o `tenant_id` compartilhado é usado
+    # por outros testes/execuções reais contra o mesmo Postgres — confirmado
+    # em produção (2026-08-14) que a poluição real do tenant fixo (ex.
+    # smoke tests do alert_engine) quebra essas contagens. Ver memória do
+    # projeto project_tres_sistemas_alertas_mapeados.
+    tenant_id = uuid.uuid4()
     await _ensure_tenant(session, tenant_id)
     service = AlertLifecycleService(session, tenant_id)
 
@@ -102,6 +109,8 @@ async def test_create_alert_and_create_lifecycle_event(session, tenant_id: uuid.
 
 @pytest.mark.asyncio
 async def test_dedupe_updates_active_alert_without_duplication(session, tenant_id: uuid.UUID) -> None:
+    # tenant novo por teste — ver comentário em test_create_alert_and_create_lifecycle_event.
+    tenant_id = uuid.uuid4()
     await _ensure_tenant(session, tenant_id)
     service = AlertLifecycleService(session, tenant_id)
 
@@ -123,6 +132,8 @@ async def test_dedupe_updates_active_alert_without_duplication(session, tenant_i
 
 @pytest.mark.asyncio
 async def test_dedupe_creates_new_alert_after_resolution(session, tenant_id: uuid.UUID) -> None:
+    # tenant novo por teste — ver comentário em test_create_alert_and_create_lifecycle_event.
+    tenant_id = uuid.uuid4()
     await _ensure_tenant(session, tenant_id)
     service = AlertLifecycleService(session, tenant_id)
 

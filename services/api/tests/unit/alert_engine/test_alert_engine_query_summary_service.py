@@ -83,6 +83,11 @@ async def _set_created_at(session, tenant_id: uuid.UUID, alert_id: uuid.UUID, wh
 
 @pytest.mark.asyncio
 async def test_list_empty_and_summary_zeros(session, tenant_id: uuid.UUID) -> None:
+    # tenant novo por teste: o `tenant_id` fixo da fixture é compartilhado com
+    # dado real (uso normal da app, smoke tests do alert_engine) no mesmo
+    # Postgres — quebra asserções de contagem exata (total==0). Ver memória
+    # do projeto project_tres_sistemas_alertas_mapeados.
+    tenant_id = uuid.uuid4()
     await _ensure_tenant(session, tenant_id)
     service = AlertLifecycleService(session, tenant_id)
 
@@ -102,6 +107,7 @@ async def test_list_empty_and_summary_zeros(session, tenant_id: uuid.UUID) -> No
         "OPERATIONS",
         "FIELD",
         "SYSTEM",
+        "INTEGRATIONS",
     }
     assert all(item.open == 0 and item.critical == 0 and item.urgent == 0 for item in summary.by_domain.values())
     assert summary.top_alerts == []
@@ -109,6 +115,8 @@ async def test_list_empty_and_summary_zeros(session, tenant_id: uuid.UUID) -> No
 
 @pytest.mark.asyncio
 async def test_list_filters_pagination_and_ordering(session, tenant_id: uuid.UUID) -> None:
+    # tenant novo por teste — ver comentário em test_list_empty_and_summary_zeros.
+    tenant_id = uuid.uuid4()
     await _ensure_tenant(session, tenant_id)
     service = AlertLifecycleService(session, tenant_id)
 
@@ -230,6 +238,8 @@ async def test_other_tenant_isolation(session, tenant_id: uuid.UUID, outro_tenan
 
 @pytest.mark.asyncio
 async def test_summary_counts_active_only_and_top_alerts_limit(session, tenant_id: uuid.UUID) -> None:
+    # tenant novo por teste — ver comentário em test_list_empty_and_summary_zeros.
+    tenant_id = uuid.uuid4()
     await _ensure_tenant(session, tenant_id)
     service = AlertLifecycleService(session, tenant_id)
 
