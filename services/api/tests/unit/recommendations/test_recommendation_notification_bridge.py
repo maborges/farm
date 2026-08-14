@@ -199,3 +199,76 @@ def test_bridge_does_not_import_alert_engine() -> None:
     source = inspect.getsource(RecommendationNotificationBridge)
 
     assert "alert_engine" not in source
+
+
+def _mock_session_sem_existente():
+    from unittest.mock import AsyncMock, MagicMock
+
+    result_mock = MagicMock()
+    result_mock.scalar_one_or_none.return_value = None
+    session = AsyncMock()
+    session.execute = AsyncMock(return_value=result_mock)
+    session.add = MagicMock()
+    return session
+
+
+@pytest.mark.asyncio
+async def test_bridge_persiste_notificacao_quando_session_informada() -> None:
+    """Recomendação elegível deve gravar em `notificacoes`, não só dispatch via policy engine."""
+    from unittest.mock import AsyncMock, patch
+
+    recommendation = _recommendation(priority="URGENT")
+    bridge = RecommendationNotificationBridge()
+    session = _mock_session_sem_existente()
+
+    with patch(
+        "recommendations.notification_bridge.NotificacaoService.criar_e_push",
+        new=AsyncMock(return_value=None),
+    ) as mock_criar:
+        result = await bridge.notify(recommendation, session=session)
+
+    assert result.eligible is True
+    mock_criar.assert_awaited_once()
+    dados = mock_criar.call_args.args[0]
+    assert dados.tipo == "RECOMENDACAO"
+    assert dados.origem == "recommendation"
+    assert dados.origem_id == str(recommendation.id)
+    assert dados.nivel == "DANGER"  # URGENT -> DANGER
+
+
+@pytest.mark.asyncio
+async def test_bridge_sem_session_nao_persiste_notificacao() -> None:
+    """Sem session (chamadores legados), o bridge continua só despachando via policy engine."""
+    from unittest.mock import AsyncMock, patch
+
+    recommendation = _recommendation(priority="HIGH")
+    bridge = RecommendationNotificationBridge()
+
+    with patch(
+        "recommendations.notification_bridge.NotificacaoService.criar_e_push",
+        new=AsyncMock(),
+    ) as mock_criar:
+        result = await bridge.notify(recommendation)
+
+    assert result.eligible is True
+    mock_criar.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_bridge_falha_ao_persistir_nao_derruba_dispatch() -> None:
+    """Erro ao gravar em `notificacoes` não deve impedir o dispatch da policy engine (isolamento defensivo)."""
+    from unittest.mock import AsyncMock, patch
+
+    recommendation = _recommendation(priority="HIGH")
+    bridge = RecommendationNotificationBridge()
+    session = _mock_session_sem_existente()
+
+    with patch(
+        "recommendations.notification_bridge.NotificacaoService.criar_e_push",
+        new=AsyncMock(side_effect=RuntimeError("db down")),
+    ):
+        result = await bridge.notify(recommendation, session=session)
+
+    assert result.eligible is True
+    assert result.dispatch_result is not None
+    assert result.dispatch_result.delivered is True

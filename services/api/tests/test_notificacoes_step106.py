@@ -131,16 +131,23 @@ async def test_sincronizar_ignora_concluidas():
 
 @pytest.mark.asyncio
 async def test_marcar_lidas_preenche_read_at():
-    """marcar_lidas deve atualizar read_at."""
+    """marcar_lidas deve fazer upsert em notificacoes_leituras (por usuário) para cada id encontrado."""
     tenant_id = uuid.uuid4()
-    session = _mock_session([])
-    update_result = MagicMock()
-    update_result.rowcount = 1
-    session.execute = AsyncMock(return_value=update_result)
+    usuario_id = uuid.uuid4()
+    notif_id = uuid.uuid4()
+
+    select_ids_result = MagicMock()
+    select_ids_result.all.return_value = [(notif_id,)]
+    upsert_result = MagicMock()
+
+    session = AsyncMock()
+    session.execute = AsyncMock(side_effect=[select_ids_result, upsert_result])
 
     svc = NotificacaoService(session, tenant_id)
-    count = await svc.marcar_lidas([uuid.uuid4()])
+    count = await svc.marcar_lidas(usuario_id, [notif_id])
     assert count == 1
-    # Verifica que foi chamado com values contendo read_at
-    call_args = session.execute.call_args_list
-    assert len(call_args) >= 1
+
+    # Segunda chamada é o upsert em notificacoes_leituras, com read_at preenchido
+    upsert_call = session.execute.call_args_list[1]
+    upsert_stmt = upsert_call.args[0]
+    assert "notificacoes_leituras" in str(upsert_stmt)

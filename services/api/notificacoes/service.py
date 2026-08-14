@@ -1,13 +1,15 @@
+import uuid
 from uuid import UUID
 from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy import update, func
+from sqlalchemy import update, func, and_
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from fastapi import WebSocket
 from loguru import logger
 
 from core.base_service import BaseService
-from notificacoes.models import Notificacao, NotificacaoPreferencia
+from notificacoes.models import Notificacao, NotificacaoLeitura, NotificacaoPreferencia
 from notificacoes.schemas import NotificacaoCreate, NotificacaoPreferenciaUpdate
 
 
@@ -42,32 +44,14 @@ class NotificacaoService(BaseService[Notificacao]):
         super().__init__(Notificacao, session, tenant_id)
 
     async def criar_e_push(self, dados: NotificacaoCreate) -> Notificacao | None:
-        from core.models.tenant import Tenant
-        from core.models.auth import Usuario
-        from notificacoes.models import NotificacaoPreferencia
         from datetime import datetime, timezone, timedelta
-        
+
         COOLDOWN_HORAS = 24
-        
-        # Encontrar o responsável para validar as preferências
-        stmt = select(Tenant.email_responsavel).where(Tenant.id == self.tenant_id)
-        email_resp = (await self.session.execute(stmt)).scalar()
-        
-        enviar_por_email = True
-        sistema_ativo = True
-        sensibilidade = "ALTO"
-        user = None
-        
-        if email_resp:
-            stmt_user = select(Usuario).where(Usuario.email == email_resp).limit(1)
-            user = (await self.session.execute(stmt_user)).scalar_one_or_none()
 
-        usuario_id = user.id if user else None
-
-        # --- Anti-spam Cooldown ---
+        # --- Anti-spam Cooldown (tenant-wide, a notificação é compartilhada) ---
         # Usar naive datetime pois a coluna created_at é TIMESTAMP WITHOUT TIME ZONE no banco
         limite_tempo = datetime.now().replace(microsecond=0) - timedelta(hours=COOLDOWN_HORAS)
-        
+
         stmt_cooldown = select(Notificacao).where(
             Notificacao.tenant_id == self.tenant_id,
             Notificacao.tipo == dados.tipo,
@@ -78,44 +62,17 @@ class NotificacaoService(BaseService[Notificacao]):
             stmt_cooldown = stmt_cooldown.where(Notificacao.origem == dados.origem)
         if dados.origem_id:
             stmt_cooldown = stmt_cooldown.where(Notificacao.origem_id == dados.origem_id)
-        if usuario_id:
-            stmt_cooldown = stmt_cooldown.where(Notificacao.usuario_id == usuario_id)
-            
+
         recente = (await self.session.execute(stmt_cooldown.limit(1))).scalar_one_or_none()
         if recente:
             logger.info(f"Notificação suprimida por cooldown: {dados.tipo} (origem={dados.origem})")
             return None
         # --------------------------
 
-        if user:
-            stmt_pref = select(NotificacaoPreferencia).where(
-                NotificacaoPreferencia.tenant_id == self.tenant_id,
-                NotificacaoPreferencia.usuario_id == user.id,
-                NotificacaoPreferencia.tipo == dados.tipo
-            )
-            pref = (await self.session.execute(stmt_pref)).scalar_one_or_none()
-            if pref:
-                enviar_por_email = pref.email_ativo
-                sistema_ativo = pref.sistema_ativo
-                sensibilidade = pref.nivel_sensibilidade
-
-        # --- Filtro de Sensibilidade (Step 196) ---
-        # ALTO: Todas passão
-        # MEDIO: Apenas WARNING e DANGER passão
-        # BAIXO: Apenas DANGER passão
-        if sensibilidade == "MEDIO" and dados.nivel not in ["WARNING", "DANGER"]:
-            return None
-        if sensibilidade == "BAIXO" and dados.nivel != "DANGER":
-            return None
-        # ------------------------------------------
-
-        if not sistema_ativo:
-            # Se sistema está desativado mas email ativo, ainda enviamos email se for crítico
-            if enviar_por_email and dados.nivel == "DANGER" and email_resp:
-                pass # continua para o envio de email
-            else:
-                return None
-
+        # A notificação em si é sempre criada tenant-wide — preferências não
+        # suprimem mais a criação para todo o tenant (antes dependiam só do
+        # email_responsavel). Elas passam a decidir apenas o fan-out de email
+        # por usuário, em _enviar_emails_por_preferencia.
         notif = await self.create({
             "tipo": dados.tipo,
             "titulo": dados.titulo,
@@ -124,16 +81,16 @@ class NotificacaoService(BaseService[Notificacao]):
             "origem": dados.origem,
             "origem_id": dados.origem_id,
             "meta": dados.meta,
-            "usuario_id": user.id if user else None,
+            "usuario_id": None,
         })
         # Não commitamos aqui se a sessão é gerida externamente, mas o código original dava commit.
         # Mantendo o commit original para não quebrar fluxos que dependem disso.
         await self.session.commit()
         await self.session.refresh(notif)
-        
+
         import asyncio
         from core.database import async_session_maker
-        
+
         async def _atualizar_e_notificar():
             msg_final = dados.mensagem
             if dados.nivel in ["WARNING", "DANGER"] or dados.tipo == "OPORTUNIDADE":
@@ -150,12 +107,15 @@ class NotificacaoService(BaseService[Notificacao]):
                 except Exception as e:
                     logger.error(f"Erro no background task de IA: {e}")
 
-            # Envio proativo de email
-            if (notif.nivel == "DANGER" or dados.tipo == "OPORTUNIDADE") and email_resp and enviar_por_email:
-                from notificacoes.email_service import enviar_email
-                assunto = f"AgroSaaS — Alerta Inteligente: {notif.titulo}"
-                await enviar_email(email_resp, assunto, msg_final)
-            
+            # Envio de email — um por usuário elegível (preferência própria), não mais um só responsável
+            if notif.nivel == "DANGER" or dados.tipo == "OPORTUNIDADE":
+                try:
+                    async with async_session_maker() as bg_session:
+                        bg_svc = NotificacaoService(bg_session, self.tenant_id)
+                        await bg_svc._enviar_emails_por_preferencia(notif, dados.tipo, msg_final)
+                except Exception as e:
+                    logger.error(f"Erro no fan-out de email de notificação: {e}")
+
             # Websocket Push
             try:
                 await manager.push(str(self.tenant_id), {
@@ -172,8 +132,53 @@ class NotificacaoService(BaseService[Notificacao]):
 
         # Dispara IA e notificações de saída (email/ws) em background
         asyncio.create_task(_atualizar_e_notificar())
-        
+
         return notif
+
+    async def _enviar_emails_por_preferencia(
+        self, notif: Notificacao, tipo: str, msg_final: str
+    ) -> None:
+        """Envia email para cada usuário ativo do tenant elegível por sua própria preferência.
+
+        Substitui o antigo comportamento de enviar só para Tenant.email_responsavel:
+        cada usuário tem email_ativo/nivel_sensibilidade próprios; sem preferência
+        cadastrada, o padrão é elegível (email_ativo=True, sensibilidade=ALTO).
+        """
+        from core.models.auth import Usuario, TenantUsuario
+        from notificacoes.email_service import enviar_email
+
+        stmt = (
+            select(Usuario, NotificacaoPreferencia)
+            .join(TenantUsuario, TenantUsuario.usuario_id == Usuario.id)
+            .outerjoin(
+                NotificacaoPreferencia,
+                and_(
+                    NotificacaoPreferencia.usuario_id == Usuario.id,
+                    NotificacaoPreferencia.tenant_id == self.tenant_id,
+                    NotificacaoPreferencia.tipo == tipo,
+                ),
+            )
+            .where(
+                TenantUsuario.tenant_id == self.tenant_id,
+                TenantUsuario.status == "ATIVO",
+            )
+        )
+        result = await self.session.execute(stmt)
+
+        assunto = f"AgroSaaS — Alerta Inteligente: {notif.titulo}"
+        for user, pref in result.all():
+            email_ativo = pref.email_ativo if pref else True
+            sensibilidade = pref.nivel_sensibilidade if pref else "ALTO"
+            if not email_ativo:
+                continue
+            if sensibilidade == "MEDIO" and notif.nivel not in ["WARNING", "DANGER"]:
+                continue
+            if sensibilidade == "BAIXO" and notif.nivel != "DANGER":
+                continue
+            try:
+                await enviar_email(user.email, assunto, msg_final)
+            except Exception as e:
+                logger.error(f"Erro ao enviar email de notificação para {user.email}: {e}")
 
     async def gerar_mensagem_ia(self, dados: NotificacaoCreate) -> str:
         """Gera uma mensagem curta e impactante usando IA para notificações externas (Step 196)."""
@@ -218,14 +223,25 @@ Exemplo de saída: 🚨 Margem caiu para 8%. Recomendamos revisar custos operaci
             return dados.mensagem
 
     async def criar_sem_duplicar(self, dados: NotificacaoCreate) -> Notificacao | None:
-        """Cria notificação apenas se não houver outra não-lida da mesma origem+tipo."""
+        """Cria notificação apenas se não houver outra da mesma origem+tipo ainda não lida por ninguém.
+
+        "Não lida" aqui é tenant-wide (nenhum usuário leu ainda) — equivalente
+        ao comportamento anterior baseado em `Notificacao.lida`, agora expresso
+        via ausência de qualquer linha em `notificacoes_leituras` para essa
+        notificação. Assim que alguém lê, uma nova ocorrência pode ser criada.
+        """
         if dados.origem and dados.origem_id:
+            ja_lida = (
+                select(NotificacaoLeitura.id)
+                .where(NotificacaoLeitura.notificacao_id == Notificacao.id, NotificacaoLeitura.lida == True)  # noqa: E712
+                .exists()
+            )
             stmt = select(Notificacao).where(
                 Notificacao.tenant_id == self.tenant_id,
                 Notificacao.tipo == dados.tipo,
                 Notificacao.origem == dados.origem,
                 Notificacao.origem_id == dados.origem_id,
-                Notificacao.lida == False,  # noqa: E712
+                ~ja_lida,
             ).limit(1)
             result = await self.session.execute(stmt)
             if result.scalar_one_or_none():
@@ -258,30 +274,82 @@ Exemplo de saída: 🚨 Margem caiu para 8%. Recomendamos revisar custos operaci
 
         return criadas
 
-    async def listar(self, lida: bool | None = None, limit: int = 50) -> list[Notificacao]:
-        stmt = select(Notificacao).where(Notificacao.tenant_id == self.tenant_id)
+    async def listar(
+        self, usuario_id: UUID, lida: bool | None = None, limit: int = 50
+    ) -> list[Notificacao]:
+        """Lista notificações do tenant com o estado de leitura do usuário informado.
+
+        `Notificacao.lida` (coluna) é ignorada aqui — o estado real vem de
+        `notificacoes_leituras`, por usuário (ausência de linha = não lida).
+        """
+        lida_usuario = func.coalesce(NotificacaoLeitura.lida, False)
+        stmt = (
+            select(Notificacao, lida_usuario)
+            .outerjoin(
+                NotificacaoLeitura,
+                and_(
+                    NotificacaoLeitura.notificacao_id == Notificacao.id,
+                    NotificacaoLeitura.usuario_id == usuario_id,
+                ),
+            )
+            .where(Notificacao.tenant_id == self.tenant_id)
+        )
         if lida is not None:
-            stmt = stmt.where(Notificacao.lida == lida)
+            stmt = stmt.where(lida_usuario == lida)
         stmt = stmt.order_by(Notificacao.created_at.desc()).limit(limit)
         result = await self.session.execute(stmt)
-        return list(result.scalars().all())
 
-    async def marcar_lidas(self, ids: list[UUID] | None = None) -> int:
+        notificacoes: list[Notificacao] = []
+        for notif, lida_valor in result.all():
+            self.session.expunge(notif)
+            notif.lida = bool(lida_valor)
+            notificacoes.append(notif)
+        return notificacoes
+
+    async def marcar_lidas(self, usuario_id: UUID, ids: list[UUID] | None = None) -> int:
+        """Marca como lidas para o usuário informado (não afeta outros usuários do tenant)."""
         agora = datetime.now(timezone.utc)
-        stmt = update(Notificacao).where(Notificacao.tenant_id == self.tenant_id)
+        stmt_ids = select(Notificacao.id).where(Notificacao.tenant_id == self.tenant_id)
         if ids:
-            stmt = stmt.where(Notificacao.id.in_(ids))
-        stmt = stmt.values(lida=True, read_at=agora)
-        result = await self.session.execute(stmt)
-        await self.session.commit()
-        return result.rowcount
+            stmt_ids = stmt_ids.where(Notificacao.id.in_(ids))
+        notif_ids = [row[0] for row in (await self.session.execute(stmt_ids)).all()]
+        if not notif_ids:
+            return 0
 
-    async def total_nao_lidas(self) -> int:
+        values = [
+            {
+                "id": uuid.uuid4(),
+                "tenant_id": self.tenant_id,
+                "notificacao_id": notif_id,
+                "usuario_id": usuario_id,
+                "lida": True,
+                "read_at": agora,
+            }
+            for notif_id in notif_ids
+        ]
+        insert_stmt = pg_insert(NotificacaoLeitura).values(values)
+        upsert_stmt = insert_stmt.on_conflict_do_update(
+            index_elements=["notificacao_id", "usuario_id"],
+            set_={"lida": True, "read_at": agora},
+        )
+        await self.session.execute(upsert_stmt)
+        await self.session.commit()
+        return len(notif_ids)
+
+    async def total_nao_lidas(self, usuario_id: UUID) -> int:
+        lida_usuario = func.coalesce(NotificacaoLeitura.lida, False)
         stmt = (
             select(func.count(Notificacao.id))
+            .outerjoin(
+                NotificacaoLeitura,
+                and_(
+                    NotificacaoLeitura.notificacao_id == Notificacao.id,
+                    NotificacaoLeitura.usuario_id == usuario_id,
+                ),
+            )
             .where(
                 Notificacao.tenant_id == self.tenant_id,
-                Notificacao.lida == False,  # noqa: E712
+                lida_usuario == False,  # noqa: E712
             )
         )
         return (await self.session.execute(stmt)).scalar() or 0

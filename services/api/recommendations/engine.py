@@ -183,7 +183,7 @@ class RecommendationEngine:
             from .notification_bridge import RecommendationNotificationBridge
 
             bridge = RecommendationNotificationBridge()
-            await bridge.notify(recommendation, was_created=True)
+            await bridge.notify(recommendation, session=self.session, was_created=True)
         except Exception as exc:  # pragma: no cover - defensive isolation
             logger.bind(
                 component="recommendation_engine",

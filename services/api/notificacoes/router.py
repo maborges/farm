@@ -28,18 +28,20 @@ async def listar(
     limit: int = 50,
     session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
+    current_user: dict = Depends(get_current_user),
 ):
     svc = NotificacaoService(session, tenant_id)
-    return await svc.listar(lida=lida, limit=limit)
+    return await svc.listar(UUID(current_user["sub"]), lida=lida, limit=limit)
 
 
 @router.get("/nao-lidas-count")
 async def count_nao_lidas(
     session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
+    current_user: dict = Depends(get_current_user),
 ):
     svc = NotificacaoService(session, tenant_id)
-    return {"count": await svc.total_nao_lidas()}
+    return {"count": await svc.total_nao_lidas(UUID(current_user["sub"]))}
 
 
 @router.post("/marcar-lidas")
@@ -47,9 +49,10 @@ async def marcar_lidas(
     dados: MarcarLidasRequest,
     session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
+    current_user: dict = Depends(get_current_user),
 ):
     svc = NotificacaoService(session, tenant_id)
-    count = await svc.marcar_lidas(dados.ids)
+    count = await svc.marcar_lidas(UUID(current_user["sub"]), dados.ids)
     return {"message": f"{count} notificação(ões) marcada(s) como lida(s)"}
 
 
@@ -145,10 +148,15 @@ async def marcar_uma_lida(
     notificacao_id: UUID,
     session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
+    current_user: dict = Depends(get_current_user),
 ):
     svc = NotificacaoService(session, tenant_id)
-    await svc.marcar_lidas([notificacao_id])
+    usuario_id = UUID(current_user["sub"])
+    await svc.marcar_lidas(usuario_id, [notificacao_id])
     result = await session.get(Notificacao, notificacao_id)
+    if result is not None:
+        session.expunge(result)
+        result.lida = True  # reflete a leitura do usuário atual; não é persistido na coluna tenant-wide
     return result
 
 
@@ -180,7 +188,7 @@ async def verificar_alertas_automaticos(
 
 # ── WebSocket ─────────────────────────────────────────────────────────────────
 
-async def _autenticar_ws_notificacoes(token: str) -> str | None:
+async def _autenticar_ws_notificacoes(token: str) -> tuple[str, str] | None:
     """
     Valida o JWT do WebSocket e confirma no banco que o usuário está ativo
     e vinculado (status ATIVO) ao tenant informado no token.
@@ -190,7 +198,8 @@ async def _autenticar_ws_notificacoes(token: str) -> str | None:
     get_tenant_id, que dependem de Authorization header via Request), mas a
     checagem de usuário/tenant ativos no banco é obrigatória, igual ao REST.
 
-    Retorna o tenant_id validado, ou None se a autenticação falhar.
+    Retorna (tenant_id, usuario_id) validados, ou None se a autenticação falhar.
+    Usuario_id é necessário para leitura por usuário (notificacoes_leituras).
     """
     from core.config import settings
     from jose import jwt as jose_jwt, JWTError
@@ -228,7 +237,7 @@ async def _autenticar_ws_notificacoes(token: str) -> str | None:
         if result.scalar_one_or_none() is None:
             return None
 
-    return tenant_id_str
+    return tenant_id_str, user_id_str
 
 
 @router.websocket("/ws")
@@ -240,17 +249,18 @@ async def ws_notificacoes(
     WebSocket de notificações em tempo real.
     Conecte com: ws://<host>/api/v1/notificacoes/ws?token=<jwt>
     """
-    tenant_id = await _autenticar_ws_notificacoes(token)
-    if not tenant_id:
+    auth = await _autenticar_ws_notificacoes(token)
+    if not auth:
         await websocket.close(code=1008)
         return
+    tenant_id, usuario_id = auth
 
     await manager.connect(tenant_id, websocket)
     try:
         # Send initial unread count on connect
         async with async_session_maker() as session:
             svc = NotificacaoService(session, UUID(tenant_id))
-            count = await svc.total_nao_lidas()
+            count = await svc.total_nao_lidas(UUID(usuario_id))
             await websocket.send_json({"tipo": "init", "nao_lidas": count})
 
         # Listen for client-side actions (e.g. mark as read). A conexão fica
@@ -278,8 +288,8 @@ async def ws_notificacoes(
                 ids = [UUID(i) for i in raw_ids] if raw_ids else None
                 async with async_session_maker() as session:
                     svc = NotificacaoService(session, UUID(tenant_id))
-                    await svc.marcar_lidas(ids)
-                    count = await svc.total_nao_lidas()
+                    await svc.marcar_lidas(UUID(usuario_id), ids)
+                    count = await svc.total_nao_lidas(UUID(usuario_id))
                     await websocket.send_json({"tipo": "contagem_atualizada", "nao_lidas": count})
 
             elif action == "ping":

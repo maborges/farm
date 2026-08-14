@@ -6,6 +6,7 @@ from typing import Any
 from uuid import UUID
 
 from loguru import logger
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from notifications import (
     NotificationChannel,
@@ -17,7 +18,13 @@ from notifications import (
     register_notification_policy,
 )
 
+from notificacoes.schemas import NotificacaoCreate
+from notificacoes.service import NotificacaoService
+
 from .enums import ACTIVE_RECOMMENDATION_STATUSES, RecommendationPriority
+
+RECOMMENDATION_NOTIFICACAO_TIPO = "RECOMENDACAO"
+RECOMMENDATION_NOTIFICACAO_ORIGEM = "recommendation"
 
 RECOMMENDATION_NOTIFICATION_EVENT_TYPE = "recommendations.operational"
 RECOMMENDATION_NOTIFICATION_DEDUPE_PREFIX = "recommendation"
@@ -54,9 +61,16 @@ class RecommendationNotificationBridge:
         self,
         recommendation: Any,
         *,
+        session: AsyncSession | None = None,
         was_created: bool = True,
     ) -> RecommendationNotificationBridgeResult:
-        """Dispatch a notification for an eligible recommendation."""
+        """Dispatch a notification for an eligible recommendation.
+
+        Além do dispatch via policy engine (email/log), grava a notificação em
+        `notificacoes` quando `session` é informada, para que ela apareça no
+        sino/WS do frontend — os dois pacotes eram desconectados e recomendações
+        nunca chegavam à UI (ver memória project_notifications_dois_pacotes_duplicados).
+        """
 
         recommendation_id = self._recommendation_id(recommendation)
         tenant_id = self._tenant_id(recommendation)
@@ -75,6 +89,17 @@ class RecommendationNotificationBridge:
                 eligible=False,
                 reason=reason,
             )
+
+        if session is not None and tenant_id is not None:
+            try:
+                await self._criar_notificacao(session, tenant_id, recommendation)
+            except Exception as exc:  # pragma: no cover - defensive isolation
+                logger.bind(
+                    component="recommendation_notification_bridge",
+                    recommendation_id=str(recommendation_id) if recommendation_id else None,
+                    tenant_id=str(tenant_id),
+                    exception_type=exc.__class__.__name__,
+                ).exception("recommendation_notificacao_persist_failed")
 
         event = self._build_event(recommendation)
         try:
@@ -108,6 +133,29 @@ class RecommendationNotificationBridge:
             eligible=True,
             reason=dispatch_result.error,
             dispatch_result=dispatch_result,
+        )
+
+    async def _criar_notificacao(
+        self,
+        session: AsyncSession,
+        tenant_id: UUID,
+        recommendation: Any,
+    ) -> None:
+        svc = NotificacaoService(session, tenant_id)
+        await svc.criar_sem_duplicar(
+            NotificacaoCreate(
+                tipo=RECOMMENDATION_NOTIFICACAO_TIPO,
+                titulo=self._subject(recommendation),
+                mensagem=self._message(recommendation),
+                nivel="DANGER" if self._priority_value(recommendation) == RecommendationPriority.URGENT.value else "WARNING",
+                origem=RECOMMENDATION_NOTIFICACAO_ORIGEM,
+                origem_id=str(self._recommendation_id(recommendation)),
+                meta={
+                    "recommendation_id": str(self._recommendation_id(recommendation)),
+                    "recommendation_domain": self._domain_value(recommendation),
+                    "rule_code": getattr(recommendation, "rule_code", None),
+                },
+            )
         )
 
     def _is_eligible(

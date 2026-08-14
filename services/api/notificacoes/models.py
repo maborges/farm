@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Mapped, mapped_column
-from sqlalchemy import String, Boolean, JSON, ForeignKey, DateTime, text
+from sqlalchemy import String, Boolean, JSON, ForeignKey, DateTime, Index, UniqueConstraint, text
 from sqlalchemy import Uuid as UUIDTYPE
 from uuid import UUID
 import uuid
@@ -31,6 +31,38 @@ class Notificacao(Base):
         server_default=text("(CURRENT_TIMESTAMP)"), nullable=False
     )
     read_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class NotificacaoLeitura(Base):
+    """Estado de leitura por usuário. Ausência de linha = não lida."""
+    __tablename__ = "notificacoes_leituras"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[UUID] = mapped_column(
+        ForeignKey("tenants.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    notificacao_id: Mapped[UUID] = mapped_column(
+        ForeignKey("notificacoes.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    usuario_id: Mapped[UUID] = mapped_column(
+        ForeignKey("usuarios.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    lida: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    read_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=text("(CURRENT_TIMESTAMP)"), nullable=False
+    )
+
+    __table_args__ = (
+        UniqueConstraint("notificacao_id", "usuario_id", name="uq_notificacao_leitura_usuario"),
+        Index("ix_notificacoes_leituras_tenant_usuario", tenant_id, usuario_id),
+    )
+
 
 class NotificacaoPreferencia(Base):
     __tablename__ = "notificacoes_preferencias"
