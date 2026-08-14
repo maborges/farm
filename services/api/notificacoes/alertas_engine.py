@@ -398,19 +398,31 @@ class AlertasEngine:
     async def _verificar_tarefas_atrasadas(
         self, session: AsyncSession, tenant_id: UUID
     ) -> List[NotificacaoCreate]:
-        """Verifica tarefas/operações atrasadas."""
-        from agricola.models.operacao import OperacaoCampo
+        """Verifica operações agrícolas atrasadas.
+
+        Corrigido em 2026-08-14: usava `agricola.models.operacao.OperacaoCampo`,
+        módulo inexistente (ModuleNotFoundError a cada execução — provavelmente
+        derrubava o ciclo de alertas inteiro do tenant, já que `verificar_tenant`
+        não isola falhas por sub-checagem). Model/query corretos alinhados com
+        `alert_engine/generators/agricultura_generator.py::_listar_operacoes_atrasadas`,
+        já em produção para esse mesmo cálculo.
+        """
+        from agricola.operacoes.models import OperacaoAgricola
+        from core.cadastros.propriedades.models import AreaRural
 
         alertas = []
         hoje = datetime.now(timezone.utc).date()
+        status_concluidos = ("CONCLUIDA", "CANCELADA", "REALIZADA")
 
-        # Operações não concluídas com data prevista vencida
         stmt = (
-            select(OperacaoCampo)
+            select(OperacaoAgricola)
+            .join(AreaRural, AreaRural.id == OperacaoAgricola.talhao_id)
             .where(
-                OperacaoCampo.tenant_id == tenant_id,
-                OperacaoCampo.status.not_in(["CONCLUIDA", "CANCELADA"]),
-                OperacaoCampo.data_prevista < hoje,
+                OperacaoAgricola.tenant_id == tenant_id,
+                AreaRural.tenant_id == tenant_id,
+                OperacaoAgricola.data_prevista.is_not(None),
+                OperacaoAgricola.status.notin_(status_concluidos),
+                OperacaoAgricola.data_prevista < hoje,
             )
             .limit(10)
         )
@@ -418,6 +430,7 @@ class AlertasEngine:
         operacoes = result.scalars().all()
 
         if operacoes:
+            nova_data = hoje + timedelta(days=3)
             atraso_medio = sum((hoje - o.data_prevista).days for o in operacoes) / len(operacoes)
             alertas.append(
                 NotificacaoCreate(
@@ -427,10 +440,20 @@ class AlertasEngine:
                     meta={
                         "quantidade": len(operacoes),
                         "atraso_medio_dias": float(atraso_medio),
+                        "acoes": [
+                            {
+                                "label": f"Adiar {o.descricao[:30]} +3d",
+                                "acao": f"adiar_{o.id}",
+                                "endpoint": f"/operacoes/{o.id}",
+                                "method": "PATCH",
+                                "body": {"data_prevista": nova_data.isoformat()},
+                            }
+                            for o in operacoes
+                        ],
                         "operacoes": [
                             {
                                 "id": str(o.id),
-                                "nome": o.nome,
+                                "descricao": o.descricao,
                                 "data_prevista": o.data_prevista.isoformat(),
                                 "dias_atraso": (hoje - o.data_prevista).days,
                             }
