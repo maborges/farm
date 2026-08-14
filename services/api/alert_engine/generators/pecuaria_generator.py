@@ -64,11 +64,12 @@ class PecuariaAlertGenerator(BaseAlertGenerator):
     async def run(self, context: AlertGeneratorContext) -> AlertGeneratorResult:
         """Execute the canonical Pecuaria generator contract.
 
-        Cada item é processado isoladamente (try/except + rollback + RLS
-        restabelecido por item). Antes, um item com dado corrompido (ex:
-        unidade_produtiva_id órfão, viola FK) abortava o generator inteiro —
-        confirmado ao vivo em produção (2026-08-14, PECUARIA_VACINACAO_ATRASADA
-        derrubou a sessão do scheduler inteira). Mesmo padrão já aplicado em
+        Cada item é processado dentro de um SAVEPOINT (`begin_nested`), não
+        `session.rollback()` da transação inteira — confirmado ao vivo em
+        produção (2026-08-14) que `rollback()` após falha de flush não deixa
+        a sessão de fato reutilizável nesse stack (SQLAlchemy async +
+        asyncpg): o `db.commit()` do chamador ainda falhava com
+        PendingRollbackError depois. Mesmo padrão aplicado em
         campo_generator.py — ver memória project_tres_sistemas_alertas_mapeados.
         """
         from loguru import logger
@@ -88,12 +89,7 @@ class PecuariaAlertGenerator(BaseAlertGenerator):
             generator_name=self.generator_name, metadata={"rule_counters": counters}
         )
 
-        async def _recuperar(item_id: str, contador_key: str, exc: Exception) -> None:
-            try:
-                await self.session.rollback()
-                await set_rls_context(self.session, context.tenant_id)
-            except Exception:  # pragma: no cover - defensive isolation
-                pass
+        def _falhou(item_id: str, contador_key: str) -> None:
             logger.bind(
                 component="pecuaria_alert_generator",
                 tenant_id=str(context.tenant_id),
@@ -105,35 +101,37 @@ class PecuariaAlertGenerator(BaseAlertGenerator):
         async def _processar(itens, emitir, contador_key):
             for item in itens:
                 try:
-                    created = await emitir(context.tenant_id, item)
+                    async with self.session.begin_nested():
+                        created = await emitir(context.tenant_id, item)
                     result.created += created
                     result.updated += 1 - created
                     counters[contador_key] += 1
-                except Exception as exc:  # pragma: no cover - defensive isolation
-                    await _recuperar(str(item.id), contador_key, exc)
+                except Exception:  # pragma: no cover - defensive isolation
+                    _falhou(str(item.id), contador_key)
 
         for lote in await self._lotes_ativos(context.tenant_id, context.unidade_produtiva_id):
             try:
-                resumo = await self._resumo_lote(context.tenant_id, lote.id)
-                if self._deve_alertar_pesagem(resumo, dias_sem_pesagem):
-                    created = await self._emitir_alerta_sem_pesagem(
-                        context.tenant_id, lote, resumo, dias_sem_pesagem
-                    )
-                    result.created += created
-                    result.updated += 1 - created
-                    counters["lotes_sem_pesagem"] += 1
-                if self._deve_alertar_custo(resumo, limite_custo):
-                    created = await self._emitir_alerta_custo_sanitario(
-                        context.tenant_id,
-                        lote,
-                        resumo,
-                        limite_custo,
-                    )
-                    result.created += created
-                    result.updated += 1 - created
-                    counters["custos_sanitarios_altos"] += 1
-            except Exception as exc:  # pragma: no cover - defensive isolation
-                await _recuperar(str(lote.id), "lotes_sem_pesagem", exc)
+                async with self.session.begin_nested():
+                    resumo = await self._resumo_lote(context.tenant_id, lote.id)
+                    if self._deve_alertar_pesagem(resumo, dias_sem_pesagem):
+                        created = await self._emitir_alerta_sem_pesagem(
+                            context.tenant_id, lote, resumo, dias_sem_pesagem
+                        )
+                        result.created += created
+                        result.updated += 1 - created
+                        counters["lotes_sem_pesagem"] += 1
+                    if self._deve_alertar_custo(resumo, limite_custo):
+                        created = await self._emitir_alerta_custo_sanitario(
+                            context.tenant_id,
+                            lote,
+                            resumo,
+                            limite_custo,
+                        )
+                        result.created += created
+                        result.updated += 1 - created
+                        counters["custos_sanitarios_altos"] += 1
+            except Exception:  # pragma: no cover - defensive isolation
+                _falhou(str(lote.id), "lotes_sem_pesagem")
 
         await _processar(
             await self._vacinacoes_atrasadas(context.tenant_id, context.unidade_produtiva_id),

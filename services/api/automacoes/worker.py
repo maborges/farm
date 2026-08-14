@@ -89,19 +89,14 @@ async def run_alerts_check():
         logger.error(f"Erro no AlertasEngine (notificacoes): {e}")
 
     try:
-        # Domínios FIELD e LIVESTOCK desativados: campo_generator.py (FIELD)
-        # já ganhou isolamento por item (2026-08-14), mas pecuaria_generator.py
-        # (LIVESTOCK) tem o MESMO gap — confirmado ao vivo no mesmo dia:
-        # PECUARIA_VACINACAO_ATRASADA bateu num unidade_produtiva_id órfão
-        # diferente (tenant 628922cb) e quebrou a sessão inteira até o
-        # db.commit() final falhar com PendingRollbackError. Reativar FIELD
-        # sozinho não é seguro enquanto LIVESTOCK tiver o mesmo problema não
-        # tratado — os dois compartilham a mesma sessão no scheduler.
-        # Reativar cada domínio só depois de aplicar o mesmo padrão de
-        # isolamento por item (try/except + rollback + set_rls_context) nele.
-        resultado_alert_engine = await run_alert_engine_scheduler(
-            db, domains=["AGRICULTURE", "FINANCE", "SYSTEM"]
-        )
+        # Todos os domínios reativados em 2026-08-14. FIELD (campo_generator.py)
+        # e LIVESTOCK (pecuaria_generator.py) agora isolam cada item num
+        # SAVEPOINT (session.begin_nested()) em vez de session.rollback() na
+        # transação inteira — validado ao vivo contra produção: 2390 execuções
+        # de generator, 13 erros isolados (dados órfãos pré-existentes, não
+        # cobertos pelo TENANT-FK-REPAIR), 0 cascata, commit final OK. Ver
+        # memória do projeto project_tres_sistemas_alertas_mapeados.
+        resultado_alert_engine = await run_alert_engine_scheduler(db)
         # run_scheduled_alerts não comita internamente — quem chama é responsável.
         # Sem isso, os inserts em operational_alerts ficam pendentes e são
         # descartados no db.close() (confirmado: 92 Notificacao criadas via
