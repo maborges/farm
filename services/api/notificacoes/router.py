@@ -31,7 +31,7 @@ async def listar(
     current_user: dict = Depends(get_current_user),
 ):
     svc = NotificacaoService(session, tenant_id)
-    return await svc.listar(UUID(current_user["sub"]), lida=lida, limit=limit)
+    return await svc.listar(current_user.id, lida=lida, limit=limit)
 
 
 @router.get("/nao-lidas-count")
@@ -41,7 +41,7 @@ async def count_nao_lidas(
     current_user: dict = Depends(get_current_user),
 ):
     svc = NotificacaoService(session, tenant_id)
-    return {"count": await svc.total_nao_lidas(UUID(current_user["sub"]))}
+    return {"count": await svc.total_nao_lidas(current_user.id)}
 
 
 @router.post("/marcar-lidas")
@@ -52,7 +52,7 @@ async def marcar_lidas(
     current_user: dict = Depends(get_current_user),
 ):
     svc = NotificacaoService(session, tenant_id)
-    count = await svc.marcar_lidas(UUID(current_user["sub"]), dados.ids)
+    count = await svc.marcar_lidas(current_user.id, dados.ids)
     return {"message": f"{count} notificação(ões) marcada(s) como lida(s)"}
 
 
@@ -72,7 +72,7 @@ async def listar_preferencias(
     tenant_id: UUID = Depends(get_tenant_id),
     current_user: dict = Depends(get_current_user),
 ):
-    usuario_id = UUID(current_user["sub"])
+    usuario_id = current_user.id
     svc = NotificacaoService(session, tenant_id)
     return await svc.listar_preferencias(usuario_id)
 
@@ -85,7 +85,7 @@ async def atualizar_preferencia(
     tenant_id: UUID = Depends(get_tenant_id),
     current_user: dict = Depends(get_current_user),
 ):
-    usuario_id = UUID(current_user["sub"])
+    usuario_id = current_user.id
     svc = NotificacaoService(session, tenant_id)
     return await svc.upsert_preferencia(usuario_id, tipo, dados)
 
@@ -151,7 +151,7 @@ async def marcar_uma_lida(
     current_user: dict = Depends(get_current_user),
 ):
     svc = NotificacaoService(session, tenant_id)
-    usuario_id = UUID(current_user["sub"])
+    usuario_id = current_user.id
     await svc.marcar_lidas(usuario_id, [notificacao_id])
     result = await session.get(Notificacao, notificacao_id)
     if result is not None:
