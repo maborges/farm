@@ -44,34 +44,64 @@ class CampoAlertGenerator(BaseAlertGenerator):
     ACTION_URL = "/dashboard/operacional/campo/tarefas"
 
     async def run(self, context: AlertGeneratorContext) -> AlertGeneratorResult:
-        """Execute the canonical Campo generator contract."""
+        """Execute the canonical Campo generator contract.
+
+        Cada tarefa é processada isoladamente (try/except + rollback por item).
+        Antes, uma tarefa com dado corrompido (ex: unidade_produtiva_id órfão,
+        viola FK) abortava o generator inteiro e todas as tarefas seguintes do
+        mesmo tenant nem chegavam a ser tentadas — confirmado em produção
+        (2026-08-14, ver memória project_tres_sistemas_alertas_mapeados).
+        """
+        from loguru import logger
 
         await set_rls_context(self.session, context.tenant_id)
         counters = {"tarefas_atrasadas": 0, "tarefas_invalidas": 0, "sync_falhas": 0}
         result = AlertGeneratorResult(
             generator_name=self.generator_name, metadata={"rule_counters": counters}
         )
-        for tarefa in await self._tarefas_atrasadas(
-            context.tenant_id, context.unidade_produtiva_id
-        ):
-            created = await self._emitir_alerta_atraso(context.tenant_id, tarefa)
-            result.created += created
-            result.updated += 1 - created
-            counters["tarefas_atrasadas"] += 1
-        for tarefa in await self._tarefas_invalidas(
-            context.tenant_id, context.unidade_produtiva_id
-        ):
-            created = await self._emitir_alerta_invalido(context.tenant_id, tarefa)
-            result.created += created
-            result.updated += 1 - created
-            counters["tarefas_invalidas"] += 1
-        for tarefa in await self._tarefas_sync_falha(
-            context.tenant_id, context.unidade_produtiva_id
-        ):
-            created = await self._emitir_alerta_sync_falha(context.tenant_id, tarefa)
-            result.created += created
-            result.updated += 1 - created
-            counters["sync_falhas"] += 1
+
+        async def _processar(tarefas, emitir, contador_key):
+            for tarefa in tarefas:
+                try:
+                    created = await emitir(context.tenant_id, tarefa)
+                    result.created += created
+                    result.updated += 1 - created
+                    counters[contador_key] += 1
+                except Exception as exc:  # pragma: no cover - defensive isolation
+                    try:
+                        await self.session.rollback()
+                        # rollback() encerra a transação e descarta o
+                        # `SET LOCAL app.current_tenant_id` do RLS — sem
+                        # restabelecer, as queries seguintes (inclusive as
+                        # de busca dos próximos lotes) quebram sem proteção
+                        # de try/except (confirmado: MissingGreenlet/erro
+                        # em cascata num teste real com FK violation).
+                        await set_rls_context(self.session, context.tenant_id)
+                    except Exception:  # pragma: no cover - defensive isolation
+                        pass
+                    logger.bind(
+                        component="campo_alert_generator",
+                        tenant_id=str(context.tenant_id),
+                        tarefa_id=str(tarefa.id),
+                        contador=contador_key,
+                    ).exception("campo_alert_generator_item_failed")
+                    result.errors += 1
+
+        await _processar(
+            await self._tarefas_atrasadas(context.tenant_id, context.unidade_produtiva_id),
+            self._emitir_alerta_atraso,
+            "tarefas_atrasadas",
+        )
+        await _processar(
+            await self._tarefas_invalidas(context.tenant_id, context.unidade_produtiva_id),
+            self._emitir_alerta_invalido,
+            "tarefas_invalidas",
+        )
+        await _processar(
+            await self._tarefas_sync_falha(context.tenant_id, context.unidade_produtiva_id),
+            self._emitir_alerta_sync_falha,
+            "sync_falhas",
+        )
         result.metadata = {"rule_counters": counters}
         return result
 
