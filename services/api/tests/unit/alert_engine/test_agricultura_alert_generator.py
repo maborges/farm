@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import uuid
+from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -22,8 +23,20 @@ from alert_engine.scheduler import run_scheduled_alerts
 UTC = timezone.utc
 
 
+@asynccontextmanager
+async def _fake_nested():
+    """SAVEPOINT falso — session mockada não sabe fazer begin_nested() de verdade."""
+    yield
+
+
+def _mock_session() -> AsyncMock:
+    session = AsyncMock()
+    session.begin_nested = lambda: _fake_nested()
+    return session
+
+
 def _generator(tenant_id: uuid.UUID) -> AgriculturaAlertGenerator:
-    return AgriculturaAlertGenerator(AsyncMock(), tenant_id)
+    return AgriculturaAlertGenerator(_mock_session(), tenant_id)
 
 
 def _store() -> SimpleNamespace:

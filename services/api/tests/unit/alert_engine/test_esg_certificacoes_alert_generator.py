@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -23,8 +24,20 @@ except ImportError:  # Python 3.10 compatibility in the test environment.
     UTC = timezone.utc  # noqa: UP017
 
 
+@asynccontextmanager
+async def _fake_nested():
+    """SAVEPOINT falso — session mockada não sabe fazer begin_nested() de verdade."""
+    yield
+
+
+def _mock_session() -> AsyncMock:
+    session = AsyncMock()
+    session.begin_nested = lambda: _fake_nested()
+    return session
+
+
 def _generator(tenant_id: uuid.UUID) -> ESGCertificacoesAlertGenerator:
-    return ESGCertificacoesAlertGenerator(AsyncMock(), tenant_id)
+    return ESGCertificacoesAlertGenerator(_mock_session(), tenant_id)
 
 
 def _store() -> SimpleNamespace:
@@ -523,7 +536,7 @@ async def test_scheduler_executes_esg_generator(
 
     registry = alert_generator_registry.__class__()
     registry.register(ESGCertificacoesAlertGenerator)
-    service = AlertSchedulerService(AsyncMock(), registry=registry)
+    service = AlertSchedulerService(_mock_session(), registry=registry)
 
     result = await service.run_scheduled_alerts(tenant_id=tenant_id, domains=["SYSTEM"])
 

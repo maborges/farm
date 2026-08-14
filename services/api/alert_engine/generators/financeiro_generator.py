@@ -57,7 +57,16 @@ class FinanceiroAlertGenerator(BaseAlertGenerator):
     execution_modes = ("scheduled",)
 
     async def run(self, context: AlertGeneratorContext) -> AlertGeneratorResult:
-        """Execute financial rules from canonical context."""
+        """Execute financial rules from canonical context.
+
+        Cada item é processado dentro de um SAVEPOINT (`begin_nested`), não
+        `session.rollback()` da transação inteira — `session.rollback()`
+        após falha de flush não deixa a sessão de fato reutilizável nesse
+        stack (SQLAlchemy async + asyncpg), confirmado ao vivo em produção.
+        Mesmo padrão aplicado em campo/pecuaria/agricultura_generator.py —
+        ver memória do projeto project_tres_sistemas_alertas_mapeados.
+        """
+        from loguru import logger
 
         await set_rls_context(self.session, context.tenant_id)
         counters = {
@@ -83,24 +92,42 @@ class FinanceiroAlertGenerator(BaseAlertGenerator):
             10.0,
         )
 
+        async def _isolado(item_id: str, contador_key: str, corpo):
+            try:
+                async with self.session.begin_nested():
+                    created = await corpo()
+                result.created += created
+                result.updated += 1 - created
+                counters[contador_key] += created
+            except Exception:  # pragma: no cover - defensive isolation
+                logger.bind(
+                    component="financeiro_alert_generator",
+                    tenant_id=str(context.tenant_id),
+                    item_id=item_id,
+                    contador=contador_key,
+                ).exception("financeiro_alert_generator_item_failed")
+                result.errors += 1
+
         for titulo in await self._listar_vencimentos_proximos(
             context.tenant_id,
             context.unidade_produtiva_id,
             dias_aviso_vencimento,
         ):
-            created = await self._emitir_alerta_vencimento_proximo(context.tenant_id, titulo)
-            result.created += created
-            result.updated += 1 - created
-            counters["vencimentos_proximos"] += created
+            await _isolado(
+                str(titulo.titulo_id),
+                "vencimentos_proximos",
+                lambda t=titulo: self._emitir_alerta_vencimento_proximo(context.tenant_id, t),
+            )
 
         for titulo in await self._listar_vencidos(
             context.tenant_id,
             context.unidade_produtiva_id,
         ):
-            created = await self._emitir_alerta_vencido(context.tenant_id, titulo)
-            result.created += created
-            result.updated += 1 - created
-            counters["lancamentos_vencidos"] += created
+            await _isolado(
+                str(titulo.titulo_id),
+                "lancamentos_vencidos",
+                lambda t=titulo: self._emitir_alerta_vencido(context.tenant_id, t),
+            )
 
         fluxo = await self._avaliar_fluxo_caixa_critico(
             context.tenant_id,
@@ -108,24 +135,24 @@ class FinanceiroAlertGenerator(BaseAlertGenerator):
             limite_saldo_fluxo_caixa,
         )
         if fluxo is not None:
-            created = await self._emitir_alerta_fluxo_caixa(context.tenant_id, fluxo)
-            result.created += created
-            result.updated += 1 - created
-            counters["fluxo_caixa_critico"] += created
+            await _isolado(
+                str(context.tenant_id),
+                "fluxo_caixa_critico",
+                lambda: self._emitir_alerta_fluxo_caixa(context.tenant_id, fluxo),
+            )
 
         for desvio in await self._listar_desvios_orcamento(
             context.tenant_id,
             context.unidade_produtiva_id,
             limite_desvio_orcamento,
         ):
-            created = await self._emitir_alerta_orcamento_excedido(
-                context.tenant_id,
-                desvio,
-                limite_desvio_orcamento,
+            await _isolado(
+                str(getattr(desvio, "safra_id", "")),
+                "orcamento_excedido",
+                lambda d=desvio: self._emitir_alerta_orcamento_excedido(
+                    context.tenant_id, d, limite_desvio_orcamento
+                ),
             )
-            result.created += created
-            result.updated += 1 - created
-            counters["orcamento_excedido"] += created
 
         result.metadata = {"rule_counters": counters}
         return result

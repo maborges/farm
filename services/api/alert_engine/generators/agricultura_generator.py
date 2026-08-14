@@ -68,7 +68,16 @@ class AgriculturaAlertGenerator(BaseAlertGenerator):
     execution_modes = ("scheduled", "hybrid")
 
     async def run(self, context: AlertGeneratorContext) -> AlertGeneratorResult:
-        """Execute agricultural rules from canonical context."""
+        """Execute agricultural rules from canonical context.
+
+        Cada item é processado dentro de um SAVEPOINT (`begin_nested`), não
+        `session.rollback()` da transação inteira — `session.rollback()`
+        após falha de flush não deixa a sessão de fato reutilizável nesse
+        stack (SQLAlchemy async + asyncpg), confirmado ao vivo em produção.
+        Mesmo padrão aplicado em campo_generator.py e pecuaria_generator.py —
+        ver memória do projeto project_tres_sistemas_alertas_mapeados.
+        """
+        from loguru import logger
 
         await set_rls_context(self.session, context.tenant_id)
         counters = {
@@ -93,47 +102,56 @@ class AgriculturaAlertGenerator(BaseAlertGenerator):
             "limite_desvio_percentual",
             15.0,
         )
-        for safra in await self._listar_safras_ativas(
-            context.tenant_id, context.unidade_produtiva_id
-        ):
-            created = await self._avaliar_safra_sem_movimentacao(
-                safra,
-                dias_sem_movimentacao,
-            )
-            result.created += created
-            result.updated += 1 - created if created in {0, 1} else 0
-            counters["safras_sem_movimentacao"] += created
-        for operacao in await self._listar_operacoes_atrasadas(
-            context.tenant_id,
-            context.unidade_produtiva_id,
-            dias_tolerancia_atraso,
-        ):
-            created = await self._avaliar_operacao_atrasada(operacao, dias_tolerancia_atraso)
-            result.created += created
-            result.updated += 1 - created if created in {0, 1} else 0
-            counters["operacoes_atrasadas"] += created
-        for talhao in await self._listar_talhoes_ativos(
-            context.tenant_id, context.unidade_produtiva_id
-        ):
-            created = await self._avaliar_talhao_sem_atualizacao(
-                talhao,
-                dias_sem_atualizacao_talhao,
-            )
-            result.created += created
-            result.updated += 1 - created if created in {0, 1} else 0
-            counters["talhoes_sem_atualizacao"] += created
-        for safra_id in await self._listar_safras_com_orcamento(
-            context.tenant_id,
-            context.unidade_produtiva_id,
-        ):
-            created = await self._avaliar_custo_acima_previsto(
-                context.tenant_id,
-                safra_id,
-                limite_desvio_percentual,
-            )
-            result.created += created
-            result.updated += 1 - created if created in {0, 1} else 0
-            counters["custos_acima_previstos"] += created
+
+        async def _processar(itens, item_id_fn, avaliar, contador_key):
+            for item in itens:
+                try:
+                    async with self.session.begin_nested():
+                        created = await avaliar(item)
+                    result.created += created
+                    result.updated += 1 - created if created in {0, 1} else 0
+                    counters[contador_key] += created
+                except Exception:  # pragma: no cover - defensive isolation
+                    logger.bind(
+                        component="agricultura_alert_generator",
+                        tenant_id=str(context.tenant_id),
+                        item_id=str(item_id_fn(item)),
+                        contador=contador_key,
+                    ).exception("agricultura_alert_generator_item_failed")
+                    result.errors += 1
+
+        await _processar(
+            await self._listar_safras_ativas(context.tenant_id, context.unidade_produtiva_id),
+            lambda safra: safra.safra_id,
+            lambda safra: self._avaliar_safra_sem_movimentacao(safra, dias_sem_movimentacao),
+            "safras_sem_movimentacao",
+        )
+        await _processar(
+            await self._listar_operacoes_atrasadas(
+                context.tenant_id, context.unidade_produtiva_id, dias_tolerancia_atraso
+            ),
+            lambda operacao: operacao.operacao_id,
+            lambda operacao: self._avaliar_operacao_atrasada(operacao, dias_tolerancia_atraso),
+            "operacoes_atrasadas",
+        )
+        await _processar(
+            await self._listar_talhoes_ativos(context.tenant_id, context.unidade_produtiva_id),
+            lambda talhao: talhao.talhao_id,
+            lambda talhao: self._avaliar_talhao_sem_atualizacao(
+                talhao, dias_sem_atualizacao_talhao
+            ),
+            "talhoes_sem_atualizacao",
+        )
+        await _processar(
+            await self._listar_safras_com_orcamento(
+                context.tenant_id, context.unidade_produtiva_id
+            ),
+            lambda safra_id: safra_id,
+            lambda safra_id: self._avaliar_custo_acima_previsto(
+                context.tenant_id, safra_id, limite_desvio_percentual
+            ),
+            "custos_acima_previstos",
+        )
         result.metadata = {"rule_counters": counters}
         return result
 

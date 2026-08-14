@@ -80,7 +80,16 @@ class ESGCertificacoesAlertGenerator(BaseAlertGenerator):
     execution_modes = ("scheduled",)
 
     async def run(self, context: AlertGeneratorContext) -> AlertGeneratorResult:
-        """Execute ESG/certification rules from canonical context."""
+        """Execute ESG/certification rules from canonical context.
+
+        Cada item é processado dentro de um SAVEPOINT (`begin_nested`), não
+        `session.rollback()` da transação inteira — confirmado ao vivo em
+        produção que `rollback()` após falha de flush não deixa a sessão de
+        fato reutilizável nesse stack (SQLAlchemy async + asyncpg). Mesmo
+        padrão aplicado nos demais generators — ver memória do projeto
+        project_tres_sistemas_alertas_mapeados.
+        """
+        from loguru import logger
 
         await set_rls_context(self.session, context.tenant_id)
         counters = {
@@ -95,54 +104,51 @@ class ESGCertificacoesAlertGenerator(BaseAlertGenerator):
         )
         dias_aviso_vencimento = self._metadata_int(context, "dias_aviso_vencimento", 30)
 
-        for certificacao in await self._listar_certificacoes_vencimento_proximo(
-            context.tenant_id,
-            context.unidade_produtiva_id,
-            dias_aviso_vencimento,
-        ):
-            created = await self._emitir_alerta_certificacao_vencimento_proximo(
-                context.tenant_id,
-                certificacao,
-            )
-            result.created += created
-            result.updated += 1 - created
-            counters["certificacao_vencimento_proximo"] += created
+        async def _processar(itens, emitir, contador_key):
+            for item in itens:
+                try:
+                    async with self.session.begin_nested():
+                        created = await emitir(context.tenant_id, item)
+                    result.created += created
+                    result.updated += 1 - created
+                    counters[contador_key] += created
+                except Exception:  # pragma: no cover - defensive isolation
+                    logger.bind(
+                        component="esg_certificacoes_alert_generator",
+                        tenant_id=str(context.tenant_id),
+                        item_id=str(item.entidade_id),
+                        contador=contador_key,
+                    ).exception("esg_certificacoes_alert_generator_item_failed")
+                    result.errors += 1
 
-        for certificacao in await self._listar_certificacoes_vencidas(
-            context.tenant_id,
-            context.unidade_produtiva_id,
-        ):
-            created = await self._emitir_alerta_certificacao_vencida(
-                context.tenant_id,
-                certificacao,
-            )
-            result.created += created
-            result.updated += 1 - created
-            counters["certificacao_vencida"] += created
-
-        for nao_conformidade in await self._listar_nao_conformidades_abertas(
-            context.tenant_id,
-            context.unidade_produtiva_id,
-        ):
-            created = await self._emitir_alerta_nao_conformidade_aberta(
-                context.tenant_id,
-                nao_conformidade,
-            )
-            result.created += created
-            result.updated += 1 - created
-            counters["nao_conformidade_aberta"] += created
-
-        for plano_acao in await self._listar_planos_acao_atrasados(
-            context.tenant_id,
-            context.unidade_produtiva_id,
-        ):
-            created = await self._emitir_alerta_plano_acao_atrasado(
-                context.tenant_id,
-                plano_acao,
-            )
-            result.created += created
-            result.updated += 1 - created
-            counters["plano_acao_atrasado"] += created
+        await _processar(
+            await self._listar_certificacoes_vencimento_proximo(
+                context.tenant_id, context.unidade_produtiva_id, dias_aviso_vencimento
+            ),
+            self._emitir_alerta_certificacao_vencimento_proximo,
+            "certificacao_vencimento_proximo",
+        )
+        await _processar(
+            await self._listar_certificacoes_vencidas(
+                context.tenant_id, context.unidade_produtiva_id
+            ),
+            self._emitir_alerta_certificacao_vencida,
+            "certificacao_vencida",
+        )
+        await _processar(
+            await self._listar_nao_conformidades_abertas(
+                context.tenant_id, context.unidade_produtiva_id
+            ),
+            self._emitir_alerta_nao_conformidade_aberta,
+            "nao_conformidade_aberta",
+        )
+        await _processar(
+            await self._listar_planos_acao_atrasados(
+                context.tenant_id, context.unidade_produtiva_id
+            ),
+            self._emitir_alerta_plano_acao_atrasado,
+            "plano_acao_atrasado",
+        )
 
         result.metadata = {"rule_counters": counters}
         return result
