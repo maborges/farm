@@ -9,7 +9,7 @@ from sqlalchemy import select
 from core.dependencies import get_tenant_id, get_session, get_current_admin
 from core.database import async_session_maker
 from notificacoes.models import Notificacao
-from notificacoes.schemas import NotificacaoCreate, NotificacaoResponse, MarcarLidasRequest, NotificacaoPreferenciaUpdate, NotificacaoPreferenciaResponse
+from notificacoes.schemas import NotificacaoCreate, NotificacaoResponse, MarcarLidasRequest, NotificacaoPreferenciaUpdate, NotificacaoPreferenciaResponse, NotificacaoAcaoRequest
 from notificacoes.service import NotificacaoService, manager
 from notificacoes.alertas_engine import AlertasEngine
 from core.dependencies import get_current_user
@@ -158,6 +158,25 @@ async def marcar_uma_lida(
         session.expunge(result)
         result.lida = True  # reflete a leitura do usuário atual; não é persistido na coluna tenant-wide
     return result
+
+
+@router.post("/{notificacao_id}/acao")
+async def registrar_acao(
+    notificacao_id: UUID,
+    dados: NotificacaoAcaoRequest,
+    session: AsyncSession = Depends(get_session),
+    tenant_id: UUID = Depends(get_tenant_id),
+    current_user: dict = Depends(get_current_user),
+):
+    """Audita que o usuário disparou uma ação a partir da notificação (ex: 'pagar', 'accept').
+
+    Não executa a ação de negócio — o frontend chama o endpoint real do domínio
+    (meta.acoes[i].endpoint) separadamente; aqui só se registra que aquele
+    botão foi clicado, marcando a notificação como lida/agida para esse usuário.
+    """
+    svc = NotificacaoService(session, tenant_id)
+    await svc.registrar_acao(current_user.id, notificacao_id, dados.acao)
+    return {"message": "Ação registrada"}
 
 
 @router.post("/alertas/verificar", response_model=dict)

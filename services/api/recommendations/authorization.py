@@ -57,6 +57,14 @@ class RecommendationAuthorizationService:
         await self._authorize_unit_action(recommendation.unidade_produtiva_id, action, profile)
         return recommendation
 
+    async def pode_executar(self, recommendation_id: UUID, action: str) -> bool:
+        """Versão não-exceção de `authorize`, para filtrar ações visíveis sem interromper o fluxo."""
+        try:
+            await self.authorize(recommendation_id, action)
+            return True
+        except HTTPException:
+            return False
+
     async def authorize_metrics(self) -> None:
         """Restrict aggregate metrics to tenant-wide recommendation administrators."""
 

@@ -95,6 +95,10 @@ class AlertasEngine:
             tarefas_atrasadas = await self._verificar_tarefas_atrasadas(session, tenant_id)
             alertas_gerados.extend(tarefas_atrasadas)
 
+            # 4.1 Diárias de RH pendentes de pagamento
+            diarias_pendentes = await self._verificar_diarias_pendentes(session, tenant_id)
+            alertas_gerados.extend(diarias_pendentes)
+
             # Criar notificações
             for alerta in alertas_gerados:
                 await svc.criar_e_push(alerta)
@@ -320,6 +324,70 @@ class AlertasEngine:
                                 "data_fim_carencia": (a.data_aplicacao + timedelta(days=a.carencia_dias)).isoformat(),
                             }
                             for a in aplicacoes
+                        ],
+                    },
+                )
+            )
+
+        return alertas
+
+    async def _verificar_diarias_pendentes(
+        self, session: AsyncSession, tenant_id: UUID
+    ) -> List[NotificacaoCreate]:
+        """Verifica diárias de RH pendentes de pagamento há mais de 15 dias, agrupadas por colaborador.
+
+        Gera uma notificação acionável (meta.acoes com endpoint de pagamento
+        real, POST /rh/diarias/pagar-lote) por colaborador — não uma por
+        diária, para não gerar spam quando há várias diárias acumuladas.
+        """
+        from rh.models import LancamentoDiaria
+        from rh.service import obter_dados_exibicao_colaborador
+        from core.models.auth import Usuario  # noqa: F401 — mantém padrão de import local dos demais métodos
+
+        alertas: List[NotificacaoCreate] = []
+        limite = datetime.now(timezone.utc).date() - timedelta(days=15)
+
+        stmt = (
+            select(LancamentoDiaria)
+            .where(
+                LancamentoDiaria.tenant_id == tenant_id,
+                LancamentoDiaria.status == "PENDENTE",
+                LancamentoDiaria.data <= limite,
+            )
+            .order_by(LancamentoDiaria.colaborador_id)
+            .limit(200)
+        )
+        result = await session.execute(stmt)
+        lancamentos = result.scalars().all()
+
+        por_colaborador: dict[UUID, list[LancamentoDiaria]] = {}
+        for lanc in lancamentos:
+            por_colaborador.setdefault(lanc.colaborador_id, []).append(lanc)
+
+        for colaborador_id, itens in por_colaborador.items():
+            dados = await obter_dados_exibicao_colaborador(session, colaborador_id)
+            nome = dados.get("nome") or "Colaborador"
+            total = sum(item.valor_diaria for item in itens)
+            total_fmt = f"{total:,.2f}".translate(str.maketrans(",.", ".,"))
+            alertas.append(
+                NotificacaoCreate(
+                    tipo="DIARIA_PENDENTE",
+                    titulo=f"{len(itens)} diária(s) pendente(s) — {nome}",
+                    mensagem=f"{nome} tem {len(itens)} diária(s) não pagas há mais de 15 dias. Total: R$ {total_fmt}",
+                    origem="rh_diaria",
+                    origem_id=str(colaborador_id),
+                    meta={
+                        "colaborador_id": str(colaborador_id),
+                        "quantidade": len(itens),
+                        "total_pendente": float(total),
+                        "acoes": [
+                            {
+                                "label": "Pagar",
+                                "acao": "pagar",
+                                "endpoint": "/rh/diarias/pagar-lote",
+                                "method": "POST",
+                                "body": {"ids": [str(item.id) for item in itens]},
+                            }
                         ],
                     },
                 )

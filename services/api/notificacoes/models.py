@@ -57,6 +57,8 @@ class NotificacaoLeitura(Base):
     read_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=text("(CURRENT_TIMESTAMP)"), nullable=False
     )
+    acao: Mapped[Optional[str]] = mapped_column(String(30), nullable=True, comment="Ação disparada a partir da notificação, ex: accept, dismiss, pagar")
+    acao_em: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (
         UniqueConstraint("notificacao_id", "usuario_id", name="uq_notificacao_leitura_usuario"),

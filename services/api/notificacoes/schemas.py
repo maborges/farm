@@ -34,6 +34,10 @@ class NotificacaoResponse(BaseModel):
 class MarcarLidasRequest(BaseModel):
     ids: Optional[list[UUID]] = None  # None = mark all
 
+
+class NotificacaoAcaoRequest(BaseModel):
+    acao: str  # ex: "accept", "dismiss", "postpone", "pagar" — mesmo valor de meta.acoes[i].acao
+
 class NotificacaoPreferenciaUpdate(BaseModel):
     email_ativo: bool
     sistema_ativo: bool

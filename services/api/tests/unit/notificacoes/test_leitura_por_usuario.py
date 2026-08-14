@@ -11,8 +11,8 @@ from notificacoes.service import NotificacaoService
 from notificacoes.models import Notificacao
 
 
-def _row(notif: Notificacao, lida_usuario: bool):
-    return (notif, lida_usuario)
+def _row(notif: Notificacao, lida_usuario: bool, acao: str | None = None):
+    return (notif, lida_usuario, acao)
 
 
 def _make_notif() -> Notificacao:

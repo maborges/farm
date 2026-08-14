@@ -154,6 +154,11 @@ class RecommendationNotificationBridge:
                     "recommendation_id": str(self._recommendation_id(recommendation)),
                     "recommendation_domain": self._domain_value(recommendation),
                     "rule_code": getattr(recommendation, "rule_code", None),
+                    "acoes": [
+                        {"label": "Aceitar", "acao": "accept", "endpoint": f"/recommendations/{self._recommendation_id(recommendation)}/accept", "method": "POST"},
+                        {"label": "Adiar", "acao": "postpone", "endpoint": f"/recommendations/{self._recommendation_id(recommendation)}/postpone", "method": "POST"},
+                        {"label": "Descartar", "acao": "dismiss", "endpoint": f"/recommendations/{self._recommendation_id(recommendation)}/dismiss", "method": "POST"},
+                    ],
                 },
             )
         )

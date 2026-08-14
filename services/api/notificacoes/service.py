@@ -284,8 +284,9 @@ Exemplo de saída: 🚨 Margem caiu para 8%. Recomendamos revisar custos operaci
         """
         lida_usuario = func.coalesce(NotificacaoLeitura.lida, False)
         sistema_ativo = func.coalesce(NotificacaoPreferencia.sistema_ativo, True)
+        acao_registrada = NotificacaoLeitura.acao
         stmt = (
-            select(Notificacao, lida_usuario)
+            select(Notificacao, lida_usuario, acao_registrada)
             .outerjoin(
                 NotificacaoLeitura,
                 and_(
@@ -309,11 +310,51 @@ Exemplo de saída: 🚨 Margem caiu para 8%. Recomendamos revisar custos operaci
         result = await self.session.execute(stmt)
 
         notificacoes: list[Notificacao] = []
-        for notif, lida_valor in result.all():
+        for notif, lida_valor, acao_valor in result.all():
             self.session.expunge(notif)
             notif.lida = bool(lida_valor)
+            notif.meta = await self._filtrar_acoes_por_permissao(notif, usuario_id, ja_executada=acao_valor)
             notificacoes.append(notif)
         return notificacoes
+
+    async def _filtrar_acoes_por_permissao(
+        self, notif: Notificacao, usuario_id: UUID, ja_executada: str | None
+    ) -> dict:
+        """Remove de meta.acoes as ações que o usuário atual não pode executar.
+
+        Notificação é tenant-wide na criação, mas os botões de ação exibidos
+        variam por usuário — checa a autorização real de cada domínio (RH,
+        recomendações) em vez de confiar em algo gravado estaticamente na
+        criação da notificação.
+        """
+        meta = dict(notif.meta or {})
+        acoes = meta.get("acoes")
+        if not acoes:
+            return meta
+        if ja_executada:
+            meta["acao_executada"] = ja_executada
+            meta["acoes"] = []
+            return meta
+
+        if notif.tipo == "RECOMENDACAO" and notif.origem_id:
+            from recommendations.authorization import RecommendationAuthorizationService
+
+            auth = RecommendationAuthorizationService(self.session, self.tenant_id, usuario_id)
+            permitidas = []
+            for item in acoes:
+                if await auth.pode_executar(UUID(notif.origem_id), item["acao"]):
+                    permitidas.append(item)
+            meta["acoes"] = permitidas
+        elif notif.tipo == "DIARIA_PENDENTE":
+            from core.dependencies import resolver_permissao_usuario
+
+            if await resolver_permissao_usuario(self.session, self.tenant_id, usuario_id, "rh:*"):
+                meta["acoes"] = acoes
+            else:
+                meta["acoes"] = []
+        else:
+            meta["acoes"] = []
+        return meta
 
     async def marcar_lidas(self, usuario_id: UUID, ids: list[UUID] | None = None) -> int:
         """Marca como lidas para o usuário informado (não afeta outros usuários do tenant)."""
@@ -344,6 +385,32 @@ Exemplo de saída: 🚨 Margem caiu para 8%. Recomendamos revisar custos operaci
         await self.session.execute(upsert_stmt)
         await self.session.commit()
         return len(notif_ids)
+
+    async def registrar_acao(self, usuario_id: UUID, notificacao_id: UUID, acao: str) -> None:
+        """Registra que o usuário disparou uma ação a partir da notificação (marca lida junto).
+
+        Só audita — quem executa a ação de negócio de verdade é o endpoint do
+        domínio (ex: POST /rh/diarias/pagar-lote, POST /recommendations/{id}/accept),
+        chamado separadamente pelo frontend.
+        """
+        agora = datetime.now(timezone.utc)
+        values = {
+            "id": uuid.uuid4(),
+            "tenant_id": self.tenant_id,
+            "notificacao_id": notificacao_id,
+            "usuario_id": usuario_id,
+            "lida": True,
+            "read_at": agora,
+            "acao": acao,
+            "acao_em": agora,
+        }
+        insert_stmt = pg_insert(NotificacaoLeitura).values(**values)
+        upsert_stmt = insert_stmt.on_conflict_do_update(
+            index_elements=["notificacao_id", "usuario_id"],
+            set_={"lida": True, "read_at": agora, "acao": acao, "acao_em": agora},
+        )
+        await self.session.execute(upsert_stmt)
+        await self.session.commit()
 
     async def total_nao_lidas(self, usuario_id: UUID) -> int:
         lida_usuario = func.coalesce(NotificacaoLeitura.lida, False)

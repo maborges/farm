@@ -781,6 +781,51 @@ def require_permission(permissao: str):
         raise HTTPException(status_code=403, detail=f"Permissão negada: {permissao}")
     return dependency
 
+async def resolver_permissao_usuario(
+    session: AsyncSession,
+    tenant_id: uuid.UUID,
+    usuario_id: uuid.UUID,
+    permission: str,
+    fazenda_id: uuid.UUID | None = None,
+) -> bool:
+    """Checa se um usuário tem uma permissão de tenant, fora do fluxo de Depends do FastAPI.
+
+    Mesma lógica de `require_tenant_permission`, extraída para reuso em contextos
+    que não são request handlers (ex: filtrar ações visíveis numa listagem).
+    Não levanta exceção — retorna bool.
+    """
+    from core.constants import TenantPermissions
+    from core.models.auth import TenantUsuario, PerfilAcesso, FazendaUsuario
+
+    stmt = (
+        select(TenantUsuario, PerfilAcesso)
+        .outerjoin(PerfilAcesso, TenantUsuario.perfil_id == PerfilAcesso.id)
+        .where(TenantUsuario.tenant_id == tenant_id, TenantUsuario.usuario_id == usuario_id, TenantUsuario.status == "ATIVO")
+    )
+    result = await session.execute(stmt)
+    row = result.first()
+    if not row:
+        return False
+    tenant_usuario, perfil_acesso = row
+    if tenant_usuario.is_owner:
+        return True
+    if fazenda_id:
+        stmt_f = (
+            select(FazendaUsuario, PerfilAcesso)
+            .outerjoin(PerfilAcesso, FazendaUsuario.perfil_fazenda_id == PerfilAcesso.id)
+            .where(FazendaUsuario.tenant_id == tenant_id, FazendaUsuario.usuario_id == usuario_id, FazendaUsuario.unidade_produtiva_id == fazenda_id)
+        )
+        res_f = await session.execute(stmt_f)
+        row_f = res_f.first()
+        if row_f and row_f[1]:
+            perfil_acesso = row_f[1]
+    if perfil_acesso:
+        return TenantPermissions.has_permission(
+            perfil_acesso.nome.lower(), permission, perfil_acesso.permissoes if perfil_acesso.is_custom else None
+        )
+    return False
+
+
 def require_tenant_permission(permission: str):
     """Dependency para verificar permissão específica no contexto do tenant."""
     async def _dependency(
@@ -789,33 +834,17 @@ def require_tenant_permission(permission: str):
         user: "Usuario" = Depends(get_current_user),
         session: AsyncSession = Depends(get_session)
     ):
-        from core.constants import TenantPermissions, TenantRoles
-        from core.models.auth import TenantUsuario, PerfilAcesso, FazendaUsuario
-        stmt = (
-            select(TenantUsuario, PerfilAcesso)
-            .outerjoin(PerfilAcesso, TenantUsuario.perfil_id == PerfilAcesso.id)
-            .where(TenantUsuario.tenant_id == tenant_id, TenantUsuario.usuario_id == user.id, TenantUsuario.status == "ATIVO")
-        )
-        result = await session.execute(stmt)
-        row = result.first()
-        if not row:
-            raise HTTPException(status_code=403, detail="Usuário não tem acesso a este tenant")
-        tenant_usuario, perfil_acesso = row
-        if tenant_usuario.is_owner:
-            return True
+        fazenda_id = None
         fazenda_id_header = request.headers.get("x-fazenda-id")
         if fazenda_id_header:
             try:
-                unidade_produtiva_id = uuid.UUID(fazenda_id_header)
-                stmt_f = select(FazendaUsuario, PerfilAcesso).outerjoin(PerfilAcesso, FazendaUsuario.perfil_fazenda_id == PerfilAcesso.id).where(FazendaUsuario.tenant_id == tenant_id, FazendaUsuario.usuario_id == user.id, FazendaUsuario.unidade_produtiva_id == unidade_produtiva_id)
-                res_f = await session.execute(stmt_f)
-                row_f = res_f.first()
-                if row_f and row_f[1]: perfil_acesso = row_f[1]
-            except ValueError: pass
-        if perfil_acesso:
-            if TenantPermissions.has_permission(perfil_acesso.nome.lower(), permission, perfil_acesso.permissoes if perfil_acesso.is_custom else None):
-                return True
-        raise HTTPException(status_code=403, detail=f"Permissão negada: {permission}")
+                fazenda_id = uuid.UUID(fazenda_id_header)
+            except ValueError:
+                fazenda_id = None
+        permitido = await resolver_permissao_usuario(session, tenant_id, user.id, permission, fazenda_id)
+        if not permitido:
+            raise HTTPException(status_code=403, detail=f"Permissão negada: {permission}")
+        return True
     return _dependency
 
 
