@@ -67,16 +67,17 @@ ORDER BY ce.tenant_id, ce.id;
 -- 4. compras_pedidos (3 cruzamentos esperados)
 --    Pais: estoque_depositos, compras_cotacoes, compras_solicitacoes, cadastros_produtos
 -- ============================================================
-\echo '--- compras_pedidos x estoque_depositos ---'
+\echo '--- compras_pedidos x estoque_depositos (via compras_itens_pedido; tenant_id herdado do pedido) ---'
 SELECT
-    cp.id               AS filho_id,
+    cip.id              AS filho_id,
     cp.tenant_id        AS filho_tenant,
     ed.tenant_id        AS pai_tenant,
-    cp.deposito_id      AS pai_id,
+    cip.deposito_id     AS pai_id,
     'estoque_depositos' AS pai_tabela
-FROM farms.compras_pedidos cp
-JOIN farms.estoque_depositos ed ON ed.id = cp.deposito_id
-WHERE cp.deposito_id IS NOT NULL
+FROM farms.compras_itens_pedido cip
+JOIN farms.compras_pedidos cp ON cp.id = cip.pedido_id
+JOIN farms.estoque_depositos ed ON ed.id = cip.deposito_id
+WHERE cip.deposito_id IS NOT NULL
   AND cp.tenant_id <> ed.tenant_id
 UNION ALL
 SELECT
@@ -134,11 +135,11 @@ SELECT
     fje.id,
     fje.tenant_id,
     car.tenant_id,
-    fje.area_rural_id,
+    fje.talhao_id,
     'cadastros_areas_rurais'
 FROM farms.frota_jornadas_equipamento fje
-JOIN farms.cadastros_areas_rurais car ON car.id = fje.area_rural_id
-WHERE fje.area_rural_id IS NOT NULL
+JOIN farms.cadastros_areas_rurais car ON car.id = fje.talhao_id
+WHERE fje.talhao_id IS NOT NULL
   AND fje.tenant_id <> car.tenant_id
 ORDER BY filho_tenant, filho_id;
 
@@ -193,11 +194,11 @@ SELECT
     fa.id,
     fa.tenant_id,
     car.tenant_id,
-    fa.area_rural_id,
+    fa.talhao_id,
     'cadastros_areas_rurais'
 FROM farms.frota_abastecimentos fa
-JOIN farms.cadastros_areas_rurais car ON car.id = fa.area_rural_id
-WHERE fa.area_rural_id IS NOT NULL
+JOIN farms.cadastros_areas_rurais car ON car.id = fa.talhao_id
+WHERE fa.talhao_id IS NOT NULL
   AND fa.tenant_id <> car.tenant_id
 ORDER BY filho_tenant, filho_id;
 
@@ -218,9 +219,10 @@ SELECT source_table, COUNT(*) AS cruzamentos FROM (
     JOIN farms.unidades_produtivas up ON up.id = ce.unidade_produtiva_id
     WHERE ce.unidade_produtiva_id IS NOT NULL AND ce.tenant_id <> up.tenant_id
     UNION ALL
-    SELECT 'compras_pedidos' FROM farms.compras_pedidos cp
-    JOIN farms.estoque_depositos ed ON ed.id = cp.deposito_id
-    WHERE cp.deposito_id IS NOT NULL AND cp.tenant_id <> ed.tenant_id
+    SELECT 'compras_pedidos' FROM farms.compras_itens_pedido cip
+    JOIN farms.compras_pedidos cp ON cp.id = cip.pedido_id
+    JOIN farms.estoque_depositos ed ON ed.id = cip.deposito_id
+    WHERE cip.deposito_id IS NOT NULL AND cp.tenant_id <> ed.tenant_id
     UNION ALL
     SELECT 'frota_jornadas_equipamento' FROM farms.frota_jornadas_equipamento fje
     JOIN farms.unidades_produtivas up ON up.id = fje.unidade_produtiva_id
