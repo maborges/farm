@@ -39,19 +39,33 @@ class AlertasEngine:
         from core.models.billing import AssinaturaTenant
 
         async with async_session_maker() as session:
-            # Buscar todos os tenants com assinatura ativa
+            # Buscar todos os tenants com assinatura ativa.
+            # Sem .distinct() no SQL: Tenant tem colunas `json` (não `jsonb`,
+            # ex. branding/smtp_config) e Postgres não sabe comparar `json`
+            # para DISTINCT (UndefinedFunctionError, confirmado em produção
+            # 2026-08-14 — este método nunca tinha rodado com sucesso contra
+            # dado real). Dedup por id em Python em vez disso.
             stmt = (
                 select(Tenant)
                 .join(AssinaturaTenant, AssinaturaTenant.tenant_id == Tenant.id)
                 .where(
                     Tenant.ativo == True,
-                    AssinaturaTenant.status == "ATIVA",
-                    AssinaturaTenant.tipo_assinatura == "GRUPO",
+                    # ATIVA + TRIAL: excluir TRIAL deixava tenants novos invisíveis
+                    # (mesmo padrão de bug já documentado em feedback_trial_subscriptions).
+                    AssinaturaTenant.status.in_(["ATIVA", "TRIAL"]),
+                    # "GRUPO" nunca foi um valor válido de tipo_assinatura — só
+                    # existem TENANT (default) e ADICIONAL (core/models/billing.py:106).
+                    # Filtro anterior fazia 0 tenants baterem sempre, silenciosamente.
+                    AssinaturaTenant.tipo_assinatura == "TENANT",
                 )
-                .distinct()
             )
             result = await session.execute(stmt)
-            tenants = list(result.scalars().all())
+            vistos = set()
+            tenants = []
+            for tenant in result.scalars().all():
+                if tenant.id not in vistos:
+                    vistos.add(tenant.id)
+                    tenants.append(tenant)
 
         logger.info(f"Verificando alertas para {len(tenants)} tenants ativos")
 
@@ -181,7 +195,7 @@ class AlertasEngine:
 
         if produtos_baixo:
             itens = [
-                f"{p.Produto.nome}: {p.SaldoEstoque.quantidade}/{(p.SaldoEstoque.estoque_minimo if p.SaldoEstoque.estoque_minimo is not None else p.Produto.estoque_minimo)} {p.Produto.unidade}"
+                f"{p.Produto.nome}: {p.SaldoEstoque.quantidade_atual}/{(p.SaldoEstoque.estoque_minimo if p.SaldoEstoque.estoque_minimo is not None else p.Produto.estoque_minimo)} {p.Produto.unidade_medida}"
                 for p in produtos_baixo
             ]
             alertas.append(
@@ -195,13 +209,13 @@ class AlertasEngine:
                             {
                                 "id": str(p.Produto.id),
                                 "nome": p.Produto.nome,
-                                "quantidade_atual": float(p.SaldoEstoque.quantidade),
+                                "quantidade_atual": float(p.SaldoEstoque.quantidade_atual),
                                 "estoque_minimo": float(
                                     p.SaldoEstoque.estoque_minimo
                                     if p.SaldoEstoque.estoque_minimo is not None
                                     else p.Produto.estoque_minimo
                                 ),
-                                "unidade": p.Produto.unidade,
+                                "unidade": p.Produto.unidade_medida,
                             }
                             for p in produtos_baixo
                         ],
@@ -214,48 +228,59 @@ class AlertasEngine:
     async def _verificar_carencia_defensivos(
         self, session: AsyncSession, tenant_id: UUID
     ) -> List[NotificacaoCreate]:
-        """Verifica carência de defensivos agrícolas vencendo em 24-48h."""
-        from agricola.models.aplicacao import AplicacaoDefensivo
+        """Verifica carência de defensivos agrícolas vencendo em 24-48h.
+
+        Corrigido em 2026-08-14: importava `agricola.models.aplicacao.AplicacaoDefensivo`,
+        módulo/model inexistente (ModuleNotFoundError). Carência é campo de
+        `InsumoOperacao` (linha do insumo aplicado numa `OperacaoAgricola`),
+        não uma entidade própria — precisa join com OperacaoAgricola (talhão),
+        AreaRural (nome do talhão) e Produto (nome do defensivo).
+        """
+        from agricola.operacoes.models import InsumoOperacao, OperacaoAgricola
+        from core.cadastros.propriedades.models import AreaRural
+        from core.cadastros.produtos.models import Produto
 
         alertas = []
-        agora = datetime.now(timezone.utc)
-        daqui_24h = agora + timedelta(hours=24)
-        daqui_48h = agora + timedelta(hours=48)
+        hoje = datetime.now(timezone.utc).date()
+        daqui_2_dias = hoje + timedelta(days=2)
 
-        # Aplicações com carência vencendo em 24h
         stmt = (
-            select(AplicacaoDefensivo)
+            select(InsumoOperacao, OperacaoAgricola, AreaRural, Produto)
+            .join(OperacaoAgricola, OperacaoAgricola.id == InsumoOperacao.operacao_id)
+            .join(AreaRural, AreaRural.id == OperacaoAgricola.talhao_id)
+            .join(Produto, Produto.id == InsumoOperacao.produto_id)
             .where(
-                AplicacaoDefensivo.tenant_id == tenant_id,
-                AplicacaoDefensivo.data_aplicacao + AplicacaoDefensivo.carencia_dias >= agora,
-                AplicacaoDefensivo.data_aplicacao + AplicacaoDefensivo.carencia_dias <= daqui_48h,
+                InsumoOperacao.tenant_id == tenant_id,
+                InsumoOperacao.data_reentrada.is_not(None),
+                InsumoOperacao.data_reentrada >= hoje,
+                InsumoOperacao.data_reentrada <= daqui_2_dias,
             )
             .limit(10)
         )
         result = await session.execute(stmt)
-        aplicacoes = result.scalars().all()
+        linhas = result.all()
 
-        if aplicacoes:
+        if linhas:
             itens = [
-                f"{a.defensivo_nome} (Talhão {a.talhao_nome}) - vence em {(a.data_aplicacao + timedelta(days=a.carencia_dias) - agora).days} dias"
-                for a in aplicacoes
+                f"{produto.nome} (Talhão {area.nome}) - vence em {(insumo.data_reentrada - hoje).days} dias"
+                for insumo, _op, area, produto in linhas
             ]
             alertas.append(
                 NotificacaoCreate(
                     tipo="CARENCIA_DEFENSIVO",
-                    titulo=f"{len(aplicacoes)} defensivos com carência vencendo",
+                    titulo=f"{len(linhas)} defensivos com carência vencendo",
                     mensagem="Atenção: " + ", ".join(itens[:3]) + ("..." if len(itens) > 3 else ""),
                     meta={
-                        "quantidade": len(aplicacoes),
+                        "quantidade": len(linhas),
                         "aplicacoes": [
                             {
-                                "id": str(a.id),
-                                "defensivo": a.defensivo_nome,
-                                "talhao": a.talhao_nome,
-                                "carencia_dias": a.carencia_dias,
-                                "data_fim_carencia": (a.data_aplicacao + timedelta(days=a.carencia_dias)).isoformat(),
+                                "id": str(insumo.id),
+                                "defensivo": produto.nome,
+                                "talhao": area.nome,
+                                "carencia_dias": insumo.carencia_dias,
+                                "data_fim_carencia": insumo.data_reentrada.isoformat(),
                             }
-                            for a in aplicacoes
+                            for insumo, _op, area, produto in linhas
                         ],
                     },
                 )

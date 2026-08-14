@@ -15,11 +15,11 @@ async def test_verificar_estoque_baixo_prioriza_minimo_contextual_do_saldo():
     produto = SimpleNamespace(
         id=uuid4(),
         nome="Produto Contextual",
-        unidade="L",
+        unidade_medida="L",
         estoque_minimo=100.0,
     )
     saldo = SimpleNamespace(
-        quantidade=45.0,
+        quantidade_atual=45.0,
         estoque_minimo=50.0,
     )
     row = SimpleNamespace(Produto=produto, SaldoEstoque=saldo)
@@ -44,11 +44,11 @@ async def test_verificar_estoque_baixo_fallback_catalogo():
     produto = SimpleNamespace(
         id=uuid4(),
         nome="Produto Legado",
-        unidade="KG",
+        unidade_medida="KG",
         estoque_minimo=80.0,
     )
     saldo = SimpleNamespace(
-        quantidade=40.0,
+        quantidade_atual=40.0,
         estoque_minimo=None,
     )
     row = SimpleNamespace(Produto=produto, SaldoEstoque=saldo)
