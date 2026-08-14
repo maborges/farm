@@ -79,9 +79,10 @@ class AlertasEngine:
         async with async_session_maker() as session:
             svc = NotificacaoService(session, tenant_id)
 
-            # 1. Vencimentos próximos (5 dias)
-            vencimentos = await self._verificar_vencimentos(session, tenant_id)
-            alertas_gerados.extend(vencimentos)
+            # 1. Vencimentos próximos — aposentado em favor de alert_engine/generators/
+            # financeiro_generator.py (mesma checagem, cobre A_RECEBER/A_PAGAR com
+            # status parcial, vencidos separados de próximos). Ver memória do
+            # projeto project_tres_sistemas_alertas_mapeados.
 
             # 2. Estoque baixo
             estoque_baixo = await self._verificar_estoque_baixo(session, tenant_id)
@@ -152,76 +153,6 @@ class AlertasEngine:
             logger.warning(f"Tenant {tenant_id}: erro ao verificar exposição comercial — {exc}")
 
 
-    async def _verificar_vencimentos(
-        self, session: AsyncSession, tenant_id: UUID
-    ) -> List[NotificacaoCreate]:
-        """Verifica contas a pagar/receber vencendo nos próximos 5 dias."""
-        from financeiro.models.despesa import Despesa
-        from financeiro.models.receita import Receita
-
-        alertas = []
-        hoje = datetime.now(timezone.utc).date()
-        daqui_5_dias = hoje + timedelta(days=5)
-
-        # Despesas vencendo
-        stmt = (
-            select(Despesa)
-            .where(
-                Despesa.tenant_id == tenant_id,
-                Despesa.status == "PENDENTE",
-                Despesa.data_vencimento >= hoje,
-                Despesa.data_vencimento <= daqui_5_dias,
-            )
-            .limit(10)
-        )
-        result = await session.execute(stmt)
-        despesas = result.scalars().all()
-
-        if despesas:
-            total = sum(d.valor for d in despesas)
-            alertas.append(
-                NotificacaoCreate(
-                    tipo="VENCIMENTO_CONTAS_PAGAR",
-                    titulo=f"{len(despesas)} contas a pagar vencendo em 5 dias",
-                    mensagem=f"Total: R$ {total:.2f}. Verifique o fluxo de caixa para evitar atrasos.",
-                    meta={
-                        "quantidade": len(despesas),
-                        "total": float(total),
-                        "periodo": "5 dias",
-                    },
-                )
-            )
-
-        # Receitas vencendo
-        stmt = (
-            select(Receita)
-            .where(
-                Receita.tenant_id == tenant_id,
-                Receita.status == "PENDENTE",
-                Receita.data_vencimento >= hoje,
-                Receita.data_vencimento <= daqui_5_dias,
-            )
-            .limit(10)
-        )
-        result = await session.execute(stmt)
-        receitas = result.scalars().all()
-
-        if receitas:
-            total = sum(r.valor for r in receitas)
-            alertas.append(
-                NotificacaoCreate(
-                    tipo="VENCIMENTO_CONTAS_RECEBER",
-                    titulo=f"{len(receitas)} contas a receber vencendo em 5 dias",
-                    mensagem=f"Total: R$ {total:.2f}. Acompanhe o recebimento.",
-                    meta={
-                        "quantidade": len(receitas),
-                        "total": float(total),
-                        "periodo": "5 dias",
-                    },
-                )
-            )
-
-        return alertas
 
     async def _verificar_estoque_baixo(
         self, session: AsyncSession, tenant_id: UUID
