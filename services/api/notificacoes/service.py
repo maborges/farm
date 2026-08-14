@@ -283,6 +283,7 @@ Exemplo de saída: 🚨 Margem caiu para 8%. Recomendamos revisar custos operaci
         `notificacoes_leituras`, por usuário (ausência de linha = não lida).
         """
         lida_usuario = func.coalesce(NotificacaoLeitura.lida, False)
+        sistema_ativo = func.coalesce(NotificacaoPreferencia.sistema_ativo, True)
         stmt = (
             select(Notificacao, lida_usuario)
             .outerjoin(
@@ -292,7 +293,15 @@ Exemplo de saída: 🚨 Margem caiu para 8%. Recomendamos revisar custos operaci
                     NotificacaoLeitura.usuario_id == usuario_id,
                 ),
             )
-            .where(Notificacao.tenant_id == self.tenant_id)
+            .outerjoin(
+                NotificacaoPreferencia,
+                and_(
+                    NotificacaoPreferencia.usuario_id == usuario_id,
+                    NotificacaoPreferencia.tenant_id == self.tenant_id,
+                    NotificacaoPreferencia.tipo == Notificacao.tipo,
+                ),
+            )
+            .where(Notificacao.tenant_id == self.tenant_id, sistema_ativo == True)  # noqa: E712
         )
         if lida is not None:
             stmt = stmt.where(lida_usuario == lida)
@@ -338,6 +347,7 @@ Exemplo de saída: 🚨 Margem caiu para 8%. Recomendamos revisar custos operaci
 
     async def total_nao_lidas(self, usuario_id: UUID) -> int:
         lida_usuario = func.coalesce(NotificacaoLeitura.lida, False)
+        sistema_ativo = func.coalesce(NotificacaoPreferencia.sistema_ativo, True)
         stmt = (
             select(func.count(Notificacao.id))
             .outerjoin(
@@ -347,9 +357,18 @@ Exemplo de saída: 🚨 Margem caiu para 8%. Recomendamos revisar custos operaci
                     NotificacaoLeitura.usuario_id == usuario_id,
                 ),
             )
+            .outerjoin(
+                NotificacaoPreferencia,
+                and_(
+                    NotificacaoPreferencia.usuario_id == usuario_id,
+                    NotificacaoPreferencia.tenant_id == self.tenant_id,
+                    NotificacaoPreferencia.tipo == Notificacao.tipo,
+                ),
+            )
             .where(
                 Notificacao.tenant_id == self.tenant_id,
                 lida_usuario == False,  # noqa: E712
+                sistema_ativo == True,  # noqa: E712
             )
         )
         return (await self.session.execute(stmt)).scalar() or 0

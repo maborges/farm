@@ -93,6 +93,28 @@ async def test_marcar_lidas_nao_afeta_outro_usuario():
 
 
 @pytest.mark.asyncio
+async def test_listar_filtra_por_sistema_ativo_da_preferencia_do_usuario():
+    """sistema_ativo=False na preferência do usuário deve suprimir a notificação daquele tipo para ele."""
+    tenant_id = uuid.uuid4()
+    usuario_id = uuid.uuid4()
+    notif = _make_notif()
+
+    result_mock = MagicMock()
+    result_mock.all.return_value = []  # suprimida pelo filtro sistema_ativo == True
+    session = AsyncMock()
+    session.execute = AsyncMock(return_value=result_mock)
+    session.expunge = MagicMock()
+
+    svc = NotificacaoService(session, tenant_id)
+    notificacoes = await svc.listar(usuario_id)
+
+    assert notificacoes == []
+    stmt = session.execute.call_args.args[0]
+    assert "notificacoes_preferencias" in str(stmt)
+    assert "sistema_ativo" in str(stmt)
+
+
+@pytest.mark.asyncio
 async def test_total_nao_lidas_por_usuario():
     tenant_id = uuid.uuid4()
     usuario_id = uuid.uuid4()
