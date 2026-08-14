@@ -214,6 +214,44 @@ class AlertLifecycleService:
                     "body": {"data_prevista": nova_data},
                 }
             ]
+        if alert.source_type in (
+            "CAMPO_TAREFA_ATRASADA",
+            "PECUARIA_VACINACAO_ATRASADA",
+            "PECUARIA_REPRODUCAO_DIAGNOSTICO_PENDENTE",
+            "PECUARIA_REPRODUCAO_PARTO_PREVISTO",
+            "PECUARIA_REPRODUCAO_DESMAMA_PENDENTE",
+        ) and alert.source_id:
+            # Todos são TarefaCampo (module difere só pelo generator de origem);
+            # mesmo endpoint de conclusão serve pros três domínios.
+            return [
+                {
+                    "label": "Concluir",
+                    "acao": "concluir",
+                    "endpoint": f"/campo/tarefas/{alert.source_id}/execucao",
+                    "method": "PATCH",
+                    "body": {"status_execucao": "CONCLUIDA"},
+                }
+            ]
+        if alert.source_type == "ESG_NAO_CONFORMIDADE_ABERTA" and alert.source_id:
+            return [
+                {
+                    "label": "Marcar resolvida",
+                    "acao": "resolver",
+                    "endpoint": f"/certificacoes-esg/nao-conformidades/{alert.source_id}/status",
+                    "method": "PATCH",
+                    "body": {"status": "RESOLVIDA"},
+                }
+            ]
+        if alert.source_type == "ESG_PLANO_ACAO_ATRASADO" and alert.source_id:
+            return [
+                {
+                    "label": "Concluir",
+                    "acao": "concluir",
+                    "endpoint": f"/certificacoes-esg/planos-acao/{alert.source_id}/status",
+                    "method": "PATCH",
+                    "body": {"status": "CONCLUIDO"},
+                }
+            ]
         return None
 
     async def acknowledge_alert(

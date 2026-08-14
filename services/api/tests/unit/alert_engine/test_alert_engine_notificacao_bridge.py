@@ -121,3 +121,31 @@ async def test_notificar_usuarios_nao_usa_sessao_do_chamador():
     session_usada = MockNotifSvc.call_args.args[0]
     assert session_usada is not session_do_chamador
     session_do_chamador.commit.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "source_type,endpoint_prefix,body_key,body_value",
+    [
+        ("CAMPO_TAREFA_ATRASADA", "/campo/tarefas/", "status_execucao", "CONCLUIDA"),
+        ("PECUARIA_VACINACAO_ATRASADA", "/campo/tarefas/", "status_execucao", "CONCLUIDA"),
+        ("PECUARIA_REPRODUCAO_DIAGNOSTICO_PENDENTE", "/campo/tarefas/", "status_execucao", "CONCLUIDA"),
+        ("PECUARIA_REPRODUCAO_PARTO_PREVISTO", "/campo/tarefas/", "status_execucao", "CONCLUIDA"),
+        ("PECUARIA_REPRODUCAO_DESMAMA_PENDENTE", "/campo/tarefas/", "status_execucao", "CONCLUIDA"),
+        ("ESG_NAO_CONFORMIDADE_ABERTA", "/certificacoes-esg/nao-conformidades/", "status", "RESOLVIDA"),
+        ("ESG_PLANO_ACAO_ATRASADO", "/certificacoes-esg/planos-acao/", "status", "CONCLUIDO"),
+    ],
+)
+def test_acoes_para_alerta_mapeia_tipos_novos(source_type, endpoint_prefix, body_key, body_value):
+    alert = _alert(source_type=source_type)
+    acoes = AlertLifecycleService._acoes_para_alerta(alert)
+    assert len(acoes) == 1
+    assert acoes[0]["endpoint"] == f"{endpoint_prefix}{alert.source_id}/execucao" or acoes[0][
+        "endpoint"
+    ] == f"{endpoint_prefix}{alert.source_id}/status"
+    assert acoes[0]["body"][body_key] == body_value
+    assert acoes[0]["method"] == "PATCH"
+
+
+def test_acoes_para_alerta_tipo_sem_mapeamento_retorna_none():
+    alert = _alert(source_type="ESG_CERTIFICACAO_VENCIDA")
+    assert AlertLifecycleService._acoes_para_alerta(alert) is None

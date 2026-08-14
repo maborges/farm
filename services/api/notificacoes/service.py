@@ -371,6 +371,28 @@ Exemplo de saída: 🚨 Margem caiu para 8%. Recomendamos revisar custos operaci
                 meta["acoes"] = acoes
             else:
                 meta["acoes"] = []
+        elif notif.tipo in (
+            "CAMPO_TAREFA_ATRASADA",
+            "PECUARIA_VACINACAO_ATRASADA",
+            "PECUARIA_REPRODUCAO_DIAGNOSTICO_PENDENTE",
+            "PECUARIA_REPRODUCAO_PARTO_PREVISTO",
+            "PECUARIA_REPRODUCAO_DESMAMA_PENDENTE",
+        ):
+            from core.dependencies import resolver_permissao_usuario
+
+            if await resolver_permissao_usuario(self.session, self.tenant_id, usuario_id, "campo:*"):
+                meta["acoes"] = acoes
+            else:
+                meta["acoes"] = []
+        elif notif.tipo in ("ESG_NAO_CONFORMIDADE_ABERTA", "ESG_PLANO_ACAO_ATRASADO"):
+            from core.dependencies import resolver_permissao_usuario
+
+            if await resolver_permissao_usuario(
+                self.session, self.tenant_id, usuario_id, "certificacoes_esg:*"
+            ):
+                meta["acoes"] = acoes
+            else:
+                meta["acoes"] = []
         else:
             meta["acoes"] = []
         return meta

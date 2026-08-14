@@ -204,3 +204,66 @@ async def test_endpoint_registrar_acao_delega_ao_service():
 
     MockSvc.return_value.registrar_acao.assert_awaited_once_with(usuario_id, notif_id, "accept")
     assert result == {"message": "Ação registrada"}
+
+
+def _notif_alert_engine(tipo: str, acoes: list[dict]) -> Notificacao:
+    n = Notificacao()
+    n.id = uuid.uuid4()
+    n.tenant_id = uuid.uuid4()
+    n.tipo = tipo
+    n.titulo = "Alerta"
+    n.mensagem = "msg"
+    n.nivel = "WARNING"
+    n.origem = "alert_engine"
+    n.origem_id = str(uuid.uuid4())
+    n.meta = {"acoes": acoes}
+    return n
+
+
+_CAMPO_ACAO = [{"label": "Concluir", "acao": "concluir", "endpoint": "/campo/tarefas/x/execucao"}]
+_ESG_ACAO = [{"label": "Concluir", "acao": "concluir", "endpoint": "/certificacoes-esg/planos-acao/x/status"}]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "tipo",
+    [
+        "CAMPO_TAREFA_ATRASADA",
+        "PECUARIA_VACINACAO_ATRASADA",
+        "PECUARIA_REPRODUCAO_DIAGNOSTICO_PENDENTE",
+        "PECUARIA_REPRODUCAO_PARTO_PREVISTO",
+        "PECUARIA_REPRODUCAO_DESMAMA_PENDENTE",
+    ],
+)
+async def test_campo_pecuaria_exige_permissao_campo(tipo):
+    tenant_id = uuid.uuid4()
+    usuario_id = uuid.uuid4()
+    notif = _notif_alert_engine(tipo, _CAMPO_ACAO)
+    session = AsyncMock()
+    svc = NotificacaoService(session, tenant_id)
+
+    with patch("core.dependencies.resolver_permissao_usuario", new=AsyncMock(return_value=False)):
+        meta = await svc._filtrar_acoes_por_permissao(notif, usuario_id, ja_executada=None)
+    assert meta["acoes"] == []
+
+    with patch("core.dependencies.resolver_permissao_usuario", new=AsyncMock(return_value=True)):
+        meta = await svc._filtrar_acoes_por_permissao(notif, usuario_id, ja_executada=None)
+    assert len(meta["acoes"]) == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("tipo", ["ESG_NAO_CONFORMIDADE_ABERTA", "ESG_PLANO_ACAO_ATRASADO"])
+async def test_esg_exige_permissao_certificacoes_esg(tipo):
+    tenant_id = uuid.uuid4()
+    usuario_id = uuid.uuid4()
+    notif = _notif_alert_engine(tipo, _ESG_ACAO)
+    session = AsyncMock()
+    svc = NotificacaoService(session, tenant_id)
+
+    with patch("core.dependencies.resolver_permissao_usuario", new=AsyncMock(return_value=False)):
+        meta = await svc._filtrar_acoes_por_permissao(notif, usuario_id, ja_executada=None)
+    assert meta["acoes"] == []
+
+    with patch("core.dependencies.resolver_permissao_usuario", new=AsyncMock(return_value=True)):
+        meta = await svc._filtrar_acoes_por_permissao(notif, usuario_id, ja_executada=None)
+    assert len(meta["acoes"]) == 1
