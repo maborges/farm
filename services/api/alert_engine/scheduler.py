@@ -186,6 +186,16 @@ class AlertSchedulerService:
                 status=status,
             )
         except Exception as exc:  # pragma: no cover - defensive isolation
+            # Sem rollback aqui, uma falha de flush (ex: IntegrityError) deixa a
+            # sessão compartilhada em PendingRollbackError — todo generator/tenant
+            # seguinte no mesmo run_scheduled_alerts falha em cascata com o mesmo
+            # erro genérico, mascarando a causa raiz real. Confirmado em produção
+            # (2026-08-14): FK violation num alerta de campo derrubou o generator
+            # de pecuária do mesmo tenant.
+            try:
+                await self.session.rollback()
+            except Exception:  # pragma: no cover - defensive isolation
+                pass
             logger.bind(
                 component="alert_scheduler_service",
                 scheduler_run_id=str(scheduler_run_id),

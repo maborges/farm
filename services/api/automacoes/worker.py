@@ -89,7 +89,21 @@ async def run_alerts_check():
         logger.error(f"Erro no AlertasEngine (notificacoes): {e}")
 
     try:
-        resultado_alert_engine = await run_alert_engine_scheduler(db)
+        # Domínio FIELD (campo_generator.py) desativado temporariamente: dados reais
+        # têm tarefas de campo com unidade_produtiva_id órfão (FK violation),
+        # confirmado em execução manual em 2026-08-14 — campo_generator.run() não
+        # isola por item, uma tarefa corrompida derruba o generator inteiro e
+        # repete a cada ciclo do worker (~10min) até virar incidente. Coberto pela
+        # iniciativa TENANT-FK-REPAIR (memória do projeto), ainda não executada.
+        # Reativar depois do repair, ou depois de blindar campo_generator por item.
+        resultado_alert_engine = await run_alert_engine_scheduler(
+            db, domains=["AGRICULTURE", "LIVESTOCK", "FINANCE", "SYSTEM"]
+        )
+        # run_scheduled_alerts não comita internamente — quem chama é responsável.
+        # Sem isso, os inserts em operational_alerts ficam pendentes e são
+        # descartados no db.close() (confirmado: 92 Notificacao criadas via
+        # _notificar_usuarios, mas 0 operational_alerts persistidos na 1ª execução real).
+        await db.commit()
         logger.info(f"alert_engine scheduler: {resultado_alert_engine}")
     except Exception as e:
         logger.error(f"Erro no alert_engine scheduler: {e}")
