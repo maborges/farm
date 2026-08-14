@@ -62,7 +62,16 @@ class PecuariaAlertGenerator(BaseAlertGenerator):
     ACTION_URL_MANEJO = "/dashboard/pecuaria/manejo"
 
     async def run(self, context: AlertGeneratorContext) -> AlertGeneratorResult:
-        """Execute the canonical Pecuaria generator contract."""
+        """Execute the canonical Pecuaria generator contract.
+
+        Cada item é processado isoladamente (try/except + rollback + RLS
+        restabelecido por item). Antes, um item com dado corrompido (ex:
+        unidade_produtiva_id órfão, viola FK) abortava o generator inteiro —
+        confirmado ao vivo em produção (2026-08-14, PECUARIA_VACINACAO_ATRASADA
+        derrubou a sessão do scheduler inteira). Mesmo padrão já aplicado em
+        campo_generator.py — ver memória project_tres_sistemas_alertas_mapeados.
+        """
+        from loguru import logger
 
         await set_rls_context(self.session, context.tenant_id)
         dias_sem_pesagem = int(context.metadata.get("dias_sem_pesagem", 45))
@@ -78,53 +87,74 @@ class PecuariaAlertGenerator(BaseAlertGenerator):
         result = AlertGeneratorResult(
             generator_name=self.generator_name, metadata={"rule_counters": counters}
         )
+
+        async def _recuperar(item_id: str, contador_key: str, exc: Exception) -> None:
+            try:
+                await self.session.rollback()
+                await set_rls_context(self.session, context.tenant_id)
+            except Exception:  # pragma: no cover - defensive isolation
+                pass
+            logger.bind(
+                component="pecuaria_alert_generator",
+                tenant_id=str(context.tenant_id),
+                item_id=item_id,
+                contador=contador_key,
+            ).exception("pecuaria_alert_generator_item_failed")
+            result.errors += 1
+
+        async def _processar(itens, emitir, contador_key):
+            for item in itens:
+                try:
+                    created = await emitir(context.tenant_id, item)
+                    result.created += created
+                    result.updated += 1 - created
+                    counters[contador_key] += 1
+                except Exception as exc:  # pragma: no cover - defensive isolation
+                    await _recuperar(str(item.id), contador_key, exc)
+
         for lote in await self._lotes_ativos(context.tenant_id, context.unidade_produtiva_id):
-            resumo = await self._resumo_lote(context.tenant_id, lote.id)
-            if self._deve_alertar_pesagem(resumo, dias_sem_pesagem):
-                created = await self._emitir_alerta_sem_pesagem(
-                    context.tenant_id, lote, resumo, dias_sem_pesagem
-                )
-                result.created += created
-                result.updated += 1 - created
-                counters["lotes_sem_pesagem"] += 1
-            if self._deve_alertar_custo(resumo, limite_custo):
-                created = await self._emitir_alerta_custo_sanitario(
-                    context.tenant_id,
-                    lote,
-                    resumo,
-                    limite_custo,
-                )
-                result.created += created
-                result.updated += 1 - created
-                counters["custos_sanitarios_altos"] += 1
-        for tarefa in await self._vacinacoes_atrasadas(
-            context.tenant_id, context.unidade_produtiva_id
-        ):
-            created = await self._emitir_alerta_vacinacao_atrasada(context.tenant_id, tarefa)
-            result.created += created
-            result.updated += 1 - created
-            counters["vacinacoes_atrasadas"] += 1
-        for tarefa in await self._diagnosticos_pendentes(
-            context.tenant_id, context.unidade_produtiva_id
-        ):
-            created = await self._emitir_alerta_diagnostico_pendente(context.tenant_id, tarefa)
-            result.created += created
-            result.updated += 1 - created
-            counters["diagnosticos_pendentes"] += 1
-        for tarefa in await self._partos_previstos(
-            context.tenant_id, context.unidade_produtiva_id
-        ):
-            created = await self._emitir_alerta_parto_previsto(context.tenant_id, tarefa)
-            result.created += created
-            result.updated += 1 - created
-            counters["partos_previstos"] += 1
-        for tarefa in await self._desmamas_pendentes(
-            context.tenant_id, context.unidade_produtiva_id
-        ):
-            created = await self._emitir_alerta_desmama_pendente(context.tenant_id, tarefa)
-            result.created += created
-            result.updated += 1 - created
-            counters["desmamas_pendentes"] += 1
+            try:
+                resumo = await self._resumo_lote(context.tenant_id, lote.id)
+                if self._deve_alertar_pesagem(resumo, dias_sem_pesagem):
+                    created = await self._emitir_alerta_sem_pesagem(
+                        context.tenant_id, lote, resumo, dias_sem_pesagem
+                    )
+                    result.created += created
+                    result.updated += 1 - created
+                    counters["lotes_sem_pesagem"] += 1
+                if self._deve_alertar_custo(resumo, limite_custo):
+                    created = await self._emitir_alerta_custo_sanitario(
+                        context.tenant_id,
+                        lote,
+                        resumo,
+                        limite_custo,
+                    )
+                    result.created += created
+                    result.updated += 1 - created
+                    counters["custos_sanitarios_altos"] += 1
+            except Exception as exc:  # pragma: no cover - defensive isolation
+                await _recuperar(str(lote.id), "lotes_sem_pesagem", exc)
+
+        await _processar(
+            await self._vacinacoes_atrasadas(context.tenant_id, context.unidade_produtiva_id),
+            self._emitir_alerta_vacinacao_atrasada,
+            "vacinacoes_atrasadas",
+        )
+        await _processar(
+            await self._diagnosticos_pendentes(context.tenant_id, context.unidade_produtiva_id),
+            self._emitir_alerta_diagnostico_pendente,
+            "diagnosticos_pendentes",
+        )
+        await _processar(
+            await self._partos_previstos(context.tenant_id, context.unidade_produtiva_id),
+            self._emitir_alerta_parto_previsto,
+            "partos_previstos",
+        )
+        await _processar(
+            await self._desmamas_pendentes(context.tenant_id, context.unidade_produtiva_id),
+            self._emitir_alerta_desmama_pendente,
+            "desmamas_pendentes",
+        )
         result.metadata = {"rule_counters": counters}
         return result
 
