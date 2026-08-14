@@ -107,9 +107,15 @@ async def test_sincronizar_safra_cria_para_pendentes():
 
     with patch("financeiro.services.plano_acao_service.PlanoAcaoService") as MockPlano:
         MockPlano.return_value.listar = AsyncMock(return_value=[item])
-        with patch.object(svc, "criar_sem_duplicar", AsyncMock(return_value=_make_notif())):
+        mock_criar = AsyncMock(return_value=_make_notif())
+        with patch.object(svc, "criar_sem_duplicar", mock_criar):
             resultado = await svc.sincronizar_safra(safra_id)
             assert len(resultado) == 1
+
+    dados = mock_criar.call_args.args[0]
+    acoes = dados.meta["acoes"]
+    assert {a["acao"] for a in acoes} == {"concluir", "ignorar"}
+    assert all(f"/plano-acoes/{item.id}/status" == a["endpoint"] for a in acoes)
 
 
 @pytest.mark.asyncio

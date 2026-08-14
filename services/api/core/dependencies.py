@@ -826,6 +826,34 @@ async def resolver_permissao_usuario(
     return False
 
 
+async def resolver_role_tenant_usuario(
+    session: AsyncSession,
+    tenant_id: uuid.UUID,
+    usuario_id: uuid.UUID,
+) -> str | None:
+    """Retorna o nome de perfil (role) do usuário no tenant, em minúsculas.
+
+    Mesma resolução usada por `require_role` no login (`auth_service.py`, onde
+    `fazendas_auth[i].role = perfil.nome.lower()` vem do perfil do TenantUsuario,
+    não de `FazendaUsuario.perfil_fazenda_id` — ignorado ali também). `is_owner`
+    é tratado como "admin", igual ao `require_role`. Retorna None se sem vínculo ativo.
+    """
+    from core.models.auth import TenantUsuario, PerfilAcesso
+
+    stmt = (
+        select(TenantUsuario, PerfilAcesso)
+        .outerjoin(PerfilAcesso, TenantUsuario.perfil_id == PerfilAcesso.id)
+        .where(TenantUsuario.tenant_id == tenant_id, TenantUsuario.usuario_id == usuario_id, TenantUsuario.status == "ATIVO")
+    )
+    row = (await session.execute(stmt)).first()
+    if row is None:
+        return None
+    tenant_usuario, perfil_acesso = row
+    if tenant_usuario.is_owner:
+        return "admin"
+    return perfil_acesso.nome.lower() if perfil_acesso else None
+
+
 def require_tenant_permission(permission: str):
     """Dependency para verificar permissão específica no contexto do tenant."""
     async def _dependency(

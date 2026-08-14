@@ -267,6 +267,12 @@ Exemplo de saída: 🚨 Margem caiu para 8%. Recomendamos revisar custos operaci
                 nivel=NIVEL_MAP.get(item.prioridade, "INFO"),
                 origem="plano_acao",
                 origem_id=str(item.id),
+                meta={
+                    "acoes": [
+                        {"label": "Concluir", "acao": "concluir", "endpoint": f"/plano-acoes/{item.id}/status", "method": "PATCH", "body": {"status": "CONCLUIDA"}},
+                        {"label": "Ignorar", "acao": "ignorar", "endpoint": f"/plano-acoes/{item.id}/status", "method": "PATCH", "body": {"status": "IGNORADA"}},
+                    ]
+                },
             ))
             if notif:
                 criadas.append(notif)
@@ -349,6 +355,19 @@ Exemplo de saída: 🚨 Margem caiu para 8%. Recomendamos revisar custos operaci
             from core.dependencies import resolver_permissao_usuario
 
             if await resolver_permissao_usuario(self.session, self.tenant_id, usuario_id, "rh:*"):
+                meta["acoes"] = acoes
+            else:
+                meta["acoes"] = []
+        elif notif.tipo == "PLANO_ACAO":
+            # PATCH /plano-acoes/{id}/status não tem checagem de permissão hoje
+            # (nenhuma Depends de RBAC no endpoint) — qualquer usuário do tenant
+            # com sessão válida já pode chamá-lo, então não há nada a filtrar aqui.
+            meta["acoes"] = acoes
+        elif notif.tipo == "TAREFAS_ATRASADAS":
+            from core.dependencies import resolver_role_tenant_usuario
+
+            role = await resolver_role_tenant_usuario(self.session, self.tenant_id, usuario_id)
+            if role in ("agronomo", "admin", "operador"):
                 meta["acoes"] = acoes
             else:
                 meta["acoes"] = []

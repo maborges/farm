@@ -31,6 +31,25 @@ def _notif_recomendacao(origem_id: str) -> Notificacao:
     return n
 
 
+def _notif_plano_acao(item_id: str) -> Notificacao:
+    n = Notificacao()
+    n.id = uuid.uuid4()
+    n.tenant_id = uuid.uuid4()
+    n.tipo = "PLANO_ACAO"
+    n.titulo = "Ação pendente"
+    n.mensagem = "msg"
+    n.nivel = "WARNING"
+    n.origem = "plano_acao"
+    n.origem_id = item_id
+    n.meta = {
+        "acoes": [
+            {"label": "Concluir", "acao": "concluir", "endpoint": f"/plano-acoes/{item_id}/status", "method": "PATCH", "body": {"status": "CONCLUIDA"}},
+            {"label": "Ignorar", "acao": "ignorar", "endpoint": f"/plano-acoes/{item_id}/status", "method": "PATCH", "body": {"status": "IGNORADA"}},
+        ]
+    }
+    return n
+
+
 def _notif_diaria() -> Notificacao:
     n = Notificacao()
     n.id = uuid.uuid4()
@@ -98,6 +117,22 @@ async def test_filtra_acoes_diaria_pendente_permitida():
         meta = await svc._filtrar_acoes_por_permissao(notif, usuario_id, ja_executada=None)
 
     assert len(meta["acoes"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_plano_acao_nao_filtra_por_permissao_endpoint_sem_rbac():
+    """PATCH /plano-acoes/{id}/status não tem checagem de permissão hoje — ações passam direto."""
+    tenant_id = uuid.uuid4()
+    usuario_id = uuid.uuid4()
+    item_id = str(uuid.uuid4())
+    notif = _notif_plano_acao(item_id)
+    session = AsyncMock()
+    svc = NotificacaoService(session, tenant_id)
+
+    meta = await svc._filtrar_acoes_por_permissao(notif, usuario_id, ja_executada=None)
+
+    assert len(meta["acoes"]) == 2
+    assert {a["acao"] for a in meta["acoes"]} == {"concluir", "ignorar"}
 
 
 @pytest.mark.asyncio
