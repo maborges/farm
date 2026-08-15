@@ -98,7 +98,7 @@ Cadeia completa Requisição→Cotação→Aprovação→Pedido→Recebimento→
 
 ## 10. Custos e Financeiro (H)
 
-`CostAllocation` (Numeric) é a apropriação econômica oficial conforme domain-map. **Duplicação confirmada e ativa**: `Rateio` (`financeiro/models/rateio.py`, Float) coexiste sem unificação (reconfirma `project_rateio_unificacao_adiada.md`) — sem guardrail de exclusividade visto no código, existe risco real de double-counting se ambos forem usados para o mesmo fato. Contas a pagar/receber não têm classe dedicada (usa `Despesa`/`Receita`). Depreciação e custos indiretos formais não localizados. Custo planejado×realizado existe a nível de `Cultivo` mas não como relatório consolidado único confirmado.
+`CostAllocation` (Numeric) é a apropriação econômica oficial conforme domain-map. **Duplicação re-investigada em 2026-08-15 (ver Adendo, Seção 21.3)**: `Rateio` (`financeiro/models/rateio.py`) coexiste com `CostAllocation`, mas a investigação a fundo mostrou que **não há double-counting ativo hoje** — `Rateio` já é projetado automaticamente e de forma idempotente para `CostAllocation` (`source='FIN_RATEIO'`, `fin_rateio_id`), confirmado 1:1 exato em produção (4 rateios ↔ 4 allocations projetadas, zero sobreposição). O `Float` de `Rateio.valor_rateado`/`percentual` foi corrigido para `Numeric` nesta mesma data. Risco residual, menor do que originalmente classificado: o relatório "Centro de Custos" (`financeiro/services/relatorio_service.py::centro_custos`) lê `Rateio` diretamente, sem unificação com `CostAllocation` — não duplica hoje (relatório isolado), mas pode divergir se algum dia for combinado com o DRE agrícola. Contas a pagar/receber não têm classe dedicada (usa `Despesa`/`Receita`). Depreciação e custos indiretos formais não localizados. Custo planejado×realizado existe a nível de `Cultivo` mas não como relatório consolidado único confirmado.
 
 ## 11. Produção/Pós-colheita (I)
 
@@ -124,7 +124,7 @@ Campo PWA (`apps/campo/`, Next.js separado) tem arquitetura offline genuína: De
 
 | Duplicação | Status | Evidência | Severidade |
 |---|---|---|---|
-| Rateio (Float) vs CostAllocation (Numeric) | Confirmado, ativo | `financeiro/models/rateio.py:8` vs `agricola/custos/models.py:11` | ALTO |
+| Rateio vs CostAllocation | Re-investigado 2026-08-15: projeção automática idempotente, sem double-counting; Float→Numeric corrigido | `financeiro/models/rateio.py:8` vs `agricola/custos/models.py:11`, `agricola/custos/allocation_service.py::registrar_allocations_fin_rateio` | BAIXO (era ALTO) |
 | 3 sistemas de alertas (alert_engine / notificacoes.AlertasEngine / dispersos) | Confirmado, parcialmente conectado | `alert_engine/service.py:150-183` espelha unidirecionalmente em `Notificacao` só na criação | ALTO |
 | notificacoes/ vs notifications/ | Confirmado, mas com ponte funcional (`recommendations/notification_bridge.py:11-22`) | — | MÉDIO |
 | ConfinamentoLote.ganho_medio_diario vs gmd_utils | Confirmado, 0 call-sites cruzados | `enterprise/models/sprints_27_33.py:253` | MÉDIO |
@@ -142,12 +142,14 @@ Campo PWA (`apps/campo/`, Next.js separado) tem arquitetura offline genuína: De
 - ~~Tarefa multi-talhão (`SafraTarefa.talhao_id is None`) não gera `OperacaoAgricola`~~ — **RESOLVIDO em 2026-08-15** (Adendo Seção 21). Nenhum GAP CRÍTICO permanece aberto desta auditoria.
 
 **ALTO**
-- Rateio (Float) vs CostAllocation (Numeric) sem exclusividade garantida — risco de dupla contabilização de custo.
 - Float ainda presente em `SaldoEstoque`, `LoteEstoque`, `ItemRequisicao`, `ReservaEstoque` — viola padrão do projeto e é fonte potencial de erro de arredondamento em valores de estoque.
 - 3 sistemas de alertas com ponte apenas parcial/unidirecional — risco de alerta "preso" sem chegar ao sino em updates.
 - CAR com dois models concorrentes e suspeita de funcionalidade rica (APP, desmatamento, CCIR) não servida pelo router ativo.
 - Vínculo `operacao_execucao_id` opcional no ledger de estoque — saída pode ficar sem produção vinculada.
 - Infraestrutura fixa (estradas, cercas, poços, galpões) sem workflow de manutenção/custo — só frota móvel tem.
+
+**BAIXO (rebaixado em 2026-08-15)**
+- ~~Rateio (Float) vs CostAllocation (Numeric) sem exclusividade garantida~~ — investigação confirmou projeção idempotente sem double-counting; `Float` corrigido para `Numeric` (Seção 21.3). Risco residual: relatório "Centro de Custos" ainda lê `Rateio` bruto, sem unificação com `CostAllocation`.
 
 **MÉDIO**
 - Beneficiamento pós-colheita específico a café, sem generalização para outras culturas.
@@ -173,8 +175,8 @@ Campo PWA (`apps/campo/`, Next.js separado) tem arquitetura offline genuína: De
 
 ## 18. Riscos Arquiteturais
 
-1. **Duplicação econômica sem guardrail**: convivência ativa de Rateio e CostAllocation sem mecanismo que impeça o mesmo fato ser rateado duas vezes.
-2. **Migração de tipos incompleta**: parte do domínio de estoque já é `Numeric`, parte ainda `Float` — inconsistência que pode mascarar bugs de arredondamento em relatórios financeiros.
+1. ~~**Duplicação econômica sem guardrail**: convivência ativa de Rateio e CostAllocation sem mecanismo que impeça o mesmo fato ser rateado duas vezes~~ — **RE-AVALIADO em 2026-08-15** (Seção 21.3): existe guardrail (`fin_rateio_id` + `source='FIN_RATEIO'` + constraint de idempotência), confirmado sem double-counting em produção. Risco residual rebaixado a BAIXO: relatório "Centro de Custos" ainda não unificado com `CostAllocation`.
+2. **Migração de tipos incompleta**: parte do domínio de estoque ainda usa `Float` (`SaldoEstoque`, `LoteEstoque`, `ItemRequisicao`, `ReservaEstoque`) — `Rateio` já corrigido em 2026-08-15 (Seção 21.3) — inconsistência remanescente pode mascarar bugs de arredondamento em relatórios financeiros.
 3. **Shadowing de pacote Python em `ambiental/`**: arquivo `models.py` e pacote `models/` coexistindo no mesmo namespace é um padrão frágil, propenso a import ambíguo e funcionalidade "fantasma".
 4. **Cadeia de "lote" com 3+ nomenclaturas** (ProdutoColhido/LoteBeneficiamento/LoteRastreabilidade/CadernoLoteComercial) aumenta risco de drift entre etapas se alguma atualização não propagar.
 5. **Sistemas de alertas fragmentados**: mesmo com ponte parcial, a arquitetura de 3 motores aumenta custo de manutenção e risco de comportamento inconsistente entre eles.
@@ -194,8 +196,8 @@ Campo PWA (`apps/campo/`, Next.js separado) tem arquitetura offline genuína: De
 ## 20. Recomendação de Próximos Passos
 
 Sem propor refatoração ampla, e em ordem de exposição de risco/esforço:
-1. Investigar e decidir formalmente (produto, não código): Rateio vs CostAllocation — qual é o caminho único daqui pra frente.
-2. Completar a migração Float→Numeric nas 4 tabelas de estoque identificadas (escopo cirúrgico, já mapeado).
+1. ~~Investigar e decidir formalmente (produto, não código): Rateio vs CostAllocation~~ — **CONCLUÍDO em 2026-08-15** (Seção 21.3): investigação encontrou projeção automática idempotente já em produção (sem double-counting); `Rateio` migrado de `Float` para `Numeric`. Decisão de produto: manter os dois models (fontes/granularidades diferentes — despesa financeira vs. custo operacional), com `Rateio` permanecendo a origem e `CostAllocation` a agregação oficial. Próximo passo derivado (não crítico): unificar o relatório "Centro de Custos" para ler via `CostAllocation`.
+2. Completar a migração Float→Numeric nas 4 tabelas de estoque identificadas (escopo cirúrgico, já mapeado; `Rateio` já corrigido em 2026-08-15, ver item 1).
 3. Confirmar/relatar (2ª auditoria pontual) o shadowing em `ambiental/models.py` vs `ambiental/models/car.py` e decidir qual é o vivo.
 4. ~~Endereçar o GAP crítico de custo/margem por lote comercializado~~ — **CONCLUÍDO em 2026-08-15** (Seção 21). ~~Decidir a fonte oficial~~ — **CONCLUÍDO em 2026-08-15**: Alternativa C é a fonte oficial (ver Seção 21). Próximos passos derivados: (i) implementar consumo em frontend usando os endpoints de C; (ii) avaliar tornar `ComercializacaoCommodity.produto_colhido_id` obrigatório (hoje `nullable`).
 5. ~~Resolver o hard-stop de tarefa multi-talhão~~ — **CONCLUÍDO em 2026-08-15** (Seção 21): adotado fan-out (dividir a tarefa por talhão), não `OperacaoAgricola` multi-área. Próximo passo derivado: expor `talhoes_ids` no frontend de criação de tarefa (hoje só backend).
@@ -258,11 +260,21 @@ Fecha o segundo GAP CRÍTICO da auditoria original (Seções 4, 17, 20): `SafraT
 - **Testes**: `tests/integration/agricola/test_tarefa_multi_talhao.py` (4 casos: fan-out correto com `grupo_geracao_id` compartilhado, rejeição de `criar()` sem talhão, rejeição de `criar_multi_talhao()` sem lista, rejeição com os dois campos preenchidos).
 - **O que permanece em aberto**: `talhoes_ids` ainda não é consumido no frontend de criação de tarefa (só backend).
 
+## 21.3 — Adendo (2026-08-15) — Duplicação Rateio vs CostAllocation re-investigada e rebaixada
+
+Fecha o item ALTO da Seção 17/18/20: duplicação econômica entre `Rateio` (`financeiro/models/rateio.py`) e `CostAllocation` (`agricola/custos/models.py`), classificada na auditoria original como "confirmada e ativa, risco real de double-counting".
+
+- **Achado principal**: a investigação a fundo mostrou que **não há dupla contabilização de fato hoje**. A arquitetura já é um sistema de origem→projeção: toda `Despesa` criada com `Rateio` é automaticamente projetada para `CostAllocation` por `registrar_allocations_fin_rateio()` (`agricola/custos/allocation_service.py`), com marca de proveniência (`source='FIN_RATEIO'`, `fin_rateio_id`) e guarda de idempotência (`NOT EXISTS` no `INSERT...SELECT`). Constraint de banco (`step19_cost_allocations.py`) garante consistência entre `source` e `fin_rateio_id`. Em produção: 4 `Rateio` ↔ 4 `CostAllocation` projetadas (1:1 exato), zero despesa com rateio E allocation direta concorrente.
+- **Correção aplicada**: `Rateio.valor_rateado`/`percentual` migrados de `Float` para `Numeric(15,2)`/`Numeric(7,4)` — `financeiro/models/rateio.py`, migration `20260815_rateio_float_para_numeric.py` (`op.execute("COMMIT")` após `alter_column`, `postgresql_using` para cast seguro dos dados existentes).
+- **Decisão de produto**: manter os dois models — não são duplicação acidental, são granularidades diferentes (`Rateio` = despesa financeira R$→safra/talhão; `CostAllocation` = apropriação de custo por `ProductionUnit`, de múltiplas fontes além de despesas). Unificá-los eliminaria a distinção útil entre "lançamento financeiro de origem" e "apropriação econômica agregada".
+- **Risco residual (rebaixado de ALTO para BAIXO)**: o relatório "Centro de Custos" (`financeiro/services/relatorio_service.py::centro_custos`) lê `Rateio` diretamente, sem qualquer verificação cruzada com `CostAllocation` — não duplica hoje porque é um relatório isolado (não soma nada vindo de `CostAllocation`), mas ficaria inconsistente se um dia for combinado com o DRE agrícola. Não endereçado nesta rodada — fix de baixo risco/esforço, mas mexe em relatório financeiro já em uso; recomenda-se tratar isoladamente se/quando houver necessidade real de visão combinada.
+- **Testes**: suíte `tarefa`/`despesa`/`rateio` (`tests/test_operational_workflow_governance_step08.py`, `tests/test_dre_agricola_v1.py`) roda sem regressão após a migration. 15 falhas de integração pré-existentes em `test_despesas.py`/`test_launch_core01_operational_cost_engine.py` (permissão 403, mocks quebrados) reconfirmadas idênticas em código não modificado via `git stash` — não relacionadas a esta mudança.
+
 ---
 
 ## STATUS DA COBERTURA OPERACIONAL: **PARCIAL**
 
-A aplicação cobre com solidez a maior parte do ciclo agrícola, pecuário, de máquinas e de mão de obra, com um núcleo arquitetural coerente (ProductionUnit/CostAllocation/OperacaoAgricola). Os dois GAPs CRÍTICOS originais (elo Produção→Resultado quebrado, e hard-stop de tarefa multi-talhão) foram resolvidos em 2026-08-15 (Seção 21) — nenhum ponto de ruptura formal (hard-stop de código) permanece identificado por esta auditoria. O status segue **PARCIAL**, não "ADEQUADA/MADURA", porque duplicações econômicas ativas sem guardrail (Rateio-Float vs CostAllocation-Numeric, 3 sistemas de alertas, CAR com dois models concorrentes) e a migração incompleta Float→Numeric em estoque continuam colocando em risco a confiabilidade dos números de custo/resultado — riscos de qualidade/consistência, não mais de bloqueio operacional.
+A aplicação cobre com solidez a maior parte do ciclo agrícola, pecuário, de máquinas e de mão de obra, com um núcleo arquitetural coerente (ProductionUnit/CostAllocation/OperacaoAgricola). Os dois GAPs CRÍTICOS originais (elo Produção→Resultado quebrado, e hard-stop de tarefa multi-talhão) foram resolvidos em 2026-08-15 (Seção 21) — nenhum ponto de ruptura formal (hard-stop de código) permanece identificado por esta auditoria. A duplicação Rateio vs CostAllocation, antes classificada ALTO, foi re-investigada e rebaixada a BAIXO (Seção 21.3) — não há double-counting ativo. O status segue **PARCIAL**, não "ADEQUADA/MADURA", porque a migração incompleta Float→Numeric em estoque (4 tabelas restantes), 3 sistemas de alertas fragmentados e o CAR com dois models concorrentes continuam colocando em risco a confiabilidade/consistência de dados — riscos de qualidade, não mais de bloqueio operacional ou double-counting confirmado.
 
 ### Resposta objetiva
 

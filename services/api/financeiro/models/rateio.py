@@ -1,6 +1,7 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import String, Boolean, DateTime, Float, ForeignKey
+from decimal import Decimal
+from sqlalchemy import String, Boolean, DateTime, Numeric, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy import Uuid as UUID
 from core.database import Base
@@ -31,8 +32,8 @@ class Rateio(Base):
         UUID(as_uuid=True), ForeignKey("cadastros_areas_rurais.id", ondelete="SET NULL"), nullable=True
     )
     
-    valor_rateado: Mapped[float] = mapped_column(Float, nullable=False)
-    percentual: Mapped[float] = mapped_column(Float, nullable=False) # 1 a 100%
+    valor_rateado: Mapped[Decimal] = mapped_column(Numeric(15, 2), nullable=False)
+    percentual: Mapped[Decimal] = mapped_column(Numeric(7, 4), nullable=False)  # 1 a 100%
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
