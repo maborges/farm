@@ -51,6 +51,34 @@ async def run_erp_sync_loop() -> None:
         await asyncio.sleep(60)
 
 
+async def run_marcar_vencidos_loop() -> None:
+    """Marca receituários agronômicos e devoluções de embalagens vencidos por data.
+
+    Sem esse job, `status` ficava indefinidamente em EMITIDO/PENDENTE mesmo com a
+    data de validade/prazo já ultrapassada — o vencimento só era percebido em
+    checagens de runtime pontuais, nunca refletido no dado persistido
+    (OPERATIONS-GAP-01 §21.25).
+    """
+    from core.database import async_session_maker
+    from agricola.receituario_agronomico.vencimento_service import marcar_receituarios_vencidos
+    from agricola.logistica_reversa_embalagens.vencimento_service import marcar_devolucoes_vencidas
+
+    while True:
+        try:
+            await asyncio.sleep(3600)
+            async with async_session_maker() as session:
+                receituarios = await marcar_receituarios_vencidos(session)
+                embalagens = await marcar_devolucoes_vencidas(session)
+                if receituarios or embalagens:
+                    logger.info(
+                        f"[job] vencidos marcados: {receituarios} receituário(s), {embalagens} devolução(ões)"
+                    )
+        except asyncio.CancelledError:
+            break
+        except Exception as exc:
+            logger.error(f"[job] marcar_vencidos erro: {exc}")
+
+
 async def run_recommendation_scheduler_loop() -> None:
     """Execute the canonical recommendation scheduler through the shared worker."""
     from recommendations.scheduler import run_scheduled_recommendation_cycle
@@ -77,6 +105,7 @@ async def run_background_jobs() -> None:
         asyncio.create_task(run_resumo_diario_loop()),
         asyncio.create_task(run_erp_sync_loop()),
         asyncio.create_task(run_recommendation_scheduler_loop()),
+        asyncio.create_task(run_marcar_vencidos_loop()),
     ]
     try:
         await asyncio.gather(*tasks)
