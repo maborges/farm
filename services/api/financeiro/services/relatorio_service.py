@@ -407,6 +407,14 @@ class RelatorioService:
         """
         Custo por centro de custo (safra/talhão).
         Considera apenas despesas pagas (PAGO/PAGO_PARCIAL) com rateios no período.
+
+        AVISO (OPERATIONS-GAP-01 §21.10): soma exclusivamente `Rateio` (fin_rateios),
+        nunca `CostAllocation` (agricola/custos/models.py) — hoje sem risco de dupla
+        contagem porque nenhum consumidor combina os dois. Se este relatório algum dia
+        for cruzado/somado com métricas vindas de `CostAllocation` (ex.: DRE agrícola),
+        excluir explicitamente `CostAllocation.source == "FIN_RATEIO"` do outro lado da
+        soma — esses registros já são a projeção controlada de um `Rateio` (rastreável
+        via `CostAllocation.fin_rateio_id`), somar os dois duplicaria o valor.
         """
         # Lookups
         planos_stmt = select(PlanoConta).where(PlanoConta.tenant_id == self.tenant_id)

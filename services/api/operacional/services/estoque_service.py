@@ -998,13 +998,17 @@ class EstoqueService(BaseService[SaldoEstoque]):
         # Ajuste de inventário não tem custo próprio (só corrige contagem) —
         # custo médio permanece o mesmo, seja o ajuste positivo ou negativo.
         custo_medio_atual = float(saldo.custo_medio) if saldo.custo_medio is not None else None
+        # OPERATIONS-GAP-01 §21.13: categoria_ajuste="PERDA" grava origem="PERDA"
+        # em vez de "AJUSTE" genérico, permitindo filtrar/reportar perdas
+        # separadamente. Demais categorias mantêm o comportamento anterior.
+        origem = "PERDA" if data.categoria_ajuste == "PERDA" else "AJUSTE"
         mov = await self._registrar_movimento(
             deposito_id=data.deposito_id,
             produto_id=data.produto_id,
             tipo="AJUSTE",
             quantidade=diff,
             motivo=data.motivo,
-            origem_tipo="AJUSTE",
+            origem_tipo=origem,
             custo_medio_anterior=custo_medio_atual,
             custo_medio_resultante=custo_medio_atual,
         )

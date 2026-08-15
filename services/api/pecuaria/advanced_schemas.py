@@ -79,6 +79,14 @@ class ConfinamentoLoteCreate(BaseModel):
     observacoes: Optional[str] = None
 
 
+class ConfinamentoLoteEncerrar(BaseModel):
+    """OPERATIONS-GAP-01 §21.12: encerramento do lote, único ponto que grava
+    peso_saida_kg/ganho_medio_diario — antes inexistente, campo sempre NULL."""
+    peso_saida_kg: float = Field(..., gt=0)
+    data_saida_real: date
+    consumo_total_racao_kg: Optional[float] = Field(None, gt=0)
+
+
 class ConfinamentoLoteResponse(BaseModel):
     id: int
     tenant_id: str

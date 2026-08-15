@@ -54,6 +54,7 @@ class LoteComercialCreate(BaseModel):
     quantidade_volumes: int
     produto_colhido_id: Optional[UUID] = None
     lote_beneficiamento_id: Optional[UUID] = None
+    lote_rastreabilidade_id: Optional[UUID] = None
 
 
 class LoteComercialResponse(BaseModel):
@@ -62,6 +63,7 @@ class LoteComercialResponse(BaseModel):
     comercializacao_id: UUID
     produto_colhido_id: Optional[UUID] = None
     lote_beneficiamento_id: Optional[UUID] = None
+    lote_rastreabilidade_id: Optional[UUID] = None
     codigo_lote: str
     qr_code_token: str
     peso_liquido_kg: float

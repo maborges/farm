@@ -15,6 +15,8 @@ from enterprise.models.sprints_27_33 import (
 )
 from pecuaria.animal.models import Animal, EventoAnimal
 from pecuaria.producao.models import ProducaoLeite
+from pecuaria.services.gmd_utils import calcular_gmd
+from core.exceptions import BusinessRuleError, EntityNotFoundError
 
 
 class PecuariaAdvancedService:
@@ -198,6 +200,43 @@ class PecuariaAdvancedService:
         await self.session.flush()
         await self.session.refresh(obj)
         return obj
+
+    async def encerrar_confinamento(
+        self, lote_id: int, peso_saida_kg: float, data_saida_real: date,
+        consumo_total_racao_kg: float | None = None,
+    ) -> ConfinamentoLote:
+        """OPERATIONS-GAP-01 §21.12: único ponto de escrita de peso_saida_kg/
+        ganho_medio_diario — antes deste método o campo nunca era preenchido
+        (sempre NULL/0 no dashboard). Usa gmd_utils.calcular_gmd, a mesma fonte
+        já usada por pesagem_service.py/lote_indicadores_service.py."""
+        stmt = select(ConfinamentoLote).where(
+            ConfinamentoLote.id == lote_id,
+            ConfinamentoLote.tenant_id == self.tenant_id,
+        )
+        lote = (await self.session.execute(stmt)).scalar_one_or_none()
+        if lote is None:
+            raise EntityNotFoundError(f"Lote de confinamento {lote_id} não encontrado.")
+        if lote.status == "terminado":
+            raise BusinessRuleError("Lote de confinamento já está encerrado.")
+        if lote.peso_inicial_kg is None:
+            raise BusinessRuleError("Lote sem peso_inicial_kg cadastrado — não é possível calcular o GMD.")
+
+        dias = (data_saida_real - lote.data_entrada).days
+        gmd = calcular_gmd(peso_saida_kg, lote.peso_inicial_kg, dias)
+
+        lote.peso_saida_kg = peso_saida_kg
+        lote.data_saida_real = data_saida_real
+        lote.ganho_medio_diario = gmd
+        lote.status = "terminado"
+
+        if consumo_total_racao_kg is not None:
+            ganho_total_kg = peso_saida_kg - lote.peso_inicial_kg
+            if ganho_total_kg > 0:
+                lote.conversao_alimentar = round(consumo_total_racao_kg / ganho_total_kg, 3)
+
+        await self.session.flush()
+        await self.session.refresh(lote)
+        return lote
 
     async def listar_racoes(self, skip: int = 0, limit: int = 100) -> list[RacaoTMR]:
         stmt = (

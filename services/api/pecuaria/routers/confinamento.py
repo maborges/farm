@@ -5,6 +5,7 @@ from typing import List
 from core.dependencies import get_session, get_tenant_id, require_module
 from pecuaria.advanced_schemas import (
     ConfinamentoLoteCreate,
+    ConfinamentoLoteEncerrar,
     ConfinamentoLoteResponse,
     RacaoTMRCreate,
     RacaoTMRResponse,
@@ -49,6 +50,22 @@ async def criar_lote(
 ):
     svc = PecuariaAdvancedService(session, tenant_id)
     obj = await svc.criar_confinamento(payload.model_dump(exclude_none=True))
+    await session.commit()
+    await session.refresh(obj)
+    return obj
+
+
+@router.post("/lotes/{lote_id}/encerrar", response_model=ConfinamentoLoteResponse)
+async def encerrar_lote(
+    lote_id: int,
+    payload: ConfinamentoLoteEncerrar,
+    tenant_id=Depends(get_tenant_id),
+    session: AsyncSession = Depends(get_session),
+):
+    svc = PecuariaAdvancedService(session, tenant_id)
+    obj = await svc.encerrar_confinamento(
+        lote_id, payload.peso_saida_kg, payload.data_saida_real, payload.consumo_total_racao_kg
+    )
     await session.commit()
     await session.refresh(obj)
     return obj

@@ -186,6 +186,33 @@ async def test_ajuste_inventario(client, session, headers_operacional):
     assert response.status_code in (200, 201), response.text
 
 
+@pytest.mark.asyncio
+async def test_ajuste_categoria_perda_grava_origem_perda(client, session, headers_operacional):
+    """OPERATIONS-GAP-01 §21.13: categoria_ajuste='PERDA' grava origem='PERDA'
+    em vez de 'AJUSTE' genérico, permitindo relatório de perdas separado."""
+    await _garantir_suporte(session)
+
+    response = await client.post(
+        "/api/v1/estoque/movimentacoes/ajuste",
+        json={
+            "produto_id": str(PRODUTO_ID),
+            "deposito_id": str(DEPOSITO_A_ID),
+            "quantidade_nova": 80.0,
+            "motivo": "Sacos danificados por umidade",
+            "categoria_ajuste": "PERDA",
+        },
+        headers=headers_operacional,
+    )
+
+    assert response.status_code in (200, 201), response.text
+    mov_id = response.json()["id"]
+
+    origem = (await session.execute(
+        text("SELECT origem FROM estoque_movimentos WHERE id = :id"), {"id": mov_id}
+    )).scalar_one()
+    assert origem == "PERDA"
+
+
 # ---------------------------------------------------------------------------
 # OPR-MOV-06: Saldo negativo retorna erro
 # ---------------------------------------------------------------------------

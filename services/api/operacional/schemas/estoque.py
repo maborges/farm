@@ -179,6 +179,11 @@ class AjusteEstoqueRequest(BaseModel):
     produto_id: uuid.UUID
     quantidade_nova: float = Field(..., ge=0, description="Quantidade correta após inventário")
     motivo: str = Field(..., min_length=3, max_length=255)
+    # OPERATIONS-GAP-01 §21.13: antes só existia "AJUSTE" genérico, sem distinguir
+    # perda física (quebra/deterioração) de contagem de inventário ou correção de
+    # lançamento — impossibilitando relatório de perdas. Default preserva o
+    # comportamento anterior (toda origem seguia como "AJUSTE").
+    categoria_ajuste: Literal["CONTAGEM_INVENTARIO", "PERDA", "CORRECAO_LANCAMENTO"] = "CONTAGEM_INVENTARIO"
 
 
 class AjusteMovimentoRequest(BaseModel):

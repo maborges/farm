@@ -57,6 +57,7 @@ def _normalizar_origem(origem: str | None) -> str:
         "IMPLANTACAO",
         "PECUARIA_VACINACAO",
         "REQUISICAO",
+        "PERDA",
     }:
         return "MANUAL"
     return normalizada

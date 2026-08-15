@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from core.exceptions import BusinessRuleError, EntityNotFoundError
 from enterprise.models.sprints_27_33 import AnimalGenetica, ConfinamentoLote, Cocho, RacaoTMR, SugestaoAcasalamento
 from pecuaria.advanced_service import PecuariaAdvancedService
 from pecuaria.producao.models import ProducaoLeite
@@ -51,6 +52,57 @@ async def test_resumo_confinamento_agrega_lotes() -> None:
     assert resumo["total_cochos"] == 1
     assert resumo["gmd_medio"] == pytest.approx(1.4)
     assert resumo["conversao_media"] == pytest.approx(5.95)
+
+
+def _result_one(item):
+    result = MagicMock()
+    result.scalar_one_or_none.return_value = item
+    return result
+
+
+async def test_encerrar_confinamento_calcula_gmd_via_gmd_utils() -> None:
+    """OPERATIONS-GAP-01 §21.12: encerrar_confinamento era o gap — antes deste
+    método, ganho_medio_diario nunca era escrito (sempre NULL)."""
+    session = AsyncMock()
+    tenant_id = uuid.uuid4()
+    lote = MagicMock(
+        spec=ConfinamentoLote, id=1, status="confinado",
+        peso_inicial_kg=300.0, data_entrada=date(2026, 1, 1),
+    )
+    session.execute.return_value = _result_one(lote)
+
+    resultado = await PecuariaAdvancedService(session, tenant_id).encerrar_confinamento(
+        lote_id=1, peso_saida_kg=450.0, data_saida_real=date(2026, 4, 1),
+    )
+
+    assert resultado is lote
+    assert lote.peso_saida_kg == 450.0
+    assert lote.status == "terminado"
+    # (450 - 300) / 90 dias = 1.667
+    assert lote.ganho_medio_diario == pytest.approx(1.667)
+
+
+async def test_encerrar_confinamento_lote_inexistente_falha() -> None:
+    session = AsyncMock()
+    tenant_id = uuid.uuid4()
+    session.execute.return_value = _result_one(None)
+
+    with pytest.raises(EntityNotFoundError):
+        await PecuariaAdvancedService(session, tenant_id).encerrar_confinamento(
+            lote_id=999, peso_saida_kg=450.0, data_saida_real=date(2026, 4, 1),
+        )
+
+
+async def test_encerrar_confinamento_ja_terminado_falha() -> None:
+    session = AsyncMock()
+    tenant_id = uuid.uuid4()
+    lote = MagicMock(spec=ConfinamentoLote, status="terminado")
+    session.execute.return_value = _result_one(lote)
+
+    with pytest.raises(BusinessRuleError):
+        await PecuariaAdvancedService(session, tenant_id).encerrar_confinamento(
+            lote_id=1, peso_saida_kg=450.0, data_saida_real=date(2026, 4, 1),
+        )
 
 
 async def test_resumo_leite_agrega_volume() -> None:
