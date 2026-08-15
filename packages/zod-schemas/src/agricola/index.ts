@@ -11,3 +11,5 @@ export * from "./agronomo";
 export * from "./agronomico";
 export * from "./template";
 export * from "./produto-colhido";
+export * from "./receituario";
+export * from "./logistica-reversa";
