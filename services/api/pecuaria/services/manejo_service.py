@@ -7,12 +7,9 @@ from core.base_service import BaseService
 from core.exceptions import EntityNotFoundError, BusinessRuleError
 from pecuaria.models.manejo import ManejoLote
 from pecuaria.animal.models import LoteAnimal as LoteBovino
-from pecuaria.schemas.manejo_schema import ManejoLoteCreate
+from pecuaria.schemas.manejo_schema import ManejoLoteCreate, TIPO_EVENTO_VALID
 
-TIPOS_VALIDOS = {
-    "NASCIMENTO", "MORTE", "PESAGEM", "VACINACAO",
-    "TRANSFERENCIA", "MEDICACAO", "VENDA", "ABATE",
-}
+TIPOS_VALIDOS = TIPO_EVENTO_VALID
 
 # Tipos que geram Despesa automaticamente
 TIPOS_DESPESA = {"VACINACAO", "MEDICACAO"}

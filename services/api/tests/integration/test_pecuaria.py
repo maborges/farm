@@ -78,11 +78,11 @@ def _payload_lote(**overrides) -> dict:
 
 @pytest.mark.asyncio
 async def test_criar_lote_bovino(client, session, headers_pecuaria):
-    """PEC-LOT-01: POST /lotes-bovinos cria lote e retorna 201"""
+    """PEC-LOT-01: POST /pecuaria/lotes cria lote e retorna 201"""
     await _garantir_suporte(session)
 
     response = await client.post(
-        "/api/v1/lotes-bovinos/",
+        "/api/v1/pecuaria/lotes",
         json=_payload_lote(),
         headers=headers_pecuaria,
     )
@@ -100,18 +100,18 @@ async def test_criar_lote_bovino(client, session, headers_pecuaria):
 
 @pytest.mark.asyncio
 async def test_listar_lotes_com_filtros(client, session, headers_pecuaria):
-    """PEC-LOT-02: GET /lotes-bovinos?categoria=Novilhas filtra corretamente"""
+    """PEC-LOT-02: GET /pecuaria/lotes?categoria=Novilhas filtra corretamente"""
     await _garantir_suporte(session)
 
     # Garante ao menos um lote Novilhas
     await client.post(
-        "/api/v1/lotes-bovinos/",
+        "/api/v1/pecuaria/lotes",
         json=_payload_lote(categoria="Novilhas"),
         headers=headers_pecuaria,
     )
 
     response = await client.get(
-        "/api/v1/lotes-bovinos/?categoria=Novilhas",
+        "/api/v1/pecuaria/lotes?categoria=Novilhas",
         headers=headers_pecuaria,
     )
 
@@ -132,7 +132,7 @@ async def test_lote_quantidade_invalida_retorna_422(client, session, headers_pec
     await _garantir_suporte(session)
 
     response = await client.post(
-        "/api/v1/lotes-bovinos/",
+        "/api/v1/pecuaria/lotes",
         json=_payload_lote(quantidade_cabecas=0),
         headers=headers_pecuaria,
     )
@@ -150,7 +150,7 @@ async def test_registrar_evento_pesagem(client, session, headers_pecuaria):
 
     # Cria lote
     r = await client.post(
-        "/api/v1/lotes-bovinos/",
+        "/api/v1/pecuaria/lotes",
         json=_payload_lote(),
         headers=headers_pecuaria,
     )
@@ -186,7 +186,7 @@ async def test_registrar_evento_vacinacao(client, session, headers_pecuaria):
     await _garantir_suporte(session)
 
     r = await client.post(
-        "/api/v1/lotes-bovinos/",
+        "/api/v1/pecuaria/lotes",
         json=_payload_lote(),
         headers=headers_pecuaria,
     )
@@ -216,7 +216,7 @@ async def test_registrar_evento_castracao(client, session, headers_pecuaria):
     await _garantir_suporte(session)
 
     r = await client.post(
-        "/api/v1/lotes-bovinos/",
+        "/api/v1/pecuaria/lotes",
         json=_payload_lote(),
         headers=headers_pecuaria,
     )
@@ -250,7 +250,7 @@ async def test_eventos_append_only(client, session, headers_pecuaria):
     await _garantir_suporte(session)
 
     r = await client.post(
-        "/api/v1/lotes-bovinos/",
+        "/api/v1/pecuaria/lotes",
         json=_payload_lote(),
         headers=headers_pecuaria,
     )
@@ -291,7 +291,7 @@ async def test_listar_eventos_por_lote(client, session, headers_pecuaria):
     await _garantir_suporte(session)
 
     r = await client.post(
-        "/api/v1/lotes-bovinos/",
+        "/api/v1/pecuaria/lotes",
         json=_payload_lote(),
         headers=headers_pecuaria,
     )
@@ -325,5 +325,5 @@ async def test_listar_eventos_por_lote(client, session, headers_pecuaria):
 
 @pytest.mark.asyncio
 async def test_pecuaria_sem_token_retorna_401(client):
-    response = await client.get("/api/v1/lotes-bovinos/")
+    response = await client.get("/api/v1/pecuaria/lotes")
     assert response.status_code == 401
