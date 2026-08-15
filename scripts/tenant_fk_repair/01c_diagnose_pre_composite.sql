@@ -28,11 +28,12 @@ FROM farms.cadastros_equipamentos ce
 JOIN farms.unidades_produtivas up ON up.id = ce.unidade_produtiva_id
 WHERE ce.unidade_produtiva_id IS NOT NULL AND ce.tenant_id <> up.tenant_id
 UNION ALL
-SELECT 'compras_pedidos x estoque_depositos',
+SELECT 'compras_itens_pedido x estoque_depositos',
        COUNT(*)
-FROM farms.compras_pedidos cp
-JOIN farms.estoque_depositos ed ON ed.id = cp.deposito_id
-WHERE cp.deposito_id IS NOT NULL AND cp.tenant_id <> ed.tenant_id
+FROM farms.compras_itens_pedido cip
+JOIN farms.compras_pedidos cp ON cp.id = cip.pedido_id
+JOIN farms.estoque_depositos ed ON ed.id = cip.deposito_id
+WHERE cip.deposito_id IS NOT NULL AND cp.tenant_id <> ed.tenant_id
 UNION ALL
 SELECT 'frota_jornadas_equipamento x unidades_produtivas',
        COUNT(*)
@@ -98,13 +99,14 @@ WHERE ce.unidade_produtiva_id IS NOT NULL
       WHERE up.id = ce.unidade_produtiva_id AND up.tenant_id = ce.tenant_id
   )
 UNION ALL
-SELECT 'compras_pedidos → estoque_depositos',
+SELECT 'compras_itens_pedido → estoque_depositos',
        COUNT(*)
-FROM farms.compras_pedidos cp
-WHERE cp.deposito_id IS NOT NULL
+FROM farms.compras_itens_pedido cip
+JOIN farms.compras_pedidos cp ON cp.id = cip.pedido_id
+WHERE cip.deposito_id IS NOT NULL
   AND NOT EXISTS (
       SELECT 1 FROM farms.estoque_depositos ed
-      WHERE ed.id = cp.deposito_id AND ed.tenant_id = cp.tenant_id
+      WHERE ed.id = cip.deposito_id AND ed.tenant_id = cp.tenant_id
   )
 UNION ALL
 SELECT 'frota_jornadas_equipamento → unidades_produtivas',

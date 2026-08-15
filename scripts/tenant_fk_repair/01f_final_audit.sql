@@ -47,10 +47,11 @@ FROM (
     JOIN farms.unidades_produtivas up ON up.id = ce.unidade_produtiva_id
     WHERE ce.unidade_produtiva_id IS NOT NULL AND ce.tenant_id <> up.tenant_id
     UNION ALL
-    SELECT 'compras_pedidos → estoque_depositos', COUNT(*)
-    FROM farms.compras_pedidos cp
-    JOIN farms.estoque_depositos ed ON ed.id = cp.deposito_id
-    WHERE cp.deposito_id IS NOT NULL AND cp.tenant_id <> ed.tenant_id
+    SELECT 'compras_itens_pedido → estoque_depositos', COUNT(*)
+    FROM farms.compras_itens_pedido cip
+    JOIN farms.compras_pedidos cp ON cp.id = cip.pedido_id
+    JOIN farms.estoque_depositos ed ON ed.id = cip.deposito_id
+    WHERE cip.deposito_id IS NOT NULL AND cp.tenant_id <> ed.tenant_id
     UNION ALL
     SELECT 'frota_jornadas_equipamento → unidades_produtivas', COUNT(*)
     FROM farms.frota_jornadas_equipamento fje
@@ -142,10 +143,12 @@ WITH esperadas(nome) AS (VALUES
     ('fk_car_tenant_unidade_produtiva'),
     ('fk_ed_tenant_unidade_produtiva'),
     ('fk_ce_tenant_unidade_produtiva'),
-    ('fk_cp_tenant_deposito'),
     ('fk_fje_tenant_unidade_produtiva'),
     ('fk_fau_tenant_jornada'),
     ('fk_fa_tenant_equipamento')
+    -- fk_cp_tenant_deposito removida: compras_pedidos não tem deposito_id
+    -- direto (migrou pra compras_itens_pedido, sem tenant_id próprio) —
+    -- não existe FK composta pra essa relação, ver 01a_diagnose.sql atualizado
 )
 SELECT
     e.nome AS constraint_esperada,
@@ -160,10 +163,13 @@ ORDER BY e.nome;
 \echo ''
 \echo '── C6: UNIQUE(tenant_id, id) nos pais críticos ─────────────────'
 WITH esperados(nome) AS (VALUES
-    ('uq_unidades_produtivas_tenant_id'),
+    ('uq_unidades_produtivas_tenant_id_id'),
     ('uq_estoque_depositos_tenant_id'),
     ('uq_cadastros_equipamentos_tenant_id'),
-    ('uq_frota_jornadas_equipamento_tenant_id')
+    ('uq_frota_jornadas_tenant_id')
+    -- nomes corrigidos em 2026-08-14 para bater com os constraints
+    -- realmente aplicados no banco (sufixo _id_id em unidades_produtivas,
+    -- sem "_equipamento" em frota_jornadas)
 )
 SELECT
     e.nome AS unique_esperado,
@@ -219,6 +225,12 @@ WHERE c.table_schema = 'farms'
 -- ────────────────────────────────────────────────────────────
 \echo ''
 \echo '── C8: Quarentena pendente ───────────────────────────────────────'
+SELECT CASE WHEN to_regclass('farms.tenant_fk_quarantine') IS NULL
+            THEN TRUE ELSE FALSE END AS quarantine_ausente \gset
+
+\if :quarantine_ausente
+\echo 'PASS (N/A) — tabela tenant_fk_quarantine nunca foi criada; 01a_diagnose.sql não encontrou cruzamentos, então 01a_quarantine.sql nunca precisou rodar'
+\else
 SELECT
     source_table,
     COUNT(*) AS pendentes,
@@ -231,6 +243,7 @@ SELECT '(total)', COUNT(*),
     CASE WHEN COUNT(*) = 0 THEN 'PASS — quarentena vazia' ELSE 'FAIL ✗' END
 FROM farms.tenant_fk_quarantine
 WHERE NOT resolved;
+\endif
 
 -- ────────────────────────────────────────────────────────────
 -- C9: Distribuição de ações de exclusão (snapshot final)
