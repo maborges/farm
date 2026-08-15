@@ -57,7 +57,7 @@ source .venv/bin/activate
 ./start_server.sh
 # ou: uvicorn main:app --reload
 ```
-Travado? `sudo lsof -i :8000` para listar, `sudo kill -9 PID` para matar.
+Travado? `  ` para listar, `sudo kill -9 PID` para matar.
 Parar de forma limpa: `pkill -f "uvicorn main:app"`
 
 ### Worker de Automações (scheduler)

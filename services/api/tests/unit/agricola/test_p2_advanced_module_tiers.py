@@ -54,8 +54,6 @@ def _tier_dependency(route: APIRoute, tier: PlanTier):
         ("agricola.rastreabilidade.router", "/lotes", {"GET"}, "A5_COLHEITA", PlanTier.ENTERPRISE),
         ("agricola.rastreabilidade.router", "/lotes", {"POST"}, "A5_COLHEITA", PlanTier.ENTERPRISE),
         ("agricola.rastreabilidade.router", "/lotes/{lote_id}/cadeia", {"GET"}, "A5_COLHEITA", PlanTier.ENTERPRISE),
-        ("agricola.amostragem_solo.routers.prescricoes_vra", "/", {"GET"}, "A4_PRECISAO", PlanTier.ENTERPRISE),
-        ("agricola.amostragem_solo.routers.prescricoes_vra", "/", {"POST"}, "A4_PRECISAO", PlanTier.ENTERPRISE),
     ],
 )
 async def test_p2_advanced_endpoints_exigem_tier_e_modulo(router_path, path, methods, module_id, minimum_tier):

@@ -34,7 +34,7 @@ O Campo PWA é arquitetura offline genuína (Dexie + outbox), reusa a API, mas n
 | B | Fitossanitário/monitoramento | COBERTO | Sim | Sim | Sim | Sim | Sim | — | — | — | Sim | `monitoramento/models.py:8` | — |
 | B | Colheita/romaneio | COBERTO | Sim | Sim | Sim | Sim | Sim | — | Sim | Parcial | Sim | `colheita/models.py:20`, `romaneios/models.py:8` | — |
 | B | Pós-colheita/beneficiamento | PARCIAL (café-only) | Sim | Sim | Sim | Sim | Parcial | — | Sim | — | — | `beneficiamento/models.py:9` | Não generalizado p/ outras culturas |
-| B | Análise de solo | DUPLICADO-PARALELO suspeito | Sim | Sim | — | — | — | — | — | — | — | `amostragem_solo/` vs `analises_solo/` | Confirmar overlap |
+| B | Análise de solo | ~~DUPLICADO-PARALELO suspeito~~ RESOLVIDO 2026-08-15 (Seção 21.8): `amostragem_solo/` era scaffold morto, deletado | Sim | Sim | — | — | — | — | — | — | — | `analises_solo/` | — |
 | B | Tarefa multi-talhão | RESOLVIDO (2026-08-15) | Sim | Sim | — | — | — | — | — | — | — | `agricola/tarefas/service.py::TarefaService.criar_multi_talhao`, endpoint `POST /agricola/safras/{safra_id}/tarefas/multi-talhao` | Fechado via fan-out (Seção 21) |
 | C | Animal individual | COBERTO | — | Sim | Sim | — | — | — | — | — | Sim | `pecuaria/animal/models.py:144` | — |
 | C | Lote/rebanho coletivo | COBERTO | — | Sim | Sim | — | — | — | — | — | Sim | `animal/models.py:93`, `manejo.py` | — |
@@ -74,7 +74,7 @@ O Campo PWA é arquitetura offline genuína (Dexie + outbox), reusa a API, mas n
 ## 4. Cobertura Agrícola (A/B)
 
 - **A. Planejamento**: Safra com máquina de fases e histórico versionado (`SafraFaseHistorico`) — COBERTO. Vínculo safra↔área tem 3 pontos concorrentes (`Safra.talhao_id` legado, `SafraTalhao` N:N, `CultivoArea`) — risco de dessincronia mas funcional. Orçamento tem dois sistemas (item de safra vs. plano operacional em lote) sem reconciliação automática confirmada — DUPLICADO-PARALELO a investigar. Metas de produtividade e planejado×realizado já nativos em `Cultivo` (`produtividade_meta_sc_ha` vs `produtividade_real_sc_ha`). Serviços terceirizados como categoria própria — não confirmado. Revisão/versionamento do orçamento é campo incremental simples (`PlanoOperacional.versao`), não audit trail completo.
-- **B. Operações agrícolas**: núcleo genérico via `OperacaoAgricola.tipo/subtipo` cobre teoricamente todas as subcategorias (preparo/plantio/desenvolvimento), mas a granularidade real depende do catálogo (`OperacaoTipoFaseService`), não auditado a fundo — classificado PARCIAL por falta de confirmação, não por ausência de motor. Fitossanitário tem módulo dedicado de monitoramento de pragas/doenças com NDE. Colheita e romaneio maduros e integrados a estoque. Pós-colheita/beneficiamento é **específico a café** (nomenclatura ABIC/SCA) — para outras culturas é GAP de generalização. ~~**GAP confirmado**: `SafraTarefa` sem `talhao_id` não gera `OperacaoAgricola` (hard-stop em `tarefas/service.py:632-636`)~~ — **RESOLVIDO em 2026-08-15** via fan-out (Seção 21). Suspeita de duplicação entre módulos `amostragem_solo/` e `analises_solo/` não resolvida — recomenda-se 2ª auditoria pontual.
+- **B. Operações agrícolas**: núcleo genérico via `OperacaoAgricola.tipo/subtipo` cobre teoricamente todas as subcategorias (preparo/plantio/desenvolvimento), mas a granularidade real depende do catálogo (`OperacaoTipoFaseService`), não auditado a fundo — classificado PARCIAL por falta de confirmação, não por ausência de motor. Fitossanitário tem módulo dedicado de monitoramento de pragas/doenças com NDE. Colheita e romaneio maduros e integrados a estoque. Pós-colheita/beneficiamento é **específico a café** (nomenclatura ABIC/SCA) — para outras culturas é GAP de generalização. ~~**GAP confirmado**: `SafraTarefa` sem `talhao_id` não gera `OperacaoAgricola` (hard-stop em `tarefas/service.py:632-636`)~~ — **RESOLVIDO em 2026-08-15** via fan-out (Seção 21). ~~Suspeita de duplicação entre módulos `amostragem_solo/` e `analises_solo/` não resolvida~~ — **RESOLVIDO em 2026-08-15** (Seção 21.8): não era duplicação, `amostragem_solo/` era scaffold morto, deletado. Descoberto bug real e não relacionado: schema/model de `agricola/prescricoes/` divergem da tabela real `prescricoes_vra` (novo item MÉDIO).
 
 ## 5. Cobertura Pecuária (C)
 
@@ -129,7 +129,8 @@ Campo PWA (`apps/campo/`, Next.js separado) tem arquitetura offline genuína: De
 | notificacoes/ vs notifications/ | Confirmado, mas com ponte funcional (`recommendations/notification_bridge.py:11-22`) | — | MÉDIO |
 | ConfinamentoLote.ganho_medio_diario vs gmd_utils | Confirmado, 0 call-sites cruzados | `enterprise/models/sprints_27_33.py:253` | MÉDIO |
 | CAR: RegistroCAR vs CAR (pacote) | RESOLVIDO 2026-08-15: código morto deletado (não era shadowing real) | `ambiental/models.py:56` (único model ativo) | RESOLVIDO (era ALTO) |
-| amostragem_solo/ vs analises_solo/ | Suspeita, não resolvida | — | MÉDIO (investigar) |
+| ~~amostragem_solo/ vs analises_solo/~~ | RESOLVIDO 2026-08-15 (Seção 21.8): scaffold morto, deletado | — | ~~MÉDIO~~ FECHADO |
+| agricola/prescricoes: schema ≠ model real (`prescricoes_vra`) | Confirmado em 2026-08-15 (Seção 21.8), não corrigido | `agricola/prescricoes/schemas.py` vs migrations `step16b`/`step3_fix_prescricoes_vra_talhao` | MÉDIO (novo) |
 | LoteRastreabilidade vs CadernoLoteComercial | Suspeita, uso ativo não confirmado | `agricola/rastreabilidade/models.py` | BAIXO/MÉDIO |
 | Orçamento de safra: item-de-safra vs plano-operacional-em-lote | Confirmado, sem reconciliação automática vista | `schemas.py` vs `planejamento_operacional/models.py:99` | MÉDIO |
 | Rotas antigas/legadas coexistindo | Refutado — nenhuma rota `_old/_legacy/_v2` encontrada | `main.py` uniformemente `/api/v1/*` | — |
@@ -170,7 +171,7 @@ Campo PWA (`apps/campo/`, Next.js separado) tem arquitetura offline genuína: De
 **OBSERVAÇÃO**
 - Castração ausente do enum `TipoEvento` pecuário.
 - NDVI confirmado mockado (`ndvi/service.py`), estrutural, decisão de produto pendente (Nestlé/café gap já mapeado).
-- Suspeita de duplicação `amostragem_solo/` vs `analises_solo/` — recomenda investigação dedicada.
+- ~~Suspeita de duplicação `amostragem_solo/` vs `analises_solo/`~~ — **RESOLVIDO em 2026-08-15** (Seção 21.8): scaffold morto, deletado. Novo item: `agricola/prescricoes` schema≠model real (bug de runtime, não corrigido nesta rodada).
 - Depreciação de ativos não localizada no código.
 - Receituário/embalagens/inspeções de compliance não confirmados nesta rodada — necessita 2ª passada.
 
@@ -203,7 +204,7 @@ Sem propor refatoração ampla, e em ordem de exposição de risco/esforço:
 3. ~~Confirmar/relatar (2ª auditoria pontual) o shadowing em `ambiental/models.py` vs `ambiental/models/car.py`~~ — **CONCLUÍDO em 2026-08-15** (Seção 21.6): investigado e resolvido; `ambiental/models/car.py` era código morto, deletado.
 4. ~~Endereçar o GAP crítico de custo/margem por lote comercializado~~ — **CONCLUÍDO em 2026-08-15** (Seção 21). ~~Decidir a fonte oficial~~ — **CONCLUÍDO em 2026-08-15**: Alternativa C é a fonte oficial (ver Seção 21). Próximos passos derivados: (i) implementar consumo em frontend usando os endpoints de C; (ii) avaliar tornar `ComercializacaoCommodity.produto_colhido_id` obrigatório (hoje `nullable`).
 5. ~~Resolver o hard-stop de tarefa multi-talhão~~ — **CONCLUÍDO em 2026-08-15** (Seção 21): adotado fan-out (dividir a tarefa por talhão), não `OperacaoAgricola` multi-área. Próximo passo derivado: expor `talhoes_ids` no frontend de criação de tarefa (hoje só backend).
-6. Fazer 2ª passada dedicada em: `amostragem_solo` vs `analises_solo`; receituário/embalagens/compliance; contas a pagar/receber; custos indiretos/depreciação — itens não confirmados por escopo desta auditoria.
+6. ~~Fazer 2ª passada dedicada em: `amostragem_solo` vs `analises_solo`~~ — **RESOLVIDO em 2026-08-15** (Seção 21.8). Corrigir schema≠model de `agricola/prescricoes` (novo item MÉDIO, Seção 21.8). Seguem por confirmar: receituário/embalagens/compliance; contas a pagar/receber; custos indiretos/depreciação — itens não confirmados por escopo desta auditoria.
 
 ---
 
@@ -310,6 +311,15 @@ Re-investiga o item ALTO "3 sistemas de alertas fragmentados" (Seções 16, 17, 
 - **Não coberto nesta rodada**: `_verificar_exposicao_comercial` delega para `HedgeSnapshotService` (módulo F4/hedge) e não retorna uma lista simples de alertas como os outros 3 — replicar a ponte ali exigiria tocar um service financeiro separado, fora do escopo cirúrgico desta correção.
 - **Risco residual (rebaixado de ALTO para BAIXO)**: a ponte (nas duas direções) só dispara na criação do alerta, não em updates de um alerta já ativo — um alerta que só muda de severidade não gera nova notificação. Confirmar que o worker (`automacoes/worker.py`, que roda os dois motores a cada ~10min) está de fato ativo em produção é questão de infra/deploy, não verificável só pelo código deste checkout.
 - **Testes**: suíte `notificacoes`/`alert_engine`/`alertas` (188 testes) — 184 passando, 4 falhas pré-existentes reconfirmadas em código não modificado via `git stash` (WS reauth com flakiness de ordem, teste de caderno de campo não relacionado), zero regressão.
+
+## 21.8 — Adendo (2026-08-15) — `amostragem_solo/` vs `analises_solo/`: não era duplicação, era scaffold morto
+
+Re-investiga o item MÉDIO "Suspeita de duplicação `amostragem_solo/` vs `analises_solo/`" (Seções 4, 16, 17).
+
+- **Achado**: os dois módulos não competem pelos mesmos dados. `analises_solo/` é o módulo real e maduro (>25 campos técnicos — pH, CTC, macro/micronutrientes —, FK `cultivo_areas.analise_solo_id`, 14 testes, consumido pelo frontend). `amostragem_solo/` era scaffold gerado e nunca preenchido: os sub-módulos `amostras` e `mapas_fertilidade` (models + routers) tinham apenas `id/tenant_id/timestamps`, comentários literais `# Implementar lógica aqui`, endpoints retornando `[]`/`{}` fixos sem persistência, expostos publicamente em `/api/v1/amostragem-solo/*` sem nenhum teste ou consumo no frontend.
+- **Achado colateral (não é duplicação, é bug real)**: o model `PrescricaoVRA` (tabela `prescricoes_vra`) estava fisicamente dentro de `amostragem_solo/models/`, mas é de fato usado pelo módulo separado e ativo `agricola/prescricoes/` (router, service, página no frontend). Havia também um router-stub duplicado e morto em `amostragem_solo/routers/prescricoes_vra.py` (rota paralela, nunca chamada). Ao investigar, identificou-se que o schema Pydantic de `agricola/prescricoes/schemas.py` (`nome`, `tipo_operacao`, `insumo`, `camadas_json`) **não bate com as colunas reais da tabela** `prescricoes_vra` no banco (`tipo`, `elemento`, `dose_media`, `unidade_produtiva_id`, confirmado pelas migrations `step16b_create_prescricoes_vra.py`/`step3_fix_prescricoes_vra_talhao.py`) — ou seja, `POST /api/v1/prescricoes` provavelmente quebra em runtime hoje. **Não corrigido nesta rodada** (fora do escopo desta duplicação, requer decisão de produto sobre qual conjunto de campos é o correto); registrado como novo item MÉDIO em aberto.
+- **Correção aplicada**: deletados `amostragem_solo/models/{amostras,mapas_fertilidade}.py`, `amostragem_solo/routers/{amostras,mapas_fertilidade,prescricoes_vra}.py` e `amostragem_solo/services/solo_service.py` (todos scaffold morto), removidos os 3 `include_router` de `main.py` (rota pública enganosa `/api/v1/amostragem-solo/*` eliminada). Mantido `amostragem_solo/models/prescricoes_vra.py` (`PrescricaoVRA`, model real usado por `agricola/prescricoes/service.py`). Atualizados os testes de gate de monetização (`test_p0_monetization_gates.py`, `test_p2_advanced_module_tiers.py`) removendo os cenários dos routers deletados.
+- **Testes**: suíte `tests/unit/agricola/` + `tests/integration/agricola/` (287 testes) — 276 passando, 11 falhas pré-existentes, 4 delas reconfirmadas em código não modificado via `git stash` (cache de analytics/DRE, guardrails econômicos legados, caderno de campo, conversão de plano em tarefa — nenhuma relacionada a `amostragem_solo`/`prescricoes`), zero regressão introduzida.
 
 ---
 

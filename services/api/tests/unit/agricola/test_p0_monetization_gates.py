@@ -39,9 +39,6 @@ def _module_dependencies(router, module_id: str):
     ("router_path", "module_id", "minimum_tier"),
     [
         ("agricola.templates.router", "A1_PLANEJAMENTO", "PROFISSIONAL"),
-        ("agricola.amostragem_solo.routers.amostras", "A4_PRECISAO", "PROFISSIONAL"),
-        ("agricola.amostragem_solo.routers.mapas_fertilidade", "A4_PRECISAO", "PROFISSIONAL"),
-        ("agricola.amostragem_solo.routers.prescricoes_vra", "A4_PRECISAO", "ENTERPRISE"),
         ("agricola.ndvi_avancado.routers.ndvi", "A4_PRECISAO", "PROFISSIONAL"),
         ("agricola.ndvi_avancado.routers.irrigacao", "A4_PRECISAO", "PROFISSIONAL"),
         ("agricola.ndvi_avancado.routers.meteorologia", "A4_PRECISAO", "PROFISSIONAL"),

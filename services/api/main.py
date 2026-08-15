@@ -389,10 +389,6 @@ from agricola.receitas_aplicacao.router import router as router_receitas_aplicac
 from agricola.caderno.router import router as router_caderno
 from agricola.colheita.router import router as router_produtos_colhidos
 from agricola.templates.router import router as router_templates_agricola
-# Amostragem de Solo
-from agricola.amostragem_solo.routers.amostras import router as amostras_solo_router
-from agricola.amostragem_solo.routers.mapas_fertilidade import router as mapas_fertilidade_router
-from agricola.amostragem_solo.routers.prescricoes_vra import router as prescricoes_vra_router
 
 # NDVI e Irrigação
 from agricola.ndvi_avancado.routers.ndvi import router as ndvi_router
@@ -488,11 +484,6 @@ app.include_router(router_planejamento_operacional, prefix="/api/v1")
 app.include_router(router_receitas_aplicacao, prefix="/api/v1")
 app.include_router(router_templates_agricola, prefix="/api/v1")
 app.include_router(backoffice_agro_templates.router, prefix="/api/v1")
-
-# Amostragem de Solo
-app.include_router(amostras_solo_router, prefix="/api/v1/amostragem-solo")
-app.include_router(mapas_fertilidade_router, prefix="/api/v1/amostragem-solo")
-app.include_router(prescricoes_vra_router, prefix="/api/v1/amostragem-solo")
 
 # NDVI e Irrigação
 app.include_router(ndvi_router, prefix="/api/v1/agricultura-precisao")
