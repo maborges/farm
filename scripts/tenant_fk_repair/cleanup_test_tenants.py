@@ -14,7 +14,9 @@ manualmente, tabela por tabela, seguindo a cadeia de FKs até achar tenant_id.
 
 USO:
     # 1. Sempre rodar em modo dry-run primeiro (padrão, não apaga nada):
-    ./.venv/bin/python scripts/tenant_fk_repair/cleanup_test_tenants.py
+    cd /opt/lampp/htdocs/farm/services/api
+    export $(grep DATABASE_URL .env.local | xargs)
+    ./.venv/bin/python ../../scripts/tenant_fk_repair/cleanup_test_tenants.py
 
     # 2. Revisar a lista de tenants e contagens impressas.
 
@@ -160,7 +162,15 @@ def build_condition(
 
 
 def topological_order(graph: dict[str, list[tuple[str, str, str]]], all_tables: set[str]) -> list[str]:
-    """Ordem de exclusão: tabelas filhas antes das tabelas pai (DFS pós-ordem)."""
+    """Ordem de exclusão: tabelas filhas antes das tabelas pai.
+
+    DFS pós-ordem sobre as arestas "t referencia ref_table" naturalmente
+    produz ref_table (pai) ANTES de t (filho) — é a ordem certa pra CRIAR
+    tabelas, não pra apagar linhas. Pra apagar precisamos do inverso: filho
+    antes do pai, senão o DELETE no pai falha com FK violation (bug real,
+    encontrado ao rodar --execute em produção em 2026-08-14 — ver
+    project_tenant_fk_repair). Por isso o reversed() no final.
+    """
     order: list[str] = []
     visited: set[str] = set()
 
@@ -175,6 +185,7 @@ def topological_order(graph: dict[str, list[tuple[str, str, str]]], all_tables: 
 
     for t in sorted(all_tables):
         visit(t)
+    order.reverse()
     return order
 
 
@@ -249,18 +260,46 @@ async def main() -> None:
             return
 
         if not args.skip_backup:
-            backup_dir = Path(__file__).parent / "backups"
-            backup_dir.mkdir(exist_ok=True)
-            ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-            backup_file = backup_dir / f"pre_cleanup_test_tenants_{ts}.sql.gz"
-            print(f"\nFazendo backup em {backup_file} ...")
-            sync_url = db_url_sync(db_url)
-            dump_cmd = f"pg_dump '{sync_url}' | gzip > '{backup_file}'"
-            result = subprocess.run(dump_cmd, shell=True)
-            if result.returncode != 0 or not backup_file.exists() or backup_file.stat().st_size == 0:
-                print("Backup falhou — abortando sem apagar nada.", file=sys.stderr)
-                sys.exit(1)
-            print(f"Backup OK ({backup_file.stat().st_size} bytes).")
+            # Tabelas com FORCE ROW LEVEL SECURITY bloqueiam o pg_dump mesmo
+            # pro dono da tabela (borgus não é superuser/bypassrls) — achado
+            # ao rodar --execute em produção em 2026-08-14 (erro em
+            # alert_events, mas existem 36 tabelas assim). Desligamos a força
+            # da RLS só durante o dump e religamos depois, sempre (try/finally).
+            force_rls_rows = await conn.fetch(
+                "SELECT relname FROM pg_class "
+                "WHERE relforcerowsecurity = true AND relnamespace = $1::regnamespace",
+                SCHEMA,
+            )
+            force_rls_tables = [r["relname"] for r in force_rls_rows]
+            if force_rls_tables:
+                print(f"\nDesligando FORCE RLS temporariamente em {len(force_rls_tables)} tabela(s) para o backup...")
+                for t in force_rls_tables:
+                    await conn.execute(f'ALTER TABLE {SCHEMA}."{t}" NO FORCE ROW LEVEL SECURITY')
+
+            try:
+                backup_dir = Path(__file__).parent / "backups"
+                backup_dir.mkdir(exist_ok=True)
+                ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+                backup_file = backup_dir / f"pre_cleanup_test_tenants_{ts}.sql.gz"
+                print(f"Fazendo backup em {backup_file} ...")
+                sync_url = db_url_sync(db_url)
+                # set -o pipefail: sem isso, o exit code é só do gzip, e um
+                # pg_dump que falha no meio (ex. erro de RLS) passa
+                # despercebido com um arquivo .gz pequeno e corrompido —
+                # bug real encontrado em produção em 2026-08-14.
+                dump_cmd = f"set -o pipefail; pg_dump '{sync_url}' | gzip > '{backup_file}'"
+                result = subprocess.run(["bash", "-c", dump_cmd])
+                if result.returncode != 0 or not backup_file.exists() or backup_file.stat().st_size == 0:
+                    print("Backup falhou — abortando sem apagar nada.", file=sys.stderr)
+                    if backup_file.exists():
+                        backup_file.unlink()
+                    sys.exit(1)
+                print(f"Backup OK ({backup_file.stat().st_size} bytes).")
+            finally:
+                if force_rls_tables:
+                    print(f"Religando FORCE RLS em {len(force_rls_tables)} tabela(s)...")
+                    for t in force_rls_tables:
+                        await conn.execute(f'ALTER TABLE {SCHEMA}."{t}" FORCE ROW LEVEL SECURITY')
 
         print("\n=== EXECUTANDO exclusão em transação única ===")
         async with conn.transaction():
