@@ -247,6 +247,39 @@ class PessoaBancario(Base):
 
 
 # ---------------------------------------------------------------------------
+# PessoaProfissionalAgronomo — extensão 1:1 para dados de CREA
+# ---------------------------------------------------------------------------
+
+class PessoaProfissionalAgronomo(Base):
+    """Extensão 1:1 de Pessoa com registro profissional CREA, usada para
+    validar o agrônomo emissor de um ReceituarioAgronomico (Lei 7.802/1989).
+    Mesmo padrão de extensão 1:1 usado em ProdutoAgricola/ProdutoEstoque."""
+    __tablename__ = "cadastros_pessoas_profissional_agronomo"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    pessoa_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("cadastros_pessoas.id", ondelete="CASCADE"), unique=True, nullable=False, index=True
+    )
+
+    crea_numero: Mapped[str] = mapped_column(String(30), nullable=False)
+    crea_uf: Mapped[str] = mapped_column(String(2), nullable=False)
+    crea_validade: Mapped[date | None] = mapped_column(Date, nullable=True)
+    ativo: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
+
+    pessoa: Mapped["Pessoa"] = relationship(lazy="noload")
+
+
+# ---------------------------------------------------------------------------
 # TipoRelacionamento — papéis configuráveis (sistema + por tenant)
 # ---------------------------------------------------------------------------
 

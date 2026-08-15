@@ -110,6 +110,9 @@ class ItemRecebimentoCreate(BaseModel):
     preco_real_unitario: float = Field(0.0, ge=0)
     numero_lote_fornecedor: Optional[str] = Field(None, max_length=100, description="Supplier batch number")
     lote_id: Optional[uuid.UUID] = None
+    quantidade_embalagens: Optional[int] = Field(
+        None, ge=0, description="OPERATIONS-GAP-01 §21.20: nº de embalagens físicas recebidas, para logística reversa (Lei 9.974/2000)"
+    )
 
 
 class RecebimentoCreate(BaseModel):

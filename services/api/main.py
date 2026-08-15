@@ -387,6 +387,8 @@ from agricola.a1_planejamento.router import router as router_a1_planejamento
 from agricola.tarefas.router import router as router_tarefas
 from agricola.planejamento_operacional.router import router as router_planejamento_operacional
 from agricola.receitas_aplicacao.router import router as router_receitas_aplicacao
+from agricola.receituario_agronomico.router import router as router_receituario_agronomico
+from agricola.logistica_reversa_embalagens.router import router as router_logistica_reversa_embalagens
 from agricola.caderno.router import router as router_caderno
 from agricola.colheita.router import router as router_produtos_colhidos
 from agricola.templates.router import router as router_templates_agricola
@@ -483,6 +485,8 @@ app.include_router(router_a1_planejamento, prefix="/api/v1")
 app.include_router(router_tarefas, prefix="/api/v1")
 app.include_router(router_planejamento_operacional, prefix="/api/v1")
 app.include_router(router_receitas_aplicacao, prefix="/api/v1")
+app.include_router(router_receituario_agronomico, prefix="/api/v1")
+app.include_router(router_logistica_reversa_embalagens, prefix="/api/v1")
 app.include_router(router_templates_agricola, prefix="/api/v1")
 app.include_router(backoffice_agro_templates.router, prefix="/api/v1")
 

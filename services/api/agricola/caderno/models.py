@@ -83,7 +83,14 @@ class CadernoCampoEntrada(Base):
     # Campos específicos por tipo
     nivel_severidade: Mapped[str | None] = mapped_column(String(20))  # BAIXO | MEDIO | ALTO | CRITICO
     recomendacao: Mapped[str | None] = mapped_column(Text)
-    numero_receituario: Mapped[str | None] = mapped_column(String(50))  # Lei 7.802/89
+    numero_receituario: Mapped[str | None] = mapped_column(String(50))  # Lei 7.802/89 — texto legado
+    receituario_agronomico_id: Mapped[UUID | None] = mapped_column(
+        Uuid,
+        ForeignKey("agricola_receituarios_agronomicos.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+        comment="OPERATIONS-GAP-01 §21.19: vínculo opcional ao Receituário Agronômico estruturado",
+    )
 
     created_at: Mapped[datetime] = mapped_column(server_default=text("(CURRENT_TIMESTAMP)"))
     updated_at: Mapped[datetime] = mapped_column(server_default=text("(CURRENT_TIMESTAMP)"), onupdate=datetime.utcnow)

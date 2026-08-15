@@ -73,6 +73,44 @@ class EstoqueService(BaseService[SaldoEstoque]):
             raise BusinessRuleError("Produto não localizado ou inacessível para o tenant.")
         return produto
 
+    async def _validar_receituario_obrigatorio(
+        self,
+        produto_id: UUID,
+        safra_id: UUID | None = None,
+        operacao_id: UUID | None = None,
+    ) -> None:
+        """OPERATIONS-GAP-01 §21.16/§21.19: bloqueia saída de produto com
+        `ProdutoEstoque.requer_receituario=True` sem Receituário Agronômico
+        EMITIDO e não vencido vinculado (Lei 7.802/1989)."""
+        from core.cadastros.produtos.models import ProdutoEstoque
+        from agricola.receituario_agronomico.models import ReceituarioAgronomico, ReceituarioItem, StatusReceituario
+
+        stmt_detalhe = select(ProdutoEstoque).where(ProdutoEstoque.produto_id == produto_id)
+        detalhe = (await self.session.execute(stmt_detalhe)).scalars().first()
+        if detalhe is None or not detalhe.requer_receituario:
+            return
+
+        stmt = (
+            select(ReceituarioAgronomico.id)
+            .join(ReceituarioItem, ReceituarioItem.receituario_id == ReceituarioAgronomico.id)
+            .where(
+                ReceituarioAgronomico.tenant_id == self.tenant_id,
+                ReceituarioItem.produto_id == produto_id,
+                ReceituarioAgronomico.status == StatusReceituario.EMITIDO.value,
+                ReceituarioAgronomico.data_validade >= date.today(),
+            )
+        )
+        if safra_id is not None:
+            stmt = stmt.where(ReceituarioAgronomico.safra_id == safra_id)
+        if operacao_id is not None:
+            stmt = stmt.where(ReceituarioAgronomico.operacao_agricola_id == operacao_id)
+
+        if not (await self.session.execute(stmt.limit(1))).scalars().first():
+            raise BusinessRuleError(
+                f"Produto {produto_id} exige Receituário Agronômico válido (status EMITIDO e não vencido) "
+                "vinculado à safra/operação para liberar a saída de estoque (Lei 7.802/1989)."
+            )
+
     async def _resolver_custo_unitario_contextual(
         self,
         produto_id: UUID,
@@ -737,6 +775,10 @@ class EstoqueService(BaseService[SaldoEstoque]):
     ) -> EstoqueMovimento:
         await self._validar_unidade_produtiva(unidade_produtiva_id)
         await self._get_produto_or_fail(produto_id)
+        await self._validar_receituario_obrigatorio(
+            produto_id,
+            operacao_id=origem_id if origem_tipo == "OPERACAO_AGRICOLA" else None,
+        )
         if deposito_id:
             await validate_deposito_context(
                 self.session,
@@ -912,6 +954,11 @@ class EstoqueService(BaseService[SaldoEstoque]):
 
     async def registrar_saida(self, data: SaidaEstoqueRequest) -> EstoqueMovimento:
         await self._get_produto_or_fail(data.produto_id)
+        await self._validar_receituario_obrigatorio(
+            data.produto_id,
+            safra_id=data.safra_id,
+            operacao_id=data.origem_id if data.origem_tipo == "OPERACAO_AGRICOLA" else None,
+        )
         if data.safra_id:
             await validate_safra_in_tenant(self.session, tenant_id=self.tenant_id, safra_id=data.safra_id)
         if data.deposito_id:

@@ -488,6 +488,41 @@ class ComprasService:
             error_message=mensagem,
         )
 
+    async def _criar_pendencia_logistica_reversa(
+        self,
+        *,
+        item_recebimento: "ItemRecebimento",
+        item_pedido: ItemPedidoCompra,
+        data_compra,
+        fornecedor_id: uuid.UUID | None,
+    ) -> None:
+        """OPERATIONS-GAP-01 §21.16/§21.20: cria automaticamente a pendência de
+        devolução de embalagens (Lei 9.974/2000) quando o produto exige
+        receituário (mesmo universo de defensivos) e a compra informou
+        `quantidade_embalagens`. Import local evita ciclo operacional<->agricola."""
+        from core.cadastros.produtos.models import ProdutoEstoque
+        from agricola.logistica_reversa_embalagens.service import DevolucaoEmbalagemService
+
+        stmt = select(ProdutoEstoque).where(ProdutoEstoque.produto_id == item_pedido.produto_id)
+        detalhe = (await self.session.execute(stmt)).scalars().first()
+        if detalhe is None or not detalhe.requer_receituario:
+            return
+
+        destino_pessoa_id = None
+        if fornecedor_id is not None:
+            fornecedor = await self.session.get(Fornecedor, fornecedor_id)
+            if fornecedor is not None:
+                destino_pessoa_id = fornecedor.pessoa_id
+
+        svc = DevolucaoEmbalagemService(self.session, self.tenant_id)
+        await svc.criar_pendencia_devolucao(
+            item_recebimento_id=item_recebimento.id,
+            produto_id=item_pedido.produto_id,
+            quantidade_embalagens=item_recebimento.quantidade_embalagens,
+            data_compra=data_compra,
+            destino_pessoa_id=destino_pessoa_id,
+        )
+
     async def _materializar_item_recebimento(
         self,
         *,
@@ -1945,6 +1980,7 @@ class ComprasService:
                     item_recebido=item_model,
                 )
 
+                quantidade_embalagens = getattr(item_model, "quantidade_embalagens", None)
                 item_recebimento = ItemRecebimento(
                     recebimento_id=recebimento.id,
                     item_pedido_id=item_alvo.id,
@@ -1952,8 +1988,18 @@ class ComprasService:
                     preco_real_unitario=float(item_model.preco_real_unitario or 0.0) or self._resolver_custo_recebimento(item_alvo),
                     numero_lote_fornecedor=getattr(item_model, "numero_lote_fornecedor", None),
                     lote_id=lote_id,
+                    quantidade_embalagens=quantidade_embalagens,
                 )
                 self.session.add(item_recebimento)
+                await self.session.flush()
+
+                if quantidade_embalagens:
+                    await self._criar_pendencia_logistica_reversa(
+                        item_recebimento=item_recebimento,
+                        item_pedido=item_alvo,
+                        data_compra=recebimento.data_recebimento.date(),
+                        fornecedor_id=pedido.fornecedor_id,
+                    )
 
                 item_alvo.quantidade_recebida = float(item_alvo.quantidade_recebida or 0.0) + float(item_model.quantidade_recebida)
                 item_alvo.preco_real_unitario = item_recebimento.preco_real_unitario

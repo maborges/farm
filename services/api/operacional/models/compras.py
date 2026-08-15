@@ -125,6 +125,9 @@ class ItemRecebimento(Base):
     preco_real_unitario: Mapped[float] = mapped_column(Float, default=0.0)
     numero_lote_fornecedor: Mapped[str | None] = mapped_column(String(100), nullable=True)  # Supplier batch number
     lote_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("estoque_lotes.id"), nullable=True)
+    quantidade_embalagens: Mapped[int | None] = mapped_column(
+        Integer, nullable=True, comment="OPERATIONS-GAP-01 §21.20: nº embalagens físicas, base da pendência de logística reversa (Lei 9.974/2000)"
+    )
 
 
 class DevolucaoFornecedor(Base):

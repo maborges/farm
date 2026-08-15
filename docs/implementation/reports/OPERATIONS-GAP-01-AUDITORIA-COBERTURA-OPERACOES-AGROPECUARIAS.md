@@ -29,7 +29,7 @@ O Campo PWA é arquitetura offline genuína (Dexie + outbox), reusa a API, mas n
 | Domínio | Operação/Capacidade | Status | Planejamento | Execução | Recursos | Estoque | Custos | Financeiro | Produção | DRE/Dashboard | Campo PWA | Evidência | GAP |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | A | Safra/ciclo produtivo | COBERTO | Sim | Sim | — | — | — | — | — | Parcial | Sim | `agricola/safras/models.py:38` | — |
-| A | Orçamento de safra | DUPLICADO-PARALELO | Sim (2 vias) | — | — | Sim | Parcial | — | — | Não confirmado | — | `schemas.py` ItemOrcamento vs `planejamento_operacional/models.py:99` | Reconciliação não confirmada |
+| A | Orçamento de safra | RESOLVIDO 2026-08-15 (Seção 21.9): confirmado, alerta não-bloqueante adicionado | Sim (2 vias) | — | — | Sim | Parcial | — | — | Sim | — | `planejamento_operacional/service.py::comparar_com_orcamento` | — |
 | B | Preparo/Plantio/Desenvolvimento (genérico) | PARCIAL | Sim | Sim | Sim | Sim | Sim | — | — | — | Sim | `operacoes/models.py:8` tipo/subtipo string livre | Catálogo real não auditado |
 | B | Fitossanitário/monitoramento | COBERTO | Sim | Sim | Sim | Sim | Sim | — | — | — | Sim | `monitoramento/models.py:8` | — |
 | B | Colheita/romaneio | COBERTO | Sim | Sim | Sim | Sim | Sim | — | Sim | Parcial | Sim | `colheita/models.py:20`, `romaneios/models.py:8` | — |
@@ -67,7 +67,7 @@ O Campo PWA é arquitetura offline genuína (Dexie + outbox), reusa a API, mas n
 | J | Irrigação/bombas/reservatórios | PARCIAL/ISOLADO | Parcial | Parcial | — | — | — | — | — | — | — | `ndvi_avancado/models/irrigacao.py:10` | Mal posicionado (dentro de NDVI) |
 | K | CAR | RESOLVIDO (2026-08-15) | — | — | — | — | — | — | — | — | — | `ambiental/models.py:56` (único model ativo) | Código morto deletado (Seção 21.6) |
 | K | NDVI | GAP (mockado) | — | — | — | — | — | — | — | — | — | `ndvi/service.py:12-19` retorna string fixa | Mock explícito |
-| K | Receituário/embalagens | GAP não confirmado | — | — | — | — | — | — | — | — | — | Não lido a fundo | Necessita 2ª passada |
+| K | Receituário/embalagens | IMPLEMENTADO 2026-08-15 (Seções 21.19+21.20): Receituário Agronômico/CREA + bloqueio de saída de estoque + logística reversa de embalagens com prazo legal de 1 ano | — | — | — | — | — | — | — | — | — | `agricola/receituario_agronomico/`, `agricola/logistica_reversa_embalagens/` | Fechado — frontend e job de vencimento automático ficam para entrega futura |
 
 *(Matriz completa por item das listas A–K está nos relatórios de evidência das seções 4–14; a tabela acima prioriza itens com classificação não-COBERTO ou com achados relevantes, para manter o documento tratável.)*
 
@@ -82,7 +82,7 @@ Arquitetura dupla deliberada: `EventoAnimal` (individual, enum `TipoEvento` ampl
 
 ## 6. Máquinas e Equipamentos (D)
 
-Módulo maduro e bem integrado: cadastro, alocação, apontamento de uso vinculado a `safra_id`/`talhao_id`/`operacao_id`/`production_unit_id`, horímetro/km, abastecimento, manutenção preventiva/corretiva (via `OrdemServico`/`RegistroManutencao`), custo/hora centralizado em `frota_dashboard_detail_service.py`. **GAP real**: nenhuma distinção entre ferramenta de baixo valor e ativo patrimonial depreciável no cadastro de `Equipamento` (só `valor_aquisicao`). Peças de manutenção não confirmadas como integradas ao estoque geral.
+Módulo maduro e bem integrado: cadastro, alocação, apontamento de uso vinculado a `safra_id`/`talhao_id`/`operacao_id`/`production_unit_id`, horímetro/km, abastecimento, manutenção preventiva/corretiva (via `OrdemServico`/`RegistroManutencao`), custo/hora centralizado em `frota_dashboard_detail_service.py`. **GAP real**: nenhuma distinção entre ferramenta de baixo valor e ativo patrimonial depreciável no cadastro de `Equipamento` (só `valor_aquisicao`). ~~Peças de manutenção não confirmadas como integradas ao estoque geral~~ — RESOLVIDO 2026-08-15 (Seção 21.17): confirmado, já integrado (mesmo `Produto`/`Deposito`/`LoteEstoque`, baixa automática ao fechar OS).
 
 ## 7. Mão de Obra (E)
 
@@ -102,7 +102,7 @@ Cadeia completa Requisição→Cotação→Aprovação→Pedido→Recebimento→
 
 ## 11. Produção/Pós-colheita (I)
 
-Cadeia Talhão→Operação→Colheita→Produção→Beneficiamento→Lote→Classificação está implementada e conectada a estoque (`ProdutoColhido`→`RomaneioColheita`→`LoteBeneficiamento`, com FKs cruzadas). Beneficiamento é específico a café. Três nomenclaturas de "lote" coexistem ao longo da cadeia (não confirmado como acidental — parecem etapas distintas com FKs entre si, mas geram risco de drift).
+Cadeia Talhão→Operação→Colheita→Produção→Beneficiamento→Lote→Classificação está implementada e conectada a estoque (`ProdutoColhido`→`RomaneioColheita`→`LoteBeneficiamento`, com FKs cruzadas). Beneficiamento é específico a café. Quatro nomenclaturas de "lote" coexistem ao longo da cadeia — **RESOLVIDO 2026-08-15 (Seção 21.18)**: confirmado, são etapas distintas e legítimas com FKs cruzadas corretas, não drift de dado.
 
 ## 12. Comercialização (I cont.)
 
@@ -114,7 +114,7 @@ Manutenção madura existe **apenas para frota móvel** (veículos/implementos).
 
 ## 14. Ambiental/Compliance (K)
 
-~~CAR tem **dois modelos concorrentes**~~ — **RE-INVESTIGADO e RESOLVIDO em 2026-08-15** (Seção 21.6): não era shadowing de import (tecnicamente impossível — `models.py` e `models/` têm nomes distintos no filesystem); `ambiental/models/car.py` era **código morto inacessível** (sem `__init__.py`, não importável pelo caminho normal do pacote), com zero tabelas no banco, zero rota e zero consumidor real. Deletado junto com os métodos mortos de `SNAService` que o referenciavam. `RegistroCAR` (`ambiental/models.py`) confirmado como único model ativo, mas com 0 registros em produção. Outorgas hídricas cobertas e expostas via router. Certificações têm dois sistemas paralelos por escopos aparentemente distintos (rastreabilidade agrícola vs. ESG corporativo) — não confirmado overlap. NDVI é mock explícito confirmado (`ndvi/service.py:12-19`, retorna string fixa, comentário `# Mock logic`). Receituário/embalagens/inspeções não foram confirmados nesta rodada — recomenda-se 2ª passada dedicada.
+~~CAR tem **dois modelos concorrentes**~~ — **RE-INVESTIGADO e RESOLVIDO em 2026-08-15** (Seção 21.6): não era shadowing de import (tecnicamente impossível — `models.py` e `models/` têm nomes distintos no filesystem); `ambiental/models/car.py` era **código morto inacessível** (sem `__init__.py`, não importável pelo caminho normal do pacote), com zero tabelas no banco, zero rota e zero consumidor real. Deletado junto com os métodos mortos de `SNAService` que o referenciavam. `RegistroCAR` (`ambiental/models.py`) confirmado como único model ativo, mas com 0 registros em produção. Outorgas hídricas cobertas e expostas via router. Certificações têm dois sistemas paralelos por escopos aparentemente distintos (rastreabilidade agrícola vs. ESG corporativo) — não confirmado overlap. NDVI é mock explícito confirmado (`ndvi/service.py:12-19`, retorna string fixa, comentário `# Mock logic`). ~~Receituário/embalagens/inspeções não foram confirmados nesta rodada — recomenda-se 2ª passada dedicada~~ — RESOLVIDO 2026-08-15 (Seção 21.16): confirmado ausência total, feature nova de compliance (não bug).
 
 ## 15. Integração Web × API × Campo PWA
 
@@ -164,7 +164,7 @@ Campo PWA (`apps/campo/`, Next.js separado) tem arquitetura offline genuína: De
 
 **BAIXO**
 - Sem distinção ferramenta de baixo valor vs ativo patrimonial em `Equipamento`.
-- Peças de manutenção de frota não confirmadas como integradas ao estoque geral.
+- ~~Peças de manutenção de frota não confirmadas como integradas ao estoque geral~~ — RESOLVIDO 2026-08-15 (Seção 21.17): confirmado, já integrado.
 - Compra de serviços terceirizados sem modelagem própria (cai em produto genérico).
 - Contas a pagar/receber sem classe dedicada (usa Despesa/Receita).
 
@@ -173,7 +173,7 @@ Campo PWA (`apps/campo/`, Next.js separado) tem arquitetura offline genuína: De
 - NDVI confirmado mockado (`ndvi/service.py`), estrutural, decisão de produto pendente (Nestlé/café gap já mapeado).
 - ~~Suspeita de duplicação `amostragem_solo/` vs `analises_solo/`~~ — **RESOLVIDO em 2026-08-15** (Seção 21.8): scaffold morto, deletado. Novo item: `agricola/prescricoes` schema≠model real (bug de runtime, não corrigido nesta rodada).
 - Depreciação de ativos não localizada no código.
-- Receituário/embalagens/inspeções de compliance não confirmados nesta rodada — necessita 2ª passada.
+- ~~Receituário/embalagens/inspeções de compliance não confirmados nesta rodada — necessita 2ª passada~~ — RESOLVIDO 2026-08-15 (Seção 21.16): confirmado como ausência total, classificado como feature nova de compliance, não bug.
 
 ## 18. Riscos Arquiteturais
 
@@ -204,7 +204,7 @@ Sem propor refatoração ampla, e em ordem de exposição de risco/esforço:
 3. ~~Confirmar/relatar (2ª auditoria pontual) o shadowing em `ambiental/models.py` vs `ambiental/models/car.py`~~ — **CONCLUÍDO em 2026-08-15** (Seção 21.6): investigado e resolvido; `ambiental/models/car.py` era código morto, deletado.
 4. ~~Endereçar o GAP crítico de custo/margem por lote comercializado~~ — **CONCLUÍDO em 2026-08-15** (Seção 21). ~~Decidir a fonte oficial~~ — **CONCLUÍDO em 2026-08-15**: Alternativa C é a fonte oficial (ver Seção 21). Próximos passos derivados: (i) implementar consumo em frontend usando os endpoints de C; (ii) avaliar tornar `ComercializacaoCommodity.produto_colhido_id` obrigatório (hoje `nullable`).
 5. ~~Resolver o hard-stop de tarefa multi-talhão~~ — **CONCLUÍDO em 2026-08-15** (Seção 21): adotado fan-out (dividir a tarefa por talhão), não `OperacaoAgricola` multi-área. Próximo passo derivado: expor `talhoes_ids` no frontend de criação de tarefa (hoje só backend).
-6. ~~Fazer 2ª passada dedicada em: `amostragem_solo` vs `analises_solo`~~ — **RESOLVIDO em 2026-08-15** (Seção 21.8). Corrigir schema≠model de `agricola/prescricoes` (novo item MÉDIO, Seção 21.8). Seguem por confirmar: receituário/embalagens/compliance; contas a pagar/receber; custos indiretos/depreciação — itens não confirmados por escopo desta auditoria.
+6. ~~Fazer 2ª passada dedicada em: `amostragem_solo` vs `analises_solo`~~ — **RESOLVIDO em 2026-08-15** (Seção 21.8). Corrigir schema≠model de `agricola/prescricoes` (novo item MÉDIO, Seção 21.8). ~~receituário/embalagens/compliance~~ — **RESOLVIDO em 2026-08-15** (Seção 21.16): ausência total confirmada, feature nova de compliance. Seguem por confirmar (fora do escopo desta auditoria): contas a pagar/receber; custos indiretos/depreciação.
 
 ---
 
@@ -375,11 +375,85 @@ Fecha o gap MÉDIO "apontamento de mão de obra manual sem uso de equipamento" (
 - **Achado colateral (bug pré-existente) — RESOLVIDO em 2026-08-15**: `ck_cost_allocations_source` no banco só permitia `OPERATION_EXECUTION, INVENTORY_MOVEMENT, FIN_RATEIO, MANUAL, PECUARIA_VACINACAO` — **nenhum** dos 6 valores que `_mapear_source()` de fato produz para frota/RH (`FROTA_APONTAMENTO`, `FROTA_COMBUSTIVEL`, `FROTA_PECAS`, `FROTA_MANUTENCAO`, `RH_DIARIA`, `RH_EMPREITADA`) estava na whitelist — só não quebrava em produção porque, na maioria dos casos, o `production_unit_id` desses fluxos não resolve (`_upsert_allocation` retorna `None` antes do INSERT). Exposto por `tests/test_frota_apontamentos_step08.py` (3 falhas por `CheckViolationError`, confirmadas idênticas em código não modificado via `git stash`). Migration `20260815_cost_allocations_source_frota_rh.py` adiciona todos os 6 valores de uma vez, junto com `APONTAMENTO_MAO_OBRA`. Suíte `tests/test_frota_apontamentos_step08.py` + `tests/unit/operacional/` + `tests/integration/operacional/` (excluindo `test_estoque.py`) volta a exatamente 28 falhas — o baseline original, confirmando as 3 falhas eliminadas sem introduzir novas.
 - **Testes**: novo `tests/integration/operacional/test_apontamento_mao_obra.py` (2 testes) — cálculo de custo via `ColaboradorRH.valor_hora` + geração correta de `CostAllocation`, e ausência de invenção de custo quando não há colaborador cadastrado. Suíte ampla `tests/test_frota_apontamentos_step08.py` + `tests/unit/operacional/` + `tests/integration/operacional/` (101 testes, excluindo `test_estoque.py`) — 31 falhas (28 pré-existentes + 3 do bug colateral `FROTA_APONTAMENTO`, ambos confirmados idênticos via `git stash`), zero regressão introduzida.
 
+## 21.15 — Adendo (2026-08-15) — Beneficiamento café-only: decisão de produto, não correção cirúrgica
+
+Investiga o último item MÉDIO/BAIXO remanescente do relatório: "beneficiamento café-only" (Seções 4, 6, 12, 16, STATUS).
+
+- **Achado**: confirmado, mas com natureza distinta dos demais itens desta auditoria. `agricola/beneficiamento/` é módulo maduro e ativo (service com 521 linhas, testes de integração dedicados, router registrado, frontend próprio, integração com estoque/romaneios) — não código morto nem scaffold. A tabela física é literalmente `cafe_lotes_beneficiamento`, com a tag pública da API "Beneficiamento de Café". ~60% do model (`peso_entrada/saida_kg`, `umidade`, `perdas` de secagem/quebra/defeito, datas de secagem, FKs para safra/cultivo/talhão) é conceitualmente genérico e reaproveitável para qualquer cultura. Os ~6 campos restantes (`metodo` NATURAL/LAVADO/HONEY, `peneira_principal`, `bebida` ABIC, `pontuacao_scaa`, `defeitos_intrinsecos/extrinsecos`) são um sub-domínio fechado do protocolo ABIC/SCA de café, sem equivalente direto em soja/milho/algodão (que usam critérios de classificação totalmente diferentes: umidade, impurezas, grãos avariados, teor de óleo).
+- **Outras culturas**: confirmado que não há nenhum fluxo de pós-colheita para culturas não-café hoje — nem café-specific bloqueando, nem genérico ausente por bug. É lacuna de funcionalidade, não colisão de código.
+- **Esforço de generalização**: misto, não é rename simples. Exigiria: (a) extrair uma tabela base genérica de "lote de pós-colheita" com os campos neutros; (b) tabela(s) de extensão específica por cultura (café mantém peneira/bebida/SCA; soja/milho ganhariam sua própria classificação); (c) migration de dados dos registros `cafe_lotes_beneficiamento` existentes; (d) rename das tabelas físicas `cafe_*`; (e) novo frontend para as demais culturas. É redesenho de schema com migração de dados reais em produção, não uma correção pontual de baixo risco como as demais desta sessão.
+- **Decisão**: **não corrigido nesta rodada, por escolha deliberada** — confirma a classificação original do relatório (item MÉDIO/BAIXO de roadmap, não bug). Fica como decisão de produto/arquitetura para planejamento dedicado, fora do padrão "investigação → fix cirúrgico → teste → commit" usado no resto desta auditoria.
+
+---
+
+## 21.16 — Adendo (2026-08-15) — Receituário Agronômico/CREA e logística reversa de embalagens: ausência total, feature nova de peso
+
+Investiga o item "embalagens/receituário" citado na Seção 1 (item "e") como gap pontual não detalhado.
+
+- **Achado**: **ausência total confirmada**, não parcial. Não existe nenhum model, tabela, service ou tela de Receituário Agronômico (documento legal assinado por engenheiro agrônomo com nº CREA, vinculando produto+dose+cultura-alvo+praga-alvo+período de carência a uma aplicação de agrotóxico) nem de logística reversa de embalagens (devolução rastreada a posto inpEV/Campo Limpo). Nenhuma busca por "receituario"/"receita_agronomica"/"CREA" retorna código funcional relacionado.
+- **Falsos cognatos descartados**: `agricola/receitas_aplicacao/` é outra coisa — o próprio docstring do model esclarece que é um "pacote reutilizável de produto(s)+dose/ha+mão de obra padrão" para aplicar em lote a tarefas (equivalente a template de calda de tanque), sem assinatura, sem nº CREA, sem vínculo a engenheiro responsável, sem carência formal — contrasta explicitamente com `PrescricaoVRA` mas nunca menciona receituário agronômico. `agricola/agronomo/` também não serve: é um módulo de chat com IA (Ollama) + cadastro de "Relatórios Técnicos" de visita (texto livre), não gera documento legal.
+- **Sem bloqueio de compliance**: nenhum validador impede lançar aplicação de defensivo (via `PlanoOperacionalTarefaInsumo`, `ReceitaAplicacao` ou operações genéricas) sem receituário — o sistema permite hoje registrar aplicação de agrotóxico livremente.
+- **Risco de negócio**: real, é obrigação legal brasileira — Lei 7.802/1989 (receituário agronômico assinado por engenheiro CREA para venda/aplicação de agrotóxicos) e Lei 9.974/2000 (devolução de embalagens em até 1 ano com comprovante). Ausência de rastreabilidade no sistema expõe o produtor/empresa a multas e responsabilização por MAPA/ANVISA/IBAMA, mas é compliance documental fora do fluxo operacional do ERP — não bloqueia a operação em si, só fica sem suporte de rastreio.
+- **Decisão**: **não corrigido nesta rodada** — classificado como **feature nova de peso**, não correção cirúrgica de auditoria. Exigiria novo módulo: model de Receituário (nº CREA/agrônomo/validade/produto/dose/cultura/praga/carência + anexo de PDF assinado) e módulo de logística reversa de embalagens com rastreio de devolução. Fica como item de roadmap com prioridade de compliance, mesmo padrão de tratamento do beneficiamento café-only (Seção 21.15) — fora do escopo "investigação → fix cirúrgico → teste → commit" desta auditoria.
+
+---
+
+## 21.17 — Adendo (2026-08-15) — Peças de manutenção de frota vs. estoque geral: confirmado, sem gap
+
+Investiga se a manutenção de máquinas/veículos (frota) tem controle de peças paralelo ao estoque genérico.
+
+- **Achado**: **não há gap** — a manutenção de frota (`operacional/models/frota.py`: `PlanoManutencao`, `OrdemServico`, `ItemOrdemServico`, `RegistroManutencao`; `operacional/services/frota_service.py`; `operacional/routers/oficina.py`) usa o mesmo cadastro de produtos e o mesmo estoque genérico do resto do sistema — `ItemOrdemServico.produto_id` referencia o `Produto` único de `core.cadastros`, e a baixa de peças é feita via `Deposito`/`LoteEstoque` do módulo `operacional`, não um cadastro paralelo.
+- **Integração automática**: ao fechar a Ordem de Serviço (`FrotaService.fechar_os`), cada item pendente é baixado via `EstoqueService.registrar_saida` (gera `EstoqueMovimento` real); também há opção de baixa antecipada por item, com trava de dupla baixa (`item.movimento_estoque_id is None`).
+- **Custo chega ao CostAllocation e ao DRE**: `fechar_os` soma `custo_total_pecas` e envia via `OperationalCostAllocationService` com `origem_tipo="ORDEM_SERVICO"`, mapeado em `operational_cost_service.py` para `source="FROTA_PECAS"`/`"FROTA_MANUTENCAO"` — já incluídos na constraint desde a Seção 21.14, e consumidos pelo DRE (`agricola/dre/service.py:927`). Também gera despesa financeira automática e passa por validação de duplicidade via `AlertasAgricolasService`.
+- **Decisão**: item fechado como **já funciona** — não requer correção.
+
+---
+
+## 21.18 — Adendo (2026-08-15) — Quatro nomenclaturas de "lote" na cadeia colheita→beneficiamento: nomenclatura ambígua, não duplicação
+
+Investiga se `LoteEstoque`, `LoteBeneficiamento`, `LoteRastreabilidade` e `CadernoLoteComercial` são conceitos confusos/sobrepostos ou dado duplicado.
+
+- **Achado**: 4 conceitos distintos e legítimos, sem sobreposição de dado — `LoteEstoque` (estoque físico genérico), `LoteBeneficiamento` (processamento industrial de café, com FKs `romaneio_id`→`RomaneioColheita` e `lote_estoque_id`→`LoteEstoque`, já encadeado corretamente), `LoteRastreabilidade` (rastreabilidade de campo/certificação, safra+talhão), `CadernoLoteComercial` (passaporte comercial assinado, vinculado a `ComercializacaoCommodity`, com FKs opcionais para os três anteriores). Grupo de "Lote" da pecuária (`LoteBovino`/`LoteAnimal`/`ConfinamentoLote`) é conceito totalmente à parte, não relacionado a esta cadeia.
+- **Vínculo já tratado**: o elo `LoteRastreabilidade ↔ CadernoLoteComercial`, opcional e não populado automaticamente, já foi identificado e mitigado na Seção 21.11 (FK de navegação cruzada adicionada) — o próprio código documenta essa decisão com referência a "§21.11".
+- **Decisão**: não é gap funcional, é nomenclatura ambígua sobre um design correto. Não requer mudança de schema/lógica; único ganho possível seria um glossário de termos no relatório de arquitetura, fora do escopo desta auditoria.
+
+---
+
+## 21.19 — Adendo (2026-08-15) — Receituário Agronômico (CREA): implementado, primeira fatia do gap da Seção 21.16 fechada
+
+Implementa a primeira entrega do módulo de Receituário Agronômico identificado como ausente na Seção 21.16 (Lei 7.802/1989). Escopo desta entrega, decidido com o usuário: só o documento de Receituário (sem logística reversa de embalagens, Lei 9.974/2000, que fica para uma entrega futura); bloqueio de saída de estoque; assinatura via upload de PDF assinado externamente (sem assinatura digital nativa).
+
+- **Novo submódulo `agricola/receituario_agronomico/`**: models `ReceituarioAgronomico` (header: agrônomo/CREA, unidade produtiva/safra/talhão/operação de destino, cultura, praga-alvo, datas de emissão/validade, status RASCUNHO/EMITIDO/VENCIDO/CANCELADO, PDF anexado) + `ReceituarioItem` (produto/dose/cultura/praga/carência, carência é snapshot de `ProdutoAgricola.periodo_carencia_dias` no momento da emissão). Schemas, service (`ReceituarioAgronomicoService`, herda `BaseService`) e router (`/agricola/receituarios`, módulo `Modulos.AGRICOLA_DEFENSIVOS`).
+- **Cadastro de agrônomo**: extensão 1:1 `PessoaProfissionalAgronomo` em `core/cadastros/pessoas/models.py` (`crea_numero`, `crea_uf`, `crea_validade`, `ativo`), mesmo padrão já usado por `ProdutoAgricola`/`ProdutoEstoque`. Emissão de receituário valida perfil ativo e CREA não vencido, senão `BusinessRuleError`. Seed do `TipoRelacionamento` código `AGRONOMO` via migration.
+- **Bloqueio de saída de estoque**: `operacional/services/estoque_service.py::_validar_receituario_obrigatorio`, chamado em `registrar_saida` e `registrar_saida_insumo` — produto com `ProdutoEstoque.requer_receituario=True` sem Receituário `EMITIDO` e não vencido vinculado à safra/operação levanta `BusinessRuleError` antes de qualquer desconto de saldo. Produtos sem a flag continuam liberados sem checagem.
+- **Caderno de Campo**: campo aditivo `receituario_agronomico_id` (FK opcional, nullable) em `CadernoCampoEntrada` — o campo texto legado `numero_receituario` permanece intocado, sem backfill (migração de texto heterogêneo para FK fica fora de escopo).
+- **Migration** `20260815_receituario_agronomico.py` (head única, `alembic upgrade head` validado localmente).
+- **Testes** (`tests/integration/agricola/test_receituario_agronomico.py`, 7/7 passando): isolamento de tenant, emissão exige agrônomo com CREA ativo/não vencido, saída bloqueada sem receituário, saída não bloqueada com receituário válido, saída bloqueada com receituário vencido, saída liberada para produto sem a flag `requer_receituario`.
+- **Não-regressão**: `tests/integration/operacional/test_estoque.py` já tinha 9 falhas pré-existentes antes desta mudança (confirmado via `git stash`/re-execução) — problema de fixture de permissão documentado na Seção 21.13, não relacionado a este trabalho.
+- **Não corrigido nesta entrega** (fica para a próxima fatia do roadmap de compliance, Seção 21.16): logística reversa de embalagens (Lei 9.974/2000); job automático para marcar receituários como `VENCIDO` por data (hoje `data_validade` é checada em runtime, não há transição de status por cron); telas de frontend do novo módulo.
+
+---
+
+## 21.20 — Adendo (2026-08-15) — Logística Reversa de Embalagens (Lei 9.974/2000): implementado, gap da Seção 21.16 fechado por completo
+
+Segunda e última fatia do gap de compliance identificado na Seção 21.16 — fecha a Lei 9.974/2000 (devolução de embalagens vazias de agrotóxicos em até 1 ano da compra). Escopo decidido com o usuário: contagem explícita de embalagens no recebimento (não derivada); rastreio por compra específica (`ItemRecebimento`), não por totais agregados; destino da devolução aceita tanto `Fornecedor` quanto um posto de recebimento avulso (ambos resolvem para `Pessoa`).
+
+- **Campo novo em compras**: `ItemRecebimento.quantidade_embalagens` (`operacional/models/compras.py`, nullable — só preenchido para produtos sujeitos), propagado via `ItemRecebimentoCreate.quantidade_embalagens` (`operacional/schemas/compras.py`).
+- **Novo submódulo `agricola/logistica_reversa_embalagens/`**: model `DevolucaoEmbalagem` (1 registro por compra — `item_recebimento_id`, produto, quantidade comprada/devolvida, `data_compra`, `prazo_limite = data_compra + 365 dias`, `destino_pessoa_id`, status PENDENTE/DEVOLVIDO/VENCIDO, comprovante PDF). Service `DevolucaoEmbalagemService` (`criar_pendencia_devolucao`, `registrar_devolucao` — parcial ou completa, valida não ultrapassar o comprado, `listar_pendentes` com filtro de proximidade de prazo). Router `/agricola/logistica-reversa-embalagens` — sem POST de criação manual, toda pendência nasce automaticamente de uma compra real.
+- **Criação automática da pendência**: hook em `operacional/services/compras_service.py::receber_pedido` — ao confirmar recebimento de produto com `ProdutoEstoque.requer_receituario=True` (mesmo universo de defensivos do Receituário Agronômico) e `quantidade_embalagens` informado, cria `DevolucaoEmbalagem` automaticamente; resolve `destino_pessoa_id` a partir do `Fornecedor.pessoa_id` do pedido quando disponível.
+- **Posto de recebimento**: seed do `TipoRelacionamento` código `POSTO_RECEBIMENTO` via migration, para tenant marcar uma `Pessoa` avulsa (não necessariamente o `Fornecedor` da compra) como destino de devolução.
+- **Migration** `20260815_logistica_reversa_embalagens.py` (`down_revision` encadeada em `20260815_receituario_agronomico`, head única confirmada).
+- **Testes** (`tests/integration/agricola/test_logistica_reversa_embalagens.py`, 7/7 passando): recebimento com embalagens cria pendência com prazo correto; produto sem exigência não cria pendência; recebimento sem `quantidade_embalagens` não cria pendência; devolução parcial não fecha status, devolução completa fecha; devolver acima do comprado falha; isolamento de tenant; filtro de pendentes por proximidade de prazo.
+- **Não-regressão**: `tests/integration/operacional/test_compras.py` já tinha 6 falhas pré-existentes antes desta mudança (confirmado via `git stash`/re-execução, mesma causa raiz de integração financeira do recebimento — não relacionada a este trabalho); `test_receituario_agronomico.py` (módulo irmão) segue 7/7.
+- **Não corrigido nesta entrega**: job automático para marcar `VENCIDO` por data (mesmo TODO do Receituário); telas de frontend; devoluções agregadas fora do fluxo de compra (ex: embalagens compradas antes desta funcionalidade existir não têm pendência retroativa — sem backfill).
+
+Com a Seção 21.20, **a Seção 21.16 está integralmente fechada**: as duas obrigações legais identificadas (Receituário Agronômico, Lei 7.802/1989, e logística reversa de embalagens, Lei 9.974/2000) estão implementadas.
+
 ---
 
 ## STATUS DA COBERTURA OPERACIONAL: **PARCIAL**
 
-A aplicação cobre com solidez a maior parte do ciclo agrícola, pecuário, de máquinas e de mão de obra, com um núcleo arquitetural coerente (ProductionUnit/CostAllocation/OperacaoAgricola). Os dois GAPs CRÍTICOS originais (elo Produção→Resultado quebrado, e hard-stop de tarefa multi-talhão) foram resolvidos em 2026-08-15 (Seção 21) — nenhum ponto de ruptura formal (hard-stop de código) permanece identificado por esta auditoria. A duplicação Rateio vs CostAllocation, antes classificada ALTO, foi re-investigada e rebaixada a BAIXO (Seção 21.3) — não há double-counting ativo. A migração Float→Numeric em estoque foi concluída (Seção 21.4), incluindo o bug de constraint de vacinação descoberto e corrigido no processo (Seção 21.5). A duplicação de CAR foi re-investigada e resolvida (Seção 21.6) — não era shadowing real, era código morto, deletado. A fragmentação de alertas foi re-investigada e teve sua assimetria residual fechada (Seção 21.7). **Nenhum item ALTO ou CRÍTICO do relatório original de 2026-08-14 permanece confirmado e aberto.** O status segue **PARCIAL**, não "ADEQUADA/MADURA", pelos itens MÉDIO/BAIXO remanescentes (beneficiamento café-only, entre outros mapeados nas Seções 4-14) e pelos riscos residuais de cada correção desta sessão (ponte de alertas só na criação, relatório "Centro de Custos" não unificado, worker de produção não confirmado por código).
+A aplicação cobre com solidez a maior parte do ciclo agrícola, pecuário, de máquinas e de mão de obra, com um núcleo arquitetural coerente (ProductionUnit/CostAllocation/OperacaoAgricola). Os dois GAPs CRÍTICOS originais (elo Produção→Resultado quebrado, e hard-stop de tarefa multi-talhão) foram resolvidos em 2026-08-15 (Seção 21) — nenhum ponto de ruptura formal (hard-stop de código) permanece identificado por esta auditoria. A duplicação Rateio vs CostAllocation, antes classificada ALTO, foi re-investigada e rebaixada a BAIXO (Seção 21.3) — não há double-counting ativo. A migração Float→Numeric em estoque foi concluída (Seção 21.4), incluindo o bug de constraint de vacinação descoberto e corrigido no processo (Seção 21.5). A duplicação de CAR foi re-investigada e resolvida (Seção 21.6) — não era shadowing real, era código morto, deletado. A fragmentação de alertas foi re-investigada e teve sua assimetria residual fechada (Seção 21.7). **Nenhum item ALTO ou CRÍTICO do relatório original de 2026-08-14 permanece confirmado e aberto, e todos os itens MÉDIO/BAIXO acionáveis por correção cirúrgica foram investigados e fechados (Seções 21.8-21.14, 21.17, 21.18).** Beneficiamento café-only (Seção 21.15) segue como decisão de produto/arquitetura pendente — único item de roadmap remanescente. O gap de compliance da Seção 21.16 (Receituário Agronômico + logística reversa de embalagens) foi **totalmente implementado em 2026-08-15** nas Seções 21.19 e 21.20 — cadastro de agrônomo/CREA, documento de receituário, bloqueio de saída de estoque de defensivos, contagem de embalagens no recebimento e pendência automática de devolução com prazo legal de 1 ano. Peças de manutenção de frota (Seção 21.17) e as quatro nomenclaturas de "lote" na cadeia colheita→beneficiamento (Seção 21.18) foram investigadas e confirmadas como **já corretas** — nenhum gap funcional encontrado. O status segue **PARCIAL**, não "ADEQUADA/MADURA", pelo item de roadmap remanescente (beneficiamento café-only) e pelos riscos residuais de baixo risco documentados em cada correção desta sessão (ponte de alertas só na criação, relatório "Centro de Custos" não unificado, worker de produção não confirmado por código, telas de frontend do Receituário Agronômico/Logística Reversa ainda não construídas, jobs de vencimento automático por data ainda não implementados).
 
 ### Resposta objetiva
 
