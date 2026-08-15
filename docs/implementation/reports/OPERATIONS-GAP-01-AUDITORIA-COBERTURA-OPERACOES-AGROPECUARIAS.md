@@ -178,7 +178,7 @@ Campo PWA (`apps/campo/`, Next.js separado) tem arquitetura offline genuína: De
 3. **Shadowing de pacote Python em `ambiental/`**: arquivo `models.py` e pacote `models/` coexistindo no mesmo namespace é um padrão frágil, propenso a import ambíguo e funcionalidade "fantasma".
 4. **Cadeia de "lote" com 3+ nomenclaturas** (ProdutoColhido/LoteBeneficiamento/LoteRastreabilidade/CadernoLoteComercial) aumenta risco de drift entre etapas se alguma atualização não propagar.
 5. **Sistemas de alertas fragmentados**: mesmo com ponte parcial, a arquitetura de 3 motores aumenta custo de manutenção e risco de comportamento inconsistente entre eles.
-6. ~~**Elo Produção→Resultado quebrado**~~ — **RESOLVIDO em 2026-08-15**: backend agora calcula custo/margem por lote por 3 vias (Seção 21). Risco residual: como há 3 alternativas em paralelo (DRE on-demand, snapshot, tabela auditável), é preciso decidir qual é a fonte oficial para exibição em dashboard/relatório antes de expor ao usuário final, para não repetir o padrão de "motores paralelos" já visto em Rateio/CostAllocation.
+6. ~~**Elo Produção→Resultado quebrado**~~ — **RESOLVIDO em 2026-08-15**: backend agora calcula custo/margem por lote por 3 vias (Seção 21), e a fonte oficial foi decidida (Alternativa C — ver Seção 21). Risco residual: a decisão ainda não foi aplicada em nenhuma UI, então nada impede hoje que um desenvolvedor consuma A ou B como se fosse o número final — o guardrail é documental, não técnico.
 
 ## 19. Funcionalidades Existentes que Devem Ser Preservadas
 
@@ -196,7 +196,7 @@ Sem propor refatoração ampla, e em ordem de exposição de risco/esforço:
 1. Investigar e decidir formalmente (produto, não código): Rateio vs CostAllocation — qual é o caminho único daqui pra frente.
 2. Completar a migração Float→Numeric nas 4 tabelas de estoque identificadas (escopo cirúrgico, já mapeado).
 3. Confirmar/relatar (2ª auditoria pontual) o shadowing em `ambiental/models.py` vs `ambiental/models/car.py` e decidir qual é o vivo.
-4. ~~Endereçar o GAP crítico de custo/margem por lote comercializado~~ — **CONCLUÍDO em 2026-08-15** (Seção 21). Próximo passo derivado: decidir a fonte oficial (DRE on-demand vs. snapshot vs. tabela auditável) para exibição em frontend/dashboard, e avaliar tornar `ComercializacaoCommodity.produto_colhido_id` obrigatório (hoje `nullable`).
+4. ~~Endereçar o GAP crítico de custo/margem por lote comercializado~~ — **CONCLUÍDO em 2026-08-15** (Seção 21). ~~Decidir a fonte oficial~~ — **CONCLUÍDO em 2026-08-15**: Alternativa C é a fonte oficial (ver Seção 21). Próximos passos derivados: (i) implementar consumo em frontend usando os endpoints de C; (ii) avaliar tornar `ComercializacaoCommodity.produto_colhido_id` obrigatório (hoje `nullable`).
 5. Resolver o hard-stop de tarefa multi-talhão (decisão de produto: dividir a tarefa por talhão vs. permitir OperacaoAgricola multi-área).
 6. Fazer 2ª passada dedicada em: `amostragem_solo` vs `analises_solo`; receituário/embalagens/compliance; contas a pagar/receber; custos indiretos/depreciação — itens não confirmados por escopo desta auditoria.
 
@@ -227,10 +227,19 @@ Esta seção documenta o fechamento do GAP CRÍTICO original ("Custo/margem por 
 - **Cobertura**: a mais completa das três — auditável, versionável, sobrevive a custos lançados com atraso (basta reconciliar de novo). Sem job automático de reconciliação (decisão de escopo — roda sob demanda via endpoint).
 - **Testes**: `tests/integration/agricola/test_produto_colhido_cost_allocation.py` (5 casos: rateio proporcional exato, idempotência, override não sobrescrito por reconciliação, validação de justificativa obrigatória, falha com PU ambíguo).
 
+### Decisão de fonte oficial (2026-08-15)
+
+Para evitar repetir o padrão de "motores paralelos sem guardrail" já visto em Rateio vs. CostAllocation (Seção 16/18), fica formalmente decidido:
+
+- **Alternativa C (tabela de junção auditável) é a fonte oficial** de custo/margem por lote comercializado, para qualquer relatório, exportação, dashboard ou tela de auditoria. É a única que (i) sobrevive a `CostAllocation` lançados após a colheita via reconciliação sob demanda, e (ii) tem trilha de auditoria (`origem_calculo`, `justificativa`) para ajuste manual. Consumidores que precisam do número "final" devem ler `obter_custo_alocado()` / `GET /agricola/produtos-colhidos/{id}/custos`, acionando `reconciliar_alocacoes_lote()` quando o dado estiver desatualizado.
+- **Alternativa B (snapshot na colheita) é informativa, não oficial** — representa "custo de produção até a data de colheita", útil como indicador rápido e imutável, mas não deve ser apresentada como margem final porque ignora custos lançados depois (secagem, armazenagem, frete). Qualquer UI que exiba `custo_unitario_producao` deve rotulá-lo como estimativa na colheita, não como custo definitivo.
+- **Alternativa A (rateio on-demand no DRE) é uma view de conveniência**, mantida por já estar integrada ao `DREAgricolaV1Service` e não exigir chamada extra — mas seu resultado pode divergir de C se a reconciliação de C não tiver rodado após novos lançamentos. Não é fonte oficial fora do contexto do próprio DRE.
+
+Consequência prática: ao construir qualquer tela ou relatório de custo/margem por lote, o frontend deve consumir os endpoints de C; A e B seguem existindo como estão, sem obrigação de convergência automática entre si.
+
 ### O que permanece em aberto após esta resolução
 
-- **Decisão de fonte oficial pendente**: as 3 alternativas coexistem sem uma delas ser formalmente "a" fonte de verdade para exibição em frontend/dashboard — risco de virar um novo caso de "motores paralelos" (como Rateio vs CostAllocation) se não houver decisão de produto explícita sobre qual usar em cada contexto (ex.: DRE usa A, ficha do lote usa C).
-- **Sem consumo em frontend**: os três mecanismos são só backend; nenhuma tela consome os novos campos/endpoints ainda.
+- **Sem consumo em frontend**: os três mecanismos são só backend; nenhuma tela consome os novos campos/endpoints ainda — inclusive a fonte oficial (C) recém-decidida.
 - **`ComercializacaoCommodity.produto_colhido_id` continua `nullable`**: comercializações sem esse vínculo seguem fora do rateio por lote (reportadas como aviso `COMERCIALIZACAO_SEM_LOTE_VINCULADO` no DRE) — tornar obrigatório é decisão de produto separada, ainda não tomada.
 - **Sem backfill histórico**: lotes/comercializações anteriores a 2026-08-15 não recebem os novos campos automaticamente.
 
@@ -246,4 +255,4 @@ A aplicação cobre com solidez a maior parte do ciclo agrícola, pecuário, de 
 
 1. **Tarefas multi-talhão**: `SafraTarefa` sem `talhao_id` único não consegue gerar `OperacaoAgricola` (hard-stop explícito em código), impedindo a execução/apontamento formal desse cenário.
 
-Adicionalmente, a confiabilidade dos números de custo segue sob risco pela coexistência ativa e não reconciliada de dois motores de rateio (Rateio-Float vs CostAllocation-Numeric) e pela migração incompleta de tipos monetários em estoque — e, agora, pela necessidade de decidir qual das 3 novas alternativas de custo por lote é a fonte oficial antes de expor isso ao usuário final.
+Adicionalmente, a confiabilidade dos números de custo segue sob risco pela coexistência ativa e não reconciliada de dois motores de rateio (Rateio-Float vs CostAllocation-Numeric) e pela migração incompleta de tipos monetários em estoque. Quanto ao custo por lote: a fonte oficial já foi decidida (Alternativa C, Seção 21), mas o guardrail ainda é apenas documental — nenhuma UI consome os endpoints ainda, então a decisão precisa ser respeitada manualmente até haver frontend.
