@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Mapped, mapped_column
-from sqlalchemy import String, Boolean, Date, Text, ForeignKey, text, JSON, Numeric
+from sqlalchemy import String, Date, Text, ForeignKey, JSON, Numeric
 from uuid import UUID
 import uuid
 from datetime import datetime, date
@@ -33,5 +33,5 @@ class PrescricaoVRA(Base):
     status: Mapped[str] = mapped_column(String(20), default="PENDENTE") # PENDENTE, EXECUTADA, CANCELADA
     
     observacoes: Mapped[str | None] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(server_default=text("(CURRENT_TIMESTAMP)"))
-    updated_at: Mapped[datetime] = mapped_column(server_default=text("(CURRENT_TIMESTAMP)"), onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(default=datetime.utcnow, onupdate=datetime.utcnow)

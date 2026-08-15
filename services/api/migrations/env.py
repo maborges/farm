@@ -161,7 +161,7 @@ from core.models.solicitacoes_historico import SolicitacaoHistorico
 from agricola.cenarios.models import SafraCenario, SafraCenarioUnidade
 
 # Outros
-from agricola.amostragem_solo.models.prescricoes_vra import PrescricaoVRA
+from agricola.prescricoes.models import PrescricaoVRA
 
 # IA Diagnóstico
 from ia_diagnostico.models import PragasDoencas, Tratamentos, Diagnosticos, Recomendacoes, ModelosMl
