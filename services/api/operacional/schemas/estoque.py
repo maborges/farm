@@ -184,6 +184,12 @@ class AjusteEstoqueRequest(BaseModel):
     # lançamento — impossibilitando relatório de perdas. Default preserva o
     # comportamento anterior (toda origem seguia como "AJUSTE").
     categoria_ajuste: Literal["CONTAGEM_INVENTARIO", "PERDA", "CORRECAO_LANCAMENTO"] = "CONTAGEM_INVENTARIO"
+    # Risco residual #4 (OPERATIONS-GAP-01): opcionais — só usados quando
+    # categoria_ajuste="PERDA" e o usuário quer vincular a perda a uma
+    # safra/talhão específico, permitindo gerar CostAllocation (despesa no DRE).
+    # Perda de almoxarifado genérico (sem safra/talhão) segue sem custo alocado.
+    safra_id: uuid.UUID | None = None
+    talhao_id: uuid.UUID | None = None
 
 
 class AjusteMovimentoRequest(BaseModel):

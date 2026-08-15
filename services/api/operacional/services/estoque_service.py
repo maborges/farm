@@ -1040,7 +1040,7 @@ class EstoqueService(BaseService[SaldoEstoque]):
 
     async def registrar_ajuste(self, data: AjusteEstoqueRequest) -> EstoqueMovimento:
         saldo = await self._get_ou_criar_saldo(data.deposito_id, data.produto_id)
-        diff = data.quantidade_nova - saldo.quantidade_atual
+        diff = data.quantidade_nova - float(saldo.quantidade_atual)
         saldo.quantidade_atual = data.quantidade_nova
         # Ajuste de inventário não tem custo próprio (só corrige contagem) —
         # custo médio permanece o mesmo, seja o ajuste positivo ou negativo.
@@ -1061,8 +1061,46 @@ class EstoqueService(BaseService[SaldoEstoque]):
         )
         await self.session.flush()
         await self.session.refresh(mov)
+
+        # Risco residual #4 (OPERATIONS-GAP-01): perda de estoque vinculável a
+        # um ProductionUnit passa a gerar CostAllocation (despesa real no DRE),
+        # em vez de ficar invisível no P&L. Sem safra/talhão informados ou sem
+        # PU resolvível, pula silenciosamente — mesmo padrão já usado em
+        # OperationalCostAllocationService._upsert_allocation.
+        if origem == "PERDA" and custo_medio_atual and diff < 0 and data.safra_id and data.talhao_id:
+            production_unit_id = await self._resolver_production_unit_id_perda(
+                safra_id=data.safra_id, talhao_id=data.talhao_id,
+            )
+            if production_unit_id:
+                from agricola.custos.allocation_service import registrar_cost_allocation
+                await registrar_cost_allocation(
+                    self.session,
+                    tenant_id=self.tenant_id,
+                    production_unit_id=production_unit_id,
+                    source="PERDA_ESTOQUE",
+                    inventory_movement_id=mov.id,
+                    amount=round(abs(diff) * custo_medio_atual, 2),
+                    allocation_date=date.today(),
+                    cost_category="OUTROS",  # source="PERDA_ESTOQUE" já discrimina; evita nova migration de ck_cost_allocations_category
+                    allocation_method="DIRECT",
+                )
+                await self.session.flush()
+
         await self._verificar_e_notificar_estoque_baixo(saldo)
         return mov
+
+    async def _resolver_production_unit_id_perda(self, *, safra_id: UUID, talhao_id: UUID) -> UUID | None:
+        from agricola.production_units.models import ProductionUnit
+        stmt = (
+            select(ProductionUnit.id)
+            .where(
+                ProductionUnit.tenant_id == self.tenant_id,
+                ProductionUnit.safra_id == safra_id,
+                ProductionUnit.area_id == talhao_id,
+            )
+            .order_by((ProductionUnit.status == "ATIVA").desc(), ProductionUnit.created_at.desc())
+        )
+        return (await self.session.execute(stmt)).scalars().first()
 
     async def registrar_transferencia(self, data: TransferenciaEstoqueRequest) -> list[EstoqueMovimento]:
         dep_origem = await validate_deposito_context(
