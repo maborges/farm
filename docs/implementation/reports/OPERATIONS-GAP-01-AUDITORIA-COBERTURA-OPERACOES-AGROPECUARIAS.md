@@ -9,7 +9,7 @@
 
 A aplicação já implementa a espinha dorsal completa da cadeia **Planejamento → Execução → Recursos → Estoque → Custos → Produção → Comercialização**, com um núcleo bem desenhado (`Safra` → `Cultivo`/`CultivoArea` → `SafraTarefa` → `OperacaoAgricola`/`OperacaoExecucao` → `InsumoOperacao`/`EstoqueMovimento` → `CostAllocation`/`ProductionUnit` → `ProdutoColhido`/`RomaneioColheita` → `ComercializacaoCommodity`). Pecuária, frota/máquinas e mão de obra têm modelagem madura e, em geral, ligada a safra/talhão/operação.
 
-Os problemas dominantes **não são ausência de funcionalidade**, e sim: (a) **duplicações econômicas paralelas ainda vivas** (Rateio-Float vs CostAllocation-Numeric; 3 sistemas de alertas; 2 modelos de CAR); (b) **migração incompleta Float→Numeric** em estoque (saldo, lote, requisição); (c) **elo final quebrado**: não existe custo/margem por lote comercializado, rompendo a promessa de "Resultado Econômico" na ponta de venda; (d) módulos específicos-a-café (beneficiamento) sem generalização para outras culturas; (e) gaps pontuais reais (castração, mão de obra manual sem equipamento, infraestrutura fixa sem manutenção, embalagens/receituário).
+Os problemas dominantes **não são ausência de funcionalidade**, e sim: (a) **duplicações econômicas paralelas ainda vivas** (Rateio-Float vs CostAllocation-Numeric; 3 sistemas de alertas; 2 modelos de CAR); (b) **migração incompleta Float→Numeric** em estoque (saldo, lote, requisição); (c) ~~elo final quebrado: não existe custo/margem por lote comercializado~~ — **RESOLVIDO em 2026-08-15** (ver Adendo, Seção 21): implementadas 3 alternativas complementares de custo/margem por lote (rateio sob demanda no DRE, snapshot de custo na colheita, tabela de junção auditável com override manual); (d) módulos específicos-a-café (beneficiamento) sem generalização para outras culturas; (e) gaps pontuais reais (castração, mão de obra manual sem equipamento, infraestrutura fixa sem manutenção, embalagens/receituário).
 
 O Campo PWA é arquitetura offline genuína (Dexie + outbox), reusa a API, mas não cobre mão de obra/estoque como fluxo offline dedicado.
 
@@ -60,7 +60,7 @@ O Campo PWA é arquitetura offline genuína (Dexie + outbox), reusa a API, mas n
 | I | Produção/romaneio | COBERTO | — | Sim | — | Sim | — | — | Sim | Parcial | Sim | `colheita/models.py`, `romaneios/models.py:8` | — |
 | I | Beneficiamento café | PARCIAL | — | Sim | — | Sim | Parcial | — | Sim | — | — | `beneficiamento/models.py:9` | Só café |
 | I | Comercialização/contrato/venda | COBERTO | — | Sim | — | Sim | — | Sim | Sim | Parcial | — | `financeiro/comercializacao/models.py` | — |
-| I | Custo do lote / margem do lote | GAP CRÍTICO CONFIRMADO | — | — | — | — | Não | Não | Sim | Não | — | grep vazio p/ custo_lote/margem_lote | Rompe cadeia de Resultado |
+| I | Custo do lote / margem do lote | RESOLVIDO (2026-08-15) | — | — | — | Sim | Sim | Sim | Sim | Parcial | Não | `agricola/dre/service.py::_ratear_custos_por_lote`, `agricola/colheita/models.py::custo_unitario_producao`, `agricola/custos/lote_allocation_service.py` | Fechado backend; falta consumo em frontend/dashboard |
 | I | Rastreabilidade | DUPLICADO-PARALELO suspeito | — | Sim | — | — | — | — | Sim | — | — | `LoteRastreabilidade` vs `CadernoLoteComercial` | Uso ativo não confirmado |
 | J | Manutenção de frota (móvel) | COBERTO | Sim | Sim | Sim | Parcial | Sim | — | — | Sim | — | `operacional/models/frota.py` | — |
 | J | Infraestrutura fixa (estrada/cerca/poço) | GAP | — | — | — | — | — | — | — | — | — | Sem model dedicado | Só Benfeitoria cadastral, sem manutenção |
@@ -106,7 +106,7 @@ Cadeia Talhão→Operação→Colheita→Produção→Beneficiamento→Lote→Cl
 
 ## 12. Comercialização (I cont.)
 
-`ComercializacaoCommodity` cobre contrato/pedido/venda/pagamento com integração a estoque (baixa de `ProdutoColhido`) e financeiro (gera receita). **GAP CRÍTICO CONFIRMADO**: nenhum campo ou serviço de custo/margem por lote comercializado (`grep custo_lote|margem_lote` vazio em `agricola/` e `financeiro/`) — a receita da venda existe, mas não há ligação ao custo de produção acumulado (`CostAllocation`) daquele lote, rompendo o elo final da cadeia de Resultado Econômico pedida na auditoria. Rastreabilidade tem dois modelos sobrepostos (`LoteRastreabilidade` genérico vs `CadernoLoteComercial` assinado) cujo uso ativo não foi confirmado.
+`ComercializacaoCommodity` cobre contrato/pedido/venda/pagamento com integração a estoque (baixa de `ProdutoColhido`) e financeiro (gera receita). **GAP CRÍTICO RESOLVIDO em 2026-08-15** (ver Adendo, Seção 21, para o detalhamento completo): a lacuna de custo/margem por lote comercializado, identificada nesta auditoria e aprofundada em `OPERATIONS-GAP-01-DEEPDIVE-CUSTO-MARGEM-LOTE.md`, foi fechada com 3 alternativas complementares implementadas — (A) rateio sob demanda no DRE, (B) snapshot de custo unitário gravado na colheita, (C) tabela de junção auditável com override manual. A receita da venda agora tem caminho de custo associado por três vias distintas, cobrindo diferentes necessidades (consulta pontual, performance/estabilidade histórica, auditoria/ajuste manual). Rastreabilidade tem dois modelos sobrepostos (`LoteRastreabilidade` genérico vs `CadernoLoteComercial` assinado) cujo uso ativo não foi confirmado — GAP não relacionado, segue aberto.
 
 ## 13. Infraestrutura (J)
 
@@ -138,8 +138,8 @@ Campo PWA (`apps/campo/`, Next.js separado) tem arquitetura offline genuína: De
 ## 17. GAPs Classificados por Severidade
 
 **CRÍTICO**
-- Custo/margem por lote comercializado inexistente — rompe o elo final Produção→Resultado Econômico (Seção 12).
-- Tarefa multi-talhão (`SafraTarefa.talhao_id is None`) não gera `OperacaoAgricola` — hard-stop que impede execução/apontamento de um cenário operacional legítimo (Seção 4).
+- ~~Custo/margem por lote comercializado inexistente~~ — **RESOLVIDO em 2026-08-15** (Seção 12, Adendo Seção 21).
+- Tarefa multi-talhão (`SafraTarefa.talhao_id is None`) não gera `OperacaoAgricola` — hard-stop que impede execução/apontamento de um cenário operacional legítimo (Seção 4). **Segue aberto.**
 
 **ALTO**
 - Rateio (Float) vs CostAllocation (Numeric) sem exclusividade garantida — risco de dupla contabilização de custo.
@@ -178,7 +178,7 @@ Campo PWA (`apps/campo/`, Next.js separado) tem arquitetura offline genuína: De
 3. **Shadowing de pacote Python em `ambiental/`**: arquivo `models.py` e pacote `models/` coexistindo no mesmo namespace é um padrão frágil, propenso a import ambíguo e funcionalidade "fantasma".
 4. **Cadeia de "lote" com 3+ nomenclaturas** (ProdutoColhido/LoteBeneficiamento/LoteRastreabilidade/CadernoLoteComercial) aumenta risco de drift entre etapas se alguma atualização não propagar.
 5. **Sistemas de alertas fragmentados**: mesmo com ponte parcial, a arquitetura de 3 motores aumenta custo de manutenção e risco de comportamento inconsistente entre eles.
-6. **Elo Produção→Resultado quebrado**: sem custo/margem de lote, qualquer dashboard de rentabilidade de comercialização hoje é necessariamente incompleto ou calculado fora do modelo de dados (risco de números divergentes entre telas).
+6. ~~**Elo Produção→Resultado quebrado**~~ — **RESOLVIDO em 2026-08-15**: backend agora calcula custo/margem por lote por 3 vias (Seção 21). Risco residual: como há 3 alternativas em paralelo (DRE on-demand, snapshot, tabela auditável), é preciso decidir qual é a fonte oficial para exibição em dashboard/relatório antes de expor ao usuário final, para não repetir o padrão de "motores paralelos" já visto em Rateio/CostAllocation.
 
 ## 19. Funcionalidades Existentes que Devem Ser Preservadas
 
@@ -196,21 +196,54 @@ Sem propor refatoração ampla, e em ordem de exposição de risco/esforço:
 1. Investigar e decidir formalmente (produto, não código): Rateio vs CostAllocation — qual é o caminho único daqui pra frente.
 2. Completar a migração Float→Numeric nas 4 tabelas de estoque identificadas (escopo cirúrgico, já mapeado).
 3. Confirmar/relatar (2ª auditoria pontual) o shadowing em `ambiental/models.py` vs `ambiental/models/car.py` e decidir qual é o vivo.
-4. Endereçar o GAP crítico de custo/margem por lote comercializado — desenhar antes de implementar (nova sessão de brainstorming dedicada, dado o impacto em DRE/rentabilidade).
+4. ~~Endereçar o GAP crítico de custo/margem por lote comercializado~~ — **CONCLUÍDO em 2026-08-15** (Seção 21). Próximo passo derivado: decidir a fonte oficial (DRE on-demand vs. snapshot vs. tabela auditável) para exibição em frontend/dashboard, e avaliar tornar `ComercializacaoCommodity.produto_colhido_id` obrigatório (hoje `nullable`).
 5. Resolver o hard-stop de tarefa multi-talhão (decisão de produto: dividir a tarefa por talhão vs. permitir OperacaoAgricola multi-área).
 6. Fazer 2ª passada dedicada em: `amostragem_solo` vs `analises_solo`; receituário/embalagens/compliance; contas a pagar/receber; custos indiretos/depreciação — itens não confirmados por escopo desta auditoria.
 
 ---
 
+## 21. Adendo (2026-08-15) — Resolução do GAP crítico de custo/margem por lote
+
+Esta seção documenta o fechamento do GAP CRÍTICO original ("Custo/margem por lote comercializado inexistente", Seções 3.I e 12), investigado em profundidade em `OPERATIONS-GAP-01-DEEPDIVE-CUSTO-MARGEM-LOTE.md` e implementado em 3 commits sequenciais no mesmo dia. As três alternativas descritas no deep-dive foram todas implementadas, cada uma cobrindo uma necessidade distinta — não são mutuamente exclusivas.
+
+### Alternativa A — Rateio sob demanda no DRE (sem persistência)
+
+- **O que faz**: estende `DREAgricolaV1Service.gerar()` (`agricola/dre/service.py`) para ratear o custo de cada `ProductionUnit` entre os lotes vendidos no período, proporcional à quantidade movimentada, calculado em memória a cada chamada — sem migration, sem novo campo.
+- **Evidência**: `agricola/dre/service.py::_ratear_custos_por_lote` (novo método); `agricola/dre/schemas.py::DRELoteMargem`; campos `margem_por_lote`/`lotes_sem_vinculo` em `DREAgricolaResponse`.
+- **Cobertura**: consulta pontual, sempre atualizada (reflete `CostAllocation` lançados a qualquer momento), mas recalculada a cada request — não serve para performance em relatórios frequentes nem congela histórico.
+- **Testes**: `tests/unit/agricola/test_dre_lote_margem.py` (3 casos unitários), `tests/test_dre_agricola_v1.py::test_dre_v1_rateia_custo_por_lote_proporcional_a_quantidade` (integração com banco real).
+
+### Alternativa B — Snapshot de custo unitário na colheita (imutável)
+
+- **O que faz**: grava `custo_unitario_producao` em `ProdutoColhido` no momento da criação do lote (fechamento de romaneio ou entrada manual), calculado como custo acumulado do PU até a data / quantidade acumulada até a data. Uma vez gravado, não muda — estável para histórico, mas pode subestimar custo se houver lançamentos posteriores com atraso (risco já documentado no deep-dive).
+- **Evidência**: campo `custo_unitario_producao` em `agricola/colheita/models.py`; helper `calcular_custo_unitario_snapshot()` em `agricola/custos/service.py`; migration `20260815_produto_colhido_custo_unitario.py`; chamado em `agricola/romaneios/service.py::RomaneioService.criar` e `agricola/colheita/service.py::ProdutoColhidoService.criar`.
+- **Cobertura**: PU ambíguo (consórcio) ou inexistente → campo fica `NULL`, não bloqueia a criação do lote. Sem backfill de lotes históricos (decisão de escopo).
+- **Testes**: `tests/integration/agricola/test_produto_colhido_custo_snapshot.py` (5 casos: cálculo correto, PU ambíguo, PU inexistente, custo lançado após a data ignorado, wiring em `ProdutoColhidoService.criar`).
+
+### Alternativa C — Tabela de junção auditável com override manual
+
+- **O que faz**: nova tabela `agricola_produto_colhido_cost_allocations` persiste o vínculo explícito entre cada lote e cada `CostAllocation`, com percentual/valor atribuído. Populada por reconciliação sob demanda (não cron) que recalcula as linhas `AUTOMATICO` (delete+recreate, idempotente) sem tocar em linhas `MANUAL` — permite ajuste humano auditado (exige justificativa) sem perder o cálculo automático original.
+- **Evidência**: model `ProdutoColhidoCostAllocation` em `agricola/custos/models.py`; `agricola/custos/lote_allocation_service.py` (`reconciliar_alocacoes_lote`, `aplicar_override_manual`, `obter_custo_alocado`); migration `20260815_produto_colhido_cost_allocation.py`; endpoints `POST/GET /agricola/produtos-colhidos/{id}/{reconciliar-custos,custos,custos/override}` em `agricola/colheita/router.py` (override restrito a `agronomo`/`admin`).
+- **Cobertura**: a mais completa das três — auditável, versionável, sobrevive a custos lançados com atraso (basta reconciliar de novo). Sem job automático de reconciliação (decisão de escopo — roda sob demanda via endpoint).
+- **Testes**: `tests/integration/agricola/test_produto_colhido_cost_allocation.py` (5 casos: rateio proporcional exato, idempotência, override não sobrescrito por reconciliação, validação de justificativa obrigatória, falha com PU ambíguo).
+
+### O que permanece em aberto após esta resolução
+
+- **Decisão de fonte oficial pendente**: as 3 alternativas coexistem sem uma delas ser formalmente "a" fonte de verdade para exibição em frontend/dashboard — risco de virar um novo caso de "motores paralelos" (como Rateio vs CostAllocation) se não houver decisão de produto explícita sobre qual usar em cada contexto (ex.: DRE usa A, ficha do lote usa C).
+- **Sem consumo em frontend**: os três mecanismos são só backend; nenhuma tela consome os novos campos/endpoints ainda.
+- **`ComercializacaoCommodity.produto_colhido_id` continua `nullable`**: comercializações sem esse vínculo seguem fora do rateio por lote (reportadas como aviso `COMERCIALIZACAO_SEM_LOTE_VINCULADO` no DRE) — tornar obrigatório é decisão de produto separada, ainda não tomada.
+- **Sem backfill histórico**: lotes/comercializações anteriores a 2026-08-15 não recebem os novos campos automaticamente.
+
+---
+
 ## STATUS DA COBERTURA OPERACIONAL: **PARCIAL**
 
-A aplicação cobre com solidez a maior parte do ciclo agrícola, pecuário, de máquinas e de mão de obra, com um núcleo arquitetural coerente (ProductionUnit/CostAllocation/OperacaoAgricola). Não é "FUNDACIONAL" (o motor central existe e funciona ponta a ponta na maioria dos domínios) nem "ADEQUADA/MADURA" (há um GAP crítico que rompe o elo final da cadeia — custo/margem por lote — e duplicações econômicas ativas sem guardrail que colocam em risco a confiabilidade dos números de custo/resultado).
+A aplicação cobre com solidez a maior parte do ciclo agrícola, pecuário, de máquinas e de mão de obra, com um núcleo arquitetural coerente (ProductionUnit/CostAllocation/OperacaoAgricola). O GAP crítico original (elo final Produção→Resultado quebrado) foi resolvido em 2026-08-15 (Seção 21), mas o status permanece **PARCIAL** — não "ADEQUADA/MADURA" — porque duplicações econômicas ativas sem guardrail (Rateio-Float vs CostAllocation-Numeric, 3 sistemas de alertas) e a migração incompleta Float→Numeric em estoque continuam colocando em risco a confiabilidade dos números de custo/resultado, e o hard-stop de tarefa multi-talhão ainda impede um cenário operacional legítimo.
 
 ### Resposta objetiva
 
-**Não integralmente.** A aplicação consegue representar ponta a ponta Planejamento→Execução→Recursos→Estoque→Produção para a maioria dos cenários operacionais comuns (agrícola genérico, pecuária individual/coletiva, frota, mão de obra em diária/empreitada). Porém a cadeia se rompe formalmente em dois pontos concretos, com evidência de código:
+**Parcialmente, com a lacuna mais crítica já fechada.** A aplicação consegue representar ponta a ponta Planejamento→Execução→Recursos→Estoque→Produção→Resultado Econômico para a maioria dos cenários operacionais comuns (agrícola genérico, pecuária individual/coletiva, frota, mão de obra em diária/empreitada), **incluindo agora custo/margem por lote comercializado** (Seção 21). Um ponto concreto de ruptura formal permanece, com evidência de código:
 
-1. **Resultado econômico da comercialização**: não há campo/serviço de custo ou margem por lote vendido (`ComercializacaoCommodity` tem receita, mas nenhum vínculo a `CostAllocation` do lote) — o "R" (Resultado) da cadeia pedida não fecha na ponta de venda.
-2. **Tarefas multi-talhão**: `SafraTarefa` sem `talhao_id` único não consegue gerar `OperacaoAgricola` (hard-stop explícito em código), impedindo a execução/apontamento formal desse cenário.
+1. **Tarefas multi-talhão**: `SafraTarefa` sem `talhao_id` único não consegue gerar `OperacaoAgricola` (hard-stop explícito em código), impedindo a execução/apontamento formal desse cenário.
 
-Adicionalmente, a confiabilidade dos números de custo está sob risco pela coexistência ativa e não reconciliada de dois motores de rateio (Rateio-Float vs CostAllocation-Numeric) e pela migração incompleta de tipos monetários em estoque.
+Adicionalmente, a confiabilidade dos números de custo segue sob risco pela coexistência ativa e não reconciliada de dois motores de rateio (Rateio-Float vs CostAllocation-Numeric) e pela migração incompleta de tipos monetários em estoque — e, agora, pela necessidade de decidir qual das 3 novas alternativas de custo por lote é a fonte oficial antes de expor isso ao usuário final.
