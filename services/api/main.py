@@ -318,6 +318,7 @@ app.include_router(operacional_relatorios.router, prefix="/api/v1")
 app.include_router(compras.router, prefix="/api/v1")
 app.include_router(compras_publico.router, prefix="/api/v1")
 app.include_router(router_apontamento.router, prefix="/api/v1")
+app.include_router(router_apontamento.router_mao_obra, prefix="/api/v1")
 app.include_router(router_abastecimento.router, prefix="/api/v1")
 app.include_router(router_checklist.router, prefix="/api/v1")
 from ia.router import router as ia_uso_router

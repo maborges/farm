@@ -85,7 +85,7 @@ from campo.models import DispositivoCampo, TarefaCampo, SyncTombstone
 
 # Equipamentos
 from core.cadastros.equipamentos.models import Equipamento, EquipamentoAlocacao
-from operacional.models.apontamento import ApontamentoUso
+from operacional.models.apontamento import ApontamentoUso, ApontamentoMaoObra
 from operacional.models.abastecimento import Abastecimento
 from operacional.models.checklist import (
     ChecklistModelo,

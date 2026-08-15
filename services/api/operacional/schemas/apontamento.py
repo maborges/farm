@@ -1,4 +1,4 @@
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, Field, model_validator
 from typing import Optional
 from datetime import datetime
 import uuid
@@ -105,3 +105,44 @@ class ApontamentoUsoResponse(BaseModel):
     def calc_horas(self):
         self.horas_trabalhadas = round(self.horimetro_fim - self.horimetro_inicio, 2)
         return self
+
+
+class ApontamentoMaoObraCreate(BaseModel):
+    """OPERATIONS-GAP-01 §21.14."""
+    pessoa_id: uuid.UUID
+    data: datetime
+    turno: str = "INTEGRAL"
+    horas_trabalhadas: float = Field(..., gt=0)
+    quantidade_pessoas: int = Field(1, ge=1)
+
+    unidade_produtiva_id: Optional[uuid.UUID] = None
+    safra_id: Optional[uuid.UUID] = None
+    production_unit_id: Optional[uuid.UUID] = None
+    talhao_id: Optional[uuid.UUID] = None
+    operacao_id: Optional[uuid.UUID] = None
+    tipo_operacao: Optional[str] = None
+
+    custo_hora_snapshot: Optional[float] = Field(None, ge=0, description="Override manual; default vem de ColaboradorRH.valor_hora")
+    observacoes: Optional[str] = None
+
+
+class ApontamentoMaoObraResponse(BaseModel):
+    id: uuid.UUID
+    tenant_id: uuid.UUID
+    pessoa_id: uuid.UUID
+    data: datetime
+    turno: str
+    horas_trabalhadas: float
+    quantidade_pessoas: int
+    unidade_produtiva_id: Optional[uuid.UUID]
+    safra_id: Optional[uuid.UUID]
+    production_unit_id: Optional[uuid.UUID]
+    talhao_id: Optional[uuid.UUID]
+    operacao_id: Optional[uuid.UUID]
+    tipo_operacao: Optional[str]
+    custo_hora_snapshot: Optional[float]
+    custo_total: Optional[float]
+    observacoes: Optional[str]
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
