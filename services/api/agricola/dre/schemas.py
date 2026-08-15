@@ -49,6 +49,17 @@ class DREReconcilacaoMeta(BaseModel):
     detalhes: dict = Field(default_factory=dict)
 
 
+class DRELoteMargem(BaseModel):
+    produto_colhido_id: UUID
+    production_unit_id: UUID | None = None
+    quantidade: float = 0.0
+    unidade: str | None = None
+    receita_total: float = 0.0
+    custo_rateado: float = 0.0
+    margem: float = 0.0
+    margem_percentual: float | None = None
+
+
 class DREAgricolaKpis(BaseModel):
     area_total_ha: float = 0.0
     receita_liquida: float = 0.0
@@ -92,6 +103,9 @@ class DREAgricolaResponse(BaseModel):
     custos_operacionais_detalhe: DREAgricolaSection = Field(default_factory=DREAgricolaSection)
     despesas_operacionais_detalhe: DREAgricolaSection = Field(default_factory=DREAgricolaSection)
     kpis: DREAgricolaKpis = Field(default_factory=DREAgricolaKpis)
+
+    margem_por_lote: list[DRELoteMargem] = Field(default_factory=list)
+    lotes_sem_vinculo: int = 0
 
     warnings: list[DREWarning] = Field(default_factory=list)
     reconciliacao: DREReconcilacaoMeta = Field(default_factory=DREReconcilacaoMeta)

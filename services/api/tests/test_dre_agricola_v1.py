@@ -1309,3 +1309,188 @@ async def test_dre_v1_preserva_fallback_historico_despesa_operacao_sem_allocatio
         item.origem_id == operacao.id and item.origem_tipo == "OPERACAO_AGRICOLA"
         for item in dre.despesas_operacionais_detalhe.itens
     )
+
+
+@pytest.mark.asyncio
+async def test_dre_v1_rateia_custo_por_lote_proporcional_a_quantidade(session: AsyncSession):
+    """OPERATIONS-GAP-01: o custo da PU deve ser rateado entre os lotes vendidos
+    proporcionalmente à quantidade, e uma comercialização sem produto_colhido_id deve
+    ser reportada como lote sem vínculo, sem quebrar a DRE agregada."""
+    tenant_id = uuid.uuid4()
+    unidade_id, area_id, safra, cultivo_id, pu, produto, deposito, unidade_ha_id = await _base_contexto(session, tenant_id)
+    commodity = await _criar_commodity(session, tenant_id, "Soja Lote Margem")
+    comprador = await _criar_pessoa(session, tenant_id, "Comprador Lote Margem")
+    plano_receita = await _criar_plano_conta(session, tenant_id, "Plano Receita Lote Margem")
+
+    from agricola.colheita.models import ProdutoColhido
+
+    # Dois lotes na mesma PU, com quantidades diferentes (60 e 40 sacas).
+    lote_a = ProdutoColhido(
+        tenant_id=tenant_id,
+        safra_id=safra.id,
+        talhao_id=area_id,
+        romaneio_id=None,
+        commodity_id=commodity.id,
+        quantidade=60.0,
+        unidade=commodity.unidade_padrao,
+        peso_liquido_kg=3600.0,
+        data_entrada=date.today(),
+        destino="ARMAZENADO",
+        status="VENDIDO",
+    )
+    lote_b = ProdutoColhido(
+        tenant_id=tenant_id,
+        safra_id=safra.id,
+        talhao_id=area_id,
+        romaneio_id=None,
+        commodity_id=commodity.id,
+        quantidade=40.0,
+        unidade=commodity.unidade_padrao,
+        peso_liquido_kg=2400.0,
+        data_entrada=date.today(),
+        destino="ARMAZENADO",
+        status="VENDIDO",
+    )
+    session.add_all([lote_a, lote_b])
+    await session.flush()
+
+    comercializacao_a = ComercializacaoCommodity(
+        tenant_id=tenant_id,
+        commodity_id=commodity.id,
+        comprador_id=comprador.id,
+        quantidade=60.0,
+        unidade="SACA_60KG",
+        preco_unitario=100.0,
+        moeda="BRL",
+        forma_pagamento="PRAZO",
+        produto_colhido_id=lote_a.id,
+        status="CONFIRMADO",
+        valor_total=6000.0,
+    )
+    comercializacao_b = ComercializacaoCommodity(
+        tenant_id=tenant_id,
+        commodity_id=commodity.id,
+        comprador_id=comprador.id,
+        quantidade=40.0,
+        unidade="SACA_60KG",
+        preco_unitario=100.0,
+        moeda="BRL",
+        forma_pagamento="PRAZO",
+        produto_colhido_id=lote_b.id,
+        status="CONFIRMADO",
+        valor_total=4000.0,
+    )
+    # Comercialização sem lote vinculado — deve aparecer só como aviso, fora do rateio.
+    comercializacao_sem_lote = ComercializacaoCommodity(
+        tenant_id=tenant_id,
+        commodity_id=commodity.id,
+        comprador_id=comprador.id,
+        quantidade=10.0,
+        unidade="SACA_60KG",
+        preco_unitario=100.0,
+        moeda="BRL",
+        forma_pagamento="PRAZO",
+        produto_colhido_id=None,
+        status="CONFIRMADO",
+        valor_total=1000.0,
+    )
+    session.add_all([comercializacao_a, comercializacao_b, comercializacao_sem_lote])
+    await session.flush()
+
+    session.add_all([
+        Receita(
+            tenant_id=tenant_id,
+            unidade_produtiva_id=unidade_id,
+            plano_conta_id=plano_receita.id,
+            descricao="Receita lote A",
+            valor_total=6000.0,
+            data_emissao=date.today(),
+            data_vencimento=date.today(),
+            status="A_RECEBER",
+            origem_tipo="COMERCIALIZACAO",
+            origem_id=comercializacao_a.id,
+        ),
+        Receita(
+            tenant_id=tenant_id,
+            unidade_produtiva_id=unidade_id,
+            plano_conta_id=plano_receita.id,
+            descricao="Receita lote B",
+            valor_total=4000.0,
+            data_emissao=date.today(),
+            data_vencimento=date.today(),
+            status="A_RECEBER",
+            origem_tipo="COMERCIALIZACAO",
+            origem_id=comercializacao_b.id,
+        ),
+        Receita(
+            tenant_id=tenant_id,
+            unidade_produtiva_id=unidade_id,
+            plano_conta_id=plano_receita.id,
+            descricao="Receita sem lote vinculado",
+            valor_total=1000.0,
+            data_emissao=date.today(),
+            data_vencimento=date.today(),
+            status="A_RECEBER",
+            origem_tipo="COMERCIALIZACAO",
+            origem_id=comercializacao_sem_lote.id,
+        ),
+    ])
+
+    operacao = OperacaoAgricola(
+        tenant_id=tenant_id,
+        safra_id=safra.id,
+        cultivo_id=cultivo_id,
+        production_unit_id=pu.id,
+        talhao_id=area_id,
+        tipo="PLANTIO",
+        descricao="Operação com custo a ratear por lote",
+        data_realizada=date.today(),
+        custo_total=500.0,
+        status="REALIZADA",
+    )
+    session.add(operacao)
+    await session.flush()
+    execucao = OperacaoExecucao(
+        tenant_id=tenant_id,
+        operacao_id=operacao.id,
+        production_unit_id=pu.id,
+        data_execucao=date.today(),
+        quantidade_executada=1.0,
+        quantidade_devolvida=0.0,
+        unidade_medida_id=unidade_ha_id,
+        custo_real=500.0,
+        area_ha_executada=1.0,
+        status="REALIZADA",
+    )
+    session.add(execucao)
+    await session.flush()
+    await registrar_cost_allocation(
+        session,
+        tenant_id=tenant_id,
+        production_unit_id=pu.id,
+        source="OPERATION_EXECUTION",
+        source_id=execucao.id,
+        operation_execution_id=execucao.id,
+        amount=500.0,
+        allocation_date=date.today(),
+        cost_category="OUTROS",
+        allocation_method="DIRECT",
+        allocation_basis=1.0,
+    )
+    await session.commit()
+
+    dre = await DREAgricolaV1Service(session, tenant_id).gerar(
+        safra_id=safra.id,
+        production_unit_id=pu.id,
+    )
+
+    assert dre.lotes_sem_vinculo == 1
+    margens_por_id = {m.produto_colhido_id: m for m in dre.margem_por_lote}
+    assert set(margens_por_id.keys()) == {lote_a.id, lote_b.id}
+    # custo total rateado deve bater exatamente com o custo direto da PU, sem perda por arredondamento.
+    assert round(sum(m.custo_rateado for m in dre.margem_por_lote), 2) == dre.custos_diretos
+    assert margens_por_id[lote_a.id].custo_rateado == 300.0
+    assert margens_por_id[lote_b.id].custo_rateado == 200.0
+    assert margens_por_id[lote_a.id].margem == 5700.0
+    assert margens_por_id[lote_b.id].margem == 3800.0
+    assert any(w.codigo == "COMERCIALIZACAO_SEM_LOTE_VINCULADO" for w in dre.warnings)

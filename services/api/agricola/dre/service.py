@@ -34,6 +34,7 @@ from core.services.analytics_request_cache import record_analytics_cache_hit, re
 from .schemas import (
     DREAgricolaResponse,
     DREAgricolaSection,
+    DRELoteMargem,
     DREReconcilacaoMeta,
     DRESourceItem,
     DREWarning,
@@ -164,6 +165,14 @@ class DREAgricolaV1Service(BaseService[Safra]):
             data_inicio=data_inicio,
             data_fim=data_fim,
         )
+        margem_por_lote, lotes_sem_vinculo = await self._ratear_custos_por_lote(
+            scope,
+            receitas_section,
+            custos_diretos_section,
+            custos_operacionais_section,
+            data_inicio=data_inicio,
+            data_fim=data_fim,
+        )
 
         receita_bruta = round(receitas_section.valor, 2)
         deducoes_valor = round(deducoes, 2)
@@ -181,6 +190,18 @@ class DREAgricolaV1Service(BaseService[Safra]):
             data_inicio=data_inicio,
             data_fim=data_fim,
         )
+        if lotes_sem_vinculo > 0:
+            warnings.append(
+                DREWarning(
+                    codigo="COMERCIALIZACAO_SEM_LOTE_VINCULADO",
+                    titulo="Comercialização sem lote vinculado",
+                    severidade="WARNING_LEVE",
+                    mensagem="Há comercializações sem produto_colhido_id vinculado; elas não entram no detalhamento de margem por lote.",
+                    origem="dre_agricola_v1",
+                    amostras=[str(lotes_sem_vinculo)],
+                    meta={"quantidade": lotes_sem_vinculo},
+                )
+            )
         base_response = DREAgricolaResponse(
             tenant_id=self.tenant_id,
             gerado_em=datetime.now(timezone.utc),
@@ -202,6 +223,8 @@ class DREAgricolaV1Service(BaseService[Safra]):
             custos_diretos_detalhe=custos_diretos_section,
             custos_operacionais_detalhe=custos_operacionais_section,
             despesas_operacionais_detalhe=despesas_section,
+            margem_por_lote=margem_por_lote,
+            lotes_sem_vinculo=lotes_sem_vinculo,
             warnings=warnings,
             reconciliacao=reconciliacao,
         )
@@ -390,6 +413,8 @@ class DREAgricolaV1Service(BaseService[Safra]):
                     "comercializacao_id": str(comercializacao.id),
                     "produto_colhido_id": str(produto_colhido.id),
                     "romaneio_id": str(produto_colhido.romaneio_id) if produto_colhido.romaneio_id else None,
+                    "quantidade": float(comercializacao.quantidade or 0),
+                    "unidade": comercializacao.unidade,
                     "data_economica": str(receita.competencia or receita.data_emissao),
                     "data_economica_fonte": "competencia" if receita.competencia else "data_emissao",
                 },
@@ -608,6 +633,94 @@ class DREAgricolaV1Service(BaseService[Safra]):
             total_registros=len(items),
             fontes={k: round(v, 2) for k, v in sorted(fontes.items())},
         )
+
+    async def _ratear_custos_por_lote(
+        self,
+        scope: dict,
+        receitas_section: DREAgricolaSection,
+        custos_diretos_section: DREAgricolaSection,
+        custos_operacionais_section: DREAgricolaSection,
+        *,
+        data_inicio: date | None = None,
+        data_fim: date | None = None,
+    ) -> tuple[list[DRELoteMargem], int]:
+        """Rateia o custo de cada PU entre os lotes vendidos, proporcional à quantidade."""
+        lotes: dict[UUID, dict] = {}
+        for item in receitas_section.itens:
+            produto_colhido_id_raw = item.meta.get("produto_colhido_id")
+            if not produto_colhido_id_raw or item.production_unit_id is None:
+                continue
+            lote_id = UUID(str(produto_colhido_id_raw))
+            entry = lotes.setdefault(
+                lote_id,
+                {
+                    "production_unit_id": item.production_unit_id,
+                    "quantidade": 0.0,
+                    "unidade": item.meta.get("unidade"),
+                    "receita_total": 0.0,
+                },
+            )
+            entry["quantidade"] += float(item.meta.get("quantidade") or 0)
+            entry["receita_total"] += item.valor
+
+        custo_total_por_pu: dict[UUID, float] = defaultdict(float)
+        for item in custos_diretos_section.itens:
+            if item.production_unit_id is not None:
+                custo_total_por_pu[item.production_unit_id] += item.valor
+        for item in custos_operacionais_section.itens:
+            if item.production_unit_id is not None:
+                custo_total_por_pu[item.production_unit_id] += item.valor
+
+        quantidade_total_por_pu: dict[UUID, float] = defaultdict(float)
+        for lote in lotes.values():
+            quantidade_total_por_pu[lote["production_unit_id"]] += lote["quantidade"]
+
+        margens: list[DRELoteMargem] = []
+        for lote_id, lote in sorted(lotes.items(), key=lambda kv: str(kv[0])):
+            pu_id = lote["production_unit_id"]
+            quantidade_total_pu = quantidade_total_por_pu.get(pu_id, 0.0)
+            custo_total_pu = custo_total_por_pu.get(pu_id, 0.0)
+            if quantidade_total_pu > 0:
+                custo_rateado = round(custo_total_pu * (lote["quantidade"] / quantidade_total_pu), 2)
+            else:
+                custo_rateado = 0.0
+            receita_total = round(lote["receita_total"], 2)
+            margem = round(receita_total - custo_rateado, 2)
+            margens.append(
+                DRELoteMargem(
+                    produto_colhido_id=lote_id,
+                    production_unit_id=pu_id,
+                    quantidade=lote["quantidade"],
+                    unidade=lote["unidade"],
+                    receita_total=receita_total,
+                    custo_rateado=custo_rateado,
+                    margem=margem,
+                    margem_percentual=round(margem / receita_total * 100, 2) if receita_total else None,
+                )
+            )
+
+        pu_ids = [pu.id for pu in scope["production_units"]]
+        lotes_sem_vinculo = 0
+        if pu_ids:
+            stmt_sem_vinculo = (
+                select(func.count(ComercializacaoCommodity.id))
+                .select_from(Receita)
+                .join(ComercializacaoCommodity, Receita.origem_id == ComercializacaoCommodity.id)
+                .where(
+                    Receita.tenant_id == self.tenant_id,
+                    Receita.ativo == True,
+                    Receita.origem_tipo == "COMERCIALIZACAO",
+                    ComercializacaoCommodity.produto_colhido_id.is_(None),
+                    self._periodo_clause(
+                        func.coalesce(Receita.competencia, Receita.data_emissao),
+                        data_inicio=data_inicio,
+                        data_fim=data_fim,
+                    ),
+                )
+            )
+            lotes_sem_vinculo = (await self.session.execute(stmt_sem_vinculo)).scalar_one() or 0
+
+        return margens, lotes_sem_vinculo
 
     async def _consolidar_despesas(
         self,
