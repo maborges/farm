@@ -40,6 +40,11 @@ class StatusEquipamento(str, enum.Enum):
     SUCATEADO       = "SUCATEADO"
 
 
+class CategoriaPatrimonial(str, enum.Enum):
+    FERRAMENTA_BAIXO_VALOR = "FERRAMENTA_BAIXO_VALOR"   # não depreciável — enxada, foice, ferramenta manual
+    ATIVO_DEPRECIAVEL      = "ATIVO_DEPRECIAVEL"         # depreciável — trator, colheitadeira, veículo
+
+
 # ---------------------------------------------------------------------------
 # Equipamento — entidade mestre (substitui frota_maquinarios)
 # ---------------------------------------------------------------------------
@@ -97,6 +102,10 @@ class Equipamento(Base):
     valor_aquisicao: Mapped[float | None] = mapped_column(Float, nullable=True)
     data_aquisicao: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     valor_atual: Mapped[float | None] = mapped_column(Float, nullable=True, comment="Valor de mercado atual estimado")
+    categoria_patrimonial: Mapped[str] = mapped_column(
+        String(30), default=CategoriaPatrimonial.ATIVO_DEPRECIAVEL.value, nullable=False,
+        comment="Distingue ferramenta de baixo valor (não depreciável) de ativo patrimonial depreciável"
+    )
 
     # Atributos específicos por tipo
     dados_extras: Mapped[dict | None] = mapped_column(JSON, nullable=True)

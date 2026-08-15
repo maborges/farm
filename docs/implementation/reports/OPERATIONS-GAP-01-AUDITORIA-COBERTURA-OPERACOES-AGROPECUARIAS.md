@@ -43,7 +43,7 @@ O Campo PWA é arquitetura offline genuína (Dexie + outbox), reusa a API, mas n
 | C | Ordenha | DESACOPLADO | — | Sim | — | — | — | — | Sim | Sim | — | `pecuaria/routers/leite.py` | Não usa EventoAnimal |
 | D | Cadastro/alocação/uso máquina | COBERTO | Sim | Sim | Sim | Parcial | Sim | — | — | Sim | Sim | `equipamentos/models.py:47`, `apontamento.py:17` | — |
 | D | Manutenção frota | COBERTO | Sim | Sim | Sim | Parcial | Sim | — | — | — | — | `operacional/models/frota.py` | Peças sem estoque confirmado |
-| D | Ferramenta baixo-valor vs patrimonial | GAP | — | — | — | — | — | — | — | — | — | `Equipamento.valor_aquisicao` único campo | Sem flag distintiva |
+| D | Ferramenta baixo-valor vs patrimonial | RESOLVIDO 2026-08-15 (Seção 21.29) | — | — | — | — | — | — | — | — | — | `Equipamento.categoria_patrimonial` | Classificação de cadastro; sem motor de depreciação automático |
 | E | Diária/empreitada | COBERTO | Sim | Sim | Sim | — | Sim | — | — | — | Não confirmado | `rh/models.py:104,137` | — |
 | E | Homem-hora manual (sem equip.) | GAP | Parcial | Não | — | — | — | — | — | — | Não | `ApontamentoUso` exige equipamento_id NOT NULL | Sem apontamento manual dedicado |
 | E | Múltiplos trabalhadores/operação | PARCIAL | — | Parcial | — | — | — | — | — | — | — | `LancamentoDiaria`/`Empreitada` 1:1 | Sem tabela de equipe |
@@ -552,6 +552,17 @@ Fecha o gap do domínio C ("Castração ausente do enum de eventos") — o únic
 - **Fora do escopo, deliberadamente**: tela dedicada offline no Campo PWA (`apps/campo`) — tipos não mapeados em `pecuaria-tasks.ts`/`task-domain.ts` caem em fallback genérico funcional (evento é registrado, só sem ícone/rota própria); vacinação tem tela própria porque tem baixa de estoque automática, castração por padrão não. Consumo automático de estoque/CostAllocation também não foi criado — é decisão de produto separada, não parte do gap "enum incompleto".
 - **Teste adicionado**: `tests/integration/test_pecuaria.py::test_registrar_evento_castracao`, espelhando `test_registrar_evento_vacinacao`.
 - **Suíte `test_pecuaria.py` corrigida na sequência** (mesmo dia): a causa raiz do 404 foi confirmada — `/api/v1/lotes-bovinos/` **nunca existiu** como rota registrada (`git log` do router mostra que `pecuaria/routers/lotes.py` sempre teve `prefix="/pecuaria/lotes"`; o teste foi escrito por suposição de nome REST convencional, sem checar o router real). Todas as 10 ocorrências corrigidas para `/api/v1/pecuaria/lotes`. Corrigido no processo um **segundo bug real, mais sério**: `pecuaria/services/manejo_service.py` tinha sua própria constante `TIPOS_VALIDOS`, duplicada e dessincronizada de `TIPO_EVENTO_VALID` (`manejo_schema.py`) — era essa lista, não a do schema, que validava em runtime, então mesmo com `CASTRACAO` corretamente adicionado ao schema, a API rejeitava com 400. Consolidado: `manejo_service.py` agora importa `TIPO_EVENTO_VALID` em vez de duplicar. **Suíte final: 9/9 passando**, validação end-to-end real (não só nível de model/schema).
+
+---
+
+## 21.29 — Adendo (2026-08-15) — Categoria patrimonial em Equipamento (ferramenta baixo-valor vs. ativo depreciável)
+
+Fecha o gap do domínio D: `Equipamento` não distinguia ferramenta de baixo valor (não depreciável) de ativo patrimonial depreciável — só havia `valor_aquisicao`, sem classificação.
+
+- **Achado**: zero consumidor hoje de `valor_aquisicao`/`valor_atual` em qualquer service de custo/DRE/dashboard. O único uso de "depreciação" no repo é `agricola/cenarios/` (`depreciacao_ha`, valor **digitado manualmente** pelo usuário em cenário de planejamento, sem link com `Equipamento`). Esta correção é puramente de classificação/cadastro — fecha "falta de flag distintiva" sem criar motor de depreciação automática.
+- **Implementado**: novo enum `CategoriaPatrimonial` (`FERRAMENTA_BAIXO_VALOR` | `ATIVO_DEPRECIAVEL`) e campo `Equipamento.categoria_patrimonial` (`core/cadastros/equipamentos/models.py`), default `ATIVO_DEPRECIAVEL` (preserva comportamento implícito — maioria do cadastro é máquina real). Migration `20260815_equipamento_categoria_patrimonial.py` com `server_default` para backfill sem NULL. Schemas (`Create`/`Update`/`Response`) e formulário web (`cadastros/equipamentos/page.tsx`, novo Select) atualizados.
+- **Testes**: `tests/unit/cadastros/test_equipamento_categoria_patrimonial.py` (4 testes: default, valor explícito, schema aceita ambos, schema default) + suíte de frota/equipamento existente (`test_frota_equipamento_alocacoes_step01.py`) para não-regressão. **12/12 passando.**
+- **Não implementado, deliberadamente**: cálculo de depreciação automática (vida útil, valor residual, lançamento contábil) — ficaria condicionado a uma iniciativa futura de integração `Equipamento` ↔ `agricola/cenarios`, fora do escopo deste gap (que era "falta de flag", não "falta de motor de depreciação").
 
 ---
 

@@ -7,6 +7,7 @@ import uuid
 class EquipamentoCreate(BaseModel):
     nome: str
     tipo: str = "OUTRO"
+    categoria_patrimonial: str = "ATIVO_DEPRECIAVEL"
     marca: Optional[str] = None
     modelo: Optional[str] = None
     ano_fabricacao: Optional[int] = None
@@ -31,6 +32,7 @@ class EquipamentoCreate(BaseModel):
 class EquipamentoUpdate(BaseModel):
     nome: Optional[str] = None
     tipo: Optional[str] = None
+    categoria_patrimonial: Optional[str] = None
     marca: Optional[str] = None
     modelo: Optional[str] = None
     ano_fabricacao: Optional[int] = None
@@ -58,6 +60,7 @@ class EquipamentoResponse(BaseModel):
     unidade_produtiva_id: Optional[uuid.UUID]
     nome: str
     tipo: str
+    categoria_patrimonial: str
     marca: Optional[str]
     modelo: Optional[str]
     ano_fabricacao: Optional[int]
