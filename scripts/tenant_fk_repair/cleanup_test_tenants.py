@@ -12,18 +12,53 @@ por causa do TENANT-FK-REPAIR), não dá pra fazer DELETE FROM tenants direto �
 este script descobre a ordem de dependência via pg_constraint e apaga em cascata
 manualmente, tabela por tabela, seguindo a cadeia de FKs até achar tenant_id.
 
-USO:
-    # 1. Sempre rodar em modo dry-run primeiro (padrão, não apaga nada):
-    cd /opt/lampp/htdocs/farm/services/api
-    export $(grep DATABASE_URL .env.local | xargs)
-    ./.venv/bin/python ../../scripts/tenant_fk_repair/cleanup_test_tenants.py
+USO — passo a passo completo (validado em produção em 2026-08-14):
 
-    # 2. Revisar a lista de tenants e contagens impressas.
+    0. Antes de tudo, pare qualquer processo que rode o alert_engine em
+       background, senão ele recria dado pros tenants de teste durante a
+       exclusão e o script falha com FK violation (visto em produção — não é
+       teórico). Pelo menos dois processos tocam isso neste projeto:
+         - scripts/run_worker.py (worker standalone)
+         - services/api/main.py roda run_background_jobs() no lifespan do
+           próprio uvicorn — parar SÓ o run_worker.py não basta.
 
-    # 3. Rodar de verdade (faz pg_dump de backup automaticamente antes):
-    ./.venv/bin/python scripts/tenant_fk_repair/cleanup_test_tenants.py --execute
+       ps aux | grep -iE "run_worker|uvicorn"
+       kill <PID do run_worker.py>
+       kill <PID do processo pai do uvicorn> <PID do processo filho/reloader>
+       # se algum não morrer com kill normal em alguns segundos, use kill -9
 
-Requer DATABASE_URL no ambiente (postgresql+asyncpg://... ou postgresql://...).
+    1. Ir para services/api/ e carregar a DATABASE_URL do ambiente:
+       cd /opt/lampp/htdocs/farm/services/api
+       export $(grep DATABASE_URL .env.local | xargs)
+
+    2. Rodar em modo dry-run primeiro (padrão, não apaga nada):
+       .venv/bin/python ../../scripts/tenant_fk_repair/cleanup_test_tenants.py
+
+    3. Revisar a lista de tenants e as contagens de linhas impressas —
+       conferir que nenhum tenant real aparece na lista (ajustar
+       TEST_NAME_PATTERNS/PROTECTED_NAMES no topo do arquivo se necessário).
+
+    4. Rodar de verdade — faz pg_dump de backup automaticamente antes
+       (gzip, em scripts/tenant_fk_repair/backups/), desliga temporariamente
+       FORCE ROW LEVEL SECURITY e triggers BEFORE DELETE nas tabelas
+       afetadas, apaga tudo em uma única transação (com retry automático se
+       colidir com algo concorrente) e religa RLS/triggers no final,
+       aconteça o que acontecer:
+       .venv/bin/python ../../scripts/tenant_fk_repair/cleanup_test_tenants.py --execute
+
+    5. Conferir o resultado:
+       psql "$DATABASE_URL" -c "SELECT COUNT(*), array_agg(nome) FROM farms.tenants;"
+
+    6. Subir os processos que foram parados no passo 0 de novo:
+       cd /opt/lampp/htdocs/farm
+       nohup services/api/.venv/bin/python scripts/run_worker.py > /tmp/run_worker.log 2>&1 &disown
+       cd services/api
+       nohup .venv/bin/uvicorn main:app --reload --host 0.0.0.0 --port 8000 > /tmp/uvicorn.log 2>&1 &disown
+
+Requer DATABASE_URL no ambiente (postgresql+asyncpg://... ou postgresql://...)
+e pg_dump instalado. Ver memória do projeto project_tenant_fk_repair para o
+histórico completo dos bugs encontrados/corrigidos ao validar este script
+contra produção.
 """
 from __future__ import annotations
 
@@ -56,8 +91,7 @@ TEST_NAME_PATTERNS = [
 # engano — nunca serão apagados.
 PROTECTED_NAMES = {
     "Grupo AgroSaaS",
-    "Fazenda Modelo",
-    "Fazenda Nova",
+    "Fazenda Modelo"
 }
 
 
