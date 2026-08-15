@@ -75,6 +75,10 @@ class ProdutoColhido(Base):
         Numeric(14, 3), nullable=True,
         comment="Peso comercial após desconto de qualidade"
     )
+    custo_unitario_producao: Mapped[float | None] = mapped_column(
+        Numeric(14, 4), nullable=True,
+        comment="Snapshot: custo acumulado do PU / quantidade acumulada até data_entrada (Alternativa B)"
+    )
 
     # Qualidade medida no momento da entrada
     umidade_pct: Mapped[float | None] = mapped_column(Numeric(5, 2), nullable=True)

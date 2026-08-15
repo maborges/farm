@@ -59,6 +59,7 @@ class ProdutoColhidoResponse(BaseModel):
     peso_liquido_kg: float
     peso_desconto_qualidade_kg: float
     peso_liquido_comercial_kg: Optional[float]
+    custo_unitario_producao: Optional[float] = None
     umidade_pct: Optional[float]
     impureza_pct: Optional[float]
     avariados_pct: Optional[float]

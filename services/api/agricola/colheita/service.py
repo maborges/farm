@@ -38,7 +38,21 @@ class ProdutoColhidoService(BaseService[ProdutoColhido]):
         return list(result.scalars().all())
 
     async def criar(self, data: ProdutoColhidoCreate) -> ProdutoColhido:
-        obj = ProdutoColhido(tenant_id=self.tenant_id, **data.model_dump())
+        from agricola.custos.service import calcular_custo_unitario_snapshot
+
+        custo_unitario_producao = await calcular_custo_unitario_snapshot(
+            self.session,
+            tenant_id=self.tenant_id,
+            safra_id=data.safra_id,
+            talhao_id=data.talhao_id,
+            quantidade_lote=data.quantidade,
+            data_referencia=data.data_entrada,
+        )
+        obj = ProdutoColhido(
+            tenant_id=self.tenant_id,
+            **data.model_dump(),
+            custo_unitario_producao=custo_unitario_producao,
+        )
         self.session.add(obj)
         await self.session.flush()
         await self.session.refresh(obj)

@@ -1,3 +1,4 @@
+from datetime import date
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -10,6 +11,67 @@ from agricola.production_units.models import ProductionUnit
 from agricola.custos.models import CostAllocation
 from agricola.a1_planejamento.models import ItemOrcamentoSafra
 from agricola.custos.schemas import ReumoCustosSafraResponse, CustoBreakdown
+
+
+async def calcular_custo_unitario_snapshot(
+    session: AsyncSession,
+    tenant_id: UUID,
+    safra_id: UUID,
+    talhao_id: UUID,
+    quantidade_lote: float,
+    data_referencia: date,
+) -> float | None:
+    """Snapshot de custo unitário (Alternativa B do OPERATIONS-GAP-01):
+    custo acumulado do PU até a data / quantidade acumulada do PU até a data
+    (incluindo o próprio lote sendo criado). Retorna None quando o PU do
+    par safra+talhão é ambíguo/inexistente ou não há base de rateio."""
+    from agricola.colheita.models import ProdutoColhido
+
+    pu_ids = (
+        (
+            await session.execute(
+                select(ProductionUnit.id).where(
+                    ProductionUnit.tenant_id == tenant_id,
+                    ProductionUnit.safra_id == safra_id,
+                    ProductionUnit.area_id == talhao_id,
+                    ProductionUnit.status != "CANCELADA",
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    if len(pu_ids) != 1:
+        return None
+    pu_id = pu_ids[0]
+
+    custo_acumulado = (
+        await session.execute(
+            select(func.coalesce(func.sum(CostAllocation.amount), 0)).where(
+                CostAllocation.tenant_id == tenant_id,
+                CostAllocation.production_unit_id == pu_id,
+                CostAllocation.allocation_date <= data_referencia,
+            )
+        )
+    ).scalar_one()
+
+    quantidade_anterior = (
+        await session.execute(
+            select(func.coalesce(func.sum(ProdutoColhido.quantidade), 0)).where(
+                ProdutoColhido.tenant_id == tenant_id,
+                ProdutoColhido.safra_id == safra_id,
+                ProdutoColhido.talhao_id == talhao_id,
+                ProdutoColhido.data_entrada <= data_referencia,
+            )
+        )
+    ).scalar_one()
+
+    quantidade_total = float(quantidade_anterior or 0) + float(quantidade_lote or 0)
+    if quantidade_total <= 0:
+        return None
+
+    return round(float(custo_acumulado or 0) / quantidade_total, 4)
+
 
 class CustosService:
     def __init__(self, session: AsyncSession, tenant_id: UUID):

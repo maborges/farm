@@ -167,10 +167,19 @@ class RomaneioService(BaseService[RomaneioColheita]):
         if romaneio.commodity_id:
             from agricola.colheita.models import ProdutoColhido
             from core.cadastros.commodities.models import Commodity
+            from agricola.custos.service import calcular_custo_unitario_snapshot
 
             commodity = await self.session.get(Commodity, romaneio.commodity_id)
             unidade = commodity.unidade_padrao if commodity else "SACA_60KG"
             qualidade = resolver_qualidade_efetiva(romaneio=romaneio)
+            custo_unitario_producao = await calcular_custo_unitario_snapshot(
+                self.session,
+                tenant_id=self.tenant_id,
+                safra_id=dados.safra_id,
+                talhao_id=dados.talhao_id,
+                quantidade_lote=dados_dict.get("sacas_60kg") or 0,
+                data_referencia=dados.data_colheita,
+            )
 
             produto_colhido = ProdutoColhido(
                 tenant_id=self.tenant_id,
@@ -192,6 +201,7 @@ class RomaneioService(BaseService[RomaneioColheita]):
                 armazem_id=dados_dict.get("armazem_id"),
                 data_entrada=dados.data_colheita,
                 status="ARMAZENADO",
+                custo_unitario_producao=custo_unitario_producao,
             )
             self.session.add(produto_colhido)
 
