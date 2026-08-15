@@ -46,6 +46,7 @@ from core.routers import backoffice_uom
 from core.routers import stripe_webhooks
 from operacional.routers import frota
 from operacional.routers import estoque
+from operacional.routers import contagem_estoque
 from operacional.routers import estoque_implantacao
 from operacional.routers import oficina
 from operacional.routers import qualidade as router_qualidade
@@ -312,6 +313,7 @@ app.include_router(configuration.router, prefix="/api/v1")
 app.include_router(frota.router, prefix="/api/v1")
 app.include_router(growth_router.router, prefix="/api/v1")
 app.include_router(estoque.router, prefix="/api/v1")
+app.include_router(contagem_estoque.router, prefix="/api/v1")
 app.include_router(estoque_implantacao.router, prefix="/api/v1")
 app.include_router(oficina.router, prefix="/api/v1")
 app.include_router(operacional_relatorios.router, prefix="/api/v1")

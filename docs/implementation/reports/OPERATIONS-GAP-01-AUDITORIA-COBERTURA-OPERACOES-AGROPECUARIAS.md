@@ -49,7 +49,7 @@ O Campo PWA é arquitetura offline genuína (Dexie + outbox), reusa a API, mas n
 | E | Múltiplos trabalhadores/operação | PARCIAL | — | Parcial | — | — | — | — | — | — | — | `LancamentoDiaria`/`Empreitada` 1:1 | Sem tabela de equipe |
 | F | Entrada/saída/transferência/FIFO | COBERTO | — | Sim | — | Sim | Sim | — | — | — | Não confirmado | `estoque_fifo.py`, `estoque_service.py` | — |
 | F | Perda (tipo de movimento) | RESOLVIDO 2026-08-15 (Seção 21.13): categoria_ajuste="PERDA" adicionada | — | — | — | Sim | — | — | — | — | — | `AjusteEstoqueRequest.categoria_ajuste` | — |
-| F | Inventário físico geral | GAP | — | — | — | Parcial | — | — | — | — | — | Sem módulo de contagem cíclica | — |
+| F | Inventário físico geral | RESOLVIDO 2026-08-15 (Seção 21.30) | — | — | — | Sim | — | — | — | — | — | `ContagemEstoque`/`ContagemEstoqueItem` | Contagem por saldo agregado, não por lote individual |
 | F | Float→Decimal (saldo/lote/requisição) | GAP CONFIRMADO | — | — | — | Sim (viola padrão) | — | — | — | — | — | `operacional/models/estoque.py` SaldoEstoque/LoteEstoque/ItemRequisicao=Float | Viola CLAUDE.md §4.2 |
 | G | Requisição→Cotação→Aprovação→Pedido→Recebimento | COBERTO | Sim | Sim | — | Sim | — | Sim | — | — | — | `operacional/services/compras.py` (múltiplas linhas) | — |
 | G | Serviços terceirizados (compra) | GAP | — | — | — | — | — | Não | — | — | — | Sem modelagem de compra de serviço | — |
@@ -563,6 +563,18 @@ Fecha o gap do domínio D: `Equipamento` não distinguia ferramenta de baixo val
 - **Implementado**: novo enum `CategoriaPatrimonial` (`FERRAMENTA_BAIXO_VALOR` | `ATIVO_DEPRECIAVEL`) e campo `Equipamento.categoria_patrimonial` (`core/cadastros/equipamentos/models.py`), default `ATIVO_DEPRECIAVEL` (preserva comportamento implícito — maioria do cadastro é máquina real). Migration `20260815_equipamento_categoria_patrimonial.py` com `server_default` para backfill sem NULL. Schemas (`Create`/`Update`/`Response`) e formulário web (`cadastros/equipamentos/page.tsx`, novo Select) atualizados.
 - **Testes**: `tests/unit/cadastros/test_equipamento_categoria_patrimonial.py` (4 testes: default, valor explícito, schema aceita ambos, schema default) + suíte de frota/equipamento existente (`test_frota_equipamento_alocacoes_step01.py`) para não-regressão. **12/12 passando.**
 - **Não implementado, deliberadamente**: cálculo de depreciação automática (vida útil, valor residual, lançamento contábil) — ficaria condicionado a uma iniciativa futura de integração `Equipamento` ↔ `agricola/cenarios`, fora do escopo deste gap (que era "falta de flag", não "falta de motor de depreciação").
+
+---
+
+## 21.30 — Adendo (2026-08-15) — Contagem de Inventário (cycle count) implementada
+
+Fecha o gap do domínio F: não existia módulo formal de contagem física periódica comparando saldo do sistema com saldo real contado.
+
+- **Achado da investigação**: `registrar_ajuste` (`operacional/services/estoque_service.py`) já corrigia saldo produto a produto (`categoria_ajuste="CONTAGEM_INVENTARIO"` desde Seção 21.13), mas cada chamada era isolada — sem sessão que agrupasse todos os produtos de um depósito, sem estado intermediário "contado, aguardando aplicação". `EstoqueService.listar_saldos(deposito_id=X)` já retornava exatamente o dataset necessário para pré-popular a contagem.
+- **Implementado (MVP cirúrgico, reaproveitando `registrar_ajuste` sem alterá-lo)**: novo módulo `operacional/{models,services,schemas,routers}/contagem_estoque.py` — duas tabelas (`ContagemEstoque` cabeçalho ABERTA/CONCLUIDA/CANCELADA, `ContagemEstoqueItem` com `quantidade_sistema`/`quantidade_contada` separados). Fluxo: `abrir_contagem` pré-popula itens via `listar_saldos`; `registrar_contagem_item` grava quantidade contada sem tocar saldo; `concluir_contagem` chama `registrar_ajuste` para cada item divergente (mesma categoria `CONTAGEM_INVENTARIO`), carimbando `movimento_ajuste_id` no item; `cancelar_contagem` não aplica nada. Router `/estoque/contagens`, registrado em `main.py`. Migration `20260815_estoque_contagens.py`.
+- **Frontend**: nova aba "Contagem" em `EstoqueClient.tsx` (`_components/ContagemEstoqueTab.tsx`) — lista de contagens, tela de itens com input de quantidade contada e divergência calculada em tempo real, `AlertDialog` de confirmação para concluir/cancelar (padrão do projeto).
+- **Testes**: `tests/integration/operacional/test_contagem_estoque.py` (7 testes: abrir pré-popula, concluir sem divergência não gera ajuste, concluir com divergência gera ajuste e atualiza saldo, item não contado não gera ajuste, cancelar não toca saldo, não permite cancelar concluída, isolamento de tenant). **7/7 passando.** Suíte de estoque existente sem regressão (`test_ajuste_perda_gera_custo.py`, 5/5). Frontend: `tsc --noEmit` com mesma contagem de erros pré-existentes (23) antes e depois da mudança — nenhum erro novo introduzido.
+- **Escopo deliberadamente fora**: aprovação por segunda pessoa antes de aplicar; contagem por lote individual (`LoteEstoque`) — a granularidade é por saldo agregado do produto no depósito, mesmo nível de `SaldoEstoque` hoje.
 
 ---
 
