@@ -119,6 +119,12 @@ class TarefaService:
         return list((await self.session.execute(stmt)).scalars().all())
 
     async def criar(self, safra_id: uuid.UUID, dados: TarefaCreate, user_id: uuid.UUID | None = None) -> SafraTarefa:
+        if dados.talhao_id is None:
+            raise BusinessRuleError(
+                "Tarefa sem talhão definido não pode ser criada por este endpoint. "
+                "Use talhoes_ids (fan-out multi-talhão) via POST /agricola/tarefas/{safra_id}/multi-talhao "
+                "ou informe um talhao_id único."
+            )
         # Idempotência: para tarefas originadas de análise de solo, evita duplicar
         # a mesma recomendação (tenant + analise_solo_id + safra + talhão + tipo)
         # quando já existe uma tarefa ativa equivalente.
@@ -167,6 +173,29 @@ class TarefaService:
         self.session.add(tarefa)
         await self.session.flush()
         return tarefa
+
+    async def criar_multi_talhao(
+        self, safra_id: uuid.UUID, dados: TarefaCreate, user_id: uuid.UUID | None = None
+    ) -> list[SafraTarefa]:
+        """Fan-out: expande uma intenção multi-talhão em N SafraTarefa (1 por talhão),
+        unidas por grupo_geracao_id — mesmo padrão de proveniência já usado para
+        geração em lote. Cada tarefa segue o fluxo normal (aprovação, geração de
+        OperacaoAgricola) individualmente; não existe "operação multi-área"."""
+        if not dados.talhoes_ids:
+            raise BusinessRuleError("talhoes_ids é obrigatório e não pode ser vazio para criação multi-talhão.")
+        if dados.talhao_id is not None:
+            raise BusinessRuleError("Informe talhoes_ids OU talhao_id, não os dois.")
+
+        grupo_geracao_id = dados.grupo_geracao_id or uuid.uuid4()
+        tarefas: list[SafraTarefa] = []
+        for talhao_id in dados.talhoes_ids:
+            dados_talhao = dados.model_copy(update={
+                "talhao_id": talhao_id,
+                "talhoes_ids": None,
+                "grupo_geracao_id": grupo_geracao_id,
+            })
+            tarefas.append(await self.criar(safra_id, dados_talhao, user_id))
+        return tarefas
 
     async def _fase_atual_safra(self, safra_id: uuid.UUID) -> str | None:
         stmt = select(Safra.status).where(
@@ -631,8 +660,9 @@ class TarefaService:
             )
         if tarefa.talhao_id is None:
             raise BusinessRuleError(
-                "Esta tarefa não está vinculada a um talhão específico. "
-                "Edite a tarefa e defina o talhão antes de gerar a ordem de serviço."
+                "Esta tarefa não está vinculada a um talhão específico (dado legado — tarefas "
+                "novas sem talhão devem ser criadas via multi-talhão, que já gera 1 tarefa por "
+                "talhão). Edite esta tarefa e defina um talhão antes de gerar a ordem de serviço."
             )
 
         from agricola.operacoes.models import OperacaoAgricola

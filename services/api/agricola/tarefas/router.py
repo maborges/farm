@@ -60,6 +60,29 @@ async def criar_tarefa(
     return tarefa
 
 
+@router.post(
+    "/safras/{safra_id}/tarefas/multi-talhao",
+    response_model=List[TarefaResponse],
+    status_code=status.HTTP_201_CREATED,
+    summary="Fan-out: cria 1 tarefa por talhão em talhoes_ids, unidas por grupo_geracao_id",
+)
+async def criar_tarefa_multi_talhao(
+    safra_id: UUID,
+    dados: TarefaCreate,
+    session: AsyncSession = Depends(get_session),
+    tenant_id: UUID = Depends(get_tenant_id),
+    _: None = Depends(require_module(MODULE)),
+    user: dict = Depends(require_role(["agronomo", "admin", "gerente"])),
+):
+    user_id = UUID(user["sub"]) if user.get("sub") else None
+    svc = TarefaService(session, tenant_id, user_id=user_id)
+    tarefas = await svc.criar_multi_talhao(safra_id, dados, user_id=user_id)
+    await session.commit()
+    for tarefa in tarefas:
+        await session.refresh(tarefa)
+    return tarefas
+
+
 @router.get(
     "/tarefas/{tarefa_id}",
     response_model=TarefaResponse,

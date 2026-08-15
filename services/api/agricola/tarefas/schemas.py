@@ -6,6 +6,9 @@ from typing import Optional
 
 class TarefaCreate(BaseModel):
     talhao_id: Optional[UUID] = None
+    talhoes_ids: Optional[list[UUID]] = Field(
+        None, description="Alternativa a talhao_id: gera 1 SafraTarefa por talhão (fan-out), unidas por grupo_geracao_id"
+    )
     production_unit_id: Optional[UUID] = None
     cultivo_area_id: Optional[UUID] = None
     analise_solo_id: Optional[UUID] = None
