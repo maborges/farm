@@ -259,24 +259,28 @@ async def main() -> None:
             print("\nModo dry-run (padrão). Rode com --execute para aplicar de verdade.")
             return
 
-        if not args.skip_backup:
-            # Tabelas com FORCE ROW LEVEL SECURITY bloqueiam o pg_dump mesmo
-            # pro dono da tabela (borgus não é superuser/bypassrls) — achado
-            # ao rodar --execute em produção em 2026-08-14 (erro em
-            # alert_events, mas existem 36 tabelas assim). Desligamos a força
-            # da RLS só durante o dump e religamos depois, sempre (try/finally).
-            force_rls_rows = await conn.fetch(
-                "SELECT relname FROM pg_class "
-                "WHERE relforcerowsecurity = true AND relnamespace = $1::regnamespace",
-                SCHEMA,
-            )
-            force_rls_tables = [r["relname"] for r in force_rls_rows]
-            if force_rls_tables:
-                print(f"\nDesligando FORCE RLS temporariamente em {len(force_rls_tables)} tabela(s) para o backup...")
-                for t in force_rls_tables:
-                    await conn.execute(f'ALTER TABLE {SCHEMA}."{t}" NO FORCE ROW LEVEL SECURITY')
+        # Tabelas com FORCE ROW LEVEL SECURITY bloqueiam tanto o pg_dump
+        # quanto o DELETE, mesmo pro dono da tabela (borgus não é
+        # superuser/bypassrls) — algumas têm política baseada em
+        # current_setting('app.current_tenant_id'), que esta sessão nunca
+        # seta, então o DELETE filtra silenciosamente 0 linhas (sem erro!)
+        # e a linha real sobrevive pra travar o DELETE FROM tenants depois.
+        # Descoberto em produção em 2026-08-14 (alert_lifecycle_events).
+        # Por isso o desligamento cobre backup E exclusão juntos, só
+        # religando no finally bem no final.
+        force_rls_rows = await conn.fetch(
+            "SELECT relname FROM pg_class "
+            "WHERE relforcerowsecurity = true AND relnamespace = $1::regnamespace",
+            SCHEMA,
+        )
+        force_rls_tables = [r["relname"] for r in force_rls_rows]
+        if force_rls_tables:
+            print(f"\nDesligando FORCE RLS temporariamente em {len(force_rls_tables)} tabela(s)...")
+            for t in force_rls_tables:
+                await conn.execute(f'ALTER TABLE {SCHEMA}."{t}" NO FORCE ROW LEVEL SECURITY')
 
-            try:
+        try:
+            if not args.skip_backup:
                 backup_dir = Path(__file__).parent / "backups"
                 backup_dir.mkdir(exist_ok=True)
                 ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
@@ -295,24 +299,69 @@ async def main() -> None:
                         backup_file.unlink()
                     sys.exit(1)
                 print(f"Backup OK ({backup_file.stat().st_size} bytes).")
-            finally:
-                if force_rls_tables:
-                    print(f"Religando FORCE RLS em {len(force_rls_tables)} tabela(s)...")
-                    for t in force_rls_tables:
-                        await conn.execute(f'ALTER TABLE {SCHEMA}."{t}" FORCE ROW LEVEL SECURITY')
 
-        print("\n=== EXECUTANDO exclusão em transação única ===")
-        async with conn.transaction():
-            for t in order:
-                if t not in counts:
-                    continue
-                cond = conditions[t]
-                await conn.execute(f'DELETE FROM {SCHEMA}."{t}" WHERE {cond}', ids)
-            deleted = await conn.fetch(
-                f"DELETE FROM {SCHEMA}.tenants WHERE id = ANY($1::uuid[]) RETURNING id", ids
-            )
-            print(f"Tenants apagados: {len(deleted)}")
-        print("Concluído com sucesso.")
+            print("\n=== EXECUTANDO exclusão em transação única ===")
+            # Algumas tabelas têm trigger BEFORE DELETE que bloqueia exclusão
+            # por design (ex. estoque_movimentos é append-only — correções só
+            # via "ajuste_de"). Pra limpar dado de teste isso não se aplica;
+            # desligamos qualquer trigger BEFORE DELETE nas tabelas afetadas,
+            # dentro da transação, e religamos antes do commit.
+            #
+            # Também pode haver processo de fundo (scheduler do alert_engine)
+            # inserindo/atualizando linhas pros mesmos tenants em tempo real —
+            # por isso o retry: nunca pular DELETE por causa de uma contagem
+            # antiga, e tentar de novo (transação nova) se colidir.
+            max_attempts = 3
+            for attempt in range(1, max_attempts + 1):
+                try:
+                    async with conn.transaction():
+                        trigger_rows = await conn.fetch(
+                            """
+                            SELECT DISTINCT c.relname AS tabela, t.tgname AS trigger
+                            FROM pg_trigger t
+                            JOIN pg_class c ON c.oid = t.tgrelid
+                            WHERE c.relnamespace = $1::regnamespace
+                              AND NOT t.tgisinternal
+                              AND (t.tgtype::int & 8) = 8   -- TRIGGER_TYPE_DELETE
+                              AND (t.tgtype::int & 2) = 2   -- TRIGGER_TYPE_BEFORE
+                              AND c.relname = ANY($2::text[])
+                            """,
+                            SCHEMA,
+                            order,
+                        )
+                        if trigger_rows:
+                            print(f"Desligando {len(trigger_rows)} trigger(s) BEFORE DELETE nas tabelas afetadas...")
+                            for r in trigger_rows:
+                                await conn.execute(
+                                    f'ALTER TABLE {SCHEMA}."{r["tabela"]}" DISABLE TRIGGER "{r["trigger"]}"'
+                                )
+
+                        for t in order:
+                            cond = conditions[t]
+                            await conn.execute(f'DELETE FROM {SCHEMA}."{t}" WHERE {cond}', ids)
+                        deleted = await conn.fetch(
+                            f"DELETE FROM {SCHEMA}.tenants WHERE id = ANY($1::uuid[]) RETURNING id", ids
+                        )
+
+                        if trigger_rows:
+                            print(f"Religando {len(trigger_rows)} trigger(s)...")
+                            for r in trigger_rows:
+                                await conn.execute(
+                                    f'ALTER TABLE {SCHEMA}."{r["tabela"]}" ENABLE TRIGGER "{r["trigger"]}"'
+                                )
+                    print(f"Tenants apagados: {len(deleted)}")
+                    break
+                except asyncpg.exceptions.ForeignKeyViolationError as exc:
+                    if attempt == max_attempts:
+                        raise
+                    print(f"Colisão com processo concorrente (tentativa {attempt}/{max_attempts}): {exc}")
+                    print("Tentando de novo em transação nova...")
+            print("Concluído com sucesso.")
+        finally:
+            if force_rls_tables:
+                print(f"Religando FORCE RLS em {len(force_rls_tables)} tabela(s)...")
+                for t in force_rls_tables:
+                    await conn.execute(f'ALTER TABLE {SCHEMA}."{t}" FORCE ROW LEVEL SECURITY')
 
     finally:
         await conn.close()
