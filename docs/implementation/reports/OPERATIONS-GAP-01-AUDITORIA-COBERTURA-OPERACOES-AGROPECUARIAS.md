@@ -35,7 +35,7 @@ O Campo PWA é arquitetura offline genuína (Dexie + outbox), reusa a API, mas n
 | B | Colheita/romaneio | COBERTO | Sim | Sim | Sim | Sim | Sim | — | Sim | Parcial | Sim | `colheita/models.py:20`, `romaneios/models.py:8` | — |
 | B | Pós-colheita/beneficiamento | PARCIAL (café-only) | Sim | Sim | Sim | Sim | Parcial | — | Sim | — | — | `beneficiamento/models.py:9` | Não generalizado p/ outras culturas |
 | B | Análise de solo | DUPLICADO-PARALELO suspeito | Sim | Sim | — | — | — | — | — | — | — | `amostragem_solo/` vs `analises_solo/` | Confirmar overlap |
-| B | Tarefa multi-talhão | GAP CONFIRMADO | Sim | Não | — | — | — | — | — | — | — | `tarefas/service.py:632-636` BusinessRuleError | Hard-stop |
+| B | Tarefa multi-talhão | RESOLVIDO (2026-08-15) | Sim | Sim | — | — | — | — | — | — | — | `agricola/tarefas/service.py::TarefaService.criar_multi_talhao`, endpoint `POST /agricola/safras/{safra_id}/tarefas/multi-talhao` | Fechado via fan-out (Seção 21) |
 | C | Animal individual | COBERTO | — | Sim | Sim | — | — | — | — | — | Sim | `pecuaria/animal/models.py:144` | — |
 | C | Lote/rebanho coletivo | COBERTO | — | Sim | Sim | — | — | — | — | — | Sim | `animal/models.py:93`, `manejo.py` | — |
 | C | Castração | GAP | — | Não | — | — | — | — | — | — | — | `TipoEvento` sem CASTRACAO | Enum incompleto |
@@ -74,7 +74,7 @@ O Campo PWA é arquitetura offline genuína (Dexie + outbox), reusa a API, mas n
 ## 4. Cobertura Agrícola (A/B)
 
 - **A. Planejamento**: Safra com máquina de fases e histórico versionado (`SafraFaseHistorico`) — COBERTO. Vínculo safra↔área tem 3 pontos concorrentes (`Safra.talhao_id` legado, `SafraTalhao` N:N, `CultivoArea`) — risco de dessincronia mas funcional. Orçamento tem dois sistemas (item de safra vs. plano operacional em lote) sem reconciliação automática confirmada — DUPLICADO-PARALELO a investigar. Metas de produtividade e planejado×realizado já nativos em `Cultivo` (`produtividade_meta_sc_ha` vs `produtividade_real_sc_ha`). Serviços terceirizados como categoria própria — não confirmado. Revisão/versionamento do orçamento é campo incremental simples (`PlanoOperacional.versao`), não audit trail completo.
-- **B. Operações agrícolas**: núcleo genérico via `OperacaoAgricola.tipo/subtipo` cobre teoricamente todas as subcategorias (preparo/plantio/desenvolvimento), mas a granularidade real depende do catálogo (`OperacaoTipoFaseService`), não auditado a fundo — classificado PARCIAL por falta de confirmação, não por ausência de motor. Fitossanitário tem módulo dedicado de monitoramento de pragas/doenças com NDE. Colheita e romaneio maduros e integrados a estoque. Pós-colheita/beneficiamento é **específico a café** (nomenclatura ABIC/SCA) — para outras culturas é GAP de generalização. **GAP confirmado**: `SafraTarefa` sem `talhao_id` não gera `OperacaoAgricola` (hard-stop em `tarefas/service.py:632-636`), reconfirma memória `project_gap_tarefa_multitalhao.md`. Suspeita de duplicação entre módulos `amostragem_solo/` e `analises_solo/` não resolvida — recomenda-se 2ª auditoria pontual.
+- **B. Operações agrícolas**: núcleo genérico via `OperacaoAgricola.tipo/subtipo` cobre teoricamente todas as subcategorias (preparo/plantio/desenvolvimento), mas a granularidade real depende do catálogo (`OperacaoTipoFaseService`), não auditado a fundo — classificado PARCIAL por falta de confirmação, não por ausência de motor. Fitossanitário tem módulo dedicado de monitoramento de pragas/doenças com NDE. Colheita e romaneio maduros e integrados a estoque. Pós-colheita/beneficiamento é **específico a café** (nomenclatura ABIC/SCA) — para outras culturas é GAP de generalização. ~~**GAP confirmado**: `SafraTarefa` sem `talhao_id` não gera `OperacaoAgricola` (hard-stop em `tarefas/service.py:632-636`)~~ — **RESOLVIDO em 2026-08-15** via fan-out (Seção 21). Suspeita de duplicação entre módulos `amostragem_solo/` e `analises_solo/` não resolvida — recomenda-se 2ª auditoria pontual.
 
 ## 5. Cobertura Pecuária (C)
 
@@ -139,7 +139,7 @@ Campo PWA (`apps/campo/`, Next.js separado) tem arquitetura offline genuína: De
 
 **CRÍTICO**
 - ~~Custo/margem por lote comercializado inexistente~~ — **RESOLVIDO em 2026-08-15** (Seção 12, Adendo Seção 21).
-- Tarefa multi-talhão (`SafraTarefa.talhao_id is None`) não gera `OperacaoAgricola` — hard-stop que impede execução/apontamento de um cenário operacional legítimo (Seção 4). **Segue aberto.**
+- ~~Tarefa multi-talhão (`SafraTarefa.talhao_id is None`) não gera `OperacaoAgricola`~~ — **RESOLVIDO em 2026-08-15** (Adendo Seção 21). Nenhum GAP CRÍTICO permanece aberto desta auditoria.
 
 **ALTO**
 - Rateio (Float) vs CostAllocation (Numeric) sem exclusividade garantida — risco de dupla contabilização de custo.
@@ -178,7 +178,8 @@ Campo PWA (`apps/campo/`, Next.js separado) tem arquitetura offline genuína: De
 3. **Shadowing de pacote Python em `ambiental/`**: arquivo `models.py` e pacote `models/` coexistindo no mesmo namespace é um padrão frágil, propenso a import ambíguo e funcionalidade "fantasma".
 4. **Cadeia de "lote" com 3+ nomenclaturas** (ProdutoColhido/LoteBeneficiamento/LoteRastreabilidade/CadernoLoteComercial) aumenta risco de drift entre etapas se alguma atualização não propagar.
 5. **Sistemas de alertas fragmentados**: mesmo com ponte parcial, a arquitetura de 3 motores aumenta custo de manutenção e risco de comportamento inconsistente entre eles.
-6. ~~**Elo Produção→Resultado quebrado**~~ — **RESOLVIDO em 2026-08-15**: backend agora calcula custo/margem por lote por 3 vias (Seção 21), e a fonte oficial foi decidida (Alternativa C — ver Seção 21). Risco residual: a decisão ainda não foi aplicada em nenhuma UI, então nada impede hoje que um desenvolvedor consuma A ou B como se fosse o número final — o guardrail é documental, não técnico.
+6. ~~**Elo Produção→Resultado quebrado**~~ — **RESOLVIDO em 2026-08-15**: backend calcula custo/margem por lote por 3 vias (Seção 21), fonte oficial decidida (Alternativa C) e já consumida em frontend (tela Produtos Colhidos). Risco residual restrito: DRE/dashboard ainda não consomem a Alternativa A/C — nada impede hoje que uma tela futura use B como se fosse o número final.
+7. ~~**Hard-stop de tarefa multi-talhão**~~ — **RESOLVIDO em 2026-08-15** (Seção 21.2): fan-out em N `SafraTarefa` por talhão, sem tocar no modelo de custo/PU. Risco residual: `talhoes_ids` só existe no backend, sem tela de criação multi-talhão no frontend ainda.
 
 ## 19. Funcionalidades Existentes que Devem Ser Preservadas
 
@@ -197,7 +198,7 @@ Sem propor refatoração ampla, e em ordem de exposição de risco/esforço:
 2. Completar a migração Float→Numeric nas 4 tabelas de estoque identificadas (escopo cirúrgico, já mapeado).
 3. Confirmar/relatar (2ª auditoria pontual) o shadowing em `ambiental/models.py` vs `ambiental/models/car.py` e decidir qual é o vivo.
 4. ~~Endereçar o GAP crítico de custo/margem por lote comercializado~~ — **CONCLUÍDO em 2026-08-15** (Seção 21). ~~Decidir a fonte oficial~~ — **CONCLUÍDO em 2026-08-15**: Alternativa C é a fonte oficial (ver Seção 21). Próximos passos derivados: (i) implementar consumo em frontend usando os endpoints de C; (ii) avaliar tornar `ComercializacaoCommodity.produto_colhido_id` obrigatório (hoje `nullable`).
-5. Resolver o hard-stop de tarefa multi-talhão (decisão de produto: dividir a tarefa por talhão vs. permitir OperacaoAgricola multi-área).
+5. ~~Resolver o hard-stop de tarefa multi-talhão~~ — **CONCLUÍDO em 2026-08-15** (Seção 21): adotado fan-out (dividir a tarefa por talhão), não `OperacaoAgricola` multi-área. Próximo passo derivado: expor `talhoes_ids` no frontend de criação de tarefa (hoje só backend).
 6. Fazer 2ª passada dedicada em: `amostragem_solo` vs `analises_solo`; receituário/embalagens/compliance; contas a pagar/receber; custos indiretos/depreciação — itens não confirmados por escopo desta auditoria.
 
 ---
@@ -239,20 +240,32 @@ Consequência prática: ao construir qualquer tela ou relatório de custo/margem
 
 ### O que permanece em aberto após esta resolução
 
-- **Sem consumo em frontend**: os três mecanismos são só backend; nenhuma tela consome os novos campos/endpoints ainda — inclusive a fonte oficial (C) recém-decidida.
-- **`ComercializacaoCommodity.produto_colhido_id` continua `nullable`**: comercializações sem esse vínculo seguem fora do rateio por lote (reportadas como aviso `COMERCIALIZACAO_SEM_LOTE_VINCULADO` no DRE) — tornar obrigatório é decisão de produto separada, ainda não tomada.
-- **Sem backfill histórico**: lotes/comercializações anteriores a 2026-08-15 não recebem os novos campos automaticamente.
+- **Consumo em frontend parcial**: a tela de Produtos Colhidos (lista + detalhe, consumindo a fonte oficial C) foi implementada em 2026-08-15 (`apps/web/.../produtos-colhidos/`). O formulário de nova comercialização já exige seleção do lote. Ainda faltam: consumo do fan-out multi-talhão (Seção 21.2) e da margem por lote (Alternativa A) em telas de DRE/dashboard.
+- **`ComercializacaoCommodity.produto_colhido_id` obrigatório desde 2026-08-15**: resolvido — ver Seção 21.2 abaixo. Comercializações anteriores a essa data sem vínculo (4 registros de teste identificados) seguem fora do rateio por lote, reportadas como aviso `COMERCIALIZACAO_SEM_LOTE_VINCULADO` no DRE — decisão consciente de não fazer backfill (não há dado suficiente no model para inferir o lote correto).
+- **Sem backfill histórico**: lotes/comercializações/tarefas anteriores a 2026-08-15 não recebem os novos campos/estrutura automaticamente.
+
+## 21.1 — Adendo (2026-08-15) — `produto_colhido_id` obrigatório na criação
+
+Fecha a recomendação derivada da Seção 20 item 4: `ComercializacaoCreate.produto_colhido_id` passou de opcional para obrigatório (validação Pydantic — erro 422 se ausente). A coluna no banco **permanece `nullable=True`**, sem migration, para não quebrar os registros de teste já existentes sem vínculo (investigação encontrou 4 de 14 comercializações no banco de desenvolvimento com o campo nulo, todas fixtures de teste — o model não guarda `safra_id`/`talhao_id` próprios, então não há como inferir automaticamente o lote correto para backfill). Frontend (`financeiro/comercializacoes/page.tsx`) atualizado para exigir a seleção do lote antes do submit.
+
+## 21.2 — Adendo (2026-08-15) — Hard-stop de tarefa multi-talhão resolvido
+
+Fecha o segundo GAP CRÍTICO da auditoria original (Seções 4, 17, 20): `SafraTarefa` sem `talhao_id` não gerava `OperacaoAgricola` (`BusinessRuleError` em `TarefaService.gerar_operacao_planejada`). Investigação encontrou 3 de 58 `SafraTarefa` em produção já afetadas (nenhuma em status `APROVADA`, então sem bloqueio ativo no momento da correção).
+
+- **Decisão de abordagem**: fan-out (1 tarefa multi-talhão → N `SafraTarefa`, uma por talhão), não "operação multi-área". Justificativa: `OperacaoAgricola.talhao_id` é `NOT NULL`, e `ProductionUnit`/`CostAllocation`/`OperacaoExecucao` são todos ancorados a 1 talhão por vez — redesenhar isso para suportar rateio entre múltiplas `ProductionUnit`s por operação mexeria nos models centrais do fluxo econômico recém-estabilizado pelas Alternativas A/B/C (Seção 21). O padrão de fan-out já existe no código: `PlanoOperacional` documenta explicitamente "um plano cobre tarefas de vários talhões... o fluxo econômico oficial continua sendo gerado tarefa por tarefa" — a correção estende esse mesmo princípio para criação avulsa de tarefa.
+- **Evidência**: `TarefaCreate.talhoes_ids` (novo campo, `agricola/tarefas/schemas.py`); `TarefaService.criar_multi_talhao()` (`agricola/tarefas/service.py`) — gera `grupo_geracao_id` compartilhado e cria N `SafraTarefa`; `criar()` simples agora exige `talhao_id` (rejeita `None`); endpoint `POST /agricola/safras/{safra_id}/tarefas/multi-talhao` (`agricola/tarefas/router.py`).
+- **Cobertura**: nenhum caller existente (`analises_solo/service.py`, `planejamento_operacional/service.py`) foi afetado — todos já passavam `talhao_id` explícito. As 3 tarefas órfãs legadas não foram tocadas (nenhuma `APROVADA`, sem risco imediato, sem dado suficiente para saber quais talhões pretendiam cobrir).
+- **Testes**: `tests/integration/agricola/test_tarefa_multi_talhao.py` (4 casos: fan-out correto com `grupo_geracao_id` compartilhado, rejeição de `criar()` sem talhão, rejeição de `criar_multi_talhao()` sem lista, rejeição com os dois campos preenchidos).
+- **O que permanece em aberto**: `talhoes_ids` ainda não é consumido no frontend de criação de tarefa (só backend).
 
 ---
 
 ## STATUS DA COBERTURA OPERACIONAL: **PARCIAL**
 
-A aplicação cobre com solidez a maior parte do ciclo agrícola, pecuário, de máquinas e de mão de obra, com um núcleo arquitetural coerente (ProductionUnit/CostAllocation/OperacaoAgricola). O GAP crítico original (elo final Produção→Resultado quebrado) foi resolvido em 2026-08-15 (Seção 21), mas o status permanece **PARCIAL** — não "ADEQUADA/MADURA" — porque duplicações econômicas ativas sem guardrail (Rateio-Float vs CostAllocation-Numeric, 3 sistemas de alertas) e a migração incompleta Float→Numeric em estoque continuam colocando em risco a confiabilidade dos números de custo/resultado, e o hard-stop de tarefa multi-talhão ainda impede um cenário operacional legítimo.
+A aplicação cobre com solidez a maior parte do ciclo agrícola, pecuário, de máquinas e de mão de obra, com um núcleo arquitetural coerente (ProductionUnit/CostAllocation/OperacaoAgricola). Os dois GAPs CRÍTICOS originais (elo Produção→Resultado quebrado, e hard-stop de tarefa multi-talhão) foram resolvidos em 2026-08-15 (Seção 21) — nenhum ponto de ruptura formal (hard-stop de código) permanece identificado por esta auditoria. O status segue **PARCIAL**, não "ADEQUADA/MADURA", porque duplicações econômicas ativas sem guardrail (Rateio-Float vs CostAllocation-Numeric, 3 sistemas de alertas, CAR com dois models concorrentes) e a migração incompleta Float→Numeric em estoque continuam colocando em risco a confiabilidade dos números de custo/resultado — riscos de qualidade/consistência, não mais de bloqueio operacional.
 
 ### Resposta objetiva
 
-**Parcialmente, com a lacuna mais crítica já fechada.** A aplicação consegue representar ponta a ponta Planejamento→Execução→Recursos→Estoque→Produção→Resultado Econômico para a maioria dos cenários operacionais comuns (agrícola genérico, pecuária individual/coletiva, frota, mão de obra em diária/empreitada), **incluindo agora custo/margem por lote comercializado** (Seção 21). Um ponto concreto de ruptura formal permanece, com evidência de código:
+**Sim, com as duas lacunas mais críticas já fechadas.** A aplicação consegue representar ponta a ponta Planejamento→Execução→Recursos→Estoque→Produção→Resultado Econômico para a totalidade dos cenários operacionais mapeados nesta auditoria (agrícola genérico — inclusive multi-talhão via fan-out —, pecuária individual/coletiva, frota, mão de obra em diária/empreitada), **incluindo custo/margem por lote comercializado** (Seção 21). Nenhum hard-stop de código impede formalmente um cenário operacional legítimo até o momento desta atualização.
 
-1. **Tarefas multi-talhão**: `SafraTarefa` sem `talhao_id` único não consegue gerar `OperacaoAgricola` (hard-stop explícito em código), impedindo a execução/apontamento formal desse cenário.
-
-Adicionalmente, a confiabilidade dos números de custo segue sob risco pela coexistência ativa e não reconciliada de dois motores de rateio (Rateio-Float vs CostAllocation-Numeric) e pela migração incompleta de tipos monetários em estoque. Quanto ao custo por lote: a fonte oficial já foi decidida (Alternativa C, Seção 21), mas o guardrail ainda é apenas documental — nenhuma UI consome os endpoints ainda, então a decisão precisa ser respeitada manualmente até haver frontend.
+A confiabilidade dos números de custo segue sob risco — não por ausência de funcionalidade, mas por qualidade/consistência dos dados — pela coexistência ativa e não reconciliada de dois motores de rateio (Rateio-Float vs CostAllocation-Numeric) e pela migração incompleta de tipos monetários em estoque. Quanto ao custo por lote: a fonte oficial já foi decidida (Alternativa C, Seção 21) e o frontend já a consome (tela Produtos Colhidos); resta apenas expandir esse consumo para DRE/dashboard e para o novo fluxo multi-talhão.
