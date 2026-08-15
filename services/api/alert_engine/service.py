@@ -201,6 +201,39 @@ class AlertLifecycleService:
         except Exception as exc:  # pragma: no cover - defensive isolation
             logger.exception(f"Falha ao espelhar alert_engine alert {alert.id} em Notificacao: {exc}")
 
+    async def _marcar_notificacao_espelhada_como_lida(self, alert: OperationalAlert) -> None:
+        """Risco residual da ponte (OPERATIONS-GAP-01 §21.7/§21.24): `_notificar_usuarios`
+        só roda na criação, então resolver/descartar um alerta no `alert_engine`
+        nunca refletia no sino — o usuário via a notificação como "não lida"
+        indefinidamente mesmo depois do alerta ter sido tratado em outro lugar.
+
+        Não cria notificação nova nem tenta espelhar todo o ciclo de vida (não
+        há campo de status equivalente em `Notificacao`, só `lida`) — apenas
+        marca como lida a notificação espelhada original (localizada por
+        `meta.alert_id`), o suficiente para tirá-la do contador de não lidas.
+        Mesma sessão isolada e mesmo isolamento defensivo de `_notificar_usuarios`.
+        """
+        from core.database import async_session_maker
+        from notificacoes.models import Notificacao
+
+        try:
+            async with async_session_maker() as bg_session:
+                stmt = select(Notificacao).where(
+                    Notificacao.tenant_id == self.tenant_id,
+                    Notificacao.meta["alert_id"].as_string() == str(alert.id),
+                    Notificacao.lida.is_(False),
+                )
+                notificacoes = (await bg_session.execute(stmt)).scalars().all()
+                if not notificacoes:
+                    return
+                agora = datetime.now(timezone.utc)
+                for notif in notificacoes:
+                    notif.lida = True
+                    notif.read_at = agora
+                await bg_session.commit()
+        except Exception as exc:  # pragma: no cover - defensive isolation
+            logger.exception(f"Falha ao marcar notificação espelhada como lida p/ alert {alert.id}: {exc}")
+
     @staticmethod
     def _acoes_para_alerta(alert: OperationalAlert) -> list[dict] | None:
         """Mapa fixo de ações one-click por `source_type`, quando a permissão
@@ -382,6 +415,7 @@ class AlertLifecycleService:
             payload_before=before,
             payload_after=_serialize(alert),
         )
+        await self._marcar_notificacao_espelhada_como_lida(alert)
         return alert
 
     async def dismiss_alert(
@@ -422,6 +456,7 @@ class AlertLifecycleService:
             payload_before=before,
             payload_after=_serialize(alert),
         )
+        await self._marcar_notificacao_espelhada_como_lida(alert)
         return alert
 
     async def list_alerts(

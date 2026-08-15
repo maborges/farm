@@ -149,3 +149,67 @@ def test_acoes_para_alerta_mapeia_tipos_novos(source_type, endpoint_prefix, body
 def test_acoes_para_alerta_tipo_sem_mapeamento_retorna_none():
     alert = _alert(source_type="ESG_CERTIFICACAO_VENCIDA")
     assert AlertLifecycleService._acoes_para_alerta(alert) is None
+
+
+# ---------------------------------------------------------------------------
+# _marcar_notificacao_espelhada_como_lida (OPERATIONS-GAP-01 §21.24)
+# ---------------------------------------------------------------------------
+
+def _fake_async_session_maker_com(bg_session: AsyncMock):
+    @asynccontextmanager
+    async def _maker():
+        yield bg_session
+    return _maker
+
+
+@pytest.mark.asyncio
+async def test_marcar_notificacao_espelhada_marca_lida_e_comita():
+    tenant_id = uuid.uuid4()
+    session = AsyncMock()
+    svc = AlertLifecycleService(session, tenant_id)
+    alert = _alert()
+
+    notif1 = MagicMock(lida=False, read_at=None)
+    notif2 = MagicMock(lida=False, read_at=None)
+    bg_session = AsyncMock()
+    execute_result = MagicMock()
+    execute_result.scalars.return_value.all.return_value = [notif1, notif2]
+    bg_session.execute = AsyncMock(return_value=execute_result)
+
+    with patch("core.database.async_session_maker", _fake_async_session_maker_com(bg_session)):
+        await svc._marcar_notificacao_espelhada_como_lida(alert)
+
+    assert notif1.lida is True
+    assert notif1.read_at is not None
+    assert notif2.lida is True
+    assert notif2.read_at is not None
+    bg_session.commit.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_marcar_notificacao_espelhada_sem_match_nao_comita():
+    tenant_id = uuid.uuid4()
+    session = AsyncMock()
+    svc = AlertLifecycleService(session, tenant_id)
+    alert = _alert()
+
+    bg_session = AsyncMock()
+    execute_result = MagicMock()
+    execute_result.scalars.return_value.all.return_value = []
+    bg_session.execute = AsyncMock(return_value=execute_result)
+
+    with patch("core.database.async_session_maker", _fake_async_session_maker_com(bg_session)):
+        await svc._marcar_notificacao_espelhada_como_lida(alert)
+
+    bg_session.commit.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_marcar_notificacao_espelhada_falha_isolada_nao_propaga():
+    tenant_id = uuid.uuid4()
+    session = AsyncMock()
+    svc = AlertLifecycleService(session, tenant_id)
+    alert = _alert()
+
+    with patch("core.database.async_session_maker", side_effect=RuntimeError("db down")):
+        await svc._marcar_notificacao_espelhada_como_lida(alert)  # não deve levantar
