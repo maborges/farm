@@ -75,6 +75,7 @@ class TipoEvento(str, enum.Enum):
     EXAME           = "EXAME"
     VERMIFUGACAO    = "VERMIFUGACAO"
     BANHO_CARRAPATICIDA = "BANHO_CARRAPATICIDA"
+    CASTRACAO       = "CASTRACAO"
 
     # Movimentação
     TRANSFERENCIA_LOTE    = "TRANSFERENCIA_LOTE"    # mudança de lote/piquete
@@ -234,6 +235,8 @@ class EventoAnimal(Base):
       VENDA:        valor_total, comprador_id (pessoa), destino
       MORTE:        causa_morte, laudo_veterinario
       COMPRA:       valor_total, origem, vendedor_id (pessoa)
+      CASTRACAO:    pessoa_id (veterinário/responsável), produto_id (insumo opcional:
+                    anestésico/anti-inflamatório), valor (custo), dados_extras (método/observações)
     """
     __tablename__ = "pec_eventos_animal"
 

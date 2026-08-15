@@ -210,6 +210,36 @@ async def test_registrar_evento_vacinacao(client, session, headers_pecuaria):
     assert response.json()["tipo_evento"] == "VACINACAO"
 
 
+@pytest.mark.asyncio
+async def test_registrar_evento_castracao(client, session, headers_pecuaria):
+    """OPERATIONS-GAP-01 §21.28: POST /pecuaria/manejos registra castração do lote"""
+    await _garantir_suporte(session)
+
+    r = await client.post(
+        "/api/v1/lotes-bovinos/",
+        json=_payload_lote(),
+        headers=headers_pecuaria,
+    )
+    assert r.status_code == 201
+    lote_id = r.json()["id"]
+
+    response = await client.post(
+        "/api/v1/pecuaria/manejos/",
+        json={
+            "lote_id": lote_id,
+            "tipo_evento": "CASTRACAO",
+            "data_evento": str(date.today()),
+            "quantidade_cabecas": 10,
+            "custo_total": 300.0,
+            "observacoes": "Castração cirúrgica com anestesia local",
+        },
+        headers=headers_pecuaria,
+    )
+
+    assert response.status_code == 201, response.text
+    assert response.json()["tipo_evento"] == "CASTRACAO"
+
+
 # ---------------------------------------------------------------------------
 # PEC-EVT-02: Eventos são append-only (não editáveis)
 # ---------------------------------------------------------------------------

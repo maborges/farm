@@ -38,7 +38,7 @@ O Campo PWA é arquitetura offline genuína (Dexie + outbox), reusa a API, mas n
 | B | Tarefa multi-talhão | RESOLVIDO (2026-08-15) | Sim | Sim | — | — | — | — | — | — | — | `agricola/tarefas/service.py::TarefaService.criar_multi_talhao`, endpoint `POST /agricola/safras/{safra_id}/tarefas/multi-talhao` | Fechado via fan-out (Seção 21) |
 | C | Animal individual | COBERTO | — | Sim | Sim | — | — | — | — | — | Sim | `pecuaria/animal/models.py:144` | — |
 | C | Lote/rebanho coletivo | COBERTO | — | Sim | Sim | — | — | — | — | — | Sim | `animal/models.py:93`, `manejo.py` | — |
-| C | Castração | GAP | — | Não | — | — | — | — | — | — | — | `TipoEvento` sem CASTRACAO | Enum incompleto |
+| C | Castração | RESOLVIDO 2026-08-15 (Seção 21.28) | — | Sim | — | — | — | — | — | — | — | `TipoEvento.CASTRACAO`, `TIPO_EVENTO_VALID` | Fechado seguindo padrão de MEDICACAO |
 | C | Confinamento/GMD | DUPLICADO-PARALELO CONFIRMADO | — | Sim | Sim | — | Sim | — | Sim | — | — | `enterprise/models/sprints_27_33.py:253` vs `gmd_utils.py` | 0 call-sites cruzados |
 | C | Ordenha | DESACOPLADO | — | Sim | — | — | — | — | Sim | Sim | — | `pecuaria/routers/leite.py` | Não usa EventoAnimal |
 | D | Cadastro/alocação/uso máquina | COBERTO | Sim | Sim | Sim | Parcial | Sim | — | — | Sim | Sim | `equipamentos/models.py:47`, `apontamento.py:17` | — |
@@ -540,6 +540,17 @@ Reavaliação do item "Centro de Custos não unificado" (citado desde Seção 21
 - **Double-counting**: confirmado, de novo, que **não existe** — dois guards de idempotência independentes (`NOT EXISTS` em `registrar_allocations_fin_rateio`, e `_buscar_allocation`/checagens de existência nos demais produtores) mais separação de consumo (DRE agrícola soma só `CostAllocation`; relatório "Centro de Custos" financeiro soma só `Rateio`, com comentário explícito no código sobre nunca cruzar as duas sem excluir `source='FIN_RATEIO'`). Reconfirma Seção 21.3/21.10.
 - **Conclusão sobre "unificação"**: uma unificação de schema de fato (ex.: `Rateio` virar view/projeção formal de `CostAllocation`) continua exigindo redesenho amplo — essa parte da avaliação anterior se sustenta, não há trabalho cirúrgico que resolva isso sem tocar DRE/relatório financeiro/cenários.
 - **O que foi corrigido nesta entrega** (cirúrgico, sem migração, sem tocar DRE): criado `agricola/custos/constants.py` centralizando os valores de `CostAllocation.source` hoje espalhados como strings mágicas em 5 arquivos produtores, com a regra de "nunca somar `Rateio` + `CostAllocation(source=FIN_RATEIO)`" documentada num único lugar referenciado por `allocation_service.py`. Reduz risco de um dev futuro introduzir um `source` conflitante ou um relatório que dupla-conta — não é uma correção de bug (não havia bug), é redução de risco de regressão futura.
+
+---
+
+## 21.28 — Adendo (2026-08-15) — Castração adicionada ao enum de eventos pecuários
+
+Fecha o gap do domínio C ("Castração ausente do enum de eventos") — o único termo parecido no código, `CASTRADO`, é um valor de `SexoAnimal` (status sexual resultante, não o evento de castrar).
+
+- **Achado**: não foi necessário criar um fluxo de custo/estoque dedicado. Castração se encaixa exatamente no padrão já usado por `MEDICACAO` — evento sanitário com `produto_id` opcional (insumo/anestésico), `custo_total`/`valor` genérico e `dados_extras` para detalhe clínico, sem consumo automático de estoque (isso só existe hoje para `VACINACAO`, via `ManejoSyncService._processar_vacinacao`, caso especial de sincronização de campo).
+- **Implementado**: `CASTRACAO` adicionado a `TipoEvento` (`pecuaria/animal/models.py`, seção Sanitário) e a `TIPO_EVENTO_VALID` (`pecuaria/schemas/manejo_schema.py`), com docstring de `EventoAnimal` atualizado. Frontend web (`dashboard/pecuaria/manejo/page.tsx`) ganhou entrada em `EVENTO_CONFIG` (label, cor, ícone) — a UI já itera o config dinamicamente, sem outro ponto de edição necessário.
+- **Fora do escopo, deliberadamente**: tela dedicada offline no Campo PWA (`apps/campo`) — tipos não mapeados em `pecuaria-tasks.ts`/`task-domain.ts` caem em fallback genérico funcional (evento é registrado, só sem ícone/rota própria); vacinação tem tela própria porque tem baixa de estoque automática, castração por padrão não. Consumo automático de estoque/CostAllocation também não foi criado — é decisão de produto separada, não parte do gap "enum incompleto".
+- **Teste adicionado**: `tests/integration/test_pecuaria.py::test_registrar_evento_castracao`, espelhando `test_registrar_evento_vacinacao`. **Achado colateral**: toda a suíte `test_pecuaria.py` está quebrada hoje por causa raiz pré-existente e não relacionada a esta mudança — `POST /api/v1/lotes-bovinos/` retorna 404 (rota parece ter mudado de path desde que os testes foram escritos). Confirmado via `git stash`: as mesmas 8 falhas já existiam antes desta entrega. Validação funcional feita em nível de model/schema (`TipoEvento.CASTRACAO`, `TIPO_EVENTO_VALID`, `ManejoLoteCreate(tipo_evento="CASTRACAO")` — todos OK). **Novo item residual**: suíte de integração de pecuária precisa de correção de rota antes de poder validar end-to-end qualquer mudança nesse domínio.
 
 ---
 

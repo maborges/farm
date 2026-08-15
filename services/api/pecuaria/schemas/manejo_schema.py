@@ -5,7 +5,7 @@ import uuid
 
 TIPO_EVENTO_VALID = {
     "NASCIMENTO", "MORTE", "PESAGEM", "VACINACAO",
-    "TRANSFERENCIA", "MEDICACAO", "VENDA", "ABATE",
+    "TRANSFERENCIA", "MEDICACAO", "VENDA", "ABATE", "CASTRACAO",
 }
 
 
@@ -13,13 +13,13 @@ class ManejoLoteCreate(BaseModel):
     lote_id: uuid.UUID
     tipo_evento: str = Field(
         ...,
-        description="NASCIMENTO | MORTE | PESAGEM | VACINACAO | TRANSFERENCIA | MEDICACAO | VENDA | ABATE",
+        description="NASCIMENTO | MORTE | PESAGEM | VACINACAO | TRANSFERENCIA | MEDICACAO | VENDA | ABATE | CASTRACAO",
     )
     data_evento: Optional[date] = None
     quantidade_cabecas: Optional[int] = Field(None, ge=0)
     peso_total_kg: Optional[float] = Field(None, ge=0)
-    produto_id: Optional[uuid.UUID] = Field(None, description="Produto/insumo utilizado (VACINACAO, MEDICACAO)")
-    custo_total: Optional[float] = Field(None, ge=0, description="Custo do evento (VACINACAO/MEDICACAO)")
+    produto_id: Optional[uuid.UUID] = Field(None, description="Produto/insumo utilizado (VACINACAO, MEDICACAO, CASTRACAO)")
+    custo_total: Optional[float] = Field(None, ge=0, description="Custo do evento (VACINACAO/MEDICACAO/CASTRACAO)")
     valor_venda: Optional[float] = Field(None, ge=0, description="Receita do evento (VENDA/ABATE)")
     observacoes: Optional[str] = Field(None, max_length=1000)
 
