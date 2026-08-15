@@ -52,11 +52,16 @@ class AlertLifecycleService:
         self.session = session
         self.tenant_id = tenant_id
 
-    async def create_or_update_alert(self, obj_in: OperationalAlertCreate) -> OperationalAlert:
+    async def create_or_update_alert(
+        self, obj_in: OperationalAlertCreate, *, notify: bool = True
+    ) -> OperationalAlert:
         """Creates a new active alert or updates the existing one matching the dedupe key.
 
         Args:
             obj_in: Canonical alert payload.
+            notify: Se `False`, não espelha em `Notificacao` na criação — usado por
+                chamadores que já criam a própria `Notificacao` por outro caminho
+                (ex. `notificacoes/AlertasEngine`), para não duplicar no sino.
 
         Returns:
             The created or updated alert row.
@@ -143,7 +148,8 @@ class AlertLifecycleService:
             payload_after=_serialize(alert),
         )
         logger.debug("Alert created with dedupe key {}", obj_in.dedupe_key)
-        await self._notificar_usuarios(alert)
+        if notify:
+            await self._notificar_usuarios(alert)
         return alert
 
     async def _notificar_usuarios(self, alert: OperationalAlert) -> None:

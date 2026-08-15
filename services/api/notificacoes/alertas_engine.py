@@ -222,6 +222,15 @@ class AlertasEngine:
                     },
                 )
             )
+            await self._espelhar_operational_alert(
+                session,
+                tenant_id,
+                dedupe_key=f"notificacoes:estoque_baixo:{tenant_id}",
+                source_type="ESTOQUE_BAIXO",
+                source_id=str(tenant_id),
+                title=f"{len(produtos_baixo)} produtos com estoque baixo",
+                message="Produtos: " + ", ".join(itens[:5]) + ("..." if len(itens) > 5 else ""),
+            )
 
         return alertas
 
@@ -284,6 +293,16 @@ class AlertasEngine:
                         ],
                     },
                 )
+            )
+            await self._espelhar_operational_alert(
+                session,
+                tenant_id,
+                dedupe_key=f"notificacoes:carencia_defensivo:{tenant_id}",
+                source_type="CARENCIA_DEFENSIVO",
+                source_id=str(tenant_id),
+                title=f"{len(linhas)} defensivos com carência vencendo",
+                message="Atenção: " + ", ".join(itens[:3]) + ("..." if len(itens) > 3 else ""),
+                category_compliance=True,
             )
 
         return alertas
@@ -349,9 +368,66 @@ class AlertasEngine:
                     },
                 )
             )
+            await self._espelhar_operational_alert(
+                session,
+                tenant_id,
+                dedupe_key=f"notificacoes:diaria_pendente:{colaborador_id}",
+                source_type="DIARIA_PENDENTE",
+                source_id=str(colaborador_id),
+                title=f"{len(itens)} diária(s) pendente(s) — {nome}",
+                message=f"{nome} tem {len(itens)} diária(s) não pagas há mais de 15 dias. Total: R$ {total_fmt}",
+                domain_finance=True,
+            )
 
         return alertas
 
+    @staticmethod
+    async def _espelhar_operational_alert(
+        session: AsyncSession,
+        tenant_id: UUID,
+        *,
+        dedupe_key: str,
+        source_type: str,
+        source_id: str,
+        title: str,
+        message: str,
+        category_compliance: bool = False,
+        domain_finance: bool = False,
+    ) -> None:
+        """Espelha um alerta nativo de AlertasEngine em `operational_alerts`, para
+        aparecer no resumo do dashboard (`GET /alerts/summary`) — fecha a assimetria
+        com `alert_engine`, que já espelha na direção oposta (ver
+        `AlertLifecycleService._notificar_usuarios`). `notify=False` porque a
+        `Notificacao` já foi/será criada por este mesmo motor, via `svc.criar_e_push`
+        — sem isso duplicaria a notificação no sino.
+        """
+        from alert_engine.models import AlertStatus, Category, Domain, Priority, Severity, TriggerType
+        from alert_engine.schemas import OperationalAlertCreate
+        from alert_engine.service import AlertLifecycleService
+
+        try:
+            svc = AlertLifecycleService(session, tenant_id)
+            await svc.create_or_update_alert(
+                OperationalAlertCreate(
+                    tenant_id=tenant_id,
+                    domain=Domain.FINANCE if domain_finance else Domain.OPERATIONS,
+                    category=Category.COMPLIANCE if category_compliance else Category.OPERACIONAL,
+                    title=title,
+                    message=message,
+                    severity=Severity.WARNING,
+                    priority=Priority.HIGH,
+                    status=AlertStatus.OPEN,
+                    trigger_type=TriggerType.RULE,
+                    source_type=source_type,
+                    source_id=source_id,
+                    source_event_ids=[],
+                    source_indicator_ids=[],
+                    dedupe_key=dedupe_key,
+                ),
+                notify=False,
+            )
+        except Exception as exc:  # pragma: no cover - defensive isolation
+            logger.exception(f"Falha ao espelhar {source_type} em operational_alerts: {exc}")
 
 
 # =============================================================================
