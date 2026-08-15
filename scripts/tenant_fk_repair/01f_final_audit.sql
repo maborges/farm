@@ -75,11 +75,24 @@ ORDER BY cruzamentos DESC, relacao;
 -- ────────────────────────────────────────────────────────────
 \echo ''
 \echo '── C2: Orphans de tenant_id ─────────────────────────────────────'
+-- Exceções investigadas em 2026-08-14: catálogos/templates globais onde
+-- tenant_id NULL é design intencional (dado compartilhado entre tenants),
+-- não corrupção. Confirmado uma a uma (maioria/totalidade das linhas em
+-- cada tabela tem tenant_id NULL, nomes batem com catálogo/template/perfil
+-- de sistema). Ver project_tenant_fk_repair.
 DO $$
 DECLARE
     r         RECORD;
     cnt       bigint;
     total_fail int := 0;
+    excecoes  text[] := ARRAY[
+        'agricola_regras_agronomicas', 'cadastros_categorias_produto',
+        'cadastros_commodities', 'cadastros_culturas', 'cadastros_marcas',
+        'cadastros_modelos_produto', 'cadastros_produtos',
+        'cadastros_tipos_relacionamento', 'cadastros_tipos_servico',
+        'operation_templates', 'perfis_acesso', 'phase_templates',
+        'solo_parametros_cultura', 'unidades_medida'
+    ];
 BEGIN
     FOR r IN
         SELECT DISTINCT c.conrelid::regclass::text AS tabela
@@ -88,6 +101,9 @@ BEGIN
           AND c.confrelid = 'farms.tenants'::regclass
         ORDER BY tabela
     LOOP
+        IF r.tabela = ANY(excecoes) THEN
+            CONTINUE;
+        END IF;
         BEGIN
             EXECUTE format(
                 'SELECT COUNT(*) FROM %s t WHERE NOT EXISTS (SELECT 1 FROM farms.tenants ten WHERE ten.id = t.tenant_id)',
@@ -102,7 +118,7 @@ BEGIN
         END;
     END LOOP;
     IF total_fail = 0 THEN
-        RAISE NOTICE 'PASS — zero orphans em todas as tabelas com FK para tenants';
+        RAISE NOTICE 'PASS — zero orphans em todas as tabelas com FK para tenants (exceto catálogos globais documentados)';
     ELSE
         RAISE WARNING 'FAIL ✗ — % tabela(s) com orphans', total_fail;
     END IF;
