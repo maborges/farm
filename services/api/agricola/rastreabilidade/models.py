@@ -62,7 +62,7 @@ class CadernoLoteComercial(Base):
     tenant_id: Mapped[UUID] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
     comercializacao_id: Mapped[UUID] = mapped_column(ForeignKey("financeiro_comercializacoes.id", ondelete="RESTRICT"), nullable=False, index=True)
     produto_colhido_id: Mapped[UUID | None] = mapped_column(ForeignKey("agricola_produtos_colhidos.id", ondelete="SET NULL"), nullable=True, index=True)
-    lote_beneficiamento_id: Mapped[UUID | None] = mapped_column(ForeignKey("cafe_lotes_beneficiamento.id", ondelete="SET NULL"), nullable=True, index=True)
+    lote_beneficiamento_id: Mapped[UUID | None] = mapped_column(ForeignKey("agricola_lotes_beneficiamento.id", ondelete="SET NULL"), nullable=True, index=True)
     # OPERATIONS-GAP-01 §21.11: vínculo opcional ao lote de campo/pré-comercial
     # (LoteRastreabilidade, granularidade safra+talhão) quando o mesmo lote físico
     # também tiver um passaporte comercial gerado aqui — os dois conceitos são

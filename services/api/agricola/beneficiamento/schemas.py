@@ -4,48 +4,80 @@ from datetime import date, datetime
 from typing import Optional, List
 
 
+class LoteBeneficiamentoCafeDetalheCreate(BaseModel):
+    """OPERATIONS-GAP-01 §21.15/§21.21: dados específicos de café (ABIC/SCA),
+    extensão 1:1 opcional — só preenchida quando o lote é de café."""
+    metodo: str = Field(..., pattern="^(NATURAL|LAVADO|HONEY|DESCASCADO)$")
+    local_secagem: str | None = None
+    peneira_principal: str | None = None
+    bebida: str | None = None
+    pontuacao_scaa: float | None = Field(None, ge=0, le=100)
+    defeitos_intrinsecos: int | None = None
+    defeitos_extrinsecos: int | None = None
+
+
+class LoteBeneficiamentoCafeDetalheUpdate(BaseModel):
+    metodo: str | None = Field(None, pattern="^(NATURAL|LAVADO|HONEY|DESCASCADO)$")
+    local_secagem: str | None = None
+    peneira_principal: str | None = None
+    bebida: str | None = None
+    pontuacao_scaa: float | None = Field(None, ge=0, le=100)
+    defeitos_intrinsecos: int | None = None
+    defeitos_extrinsecos: int | None = None
+
+
+class LoteBeneficiamentoCafeDetalheRead(BaseModel):
+    metodo: str
+    local_secagem: str | None
+    peneira_principal: str | None
+    bebida: str | None
+    pontuacao_scaa: float | None
+    defeitos_intrinsecos: int | None
+    defeitos_extrinsecos: int | None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class LoteBeneficiamentoCreate(BaseModel):
     safra_id: UUID
     talhao_id: UUID | None = None
     production_unit_id: UUID | None = None
     romaneio_id: UUID | None = None
     numero_lote: str
-    metodo: str = Field(..., pattern="^(NATURAL|LAVADO|HONEY|DESCASCADO)$")
     data_entrada: date
     peso_entrada_kg: float = Field(..., gt=0)
     umidade_entrada_pct: float | None = Field(None, ge=0, le=100)
-    local_secagem: str | None = None
+    fator_esperado_manual: float | None = Field(
+        None, gt=0, description="Relação entrada/saída esperada para culturas sem extensão de café"
+    )
     observacoes: str | None = None
+    detalhe_cafe: LoteBeneficiamentoCafeDetalheCreate | None = None
 
 
 class LoteFromRomaneiosRequest(BaseModel):
     """Request para criar lote a partir de múltiplos romaneios."""
     romaneio_ids: List[UUID] = Field(..., min_items=1, description="IDs dos romaneios a agrupar")
-    metodo: str = Field(default="NATURAL", pattern="^(NATURAL|LAVADO|HONEY|DESCASCADO)$")
     numero_lote: Optional[str] = Field(None, description="Se None, gera automático")
+    detalhe_cafe: LoteBeneficiamentoCafeDetalheCreate | None = None
 
 
 class LoteBeneficiamentoUpdate(BaseModel):
     status: str | None = None
     production_unit_id: UUID | None = None
-    local_secagem: str | None = None
     data_inicio_secagem: date | None = None
     data_fim_secagem: date | None = None
     data_saida: date | None = None
     peso_saida_kg: float | None = Field(None, gt=0)
     umidade_saida_pct: float | None = Field(None, ge=0, le=100)
+    fator_esperado_manual: float | None = Field(None, gt=0)
     perda_secagem_kg: float | None = Field(None, ge=0)
     perda_quebra_kg: float | None = Field(None, ge=0)
     perda_defeito_kg: float | None = Field(None, ge=0)
-    peneira_principal: str | None = None
-    bebida: str | None = None
-    pontuacao_scaa: float | None = Field(None, ge=0, le=100)
-    defeitos_intrinsecos: int | None = None
-    defeitos_extrinsecos: int | None = None
     armazem_id: UUID | None = None
     saca_inicio: int | None = None
     saca_fim: int | None = None
     observacoes: str | None = None
+    detalhe_cafe: LoteBeneficiamentoCafeDetalheUpdate | None = None
 
 
 class LoteBeneficiamentoResponse(BaseModel):
@@ -56,12 +88,10 @@ class LoteBeneficiamentoResponse(BaseModel):
     production_unit_id: UUID | None = None
     romaneio_id: UUID | None
     numero_lote: str
-    metodo: str
     status: str
     data_entrada: date
     peso_entrada_kg: float
     umidade_entrada_pct: float | None
-    local_secagem: str | None
     data_inicio_secagem: date | None
     data_fim_secagem: date | None
     dias_secagem: int | None
@@ -69,20 +99,17 @@ class LoteBeneficiamentoResponse(BaseModel):
     peso_saida_kg: float | None
     umidade_saida_pct: float | None
     fator_reducao: float | None
+    fator_esperado_manual: float | None
     sacas_beneficiadas: float | None
     perda_pct: float | None
     perda_secagem_kg: float | None
     perda_quebra_kg: float | None
     perda_defeito_kg: float | None
-    peneira_principal: str | None
-    bebida: str | None
-    pontuacao_scaa: float | None
-    defeitos_intrinsecos: int | None
-    defeitos_extrinsecos: int | None
     armazem_id: UUID | None
     saca_inicio: int | None
     saca_fim: int | None
     observacoes: str | None
+    detalhe_cafe: LoteBeneficiamentoCafeDetalheRead | None = None
     romaneios_vinculados: Optional[List[UUID]] = None
     created_at: datetime
     updated_at: datetime

@@ -19,7 +19,7 @@ from agricola.beneficiamento.service import BeneficiamentoService
 
 router = APIRouter(
     prefix="/beneficiamento",
-    tags=["Beneficiamento de Café"],
+    tags=["Beneficiamento Pós-Colheita"],
     dependencies=[
         Depends(require_module("A5_COLHEITA")),
         Depends(require_tier(PlanTier.PROFISSIONAL)),
@@ -37,7 +37,7 @@ async def criar_lote(
     svc = BeneficiamentoService(session, tenant_id)
     lote = await svc.criar(dados)
     await session.commit()
-    await session.refresh(lote)
+    lote = await svc.obter_com_detalhe(lote.id)
     return LoteBeneficiamentoResponse.model_validate(lote)
 
 
@@ -75,7 +75,7 @@ async def listar_lotes(
         filters["safra_id"] = safra_id
     if status:
         filters["status"] = status
-    lotes = await svc.list_all(**filters)
+    lotes = await svc.listar_com_detalhe(**filters)
     return [LoteBeneficiamentoResponse.model_validate(l) for l in lotes]
 
 
@@ -90,7 +90,7 @@ async def criar_lote_from_romaneio(
     svc = BeneficiamentoService(session, tenant_id)
     lote = await svc.criar_from_romaneio(romaneio_id)
     await session.commit()
-    await session.refresh(lote)
+    lote = await svc.obter_com_detalhe(lote.id)
     return LoteBeneficiamentoResponse.model_validate(lote)
 
 
@@ -140,7 +140,7 @@ async def detalhar_lote(
     tenant_id: UUID = Depends(get_tenant_id),
 ):
     svc = BeneficiamentoService(session, tenant_id)
-    lote = await svc.get_or_fail(id)
+    lote = await svc.obter_com_detalhe(id)
     return LoteBeneficiamentoResponse.model_validate(lote)
 
 

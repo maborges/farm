@@ -16,6 +16,7 @@ from financeiro.models.receita import Receita
 from operacional.models.qualidade import QualidadeProtocolo, QualidadeCriterio, QualidadeLaudo
 from operacional.models.estoque import EstoqueMovimento, LoteEstoque, Deposito
 import operacional.models.qualidade  # noqa: F401
+import campo.models  # noqa: F401
 
 
 async def _criar_base(session, tenant_id, talhao_id):
@@ -291,7 +292,7 @@ async def test_beneficiamento_blend_bloqueia_se_algum_item_reprovado(session, te
     svc = BeneficiamentoService(session, tenant_id)
     with pytest.raises(BusinessRuleError, match="REPROVADO"):
         await svc.criar_from_romaneios(
-            LoteFromRomaneiosRequest(romaneio_ids=[aprovado_id, reprovado_id], metodo="NATURAL")
+            LoteFromRomaneiosRequest(romaneio_ids=[aprovado_id, reprovado_id])
         )
 
 

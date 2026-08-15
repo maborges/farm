@@ -9,10 +9,12 @@ from core.base_service import BaseService
 from core.exceptions import BusinessRuleError, EntityNotFoundError
 from core.services.audit_service import write_audit_log
 
-from agricola.beneficiamento.models import LoteBeneficiamento
+from agricola.beneficiamento.models import LoteBeneficiamento, LoteBeneficiamentoCafeDetalhe
 from agricola.beneficiamento.schemas import (
     LoteBeneficiamentoCreate,
     LoteBeneficiamentoUpdate,
+    LoteBeneficiamentoCafeDetalheCreate,
+    LoteBeneficiamentoCafeDetalheUpdate,
     BeneficiamentoKPIs,
     RendimentoPorMetodo,
     BeneficiamentoRelatorioRendimento,
@@ -23,7 +25,8 @@ from agricola.colheita.models import ProdutoColhido
 from agricola.romaneios.models import RomaneioColheita
 from agricola.qualidade_resolver import resolver_qualidade_efetiva
 
-# Fatores de redução esperados por método (referência para cálculo de perda)
+# Fatores de redução esperados por método de café (referência para cálculo de
+# perda). Culturas sem `detalhe_cafe` usam `LoteBeneficiamento.fator_esperado_manual`.
 FATOR_ESPERADO = {
     "NATURAL":    4.8,  # cereja seca com casca
     "LAVADO":     5.5,  # cereja despolpada+lavada
@@ -60,6 +63,29 @@ class BeneficiamentoService(BaseService[LoteBeneficiamento]):
             ProdutoColhido.romaneio_id == romaneio_id,
         )
         return (await self.session.execute(stmt)).scalars().first()
+
+    async def _get_detalhe_cafe(self, lote_id: UUID) -> LoteBeneficiamentoCafeDetalhe | None:
+        stmt = select(LoteBeneficiamentoCafeDetalhe).where(
+            LoteBeneficiamentoCafeDetalhe.tenant_id == self.tenant_id,
+            LoteBeneficiamentoCafeDetalhe.lote_id == lote_id,
+        )
+        return (await self.session.execute(stmt)).scalars().first()
+
+    async def _anexar_detalhe(self, lote: LoteBeneficiamento) -> LoteBeneficiamento:
+        """`detalhe_cafe` é lazy='noload' (padrão do projeto, evita N+1) — para
+        expor no response é preciso carregar e anexar explicitamente."""
+        lote.detalhe_cafe = await self._get_detalhe_cafe(lote.id)
+        return lote
+
+    async def obter_com_detalhe(self, lote_id: UUID) -> LoteBeneficiamento:
+        lote = await self.get_or_fail(lote_id)
+        return await self._anexar_detalhe(lote)
+
+    async def listar_com_detalhe(self, **filters) -> list[LoteBeneficiamento]:
+        lotes = await self.list_all(**filters)
+        for lote in lotes:
+            await self._anexar_detalhe(lote)
+        return lotes
 
     @staticmethod
     def _resolver_commodity_id(
@@ -117,7 +143,7 @@ class BeneficiamentoService(BaseService[LoteBeneficiamento]):
             tenant_id=self.tenant_id,
             user_id=self.user_id,
             action="block_quality_rejected",
-            resource="cafe_lotes_beneficiamento",
+            resource="agricola_lotes_beneficiamento",
             resource_id=None,
             payload_before=None,
             payload_after=payload,
@@ -125,13 +151,26 @@ class BeneficiamentoService(BaseService[LoteBeneficiamento]):
         )
         raise BusinessRuleError("Beneficiamento bloqueado: item com qualidade REPROVADO.")
 
+    async def _criar_detalhe_cafe(self, lote_id: UUID, dados: LoteBeneficiamentoCafeDetalheCreate) -> None:
+        detalhe = LoteBeneficiamentoCafeDetalhe(
+            tenant_id=self.tenant_id,
+            lote_id=lote_id,
+            **dados.model_dump(),
+        )
+        self.session.add(detalhe)
+        await self.session.flush()
+
     async def criar(self, dados: LoteBeneficiamentoCreate) -> LoteBeneficiamento:
-        d = dados.model_dump()
+        d = dados.model_dump(exclude={"detalhe_cafe"})
         lote = await super().create(d)
-        return lote
+        if dados.detalhe_cafe is not None:
+            await self._criar_detalhe_cafe(lote.id, dados.detalhe_cafe)
+            await self.session.commit()
+            await self.session.refresh(lote)
+        return await self._anexar_detalhe(lote)
 
     async def atualizar(self, lote_id: UUID, dados: LoteBeneficiamentoUpdate) -> LoteBeneficiamento:
-        patch = dados.model_dump(exclude_unset=True)
+        patch = dados.model_dump(exclude_unset=True, exclude={"detalhe_cafe"})
 
         # Recalcula campos derivados quando peso de saída é informado
         if "peso_saida_kg" in patch and patch["peso_saida_kg"]:
@@ -151,11 +190,18 @@ class BeneficiamentoService(BaseService[LoteBeneficiamento]):
             # Sacas de 60 kg beneficiadas
             patch["sacas_beneficiadas"] = round(peso_saida / 60.0, 3)
 
-            # % de perda vs. fator esperado para o método
-            fator_esp = FATOR_ESPERADO.get(lote.metodo, 4.8)
-            peso_esperado = peso_entrada / fator_esp
-            perda_pct = round((peso_esperado - peso_saida) / peso_esperado * 100, 2)
-            patch["perda_pct"] = perda_pct
+            # % de perda vs. fator esperado — café usa FATOR_ESPERADO[metodo] via
+            # extensão; culturas sem extensão usam fator_esperado_manual informado
+            # pelo usuário; sem nenhum dos dois, perda_pct não é calculada.
+            detalhe_cafe = await self._get_detalhe_cafe(lote_id)
+            fator_esp = (
+                FATOR_ESPERADO.get(detalhe_cafe.metodo, 4.8) if detalhe_cafe
+                else (patch.get("fator_esperado_manual") or lote.fator_esperado_manual)
+            )
+            if fator_esp:
+                fator_esp = float(fator_esp)
+                peso_esperado = peso_entrada / fator_esp
+                patch["perda_pct"] = round((peso_esperado - peso_saida) / peso_esperado * 100, 2)
 
         # Calcula dias de secagem
         if "data_fim_secagem" in patch and patch["data_fim_secagem"]:
@@ -166,7 +212,24 @@ class BeneficiamentoService(BaseService[LoteBeneficiamento]):
                 patch["dias_secagem"] = max(0, delta)
 
         updated = await self.update(lote_id, patch)
-        return updated
+
+        if dados.detalhe_cafe is not None:
+            detalhe = await self._get_detalhe_cafe(lote_id)
+            detalhe_patch = dados.detalhe_cafe.model_dump(exclude_unset=True)
+            if detalhe is None:
+                if "metodo" not in detalhe_patch:
+                    raise BusinessRuleError("Método é obrigatório ao criar a extensão de café.")
+                await self._criar_detalhe_cafe(
+                    lote_id, LoteBeneficiamentoCafeDetalheCreate(**detalhe_patch)
+                )
+            else:
+                for field, value in detalhe_patch.items():
+                    setattr(detalhe, field, value)
+                self.session.add(detalhe)
+            await self.session.commit()
+            await self.session.refresh(updated)
+
+        return await self._anexar_detalhe(updated)
 
     async def kpis_safra(self, safra_id: UUID) -> BeneficiamentoKPIs:
         stmt = select(
@@ -175,12 +238,21 @@ class BeneficiamentoService(BaseService[LoteBeneficiamento]):
             func.coalesce(func.sum(LoteBeneficiamento.peso_saida_kg), 0),
             func.coalesce(func.sum(LoteBeneficiamento.sacas_beneficiadas), 0),
             func.avg(LoteBeneficiamento.fator_reducao),
-            func.avg(LoteBeneficiamento.pontuacao_scaa),
         ).where(
             LoteBeneficiamento.tenant_id == self.tenant_id,
             LoteBeneficiamento.safra_id == safra_id,
         )
         row = (await self.session.execute(stmt)).first()
+
+        stmt_scaa = select(func.avg(LoteBeneficiamentoCafeDetalhe.pontuacao_scaa)).select_from(
+            LoteBeneficiamento
+        ).join(
+            LoteBeneficiamentoCafeDetalhe, LoteBeneficiamentoCafeDetalhe.lote_id == LoteBeneficiamento.id
+        ).where(
+            LoteBeneficiamento.tenant_id == self.tenant_id,
+            LoteBeneficiamento.safra_id == safra_id,
+        )
+        pontuacao_media = (await self.session.execute(stmt_scaa)).scalar()
 
         stmt_proc = select(func.count(LoteBeneficiamento.id)).where(
             LoteBeneficiamento.tenant_id == self.tenant_id,
@@ -204,12 +276,11 @@ class BeneficiamentoService(BaseService[LoteBeneficiamento]):
             fator_reducao_medio=float(row[4]) if row[4] else None,
             lotes_em_processo=em_processo,
             lotes_concluidos=concluidos,
-            pontuacao_media_scaa=float(row[5]) if row[5] else None,
+            pontuacao_media_scaa=float(pontuacao_media) if pontuacao_media else None,
         )
 
     async def criar_from_romaneio(self, romaneio_id: UUID) -> LoteBeneficiamento:
         """Cria um LoteBeneficiamento pré-populado a partir de um Romaneio."""
-        # Busca o romaneio
         stmt = select(RomaneioColheita).where(
             RomaneioColheita.id == romaneio_id,
             RomaneioColheita.tenant_id == self.tenant_id,
@@ -220,17 +291,14 @@ class BeneficiamentoService(BaseService[LoteBeneficiamento]):
         produto_colhido = await self._get_produto_colhido_por_romaneio(romaneio.id)
         await self._bloquear_se_reprovado(romaneio, produto_colhido, "romaneio")
 
-        # Cria número de lote automático (timestamp + parte do romaneio)
         numero_lote = f"BEN-{romaneio.numero_romaneio}" if romaneio.numero_romaneio else f"BEN-{uuid.uuid4().hex[:8]}"
 
-        # Cria dados do lote pré-populados do romaneio
         dados = LoteBeneficiamentoCreate(
             safra_id=romaneio.safra_id,
             talhao_id=romaneio.talhao_id,
             production_unit_id=romaneio.production_unit_id,
             romaneio_id=romaneio_id,
             numero_lote=numero_lote,
-            metodo="NATURAL",  # Padrão: NATURAL (cereja), usuário pode alterar depois
             data_entrada=romaneio.data_colheita,
             peso_entrada_kg=self._peso_entrada_produto(produto_colhido, romaneio),
             umidade_entrada_pct=float(romaneio.umidade_pct) if romaneio.umidade_pct else None,
@@ -241,7 +309,6 @@ class BeneficiamentoService(BaseService[LoteBeneficiamento]):
 
     async def criar_from_romaneios(self, req: LoteFromRomaneiosRequest) -> LoteBeneficiamento:
         """Cria um LoteBeneficiamento agrupando múltiplos romaneios (blend)."""
-        # Busca todos os romaneios
         stmt = select(RomaneioColheita).where(
             RomaneioColheita.id.in_(req.romaneio_ids),
             RomaneioColheita.tenant_id == self.tenant_id,
@@ -251,7 +318,6 @@ class BeneficiamentoService(BaseService[LoteBeneficiamento]):
         if not romaneios or len(romaneios) != len(req.romaneio_ids):
             raise EntityNotFoundError("Um ou mais romaneios não encontrados.")
 
-        # Valida que todos são da mesma safra
         safra_ids = set(r.safra_id for r in romaneios)
         if len(safra_ids) > 1:
             raise BusinessRuleError("Todos os romaneios devem ser da mesma safra.")
@@ -259,7 +325,6 @@ class BeneficiamentoService(BaseService[LoteBeneficiamento]):
         safra_id = safra_ids.pop()
         pesos_por_romaneio: dict[UUID, float] = {}
 
-        # Soma peso de entrada e bloqueia itens reprovados
         peso_total = 0.0
         for romaneio in romaneios:
             produto_colhido = await self._get_produto_colhido_por_romaneio(romaneio.id)
@@ -268,28 +333,24 @@ class BeneficiamentoService(BaseService[LoteBeneficiamento]):
             pesos_por_romaneio[romaneio.id] = peso_item
             peso_total += peso_item
 
-        # Gera número de lote
         numero_lote = req.numero_lote or f"BEN-MULTI-{uuid.uuid4().hex[:6]}"
 
-        # Usa o primeiro romaneio como referência (talhao, data)
         primeiro = romaneios[0]
 
-        # Cria lote
         dados = LoteBeneficiamentoCreate(
             safra_id=safra_id,
             talhao_id=primeiro.talhao_id,
             production_unit_id=primeiro.production_unit_id,
-            romaneio_id=primeiro.id,  # Registra primeiro romaneio como principal
+            romaneio_id=primeiro.id,
             numero_lote=numero_lote,
-            metodo=req.metodo,
             data_entrada=primeiro.data_colheita,
             peso_entrada_kg=peso_total,
             umidade_entrada_pct=float(primeiro.umidade_pct) if primeiro.umidade_pct else None,
+            detalhe_cafe=req.detalhe_cafe,
         )
 
         lote = await self.criar(dados)
 
-        # Cria registros N:N para cada romaneio
         for romaneio in romaneios:
             nm = LoteBeneficiamentoRomaneio(
                 tenant_id=self.tenant_id,
@@ -301,7 +362,7 @@ class BeneficiamentoService(BaseService[LoteBeneficiamento]):
 
         await self.session.commit()
         await self.session.refresh(lote)
-        return lote
+        return await self._anexar_detalhe(lote)
 
     async def gerar_venda(self, lote_id: UUID) -> dict:
         """
@@ -310,13 +371,11 @@ class BeneficiamentoService(BaseService[LoteBeneficiamento]):
         """
         lote = await self.get_or_fail(lote_id)
 
-        # Valida status
         if lote.status != "ARMAZENADO":
             raise BusinessRuleError(
                 f"Apenas lotes com status ARMAZENADO podem gerar venda. Status atual: {lote.status}"
             )
 
-        # Importa ComercializacaoService dinamicamente para evitar circular imports
         from financeiro.comercializacao.service import ComercializacaoService
         from financeiro.comercializacao.schemas import ComercializacaoCommodityCreate
 
@@ -332,12 +391,11 @@ class BeneficiamentoService(BaseService[LoteBeneficiamento]):
                 "Romaneio deve ter commodity associada para gerar venda."
             )
 
-        # Cria dados da comercialização
         dados_venda = ComercializacaoCommodityCreate(
             commodity_id=commodity_id,
-            comprador_id=None,  # Será preenchido depois
+            comprador_id=None,
             quantidade=float(lote.sacas_beneficiadas or 0),
-            unidade="SC60",  # 60kg padrão
+            unidade="SC60",
             status="RASCUNHO",
             dados_extras={
                 "lote_beneficiamento_id": str(lote.id),
@@ -345,7 +403,6 @@ class BeneficiamentoService(BaseService[LoteBeneficiamento]):
             }
         )
 
-        # Cria comercialização
         com_svc = ComercializacaoService(self.session, self.tenant_id)
         comercializacao = await com_svc.criar(dados_venda)
         await self.session.commit()
@@ -359,10 +416,11 @@ class BeneficiamentoService(BaseService[LoteBeneficiamento]):
         }
 
     async def relatorio_rendimento(self, safra_id: UUID) -> BeneficiamentoRelatorioRendimento:
-        """Gera relatório de rendimento por método de beneficiamento."""
-        # Query todos os lotes com saída
+        """Gera relatório de rendimento por método de beneficiamento (café) ou
+        'GENERICO' para lotes sem extensão de café."""
+        metodo_col = func.coalesce(LoteBeneficiamentoCafeDetalhe.metodo, "GENERICO")
         stmt = select(
-            LoteBeneficiamento.metodo,
+            metodo_col,
             func.count(LoteBeneficiamento.id).label("total_lotes"),
             func.coalesce(func.sum(LoteBeneficiamento.peso_entrada_kg), 0),
             func.coalesce(func.sum(LoteBeneficiamento.peso_saida_kg), 0),
@@ -371,11 +429,14 @@ class BeneficiamentoService(BaseService[LoteBeneficiamento]):
             func.coalesce(func.sum(LoteBeneficiamento.perda_secagem_kg), 0),
             func.coalesce(func.sum(LoteBeneficiamento.perda_quebra_kg), 0),
             func.coalesce(func.sum(LoteBeneficiamento.perda_defeito_kg), 0),
+            func.avg(LoteBeneficiamento.fator_esperado_manual),
+        ).select_from(LoteBeneficiamento).outerjoin(
+            LoteBeneficiamentoCafeDetalhe, LoteBeneficiamentoCafeDetalhe.lote_id == LoteBeneficiamento.id
         ).where(
             LoteBeneficiamento.tenant_id == self.tenant_id,
             LoteBeneficiamento.safra_id == safra_id,
             LoteBeneficiamento.peso_saida_kg > 0,
-        ).group_by(LoteBeneficiamento.metodo)
+        ).group_by(metodo_col)
 
         rows = (await self.session.execute(stmt)).all()
 
@@ -394,10 +455,10 @@ class BeneficiamentoService(BaseService[LoteBeneficiamento]):
             perda_secagem = float(row[6] or 0)
             perda_quebra = float(row[7] or 0)
             perda_defeito = float(row[8] or 0)
+            fator_esperado_manual_medio = float(row[9]) if row[9] else None
 
-            fator_esperado = FATOR_ESPERADO.get(metodo, 4.8)
+            fator_esperado = FATOR_ESPERADO.get(metodo, fator_esperado_manual_medio or 4.8)
 
-            # Eficiência: (fator_esperado / fator_real) * 100
             eficiencia_pct = 0.0
             if fator_real and fator_real > 0:
                 eficiencia_pct = round((fator_esperado / fator_real) * 100, 2)
@@ -423,7 +484,6 @@ class BeneficiamentoService(BaseService[LoteBeneficiamento]):
             total_peso_saida += peso_saida
             total_sacas += sacas
 
-        # Rendimento médio geral
         rendimento_medio_pct = 0.0
         if total_peso_entrada > 0 and total_peso_saida > 0:
             rendimento_medio_pct = round((total_peso_saida / total_peso_entrada) * 100, 2)
@@ -445,7 +505,6 @@ class BeneficiamentoService(BaseService[LoteBeneficiamento]):
         """
         lote = await self.get_or_fail(lote_id)
 
-        # Validações
         if lote.status != "ARMAZENADO":
             raise BusinessRuleError(
                 f"Apenas lotes ARMAZENADO podem ser armazenados. Status atual: {lote.status}"
@@ -455,7 +514,6 @@ class BeneficiamentoService(BaseService[LoteBeneficiamento]):
         if not lote.armazem_id:
             raise BusinessRuleError("Lote deve ter armazem_id preenchido")
 
-        # Resolve a commodity de origem a partir do romaneio/produto colhido.
         stmt_romaneio = select(RomaneioColheita).where(
             RomaneioColheita.id == lote.romaneio_id,
             RomaneioColheita.tenant_id == self.tenant_id,
@@ -469,7 +527,6 @@ class BeneficiamentoService(BaseService[LoteBeneficiamento]):
         if not commodity_id:
             raise BusinessRuleError("Romaneio deve ter commodity associada.")
 
-        # Importa EstoqueService dinamicamente
         from operacional.services.estoque_service import EstoqueService
         from operacional.schemas.estoque import LoteCreate
 
@@ -481,7 +538,6 @@ class BeneficiamentoService(BaseService[LoteBeneficiamento]):
             peso_desconto_qualidade_kg=qualidade.peso_desconto_qualidade_kg,
         )
 
-        # Cria LoteEstoque
         estoque_svc = EstoqueService(self.session, self.tenant_id)
         lote_estoque = await estoque_svc.criar_lote(
             LoteCreate(
@@ -497,7 +553,6 @@ class BeneficiamentoService(BaseService[LoteBeneficiamento]):
             )
         )
 
-        # Registra movimento no ledger canônico de estoque
         await estoque_svc._registrar_movimento(
             deposito_id=lote.armazem_id,
             produto_id=commodity_id,
@@ -509,7 +564,6 @@ class BeneficiamentoService(BaseService[LoteBeneficiamento]):
             motivo=self._qualidade_estoque_observacao(metadata_qualidade),
         )
 
-        # Atualiza lote com referência ao estoque
         lote.lote_estoque_id = lote_estoque.id
         await self.session.commit()
         await self.session.refresh(lote)
