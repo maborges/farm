@@ -78,6 +78,31 @@ class ProdutoColhidoResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class ProdutoColhidoCustoAlocacaoResponse(BaseModel):
+    id: uuid.UUID
+    produto_colhido_id: uuid.UUID
+    cost_allocation_id: uuid.UUID
+    valor_atribuido: float
+    percentual_atribuido: float
+    origem_calculo: str
+    justificativa: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class ProdutoColhidoCustoResumoResponse(BaseModel):
+    itens: list[ProdutoColhidoCustoAlocacaoResponse]
+    total: float
+
+
+class ProdutoColhidoCustoOverrideRequest(BaseModel):
+    cost_allocation_id: uuid.UUID
+    valor_atribuido: float
+    justificativa: str = Field(min_length=1)
+
+
 class ResumoEstoqueItem(BaseModel):
     """Uma linha do resumo: commodity + armazém + status."""
     commodity_id: uuid.UUID
