@@ -797,10 +797,10 @@ class ComprasService:
             )
 
             saldo = await estoque_svc._get_ou_criar_saldo(item.deposito_origem_id, item.produto_id)
-            saldo.quantidade_atual += float(item.quantidade)
+            saldo.quantidade_atual = float(saldo.quantidade_atual) + float(item.quantidade)
 
             if lote:
-                lote.quantidade_atual += float(item.quantidade)
+                lote.quantidade_atual = float(lote.quantidade_atual) + float(item.quantidade)
                 if lote.status == "ESGOTADO" and lote.quantidade_atual > 0:
                     lote.status = "ATIVO"
 
@@ -2073,7 +2073,7 @@ class ComprasService:
         # (estoque_movimentos é append-only no banco — correções usam ajuste_de, nunca DELETE).
         for mov in movimentos:
             saldo = saldos_por_movimento[mov.id]
-            saldo.quantidade_atual -= float(mov.quantidade)
+            saldo.quantidade_atual = float(saldo.quantidade_atual) - float(mov.quantidade)
             if mais_antigo_por_saldo.get(saldo.id) is mov:
                 custo_anterior = mov.custo_medio_anterior
                 saldo.custo_medio = float(custo_anterior) if custo_anterior is not None else None

@@ -639,7 +639,7 @@ class OperacaoService(BaseService[OperacaoAgricola]):
             if movimento.lote_id:
                 lote = await self.session.get(LoteEstoque, movimento.lote_id)
                 if lote:
-                    lote.quantidade_atual += abs(float(movimento.quantidade))
+                    lote.quantidade_atual = float(lote.quantidade_atual) + abs(float(movimento.quantidade))
                     if lote.status == "ESGOTADO" and lote.quantidade_atual > 0:
                         lote.status = "ATIVO"
                     self.session.add(lote)

@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, date, timezone
-from sqlalchemy import String, Boolean, DateTime, Date, ForeignKey, ForeignKeyConstraint, JSON, Float, Integer, Numeric, Text, UniqueConstraint, Index
+from sqlalchemy import String, Boolean, DateTime, Date, ForeignKey, ForeignKeyConstraint, JSON, Integer, Numeric, Text, UniqueConstraint, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship, synonym
 from sqlalchemy import Uuid as UUID
 from core.database import Base
@@ -35,8 +35,8 @@ class SaldoEstoque(Base):
     deposito_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("estoque_depositos.id", ondelete="CASCADE"), index=True)
     produto_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("cadastros_produtos.id", ondelete="CASCADE"), index=True)
     
-    quantidade_atual: Mapped[float] = mapped_column(Float, default=0.0)
-    quantidade_reservada: Mapped[float] = mapped_column(Float, default=0.0)
+    quantidade_atual: Mapped[float] = mapped_column(Numeric(18, 6), default=0.0)
+    quantidade_reservada: Mapped[float] = mapped_column(Numeric(18, 6), default=0.0)
     estoque_minimo: Mapped[float | None] = mapped_column(Numeric(18, 6), nullable=True)
     estoque_maximo: Mapped[float | None] = mapped_column(Numeric(18, 6), nullable=True)
     # Custo Médio Ponderado Móvel (CMPM/Kardex) — só muda em entradas; saídas,
@@ -85,9 +85,9 @@ class LoteEstoque(Base):
     data_fabricacao: Mapped[date | None] = mapped_column(Date, nullable=True)
     data_validade: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
 
-    quantidade_inicial: Mapped[float] = mapped_column(Float, default=0.0)
-    quantidade_atual: Mapped[float] = mapped_column(Float, default=0.0)
-    custo_unitario: Mapped[float] = mapped_column(Float, default=0.0)
+    quantidade_inicial: Mapped[float] = mapped_column(Numeric(18, 6), default=0.0)
+    quantidade_atual: Mapped[float] = mapped_column(Numeric(18, 6), default=0.0)
+    custo_unitario: Mapped[float] = mapped_column(Numeric(15, 6), default=0.0)
     nota_fiscal_ref: Mapped[str | None] = mapped_column(String(100), nullable=True)
     qualidade_laudo_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("operacional_qualidade_laudos.id", ondelete="SET NULL"), nullable=True, index=True)
     qualidade_status: Mapped[str | None] = mapped_column(String(50), nullable=True)
@@ -141,10 +141,10 @@ class ItemRequisicao(Base):
     produto_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("cadastros_produtos.id"))
     deposito_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("estoque_depositos.id"), nullable=True)
     lote_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("estoque_lotes.id"), nullable=True)
-    quantidade_solicitada: Mapped[float] = mapped_column(Float, nullable=False)
-    quantidade_aprovada: Mapped[float | None] = mapped_column(Float, nullable=True)
-    quantidade_entregue: Mapped[float | None] = mapped_column(Float, nullable=True)
-    quantidade_devolvida: Mapped[float | None] = mapped_column(Float, nullable=True)
+    quantidade_solicitada: Mapped[float] = mapped_column(Numeric(18, 6), nullable=False)
+    quantidade_aprovada: Mapped[float | None] = mapped_column(Numeric(18, 6), nullable=True)
+    quantidade_entregue: Mapped[float | None] = mapped_column(Numeric(18, 6), nullable=True)
+    quantidade_devolvida: Mapped[float | None] = mapped_column(Numeric(18, 6), nullable=True)
     observacoes: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     requisicao: Mapped["RequisicaoMaterial"] = relationship(back_populates="itens")
@@ -177,7 +177,7 @@ class ReservaEstoque(Base):
     deposito_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("estoque_depositos.id", ondelete="CASCADE"), index=True)
     criado_por_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=True)
 
-    quantidade: Mapped[float] = mapped_column(Float, nullable=False)
+    quantidade: Mapped[float] = mapped_column(Numeric(18, 6), nullable=False)
     motivo: Mapped[str] = mapped_column(String(255), nullable=False)
     # ORDEM_SERVICO, PEDIDO_COMPRA, SAFRA, REQUISICAO, MANUAL
     referencia_tipo: Mapped[str | None] = mapped_column(String(50), nullable=True)

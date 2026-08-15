@@ -87,10 +87,10 @@ async def consumir_lotes_fifo(
             break
 
         # How much to consume from this batch?
-        quantidade_do_lote = min(quantidade_pendente, lote.quantidade_atual)
+        quantidade_do_lote = min(quantidade_pendente, float(lote.quantidade_atual))
 
         # Calculate cost for this batch
-        custo_do_lote = quantidade_do_lote * lote.custo_unitario
+        custo_do_lote = quantidade_do_lote * float(lote.custo_unitario)
 
         # Record consumption (includes deposito_id for audit trail)
         resultado.lotes_consumidos.append({
@@ -108,7 +108,7 @@ async def consumir_lotes_fifo(
         quantidade_pendente -= quantidade_do_lote
 
         # Update lote quantity
-        lote.quantidade_atual -= quantidade_do_lote
+        lote.quantidade_atual = float(lote.quantidade_atual) - quantidade_do_lote
 
         # Mark as esgotado if no more quantity
         if lote.quantidade_atual <= 0:
@@ -124,7 +124,7 @@ async def consumir_lotes_fifo(
 
     # 3. Check if we consumed enough
     if quantidade_pendente > 0:
-        total_disponivel = sum(l.quantidade_atual for l in lotes)
+        total_disponivel = sum(float(l.quantidade_atual) for l in lotes)
         logger.warning(
             f"Insufficient inventory for product {produto_id}",
             produto_id=str(produto_id),
@@ -174,7 +174,7 @@ async def atualizar_saldo_apos_consumo(
 
     lotes = list((await session.execute(stmt)).scalars().all())
 
-    total_atual = sum(l.quantidade_atual for l in lotes)
+    total_atual = sum(float(l.quantidade_atual) for l in lotes)
 
     # Update SaldoEstoque
     if deposito_id:

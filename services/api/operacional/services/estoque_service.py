@@ -584,7 +584,7 @@ class EstoqueService(BaseService[SaldoEstoque]):
                 f"Saldo insuficiente no lote {lote.numero_lote}. "
                 f"Disponível: {lote.quantidade_atual}, solicitado: {quantidade}"
             )
-        lote.quantidade_atual -= quantidade
+        lote.quantidade_atual = float(lote.quantidade_atual) - quantidade
         if lote.quantidade_atual <= 0:
             lote.status = "ESGOTADO"
         return lote
@@ -631,14 +631,14 @@ class EstoqueService(BaseService[SaldoEstoque]):
                 (qtd_antes * custo_medio_antes) + (data.quantidade * custo_unitario)
             ) / (qtd_antes + data.quantidade)
         saldo.custo_medio = custo_medio_novo
-        saldo.quantidade_atual += data.quantidade
+        saldo.quantidade_atual = float(saldo.quantidade_atual) + data.quantidade
 
         # Atualiza saldo do lote se informado
         if data.lote_id:
             stmt_lote = select(LoteEstoque).where(LoteEstoque.id == data.lote_id)
             lote = (await self.session.execute(stmt_lote)).scalars().first()
             if lote:
-                lote.quantidade_atual += data.quantidade
+                lote.quantidade_atual = float(lote.quantidade_atual) + data.quantidade
 
         mov = await self._registrar_movimento(
             deposito_id=data.deposito_id,
@@ -695,7 +695,7 @@ class EstoqueService(BaseService[SaldoEstoque]):
             raise BusinessRuleError("Ja existe SALDO_INICIAL para este produto e deposito.")
 
         saldo = await self._get_ou_criar_saldo(deposito_id, produto_id)
-        saldo.quantidade_atual += quantidade
+        saldo.quantidade_atual = float(saldo.quantidade_atual) + quantidade
 
         observacao_parts = [observacao] if observacao else []
         if numero_lote_legado:
@@ -769,10 +769,10 @@ class EstoqueService(BaseService[SaldoEstoque]):
 
         saldo_sel = next((s for s in saldos if s.quantidade_atual >= quantidade), None)
         if not saldo_sel:
-            total = sum(s.quantidade_atual for s in saldos)
+            total = sum(float(s.quantidade_atual) for s in saldos)
             raise BusinessRuleError(f"Saldo insuficiente. Necessário: {quantidade}, disponível: {total}")
 
-        saldo_sel.quantidade_atual -= quantidade
+        saldo_sel.quantidade_atual = float(saldo_sel.quantidade_atual) - quantidade
         prod = await self._get_produto(produto_id)
         custo_unitario = await self._resolver_custo_unitario_contextual(
             produto_id,
@@ -936,7 +936,7 @@ class EstoqueService(BaseService[SaldoEstoque]):
                 raise BusinessRuleError(
                     f"Saldo disponível insuficiente. Disponível: {disponivel:.3f}, Necessário: {data.quantidade:.3f}"
                 )
-            saldo.quantidade_atual -= data.quantidade
+            saldo.quantidade_atual = float(saldo.quantidade_atual) - data.quantidade
             if data.lote_id:
                 await self._descontar_lote(data.lote_id, data.quantidade)
             prod = await self._get_produto(data.produto_id)
@@ -1044,7 +1044,7 @@ class EstoqueService(BaseService[SaldoEstoque]):
 
         # Origem: saída — custo médio não muda.
         custo_medio_orig = float(saldo_orig.custo_medio) if saldo_orig.custo_medio is not None else None
-        saldo_orig.quantidade_atual -= data.quantidade
+        saldo_orig.quantidade_atual = float(saldo_orig.quantidade_atual) - data.quantidade
 
         saldo_dest = await self._get_ou_criar_saldo(data.deposito_destino_id, data.produto_id)
         qtd_antes_dest = float(saldo_dest.quantidade_atual)
@@ -1065,7 +1065,7 @@ class EstoqueService(BaseService[SaldoEstoque]):
                 (qtd_antes_dest * custo_medio_antes_dest) + (data.quantidade * (custo_unitario or 0.0))
             ) / (qtd_antes_dest + data.quantidade)
         saldo_dest.custo_medio = custo_medio_novo_dest
-        saldo_dest.quantidade_atual += data.quantidade
+        saldo_dest.quantidade_atual = float(saldo_dest.quantidade_atual) + data.quantidade
 
         mov_saida = await self._registrar_movimento(
             deposito_id=data.deposito_origem_id, produto_id=data.produto_id,
@@ -1234,7 +1234,7 @@ class EstoqueService(BaseService[SaldoEstoque]):
                     f"Saldo insuficiente para ajuste de saída. Disponível: {disponivel:.3f}, Necessário: {data.quantidade:.3f}"
                 )
         
-        saldo.quantidade_atual += real_qty
+        saldo.quantidade_atual = float(saldo.quantidade_atual) + real_qty
         await self._verificar_e_notificar_estoque_baixo(saldo)
 
         # 4. Atualizar saldo do lote se existir
@@ -1242,7 +1242,7 @@ class EstoqueService(BaseService[SaldoEstoque]):
             stmt_lote = select(LoteEstoque).where(LoteEstoque.id == original.lote_id)
             lote = (await self.session.execute(stmt_lote)).scalars().first()
             if lote:
-                lote.quantidade_atual += real_qty
+                lote.quantidade_atual = float(lote.quantidade_atual) + real_qty
                 if lote.quantidade_atual <= 0:
                     lote.status = "ESGOTADO"
                 elif lote.status == "ESGOTADO" and lote.quantidade_atual > 0:
@@ -1715,7 +1715,7 @@ class EstoqueService(BaseService[SaldoEstoque]):
             )
             saldo = (await self.session.execute(stmt_saldo)).scalars().first()
             if saldo:
-                saldo.quantidade_atual += upd.quantidade_devolvida
+                saldo.quantidade_atual = float(saldo.quantidade_atual) + float(upd.quantidade_devolvida)
 
             await registrar_ledger_estoque(
                 self.session,
@@ -1779,7 +1779,7 @@ class EstoqueService(BaseService[SaldoEstoque]):
             referencia_id=data.referencia_id,
             status="ATIVA",
         )
-        saldo.quantidade_reservada += data.quantidade
+        saldo.quantidade_reservada = float(saldo.quantidade_reservada) + data.quantidade
         self.session.add(reserva)
         await self.session.flush()
         await self.session.refresh(reserva)
@@ -1790,7 +1790,7 @@ class EstoqueService(BaseService[SaldoEstoque]):
         if reserva.status != "ATIVA":
             raise BusinessRuleError(f"Reserva não pode ser cancelada no status '{reserva.status}'.")
         saldo = await self._get_ou_criar_saldo(reserva.deposito_id, reserva.produto_id)
-        saldo.quantidade_reservada = max(0.0, saldo.quantidade_reservada - reserva.quantidade)
+        saldo.quantidade_reservada = max(0.0, float(saldo.quantidade_reservada) - float(reserva.quantidade))
         reserva.status = "CANCELADA"
         await self.session.flush()
         await self.session.refresh(reserva)
@@ -1805,7 +1805,7 @@ class EstoqueService(BaseService[SaldoEstoque]):
             raise BusinessRuleError(f"Quantidade a consumir ({qtd:.3f}) excede a reserva ({reserva.quantidade:.3f}).")
         # Libera a reserva antes de registrar saída (evita conflito na checagem de disponível)
         saldo = await self._get_ou_criar_saldo(reserva.deposito_id, reserva.produto_id)
-        saldo.quantidade_reservada = max(0.0, saldo.quantidade_reservada - reserva.quantidade)
+        saldo.quantidade_reservada = max(0.0, float(saldo.quantidade_reservada) - float(reserva.quantidade))
         # Registra saída física
         await self.registrar_saida(SaidaEstoqueRequest(
             deposito_id=reserva.deposito_id,
