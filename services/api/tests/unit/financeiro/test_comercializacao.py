@@ -39,9 +39,21 @@ class TestComercializacaoCreate:
             quantidade=100.0,
             unidade="SACA_60KG",
             preco_unitario=150.0,
+            produto_colhido_id=uuid.uuid4(),
         )
         assert c.quantidade == 100.0
         assert c.moeda == "BRL"
+
+    # FIN-COM-00: produto_colhido_id agora é obrigatório (fonte oficial C, OPERATIONS-GAP-01)
+    def test_produto_colhido_id_obrigatorio(self):
+        with pytest.raises(ValidationError):
+            ComercializacaoCreate(
+                commodity_id=uuid.uuid4(),
+                comprador_id=uuid.uuid4(),
+                quantidade=100.0,
+                unidade="SACA_60KG",
+                preco_unitario=150.0,
+            )
 
     # FIN-COM-02: Quantidade positiva obrigatória
     def test_quantidade_positiva(self):
@@ -52,6 +64,7 @@ class TestComercializacaoCreate:
                 quantidade=0,
                 unidade="SACA_60KG",
                 preco_unitario=150.0,
+                produto_colhido_id=uuid.uuid4(),
             )
 
     # FIN-COM-03: Quantidade negativa rejeitada
@@ -63,6 +76,7 @@ class TestComercializacaoCreate:
                 quantidade=-50.0,
                 unidade="SACA_60KG",
                 preco_unitario=150.0,
+                produto_colhido_id=uuid.uuid4(),
             )
 
     # FIN-COM-04: Preço unitário positivo obrigatório
@@ -74,6 +88,7 @@ class TestComercializacaoCreate:
                 quantidade=100.0,
                 unidade="SACA_60KG",
                 preco_unitario=0,
+                produto_colhido_id=uuid.uuid4(),
             )
 
     # FIN-COM-05: Preço negativo rejeitado
@@ -85,6 +100,7 @@ class TestComercializacaoCreate:
                 quantidade=100.0,
                 unidade="SACA_60KG",
                 preco_unitario=-10.0,
+                produto_colhido_id=uuid.uuid4(),
             )
 
     # FIN-COM-06: Campos opcionais
@@ -95,6 +111,7 @@ class TestComercializacaoCreate:
             quantidade=500.0,
             unidade="SACA_60KG",
             preco_unitario=155.50,
+            produto_colhido_id=uuid.uuid4(),
             moeda="BRL",
             numero_contrato="CTR-2026-001",
             forma_pagamento="BOLETO",

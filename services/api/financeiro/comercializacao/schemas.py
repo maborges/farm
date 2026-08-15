@@ -19,7 +19,7 @@ class ComercializacaoCreate(BaseModel):
     data_entrega_prevista: Optional[date] = None
     local_entrega: Optional[str] = None
     frete_por_conta: Optional[str] = None
-    produto_colhido_id: Optional[uuid.UUID] = None
+    produto_colhido_id: uuid.UUID
     observacoes: Optional[str] = None
 
     @field_validator("moeda")
