@@ -320,12 +320,22 @@ class ComprasService:
             self.session.add(pedido)
 
         item_principal = await self._get_or_create_item_pedido_principal(pedido)
-        deposito = await self.session.get(Deposito, item_principal.deposito_id)
         produto = await self.session.get(Produto, item_principal.produto_id)
-        if not deposito or deposito.tenant_id != self.tenant_id:
-            raise BusinessRuleError("Deposito do pedido indisponível para integração financeira da compra.")
         if not produto or (produto.tenant_id is not None and produto.tenant_id != self.tenant_id):
             raise BusinessRuleError("Produto do pedido indisponível para integração financeira da compra.")
+
+        # OPERATIONS-GAP-01 §21.31: item de serviço não tem depósito — resolve
+        # unidade_produtiva_id via item_principal.unidade_produtiva_id (só
+        # preenchido para itens de serviço) em vez de exigir depósito sempre.
+        if item_principal.deposito_id is not None:
+            deposito = await self.session.get(Deposito, item_principal.deposito_id)
+            if not deposito or deposito.tenant_id != self.tenant_id:
+                raise BusinessRuleError("Deposito do pedido indisponível para integração financeira da compra.")
+            unidade_produtiva_id = deposito.unidade_produtiva_id
+        elif item_principal.unidade_produtiva_id is not None:
+            unidade_produtiva_id = item_principal.unidade_produtiva_id
+        else:
+            raise BusinessRuleError("Deposito do pedido indisponível para integração financeira da compra.")
 
         plano_conta_id = await self._resolver_plano_conta_compra(produto)
         if plano_conta_id is None:
@@ -344,7 +354,7 @@ class ComprasService:
         data_vencimento = data_base + timedelta(days=dias_pagamento or 0)
 
         payload = DespesaCreate(
-            unidade_produtiva_id=deposito.unidade_produtiva_id,
+            unidade_produtiva_id=unidade_produtiva_id,
             plano_conta_id=plano_conta_id,
             descricao=f"Compra de {produto.nome} (NF {recebimento.numero_nf or 's/n'})",
             valor_total=valor_recebimento,
@@ -531,6 +541,17 @@ class ComprasService:
         item_pedido: ItemPedidoCompra,
         item_recebido,
     ) -> tuple[uuid.UUID | None, EstoqueMovimento | None]:
+        # OPERATIONS-GAP-01 §21.31: item de serviço (Produto.tipo="SERVICO") não
+        # tem produto físico a estocar — recebê-lo materializa só a despesa
+        # financeira (via _garantir_despesa_financeira_compra, chamada
+        # incondicionalmente no fim de receber_pedido), sem lote/movimento/saldo
+        # de estoque. Sem isso, todo "recebimento" de serviço terceirizado
+        # (ex. colheita terceirizada, frete) forçava a materialização de um
+        # lote fictício num depósito, ou falhava por falta de depósito.
+        produto = await self.session.get(Produto, item_pedido.produto_id)
+        if produto is not None and produto.tipo == "SERVICO":
+            return None, None
+
         quantidade = float(item_recebido.quantidade_recebida or 0.0)
         custo_unitario = float(item_recebido.preco_real_unitario or 0.0) or self._resolver_custo_recebimento(item_pedido)
         if quantidade <= 0 or custo_unitario <= 0:

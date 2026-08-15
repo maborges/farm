@@ -52,7 +52,7 @@ O Campo PWA é arquitetura offline genuína (Dexie + outbox), reusa a API, mas n
 | F | Inventário físico geral | RESOLVIDO 2026-08-15 (Seção 21.30) | — | — | — | Sim | — | — | — | — | — | `ContagemEstoque`/`ContagemEstoqueItem` | Contagem por saldo agregado, não por lote individual |
 | F | Float→Decimal (saldo/lote/requisição) | GAP CONFIRMADO | — | — | — | Sim (viola padrão) | — | — | — | — | — | `operacional/models/estoque.py` SaldoEstoque/LoteEstoque/ItemRequisicao=Float | Viola CLAUDE.md §4.2 |
 | G | Requisição→Cotação→Aprovação→Pedido→Recebimento | COBERTO | Sim | Sim | — | Sim | — | Sim | — | — | — | `operacional/services/compras.py` (múltiplas linhas) | — |
-| G | Serviços terceirizados (compra) | GAP | — | — | — | — | — | Não | — | — | — | Sem modelagem de compra de serviço | — |
+| G | Serviços terceirizados (compra) | RESOLVIDO 2026-08-15 (Seção 21.31) | — | Sim | — | — | — | Sim | — | — | — | `Produto.tipo="SERVICO"` já existia; recebimento/despesa corrigidos | Requisição (`SolicitacaoCompra`) ainda exige depósito — residual |
 | H | Custo realizado (CostAllocation) | COBERTO | — | Sim | — | Sim | Sim | — | — | Parcial | — | `agricola/custos/models.py:11` Numeric | — |
 | H | Rateio financeiro (Rateio) | DUPLICADO-PARALELO CONFIRMADO | — | — | — | — | Sim | Sim | — | — | — | `financeiro/models/rateio.py:8` Float | Coexiste c/ CostAllocation |
 | H | Depreciação | GAP | — | — | — | — | Não | — | — | — | — | Sem grep positivo | — |
@@ -575,6 +575,23 @@ Fecha o gap do domínio F: não existia módulo formal de contagem física peri�
 - **Frontend**: nova aba "Contagem" em `EstoqueClient.tsx` (`_components/ContagemEstoqueTab.tsx`) — lista de contagens, tela de itens com input de quantidade contada e divergência calculada em tempo real, `AlertDialog` de confirmação para concluir/cancelar (padrão do projeto).
 - **Testes**: `tests/integration/operacional/test_contagem_estoque.py` (7 testes: abrir pré-popula, concluir sem divergência não gera ajuste, concluir com divergência gera ajuste e atualiza saldo, item não contado não gera ajuste, cancelar não toca saldo, não permite cancelar concluída, isolamento de tenant). **7/7 passando.** Suíte de estoque existente sem regressão (`test_ajuste_perda_gera_custo.py`, 5/5). Frontend: `tsc --noEmit` com mesma contagem de erros pré-existentes (23) antes e depois da mudança — nenhum erro novo introduzido.
 - **Escopo deliberadamente fora**: aprovação por segunda pessoa antes de aplicar; contagem por lote individual (`LoteEstoque`) — a granularidade é por saldo agregado do produto no depósito, mesmo nível de `SaldoEstoque` hoje.
+
+---
+
+## 21.31 — Adendo (2026-08-15) — Compra de serviços terceirizados; depreciação avaliada e deixada como decisão de produto
+
+Reavaliação de dois gaps do domínio H/G. Um foi fechado (compra de serviços); o outro (depreciação) foi investigado e conscientemente **não implementado**, por exigir decisão de política contábil que só o usuário pode tomar.
+
+**Compra de serviços terceirizados — RESOLVIDO.**
+- **Achado**: a modelagem já sinalizava a intenção — `TipoProduto.SERVICO` já existia (`core/cadastros/produtos/models.py`), com mapeamento de plano de contas já implementado em `compras_service.py`. Faltava só o recebimento não forçar materialização de estoque físico para esse tipo.
+- **Bug real encontrado e corrigido no processo**: `_garantir_despesa_financeira_compra` (o gerador da despesa/conta-a-pagar da compra) exigia incondicionalmente um `Deposito` válido — mesmo a geração da **despesa financeira** (que não depende de estoque) falhava para item de serviço sem depósito, contradizendo a suposição inicial de que "o pagamento já funcionava desacoplado de compras". Corrigido com fallback: quando não há depósito, resolve `unidade_produtiva_id` via novo campo `ItemPedidoCompra.unidade_produtiva_id` (nullable, preenchido só para itens de serviço).
+- **Implementado**: (1) `_materializar_item_recebimento` (`operacional/services/compras_service.py`) pula lote/movimento/saldo quando `Produto.tipo == "SERVICO"`; (2) novo campo `ItemPedidoCompra.unidade_produtiva_id` (migration `20260815_compras_item_up_servico.py`) usado como fallback de atribuição financeira.
+- **Testes**: `tests/test_operational_workflow_governance_step07.py` (2 novos: recebimento de serviço não gera lote/movimento/saldo; ainda gera despesa A_PAGAR corretamente). Suíte de compras relevante (step05/06/07 + guardrails): **19/19 passando**. 7 falhas pré-existentes em `test_compras.py`/`test_compras_financeiro_integration.py` confirmadas via `git stash` como **não relacionadas** a esta mudança (já quebradas antes).
+- **Residual, documentado, não fechado**: `SolicitacaoCompra`/`SolicitacaoItemCreate` (etapa de requisição, anterior ao pedido) ainda exige `deposito_id` obrigatório — hoje só é possível criar um pedido de serviço via geração a partir de cotação/alocação (bypassando a solicitação manual), não via tela de "nova solicitação" comum. Tornar isso self-service exigiria migration + mudanças em mais 3-4 métodos de serviço (`gerar_pedidos_de_alocacoes` e afins) — escopo maior, deixado para entrega futura se o produto quiser um fluxo de solicitação de serviço 100% manual.
+
+**Depreciação — avaliado, não implementado, decisão de produto pendente.**
+- Confirmado: nenhum campo de "vida útil" existe em `Equipamento` nem em qualquer lugar do sistema; nenhuma referência a taxas de depreciação da Receita Federal (IN RFB 1700/2017) no código; `agricola/cenarios/depreciacao_ha` é 100% manual, sem qualquer ligação com `Equipamento.valor_aquisicao`/`categoria_patrimonial` (Seção 21.29).
+- **Por que não implementar agora**: calcular depreciação automática exige decidir, antes de qualquer código, (a) método (linear vs. outro), (b) se seguir taxas fiscais por classe de bem ou vida útil customizada por equipamento, (c) se o cálculo deve gerar lançamento financeiro automático ou só informar os cenários, e (d) como reconciliar com o campo manual `depreciacao_ha` já existente (substituir, coexistir, ou virar override). Implementar sem essas respostas seria decisão de produto disfarçada de correção técnica.
 
 ---
 

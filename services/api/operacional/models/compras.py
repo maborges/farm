@@ -90,6 +90,14 @@ class ItemPedidoCompra(Base):
     pedido_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("compras_pedidos.id", ondelete="CASCADE"))
     produto_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("cadastros_produtos.id"))
     deposito_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("estoque_depositos.id"), nullable=True)
+    # OPERATIONS-GAP-01 §21.31: item de serviço (produto.tipo="SERVICO") não tem
+    # depósito — sem ele, a integração financeira da compra (_garantir_despesa_financeira_compra)
+    # não sabe a quem atribuir a Despesa (unidade_produtiva_id é obrigatório em Despesa).
+    # Preenchido só quando deposito_id é None (item de serviço); para item físico,
+    # a unidade é sempre resolvida via deposito.unidade_produtiva_id, este campo fica NULL.
+    unidade_produtiva_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("unidades_produtivas.id"), nullable=True,
+    )
     unidade: Mapped[str] = mapped_column(String(20), nullable=False, default="UN")
 
     quantidade_solicitada: Mapped[float] = mapped_column(Float, nullable=False)

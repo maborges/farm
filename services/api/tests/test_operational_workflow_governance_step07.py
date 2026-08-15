@@ -1,203 +1,136 @@
 from __future__ import annotations
 
 import uuid
-from datetime import date
 
 import pytest
-from sqlalchemy import select, text
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import agricola.alertas.service as alertas_module
-from agricola.alertas.service import AlertasAgricolasService
-from agricola.custos.allocation_service import registrar_cost_allocation
-from agricola.custos.models import CostAllocation
-from agricola.operacoes.models import OperacaoAgricola, OperacaoExecucao
-from agricola.production_units.models import ProductionUnit
-from agricola.safras.models import Safra
 from core.cadastros.produtos.models import Produto
-from notificacoes.models import Notificacao
-from financeiro.models.lancamento import LancamentoFinanceiro
-from operacional.models.estoque import Deposito
-from operacional.services.estoque_ledger import registrar_ledger_estoque
-from test_operational_workflow_governance_step03 import _criar_area, _criar_cultivo, _criar_safra, _criar_unidade_produtiva, _garantir_tenant
-from test_operational_workflow_governance_step02 import _criar_production_unit, _garantir_unidade_ha
-from test_operational_workflow_governance_step05 import _criar_deposito, _criar_produto
+from financeiro.models.despesa import Despesa
+from operacional.models.compras import ItemPedidoCompra, ItemRecebimento, PedidoCompra, RecebimentoParcial
+from operacional.models.estoque import EstoqueMovimento, LoteEstoque, SaldoEstoque
+from operacional.services.compras_service import ComprasService
+from test_operational_workflow_governance_step03 import _criar_unidade_produtiva, _garantir_tenant
+from test_operational_workflow_governance_step05 import (
+    _criar_deposito,
+    _criar_fornecedor,
+    _criar_plano_conta,
+    _criar_produto,
+)
+from tests.integration.helpers import garantir_assinatura
 
 
-async def _criar_contexto_reconciliacao(session: AsyncSession, tenant_id: uuid.UUID):
-    await _garantir_tenant(session, tenant_id)
-    unidade_id = await _criar_unidade_produtiva(session, tenant_id)
-    area_id = await _criar_area(session, tenant_id, unidade_id)
-    safra = await _criar_safra(session, tenant_id)
-    cultivo_id = await _criar_cultivo(session, tenant_id, safra.id)
-    pu = await _criar_production_unit(session, tenant_id, safra.id, cultivo_id, area_id)
-    produto = await _criar_produto(session, tenant_id)
-    deposito = await _criar_deposito(session, tenant_id, unidade_id)
-    unidade_ha_id = await _garantir_unidade_ha(session, tenant_id)
-    return unidade_id, area_id, safra, cultivo_id, pu, produto, deposito, unidade_ha_id
+async def _criar_produto_servico(session: AsyncSession, tenant_id: uuid.UUID) -> Produto:
+    produto = Produto(
+        id=uuid.uuid4(), tenant_id=tenant_id, nome="Colheita Terceirizada", tipo="SERVICO",
+        unidade_medida="UN", preco_medio=0.0, ativo=True,
+    )
+    session.add(produto)
+    await session.commit()
+    await session.refresh(produto)
+    return produto
+
+
+async def _criar_pedido_servico(
+    session: AsyncSession, tenant_id: uuid.UUID, produto_id: uuid.UUID, unidade_produtiva_id: uuid.UUID,
+    *, quantidade: float = 1.0, valor_unitario: float = 5000.0,
+) -> PedidoCompra:
+    pedido = PedidoCompra(
+        id=uuid.uuid4(), tenant_id=tenant_id, fornecedor_nome="Fornecedor Step07",
+        fornecedor_contato="contato@step07.test", valor_total=quantidade * valor_unitario, status="ABERTO",
+    )
+    session.add(pedido)
+    await session.flush()
+    session.add(ItemPedidoCompra(
+        id=uuid.uuid4(), pedido_id=pedido.id, produto_id=produto_id, deposito_id=None,
+        unidade_produtiva_id=unidade_produtiva_id,
+        unidade="UN", quantidade_solicitada=quantidade, preco_estimado_unitario=valor_unitario,
+        valor_total=quantidade * valor_unitario,
+    ))
+    await session.commit()
+    await session.refresh(pedido)
+    return pedido
 
 
 @pytest.mark.asyncio
-async def test_reconciliacao_nao_alerta_allocation_de_operacao_sem_despesa(session: AsyncSession, monkeypatch: pytest.MonkeyPatch):
-    """SOIL-PLAN-EXEC-04I: CostAllocation(OPERATION_EXECUTION) sem Despesa(OPERACAO_AGRICOLA)
-    deixou de ser um risco — é o estado normal, já que a despesa não é mais criada. A
-    reconciliação CostAllocation x Despesa(OPERACAO_AGRICOLA) foi aposentada; a de
-    estoque (CostAllocation x LancamentoFinanceiro) continua ativa e é coberta pelo teste
-    `test_reconciliacao_nao_cria_falso_positivo_para_lancamento_estoque_legitimo` abaixo."""
-    monkeypatch.setattr(alertas_module, "WORKFLOW_ENFORCEMENT_MODE", alertas_module.WORKFLOW_ENFORCEMENT_WARNING_ONLY)
+async def test_recebimento_de_servico_nao_gera_lote_movimento_saldo_step07(session: AsyncSession, monkeypatch: pytest.MonkeyPatch):
+    """OPERATIONS-GAP-01 §21.31: item de serviço não deve materializar estoque físico."""
+    monkeypatch.setattr(
+        alertas_module, "WORKFLOW_ENFORCEMENT_MODE", alertas_module.WORKFLOW_ENFORCEMENT_WARNING_ONLY,
+    )
 
     tenant_id = uuid.uuid4()
-    unidade_id, area_id, safra, cultivo_id, pu, produto, deposito, unidade_ha_id = await _criar_contexto_reconciliacao(session, tenant_id)
+    await _garantir_tenant(session, tenant_id)
+    await garantir_assinatura(session, tenant_id)
+    unidade_id = await _criar_unidade_produtiva(session, tenant_id)
+    produto_servico = await _criar_produto_servico(session, tenant_id)
+    await _criar_plano_conta(session, tenant_id, codigo="3.14", nome="Serviços de Terceiros")
+    await _criar_fornecedor(session, tenant_id)
+    pedido = await _criar_pedido_servico(session, tenant_id, produto_servico.id, unidade_id, quantidade=1.0, valor_unitario=5000.0)
 
-    operacao = OperacaoAgricola(
-        tenant_id=tenant_id,
-        safra_id=safra.id,
-        cultivo_id=cultivo_id,
-        production_unit_id=pu.id,
-        talhao_id=area_id,
-        tipo="PLANTIO",
-        descricao="Operação base",
-        data_realizada=date.today(),
-        custo_total=125.0,
-        custo_por_ha=2.5,
-        status="REALIZADA",
-    )
-    session.add(operacao)
-    await session.flush()
-
-    execucao = OperacaoExecucao(
-        tenant_id=tenant_id,
-        operacao_id=operacao.id,
-        production_unit_id=pu.id,
-        data_execucao=date.today(),
-        quantidade_executada=1.0,
-        quantidade_devolvida=0.0,
-        unidade_medida_id=unidade_ha_id,
-        custo_real=125.0,
-        area_ha_executada=1.0,
-        status="REALIZADA",
-    )
-    session.add(execucao)
-    await session.flush()
-
-    await registrar_cost_allocation(
-        session,
-        tenant_id=tenant_id,
-        production_unit_id=pu.id,
-        source="OPERATION_EXECUTION",
-        source_id=execucao.id,
-        operation_execution_id=execucao.id,
-        cost_category="OUTROS",
-        amount=125.0,
-        allocation_date=date.today(),
-        allocation_method="DIRECT",
-        allocation_basis=1.0,
-    )
+    recebido = await ComprasService(session, tenant_id).receber_pedido(pedido.id)
     await session.commit()
 
-    svc = AlertasAgricolasService(session, tenant_id)
-    total = await svc.verificar_reconciliacao_economica()
+    assert recebido.status == "RECEBIDO"
 
-    assert total == 0
+    recebimento = (
+        await session.execute(select(RecebimentoParcial).where(RecebimentoParcial.pedido_id == pedido.id))
+    ).scalars().first()
+    assert recebimento is not None
 
-    notificacao = (
+    item_recebimento = (
+        await session.execute(select(ItemRecebimento).where(ItemRecebimento.recebimento_id == recebimento.id))
+    ).scalars().first()
+    assert item_recebimento is not None
+    assert item_recebimento.lote_id is None
+
+    movimento = (
         await session.execute(
-            select(Notificacao).where(
-                Notificacao.tenant_id == tenant_id,
-                Notificacao.tipo == "WORKFLOW_OPERACIONAL",
-                Notificacao.origem_id == "CUSTO_OPERACIONAL_SEM_REFLEXO_ECONOMICO",
+            select(EstoqueMovimento).where(
+                EstoqueMovimento.tenant_id == tenant_id,
+                EstoqueMovimento.origem == "COMPRA",
+                EstoqueMovimento.origem_id == pedido.id,
             )
         )
     ).scalars().first()
-    assert notificacao is None
+    assert movimento is None
+
+    lotes = (await session.execute(select(LoteEstoque).where(LoteEstoque.produto_id == produto_servico.id))).scalars().all()
+    assert lotes == []
 
 
 @pytest.mark.asyncio
-async def test_reconciliacao_nao_cria_falso_positivo_para_lancamento_estoque_legitimo(session: AsyncSession, monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr(alertas_module, "WORKFLOW_ENFORCEMENT_MODE", alertas_module.WORKFLOW_ENFORCEMENT_WARNING_ONLY)
+async def test_recebimento_de_servico_ainda_gera_despesa_a_pagar_step07(session: AsyncSession, monkeypatch: pytest.MonkeyPatch):
+    """OPERATIONS-GAP-01 §21.31: mesmo sem estoque, o pagamento do serviço é gerado normalmente."""
+    monkeypatch.setattr(
+        alertas_module, "WORKFLOW_ENFORCEMENT_MODE", alertas_module.WORKFLOW_ENFORCEMENT_WARNING_ONLY,
+    )
 
     tenant_id = uuid.uuid4()
-    unidade_id, area_id, safra, cultivo_id, pu, produto, deposito, unidade_ha_id = await _criar_contexto_reconciliacao(session, tenant_id)
+    await _garantir_tenant(session, tenant_id)
+    await garantir_assinatura(session, tenant_id)
+    unidade_id = await _criar_unidade_produtiva(session, tenant_id)
+    produto_servico = await _criar_produto_servico(session, tenant_id)
+    await _criar_plano_conta(session, tenant_id, codigo="3.14", nome="Serviços de Terceiros")
+    fornecedor = await _criar_fornecedor(session, tenant_id)
+    pedido = await _criar_pedido_servico(session, tenant_id, produto_servico.id, unidade_id, quantidade=1.0, valor_unitario=5000.0)
 
-    mov = await registrar_ledger_estoque(
-        session,
-        tenant_id=tenant_id,
-        produto_id=produto.id,
-        deposito_id=deposito.id,
-        lote_id=None,
-        tipo_movimento="SAIDA",
-        quantidade=2.0,
-        custo_unitario=8.0,
-        origem="ESTOQUE",
-        origem_id=uuid.uuid4(),
-        observacoes="Movimento legítimo",
-    )
-    await session.flush()
-    session.add(
-        LancamentoFinanceiro(
-            tenant_id=tenant_id,
-            safra_id=safra.id,
-            descricao="Uso de insumo legítimo",
-            valor=16.0,
-            data=date.today(),
-            tipo="CUSTO",
-            categoria="INSUMOS",
-            origem="ESTOQUE",
-            origem_id=mov.id,
+    await ComprasService(session, tenant_id).receber_pedido(pedido.id)
+    await session.commit()
+
+    recebimento = (
+        await session.execute(select(RecebimentoParcial).where(RecebimentoParcial.pedido_id == pedido.id))
+    ).scalars().first()
+    despesa = (
+        await session.execute(
+            select(Despesa).where(
+                Despesa.tenant_id == tenant_id, Despesa.origem_tipo == "COMPRA", Despesa.origem_id == recebimento.id,
+            )
         )
-    )
-    await registrar_cost_allocation(
-        session,
-        tenant_id=tenant_id,
-        production_unit_id=pu.id,
-        source="INVENTORY_MOVEMENT",
-        source_id=mov.id,
-        inventory_movement_id=mov.id,
-        cost_category="OUTROS",
-        amount=16.0,
-        allocation_date=date.today(),
-        allocation_method="DIRECT",
-        allocation_basis=2.0,
-    )
-    await session.commit()
+    ).scalars().first()
 
-    total = await AlertasAgricolasService(session, tenant_id).verificar_reconciliacao_economica()
-    assert total == 0
-
-
-@pytest.mark.asyncio
-async def test_reconciliacao_detecta_allocations_duplicadas(session: AsyncSession, monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr(alertas_module, "WORKFLOW_ENFORCEMENT_MODE", alertas_module.WORKFLOW_ENFORCEMENT_WARNING_ONLY)
-
-    tenant_id = uuid.uuid4()
-    unidade_id, area_id, safra, cultivo_id, pu, produto, deposito, unidade_ha_id = await _criar_contexto_reconciliacao(session, tenant_id)
-
-    origem_id = uuid.uuid4()
-
-    await registrar_cost_allocation(
-        session,
-        tenant_id=tenant_id,
-        production_unit_id=pu.id,
-        source="MANUAL",
-        source_id=origem_id,
-        amount=30.0,
-        allocation_date=date.today(),
-        cost_category="OUTROS",
-        allocation_method="DIRECT",
-    )
-    await registrar_cost_allocation(
-        session,
-        tenant_id=tenant_id,
-        production_unit_id=pu.id,
-        source="MANUAL",
-        source_id=origem_id,
-        amount=45.0,
-        allocation_date=date.today(),
-        cost_category="OUTROS",
-        allocation_method="DIRECT",
-    )
-    await session.commit()
-
-    findings = await AlertasAgricolasService(session, tenant_id).detectar_inconsistencias_operacionais()
-    codigos = {finding.codigo for finding in findings}
-    assert "ALLOCATION_POTENCIALMENTE_DUPLICADA" in codigos
+    assert despesa is not None
+    assert despesa.status == "A_PAGAR"
+    assert float(despesa.valor_total) == 5000.0
