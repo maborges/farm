@@ -83,6 +83,7 @@ TEST_NAME_PATTERNS = [
     r"test",
     r"demo",
     r"dashboard pecuaria",
+    r"Fazenda Nova",
     r"recommendation event",
     r"outro tenant",
 ]
