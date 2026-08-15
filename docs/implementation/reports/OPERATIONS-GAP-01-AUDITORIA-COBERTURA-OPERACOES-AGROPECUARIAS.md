@@ -65,7 +65,7 @@ O Campo PWA é arquitetura offline genuína (Dexie + outbox), reusa a API, mas n
 | J | Manutenção de frota (móvel) | COBERTO | Sim | Sim | Sim | Parcial | Sim | — | — | Sim | — | `operacional/models/frota.py` | — |
 | J | Infraestrutura fixa (estrada/cerca/poço) | GAP | — | — | — | — | — | — | — | — | — | Sem model dedicado | Só Benfeitoria cadastral, sem manutenção |
 | J | Irrigação/bombas/reservatórios | PARCIAL/ISOLADO | Parcial | Parcial | — | — | — | — | — | — | — | `ndvi_avancado/models/irrigacao.py:10` | Mal posicionado (dentro de NDVI) |
-| K | CAR | DUPLICADO-PARALELO CONFIRMADO | — | — | — | — | — | — | — | — | — | `ambiental/models.py:56` vs `ambiental/models/car.py:35` | Shadowing de pacote suspeito |
+| K | CAR | RESOLVIDO (2026-08-15) | — | — | — | — | — | — | — | — | — | `ambiental/models.py:56` (único model ativo) | Código morto deletado (Seção 21.6) |
 | K | NDVI | GAP (mockado) | — | — | — | — | — | — | — | — | — | `ndvi/service.py:12-19` retorna string fixa | Mock explícito |
 | K | Receituário/embalagens | GAP não confirmado | — | — | — | — | — | — | — | — | — | Não lido a fundo | Necessita 2ª passada |
 
@@ -114,7 +114,7 @@ Manutenção madura existe **apenas para frota móvel** (veículos/implementos).
 
 ## 14. Ambiental/Compliance (K)
 
-CAR tem **dois modelos concorrentes** (`ambiental/models.py::RegistroCAR` vs `ambiental/models/car.py::CAR`), com indício de shadowing de pacote Python (arquivo `models.py` vs pacote `models/` no mesmo namespace) — o router ativo parece usar apenas o primeiro, deixando funcionalidade rica (monitoramento de APP, sobreposição, desmatamento, CCIR) modelada mas não servida — DUPLICADO-PARALELO/possível código morto, requer confirmação dedicada. Outorgas hídricas cobertas e expostas via router. Certificações têm dois sistemas paralelos por escopos aparentemente distintos (rastreabilidade agrícola vs. ESG corporativo) — não confirmado overlap. NDVI é mock explícito confirmado (`ndvi/service.py:12-19`, retorna string fixa, comentário `# Mock logic`). Receituário/embalagens/inspeções não foram confirmados nesta rodada — recomenda-se 2ª passada dedicada.
+~~CAR tem **dois modelos concorrentes**~~ — **RE-INVESTIGADO e RESOLVIDO em 2026-08-15** (Seção 21.6): não era shadowing de import (tecnicamente impossível — `models.py` e `models/` têm nomes distintos no filesystem); `ambiental/models/car.py` era **código morto inacessível** (sem `__init__.py`, não importável pelo caminho normal do pacote), com zero tabelas no banco, zero rota e zero consumidor real. Deletado junto com os métodos mortos de `SNAService` que o referenciavam. `RegistroCAR` (`ambiental/models.py`) confirmado como único model ativo, mas com 0 registros em produção. Outorgas hídricas cobertas e expostas via router. Certificações têm dois sistemas paralelos por escopos aparentemente distintos (rastreabilidade agrícola vs. ESG corporativo) — não confirmado overlap. NDVI é mock explícito confirmado (`ndvi/service.py:12-19`, retorna string fixa, comentário `# Mock logic`). Receituário/embalagens/inspeções não foram confirmados nesta rodada — recomenda-se 2ª passada dedicada.
 
 ## 15. Integração Web × API × Campo PWA
 
@@ -128,7 +128,7 @@ Campo PWA (`apps/campo/`, Next.js separado) tem arquitetura offline genuína: De
 | 3 sistemas de alertas (alert_engine / notificacoes.AlertasEngine / dispersos) | Confirmado, parcialmente conectado | `alert_engine/service.py:150-183` espelha unidirecionalmente em `Notificacao` só na criação | ALTO |
 | notificacoes/ vs notifications/ | Confirmado, mas com ponte funcional (`recommendations/notification_bridge.py:11-22`) | — | MÉDIO |
 | ConfinamentoLote.ganho_medio_diario vs gmd_utils | Confirmado, 0 call-sites cruzados | `enterprise/models/sprints_27_33.py:253` | MÉDIO |
-| CAR: RegistroCAR vs CAR (pacote) | Confirmado, suspeita de shadowing | `ambiental/models.py:56` vs `ambiental/models/car.py:35` | ALTO |
+| CAR: RegistroCAR vs CAR (pacote) | RESOLVIDO 2026-08-15: código morto deletado (não era shadowing real) | `ambiental/models.py:56` (único model ativo) | RESOLVIDO (era ALTO) |
 | amostragem_solo/ vs analises_solo/ | Suspeita, não resolvida | — | MÉDIO (investigar) |
 | LoteRastreabilidade vs CadernoLoteComercial | Suspeita, uso ativo não confirmado | `agricola/rastreabilidade/models.py` | BAIXO/MÉDIO |
 | Orçamento de safra: item-de-safra vs plano-operacional-em-lote | Confirmado, sem reconciliação automática vista | `schemas.py` vs `planejamento_operacional/models.py:99` | MÉDIO |
@@ -143,13 +143,13 @@ Campo PWA (`apps/campo/`, Next.js separado) tem arquitetura offline genuína: De
 
 **ALTO**
 - 3 sistemas de alertas com ponte apenas parcial/unidirecional — risco de alerta "preso" sem chegar ao sino em updates.
-- CAR com dois models concorrentes e suspeita de funcionalidade rica (APP, desmatamento, CCIR) não servida pelo router ativo.
 - Vínculo `operacao_execucao_id` opcional no ledger de estoque — saída pode ficar sem produção vinculada.
 - Infraestrutura fixa (estradas, cercas, poços, galpões) sem workflow de manutenção/custo — só frota móvel tem.
 - ~~**NOVO (descoberto em 2026-08-15)**: constraint `ck_estoque_movimentos_origem` no banco desatualizada~~ — **RESOLVIDO em 2026-08-15** (Seção 21.5): migration autoritativa unindo os valores das duas correções divergentes.
 
 **BAIXO (rebaixado em 2026-08-15)**
 - ~~Rateio (Float) vs CostAllocation (Numeric) sem exclusividade garantida~~ — investigação confirmou projeção idempotente sem double-counting; `Float` corrigido para `Numeric` (Seção 21.3). Risco residual: relatório "Centro de Custos" ainda lê `Rateio` bruto, sem unificação com `CostAllocation`.
+- ~~CAR com dois models concorrentes~~ — **RESOLVIDO em 2026-08-15** (Seção 21.6): não era shadowing real, era código morto inacessível; deletado.
 - ~~Float ainda presente em `SaldoEstoque`, `LoteEstoque`, `ItemRequisicao`, `ReservaEstoque`~~ — **RESOLVIDO em 2026-08-15** (Seção 21.4): migrado para `Numeric`, alinhado a `EstoqueMovimento`.
 
 **MÉDIO**
@@ -178,7 +178,7 @@ Campo PWA (`apps/campo/`, Next.js separado) tem arquitetura offline genuína: De
 
 1. ~~**Duplicação econômica sem guardrail**: convivência ativa de Rateio e CostAllocation sem mecanismo que impeça o mesmo fato ser rateado duas vezes~~ — **RE-AVALIADO em 2026-08-15** (Seção 21.3): existe guardrail (`fin_rateio_id` + `source='FIN_RATEIO'` + constraint de idempotência), confirmado sem double-counting em produção. Risco residual rebaixado a BAIXO: relatório "Centro de Custos" ainda não unificado com `CostAllocation`.
 2. ~~**Migração de tipos incompleta**: parte do domínio de estoque ainda usa `Float`~~ — **RESOLVIDO em 2026-08-15** (Seção 21.4): `SaldoEstoque`, `LoteEstoque`, `ItemRequisicao`, `ReservaEstoque` migrados para `Numeric`, junto com o fix já aplicado em `Rateio` (Seção 21.3). Nenhuma tabela de valor monetário/quantidade conhecida ainda usa `Float`.
-3. **Shadowing de pacote Python em `ambiental/`**: arquivo `models.py` e pacote `models/` coexistindo no mesmo namespace é um padrão frágil, propenso a import ambíguo e funcionalidade "fantasma".
+3. ~~**Shadowing de pacote Python em `ambiental/`**~~ — **RE-INVESTIGADO e RESOLVIDO em 2026-08-15** (Seção 21.6): não era shadowing tecnicamente (nomes de arquivo distintos no filesystem); `ambiental/models/car.py` era código morto inacessível por falta de `__init__.py`, sem tabela/rota/consumidor — deletado.
 4. **Cadeia de "lote" com 3+ nomenclaturas** (ProdutoColhido/LoteBeneficiamento/LoteRastreabilidade/CadernoLoteComercial) aumenta risco de drift entre etapas se alguma atualização não propagar.
 5. **Sistemas de alertas fragmentados**: mesmo com ponte parcial, a arquitetura de 3 motores aumenta custo de manutenção e risco de comportamento inconsistente entre eles.
 6. ~~**Elo Produção→Resultado quebrado**~~ — **RESOLVIDO em 2026-08-15**: backend calcula custo/margem por lote por 3 vias (Seção 21), fonte oficial decidida (Alternativa C) e já consumida em frontend (tela Produtos Colhidos). Risco residual restrito: DRE/dashboard ainda não consomem a Alternativa A/C — nada impede hoje que uma tela futura use B como se fosse o número final.
@@ -200,7 +200,7 @@ Campo PWA (`apps/campo/`, Next.js separado) tem arquitetura offline genuína: De
 Sem propor refatoração ampla, e em ordem de exposição de risco/esforço:
 1. ~~Investigar e decidir formalmente (produto, não código): Rateio vs CostAllocation~~ — **CONCLUÍDO em 2026-08-15** (Seção 21.3): investigação encontrou projeção automática idempotente já em produção (sem double-counting); `Rateio` migrado de `Float` para `Numeric`. Decisão de produto: manter os dois models (fontes/granularidades diferentes — despesa financeira vs. custo operacional), com `Rateio` permanecendo a origem e `CostAllocation` a agregação oficial. Próximo passo derivado (não crítico): unificar o relatório "Centro de Custos" para ler via `CostAllocation`.
 2. ~~Completar a migração Float→Numeric nas 4 tabelas de estoque identificadas~~ — **CONCLUÍDO em 2026-08-15** (Seção 21.4): `SaldoEstoque`, `LoteEstoque`, `ItemRequisicao`, `ReservaEstoque` migrados, junto com ~20 pontos de aritmética em `estoque_service.py`/`estoque_fifo.py`/`compras_service.py`/`agricola/operacoes/service.py` corrigidos para não misturar `Decimal`+`float`. ~~Descoberto durante a correção: constraint `ck_estoque_movimentos_origem` desatualizada~~ — **CONCLUÍDO em 2026-08-15** (Seção 21.5): migration autoritativa reconciliou os valores.
-3. Confirmar/relatar (2ª auditoria pontual) o shadowing em `ambiental/models.py` vs `ambiental/models/car.py` e decidir qual é o vivo.
+3. ~~Confirmar/relatar (2ª auditoria pontual) o shadowing em `ambiental/models.py` vs `ambiental/models/car.py`~~ — **CONCLUÍDO em 2026-08-15** (Seção 21.6): investigado e resolvido; `ambiental/models/car.py` era código morto, deletado.
 4. ~~Endereçar o GAP crítico de custo/margem por lote comercializado~~ — **CONCLUÍDO em 2026-08-15** (Seção 21). ~~Decidir a fonte oficial~~ — **CONCLUÍDO em 2026-08-15**: Alternativa C é a fonte oficial (ver Seção 21). Próximos passos derivados: (i) implementar consumo em frontend usando os endpoints de C; (ii) avaliar tornar `ComercializacaoCommodity.produto_colhido_id` obrigatório (hoje `nullable`).
 5. ~~Resolver o hard-stop de tarefa multi-talhão~~ — **CONCLUÍDO em 2026-08-15** (Seção 21): adotado fan-out (dividir a tarefa por talhão), não `OperacaoAgricola` multi-área. Próximo passo derivado: expor `talhoes_ids` no frontend de criação de tarefa (hoje só backend).
 6. Fazer 2ª passada dedicada em: `amostragem_solo` vs `analises_solo`; receituário/embalagens/compliance; contas a pagar/receber; custos indiretos/depreciação — itens não confirmados por escopo desta auditoria.
@@ -291,11 +291,21 @@ Fecha o bug descoberto durante a migração Float→Numeric de estoque (Seção 
 - **Risco arquitetural residual**: a causa raiz (migrations divergentes editando a mesma constraint sem reconciliação) pode se repetir — não investigado se há outras constraints na mesma situação; recomenda-se atenção no processo de revisão de migrations que alteram constraints já existentes.
 - **Testes**: as 11 falhas de vacinação pecuária identificadas na Seção 21.4 (`test_lote_resumo_sanitario.py`, `test_manejo_sync_service.py`, `test_sync_pecuaria_integration.py`) passam a 100% (36/36) após a correção.
 
+## 21.6 — Adendo (2026-08-15) — Duplicação CAR re-investigada: código morto, não shadowing
+
+Fecha o item ALTO restante do relatório original: "CAR com dois models concorrentes, shadowing de pacote Python" (Seções 14, 16, 17, 18, 20).
+
+- **Achado principal**: a premissa técnica da auditoria original estava parcialmente errada — `ambiental/models.py` (arquivo) e `ambiental/models/` (diretório) têm nomes distintos no filesystem, então não há conflito de nome nem "shadowing" no sentido literal. O problema real era outro: `ambiental/models/` **não tinha `__init__.py`**, então `ambiental/models/car.py` era inacessível pelo caminho de import normal do pacote (`from ambiental.models.car import CAR` falha com `ModuleNotFoundError`). O único jeito de importá-lo era via path absoluto incomum (`from services.api.ambiental.models.car import CAR`), usado apenas dentro de dois métodos mortos (`SNAService.importar_car`/`atualizar_car`) que nunca eram chamados por nenhum router/service e cujo corpo tinha `# TODO: Implementar save no banco` — ou seja, mesmo se fossem chamados, não persistiam nada.
+- **Confirmação em produção**: zero das 4 tabelas do model rico (`ambiental_car`, `ambiental_monitoramento_app`, `ambiental_alertas_desmatamento`, `ambiental_ccir`) existem no banco — nunca foram criadas via Alembic. A tabela do model ativo (`amb_registros_car`, de `RegistroCAR`) existe mas está com 0 registros. Frontend (`apps/web/.../ambiental/car/`) consome exclusivamente o router ativo, que usa só `RegistroCAR`.
+- **Correção aplicada**: deletado `ambiental/models/car.py` (model rico inacessível: sobreposição estruturada, CCIR, monitoramento de APP via NDVI/satélite, desmatamento) e os métodos `SNAService.importar_car`/`atualizar_car` que o referenciavam. Mantidos: `SNAClient` (cliente HTTP puro do SNA, funcional e sem dependência do model morto) e `SNAService.verificar_pendencias_car`/`verificar_sobreposicoes_car` (não dependiam do model).
+- **Testes**: suíte `ambiental`/`car`/`CAR` (85 testes) roda idêntica antes/depois — 12 falhas pré-existentes reconfirmadas em código não modificado via `git stash` (domínios não relacionados: laudo/romaneio, imóvel rural, feedback IA, RH, WS notificações, Sankhya), zero regressão introduzida pela remoção.
+- **O que permanece em aberto**: a funcionalidade rica (monitoramento de APP, desmatamento por satélite, CCIR) não existe mais nem como scaffolding — se for uma necessidade de produto real (aderência ao desafio Nestlé/café já mapeado em `project_desafio_nestle_cafe_gap.md`), precisa ser replanejada do zero como feature nova, não recuperada do código deletado (que nunca funcionou de fato).
+
 ---
 
 ## STATUS DA COBERTURA OPERACIONAL: **PARCIAL**
 
-A aplicação cobre com solidez a maior parte do ciclo agrícola, pecuário, de máquinas e de mão de obra, com um núcleo arquitetural coerente (ProductionUnit/CostAllocation/OperacaoAgricola). Os dois GAPs CRÍTICOS originais (elo Produção→Resultado quebrado, e hard-stop de tarefa multi-talhão) foram resolvidos em 2026-08-15 (Seção 21) — nenhum ponto de ruptura formal (hard-stop de código) permanece identificado por esta auditoria. A duplicação Rateio vs CostAllocation, antes classificada ALTO, foi re-investigada e rebaixada a BAIXO (Seção 21.3) — não há double-counting ativo. A migração Float→Numeric em estoque foi concluída (Seção 21.4), incluindo o bug de constraint de vacinação descoberto e corrigido no processo (Seção 21.5) — nenhuma tabela de valor monetário/quantidade conhecida ainda usa `Float`, e a materialização de vacinação em estoque volta a funcionar. O status segue **PARCIAL**, não "ADEQUADA/MADURA", porque 3 sistemas de alertas fragmentados e o CAR com dois models concorrentes continuam colocando em risco a confiabilidade/disponibilidade de fluxos operacionais específicos — riscos pontuais e de UX/consolidação, não mais de tipo de dado, double-counting ou constraint quebrada.
+A aplicação cobre com solidez a maior parte do ciclo agrícola, pecuário, de máquinas e de mão de obra, com um núcleo arquitetural coerente (ProductionUnit/CostAllocation/OperacaoAgricola). Os dois GAPs CRÍTICOS originais (elo Produção→Resultado quebrado, e hard-stop de tarefa multi-talhão) foram resolvidos em 2026-08-15 (Seção 21) — nenhum ponto de ruptura formal (hard-stop de código) permanece identificado por esta auditoria. A duplicação Rateio vs CostAllocation, antes classificada ALTO, foi re-investigada e rebaixada a BAIXO (Seção 21.3) — não há double-counting ativo. A migração Float→Numeric em estoque foi concluída (Seção 21.4), incluindo o bug de constraint de vacinação descoberto e corrigido no processo (Seção 21.5). A duplicação de CAR foi re-investigada e resolvida (Seção 21.6) — não era shadowing real, era código morto, deletado. O status segue **PARCIAL**, não "ADEQUADA/MADURA", porque 3 sistemas de alertas fragmentados continuam colocando em risco a confiabilidade/disponibilidade de notificações operacionais — o último item ALTO confirmado e não resolvido do relatório original.
 
 ### Resposta objetiva
 
