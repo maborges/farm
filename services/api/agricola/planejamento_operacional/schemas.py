@@ -40,6 +40,21 @@ class PlanoOperacionalResponse(BaseModel):
     updated_at: datetime
 
 
+class ComparativoOrcamentoResponse(BaseModel):
+    """OPERATIONS-GAP-01 §21.9: comparação não-bloqueante entre o custo estimado
+    consolidado do plano operacional e o orçamento previsto da safra (ItemOrcamentoSafra).
+    As duas fontes são desconectadas (granularidades diferentes: orçamento macro por
+    categoria vs. plano detalhado por tarefa/insumo) — este endpoint só informa,
+    nunca impede a aprovação do plano."""
+
+    plano_id: UUID
+    safra_id: UUID
+    custo_estimado_plano: float
+    orcamento_previsto_safra: float
+    excede_orcamento: bool
+    percentual_excedente: Optional[float] = None
+
+
 class PlanoOperacionalTarefaCreate(BaseModel):
     safra_tarefa_id: UUID
 

@@ -22,6 +22,7 @@ from agricola.planejamento_operacional.schemas import (
     AplicarInsumoLoteResponse,
     AplicarMaquinarioLoteRequest,
     AplicarMaoObraLoteRequest,
+    ComparativoOrcamentoResponse,
     PlanoOperacionalTarefaMaoObraCreate,
     PlanoOperacionalTarefaMaoObraUpdate,
     PlanoOperacionalTarefaMaoObraResponse,
@@ -143,6 +144,20 @@ async def avancar_status_plano(
     await session.commit()
     await session.refresh(plano)
     return plano
+
+
+@router.get(
+    "/{plano_id}/comparativo-orcamento",
+    response_model=ComparativoOrcamentoResponse,
+    summary="Compara o custo estimado do plano contra o orçamento previsto da safra (informativo, não bloqueia)",
+)
+async def comparativo_orcamento_plano(
+    plano_id: UUID,
+    session: AsyncSession = Depends(get_session),
+    tenant_id: UUID = Depends(get_tenant_id),
+):
+    svc = PlanoOperacionalService(session, tenant_id)
+    return await svc.comparar_com_orcamento(plano_id)
 
 
 @router.post(

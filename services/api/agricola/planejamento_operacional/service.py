@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime
+from loguru import logger
 from sqlalchemy import select, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -122,7 +123,80 @@ class PlanoOperacionalService(BaseService[PlanoOperacional]):
             update_kwargs["aprovado_por"] = self.user_id
             update_kwargs["aprovado_em"] = datetime.utcnow()
 
-        return await self.update(plano_id, update_kwargs)
+        plano_atualizado = await self.update(plano_id, update_kwargs)
+
+        if novo_status == "APROVADO":
+            comparativo = await self.comparar_com_orcamento(plano_id)
+            if comparativo["excede_orcamento"]:
+                logger.warning(
+                    "Plano operacional {} aprovado excedendo o orçamento previsto da safra {}: "
+                    "custo estimado R$ {:.2f} vs orçamento R$ {:.2f} ({}% acima).",
+                    plano_id, comparativo["safra_id"], comparativo["custo_estimado_plano"],
+                    comparativo["orcamento_previsto_safra"], comparativo["percentual_excedente"],
+                )
+
+        return plano_atualizado
+
+    async def comparar_com_orcamento(self, plano_id: uuid.UUID) -> dict:
+        """OPERATIONS-GAP-01 §21.9: compara o custo estimado consolidado do plano
+        (insumos + mão de obra + maquinário, itens ativos) contra o orçamento
+        previsto da safra (`ItemOrcamentoSafra`). Não bloqueia nada — as duas
+        fontes têm granularidades diferentes (orçamento macro por categoria vs.
+        plano detalhado por tarefa) e não há reconciliação estrutural entre elas;
+        isto é só um alerta informativo para quem está aprovando o plano."""
+        plano = await self.get_or_fail(plano_id)
+
+        itens_ativos_subq = (
+            select(PlanoOperacionalTarefa.id)
+            .where(
+                PlanoOperacionalTarefa.plano_operacional_id == plano_id,
+                PlanoOperacionalTarefa.status_planejamento.in_(STATUS_ITEM_ATIVO_NO_PLANO),
+            )
+            .scalar_subquery()
+        )
+
+        custo_insumos = (await self.session.execute(
+            select(func.coalesce(func.sum(PlanoOperacionalTarefaInsumo.custo_total_estimado), 0)).where(
+                PlanoOperacionalTarefaInsumo.tenant_id == self.tenant_id,
+                PlanoOperacionalTarefaInsumo.plano_operacional_tarefa_id.in_(itens_ativos_subq),
+            )
+        )).scalar_one()
+        custo_mao_obra = (await self.session.execute(
+            select(func.coalesce(func.sum(PlanoOperacionalTarefaMaoObra.custo_total_estimado), 0)).where(
+                PlanoOperacionalTarefaMaoObra.tenant_id == self.tenant_id,
+                PlanoOperacionalTarefaMaoObra.plano_operacional_tarefa_id.in_(itens_ativos_subq),
+            )
+        )).scalar_one()
+        custo_maquinario = (await self.session.execute(
+            select(func.coalesce(func.sum(PlanoOperacionalTarefaMaquinario.custo_total_estimado), 0)).where(
+                PlanoOperacionalTarefaMaquinario.tenant_id == self.tenant_id,
+                PlanoOperacionalTarefaMaquinario.plano_operacional_tarefa_id.in_(itens_ativos_subq),
+            )
+        )).scalar_one()
+        custo_estimado_plano = float(custo_insumos) + float(custo_mao_obra) + float(custo_maquinario)
+
+        orcamento_previsto = (await self.session.execute(
+            select(func.coalesce(func.sum(ItemOrcamentoSafra.custo_total), 0)).where(
+                ItemOrcamentoSafra.tenant_id == self.tenant_id,
+                ItemOrcamentoSafra.safra_id == plano.safra_id,
+            )
+        )).scalar_one()
+        orcamento_previsto = float(orcamento_previsto)
+
+        excede = orcamento_previsto > 0 and custo_estimado_plano > orcamento_previsto
+        percentual = (
+            round(((custo_estimado_plano - orcamento_previsto) / orcamento_previsto) * 100, 2)
+            if orcamento_previsto > 0 else None
+        )
+
+        return {
+            "plano_id": plano_id,
+            "safra_id": plano.safra_id,
+            "custo_estimado_plano": custo_estimado_plano,
+            "orcamento_previsto_safra": orcamento_previsto,
+            "excede_orcamento": excede,
+            "percentual_excedente": percentual,
+        }
 
     # ------------------------------------------------------------------
     # Itens do plano (PlanoOperacionalTarefa)
