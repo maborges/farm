@@ -55,7 +55,11 @@ async def registrar_cost_allocation(
 
 
 async def registrar_allocations_fin_rateio(session: AsyncSession, rateio: Rateio) -> int:
-    """Project a financial rateio into agricultural cost allocations when PU can be resolved."""
+    """Project a financial rateio into agricultural cost allocations when PU can be resolved.
+
+    Ver agricola/custos/constants.py (OPERATIONS-GAP-01 §21.27) — o valor literal
+    'FIN_RATEIO' usado no INSERT abaixo é o mesmo de `constants.FIN_RATEIO`.
+    """
     result = await session.execute(
         text(
             """
