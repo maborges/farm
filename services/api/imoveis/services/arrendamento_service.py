@@ -263,7 +263,7 @@ class ArrendamentoService:
             })
             
             numero_parcela += 1
-            
+
             # Avança para próxima parcela
             if periodicidade == Periodicidade.MENSAL:
                 data_atual = data_atual + relativedelta(months=1)
@@ -273,7 +273,15 @@ class ArrendamentoService:
                 data_atual = data_atual + relativedelta(years=1)
             elif periodicidade == Periodicidade.SAFRA:
                 data_atual = data_atual + relativedelta(years=1)
-        
+            else:
+                # Sem isso, um `periodicidade` que não bate com nenhum dos
+                # ifs acima (ex.: string crua em vez do enum `Periodicidade`)
+                # nunca avança `data_atual` — o `while` acima roda para
+                # sempre. Descoberto rodando a suíte completa: um teste
+                # passava periodicidade="mensal" (minúsculo) em vez de
+                # Periodicidade.MENSAL ("MENSAL"), travando o processo.
+                raise ValueError(f"Periodicidade não suportada: {periodicidade!r}")
+
         return parcelas
     
     async def criar_contrato(

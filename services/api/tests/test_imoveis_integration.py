@@ -444,6 +444,7 @@ class TestArrendamentoService:
     def test_calcular_parcelas_mensais(self):
         """Testa cálculo de parcelas mensais."""
         from imoveis.services.arrendamento_service import ArrendamentoService
+        from imoveis.models.imovel import Periodicidade
         from decimal import Decimal
         from datetime import date
 
@@ -455,7 +456,7 @@ class TestArrendamentoService:
 
         parcelas = service.calcular_parcelas(
             valor_total=Decimal("120000.00"),  # R$ 120.000/ano
-            periodicidade="mensal",
+            periodicidade=Periodicidade.MENSAL,
             data_inicio=date(2024, 1, 1),
             data_fim=date(2024, 12, 31),
             dia_vencimento=10,
