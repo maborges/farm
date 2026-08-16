@@ -19,11 +19,19 @@ function getOrCreateFingerprint(): string {
 
 export default function HomePage() {
   const router = useRouter();
+
+  // Gate de montagem: o servidor não tem IndexedDB, então o primeiro paint no
+  // cliente precisa ser idêntico ao HTML do servidor. Só depois do mount é
+  // seguro consultar o Dexie (useLiveQuery) e decidir o que renderizar —
+  // evita divergência de hydration entre servidor e cliente.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   const session = useLiveQuery(getSession);
 
   useEffect(() => {
-    if (session) router.replace("/pesagem");
-  }, [session, router]);
+    if (mounted && session) router.replace("/pesagem");
+  }, [mounted, session, router]);
 
   const [activationCode, setActivationCode] = useState("");
   const [pin, setPin] = useState("");
@@ -59,7 +67,7 @@ export default function HomePage() {
     }
   }
 
-  if (session) return null;
+  if (!mounted || session) return null;
 
   return (
     <main className="flex min-h-screen items-center justify-center p-6">

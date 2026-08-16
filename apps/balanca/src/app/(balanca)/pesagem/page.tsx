@@ -14,6 +14,11 @@ function gerarNumeroTicketLocal(): string {
 
 export default function PesagemPage() {
   const router = useRouter();
+
+  // Mesmo gate de mount usado em "/": evita ler Dexie antes de hidratar.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   const session = useLiveQuery(getSession);
   const ordens = useLiveQuery(
     () => db.ordens.where("status").anyOf(["PENDENTE", "EM_PESAGEM"]).toArray(),
@@ -21,9 +26,9 @@ export default function PesagemPage() {
   );
 
   useEffect(() => {
-    if (session === undefined) return;
+    if (!mounted || session === undefined) return;
     if (!session) router.replace("/");
-  }, [session, router]);
+  }, [mounted, session, router]);
 
   useEffect(() => {
     const stop = startSyncLoop();
@@ -46,7 +51,7 @@ export default function PesagemPage() {
   const [salvando, setSalvando] = useState(false);
   const [mensagem, setMensagem] = useState<string | null>(null);
 
-  if (!session || ordens === undefined) return null;
+  if (!mounted || !session || ordens === undefined) return null;
 
   const pesagemAberta = pesagensDaOrdem?.find((p) => p.peso_liquido_kg === null) ?? null;
   const ehSegundaPesagem = ordemSelecionada?.tipo_pesagem === "DUPLA" && !!pesagemAberta;
