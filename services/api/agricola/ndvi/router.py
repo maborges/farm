@@ -23,6 +23,26 @@ async def sincronizar_talhao_api_satelite(
     msg = await svc.sync_sentinel2_data(talhao_id)
     return {"message": msg}
 
+@router.post("/registro-manual", response_model=NDVIResponse, status_code=status.HTTP_201_CREATED)
+async def registrar_ndvi_manual(
+    data: NDVICreate,
+    session: AsyncSession = Depends(get_session),
+    tenant_id: UUID = Depends(get_tenant_id),
+    _: None = Depends(require_module("A4_PRECISAO")),
+):
+    """OPERATIONS-GAP-01 §21.32: registro manual de índice NDVI calculado
+    externamente (QGIS, provedor terceiro, planilha) — a sincronização
+    automática via Sentinel-2/Copernicus (`sync_sentinel2_data`) continua mock,
+    pendente de decisão de produto sobre custo/quota de API e infraestrutura
+    de processamento de imagem (rasterio + storage de GeoTIFF). Esta via
+    alimenta o mesmo `ImagemNDVI`/`get_serie_temporal` já consumido pelo
+    frontend real (`ndvi-talhao.tsx`), sem depender dessa decisão."""
+    svc = NDVIService(session, tenant_id)
+    imagem = await svc.create(data)
+    await session.commit()
+    return NDVIResponse.model_validate(imagem)
+
+
 @router.get("/serie-temporal/{talhao_id}")
 async def obter_serie_temporal_ndvi(
     talhao_id: UUID,

@@ -66,7 +66,7 @@ O Campo PWA é arquitetura offline genuína (Dexie + outbox), reusa a API, mas n
 | J | Infraestrutura fixa (estrada/cerca/poço) | GAP | — | — | — | — | — | — | — | — | — | Sem model dedicado | Só Benfeitoria cadastral, sem manutenção |
 | J | Irrigação/bombas/reservatórios | PARCIAL/ISOLADO | Parcial | Parcial | — | — | — | — | — | — | — | `ndvi_avancado/models/irrigacao.py:10` | Mal posicionado (dentro de NDVI) |
 | K | CAR | RESOLVIDO (2026-08-15) | — | — | — | — | — | — | — | — | — | `ambiental/models.py:56` (único model ativo) | Código morto deletado (Seção 21.6) |
-| K | NDVI | GAP (mockado) | — | — | — | — | — | — | — | — | — | `ndvi/service.py:12-19` retorna string fixa | Mock explícito |
+| K | NDVI | PARCIAL (Seção 21.32) | — | Sim | — | — | — | — | — | — | — | `ndvi/service.py::sync_sentinel2_data` ainda mock | Registro manual implementado; sincronização automática pendente de decisão de custo/infra |
 | K | Receituário/embalagens | IMPLEMENTADO 2026-08-15 (Seções 21.19+21.20): Receituário Agronômico/CREA + bloqueio de saída de estoque + logística reversa de embalagens com prazo legal de 1 ano | — | — | — | — | — | — | — | — | — | `agricola/receituario_agronomico/`, `agricola/logistica_reversa_embalagens/` | Fechado — frontend e job de vencimento automático ficam para entrega futura |
 
 *(Matriz completa por item das listas A–K está nos relatórios de evidência das seções 4–14; a tabela acima prioriza itens com classificação não-COBERTO ou com achados relevantes, para manter o documento tratável.)*
@@ -592,6 +592,18 @@ Reavaliação de dois gaps do domínio H/G. Um foi fechado (compra de serviços)
 **Depreciação — avaliado, não implementado, decisão de produto pendente.**
 - Confirmado: nenhum campo de "vida útil" existe em `Equipamento` nem em qualquer lugar do sistema; nenhuma referência a taxas de depreciação da Receita Federal (IN RFB 1700/2017) no código; `agricola/cenarios/depreciacao_ha` é 100% manual, sem qualquer ligação com `Equipamento.valor_aquisicao`/`categoria_patrimonial` (Seção 21.29).
 - **Por que não implementar agora**: calcular depreciação automática exige decidir, antes de qualquer código, (a) método (linear vs. outro), (b) se seguir taxas fiscais por classe de bem ou vida útil customizada por equipamento, (c) se o cálculo deve gerar lançamento financeiro automático ou só informar os cenários, e (d) como reconciliar com o campo manual `depreciacao_ha` já existente (substituir, coexistir, ou virar override). Implementar sem essas respostas seria decisão de produto disfarçada de correção técnica.
+
+---
+
+## 21.32 — Adendo (2026-08-15) — NDVI: registro manual implementado; sincronização automática permanece decisão de produto
+
+Meio-termo para o gap "NDVI mockado" (domínio K), sem depender da decisão de custo/infra da integração automática.
+
+- **Confirmado**: provedor já estava decidido no código (Sentinel-2/Copernicus Data Space), mas falta decisão de negócio sobre custo/quota da API e infraestrutura de processamento de imagem (libs geoespaciais, storage de GeoTIFF) — não implementado, continua mock (`sync_sentinel2_data`).
+- **Bug real encontrado e corrigido no processo**: `GET /ndvi/serie-temporal/{talhao_id}` retornava uma lista simples `[{data, ndvi}]`, mas o frontend real (`ndvi-talhao.tsx`) sempre esperou um objeto `{talhao_id, total_imagens, indice_atual, tendencia, dados}` — **mismatch de contrato que fazia a tela cair no estado vazio sempre**, independente de haver dado real ou não. Corrigido em `NDVIService.get_serie_temporal`, incluindo cálculo de tendência (SUBINDO/CAINDO/ESTAVEL comparando as duas últimas capturas).
+- **Implementado**: `POST /ndvi/registro-manual` (reaproveita `NDVICreate`/`ImagemNDVI` já existentes, sem schema novo) para registrar índice calculado externamente (QGIS, provedor terceiro). Frontend: dialog "Registro manual" em `ndvi-talhao.tsx`, padrão de dialog do projeto (`border-b`/`border-t`/`max-w-xl`).
+- **Testes**: `tests/integration/agricola/test_ndvi_registro_manual.py` (3 testes: registro persiste e aparece na série, tendência calculada corretamente, isolamento de tenant). **3/3 passando.**
+- **Não implementado, deliberadamente**: sincronização automática via Sentinel-2. Continua exigindo decisão de produto sobre custo de API e infraestrutura de processamento — não é correção cirúrgica.
 
 ---
 
