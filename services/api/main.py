@@ -79,6 +79,7 @@ from core.cadastros.produtos.router import router as router_produtos
 # Imóveis Rurais
 from imoveis.routers.imovel import router as router_imoveis
 from imoveis.routers.manutencao_benfeitoria import router as router_manutencao_benfeitoria
+from imoveis.routers.irrigacao import router as router_irrigacao
 from imoveis.visao_router import router as router_visao_fundiaria
 from imoveis.routers.arrendamento import router as router_arrendamentos
 from imoveis.routers.avaliacao import router as router_avaliacoes
@@ -353,6 +354,7 @@ app.include_router(router_avaliacoes, prefix="/api/v1")
 app.include_router(router_propriedade_imovel, prefix="/api/v1")
 app.include_router(router_imoveis, prefix="/api/v1")
 app.include_router(router_manutencao_benfeitoria, prefix="/api/v1")
+app.include_router(router_irrigacao, prefix="/api/v1")
 app.include_router(unidades_produtivas.router, prefix="/api/v1")
 from core.measurements.router import router as router_unidades_medida
 app.include_router(router_unidades_medida, prefix="/api/v1")
@@ -397,9 +399,8 @@ from agricola.caderno.router import router as router_caderno
 from agricola.colheita.router import router as router_produtos_colhidos
 from agricola.templates.router import router as router_templates_agricola
 
-# NDVI e Irrigação
+# NDVI
 from agricola.ndvi_avancado.routers.ndvi import router as ndvi_router
-from agricola.ndvi_avancado.routers.irrigacao import router as irrigacao_router
 from agricola.ndvi_avancado.routers.meteorologia import router as meteorologia_router
 
 # IA Diagnóstico
@@ -494,9 +495,8 @@ app.include_router(router_logistica_reversa_embalagens, prefix="/api/v1")
 app.include_router(router_templates_agricola, prefix="/api/v1")
 app.include_router(backoffice_agro_templates.router, prefix="/api/v1")
 
-# NDVI e Irrigação
+# NDVI
 app.include_router(ndvi_router, prefix="/api/v1/agricultura-precisao")
-app.include_router(irrigacao_router, prefix="/api/v1/agricultura-precisao")
 app.include_router(meteorologia_router, prefix="/api/v1/agricultura-precisao")
 
 # IA Diagnóstico
