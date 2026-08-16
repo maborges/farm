@@ -574,6 +574,10 @@ from campo.router import router as campo_router, sync_router as campo_sync_route
 app.include_router(campo_router, prefix="/api/v1")
 app.include_router(campo_sync_router, prefix="/api/v1")
 
+from balanca.router import router as balanca_router, sync_router as balanca_sync_router
+app.include_router(balanca_router, prefix="/api/v1")
+app.include_router(balanca_sync_router, prefix="/api/v1/balanca")
+
 # --- EXCEPTION HANDLERS GLOBAIS ---
 @app.exception_handler(EntityNotFoundError)
 async def not_found_handler(request: Request, exc: EntityNotFoundError):

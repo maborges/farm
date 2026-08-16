@@ -518,6 +518,7 @@ class TenantPermissions:
             "certificacoes_esg:*",
             "wizard:*",
             "campo:*",
+            "balanca:*",
             "enterprise:*",
         ],
 
@@ -570,6 +571,7 @@ class TenantPermissions:
             "agricola:defensivos:view",
             "agricola:monitoramento:*",
             "campo:*",
+            "balanca:*",
 
             # Pecuária - manejo
             "pecuaria:manejo:*",

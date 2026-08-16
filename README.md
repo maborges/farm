@@ -15,6 +15,7 @@ Utilize português (pt-BR) para documentos e interações com o usuário, com ac
 Monorepo dividido em:
 - **apps/web**: Interface Next.js 16 com shadcn/ui e Zustand.
 - **apps/campo**: PWA de campo offline-first, extensão oficial do Caderno de Campo.
+- **apps/balanca**: PWA de estação de balança offline-first (pesagem de carga e animais), desacoplado dos demais módulos.
 - **services/api**: Backend Python com FastAPI, SQLAlchemy e PostgreSQL.
 - **packages/zod-schemas**: Contratos compartilhados (Shared Schemas).2
 
@@ -32,6 +33,7 @@ Inventário técnico completo (versões, libs, infra): `docs/architecture/archit
 - Growth & A/B Testing, Telemetria de UX adaptativa
 - Hedge de commodities (Mark-to-Market, exposição física × financeira)
 - Vínculo territorial/fundiário (Propriedade ↔ Imóvel Rural)
+- Balança (pesagem de carga e animais, offline-first, serviço desacoplado consumido por colheita/compras/vendas/pecuária)
 
 Detalhamento de cada feature, decisões e histórico de implementação: `docs/CHANGELOG.md` (não faz parte da leitura padrão — consulte apenas quando precisar entender por que algo foi construído de determinada forma).
 
@@ -89,6 +91,13 @@ pnpm run dev
 ```
 Roda em `http://localhost:3002`, abre em `/home` após ativação do dispositivo.
 Primeira ativação: fluxo `/activate` → `/pin`.
+
+### PWA de Balança
+```bash
+cd /opt/lampp/htdocs/farm/apps/balanca
+pnpm run dev
+```
+Roda em `http://localhost:3003`. Primeira ativação: código gerado em `POST /api/v1/balanca/devices` + PIN da estação, tela `/` → `/pesagem`. Captura de peso manual na fase atual; leitura eletrônica de indicador de balança é feature futura via bridge local (ver `docs/brainstorm-modulo-balanca.md`).
 
 ### Matar tudo
 ```bash
