@@ -18,4 +18,5 @@ SEQUENCIAL_CONFIG: dict[str, dict] = {
     "compras_cotacao": {"prefixo": "COT", "escopo": "ANO", "digitos": 6, "label": "Cotação de compra"},
     "compras_pedido": {"prefixo": "PED", "escopo": "ANO", "digitos": 6, "label": "Pedido de compra"},
     "estoque_requisicao": {"prefixo": "REQ", "escopo": "ANO", "digitos": 6, "label": "Requisição de material"},
+    "manutencao_benfeitoria_os": {"prefixo": "OSB", "escopo": "ANO", "digitos": 6, "label": "Ordem de serviço de manutenção de benfeitoria"},
 }

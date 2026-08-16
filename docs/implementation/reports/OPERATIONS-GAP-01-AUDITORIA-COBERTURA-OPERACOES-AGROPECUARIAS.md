@@ -63,7 +63,7 @@ O Campo PWA é arquitetura offline genuína (Dexie + outbox), reusa a API, mas n
 | I | Custo do lote / margem do lote | RESOLVIDO (2026-08-15) | — | — | — | Sim | Sim | Sim | Sim | Parcial | Não | `agricola/dre/service.py::_ratear_custos_por_lote`, `agricola/colheita/models.py::custo_unitario_producao`, `agricola/custos/lote_allocation_service.py` | Fechado backend; falta consumo em frontend/dashboard |
 | I | Rastreabilidade | RESOLVIDO 2026-08-15 (Seção 21.11): não é duplicação, ambos ativos e complementares; FK opcional adicionada | — | Sim | — | — | — | — | Sim | — | — | `LoteRastreabilidade` + `CadernoLoteComercial.lote_rastreabilidade_id` | — |
 | J | Manutenção de frota (móvel) | COBERTO | Sim | Sim | Sim | Parcial | Sim | — | — | Sim | — | `operacional/models/frota.py` | — |
-| J | Infraestrutura fixa (estrada/cerca/poço) | GAP | — | — | — | — | — | — | — | — | — | Sem model dedicado | Só Benfeitoria cadastral, sem manutenção |
+| J | Infraestrutura fixa (estrada/cerca/poço) | RESOLVIDO 2026-08-15 (Seção 21.33) | — | Sim | — | — | Sim | — | — | — | — | `OrdemServicoBenfeitoria`/`PlanoManutencaoBenfeitoria` | Duplicação Benfeitoria/Infraestrutura não resolvida (decisão de dado fora de escopo) |
 | J | Irrigação/bombas/reservatórios | PARCIAL/ISOLADO | Parcial | Parcial | — | — | — | — | — | — | — | `ndvi_avancado/models/irrigacao.py:10` | Mal posicionado (dentro de NDVI) |
 | K | CAR | RESOLVIDO (2026-08-15) | — | — | — | — | — | — | — | — | — | `ambiental/models.py:56` (único model ativo) | Código morto deletado (Seção 21.6) |
 | K | NDVI | PARCIAL (Seção 21.32) | — | Sim | — | — | — | — | — | — | — | `ndvi/service.py::sync_sentinel2_data` ainda mock | Registro manual implementado; sincronização automática pendente de decisão de custo/infra |
@@ -604,6 +604,21 @@ Meio-termo para o gap "NDVI mockado" (domínio K), sem depender da decisão de c
 - **Implementado**: `POST /ndvi/registro-manual` (reaproveita `NDVICreate`/`ImagemNDVI` já existentes, sem schema novo) para registrar índice calculado externamente (QGIS, provedor terceiro). Frontend: dialog "Registro manual" em `ndvi-talhao.tsx`, padrão de dialog do projeto (`border-b`/`border-t`/`max-w-xl`).
 - **Testes**: `tests/integration/agricola/test_ndvi_registro_manual.py` (3 testes: registro persiste e aparece na série, tendência calculada corretamente, isolamento de tenant). **3/3 passando.**
 - **Não implementado, deliberadamente**: sincronização automática via Sentinel-2. Continua exigindo decisão de produto sobre custo de API e infraestrutura de processamento — não é correção cirúrgica.
+
+---
+
+## 21.33 — Adendo (2026-08-15) — Workflow de manutenção para infraestrutura fixa; último gap aberto da auditoria fechado
+
+Fecha o último gap aberto da auditoria (domínio J): infraestrutura fixa (sedes, silos, currais, galpões) tinha só cadastro estático, sem workflow de manutenção/custo/apropriação.
+
+- **Achado**: existe uma duplicação real e pré-existente entre `Benfeitoria` (`imoveis/models/imovel.py`) e `Infraestrutura` (`core/cadastros/propriedades/models.py`) — mesmos tipos, campos quase idênticos. **Decidir qual é a fonte de verdade é decisão de dado/produto, não tomada aqui** — afeta qual tela sobrevive e exige checar se há dados reais em produção nas duas. Escopo desta entrega: anexar manutenção só a `Benfeitoria` (a usada pelo frontend real, `operacional/patrimonio/`), sem tocar na duplicação em si.
+- **Decisão de arquitetura**: os models de frota (`PlanoManutencao`/`OrdemServico`/`RegistroManutencao`) são fortemente acoplados a `equipamento_id` em várias services de negócio (dashboard, custo consolidado) — generalizá-los teria blast radius alto. Criado módulo **paralelo e independente** (`imoveis/models/manutencao_benfeitoria.py`), simplificado (sem horímetro/km, que não fazem sentido para uma cerca), zero risco de regressão em frota.
+- **Implementado**: `PlanoManutencaoBenfeitoria` + `OrdemServicoBenfeitoria` (migration `20260815_manutencao_benfeitoria.py`), service com workflow ABERTA→CONCLUIDA/CANCELADA, número de OS sequencial via `SequencialService` (nova entrada `manutencao_benfeitoria_os` em `core/sequenciais_config.py`, mesmo padrão de compras/estoque). Router `/imoveis/benfeitorias/manutencao`, registrado em `main.py`.
+- **Frontend**: nova página `operacional/patrimonio/manutencao` (seleção de benfeitoria, tabela de OS, dialogs de abrir/concluir, `AlertDialog` para cancelar), acessível pelos botões "Benfeitorias"/"Manutenção" já existentes na tela de patrimônio (antes sem destino).
+- **Bug pré-existente encontrado, não corrigido** (fora de escopo, não relacionado a este workflow): `Benfeitoria.created_at` é `DateTime` sem timezone no banco, mas o default do model produz datetime tz-aware — insert falha com "can't subtract offset-naive and offset-aware datetimes". Contornado no teste (passando `created_at` naive explicitamente); registrado aqui para não ser esquecido, mas não corrigido por não fazer parte deste workflow.
+- **Testes**: `tests/integration/imoveis/test_manutencao_benfeitoria.py` (7 testes: criar plano, abrir OS gera número sequencial, concluir grava custo/data, não permite concluir 2x, cancelar, listar com filtros, isolamento de tenant). **7/7 passando.** Suíte de frota (`test_operational_workflow_governance_step05.py`) sem regressão — módulo novo e paralelo, não toca em nada existente.
+
+Com este adendo, **todos os gaps identificados na auditoria original de 2026-08-14 estão fechados ou explicitamente documentados como decisão de produto pendente** (depreciação automática — Seção 21.31; sincronização automática de NDVI — Seção 21.32; duplicação Benfeitoria/Infraestrutura — este adendo).
 
 ---
 

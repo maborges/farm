@@ -78,6 +78,7 @@ from core.cadastros.produtos.router import router as router_produtos
 
 # Imóveis Rurais
 from imoveis.routers.imovel import router as router_imoveis
+from imoveis.routers.manutencao_benfeitoria import router as router_manutencao_benfeitoria
 from imoveis.visao_router import router as router_visao_fundiaria
 from imoveis.routers.arrendamento import router as router_arrendamentos
 from imoveis.routers.avaliacao import router as router_avaliacoes
@@ -351,6 +352,7 @@ app.include_router(router_arrendamentos, prefix="/api/v1")
 app.include_router(router_avaliacoes, prefix="/api/v1")
 app.include_router(router_propriedade_imovel, prefix="/api/v1")
 app.include_router(router_imoveis, prefix="/api/v1")
+app.include_router(router_manutencao_benfeitoria, prefix="/api/v1")
 app.include_router(unidades_produtivas.router, prefix="/api/v1")
 from core.measurements.router import router as router_unidades_medida
 app.include_router(router_unidades_medida, prefix="/api/v1")
