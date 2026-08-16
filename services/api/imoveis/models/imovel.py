@@ -307,7 +307,10 @@ class Benfeitoria(Base):
     imovel_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("imoveis_rurais.id", ondelete="CASCADE"), index=True
     )
-    
+    unidade_produtiva_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("unidades_produtivas.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+
     nome: Mapped[str] = mapped_column(String(100), nullable=False)
     tipo: Mapped[str] = mapped_column(String(50))  # SEDE, SILO, CURRAL, CASA, GALPAO, OFICINA
     area_construida: Mapped[Decimal | None] = mapped_column(Numeric(10, 2))
@@ -320,6 +323,8 @@ class Benfeitoria(Base):
     
     valor_estimado: Mapped[Decimal | None] = mapped_column(Numeric(12, 2))
     ano_construcao: Mapped[int | None] = mapped_column(Integer)
+    vida_util_anos: Mapped[int | None] = mapped_column(Integer, comment="Vida útil estimada para depreciação linear (anos)")
+    valor_residual: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), comment="Valor residual estimado ao final da vida útil")
     
     observacoes: Mapped[str | None] = mapped_column(Text)
     

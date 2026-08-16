@@ -102,6 +102,8 @@ class Equipamento(Base):
     valor_aquisicao: Mapped[float | None] = mapped_column(Float, nullable=True)
     data_aquisicao: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     valor_atual: Mapped[float | None] = mapped_column(Float, nullable=True, comment="Valor de mercado atual estimado")
+    vida_util_anos: Mapped[int | None] = mapped_column(Integer, nullable=True, comment="Vida útil estimada para depreciação linear (anos)")
+    valor_residual: Mapped[float | None] = mapped_column(Float, nullable=True, comment="Valor residual estimado ao final da vida útil")
     categoria_patrimonial: Mapped[str] = mapped_column(
         String(30), default=CategoriaPatrimonial.ATIVO_DEPRECIAVEL.value, nullable=False,
         comment="Distingue ferramenta de baixo valor (não depreciável) de ativo patrimonial depreciável"

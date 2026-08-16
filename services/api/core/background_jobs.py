@@ -79,6 +79,25 @@ async def run_marcar_vencidos_loop() -> None:
             logger.error(f"[job] marcar_vencidos erro: {exc}")
 
 
+async def run_lancar_depreciacao_loop() -> None:
+    """Lança depreciação linear mensal de Equipamentos/Benfeitorias depreciáveis
+    (OPERATIONS-GAP-01 §21.34). Idempotente — pode rodar múltiplas vezes no mês."""
+    from core.database import async_session_maker
+    from core.services.depreciacao_service import lancar_depreciacao_mensal
+
+    while True:
+        try:
+            await asyncio.sleep(3600)
+            async with async_session_maker() as session:
+                contadores = await lancar_depreciacao_mensal(session)
+                if contadores["equipamentos_lancados"] or contadores["benfeitorias_lancadas"]:
+                    logger.info(f"[job] depreciação lançada: {contadores}")
+        except asyncio.CancelledError:
+            break
+        except Exception as exc:
+            logger.error(f"[job] lancar_depreciacao erro: {exc}")
+
+
 async def run_recommendation_scheduler_loop() -> None:
     """Execute the canonical recommendation scheduler through the shared worker."""
     from recommendations.scheduler import run_scheduled_recommendation_cycle
@@ -106,6 +125,7 @@ async def run_background_jobs() -> None:
         asyncio.create_task(run_erp_sync_loop()),
         asyncio.create_task(run_recommendation_scheduler_loop()),
         asyncio.create_task(run_marcar_vencidos_loop()),
+        asyncio.create_task(run_lancar_depreciacao_loop()),
     ]
     try:
         await asyncio.gather(*tasks)
