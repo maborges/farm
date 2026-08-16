@@ -33,32 +33,32 @@ O Campo PWA é arquitetura offline genuína (Dexie + outbox), reusa a API, mas n
 | B | Preparo/Plantio/Desenvolvimento (genérico) | PARCIAL | Sim | Sim | Sim | Sim | Sim | — | — | — | Sim | `operacoes/models.py:8` tipo/subtipo string livre | Catálogo real não auditado |
 | B | Fitossanitário/monitoramento | COBERTO | Sim | Sim | Sim | Sim | Sim | — | — | — | Sim | `monitoramento/models.py:8` | — |
 | B | Colheita/romaneio | COBERTO | Sim | Sim | Sim | Sim | Sim | — | Sim | Parcial | Sim | `colheita/models.py:20`, `romaneios/models.py:8` | — |
-| B | Pós-colheita/beneficiamento | PARCIAL (café-only) | Sim | Sim | Sim | Sim | Parcial | — | Sim | — | — | `beneficiamento/models.py:9` | Não generalizado p/ outras culturas |
+| B | Pós-colheita/beneficiamento | RESOLVIDO 2026-08-15 (Seção 21.21/21.22): generalizado além de café, backend e frontend | Sim | Sim | Sim | Sim | Parcial | — | Sim | — | — | `beneficiamento/models.py:9` | — |
 | B | Análise de solo | ~~DUPLICADO-PARALELO suspeito~~ RESOLVIDO 2026-08-15 (Seção 21.8): `amostragem_solo/` era scaffold morto, deletado | Sim | Sim | — | — | — | — | — | — | — | `analises_solo/` | — |
 | B | Tarefa multi-talhão | RESOLVIDO (2026-08-15) | Sim | Sim | — | — | — | — | — | — | — | `agricola/tarefas/service.py::TarefaService.criar_multi_talhao`, endpoint `POST /agricola/safras/{safra_id}/tarefas/multi-talhao` | Fechado via fan-out (Seção 21) |
 | C | Animal individual | COBERTO | — | Sim | Sim | — | — | — | — | — | Sim | `pecuaria/animal/models.py:144` | — |
 | C | Lote/rebanho coletivo | COBERTO | — | Sim | Sim | — | — | — | — | — | Sim | `animal/models.py:93`, `manejo.py` | — |
 | C | Castração | RESOLVIDO 2026-08-15 (Seção 21.28) | — | Sim | — | — | — | — | — | — | — | `TipoEvento.CASTRACAO`, `TIPO_EVENTO_VALID` | Fechado seguindo padrão de MEDICACAO |
-| C | Confinamento/GMD | DUPLICADO-PARALELO CONFIRMADO | — | Sim | Sim | — | Sim | — | Sim | — | — | `enterprise/models/sprints_27_33.py:253` vs `gmd_utils.py` | 0 call-sites cruzados |
+| C | Confinamento/GMD | RESOLVIDO 2026-08-15 (Seção 21.12): não era divergência de fórmula, campo nunca escrito; ligado via endpoint de encerramento | — | Sim | Sim | — | Sim | — | Sim | — | — | `pecuaria/services/gmd_utils.py::calcular_gmd` | — |
 | C | Ordenha | DESACOPLADO | — | Sim | — | — | — | — | Sim | Sim | — | `pecuaria/routers/leite.py` | Não usa EventoAnimal |
 | D | Cadastro/alocação/uso máquina | COBERTO | Sim | Sim | Sim | Parcial | Sim | — | — | Sim | Sim | `equipamentos/models.py:47`, `apontamento.py:17` | — |
 | D | Manutenção frota | COBERTO | Sim | Sim | Sim | Parcial | Sim | — | — | — | — | `operacional/models/frota.py` | Peças sem estoque confirmado |
 | D | Ferramenta baixo-valor vs patrimonial | RESOLVIDO 2026-08-15 (Seção 21.29) | — | — | — | — | — | — | — | — | — | `Equipamento.categoria_patrimonial` | Classificação de cadastro; sem motor de depreciação automático |
 | E | Diária/empreitada | COBERTO | Sim | Sim | Sim | — | Sim | — | — | — | Não confirmado | `rh/models.py:104,137` | — |
-| E | Homem-hora manual (sem equip.) | GAP | Parcial | Não | — | — | — | — | — | — | Não | `ApontamentoUso` exige equipamento_id NOT NULL | Sem apontamento manual dedicado |
-| E | Múltiplos trabalhadores/operação | PARCIAL | — | Parcial | — | — | — | — | — | — | — | `LancamentoDiaria`/`Empreitada` 1:1 | Sem tabela de equipe |
+| E | Homem-hora manual (sem equip.) | RESOLVIDO (Seção 21.14): `ApontamentoMaoObra` novo, elo estruturado equivalente ao de máquina | Sim | Sim | — | — | Sim | — | — | — | Não confirmado | `ApontamentoMaoObraService` | — |
+| E | Múltiplos trabalhadores/operação | RESOLVIDO (Seção 21.14): fechado junto com o item anterior | — | Sim | — | — | — | — | — | — | — | `ApontamentoMaoObra` | — |
 | F | Entrada/saída/transferência/FIFO | COBERTO | — | Sim | — | Sim | Sim | — | — | — | Não confirmado | `estoque_fifo.py`, `estoque_service.py` | — |
 | F | Perda (tipo de movimento) | RESOLVIDO 2026-08-15 (Seção 21.13): categoria_ajuste="PERDA" adicionada | — | — | — | Sim | — | — | — | — | — | `AjusteEstoqueRequest.categoria_ajuste` | — |
 | F | Inventário físico geral | RESOLVIDO 2026-08-15 (Seção 21.30) | — | — | — | Sim | — | — | — | — | — | `ContagemEstoque`/`ContagemEstoqueItem` | Contagem por saldo agregado, não por lote individual |
-| F | Float→Decimal (saldo/lote/requisição) | GAP CONFIRMADO | — | — | — | Sim (viola padrão) | — | — | — | — | — | `operacional/models/estoque.py` SaldoEstoque/LoteEstoque/ItemRequisicao=Float | Viola CLAUDE.md §4.2 |
+| F | Float→Decimal (saldo/lote/requisição) | RESOLVIDO 2026-08-15 (Seção 21.4): migrado para `Numeric`, alinhado a `EstoqueMovimento` | — | — | — | Sim | — | — | — | — | — | `operacional/models/estoque.py` SaldoEstoque/LoteEstoque/ItemRequisicao/ReservaEstoque | — |
 | G | Requisição→Cotação→Aprovação→Pedido→Recebimento | COBERTO | Sim | Sim | — | Sim | — | Sim | — | — | — | `operacional/services/compras.py` (múltiplas linhas) | — |
 | G | Serviços terceirizados (compra) | RESOLVIDO 2026-08-15 (Seção 21.31) | — | Sim | — | — | — | Sim | — | — | — | `Produto.tipo="SERVICO"` já existia; recebimento/despesa corrigidos | Requisição (`SolicitacaoCompra`) ainda exige depósito — residual |
 | H | Custo realizado (CostAllocation) | COBERTO | — | Sim | — | Sim | Sim | — | — | Parcial | — | `agricola/custos/models.py:11` Numeric | — |
-| H | Rateio financeiro (Rateio) | DUPLICADO-PARALELO CONFIRMADO | — | — | — | — | Sim | Sim | — | — | — | `financeiro/models/rateio.py:8` Float | Coexiste c/ CostAllocation |
+| H | Rateio financeiro (Rateio) | RESOLVIDO 2026-08-15 (Seção 21.3/21.27): projeção idempotente sem double-counting, coexistência por design | — | — | — | — | Sim | Sim | — | — | — | `financeiro/models/rateio.py:8` Numeric | Coexiste c/ CostAllocation intencionalmente |
 | H | Depreciação | GAP | — | — | — | — | Não | — | — | — | — | Sem grep positivo | — |
 | H | Contas a pagar/receber (classe dedicada) | PARCIAL | — | — | — | — | — | Sim (via Despesa/Receita) | — | — | — | `financeiro/models/despesa.py:9`, `receita.py:9` | Sem classe própria |
 | I | Produção/romaneio | COBERTO | — | Sim | — | Sim | — | — | Sim | Parcial | Sim | `colheita/models.py`, `romaneios/models.py:8` | — |
-| I | Beneficiamento café | PARCIAL | — | Sim | — | Sim | Parcial | — | Sim | — | — | `beneficiamento/models.py:9` | Só café |
+| I | Beneficiamento café | RESOLVIDO 2026-08-15 (Seção 21.21/21.22): generalizado além de café | — | Sim | — | Sim | Parcial | — | Sim | — | — | `beneficiamento/models.py:9` | — |
 | I | Comercialização/contrato/venda | COBERTO | — | Sim | — | Sim | — | Sim | Sim | Parcial | — | `financeiro/comercializacao/models.py` | — |
 | I | Custo do lote / margem do lote | RESOLVIDO (2026-08-15) | — | — | — | Sim | Sim | Sim | Sim | Parcial | Não | `agricola/dre/service.py::_ratear_custos_por_lote`, `agricola/colheita/models.py::custo_unitario_producao`, `agricola/custos/lote_allocation_service.py` | Fechado backend; falta consumo em frontend/dashboard |
 | I | Rastreabilidade | RESOLVIDO 2026-08-15 (Seção 21.11): não é duplicação, ambos ativos e complementares; FK opcional adicionada | — | Sim | — | — | — | — | Sim | — | — | `LoteRastreabilidade` + `CadernoLoteComercial.lote_rastreabilidade_id` | — |
