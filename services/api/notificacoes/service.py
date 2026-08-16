@@ -9,6 +9,7 @@ from fastapi import WebSocket
 from loguru import logger
 
 from core.base_service import BaseService
+from notificacoes.constants import permissao_necessaria_para_tipo
 from notificacoes.models import Notificacao, NotificacaoLeitura, NotificacaoPreferencia
 from notificacoes.schemas import NotificacaoCreate, NotificacaoPreferenciaUpdate
 
@@ -315,13 +316,51 @@ Exemplo de saída: 🚨 Margem caiu para 8%. Recomendamos revisar custos operaci
         stmt = stmt.order_by(Notificacao.created_at.desc()).limit(limit)
         result = await self.session.execute(stmt)
 
+        rows = result.all()
+        visiveis = await self._filtrar_notificacoes_visiveis(
+            [notif for notif, _, _ in rows], usuario_id
+        )
+        ids_visiveis = {n.id for n in visiveis}
+
         notificacoes: list[Notificacao] = []
-        for notif, lida_valor, acao_valor in result.all():
+        for notif, lida_valor, acao_valor in rows:
+            if notif.id not in ids_visiveis:
+                continue
             self.session.expunge(notif)
             notif.lida = bool(lida_valor)
             notif.meta = await self._filtrar_acoes_por_permissao(notif, usuario_id, ja_executada=acao_valor)
             notificacoes.append(notif)
         return notificacoes
+
+    async def _filtrar_notificacoes_visiveis(
+        self, notificacoes: list[Notificacao], usuario_id: UUID
+    ) -> list[Notificacao]:
+        """Filtra notificações que o usuário não tem permissão de VER (RBAC de visibilidade).
+
+        Diferente de `_filtrar_acoes_por_permissao` (que decide quais botões de
+        ação aparecem numa notificação que JÁ vai aparecer), esta função decide
+        se a notificação aparece na listagem. Notificação é tenant-wide na
+        criação; aqui restringimos por domínio (tipo) x permissão do usuário.
+
+        Otimizado para resolver cada permissão distinta apenas uma vez por
+        chamada (cache local), evitando N+1 de `resolver_permissao_usuario`.
+        """
+        from core.dependencies import resolver_permissao_usuario
+
+        cache: dict[str, bool] = {}
+        visiveis: list[Notificacao] = []
+        for notif in notificacoes:
+            permissao = permissao_necessaria_para_tipo(notif.tipo)
+            if permissao is None:
+                visiveis.append(notif)
+                continue
+            if permissao not in cache:
+                cache[permissao] = await resolver_permissao_usuario(
+                    self.session, self.tenant_id, usuario_id, permissao
+                )
+            if cache[permissao]:
+                visiveis.append(notif)
+        return visiveis
 
     async def _filtrar_acoes_por_permissao(
         self, notif: Notificacao, usuario_id: UUID, ja_executada: str | None
@@ -454,10 +493,16 @@ Exemplo de saída: 🚨 Margem caiu para 8%. Recomendamos revisar custos operaci
         await self.session.commit()
 
     async def total_nao_lidas(self, usuario_id: UUID) -> int:
+        """Conta notificações não lidas visíveis ao usuário.
+
+        Aplica o mesmo filtro de RBAC de visibilidade usado em `listar()`
+        (`_filtrar_notificacoes_visiveis`) — sem isso o contador do sino
+        ficaria maior que a quantidade real exibida na lista.
+        """
         lida_usuario = func.coalesce(NotificacaoLeitura.lida, False)
         sistema_ativo = func.coalesce(NotificacaoPreferencia.sistema_ativo, True)
         stmt = (
-            select(func.count(Notificacao.id))
+            select(Notificacao.id, Notificacao.tipo)
             .outerjoin(
                 NotificacaoLeitura,
                 and_(
@@ -479,7 +524,24 @@ Exemplo de saída: 🚨 Margem caiu para 8%. Recomendamos revisar custos operaci
                 sistema_ativo == True,  # noqa: E712
             )
         )
-        return (await self.session.execute(stmt)).scalar() or 0
+        rows = (await self.session.execute(stmt)).all()
+
+        from core.dependencies import resolver_permissao_usuario
+
+        cache: dict[str, bool] = {}
+        total = 0
+        for _id, tipo in rows:
+            permissao = permissao_necessaria_para_tipo(tipo)
+            if permissao is None:
+                total += 1
+                continue
+            if permissao not in cache:
+                cache[permissao] = await resolver_permissao_usuario(
+                    self.session, self.tenant_id, usuario_id, permissao
+                )
+            if cache[permissao]:
+                total += 1
+        return total
 
     async def listar_preferencias(self, usuario_id: UUID) -> list[NotificacaoPreferencia]:
         stmt = select(NotificacaoPreferencia).where(

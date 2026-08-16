@@ -119,8 +119,16 @@ async def test_total_nao_lidas_por_usuario():
     tenant_id = uuid.uuid4()
     usuario_id = uuid.uuid4()
 
+    # total_nao_lidas agora traz (id, tipo) por linha e aplica o filtro de
+    # visibilidade RBAC em Python (mesma lógica de _filtrar_notificacoes_visiveis),
+    # em vez de um COUNT puro em SQL — tipos de propósito geral (sem entrada em
+    # notificacoes/constants.py) contam sempre.
     result_mock = MagicMock()
-    result_mock.scalar.return_value = 3
+    result_mock.all.return_value = [
+        (uuid.uuid4(), "RESUMO_DIARIO"),
+        (uuid.uuid4(), "PLANO_ACAO"),
+        (uuid.uuid4(), "RECOMENDACAO"),
+    ]
     session = AsyncMock()
     session.execute = AsyncMock(return_value=result_mock)
 
