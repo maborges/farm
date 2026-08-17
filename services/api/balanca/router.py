@@ -280,7 +280,7 @@ async def obter_balanca_fisica(
 ):
     svc = BalancaFisicaService(session, tenant_id)
     try:
-        return await svc.get_or_fail(balanca_id)
+        return await svc.obter_com_afericao(balanca_id)
     except EntityNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
 
@@ -304,7 +304,7 @@ async def atualizar_balanca_fisica(
         balanca = await svc.atualizar(balanca_id, data)
         await session.commit()
         await session.refresh(balanca)
-        return balanca
+        return await svc.obter_com_afericao(balanca.id)
     except EntityNotFoundError as exc:
         await session.rollback()
         raise HTTPException(status_code=404, detail=str(exc))

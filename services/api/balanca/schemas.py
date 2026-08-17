@@ -104,6 +104,9 @@ class BalancaFisicaResponse(BaseModel):
     ativa: bool
     created_at: datetime
     updated_at: datetime
+    # Calculados a partir da aferição mais recente — None quando nunca aferida.
+    ultima_afericao_validade_ate: datetime | None = None
+    afericao_vencida: bool = False
 
 
 ResultadoAfericao = Literal["APROVADA", "REPROVADA", "APROVADA_COM_RESSALVA"]

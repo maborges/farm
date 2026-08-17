@@ -221,7 +221,12 @@ class BalancaFisicaService:
             raise EntityNotFoundError(f"Balança física {balanca_id} não encontrada.")
         return balanca
 
-    async def listar(self, skip: int = 0, limit: int = 100) -> list[BalancaFisica]:
+    async def obter_com_afericao(self, balanca_id: uuid.UUID) -> dict:
+        balanca = await self.get_or_fail(balanca_id)
+        mapa = await self._mapa_ultima_afericao([balanca.id])
+        return self._com_afericao(balanca, mapa)
+
+    async def listar(self, skip: int = 0, limit: int = 100) -> list[dict]:
         result = await self.session.execute(
             select(BalancaFisica)
             .where(BalancaFisica.tenant_id == self.tenant_id)
@@ -229,7 +234,41 @@ class BalancaFisicaService:
             .offset(skip)
             .limit(limit)
         )
-        return list(result.scalars().all())
+        balancas = list(result.scalars().all())
+        mapa = await self._mapa_ultima_afericao([b.id for b in balancas])
+        return [self._com_afericao(b, mapa) for b in balancas]
+
+    async def _mapa_ultima_afericao(self, balanca_ids: list[uuid.UUID]) -> dict[uuid.UUID, datetime | None]:
+        """validade_ate da aferição mais recente (por data_afericao) de cada
+        balança física — usado para calcular afericao_vencida sem N+1."""
+        if not balanca_ids:
+            return {}
+        result = await self.session.execute(
+            select(AfericaoBalanca.balanca_fisica_id, AfericaoBalanca.validade_ate)
+            .distinct(AfericaoBalanca.balanca_fisica_id)
+            .where(AfericaoBalanca.balanca_fisica_id.in_(balanca_ids))
+            .order_by(AfericaoBalanca.balanca_fisica_id, AfericaoBalanca.data_afericao.desc())
+        )
+        return {row.balanca_fisica_id: row.validade_ate for row in result.all()}
+
+    @staticmethod
+    def _com_afericao(balanca: BalancaFisica, mapa: dict[uuid.UUID, datetime | None]) -> dict:
+        validade = mapa.get(balanca.id)
+        return {
+            "id": balanca.id,
+            "tenant_id": balanca.tenant_id,
+            "nome": balanca.nome,
+            "unidade_produtiva_id": balanca.unidade_produtiva_id,
+            "fabricante": balanca.fabricante,
+            "modelo": balanca.modelo,
+            "numero_serie": balanca.numero_serie,
+            "capacidade_kg": balanca.capacidade_kg,
+            "ativa": balanca.ativa,
+            "created_at": balanca.created_at,
+            "updated_at": balanca.updated_at,
+            "ultima_afericao_validade_ate": validade,
+            "afericao_vencida": bool(validade and validade < datetime.utcnow()),
+        }
 
 
 class AfericaoService:

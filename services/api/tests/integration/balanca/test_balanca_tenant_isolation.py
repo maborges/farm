@@ -665,10 +665,40 @@ async def test_balanca_fisica_afericao_e_vinculo_com_dispositivo(client: httpx.A
     assert resp.status_code == 201, resp.text
     assert resp.json()["balanca_fisica_id"] == balanca_id
 
+    # Detalhe reflete a aferição vigente (válida até 2027 — não vencida)
+    resp = await client.get(f"/api/v1/balanca/balancas-fisicas/{balanca_id}", headers=headers)
+    assert resp.status_code == 200
+    assert resp.json()["afericao_vencida"] is False
+    assert resp.json()["ultima_afericao_validade_ate"] is not None
+
+    resp = await client.get("/api/v1/balanca/balancas-fisicas", headers=headers)
+    listada = next(b for b in resp.json() if b["id"] == balanca_id)
+    assert listada["afericao_vencida"] is False
+
+    # Nova aferição mais recente porém já vencida — passa a valer (é a mais recente por data)
+    resp = await client.post(
+        f"/api/v1/balanca/balancas-fisicas/{balanca_id}/afericoes",
+        json={
+            "data_afericao": "2026-08-18T10:00:00Z",
+            "validade_ate": "2026-01-01T00:00:00Z",
+            "orgao_afericao": "IPEM-SP",
+            "resultado": "APROVADA",
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 201, resp.text
+
+    resp = await client.get(f"/api/v1/balanca/balancas-fisicas/{balanca_id}", headers=headers)
+    assert resp.json()["afericao_vencida"] is True
+
+    resp = await client.get("/api/v1/balanca/balancas-fisicas", headers=headers)
+    listada = next(b for b in resp.json() if b["id"] == balanca_id)
+    assert listada["afericao_vencida"] is True
+
     resp = await client.get(f"/api/v1/balanca/balancas-fisicas/{balanca_id}/afericoes", headers=headers)
     assert resp.status_code == 200
     afericoes = resp.json()
-    assert len(afericoes) == 1
+    assert len(afericoes) == 2
     assert afericoes[0]["orgao_afericao"] == "IPEM-SP"
 
     # Dispositivo (terminal) vinculado à balança física
