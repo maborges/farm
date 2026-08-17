@@ -2,7 +2,7 @@
 
 **Status:** captura manual + sync offline + leitura eletrônica via ponte de hardware (`tools/balanca-bridge`) + modelo de pesagem por etapas (peso informado vs aferido) + login de operador + **vínculo real com Colheita, Pecuária, Compras e Vendas** implementados — ver seção 5.3.
 **Desenho completo/decisões de arquitetura:** `docs/brainstorm-modulo-balanca.md`
-**Última atualização:** 2026-08-17 (balança física separada do terminal — cadastro de equipamento + histórico de aferição/metrologia legal)
+**Última atualização:** 2026-08-17 (notificação proativa de aferição vencida via AlertasEngine — chega no sino do apps/web)
 
 ## 1. O que é
 
@@ -225,6 +225,20 @@ demais endpoints administrativos do módulo.
 aferições (dialog dedicado por balança). O diálogo de nova estação
 (`dispositivo-dialog.tsx`) ganhou um seletor opcional de balança física.
 
+**Alerta de aferição vencida (proativo):** além do badge visual na tela,
+`AlertasEngine._verificar_afericao_vencida()`
+(`notificacoes/alertas_engine.py`) roda a cada tenant no ciclo periódico do
+`automacoes/worker.py` (`run_alerts_check`, ~10 min) e gera uma
+`Notificacao` (tipo `AFERICAO_BALANCA_VENCIDA`, agregando todas as balanças
+vencidas do tenant numa notificação só) — **é o único motor de alerta que
+efetivamente chega no sino de notificação do `apps/web`** (o `alert_engine`
+canônico com `OperationalAlert` existe em paralelo mas hoje não alimenta o
+sino; por isso o alerta plugou no motor antigo, não no novo — ver decisão
+registrada nesta sessão). Cooldown de 24h por tipo/origem evita spam a cada
+ciclo. Também espelha em `operational_alerts` via `_espelhar_operational_alert`
+(mesmo padrão dos demais alertas deste motor), mas isso é só para
+consistência entre os dois sistemas — quem o usuário vê é a `Notificacao`.
+
 ## 6. Uso no dia a dia (operador da balança)
 
 1. A tela de pesagem lista as ordens pendentes (criadas por colheita, compra, venda ou pecuária), com o número da NF e agendamento quando presentes.
@@ -259,7 +273,6 @@ Quando a ordem do processo chega depois, ou alguém do escritório precisa vincu
 - **Ponte de hardware ainda não testada com equipamento real:** o parser é genérico (regex configurável) e foi validado com um simulador — quando a marca/modelo do indicador for definida, confirmar o formato real do frame e ajustar `config.yaml` (ver `tools/balanca-bridge/README.md`).
 - **Vínculo depende do worker de outbox estar rodando:** o evento `balanca.pesagem.concluida` só é entregue quando `background_worker.py` processa a fila (`events/outbox_relay.py`) — se o worker não estiver ativo em produção, romaneios/animais não recebem o peso automaticamente (a ordem na Balança continua correta, só o vínculo atrasa).
 - **Login de operador exige rede na hora de entrar:** a verificação do PIN pessoal é sempre no servidor (não dá pra validar bcrypt offline com segurança) — o operador precisa de conexão pra logar na estação uma vez; depois disso, pesar continua 100% offline até trocar de operador.
-- **Alerta de aferição vencida é só visual (badge na tela), não proativo:** `GET /balanca/balancas-fisicas` e `.../{id}` retornam `afericao_vencida`/`ultima_afericao_validade_ate` (calculado pela aferição mais recente) e a tela de Balanças Físicas mostra badge vermelho "Vencida" — mas nada notifica por e-mail/push quando vence; é preciso abrir a tela para ver. Integração com `alert_engine`/notificações fica para uma próxima rodada.
 - **Sem controle de qualidade / ajuste de peso:** não existe fluxo para descontar peso pós-pesagem (ex.: desconto por umidade/impureza em grãos) — pesagens são imutáveis uma vez registradas.
 - **Sem leitura automática de código de barras/NFe:** `numero_documento_fiscal` existe mas é preenchido manualmente (na solicitação, pelo módulo cliente) — sem scanner/OCR.
 - **Sem etiqueta/relatório de pesagem, nem histórico de avaliação de prestadores** (transportadora/motorista) — não solicitados ainda para esta fase.
