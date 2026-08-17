@@ -98,6 +98,8 @@ export default function PesagemPage() {
   const [pesoAferido, setPesoAferido] = useState("");
   const [pesoInformado, setPesoInformado] = useState("");
   const [placa, setPlaca] = useState("");
+  const [ticketOrdemId, setTicketOrdemId] = useState<string | null>(null);
+  const [baixandoTicket, setBaixandoTicket] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [mensagem, setMensagem] = useState<string | null>(null);
   const [capturedVia, setCapturedVia] = useState<"MANUAL" | "ELETRONICA">("MANUAL");
@@ -163,6 +165,30 @@ export default function PesagemPage() {
     setConfigPonteAberta(false);
   }
 
+  async function handleBaixarTicket(ordemId: string) {
+    setBaixandoTicket(true);
+    try {
+      const resp = await fetch(
+        `/api/v1/balanca/sync/ordens/${ordemId}/pdf?device_id=${session!.device_id}`,
+        { headers: { Authorization: `Bearer ${session!.device_token}` } },
+      );
+      if (!resp.ok) {
+        throw new Error(
+          resp.status === 404
+            ? "Pesagem ainda não sincronizada — tente de novo em instantes."
+            : "Falha ao gerar o ticket.",
+        );
+      }
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      window.open(url, "_blank");
+    } catch (err) {
+      setMensagem(err instanceof Error ? err.message : "Falha ao gerar o ticket.");
+    } finally {
+      setBaixandoTicket(false);
+    }
+  }
+
   async function handleRegistrarPeso(e: React.FormEvent) {
     e.preventDefault();
     if (!etapaAtual || (!ordemSelecionada && !avulsaConfig)) return;
@@ -210,6 +236,11 @@ export default function PesagemPage() {
         await db.ordens.update(ordemSelecionada.id, {
           status: restantes.length > 0 ? "EM_PESAGEM" : "CONCLUIDA",
         });
+        if (restantes.length === 0) {
+          // Ordem concluída — o ticket só fica disponível depois que a
+          // pesagem sincronizar (o PDF é montado a partir dos dados no servidor).
+          setTicketOrdemId(ordemSelecionada.id);
+        }
         if (restantes.length > 0) {
           // Mantém a tela na mesma ordem para capturar a próxima etapa.
           setPesoAferido("");
@@ -323,7 +354,21 @@ export default function PesagemPage() {
         </form>
       )}
 
-      {mensagem && <p className="mb-4 rounded bg-green-50 p-2 text-sm text-green-700">{mensagem}</p>}
+      {mensagem && (
+        <div className="mb-4 flex items-center justify-between gap-3 rounded bg-green-50 p-2 text-sm text-green-700">
+          <p>{mensagem}</p>
+          {ticketOrdemId && (
+            <button
+              type="button"
+              className="shrink-0 rounded bg-green-600 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
+              disabled={baixandoTicket}
+              onClick={() => handleBaixarTicket(ticketOrdemId)}
+            >
+              {baixandoTicket ? "Gerando..." : "Baixar ticket"}
+            </button>
+          )}
+        </div>
+      )}
 
       {!emCaptura ? (
         <section className="space-y-4">
@@ -335,7 +380,10 @@ export default function PesagemPage() {
                 <li key={ordem.id}>
                   <button
                     className="w-full rounded border border-gray-200 bg-white p-3 text-left shadow-sm"
-                    onClick={() => setOrdemSelecionadaId(ordem.id)}
+                    onClick={() => {
+                      setTicketOrdemId(null);
+                      setOrdemSelecionadaId(ordem.id);
+                    }}
                   >
                     <div className="flex justify-between text-sm font-medium">
                       <span>{ordem.origem_tipo}</span>

@@ -2,7 +2,7 @@
 
 **Status:** captura manual + sync offline + leitura eletrônica via ponte de hardware (`tools/balanca-bridge`) + modelo de pesagem por etapas (peso informado vs aferido) + login de operador + **vínculo real com Colheita, Pecuária, Compras e Vendas** implementados — ver seção 5.3.
 **Desenho completo/decisões de arquitetura:** `docs/brainstorm-modulo-balanca.md`
-**Última atualização:** 2026-08-17 (notificação proativa de aferição vencida via AlertasEngine — chega no sino do apps/web)
+**Última atualização:** 2026-08-17 (ticket de pesagem em PDF — comprovante que o motorista leva)
 
 ## 1. O que é
 
@@ -239,6 +239,32 @@ ciclo. Também espelha em `operational_alerts` via `_espelhar_operational_alert`
 (mesmo padrão dos demais alertas deste motor), mas isso é só para
 consistência entre os dois sistemas — quem o usuário vê é a `Notificacao`.
 
+## 5.7. Ticket de pesagem (PDF)
+
+Comprovante imprimível — o que o motorista leva. `PesagemService.gerar_pdf_ordem()`
+(`balanca/service.py`) monta um PDF A5 (reportlab, mesmo padrão de
+`ComprasService.gerar_pdf_pedido()`) com origem/sujeito/tipo de pesagem,
+placa ou brinco, documento fiscal, cada etapa registrada (peso aferido vs
+informado, data/hora) e o peso líquido final.
+
+Dois endpoints, mesmo conteúdo, autenticação diferente:
+- `GET /balanca/ordens/{ordem_id}/pdf` — JWT de usuário (admin), gateado
+  por `O4_BALANCA` + `balanca:pesagem:listar`.
+- `GET /balanca/sync/ordens/{ordem_id}/pdf?device_id=...` — device token
+  (estação), sem gate de módulo (mesmo padrão de `/operadores/ativos` e
+  `/operadores/login` — a estação já provou posse do device token).
+
+**UI:**
+- **PWA (`apps/balanca`):** botão "Baixar ticket" aparece na tela de
+  pesagem assim que uma ordem com processo de origem conclui (não
+  disponível em pesagem avulsa, pois a ordem "sombra" só existe no servidor
+  depois do sync). Abre o PDF numa nova aba (visualizador do navegador,
+  que já oferece impressão).
+- **Admin (`apps/web`):** botão "Ticket" na tela de Reconciliação, ao lado
+  de "Associar" — baixa o PDF da pesagem avulsa selecionada. Não há uma
+  tela geral de "Ordens de Pesagem" no admin ainda (gap conhecido — ver
+  seção 7), então o ticket só é baixável dali por enquanto.
+
 ## 6. Uso no dia a dia (operador da balança)
 
 1. A tela de pesagem lista as ordens pendentes (criadas por colheita, compra, venda ou pecuária), com o número da NF e agendamento quando presentes.
@@ -273,9 +299,10 @@ Quando a ordem do processo chega depois, ou alguém do escritório precisa vincu
 - **Ponte de hardware ainda não testada com equipamento real:** o parser é genérico (regex configurável) e foi validado com um simulador — quando a marca/modelo do indicador for definida, confirmar o formato real do frame e ajustar `config.yaml` (ver `tools/balanca-bridge/README.md`).
 - **Vínculo depende do worker de outbox estar rodando:** o evento `balanca.pesagem.concluida` só é entregue quando `background_worker.py` processa a fila (`events/outbox_relay.py`) — se o worker não estiver ativo em produção, romaneios/animais não recebem o peso automaticamente (a ordem na Balança continua correta, só o vínculo atrasa).
 - **Login de operador exige rede na hora de entrar:** a verificação do PIN pessoal é sempre no servidor (não dá pra validar bcrypt offline com segurança) — o operador precisa de conexão pra logar na estação uma vez; depois disso, pesar continua 100% offline até trocar de operador.
+- **Sem tela geral de "Ordens de Pesagem" no admin:** o ticket em PDF (seção 5.7) só é baixável hoje pela tela de Reconciliação (pesagens avulsas) ou pela própria estação — não há uma lista de todas as ordens (de qualquer origem) no `apps/web` para revisitar/baixar depois.
 - **Sem controle de qualidade / ajuste de peso:** não existe fluxo para descontar peso pós-pesagem (ex.: desconto por umidade/impureza em grãos) — pesagens são imutáveis uma vez registradas.
 - **Sem leitura automática de código de barras/NFe:** `numero_documento_fiscal` existe mas é preenchido manualmente (na solicitação, pelo módulo cliente) — sem scanner/OCR.
-- **Sem etiqueta/relatório de pesagem, nem histórico de avaliação de prestadores** (transportadora/motorista) — não solicitados ainda para esta fase.
+- **Sem histórico de avaliação de prestadores** (transportadora/motorista) — não solicitado ainda para esta fase.
 
 ## 8. Referências técnicas
 
@@ -326,6 +353,8 @@ Quando a ordem do processo chega depois, ou alguém do escritório precisa vincu
 | GET | `/api/v1/balanca/ordens/pendentes-reconciliacao` | Lista pesagens avulsas ainda não associadas |
 | GET | `/api/v1/balanca/sync/pull` | PWA busca ordens pendentes (token de dispositivo) |
 | POST | `/api/v1/balanca/sync/push` | PWA envia pesagens capturadas (token de dispositivo) |
+| GET | `/api/v1/balanca/ordens/{id}/pdf` | Ticket de pesagem em PDF (admin, JWT) |
+| GET | `/api/v1/balanca/sync/ordens/{id}/pdf` | Ticket de pesagem em PDF (estação, device token) |
 | POST | `/api/v1/romaneios/{id}/solicitar-pesagem-balanca` | Colheita: vincula romaneio a uma pesagem oficial |
 | POST | `/api/v1/pecuaria/animais/{id}/pesagens/solicitar-balanca` | Pecuária: vincula animal a uma pesagem oficial |
 | POST | `/api/v1/compras/pedidos/{id}/solicitar-pesagem-balanca` | Compras: vincula pedido a uma pesagem oficial |

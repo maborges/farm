@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status, Query
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from jose import jwt, JWTError
 from loguru import logger
@@ -559,6 +559,30 @@ async def listar_pesagens_da_ordem(
     return await svc.listar_pesagens_por_ordem(ordem_id)
 
 
+@router.get(
+    "/ordens/{ordem_id}/pdf",
+    dependencies=[
+        Depends(require_module("O4_BALANCA")),
+        Depends(require_tenant_permission("balanca:pesagem:listar")),
+    ],
+)
+async def gerar_pdf_ordem(
+    ordem_id: uuid.UUID,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    session: AsyncSession = Depends(get_session),
+):
+    """Ticket de pesagem imprimível — acesso admin (JWT de usuário)."""
+    svc = PesagemService(session, tenant_id)
+    pdf_content = await svc.gerar_pdf_ordem(ordem_id)
+    if not pdf_content:
+        raise HTTPException(status_code=404, detail="Ordem de pesagem não encontrada.")
+    return Response(
+        content=pdf_content,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=ticket-{ordem_id}.pdf"},
+    )
+
+
 @router.post(
     "/ordens/{ordem_id}/cancelar",
     response_model=OrdemPesagemResponse,
@@ -654,3 +678,24 @@ async def sync_push(
         raise HTTPException(status_code=500, detail=str(exc))
 
     return SyncPushResponse(processed_at=datetime.utcnow(), results=results)
+
+
+@sync_router.get("/ordens/{ordem_id}/pdf")
+async def sync_pdf_ordem(
+    request: Request,
+    ordem_id: uuid.UUID,
+    device_id: uuid.UUID = Query(...),
+    session: AsyncSession = Depends(get_session),
+):
+    """Ticket de pesagem imprimível — acesso da estação (device token), para
+    o operador entregar o comprovante ao motorista assim que a ordem conclui."""
+    device = await _get_device_from_token(device_id, request, session)
+    svc = PesagemService(session, device.tenant_id)
+    pdf_content = await svc.gerar_pdf_ordem(ordem_id)
+    if not pdf_content:
+        raise HTTPException(status_code=404, detail="Ordem de pesagem não encontrada.")
+    return Response(
+        content=pdf_content,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"inline; filename=ticket-{ordem_id}.pdf"},
+    )

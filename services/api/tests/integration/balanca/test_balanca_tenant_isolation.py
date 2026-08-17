@@ -740,3 +740,84 @@ async def test_balanca_fisica_afericao_e_vinculo_com_dispositivo(client: httpx.A
         headers=headers_b,
     )
     assert resp.status_code == 404
+
+
+async def test_gerar_ticket_pdf_via_admin_e_via_device_token(client: httpx.AsyncClient, session):
+    """Ticket de pesagem (PDF) — acessível tanto pelo admin (JWT) quanto pela
+    própria estação (device token), para o operador entregar ao motorista."""
+    tenant_id = uuid.uuid4()
+    user_id = uuid.uuid4()
+    token = await _criar_tenant_com_owner(session, tenant_id, user_id, "Tenant Ticket PDF")
+    headers = {"Authorization": f"Bearer {token}", "X-Tenant-ID": str(tenant_id)}
+
+    resp = await client.post(
+        "/api/v1/balanca/devices",
+        json={"nome": "Balança Ticket PDF", "fazenda_ids": [str(uuid.uuid4())]},
+        headers=headers,
+    )
+    activation_code = resp.json()["activation_code"]
+    resp = await client.post(
+        "/api/v1/balanca/devices/activate",
+        json={"activation_code": activation_code, "pin_hash": "hash", "device_fingerprint": f"fp-{uuid.uuid4()}"},
+    )
+    device_id = resp.json()["device_id"]
+    device_token = resp.json()["device_token"]
+
+    resp = await client.post(
+        "/api/v1/balanca/ordens",
+        json={
+            "origem_tipo": "OUTRO",
+            "subject_type": "VEICULO",
+            "tipo_pesagem": "UNICA",
+            "contexto": {"placa": "ABC1D23"},
+        },
+        headers=headers,
+    )
+    ordem_id = resp.json()["id"]
+
+    resp = await client.post(
+        "/api/v1/balanca/sync/push",
+        json={
+            "device_id": device_id,
+            "items": [
+                {
+                    "local_id": str(uuid.uuid4()),
+                    "operation": "CREATE",
+                    "entity_type": "pesagem",
+                    "payload": {
+                        "ordem_id": ordem_id,
+                        "etapa": "UNICA",
+                        "peso_aferido_kg": "18500.500",
+                        "peso_tara_kg": "8000.000",
+                        "placa": "ABC1D23",
+                    },
+                    "client_created_at": "2026-08-17T10:00:00Z",
+                    "client_updated_at": "2026-08-17T10:00:00Z",
+                }
+            ],
+        },
+        headers={"Authorization": f"Bearer {device_token}"},
+    )
+    assert resp.status_code == 200
+
+    # Admin (JWT)
+    resp = await client.get(f"/api/v1/balanca/ordens/{ordem_id}/pdf", headers=headers)
+    assert resp.status_code == 200, resp.text
+    assert resp.headers["content-type"] == "application/pdf"
+    assert resp.content[:4] == b"%PDF"
+
+    # Estação (device token)
+    resp = await client.get(
+        f"/api/v1/balanca/sync/ordens/{ordem_id}/pdf?device_id={device_id}",
+        headers={"Authorization": f"Bearer {device_token}"},
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.content[:4] == b"%PDF"
+
+    # Ordem de outro tenant não pode ser baixada
+    tenant_b_id = uuid.uuid4()
+    user_b_id = uuid.uuid4()
+    token_b = await _criar_tenant_com_owner(session, tenant_b_id, user_b_id, "Tenant Ticket PDF B")
+    headers_b = {"Authorization": f"Bearer {token_b}", "X-Tenant-ID": str(tenant_b_id)}
+    resp = await client.get(f"/api/v1/balanca/ordens/{ordem_id}/pdf", headers=headers_b)
+    assert resp.status_code == 404

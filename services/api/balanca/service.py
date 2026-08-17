@@ -449,6 +449,84 @@ class PesagemService:
         )
         return list(result.scalars().all())
 
+    async def gerar_pdf_ordem(self, ordem_id: uuid.UUID) -> bytes | None:
+        """Ticket de pesagem imprimível — comprovante que o motorista leva.
+        Segue o mesmo padrão reportlab de ComprasService.gerar_pdf_pedido()."""
+        from reportlab.lib.pagesizes import A5
+        from reportlab.lib import colors
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+        import io
+
+        ordem = await self.session.get(OrdemPesagem, ordem_id)
+        if not ordem or ordem.tenant_id != self.tenant_id:
+            return None
+        pesagens = await self.listar_pesagens_por_ordem(ordem_id)
+
+        buffer = io.BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=A5, rightMargin=24, leftMargin=24, topMargin=24, bottomMargin=18)
+        styles = getSampleStyleSheet()
+        title_style = ParagraphStyle(
+            "TicketTitle", parent=styles["Heading1"], fontSize=14, alignment=1, spaceAfter=14,
+        )
+
+        elements = [Paragraph("TICKET DE PESAGEM", title_style), Spacer(1, 6)]
+
+        contexto = ordem.contexto or {}
+        dados_ordem = [
+            ["Origem:", ordem.origem_tipo],
+            ["Sujeito:", "Veículo/carga" if ordem.subject_type == "VEICULO" else "Animal"],
+            ["Tipo de pesagem:", ordem.tipo_pesagem],
+            ["Status:", ordem.status],
+        ]
+        if contexto.get("placa"):
+            dados_ordem.append(["Placa:", contexto["placa"]])
+        if contexto.get("numero_brinco"):
+            dados_ordem.append(["Brinco:", contexto["numero_brinco"]])
+        if ordem.numero_documento_fiscal:
+            dados_ordem.append(["Documento fiscal:", ordem.numero_documento_fiscal])
+        if ordem.concluida_em:
+            dados_ordem.append(["Concluída em:", ordem.concluida_em.strftime("%d/%m/%Y %H:%M")])
+
+        t_ordem = Table(dados_ordem, colWidths=[110, 200])
+        t_ordem.setStyle(TableStyle([
+            ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+            ("FONTSIZE", (0, 0), (-1, -1), 9),
+        ]))
+        elements.append(t_ordem)
+        elements.append(Spacer(1, 14))
+
+        elements.append(Paragraph("<b>PESAGENS</b>", styles["Normal"]))
+        elements.append(Spacer(1, 4))
+        header = ["Etapa", "Aferido (kg)", "Informado (kg)", "Data/hora"]
+        rows = [
+            [
+                p.etapa,
+                f"{p.peso_aferido_kg:,.3f}".translate(str.maketrans(",.", ".,")) if p.peso_aferido_kg is not None else "—",
+                f"{p.peso_informado_kg:,.3f}".translate(str.maketrans(",.", ".,")) if p.peso_informado_kg is not None else "—",
+                p.data_pesagem.strftime("%d/%m/%Y %H:%M") if p.data_pesagem else "—",
+            ]
+            for p in pesagens
+        ]
+        t_pesagens = Table([header] + rows, colWidths=[70, 90, 90, 90])
+        t_pesagens.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTSIZE", (0, 0), (-1, -1), 8),
+            ("ALIGN", (1, 0), (-1, -1), "RIGHT"),
+            ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+        ]))
+        elements.append(t_pesagens)
+        elements.append(Spacer(1, 14))
+
+        peso_liquido = f"{ordem.peso_liquido_kg:,.3f}".translate(str.maketrans(",.", ".,")) if ordem.peso_liquido_kg is not None else "—"
+        elements.append(Paragraph(f"<b>Peso líquido:</b> {peso_liquido} kg", styles["Normal"]))
+
+        doc.build(elements)
+        pdf_content = buffer.getvalue()
+        buffer.close()
+        return pdf_content
+
     async def listar_pendentes_reconciliacao(self, skip: int = 0, limit: int = 100) -> list[OrdemPesagem]:
         """Pesagens avulsas (sem processo de origem definido no momento da pesagem) —
         criadas automaticamente pela estação quando não há OrdemPesagem prévia."""
