@@ -44,6 +44,37 @@ class DispositivoBalanca(Base):
     )
 
 
+class OperadorBalanca(Base):
+    """Operador habilitado a pesar em qualquer estação do tenant, autenticado por
+    PIN pessoal (não confundir com o pin_hash de DispositivoBalanca, que é da
+    estação/terminal). Cadastro próprio do módulo — referencia Pessoa (core) por
+    convenção (pessoa_id), sem FK direta, mesmo princípio de desacoplamento usado
+    em origem_id/produto_id."""
+    __tablename__ = "balanca_operadores"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+
+    pessoa_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
+    nome_exibicao: Mapped[str] = mapped_column(String(150), nullable=False)
+    pin_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+
+    status: Mapped[str] = mapped_column(String(20), default="ATIVO", nullable=False)
+    # ATIVO | REVOGADO
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    revoked_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "pessoa_id", name="uq_balanca_operador_tenant_pessoa"),
+        Index("ix_balanca_operadores_tenant_status", "tenant_id", "status"),
+    )
+
+
 class OrdemPesagem(Base):
     """Solicitação de pesagem criada por um módulo cliente (romaneio, compras, vendas,
     pecuária, pessoas). Não referencia tabelas de outros módulos diretamente — origem

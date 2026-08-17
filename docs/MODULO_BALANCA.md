@@ -101,6 +101,25 @@ que roda o PWA):
 
 Depois de configurada, a tela de pesagem mostra o peso ao vivo com indicador de conexão (verde = conectado, cinza = sem ponte, e um aviso quando a leitura está desatualizada) e um botão **"Usar este peso"** que preenche o campo — o campo continua editável manualmente a qualquer momento (`captured_via` registra `ELETRONICA` ou `MANUAL` conforme a origem usada).
 
+## 5.2. Login de operador (PIN pessoal)
+
+Rastreabilidade de quem pesou: antes de ver as ordens pendentes, a estação pede que o
+operador se identifique.
+
+**Cadastro (admin, `apps/web`):** **Balança → Operadores** (`/dashboard/operacional/balanca/operadores`)
+→ **"Novo operador"** → selecione uma Pessoa já cadastrada no core e defina um PIN
+(4 a 8 dígitos, hash gerado no navegador). A mesma pessoa não pode ser cadastrada duas
+vezes; revogar remove o acesso imediatamente e some do seletor da estação.
+
+**Login na estação (PWA):** ao abrir `/pesagem`, se ninguém estiver logado, aparece a
+tela "Quem está pesando?" — lista os operadores ativos (busca via API, precisa de rede
+nesse momento), o operador escolhe o nome e digita o PIN. A verificação do PIN é sempre
+no servidor (bcrypt) — não dá pra validar offline com segurança. Depois de logado, o
+operador continua pesando 100% offline como antes; só precisa de rede de novo se trocar
+de operador. Botão **"Trocar operador"** no cabeçalho da tela de pesagem.
+
+Cada `Pesagem` grava `operador_pessoa_id` do operador logado no momento da captura.
+
 ## 6. Uso no dia a dia (operador da balança)
 
 1. A tela de pesagem lista as ordens pendentes (criadas por colheita, compra, venda ou pecuária), com o número da NF e agendamento quando presentes.
@@ -137,7 +156,7 @@ Quando a ordem do processo chega depois, ou alguém do escritório precisa vincu
 - **Pesagem de animal ainda não tem tela/fluxo específico de pecuária** (ex.: seleção de lote/brinco) — a prioridade combinada foi carga primeiro; hoje `subject_type=ANIMAL` funciona igual a `VEICULO` (só sem campo de placa).
 - **Vínculo automático com módulos clientes** (colheita, compras, vendas, pecuária chamando `PesagemService.solicitar_pesagem()` de verdade) ainda não foi cabeado em nenhum módulo piloto — hoje a criação de ordens é testável via API (`POST /api/v1/balanca/ordens`), mas nenhuma tela de colheita/compra/venda chama isso automaticamente ainda.
 - **Reconciliação sem busca assistida:** a tela de reconciliação pede o ID do registro (romaneio/compra/venda/lote) digitado/colado manualmente — ainda não há um seletor com busca por nome/data dentro de cada módulo.
-- **Operador não é identificado por login:** `Pesagem.operador_pessoa_id` já existe no schema, mas o PWA não pede login de uma Pessoa cadastrada — hoje só a estação (PIN) é autenticada, não quem está operando.
+- **Login de operador exige rede na hora de entrar:** a verificação do PIN pessoal é sempre no servidor (não dá pra validar bcrypt offline com segurança) — o operador precisa de conexão pra logar na estação uma vez; depois disso, pesar continua 100% offline até trocar de operador.
 - **Terminal × Balança ainda é um cadastro só:** `DispositivoBalanca` representa a estação inteira; não há um cadastro de "balança" separado do "terminal" (relação ainda não definida — decisão de produto pendente).
 - **Sem controle de qualidade / ajuste de peso:** não existe fluxo para descontar peso pós-pesagem (ex.: desconto por umidade/impureza em grãos) — pesagens são imutáveis uma vez registradas.
 - **Sem leitura automática de código de barras/NFe:** `numero_documento_fiscal` existe mas é preenchido manualmente (na solicitação, pelo módulo cliente) — sem scanner/OCR.
@@ -148,15 +167,16 @@ Quando a ordem do processo chega depois, ou alguém do escritório precisa vincu
 | O quê | Onde |
 |---|---|
 | Backend (models, service, router) | `services/api/balanca/` |
-| Migration | `services/api/migrations/versions/20260816_balanca_modulo.py` |
+| Migrations | `services/api/migrations/versions/20260816_balanca_{modulo,etapas,operadores}.py` |
 | Teste de isolamento de tenant | `services/api/tests/integration/balanca/test_balanca_tenant_isolation.py` |
 | PWA da estação | `apps/balanca/` |
 | Ponte de hardware (leitura eletrônica) | `tools/balanca-bridge/` (serviço Python standalone, roda perto do indicador) |
 | Cliente da ponte no PWA | `apps/balanca/src/lib/bridge/peso-ao-vivo.ts` |
-| Telas administrativas (apps/web) | `apps/web/src/app/(dashboard)/dashboard/operacional/balanca/{dispositivos,reconciliacao}/` |
+| Telas administrativas (apps/web) | `apps/web/src/app/(dashboard)/dashboard/operacional/balanca/{dispositivos,operadores,reconciliacao}/` |
 | Componentes das telas admin | `apps/web/src/components/balanca/` |
+| Login de operador no PWA | `apps/balanca/src/components/operador-login.tsx` |
 | Entrada de menu | `apps/web/src/lib/sidebar-config.ts` (grupo `BALANCA`) |
-| Catálogo de permissões | `apps/web/src/lib/permission-catalog.ts` (`balanca:dispositivo`, `balanca:pesagem`) |
+| Catálogo de permissões | `apps/web/src/lib/permission-catalog.ts` (`balanca:dispositivo`, `balanca:operador`, `balanca:pesagem`) |
 | Desenho/decisões de arquitetura | `docs/brainstorm-modulo-balanca.md` |
 
 ### Endpoints principais
@@ -168,6 +188,11 @@ Quando a ordem do processo chega depois, ou alguém do escritório precisa vincu
 | POST | `/api/v1/balanca/devices/revoke` | Revoga acesso da estação |
 | POST | `/api/v1/balanca/devices/reactivate` | Gera novo código para estação revogada/expirada |
 | GET | `/api/v1/balanca/devices` | Lista estações do tenant |
+| POST | `/api/v1/balanca/operadores` | Cadastra operador (Pessoa + PIN) |
+| GET | `/api/v1/balanca/operadores` | Lista operadores do tenant (admin) |
+| POST | `/api/v1/balanca/operadores/{id}/revogar` | Revoga acesso do operador |
+| GET | `/api/v1/balanca/operadores/ativos` | Lista operadores ativos (device token — seletor da estação) |
+| POST | `/api/v1/balanca/operadores/login` | Login por PIN pessoal (device token) |
 | POST | `/api/v1/balanca/ordens` | Solicita pesagem (chamado por módulos clientes) |
 | GET | `/api/v1/balanca/ordens` | Lista ordens de pesagem |
 | GET | `/api/v1/balanca/ordens/{id}` | Detalhe de uma ordem |

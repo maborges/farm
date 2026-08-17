@@ -6,7 +6,7 @@ import pytest
 from unittest.mock import MagicMock
 from sqlalchemy import text
 
-from core.services.auth_service import AuthService
+from core.services.auth_service import AuthService, hash_password
 
 pytestmark = pytest.mark.asyncio
 
@@ -385,3 +385,77 @@ async def test_pesagem_dupla_com_descarga_calcula_liquido_por_etapas(client: htt
     assert set(pesagens.keys()) == {"CHEGADA", "POS_DESCARGA"}
     assert pesagens["CHEGADA"]["peso_informado_kg"] == "45200.000"
     assert pesagens["CHEGADA"]["peso_aferido_kg"] == "45000.000"
+
+
+async def test_login_operador_por_pin_pessoal(client: httpx.AsyncClient, session):
+    """Operador se autentica na estação por PIN pessoal (não o PIN da estação),
+    permitindo rastrear quem pesou (Pesagem.operador_pessoa_id)."""
+    tenant_id = uuid.uuid4()
+    user_id = uuid.uuid4()
+    token = await _criar_tenant_com_owner(session, tenant_id, user_id, "Tenant Operador")
+    headers = {"Authorization": f"Bearer {token}", "X-Tenant-ID": str(tenant_id)}
+
+    resp = await client.post(
+        "/api/v1/balanca/devices",
+        json={"nome": "Balança Operador", "fazenda_ids": [str(uuid.uuid4())]},
+        headers=headers,
+    )
+    activation_code = resp.json()["activation_code"]
+    resp = await client.post(
+        "/api/v1/balanca/devices/activate",
+        json={"activation_code": activation_code, "pin_hash": "hash", "device_fingerprint": f"fp-{uuid.uuid4()}"},
+    )
+    device_id = resp.json()["device_id"]
+    device_token = resp.json()["device_token"]
+    device_headers = {"Authorization": f"Bearer {device_token}"}
+
+    pessoa_id = uuid.uuid4()
+    resp = await client.post(
+        "/api/v1/balanca/operadores",
+        json={"pessoa_id": str(pessoa_id), "nome_exibicao": "João Operador", "pin_hash": hash_password("4321")},
+        headers=headers,
+    )
+    assert resp.status_code == 201, resp.text
+    operador_id = resp.json()["id"]
+
+    # Sem token de dispositivo, endpoint da estação rejeita
+    resp = await client.get(f"/api/v1/balanca/operadores/ativos?device_id={device_id}")
+    assert resp.status_code == 401
+
+    # Estação vê o operador cadastrado no seletor (sem PIN exposto)
+    resp = await client.get(f"/api/v1/balanca/operadores/ativos?device_id={device_id}", headers=device_headers)
+    assert resp.status_code == 200
+    ativos = resp.json()
+    assert len(ativos) == 1
+    assert ativos[0]["id"] == operador_id
+    assert "pin_hash" not in ativos[0]
+
+    # PIN errado é rejeitado
+    resp = await client.post(
+        f"/api/v1/balanca/operadores/login?device_id={device_id}",
+        json={"operador_id": operador_id, "pin": "0000"},
+        headers=device_headers,
+    )
+    assert resp.status_code == 401
+
+    # PIN correto autentica o operador
+    resp = await client.post(
+        f"/api/v1/balanca/operadores/login?device_id={device_id}",
+        json={"operador_id": operador_id, "pin": "4321"},
+        headers=device_headers,
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["nome_exibicao"] == "João Operador"
+    assert resp.json()["pessoa_id"] == str(pessoa_id)
+
+    # Revogado não consegue mais logar nem aparece no seletor
+    resp = await client.post(f"/api/v1/balanca/operadores/{operador_id}/revogar", headers=headers)
+    assert resp.status_code == 200
+    resp = await client.get(f"/api/v1/balanca/operadores/ativos?device_id={device_id}", headers=device_headers)
+    assert resp.json() == []
+    resp = await client.post(
+        f"/api/v1/balanca/operadores/login?device_id={device_id}",
+        json={"operador_id": operador_id, "pin": "4321"},
+        headers=device_headers,
+    )
+    assert resp.status_code == 401

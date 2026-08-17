@@ -31,6 +31,26 @@ export async function apiFetch<T>(path: string, init: RequestInit = {}, authed =
   return response.json() as Promise<T>;
 }
 
+export interface OperadorAtivo {
+  id: string;
+  nome_exibicao: string;
+}
+
+export async function listarOperadoresAtivos(deviceId: string): Promise<OperadorAtivo[]> {
+  return apiFetch<OperadorAtivo[]>(`/api/v1/balanca/operadores/ativos?device_id=${deviceId}`);
+}
+
+export async function loginOperador(
+  deviceId: string,
+  operadorId: string,
+  pin: string,
+): Promise<{ operador_id: string; pessoa_id: string; nome_exibicao: string }> {
+  return apiFetch(`/api/v1/balanca/operadores/login?device_id=${deviceId}`, {
+    method: "POST",
+    body: JSON.stringify({ operador_id: operadorId, pin }),
+  });
+}
+
 export async function ativarDispositivo(params: {
   activation_code: string;
   pin_hash: string;

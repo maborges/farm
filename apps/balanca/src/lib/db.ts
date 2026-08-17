@@ -98,11 +98,22 @@ export interface SessionRow {
   bridge_token: string | null;
 }
 
+/** Operador logado na estação (PIN pessoal) — separado de SessionRow porque
+ * troca de turno em turno, diferente da ativação da estação em si. */
+export interface OperadorSessaoRow {
+  id: 1;
+  operador_id: string;
+  pessoa_id: string;
+  nome_exibicao: string;
+  logged_at: string;
+}
+
 class BalancaDB extends Dexie {
   ordens!: EntityTable<OrdemPendenteLocal, "id">;
   pesagens!: EntityTable<PesagemLocal, "local_id">;
   sync_queue!: EntityTable<SyncQueueItem, "id">;
   session!: EntityTable<SessionRow, "id">;
+  operador_sessao!: EntityTable<OperadorSessaoRow, "id">;
 
   constructor() {
     super("balanca_db");
@@ -111,6 +122,9 @@ class BalancaDB extends Dexie {
       pesagens: "local_id, ordem_id, server_id, synced",
       sync_queue: "++id, local_id, status",
       session: "id",
+    });
+    this.version(2).stores({
+      operador_sessao: "id",
     });
   }
 }
@@ -127,10 +141,23 @@ export async function setSession(row: Omit<SessionRow, "id">): Promise<void> {
 
 export async function clearSession(): Promise<void> {
   await db.session.delete(1);
+  await db.operador_sessao.delete(1);
 }
 
 export async function setBridgeConfig(bridgeUrl: string | null, bridgeToken: string | null): Promise<void> {
   await db.session.update(1, { bridge_url: bridgeUrl, bridge_token: bridgeToken });
+}
+
+export async function getOperadorSessao(): Promise<OperadorSessaoRow | undefined> {
+  return db.operador_sessao.get(1);
+}
+
+export async function setOperadorSessao(row: Omit<OperadorSessaoRow, "id">): Promise<void> {
+  await db.operador_sessao.put({ id: 1, ...row });
+}
+
+export async function clearOperadorSessao(): Promise<void> {
+  await db.operador_sessao.delete(1);
 }
 
 /** Etapas já feitas para uma ordem, combinando o que veio do servidor

@@ -10,6 +10,8 @@ import {
   setBridgeConfig,
   etapasFeitas,
   proximaEtapa,
+  getOperadorSessao,
+  clearOperadorSessao,
   ETAPA_LABEL,
   ETAPAS_POR_TIPO_PESAGEM,
   type OrdemPendenteLocal,
@@ -18,6 +20,7 @@ import {
 import { enqueuePesagem } from "@/lib/sync/push";
 import { startSyncLoop, runSyncCycle } from "@/lib/sync/trigger";
 import { usePesoAoVivo } from "@/lib/bridge/peso-ao-vivo";
+import { OperadorLogin } from "@/components/operador-login";
 
 type SubjectType = "VEICULO" | "ANIMAL";
 
@@ -34,6 +37,7 @@ export default function PesagemPage() {
   useEffect(() => setMounted(true), []);
 
   const session = useLiveQuery(getSession);
+  const operadorSessao = useLiveQuery(getOperadorSessao);
   const ordens = useLiveQuery(
     () => db.ordens.where("status").anyOf(["PENDENTE", "EM_PESAGEM"]).toArray(),
     [],
@@ -86,6 +90,10 @@ export default function PesagemPage() {
   const leituraBalanca = usePesoAoVivo(session?.bridge_url ?? null, session?.bridge_token ?? null);
 
   if (!mounted || !session || ordens === undefined) return null;
+
+  if (!operadorSessao) {
+    return <OperadorLogin deviceId={session.device_id} onLogin={() => {}} />;
+  }
 
   const emCaptura = !!ordemSelecionada || !!avulsaConfig;
   const tipoPesagemAtivo = ordemSelecionada?.tipo_pesagem ?? "UNICA";
@@ -159,7 +167,7 @@ export default function PesagemPage() {
         motorista: null,
         animal_id: null,
         pessoa_id: null,
-        operador_pessoa_id: null,
+        operador_pessoa_id: operadorSessao?.pessoa_id ?? null,
         data_pesagem: agora,
         client_created_at: agora,
         client_updated_at: agora,
@@ -201,10 +209,14 @@ export default function PesagemPage() {
         <div>
           <h1 className="text-lg font-semibold">{session.nome}</h1>
           <p className="text-xs text-gray-500">
-            Última sincronização: {session.last_sync_at ? new Date(session.last_sync_at).toLocaleString("pt-BR") : "nunca"}
+            {operadorSessao.nome_exibicao} · Última sincronização:{" "}
+            {session.last_sync_at ? new Date(session.last_sync_at).toLocaleString("pt-BR") : "nunca"}
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <button className="text-xs text-gray-400 underline" onClick={() => clearOperadorSessao()}>
+            Trocar operador
+          </button>
           <span className="flex items-center gap-1.5 text-xs text-gray-500">
             <span
               className={`size-2 rounded-full ${

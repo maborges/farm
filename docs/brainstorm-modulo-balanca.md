@@ -93,7 +93,7 @@ prioridade combinada: **modelo de pesagem por etapas + peso informado/aferido pr
   no PWA (autenticação por Pessoa cadastrada, não só PIN de estação) **ainda não implementado**.
 
 **Explicitamente deferidos (não bloqueiam esta fase):**
-- Login de operador por Pessoa (hoje só PIN de estação).
+- ~~Login de operador por Pessoa~~ — implementado a seguir (ver abaixo).
 - Relação Terminal × Balança como cadastros distintos — usuário quer definir antes.
 - `AjusteQualidadePeso` (desconto de peso pós-controle de qualidade, não destrutivo).
 - Leitura automática de código de barras/NFe (campo existe, sem OCR/scanner ainda).
@@ -102,6 +102,31 @@ prioridade combinada: **modelo de pesagem por etapas + peso informado/aferido pr
 
 **Migration:** `20260816_balanca_etapas` — destrutiva nas colunas antigas de `Pesagem`
 (sem dados reais em produção neste módulo ainda, só tenants de teste).
+
+## Decisão adicional — login de operador por PIN pessoal
+
+Pesquisa prévia (subagent) confirmou: não existia em lugar nenhum do sistema (rh/,
+operacional/, core/) um padrão de PIN pessoal por Pessoa/Colaborador em terminal
+compartilhado — só PIN por dispositivo (`DispositivoCampo.pin_hash`,
+`DispositivoBalanca.pin_hash`, cada um atrelado a 1 usuário/estação). Balança precisa de
+terminal compartilhado por vários operadores em turnos diferentes, então foi criado
+cadastro próprio: **`OperadorBalanca`** (`balanca_operadores`) — `tenant_id`, `pessoa_id`
+(referência por convenção, sem FK — mesmo princípio de `origem_id`/`produto_id`),
+`nome_exibicao`, `pin_hash` (bcrypt, hash gerado no cliente na tela de cadastro admin,
+igual ao padrão já usado na ativação de dispositivo), `status`.
+
+Fluxo: admin cadastra operador (`apps/web` → Balança → Operadores, seleciona Pessoa do
+core + define PIN). PWA, antes de mostrar ordens pendentes, exige login — lista
+operadores ativos (`GET /balanca/operadores/ativos`, device token) e valida PIN
+(`POST /balanca/operadores/login`, bcrypt no servidor, sem token/sessão retornado — o PWA
+só guarda `operador_id`/`pessoa_id`/`nome_exibicao` localmente até trocar). Login exige
+rede (verificação de PIN não pode ser feita offline com segurança); depois de logado, a
+pesagem em si continua 100% offline como antes. `Pesagem.operador_pessoa_id` passa a ser
+preenchido de verdade a partir daqui.
+
+Migration `20260816_balanca_operadores`. 4º teste de integração cobre cadastro, seletor
+sem PIN exposto, PIN errado rejeitado, PIN certo autentica, e revogação remove do
+seletor e bloqueia login.
 
 ## Ordem de implementação
 

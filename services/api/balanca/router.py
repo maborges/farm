@@ -14,7 +14,7 @@ from core.dependencies import get_session, get_tenant_id, get_user_id, require_t
 from core.exceptions import EntityNotFoundError, BusinessRuleError, TenantViolationError
 
 from balanca.models import DispositivoBalanca
-from balanca.service import DispositivoService, PesagemService, SyncService
+from balanca.service import DispositivoService, OperadorService, PesagemService, SyncService
 from balanca.schemas import (
     DeviceCreate,
     DeviceCreateResponse,
@@ -23,6 +23,11 @@ from balanca.schemas import (
     DeviceReactivateRequest,
     DeviceRevokeRequest,
     DeviceResponse,
+    OperadorCreate,
+    OperadorResponse,
+    OperadorAtivoResponse,
+    OperadorLoginRequest,
+    OperadorLoginResponse,
     SolicitarPesagemRequest,
     OrdemPesagemResponse,
     CancelarOrdemRequest,
@@ -189,6 +194,102 @@ async def listar_dispositivos(
 ):
     svc = DispositivoService(session, tenant_id)
     return await svc.listar(skip, limit)
+
+
+# ---------------------------------------------------------------------------
+# Operadores — cadastro (admin, JWT de usuário) + login (estação, device token)
+# ---------------------------------------------------------------------------
+
+
+@router.post(
+    "/operadores",
+    response_model=OperadorResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_tenant_permission("balanca:operador:criar"))],
+)
+async def criar_operador(
+    data: OperadorCreate,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    session: AsyncSession = Depends(get_session),
+):
+    svc = OperadorService(session, tenant_id)
+    try:
+        operador = await svc.criar(data)
+        await session.commit()
+        await session.refresh(operador)
+        return operador
+    except BusinessRuleError as exc:
+        await session.rollback()
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
+@router.get(
+    "/operadores",
+    response_model=list[OperadorResponse],
+    dependencies=[Depends(require_tenant_permission("balanca:operador:listar"))],
+)
+async def listar_operadores(
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=100, ge=1, le=1000),
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    session: AsyncSession = Depends(get_session),
+):
+    svc = OperadorService(session, tenant_id)
+    return await svc.listar(skip, limit)
+
+
+@router.post(
+    "/operadores/{operador_id}/revogar",
+    response_model=OperadorResponse,
+    dependencies=[Depends(require_tenant_permission("balanca:operador:revogar"))],
+)
+async def revogar_operador(
+    operador_id: uuid.UUID,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    user_id: uuid.UUID | None = Depends(get_user_id),
+    session: AsyncSession = Depends(get_session),
+):
+    svc = OperadorService(session, tenant_id)
+    try:
+        operador = await svc.revogar(operador_id, user_id)
+        await session.commit()
+        await session.refresh(operador)
+        return operador
+    except EntityNotFoundError as exc:
+        await session.rollback()
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@router.get("/operadores/ativos", response_model=list[OperadorAtivoResponse])
+async def listar_operadores_ativos(
+    request: Request,
+    device_id: uuid.UUID = Query(...),
+    session: AsyncSession = Depends(get_session),
+):
+    """Consumido pela estação (device token) para montar o seletor de operador."""
+    device = await _get_device_from_token(device_id, request, session)
+    svc = OperadorService(session, device.tenant_id)
+    return await svc.listar_ativos()
+
+
+@router.post("/operadores/login", response_model=OperadorLoginResponse)
+async def login_operador(
+    request: Request,
+    device_id: uuid.UUID = Query(...),
+    data: OperadorLoginRequest = ...,
+    session: AsyncSession = Depends(get_session),
+):
+    """Login por PIN pessoal na estação — não gera token, o PWA guarda
+    operador_id/nome_exibicao localmente até trocar de operador."""
+    device = await _get_device_from_token(device_id, request, session)
+    svc = OperadorService(session, device.tenant_id)
+    try:
+        operador = await svc.login(data)
+        return OperadorLoginResponse(
+            operador_id=operador.id, pessoa_id=operador.pessoa_id, nome_exibicao=operador.nome_exibicao
+        )
+    except (EntityNotFoundError, BusinessRuleError) as exc:
+        raise HTTPException(status_code=401, detail=str(exc))
 
 
 # ---------------------------------------------------------------------------

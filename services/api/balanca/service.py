@@ -15,11 +15,13 @@ from loguru import logger
 from core.config import settings
 from core.exceptions import EntityNotFoundError, BusinessRuleError, TenantViolationError
 
-from balanca.models import DispositivoBalanca, OrdemPesagem, Pesagem, SyncTombstoneBalanca
+from balanca.models import DispositivoBalanca, OperadorBalanca, OrdemPesagem, Pesagem, SyncTombstoneBalanca
 from balanca.schemas import (
     DeviceCreate,
     DeviceActivateRequest,
     DeviceReactivateRequest,
+    OperadorCreate,
+    OperadorLoginRequest,
     SolicitarPesagemRequest,
     ReatribuirOrdemRequest,
     SyncPushItem,
@@ -177,6 +179,78 @@ class DispositivoService:
         if device:
             device.last_sync_at = datetime.utcnow()
             device.last_seen_at = datetime.utcnow()
+
+
+class OperadorService:
+    """Cadastro de operadores habilitados a pesar (qualquer estação do tenant) e
+    autenticação por PIN pessoal — distinto do PIN da estação (DispositivoBalanca)."""
+
+    def __init__(self, session: AsyncSession, tenant_id: uuid.UUID):
+        self.session = session
+        self.tenant_id = tenant_id
+
+    async def criar(self, data: OperadorCreate) -> OperadorBalanca:
+        existente = (
+            await self.session.execute(
+                select(OperadorBalanca).where(
+                    OperadorBalanca.tenant_id == self.tenant_id,
+                    OperadorBalanca.pessoa_id == data.pessoa_id,
+                )
+            )
+        ).scalar_one_or_none()
+        if existente:
+            raise BusinessRuleError("Esta pessoa já está cadastrada como operador de balança.")
+
+        operador = OperadorBalanca(
+            tenant_id=self.tenant_id,
+            pessoa_id=data.pessoa_id,
+            nome_exibicao=data.nome_exibicao,
+            pin_hash=data.pin_hash,
+            status="ATIVO",
+        )
+        self.session.add(operador)
+        await self.session.flush()
+        return operador
+
+    async def revogar(self, operador_id: uuid.UUID, revoked_by: uuid.UUID | None) -> OperadorBalanca:
+        operador = await self.session.get(OperadorBalanca, operador_id)
+        if not operador or operador.tenant_id != self.tenant_id:
+            raise EntityNotFoundError(f"Operador {operador_id} não encontrado.")
+        operador.status = "REVOGADO"
+        operador.revoked_at = datetime.utcnow()
+        operador.revoked_by = revoked_by
+        await self.session.flush()
+        return operador
+
+    async def listar(self, skip: int = 0, limit: int = 100) -> list[OperadorBalanca]:
+        result = await self.session.execute(
+            select(OperadorBalanca)
+            .where(OperadorBalanca.tenant_id == self.tenant_id)
+            .order_by(OperadorBalanca.nome_exibicao.asc())
+            .offset(skip)
+            .limit(limit)
+        )
+        return list(result.scalars().all())
+
+    async def listar_ativos(self) -> list[OperadorBalanca]:
+        result = await self.session.execute(
+            select(OperadorBalanca)
+            .where(OperadorBalanca.tenant_id == self.tenant_id, OperadorBalanca.status == "ATIVO")
+            .order_by(OperadorBalanca.nome_exibicao.asc())
+        )
+        return list(result.scalars().all())
+
+    async def login(self, data: OperadorLoginRequest) -> OperadorBalanca:
+        from core.services.auth_service import AuthService
+
+        operador = await self.session.get(OperadorBalanca, data.operador_id)
+        if not operador or operador.tenant_id != self.tenant_id:
+            raise EntityNotFoundError(f"Operador {data.operador_id} não encontrado.")
+        if operador.status != "ATIVO":
+            raise BusinessRuleError("Operador revogado — não pode registrar pesagens.")
+        if not AuthService(self.session).verify_password(data.pin, operador.pin_hash):
+            raise BusinessRuleError("PIN inválido.")
+        return operador
 
 
 class PesagemService:

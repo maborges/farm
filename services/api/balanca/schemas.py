@@ -66,6 +66,44 @@ class DeviceResponse(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Operador (login por PIN pessoal em terminal compartilhado)
+# ---------------------------------------------------------------------------
+
+
+class OperadorCreate(BaseModel):
+    pessoa_id: uuid.UUID
+    nome_exibicao: str = Field(..., max_length=150)
+    pin_hash: str = Field(..., description="bcrypt hash do PIN pessoal, gerado no cliente")
+
+
+class OperadorResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
+    pessoa_id: uuid.UUID
+    nome_exibicao: str
+    status: str
+    created_at: datetime
+
+
+class OperadorAtivoResponse(BaseModel):
+    """Versão pública (sem pin_hash) — consumida pela estação para montar o seletor."""
+    model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
+    nome_exibicao: str
+
+
+class OperadorLoginRequest(BaseModel):
+    operador_id: uuid.UUID
+    pin: str = Field(..., min_length=4, description="PIN em texto puro — comparado via bcrypt no servidor")
+
+
+class OperadorLoginResponse(BaseModel):
+    operador_id: uuid.UUID
+    pessoa_id: uuid.UUID
+    nome_exibicao: str
+
+
+# ---------------------------------------------------------------------------
 # Ordem de Pesagem — API interna consumida por outros módulos
 # ---------------------------------------------------------------------------
 
