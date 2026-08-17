@@ -2,7 +2,7 @@
 
 **Status:** captura manual + sync offline + leitura eletrônica via ponte de hardware (`tools/balanca-bridge`) + modelo de pesagem por etapas (peso informado vs aferido) + login de operador + **vínculo real com Colheita, Pecuária, Compras e Vendas** implementados — ver seção 5.3.
 **Desenho completo/decisões de arquitetura:** `docs/brainstorm-modulo-balanca.md`
-**Última atualização:** 2026-08-17 (tela de Ordens de Pesagem + controle de qualidade + scan de documento fiscal + avaliação de prestador — módulo com todo o escopo original combinado implementado)
+**Última atualização:** 2026-08-17 (botão de avaliação por motorista, além de placa — módulo com todo o escopo original combinado implementado)
 
 ## 1. O que é
 
@@ -295,8 +295,12 @@ Sem cadastro formal de "prestador" no sistema (placa/motorista são texto
 livre na `Pesagem`), o identificador é a própria placa ou nome,
 normalizado (uppercase/trim) para não fragmentar o histórico por variação
 de digitação. Nota 1–5 + comentário opcional; histórico mostra média e
-lista das últimas avaliações. Hoje só a placa está disponível na UI (ver
-pendência na seção 7).
+lista das últimas avaliações. Na UI, dois botões por ordem: "Avaliar
+veículo" (usa a placa do contexto, disponível quando `subject_type=VEICULO`)
+e "Avaliar motorista" — como `OrdemPesagem` não tem campo de motorista
+próprio (só existe em `Pesagem.motorista`), esse segundo botão busca
+`GET /ordens/{id}/pesagens` sob demanda ao clicar para descobrir o nome
+antes de abrir o diálogo (nenhuma chamada extra na listagem principal).
 
 ## 6. Uso no dia a dia (operador da balança)
 
@@ -333,7 +337,6 @@ Quando a ordem do processo chega depois, ou alguém do escritório precisa vincu
 - **Vínculo depende do worker de outbox estar rodando:** o evento `balanca.pesagem.concluida` só é entregue quando `background_worker.py` processa a fila (`events/outbox_relay.py`) — se o worker não estiver ativo em produção, romaneios/animais não recebem o peso automaticamente (a ordem na Balança continua correta, só o vínculo atrasa).
 - **Login de operador exige rede na hora de entrar:** a verificação do PIN pessoal é sempre no servidor (não dá pra validar bcrypt offline com segurança) — o operador precisa de conexão pra logar na estação uma vez; depois disso, pesar continua 100% offline até trocar de operador.
 - **Leitura de código de barras/NFe limitada à Balança:** o scan (BarcodeDetector nativo do navegador, sem lib externa) só está disponível para editar `numero_documento_fiscal` de uma ordem já criada, na tela de Ordens de Pesagem — não alcança as telas de romaneio/compras/vendas, onde o documento fiscal também é digitado na criação do processo (fora do escopo deste módulo). Sem suporte em Safari/Firefox (o botão de scan some, mas o campo manual continua disponível).
-- **Avaliação de prestador é por placa apenas:** o botão "Avaliar" na tela de Ordens só aparece quando a ordem tem placa no contexto (`subject_type=VEICULO`) — motorista não é capturado como campo próprio na ordem hoje (só na Pesagem), então avaliar por nome de motorista não está disponível na UI ainda (o endpoint aceita `tipo_identificador=MOTORISTA`, só falta o botão).
 
 ## 8. Referências técnicas
 
