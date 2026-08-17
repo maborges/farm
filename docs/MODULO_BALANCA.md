@@ -187,7 +187,7 @@ Quando a ordem do processo chega depois, ou alguém do escritório precisa vincu
 
 1. No `apps/web`, acesse **Balança → Reconciliação** (`/dashboard/operacional/balanca/reconciliacao`).
 2. A tela lista todas as pesagens avulsas ainda não associadas.
-3. Clique em **"Associar"**, escolha o tipo de processo (colheita/compra/venda/pecuária) e informe o ID do registro correspondente.
+3. Clique em **"Associar"**, escolha o tipo de processo (colheita/compra/venda/pecuária/pessoa) e busque o registro por nome/número/data no seletor — sem precisar copiar/colar UUID (pecuária exige fazenda ativa selecionada; sem isso, cai no ID manual).
 4. Depois de associada, a pesagem some da fila de reconciliação e passa a aparecer como qualquer outra pesagem vinculada ao processo.
 
 > Essa tela fica no admin (não no PWA da estação) porque quem reconcilia normalmente tem mais contexto sobre qual processo bate com qual ticket do que o operador que pesou na hora.
@@ -199,7 +199,6 @@ Quando a ordem do processo chega depois, ou alguém do escritório precisa vincu
 - **Pesagem de animal ainda não tem tela/fluxo específico de pecuária** (ex.: seleção de lote/brinco) — a prioridade combinada foi carga primeiro; hoje `subject_type=ANIMAL` funciona igual a `VEICULO` (só sem campo de placa).
 - **Vínculo depende do worker de outbox estar rodando:** o evento `balanca.pesagem.concluida` só é entregue quando `background_worker.py` processa a fila (`events/outbox_relay.py`) — se o worker não estiver ativo em produção, romaneios/animais não recebem o peso automaticamente (a ordem na Balança continua correta, só o vínculo atrasa).
 - **Botão "Solicitar Pesagem" nas 4 telas clientes não passou por teste manual em navegador** (sem ferramenta de automação de browser disponível na sessão que implementou) — typecheck limpo e endpoints testados via integração, mas vale um teste manual no fluxo real antes de depender dele em produção.
-- **Reconciliação sem busca assistida:** a tela de reconciliação pede o ID do registro (romaneio/compra/venda/lote) digitado/colado manualmente — ainda não há um seletor com busca por nome/data dentro de cada módulo.
 - **Login de operador exige rede na hora de entrar:** a verificação do PIN pessoal é sempre no servidor (não dá pra validar bcrypt offline com segurança) — o operador precisa de conexão pra logar na estação uma vez; depois disso, pesar continua 100% offline até trocar de operador.
 - **Terminal × Balança ainda é um cadastro só:** `DispositivoBalanca` representa a estação inteira; não há um cadastro de "balança" separado do "terminal" (relação ainda não definida — decisão de produto pendente).
 - **Sem controle de qualidade / ajuste de peso:** não existe fluxo para descontar peso pós-pesagem (ex.: desconto por umidade/impureza em grãos) — pesagens são imutáveis uma vez registradas.
