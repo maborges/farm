@@ -43,6 +43,31 @@ async def criar(
         raise HTTPException(http_status.HTTP_404_NOT_FOUND, str(e))
 
 
+@router.post("/{comercializacao_id}/solicitar-pesagem-balanca", status_code=201)
+async def solicitar_pesagem_balanca(
+    comercializacao_id: uuid.UUID,
+    session: AsyncSession = Depends(get_session),
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+):
+    """Vincula a comercialização a uma pesagem oficial na estação de balança
+    (venda de carga)."""
+    from balanca.service import PesagemService as BalancaPesagemService
+    from balanca.schemas import SolicitarPesagemRequest
+
+    svc = BalancaPesagemService(session, tenant_id)
+    ordem = await svc.solicitar_pesagem(
+        SolicitarPesagemRequest(
+            origem_tipo="VENDA",
+            origem_id=comercializacao_id,
+            subject_type="VEICULO",
+            tipo_pesagem="DUPLA",
+        )
+    )
+    await session.commit()
+    await session.refresh(ordem)
+    return {"ordem_pesagem_id": str(ordem.id), "status": ordem.status}
+
+
 @router.get("/{comercializacao_id}", response_model=ComercializacaoResponse)
 async def obter(
     comercializacao_id: uuid.UUID,

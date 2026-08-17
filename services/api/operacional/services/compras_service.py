@@ -1923,6 +1923,25 @@ class ComprasService:
         deposito_nome, endereco = await self._resolver_endereco_entrega(deposito_id)
         return deposito_id, deposito_nome or "Depósito vinculado ao item", endereco
 
+    async def atualizar_peso_balanca(
+        self, pedido_id: uuid.UUID, peso_bruto_kg: float, peso_tara_kg: float
+    ) -> PedidoCompra:
+        """Peso oficial medido na balança para o pedido (ex.: caminhão de outro
+        produtor entregando grão). Só flush — sem commit — para poder ser chamado
+        a partir de um event subscriber (ver balanca.pesagem.concluida), onde o
+        outbox relay é quem controla e comita a transação."""
+        from core.exceptions import EntityNotFoundError
+
+        pedido = await self.session.get(PedidoCompra, pedido_id)
+        if not pedido or pedido.tenant_id != self.tenant_id:
+            raise EntityNotFoundError(f"Pedido de compra {pedido_id} não encontrado.")
+
+        pedido.peso_bruto_kg = peso_bruto_kg
+        pedido.peso_tara_kg = peso_tara_kg
+        pedido.peso_liquido_kg = peso_bruto_kg - peso_tara_kg
+        await self.session.flush()
+        return pedido
+
     async def receber_pedido(
         self,
         pedido_id: uuid.UUID,

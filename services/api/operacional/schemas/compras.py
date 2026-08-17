@@ -350,6 +350,10 @@ class PedidoCompraResponse(BaseModel):
     valor_unitario: Optional[float] = None
     valor_total: float
 
+    peso_bruto_kg: Optional[float] = None
+    peso_tara_kg: Optional[float] = None
+    peso_liquido_kg: Optional[float] = None
+
     status: str
     created_at: datetime
     updated_at: datetime

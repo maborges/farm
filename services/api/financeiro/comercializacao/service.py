@@ -80,6 +80,23 @@ class ComercializacaoService:
         await self.session.refresh(obj)
         return obj
 
+    async def registrar_peso_balanca(
+        self, comercializacao_id: uuid.UUID, peso_bruto_kg: float, peso_tara_kg: float
+    ) -> ComercializacaoCommodity:
+        """Peso oficial medido na balança (venda de carga). Só flush — sem commit
+        — pode ser chamado de um event subscriber (outbox relay controla a
+        transação). Deliberadamente não usa `transicionar_status()`, que comita
+        a própria transação e tem efeitos colaterais (receita, notificações)."""
+        com = await self.session.get(ComercializacaoCommodity, comercializacao_id)
+        if not com or com.tenant_id != self.tenant_id:
+            raise EntityNotFoundError(f"Comercialização {comercializacao_id} não encontrada.")
+
+        com.peso_bruto_kg = peso_bruto_kg
+        com.peso_tara_kg = peso_tara_kg
+        com.peso_liquido_kg = peso_bruto_kg - peso_tara_kg
+        await self.session.flush()
+        return com
+
     async def get_receita_por_safra(
         self,
         safra_id: uuid.UUID,

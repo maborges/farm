@@ -63,6 +63,13 @@ class PedidoCompra(Base):
     # dashboard de economia por usuário (Step 166, ver obter_economia_por_usuario).
     usuario_solicitante_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=True)
 
+    # Peso oficial medido na balança para este pedido (ex.: caminhão de outro
+    # produtor entregando grão) — preenchido via balanca.pesagem.concluida,
+    # independente de quantidade_recebida (que segue em unidade do item).
+    peso_bruto_kg: Mapped[float | None] = mapped_column(Numeric(12, 3), nullable=True)
+    peso_tara_kg: Mapped[float | None] = mapped_column(Numeric(12, 3), nullable=True)
+    peso_liquido_kg: Mapped[float | None] = mapped_column(Numeric(12, 3), nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

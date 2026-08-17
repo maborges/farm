@@ -260,6 +260,33 @@ async def get_pedido_pdf(
     )
 
 
+@router.post("/pedidos/{pedido_id}/solicitar-pesagem-balanca", status_code=201,
+    dependencies=[Depends(require_tenant_permission("operacional:*"))]
+)
+async def solicitar_pesagem_balanca(
+    pedido_id: uuid.UUID,
+    tenant: Tenant = Depends(get_current_tenant),
+    session: AsyncSession = Depends(get_session),
+):
+    """Vincula o pedido a uma pesagem oficial na estação de balança (entrada de
+    carga — insumo ou produto de outro produtor)."""
+    from balanca.service import PesagemService as BalancaPesagemService
+    from balanca.schemas import SolicitarPesagemRequest
+
+    svc = BalancaPesagemService(session, tenant.id)
+    ordem = await svc.solicitar_pesagem(
+        SolicitarPesagemRequest(
+            origem_tipo="COMPRA",
+            origem_id=pedido_id,
+            subject_type="VEICULO",
+            tipo_pesagem="DUPLA",
+        )
+    )
+    await session.commit()
+    await session.refresh(ordem)
+    return {"ordem_pesagem_id": str(ordem.id), "status": ordem.status}
+
+
 @router.patch("/pedidos/{pedido_id}/receber", status_code=200,
     dependencies=[Depends(require_tenant_permission("operacional:*"))]
 )

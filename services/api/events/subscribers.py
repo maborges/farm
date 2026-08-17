@@ -114,3 +114,5 @@ class AlertEngineEventSubscriber(EventSubscriber):
 from recommendations.event_subscriber import RecommendationEventSubscriber  # noqa: E402, F401
 from agricola.romaneios.event_subscriber import RomaneioBalancaEventSubscriber  # noqa: E402, F401
 from pecuaria.event_subscriber_balanca import PecuariaBalancaEventSubscriber  # noqa: E402, F401
+from operacional.compras_event_subscriber import ComprasBalancaEventSubscriber  # noqa: E402, F401
+from financeiro.comercializacao.event_subscriber import ComercializacaoBalancaEventSubscriber  # noqa: E402, F401

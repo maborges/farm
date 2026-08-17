@@ -63,6 +63,9 @@ class ComercializacaoResponse(BaseModel):
     preco_unitario: float
     moeda: str
     valor_total: float
+    peso_bruto_kg: Optional[float] = None
+    peso_tara_kg: Optional[float] = None
+    peso_liquido_kg: Optional[float] = None
     forma_pagamento: Optional[str]
     data_pagamento: Optional[date]
     data_entrega_prevista: Optional[date]

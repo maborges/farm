@@ -62,6 +62,12 @@ class ComercializacaoCommodity(Base):
     )
     data_pagamento: Mapped[date | None] = mapped_column(Date, nullable=True)
 
+    # Peso oficial medido na balança (venda de carga) — preenchido via
+    # balanca.pesagem.concluida, independente de `quantidade` (unidade da commodity).
+    peso_bruto_kg: Mapped[float | None] = mapped_column(Numeric(12, 3), nullable=True)
+    peso_tara_kg: Mapped[float | None] = mapped_column(Numeric(12, 3), nullable=True)
+    peso_liquido_kg: Mapped[float | None] = mapped_column(Numeric(12, 3), nullable=True)
+
     # Entrega
     data_entrega_prevista: Mapped[date | None] = mapped_column(Date, nullable=True)
     data_entrega_real: Mapped[date | None] = mapped_column(Date, nullable=True)
