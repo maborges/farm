@@ -221,10 +221,21 @@ class SyncTombstonesPayloadBalanca(BaseModel):
     ordens: list[str] = Field(default_factory=list)
 
 
+class AnimalPecuariaSync(BaseModel):
+    id: uuid.UUID
+    numero_brinco: str | None
+    numero_sisbov: str | None
+    nome: str | None
+    categoria: str
+    lote_id: uuid.UUID | None
+    unidade_produtiva_id: uuid.UUID
+
+
 class SyncPullResponse(BaseModel):
     sync_at: datetime
     ordens_pendentes: list[OrdemPendenteSync]
     tombstones: SyncTombstonesPayloadBalanca
+    animais: list[AnimalPecuariaSync] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------

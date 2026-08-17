@@ -8,7 +8,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, text
 from jose import jwt
 from loguru import logger
 
@@ -393,8 +393,25 @@ class SyncService:
                 if t.entity_type in tombstones:
                     tombstones[t.entity_type].append(t.entity_id)
 
+        # Lê pec_animais via SQL cru (sem importar o model de pecuaria) para manter
+        # o desacoplamento do módulo: a Balança nunca importa agricola/pecuaria/etc,
+        # só o contrário. É só uma projeção leve para autocomplete offline na estação.
+        animais_rows = []
+        if fazenda_ids:
+            result = await self.session.execute(
+                text(
+                    "SELECT id, numero_brinco, numero_sisbov, nome, categoria, lote_id, "
+                    "unidade_produtiva_id FROM pec_animais "
+                    "WHERE tenant_id = :tenant_id AND unidade_produtiva_id = ANY(:fazenda_ids) "
+                    "AND status = 'ATIVO' LIMIT 500"
+                ),
+                {"tenant_id": str(self.tenant_id), "fazenda_ids": fazenda_ids},
+            )
+            animais_rows = result.mappings().all()
+
         return {
             "sync_at": datetime.utcnow(),
+            "animais": [dict(row) for row in animais_rows],
             "ordens_pendentes": [
                 {
                     "id": o.id,

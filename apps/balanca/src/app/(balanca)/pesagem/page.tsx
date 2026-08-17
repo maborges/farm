@@ -16,6 +16,7 @@ import {
   ETAPAS_POR_TIPO_PESAGEM,
   type OrdemPendenteLocal,
   type Etapa,
+  type AnimalLocal,
 } from "@/lib/db";
 import { enqueuePesagem } from "@/lib/sync/push";
 import { startSyncLoop, runSyncCycle } from "@/lib/sync/trigger";
@@ -62,6 +63,27 @@ export default function PesagemPage() {
   const etapasJaFeitas = useLiveQuery(
     () => (ordemSelecionada ? etapasFeitas(ordemSelecionada) : Promise.resolve([] as Etapa[])),
     [ordemSelecionada],
+  );
+
+  const [animalSelecionado, setAnimalSelecionado] = useState<AnimalLocal | null>(null);
+  const [buscaAnimal, setBuscaAnimal] = useState("");
+
+  const animaisEncontrados = useLiveQuery(
+    async () => {
+      const termo = buscaAnimal.trim().toLowerCase();
+      if (!termo) return [] as AnimalLocal[];
+      const todos = await db.animais.toArray();
+      return todos
+        .filter(
+          (a) =>
+            a.numero_brinco?.toLowerCase().includes(termo) ||
+            a.numero_sisbov?.toLowerCase().includes(termo) ||
+            a.nome?.toLowerCase().includes(termo),
+        )
+        .slice(0, 8);
+    },
+    [buscaAnimal],
+    [] as AnimalLocal[],
   );
 
   // Fluxo avulso: sem ordem prévia (estação rodando sozinha, ou a ordem do
@@ -111,6 +133,8 @@ export default function PesagemPage() {
     setPesoAferido("");
     setPesoInformado("");
     setPlaca("");
+    setAnimalSelecionado(null);
+    setBuscaAnimal("");
     setCapturedVia("MANUAL");
     setLeituraBrutaUsada(null);
   }
@@ -142,6 +166,10 @@ export default function PesagemPage() {
   async function handleRegistrarPeso(e: React.FormEvent) {
     e.preventDefault();
     if (!etapaAtual || (!ordemSelecionada && !avulsaConfig)) return;
+    if (subjectTypeAtivo === "ANIMAL" && !animalSelecionado) {
+      setMensagem("Selecione o animal (brinco/SISBOV) antes de confirmar.");
+      return;
+    }
     setSalvando(true);
     setMensagem(null);
     const agora = new Date().toISOString();
@@ -165,7 +193,7 @@ export default function PesagemPage() {
         leitura_bruta: leituraBrutaUsada,
         placa: placa || null,
         motorista: null,
-        animal_id: null,
+        animal_id: animalSelecionado?.id ?? null,
         pessoa_id: null,
         operador_pessoa_id: operadorSessao?.pessoa_id ?? null,
         data_pesagem: agora,
@@ -322,6 +350,9 @@ export default function PesagemPage() {
                     {typeof ordem.contexto?.placa === "string" && (
                       <div className="text-xs text-gray-400">Placa: {ordem.contexto.placa}</div>
                     )}
+                    {typeof ordem.contexto?.numero_brinco === "string" && (
+                      <div className="text-xs text-gray-400">Brinco: {ordem.contexto.numero_brinco}</div>
+                    )}
                     {ordem.numero_documento_fiscal && (
                       <div className="text-xs text-gray-400">NF: {ordem.numero_documento_fiscal}</div>
                     )}
@@ -467,6 +498,68 @@ export default function PesagemPage() {
                   value={placa}
                   onChange={(e) => setPlaca(e.target.value)}
                 />
+              </div>
+            )}
+
+            {subjectTypeAtivo === "ANIMAL" && (
+              <div className="space-y-1">
+                <label className="text-sm font-medium">Animal (brinco/SISBOV) *</label>
+                {animalSelecionado ? (
+                  <div className="flex items-center justify-between rounded border border-gray-300 bg-gray-50 px-3 py-2">
+                    <div>
+                      <p className="text-sm font-medium">
+                        {animalSelecionado.numero_brinco || animalSelecionado.numero_sisbov || animalSelecionado.nome}
+                      </p>
+                      <p className="text-xs text-gray-400">{animalSelecionado.categoria}</p>
+                    </div>
+                    <button
+                      type="button"
+                      className="text-xs text-gray-400 underline"
+                      onClick={() => {
+                        setAnimalSelecionado(null);
+                        setBuscaAnimal("");
+                      }}
+                    >
+                      Trocar
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <input
+                      className="w-full rounded border border-gray-300 px-3 py-2"
+                      placeholder="Digite o brinco, SISBOV ou nome..."
+                      value={buscaAnimal}
+                      onChange={(e) => setBuscaAnimal(e.target.value)}
+                    />
+                    {buscaAnimal.trim() && (
+                      <ul className="divide-y divide-gray-100 rounded border border-gray-200">
+                        {(animaisEncontrados ?? []).length === 0 && (
+                          <li className="p-2 text-xs text-gray-400">
+                            Nenhum animal encontrado no cache local — sincronize a estação ou digite manualmente
+                            via pesagem avulsa.
+                          </li>
+                        )}
+                        {(animaisEncontrados ?? []).map((animal) => (
+                          <li key={animal.id}>
+                            <button
+                              type="button"
+                              className="w-full p-2 text-left text-sm hover:bg-gray-50"
+                              onClick={() => {
+                                setAnimalSelecionado(animal);
+                                setBuscaAnimal("");
+                              }}
+                            >
+                              <span className="font-medium">
+                                {animal.numero_brinco || animal.numero_sisbov || animal.nome}
+                              </span>{" "}
+                              <span className="text-xs text-gray-400">{animal.categoria}</span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </>
+                )}
               </div>
             )}
 

@@ -2,7 +2,7 @@
 
 **Status:** captura manual + sync offline + leitura eletrônica via ponte de hardware (`tools/balanca-bridge`) + modelo de pesagem por etapas (peso informado vs aferido) + login de operador + **vínculo real com Colheita, Pecuária, Compras e Vendas** implementados — ver seção 5.3.
 **Desenho completo/decisões de arquitetura:** `docs/brainstorm-modulo-balanca.md`
-**Última atualização:** 2026-08-16 (vínculo com romaneio de colheita e pesagem de animal via evento de domínio)
+**Última atualização:** 2026-08-17 (pesagem de animal com seleção de brinco/SISBOV, via cache offline sincronizado)
 
 ## 1. O que é
 
@@ -143,6 +143,16 @@ fazer — a Balança nunca importa `agricola`/`pecuaria`/etc, só o contrário.
   invocado no meio do processamento de um evento — lição aprendida depurando
   um erro de `asyncpg` só reproduzível dentro do relay).
 
+  **Seleção de animal por brinco/SISBOV na estação:** o sync pull
+  (`GET /api/v1/balanca/sync/pull`) agora também devolve `animais` — uma
+  projeção leve (id, brinco, SISBOV, nome, categoria, lote) dos animais
+  `ATIVO` das fazendas vinculadas ao dispositivo, lida via **SQL cru**
+  (não importa o model `Animal` de `pecuaria/`, mantendo o desacoplamento:
+  a Balança nunca importa outro módulo, só o contrário). O app `apps/balanca`
+  guarda essa lista numa store Dexie própria (`animais`, populada a cada pull)
+  e, quando `subject_type=ANIMAL`, a tela de pesagem mostra um busca-e-seleciona
+  em vez do campo de placa — 100% offline depois do primeiro sync.
+
 - **Compras** (`operacional/`): `POST /api/v1/compras/pedidos/{id}/solicitar-pesagem-balanca`
   cria a ordem (pesagem dupla — entrada de carga: insumo ou produto de outro
   produtor); `operacional/compras_event_subscriber.py` chama
@@ -196,7 +206,6 @@ Quando a ordem do processo chega depois, ou alguém do escritório precisa vincu
 
 - **Sem módulo de billing próprio ainda:** o gate de visibilidade do menu no `apps/web` reaproveita `A2_CAMPO` temporariamente. Definir o módulo definitivo (ex. `O4_BALANCA`) e o plano em que entra é decisão de produto pendente.
 - **Ponte de hardware ainda não testada com equipamento real:** o parser é genérico (regex configurável) e foi validado com um simulador — quando a marca/modelo do indicador for definida, confirmar o formato real do frame e ajustar `config.yaml` (ver `tools/balanca-bridge/README.md`).
-- **Pesagem de animal ainda não tem tela/fluxo específico de pecuária** (ex.: seleção de lote/brinco) — a prioridade combinada foi carga primeiro; hoje `subject_type=ANIMAL` funciona igual a `VEICULO` (só sem campo de placa).
 - **Vínculo depende do worker de outbox estar rodando:** o evento `balanca.pesagem.concluida` só é entregue quando `background_worker.py` processa a fila (`events/outbox_relay.py`) — se o worker não estiver ativo em produção, romaneios/animais não recebem o peso automaticamente (a ordem na Balança continua correta, só o vínculo atrasa).
 - **Botão "Solicitar Pesagem" nas 4 telas clientes não passou por teste manual em navegador** (sem ferramenta de automação de browser disponível na sessão que implementou) — typecheck limpo e endpoints testados via integração, mas vale um teste manual no fluxo real antes de depender dele em produção.
 - **Login de operador exige rede na hora de entrar:** a verificação do PIN pessoal é sempre no servidor (não dá pra validar bcrypt offline com segurança) — o operador precisa de conexão pra logar na estação uma vez; depois disso, pesar continua 100% offline até trocar de operador.

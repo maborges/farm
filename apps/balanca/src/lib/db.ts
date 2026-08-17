@@ -70,6 +70,18 @@ export interface PesagemLocal {
   synced: 0 | 1; // Dexie não indexa booleans — usar 0/1
 }
 
+/** Animal ATIVO da(s) fazenda(s) vinculada(s) ao dispositivo — cache local
+ * para autocomplete de brinco/SISBOV offline, vindo do sync pull. */
+export interface AnimalLocal {
+  id: string;
+  numero_brinco: string | null;
+  numero_sisbov: string | null;
+  nome: string | null;
+  categoria: string;
+  lote_id: string | null;
+  unidade_produtiva_id: string;
+}
+
 export type SyncQueueStatus = "PENDING" | "IN_FLIGHT" | "DONE" | "FAILED";
 
 export interface SyncQueueItem {
@@ -114,6 +126,7 @@ class BalancaDB extends Dexie {
   sync_queue!: EntityTable<SyncQueueItem, "id">;
   session!: EntityTable<SessionRow, "id">;
   operador_sessao!: EntityTable<OperadorSessaoRow, "id">;
+  animais!: EntityTable<AnimalLocal, "id">;
 
   constructor() {
     super("balanca_db");
@@ -125,6 +138,9 @@ class BalancaDB extends Dexie {
     });
     this.version(2).stores({
       operador_sessao: "id",
+    });
+    this.version(3).stores({
+      animais: "id, numero_brinco, numero_sisbov, lote_id",
     });
   }
 }

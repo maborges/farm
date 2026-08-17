@@ -196,6 +196,132 @@ async def test_fluxo_completo_pesagem_manual_e_isolamento_tenant(client: httpx.A
     assert resp.status_code == 403
 
 
+async def test_sync_pull_traz_animais_da_fazenda_do_dispositivo_para_pesagem_de_animal(
+    client: httpx.AsyncClient, session
+):
+    """Pull da estação deve incluir animais ATIVOS da(s) fazenda(s) vinculada(s) ao
+    dispositivo, para autocomplete offline de brinco/SISBOV — sem a Balança importar
+    o model de pecuária (SQL cru, ver comentário em SyncService.pull)."""
+    tenant_id = uuid.uuid4()
+    user_id = uuid.uuid4()
+    token = await _criar_tenant_com_owner(session, tenant_id, user_id, "Tenant Balança Pecuária")
+    headers = {"Authorization": f"Bearer {token}", "X-Tenant-ID": str(tenant_id)}
+
+    fazenda_id = uuid.uuid4()
+    outra_fazenda_id = uuid.uuid4()
+
+    await session.execute(
+        text(
+            "INSERT INTO unidades_produtivas (id, tenant_id, nome, tipo_propriedade, ativo, created_at, updated_at) "
+            "VALUES (:id, :tenant_id, 'Fazenda Teste Balança', 'fazenda', true, now(), now())"
+        ),
+        {"id": str(fazenda_id), "tenant_id": str(tenant_id)},
+    )
+    await session.execute(
+        text(
+            "INSERT INTO unidades_produtivas (id, tenant_id, nome, tipo_propriedade, ativo, created_at, updated_at) "
+            "VALUES (:id, :tenant_id, 'Outra Fazenda', 'fazenda', true, now(), now())"
+        ),
+        {"id": str(outra_fazenda_id), "tenant_id": str(tenant_id)},
+    )
+
+    animal_ativo_id = uuid.uuid4()
+    animal_inativo_id = uuid.uuid4()
+    animal_outra_fazenda_id = uuid.uuid4()
+    for animal_id, brinco, status, up_id in (
+        (animal_ativo_id, "BR-001", "ATIVO", fazenda_id),
+        (animal_inativo_id, "BR-002", "VENDIDO", fazenda_id),
+        (animal_outra_fazenda_id, "BR-003", "ATIVO", outra_fazenda_id),
+    ):
+        await session.execute(
+            text(
+                "INSERT INTO pec_animais (id, tenant_id, unidade_produtiva_id, numero_brinco, especie, "
+                "categoria, sexo, data_entrada, status, created_at, updated_at) "
+                "VALUES (:id, :tenant_id, :up_id, :brinco, 'BOVINO', 'BOI', 'M', CURRENT_DATE, :status, now(), now())"
+            ),
+            {
+                "id": str(animal_id),
+                "tenant_id": str(tenant_id),
+                "up_id": str(up_id),
+                "brinco": brinco,
+                "status": status,
+            },
+        )
+    await session.commit()
+
+    resp = await client.post(
+        "/api/v1/balanca/devices",
+        json={"nome": "Balança Curral", "fazenda_ids": [str(fazenda_id)]},
+        headers=headers,
+    )
+    assert resp.status_code == 201, resp.text
+    activation_code = resp.json()["activation_code"]
+    resp = await client.post(
+        "/api/v1/balanca/devices/activate",
+        json={"activation_code": activation_code, "pin_hash": "hash", "device_fingerprint": f"fp-{uuid.uuid4()}"},
+    )
+    device_id = resp.json()["device_id"]
+    device_token = resp.json()["device_token"]
+
+    resp = await client.get(
+        f"/api/v1/balanca/sync/pull?device_id={device_id}",
+        headers={"Authorization": f"Bearer {device_token}"},
+    )
+    assert resp.status_code == 200, resp.text
+    animais = resp.json()["animais"]
+    brincos = {a["numero_brinco"] for a in animais}
+
+    assert "BR-001" in brincos
+    assert "BR-002" not in brincos  # status VENDIDO não entra
+    assert "BR-003" not in brincos  # fazenda não vinculada ao dispositivo
+
+    ativo = next(a for a in animais if a["numero_brinco"] == "BR-001")
+    assert ativo["id"] == str(animal_ativo_id)
+    assert ativo["categoria"] == "BOI"
+    assert ativo["unidade_produtiva_id"] == str(fazenda_id)
+
+    # Round-trip: pesagem enviada com animal_id chega ao registro final
+    resp = await client.post(
+        "/api/v1/balanca/ordens",
+        json={
+            "origem_tipo": "PECUARIA",
+            "subject_type": "ANIMAL",
+            "tipo_pesagem": "UNICA",
+            "contexto": {"numero_brinco": "BR-001"},
+        },
+        headers=headers,
+    )
+    ordem_id = resp.json()["id"]
+
+    resp = await client.post(
+        "/api/v1/balanca/sync/push",
+        json={
+            "device_id": device_id,
+            "items": [
+                {
+                    "local_id": str(uuid.uuid4()),
+                    "operation": "CREATE",
+                    "entity_type": "pesagem",
+                    "payload": {
+                        "ordem_id": ordem_id,
+                        "etapa": "UNICA",
+                        "peso_aferido_kg": "450.000",
+                        "animal_id": str(animal_ativo_id),
+                    },
+                    "client_created_at": "2026-08-17T10:00:00Z",
+                    "client_updated_at": "2026-08-17T10:00:00Z",
+                }
+            ],
+        },
+        headers={"Authorization": f"Bearer {device_token}"},
+    )
+    assert resp.status_code == 200, resp.text
+
+    resp = await client.get(f"/api/v1/balanca/ordens/{ordem_id}/pesagens", headers=headers)
+    pesagens = resp.json()
+    assert pesagens[0]["animal_id"] == str(animal_ativo_id)
+
+
 async def test_pesagem_avulsa_cria_ordem_sombra_e_permite_reconciliacao(
     client: httpx.AsyncClient, session
 ):
