@@ -2,7 +2,7 @@
 
 **Status:** captura manual + sync offline + leitura eletrônica via ponte de hardware (`tools/balanca-bridge`) + modelo de pesagem por etapas (peso informado vs aferido) + login de operador + **vínculo real com Colheita, Pecuária, Compras e Vendas** implementados — ver seção 5.3.
 **Desenho completo/decisões de arquitetura:** `docs/brainstorm-modulo-balanca.md`
-**Última atualização:** 2026-08-17 (módulo de billing próprio `O4_BALANCA`, tier PROFISSIONAL+)
+**Última atualização:** 2026-08-17 (balança física separada do terminal — cadastro de equipamento + histórico de aferição/metrologia legal)
 
 ## 1. O que é
 
@@ -196,6 +196,35 @@ A Balança é um módulo comercializável próprio (`core/constants.py`,
   plano que já tinha `A2_CAMPO` (mesmo critério do gate temporário anterior)
   — não há migração automática disso, é histórico de execução manual.
 
+## 5.6. Balança física (equipamento) × Terminal (estação PWA)
+
+Duas entidades separadas desde 2026-08-17, motivadas por metrologia legal
+(balança física é ativo regulado, com aferição/calibração periódica exigida
+por INMETRO ou órgão delegado — dado que não faz sentido morar no terminal,
+que é só o hardware que roda o app e pode ser trocado sem que o equipamento
+mude):
+
+- **`BalancaFisica`** (`balanca_fisicas`): o equipamento em si — nome,
+  fabricante, modelo, número de série, capacidade, fazenda onde está.
+- **`AfericaoBalanca`** (`balanca_afericoes`): histórico de aferições de uma
+  balança física — data, validade, órgão aferidor, nº certificado, resultado
+  (APROVADA/REPROVADA/APROVADA_COM_RESSALVA). N por balança física.
+- **`DispositivoBalanca`** (terminal) ganhou `balanca_fisica_id` **opcional**
+  (N:1, não N:N — várias estações podem apontar para a mesma balança física,
+  o que já resolve o cenário de terminal backup sem precisar de N:N).
+  Nullable: dispositivos existentes continuam funcionando sem vínculo.
+
+**Endpoints:** `POST/GET /balanca/balancas-fisicas`,
+`GET/PATCH /balanca/balancas-fisicas/{id}`,
+`POST/GET /balanca/balancas-fisicas/{id}/afericoes` — todos com
+`require_module("O4_BALANCA")` + permissão de tenant, mesmo padrão dos
+demais endpoints administrativos do módulo.
+
+**UI:** tela nova em `apps/web` — **Balança → Balanças Físicas**
+(`/dashboard/operacional/balanca/equipamentos`) — lista, cadastro e
+aferições (dialog dedicado por balança). O diálogo de nova estação
+(`dispositivo-dialog.tsx`) ganhou um seletor opcional de balança física.
+
 ## 6. Uso no dia a dia (operador da balança)
 
 1. A tela de pesagem lista as ordens pendentes (criadas por colheita, compra, venda ou pecuária), com o número da NF e agendamento quando presentes.
@@ -230,7 +259,7 @@ Quando a ordem do processo chega depois, ou alguém do escritório precisa vincu
 - **Ponte de hardware ainda não testada com equipamento real:** o parser é genérico (regex configurável) e foi validado com um simulador — quando a marca/modelo do indicador for definida, confirmar o formato real do frame e ajustar `config.yaml` (ver `tools/balanca-bridge/README.md`).
 - **Vínculo depende do worker de outbox estar rodando:** o evento `balanca.pesagem.concluida` só é entregue quando `background_worker.py` processa a fila (`events/outbox_relay.py`) — se o worker não estiver ativo em produção, romaneios/animais não recebem o peso automaticamente (a ordem na Balança continua correta, só o vínculo atrasa).
 - **Login de operador exige rede na hora de entrar:** a verificação do PIN pessoal é sempre no servidor (não dá pra validar bcrypt offline com segurança) — o operador precisa de conexão pra logar na estação uma vez; depois disso, pesar continua 100% offline até trocar de operador.
-- **Terminal × Balança ainda é um cadastro só:** `DispositivoBalanca` representa a estação inteira; não há um cadastro de "balança" separado do "terminal" (relação ainda não definida — decisão de produto pendente).
+- **Aferição sem alerta automático de vencimento:** o campo `validade_ate` existe e é exibido, mas nada avisa quando uma balança física está com aferição vencida — precisa checar manualmente na tela de Balanças Físicas por enquanto.
 - **Sem controle de qualidade / ajuste de peso:** não existe fluxo para descontar peso pós-pesagem (ex.: desconto por umidade/impureza em grãos) — pesagens são imutáveis uma vez registradas.
 - **Sem leitura automática de código de barras/NFe:** `numero_documento_fiscal` existe mas é preenchido manualmente (na solicitação, pelo módulo cliente) — sem scanner/OCR.
 - **Sem etiqueta/relatório de pesagem, nem histórico de avaliação de prestadores** (transportadora/motorista) — não solicitados ainda para esta fase.
@@ -266,6 +295,10 @@ Quando a ordem do processo chega depois, ou alguém do escritório precisa vincu
 | POST | `/api/v1/balanca/devices/revoke` | Revoga acesso da estação |
 | POST | `/api/v1/balanca/devices/reactivate` | Gera novo código para estação revogada/expirada |
 | GET | `/api/v1/balanca/devices` | Lista estações do tenant |
+| POST | `/api/v1/balanca/balancas-fisicas` | Cadastra balança física (equipamento) |
+| GET | `/api/v1/balanca/balancas-fisicas` | Lista balanças físicas do tenant |
+| GET/PATCH | `/api/v1/balanca/balancas-fisicas/{id}` | Detalhe / atualização parcial |
+| POST/GET | `/api/v1/balanca/balancas-fisicas/{id}/afericoes` | Registra / lista aferições da balança física |
 | POST | `/api/v1/balanca/operadores` | Cadastra operador (Pessoa + PIN) |
 | GET | `/api/v1/balanca/operadores` | Lista operadores do tenant (admin) |
 | POST | `/api/v1/balanca/operadores/{id}/revogar` | Revoga acesso do operador |

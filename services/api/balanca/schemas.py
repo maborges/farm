@@ -16,6 +16,7 @@ class DeviceCreate(BaseModel):
     nome: str = Field(..., max_length=100)
     fazenda_ids: list[uuid.UUID] = Field(..., min_length=1)
     expires_days: int = Field(default=365, ge=1, le=3650)
+    balanca_fisica_id: uuid.UUID | None = None
 
 
 class DeviceCreateResponse(BaseModel):
@@ -59,9 +60,74 @@ class DeviceResponse(BaseModel):
     nome: str
     status: str
     fazenda_ids: list[uuid.UUID]
+    balanca_fisica_id: uuid.UUID | None = None
     last_sync_at: datetime | None
     last_seen_at: datetime | None
     expires_at: datetime
+    created_at: datetime
+
+
+# ---------------------------------------------------------------------------
+# Balança física (equipamento) + aferições (metrologia legal)
+# ---------------------------------------------------------------------------
+
+
+class BalancaFisicaCreate(BaseModel):
+    nome: str = Field(..., max_length=100)
+    unidade_produtiva_id: uuid.UUID | None = None
+    fabricante: str | None = Field(None, max_length=100)
+    modelo: str | None = Field(None, max_length=100)
+    numero_serie: str | None = Field(None, max_length=100)
+    capacidade_kg: Decimal | None = None
+
+
+class BalancaFisicaUpdate(BaseModel):
+    nome: str | None = Field(None, max_length=100)
+    unidade_produtiva_id: uuid.UUID | None = None
+    fabricante: str | None = Field(None, max_length=100)
+    modelo: str | None = Field(None, max_length=100)
+    numero_serie: str | None = Field(None, max_length=100)
+    capacidade_kg: Decimal | None = None
+    ativa: bool | None = None
+
+
+class BalancaFisicaResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
+    tenant_id: uuid.UUID
+    nome: str
+    unidade_produtiva_id: uuid.UUID | None
+    fabricante: str | None
+    modelo: str | None
+    numero_serie: str | None
+    capacidade_kg: Decimal | None
+    ativa: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+ResultadoAfericao = Literal["APROVADA", "REPROVADA", "APROVADA_COM_RESSALVA"]
+
+
+class AfericaoCreate(BaseModel):
+    data_afericao: datetime
+    validade_ate: datetime | None = None
+    orgao_afericao: str | None = Field(None, max_length=150)
+    numero_certificado: str | None = Field(None, max_length=100)
+    resultado: ResultadoAfericao = "APROVADA"
+    observacoes: str | None = None
+
+
+class AfericaoResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
+    balanca_fisica_id: uuid.UUID
+    data_afericao: datetime
+    validade_ate: datetime | None
+    orgao_afericao: str | None
+    numero_certificado: str | None
+    resultado: str
+    observacoes: str | None
     created_at: datetime
 
 

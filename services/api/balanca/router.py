@@ -14,7 +14,14 @@ from core.dependencies import get_session, get_tenant_id, get_user_id, require_t
 from core.exceptions import EntityNotFoundError, BusinessRuleError, TenantViolationError
 
 from balanca.models import DispositivoBalanca
-from balanca.service import DispositivoService, OperadorService, PesagemService, SyncService
+from balanca.service import (
+    DispositivoService,
+    OperadorService,
+    PesagemService,
+    SyncService,
+    BalancaFisicaService,
+    AfericaoService,
+)
 from balanca.schemas import (
     DeviceCreate,
     DeviceCreateResponse,
@@ -36,6 +43,11 @@ from balanca.schemas import (
     SyncPullResponse,
     SyncPushRequest,
     SyncPushResponse,
+    BalancaFisicaCreate,
+    BalancaFisicaUpdate,
+    BalancaFisicaResponse,
+    AfericaoCreate,
+    AfericaoResponse,
 )
 
 router = APIRouter(prefix="/balanca", tags=["Balança"])
@@ -206,6 +218,139 @@ async def listar_dispositivos(
 ):
     svc = DispositivoService(session, tenant_id)
     return await svc.listar(skip, limit)
+
+
+# ---------------------------------------------------------------------------
+# Balança física (equipamento) + aferições — ativo regulado, separado do
+# terminal (DispositivoBalanca acima acessa via balanca_fisica_id opcional)
+# ---------------------------------------------------------------------------
+
+
+@router.post(
+    "/balancas-fisicas",
+    response_model=BalancaFisicaResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[
+        Depends(require_module("O4_BALANCA")),
+        Depends(require_tenant_permission("balanca:balanca_fisica:criar")),
+    ],
+)
+async def criar_balanca_fisica(
+    data: BalancaFisicaCreate,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    session: AsyncSession = Depends(get_session),
+):
+    svc = BalancaFisicaService(session, tenant_id)
+    balanca = await svc.criar(data)
+    await session.commit()
+    await session.refresh(balanca)
+    return balanca
+
+
+@router.get(
+    "/balancas-fisicas",
+    response_model=list[BalancaFisicaResponse],
+    dependencies=[
+        Depends(require_module("O4_BALANCA")),
+        Depends(require_tenant_permission("balanca:balanca_fisica:listar")),
+    ],
+)
+async def listar_balancas_fisicas(
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=100, ge=1, le=1000),
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    session: AsyncSession = Depends(get_session),
+):
+    svc = BalancaFisicaService(session, tenant_id)
+    return await svc.listar(skip, limit)
+
+
+@router.get(
+    "/balancas-fisicas/{balanca_id}",
+    response_model=BalancaFisicaResponse,
+    dependencies=[
+        Depends(require_module("O4_BALANCA")),
+        Depends(require_tenant_permission("balanca:balanca_fisica:listar")),
+    ],
+)
+async def obter_balanca_fisica(
+    balanca_id: uuid.UUID,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    session: AsyncSession = Depends(get_session),
+):
+    svc = BalancaFisicaService(session, tenant_id)
+    try:
+        return await svc.get_or_fail(balanca_id)
+    except EntityNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@router.patch(
+    "/balancas-fisicas/{balanca_id}",
+    response_model=BalancaFisicaResponse,
+    dependencies=[
+        Depends(require_module("O4_BALANCA")),
+        Depends(require_tenant_permission("balanca:balanca_fisica:editar")),
+    ],
+)
+async def atualizar_balanca_fisica(
+    balanca_id: uuid.UUID,
+    data: BalancaFisicaUpdate,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    session: AsyncSession = Depends(get_session),
+):
+    svc = BalancaFisicaService(session, tenant_id)
+    try:
+        balanca = await svc.atualizar(balanca_id, data)
+        await session.commit()
+        await session.refresh(balanca)
+        return balanca
+    except EntityNotFoundError as exc:
+        await session.rollback()
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@router.post(
+    "/balancas-fisicas/{balanca_id}/afericoes",
+    response_model=AfericaoResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[
+        Depends(require_module("O4_BALANCA")),
+        Depends(require_tenant_permission("balanca:afericao:criar")),
+    ],
+)
+async def registrar_afericao(
+    balanca_id: uuid.UUID,
+    data: AfericaoCreate,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    session: AsyncSession = Depends(get_session),
+):
+    svc = AfericaoService(session, tenant_id)
+    try:
+        afericao = await svc.criar(balanca_id, data)
+        await session.commit()
+        await session.refresh(afericao)
+        return afericao
+    except EntityNotFoundError as exc:
+        await session.rollback()
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@router.get(
+    "/balancas-fisicas/{balanca_id}/afericoes",
+    response_model=list[AfericaoResponse],
+    dependencies=[
+        Depends(require_module("O4_BALANCA")),
+        Depends(require_tenant_permission("balanca:afericao:listar")),
+    ],
+)
+async def listar_afericoes(
+    balanca_id: uuid.UUID,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    session: AsyncSession = Depends(get_session),
+):
+    svc = AfericaoService(session, tenant_id)
+    return await svc.listar_por_balanca(balanca_id)
 
 
 # ---------------------------------------------------------------------------

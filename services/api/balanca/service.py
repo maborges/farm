@@ -15,7 +15,15 @@ from loguru import logger
 from core.config import settings
 from core.exceptions import EntityNotFoundError, BusinessRuleError, TenantViolationError
 
-from balanca.models import DispositivoBalanca, OperadorBalanca, OrdemPesagem, Pesagem, SyncTombstoneBalanca
+from balanca.models import (
+    DispositivoBalanca,
+    OperadorBalanca,
+    OrdemPesagem,
+    Pesagem,
+    SyncTombstoneBalanca,
+    BalancaFisica,
+    AfericaoBalanca,
+)
 from balanca.schemas import (
     DeviceCreate,
     DeviceActivateRequest,
@@ -27,6 +35,9 @@ from balanca.schemas import (
     SyncPushItem,
     SyncPushItemResult,
     ETAPAS_POR_TIPO_PESAGEM,
+    BalancaFisicaCreate,
+    BalancaFisicaUpdate,
+    AfericaoCreate,
 )
 
 _ACTIVATION_CODE_CHARS = string.ascii_uppercase + string.digits
@@ -100,6 +111,7 @@ class DispositivoService:
             activation_code=activation_code,
             activation_code_expires_at=activation_expires,
             expires_at=expires_at,
+            balanca_fisica_id=data.balanca_fisica_id,
         )
         self.session.add(device)
         await self.session.flush()
@@ -179,6 +191,84 @@ class DispositivoService:
         if device:
             device.last_sync_at = datetime.utcnow()
             device.last_seen_at = datetime.utcnow()
+
+
+class BalancaFisicaService:
+    """Cadastro do equipamento de pesagem (ativo físico) — separado do terminal
+    (DispositivoBalanca) para permitir histórico de aferição independente do
+    hardware que roda o app."""
+
+    def __init__(self, session: AsyncSession, tenant_id: uuid.UUID):
+        self.session = session
+        self.tenant_id = tenant_id
+
+    async def criar(self, data: BalancaFisicaCreate) -> BalancaFisica:
+        balanca = BalancaFisica(tenant_id=self.tenant_id, **data.model_dump())
+        self.session.add(balanca)
+        await self.session.flush()
+        return balanca
+
+    async def atualizar(self, balanca_id: uuid.UUID, data: BalancaFisicaUpdate) -> BalancaFisica:
+        balanca = await self.get_or_fail(balanca_id)
+        for campo, valor in data.model_dump(exclude_unset=True).items():
+            setattr(balanca, campo, valor)
+        await self.session.flush()
+        return balanca
+
+    async def get_or_fail(self, balanca_id: uuid.UUID) -> BalancaFisica:
+        balanca = await self.session.get(BalancaFisica, balanca_id)
+        if not balanca or balanca.tenant_id != self.tenant_id:
+            raise EntityNotFoundError(f"Balança física {balanca_id} não encontrada.")
+        return balanca
+
+    async def listar(self, skip: int = 0, limit: int = 100) -> list[BalancaFisica]:
+        result = await self.session.execute(
+            select(BalancaFisica)
+            .where(BalancaFisica.tenant_id == self.tenant_id)
+            .order_by(BalancaFisica.nome)
+            .offset(skip)
+            .limit(limit)
+        )
+        return list(result.scalars().all())
+
+
+class AfericaoService:
+    """Histórico de aferições/calibração de uma balança física — metrologia
+    legal exige periodicidade, mas quem define a regra de vencimento é o
+    módulo cliente/admin (aqui só registramos o histórico)."""
+
+    def __init__(self, session: AsyncSession, tenant_id: uuid.UUID):
+        self.session = session
+        self.tenant_id = tenant_id
+
+    async def criar(self, balanca_fisica_id: uuid.UUID, data: AfericaoCreate) -> AfericaoBalanca:
+        # Garante que a balança física pertence ao tenant antes de registrar.
+        balanca = await self.session.get(BalancaFisica, balanca_fisica_id)
+        if not balanca or balanca.tenant_id != self.tenant_id:
+            raise EntityNotFoundError(f"Balança física {balanca_fisica_id} não encontrada.")
+
+        payload = data.model_dump()
+        payload["data_afericao"] = _to_naive_utc(payload["data_afericao"])
+        payload["validade_ate"] = _to_naive_utc(payload["validade_ate"])
+        afericao = AfericaoBalanca(
+            tenant_id=self.tenant_id,
+            balanca_fisica_id=balanca_fisica_id,
+            **payload,
+        )
+        self.session.add(afericao)
+        await self.session.flush()
+        return afericao
+
+    async def listar_por_balanca(self, balanca_fisica_id: uuid.UUID) -> list[AfericaoBalanca]:
+        result = await self.session.execute(
+            select(AfericaoBalanca)
+            .where(
+                AfericaoBalanca.tenant_id == self.tenant_id,
+                AfericaoBalanca.balanca_fisica_id == balanca_fisica_id,
+            )
+            .order_by(AfericaoBalanca.data_afericao.desc())
+        )
+        return list(result.scalars().all())
 
 
 class OperadorService:

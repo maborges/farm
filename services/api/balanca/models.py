@@ -38,9 +38,76 @@ class DispositivoBalanca(Base):
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     revoked_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
 
+    # Balança física (equipamento) que este terminal acessa. Opcional — nem todo
+    # dispositivo já tem o equipamento cadastrado, e vários terminais podem
+    # apontar para a mesma balança física (N:1, não N:N: mantém simples).
+    balanca_fisica_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("balanca_fisicas.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+
     __table_args__ = (
         Index("ix_balanca_disp_tenant_status", "tenant_id", "status"),
         Index("ix_balanca_disp_activation", "activation_code"),
+    )
+
+
+class BalancaFisica(Base):
+    """O equipamento de pesagem em si (ativo físico, regulado por metrologia
+    legal — aferição INMETRO periódica) — separado do terminal/estação PWA
+    (DispositivoBalanca), que é só o hardware que roda o app e pode trocar
+    sem que a balança física mude."""
+    __tablename__ = "balanca_fisicas"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+
+    nome: Mapped[str] = mapped_column(String(100), nullable=False)
+    # Referenciado por convenção (mesmo princípio de origem_id/produto_id) —
+    # sem FK direta para não acoplar a modelos de core/imóveis.
+    unidade_produtiva_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True, index=True)
+
+    fabricante: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    modelo: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    numero_serie: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    capacidade_kg: Mapped[Decimal | None] = mapped_column(Numeric(12, 3), nullable=True)
+
+    ativa: Mapped[bool] = mapped_column(default=True, nullable=False)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        Index("ix_balanca_fisica_tenant", "tenant_id"),
+    )
+
+
+class AfericaoBalanca(Base):
+    """Registro histórico de aferição/calibração de uma balança física —
+    metrologia legal (INMETRO ou órgão delegado) exige aferição periódica."""
+    __tablename__ = "balanca_afericoes"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    balanca_fisica_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("balanca_fisicas.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+
+    data_afericao: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    validade_ate: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    orgao_afericao: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    numero_certificado: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    resultado: Mapped[str] = mapped_column(String(30), nullable=False, default="APROVADA")
+    # APROVADA | REPROVADA | APROVADA_COM_RESSALVA
+    observacoes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        Index("ix_balanca_afericao_balanca", "balanca_fisica_id", "data_afericao"),
     )
 
 

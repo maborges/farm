@@ -605,3 +605,108 @@ async def test_login_operador_por_pin_pessoal(client: httpx.AsyncClient, session
         headers=device_headers,
     )
     assert resp.status_code == 401
+
+
+async def test_balanca_fisica_afericao_e_vinculo_com_dispositivo(client: httpx.AsyncClient, session):
+    """Balança física (equipamento) é um cadastro separado do terminal —
+    histórico de aferição (metrologia legal) vive nela, não no dispositivo."""
+    tenant_id = uuid.uuid4()
+    user_id = uuid.uuid4()
+    token = await _criar_tenant_com_owner(session, tenant_id, user_id, "Tenant Balança Física")
+    headers = {"Authorization": f"Bearer {token}", "X-Tenant-ID": str(tenant_id)}
+
+    resp = await client.post(
+        "/api/v1/balanca/balancas-fisicas",
+        json={
+            "nome": "Balança Rodoviária Portaria 1",
+            "fabricante": "Toledo",
+            "modelo": "9097",
+            "numero_serie": "SN-12345",
+            "capacidade_kg": "60000.000",
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 201, resp.text
+    balanca = resp.json()
+    balanca_id = balanca["id"]
+    assert balanca["ativa"] is True
+
+    # Listagem e detalhe
+    resp = await client.get("/api/v1/balanca/balancas-fisicas", headers=headers)
+    assert resp.status_code == 200
+    assert any(b["id"] == balanca_id for b in resp.json())
+
+    resp = await client.get(f"/api/v1/balanca/balancas-fisicas/{balanca_id}", headers=headers)
+    assert resp.status_code == 200
+    assert resp.json()["numero_serie"] == "SN-12345"
+
+    # Atualização parcial
+    resp = await client.patch(
+        f"/api/v1/balanca/balancas-fisicas/{balanca_id}",
+        json={"capacidade_kg": "80000.000"},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+    assert resp.json()["capacidade_kg"] == "80000.000"
+    assert resp.json()["numero_serie"] == "SN-12345"  # campo não enviado permanece
+
+    # Registrar aferição
+    resp = await client.post(
+        f"/api/v1/balanca/balancas-fisicas/{balanca_id}/afericoes",
+        json={
+            "data_afericao": "2026-08-17T10:00:00Z",
+            "validade_ate": "2027-08-17T10:00:00Z",
+            "orgao_afericao": "IPEM-SP",
+            "numero_certificado": "CERT-2026-001",
+            "resultado": "APROVADA",
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["balanca_fisica_id"] == balanca_id
+
+    resp = await client.get(f"/api/v1/balanca/balancas-fisicas/{balanca_id}/afericoes", headers=headers)
+    assert resp.status_code == 200
+    afericoes = resp.json()
+    assert len(afericoes) == 1
+    assert afericoes[0]["orgao_afericao"] == "IPEM-SP"
+
+    # Dispositivo (terminal) vinculado à balança física
+    resp = await client.post(
+        "/api/v1/balanca/devices",
+        json={
+            "nome": "Terminal Portaria 1",
+            "fazenda_ids": [str(uuid.uuid4())],
+            "balanca_fisica_id": balanca_id,
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 201, resp.text
+
+    resp = await client.get("/api/v1/balanca/devices", headers=headers)
+    device = next(d for d in resp.json() if d["nome"] == "Terminal Portaria 1")
+    assert device["balanca_fisica_id"] == balanca_id
+
+    # Outro terminal pode apontar para a mesma balança física (N:1)
+    resp = await client.post(
+        "/api/v1/balanca/devices",
+        json={
+            "nome": "Terminal Backup Portaria 1",
+            "fazenda_ids": [str(uuid.uuid4())],
+            "balanca_fisica_id": balanca_id,
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 201, resp.text
+
+    # Aferição de balança física de outro tenant não pode ser registrada
+    tenant_b_id = uuid.uuid4()
+    user_b_id = uuid.uuid4()
+    token_b = await _criar_tenant_com_owner(session, tenant_b_id, user_b_id, "Tenant Balança Física B")
+    headers_b = {"Authorization": f"Bearer {token_b}", "X-Tenant-ID": str(tenant_b_id)}
+    resp = await client.post(
+        f"/api/v1/balanca/balancas-fisicas/{balanca_id}/afericoes",
+        json={"data_afericao": "2026-08-17T10:00:00Z"},
+        headers=headers_b,
+    )
+    assert resp.status_code == 404
