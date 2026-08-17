@@ -26,6 +26,7 @@ from balanca.schemas import (
     SolicitarPesagemRequest,
     OrdemPesagemResponse,
     CancelarOrdemRequest,
+    ReatribuirOrdemRequest,
     PesagemResponse,
     SyncPullResponse,
     SyncPushRequest,
@@ -230,6 +231,22 @@ async def listar_ordens(
 
 
 @router.get(
+    "/ordens/pendentes-reconciliacao",
+    response_model=list[OrdemPesagemResponse],
+    dependencies=[Depends(require_tenant_permission("balanca:pesagem:listar"))],
+)
+async def listar_pendentes_reconciliacao(
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=100, ge=1, le=1000),
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    session: AsyncSession = Depends(get_session),
+):
+    """Pesagens avulsas (criadas sem ordem prévia) ainda não associadas a um processo."""
+    svc = PesagemService(session, tenant_id)
+    return await svc.listar_pendentes_reconciliacao(skip, limit)
+
+
+@router.get(
     "/ordens/{ordem_id}",
     response_model=OrdemPesagemResponse,
     dependencies=[Depends(require_tenant_permission("balanca:pesagem:listar"))],
@@ -283,6 +300,29 @@ async def cancelar_ordem(
     except BusinessRuleError as exc:
         await session.rollback()
         raise HTTPException(status_code=422, detail=str(exc))
+
+
+@router.post(
+    "/ordens/{ordem_id}/reatribuir",
+    response_model=OrdemPesagemResponse,
+    dependencies=[Depends(require_tenant_permission("balanca:pesagem:reatribuir"))],
+)
+async def reatribuir_ordem(
+    ordem_id: uuid.UUID,
+    data: ReatribuirOrdemRequest,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    session: AsyncSession = Depends(get_session),
+):
+    """Reconciliação: associa uma pesagem avulsa ao processo real (colheita/compra/venda/pecuária)."""
+    svc = PesagemService(session, tenant_id)
+    try:
+        ordem = await svc.reatribuir_ordem(ordem_id, data)
+        await session.commit()
+        await session.refresh(ordem)
+        return ordem
+    except EntityNotFoundError as exc:
+        await session.rollback()
+        raise HTTPException(status_code=404, detail=str(exc))
 
 
 # ---------------------------------------------------------------------------

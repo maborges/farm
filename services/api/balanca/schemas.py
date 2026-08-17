@@ -70,8 +70,21 @@ class DeviceResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 OrigemTipo = Literal["COLHEITA", "COMPRA", "VENDA", "PECUARIA", "PESSOA", "OUTRO"]
-SubjectType = Literal["VEICULO", "ANIMAL", "PESSOA"]
-TipoPesagem = Literal["UNICA", "DUPLA"]
+SubjectType = Literal["VEICULO", "ANIMAL"]
+TipoPesagem = Literal["UNICA", "DUPLA", "DUPLA_ENTRADA_DESCARGA", "DUPLA_SAIDA_CARREGAMENTO"]
+Etapa = Literal["UNICA", "CHEGADA", "POS_DESCARGA", "PRE_CARREGAMENTO", "SAIDA"]
+ProdutoTipo = Literal["COMMODITY", "ALMOXARIFADO"]
+TipoVolume = Literal["SACA", "BIG_BAG", "GRANEL", "TAMBOR", "OUTRO"]
+
+# Etapas esperadas por tipo_pesagem, na ordem em que devem ocorrer — usado
+# tanto para validar o payload do sync push quanto para saber quando o par
+# está completo e o peso líquido da ordem pode ser calculado.
+ETAPAS_POR_TIPO_PESAGEM: dict[str, tuple[str, ...]] = {
+    "UNICA": ("UNICA",),
+    "DUPLA": ("CHEGADA", "SAIDA"),
+    "DUPLA_ENTRADA_DESCARGA": ("CHEGADA", "POS_DESCARGA"),
+    "DUPLA_SAIDA_CARREGAMENTO": ("PRE_CARREGAMENTO", "SAIDA"),
+}
 
 
 class SolicitarPesagemRequest(BaseModel):
@@ -81,6 +94,12 @@ class SolicitarPesagemRequest(BaseModel):
     tipo_pesagem: TipoPesagem
     contexto: dict[str, Any] = Field(default_factory=dict)
     solicitado_por: uuid.UUID | None = None
+    produto_id: uuid.UUID | None = None
+    produto_tipo: ProdutoTipo | None = None
+    tipo_volume: TipoVolume | None = None
+    quantidade_volumes: Decimal | None = None
+    data_agendada: datetime | None = None
+    numero_documento_fiscal: str | None = Field(default=None, max_length=60)
 
 
 class OrdemPesagemResponse(BaseModel):
@@ -92,6 +111,13 @@ class OrdemPesagemResponse(BaseModel):
     tipo_pesagem: str
     status: str
     contexto: dict[str, Any]
+    produto_id: uuid.UUID | None
+    produto_tipo: str | None
+    tipo_volume: str | None
+    quantidade_volumes: Decimal | None
+    data_agendada: datetime | None
+    numero_documento_fiscal: str | None
+    peso_liquido_kg: Decimal | None
     dispositivo_id: uuid.UUID | None
     concluida_em: datetime | None
     cancelada_em: datetime | None
@@ -103,21 +129,30 @@ class CancelarOrdemRequest(BaseModel):
     motivo: str = Field(..., min_length=3)
 
 
+class ReatribuirOrdemRequest(BaseModel):
+    """Reconciliação: associa uma ordem 'OUTRO' (pesagem avulsa, sem processo
+    de origem no momento da pesagem) ao processo real de outro módulo."""
+    origem_tipo: OrigemTipo
+    origem_id: uuid.UUID | None = None
+    contexto: dict[str, Any] | None = None
+
+
 class PesagemResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
     id: uuid.UUID
     ordem_id: uuid.UUID
     numero_ticket: str
-    peso_bruto_kg: Decimal | None
+    etapa: str
+    peso_informado_kg: Decimal | None
+    peso_aferido_kg: Decimal | None
     peso_tara_kg: Decimal | None
-    peso_liquido_kg: Decimal | None
     captured_via: str
     placa: str | None
     motorista: str | None
     animal_id: uuid.UUID | None
     pessoa_id: uuid.UUID | None
-    data_entrada: datetime | None
-    data_saida: datetime | None
+    operador_pessoa_id: uuid.UUID | None
+    data_pesagem: datetime | None
     created_at: datetime
 
 
@@ -134,6 +169,13 @@ class OrdemPendenteSync(BaseModel):
     tipo_pesagem: str
     status: str
     contexto: dict[str, Any]
+    produto_id: uuid.UUID | None
+    produto_tipo: str | None
+    tipo_volume: str | None
+    quantidade_volumes: Decimal | None
+    data_agendada: datetime | None
+    numero_documento_fiscal: str | None
+    etapas_realizadas: list[str] = Field(default_factory=list)
     created_at: datetime
 
 

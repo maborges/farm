@@ -135,9 +135,10 @@ async def test_fluxo_completo_pesagem_manual_e_isolamento_tenant(client: httpx.A
                     "entity_type": "pesagem",
                     "payload": {
                         "ordem_id": ordem_id,
-                        "peso_bruto_kg": "18500.500",
+                        "etapa": "UNICA",
+                        "peso_informado_kg": "18500.500",
+                        "peso_aferido_kg": "18500.500",
                         "peso_tara_kg": "8000.000",
-                        "peso_liquido_kg": "10500.500",
                         "captured_via": "MANUAL",
                         "placa": "ABC1D23",
                     },
@@ -162,7 +163,7 @@ async def test_fluxo_completo_pesagem_manual_e_isolamento_tenant(client: httpx.A
                     "local_id": local_id,
                     "operation": "CREATE",
                     "entity_type": "pesagem",
-                    "payload": {"ordem_id": ordem_id, "peso_bruto_kg": "18500.500"},
+                    "payload": {"ordem_id": ordem_id, "etapa": "UNICA", "peso_aferido_kg": "18500.500"},
                     "client_created_at": "2026-08-16T10:00:00Z",
                     "client_updated_at": "2026-08-16T10:00:00Z",
                 }
@@ -173,16 +174,19 @@ async def test_fluxo_completo_pesagem_manual_e_isolamento_tenant(client: httpx.A
     assert resp.status_code == 200
     assert resp.json()["results"][0]["server_id"] == push_data["results"][0]["server_id"]
 
-    # 7) Ordem de pesagem única é concluída automaticamente
+    # 7) Ordem de pesagem única é concluída automaticamente, com peso líquido calculado
     resp = await client.get(f"/api/v1/balanca/ordens/{ordem_id}", headers=headers_a)
     assert resp.status_code == 200
-    assert resp.json()["status"] == "CONCLUIDA"
+    ordem_final = resp.json()
+    assert ordem_final["status"] == "CONCLUIDA"
+    assert ordem_final["peso_liquido_kg"] == "10500.500"
 
     resp = await client.get(f"/api/v1/balanca/ordens/{ordem_id}/pesagens", headers=headers_a)
     assert resp.status_code == 200
     pesagens = resp.json()
     assert len(pesagens) == 1
-    assert pesagens[0]["peso_liquido_kg"] == "10500.500"
+    assert pesagens[0]["etapa"] == "UNICA"
+    assert pesagens[0]["peso_aferido_kg"] == "18500.500"
 
     # 8) Token de dispositivo não serve para outro device_id (mesmo tenant)
     resp = await client.get(
@@ -190,3 +194,194 @@ async def test_fluxo_completo_pesagem_manual_e_isolamento_tenant(client: httpx.A
         headers={"Authorization": f"Bearer {device_token}"},
     )
     assert resp.status_code == 403
+
+
+async def test_pesagem_avulsa_cria_ordem_sombra_e_permite_reconciliacao(
+    client: httpx.AsyncClient, session
+):
+    """Pesagem sem ordem prévia (estação vendida/rodando standalone, ou ordem do
+    processo ainda não chegou): a estação cria uma OrdemPesagem 'sombra'
+    (origem_tipo=OUTRO) e a pesagem fica disponível para reconciliação depois."""
+    tenant_id = uuid.uuid4()
+    user_id = uuid.uuid4()
+    token = await _criar_tenant_com_owner(session, tenant_id, user_id, "Tenant Avulsa")
+    headers = {"Authorization": f"Bearer {token}", "X-Tenant-ID": str(tenant_id)}
+
+    resp = await client.post(
+        "/api/v1/balanca/devices",
+        json={"nome": "Balança Avulsa", "fazenda_ids": [str(uuid.uuid4())]},
+        headers=headers,
+    )
+    assert resp.status_code == 201, resp.text
+    activation_code = resp.json()["activation_code"]
+
+    resp = await client.post(
+        "/api/v1/balanca/devices/activate",
+        json={
+            "activation_code": activation_code,
+            "pin_hash": "hash-fake-pin",
+            "device_fingerprint": f"fp-{uuid.uuid4()}",
+        },
+    )
+    assert resp.status_code == 200, resp.text
+    device_token = resp.json()["device_token"]
+    device_id = resp.json()["device_id"]
+
+    # Estação pesa sem nenhuma ordem prévia — payload sem ordem_id, mas com
+    # subject_type/tipo_pesagem (obrigatórios para a ordem sombra saber o quê pesou).
+    local_id = str(uuid.uuid4())
+    resp = await client.post(
+        "/api/v1/balanca/sync/push",
+        json={
+            "device_id": device_id,
+            "items": [
+                {
+                    "local_id": local_id,
+                    "operation": "CREATE",
+                    "entity_type": "pesagem",
+                    "payload": {
+                        "subject_type": "VEICULO",
+                        "tipo_pesagem": "UNICA",
+                        "etapa": "UNICA",
+                        "peso_aferido_kg": "2300.000",
+                        "captured_via": "MANUAL",
+                        "placa": "XYZ9A87",
+                    },
+                    "client_created_at": "2026-08-16T10:00:00Z",
+                    "client_updated_at": "2026-08-16T10:00:00Z",
+                }
+            ],
+        },
+        headers={"Authorization": f"Bearer {device_token}"},
+    )
+    assert resp.status_code == 200, resp.text
+    push_result = resp.json()["results"][0]
+    assert push_result["status"] == "CREATED"
+    pesagem_id = push_result["server_id"]
+
+    # A ordem sombra aparece na fila de reconciliação
+    resp = await client.get("/api/v1/balanca/ordens/pendentes-reconciliacao", headers=headers)
+    assert resp.status_code == 200
+    pendentes = resp.json()
+    assert len(pendentes) == 1
+    ordem_sombra_id = pendentes[0]["id"]
+    assert pendentes[0]["origem_tipo"] == "OUTRO"
+    assert pendentes[0]["origem_id"] is None
+
+    resp = await client.get(f"/api/v1/balanca/ordens/{ordem_sombra_id}/pesagens", headers=headers)
+    assert resp.status_code == 200
+    assert resp.json()[0]["id"] == pesagem_id
+
+    # Reconciliação: associa a pesagem avulsa a uma compra real
+    compra_id = uuid.uuid4()
+    resp = await client.post(
+        f"/api/v1/balanca/ordens/{ordem_sombra_id}/reatribuir",
+        json={"origem_tipo": "COMPRA", "origem_id": str(compra_id)},
+        headers=headers,
+    )
+    assert resp.status_code == 200, resp.text
+    ordem_reatribuida = resp.json()
+    assert ordem_reatribuida["origem_tipo"] == "COMPRA"
+    assert ordem_reatribuida["origem_id"] == str(compra_id)
+
+    # Depois de reconciliada, não aparece mais como pendente
+    resp = await client.get("/api/v1/balanca/ordens/pendentes-reconciliacao", headers=headers)
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
+async def test_pesagem_dupla_com_descarga_calcula_liquido_por_etapas(client: httpx.AsyncClient, session):
+    """Cenário combinado: colheita com produto/volumes/NF na ordem, e pesagem em
+    duas etapas com (des)carregamento no meio — chegada e pós-descarga, cada
+    uma com peso informado (declarado) e aferido (balança) separados."""
+    tenant_id = uuid.uuid4()
+    user_id = uuid.uuid4()
+    token = await _criar_tenant_com_owner(session, tenant_id, user_id, "Tenant Dupla Descarga")
+    headers = {"Authorization": f"Bearer {token}", "X-Tenant-ID": str(tenant_id)}
+
+    resp = await client.post(
+        "/api/v1/balanca/devices",
+        json={"nome": "Balança Silo", "fazenda_ids": [str(uuid.uuid4())]},
+        headers=headers,
+    )
+    activation_code = resp.json()["activation_code"]
+    resp = await client.post(
+        "/api/v1/balanca/devices/activate",
+        json={"activation_code": activation_code, "pin_hash": "hash", "device_fingerprint": f"fp-{uuid.uuid4()}"},
+    )
+    device_token = resp.json()["device_token"]
+    device_id = resp.json()["device_id"]
+
+    produto_id = uuid.uuid4()
+    resp = await client.post(
+        "/api/v1/balanca/ordens",
+        json={
+            "origem_tipo": "COLHEITA",
+            "subject_type": "VEICULO",
+            "tipo_pesagem": "DUPLA_ENTRADA_DESCARGA",
+            "produto_id": str(produto_id),
+            "produto_tipo": "COMMODITY",
+            "tipo_volume": "GRANEL",
+            "quantidade_volumes": "1",
+            "numero_documento_fiscal": "NFE-000123",
+            "contexto": {"placa": "GRA1N23"},
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 201, resp.text
+    ordem_id = resp.json()["id"]
+
+    async def _pesar(etapa: str, aferido: str, informado: str):
+        return await client.post(
+            "/api/v1/balanca/sync/push",
+            json={
+                "device_id": device_id,
+                "items": [
+                    {
+                        "local_id": str(uuid.uuid4()),
+                        "operation": "CREATE",
+                        "entity_type": "pesagem",
+                        "payload": {
+                            "ordem_id": ordem_id,
+                            "etapa": etapa,
+                            "peso_informado_kg": informado,
+                            "peso_aferido_kg": aferido,
+                            "captured_via": "MANUAL",
+                        },
+                        "client_created_at": "2026-08-16T10:00:00Z",
+                        "client_updated_at": "2026-08-16T10:00:00Z",
+                    }
+                ],
+            },
+            headers={"Authorization": f"Bearer {device_token}"},
+        )
+
+    resp = await _pesar("CHEGADA", aferido="45000.000", informado="45200.000")
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["results"][0]["status"] == "CREATED"
+
+    # Ordem ainda não completou o par de etapas esperado
+    resp = await client.get(f"/api/v1/balanca/ordens/{ordem_id}", headers=headers)
+    assert resp.json()["status"] == "EM_PESAGEM"
+
+    # Etapa fora do conjunto esperado (SAIDA não é válida para DUPLA_ENTRADA_DESCARGA)
+    resp = await _pesar("SAIDA", aferido="30000.000", informado="30000.000")
+    assert resp.status_code == 200
+    assert resp.json()["results"][0]["status"] == "ERROR"
+
+    resp = await _pesar("POS_DESCARGA", aferido="30500.000", informado="30500.000")
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["results"][0]["status"] == "CREATED"
+
+    resp = await client.get(f"/api/v1/balanca/ordens/{ordem_id}", headers=headers)
+    ordem_final = resp.json()
+    assert ordem_final["status"] == "CONCLUIDA"
+    assert ordem_final["peso_liquido_kg"] == "14500.000"  # |45000 - 30500|
+    assert ordem_final["numero_documento_fiscal"] == "NFE-000123"
+    assert ordem_final["produto_id"] == str(produto_id)
+
+    resp = await client.get(f"/api/v1/balanca/ordens/{ordem_id}/pesagens", headers=headers)
+    pesagens = {p["etapa"]: p for p in resp.json()}
+    assert set(pesagens.keys()) == {"CHEGADA", "POS_DESCARGA"}
+    assert pesagens["CHEGADA"]["peso_informado_kg"] == "45200.000"
+    assert pesagens["CHEGADA"]["peso_aferido_kg"] == "45000.000"

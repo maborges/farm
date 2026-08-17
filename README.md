@@ -97,7 +97,16 @@ Primeira ativação: fluxo `/activate` → `/pin`.
 cd /opt/lampp/htdocs/farm/apps/balanca
 pnpm run dev
 ```
-Roda em `http://localhost:3003`. Primeira ativação: código gerado em `POST /api/v1/balanca/devices` + PIN da estação, tela `/` → `/pesagem`. Captura de peso manual na fase atual; leitura eletrônica de indicador de balança é feature futura via bridge local (ver `docs/brainstorm-modulo-balanca.md`).
+Roda em `http://localhost:3003`. Primeira ativação: código gerado em `POST /api/v1/balanca/devices` + PIN da estação, tela `/` → `/pesagem`. Peso digitado manualmente ou lido ao vivo da ponte de hardware (configurável na própria tela, botão "Configurar ponte").
+
+### Ponte de Balança (leitura eletrônica de peso)
+```bash
+cd /opt/lampp/htdocs/farm/tools/balanca-bridge
+python3 -m venv .venv && ./.venv/bin/pip install -r requirements.txt
+cp config.yaml.example config.yaml   # ajuste porta serial ou host/porta TCP do indicador
+./.venv/bin/python -m balanca_bridge.main
+```
+Roda em `http://0.0.0.0:8321` (ajustável). Sem indicador físico ainda? `./.venv/bin/python simulator.py` emula um indicador via TCP para testar toda a cadeia. Detalhes em `tools/balanca-bridge/README.md`.
 
 ### Matar tudo
 ```bash

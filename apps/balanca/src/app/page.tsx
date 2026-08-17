@@ -58,6 +58,8 @@ export default function HomePage() {
         fazenda_ids: resp.fazenda_ids,
         expires_at: resp.expires_at,
         last_sync_at: null,
+        bridge_url: null,
+        bridge_token: null,
       });
       router.replace("/pesagem");
     } catch (err) {

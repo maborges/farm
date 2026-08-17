@@ -60,9 +60,11 @@ class OrdemPesagem(Base):
     origem_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True, index=True)
 
     subject_type: Mapped[str] = mapped_column(String(20), nullable=False)
-    # VEICULO | ANIMAL | PESSOA
-    tipo_pesagem: Mapped[str] = mapped_column(String(10), nullable=False)
-    # UNICA | DUPLA
+    # VEICULO | ANIMAL
+    tipo_pesagem: Mapped[str] = mapped_column(String(30), nullable=False)
+    # UNICA | DUPLA (chegada+saída) | DUPLA_ENTRADA_DESCARGA (chegada+pós-descarga) |
+    # DUPLA_SAIDA_CARREGAMENTO (pré-carregamento+saída) — define as etapas de
+    # Pesagem esperadas para esta ordem (ver Pesagem.etapa).
 
     status: Mapped[str] = mapped_column(String(20), default="PENDENTE", nullable=False, index=True)
     # PENDENTE | EM_PESAGEM | CONCLUIDA | CANCELADA
@@ -70,6 +72,23 @@ class OrdemPesagem(Base):
     solicitado_por: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     contexto: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
     # dados livres do módulo cliente (placa, motorista, produto, brinco, lote etc.)
+
+    # Produto/carga — sem FK direta a `core.cadastros.produtos`/estoque (mesmo
+    # princípio de desacoplamento do origem_id): referência por convenção.
+    produto_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    produto_tipo: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    # COMMODITY | ALMOXARIFADO
+    tipo_volume: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    # SACA | BIG_BAG | GRANEL | TAMBOR | OUTRO
+    quantidade_volumes: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True)
+
+    data_agendada: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    numero_documento_fiscal: Mapped[str | None] = mapped_column(String(60), nullable=True)
+
+    # Peso líquido final da ordem — calculado quando o par de etapas esperado
+    # (conforme tipo_pesagem) está completo. Não confundir com o peso de cada
+    # Pesagem individual (peso_informado_kg/peso_aferido_kg por etapa).
+    peso_liquido_kg: Mapped[Decimal | None] = mapped_column(Numeric(12, 3), nullable=True)
 
     dispositivo_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("balanca_dispositivos.id", ondelete="SET NULL"), nullable=True, index=True
@@ -89,7 +108,14 @@ class OrdemPesagem(Base):
 
 
 class Pesagem(Base):
-    """Resultado (ticket) de uma pesagem, vinculado a uma OrdemPesagem."""
+    """Um evento físico de pesagem (uma passada pela balança). Uma OrdemPesagem
+    tem 1 a N Pesagem conforme `OrdemPesagem.tipo_pesagem`:
+    - UNICA: 1 pesagem (etapa=UNICA)
+    - DUPLA: 2 pesagens (CHEGADA, SAIDA)
+    - DUPLA_ENTRADA_DESCARGA: 2 pesagens (CHEGADA, POS_DESCARGA)
+    - DUPLA_SAIDA_CARREGAMENTO: 2 pesagens (PRE_CARREGAMENTO, SAIDA)
+    O peso líquido da ordem é calculado a partir do par de etapas quando completo
+    (ver PesagemService) e fica em OrdemPesagem.peso_liquido_kg — não aqui."""
     __tablename__ = "balanca_pesagens"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -108,9 +134,16 @@ class Pesagem(Base):
     # Identificador local do dispositivo (UUID gerado offline), para idempotência no sync
     client_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
 
-    peso_bruto_kg: Mapped[Decimal | None] = mapped_column(Numeric(12, 3), nullable=True)
+    etapa: Mapped[str] = mapped_column(String(20), nullable=False, default="UNICA")
+    # UNICA | CHEGADA | POS_DESCARGA | PRE_CARREGAMENTO | SAIDA
+
+    # Peso informado (declarado — ex.: valor da NF/motorista) vs peso aferido
+    # (o que a balança efetivamente mediu). São propositalmente dois campos —
+    # divergência entre eles é sinal de auditoria, não erro.
+    peso_informado_kg: Mapped[Decimal | None] = mapped_column(Numeric(12, 3), nullable=True)
+    peso_aferido_kg: Mapped[Decimal | None] = mapped_column(Numeric(12, 3), nullable=True)
     peso_tara_kg: Mapped[Decimal | None] = mapped_column(Numeric(12, 3), nullable=True)
-    peso_liquido_kg: Mapped[Decimal | None] = mapped_column(Numeric(12, 3), nullable=True)
+    # Só usado na etapa UNICA (tara cadastrada do veículo, subtraída do aferido)
 
     captured_via: Mapped[str] = mapped_column(String(15), default="MANUAL", nullable=False)
     # MANUAL | ELETRONICA
@@ -122,8 +155,12 @@ class Pesagem(Base):
     animal_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     pessoa_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
 
-    data_entrada: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    data_saida: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # Operador que realizou esta pesagem — Pessoa do cadastro core, não a
+    # estação (dispositivo_id). Login por operador ainda não implementado no
+    # PWA (fase futura); campo já existe para não exigir migration depois.
+    operador_pessoa_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+
+    data_pesagem: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     client_created_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     client_updated_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
@@ -134,6 +171,7 @@ class Pesagem(Base):
     __table_args__ = (
         UniqueConstraint("tenant_id", "client_id", name="uq_balanca_pesagem_tenant_client"),
         UniqueConstraint("tenant_id", "numero_ticket", name="uq_balanca_pesagem_tenant_ticket"),
+        UniqueConstraint("ordem_id", "etapa", name="uq_balanca_pesagem_ordem_etapa"),
         Index("ix_balanca_pesagens_ordem", "ordem_id"),
     )
 

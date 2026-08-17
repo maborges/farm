@@ -3,7 +3,7 @@ import { db, getSession } from "@/lib/db";
 
 interface SyncPushItemResult {
   local_id: string;
-  status: "CREATED" | "UPDATED" | "CONFLICT" | "ERROR";
+  status: "CREATED" | "ERROR";
   server_id: string | null;
   error_message?: string | null;
 }
@@ -36,18 +36,21 @@ export async function pushSync(): Promise<{ ok: boolean; sincronizados: number; 
         payload: pesagem
           ? {
               ordem_id: pesagem.ordem_id,
+              subject_type: pesagem.subject_type,
+              tipo_pesagem: pesagem.tipo_pesagem,
+              etapa: pesagem.etapa,
               numero_ticket: pesagem.numero_ticket,
-              peso_bruto_kg: pesagem.peso_bruto_kg,
+              peso_informado_kg: pesagem.peso_informado_kg,
+              peso_aferido_kg: pesagem.peso_aferido_kg,
               peso_tara_kg: pesagem.peso_tara_kg,
-              peso_liquido_kg: pesagem.peso_liquido_kg,
               captured_via: pesagem.captured_via,
               leitura_bruta: pesagem.leitura_bruta,
               placa: pesagem.placa,
               motorista: pesagem.motorista,
               animal_id: pesagem.animal_id,
               pessoa_id: pesagem.pessoa_id,
-              data_entrada: pesagem.data_entrada,
-              data_saida: pesagem.data_saida,
+              operador_pessoa_id: pesagem.operador_pessoa_id,
+              data_pesagem: pesagem.data_pesagem,
             }
           : {},
         client_created_at: pesagem?.client_created_at ?? new Date().toISOString(),
@@ -67,13 +70,10 @@ export async function pushSync(): Promise<{ ok: boolean; sincronizados: number; 
       const queueItem = pendentes.find((p) => p.local_id === result.local_id);
       if (!queueItem) continue;
 
-      if (result.status === "CREATED" || result.status === "UPDATED") {
+      if (result.status === "CREATED") {
         await db.sync_queue.update(queueItem.id!, { status: "DONE", server_id: result.server_id });
         await db.pesagens.update(result.local_id, { synced: 1, server_id: result.server_id });
         sincronizados += 1;
-      } else if (result.status === "CONFLICT") {
-        // Servidor já tem versão mais recente — não reenviar, sinaliza para revisão manual.
-        await db.sync_queue.update(queueItem.id!, { status: "DONE" });
       } else {
         const attempts = queueItem.attempts + 1;
         await db.sync_queue.update(queueItem.id!, {

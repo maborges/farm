@@ -21,8 +21,10 @@ from balanca.schemas import (
     DeviceActivateRequest,
     DeviceReactivateRequest,
     SolicitarPesagemRequest,
+    ReatribuirOrdemRequest,
     SyncPushItem,
     SyncPushItemResult,
+    ETAPAS_POR_TIPO_PESAGEM,
 )
 
 _ACTIVATION_CODE_CHARS = string.ascii_uppercase + string.digits
@@ -196,6 +198,12 @@ class PesagemService:
             status="PENDENTE",
             solicitado_por=data.solicitado_por,
             contexto=data.contexto,
+            produto_id=data.produto_id,
+            produto_tipo=data.produto_tipo,
+            tipo_volume=data.tipo_volume,
+            quantidade_volumes=data.quantidade_volumes,
+            data_agendada=data.data_agendada,
+            numero_documento_fiscal=data.numero_documento_fiscal,
         )
         self.session.add(ordem)
         await self.session.flush()
@@ -238,6 +246,36 @@ class PesagemService:
         )
         return list(result.scalars().all())
 
+    async def listar_pendentes_reconciliacao(self, skip: int = 0, limit: int = 100) -> list[OrdemPesagem]:
+        """Pesagens avulsas (sem processo de origem definido no momento da pesagem) —
+        criadas automaticamente pela estação quando não há OrdemPesagem prévia."""
+        stmt = (
+            select(OrdemPesagem)
+            .where(
+                OrdemPesagem.tenant_id == self.tenant_id,
+                OrdemPesagem.origem_tipo == "OUTRO",
+                OrdemPesagem.origem_id.is_(None),
+            )
+            .order_by(OrdemPesagem.created_at.desc())
+            .offset(skip)
+            .limit(limit)
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def reatribuir_ordem(self, ordem_id: uuid.UUID, data: ReatribuirOrdemRequest) -> OrdemPesagem:
+        """Reconciliação: associa uma pesagem avulsa ao processo real de outro módulo."""
+        ordem = await self.session.get(OrdemPesagem, ordem_id)
+        if not ordem or ordem.tenant_id != self.tenant_id:
+            raise EntityNotFoundError(f"Ordem de pesagem {ordem_id} não encontrada.")
+
+        ordem.origem_tipo = data.origem_tipo
+        ordem.origem_id = data.origem_id
+        if data.contexto:
+            ordem.contexto = {**ordem.contexto, **data.contexto}
+        await self.session.flush()
+        return ordem
+
 
 class SyncService:
     """Push/pull offline-first, mesmo padrão de campo/service.py: idempotência por
@@ -258,6 +296,15 @@ class SyncService:
             )
         )
         ordens_rows = (await self.session.execute(stmt)).scalars().all()
+
+        etapas_por_ordem: dict[uuid.UUID, list[str]] = {}
+        if ordens_rows:
+            stmt_etapas = select(Pesagem.ordem_id, Pesagem.etapa).where(
+                Pesagem.tenant_id == self.tenant_id,
+                Pesagem.ordem_id.in_([o.id for o in ordens_rows]),
+            )
+            for ordem_id, etapa in (await self.session.execute(stmt_etapas)).all():
+                etapas_por_ordem.setdefault(ordem_id, []).append(etapa)
 
         last_sync_at_naive = _to_naive_utc(last_sync_at)
         tombstones: dict[str, list[str]] = {"ordens": []}
@@ -283,6 +330,13 @@ class SyncService:
                     "tipo_pesagem": o.tipo_pesagem,
                     "status": o.status,
                     "contexto": o.contexto,
+                    "produto_id": o.produto_id,
+                    "produto_tipo": o.produto_tipo,
+                    "tipo_volume": o.tipo_volume,
+                    "quantidade_volumes": o.quantidade_volumes,
+                    "data_agendada": o.data_agendada,
+                    "numero_documento_fiscal": o.numero_documento_fiscal,
+                    "etapas_realizadas": etapas_por_ordem.get(o.id, []),
                     "created_at": o.created_at,
                 }
                 for o in ordens_rows
@@ -325,76 +379,121 @@ class SyncService:
         if existing:
             return SyncPushItemResult(local_id=item.local_id, status="CREATED", server_id=str(existing.id))
 
-        ordem_id = payload.get("ordem_id")
-        if not ordem_id:
-            return SyncPushItemResult(local_id=item.local_id, status="ERROR", error_message="ordem_id obrigatório")
-
-        ordem = await self.session.get(OrdemPesagem, uuid.UUID(str(ordem_id)))
-        if not ordem or ordem.tenant_id != self.tenant_id:
-            return SyncPushItemResult(local_id=item.local_id, status="ERROR", error_message="Ordem de pesagem não encontrada")
-        if ordem.status == "CANCELADA":
-            return SyncPushItemResult(local_id=item.local_id, status="ERROR", error_message="Ordem cancelada não aceita pesagem")
-
-        if item.operation == "CREATE":
-            pesagem = Pesagem(
-                tenant_id=self.tenant_id,
-                ordem_id=ordem.id,
-                dispositivo_id=self.device.id,
-                numero_ticket=payload.get("numero_ticket") or _gerar_numero_ticket(),
-                client_id=item.local_id,
-                peso_bruto_kg=_to_decimal(payload.get("peso_bruto_kg")),
-                peso_tara_kg=_to_decimal(payload.get("peso_tara_kg")),
-                peso_liquido_kg=_to_decimal(payload.get("peso_liquido_kg")),
-                captured_via=payload.get("captured_via", "MANUAL"),
-                leitura_bruta=payload.get("leitura_bruta"),
-                placa=payload.get("placa"),
-                motorista=payload.get("motorista"),
-                animal_id=_to_uuid(payload.get("animal_id")),
-                pessoa_id=_to_uuid(payload.get("pessoa_id")),
-                data_entrada=_parse_dt_str(payload.get("data_entrada")),
-                data_saida=_parse_dt_str(payload.get("data_saida")),
-                client_created_at=_parse_dt(item.client_created_at),
-                client_updated_at=_parse_dt(item.client_updated_at),
+        if item.operation != "CREATE":
+            # Cada pesagem é um evento físico imutável (uma etapa) — corrigir um
+            # valor já registrado é fluxo de controle de qualidade (fase futura,
+            # não sobrescreve o original), não um UPDATE do sync.
+            return SyncPushItemResult(
+                local_id=item.local_id,
+                status="ERROR",
+                error_message="Pesagem não suporta UPDATE — cada etapa é um evento novo.",
             )
-            self.session.add(pesagem)
+
+        ordem_id = payload.get("ordem_id")
+        if ordem_id:
+            ordem = await self.session.get(OrdemPesagem, uuid.UUID(str(ordem_id)))
+            if not ordem or ordem.tenant_id != self.tenant_id:
+                return SyncPushItemResult(local_id=item.local_id, status="ERROR", error_message="Ordem de pesagem não encontrada")
+            if ordem.status == "CANCELADA":
+                return SyncPushItemResult(local_id=item.local_id, status="ERROR", error_message="Ordem cancelada não aceita pesagem")
+        else:
+            # Pesagem avulsa (sem ordem prévia do módulo cliente): a estação cria
+            # uma ordem "sombra" (origem_tipo=OUTRO) que fica pendente de
+            # reconciliação — ver PesagemService.reatribuir_ordem().
+            subject_type = payload.get("subject_type")
+            tipo_pesagem = payload.get("tipo_pesagem")
+            if not subject_type or not tipo_pesagem:
+                return SyncPushItemResult(
+                    local_id=item.local_id,
+                    status="ERROR",
+                    error_message="Pesagem avulsa exige subject_type e tipo_pesagem.",
+                )
+            ordem = OrdemPesagem(
+                tenant_id=self.tenant_id,
+                origem_tipo="OUTRO",
+                origem_id=None,
+                subject_type=subject_type,
+                tipo_pesagem=tipo_pesagem,
+                status="PENDENTE",
+                dispositivo_id=self.device.id,
+                contexto={"origem": "pesagem_avulsa"},
+            )
+            self.session.add(ordem)
             await self.session.flush()
 
-            ordem.dispositivo_id = self.device.id
-            if ordem.tipo_pesagem == "UNICA" or pesagem.peso_liquido_kg is not None:
-                ordem.status = "CONCLUIDA"
-                ordem.concluida_em = datetime.utcnow()
-            else:
-                ordem.status = "EM_PESAGEM"
-            await self.session.flush()
+        etapas_esperadas = ETAPAS_POR_TIPO_PESAGEM.get(ordem.tipo_pesagem, ("UNICA",))
+        etapa = payload.get("etapa") or (etapas_esperadas[0] if len(etapas_esperadas) else "UNICA")
+        if etapa not in etapas_esperadas:
+            return SyncPushItemResult(
+                local_id=item.local_id,
+                status="ERROR",
+                error_message=f"Etapa {etapa!r} não é válida para tipo_pesagem={ordem.tipo_pesagem!r} (esperado: {etapas_esperadas}).",
+            )
 
-            return SyncPushItemResult(local_id=item.local_id, status="CREATED", server_id=str(pesagem.id))
+        etapa_ja_existe = (
+            await self.session.execute(
+                select(Pesagem.id).where(Pesagem.ordem_id == ordem.id, Pesagem.etapa == etapa)
+            )
+        ).scalar_one_or_none()
+        if etapa_ja_existe:
+            return SyncPushItemResult(
+                local_id=item.local_id, status="ERROR", error_message=f"Etapa {etapa!r} já registrada para esta ordem."
+            )
 
-        if item.operation == "UPDATE":
-            if not item.server_id:
-                return SyncPushItemResult(local_id=item.local_id, status="ERROR", error_message="server_id obrigatório para UPDATE")
-            pesagem = await self.session.get(Pesagem, uuid.UUID(item.server_id))
-            if not pesagem or pesagem.tenant_id != self.tenant_id:
-                return SyncPushItemResult(local_id=item.local_id, status="ERROR", error_message="Pesagem não encontrada")
+        pesagem = Pesagem(
+            tenant_id=self.tenant_id,
+            ordem_id=ordem.id,
+            dispositivo_id=self.device.id,
+            numero_ticket=payload.get("numero_ticket") or _gerar_numero_ticket(),
+            client_id=item.local_id,
+            etapa=etapa,
+            peso_informado_kg=_to_decimal(payload.get("peso_informado_kg")),
+            peso_aferido_kg=_to_decimal(payload.get("peso_aferido_kg")),
+            peso_tara_kg=_to_decimal(payload.get("peso_tara_kg")),
+            captured_via=payload.get("captured_via", "MANUAL"),
+            leitura_bruta=payload.get("leitura_bruta"),
+            placa=payload.get("placa"),
+            motorista=payload.get("motorista"),
+            animal_id=_to_uuid(payload.get("animal_id")),
+            pessoa_id=_to_uuid(payload.get("pessoa_id")),
+            operador_pessoa_id=_to_uuid(payload.get("operador_pessoa_id")),
+            data_pesagem=_parse_dt_str(payload.get("data_pesagem")) or datetime.utcnow(),
+            client_created_at=_parse_dt(item.client_created_at),
+            client_updated_at=_parse_dt(item.client_updated_at),
+        )
+        self.session.add(pesagem)
+        await self.session.flush()
 
-            server_clock = pesagem.client_updated_at or pesagem.updated_at
-            if _to_naive_utc(item.client_updated_at) < server_clock:
-                return SyncPushItemResult(local_id=item.local_id, status="CONFLICT", server_id=str(pesagem.id))
+        ordem.dispositivo_id = self.device.id
+        await self._avaliar_conclusao_ordem(ordem, etapas_esperadas)
+        await self.session.flush()
 
-            pesagem.peso_bruto_kg = _to_decimal(payload.get("peso_bruto_kg")) or pesagem.peso_bruto_kg
-            pesagem.peso_tara_kg = _to_decimal(payload.get("peso_tara_kg")) or pesagem.peso_tara_kg
-            pesagem.peso_liquido_kg = _to_decimal(payload.get("peso_liquido_kg")) or pesagem.peso_liquido_kg
-            pesagem.data_saida = _parse_dt_str(payload.get("data_saida")) or pesagem.data_saida
-            pesagem.client_updated_at = _parse_dt(item.client_updated_at)
-            await self.session.flush()
+        return SyncPushItemResult(local_id=item.local_id, status="CREATED", server_id=str(pesagem.id))
 
-            if pesagem.peso_liquido_kg is not None:
-                ordem.status = "CONCLUIDA"
-                ordem.concluida_em = datetime.utcnow()
-                await self.session.flush()
+    async def _avaliar_conclusao_ordem(self, ordem: OrdemPesagem, etapas_esperadas: tuple[str, ...]) -> None:
+        """Calcula o peso líquido da ordem quando todas as etapas esperadas
+        estiverem registradas, e marca a ordem como CONCLUIDA."""
+        pesagens = (
+            await self.session.execute(select(Pesagem).where(Pesagem.ordem_id == ordem.id))
+        ).scalars().all()
+        pesos_por_etapa = {p.etapa: p for p in pesagens}
 
-            return SyncPushItemResult(local_id=item.local_id, status="UPDATED", server_id=str(pesagem.id))
+        if not all(e in pesos_por_etapa for e in etapas_esperadas):
+            ordem.status = "EM_PESAGEM"
+            return
 
-        return SyncPushItemResult(local_id=item.local_id, status="ERROR", error_message=f"Operação não suportada: {item.operation}")
+        if len(etapas_esperadas) == 1:
+            pesagem_unica = pesos_por_etapa[etapas_esperadas[0]]
+            aferido = pesagem_unica.peso_aferido_kg or Decimal("0")
+            tara = pesagem_unica.peso_tara_kg or Decimal("0")
+            ordem.peso_liquido_kg = aferido - tara
+        else:
+            primeira = pesos_por_etapa[etapas_esperadas[0]].peso_aferido_kg or Decimal("0")
+            segunda = pesos_por_etapa[etapas_esperadas[1]].peso_aferido_kg or Decimal("0")
+            ordem.peso_liquido_kg = abs(segunda - primeira)
+
+        ordem.status = "CONCLUIDA"
+        ordem.concluida_em = datetime.utcnow()
 
 
 def _to_uuid(value: Any) -> uuid.UUID | None:
