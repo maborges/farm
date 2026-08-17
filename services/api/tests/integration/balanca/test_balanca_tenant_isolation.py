@@ -47,6 +47,26 @@ async def _criar_tenant_com_owner(session, tenant_id: uuid.UUID, user_id: uuid.U
         ),
         {"id": str(uuid.uuid4()), "tenant_id": str(tenant_id), "user_id": str(user_id)},
     )
+    # Assinatura ativa com O4_BALANCA — require_module("O4_BALANCA") nos endpoints
+    # de balança exige módulo CORE + O4_BALANCA contratados via AssinaturaTenant.
+    plano_id = uuid.uuid4()
+    await session.execute(
+        text(
+            "INSERT INTO planos_assinatura (id, nome, modulos_inclusos, limite_usuarios_minimo, "
+            "preco_mensal, preco_anual, plan_tier, ativo, tem_trial, dias_trial, is_free, destaque, ordem, created_at) "
+            "VALUES (:id, 'Plano Teste Balança', CAST(:modulos AS json), 1, 0, 0, 'PROFISSIONAL', true, "
+            "false, 0, false, false, 0, now())"
+        ),
+        {"id": str(plano_id), "modulos": '["CORE", "O4_BALANCA"]'},
+    )
+    await session.execute(
+        text(
+            "INSERT INTO assinaturas_tenant "
+            "(id, tenant_id, plano_id, tipo_assinatura, status, ciclo_pagamento, created_at, updated_at) "
+            "VALUES (:id, :tenant_id, :plano_id, 'TENANT', 'ATIVA', 'MENSAL', now(), now())"
+        ),
+        {"id": str(uuid.uuid4()), "tenant_id": str(tenant_id), "plano_id": str(plano_id)},
+    )
     await session.commit()
     return _gerar_token(user_id, tenant_id)
 

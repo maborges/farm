@@ -34,7 +34,7 @@ async def seed_plans():
             PlanoAssinatura(
                 nome="Prata (Profissional)",
                 descricao="Controle completo da lavoura e finanças. Gestão de estoque, máquinas e apontamentos de campo.",
-                modulos_inclusos=["CORE", "F1_TESOURARIA", "A1_PLANEJAMENTO", "O2_ESTOQUE"],
+                modulos_inclusos=["CORE", "F1_TESOURARIA", "A1_PLANEJAMENTO", "O2_ESTOQUE", "O4_BALANCA"],
                 limite_usuarios_minimo=1,
                 limite_usuarios_maximo=5,
                 limite_hectares=1000.0,
@@ -54,6 +54,7 @@ async def seed_plans():
                     "O2_ESTOQUE",
                     "P1_REBANHO",
                     "A2_CAMPO",
+                    "O4_BALANCA",
                 ],
                 limite_usuarios_minimo=1,
                 limite_usuarios_maximo=20,

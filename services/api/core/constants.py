@@ -91,6 +91,7 @@ class Modulos:
     OPERACIONAL_FROTA = "O1_FROTA"                 # Controle de Maquinários
     OPERACIONAL_ESTOQUE = "O2_ESTOQUE"             # Estoque Multi-armazéns
     OPERACIONAL_COMPRAS = "O3_COMPRAS"             # Supply e Compras
+    OPERACIONAL_BALANCA = "O4_BALANCA"             # Balança de Pesagem (carga e animais)
 
     # ==================== BLOCO RH ====================
     RH_REMUNERACAO = "RH1_REMUNERACAO"             # Remuneração Temporários
@@ -281,6 +282,13 @@ class ModuloMetadata:
             "descricao": "Solicitações, cotações, PO, recebimento",
             "categoria": "OPERACIONAL",
             "dependencias": [Modulos.CORE, Modulos.OPERACIONAL_ESTOQUE],
+            "preco_base_mensal": 249.0,
+        },
+        Modulos.OPERACIONAL_BALANCA: {
+            "nome": "Balança de Pesagem",
+            "descricao": "Pesagem de carga e animais, offline-first, vínculo automático com colheita/compras/vendas/pecuária",
+            "categoria": "OPERACIONAL",
+            "dependencias": [Modulos.CORE],
             "preco_base_mensal": 249.0,
         },
 

@@ -10,7 +10,7 @@ from loguru import logger
 from sqlalchemy import select
 
 from core.config import settings
-from core.dependencies import get_session, get_tenant_id, get_user_id, require_tenant_permission
+from core.dependencies import get_session, get_tenant_id, get_user_id, require_tenant_permission, require_module
 from core.exceptions import EntityNotFoundError, BusinessRuleError, TenantViolationError
 
 from balanca.models import DispositivoBalanca
@@ -88,7 +88,10 @@ async def _get_device_from_token(device_id: uuid.UUID, request: Request, session
     "/devices",
     response_model=DeviceCreateResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_tenant_permission("balanca:dispositivo:criar"))],
+    dependencies=[
+        Depends(require_module("O4_BALANCA")),
+        Depends(require_tenant_permission("balanca:dispositivo:criar")),
+    ],
 )
 async def criar_dispositivo(
     data: DeviceCreate,
@@ -141,7 +144,10 @@ async def ativar_dispositivo(req: DeviceActivateRequest, session: AsyncSession =
 @router.post(
     "/devices/revoke",
     response_model=DeviceResponse,
-    dependencies=[Depends(require_tenant_permission("balanca:dispositivo:revogar"))],
+    dependencies=[
+        Depends(require_module("O4_BALANCA")),
+        Depends(require_tenant_permission("balanca:dispositivo:revogar")),
+    ],
 )
 async def revogar_dispositivo(
     data: DeviceRevokeRequest,
@@ -163,7 +169,10 @@ async def revogar_dispositivo(
 @router.post(
     "/devices/reactivate",
     response_model=DeviceCreateResponse,
-    dependencies=[Depends(require_tenant_permission("balanca:dispositivo:criar"))],
+    dependencies=[
+        Depends(require_module("O4_BALANCA")),
+        Depends(require_tenant_permission("balanca:dispositivo:criar")),
+    ],
 )
 async def reativar_dispositivo(
     data: DeviceReactivateRequest,
@@ -184,7 +193,10 @@ async def reativar_dispositivo(
 @router.get(
     "/devices",
     response_model=list[DeviceResponse],
-    dependencies=[Depends(require_tenant_permission("balanca:dispositivo:listar"))],
+    dependencies=[
+        Depends(require_module("O4_BALANCA")),
+        Depends(require_tenant_permission("balanca:dispositivo:listar")),
+    ],
 )
 async def listar_dispositivos(
     skip: int = Query(default=0, ge=0),
@@ -205,7 +217,10 @@ async def listar_dispositivos(
     "/operadores",
     response_model=OperadorResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_tenant_permission("balanca:operador:criar"))],
+    dependencies=[
+        Depends(require_module("O4_BALANCA")),
+        Depends(require_tenant_permission("balanca:operador:criar")),
+    ],
 )
 async def criar_operador(
     data: OperadorCreate,
@@ -226,7 +241,10 @@ async def criar_operador(
 @router.get(
     "/operadores",
     response_model=list[OperadorResponse],
-    dependencies=[Depends(require_tenant_permission("balanca:operador:listar"))],
+    dependencies=[
+        Depends(require_module("O4_BALANCA")),
+        Depends(require_tenant_permission("balanca:operador:listar")),
+    ],
 )
 async def listar_operadores(
     skip: int = Query(default=0, ge=0),
@@ -241,7 +259,10 @@ async def listar_operadores(
 @router.post(
     "/operadores/{operador_id}/revogar",
     response_model=OperadorResponse,
-    dependencies=[Depends(require_tenant_permission("balanca:operador:revogar"))],
+    dependencies=[
+        Depends(require_module("O4_BALANCA")),
+        Depends(require_tenant_permission("balanca:operador:revogar")),
+    ],
 )
 async def revogar_operador(
     operador_id: uuid.UUID,
@@ -301,7 +322,10 @@ async def login_operador(
     "/ordens",
     response_model=OrdemPesagemResponse,
     status_code=status.HTTP_201_CREATED,
-    dependencies=[Depends(require_tenant_permission("balanca:pesagem:solicitar"))],
+    dependencies=[
+        Depends(require_module("O4_BALANCA")),
+        Depends(require_tenant_permission("balanca:pesagem:solicitar")),
+    ],
 )
 async def solicitar_pesagem(
     data: SolicitarPesagemRequest,
@@ -318,7 +342,10 @@ async def solicitar_pesagem(
 @router.get(
     "/ordens",
     response_model=list[OrdemPesagemResponse],
-    dependencies=[Depends(require_tenant_permission("balanca:pesagem:listar"))],
+    dependencies=[
+        Depends(require_module("O4_BALANCA")),
+        Depends(require_tenant_permission("balanca:pesagem:listar")),
+    ],
 )
 async def listar_ordens(
     status_filtro: str | None = Query(default=None, alias="status"),
@@ -334,7 +361,10 @@ async def listar_ordens(
 @router.get(
     "/ordens/pendentes-reconciliacao",
     response_model=list[OrdemPesagemResponse],
-    dependencies=[Depends(require_tenant_permission("balanca:pesagem:listar"))],
+    dependencies=[
+        Depends(require_module("O4_BALANCA")),
+        Depends(require_tenant_permission("balanca:pesagem:listar")),
+    ],
 )
 async def listar_pendentes_reconciliacao(
     skip: int = Query(default=0, ge=0),
@@ -350,7 +380,10 @@ async def listar_pendentes_reconciliacao(
 @router.get(
     "/ordens/{ordem_id}",
     response_model=OrdemPesagemResponse,
-    dependencies=[Depends(require_tenant_permission("balanca:pesagem:listar"))],
+    dependencies=[
+        Depends(require_module("O4_BALANCA")),
+        Depends(require_tenant_permission("balanca:pesagem:listar")),
+    ],
 )
 async def obter_ordem(
     ordem_id: uuid.UUID,
@@ -367,7 +400,10 @@ async def obter_ordem(
 @router.get(
     "/ordens/{ordem_id}/pesagens",
     response_model=list[PesagemResponse],
-    dependencies=[Depends(require_tenant_permission("balanca:pesagem:listar"))],
+    dependencies=[
+        Depends(require_module("O4_BALANCA")),
+        Depends(require_tenant_permission("balanca:pesagem:listar")),
+    ],
 )
 async def listar_pesagens_da_ordem(
     ordem_id: uuid.UUID,
@@ -381,7 +417,10 @@ async def listar_pesagens_da_ordem(
 @router.post(
     "/ordens/{ordem_id}/cancelar",
     response_model=OrdemPesagemResponse,
-    dependencies=[Depends(require_tenant_permission("balanca:pesagem:cancelar"))],
+    dependencies=[
+        Depends(require_module("O4_BALANCA")),
+        Depends(require_tenant_permission("balanca:pesagem:cancelar")),
+    ],
 )
 async def cancelar_ordem(
     ordem_id: uuid.UUID,
@@ -406,7 +445,10 @@ async def cancelar_ordem(
 @router.post(
     "/ordens/{ordem_id}/reatribuir",
     response_model=OrdemPesagemResponse,
-    dependencies=[Depends(require_tenant_permission("balanca:pesagem:reatribuir"))],
+    dependencies=[
+        Depends(require_module("O4_BALANCA")),
+        Depends(require_tenant_permission("balanca:pesagem:reatribuir")),
+    ],
 )
 async def reatribuir_ordem(
     ordem_id: uuid.UUID,

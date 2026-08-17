@@ -2,7 +2,7 @@
 
 **Status:** captura manual + sync offline + leitura eletrônica via ponte de hardware (`tools/balanca-bridge`) + modelo de pesagem por etapas (peso informado vs aferido) + login de operador + **vínculo real com Colheita, Pecuária, Compras e Vendas** implementados — ver seção 5.3.
 **Desenho completo/decisões de arquitetura:** `docs/brainstorm-modulo-balanca.md`
-**Última atualização:** 2026-08-17 (botão "Solicitar Pesagem" nas 4 telas clientes e pesagem de animal por brinco/SISBOV — validados manualmente pelo usuário)
+**Última atualização:** 2026-08-17 (módulo de billing próprio `O4_BALANCA`, tier PROFISSIONAL+)
 
 ## 1. O que é
 
@@ -173,6 +173,29 @@ só com `flush()` — quem comita é o outbox relay, no final do processamento d
 lote (mesma lição de Colheita/Pecuária: método que comita a própria transação
 corrompe a transação do relay se chamado no meio do processamento de um evento).
 
+## 5.5. Billing — módulo `O4_BALANCA`
+
+A Balança é um módulo comercializável próprio (`core/constants.py`,
+`Modulos.OPERACIONAL_BALANCA = "O4_BALANCA"`), bloco Operacional, tier
+**PROFISSIONAL+** (seguindo `O1_FROTA`/`O2_ESTOQUE`/`O3_COMPRAS`).
+
+- **Frontend:** menu no `apps/web` (`sidebar-config.ts`) gateado por
+  `moduleId: 'O4_BALANCA'` — antes reaproveitava `A2_CAMPO` como gate
+  temporário; já trocado.
+- **Backend:** endpoints com JWT de usuário (`/balanca/devices`, `/operadores`,
+  `/ordens*`) exigem `Depends(require_module("O4_BALANCA"))` junto da
+  permissão de tenant. **Não gateado** (propositalmente): `/devices/activate`
+  (não tem tenant ainda — identifica pelo código), `/operadores/ativos` e
+  `/operadores/login` (auth por device token) e `sync_router` inteiro
+  (`/sync/pull`, `/sync/push` — device token, sem JWT de usuário). Módulos
+  clientes (romaneios/compras/vendas/pecuária) chamam `PesagemService`
+  diretamente em Python, não via HTTP — não passam por esse gate.
+- **Planos:** `scripts/seed_plans.py` inclui `O4_BALANCA` nos planos Prata
+  (Profissional) e Ouro (Empresarial) para instalações novas. Em bancos já
+  seedados, foi feito um backfill pontual adicionando `O4_BALANCA` a todo
+  plano que já tinha `A2_CAMPO` (mesmo critério do gate temporário anterior)
+  — não há migração automática disso, é histórico de execução manual.
+
 ## 6. Uso no dia a dia (operador da balança)
 
 1. A tela de pesagem lista as ordens pendentes (criadas por colheita, compra, venda ou pecuária), com o número da NF e agendamento quando presentes.
@@ -204,7 +227,6 @@ Quando a ordem do processo chega depois, ou alguém do escritório precisa vincu
 
 ## 7. Limitações conhecidas / pendências
 
-- **Sem módulo de billing próprio ainda:** o gate de visibilidade do menu no `apps/web` reaproveita `A2_CAMPO` temporariamente. Definir o módulo definitivo (ex. `O4_BALANCA`) e o plano em que entra é decisão de produto pendente.
 - **Ponte de hardware ainda não testada com equipamento real:** o parser é genérico (regex configurável) e foi validado com um simulador — quando a marca/modelo do indicador for definida, confirmar o formato real do frame e ajustar `config.yaml` (ver `tools/balanca-bridge/README.md`).
 - **Vínculo depende do worker de outbox estar rodando:** o evento `balanca.pesagem.concluida` só é entregue quando `background_worker.py` processa a fila (`events/outbox_relay.py`) — se o worker não estiver ativo em produção, romaneios/animais não recebem o peso automaticamente (a ordem na Balança continua correta, só o vínculo atrasa).
 - **Login de operador exige rede na hora de entrar:** a verificação do PIN pessoal é sempre no servidor (não dá pra validar bcrypt offline com segurança) — o operador precisa de conexão pra logar na estação uma vez; depois disso, pesar continua 100% offline até trocar de operador.
