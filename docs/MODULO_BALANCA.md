@@ -2,6 +2,7 @@
 
 **Status:** captura manual + sync offline + leitura eletrônica via ponte de hardware (`tools/balanca-bridge`) + modelo de pesagem por etapas (peso informado vs aferido) + login de operador + **vínculo real com Colheita, Pecuária, Compras e Vendas** implementados — ver seção 5.3.
 **Desenho completo/decisões de arquitetura:** `docs/brainstorm-modulo-balanca.md`
+**Manual de uso (admin + operador):** `docs/MANUAL_BALANCA.md`
 **Última atualização:** 2026-08-17 (botão de avaliação por motorista, além de placa — módulo com todo o escopo original combinado implementado)
 
 ## 1. O que é
