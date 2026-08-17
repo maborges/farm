@@ -225,6 +225,10 @@ class OrdemPesagemResponse(BaseModel):
     data_agendada: datetime | None
     numero_documento_fiscal: str | None
     peso_liquido_kg: Decimal | None
+    desconto_percentual: Decimal | None = None
+    desconto_motivo: str | None = None
+    peso_liquido_comercial_kg: Decimal | None = None
+    ajuste_aplicado_em: datetime | None = None
     dispositivo_id: uuid.UUID | None
     concluida_em: datetime | None
     cancelada_em: datetime | None
@@ -242,6 +246,49 @@ class ReatribuirOrdemRequest(BaseModel):
     origem_tipo: OrigemTipo
     origem_id: uuid.UUID | None = None
     contexto: dict[str, Any] | None = None
+
+
+class AjusteQualidadeRequest(BaseModel):
+    """Controle de qualidade — desconto pós-pesagem (ex.: umidade/impureza em
+    grãos). Não altera a pesagem em si (imutável); grava um peso comercial
+    à parte, resultado do desconto sobre peso_liquido_kg."""
+    desconto_percentual: Decimal = Field(..., ge=0, le=100)
+    motivo: str = Field(..., min_length=3)
+
+
+class AtualizarDocumentoFiscalRequest(BaseModel):
+    """Preenche/corrige o número do documento fiscal depois da ordem criada —
+    ex.: lido via scanner de código de barras/QR na tela de Ordens de Pesagem."""
+    numero_documento_fiscal: str = Field(..., min_length=1, max_length=60)
+
+
+TipoIdentificadorPrestador = Literal["PLACA", "MOTORISTA"]
+
+
+class AvaliacaoPrestadorCreate(BaseModel):
+    tipo_identificador: TipoIdentificadorPrestador
+    identificador: str = Field(..., min_length=1, max_length=150)
+    nota: int = Field(..., ge=1, le=5)
+    comentario: str | None = None
+
+
+class AvaliacaoPrestadorResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: uuid.UUID
+    ordem_id: uuid.UUID
+    tipo_identificador: str
+    identificador: str
+    nota: int
+    comentario: str | None
+    created_at: datetime
+
+
+class HistoricoPrestadorResponse(BaseModel):
+    identificador: str
+    tipo_identificador: str
+    nota_media: float
+    total_avaliacoes: int
+    avaliacoes: list[AvaliacaoPrestadorResponse]
 
 
 class PesagemResponse(BaseModel):

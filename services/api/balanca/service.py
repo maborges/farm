@@ -23,6 +23,7 @@ from balanca.models import (
     SyncTombstoneBalanca,
     BalancaFisica,
     AfericaoBalanca,
+    AvaliacaoPrestador,
 )
 from balanca.schemas import (
     DeviceCreate,
@@ -38,6 +39,8 @@ from balanca.schemas import (
     BalancaFisicaCreate,
     BalancaFisicaUpdate,
     AfericaoCreate,
+    AjusteQualidadeRequest,
+    AvaliacaoPrestadorCreate,
 )
 
 _ACTIVATION_CODE_CHARS = string.ascii_uppercase + string.digits
@@ -521,6 +524,15 @@ class PesagemService:
 
         peso_liquido = f"{ordem.peso_liquido_kg:,.3f}".translate(str.maketrans(",.", ".,")) if ordem.peso_liquido_kg is not None else "—"
         elements.append(Paragraph(f"<b>Peso líquido:</b> {peso_liquido} kg", styles["Normal"]))
+        if ordem.peso_liquido_comercial_kg is not None:
+            peso_comercial = f"{ordem.peso_liquido_comercial_kg:,.3f}".translate(str.maketrans(",.", ".,"))
+            elements.append(Spacer(1, 4))
+            elements.append(Paragraph(
+                f"<b>Peso comercial (desconto {ordem.desconto_percentual}%):</b> {peso_comercial} kg",
+                styles["Normal"],
+            ))
+            if ordem.desconto_motivo:
+                elements.append(Paragraph(f"<i>Motivo:</i> {ordem.desconto_motivo}", styles["Normal"]))
 
         doc.build(elements)
         pdf_content = buffer.getvalue()
@@ -556,6 +568,97 @@ class PesagemService:
             ordem.contexto = {**ordem.contexto, **data.contexto}
         await self.session.flush()
         return ordem
+
+    async def aplicar_ajuste_qualidade(
+        self, ordem_id: uuid.UUID, data: AjusteQualidadeRequest, aplicado_por: uuid.UUID | None
+    ) -> OrdemPesagem:
+        """Controle de qualidade — desconto pós-pesagem (ex.: umidade/impureza
+        em grãos). A pesagem em si (Pesagem, peso_liquido_kg) continua imutável
+        e auditável; isso só grava um peso comercial derivado, à parte."""
+        ordem = await self.session.get(OrdemPesagem, ordem_id)
+        if not ordem or ordem.tenant_id != self.tenant_id:
+            raise EntityNotFoundError(f"Ordem de pesagem {ordem_id} não encontrada.")
+        if ordem.status != "CONCLUIDA":
+            raise BusinessRuleError("Só é possível aplicar desconto de qualidade em ordem concluída.")
+        if ordem.peso_liquido_kg is None:
+            raise BusinessRuleError("Ordem concluída sem peso líquido calculado.")
+
+        ordem.desconto_percentual = data.desconto_percentual
+        ordem.desconto_motivo = data.motivo
+        fator = Decimal("1") - (data.desconto_percentual / Decimal("100"))
+        ordem.peso_liquido_comercial_kg = (ordem.peso_liquido_kg * fator).quantize(Decimal("0.001"))
+        ordem.ajuste_aplicado_em = datetime.utcnow()
+        ordem.ajuste_aplicado_por = aplicado_por
+        await self.session.flush()
+        return ordem
+
+    async def atualizar_documento_fiscal(
+        self, ordem_id: uuid.UUID, numero_documento_fiscal: str
+    ) -> OrdemPesagem:
+        """Preenche/corrige o nº do documento fiscal — ex.: lido via scanner
+        de código de barras/QR na tela de Ordens de Pesagem."""
+        ordem = await self.session.get(OrdemPesagem, ordem_id)
+        if not ordem or ordem.tenant_id != self.tenant_id:
+            raise EntityNotFoundError(f"Ordem de pesagem {ordem_id} não encontrada.")
+        ordem.numero_documento_fiscal = numero_documento_fiscal
+        await self.session.flush()
+        return ordem
+
+
+class AvaliacaoPrestadorService:
+    """Histórico de avaliação de transportador/motorista — sem cadastro
+    formal de "prestador" no sistema (placa/motorista são texto livre na
+    Pesagem), identificador é normalizado (uppercase/trim) para não
+    fragmentar o histórico por variação de digitação."""
+
+    def __init__(self, session: AsyncSession, tenant_id: uuid.UUID):
+        self.session = session
+        self.tenant_id = tenant_id
+
+    @staticmethod
+    def _normalizar(identificador: str) -> str:
+        return identificador.strip().upper()
+
+    async def criar(
+        self, ordem_id: uuid.UUID, data: AvaliacaoPrestadorCreate, created_by: uuid.UUID | None
+    ) -> AvaliacaoPrestador:
+        ordem = await self.session.get(OrdemPesagem, ordem_id)
+        if not ordem or ordem.tenant_id != self.tenant_id:
+            raise EntityNotFoundError(f"Ordem de pesagem {ordem_id} não encontrada.")
+
+        avaliacao = AvaliacaoPrestador(
+            tenant_id=self.tenant_id,
+            ordem_id=ordem_id,
+            tipo_identificador=data.tipo_identificador,
+            identificador=self._normalizar(data.identificador),
+            nota=data.nota,
+            comentario=data.comentario,
+            created_by=created_by,
+        )
+        self.session.add(avaliacao)
+        await self.session.flush()
+        return avaliacao
+
+    async def historico(self, tipo_identificador: str, identificador: str) -> dict:
+        ident_normalizado = self._normalizar(identificador)
+        result = await self.session.execute(
+            select(AvaliacaoPrestador)
+            .where(
+                AvaliacaoPrestador.tenant_id == self.tenant_id,
+                AvaliacaoPrestador.tipo_identificador == tipo_identificador,
+                AvaliacaoPrestador.identificador == ident_normalizado,
+            )
+            .order_by(AvaliacaoPrestador.created_at.desc())
+        )
+        avaliacoes = list(result.scalars().all())
+        nota_media = sum(a.nota for a in avaliacoes) / len(avaliacoes) if avaliacoes else 0.0
+        return {
+            "identificador": ident_normalizado,
+            "tipo_identificador": tipo_identificador,
+            "nota_media": round(nota_media, 2),
+            "total_avaliacoes": len(avaliacoes),
+            "avaliacoes": avaliacoes,
+        }
 
 
 class SyncService:

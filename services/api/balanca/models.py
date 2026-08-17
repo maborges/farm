@@ -188,6 +188,15 @@ class OrdemPesagem(Base):
     # Pesagem individual (peso_informado_kg/peso_aferido_kg por etapa).
     peso_liquido_kg: Mapped[Decimal | None] = mapped_column(Numeric(12, 3), nullable=True)
 
+    # Controle de qualidade — desconto pós-pesagem (ex.: umidade/impureza em
+    # grãos). NÃO altera peso_liquido_kg (a pesagem em si continua imutável,
+    # auditável) — grava um peso comercial separado, resultado do desconto.
+    desconto_percentual: Mapped[Decimal | None] = mapped_column(Numeric(5, 2), nullable=True)
+    desconto_motivo: Mapped[str | None] = mapped_column(Text, nullable=True)
+    peso_liquido_comercial_kg: Mapped[Decimal | None] = mapped_column(Numeric(12, 3), nullable=True)
+    ajuste_aplicado_em: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    ajuste_aplicado_por: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+
     dispositivo_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("balanca_dispositivos.id", ondelete="SET NULL"), nullable=True, index=True
     )
@@ -271,6 +280,37 @@ class Pesagem(Base):
         UniqueConstraint("tenant_id", "numero_ticket", name="uq_balanca_pesagem_tenant_ticket"),
         UniqueConstraint("ordem_id", "etapa", name="uq_balanca_pesagem_ordem_etapa"),
         Index("ix_balanca_pesagens_ordem", "ordem_id"),
+    )
+
+
+class AvaliacaoPrestador(Base):
+    """Histórico de avaliação de transportador/motorista — não há cadastro
+    formal de "prestador" no sistema (placa/motorista são campos livres na
+    Pesagem), então o identificador aqui é a própria placa ou nome do
+    motorista, normalizado (uppercase/trim). Uma pesagem pode gerar 0 ou 1
+    avaliação; histórico consultável por identificador."""
+    __tablename__ = "balanca_avaliacoes_prestador"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    ordem_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("balanca_ordens.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+
+    tipo_identificador: Mapped[str] = mapped_column(String(15), nullable=False)
+    # PLACA | MOTORISTA
+    identificador: Mapped[str] = mapped_column(String(150), nullable=False, index=True)
+
+    nota: Mapped[int] = mapped_column(nullable=False)  # 1 a 5
+    comentario: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        Index("ix_balanca_avaliacao_identificador", "tenant_id", "tipo_identificador", "identificador"),
     )
 
 

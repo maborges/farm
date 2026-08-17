@@ -21,6 +21,7 @@ from balanca.service import (
     SyncService,
     BalancaFisicaService,
     AfericaoService,
+    AvaliacaoPrestadorService,
 )
 from balanca.schemas import (
     DeviceCreate,
@@ -48,6 +49,11 @@ from balanca.schemas import (
     BalancaFisicaResponse,
     AfericaoCreate,
     AfericaoResponse,
+    AjusteQualidadeRequest,
+    AtualizarDocumentoFiscalRequest,
+    AvaliacaoPrestadorCreate,
+    AvaliacaoPrestadorResponse,
+    HistoricoPrestadorResponse,
 )
 
 router = APIRouter(prefix="/balanca", tags=["Balança"])
@@ -635,6 +641,110 @@ async def reatribuir_ordem(
     except EntityNotFoundError as exc:
         await session.rollback()
         raise HTTPException(status_code=404, detail=str(exc))
+
+
+@router.post(
+    "/ordens/{ordem_id}/ajuste-qualidade",
+    response_model=OrdemPesagemResponse,
+    dependencies=[
+        Depends(require_module("O4_BALANCA")),
+        Depends(require_tenant_permission("balanca:pesagem:ajustar")),
+    ],
+)
+async def aplicar_ajuste_qualidade(
+    ordem_id: uuid.UUID,
+    data: AjusteQualidadeRequest,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    user_id: uuid.UUID | None = Depends(get_user_id),
+    session: AsyncSession = Depends(get_session),
+):
+    """Controle de qualidade — desconto pós-pesagem (ex.: umidade/impureza)."""
+    svc = PesagemService(session, tenant_id)
+    try:
+        ordem = await svc.aplicar_ajuste_qualidade(ordem_id, data, user_id)
+        await session.commit()
+        await session.refresh(ordem)
+        return ordem
+    except EntityNotFoundError as exc:
+        await session.rollback()
+        raise HTTPException(status_code=404, detail=str(exc))
+    except BusinessRuleError as exc:
+        await session.rollback()
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
+@router.patch(
+    "/ordens/{ordem_id}/documento-fiscal",
+    response_model=OrdemPesagemResponse,
+    dependencies=[
+        Depends(require_module("O4_BALANCA")),
+        Depends(require_tenant_permission("balanca:pesagem:editar")),
+    ],
+)
+async def atualizar_documento_fiscal(
+    ordem_id: uuid.UUID,
+    data: AtualizarDocumentoFiscalRequest,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    session: AsyncSession = Depends(get_session),
+):
+    """Preenche/corrige o nº do documento fiscal — ex.: lido via scanner de
+    código de barras/QR na tela de Ordens de Pesagem."""
+    svc = PesagemService(session, tenant_id)
+    try:
+        ordem = await svc.atualizar_documento_fiscal(ordem_id, data.numero_documento_fiscal)
+        await session.commit()
+        await session.refresh(ordem)
+        return ordem
+    except EntityNotFoundError as exc:
+        await session.rollback()
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@router.post(
+    "/ordens/{ordem_id}/avaliacoes",
+    response_model=AvaliacaoPrestadorResponse,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[
+        Depends(require_module("O4_BALANCA")),
+        Depends(require_tenant_permission("balanca:avaliacao:criar")),
+    ],
+)
+async def avaliar_prestador(
+    ordem_id: uuid.UUID,
+    data: AvaliacaoPrestadorCreate,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    user_id: uuid.UUID | None = Depends(get_user_id),
+    session: AsyncSession = Depends(get_session),
+):
+    """Histórico de avaliação de transportador/motorista — identificado por
+    placa ou nome (sem cadastro formal de prestador no sistema)."""
+    svc = AvaliacaoPrestadorService(session, tenant_id)
+    try:
+        avaliacao = await svc.criar(ordem_id, data, user_id)
+        await session.commit()
+        await session.refresh(avaliacao)
+        return avaliacao
+    except EntityNotFoundError as exc:
+        await session.rollback()
+        raise HTTPException(status_code=404, detail=str(exc))
+
+
+@router.get(
+    "/prestadores/avaliacoes",
+    response_model=HistoricoPrestadorResponse,
+    dependencies=[
+        Depends(require_module("O4_BALANCA")),
+        Depends(require_tenant_permission("balanca:avaliacao:listar")),
+    ],
+)
+async def historico_prestador(
+    tipo_identificador: str = Query(...),
+    identificador: str = Query(...),
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    session: AsyncSession = Depends(get_session),
+):
+    svc = AvaliacaoPrestadorService(session, tenant_id)
+    return await svc.historico(tipo_identificador, identificador)
 
 
 # ---------------------------------------------------------------------------

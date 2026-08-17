@@ -821,3 +821,147 @@ async def test_gerar_ticket_pdf_via_admin_e_via_device_token(client: httpx.Async
     headers_b = {"Authorization": f"Bearer {token_b}", "X-Tenant-ID": str(tenant_b_id)}
     resp = await client.get(f"/api/v1/balanca/ordens/{ordem_id}/pdf", headers=headers_b)
     assert resp.status_code == 404
+
+
+async def test_ajuste_qualidade_desconto_pos_pesagem(client: httpx.AsyncClient, session):
+    """Controle de qualidade — desconto pós-pesagem não altera a pesagem em si
+    (imutável), só grava um peso comercial derivado à parte."""
+    tenant_id = uuid.uuid4()
+    user_id = uuid.uuid4()
+    token = await _criar_tenant_com_owner(session, tenant_id, user_id, "Tenant Ajuste Qualidade")
+    headers = {"Authorization": f"Bearer {token}", "X-Tenant-ID": str(tenant_id)}
+
+    resp = await client.post(
+        "/api/v1/balanca/devices",
+        json={"nome": "Balança Ajuste Qualidade", "fazenda_ids": [str(uuid.uuid4())]},
+        headers=headers,
+    )
+    activation_code = resp.json()["activation_code"]
+    resp = await client.post(
+        "/api/v1/balanca/devices/activate",
+        json={"activation_code": activation_code, "pin_hash": "hash", "device_fingerprint": f"fp-{uuid.uuid4()}"},
+    )
+    device_id = resp.json()["device_id"]
+    device_token = resp.json()["device_token"]
+
+    resp = await client.post(
+        "/api/v1/balanca/ordens",
+        json={"origem_tipo": "OUTRO", "subject_type": "VEICULO", "tipo_pesagem": "UNICA"},
+        headers=headers,
+    )
+    ordem_id = resp.json()["id"]
+
+    # Ordem PENDENTE ainda não pode receber ajuste
+    resp = await client.post(
+        f"/api/v1/balanca/ordens/{ordem_id}/ajuste-qualidade",
+        json={"desconto_percentual": "2.5", "motivo": "Umidade acima do padrão"},
+        headers=headers,
+    )
+    assert resp.status_code == 422
+
+    resp = await client.post(
+        "/api/v1/balanca/sync/push",
+        json={
+            "device_id": device_id,
+            "items": [
+                {
+                    "local_id": str(uuid.uuid4()),
+                    "operation": "CREATE",
+                    "entity_type": "pesagem",
+                    "payload": {"ordem_id": ordem_id, "etapa": "UNICA", "peso_aferido_kg": "20000.000"},
+                    "client_created_at": "2026-08-17T10:00:00Z",
+                    "client_updated_at": "2026-08-17T10:00:00Z",
+                }
+            ],
+        },
+        headers={"Authorization": f"Bearer {device_token}"},
+    )
+    assert resp.status_code == 200
+
+    resp = await client.get(f"/api/v1/balanca/ordens/{ordem_id}", headers=headers)
+    assert resp.json()["status"] == "CONCLUIDA"
+    assert resp.json()["peso_liquido_kg"] == "20000.000"
+
+    resp = await client.post(
+        f"/api/v1/balanca/ordens/{ordem_id}/ajuste-qualidade",
+        json={"desconto_percentual": "2.5", "motivo": "Umidade acima do padrão"},
+        headers=headers,
+    )
+    assert resp.status_code == 200, resp.text
+    ordem = resp.json()
+    assert ordem["desconto_percentual"] == "2.50"
+    assert ordem["desconto_motivo"] == "Umidade acima do padrão"
+    assert ordem["peso_liquido_comercial_kg"] == "19500.000"
+    # A pesagem em si continua imutável
+    assert ordem["peso_liquido_kg"] == "20000.000"
+
+    resp = await client.get(f"/api/v1/balanca/ordens/{ordem_id}/pesagens", headers=headers)
+    assert resp.json()[0]["peso_aferido_kg"] == "20000.000"
+
+
+async def test_documento_fiscal_e_avaliacao_prestador(client: httpx.AsyncClient, session):
+    """Edição de documento fiscal (ex.: lido via scan) e histórico de
+    avaliação de transportador/motorista, identificado por placa/nome
+    (sem cadastro formal de prestador)."""
+    tenant_id = uuid.uuid4()
+    user_id = uuid.uuid4()
+    token = await _criar_tenant_com_owner(session, tenant_id, user_id, "Tenant Doc Fiscal Avaliacao")
+    headers = {"Authorization": f"Bearer {token}", "X-Tenant-ID": str(tenant_id)}
+
+    resp = await client.post(
+        "/api/v1/balanca/ordens",
+        json={"origem_tipo": "OUTRO", "subject_type": "VEICULO", "tipo_pesagem": "UNICA", "contexto": {"placa": "ABC1D23"}},
+        headers=headers,
+    )
+    ordem_id = resp.json()["id"]
+
+    # Editar documento fiscal (ex.: lido via scan de código de barras)
+    resp = await client.patch(
+        f"/api/v1/balanca/ordens/{ordem_id}/documento-fiscal",
+        json={"numero_documento_fiscal": "NFE-000123456"},
+        headers=headers,
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["numero_documento_fiscal"] == "NFE-000123456"
+
+    # Avaliação do transportador (placa) — normaliza identificador (lowercase/espaço)
+    resp = await client.post(
+        f"/api/v1/balanca/ordens/{ordem_id}/avaliacoes",
+        json={"tipo_identificador": "PLACA", "identificador": " abc1d23 ", "nota": 4, "comentario": "Pontual"},
+        headers=headers,
+    )
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["identificador"] == "ABC1D23"
+
+    # Segunda avaliação, mesma placa
+    resp = await client.post(
+        f"/api/v1/balanca/ordens/{ordem_id}/avaliacoes",
+        json={"tipo_identificador": "PLACA", "identificador": "ABC1D23", "nota": 2, "comentario": "Atrasou"},
+        headers=headers,
+    )
+    assert resp.status_code == 201
+
+    # Histórico consultável por identificador — normaliza a busca também
+    resp = await client.get(
+        "/api/v1/balanca/prestadores/avaliacoes",
+        params={"tipo_identificador": "PLACA", "identificador": "abc1d23"},
+        headers=headers,
+    )
+    assert resp.status_code == 200, resp.text
+    historico = resp.json()
+    assert historico["total_avaliacoes"] == 2
+    assert historico["nota_media"] == 3.0
+    assert historico["identificador"] == "ABC1D23"
+    assert len(historico["avaliacoes"]) == 2
+
+    # Ordem de outro tenant não pode ser editada/avaliada
+    tenant_b_id = uuid.uuid4()
+    user_b_id = uuid.uuid4()
+    token_b = await _criar_tenant_com_owner(session, tenant_b_id, user_b_id, "Tenant Doc Fiscal Avaliacao B")
+    headers_b = {"Authorization": f"Bearer {token_b}", "X-Tenant-ID": str(tenant_b_id)}
+    resp = await client.patch(
+        f"/api/v1/balanca/ordens/{ordem_id}/documento-fiscal",
+        json={"numero_documento_fiscal": "NFE-999"},
+        headers=headers_b,
+    )
+    assert resp.status_code == 404
