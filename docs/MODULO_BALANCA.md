@@ -1,8 +1,8 @@
 # Módulo Balança — AgroSaaS
 
-**Status:** captura manual + sync offline + leitura eletrônica via ponte de hardware (`tools/balanca-bridge`) + modelo de pesagem por etapas (peso informado vs aferido) implementados. Prioridade de desenvolvimento: carga (veículo) primeiro, animal depois.
+**Status:** captura manual + sync offline + leitura eletrônica via ponte de hardware (`tools/balanca-bridge`) + modelo de pesagem por etapas (peso informado vs aferido) + login de operador + **vínculo real com Colheita e Pecuária** implementados. Compras/Vendas ainda não vinculados — ver seção 5.3.
 **Desenho completo/decisões de arquitetura:** `docs/brainstorm-modulo-balanca.md`
-**Última atualização:** 2026-08-16 (modelo de pesagem por etapas, peso informado/aferido, produto/volumes/agendamento/NF na ordem)
+**Última atualização:** 2026-08-16 (vínculo com romaneio de colheita e pesagem de animal via evento de domínio)
 
 ## 1. O que é
 
@@ -120,6 +120,37 @@ de operador. Botão **"Trocar operador"** no cabeçalho da tela de pesagem.
 
 Cada `Pesagem` grava `operador_pessoa_id` do operador logado no momento da captura.
 
+## 5.3. Vínculo com módulos clientes (colheita, pecuária, compras, vendas)
+
+**Como funciona (evento de domínio, não polling):** quando uma `OrdemPesagem` conclui
+(todas as etapas registradas), a Balança publica `balanca.pesagem.concluida` na outbox
+(`events/`) com `origem_tipo`/`origem_id`/`peso_bruto_kg`/`peso_tara_kg`/`peso_liquido_kg`
+no metadata. O worker de outbox (`background_worker.py`, processo separado — precisa estar
+rodando em produção) processa a fila e entrega o evento a quem assinou
+`event_types = ("balanca.pesagem.concluida",)`. Cada módulo cliente decide sozinho o que
+fazer — a Balança nunca importa `agricola`/`pecuaria`/etc, só o contrário.
+
+**Implementado e testado:**
+- **Colheita** (`agricola/romaneios/`): `POST /api/v1/romaneios/{id}/solicitar-pesagem-balanca`
+  cria a ordem; `agricola/romaneios/event_subscriber.py` atualiza
+  `peso_bruto_kg`/`tara_kg` do romaneio quando a pesagem conclui (reaproveita
+  `RomaneioService.atualizar()`, que já recalcula sacas/desconto/receita).
+- **Pecuária** (`pecuaria/`): `POST /api/v1/pecuaria/animais/{id}/pesagens/solicitar-balanca`
+  cria a ordem (pesagem única); `pecuaria/event_subscriber_balanca.py` cria um
+  `EventoAnimal(tipo=PESAGEM)` e atualiza `Animal.peso_atual_kg` — mesmo efeito de
+  `PesagemService.registrar_pesagem()`, mas sem chamá-lo diretamente (esse método
+  comita a própria transação, o que corrompe a transação do outbox relay se
+  invocado no meio do processamento de um evento — lição aprendida depurando
+  um erro de `asyncpg` só reproduzível dentro do relay).
+
+**Ainda não vinculados — Compras e Vendas:** o padrão é o mesmo (endpoint
+`solicitar-pesagem-balanca` + event subscriber), mas não foram implementados nesta
+rodada. `operacional/services/compras_service.py` está marcado internamente como
+área sensível a mudanças (uma tentativa anterior de refatoração em mixins foi
+revertida por quebrar `patch()` de testes) — antes de tocar lá vale confirmar o
+formato exato do fluxo de compra (compra de insumo vs. compra de produto de outro
+produtor com entrada de armazenagem, mencionado na spec original) com mais calma.
+
 ## 6. Uso no dia a dia (operador da balança)
 
 1. A tela de pesagem lista as ordens pendentes (criadas por colheita, compra, venda ou pecuária), com o número da NF e agendamento quando presentes.
@@ -154,7 +185,9 @@ Quando a ordem do processo chega depois, ou alguém do escritório precisa vincu
 - **Sem módulo de billing próprio ainda:** o gate de visibilidade do menu no `apps/web` reaproveita `A2_CAMPO` temporariamente. Definir o módulo definitivo (ex. `O4_BALANCA`) e o plano em que entra é decisão de produto pendente.
 - **Ponte de hardware ainda não testada com equipamento real:** o parser é genérico (regex configurável) e foi validado com um simulador — quando a marca/modelo do indicador for definida, confirmar o formato real do frame e ajustar `config.yaml` (ver `tools/balanca-bridge/README.md`).
 - **Pesagem de animal ainda não tem tela/fluxo específico de pecuária** (ex.: seleção de lote/brinco) — a prioridade combinada foi carga primeiro; hoje `subject_type=ANIMAL` funciona igual a `VEICULO` (só sem campo de placa).
-- **Vínculo automático com módulos clientes** (colheita, compras, vendas, pecuária chamando `PesagemService.solicitar_pesagem()` de verdade) ainda não foi cabeado em nenhum módulo piloto — hoje a criação de ordens é testável via API (`POST /api/v1/balanca/ordens`), mas nenhuma tela de colheita/compra/venda chama isso automaticamente ainda.
+- **Compras e Vendas ainda não vinculados** (colheita e pecuária já estão — ver seção 5.3). Padrão é o mesmo, falta implementar; `compras_service.py` é área sinalizada como sensível no histórico do projeto.
+- **Vínculo depende do worker de outbox estar rodando:** o evento `balanca.pesagem.concluida` só é entregue quando `background_worker.py` processa a fila (`events/outbox_relay.py`) — se o worker não estiver ativo em produção, romaneios/animais não recebem o peso automaticamente (a ordem na Balança continua correta, só o vínculo atrasa).
+- **Nenhuma tela ainda dispara "solicitar pesagem" a partir da UI** de colheita/pecuária — os endpoints existem e têm teste de integração, mas não há botão no `apps/web` chamando-os ainda.
 - **Reconciliação sem busca assistida:** a tela de reconciliação pede o ID do registro (romaneio/compra/venda/lote) digitado/colado manualmente — ainda não há um seletor com busca por nome/data dentro de cada módulo.
 - **Login de operador exige rede na hora de entrar:** a verificação do PIN pessoal é sempre no servidor (não dá pra validar bcrypt offline com segurança) — o operador precisa de conexão pra logar na estação uma vez; depois disso, pesar continua 100% offline até trocar de operador.
 - **Terminal × Balança ainda é um cadastro só:** `DispositivoBalanca` representa a estação inteira; não há um cadastro de "balança" separado do "terminal" (relação ainda não definida — decisão de produto pendente).
@@ -178,6 +211,11 @@ Quando a ordem do processo chega depois, ou alguém do escritório precisa vincu
 | Entrada de menu | `apps/web/src/lib/sidebar-config.ts` (grupo `BALANCA`) |
 | Catálogo de permissões | `apps/web/src/lib/permission-catalog.ts` (`balanca:dispositivo`, `balanca:operador`, `balanca:pesagem`) |
 | Desenho/decisões de arquitetura | `docs/brainstorm-modulo-balanca.md` |
+| Vínculo colheita (endpoint + subscriber) | `services/api/agricola/romaneios/{router,service,event_subscriber}.py` |
+| Vínculo pecuária (endpoint + subscriber) | `services/api/pecuaria/routers/animais.py`, `services/api/pecuaria/event_subscriber_balanca.py` |
+| Registro de subscribers | `services/api/events/subscribers.py` |
+| Teste de integração colheita↔balança | `services/api/tests/integration/agricola/test_romaneio_balanca_integration.py` |
+| Teste de integração pecuária↔balança | `services/api/tests/integration/pecuaria/test_pecuaria_balanca_integration.py` |
 
 ### Endpoints principais
 
@@ -202,3 +240,5 @@ Quando a ordem do processo chega depois, ou alguém do escritório precisa vincu
 | GET | `/api/v1/balanca/ordens/pendentes-reconciliacao` | Lista pesagens avulsas ainda não associadas |
 | GET | `/api/v1/balanca/sync/pull` | PWA busca ordens pendentes (token de dispositivo) |
 | POST | `/api/v1/balanca/sync/push` | PWA envia pesagens capturadas (token de dispositivo) |
+| POST | `/api/v1/romaneios/{id}/solicitar-pesagem-balanca` | Colheita: vincula romaneio a uma pesagem oficial |
+| POST | `/api/v1/pecuaria/animais/{id}/pesagens/solicitar-balanca` | Pecuária: vincula animal a uma pesagem oficial |

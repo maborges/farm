@@ -10,6 +10,7 @@ from sqlalchemy import func
 from agricola.romaneios.models import RomaneioColheita
 from agricola.romaneios.schemas import (
     RomaneioColheitaCreate, RomaneioColheitaUpdate, RomaneioKPIs, ColheitaPendenteRomaneio,
+    SolicitarPesagemBalancaRequest,
 )
 from agricola.qualidade_resolver import resolver_qualidade_efetiva
 
@@ -306,6 +307,36 @@ class RomaneioService(BaseService[RomaneioColheita]):
 
         updated = await self.update(id, patch)
         return updated
+
+    async def solicitar_pesagem_balanca(self, romaneio_id: UUID, dados: SolicitarPesagemBalancaRequest):
+        """Solicita pesagem oficial na Balança para este romaneio — módulo
+        desacoplado, chamado só por referência (origem_tipo/origem_id). Quando
+        a estação concluir, `agricola.romaneios.event_subscriber` atualiza
+        peso_bruto_kg/tara_kg deste romaneio a partir do evento publicado."""
+        romaneio = await self.get_or_fail(romaneio_id)
+
+        from balanca.service import PesagemService
+        from balanca.schemas import SolicitarPesagemRequest
+
+        svc = PesagemService(self.session, self.tenant_id)
+        ordem = await svc.solicitar_pesagem(
+            SolicitarPesagemRequest(
+                origem_tipo="COLHEITA",
+                origem_id=romaneio.id,
+                subject_type=dados.subject_type,
+                tipo_pesagem=dados.tipo_pesagem,
+                produto_id=romaneio.commodity_id,
+                produto_tipo="COMMODITY",
+                contexto={
+                    "placa": dados.placa,
+                    "motorista": dados.motorista,
+                    "numero_romaneio": romaneio.numero_romaneio,
+                },
+            )
+        )
+        await self.session.commit()
+        await self.session.refresh(ordem)
+        return ordem
 
     async def listar_pendentes_de_romaneio(self, safra_id: UUID | None = None) -> list[ColheitaPendenteRomaneio]:
         """Tarefas de campo de colheita já concluídas que ainda não têm

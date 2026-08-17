@@ -560,14 +560,51 @@ class SyncService:
             pesagem_unica = pesos_por_etapa[etapas_esperadas[0]]
             aferido = pesagem_unica.peso_aferido_kg or Decimal("0")
             tara = pesagem_unica.peso_tara_kg or Decimal("0")
-            ordem.peso_liquido_kg = aferido - tara
+            peso_bruto, peso_tara = aferido, tara
         else:
             primeira = pesos_por_etapa[etapas_esperadas[0]].peso_aferido_kg or Decimal("0")
             segunda = pesos_por_etapa[etapas_esperadas[1]].peso_aferido_kg or Decimal("0")
-            ordem.peso_liquido_kg = abs(segunda - primeira)
+            peso_bruto, peso_tara = max(primeira, segunda), min(primeira, segunda)
 
+        ordem.peso_liquido_kg = peso_bruto - peso_tara
         ordem.status = "CONCLUIDA"
         ordem.concluida_em = datetime.utcnow()
+
+        await self._notificar_pesagem_concluida(ordem, peso_bruto, peso_tara)
+
+    async def _notificar_pesagem_concluida(
+        self, ordem: OrdemPesagem, peso_bruto: Decimal, peso_tara: Decimal
+    ) -> None:
+        """Publica evento de domínio (outbox) para módulos clientes desacoplados
+        reagirem — a Balança não conhece romaneio/compra/venda/pecuária, só
+        avisa 'esta pesagem concluiu' via origem_tipo/origem_id."""
+        from events.base import DomainEvent
+        from events.helpers import publish_domain_event_safe
+        from alert_engine.models import Domain
+
+        event = DomainEvent(
+            tenant_id=ordem.tenant_id,
+            domain=Domain.OPERATIONS,
+            event_type="balanca.pesagem.concluida",
+            source_type="BALANCA_PESAGEM_CONCLUIDA",
+            entity_type="ordem_pesagem",
+            entity_id=ordem.id,
+            metadata={
+                "origem_tipo": ordem.origem_tipo,
+                "origem_id": str(ordem.origem_id) if ordem.origem_id else None,
+                "subject_type": ordem.subject_type,
+                "tipo_pesagem": ordem.tipo_pesagem,
+                "peso_bruto_kg": str(peso_bruto),
+                "peso_tara_kg": str(peso_tara),
+                "peso_liquido_kg": str(ordem.peso_liquido_kg),
+            },
+        )
+        await publish_domain_event_safe(
+            event,
+            session=self.session,
+            commit=False,
+            logger_context={"component": "balanca_sync_service"},
+        )
 
 
 def _to_uuid(value: Any) -> uuid.UUID | None:

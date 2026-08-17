@@ -10,6 +10,11 @@ class PesagemCreate(BaseModel):
     tarefa_campo_id: Optional[UUID] = Field(None, description="Opcional: Vínculo com a execução no módulo Campo")
     operador_id: Optional[UUID] = Field(None, description="Opcional: Operador que executou a tarefa")
 
+class SolicitarPesagemBalancaResponse(BaseModel):
+    ordem_pesagem_id: UUID
+    status: str
+
+
 class PesagemResponse(BaseModel):
     id: UUID
     animal_id: UUID

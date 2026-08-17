@@ -12,6 +12,8 @@ from agricola.romaneios.schemas import (
     RomaneioColheitaResponse,
     RomaneioKPIs,
     ColheitaPendenteRomaneio,
+    SolicitarPesagemBalancaRequest,
+    SolicitarPesagemBalancaResponse,
 )
 from agricola.romaneios.service import RomaneioService
 
@@ -94,6 +96,21 @@ async def atualizar_romaneio(
     svc = RomaneioService(session, tenant_id)
     romaneio = await svc.atualizar(id, dados)
     return RomaneioColheitaResponse.model_validate(romaneio)
+
+@router.post("/{id}/solicitar-pesagem-balanca", response_model=SolicitarPesagemBalancaResponse, status_code=status.HTTP_201_CREATED)
+async def solicitar_pesagem_balanca(
+    id: UUID,
+    dados: SolicitarPesagemBalancaRequest,
+    session: AsyncSession = Depends(get_session),
+    tenant_id: UUID = Depends(get_tenant_id),
+    _: None = Depends(require_module("A5_COLHEITA")),
+    user: dict = Depends(require_role(["agronomo", "admin", "operador"])),
+):
+    """Vincula o romaneio a uma pesagem oficial na estação de balança."""
+    svc = RomaneioService(session, tenant_id)
+    ordem = await svc.solicitar_pesagem_balanca(id, dados)
+    return SolicitarPesagemBalancaResponse(ordem_pesagem_id=ordem.id, status=ordem.status)
+
 
 @router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
 async def excluir_romaneio(

@@ -112,3 +112,5 @@ class AlertEngineEventSubscriber(EventSubscriber):
 # Importing registers the official Recommendation subscriber in this existing
 # default registry loading path; no second event registry is created.
 from recommendations.event_subscriber import RecommendationEventSubscriber  # noqa: E402, F401
+from agricola.romaneios.event_subscriber import RomaneioBalancaEventSubscriber  # noqa: E402, F401
+from pecuaria.event_subscriber_balanca import PecuariaBalancaEventSubscriber  # noqa: E402, F401

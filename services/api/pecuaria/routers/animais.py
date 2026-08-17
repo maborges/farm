@@ -15,7 +15,7 @@ from pecuaria.schemas.animal_schema import (
     AnimalFilter
 )
 from pecuaria.services.animal_service import AnimalService
-from pecuaria.schemas.pesagem_schema import PesagemCreate, PesagemResponse
+from pecuaria.schemas.pesagem_schema import PesagemCreate, PesagemResponse, SolicitarPesagemBalancaResponse
 from pecuaria.services.pesagem_service import PesagemService
 from typing import List
 
@@ -149,6 +149,34 @@ async def registrar_pesagem(
     except Exception as e:
         await db.rollback()
         raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.post(
+    "/{animal_id}/pesagens/solicitar-balanca",
+    response_model=SolicitarPesagemBalancaResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def solicitar_pesagem_balanca(
+    animal_id: uuid.UUID,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    db: AsyncSession = Depends(get_session),
+):
+    """Vincula o animal a uma pesagem oficial na estação de balança (curral)."""
+    from balanca.service import PesagemService as BalancaPesagemService
+    from balanca.schemas import SolicitarPesagemRequest
+
+    svc = BalancaPesagemService(db, tenant_id)
+    ordem = await svc.solicitar_pesagem(
+        SolicitarPesagemRequest(
+            origem_tipo="PECUARIA",
+            origem_id=animal_id,
+            subject_type="ANIMAL",
+            tipo_pesagem="UNICA",
+        )
+    )
+    await db.commit()
+    await db.refresh(ordem)
+    return SolicitarPesagemBalancaResponse(ordem_pesagem_id=ordem.id, status=ordem.status)
 
 
 @router.get("/{animal_id}/pesagens", response_model=List[PesagemResponse])

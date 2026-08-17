@@ -42,6 +42,23 @@ class RomaneioColheitaUpdate(BaseModel):
     observacoes: str | None = None
 
 
+class SolicitarPesagemBalancaRequest(BaseModel):
+    """Vincula o romaneio a uma pesagem oficial na balança — o peso_bruto_kg/
+    tara_kg informados na criação ficam provisórios até a estação concluir."""
+    subject_type: str = Field(default="VEICULO", pattern="^(VEICULO|ANIMAL)$")
+    tipo_pesagem: str = Field(
+        default="DUPLA",
+        pattern="^(UNICA|DUPLA|DUPLA_ENTRADA_DESCARGA|DUPLA_SAIDA_CARREGAMENTO)$",
+    )
+    placa: str | None = None
+    motorista: str | None = None
+
+
+class SolicitarPesagemBalancaResponse(BaseModel):
+    ordem_pesagem_id: UUID
+    status: str
+
+
 class ColheitaPendenteRomaneio(BaseModel):
     tarefa_campo_id: UUID
     safra_id: UUID | None = None
