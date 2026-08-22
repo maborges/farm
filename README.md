@@ -52,63 +52,160 @@ Arquitetura consolidada do Caderno de Campo (governança, cadeia documental, pap
 
 ## Como Executar
 
-### Backend
+Execute cada bloco em um terminal separado, mantendo o backend ativo antes dos workers e das aplicações web.
+
+### 1. Aplicar migrations do banco
+
+O que faz: atualiza o schema PostgreSQL para o head atual antes de iniciar a API.
+
 ```bash
 cd /opt/lampp/htdocs/farm/services/api
-source .venv/bin/activate
-./start_server.sh
-# ou: uvicorn main:app --reload
+./.venv/bin/alembic upgrade head
 ```
-Travado? `  ` para listar, `sudo kill -9 PID` para matar.
-Parar de forma limpa: `pkill -f "uvicorn main:app"`
 
-### Worker de Automações (scheduler)
+### 2. Iniciar o backend FastAPI
+
+O que faz: sobe a API em `http://localhost:8000` e disponibiliza a documentação em `/docs`.
+
+```bash
+cd /opt/lampp/htdocs/farm/services/api
+./start_server.sh
+```
+
+Para iniciar manualmente sem o script:
+
+```bash
+cd /opt/lampp/htdocs/farm/services/api
+./.venv/bin/uvicorn main:app --reload --host 0.0.0.0 --port 8000
+```
+
+### 3. Verificar a API
+
+O que faz: confirma que o processo FastAPI está respondendo antes de iniciar os consumidores.
+
+```bash
+curl -fsS http://localhost:8000/docs >/dev/null && echo "API OK"
+```
+
+### 4. Iniciar o worker de automações
+
+O que faz: executa o scheduler de automações do AgroSaaS usando o virtualenv oficial da API.
+
 ```bash
 cd /opt/lampp/htdocs/farm
-source .venv/bin/activate
-python scripts/run_worker.py
-``` 
+./services/api/.venv/bin/python scripts/run_worker.py
+```
 
-### Frontend Web
+### 5. Iniciar o Outbox em desenvolvimento
+
+O que faz: processa continuamente os eventos pendentes de um tenant específico. Substitua o UUID pelo tenant desejado.
+
+```bash
+cd /opt/lampp/htdocs/farm/services/api
+PYTHONPATH=. .venv/bin/python -m events.outbox_worker run --loop --tenant-id SEU_TENANT_ID
+```
+
+Não execute este modo simultaneamente com o cron global para o mesmo conjunto de tenants.
+
+### 6. Iniciar o frontend Web
+
+O que faz: sobe o painel administrativo em `http://localhost:3000`.
+
 ```bash
 cd /opt/lampp/htdocs/farm/apps/web
 pnpm run dev
-
-antes de rodar verifique se nao tem processo rodando
-ps -ef | grep "next dev"
-kill <PID>
-
-se não funcionar pode ser so lock antigo
-rm -f /opt/lampp/htdocs/farm/apps/web/.next/dev/lock
-
 ```
-Roda em `http://localhost:3000`.
 
-### PWA de Campo
+Se houver lock antigo do Next.js:
+
+```bash
+rm -f /opt/lampp/htdocs/farm/apps/web/.next/dev/lock
+```
+
+### 7. Iniciar o PWA de Campo
+
+O que faz: sobe a aplicação offline-first de campo em `http://localhost:3002`.
+
 ```bash
 cd /opt/lampp/htdocs/farm/apps/campo
 pnpm run dev
 ```
-Roda em `http://localhost:3002`, abre em `/home` após ativação do dispositivo.
-Primeira ativação: fluxo `/activate` → `/pin`.
 
-### PWA de Balança
+A primeira ativação usa `/activate` → `/pin`; depois, a aplicação abre em `/home`.
+
+### 8. Iniciar o PWA de Balança
+
+O que faz: sobe a aplicação de estação de pesagem em `http://localhost:3003`.
+
 ```bash
 cd /opt/lampp/htdocs/farm/apps/balanca
 pnpm run dev
 ```
-Roda em `http://localhost:3003`. Primeira ativação: código gerado em `POST /api/v1/balanca/devices` + PIN da estação, tela `/` → `/pesagem`. Peso digitado manualmente ou lido ao vivo da ponte de hardware (configurável na própria tela, botão "Configurar ponte").
 
-### Ponte de Balança (leitura eletrônica de peso)
+### 9. Iniciar a ponte eletrônica da balança
+
+O que faz: conecta o indicador físico ou simulador à aplicação da balança pela porta `8321`.
+
 ```bash
 cd /opt/lampp/htdocs/farm/tools/balanca-bridge
-python3 -m venv .venv && ./.venv/bin/pip install -r requirements.txt
-cp config.yaml.example config.yaml   # ajuste porta serial ou host/porta TCP do indicador
+python3 -m venv .venv
+./.venv/bin/pip install -r requirements.txt
+cp config.yaml.example config.yaml
+# Edite config.yaml com a porta serial ou host/porta TCP do indicador.
 ./.venv/bin/python -m balanca_bridge.main
 ```
-Roda em `http://0.0.0.0:8321` (ajustável). Sem indicador físico ainda? `./.venv/bin/python simulator.py` emula um indicador via TCP para testar toda a cadeia. Detalhes em `tools/balanca-bridge/README.md`.
 
-### Matar tudo
+Para usar o simulador em vez do indicador físico:
+
+```bash
+cd /opt/lampp/htdocs/farm/tools/balanca-bridge
+./.venv/bin/python simulator.py
+```
+
+### 10. Executar o Outbox global no cron
+
+O que faz: percorre os tenants ativos, ativa o contexto RLS de cada tenant e processa lotes de 50 eventos. Retorna `0` sem falhas e `1` quando algum tenant falha.
+
+Validar sem processar eventos:
+
+```bash
+cd /opt/lampp/htdocs/farm/services/api
+PYTHONPATH=. .venv/bin/python -m events.outbox_worker --help
+PYTHONPATH=. .venv/bin/python -m py_compile scripts/run_outbox_global.py
+```
+
+Executar manualmente:
+
+```bash
+cd /opt/lampp/htdocs/farm/services/api
+PYTHONPATH=. .venv/bin/python scripts/run_outbox_global.py
+echo "exit_code=$?"
+```
+
+Configurar o log e o cron:
+
+```bash
+sudo install -d -o borgus -g borgus /var/log/farm
+crontab -e
+```
+
+Adicione a linha abaixo. A execução a cada 5 minutos evita sobreposição em ambientes com muitos tenants; `flock` impede duas execuções simultâneas:
+
+```cron
+*/5 * * * * /usr/bin/flock -n /tmp/farm-outbox.lock /bin/bash -lc 'cd /opt/lampp/htdocs/farm/services/api && PYTHONPATH=. .venv/bin/python scripts/run_outbox_global.py >> /var/log/farm/outbox.log 2>&1'
+```
+
+Confirmar instalação e acompanhar logs:
+
+```bash
+crontab -l
+tail -f /var/log/farm/outbox.log
+```
+
+### 11. Parar os processos de desenvolvimento
+
+O que faz: encerra a API e os servidores Next.js iniciados por este workspace.
+
 ```bash
 pkill -f "uvicorn|next dev"
 ```

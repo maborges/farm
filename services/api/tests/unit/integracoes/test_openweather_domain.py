@@ -32,7 +32,7 @@ from integracoes.security import decrypt_integration_secret, is_integration_secr
 REPO_ROOT = Path(__file__).resolve().parents[5]
 ROUTERS_FILE = REPO_ROOT / "services/api/integracoes/openweather/routers.py"
 MAIN_FILE = REPO_ROOT / "services/api/main.py"
-SIDEBAR_FILE = REPO_ROOT / "apps/web/src/components/layout/app-sidebar.tsx"
+SIDEBAR_CONFIG_FILE = REPO_ROOT / "apps/web/src/lib/sidebar-config.ts"
 CATALOG_FILE = REPO_ROOT / "apps/web/src/app/integracoes/page.tsx"
 
 
@@ -389,6 +389,7 @@ async def test_status_timeline_e_diagnostico_consolidam_camadas_canonicas(
     assert status["status_origem"] == "canonical"
     assert health["origem"] == "canonical"
     assert len(jobs) == 1
+    assert jobs[0]["tenant_id"] == tenant_id
     assert any(item["tipo_registro"] == "canonical_job" for item in timeline)
     assert any(item["tipo_registro"] == "health_snapshot" for item in timeline)
     assert diagnosis["health_atual"] == "CONNECTED"
@@ -398,7 +399,7 @@ async def test_status_timeline_e_diagnostico_consolidam_camadas_canonicas(
 def test_rotas_e_menu_tenant_apontam_para_o_console_de_openweather() -> None:
     router_source = ROUTERS_FILE.read_text(encoding="utf-8")
     main_source = MAIN_FILE.read_text(encoding="utf-8")
-    sidebar_source = SIDEBAR_FILE.read_text(encoding="utf-8")
+    sidebar_config_source = SIDEBAR_CONFIG_FILE.read_text(encoding="utf-8")
     catalog_source = CATALOG_FILE.read_text(encoding="utf-8")
 
     assert "Depends(get_session)" in router_source
@@ -406,7 +407,7 @@ def test_rotas_e_menu_tenant_apontam_para_o_console_de_openweather() -> None:
     assert "require_tenant_permission(\"integrations:view\")" in router_source
     assert "openweather_router" in main_source
     assert "app.include_router(openweather_router, prefix=\"/api/v1/integracoes\")" in main_source
-    assert "/dashboard/settings/integracoes/clima/openweather" in sidebar_source
-    assert "OpenWeather" in sidebar_source
-    assert 'permission: "integrations:view"' in sidebar_source
+    assert "/dashboard/settings/integracoes/clima/openweather" in sidebar_config_source
+    assert "OpenWeather" in sidebar_config_source
+    assert 'permission: \'integrations:view\'' in sidebar_config_source
     assert "/dashboard/settings/integracoes/clima/openweather" in catalog_source

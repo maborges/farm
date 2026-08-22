@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ClimaResponse(BaseModel):
@@ -60,5 +60,42 @@ class RecomendacaoOperacionalResponse(BaseModel):
     data_referencia: datetime
     fonte: str
     validade_horas: int
+
+    model_config = ConfigDict(from_attributes=True)
+
+class PrevisaoClimaResponse(BaseModel):
+    id: UUID
+    unidade_produtiva_id: UUID
+    data_previsao: date
+    precipitacao_mm: float | None = None
+    temp_max_c: float | None = None
+    temp_min_c: float | None = None
+    probabilidade_chuva_pct: float | None = None
+    periodos: list[dict] = Field(default_factory=list)
+    atualizado_em: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class SerieTemporalClima(BaseModel):
+    data: date
+    temp_min: float | None = None
+    temp_max: float | None = None
+    temp_media: float | None = None
+    precipitacao: float | None = None
+
+
+class RiscoClimatico(BaseModel):
+    tipo: str
+    nivel: str  # ex: BAIXO, MEDIO, ALTO, CRITICO
+    mensagem: str
+    data_alerta: date | None = None
+
+
+class ClimaInteligenciaResponse(BaseModel):
+    gdu_acumulado: float
+    gdu_progresso_pct: float | None = None
+    riscos: list[RiscoClimatico]
+    historico: list[SerieTemporalClima]
 
     model_config = ConfigDict(from_attributes=True)

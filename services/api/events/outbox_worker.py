@@ -493,12 +493,13 @@ async def run_outbox_relay_once(
         if result.exit_code == EXIT_OK and not result.total_batches:
             result.status = "completed"
     finally:
+        if session:
+            await _close_session(session)
         result.duration_ms = int((perf_counter() - start) * 1000)
         result.finished_at = datetime.now(UTC)
         if result.exit_code == EXIT_OK and result.errors:
             result.exit_code = EXIT_OPERATIONAL_ERROR
         _log_run_summary(bound_logger, result)
-        await _close_session(session)
     return result
 
 

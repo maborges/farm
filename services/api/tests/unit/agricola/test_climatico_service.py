@@ -1,8 +1,11 @@
 import pytest
 from datetime import date, datetime
+from sqlalchemy import func, select
 
 from agricola.climatico.service import ClimaService
-from agricola.climatico.models import RegistroClima
+from agricola.climatico.events import ClimaSyncRealizado, PrevisaoClimaSyncRealizado
+from agricola.climatico.models import PrevisaoClima, RegistroClima
+from agricola.climatico.subscribers import ClimaEventSubscriber, PrevisaoClimaEventSubscriber
 from alert_engine.models import OperationalAlert, AlertStatus, Severity, Priority
 from alert_engine.schemas import Domain, Category
 
@@ -108,3 +111,64 @@ async def test_get_alertas_ativos(tenant_session, tenant_id, unidade_produtiva_i
     assert len(alertas) == 1
     assert alertas[0].severity == "WARNING"
     assert alertas[0].source_type == "CLIMA_VENTO_ALTO"
+
+
+async def test_subscriber_clima_e_idempotente(tenant_session, tenant_id, unidade_produtiva_id):
+    subscriber = ClimaEventSubscriber(tenant_session)
+    event = ClimaSyncRealizado(
+        tenant_id=tenant_id,
+        unidade_produtiva_id=unidade_produtiva_id,
+        provider="OPENWEATHER",
+        source_type="OPENWEATHER",
+        domain=Domain.AGRICULTURE,
+        temperatura=25.0,
+        chuva_mm=2.0,
+        umidade=60.0,
+        vento_kmh=10.0,
+        occurred_at=datetime(2026, 8, 20, 12, 0),
+    )
+
+    first = await subscriber.handle(event)
+    second = await subscriber.handle(event)
+
+    count = await tenant_session.scalar(
+        select(func.count(RegistroClima.id)).where(
+            RegistroClima.tenant_id == tenant_id,
+            RegistroClima.unidade_produtiva_id == unidade_produtiva_id,
+        )
+    )
+    assert first.created == 1
+    assert second.updated == 1
+    assert count == 1
+
+
+async def test_subscriber_previsao_valida_unidade_e_atualiza(tenant_session, tenant_id, unidade_produtiva_id):
+    subscriber = PrevisaoClimaEventSubscriber(tenant_session)
+    event = PrevisaoClimaSyncRealizado(
+        tenant_id=tenant_id,
+        unidade_produtiva_id=unidade_produtiva_id,
+        provider="OPENWEATHER",
+        source_type="OPENWEATHER",
+        domain=Domain.AGRICULTURE,
+        occurred_at=datetime(2026, 8, 20, 12, 0),
+        previsoes=[
+            {
+                "data_previsao": "2026-08-21",
+                "precipitacao_mm": 4.0,
+                "temp_max_c": 30.0,
+                "temp_min_c": 18.0,
+                "probabilidade_chuva_pct": 60.0,
+            }
+        ],
+    )
+
+    result = await subscriber.handle(event)
+    registro = await tenant_session.scalar(
+        select(PrevisaoClima).where(
+            PrevisaoClima.tenant_id == tenant_id,
+            PrevisaoClima.unidade_produtiva_id == unidade_produtiva_id,
+        )
+    )
+    assert result.created == 1
+    assert registro is not None
+    assert float(registro.precipitacao_mm) == 4.0

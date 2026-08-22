@@ -19,6 +19,8 @@ class OpenWeatherConfigUpsert(BaseModel):
     language: str = Field(default="pt_br", max_length=10)
     timeout_seconds: int = Field(default=20, ge=5, le=120)
     cache_ttl_seconds: int = Field(default=1800, ge=60, le=86400)
+    daily_quota: int = Field(default=1000, ge=0, le=1000000, description="Limite de chamadas diárias na API")
+    sync_frequency_minutes: int = Field(default=60, ge=15, le=1440, description="Intervalo entre buscas automáticas em minutos")
 
 
 class OpenWeatherConfigResponse(BaseModel):
@@ -39,6 +41,8 @@ class OpenWeatherConfigResponse(BaseModel):
     last_synced_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
+    scope_type: str = "TENANT"
+    scope_id: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
 

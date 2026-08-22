@@ -30,6 +30,20 @@ Este documento lista e agrupa as rotas do Monolito Backend (FastAPI) e a estrutu
 
 **Tenant Aware**: Sim (RLS integral).
 
+### Clima
+
+- `/api/v1/climatico/resumo/{unidade_produtiva_id}`
+- `/api/v1/climatico/historico/{unidade_produtiva_id}`
+- `/api/v1/climatico/chuva-acumulada/{unidade_produtiva_id}`
+- `/api/v1/climatico/alertas/{unidade_produtiva_id}`
+- `/api/v1/climatico/recomendacoes/{unidade_produtiva_id}`
+- `/api/v1/climatico/previsao/{unidade_produtiva_id}`
+- `/api/v1/climatico/inteligencia/{unidade_produtiva_id}`
+- `POST /api/v1/climatico/sincronizar/{unidade_produtiva_id}`
+
+**Fonte de dados**: OpenWeather, via eventos de ingestão para `RegistroClima` e `PrevisaoClima`.
+**Tenant Aware**: Sim, com módulo `A1_PLANEJAMENTO` e contexto de tenant.
+
 ### Territorial & Fundiário
 **Módulos**: Propriedades / Imóveis Rurais
 - `/api/v1/cadastros/areas-rurais`

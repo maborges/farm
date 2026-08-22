@@ -8,6 +8,7 @@ from core.database import get_db_session
 from automacoes.models import AutomacaoConfiguracao
 from automacoes.service import AutomacoesService, _calcular_proxima_execucao
 from automacoes.followup_worker import process_followups
+from integracoes.openweather.worker import process_openweather_sync
 
 async def process_automations():
     """Busca regras vencidas e executa automações, atualizando a próxima execução."""
@@ -118,6 +119,7 @@ async def run_worker_loop(interval: int = 60, alerts_check_every_n_cycles: int =
     while True:
         await process_automations()
         await run_followup_check()
+        await process_openweather_sync()
         ciclo += 1
         if ciclo % alerts_check_every_n_cycles == 0:
             await run_alerts_check()

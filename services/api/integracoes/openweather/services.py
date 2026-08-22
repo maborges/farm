@@ -10,12 +10,13 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import httpx
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from alert_engine.models import Category, Domain, Priority, Severity, TriggerType
 from alert_engine.schemas import OperationalAlertCreate
 from alert_engine.service import AlertLifecycleService
+from core.models.unidade_produtiva import UnidadeProdutiva
 from events import publish_domain_event_safe
 from integracoes.payload_masking import mask_sensitive_payload
 from integracoes.events import (
@@ -194,6 +195,31 @@ class OpenWeatherClient:
             response.raise_for_status()
             return response.json()
 
+    async def fetch_forecast_weather(
+        self,
+        location_query: str | None = None,
+        lat: float | None = None,
+        lon: float | None = None,
+    ) -> dict[str, Any]:
+        """Consulta a previsão do tempo (5 dias / 3 horas) no OpenWeather."""
+
+        params: dict[str, Any] = {
+            "appid": self.api_key,
+            "units": self.units,
+            "lang": self.language,
+        }
+
+        if lat is not None and lon is not None:
+            params["lat"] = lat
+            params["lon"] = lon
+        else:
+            params["q"] = location_query or _DEFAULT_LOCATION_QUERY
+
+        async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
+            response = await client.get(f"{self.api_base_url}/data/2.5/forecast", params=params)
+            response.raise_for_status()
+            return response.json()
+
 
 class OpenWeatherCanonicalAdapter:
     """Conecta OpenWeather ao domínio canônico de Integrações."""
@@ -207,8 +233,15 @@ class OpenWeatherCanonicalAdapter:
         payload: OpenWeatherConfigUpsert,
         *,
         reason: str,
+        unidade_produtiva_id: str | None = None,
     ) -> TenantIntegracao:
         """Materializa provider, credential, config, features, policies e version."""
+
+        # Garante contexto RLS antes de qualquer DML — necessário para a política de INSERT do Postgres
+        await self.db.execute(
+            text("SELECT set_config('app.current_tenant_id', :tid, true)"),
+            {"tid": str(tenant_id)},
+        )
 
         provider = await self._ensure_provider()
         credential, credential_changed = await self._ensure_credential(
@@ -216,7 +249,9 @@ class OpenWeatherCanonicalAdapter:
             provider,
             payload,
         )
-        config, config_changed = await self._ensure_config(tenant_id, provider, credential, payload)
+        config, config_changed = await self._ensure_config(
+            tenant_id, provider, credential, payload, unidade_produtiva_id
+        )
         await self._ensure_default_features_and_policies(config, provider)
         await self._ensure_initial_health(config, provider)
         await self._append_version(config, credential, payload, reason)
@@ -227,8 +262,13 @@ class OpenWeatherCanonicalAdapter:
             await self._publish_credential_rotated_event(config, credential)
 
         await self.db.commit()
+        await self.db.execute(
+            text("SELECT set_config('app.current_tenant_id', :tid, true)"),
+            {"tid": str(tenant_id)},
+        )
         await self.db.refresh(config)
         return config
+
 
     async def ensure_job_context(
         self,
@@ -236,6 +276,7 @@ class OpenWeatherCanonicalAdapter:
         feature_code: str,
         trigger_type: IntegrationJobTrigger,
         request_payload: dict[str, Any] | None = None,
+        config: TenantIntegracao | None = None,
     ) -> tuple[
         TenantIntegracao,
         MarketplaceIntegracao,
@@ -245,7 +286,7 @@ class OpenWeatherCanonicalAdapter:
     ]:
         """Garante o contexto canônico para uma execução OpenWeather."""
 
-        config = await self._get_or_create_config(tenant_id)
+        config = config or await self._get_or_create_config(tenant_id)
         provider = await self._get_provider_by_id(config.provider_id)
         assert provider is not None
         feature = await self._ensure_feature(config, provider, feature_code)
@@ -326,11 +367,32 @@ class OpenWeatherCanonicalAdapter:
             await self._publish_health_changed_event(config, previous_status, health.status)
 
         await self.db.commit()
+        await self.db.execute(
+            text("SELECT set_config('app.current_tenant_id', :tenant_id, true)"),
+            {"tenant_id": str(config.tenant_id)},
+        )
         await self.db.refresh(job)
         return job
 
-    async def get_config(self, tenant_id: str) -> TenantIntegracao | None:
-        """Obtém a configuração canônica do tenant."""
+    async def get_config(
+        self, tenant_id: str, unidade_produtiva_id: str | None = None
+    ) -> TenantIntegracao | None:
+        """Obtém a configuração climática no escopo solicitado."""
+
+        # Este adapter também é usado por workers e por fluxos que atravessam
+        # commits intermediários. Reafirma o contexto transacional antes do
+        # lookup para que o RLS não transforme uma configuração existente em
+        # "não configurada".
+        await self.db.execute(
+            text("SELECT set_config('app.current_tenant_id', :tenant_id, true)"),
+            {"tenant_id": str(tenant_id)},
+        )
+
+        scope_type = (
+            IntegrationScope.UNIDADE_PRODUTIVA.value
+            if unidade_produtiva_id
+            else IntegrationScope.TENANT.value
+        )
 
         stmt = (
             select(TenantIntegracao)
@@ -338,20 +400,57 @@ class OpenWeatherCanonicalAdapter:
             .where(
                 TenantIntegracao.tenant_id == tenant_id,
                 TenantIntegracao.deleted_at.is_(None),
+                TenantIntegracao.scope_type == scope_type,
                 MarketplaceIntegracao.slug == _OPENWEATHER_SLUG,
             )
         )
+        if unidade_produtiva_id:
+            stmt = stmt.where(TenantIntegracao.scope_id == unidade_produtiva_id)
         return (await self.db.execute(stmt)).scalar_one_or_none()
+
+    async def materializar_config_unidade(
+        self, tenant_id: str, unidade_produtiva_id: str
+    ) -> TenantIntegracao | None:
+        """Materializa configuração unitária a partir do legado do tenant."""
+
+        config = await self.get_config(tenant_id, unidade_produtiva_id)
+        if config:
+            return config
+        legado = await self.get_config(tenant_id)
+        if not legado:
+            return None
+        config = TenantIntegracao(
+            tenant_id=legado.tenant_id,
+            integracao_id=legado.integracao_id,
+            status=legado.status,
+            configuracoes=legado.configuracoes,
+            credenciais=legado.credenciais,
+            webhook_url=legado.webhook_url,
+            webhook_secret=legado.webhook_secret,
+            ultima_sincronizacao=legado.ultima_sincronizacao,
+            total_sincronizacoes=legado.total_sincronizacoes,
+            installed_at=legado.installed_at,
+            scope_type=IntegrationScope.UNIDADE_PRODUTIVA.value,
+            scope_id=unidade_produtiva_id,
+            lifecycle_state=legado.lifecycle_state,
+            connection_payload=legado.connection_payload,
+            credential_ref_id=legado.credential_ref_id,
+        )
+        self.db.add(config)
+        await self.db.flush()
+        return config
 
     async def get_provider(self) -> MarketplaceIntegracao:
         """Obtém ou cria o catálogo OpenWeather."""
 
         return await self._ensure_provider()
 
-    async def obter_config_response(self, tenant_id: str) -> OpenWeatherConfigResponse | None:
+    async def obter_config_response(
+        self, tenant_id: str, unidade_produtiva_id: str | None = None
+    ) -> OpenWeatherConfigResponse | None:
         """Serializa a configuração OpenWeather do tenant."""
 
-        config = await self.get_config(tenant_id)
+        config = await self.get_config(tenant_id, unidade_produtiva_id)
         if not config:
             return None
         credential = await self._get_credential_by_id(config.credential_ref_id)
@@ -375,12 +474,16 @@ class OpenWeatherCanonicalAdapter:
             or (latest_job.finished_at if latest_job else None),
             created_at=config.installed_at,
             updated_at=config.updated_at,
+            scope_type=config.scope_type,
+            scope_id=config.scope_id,
         )
 
-    async def obter_status_detalhado(self, tenant_id: str) -> dict[str, Any]:
+    async def obter_status_detalhado(
+        self, tenant_id: str, unidade_produtiva_id: str | None = None
+    ) -> dict[str, Any]:
         """Resume status, health, features e policies do provider."""
 
-        config = await self.get_config(tenant_id)
+        config = await self.get_config(tenant_id, unidade_produtiva_id)
         config_id = config.id if config else None
         health = await self._get_canonical_health(config_id)
         features = await self._list_canonical_features(config_id)
@@ -431,10 +534,12 @@ class OpenWeatherCanonicalAdapter:
             "latest_weather": latest_weather.to_response() if latest_weather else None,
         }
 
-    async def obter_health_detalhado(self, tenant_id: str) -> dict[str, Any]:
+    async def obter_health_detalhado(
+        self, tenant_id: str, unidade_produtiva_id: str | None = None
+    ) -> dict[str, Any]:
         """Resume o snapshot operacional de health do provider."""
 
-        config = await self.get_config(tenant_id)
+        config = await self.get_config(tenant_id, unidade_produtiva_id)
         health = await self._get_canonical_health(config.id if config else None)
         if not health:
             return {
@@ -466,10 +571,11 @@ class OpenWeatherCanonicalAdapter:
         tenant_id: str,
         *,
         limit: int = 20,
+        unidade_produtiva_id: str | None = None,
     ) -> list[dict[str, Any]]:
         """Lista jobs canônicos do provider."""
 
-        config = await self.get_config(tenant_id)
+        config = await self.get_config(tenant_id, unidade_produtiva_id)
         if not config:
             return []
         features = await self._list_canonical_features(config.id)
@@ -494,11 +600,14 @@ class OpenWeatherCanonicalAdapter:
         status: str | None = None,
         feature_code: str | None = None,
         origem: str | None = None,
+        unidade_produtiva_id: str | None = None,
     ) -> list[dict[str, Any]]:
         """Consolida timeline de jobs e health do provider."""
 
-        jobs = await self.listar_jobs(tenant_id, limit=limit)
-        health = await self.obter_health_detalhado(tenant_id)
+        jobs = await self.listar_jobs(
+            tenant_id, limit=limit, unidade_produtiva_id=unidade_produtiva_id
+        )
+        health = await self.obter_health_detalhado(tenant_id, unidade_produtiva_id)
         timeline = [
             *self._build_job_timeline_entries(jobs),
             self._build_health_timeline_entry(health),
@@ -512,12 +621,16 @@ class OpenWeatherCanonicalAdapter:
         filtered.sort(key=lambda item: item["occurred_at"], reverse=True)
         return filtered[:limit]
 
-    async def obter_diagnostico_operacional(self, tenant_id: str) -> dict[str, Any]:
+    async def obter_diagnostico_operacional(
+        self, tenant_id: str, unidade_produtiva_id: str | None = None
+    ) -> dict[str, Any]:
         """Resume a saúde operacional do provider em linguagem de suporte."""
 
-        status_payload = await self.obter_status_detalhado(tenant_id)
-        health_payload = await self.obter_health_detalhado(tenant_id)
-        jobs = await self.listar_jobs(tenant_id, limit=50)
+        status_payload = await self.obter_status_detalhado(tenant_id, unidade_produtiva_id)
+        health_payload = await self.obter_health_detalhado(tenant_id, unidade_produtiva_id)
+        jobs = await self.listar_jobs(
+            tenant_id, limit=50, unidade_produtiva_id=unidade_produtiva_id
+        )
 
         ultimo_sucesso_at = self._resolve_latest_timestamp(
             [status_payload.get("last_success_at")]
@@ -675,13 +788,21 @@ class OpenWeatherCanonicalAdapter:
         provider: MarketplaceIntegracao,
         credential: IntegrationCredential,
         payload: OpenWeatherConfigUpsert,
+        unidade_produtiva_id: str | None = None,
     ) -> tuple[TenantIntegracao, bool]:
+        scope_type = (
+            IntegrationScope.UNIDADE_PRODUTIVA.value
+            if unidade_produtiva_id
+            else IntegrationScope.TENANT.value
+        )
         stmt = select(TenantIntegracao).where(
             TenantIntegracao.tenant_id == tenant_id,
             TenantIntegracao.integracao_id == provider.id,
-            TenantIntegracao.scope_type == IntegrationScope.TENANT.value,
+            TenantIntegracao.scope_type == scope_type,
             TenantIntegracao.deleted_at.is_(None),
         )
+        if unidade_produtiva_id:
+            stmt = stmt.where(TenantIntegracao.scope_id == unidade_produtiva_id)
         config = (await self.db.execute(stmt)).scalar_one_or_none()
         connection_payload = self._connection_payload(payload)
         configuracoes = self._configuracoes_payload(payload)
@@ -695,7 +816,8 @@ class OpenWeatherCanonicalAdapter:
                 integracao_id=provider.id,
                 status=status,
                 configuracoes=configuracoes,
-                scope_type=IntegrationScope.TENANT.value,
+                scope_type=scope_type,
+                scope_id=unidade_produtiva_id,
                 lifecycle_state=lifecycle,
                 connection_payload=connection_payload,
                 credential_ref_id=credential.id,
@@ -1368,7 +1490,7 @@ class OpenWeatherCanonicalAdapter:
             error_payload = job.result_payload
         return {
             "id": str(job.id),
-            "tenant_id": job.tenant_id,
+            "tenant_id": str(job.tenant_id),
             "config_id": job.config_id,
             "feature_code": feature.codigo if feature else None,
             "job_status": job.status,
@@ -1545,12 +1667,58 @@ class OpenWeatherService:
     ) -> OpenWeatherConfigResponse:
         """Cria ou atualiza a configuração OpenWeather do tenant."""
 
+        await self._validate_sync_frequency(tenant_id, payload)
+
         config = await self.adapter.sync_provider_config(
             tenant_id,
             payload,
             reason="openweather_config_saved",
         )
         return await self._config_response(tenant_id, config)
+
+    async def salvar_config_unidade(
+        self, tenant_id: str, unidade_produtiva_id: str, payload: OpenWeatherConfigUpsert
+    ) -> OpenWeatherConfigResponse:
+        """Salva a configuração climática de uma unidade do tenant."""
+
+        await self._assert_unit(tenant_id, unidade_produtiva_id)
+        await self._validate_sync_frequency(tenant_id, payload)
+        config = await self.adapter.sync_provider_config(
+            tenant_id,
+            payload,
+            reason="openweather_unit_config_saved",
+            unidade_produtiva_id=unidade_produtiva_id,
+        )
+        return await self._config_response(tenant_id, config, unidade_produtiva_id)
+
+    async def _validate_sync_frequency(self, tenant_id: str, payload: OpenWeatherConfigUpsert) -> None:
+        """Calcula a frequência mínima segura para evitar o estouro da cota e levanta exceção se o usuário pedir mais rápido."""
+        daily_quota = getattr(payload, "daily_quota", 1000)
+        sync_freq = getattr(payload, "sync_frequency_minutes", 60)
+
+        # Obter número de Unidades Produtivas ativas
+        import uuid
+        stmt = select(func.count(UnidadeProdutiva.id)).where(
+            UnidadeProdutiva.tenant_id == uuid.UUID(tenant_id),
+            UnidadeProdutiva.ativo.is_(True)
+        )
+        result = await self.db.execute(stmt)
+        ups_count = result.scalar() or 1
+        ups_count = max(1, ups_count) # Evitar divisão por zero caso não tenha UP
+
+        # Calcula o número máximo de chamadas que CADA fazenda pode fazer por dia
+        calls_per_up = max(1, daily_quota // ups_count)
+
+        # Calcula a frequência mínima segura em minutos
+        # Limitado a 15 min, pois chamadas menores são inúteis para a API do OpenWeather
+        min_safe_freq = max(15, 1440 // calls_per_up)
+
+        if sync_freq < min_safe_freq:
+            raise ValueError(
+                f"Sua cota diária de {daily_quota} requisições dividida pelas {ups_count} unidades produtivas ativas "
+                f"permite atualizações seguras no máximo a cada {min_safe_freq} minutos. "
+                f"Você configurou {sync_freq} minutos, o que iria estourar a sua cota."
+            )
 
     async def testar_conexao(self, tenant_id: str) -> OpenWeatherTestConnectionResponse:
         """Testa a credencial OpenWeather com consulta atual."""
@@ -1560,6 +1728,24 @@ class OpenWeatherService:
             config,
             trigger_type=IntegrationJobTrigger.MANUAL,
             reason="connection_test",
+        )
+        return OpenWeatherTestConnectionResponse(
+            sucesso=success,
+            mensagem=message,
+            weather=snapshot.to_response() if snapshot else None,
+        )
+
+    async def testar_conexao_unidade(
+        self, tenant_id: str, unidade_produtiva_id: str
+    ) -> OpenWeatherTestConnectionResponse:
+        """Testa o provider usando somente a unidade indicada."""
+
+        config = await self._get_unit_config(tenant_id, unidade_produtiva_id)
+        snapshot, success, message = await self._execute_current_weather(
+            config,
+            trigger_type=IntegrationJobTrigger.MANUAL,
+            reason="unit_connection_test",
+            unidade_produtiva_id=unidade_produtiva_id,
         )
         return OpenWeatherTestConnectionResponse(
             sucesso=success,
@@ -1583,31 +1769,88 @@ class OpenWeatherService:
             raise ValueError("Snapshot climático indisponível.")
         return snapshot.to_response()
 
-    async def obter_config_response(self, tenant_id: str) -> OpenWeatherConfigResponse | None:
+    async def sincronizar_previsao_atual(
+        self,
+        tenant_id: str,
+    ) -> list[dict[str, Any]]:
+        """Executa a consulta de previsão do provider OpenWeather para todas unidades."""
+
+        config = await self._get_config_or_raise(tenant_id)
+        previsoes, _, _ = await self._execute_forecast_weather(
+            config,
+            trigger_type=IntegrationJobTrigger.PULL,
+            reason="current_forecast_sync",
+        )
+        if not previsoes:
+            raise ValueError("Previsão climática indisponível.")
+        return previsoes
+
+    async def sincronizar_clima_unidade(
+        self, tenant_id: str, unidade_produtiva_id: str
+    ) -> OpenWeatherWeatherSnapshotResponse:
+        """Sincroniza o clima exclusivamente da unidade indicada."""
+
+        config = await self._get_unit_config(tenant_id, unidade_produtiva_id)
+        snapshot, _, _ = await self._execute_current_weather(
+            config,
+            trigger_type=IntegrationJobTrigger.PULL,
+            reason="unit_weather_sync",
+            unidade_produtiva_id=unidade_produtiva_id,
+        )
+        if snapshot is None:
+            raise ValueError("Snapshot climático indisponível.")
+        return snapshot.to_response()
+
+    async def sincronizar_previsao_unidade(
+        self, tenant_id: str, unidade_produtiva_id: str
+    ) -> list[dict[str, Any]]:
+        """Sincroniza a previsão do clima de 5 dias exclusivamente da unidade indicada."""
+
+        config = await self._get_unit_config(tenant_id, unidade_produtiva_id)
+        previsoes, _, _ = await self._execute_forecast_weather(
+            config,
+            trigger_type=IntegrationJobTrigger.PULL,
+            reason="unit_forecast_sync",
+            unidade_produtiva_id=unidade_produtiva_id,
+        )
+        if not previsoes:
+            raise ValueError("Previsão climática indisponível.")
+        return previsoes
+
+    async def obter_config_response(
+        self, tenant_id: str, unidade_produtiva_id: str | None = None
+    ) -> OpenWeatherConfigResponse | None:
         """Retorna a configuração mascarada do provider."""
 
-        config = await self.adapter.obter_config_response(tenant_id)
+        config = await self.adapter.obter_config_response(tenant_id, unidade_produtiva_id)
         return config
 
-    async def obter_status_detalhado(self, tenant_id: str) -> dict[str, Any]:
+    async def obter_status_detalhado(
+        self, tenant_id: str, unidade_produtiva_id: str | None = None
+    ) -> dict[str, Any]:
         """Retorna status canônico do provider."""
 
-        return await self.adapter.obter_status_detalhado(tenant_id)
+        return await self.adapter.obter_status_detalhado(tenant_id, unidade_produtiva_id)
 
-    async def obter_health_detalhado(self, tenant_id: str) -> dict[str, Any]:
+    async def obter_health_detalhado(
+        self, tenant_id: str, unidade_produtiva_id: str | None = None
+    ) -> dict[str, Any]:
         """Retorna snapshot canônico de health do provider."""
 
-        return await self.adapter.obter_health_detalhado(tenant_id)
+        return await self.adapter.obter_health_detalhado(tenant_id, unidade_produtiva_id)
 
     async def listar_jobs(
         self,
         tenant_id: str,
         *,
         limit: int = 20,
+        unidade_produtiva_id: str | None = None,
     ) -> list[dict[str, Any]]:
         """Lista jobs canônicos do provider."""
 
-        return await self.adapter.listar_jobs(tenant_id, limit=limit)
+        return await self.adapter.listar_jobs(
+            tenant_id, limit=limit, unidade_produtiva_id=unidade_produtiva_id
+        )
 
     async def listar_timeline_operacional(
         self,
@@ -1617,6 +1860,7 @@ class OpenWeatherService:
         status: str | None = None,
         feature_code: str | None = None,
         origem: str | None = None,
+        unidade_produtiva_id: str | None = None,
     ) -> list[dict[str, Any]]:
         """Consolida a linha do tempo operacional do provider."""
 
@@ -1626,32 +1870,93 @@ class OpenWeatherService:
             status=status,
             feature_code=feature_code,
             origem=origem,
+            unidade_produtiva_id=unidade_produtiva_id,
         )
 
-    async def obter_diagnostico_operacional(self, tenant_id: str) -> dict[str, Any]:
+    async def obter_diagnostico_operacional(
+        self, tenant_id: str, unidade_produtiva_id: str | None = None
+    ) -> dict[str, Any]:
         """Retorna um resumo operacional para suporte e tenant."""
 
-        return await self.adapter.obter_diagnostico_operacional(tenant_id)
+        return await self.adapter.obter_diagnostico_operacional(tenant_id, unidade_produtiva_id)
 
     async def _config_response(
         self,
         tenant_id: str,
         config: TenantIntegracao | None = None,
+        unidade_produtiva_id: str | None = None,
     ) -> OpenWeatherConfigResponse:
         """Serializa a configuração mascarada após operações de escrita."""
 
-        response = await self.adapter.obter_config_response(tenant_id)
+        response = await self.adapter.obter_config_response(tenant_id, unidade_produtiva_id)
         if response is None and config is not None:
-            response = await self.adapter.obter_config_response(config.tenant_id)
+            response = await self.adapter.obter_config_response(
+                config.tenant_id, config.scope_id
+            )
         if response is None:
-            raise ValueError("OpenWeather não configurado para o tenant informado.")
+            scope_label = "a unidade produtiva" if unidade_produtiva_id else "o tenant"
+            raise ValueError(f"OpenWeather não configurado para {scope_label} informado.")
         return response
 
-    async def _get_config_or_raise(self, tenant_id: str) -> TenantIntegracao:
-        config = await self.adapter.get_config(tenant_id)
+    async def _get_config_or_raise(
+        self, tenant_id: str, unidade_produtiva_id: str | None = None
+    ) -> TenantIntegracao:
+        config = await self.adapter.get_config(tenant_id, unidade_produtiva_id)
         if config is None:
-            raise ValueError("OpenWeather não configurado para o tenant informado.")
+            # If tenant config missing, attempt to fallback to any unidade produtiva config
+            if unidade_produtiva_id is None:
+                # Try to find a unit config for this tenant
+                from sqlalchemy import select
+                from integracoes.models import IntegrationScope, TenantIntegracao
+                stmt = select(TenantIntegracao).where(
+                    TenantIntegracao.tenant_id == tenant_id,
+                    TenantIntegracao.scope_type == IntegrationScope.UNIDADE_PRODUTIVA.value,
+                    TenantIntegracao.deleted_at.is_(None),
+                ).limit(1)
+                unit_config = (await self.adapter.db.execute(stmt)).scalar_one_or_none()
+                if unit_config:
+                    # Materialize as tenant config using the same credential and settings
+                    # Reuse existing credential reference
+                    cred_id = unit_config.credential_ref_id
+                    # Create a new tenant-level config based on unit config
+                    tenant_config = TenantIntegracao(
+                        tenant_id=tenant_id,
+                        integracao_id=unit_config.integracao_id,
+                        status=unit_config.status,
+                        configuracoes=unit_config.configuracoes,
+                        scope_type=IntegrationScope.TENANT.value,
+                        scope_id=None,
+                        lifecycle_state=unit_config.lifecycle_state,
+                        connection_payload=unit_config.connection_payload,
+                        credential_ref_id=cred_id,
+                    )
+                    self.adapter.db.add(tenant_config)
+                    await self.adapter.db.flush()
+                    return tenant_config
+            scope_label = "a unidade produtiva" if unidade_produtiva_id else "o tenant"
+            raise ValueError(f"OpenWeather não configurado para {scope_label} informado.")
         return config
+
+    async def _get_unit_config(self, tenant_id: str, unidade_produtiva_id: str) -> TenantIntegracao:
+        await self._assert_unit(tenant_id, unidade_produtiva_id)
+        config = await self.adapter.materializar_config_unidade(
+            tenant_id, unidade_produtiva_id
+        )
+        if config is None:
+            raise ValueError("OpenWeather não configurado para a unidade produtiva informada.")
+        return config
+
+    async def _assert_unit(self, tenant_id: str, unidade_produtiva_id: str) -> None:
+        """Garante que a unidade solicitada pertença ao tenant atual."""
+
+        import uuid
+        stmt = select(UnidadeProdutiva.id).where(
+            UnidadeProdutiva.id == uuid.UUID(unidade_produtiva_id),
+            UnidadeProdutiva.tenant_id == uuid.UUID(tenant_id),
+            UnidadeProdutiva.ativo.is_(True),
+        )
+        if (await self.adapter.db.execute(stmt)).scalar_one_or_none() is None:
+            raise ValueError("Unidade produtiva não encontrada para o tenant informado.")
 
     async def _execute_current_weather(
         self,
@@ -1659,6 +1964,7 @@ class OpenWeatherService:
         *,
         trigger_type: IntegrationJobTrigger,
         reason: str,
+        unidade_produtiva_id: str | None = None,
     ) -> tuple[OpenWeatherWeatherSnapshot | None, bool, str]:
         provider = await self.adapter.get_provider()
         payload = self._config_payload(config)
@@ -1672,6 +1978,7 @@ class OpenWeatherService:
             feature_code,
             trigger_type,
             request_payload={"reason": reason, **payload},
+            config=config,
         )
 
         client = OpenWeatherClient(
@@ -1682,13 +1989,13 @@ class OpenWeatherService:
             language=payload["language"],
         )
 
-        from core.models.unidade_produtiva import UnidadeProdutiva
-        from sqlalchemy import select
-
         stmt = select(UnidadeProdutiva).where(
             UnidadeProdutiva.tenant_id == self.adapter._tenant_uuid(config.tenant_id),
             UnidadeProdutiva.ativo.is_(True),
         )
+        if unidade_produtiva_id:
+            import uuid
+            stmt = stmt.where(UnidadeProdutiva.id == uuid.UUID(unidade_produtiva_id))
         unidades = list((await self.db.execute(stmt)).scalars().all())
 
         processados = 0
@@ -1757,6 +2064,8 @@ class OpenWeatherService:
                     evento = ClimaSyncRealizado(
                         tenant_id=self.adapter._tenant_uuid(config.tenant_id),
                         unidade_produtiva_id=up.id,
+                        domain=Domain.AGRICULTURE,
+                        source_type="integration.openweather",
                         provider="OPENWEATHER",
                         occurred_at=snapshot.observed_at or datetime.now(timezone.utc),
                         latitude=lat,
@@ -1770,7 +2079,16 @@ class OpenWeatherService:
                         correlation_id=job.correlation_id,
                         integration_job_id=job.id,
                     )
-                    await publish_domain_event_safe(evento, session=self.db, commit=False)
+                    publish_result = await publish_domain_event_safe(
+                        evento,
+                        session=self.db,
+                        commit=False,
+                        use_outbox=False,
+                    )
+                    if publish_result is None or publish_result.failed or publish_result.errors:
+                        raise RuntimeError(
+                            "Falha ao persistir o registro climático sincronizado."
+                        )
 
                 except Exception as exc:
                     erros += 1
@@ -1797,6 +2115,189 @@ class OpenWeatherService:
         await self._update_config_last_sync(config, job)
         return first_snapshot, success, message
 
+    async def _execute_forecast_weather(
+        self,
+        config: TenantIntegracao,
+        *,
+        trigger_type: IntegrationJobTrigger,
+        reason: str,
+        unidade_produtiva_id: str | None = None,
+    ) -> tuple[list[dict[str, Any]], bool, str]:
+        provider = await self.adapter.get_provider()
+        payload = self._config_payload(config)
+        credential = await self.adapter._get_credential_by_id(config.credential_ref_id)
+        if credential is None:
+            raise ValueError("Credencial OpenWeather não encontrada.")
+
+        feature_code = "forecast"
+        _, _, feature, policy, job = await self.adapter.ensure_job_context(
+            config.tenant_id,
+            feature_code,
+            trigger_type,
+            request_payload={"reason": reason, **payload},
+            config=config,
+        )
+
+        client = OpenWeatherClient(
+            api_base_url=payload["api_base_url"],
+            api_key=decrypt_integration_secret(credential.segredo_criptografado),
+            timeout_seconds=payload["timeout_seconds"],
+            units=payload["units"],
+            language=payload["language"],
+        )
+
+        stmt = select(UnidadeProdutiva).where(
+            UnidadeProdutiva.tenant_id == self.adapter._tenant_uuid(config.tenant_id),
+            UnidadeProdutiva.ativo.is_(True),
+        )
+        if unidade_produtiva_id:
+            import uuid
+            stmt = stmt.where(UnidadeProdutiva.id == uuid.UUID(unidade_produtiva_id))
+        unidades = list((await self.db.execute(stmt)).scalars().all())
+
+        processados = 0
+        sucessos = 0
+        erros = 0
+        message = ""
+        first_previsoes: list[dict[str, Any]] = []
+
+        if not unidades:
+            message = "Nenhuma unidade produtiva encontrada."
+            erros = 1
+        else:
+            from events import publish_domain_event_safe
+            from agricola.climatico.events import PrevisaoClimaSyncRealizado
+            from collections import defaultdict
+
+            for up in unidades:
+                processados += 1
+                lat = None
+                lon = None
+                if up.coordenadas_sede:
+                    try:
+                        parts = up.coordenadas_sede.split(",")
+                        if len(parts) == 2:
+                            lat = float(parts[0].strip())
+                            lon = float(parts[1].strip())
+                    except ValueError:
+                        pass
+
+                try:
+                    if lat is not None and lon is not None:
+                        response = await client.fetch_forecast_weather(lat=lat, lon=lon)
+                    else:
+                        erros += 1
+                        message = f"Unidade {up.id} ignorada: sem coordenadas válidas."
+                        continue
+
+                    # Agregar de 3 em 3 horas para dados diários
+                    agregado_diario: dict[str, dict[str, Any]] = defaultdict(lambda: {
+                        "chuva_mm": 0.0,
+                        "temps_max": [],
+                        "temps_min": [],
+                        "prob_chuva": [],
+                        "periodos": [],
+                    })
+
+                    for item in response.get("list", []):
+                        dt_txt = item.get("dt_txt", "")
+                        if not dt_txt:
+                            continue
+
+                        dia = dt_txt.split(" ")[0]  # yyyy-mm-dd
+
+                        chuva = item.get("rain", {}).get("3h", 0.0)
+                        agregado_diario[dia]["chuva_mm"] += chuva
+
+                        temp_max = item.get("main", {}).get("temp_max")
+                        temp_min = item.get("main", {}).get("temp_min")
+                        if temp_max is not None:
+                            agregado_diario[dia]["temps_max"].append(temp_max)
+                        if temp_min is not None:
+                            agregado_diario[dia]["temps_min"].append(temp_min)
+
+                        pop = item.get("pop", 0)
+                        agregado_diario[dia]["prob_chuva"].append(pop)
+                        weather = (item.get("weather") or [{}])[0]
+                        wind_speed = item.get("wind", {}).get("speed")
+                        agregado_diario[dia]["periodos"].append({
+                            "horario": dt_txt,
+                            "temperatura_c": item.get("main", {}).get("temp"),
+                            "sensacao_c": item.get("main", {}).get("feels_like"),
+                            "precipitacao_mm": chuva,
+                            "probabilidade_chuva_pct": pop * 100,
+                            "umidade_pct": item.get("main", {}).get("humidity"),
+                            "vento_kmh": round(wind_speed * 3.6, 2) if wind_speed is not None else None,
+                            "condicao": weather.get("description"),
+                            "icone": weather.get("icon"),
+                        })
+
+                    previsoes_up = []
+                    for dia, dados in agregado_diario.items():
+                        tmax = max(dados["temps_max"]) if dados["temps_max"] else None
+                        tmin = min(dados["temps_min"]) if dados["temps_min"] else None
+                        pop_avg = (sum(dados["prob_chuva"]) / len(dados["prob_chuva"])) if dados["prob_chuva"] else 0
+
+                        previsoes_up.append({
+                            "data_previsao": dia,
+                            "precipitacao_mm": dados["chuva_mm"],
+                            "temp_max_c": tmax,
+                            "temp_min_c": tmin,
+                            "probabilidade_chuva_pct": pop_avg * 100,
+                            "periodos": dados["periodos"],
+                        })
+
+                    sucessos += 1
+
+                    if not first_previsoes:
+                        first_previsoes = previsoes_up
+
+                    evento = PrevisaoClimaSyncRealizado(
+                        tenant_id=self.adapter._tenant_uuid(config.tenant_id),
+                        unidade_produtiva_id=up.id,
+                        domain=Domain.AGRICULTURE,
+                        source_type="integration.openweather",
+                        provider="OPENWEATHER",
+                        occurred_at=datetime.now(timezone.utc),
+                        previsoes=previsoes_up,
+                        raw_payload=response,
+                        integration_job_id=job.id,
+                    )
+                    publish_result = await publish_domain_event_safe(
+                        evento,
+                        session=self.db,
+                        commit=False,
+                        use_outbox=False,
+                    )
+                    if publish_result is None or publish_result.failed or publish_result.errors:
+                        raise RuntimeError(
+                            "Falha ao persistir a previsão climática sincronizada."
+                        )
+
+                except Exception as exc:
+                    erros += 1
+                    message = str(exc) or f"Falha na unidade {up.id}"
+
+            if sucessos > 0:
+                message = f"Consulta de previsão concluída ({sucessos} sucessos, {erros} erros)."
+            else:
+                message = f"Falha na consulta de previsão ({erros} erros)."
+
+        success = sucessos > 0 or (processados == 0)
+        await self.adapter.finish_job(
+            config=config,
+            provider=provider,
+            feature=feature,
+            job=job,
+            success=success,
+            processados=processados,
+            erros=erros,
+            error_message=message if not success else None,
+            snapshot=None,  # Não temos snapshot singular
+            trigger_type=trigger_type,
+        )
+        return first_previsoes, success, message
+
     @staticmethod
     def _utc_naive(value: datetime) -> datetime:
         if value.tzinfo is None:
@@ -1808,6 +2309,10 @@ class OpenWeatherService:
         config.ultima_sincronizacao = self._utc_naive(last_sync)
         self.db.add(config)
         await self.db.commit()
+        await self.db.execute(
+            text("SELECT set_config('app.current_tenant_id', :tenant_id, true)"),
+            {"tenant_id": str(config.tenant_id)},
+        )
         await self.db.refresh(config)
 
     @staticmethod

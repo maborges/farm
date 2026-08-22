@@ -16,6 +16,14 @@ As entidades listadas abaixo:
 5. `Propriedades` / `Áreas Rurais`: Central para o módulo Agrícola, Pecuária, Ambiental e Rastreabilidade.
 6. `Imóveis Rurais`: Base jurídica, patrimonial, documental e fiscal do território.
 
+### Entidades climáticas
+
+- `RegistroClima`: leitura observada por `tenant_id`, `unidade_produtiva_id`, data e fonte.
+- `PrevisaoClima`: previsão diária por tenant e unidade produtiva; a combinação
+  `(tenant_id, unidade_produtiva_id, data_previsao)` é única para garantir idempotência.
+- Ambas possuem FK para `Tenant` e `UnidadeProdutiva` e são abastecidas pelos
+  eventos de ingestão do provider climático.
+
 ---
 
 ## NORMA TERRITORIAL E FUNDIÁRIA

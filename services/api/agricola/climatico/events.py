@@ -25,3 +25,18 @@ class ClimaSyncRealizado(DomainEvent):
 
     raw_payload: dict[str, Any] | None = None
     integration_job_id: uuid.UUID | None = None
+
+
+class PrevisaoClimaSyncRealizado(DomainEvent):
+    """Evento emitido quando as previsões climáticas são sincronizadas com sucesso."""
+
+    event_type: str = "agricola.climatico.previsao_sync_realizado"
+
+    unidade_produtiva_id: uuid.UUID
+    provider: str
+    occurred_at: datetime
+
+    previsoes: list[dict[str, Any]]  # [{"data_previsao": "2026-08-19", "temp_max_c": 30, ...}]
+
+    raw_payload: dict[str, Any] | None = None
+    integration_job_id: uuid.UUID | None = None

@@ -60,8 +60,9 @@ def invalidate_session_cache(token_hash: str) -> None:
 
 async def _activate_session_tenant(session: AsyncSession, tenant_id: uuid.UUID) -> None:
     """Ativa o contexto RLS do tenant para a sessão atual."""
-    if session.info.get("tenant_id") == tenant_id:
-        return
+    # SET LOCAL é perdido quando a transação termina. Não basta confiar no
+    # cache em session.info: uma dependência anterior pode ter feito commit ou
+    # rollback e deixado a conexão novamente com o contexto vazio.
     if "postgresql" in DB_URL:
         await session.execute(text(f"SET LOCAL app.current_tenant_id = '{tenant_id}';"))
     session.info["tenant_id"] = tenant_id

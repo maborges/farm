@@ -7,9 +7,11 @@ from __future__ import annotations
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.dependencies import get_session, get_tenant_id, require_tenant_permission
+from core.models.unidade_produtiva import UnidadeProdutiva
 from integracoes.openweather.schemas import (
     OpenWeatherConfigResponse,
     OpenWeatherConfigUpsert,
@@ -74,6 +76,41 @@ async def salvar_config_openweather(
         raise _translate_domain_error(exc) from exc
 
 
+@router.get(
+    "/config/{unidade_produtiva_id}",
+    response_model=OpenWeatherConfigResponse,
+    dependencies=[Depends(require_tenant_permission("integrations:view"))],
+)
+async def obter_config_openweather_unidade(
+    unidade_produtiva_id: uuid.UUID,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    service: OpenWeatherService = Depends(get_openweather_service),
+):
+    config = await service.obter_config_response(str(tenant_id), str(unidade_produtiva_id))
+    if not config:
+        raise HTTPException(status_code=404, detail="OpenWeather não configurado para a unidade")
+    return config
+
+
+@router.post(
+    "/config/{unidade_produtiva_id}",
+    response_model=OpenWeatherConfigResponse,
+    dependencies=[Depends(require_tenant_permission("integrations:configure"))],
+)
+async def salvar_config_openweather_unidade(
+    unidade_produtiva_id: uuid.UUID,
+    payload: OpenWeatherConfigUpsert,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    service: OpenWeatherService = Depends(get_openweather_service),
+):
+    try:
+        return await service.salvar_config_unidade(
+            str(tenant_id), str(unidade_produtiva_id), payload
+        )
+    except ValueError as exc:
+        raise _translate_domain_error(exc) from exc
+
+
 @router.post(
     "/testar-conexao",
     response_model=OpenWeatherTestConnectionResponse,
@@ -85,6 +122,60 @@ async def testar_conexao_openweather(
 ):
     try:
         return await service.testar_conexao(str(tenant_id))
+    except ValueError as exc:
+        raise _translate_domain_error(exc) from exc
+
+
+@router.post(
+    "/testar-conexao/unidade/{unidade_produtiva_id}",
+    response_model=OpenWeatherTestConnectionResponse,
+    dependencies=[Depends(require_tenant_permission("integrations:test"))],
+)
+async def testar_conexao_openweather_unidade(
+    unidade_produtiva_id: uuid.UUID,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    service: OpenWeatherService = Depends(get_openweather_service),
+):
+    """Testa conexão OpenWeather no contexto de uma unidade produtiva específica.
+
+    Usa as coordenadas da unidade produtiva para a chamada de teste.
+    """
+    try:
+        return await service.testar_conexao_unidade(str(tenant_id), str(unidade_produtiva_id))
+    except ValueError as exc:
+        raise _translate_domain_error(exc) from exc
+
+
+# Compatibilidade: aceita tenant_id como parâmetro de caminho (versão antiga da API)
+@router.post(
+    "/testar-conexao/{resource_id}",
+    response_model=OpenWeatherTestConnectionResponse,
+    dependencies=[Depends(require_tenant_permission("integrations:test"))],
+)
+async def testar_conexao_openweather_legacy(
+    resource_id: uuid.UUID,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    service: OpenWeatherService = Depends(get_openweather_service),
+):
+    """Compatibilidade para chamadas antigas e chamadas unitárias sem segmento.
+
+    A versão antiga recebia o tenant na URL. Durante a migração, a tela passou
+    a enviar a unidade produtiva, mas alguns bundles antigos ainda usam o
+    formato curto. Resolva pelo contexto autenticado sem confundir os IDs.
+    """
+    try:
+        unidade = await service.adapter.db.execute(
+            select(UnidadeProdutiva.id).where(
+                UnidadeProdutiva.id == resource_id,
+                UnidadeProdutiva.tenant_id == tenant_id,
+                UnidadeProdutiva.ativo.is_(True),
+            )
+        )
+        if unidade.scalar_one_or_none() is not None:
+            return await service.testar_conexao_unidade(str(tenant_id), str(resource_id))
+        if resource_id == tenant_id:
+            return await service.testar_conexao(str(tenant_id))
+        raise ValueError("Unidade produtiva não encontrada para o tenant informado.")
     except ValueError as exc:
         raise _translate_domain_error(exc) from exc
 
@@ -105,6 +196,19 @@ async def obter_status_openweather(
 
 
 @router.get(
+    "/status/{unidade_produtiva_id}",
+    response_model=OpenWeatherStatusResponse,
+    dependencies=[Depends(require_tenant_permission("integrations:view"))],
+)
+async def obter_status_openweather_unidade(
+    unidade_produtiva_id: uuid.UUID,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    service: OpenWeatherService = Depends(get_openweather_service),
+):
+    return await service.obter_status_detalhado(str(tenant_id), str(unidade_produtiva_id))
+
+
+@router.get(
     "/health",
     response_model=OpenWeatherHealthResponse,
     dependencies=[Depends(require_tenant_permission("integrations:view"))],
@@ -117,6 +221,19 @@ async def obter_health_openweather(
         return await service.obter_health_detalhado(str(tenant_id))
     except ValueError as exc:
         raise _translate_domain_error(exc) from exc
+
+
+@router.get(
+    "/health/{unidade_produtiva_id}",
+    response_model=OpenWeatherHealthResponse,
+    dependencies=[Depends(require_tenant_permission("integrations:view"))],
+)
+async def obter_health_openweather_unidade(
+    unidade_produtiva_id: uuid.UUID,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    service: OpenWeatherService = Depends(get_openweather_service),
+):
+    return await service.obter_health_detalhado(str(tenant_id), str(unidade_produtiva_id))
 
 
 @router.get(
@@ -133,6 +250,22 @@ async def listar_jobs_openweather(
         return await service.listar_jobs(str(tenant_id), limit=limit)
     except ValueError as exc:
         raise _translate_domain_error(exc) from exc
+
+
+@router.get(
+    "/jobs/{unidade_produtiva_id}",
+    response_model=list[OpenWeatherIntegrationJobResponse],
+    dependencies=[Depends(require_tenant_permission("integrations:logs:view"))],
+)
+async def listar_jobs_openweather_unidade(
+    unidade_produtiva_id: uuid.UUID,
+    limit: int = 20,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    service: OpenWeatherService = Depends(get_openweather_service),
+):
+    return await service.listar_jobs(
+        str(tenant_id), limit=limit, unidade_produtiva_id=str(unidade_produtiva_id)
+    )
 
 
 @router.get(
@@ -161,6 +294,30 @@ async def listar_timeline_openweather(
 
 
 @router.get(
+    "/timeline/{unidade_produtiva_id}",
+    response_model=list[OpenWeatherTimelineItemResponse],
+    dependencies=[Depends(require_tenant_permission("integrations:logs:view"))],
+)
+async def listar_timeline_openweather_unidade(
+    unidade_produtiva_id: uuid.UUID,
+    status: str | None = None,
+    feature_code: str | None = None,
+    origem: str | None = None,
+    limit: int = 50,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    service: OpenWeatherService = Depends(get_openweather_service),
+):
+    return await service.listar_timeline_operacional(
+        str(tenant_id),
+        status=status,
+        feature_code=feature_code,
+        origem=origem,
+        limit=limit,
+        unidade_produtiva_id=str(unidade_produtiva_id),
+    )
+
+
+@router.get(
     "/diagnostico",
     response_model=OpenWeatherOperationalDiagnosisResponse,
     dependencies=[Depends(require_tenant_permission("integrations:view"))],
@@ -175,6 +332,21 @@ async def obter_diagnostico_openweather(
         raise _translate_domain_error(exc) from exc
 
 
+@router.get(
+    "/diagnostico/{unidade_produtiva_id}",
+    response_model=OpenWeatherOperationalDiagnosisResponse,
+    dependencies=[Depends(require_tenant_permission("integrations:view"))],
+)
+async def obter_diagnostico_openweather_unidade(
+    unidade_produtiva_id: uuid.UUID,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    service: OpenWeatherService = Depends(get_openweather_service),
+):
+    return await service.obter_diagnostico_operacional(
+        str(tenant_id), str(unidade_produtiva_id)
+    )
+
+
 @router.post(
     "/sync/current-weather",
     response_model=OpenWeatherWeatherSnapshotResponse,
@@ -186,5 +358,23 @@ async def sincronizar_clima_atual(
 ):
     try:
         return await service.sincronizar_clima_atual(str(tenant_id))
+    except ValueError as exc:
+        raise _translate_domain_error(exc) from exc
+
+
+@router.post(
+    "/sync/current-weather/{unidade_produtiva_id}",
+    response_model=OpenWeatherWeatherSnapshotResponse,
+    dependencies=[Depends(require_tenant_permission("integrations:sync"))],
+)
+async def sincronizar_clima_unidade(
+    unidade_produtiva_id: uuid.UUID,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    service: OpenWeatherService = Depends(get_openweather_service),
+):
+    try:
+        return await service.sincronizar_clima_unidade(
+            str(tenant_id), str(unidade_produtiva_id)
+        )
     except ValueError as exc:
         raise _translate_domain_error(exc) from exc

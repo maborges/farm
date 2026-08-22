@@ -56,6 +56,7 @@ from agricola.rastreabilidade.models import LoteRastreabilidade, CertificacaoPro
 from agricola.agronomo.models import ConversaAgronomo, RelatorioTecnico
 from agricola.cadastros.models import Cultura
 from agricola.caderno.models import CadernoCampoEntrada, CadernoCampoFoto, CadernoEventoStatusHistorico, VisitaTecnica, EPIEntrega, CadernoExportacao
+from agricola.receituario_agronomico.models import ReceituarioAgronomico, ReceituarioItem
 from agricola.colheita.models import ProdutoColhido
 
 # Financeiro

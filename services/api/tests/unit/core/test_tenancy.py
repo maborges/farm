@@ -314,4 +314,10 @@ async def test_get_session_reaplica_rls_via_jwt_quando_request_state_nao_tem_ten
     assert fake_session.execute.await_count == 1
     assert str(tenant_id) in str(fake_session.execute.await_args.args[0])
 
+    # O contexto é transacional; uma nova ativação deve reaplicá-lo mesmo que
+    # session.info ainda contenha o mesmo tenant.
+    from core.dependencies import _activate_session_tenant
+    await _activate_session_tenant(fake_session, tenant_id)
+    assert fake_session.execute.await_count == 2
+
     await gen.aclose()

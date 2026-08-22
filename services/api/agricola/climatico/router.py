@@ -1,13 +1,15 @@
 from datetime import date, timedelta
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from loguru import logger
 
-from agricola.climatico.schemas import ClimaResponse, ClimaResumoResponse, ClimaAlertaResponse, RecomendacaoOperacionalResponse
+from agricola.climatico.schemas import ClimaResponse, ClimaResumoResponse, ClimaAlertaResponse, RecomendacaoOperacionalResponse, PrevisaoClimaResponse, ClimaInteligenciaResponse
 from agricola.climatico.service import ClimaService
 from agricola.climatico.recommendation_service import ClimaRecommendationService
-from core.dependencies import get_session, get_tenant_id, require_module
+from core.dependencies import get_session, get_tenant_id, require_module, require_tenant_permission
+from integracoes.openweather.services import OpenWeatherService
 
 router = APIRouter(prefix="/climatico", tags=["Clima e Pluviometria"])
 
@@ -17,15 +19,21 @@ async def sincronizar_api_clima(
     session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A1_PLANEJAMENTO")),
+    __: None = Depends(require_tenant_permission("integrations:sync")),
 ):
-    svc = ClimaService(session, tenant_id)
-    msg = await svc.sync_open_meteo(unidade_produtiva_id)
-    return {"message": msg}
+    try:
+        service = OpenWeatherService(session)
+        await service.sincronizar_clima_unidade(str(tenant_id), str(unidade_produtiva_id))
+        await service.sincronizar_previsao_unidade(str(tenant_id), str(unidade_produtiva_id))
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+
+    return {"message": "Sincronização do clima e da previsão concluída com sucesso."}
 
 @router.get("/historico/{unidade_produtiva_id}", response_model=list[ClimaResponse])
 async def historico_clima(
     unidade_produtiva_id: UUID,
-    dias: int = 30,
+    dias: int = Query(30, ge=1, le=3650),
     session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A1_PLANEJAMENTO")),
@@ -39,7 +47,7 @@ async def historico_clima(
 @router.get("/chuva-acumulada/{unidade_produtiva_id}")
 async def acumulado_chuva(
     unidade_produtiva_id: UUID,
-    dias: int = 30,
+    dias: int = Query(30, ge=1, le=3650),
     session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A1_PLANEJAMENTO")),
@@ -55,6 +63,11 @@ async def resumo_climatico(
     tenant_id: UUID = Depends(get_tenant_id),
     _: None = Depends(require_module("A1_PLANEJAMENTO")),
 ):
+    logger.info(
+        "Consulta climática resumo",
+        tenant_id=str(tenant_id),
+        unidade_produtiva_id=str(unidade_produtiva_id),
+    )
     svc = ClimaService(session, tenant_id)
     return await svc.get_resumo_climatico(unidade_produtiva_id)
 
@@ -77,3 +90,33 @@ async def recomendacoes_operacionais(
 ):
     svc = ClimaRecommendationService(session, tenant_id)
     return await svc.get_recomendacoes(unidade_produtiva_id)
+
+@router.get("/previsao/{unidade_produtiva_id}", response_model=list[PrevisaoClimaResponse])
+async def previsao_clima(
+    unidade_produtiva_id: UUID,
+    dias: int = Query(5, ge=1, le=16),
+    session: AsyncSession = Depends(get_session),
+    tenant_id: UUID = Depends(get_tenant_id),
+    _: None = Depends(require_module("A1_PLANEJAMENTO")),
+):
+    svc = ClimaService(session, tenant_id)
+    registros = await svc.get_previsoes_unidade(unidade_produtiva_id, dias)
+    return [PrevisaoClimaResponse.model_validate(r) for r in registros]
+
+@router.get("/inteligencia/{unidade_produtiva_id}", response_model=ClimaInteligenciaResponse)
+async def inteligencia_climatica(
+    unidade_produtiva_id: UUID,
+    dias_historico: int = Query(30, ge=1, le=3650),
+    session: AsyncSession = Depends(get_session),
+    tenant_id: UUID = Depends(get_tenant_id),
+    _: None = Depends(require_module("A1_PLANEJAMENTO")),
+):
+    logger.info(
+        "Consulta climática inteligência",
+        tenant_id=str(tenant_id),
+        unidade_produtiva_id=str(unidade_produtiva_id),
+        dias_historico=dias_historico,
+    )
+    svc = ClimaService(session, tenant_id)
+    resultado = await svc.get_analise_avancada(unidade_produtiva_id, dias_historico)
+    return ClimaInteligenciaResponse.model_validate(resultado)
