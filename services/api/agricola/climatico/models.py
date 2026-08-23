@@ -67,3 +67,26 @@ class PrevisaoClima(Base):
     periodos: Mapped[list[dict]] = mapped_column(JSON, nullable=False, default=list, server_default="[]")
 
     atualizado_em: Mapped[datetime] = mapped_column(server_default=text("(CURRENT_TIMESTAMP)"), onupdate=datetime.utcnow)
+
+class ModeloFitossanitario(Base):
+    """Armazena as regras e pesos para cálculo de probabilidade de doenças por cultura."""
+    __tablename__ = "modelos_fitossanitarios"
+
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "cultura",
+            "doenca",
+            name="uq_modelos_fito_cultura_doenca",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[UUID | None] = mapped_column(ForeignKey("tenants.id", ondelete="CASCADE"), nullable=True, index=True)
+    cultura: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    doenca: Mapped[str] = mapped_column(String(150), nullable=False)
+    
+    # Ex: {"temp_min": 20, "temp_max": 25, "umidade_min": 85, "peso_temp": 0.6, "peso_umidade": 0.4}
+    regras_risco: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    
+    created_at: Mapped[datetime] = mapped_column(server_default=text("(CURRENT_TIMESTAMP)"))

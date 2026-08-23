@@ -1,15 +1,22 @@
 from datetime import date, timedelta
 from uuid import UUID
 
-from sqlalchemy import cast, func, text
+from sqlalchemy import cast, func, text, or_
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
-from agricola.climatico.models import RegistroClima, PrevisaoClima
-from agricola.climatico.schemas import ClimaResumoResponse, ClimaAlertaResponse, PrevisaoClimaResponse
+from agricola.climatico.models import RegistroClima, PrevisaoClima, ModeloFitossanitario
+from agricola.climatico.schemas import (
+    ClimaResumoResponse, 
+    ClimaAlertaResponse, 
+    PrevisaoClimaResponse,
+    ModeloFitossanitarioCreate,
+    ModeloFitossanitarioUpdate
+)
 from alert_engine.models import OperationalAlert, AlertStatus
 from core.base_service import BaseService
+from fastapi import HTTPException, status
 
 
 class ClimaService(BaseService[RegistroClima]):
@@ -131,6 +138,15 @@ class ClimaService(BaseService[RegistroClima]):
         return float(val) if val else 0.0
 
     async def get_analise_avancada(self, unidade_produtiva_id: UUID, dias_historico: int = 30) -> dict:
+        """Analisa dados climáticos históricos e retorna inteligência agronômica.
+
+        Args:
+            unidade_produtiva_id: ID da unidade produtiva.
+            dias_historico: Número de dias retroativos a considerar.
+
+        Returns:
+            dict com gdu_acumulado, riscos climáticos, historico e risco_doencas por cultura ativa.
+        """
         await self._ensure_tenant_context()
         hoje = date.today()
         limite = hoje - timedelta(days=dias_historico)
@@ -200,9 +216,350 @@ class ClimaService(BaseService[RegistroClima]):
                 "data_alerta": hoje
             })
 
+        # ---- Motor de Inteligência Fitossanitária ----
+        risco_doencas = await self._calcular_risco_doencas(
+            unidade_produtiva_id=unidade_produtiva_id,
+            registros=registros,
+        )
+
         return {
             "gdu_acumulado": round(gdu_acumulado, 2),
             "gdu_progresso_pct": None,
             "riscos": riscos,
-            "historico": historico
+            "historico": historico,
+            "agricultura": {"risco_doencas": risco_doencas} if risco_doencas else None,
         }
+
+    async def _calcular_risco_doencas(
+        self,
+        unidade_produtiva_id: UUID,
+        registros: list[RegistroClima],
+    ) -> list[dict]:
+        """Cruza dados climáticos com culturas ativas e modelos de risco fitossanitário.
+
+        Args:
+            unidade_produtiva_id: ID da unidade produtiva.
+            registros: Registros climáticos dos últimos N dias.
+
+        Returns:
+            Lista de dicts com doença, cultura, nível e probabilidade calculados.
+        """
+        from agricola.cultivos.models import Cultivo, CultivoArea
+        from core.cadastros.propriedades.models import AreaRural
+        from agricola.safras.models import Safra
+
+        # Buscar culturas ativas (safras em plantio ou desenvolvimento)
+        fases_ativas = ["PLANTIO", "DESENVOLVIMENTO", "PREPARO_SOLO"]
+        stmt_safras = (
+            select(Cultivo.cultura)
+            .join(Safra, Safra.id == Cultivo.safra_id)
+            .join(CultivoArea, CultivoArea.cultivo_id == Cultivo.id)
+            .join(AreaRural, AreaRural.id == CultivoArea.area_id)
+            .where(
+                Safra.tenant_id == self.tenant_id,
+                Cultivo.tenant_id == self.tenant_id,
+                CultivoArea.tenant_id == self.tenant_id,
+                AreaRural.tenant_id == self.tenant_id,
+                AreaRural.unidade_produtiva_id == unidade_produtiva_id,
+                Safra.status.in_(fases_ativas),
+            )
+            .distinct()
+        )
+        result_culturas = await self.session.execute(stmt_safras)
+        culturas_ativas = [row[0] for row in result_culturas.fetchall()]
+
+        if not culturas_ativas or not registros:
+            return []
+
+        # Obter modelos personalizados
+        from agricola.climatico.service import ModeloFitossanitarioService
+        modelo_svc = ModeloFitossanitarioService(self.session, self.tenant_id)
+        
+        stmt_personalizados = select(ModeloFitossanitario).where(
+            ModeloFitossanitario.tenant_id == self.tenant_id,
+            ModeloFitossanitario.cultura.in_(culturas_ativas)
+        )
+        res_pers = await self.session.execute(stmt_personalizados)
+        modelos_personalizados = list(res_pers.scalars().all())
+        culturas_com_modelo = {m.cultura for m in modelos_personalizados}
+        
+        # Obter modelos globais para culturas que NÃO têm modelo personalizado
+        stmt_globais = select(ModeloFitossanitario).where(
+            ModeloFitossanitario.tenant_id.is_(None),
+            ModeloFitossanitario.cultura.in_(culturas_ativas)
+        )
+        if culturas_com_modelo:
+            stmt_globais = stmt_globais.where(ModeloFitossanitario.cultura.notin_(culturas_com_modelo))
+            
+        res_glob = await self.session.execute(stmt_globais)
+        modelos_globais_faltantes = res_glob.scalars().all()
+
+        novos_copiados = []
+        # Auto-copiar modelos globais ausentes para o tenant
+        if modelos_globais_faltantes:
+            for m in modelos_globais_faltantes:
+                try:
+                    novo_m = await modelo_svc.copiar_modelo_global(m.id)
+                    novo_m.is_global = True # Flag temporária para o frontend saber que foi auto-copiado neste ciclo
+                    novos_copiados.append(novo_m)
+                except Exception:
+                    # Falha silenciosa para não quebrar a análise, o toast pode não aparecer mas a análise continua
+                    pass
+        
+        # Agora a lista de modelos a avaliar é apenas os personalizados + os recém copiados
+        modelos_finais = modelos_personalizados + novos_copiados
+
+        if not modelos_finais:
+            return []
+
+        # Calcular estatísticas dos últimos 7 dias
+        ultimos_7 = registros[-7:]
+        stats = self._calcular_stats_climaticas(ultimos_7)
+
+        # Avaliar cada modelo contra as estatísticas
+        resultado = []
+        for modelo in modelos_finais:
+            prob = self._avaliar_modelo(modelo.regras_risco, stats)
+            nivel = self._classificar_nivel(prob, modelo.regras_risco)
+            resultado.append({
+                "doenca": modelo.doenca,
+                "cultura": modelo.cultura,
+                "nivel": nivel,
+                "probabilidade_pct": prob,
+                "auto_copied": getattr(modelo, "is_global", False),
+            })
+
+        return sorted(resultado, key=lambda x: x["probabilidade_pct"], reverse=True)
+
+    @staticmethod
+    def _calcular_stats_climaticas(registros: list[RegistroClima]) -> dict[str, float]:
+        """Calcula médias e acumulados das variáveis climáticas.
+
+        Args:
+            registros: Lista de RegistroClima a analisar.
+
+        Returns:
+            dict com médias de cada campo relevante.
+        """
+        if not registros:
+            return {}
+
+        campos = ["temp_media_c", "temp_max_c", "temp_min_c", "umidade_rel_pct", "precipitacao_mm"]
+        stats: dict[str, float] = {}
+        for campo in campos:
+            valores = [float(getattr(r, campo)) for r in registros if getattr(r, campo) is not None]
+            stats[campo] = sum(valores) / len(valores) if valores else 0.0
+        return stats
+
+    @staticmethod
+    def _avaliar_modelo(regras: dict, stats: dict[str, float]) -> int:
+        """Avalia as condições climáticas contra as regras JSON de um modelo fitossanitário.
+
+        Args:
+            regras: dict de regras lido do campo JSONB do ModeloFitossanitario.
+            stats: Estatísticas climáticas calculadas.
+
+        Returns:
+            Probabilidade de 0 a 100.
+        """
+        condicoes = regras.get("condicoes", [])
+        if not condicoes:
+            return 0
+
+        score_total = 0.0
+        peso_total = 0.0
+
+        for cond in condicoes:
+            variavel = cond.get("variavel")
+            operador = cond.get("operador")
+            peso = float(cond.get("peso", 1.0))
+            valor_real = stats.get(variavel, 0.0)
+
+            satisfeita = False
+            if operador == ">=":
+                satisfeita = valor_real >= cond["valor"]
+            elif operador == "<=":
+                satisfeita = valor_real <= cond["valor"]
+            elif operador == ">":
+                satisfeita = valor_real > cond["valor"]
+            elif operador == "<":
+                satisfeita = valor_real < cond["valor"]
+            elif operador == "between":
+                satisfeita = cond["min"] <= valor_real <= cond["max"]
+
+            score_total += peso if satisfeita else 0.0
+            peso_total += peso
+
+        if peso_total == 0:
+            return 0
+
+        return round((score_total / peso_total) * 100)
+
+    @staticmethod
+    def _classificar_nivel(probabilidade: int, regras: dict) -> str:
+        """Classifica o nível de risco com base nos limiares definidos no modelo.
+
+        Args:
+            probabilidade: Probabilidade calculada (0-100).
+            regras: dict de regras com os limiares nivel_critico_pct, nivel_alto_pct, nivel_medio_pct.
+
+        Returns:
+            String: 'critico', 'alto', 'medio' ou 'baixo'.
+        """
+        if probabilidade >= regras.get("nivel_critico_pct", 80):
+            return "critico"
+        if probabilidade >= regras.get("nivel_alto_pct", 60):
+            return "alto"
+        if probabilidade >= regras.get("nivel_medio_pct", 35):
+            return "medio"
+        return "baixo"
+
+
+class ModeloFitossanitarioService:
+    def __init__(self, session: AsyncSession, tenant_id: UUID | None = None):
+        self.session = session
+        self.tenant_id = tenant_id
+
+    async def get_all(self, include_globals: bool = True) -> list[ModeloFitossanitario]:
+        # Se include_globals for False, retorna apenas os daquele tenant.
+        # Se include_globals for True, retorna do tenant atual + globais que não tenham sido customizados
+        stmt = select(ModeloFitossanitario)
+        
+        if self.tenant_id:
+            if include_globals:
+                stmt = stmt.where(
+                    or_(
+                        ModeloFitossanitario.tenant_id == self.tenant_id,
+                        ModeloFitossanitario.tenant_id.is_(None)
+                    )
+                )
+            else:
+                stmt = stmt.where(ModeloFitossanitario.tenant_id == self.tenant_id)
+        else:
+            # Backoffice: only globals
+            stmt = stmt.where(ModeloFitossanitario.tenant_id.is_(None))
+
+        stmt = stmt.order_by(ModeloFitossanitario.cultura, ModeloFitossanitario.doenca, ModeloFitossanitario.tenant_id.nulls_last())
+        result = await self.session.execute(stmt)
+        modelos = list(result.scalars().all())
+
+        # Resolver sobreposição (se o tenant tem uma regra para Soja - Ferrugem, ignorar a global)
+        if self.tenant_id and include_globals:
+            resolved = {}
+            for m in modelos:
+                key = (m.cultura, m.doenca)
+                # Como a query retorna os do tenant primeiro (por causa do order_by nulls_last, ops na vdd precisamos tratar)
+                # Vamos priorizar tenant > global
+                if key not in resolved or (m.tenant_id is not None):
+                    resolved[key] = m
+            # Marcar is_global para retornar na API
+            for m in resolved.values():
+                m.is_global = (m.tenant_id is None)
+            return list(resolved.values())
+        else:
+            for m in modelos:
+                m.is_global = (m.tenant_id is None)
+            return modelos
+
+    async def get_by_id(self, modelo_id: UUID) -> ModeloFitossanitario:
+        stmt = select(ModeloFitossanitario).where(ModeloFitossanitario.id == modelo_id)
+        if self.tenant_id:
+            stmt = stmt.where(
+                or_(
+                    ModeloFitossanitario.tenant_id == self.tenant_id,
+                    ModeloFitossanitario.tenant_id.is_(None)
+                )
+            )
+        else:
+            stmt = stmt.where(ModeloFitossanitario.tenant_id.is_(None))
+
+        result = await self.session.execute(stmt)
+        modelo = result.scalar_one_or_none()
+        if not modelo:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Modelo fitossanitário não encontrado ou sem permissão")
+        modelo.is_global = (modelo.tenant_id is None)
+        return modelo
+
+    async def create(self, data: ModeloFitossanitarioCreate) -> ModeloFitossanitario:
+        # Verifica conflitos
+        stmt = select(ModeloFitossanitario).where(
+            ModeloFitossanitario.cultura == data.cultura,
+            ModeloFitossanitario.doenca == data.doenca,
+            ModeloFitossanitario.tenant_id == self.tenant_id
+        )
+        existing = (await self.session.execute(stmt)).scalar_one_or_none()
+        if existing:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Modelo para esta cultura e doença já existe neste contexto")
+
+        modelo = ModeloFitossanitario(**data.model_dump(), tenant_id=self.tenant_id)
+        self.session.add(modelo)
+        await self.session.commit()
+        await self.session.refresh(modelo)
+        modelo.is_global = (modelo.tenant_id is None)
+        return modelo
+
+    async def update(self, modelo_id: UUID, data: ModeloFitossanitarioUpdate) -> ModeloFitossanitario:
+        modelo = await self.get_by_id(modelo_id)
+        
+        # Não permite editar modelo global através do endpoint de tenant
+        if self.tenant_id and modelo.tenant_id is None:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Modelos globais não podem ser editados. Crie uma cópia.")
+
+        update_data = data.model_dump(exclude_unset=True)
+        for key, value in update_data.items():
+            setattr(modelo, key, value)
+            
+        await self.session.commit()
+        await self.session.refresh(modelo)
+        modelo.is_global = (modelo.tenant_id is None)
+        return modelo
+
+    async def delete(self, modelo_id: UUID) -> None:
+        modelo = await self.get_by_id(modelo_id)
+        
+        # Não permite deletar modelo global através do endpoint de tenant
+        if self.tenant_id and modelo.tenant_id is None:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Modelos globais não podem ser excluídos. Eles pertencem à plataforma.")
+
+        await self.session.delete(modelo)
+        await self.session.commit()
+
+    async def copiar_modelo_global(self, global_id: UUID) -> ModeloFitossanitario:
+        if not self.tenant_id:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Operação requer um tenant ativo.")
+            
+        stmt = select(ModeloFitossanitario).where(
+            ModeloFitossanitario.id == global_id,
+            ModeloFitossanitario.tenant_id.is_(None)
+        )
+        result = await self.session.execute(stmt)
+        global_modelo = result.scalar_one_or_none()
+        
+        if not global_modelo:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Modelo global não encontrado.")
+            
+        # Verifica se o tenant já possui um para a mesma cultura/doenca
+        existing_stmt = select(ModeloFitossanitario).where(
+            ModeloFitossanitario.cultura == global_modelo.cultura,
+            ModeloFitossanitario.doenca == global_modelo.doenca,
+            ModeloFitossanitario.tenant_id == self.tenant_id
+        )
+        existing = (await self.session.execute(existing_stmt)).scalar_one_or_none()
+        if existing:
+            # Já existe, vamos apenas atualizar as regras
+            existing.regras_risco = global_modelo.regras_risco
+            modelo = existing
+        else:
+            # Cria novo
+            modelo = ModeloFitossanitario(
+                tenant_id=self.tenant_id,
+                cultura=global_modelo.cultura,
+                doenca=global_modelo.doenca,
+                regras_risco=global_modelo.regras_risco
+            )
+            self.session.add(modelo)
+            
+        await self.session.commit()
+        await self.session.refresh(modelo)
+        modelo.is_global = False
+        return modelo

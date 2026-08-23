@@ -92,10 +92,49 @@ class RiscoClimatico(BaseModel):
     data_alerta: date | None = None
 
 
+class RiscoDoencaResponse(BaseModel):
+    """Risco fitossanitário calculado pelo motor de inteligência para uma cultura ativa."""
+    doenca: str
+    cultura: str
+    nivel: str  # baixo, medio, alto, critico
+    probabilidade_pct: int
+    auto_copied: bool = False
+
+
+class AgriculturaInteligenciaResponse(BaseModel):
+    """Campos de inteligência agronômica focados em agricultura."""
+    risco_doencas: list[RiscoDoencaResponse] = []
+
+
 class ClimaInteligenciaResponse(BaseModel):
     gdu_acumulado: float
     gdu_progresso_pct: float | None = None
     riscos: list[RiscoClimatico]
     historico: list[SerieTemporalClima]
+    agricultura: AgriculturaInteligenciaResponse | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ModeloFitossanitarioBase(BaseModel):
+    cultura: str
+    doenca: str
+    regras_risco: dict
+
+
+class ModeloFitossanitarioCreate(ModeloFitossanitarioBase):
+    pass
+
+
+class ModeloFitossanitarioUpdate(BaseModel):
+    cultura: str | None = None
+    doenca: str | None = None
+    regras_risco: dict | None = None
+
+
+class ModeloFitossanitarioResponse(ModeloFitossanitarioBase):
+    id: UUID
+    is_global: bool = False
+    created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
