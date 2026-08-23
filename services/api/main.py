@@ -333,6 +333,8 @@ from pagamentos.webhook_router import router as pagamentos_webhook_router
 app.include_router(pagamentos_webhook_router, prefix="/api/v1")
 from core.routers.backoffice_ia_auditoria import router as backoffice_ia_auditoria_router
 app.include_router(backoffice_ia_auditoria_router, prefix="/api/v1")
+
+# Routers legados que ainda não foram movidos para a nova estrutura
 app.include_router(router_doc_equipamento.router, prefix="/api/v1")
 app.include_router(router_core_cadastros, prefix="/api/v1")
 app.include_router(router_propriedades_econ, prefix="/api/v1")
@@ -451,6 +453,8 @@ from pecuaria.routers import leite as pecuaria_leite
 from pecuaria.routers import piquetes
 from pecuaria.routers import campo_sync
 from pecuaria.routers import dashboard as pecuaria_dashboard
+from pecuaria.climatico.router import router as pecuaria_climatico_router, router_backoffice as pecuaria_climatico_backoffice_router
+app.include_router(pecuaria_climatico_backoffice_router, prefix="/api/v1/backoffice")
 from operacional.routers import frota as frota_router
 app.include_router(router_safras, prefix="/api/v1")
 app.include_router(router_cultivos, prefix="/api/v1")
@@ -546,6 +550,7 @@ app.include_router(pecuaria_manejos.router, prefix="/api/v1")
 app.include_router(pecuaria_genetica.router, prefix="/api/v1")
 app.include_router(pecuaria_confinamento.router, prefix="/api/v1")
 app.include_router(pecuaria_leite.router, prefix="/api/v1")
+app.include_router(pecuaria_climatico_router, prefix="/api/v1/pecuaria/climatico")
 app.include_router(piquetes.router, prefix="/api/v1")
 app.include_router(campo_sync.router, prefix="/api/v1/pecuaria/campo", tags=["Pecuaria - Campo Sync"])
 app.include_router(receitas.router, prefix="/api/v1/financeiro")

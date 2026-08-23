@@ -78,6 +78,6 @@ from operacional.models.frota import PlanoManutencao, OrdemServico, ItemOrdemSer
 from operacional.models.estoque import Deposito, SaldoEstoque, LoteEstoque, RequisicaoMaterial, ItemRequisicao, ReservaEstoque, EstoqueLocalizacao
 from operacional.models.estoque_implantacao import EstoqueImplantacaoSessao, EstoqueImplantacaoItem
 from operacional.models.compras import (
-    Fornecedor, PedidoCompra, ItemPedidoCompra, CotacaoFornecedor,
     CotacaoCompra, CotacaoItem, SolicitacaoCompra, SolicitacaoItem, AlocacaoItem,
 )
+from pecuaria.climatico.models import ModeloZoosanitario

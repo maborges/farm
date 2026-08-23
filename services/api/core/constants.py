@@ -74,12 +74,16 @@ class Modulos:
     AGRICOLA_DEFENSIVOS = "A3_DEFENSIVOS"          # Defensivos e Receituário
     AGRICOLA_PRECISAO = "A4_PRECISAO"              # Agricultura de Precisão (NDVI, IoT)
     AGRICOLA_COLHEITA = "A5_COLHEITA"              # Colheita e Romaneio
+    AGRICOLA_CLIMATICO = "A6_CLIMATICO"            # Estação e Previsão Agrícola
+    AGRICOLA_INTELIGENCIA = "A7_INTELIGENCIA"      # Inteligência Climática Agrícola
 
     # ==================== BLOCO PECUÁRIA ====================
     PECUARIA_REBANHO = "P1_REBANHO"                # Rastreio do Rebanho Básico
     PECUARIA_GENETICA = "P2_GENETICA"              # Genética Reprodutiva
     PECUARIA_CONFINAMENTO = "P3_CONFINAMENTO"      # Feedlot Control
     PECUARIA_LEITE = "P4_LEITE"                    # Pecuária Leiteira
+    PECUARIA_CLIMATICO = "P5_CLIMATICO"            # Estação e Previsão Pecuária
+    PECUARIA_INTELIGENCIA = "P6_INTELIGENCIA"      # Inteligência Climática Pecuária
 
     # ==================== BLOCO FINANCEIRO ====================
     FINANCEIRO_TESOURARIA = "F1_TESOURARIA"        # Tesouraria Básica
@@ -201,6 +205,20 @@ class ModuloMetadata:
             "dependencias": [Modulos.CORE, Modulos.AGRICOLA_PLANEJAMENTO],
             "preco_base_mensal": 249.0,
         },
+        Modulos.AGRICOLA_CLIMATICO: {
+            "nome": "Clima Agrícola",
+            "descricao": "Previsão do tempo, histórico de chuva e temperatura",
+            "categoria": "AGRICOLA",
+            "dependencias": [Modulos.CORE],
+            "preco_base_mensal": 99.0,
+        },
+        Modulos.AGRICOLA_INTELIGENCIA: {
+            "nome": "Inteligência Climática",
+            "descricao": "Graus-dia, modelos fitossanitários, favorabilidade",
+            "categoria": "AGRICOLA",
+            "dependencias": [Modulos.CORE, Modulos.AGRICOLA_CLIMATICO],
+            "preco_base_mensal": 199.0,
+        },
 
         # PECUÁRIA
         Modulos.PECUARIA_REBANHO: {
@@ -230,6 +248,20 @@ class ModuloMetadata:
             "categoria": "PECUARIA",
             "dependencias": [Modulos.CORE, Modulos.PECUARIA_REBANHO],
             "preco_base_mensal": 299.0,
+        },
+        Modulos.PECUARIA_CLIMATICO: {
+            "nome": "Clima Pecuário",
+            "descricao": "Previsão do tempo, umidade e ventos para gado",
+            "categoria": "PECUARIA",
+            "dependencias": [Modulos.CORE],
+            "preco_base_mensal": 99.0,
+        },
+        Modulos.PECUARIA_INTELIGENCIA: {
+            "nome": "Bem-Estar Animal",
+            "descricao": "ITH, estresse térmico, alerta zoossanitário",
+            "categoria": "PECUARIA",
+            "dependencias": [Modulos.CORE, Modulos.PECUARIA_CLIMATICO],
+            "preco_base_mensal": 199.0,
         },
 
         # FINANCEIRO
