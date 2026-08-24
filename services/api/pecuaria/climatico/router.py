@@ -1,11 +1,10 @@
-from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_db
-from core.dependencies import require_module, get_tenant_id
+from core.dependencies import get_current_admin, get_tenant_id, require_module
 from pecuaria.climatico.schemas import (
     InteligenciaPecuariaResponse,
     ModeloZoosanitarioCreate,
@@ -33,7 +32,7 @@ async def analisar_estresse(
     tenant_id: UUID = Depends(get_tenant_id),
     session: AsyncSession = Depends(get_db),
     _: None = Depends(require_module("P1_REBANHO")),
-) -> Any:
+) -> InteligenciaPecuariaResponse | None:
     svc = InteligenciaPecuariaService(session)
     return await svc.analisar_estresse_termico(tenant_id, unidade_produtiva_id, especie)
 
@@ -50,7 +49,7 @@ async def listar_modelos(
     tenant_id: UUID = Depends(get_tenant_id),
     session: AsyncSession = Depends(get_db),
     _: None = Depends(require_module("P1_REBANHO")),
-) -> Any:
+) -> list[ModeloZoosanitarioResponse]:
     svc = ModeloZoosanitarioService(session)
     return await svc.get_all_models(tenant_id)
 
@@ -77,7 +76,7 @@ async def criar_modelo(
     tenant_id: UUID = Depends(get_tenant_id),
     session: AsyncSession = Depends(get_db),
     _: None = Depends(require_module("P1_REBANHO")),
-) -> Any:
+) -> ModeloZoosanitarioResponse:
     svc = ModeloZoosanitarioService(session)
     return await svc.create_model(tenant_id, payload, is_global=False)
 
@@ -93,7 +92,7 @@ async def atualizar_modelo(
     tenant_id: UUID = Depends(get_tenant_id),
     session: AsyncSession = Depends(get_db),
     _: None = Depends(require_module("P1_REBANHO")),
-) -> Any:
+) -> ModeloZoosanitarioResponse:
     svc = ModeloZoosanitarioService(session)
     return await svc.update_model(tenant_id, model_id, payload)
 
@@ -124,7 +123,7 @@ async def copiar_modelo_global(
     tenant_id: UUID = Depends(get_tenant_id),
     session: AsyncSession = Depends(get_db),
     _: None = Depends(require_module("P1_REBANHO")),
-) -> Any:
+) -> ModeloZoosanitarioResponse:
     svc = ModeloZoosanitarioService(session)
     return await svc.copy_global_to_tenant(tenant_id, model_id)
 
@@ -132,21 +131,25 @@ async def copiar_modelo_global(
 #
 # 3. Gerenciamento Backoffice (Modelos Globais)
 #
-router_backoffice = APIRouter(prefix="/pecuaria/modelos", tags=["Backoffice - Modelos Pecuária"])
+router_backoffice = APIRouter(
+    prefix="/pecuaria/modelos",
+    tags=["Backoffice - Modelos Pecuária"],
+    dependencies=[Depends(get_current_admin)],
+)
 
 @router_backoffice.get("", response_model=list[ModeloZoosanitarioResponse])
-async def list_global_models(session: AsyncSession = Depends(get_db)) -> Any:
+async def list_global_models(session: AsyncSession = Depends(get_db)) -> list[ModeloZoosanitarioResponse]:
     # Acesso restrito via main.py (include_router under backoffice dependencies)
     svc = ModeloZoosanitarioService(session)
     return await svc.get_all_models(tenant_id=None)
 
 @router_backoffice.post("", response_model=ModeloZoosanitarioResponse, status_code=status.HTTP_201_CREATED)
-async def create_global_model(payload: ModeloZoosanitarioCreate, session: AsyncSession = Depends(get_db)) -> Any:
+async def create_global_model(payload: ModeloZoosanitarioCreate, session: AsyncSession = Depends(get_db)) -> ModeloZoosanitarioResponse:
     svc = ModeloZoosanitarioService(session)
     return await svc.create_model(tenant_id=None, payload=payload, is_global=True)
 
 @router_backoffice.put("/{model_id}", response_model=ModeloZoosanitarioResponse)
-async def update_global_model(model_id: UUID, payload: ModeloZoosanitarioUpdate, session: AsyncSession = Depends(get_db)) -> Any:
+async def update_global_model(model_id: UUID, payload: ModeloZoosanitarioUpdate, session: AsyncSession = Depends(get_db)) -> ModeloZoosanitarioResponse:
     svc = ModeloZoosanitarioService(session)
     return await svc.update_model(tenant_id=None, model_id=model_id, payload=payload)
 

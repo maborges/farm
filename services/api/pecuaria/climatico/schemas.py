@@ -49,6 +49,14 @@ class InteligenciaPecuariaResponse(BaseModel):
     data_analise: datetime
     valor_referencia: float | None = Field(default=None, description="Valor do índice principal calculado (ex: ITH 75)")
     detalhes: list[str] = Field(default_factory=list, description="Alertas ou recomendações geradas pelo motor")
+    historico: list[dict[str, float | str | None]] = Field(default_factory=list)
+    alertas: list[str] = Field(default_factory=list)
+    idade_dados_dias: int | None = None
+    dados_atualizados: bool = False
+    previsao_ith: list[dict[str, Any | None]] = Field(default_factory=list)
+    estresse_previsto: dict[str, Any | None] = Field(default_factory=dict)
+    chuva_prevista: dict[str, Any | None] = Field(default_factory=dict)
+    janela_manejo: dict[str, Any | None] = Field(default_factory=dict)
 
 
 class RecomendacaoOperacionalResponse(BaseModel):

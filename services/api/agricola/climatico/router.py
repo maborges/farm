@@ -12,7 +12,7 @@ from agricola.climatico.schemas import (
 )
 from agricola.climatico.service import ClimaService, ModeloFitossanitarioService
 from agricola.climatico.recommendation_service import ClimaRecommendationService
-from core.dependencies import get_session, get_tenant_id, require_module, require_tenant_permission
+from core.dependencies import get_current_admin, get_session, get_tenant_id, require_module, require_tenant_permission
 from integracoes.openweather.services import OpenWeatherService
 
 router = APIRouter(prefix="/climatico", tags=["Clima e Pluviometria"])
@@ -179,7 +179,7 @@ async def copiar_modelo_fitossanitario(
 # BACKOFFICE: Modelos Globais
 # ---------------------------------------------------------
 
-@router.get("/backoffice/modelos-fitossanitarios", response_model=list[ModeloFitossanitarioResponse])
+@router.get("/backoffice/modelos-fitossanitarios", response_model=list[ModeloFitossanitarioResponse], dependencies=[Depends(get_current_admin)])
 async def backoffice_list_modelos_fitossanitarios(
     session: AsyncSession = Depends(get_session),
     # _: None = Depends(require_role(["ADMIN"])) # Descomentar se existir role check
@@ -187,7 +187,7 @@ async def backoffice_list_modelos_fitossanitarios(
     svc = ModeloFitossanitarioService(session, tenant_id=None)
     return await svc.get_all()
 
-@router.post("/backoffice/modelos-fitossanitarios", response_model=ModeloFitossanitarioResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/backoffice/modelos-fitossanitarios", response_model=ModeloFitossanitarioResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(get_current_admin)])
 async def backoffice_create_modelo_fitossanitario(
     data: ModeloFitossanitarioCreate,
     session: AsyncSession = Depends(get_session),
@@ -195,7 +195,7 @@ async def backoffice_create_modelo_fitossanitario(
     svc = ModeloFitossanitarioService(session, tenant_id=None)
     return await svc.create(data)
 
-@router.patch("/backoffice/modelos-fitossanitarios/{id}", response_model=ModeloFitossanitarioResponse)
+@router.patch("/backoffice/modelos-fitossanitarios/{id}", response_model=ModeloFitossanitarioResponse, dependencies=[Depends(get_current_admin)])
 async def backoffice_update_modelo_fitossanitario(
     id: UUID,
     data: ModeloFitossanitarioUpdate,
@@ -204,11 +204,10 @@ async def backoffice_update_modelo_fitossanitario(
     svc = ModeloFitossanitarioService(session, tenant_id=None)
     return await svc.update(id, data)
 
-@router.delete("/backoffice/modelos-fitossanitarios/{id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/backoffice/modelos-fitossanitarios/{id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Depends(get_current_admin)])
 async def backoffice_delete_modelo_fitossanitario(
     id: UUID,
     session: AsyncSession = Depends(get_session),
 ):
     svc = ModeloFitossanitarioService(session, tenant_id=None)
     await svc.delete(id)
-

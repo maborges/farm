@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -7,7 +7,6 @@ from sqlalchemy.future import select
 from agricola.climatico.models import RegistroClima
 from alert_engine.models import OperationalAlert, AlertStatus
 from pecuaria.climatico.schemas import RecomendacaoOperacionalResponse
-from agricola.climatico.config import ClimaThresholds
 
 class ClimaPecuariaRecommendationService:
     """Motor de Recomendações Operacionais para Pecuária"""
@@ -53,6 +52,18 @@ class ClimaPecuariaRecommendationService:
             ])
             return recomendacoes
 
+        if ultimo_registro.data_registro < date.today() - timedelta(days=2):
+            return [self._build_rec(
+                unidade_produtiva_id,
+                "GERAL",
+                "SEM_DADOS",
+                "WARNING",
+                "A última leitura climática tem mais de dois dias",
+                {"data_registro": ultimo_registro.data_registro.isoformat()},
+                data_ref,
+                fonte,
+            )]
+
         dados_utilizados = {
             "vento_kmh": ultimo_registro.vento_kmh,
             "precipitacao_mm": ultimo_registro.precipitacao_mm,
@@ -79,7 +90,9 @@ class ClimaPecuariaRecommendationService:
         return recomendacoes
 
     def _avaliar_transporte(self, up_id: UUID, reg: RegistroClima, alertas: list[str], dados: dict, data_ref: datetime, fonte: str):
-        temp_max = reg.temp_max_c or 0
+        if reg.temp_max_c is None:
+            return self._build_rec(up_id, "TRANSPORTE", "SEM_DADOS", "WARNING", "Temperatura máxima ausente para avaliar transporte", dados, data_ref, fonte)
+        temp_max = float(reg.temp_max_c)
         if temp_max >= 32 or 'CLIMA_TEMPERATURA_EXTREMA' in alertas:
             return self._build_rec(up_id, "TRANSPORTE", "NAO_RECOMENDADO", "CRITICAL", f"Calor excessivo (Máx {temp_max}°C) pode causar alta mortalidade", dados, data_ref, fonte)
         
@@ -89,14 +102,18 @@ class ClimaPecuariaRecommendationService:
         return self._build_rec(up_id, "TRANSPORTE", "RECOMENDADO", "NORMAL", "Condições térmicas favoráveis para transporte", dados, data_ref, fonte)
 
     def _avaliar_suplementacao(self, up_id: UUID, reg: RegistroClima, alertas: list[str], dados: dict, data_ref: datetime, fonte: str):
-        chuva = reg.precipitacao_mm or 0
+        if reg.precipitacao_mm is None and 'CLIMA_CHUVA_RECENTE' not in alertas:
+            return self._build_rec(up_id, "SUPLEMENTACAO", "SEM_DADOS", "WARNING", "Precipitação ausente para avaliar o risco de exposição do suplemento", dados, data_ref, fonte)
+        chuva = float(reg.precipitacao_mm or 0)
         if 'CLIMA_CHUVA_RECENTE' in alertas or chuva > 15:
             return self._build_rec(up_id, "SUPLEMENTACAO", "ATENCAO", "WARNING", "Risco de molhar e estragar suplementos em cocho aberto", dados, data_ref, fonte)
 
         return self._build_rec(up_id, "SUPLEMENTACAO", "RECOMENDADO", "NORMAL", "Condições favoráveis para reposição de cochos", dados, data_ref, fonte)
 
     def _avaliar_manejo_pasto(self, up_id: UUID, reg: RegistroClima, alertas: list[str], dados: dict, data_ref: datetime, fonte: str):
-        chuva = reg.precipitacao_mm or 0
+        if reg.precipitacao_mm is None and not alertas:
+            return self._build_rec(up_id, "MANEJO_PASTO", "SEM_DADOS", "WARNING", "Precipitação ausente para avaliar o manejo do pasto", dados, data_ref, fonte)
+        chuva = float(reg.precipitacao_mm or 0)
         
         if 'CLIMA_CHUVA_RECENTE' in alertas or chuva > 30:
             return self._build_rec(up_id, "MANEJO_PASTO", "ATENCAO", "WARNING", "Excesso de chuvas pode causar pisoteio e compactação excessiva do pasto", dados, data_ref, fonte)

@@ -2,7 +2,7 @@ import uuid
 from datetime import date, datetime
 from uuid import UUID
 
-from sqlalchemy import JSON, Date, ForeignKey, Numeric, String, UniqueConstraint, text
+from sqlalchemy import JSON, Boolean, Date, ForeignKey, Numeric, String, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from core.database import Base
@@ -88,5 +88,6 @@ class ModeloFitossanitario(Base):
     
     # Ex: {"temp_min": 20, "temp_max": 25, "umidade_min": 85, "peso_temp": 0.6, "peso_umidade": 0.4}
     regras_risco: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    is_global: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=text("false"))
     
     created_at: Mapped[datetime] = mapped_column(server_default=text("(CURRENT_TIMESTAMP)"))

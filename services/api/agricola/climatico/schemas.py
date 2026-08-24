@@ -103,7 +103,9 @@ class RiscoDoencaResponse(BaseModel):
 
 class AgriculturaInteligenciaResponse(BaseModel):
     """Campos de inteligência agronômica focados em agricultura."""
-    risco_doencas: list[RiscoDoencaResponse] = []
+    janela_pulverizacao: list[dict] = Field(default_factory=list)
+    balanco_hidrico: list[dict] = Field(default_factory=list)
+    risco_doencas: list[RiscoDoencaResponse] = Field(default_factory=list)
 
 
 class ClimaInteligenciaResponse(BaseModel):

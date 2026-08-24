@@ -10,7 +10,6 @@ from agricola.climatico.models import RegistroClima, PrevisaoClima, ModeloFitoss
 from agricola.climatico.schemas import (
     ClimaResumoResponse, 
     ClimaAlertaResponse, 
-    PrevisaoClimaResponse,
     ModeloFitossanitarioCreate,
     ModeloFitossanitarioUpdate
 )
@@ -189,24 +188,31 @@ class ClimaService(BaseService[RegistroClima]):
         previsoes = result_prev.scalars().all()
 
         riscos = []
-
-        min_temp_prevista = min([float(p.temp_min_c) for p in previsoes if p.temp_min_c is not None], default=99.0)
-        if min_temp_prevista <= 4.0:
+        if not registros and not previsoes:
             riscos.append({
-                "tipo": "Geada",
-                "nivel": "CRITICO" if min_temp_prevista <= 0 else "ALTO",
-                "mensagem": f"Alerta de geada nos próximos dias. Temperatura mínima prevista: {min_temp_prevista}°C",
-                "data_alerta": None
+                "tipo": "Sem dados",
+                "nivel": "INDETERMINADO",
+                "mensagem": "Não há observações ou previsões suficientes para calcular riscos climáticos.",
+                "data_alerta": None,
             })
+        else:
+            min_temp_prevista = min([float(p.temp_min_c) for p in previsoes if p.temp_min_c is not None], default=99.0)
+            if min_temp_prevista <= 4.0:
+                riscos.append({
+                    "tipo": "Geada",
+                    "nivel": "CRITICO" if min_temp_prevista <= 0 else "ALTO",
+                    "mensagem": f"Alerta de geada nos próximos dias. Temperatura mínima prevista: {min_temp_prevista}°C",
+                    "data_alerta": None
+                })
 
-        chuva_prevista = sum([float(p.precipitacao_mm) for p in previsoes if p.precipitacao_mm is not None])
-        if chuva_acumulada < 30.0 and chuva_prevista < 10.0:
-            riscos.append({
-                "tipo": "Estresse Hídrico",
-                "nivel": "ALTO",
-                "mensagem": "Baixo volume de chuva nos últimos 30 dias e pouca previsão de precipitação.",
-                "data_alerta": None
-            })
+            chuva_prevista = sum([float(p.precipitacao_mm) for p in previsoes if p.precipitacao_mm is not None])
+            if registros and chuva_acumulada < 30.0 and chuva_prevista < 10.0:
+                riscos.append({
+                    "tipo": "Estresse Hídrico",
+                    "nivel": "ALTO",
+                    "mensagem": f"Baixo volume de chuva nos últimos {dias_historico} dias e pouca previsão de precipitação.",
+                    "data_alerta": None
+                })
 
         if not riscos:
             riscos.append({
@@ -227,8 +233,30 @@ class ClimaService(BaseService[RegistroClima]):
             "gdu_progresso_pct": None,
             "riscos": riscos,
             "historico": historico,
-            "agricultura": {"risco_doencas": risco_doencas} if risco_doencas else None,
+            "agricultura": {
+                "janela_pulverizacao": [],
+                "balanco_hidrico": self._calcular_balanco_hidrico(registros),
+                "risco_doencas": risco_doencas,
+            } if registros else None,
         }
+
+    @staticmethod
+    def _calcular_balanco_hidrico(registros: list[RegistroClima]) -> list[dict]:
+        """Calcula o saldo diário com dados observados, sem inventar leituras ausentes."""
+        resultado = []
+        for registro in registros[-7:]:
+            chuva = float(registro.precipitacao_mm or 0)
+            et_mm = float(registro.evapotranspiracao_mm) if registro.evapotranspiracao_mm is not None else None
+            if et_mm is None:
+                continue
+            resultado.append({
+                "data": registro.data_registro,
+                "etc_mm": et_mm,
+                "chuva_efetiva_mm": chuva,
+                "saldo_mm": round(chuva - et_mm, 2) if et_mm is not None else None,
+                "status": "deficit" if chuva < et_mm else "conforto",
+            })
+        return resultado
 
     async def _calcular_risco_doencas(
         self,
@@ -272,9 +300,6 @@ class ClimaService(BaseService[RegistroClima]):
             return []
 
         # Obter modelos personalizados
-        from agricola.climatico.service import ModeloFitossanitarioService
-        modelo_svc = ModeloFitossanitarioService(self.session, self.tenant_id)
-        
         stmt_personalizados = select(ModeloFitossanitario).where(
             ModeloFitossanitario.tenant_id == self.tenant_id,
             ModeloFitossanitario.cultura.in_(culturas_ativas)
@@ -294,20 +319,9 @@ class ClimaService(BaseService[RegistroClima]):
         res_glob = await self.session.execute(stmt_globais)
         modelos_globais_faltantes = res_glob.scalars().all()
 
-        novos_copiados = []
-        # Auto-copiar modelos globais ausentes para o tenant
-        if modelos_globais_faltantes:
-            for m in modelos_globais_faltantes:
-                try:
-                    novo_m = await modelo_svc.copiar_modelo_global(m.id)
-                    novo_m.is_global = True # Flag temporária para o frontend saber que foi auto-copiado neste ciclo
-                    novos_copiados.append(novo_m)
-                except Exception:
-                    # Falha silenciosa para não quebrar a análise, o toast pode não aparecer mas a análise continua
-                    pass
-        
-        # Agora a lista de modelos a avaliar é apenas os personalizados + os recém copiados
-        modelos_finais = modelos_personalizados + novos_copiados
+        # Modelos globais são somente leitura durante a análise. A personalização
+        # deve ocorrer por uma ação explícita, nunca como efeito colateral de GET.
+        modelos_finais = modelos_personalizados + list(modelos_globais_faltantes)
 
         if not modelos_finais:
             return []
@@ -326,7 +340,7 @@ class ClimaService(BaseService[RegistroClima]):
                 "cultura": modelo.cultura,
                 "nivel": nivel,
                 "probabilidade_pct": prob,
-                "auto_copied": getattr(modelo, "is_global", False),
+                "auto_copied": False,
             })
 
         return sorted(resultado, key=lambda x: x["probabilidade_pct"], reverse=True)
@@ -373,19 +387,21 @@ class ClimaService(BaseService[RegistroClima]):
             variavel = cond.get("variavel")
             operador = cond.get("operador")
             peso = float(cond.get("peso", 1.0))
-            valor_real = stats.get(variavel, 0.0)
+            if peso <= 0 or variavel not in stats:
+                continue
+            valor_real = stats[variavel]
 
             satisfeita = False
             if operador == ">=":
-                satisfeita = valor_real >= cond["valor"]
+                satisfeita = valor_real >= float(cond["valor"])
             elif operador == "<=":
-                satisfeita = valor_real <= cond["valor"]
+                satisfeita = valor_real <= float(cond["valor"])
             elif operador == ">":
-                satisfeita = valor_real > cond["valor"]
+                satisfeita = valor_real > float(cond["valor"])
             elif operador == "<":
-                satisfeita = valor_real < cond["valor"]
+                satisfeita = valor_real < float(cond["valor"])
             elif operador == "between":
-                satisfeita = cond["min"] <= valor_real <= cond["max"]
+                satisfeita = float(cond["min"]) <= valor_real <= float(cond["max"])
 
             score_total += peso if satisfeita else 0.0
             peso_total += peso
@@ -393,7 +409,7 @@ class ClimaService(BaseService[RegistroClima]):
         if peso_total == 0:
             return 0
 
-        return round((score_total / peso_total) * 100)
+        return max(0, min(100, round((score_total / peso_total) * 100)))
 
     @staticmethod
     def _classificar_nivel(probabilidade: int, regras: dict) -> str:
@@ -420,7 +436,15 @@ class ModeloFitossanitarioService:
         self.session = session
         self.tenant_id = tenant_id
 
+    async def _set_tenant_context(self) -> None:
+        """Aplica o contexto RLS da operação atual."""
+        await self.session.execute(
+            text("SELECT set_config('app.current_tenant_id', :tenant_id, true)"),
+            {"tenant_id": str(self.tenant_id) if self.tenant_id else ""},
+        )
+
     async def get_all(self, include_globals: bool = True) -> list[ModeloFitossanitario]:
+        await self._set_tenant_context()
         # Se include_globals for False, retorna apenas os daquele tenant.
         # Se include_globals for True, retorna do tenant atual + globais que não tenham sido customizados
         stmt = select(ModeloFitossanitario)
@@ -462,6 +486,7 @@ class ModeloFitossanitarioService:
             return modelos
 
     async def get_by_id(self, modelo_id: UUID) -> ModeloFitossanitario:
+        await self._set_tenant_context()
         stmt = select(ModeloFitossanitario).where(ModeloFitossanitario.id == modelo_id)
         if self.tenant_id:
             stmt = stmt.where(
@@ -481,6 +506,7 @@ class ModeloFitossanitarioService:
         return modelo
 
     async def create(self, data: ModeloFitossanitarioCreate) -> ModeloFitossanitario:
+        await self._set_tenant_context()
         # Verifica conflitos
         stmt = select(ModeloFitossanitario).where(
             ModeloFitossanitario.cultura == data.cultura,
@@ -491,7 +517,11 @@ class ModeloFitossanitarioService:
         if existing:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Modelo para esta cultura e doença já existe neste contexto")
 
-        modelo = ModeloFitossanitario(**data.model_dump(), tenant_id=self.tenant_id)
+        modelo = ModeloFitossanitario(
+            **data.model_dump(),
+            tenant_id=self.tenant_id,
+            is_global=self.tenant_id is None,
+        )
         self.session.add(modelo)
         await self.session.commit()
         await self.session.refresh(modelo)
@@ -499,6 +529,7 @@ class ModeloFitossanitarioService:
         return modelo
 
     async def update(self, modelo_id: UUID, data: ModeloFitossanitarioUpdate) -> ModeloFitossanitario:
+        await self._set_tenant_context()
         modelo = await self.get_by_id(modelo_id)
         
         # Não permite editar modelo global através do endpoint de tenant
@@ -515,6 +546,7 @@ class ModeloFitossanitarioService:
         return modelo
 
     async def delete(self, modelo_id: UUID) -> None:
+        await self._set_tenant_context()
         modelo = await self.get_by_id(modelo_id)
         
         # Não permite deletar modelo global através do endpoint de tenant
@@ -525,6 +557,7 @@ class ModeloFitossanitarioService:
         await self.session.commit()
 
     async def copiar_modelo_global(self, global_id: UUID) -> ModeloFitossanitario:
+        await self._set_tenant_context()
         if not self.tenant_id:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Operação requer um tenant ativo.")
             

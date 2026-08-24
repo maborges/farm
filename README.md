@@ -207,5 +207,14 @@ tail -f /var/log/farm/outbox.log
 O que faz: encerra a API e os servidores Next.js iniciados por este workspace.
 
 ```bash
+# mata processo na porta
+lsof -i :8000
+kill 12345
+
+# força kill
+lsof -i :8000
+kill -9 12345
+
+# mata processos pelo nome
 pkill -f "uvicorn|next dev"
 ```
