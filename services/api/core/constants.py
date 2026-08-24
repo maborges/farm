@@ -213,7 +213,7 @@ class ModuloMetadata:
             "preco_base_mensal": 99.0,
         },
         Modulos.AGRICOLA_INTELIGENCIA: {
-            "nome": "Inteligência Climática",
+            "nome": "Inteligência Climática Agrícola",
             "descricao": "Graus-dia, modelos fitossanitários, favorabilidade",
             "categoria": "AGRICOLA",
             "dependencias": [Modulos.CORE, Modulos.AGRICOLA_CLIMATICO],
@@ -257,7 +257,7 @@ class ModuloMetadata:
             "preco_base_mensal": 99.0,
         },
         Modulos.PECUARIA_INTELIGENCIA: {
-            "nome": "Bem-Estar Animal",
+            "nome": "Inteligência Climática Pecuária",
             "descricao": "ITH, estresse térmico, alerta zoossanitário",
             "categoria": "PECUARIA",
             "dependencias": [Modulos.CORE, Modulos.PECUARIA_CLIMATICO],

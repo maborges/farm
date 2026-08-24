@@ -3,7 +3,7 @@ from typing import Any
 from uuid import UUID
 
 from fastapi import HTTPException, status
-from sqlalchemy import or_, select
+from sqlalchemy import or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from agricola.climatico.models import RegistroClima
@@ -41,8 +41,8 @@ class ModeloZoosanitarioService:
             is_global=False
         )
         self.session.add(novo_modelo)
-        await self.session.commit()
-        await self.session.refresh(novo_modelo)
+        await self.session.flush()
+        # Não fazer commit aqui para não quebrar a transação e o RLS (SET LOCAL)!
         return novo_modelo
 
     async def get_or_copy_model(self, tenant_id: UUID, especie: str, tipo_risco: str) -> ModeloZoosanitario | None:
@@ -78,7 +78,7 @@ class ModeloZoosanitarioService:
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
-    async def create_model(self, tenant_id: UUID | None, payload: ModeloZoosanitarioCreate, is_global: bool = False) -> ModeloZoosanitario:
+    async def create_model(self, tenant_id: UUID | None, payload: ModeloZoosanitarioCreate, is_global: bool = False, commit: bool = True) -> ModeloZoosanitario:
         # Verifica duplicidade
         stmt = select(ModeloZoosanitario).where(
             ModeloZoosanitario.tenant_id == tenant_id,
@@ -96,8 +96,11 @@ class ModeloZoosanitarioService:
             is_global=is_global
         )
         self.session.add(modelo)
-        await self.session.commit()
-        await self.session.refresh(modelo)
+        if commit:
+            await self.session.commit()
+            await self.session.refresh(modelo)
+        else:
+            await self.session.flush()
         return modelo
 
     async def update_model(self, tenant_id: UUID | None, model_id: UUID, payload: ModeloZoosanitarioUpdate) -> ModeloZoosanitario:
@@ -139,7 +142,8 @@ class ModeloZoosanitarioService:
                 tipo_risco=modelo_global.tipo_risco,
                 regras_risco=modelo_global.regras_risco
             ),
-            is_global=False
+            is_global=False,
+            commit=False
         )
 
 
@@ -157,6 +161,9 @@ class InteligenciaPecuariaService:
 
         # 2. Buscar último clima da fazenda (ex: de hoje)
         hoje = date.today()
+        # Força o RLS de novo para ter certeza que não foi perdido!
+        await self.session.execute(text(f"SET LOCAL app.current_tenant_id = '{tenant_id}';"))
+        
         stmt_clima = select(RegistroClima).where(
             RegistroClima.tenant_id == tenant_id,
             RegistroClima.unidade_produtiva_id == unidade_produtiva_id,

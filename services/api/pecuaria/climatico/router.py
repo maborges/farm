@@ -11,7 +11,9 @@ from pecuaria.climatico.schemas import (
     ModeloZoosanitarioCreate,
     ModeloZoosanitarioResponse,
     ModeloZoosanitarioUpdate,
+    RecomendacaoOperacionalResponse,
 )
+from pecuaria.climatico.recommendation_service import ClimaPecuariaRecommendationService
 from pecuaria.climatico.service import InteligenciaPecuariaService, ModeloZoosanitarioService
 
 router = APIRouter(prefix="/inteligencia", tags=["Inteligência Climática Pecuária"])
@@ -30,7 +32,7 @@ async def analisar_estresse(
     especie: str = Query(..., description="Bovino de Leite, Bovino de Corte, etc"),
     tenant_id: UUID = Depends(get_tenant_id),
     session: AsyncSession = Depends(get_db),
-    _: None = Depends(require_module("P6_INTELIGENCIA")),
+    _: None = Depends(require_module("P1_REBANHO")),
 ) -> Any:
     svc = InteligenciaPecuariaService(session)
     return await svc.analisar_estresse_termico(tenant_id, unidade_produtiva_id, especie)
@@ -47,10 +49,21 @@ async def analisar_estresse(
 async def listar_modelos(
     tenant_id: UUID = Depends(get_tenant_id),
     session: AsyncSession = Depends(get_db),
-    _: None = Depends(require_module("P6_INTELIGENCIA")),
+    _: None = Depends(require_module("P1_REBANHO")),
 ) -> Any:
     svc = ModeloZoosanitarioService(session)
     return await svc.get_all_models(tenant_id)
+
+
+@router.get("/recomendacoes/{unidade_produtiva_id}", response_model=list[RecomendacaoOperacionalResponse])
+async def recomendacoes_operacionais_pecuaria(
+    unidade_produtiva_id: UUID,
+    tenant_id: UUID = Depends(get_tenant_id),
+    session: AsyncSession = Depends(get_db),
+    _: None = Depends(require_module("P1_CONTROLE")),
+):
+    svc = ClimaPecuariaRecommendationService(session, tenant_id)
+    return await svc.get_recomendacoes(unidade_produtiva_id)
 
 
 @router.post(
@@ -63,7 +76,7 @@ async def criar_modelo(
     payload: ModeloZoosanitarioCreate,
     tenant_id: UUID = Depends(get_tenant_id),
     session: AsyncSession = Depends(get_db),
-    _: None = Depends(require_module("P6_INTELIGENCIA")),
+    _: None = Depends(require_module("P1_REBANHO")),
 ) -> Any:
     svc = ModeloZoosanitarioService(session)
     return await svc.create_model(tenant_id, payload, is_global=False)
@@ -79,7 +92,7 @@ async def atualizar_modelo(
     payload: ModeloZoosanitarioUpdate,
     tenant_id: UUID = Depends(get_tenant_id),
     session: AsyncSession = Depends(get_db),
-    _: None = Depends(require_module("P6_INTELIGENCIA")),
+    _: None = Depends(require_module("P1_REBANHO")),
 ) -> Any:
     svc = ModeloZoosanitarioService(session)
     return await svc.update_model(tenant_id, model_id, payload)
@@ -94,7 +107,7 @@ async def remover_modelo(
     model_id: UUID,
     tenant_id: UUID = Depends(get_tenant_id),
     session: AsyncSession = Depends(get_db),
-    _: None = Depends(require_module("P6_INTELIGENCIA")),
+    _: None = Depends(require_module("P1_REBANHO")),
 ) -> None:
     svc = ModeloZoosanitarioService(session)
     await svc.delete_model(tenant_id, model_id)
@@ -110,7 +123,7 @@ async def copiar_modelo_global(
     model_id: UUID,
     tenant_id: UUID = Depends(get_tenant_id),
     session: AsyncSession = Depends(get_db),
-    _: None = Depends(require_module("P6_INTELIGENCIA")),
+    _: None = Depends(require_module("P1_REBANHO")),
 ) -> Any:
     svc = ModeloZoosanitarioService(session)
     return await svc.copy_global_to_tenant(tenant_id, model_id)

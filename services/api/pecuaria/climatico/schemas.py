@@ -49,3 +49,17 @@ class InteligenciaPecuariaResponse(BaseModel):
     data_analise: datetime
     valor_referencia: float | None = Field(default=None, description="Valor do índice principal calculado (ex: ITH 75)")
     detalhes: list[str] = Field(default_factory=list, description="Alertas ou recomendações geradas pelo motor")
+
+
+class RecomendacaoOperacionalResponse(BaseModel):
+    unidade_produtiva_id: UUID
+    tipo_operacao: str
+    status: str
+    severidade: str
+    motivo: str
+    dados_utilizados: dict
+    data_referencia: datetime
+    fonte: str
+    validade_horas: int
+
+    model_config = ConfigDict(from_attributes=True)
