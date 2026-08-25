@@ -5,7 +5,7 @@ import sqlalchemy as sa
 
 
 revision = "20260818_clima_escopo_unidade"
-down_revision = "20260817_balanca_avaliacao_prestador"
+down_revision = "20260816_imoveis_irrigacao"
 branch_labels = None
 depends_on = None
 

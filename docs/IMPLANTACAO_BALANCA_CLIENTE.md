@@ -1,19 +1,21 @@
 # Implantação do Módulo Balança no Cliente
 
+> A Balança é instalada como serviço independente em
+> `/opt/lampp/htdocs/balanca-platform`. Não execute migrations de Balança no
+> banco do AgroSaaS. O AgroSaaS apenas configura o conector HTTP e consome os
+> eventos publicados pelo serviço.
+
 Este documento descreve a implantação do módulo Balança em um tenant do AgroSaaS.
 
 ## 1. Preparar o ambiente AgroSaaS
 
 Antes de iniciar a implantação no cliente:
 
-1. Publicar o backend, `apps/web` e `apps/balanca`.
-2. Executar as migrations do módulo Balança, incluindo:
-   - dispositivos;
-   - ordens e pesagens;
-   - operadores;
-   - etapas de pesagem;
-   - balanças físicas e aferições;
-   - integrações com Compras e Vendas.
+1. Publicar o backend, `apps/web` e `balanca-platform/station`.
+2. Configurar no AgroSaaS `BALANCA_SERVICE_URL`,
+   `BALANCA_SERVICE_CLIENT_ID` e `BALANCA_SERVICE_CLIENT_SECRET`.
+   As migrations e o banco da Balança são executados separadamente conforme o
+   manual do projeto independente.
 3. Confirmar que o plano do cliente possui o módulo `O4_BALANCA`.
 
 O módulo é comercializado separadamente e exige plano Profissional ou superior. Em instalações antigas, conferir se `O4_BALANCA` foi incluído no plano, pois o backfill histórico não é automático.
@@ -58,7 +60,7 @@ O código é temporário e válido por 30 minutos. Se expirar, usar a opção **
 
 No computador ou tablet próximo à balança:
 
-1. Abrir a URL do PWA `apps/balanca`.
+1. Abrir a URL do PWA `balanca-platform/station`.
 2. Informar o código de ativação.
 3. Definir o PIN da estação.
 4. Instalar o PWA pelo Chrome ou Edge.
@@ -82,7 +84,7 @@ Na estação, o operador seleciona seu nome e informa o PIN. O primeiro login ex
 A ponte é necessária para leitura eletrônica do indicador. Recomenda-se usar um Raspberry Pi ou computador dedicado próximo ao equipamento.
 
 ```bash
-cd tools/balanca-bridge
+cd balanca-platform/bridge
 python3 -m venv .venv
 ./.venv/bin/pip install -r requirements.txt
 cp config.yaml.example config.yaml

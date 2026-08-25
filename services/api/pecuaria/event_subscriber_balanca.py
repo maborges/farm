@@ -12,6 +12,7 @@ from events.base import DomainEvent, EventSubscriber, EventSubscriberResult
 from events.registry import register_event_subscriber
 
 from pecuaria.animal.models import Animal, EventoAnimal
+from integracoes.balanca.events import BALANCA_COMPLETED_EVENT, completed_weighing_metadata
 
 
 @register_event_subscriber
@@ -24,15 +25,16 @@ class PecuariaBalancaEventSubscriber(EventSubscriber):
     quando chamado no meio do processamento de um evento."""
 
     subscriber_name = "pecuaria-balanca"
-    event_types = ("balanca.pesagem.concluida",)
+    event_types = ("balanca.pesagem.concluida", BALANCA_COMPLETED_EVENT)
 
     async def handle(self, event: DomainEvent) -> EventSubscriberResult:
         started = perf_counter()
 
-        if event.metadata.get("origem_tipo") != "PECUARIA":
+        metadata = completed_weighing_metadata(event)
+        if metadata.get("origem_tipo") != "PECUARIA":
             return self._result(event, "ignored", started, ignored=1, reason="origem_tipo != PECUARIA")
 
-        origem_id = event.metadata.get("origem_id")
+        origem_id = metadata.get("origem_id")
         if not origem_id:
             return self._result(event, "ignored", started, ignored=1, reason="sem origem_id")
 
@@ -42,7 +44,7 @@ class PecuariaBalancaEventSubscriber(EventSubscriber):
         await self._set_rls_context(event)
 
         try:
-            peso_liquido = Decimal(event.metadata["peso_liquido_kg"])
+            peso_liquido = Decimal(metadata["peso_liquido_kg"])
         except (KeyError, InvalidOperation) as exc:
             return self._result(event, "failed", started, errors=1, reason=f"payload inválido: {exc}")
 

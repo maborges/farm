@@ -162,21 +162,21 @@ async def solicitar_pesagem_balanca(
     db: AsyncSession = Depends(get_session),
 ):
     """Vincula o animal a uma pesagem oficial na estação de balança (curral)."""
-    from balanca.service import PesagemService as BalancaPesagemService
-    from balanca.schemas import SolicitarPesagemRequest
+    from integracoes.balanca import BalancaOrderRequest
+    from integracoes.balanca.client import BalancaServiceClient
 
-    svc = BalancaPesagemService(db, tenant_id)
-    ordem = await svc.solicitar_pesagem(
-        SolicitarPesagemRequest(
-            origem_tipo="PECUARIA",
-            origem_id=animal_id,
+    ordem = await BalancaServiceClient.from_settings().create_order(
+        str(tenant_id),
+        BalancaOrderRequest(
+            client_system="agrosaas",
+            client_tenant_id=str(tenant_id),
+            external_reference=f"pecuaria:animal:{animal_id}",
+            correlation_id=f"pecuaria-pesagem:{animal_id}",
             subject_type="ANIMAL",
             tipo_pesagem="UNICA",
-        )
+        ).model_dump(mode="json"),
     )
-    await db.commit()
-    await db.refresh(ordem)
-    return SolicitarPesagemBalancaResponse(ordem_pesagem_id=ordem.id, status=ordem.status)
+    return SolicitarPesagemBalancaResponse(ordem_pesagem_id=ordem["id"], status=ordem["status"])
 
 
 @router.get("/{animal_id}/pesagens", response_model=List[PesagemResponse])

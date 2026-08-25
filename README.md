@@ -6,6 +6,8 @@ Sistema avançado para gestão de fazendas, focado em produtividade, isolamento 
 
 A ordem oficial de leitura para agentes de IA vive em **`docs/architecture/ai-bootstrap.md`** — não repetida aqui.
 
+Manual operacional da Plataforma Balança: [docs/MANUAL_BALANCA.md](docs/MANUAL_BALANCA.md).
+
 Utilize português (pt-BR) para documentos e interações com o usuário, com acentuação correta e linguagem não técnica nas explicações.
 
 > Cópias espelhadas em `apps/web/` existem para compatibilidade histórica. A fonte oficial fica na raiz do repositório — confirme o caminho ativo antes de editar (ver `CONTEXTO.md` → "Sinais de Atenção").
@@ -15,9 +17,12 @@ Utilize português (pt-BR) para documentos e interações com o usuário, com ac
 Monorepo dividido em:
 - **apps/web**: Interface Next.js 16 com shadcn/ui e Zustand.
 - **apps/campo**: PWA de campo offline-first, extensão oficial do Caderno de Campo.
-- **apps/balanca**: PWA de estação de balança offline-first (pesagem de carga e animais), desacoplado dos demais módulos.
+- **../balanca-platform/station**: PWA de estação de balança offline-first (pesagem de carga e animais), desacoplado dos demais módulos.
 - **services/api**: Backend Python com FastAPI, SQLAlchemy e PostgreSQL.
-- **packages/zod-schemas**: Contratos compartilhados (Shared Schemas).2
+- **../balanca-platform/service**: Serviço independente de pesagem, estações, operadores,
+  outbox Observer e conciliação; o AgroSaaS fala com ele somente por contrato HTTP.
+- **../balanca-platform/contracts**: Contratos próprios da integração da Balança.
+- **packages/zod-schemas**: Contratos compartilhados do AgroSaaS.
 
 Inventário técnico completo (versões, libs, infra): `docs/architecture/architecture-inventory.md`.
 
@@ -53,6 +58,9 @@ Arquitetura consolidada do Caderno de Campo (governança, cadeia documental, pap
 ## Como Executar
 
 Execute cada bloco em um terminal separado, mantendo o backend ativo antes dos workers e das aplicações web.
+Para a Balança, a ordem recomendada é: banco/migrations, backend AgroSaaS,
+serviço independente, configuração do conector, worker, backoffice web, PWA da
+estação e Bridge do indicador.
 
 ### 1. Aplicar migrations do banco
 
@@ -138,16 +146,98 @@ A primeira ativação usa `/activate` → `/pin`; depois, a aplicação abre em 
 O que faz: sobe a aplicação de estação de pesagem em `http://localhost:3003`.
 
 ```bash
-cd /opt/lampp/htdocs/farm/apps/balanca
+cd /opt/lampp/htdocs/balanca-platform
+pnpm install
+cd station
 pnpm run dev
 ```
 
-### 9. Iniciar a ponte eletrônica da balança
+Para encaminhar a estação ao serviço independente, crie
+`/opt/lampp/htdocs/balanca-platform/station/.env.local` a partir de
+`/opt/lampp/htdocs/balanca-platform/station/.env.example` e preencha:
+
+    BALANCA_SERVICE_URL=http://127.0.0.1:8010
+    BALANCA_SERVICE_CLIENT_ID=client-id-do-agrosaas
+    BALANCA_SERVICE_CLIENT_SECRET=segredo-do-agrosaas
+    BALANCA_TENANT_ID=UUID_DO_TENANT_DA_ESTACAO
+
+As credenciais não devem usar o prefixo NEXT_PUBLIC e não devem ser enviadas
+ao navegador. O proxy Next.js adiciona os headers no servidor.
+
+### 9. Iniciar o serviço independente da Balança
+
+O que faz: disponibiliza a API consumida pela estação e pelo AgroSaaS. A
+instalação pode ser feita separadamente do backend principal.
+
+Comandos:
+
+    cd /opt/lampp/htdocs/balanca-platform/service
+    python3 -m venv .venv
+    ./.venv/bin/pip install -r requirements.txt
+    cp .env.example .env
+    set -a; source .env; set +a
+    psql --set=ON_ERROR_STOP=1 "$BALANCA_DATABASE_URL" -f migrations/000_platform_foundation.sql
+    psql --set=ON_ERROR_STOP=1 "$BALANCA_DATABASE_URL" -f migrations/001_service_tables.sql
+    psql --set=ON_ERROR_STOP=1 "$BALANCA_DATABASE_URL" -f migrations/002_security_identity.sql
+    psql --set=ON_ERROR_STOP=1 "$BALANCA_DATABASE_URL" -f migrations/003_contingency.sql
+    ./start_server.sh
+
+### 9.1. Configurar o AgroSaaS para usar a Balança independente
+
+No arquivo de ambiente do backend, informe a URL e as credenciais de cliente
+emitidas pelo backoffice da Balança.
+Esses valores ficam somente no servidor:
+
+    BALANCA_SERVICE_URL=http://127.0.0.1:8010
+    BALANCA_SERVICE_CLIENT_ID=client-id-do-agrosaas
+    BALANCA_SERVICE_CLIENT_SECRET=segredo-emitido-pelo-backoffice
+
+Reinicie o backend depois de alterar o ambiente. Sem essas três variáveis, as
+operações de pesagem do AgroSaaS são recusadas e nenhum banco local de Balança
+é utilizado como fallback.
+
+O primeiro usuário do backoffice é criado com
+`/opt/lampp/htdocs/balanca-platform/service/bootstrap_admin.py`.
+Depois do login em `/v1/auth/login`, o administrador emite uma credencial para
+cada consumidor em `/v1/admin/api-clients`; o AgroSaaS recebe somente seu
+`client_id` e segredo, que devem ser rotacionados ou revogados pelo backoffice
+quando necessário.
+
+### 9.2. Contingência por pendrive
+
+O serviço Balança aceita pacotes físicos assinados em
+`POST /v1/contingency/import`. A estação pode exportar o arquivo para um
+pendrive; o backoffice importa o arquivo pela interface que consuma essa API
+ou pelo utilitário `/opt/lampp/htdocs/balanca-platform/service/import_contingency.py`. O recurso pertence
+ao serviço Balança e pode ser utilizado por qualquer cliente integrado, não
+somente pelo AgroSaaS. O lote original, a assinatura, a sequência e o resultado
+de cada pesagem são preservados para auditoria e reprocessamento.
+
+### 9.3. Iniciar o worker da Balança
+
+O worker entrega os eventos Observer pendentes por HTTP ou arquivo JSONL.
+Configure no .env do serviço BALANCA_OUTBOX_TENANT_ID e um dos destinos:
+
+    BALANCA_OUTBOX_TARGET_URL=https://cliente.exemplo/api/eventos
+    BALANCA_OUTBOX_TARGET_API_KEY=chave-do-consumidor
+
+ou:
+
+    BALANCA_OUTBOX_FILE_PATH=/var/lib/balanca/outbox/eventos.jsonl
+
+Em desenvolvimento:
+
+    cd /opt/lampp/htdocs/balanca-platform/service
+    ./.venv/bin/python run_worker.py
+
+Em produção, instale balanca-outbox.service.example como serviço systemd.
+
+### 10. Iniciar a ponte eletrônica da balança
 
 O que faz: conecta o indicador físico ou simulador à aplicação da balança pela porta `8321`.
 
 ```bash
-cd /opt/lampp/htdocs/farm/tools/balanca-bridge
+cd /opt/lampp/htdocs/balanca-platform/bridge
 python3 -m venv .venv
 ./.venv/bin/pip install -r requirements.txt
 cp config.yaml.example config.yaml
@@ -158,11 +248,29 @@ cp config.yaml.example config.yaml
 Para usar o simulador em vez do indicador físico:
 
 ```bash
-cd /opt/lampp/htdocs/farm/tools/balanca-bridge
+cd /opt/lampp/htdocs/balanca-platform/bridge
 ./.venv/bin/python simulator.py
 ```
 
-### 10. Executar o Outbox global no cron
+Para instalar a Bridge como serviço no computador da balança:
+
+    cd /opt/lampp/htdocs/balanca-platform/bridge
+    sudo ./install.sh
+
+Em uma rede sem internet, prepare previamente o wheelhouse em uma máquina
+conectada:
+
+    cd /opt/lampp/htdocs/balanca-platform/bridge
+    ./prepare-offline-bundle.sh /tmp/balanca-bridge-wheelhouse
+
+Transfira o diretório para a estação e instale usando:
+
+    BALANCA_BRIDGE_WHEELHOUSE=/caminho/wheelhouse sudo -E ./install.sh
+
+O instalador preserva o config.yaml existente. Para atualizar, execute o
+mesmo instalador; a configuração local e a fila do PWA não são apagadas.
+
+### 11. Executar o Outbox global no cron
 
 O que faz: percorre os tenants ativos, ativa o contexto RLS de cada tenant e processa lotes de 50 eventos. Retorna `0` sem falhas e `1` quando algum tenant falha.
 
@@ -202,7 +310,34 @@ crontab -l
 tail -f /var/log/farm/outbox.log
 ```
 
-### 11. Parar os processos de desenvolvimento
+### 11.1. Gerar o pacote offline da estação
+
+Com a máquina de empacotamento conectada:
+
+    cd /opt/lampp/htdocs/balanca-platform/station
+    npm run package:offline
+
+Transfira o diretório gerado em `/opt/lampp/htdocs/balanca-platform/station/dist` para a estação. A primeira
+ativação e a sincronização inicial precisam ocorrer com rede disponível. Não
+apague o IndexedDB durante uma atualização, pois ele contém as pesagens
+pendentes.
+
+### 11.2. Verificar a instalação completa
+
+Execute as verificações abaixo:
+
+    curl -fsS http://127.0.0.1:8000/docs >/dev/null && echo "AgroSaaS API OK"
+    curl -fsS http://127.0.0.1:8010/healthz && echo "Balanca service OK"
+    curl -fsS http://127.0.0.1:8010/readyz && echo "Balanca database OK"
+    curl -I http://127.0.0.1:3000
+    curl -I http://127.0.0.1:3003
+    systemctl status balanca-bridge.service --no-pager
+
+Na estação, confirme: ativação do terminal, login do operador, leitura estável
+da Bridge, criação do ticket offline, fila pendente e reprocessamento após
+restaurar a rede.
+
+### 12. Parar os processos de desenvolvimento
 
 O que faz: encerra a API e os servidores Next.js iniciados por este workspace.
 

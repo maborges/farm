@@ -13,6 +13,7 @@ from events.registry import register_event_subscriber
 
 from agricola.romaneios.schemas import RomaneioColheitaUpdate
 from agricola.romaneios.service import RomaneioService
+from integracoes.balanca.events import BALANCA_COMPLETED_EVENT, completed_weighing_metadata
 
 
 @register_event_subscriber
@@ -22,15 +23,16 @@ class RomaneioBalancaEventSubscriber(EventSubscriber):
     A Balança não conhece este módulo; o vínculo é só por origem_tipo/origem_id."""
 
     subscriber_name = "romaneios-balanca"
-    event_types = ("balanca.pesagem.concluida",)
+    event_types = ("balanca.pesagem.concluida", BALANCA_COMPLETED_EVENT)
 
     async def handle(self, event: DomainEvent) -> EventSubscriberResult:
         started = perf_counter()
 
-        if event.metadata.get("origem_tipo") != "COLHEITA":
+        metadata = completed_weighing_metadata(event)
+        if metadata.get("origem_tipo") != "COLHEITA":
             return self._result(event, "ignored", started, ignored=1, reason="origem_tipo != COLHEITA")
 
-        origem_id = event.metadata.get("origem_id")
+        origem_id = metadata.get("origem_id")
         if not origem_id:
             return self._result(event, "ignored", started, ignored=1, reason="sem origem_id")
 
@@ -41,8 +43,8 @@ class RomaneioBalancaEventSubscriber(EventSubscriber):
         svc = RomaneioService(self.session, event.tenant_id)
 
         try:
-            peso_bruto = Decimal(event.metadata["peso_bruto_kg"])
-            peso_tara = Decimal(event.metadata["peso_tara_kg"])
+            peso_bruto = Decimal(metadata["peso_bruto_kg"])
+            peso_tara = Decimal(metadata["peso_tara_kg"])
         except (KeyError, InvalidOperation) as exc:
             return self._result(event, "failed", started, errors=1, reason=f"payload inválido: {exc}")
 

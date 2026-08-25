@@ -40,6 +40,9 @@ class Settings(BaseSettings):
     # que realmente hospedam o worker precisam habilitá-lo explicitamente.
     run_embedded_jobs: bool = False
     integrations_secret_key: str = ""
+    balanca_service_url: str = ""
+    balanca_service_client_id: str = ""
+    balanca_service_client_secret: str = ""
     allow_origins: list[str] = [
         "http://localhost:3000",
         "http://localhost:3001",

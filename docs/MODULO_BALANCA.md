@@ -1,6 +1,12 @@
 # Módulo Balança — AgroSaaS
 
-**Status:** captura manual + sync offline + leitura eletrônica via ponte de hardware (`tools/balanca-bridge`) + modelo de pesagem por etapas (peso informado vs aferido) + login de operador + **vínculo real com Colheita, Pecuária, Compras e Vendas** implementados — ver seção 5.3.
+> **Arquitetura vigente:** este documento preserva o histórico funcional do
+> módulo. A implementação oficial agora está em
+> `/opt/lampp/htdocs/balanca-platform`; o AgroSaaS não mantém modelos, tabelas,
+> rotas ou sincronização locais de Balança. A comunicação ocorre pelo conector
+> HTTP em `services/api/integracoes/balanca`.
+
+**Status:** captura manual + sync offline + leitura eletrônica via ponte de hardware (`balanca-platform/bridge`) + modelo de pesagem por etapas (peso informado vs aferido) + login de operador + **vínculo real com Colheita, Pecuária, Compras e Vendas** implementados — ver seção 5.3.
 **Desenho completo/decisões de arquitetura:** `docs/brainstorm-modulo-balanca.md`
 **Manual de uso (admin + operador):** `docs/MANUAL_BALANCA.md`
 **Última atualização:** 2026-08-17 (botão de avaliação por motorista, além de placa — módulo com todo o escopo original combinado implementado)
@@ -28,17 +34,17 @@ A Balança funciona como um **serviço interno desacoplado**: outros módulos (r
 Módulo cliente (colheita/compras/vendas/pecuária)
         │  solicita pesagem (origem_tipo + origem_id genérico)
         ▼
-Backend "balanca" (services/api/balanca/)
-  - OrdemPesagem (PENDENTE → EM_PESAGEM → CONCLUIDA/CANCELADA)
-  - Pesagem (ticket com peso bruto/tara/líquido)
+Serviço independente (`/opt/lampp/htdocs/balanca-platform/service`)
+  - Ordens, pesagens, estações, operadores e eventos Observer
+  - API HTTP autenticada por credencial do cliente
         │  sync push/pull (offline-first, idempotente por client_id)
         ▼
-PWA da estação (apps/balanca/, porta 3003)
+PWA da estação (balanca-platform/station/, porta 3003)
   - IndexedDB local (Dexie) — funciona sem internet
   - Operador confirma o peso (digitado ou lido da balança) e confirma
         ▲
         │  WebSocket/HTTP, rede local (não depende de internet)
-Ponte de hardware (tools/balanca-bridge, roda perto do indicador)
+Ponte de hardware (balanca-platform/bridge, roda perto do indicador)
   - Lê o indicador via serial RS232 ou TCP/Ethernet
   - Extrai o peso (parser genérico por regex, configurável — sem
     depender de saber a marca do indicador com antecedência)
@@ -56,7 +62,7 @@ Cada fazenda pode ter **uma ou várias estações de balança** cadastradas (ex.
 - **Sincronização automática:** quando a conexão volta (evento `online` do navegador, ou a cada 30s enquanto há rede), o PWA envia as pesagens pendentes (`push`) e recebe atualizações do servidor (`pull`) automaticamente, sem ação do operador.
 - **Idempotência:** cada pesagem tem um `client_id` gerado no dispositivo. Reenviar o mesmo item não duplica o ticket no servidor.
 
-**Leitura eletrônica também é local, não depende de internet:** a ponte de hardware (`tools/balanca-bridge`) fica na rede local, perto do indicador — o PWA fala com ela por WebSocket/HTTP na LAN, igual ao raciocínio acima. Só a *sincronização com o backend central* depende de internet; ler o peso do indicador nunca depende.
+**Leitura eletrônica também é local, não depende de internet:** a ponte de hardware (`balanca-platform/bridge`) fica na rede local, perto do indicador — o PWA fala com ela por WebSocket/HTTP na LAN, igual ao raciocínio acima. Só a *sincronização com o backend central* depende de internet; ler o peso do indicador nunca depende.
 
 ## 4. Como configurar (administrador do tenant)
 
@@ -88,14 +94,14 @@ A estação de balança roda como um **PWA (Progressive Web App)** — não prec
 Sem a ponte configurada, a pesagem é 100% manual (funciona normalmente). Com
 ela, o PWA mostra o peso ao vivo do indicador e o operador só confirma.
 
-**Instalação da ponte** (`tools/balanca-bridge`) — roda num equipamento perto
+**Instalação da ponte** (`balanca-platform/bridge`) — roda num equipamento perto
 do indicador (recomendado: Raspberry Pi dedicado; também funciona no mesmo PC
 que roda o PWA):
 
-1. `cd tools/balanca-bridge && python3 -m venv .venv && ./.venv/bin/pip install -r requirements.txt`
+1. `cd balanca-platform/bridge && python3 -m venv .venv && ./.venv/bin/pip install -r requirements.txt`
 2. `cp config.yaml.example config.yaml` e ajuste `connection_type` (`SERIAL` ou `TCP`), porta/host do indicador.
 3. `./.venv/bin/python -m balanca_bridge.main` — sobe em `http://<ip-da-ponte>:8321`.
-4. Sem indicador físico ainda? Use `simulator.py` incluso para testar toda a cadeia com peso simulado (ver `tools/balanca-bridge/README.md`).
+4. Sem indicador físico ainda? Use `simulator.py` incluso para testar toda a cadeia com peso simulado (ver `balanca-platform/bridge/README.md`).
 5. Para rodar sempre ligado (produção), registre como serviço `systemd` — exemplo completo no README da ponte.
 
 **Configuração no PWA:** na tela de pesagem, botão **"Configurar ponte"** no cabeçalho → informe a URL (ex.: `http://192.168.0.50:8321`) e, se configurado, o token. Fica salvo localmente na estação (não é enviado ao backend).
@@ -149,7 +155,7 @@ fazer — a Balança nunca importa `agricola`/`pecuaria`/etc, só o contrário.
   projeção leve (id, brinco, SISBOV, nome, categoria, lote) dos animais
   `ATIVO` das fazendas vinculadas ao dispositivo, lida via **SQL cru**
   (não importa o model `Animal` de `pecuaria/`, mantendo o desacoplamento:
-  a Balança nunca importa outro módulo, só o contrário). O app `apps/balanca`
+  a Balança nunca importa outro módulo, só o contrário). O app `balanca-platform/station`
   guarda essa lista numa store Dexie própria (`animais`, populada a cada pull)
   e, quando `subject_type=ANIMAL`, a tela de pesagem mostra um busca-e-seleciona
   em vez do campo de placa — 100% offline depois do primeiro sync.
@@ -242,9 +248,8 @@ consistência entre os dois sistemas — quem o usuário vê é a `Notificacao`.
 
 ## 5.7. Ticket de pesagem (PDF)
 
-Comprovante imprimível — o que o motorista leva. `PesagemService.gerar_pdf_ordem()`
-(`balanca/service.py`) monta um PDF A5 (reportlab, mesmo padrão de
-`ComprasService.gerar_pdf_pedido()`) com origem/sujeito/tipo de pesagem,
+Comprovante imprimível — o que o motorista leva. O serviço independente monta o
+ticket e o disponibiliza pela API com origem/sujeito/tipo de pesagem,
 placa ou brinco, documento fiscal, cada etapa registrada (peso aferido vs
 informado, data/hora) e o peso líquido final.
 
@@ -256,7 +261,7 @@ Dois endpoints, mesmo conteúdo, autenticação diferente:
   `/operadores/login` — a estação já provou posse do device token).
 
 **UI:**
-- **PWA (`apps/balanca`):** botão "Baixar ticket" aparece na tela de
+- **PWA (`balanca-platform/station`):** botão "Baixar ticket" aparece na tela de
   pesagem assim que uma ordem com processo de origem conclui (não
   disponível em pesagem avulsa, pois a ordem "sombra" só existe no servidor
   depois do sync). Abre o PDF numa nova aba (visualizador do navegador,
@@ -334,7 +339,7 @@ Quando a ordem do processo chega depois, ou alguém do escritório precisa vincu
 
 ## 7. Limitações conhecidas / pendências
 
-- **Ponte de hardware ainda não testada com equipamento real:** o parser é genérico (regex configurável) e foi validado com um simulador — quando a marca/modelo do indicador for definida, confirmar o formato real do frame e ajustar `config.yaml` (ver `tools/balanca-bridge/README.md`).
+- **Ponte de hardware ainda não testada com equipamento real:** o parser é genérico (regex configurável) e foi validado com um simulador — quando a marca/modelo do indicador for definida, confirmar o formato real do frame e ajustar `config.yaml` (ver `balanca-platform/bridge/README.md`).
 - **Vínculo depende do worker de outbox estar rodando:** o evento `balanca.pesagem.concluida` só é entregue quando `background_worker.py` processa a fila (`events/outbox_relay.py`) — se o worker não estiver ativo em produção, romaneios/animais não recebem o peso automaticamente (a ordem na Balança continua correta, só o vínculo atrasa).
 - **Login de operador exige rede na hora de entrar:** a verificação do PIN pessoal é sempre no servidor (não dá pra validar bcrypt offline com segurança) — o operador precisa de conexão pra logar na estação uma vez; depois disso, pesar continua 100% offline até trocar de operador.
 - **Leitura de código de barras/NFe limitada à Balança:** o scan (BarcodeDetector nativo do navegador, sem lib externa) só está disponível para editar `numero_documento_fiscal` de uma ordem já criada, na tela de Ordens de Pesagem — não alcança as telas de romaneio/compras/vendas, onde o documento fiscal também é digitado na criação do processo (fora do escopo deste módulo). Sem suporte em Safari/Firefox (o botão de scan some, mas o campo manual continua disponível).
@@ -346,12 +351,12 @@ Quando a ordem do processo chega depois, ou alguém do escritório precisa vincu
 | Backend (models, service, router) | `services/api/balanca/` |
 | Migrations | `services/api/migrations/versions/20260816_balanca_{modulo,etapas,operadores}.py` |
 | Teste de isolamento de tenant | `services/api/tests/integration/balanca/test_balanca_tenant_isolation.py` |
-| PWA da estação | `apps/balanca/` |
-| Ponte de hardware (leitura eletrônica) | `tools/balanca-bridge/` (serviço Python standalone, roda perto do indicador) |
-| Cliente da ponte no PWA | `apps/balanca/src/lib/bridge/peso-ao-vivo.ts` |
+| PWA da estação | `balanca-platform/station/` |
+| Ponte de hardware (leitura eletrônica) | `balanca-platform/bridge/` (serviço Python standalone, roda perto do indicador) |
+| Cliente da ponte no PWA | `balanca-platform/station/src/lib/bridge/peso-ao-vivo.ts` |
 | Telas administrativas (apps/web) | `apps/web/src/app/(dashboard)/dashboard/operacional/balanca/{dispositivos,operadores,reconciliacao}/` |
 | Componentes das telas admin | `apps/web/src/components/balanca/` |
-| Login de operador no PWA | `apps/balanca/src/components/operador-login.tsx` |
+| Login de operador no PWA | `balanca-platform/station/src/components/operador-login.tsx` |
 | Entrada de menu | `apps/web/src/lib/sidebar-config.ts` (grupo `BALANCA`) |
 | Catálogo de permissões | `apps/web/src/lib/permission-catalog.ts` (`balanca:dispositivo`, `balanca:operador`, `balanca:pesagem`) |
 | Desenho/decisões de arquitetura | `docs/brainstorm-modulo-balanca.md` |

@@ -270,21 +270,21 @@ async def solicitar_pesagem_balanca(
 ):
     """Vincula o pedido a uma pesagem oficial na estação de balança (entrada de
     carga — insumo ou produto de outro produtor)."""
-    from balanca.service import PesagemService as BalancaPesagemService
-    from balanca.schemas import SolicitarPesagemRequest
+    from integracoes.balanca import BalancaOrderRequest
+    from integracoes.balanca.client import BalancaServiceClient
 
-    svc = BalancaPesagemService(session, tenant.id)
-    ordem = await svc.solicitar_pesagem(
-        SolicitarPesagemRequest(
-            origem_tipo="COMPRA",
-            origem_id=pedido_id,
+    ordem = await BalancaServiceClient.from_settings().create_order(
+        str(tenant.id),
+        BalancaOrderRequest(
+            client_system="agrosaas",
+            client_tenant_id=str(tenant.id),
+            external_reference=f"operacional:compra:{pedido_id}",
+            correlation_id=f"compra-pesagem:{pedido_id}",
             subject_type="VEICULO",
             tipo_pesagem="DUPLA",
-        )
+        ).model_dump(mode="json"),
     )
-    await session.commit()
-    await session.refresh(ordem)
-    return {"ordem_pesagem_id": str(ordem.id), "status": ordem.status}
+    return {"ordem_pesagem_id": ordem["id"], "status": ordem["status"]}
 
 
 @router.patch("/pedidos/{pedido_id}/receber", status_code=200,

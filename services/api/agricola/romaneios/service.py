@@ -315,27 +315,25 @@ class RomaneioService(BaseService[RomaneioColheita]):
         peso_bruto_kg/tara_kg deste romaneio a partir do evento publicado."""
         romaneio = await self.get_or_fail(romaneio_id)
 
-        from balanca.service import PesagemService
-        from balanca.schemas import SolicitarPesagemRequest
+        from integracoes.balanca import BalancaOrderRequest
+        from integracoes.balanca.client import BalancaServiceClient
 
-        svc = PesagemService(self.session, self.tenant_id)
-        ordem = await svc.solicitar_pesagem(
-            SolicitarPesagemRequest(
-                origem_tipo="COLHEITA",
-                origem_id=romaneio.id,
+        ordem = await BalancaServiceClient.from_settings().create_order(
+            str(self.tenant_id),
+            BalancaOrderRequest(
+                client_system="agrosaas",
+                client_tenant_id=str(self.tenant_id),
+                external_reference=f"agricola:romaneio:{romaneio.id}",
+                correlation_id=f"romaneio-pesagem:{romaneio.id}",
                 subject_type=dados.subject_type,
                 tipo_pesagem=dados.tipo_pesagem,
-                produto_id=romaneio.commodity_id,
-                produto_tipo="COMMODITY",
                 contexto={
                     "placa": dados.placa,
                     "motorista": dados.motorista,
                     "numero_romaneio": romaneio.numero_romaneio,
                 },
-            )
+            ).model_dump(mode="json"),
         )
-        await self.session.commit()
-        await self.session.refresh(ordem)
         return ordem
 
     async def listar_pendentes_de_romaneio(self, safra_id: UUID | None = None) -> list[ColheitaPendenteRomaneio]:

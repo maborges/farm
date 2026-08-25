@@ -109,7 +109,7 @@ async def solicitar_pesagem_balanca(
     """Vincula o romaneio a uma pesagem oficial na estação de balança."""
     svc = RomaneioService(session, tenant_id)
     ordem = await svc.solicitar_pesagem_balanca(id, dados)
-    return SolicitarPesagemBalancaResponse(ordem_pesagem_id=ordem.id, status=ordem.status)
+    return SolicitarPesagemBalancaResponse(ordem_pesagem_id=ordem["id"], status=ordem["status"])
 
 
 @router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)

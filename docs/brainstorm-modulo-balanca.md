@@ -15,7 +15,7 @@ Suporta pesagem **única** (peso bruto − tara cadastrada) e **dupla** (entrada
 
 1. **Balança como serviço, não como "dono" dos módulos clientes.** Romaneio/compras/vendas/pecuária/pessoas *solicitam* pesagem (`PesagemService.solicitar_pesagem()`); a Balança não conhece a lógica interna desses módulos. Vínculo via `origem_tipo`/`origem_id` genérico (sem FK direta a tabelas de outros módulos) — permite o módulo ser extraído/comercializado separadamente no futuro.
 
-2. **Offline-first via app dedicado (`apps/balanca`), reaproveitando o padrão já existente em `apps/campo`:**
+2. **Offline-first via app dedicado (`balanca-platform/station`), reaproveitando o padrão já existente em `apps/campo`:**
    - IndexedDB (Dexie) + service worker + fila de sync (`sync_queue`)
    - `push`/`pull` idempotente por `client_id`, com `SyncTombstone` para deleções
    - Padrão de "solicitação pendente resolvida por outro dispositivo" já existe em `RequisicaoMaterial`/`RequisicaoConfirmacao` (estoque) — a `OrdemPesagem` segue o mesmo modelo: criada por um módulo cliente, resolvida depois pela estação de balança.
@@ -55,14 +55,14 @@ Confirmado com o usuário: equipamento ainda não definido → desenho genérico
 
 Escopo combinado: **carga (veículo) primeiro, animal depois** — na prática a ponte/protocolo já serve os dois desde o início (mesmo endpoint `/peso-atual`), a diferença é só de UI/prioridade de tela. Pesagem de pessoas foi **removida do escopo** (`subject_type` agora só `VEICULO`/`ANIMAL`) — não é caso de uso real numa fazenda.
 
-Implementado em `tools/balanca-bridge/` (Python/FastAPI standalone, fora de `services/api`):
+Implementado em `balanca-platform/bridge/` (Python/FastAPI standalone, fora de `services/api`):
 - `ProtocolAdapter`: extrai peso via regex configurável (`weight_regex`, `decimal_separator`, `unit`, `scale_factor`) — cobre a maioria dos indicadores em modo "contínuo" ASCII sem saber a marca.
 - `serial_reader.py` / `tcp_reader.py`: loops de leitura com reconexão automática em falha.
 - `GET /peso-atual` (poll) + `WS /ws/peso` (push) — PWA usa WebSocket com fallback de reconexão.
 - `simulator.py`: indicador fake via TCP, para testar toda a cadeia sem hardware físico (usado nos testes de integração).
 - Token opcional (`api_token`) via header (REST) ou query string (WebSocket, já que browser não permite header customizado no handshake).
 
-PWA (`apps/balanca`): `session.bridge_url`/`bridge_token` configuráveis por estação (tela "Configurar ponte"), hook `usePesoAoVivo()` mantém leitura ao vivo com indicador de conectado/desatualizado, botão "Usar este peso" preenche o campo mantendo edição manual sempre disponível. `captured_via` registra `ELETRONICA` vs `MANUAL` conforme a origem realmente usada.
+PWA (`balanca-platform/station`): `session.bridge_url`/`bridge_token` configuráveis por estação (tela "Configurar ponte"), hook `usePesoAoVivo()` mantém leitura ao vivo com indicador de conectado/desatualizado, botão "Usar este peso" preenche o campo mantendo edição manual sempre disponível. `captured_via` registra `ELETRONICA` vs `MANUAL` conforme a origem realmente usada.
 
 ## Decisão adicional — modelo de pesagem por etapas (spec de negócio detalhada)
 
@@ -133,8 +133,8 @@ seletor e bloqueia login.
 1. ✅ Migration + models (`DispositivoBalanca`, `OrdemPesagem`, `Pesagem`, tombstone)
 2. ✅ `PesagemService` (API interna de solicitação) + `SyncService` (push/pull)
 3. ✅ Router + registro em `main.py`
-4. ✅ Scaffold do `apps/balanca` (PWA: captura manual)
+4. ✅ Scaffold do `balanca-platform/station` (PWA: captura manual)
 5. ✅ Pesagem avulsa + reconciliação (`OrdemPesagem` sombra, tela admin)
-6. ✅ Ponte de hardware (`tools/balanca-bridge`) + integração de leitura ao vivo no PWA
+6. ✅ Ponte de hardware (`balanca-platform/bridge`) + integração de leitura ao vivo no PWA
 7. Piloto de integração: romaneio de colheita chamando `PesagemService.solicitar_pesagem()` de verdade (pendente)
 8. Fluxo/tela específica de pecuária para pesagem de animal (lote/brinco) — próxima prioridade combinada

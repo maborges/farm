@@ -115,10 +115,6 @@ class AlertasEngine:
             diarias_pendentes = await self._verificar_diarias_pendentes(session, tenant_id)
             alertas_gerados.extend(diarias_pendentes)
 
-            # 4.2 Balanças físicas com aferição vencida (metrologia legal)
-            afericao_vencida = await self._verificar_afericao_vencida(session, tenant_id)
-            alertas_gerados.extend(afericao_vencida)
-
             # Criar notificações
             for alerta in alertas_gerados:
                 await svc.criar_e_push(alerta)
@@ -381,69 +377,6 @@ class AlertasEngine:
                 title=f"{len(itens)} diária(s) pendente(s) — {nome}",
                 message=f"{nome} tem {len(itens)} diária(s) não pagas há mais de 15 dias. Total: R$ {total_fmt}",
                 domain_finance=True,
-            )
-
-        return alertas
-
-    async def _verificar_afericao_vencida(
-        self, session: AsyncSession, tenant_id: UUID
-    ) -> List[NotificacaoCreate]:
-        """Verifica balanças físicas ativas cuja aferição mais recente já venceu
-        (metrologia legal) — mesma lógica de `BalancaFisicaService._mapa_ultima_afericao`
-        (DISTINCT ON pela aferição mais recente por balança), sem depender do
-        módulo balanca importar notificacoes (evita acoplamento na outra direção)."""
-        from balanca.models import BalancaFisica, AfericaoBalanca
-
-        alertas: List[NotificacaoCreate] = []
-        agora = datetime.now(timezone.utc).replace(tzinfo=None)
-
-        ultima_afericao = (
-            select(AfericaoBalanca.balanca_fisica_id, AfericaoBalanca.validade_ate)
-            .distinct(AfericaoBalanca.balanca_fisica_id)
-            .where(AfericaoBalanca.tenant_id == tenant_id)
-            .order_by(AfericaoBalanca.balanca_fisica_id, AfericaoBalanca.data_afericao.desc())
-            .subquery()
-        )
-        stmt = (
-            select(BalancaFisica.id, BalancaFisica.nome, ultima_afericao.c.validade_ate)
-            .join(ultima_afericao, ultima_afericao.c.balanca_fisica_id == BalancaFisica.id)
-            .where(
-                BalancaFisica.tenant_id == tenant_id,
-                BalancaFisica.ativa == True,  # noqa: E712
-                ultima_afericao.c.validade_ate.isnot(None),
-                ultima_afericao.c.validade_ate < agora,
-            )
-            .limit(20)
-        )
-        result = await session.execute(stmt)
-        vencidas = result.all()
-
-        if vencidas:
-            itens = [f"{row.nome} (venceu {row.validade_ate.date().isoformat()})" for row in vencidas]
-            alertas.append(
-                NotificacaoCreate(
-                    tipo="AFERICAO_BALANCA_VENCIDA",
-                    titulo=f"{len(vencidas)} balança(s) com aferição vencida",
-                    mensagem="Balanças: " + ", ".join(itens[:5]) + ("..." if len(itens) > 5 else ""),
-                    origem="balanca_fisica",
-                    origem_id=str(tenant_id),
-                    meta={
-                        "quantidade": len(vencidas),
-                        "balancas": [
-                            {"id": str(row.id), "nome": row.nome, "validade_ate": row.validade_ate.isoformat()}
-                            for row in vencidas
-                        ],
-                    },
-                )
-            )
-            await self._espelhar_operational_alert(
-                session,
-                tenant_id,
-                dedupe_key=f"notificacoes:afericao_balanca_vencida:{tenant_id}",
-                source_type="AFERICAO_BALANCA_VENCIDA",
-                source_id=str(tenant_id),
-                title=f"{len(vencidas)} balança(s) com aferição vencida",
-                message="Balanças: " + ", ".join(itens[:5]) + ("..." if len(itens) > 5 else ""),
             )
 
         return alertas

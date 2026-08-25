@@ -6,9 +6,9 @@ Data: 2026-08-19
 
 Foi solicitada uma auditoria do módulo Balança sem alterações no código. A auditoria revisou:
 
-- `apps/balanca` — PWA offline-first;
+- `balanca-platform/station` — PWA offline-first;
 - `services/api/balanca` — API, modelos, serviços e sincronização;
-- `tools/balanca-bridge` — comunicação com o indicador físico;
+- `balanca-platform/bridge` — comunicação com o indicador físico;
 - migrações, documentação e testes relacionados.
 
 ## Principais achados da auditoria

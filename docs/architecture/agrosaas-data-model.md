@@ -6,6 +6,15 @@ Este documento mapeia o domínio de dados do sistema AgroSaaS/FarmOS com base na
 
 As entidades listadas abaixo:
 - Participam estritamente do **Row Level Security (RLS)**.
+
+## Namespace da Plataforma Balança
+
+O PostgreSQL possui o namespace `balanca`, criado para a extração gradual da
+Plataforma Balança. As tabelas legadas do módulo permanecem temporariamente no
+schema público por compatibilidade com o AgroSaaS. Toda nova entidade própria
+da Plataforma Balança deve declarar explicitamente `schema="balanca"`, possuir
+`tenant_id` e política RLS própria; nenhuma tabela nova deve depender de uma
+FK direta para modelos de Compras, Agrícola, Pecuária ou Pessoas.
 - **Não podem** sofrer alteração estrutural sem migração controlada via Alembic.
 - Afetam múltiplos módulos simultaneamente (Cross-domain).
 

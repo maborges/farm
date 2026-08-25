@@ -1,134 +1,309 @@
-# Manual da Balança — AgroSaaS
+# Manual de Operação da Plataforma Balança
 
-> Manual de uso, para administradores e operadores de estação. Para detalhes técnicos de arquitetura, decisões de design e referência de API, ver `docs/MODULO_BALANCA.md`.
+## 1. Objetivo
 
-**Atualizado em:** 2026-08-17
+A Plataforma Balança é um serviço independente para registrar, armazenar,
+conciliar e distribuir informações de pesagem. Ela pode atender o AgroSaaS ou
+qualquer outro sistema integrado por API, eventos ou arquivos físicos.
 
----
+A operação de pesagem não depende de conexão contínua. A estação pode capturar
+pesagens offline e sincronizar os dados posteriormente.
 
-## 1. Visão geral
+## 2. Componentes
 
-A Balança registra o peso de caminhões e animais na entrada e saída da fazenda — para colheita, compras, vendas e pecuária — mesmo sem internet no ponto de pesagem. Duas pessoas usam o módulo, cada uma com sua própria tela:
+```text
+Indicador físico → Bridge → Estação PWA → Serviço Balança → Consumidores
+                                      ↘ pendrive → Backoffice Balança
+```
 
-- **Administrador (escritório):** cadastra estações e balanças físicas, gerencia operadores, acompanha todas as ordens de pesagem, aplica descontos de qualidade e reconcilia pesagens avulsas — pelo painel web, de qualquer computador.
-- **Operador de balança (estação):** pesa o veículo ou animal no tablet fixado perto da balança, mesmo sem internet — os dados sincronizam sozinhos assim que a conexão volta.
+- Serviço Balança: API, banco, backoffice, segurança, conciliação e eventos.
+- Estação PWA: tela operacional, cache local e fila offline.
+- Bridge: comunicação com balança serial, TCP ou simulador.
+- Backoffice: usuários, permissões, clientes, estações, operadores e importações.
+- Consumidor: AgroSaaS ou qualquer aplicação autorizada.
 
-### Fluxo geral
+## 3. Perfis de usuário
 
-1. **Processo pede pesagem** — colheita, compra, venda ou pecuária solicita uma ordem.
-2. **Operador pesa** — na estação, offline se preciso.
-3. **Sincroniza** — assim que houver conexão.
-4. **Peso volta ao processo** — automático, via evento interno.
-5. **Ticket disponível** — PDF pro motorista, a qualquer momento.
+### Administrador do serviço
 
----
+Administra usuários, papéis, permissões, estações, operadores e credenciais de
+integração.
 
-## 2. Para administradores (painel web)
+### Operador da balança
 
-Tudo fica em **Operacional → Balança**, no menu lateral.
+É cadastrado na própria Plataforma Balança. Não precisa existir no cadastro do
+AgroSaaS. Seu vínculo com uma pessoa do cliente é opcional.
 
-### Estações de Balança
-`/dashboard/operacional/balanca/dispositivos`
+### Aplicação consumidora
 
-Cada tablet ou computador fixado perto de uma balança é uma **estação**. Cadastre uma nova, escolha as fazendas que ela pode atender, e um código de ativação é gerado.
+Não utiliza login humano. Recebe `client_id`, segredo e escopos próprios. O
+AgroSaaS é apenas um consumidor da API da Balança.
 
-1. Clique em **Nova estação**, dê um nome (ex: "Balança Portaria 1") e selecione as fazendas.
-2. Copie o código de 8 dígitos gerado.
-3. No tablet da estação, abra o app da balança e informe o código — ele fica ativo por 30 minutos.
+## 4. Instalação do serviço
 
-Se uma estação for perdida ou trocar de aparelho, use **Revogar** e depois **Reativar** para gerar um novo código.
+No servidor da Balança:
 
-### Balanças Físicas
-`/dashboard/operacional/balanca/equipamentos`
+```bash
+cd /opt/lampp/htdocs/balanca-platform/service
+python3 -m venv .venv
+./.venv/bin/pip install -r requirements.txt
+cp .env.example .env
+```
 
-O equipamento em si — fabricante, modelo, número de série e capacidade — separado do tablet que roda o app, para acompanhar a **aferição legal** independente de qual terminal está ligado a ele.
+Configure no `.env`:
 
-1. Cadastre a balança física com os dados do equipamento.
-2. Ao ativar uma estação, vincule-a à balança física correspondente (opcional).
-3. Registre cada aferição (data, órgão aferidor, validade, resultado) pelo botão **Aferições**.
+```env
+BALANCA_DATABASE_URL=postgresql+asyncpg://usuario:senha@servidor/banco
+BALANCA_ENVIRONMENT=production
+BALANCA_JWT_SECRET_SECRET=segredo-aleatorio-com-no-minimo-32-caracteres
+BALANCA_PORT=8010
+```
 
-Uma balança com aferição vencida mostra um selo vermelho na lista, e você recebe uma notificação automática.
+Aplique as migrations na ordem:
 
-### Operadores
-`/dashboard/operacional/balanca/operadores`
+```bash
+psql --set=ON_ERROR_STOP=1 "$BALANCA_DATABASE_URL" -f migrations/000_platform_foundation.sql
+psql --set=ON_ERROR_STOP=1 "$BALANCA_DATABASE_URL" -f migrations/001_service_tables.sql
+psql --set=ON_ERROR_STOP=1 "$BALANCA_DATABASE_URL" -f migrations/002_security_identity.sql
+psql --set=ON_ERROR_STOP=1 "$BALANCA_DATABASE_URL" -f migrations/003_contingency.sql
+./start_server.sh
+```
 
-Cadastre quem pode logar na estação com um **PIN pessoal** de 4 dígitos — assim cada pesagem fica registrada com o nome de quem pesou, mesmo que várias pessoas usem o mesmo tablet.
+Valide o serviço:
 
-### Ordens de Pesagem
-`/dashboard/operacional/balanca/ordens`
+```bash
+curl http://127.0.0.1:8010/healthz
+curl http://127.0.0.1:8010/readyz
+```
 
-Lista **todas** as pesagens, de qualquer origem, com filtro por status. Em cada ordem concluída:
+## 5. Primeiro acesso ao backoffice
 
-- **Ticket** — baixa o comprovante em PDF, pronto pra impressão.
-- **Ajustar** — aplica um desconto de qualidade (ex.: umidade, impureza) sem alterar a pesagem original, que continua registrada e auditável.
-- Ícone de **documento** — edita o número da nota fiscal, com opção de escanear o código de barras/QR pela câmera.
-- Ícones de **estrela** — avaliam o veículo (placa) ou o motorista, com nota de 1 a 5 e histórico.
+Crie o primeiro administrador:
 
-### Reconciliação
-`/dashboard/operacional/balanca/reconciliacao`
+```bash
+export BALANCA_BOOTSTRAP_TENANT_ID=UUID_DO_TENANT
+./.venv/bin/python bootstrap_admin.py
+```
 
-Quando a estação pesa sem uma ordem prévia (fora do ar, ou processo criado depois), a pesagem fica disponível aqui pra ser associada manualmente ao romaneio, compra, venda ou lote correto — com busca por nome, não precisa copiar ID.
+O login é feito em:
 
----
+```text
+POST /v1/auth/login
+Header: X-Tenant-ID: UUID_DO_TENANT
+Body: { "login": "...", "password": "..." }
+```
 
-## 3. Para o operador da estação
+A resposta fornece o JWT do backoffice. Nunca compartilhe esse token ou a
+senha do administrador.
 
-O app da balança roda direto no navegador do tablet fixado no ponto de pesagem, e funciona **sem internet** depois da primeira sincronização.
+## 6. Configuração inicial
 
-### Login por PIN
+No backoffice da Balança:
 
-Ao abrir o app, escolha seu nome na lista e digite seu PIN pessoal. Isso exige internet na hora de entrar — depois de logado, pesar continua funcionando offline até você trocar de operador.
+1. Cadastre os operadores e seus PINs.
+2. Cadastre cada estação com um `external_id` único.
+3. Cadastre uma credencial para cada sistema consumidor.
+4. Atribua somente os escopos necessários.
+5. Ative a estação usando o código de ativação.
+6. Teste uma pesagem antes do início do turno.
 
-### Pesar um veículo ou animal
+Os escopos de integração disponíveis são:
 
-1. Selecione a ordem pendente na lista (ou toque em **Pesagem avulsa** se não houver ordem pra esse veículo).
-2. Informe o **peso aferido** — o que a balança mediu. Se houver uma ponte de hardware configurada, o peso já aparece sozinho, com um botão pra usar a leitura.
-3. Se o peso da nota fiscal for diferente do aferido, ajuste o **peso informado** — do contrário ele acompanha o aferido automaticamente.
-4. Ao pesar um animal, busque pelo brinco ou SISBOV em vez de digitar a placa.
-5. Confirme. Se a ordem tiver mais de uma etapa (chegada e saída, por exemplo), a tela já pede a próxima.
+- `clients:write`: registrar o sistema consumidor;
+- `orders:write`: criar ordens de pesagem;
+- `events:read`: consultar eventos da Balança;
+- `stations:activate`: ativar estações.
 
-> **Sem conexão?** Sem problema — cada pesagem fica guardada no tablet e entra na fila de envio automaticamente assim que a internet voltar.
+O segredo de uma credencial é exibido somente na criação ou rotação. Armazene-o
+com segurança no servidor consumidor.
 
-### Ticket para o motorista
+## 7. Instalação da estação
 
-Assim que uma ordem é concluída, o botão **Baixar ticket** aparece na tela — abre o comprovante em PDF numa nova aba, pronto pra impressão.
+Na estação de trabalho:
 
----
+```bash
+cd /opt/lampp/htdocs/balanca-platform/station
+cp .env.example .env.local
+pnpm install
+pnpm run build
+pnpm run start
+```
 
-## 4. Notificações
+Configure no `.env.local`:
 
-O sino de notificações do painel avisa automaticamente quando:
+```env
+BALANCA_SERVICE_URL=http://servidor-balanca:8010
+BALANCA_SERVICE_CLIENT_ID=client-id-da-estacao
+BALANCA_SERVICE_CLIENT_SECRET=segredo-da-estacao
+BALANCA_TENANT_ID=UUID_DO_TENANT
+```
 
-- **Aferição vencida** — uma ou mais balanças físicas passaram da validade da última aferição — a notificação lista quais.
+As credenciais ficam no proxy Next.js e não devem usar `NEXT_PUBLIC_`.
 
----
+Abra a URL da estação, ative o terminal e instale a PWA pelo navegador.
 
-## 5. Referência rápida de telas
+### Primeira ativação
 
-| Tela | Caminho | Quem usa |
-|---|---|---|
-| Estações de Balança | `/dashboard/operacional/balanca/dispositivos` | Admin |
-| Balanças Físicas | `/dashboard/operacional/balanca/equipamentos` | Admin |
-| Ordens de Pesagem | `/dashboard/operacional/balanca/ordens` | Admin |
-| Operadores | `/dashboard/operacional/balanca/operadores` | Admin |
-| Reconciliação | `/dashboard/operacional/balanca/reconciliacao` | Admin |
-| App da estação (PWA) | `apps/balanca` (porta 3003) | Operador |
+A primeira ativação normalmente exige conexão para registrar a estação,
+validar o tenant e receber o token exclusivo. Depois disso, a captura local
+continua funcionando sem internet.
 
----
+## 8. Configuração da Bridge
 
-## 6. Dúvidas frequentes
+A Bridge conecta o indicador físico à estação.
 
-**O peso não chegou no romaneio/compra/venda depois de pesar. Por quê?**
-O vínculo entre a Balança e o processo original é feito por um serviço interno que roda em segundo plano no servidor. Se ele estiver parado, a pesagem continua correta na Balança, só o repasse automático atrasa — avise o suporte técnico se isso persistir.
+```bash
+cd /opt/lampp/htdocs/balanca-platform/bridge
+python3 -m venv .venv
+./.venv/bin/pip install -r requirements.txt
+cp config.yaml.example config.yaml
+./.venv/bin/python -m balanca_bridge.main
+```
 
-**Posso pesar sem ter uma ordem criada?**
-Sim — use **Pesagem avulsa** na estação. Ela vira uma pesagem "solta" que aparece na tela de Reconciliação do admin, pra ser associada ao processo certo depois.
+Configure a porta serial ou o host/porta TCP do indicador em `config.yaml`.
+Antes do turno, confirme na estação o indicador “Balança conectada”.
 
-**O desconto de qualidade apaga o peso original?**
-Não. O peso aferido na balança nunca é alterado. O desconto grava um "peso comercial" separado, com o motivo, e os dois aparecem lado a lado no ticket.
+## 9. Pesagem normal
 
-**O botão de escanear código de barras não aparece.**
-Ele depende de um recurso nativo disponível em Chrome e Edge (inclusive Android). Em Safari ou Firefox, o botão some e sobra o campo de digitação manual — nada é perdido, só a leitura automática não roda nesse navegador.
+1. Faça login do operador usando o PIN da Balança.
+2. Selecione a ordem pendente.
+3. Confira veículo, animal, placa, produto e etapa.
+4. Aguarde o peso estabilizar.
+5. Confirme o peso aferido e a tara, quando aplicável.
+6. Registre a pesagem.
+7. Aguarde a sincronização ou confirme que a fila foi armazenada localmente.
 
-**Como troco o operador no meio do turno?**
-No topo da tela de pesagem, toque em **Trocar operador**. Isso exige conexão à internet — pesagens já feitas pelo operador anterior continuam salvas normalmente.
+O peso informado e o peso aferido são informações diferentes. O peso aferido
+é a medição realizada pela balança; o informado pode vir de nota fiscal,
+documento ou declaração do operador.
+
+## 10. Operação sem conexão
+
+Sem internet, a estação:
+
+- mantém operadores e ordens previamente sincronizados;
+- registra pesagens no IndexedDB local;
+- mantém a fila de sincronização;
+- permite reprocessar falhas;
+- não deve apagar os dados locais.
+
+Quando a conexão retornar, a estação enviará a fila automaticamente. O serviço
+usa `local_id` e chaves de idempotência para impedir duplicidade.
+
+## 11. Contingência por pendrive
+
+Use este procedimento quando a estação estiver sem conexão e for necessário
+entregar os dados ao backoffice:
+
+1. Finalize as pesagens do período.
+2. Na estação, clique em **Exportar contingência**.
+3. Salve o arquivo `.balanca.json` no pendrive.
+4. Não edite, renomeie internamente ou abra o conteúdo para alteração.
+5. Leve o pendrive ao computador do backoffice.
+6. Importe o arquivo pela API ou pelo utilitário operacional.
+7. Confirme o resultado de cada registro.
+8. Preserve a estação e o arquivo até a conferência operacional.
+
+Importação pela API:
+
+```text
+POST /v1/contingency/import
+Authorization: Bearer JWT_DO_BACKOFFICE
+X-Tenant-ID: UUID_DO_TENANT
+Content-Type: application/json
+```
+
+Importação pelo utilitário:
+
+```bash
+cd /opt/lampp/htdocs/balanca-platform/service
+./.venv/bin/python import_contingency.py /media/pendrive/pacote.balanca.json \
+  --tenant UUID_DO_TENANT \
+  --token JWT_DO_BACKOFFICE
+```
+
+Resultados possíveis:
+
+- `IMPORTADO`: todos os registros foram processados ou já eram duplicados;
+- `PARCIAL`: parte dos registros foi importada e parte precisa de análise;
+- `REJEITADO`: nenhum registro foi aceito.
+
+O arquivo é assinado pela estação. O serviço valida identidade, assinatura,
+tenant, sequência e duplicidade. Reimportar o mesmo pacote não duplica as
+pesagens.
+
+## 12. Integração com o AgroSaaS ou outro cliente
+
+O consumidor deve:
+
+1. receber uma credencial própria do backoffice;
+2. criar ou atualizar seu cadastro em `/v1/clients`;
+3. criar ordens em `/v1/orders`;
+4. consumir eventos em `/v1/events` ou pelo mecanismo Observer configurado;
+5. conciliar os eventos usando `event_id`, `correlation_id` e
+   `external_reference`.
+
+O consumidor não acessa o banco da Balança e não grava diretamente nas tabelas
+do serviço.
+
+## 13. Segurança operacional
+
+- Use HTTPS fora da rede local confiável.
+- Mantenha o segredo JWT fora do repositório.
+- Use uma credencial por sistema ou ambiente.
+- Conceda apenas os escopos necessários.
+- Rotacione credenciais em caso de suspeita ou troca de responsável.
+- Revogue estações e operadores desligados.
+- Nunca compartilhe o PIN de operador.
+- Não apague o IndexedDB enquanto houver pesagens pendentes.
+- Preserve os arquivos de contingência até a conciliação.
+
+## 14. Atualização da estação
+
+1. Faça a atualização fora do horário de pesagem.
+2. Confirme que não há fila pendente, quando possível.
+3. Instale o novo pacote PWA.
+4. Não limpe os dados do site nem o IndexedDB.
+5. Abra a tela de pesagem e confirme o operador, ordens e Bridge.
+6. Faça uma pesagem de teste.
+
+Se a conexão cair durante a atualização, a versão anterior em cache deve
+continuar disponível. Não desinstale a PWA nem apague `balanca_db` como
+tentativa de correção.
+
+## 15. Diagnóstico rápido
+
+### Serviço indisponível
+
+Verifique `/healthz`, `/readyz`, a URL configurada e a conectividade com o
+banco.
+
+### Estação sem ordens
+
+Confirme o tenant, o token da estação e execute uma sincronização após o
+retorno da rede.
+
+### Peso não chega da balança
+
+Verifique a Bridge, a porta serial/TCP, o token local e o indicador físico.
+
+### Pesagem presa na fila
+
+Mantenha os dados locais, use **Reprocessar falhas** e consulte o status da
+API. Se não houver conexão, exporte a contingência por pendrive.
+
+### Pacote rejeitado
+
+Não edite o arquivo. Consulte a mensagem do lote no backoffice, corrija a causa
+na origem e gere um novo pacote com a estação.
+
+## 16. Checklist de início do turno
+
+- [ ] Serviço Balança disponível.
+- [ ] Estação ativa e com tenant correto.
+- [ ] Bridge conectada ao indicador.
+- [ ] Operador autenticado.
+- [ ] Ordens disponíveis ou procedimento offline confirmado.
+- [ ] Hora e impressora/ticket conferidos.
+- [ ] Uma pesagem de teste realizada.
+- [ ] Pendrive de contingência disponível.

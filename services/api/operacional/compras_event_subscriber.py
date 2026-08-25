@@ -12,6 +12,7 @@ from events.base import DomainEvent, EventSubscriber, EventSubscriberResult
 from events.registry import register_event_subscriber
 
 from operacional.services.compras_service import ComprasService
+from integracoes.balanca.events import BALANCA_COMPLETED_EVENT, completed_weighing_metadata
 
 
 @register_event_subscriber
@@ -22,15 +23,16 @@ class ComprasBalancaEventSubscriber(EventSubscriber):
     o recebimento em si (`receber_pedido`) continua manual."""
 
     subscriber_name = "compras-balanca"
-    event_types = ("balanca.pesagem.concluida",)
+    event_types = ("balanca.pesagem.concluida", BALANCA_COMPLETED_EVENT)
 
     async def handle(self, event: DomainEvent) -> EventSubscriberResult:
         started = perf_counter()
 
-        if event.metadata.get("origem_tipo") != "COMPRA":
+        metadata = completed_weighing_metadata(event)
+        if metadata.get("origem_tipo") != "COMPRA":
             return self._result(event, "ignored", started, ignored=1, reason="origem_tipo != COMPRA")
 
-        origem_id = event.metadata.get("origem_id")
+        origem_id = metadata.get("origem_id")
         if not origem_id:
             return self._result(event, "ignored", started, ignored=1, reason="sem origem_id")
 
@@ -40,8 +42,8 @@ class ComprasBalancaEventSubscriber(EventSubscriber):
         await self._set_rls_context(event)
 
         try:
-            peso_bruto = Decimal(event.metadata["peso_bruto_kg"])
-            peso_tara = Decimal(event.metadata["peso_tara_kg"])
+            peso_bruto = Decimal(metadata["peso_bruto_kg"])
+            peso_tara = Decimal(metadata["peso_tara_kg"])
         except (KeyError, InvalidOperation) as exc:
             return self._result(event, "failed", started, errors=1, reason=f"payload inválido: {exc}")
 
