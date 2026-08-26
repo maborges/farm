@@ -1,16 +1,37 @@
 import pytest
 from pydantic import ValidationError
+from uuid import uuid4
 
 from ambiental.models import StatusCAR, StatusOutorga, TipoAlerta
+from ambiental.router import AlertaCreate
 from ambiental.router import CARCreate, CarbonoPeriodoQuery, OutorgaCreate
 from core.constants import TenantPermissions
 
 
 def test_car_create_uses_canonical_status_and_normalizes_contract() -> None:
-    payload = CARCreate(fazenda_nome="Fazenda Norte", codigo_car="CAR-001", uf="sp")
+    payload = CARCreate(
+        fazenda_nome="Fazenda Norte",
+        codigo_car="CAR-001",
+        uf="sp",
+        unidade_produtiva_id=uuid4(),
+        imovel_rural_id=uuid4(),
+    )
 
     assert payload.status is StatusCAR.PENDENTE
     assert payload.uf == "sp"
+
+
+@pytest.mark.parametrize(
+    "schema_factory",
+    [
+        lambda: CARCreate(fazenda_nome="F", codigo_car="CAR", uf="SP"),
+        lambda: AlertaCreate(),
+        lambda: OutorgaCreate(numero_outorga="OUT-1"),
+    ],
+)
+def test_registros_ambientais_exigem_unidade_produtiva(schema_factory) -> None:
+    with pytest.raises(ValidationError):
+        schema_factory()
 
 
 def test_outorga_rejects_unknown_use_type() -> None:

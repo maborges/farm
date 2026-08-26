@@ -195,3 +195,9 @@ A interface web Ambiental foi validada e alinhada aos contratos do backend:
 - A suíte backend Ambiental permaneceu aprovada com `27 passed`.
 
 Conclusão da Fase 3: a integração web está consistente com os contratos de API e com o RBAC Ambiental. A validação visual em navegador e os fluxos completos com dados reais permanecem como etapa de homologação operacional.
+
+## 11. Integração por unidade produtiva
+
+Os registros de CAR, alertas e outorgas passaram a exigir `unidade_produtiva_id`, e a migração `20260826_ambiental_unidade_obrigatoria` foi aplicada sem registros órfãos.
+
+Os identificadores jurídicos permanecem com `ImovelRural`. O Ambiental consulta CAR, CCIR, NIRF, matrícula e SIGEF pela cadeia `Unidade Produtiva → PropriedadeImovel → ImovelRural`, sem criar uma segunda fonte oficial.

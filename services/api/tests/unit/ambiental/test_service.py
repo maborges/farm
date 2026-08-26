@@ -38,4 +38,4 @@ async def test_listar_cars_retorna_registros_do_tenant() -> None:
     cars = await service.listar_cars()
 
     assert cars == [fake_car]
-    session.execute.assert_awaited_once()
+    assert session.execute.await_count == 2

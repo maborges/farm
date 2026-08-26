@@ -3,7 +3,7 @@ from datetime import date, timedelta
 from typing import Optional
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import func
+from sqlalchemy import func, or_, select
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
@@ -14,6 +14,10 @@ from core.base_service import BaseService
 from core.exceptions import EntityNotFoundError
 from .models import RegistroCAR, AlertaAmbiental, OutorgaHidrica, StatusCAR, StatusAlerta
 from iot_integracao.new_holland.models import CarbonoEmissao, CarbonoProjeto, CarbonoRelatorio
+from core.models.unidade_produtiva import UnidadeProdutiva
+from core.cadastros.propriedade_imovel.models import PropriedadeImovel
+from core.cadastros.propriedades.propriedade_models import ExploracaoRural
+from imoveis.models.imovel import ImovelRural
 
 
 class AmbientalService(BaseService[RegistroCAR]):
@@ -49,14 +53,68 @@ class AmbientalService(BaseService[RegistroCAR]):
 
     # ── CAR ───────────────────────────────────────────────────────────────────
 
-    async def listar_cars(self, status_filter: Optional[str] = None) -> list[RegistroCAR]:
+    async def listar_cars(self, status_filter: Optional[str] = None) -> list:
         stmt = select(RegistroCAR).where(RegistroCAR.tenant_id == self.tenant_id).order_by(RegistroCAR.created_at.desc())
         if status_filter:
             stmt = stmt.where(RegistroCAR.status == status_filter)
-        return list((await self.session.execute(stmt)).scalars().all())
+        records = list((await self.session.execute(stmt)).scalars().all())
+        known = {(record.imovel_rural_id, record.codigo_car) for record in records}
+        for source in await self.listar_contexto_fundiario_consolidado():
+            if not source["car_numero"] or (source["imovel_rural_id"], source["car_numero"]) in known:
+                continue
+            if status_filter:
+                continue
+            cadastral = await self._resource(RegistroCAR).create({
+                "unidade_produtiva_id": source["unidade_produtiva_id"],
+                "imovel_rural_id": source["imovel_rural_id"],
+                "fazenda_nome": source["nome"],
+                "codigo_car": source["car_numero"],
+                "uf": source["uf"],
+                "municipio": source["municipio"],
+                "status": StatusCAR.PENDENTE,
+                "origem_dados": "CADASTRO_IMOVEL",
+                "situacao_sicar": "NAO_CONSULTADO",
+                "area_total_ha": source["area_total_ha"],
+                "area_app_ha": source["area_app_ha"],
+                "area_rl_ha": source["area_rl_ha"],
+            })
+            records.append(cadastral)
+        return records
 
     async def criar_car(self, dados: dict) -> RegistroCAR:
+        await self._validar_unidade(dados["unidade_produtiva_id"])
+        await self._validar_imovel_na_unidade(
+            dados["imovel_rural_id"], dados["unidade_produtiva_id"]
+        )
+        existente = (await self.session.execute(
+            select(RegistroCAR).where(
+                RegistroCAR.tenant_id == self.tenant_id,
+                or_(
+                    RegistroCAR.imovel_rural_id == dados["imovel_rural_id"],
+                    RegistroCAR.codigo_car == dados["codigo_car"],
+                ),
+            )
+        )).scalar_one_or_none()
+        if existente:
+            return existente
         return await self._resource(RegistroCAR).create(dados)
+
+    async def _validar_imovel_na_unidade(self, imovel_id: uuid.UUID, unidade_id: uuid.UUID) -> None:
+        """Ensure the selected rural property is linked to the selected farm."""
+        vinculo = (
+            select(PropriedadeImovel.id)
+            .join(ExploracaoRural, ExploracaoRural.propriedade_id == PropriedadeImovel.propriedade_id)
+            .where(
+                PropriedadeImovel.imovel_rural_id == imovel_id,
+                PropriedadeImovel.tenant_id == self.tenant_id,
+                PropriedadeImovel.ativo.is_(True),
+                ExploracaoRural.tenant_id == self.tenant_id,
+                ExploracaoRural.unidade_produtiva_id == unidade_id,
+                ExploracaoRural.ativo.is_(True),
+            )
+        )
+        if (await self.session.execute(vinculo)).scalar_one_or_none() is None:
+            raise EntityNotFoundError("Imóvel rural não está vinculado à unidade produtiva.")
 
     async def _get_car(self, car_id: uuid.UUID) -> RegistroCAR:
         return await self._resource(RegistroCAR).get_or_fail(car_id)
@@ -84,6 +142,7 @@ class AmbientalService(BaseService[RegistroCAR]):
         return list((await self.session.execute(stmt)).scalars().all())
 
     async def criar_alerta(self, dados: dict) -> AlertaAmbiental:
+        await self._validar_unidade(dados["unidade_produtiva_id"])
         if "data_deteccao" not in dados:
             dados["data_deteccao"] = date.today()
         return await self._resource(AlertaAmbiental).create(dados)
@@ -104,6 +163,7 @@ class AmbientalService(BaseService[RegistroCAR]):
         return list((await self.session.execute(stmt)).scalars().all())
 
     async def criar_outorga(self, dados: dict) -> OutorgaHidrica:
+        await self._validar_unidade(dados["unidade_produtiva_id"])
         return await self._resource(OutorgaHidrica).create(dados)
 
     async def atualizar_outorga(self, outorga_id: uuid.UUID, dados: dict) -> OutorgaHidrica:
@@ -112,6 +172,80 @@ class AmbientalService(BaseService[RegistroCAR]):
     def _resource(self, model: type) -> BaseService:
         """Create a tenant-scoped service with audit logging for a resource."""
         return BaseService(model, self.session, self.tenant_id)
+
+    async def _validar_unidade(self, unidade_produtiva_id: uuid.UUID) -> None:
+        """Ensure the selected farm belongs to the authenticated tenant."""
+        result = await self.session.execute(
+            select(UnidadeProdutiva.id).where(
+                UnidadeProdutiva.id == unidade_produtiva_id,
+                UnidadeProdutiva.tenant_id == self.tenant_id,
+                UnidadeProdutiva.ativo.is_(True),
+            )
+        )
+        if result.scalar_one_or_none() is None:
+            raise EntityNotFoundError("Unidade produtiva não encontrada para este tenant.")
+
+    async def listar_contexto_fundiario(self, unidade_produtiva_id: uuid.UUID) -> list[ImovelRural]:
+        """Return official legal identifiers linked to an operational farm."""
+        await self._validar_unidade(unidade_produtiva_id)
+
+        # EXISTS evita duplicidade sem aplicar DISTINCT ao objeto inteiro.
+        # ImovelRural possui geometria JSON, que não tem operador de igualdade
+        # no PostgreSQL para a comparação implícita do DISTINCT.
+        vinculo_unidade = (
+            select(PropriedadeImovel.id)
+            .join(ExploracaoRural, ExploracaoRural.propriedade_id == PropriedadeImovel.propriedade_id)
+            .where(
+                PropriedadeImovel.imovel_rural_id == ImovelRural.id,
+                PropriedadeImovel.tenant_id == self.tenant_id,
+                PropriedadeImovel.ativo.is_(True),
+                ExploracaoRural.tenant_id == self.tenant_id,
+                ExploracaoRural.unidade_produtiva_id == unidade_produtiva_id,
+                ExploracaoRural.ativo.is_(True),
+            )
+            .exists()
+        )
+        stmt = (
+            select(ImovelRural)
+            .where(
+                ImovelRural.tenant_id == self.tenant_id,
+                vinculo_unidade,
+            )
+            .order_by(ImovelRural.nome)
+        )
+        return list((await self.session.execute(stmt)).scalars().all())
+
+    async def listar_contexto_fundiario_consolidado(self) -> list[dict]:
+        """Return fundiario data for every active unit in the tenant."""
+        stmt = (
+            select(
+                UnidadeProdutiva.id.label("unidade_produtiva_id"),
+                UnidadeProdutiva.nome.label("unidade_nome"),
+                ImovelRural.id.label("imovel_rural_id"),
+                ImovelRural.nome,
+                ImovelRural.car_numero,
+                ImovelRural.uf,
+                ImovelRural.municipio,
+                ImovelRural.area_total_ha,
+                ImovelRural.area_app_ha,
+                ImovelRural.area_rl_ha,
+            )
+            .join(ExploracaoRural, ExploracaoRural.unidade_produtiva_id == UnidadeProdutiva.id)
+            .join(PropriedadeImovel, PropriedadeImovel.propriedade_id == ExploracaoRural.propriedade_id)
+            .join(ImovelRural, ImovelRural.id == PropriedadeImovel.imovel_rural_id)
+            .where(
+                UnidadeProdutiva.tenant_id == self.tenant_id,
+                UnidadeProdutiva.ativo.is_(True),
+                ExploracaoRural.tenant_id == self.tenant_id,
+                ExploracaoRural.ativo.is_(True),
+                PropriedadeImovel.tenant_id == self.tenant_id,
+                PropriedadeImovel.ativo.is_(True),
+                ImovelRural.tenant_id == self.tenant_id,
+            )
+            .distinct()
+            .order_by(UnidadeProdutiva.nome, ImovelRural.nome)
+        )
+        return [dict(row._mapping) for row in (await self.session.execute(stmt)).all()]
 
     # ── Carbono / MRV ───────────────────────────────────────────────────────
 

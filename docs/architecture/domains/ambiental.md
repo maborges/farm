@@ -108,6 +108,8 @@ A Fase 1 consolidou o contrato das entidades existentes sem criar uma fonte terr
 
 - `unidade_produtiva_id` é o vínculo canônico das entidades Ambientais que representam uma propriedade/unidade;
 - `tenant_id` é obrigatório e filtrado no service e na camada de RLS;
+- CAR, alertas e outorgas exigem `unidade_produtiva_id`, garantindo tratamento por fazenda;
+- os identificadores oficiais (`car_numero`, `ccir_numero`, `nirf`, `numero_matricula` e `sigef_codigo`) continuam no domínio Imóveis Rurais e são consultáveis via `GET /ambiental/unidades/{unidade_produtiva_id}/contexto-fundiario`, usando `PropriedadeImovel`;
 - as rotas exigem contratação do módulo e permissão granular por ação;
 - CAR, alertas, outorgas e carbono possuem schemas de entrada com enums e validações básicas;
 - a migration `20260826_ambiental_foundation` normaliza o legado e aplica políticas RLS às tabelas Ambientais existentes;

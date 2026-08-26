@@ -528,6 +528,11 @@ def require_module(required_module: str):
             from datetime import date
             await increment_module_usage(session, tenant_id, required_module, date.today())
             await session.commit()
+            # O contexto RLS é transacional (SET LOCAL) e é removido pelo
+            # commit acima. Reative-o antes de devolver o controle ao router;
+            # caso contrário, a primeira operação de escrita do endpoint pode
+            # ser rejeitada pela política de tenant.
+            await _activate_session_tenant(session, tenant_id)
         except Exception:
             pass  # Telemetria nunca deve bloquear a requisição
 

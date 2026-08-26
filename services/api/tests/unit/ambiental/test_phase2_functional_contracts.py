@@ -50,15 +50,22 @@ def test_alerta_rejeita_medidas_geograficas_invalidas(payload: dict) -> None:
 
 def test_outorga_rejeita_vazao_negativa() -> None:
     with pytest.raises(ValueError):
-        ambiental_router.OutorgaCreate(numero_outorga="OUT-1", vazao_outorgada_ls=-0.1)
+        ambiental_router.OutorgaCreate(
+            unidade_produtiva_id=uuid.uuid4(), numero_outorga="OUT-1", vazao_outorgada_ls=-0.1
+        )
 
 
 def test_schemas_expoem_enums_de_dominio() -> None:
-    car = ambiental_router.CARCreate(fazenda_nome="F", codigo_car="CAR", uf="SP")
+    car = ambiental_router.CARCreate(
+            unidade_produtiva_id=uuid.uuid4(), imovel_rural_id=uuid.uuid4(), fazenda_nome="F", codigo_car="CAR", uf="SP"
+        )
     assert car.status is StatusCAR.PENDENTE
-    assert ambiental_router.AlertaCreate().tipo is TipoAlerta.DESMATAMENTO
-    assert ambiental_router.AlertaCreate().severidade is SeveridadeAlerta.MEDIA
-    assert ambiental_router.OutorgaCreate(numero_outorga="OUT-1").tipo_uso.value == "IRRIGACAO"
+    alerta_padrao = ambiental_router.AlertaCreate(unidade_produtiva_id=uuid.uuid4())
+    assert alerta_padrao.tipo is TipoAlerta.DESMATAMENTO
+    assert alerta_padrao.severidade is SeveridadeAlerta.MEDIA
+    assert ambiental_router.OutorgaCreate(
+        unidade_produtiva_id=uuid.uuid4(), numero_outorga="OUT-1"
+    ).tipo_uso.value == "IRRIGACAO"
     alerta = ambiental_router.AlertaUpdate(status=StatusAlerta.RESOLVIDO)
     assert alerta.status is StatusAlerta.RESOLVIDO
 

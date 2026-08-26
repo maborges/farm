@@ -15,6 +15,19 @@ class StatusCAR(str, enum.Enum):
     EM_ANALISE = "EM_ANALISE"
 
 
+class OrigemDadosCAR(str, enum.Enum):
+    CADASTRO_IMOVEL = "CADASTRO_IMOVEL"
+    MANUAL = "MANUAL"
+    SICAR = "SICAR"
+
+
+class SituacaoSICAR(str, enum.Enum):
+    NAO_CONSULTADO = "NAO_CONSULTADO"
+    VALIDO = "VALIDO"
+    DIVERGENTE = "DIVERGENTE"
+    ERRO_CONSULTA = "ERRO_CONSULTA"
+
+
 class TipoAlerta(str, enum.Enum):
     DESMATAMENTO = "DESMATAMENTO"
     QUEIMADA = "QUEIMADA"
@@ -60,11 +73,17 @@ class RegistroCAR(Base):
     tenant_id: Mapped[uuid.UUID] = mapped_column(
         SQLUUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    unidade_produtiva_id: Mapped[uuid.UUID | None] = mapped_column(
-        SQLUUID(as_uuid=True), ForeignKey("unidades_produtivas.id", ondelete="SET NULL"), nullable=True, index=True
+    unidade_produtiva_id: Mapped[uuid.UUID] = mapped_column(
+        SQLUUID(as_uuid=True), ForeignKey("unidades_produtivas.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    imovel_rural_id: Mapped[uuid.UUID | None] = mapped_column(
+        SQLUUID(as_uuid=True), ForeignKey("imoveis_rurais.id", ondelete="RESTRICT"), nullable=True, index=True
     )
     fazenda_nome: Mapped[str] = mapped_column(String(200), nullable=False)
     codigo_car: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    origem_dados: Mapped[str] = mapped_column(String(30), nullable=False, default=OrigemDadosCAR.MANUAL.value)
+    situacao_sicar: Mapped[str] = mapped_column(String(30), nullable=False, default=SituacaoSICAR.NAO_CONSULTADO.value)
+    data_ultima_consulta_sicar: Mapped[date | None] = mapped_column(Date, nullable=True)
     uf: Mapped[str] = mapped_column(String(2), nullable=False)
     municipio: Mapped[str | None] = mapped_column(String(100), nullable=True)
     status: Mapped[str] = mapped_column(SQLEnum(StatusCAR), nullable=False, default=StatusCAR.PENDENTE)
@@ -87,8 +106,8 @@ class AlertaAmbiental(Base):
     tenant_id: Mapped[uuid.UUID] = mapped_column(
         SQLUUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    unidade_produtiva_id: Mapped[uuid.UUID | None] = mapped_column(
-        SQLUUID(as_uuid=True), ForeignKey("unidades_produtivas.id", ondelete="SET NULL"), nullable=True, index=True
+    unidade_produtiva_id: Mapped[uuid.UUID] = mapped_column(
+        SQLUUID(as_uuid=True), ForeignKey("unidades_produtivas.id", ondelete="RESTRICT"), nullable=False, index=True
     )
     fazenda_nome: Mapped[str | None] = mapped_column(String(200), nullable=True)
     tipo: Mapped[str] = mapped_column(SQLEnum(TipoAlerta), nullable=False, default=TipoAlerta.DESMATAMENTO)
@@ -113,8 +132,8 @@ class OutorgaHidrica(Base):
     tenant_id: Mapped[uuid.UUID] = mapped_column(
         SQLUUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    unidade_produtiva_id: Mapped[uuid.UUID | None] = mapped_column(
-        SQLUUID(as_uuid=True), ForeignKey("unidades_produtivas.id", ondelete="SET NULL"), nullable=True, index=True
+    unidade_produtiva_id: Mapped[uuid.UUID] = mapped_column(
+        SQLUUID(as_uuid=True), ForeignKey("unidades_produtivas.id", ondelete="RESTRICT"), nullable=False, index=True
     )
     fazenda_nome: Mapped[str | None] = mapped_column(String(200), nullable=True)
     numero_outorga: Mapped[str] = mapped_column(String(100), nullable=False)

@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from core.dependencies import get_tenant_id, get_session, require_module_and_permission
 from core.exceptions import EntityNotFoundError
-from ambiental.models import StatusAlerta, StatusCAR, StatusOutorga, SeveridadeAlerta, TipoAlerta, TipoUsoOutorga
+from ambiental.models import StatusAlerta, StatusCAR, StatusOutorga, SeveridadeAlerta, TipoAlerta, TipoUsoOutorga, OrigemDadosCAR, SituacaoSICAR
 from ambiental.service import AmbientalService
 from iot_integracao.new_holland.models import CarbonoEmissao, CarbonoProjeto, CarbonoRelatorio
 
@@ -22,6 +22,8 @@ def _carbono_permission(action: str):
 # ── Schemas ───────────────────────────────────────────────────────────────────
 
 class CARCreate(BaseModel):
+    unidade_produtiva_id: UUID
+    imovel_rural_id: UUID
     fazenda_nome: str = Field(..., min_length=1, max_length=200)
     codigo_car: str = Field(..., min_length=1, max_length=50)
     uf: str = Field(..., min_length=2, max_length=2)
@@ -36,7 +38,6 @@ class CARCreate(BaseModel):
     data_atualizacao: Optional[date] = None
     pendencias: Optional[str] = None
     observacoes: Optional[str] = None
-    unidade_produtiva_id: Optional[UUID] = None
 
 
 class CARUpdate(BaseModel):
@@ -55,8 +56,14 @@ class CARResponse(BaseModel):
     id: UUID
     tenant_id: UUID
     unidade_produtiva_id: Optional[UUID]
+    imovel_rural_id: Optional[UUID]
+    unidade_nome: Optional[str] = None
+    origem_cadastro: bool = False
     fazenda_nome: str
     codigo_car: str
+    origem_dados: OrigemDadosCAR = OrigemDadosCAR.MANUAL
+    situacao_sicar: SituacaoSICAR = SituacaoSICAR.NAO_CONSULTADO
+    data_ultima_consulta_sicar: Optional[date] = None
     uf: str
     municipio: Optional[str]
     status: str
@@ -69,13 +76,13 @@ class CARResponse(BaseModel):
     data_atualizacao: Optional[date]
     pendencias: Optional[str]
     observacoes: Optional[str]
-    created_at: datetime
+    created_at: Optional[datetime]
     model_config = ConfigDict(from_attributes=True)
 
 
 class AlertaCreate(BaseModel):
+    unidade_produtiva_id: UUID
     fazenda_nome: Optional[str] = Field(None, max_length=200)
-    unidade_produtiva_id: Optional[UUID] = None
     tipo: TipoAlerta = TipoAlerta.DESMATAMENTO
     severidade: SeveridadeAlerta = SeveridadeAlerta.MEDIA
     area_ha: Optional[float] = Field(None, ge=0)
@@ -116,8 +123,8 @@ class AlertaResponse(BaseModel):
 
 
 class OutorgaCreate(BaseModel):
+    unidade_produtiva_id: UUID
     fazenda_nome: Optional[str] = None
-    unidade_produtiva_id: Optional[UUID] = None
     numero_outorga: str = Field(..., min_length=1, max_length=100)
     orgao_emissor: Optional[str] = None
     tipo_uso: TipoUsoOutorga = TipoUsoOutorga.IRRIGACAO
@@ -295,7 +302,76 @@ class CarbonoResumoResponse(BaseModel):
     emissoes_escopo_3: float
 
 
+class ContextoFundiarioResponse(BaseModel):
+    imovel_rural_id: UUID
+    nome: str
+    uf: Optional[str] = None
+    municipio: Optional[str] = None
+    area_total_ha: Optional[float] = None
+    area_app_ha: Optional[float] = None
+    area_rl_ha: Optional[float] = None
+    car_numero: Optional[str] = None
+    ccir_numero: Optional[str] = None
+    nirf: Optional[str] = None
+    numero_matricula: Optional[str] = None
+    sigef_codigo: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ContextoFundiarioConsolidadoResponse(ContextoFundiarioResponse):
+    unidade_produtiva_id: UUID
+    unidade_nome: str
+
+
 # ── CAR ───────────────────────────────────────────────────────────────────────
+
+@router.get(
+    "/contexto-fundiario",
+    response_model=List[ContextoFundiarioConsolidadoResponse],
+)
+async def contexto_fundiario_consolidado(
+    tenant_id: UUID = Depends(get_tenant_id),
+    session: AsyncSession = Depends(get_session),
+    _: None = Depends(require_module_and_permission(MODULE, "ambiental:car:list")),
+):
+    """Expose fundiario data for the consolidated Ambiental views."""
+    svc = AmbientalService(session, tenant_id)
+    return await svc.listar_contexto_fundiario_consolidado()
+
+@router.get(
+    "/unidades/{unidade_produtiva_id}/contexto-fundiario",
+    response_model=List[ContextoFundiarioResponse],
+)
+async def contexto_fundiario_unidade(
+    unidade_produtiva_id: UUID,
+    tenant_id: UUID = Depends(get_tenant_id),
+    session: AsyncSession = Depends(get_session),
+    _: None = Depends(require_module_and_permission(MODULE, "ambiental:dashboard:view")),
+):
+    """Expose official rural-property identifiers for the selected farm."""
+    svc = AmbientalService(session, tenant_id)
+    try:
+        imoveis = await svc.listar_contexto_fundiario(unidade_produtiva_id)
+    except EntityNotFoundError:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Unidade produtiva não encontrada.")
+    return [
+        ContextoFundiarioResponse(
+            imovel_rural_id=imovel.id,
+            nome=imovel.nome,
+            uf=imovel.uf,
+            municipio=imovel.municipio,
+            area_total_ha=float(imovel.area_total_ha) if imovel.area_total_ha is not None else None,
+            area_app_ha=float(imovel.area_app_ha) if imovel.area_app_ha is not None else None,
+            area_rl_ha=float(imovel.area_rl_ha) if imovel.area_rl_ha is not None else None,
+            car_numero=imovel.car_numero,
+            ccir_numero=imovel.ccir_numero,
+            nirf=imovel.nirf,
+            numero_matricula=imovel.numero_matricula,
+            sigef_codigo=imovel.sigef_codigo,
+        )
+        for imovel in imoveis
+    ]
 
 @router.get("/dashboard", response_model=DashboardAmbientalResponse)
 async def dashboard_ambiental(
@@ -315,7 +391,9 @@ async def listar_cars(
     _: None = Depends(require_module_and_permission(MODULE, "ambiental:car:list")),
 ):
     svc = AmbientalService(session, tenant_id)
-    return await svc.listar_cars(status_filter=status_filter)
+    cars = await svc.listar_cars(status_filter=status_filter)
+    await session.commit()
+    return cars
 
 
 @router.post("/car", response_model=CARResponse, status_code=status.HTTP_201_CREATED)
@@ -326,9 +404,15 @@ async def criar_car(
     _: None = Depends(require_module_and_permission(MODULE, "ambiental:car:create")),
 ):
     svc = AmbientalService(session, tenant_id)
-    car = await svc.criar_car(dados.model_dump(exclude_none=True))
+    try:
+        car = await svc.criar_car(dados.model_dump(exclude_none=True))
+    except EntityNotFoundError:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Unidade produtiva não encontrada.")
     await session.commit()
-    await session.refresh(car)
+    # O objeto já foi validado e recebeu flush antes do commit. Evitamos um
+    # refresh pós-commit porque SET LOCAL é encerrado pelo commit e uma nova
+    # leitura sem reativar o contexto RLS seria bloqueada pela política do
+    # tenant.
     return car
 
 
@@ -389,7 +473,10 @@ async def criar_alerta(
     _: None = Depends(require_module_and_permission(MODULE, "ambiental:monitoramento:create")),
 ):
     svc = AmbientalService(session, tenant_id)
-    alerta = await svc.criar_alerta(dados.model_dump(exclude_none=True))
+    try:
+        alerta = await svc.criar_alerta(dados.model_dump(exclude_none=True))
+    except EntityNotFoundError:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Unidade produtiva não encontrada.")
     await session.commit()
     await session.refresh(alerta)
     return alerta
@@ -434,7 +521,10 @@ async def criar_outorga(
     _: None = Depends(require_module_and_permission(MODULE, "ambiental:outorgas:create")),
 ):
     svc = AmbientalService(session, tenant_id)
-    outorga = await svc.criar_outorga(dados.model_dump(exclude_none=True))
+    try:
+        outorga = await svc.criar_outorga(dados.model_dump(exclude_none=True))
+    except EntityNotFoundError:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Unidade produtiva não encontrada.")
     await session.commit()
     await session.refresh(outorga)
     return outorga
