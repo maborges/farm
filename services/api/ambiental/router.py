@@ -3,6 +3,7 @@ from typing import List, Optional
 from uuid import UUID
 from datetime import date, datetime
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import or_, select
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from core.dependencies import get_tenant_id, get_session, require_module_and_permission
@@ -10,6 +11,7 @@ from core.exceptions import EntityNotFoundError
 from ambiental.models import StatusAlerta, StatusCAR, StatusOutorga, SeveridadeAlerta, TipoAlerta, TipoUsoOutorga, OrigemDadosCAR, SituacaoSICAR
 from ambiental.service import AmbientalService
 from iot_integracao.new_holland.models import CarbonoEmissao, CarbonoProjeto, CarbonoRelatorio
+from core.cadastros.propriedades.models import AreaRural
 
 router = APIRouter(prefix="/ambiental", tags=["Ambiental — Compliance"])
 
@@ -115,6 +117,7 @@ class AlertaResponse(BaseModel):
     talhao_nome: Optional[str]
     latitude: Optional[float]
     longitude: Optional[float]
+    coordenadas_aproximadas: bool = False
     data_deteccao: date
     data_resolucao: Optional[date]
     resolucao_descricao: Optional[str]
@@ -137,9 +140,14 @@ class OutorgaCreate(BaseModel):
 
 
 class OutorgaUpdate(BaseModel):
+    numero_outorga: Optional[str] = Field(None, min_length=1, max_length=100)
+    orgao_emissor: Optional[str] = Field(None, max_length=100)
+    tipo_uso: Optional[TipoUsoOutorga] = None
+    corpo_hidrico: Optional[str] = Field(None, max_length=200)
     status: Optional[StatusOutorga] = None
-    vazao_outorgada_ls: Optional[float] = None
-    vazao_outorgada_m3h: Optional[float] = None
+    vazao_outorgada_ls: Optional[float] = Field(None, ge=0)
+    vazao_outorgada_m3h: Optional[float] = Field(None, ge=0)
+    data_emissao: Optional[date] = None
     data_vencimento: Optional[date] = None
     observacoes: Optional[str] = None
     ativo: Optional[bool] = None
@@ -481,7 +489,49 @@ async def listar_alertas(
     _: None = Depends(require_module_and_permission(MODULE, "ambiental:monitoramento:list")),
 ):
     svc = AmbientalService(session, tenant_id)
-    return await svc.listar_alertas(status_filter=status_filter, severidade=severidade, tipo=tipo)
+    alertas = await svc.listar_alertas(status_filter=status_filter, severidade=severidade, tipo=tipo)
+
+    # Alertas manuais podem não possuir um ponto próprio. Nesse caso, usamos
+    # o centroide já cadastrado no talhão selecionado, sem alterar o registro
+    # do alerta nem transformar a aproximação em uma detecção precisa.
+    sem_coordenadas = [
+        alerta for alerta in alertas
+        if alerta.latitude is None or alerta.longitude is None
+    ]
+    centroides: dict[tuple[UUID, str], tuple[float, float]] = {}
+    if sem_coordenadas:
+        condicoes = [
+            (AreaRural.unidade_produtiva_id == alerta.unidade_produtiva_id)
+            & (AreaRural.nome == alerta.talhao_nome)
+            for alerta in sem_coordenadas
+            if alerta.talhao_nome
+        ]
+        if condicoes:
+            stmt = select(
+                AreaRural.unidade_produtiva_id,
+                AreaRural.nome,
+                AreaRural.centroide_lat,
+                AreaRural.centroide_lng,
+            ).where(
+                AreaRural.tenant_id == tenant_id,
+                AreaRural.tipo == "TALHAO",
+                AreaRural.ativo.is_(True),
+                or_(*condicoes),
+            )
+            for unidade_id, nome, latitude, longitude in (await session.execute(stmt)).all():
+                if latitude is not None and longitude is not None:
+                    centroides[(unidade_id, nome)] = (float(latitude), float(longitude))
+
+    respostas = []
+    for alerta in alertas:
+        resposta = AlertaResponse.model_validate(alerta).model_dump()
+        if alerta.latitude is None or alerta.longitude is None:
+            centroide = centroides.get((alerta.unidade_produtiva_id, alerta.talhao_nome)) if alerta.talhao_nome else None
+            if centroide:
+                resposta["latitude"], resposta["longitude"] = centroide
+                resposta["coordenadas_aproximadas"] = True
+        respostas.append(resposta)
+    return respostas
 
 
 @router.post("/alertas", response_model=AlertaResponse, status_code=status.HTTP_201_CREATED)
@@ -543,7 +593,6 @@ async def criar_outorga(
     except EntityNotFoundError:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Unidade produtiva não encontrada.")
     await session.commit()
-    await session.refresh(outorga)
     return outorga
 
 
@@ -559,7 +608,6 @@ async def atualizar_outorga(
     try:
         outorga = await svc.atualizar_outorga(outorga_id, dados.model_dump(exclude_none=True))
         await session.commit()
-        await session.refresh(outorga)
         return outorga
     except EntityNotFoundError:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Outorga não encontrada.")
