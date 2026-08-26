@@ -12,6 +12,7 @@ from ambiental.models import StatusAlerta, StatusCAR, StatusOutorga, SeveridadeA
 from ambiental.service import AmbientalService
 from iot_integracao.new_holland.models import CarbonoEmissao, CarbonoProjeto, CarbonoRelatorio
 from core.cadastros.propriedades.models import AreaRural
+from core.models.unidade_produtiva import UnidadeProdutiva
 
 router = APIRouter(prefix="/ambiental", tags=["Ambiental — Compliance"])
 
@@ -184,14 +185,14 @@ class DashboardAmbientalResponse(BaseModel):
 
 
 class CarbonoEmissaoCreate(BaseModel):
-    unidade_produtiva_id: Optional[UUID] = None
+    unidade_produtiva_id: UUID
     escopo: int = Field(..., ge=1, le=3)
-    categoria: str
+    categoria: str = Field(..., min_length=1, max_length=100)
     fonte: Optional[str] = None
     atividade: Optional[str] = None
     quantidade: float = Field(..., gt=0)
-    unidade: str
-    fator_emissao: Optional[float] = None
+    unidade: str = Field(..., min_length=1, max_length=50)
+    fator_emissao: Optional[float] = Field(None, ge=0)
     fator_emissao_referencia: Optional[str] = None
     data_referencia: datetime
     observacoes: Optional[str] = None
@@ -203,6 +204,7 @@ class CarbonoEmissaoResponse(BaseModel):
     id: int
     tenant_id: str
     unidade_produtiva_id: Optional[UUID]
+    unidade_nome: Optional[str] = None
     escopo: int
     categoria: str
     fonte: Optional[str]
@@ -220,17 +222,31 @@ class CarbonoEmissaoResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class CarbonoEmissaoUpdate(BaseModel):
+    escopo: Optional[int] = Field(None, ge=1, le=3)
+    categoria: Optional[str] = Field(None, min_length=1, max_length=100)
+    fonte: Optional[str] = None
+    atividade: Optional[str] = None
+    quantidade: Optional[float] = Field(None, gt=0)
+    unidade: Optional[str] = Field(None, min_length=1, max_length=50)
+    fator_emissao: Optional[float] = Field(None, ge=0)
+    fator_emissao_referencia: Optional[str] = None
+    data_referencia: Optional[datetime] = None
+    observacoes: Optional[str] = None
+    ativo: Optional[bool] = None
+
+
 class CarbonoProjetoCreate(BaseModel):
-    unidade_produtiva_id: Optional[UUID] = None
-    nome: str
+    unidade_produtiva_id: UUID
+    nome: str = Field(..., min_length=1, max_length=200)
     descricao: Optional[str] = None
-    tipo: str
+    tipo: str = Field(..., min_length=1, max_length=50)
     metodologia: Optional[str] = None
     area_ha: float = Field(..., gt=0)
     geometria: Optional[dict] = None
-    creditos_estimados: Optional[float] = None
-    creditos_verificados: Optional[float] = None
-    creditos_vendidos: Optional[float] = None
+    creditos_estimados: Optional[float] = Field(None, ge=0)
+    creditos_verificados: Optional[float] = Field(None, ge=0)
+    creditos_vendidos: Optional[float] = Field(None, ge=0)
     status: str = "planejamento"
     data_inicio: Optional[date] = None
     data_verificacao: Optional[date] = None
@@ -243,7 +259,8 @@ class CarbonoProjetoCreate(BaseModel):
 class CarbonoProjetoResponse(BaseModel):
     id: int
     tenant_id: str
-    unidade_produtiva_id: Optional[int]
+    unidade_produtiva_id: Optional[UUID]
+    unidade_nome: Optional[str] = None
     nome: str
     descricao: Optional[str]
     tipo: str
@@ -263,6 +280,25 @@ class CarbonoProjetoResponse(BaseModel):
     created_at: Optional[datetime]
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class CarbonoProjetoUpdate(BaseModel):
+    nome: Optional[str] = Field(None, min_length=1, max_length=200)
+    descricao: Optional[str] = None
+    tipo: Optional[str] = Field(None, min_length=1, max_length=50)
+    metodologia: Optional[str] = None
+    area_ha: Optional[float] = Field(None, gt=0)
+    creditos_estimados: Optional[float] = Field(None, ge=0)
+    creditos_verificados: Optional[float] = Field(None, ge=0)
+    creditos_vendidos: Optional[float] = Field(None, ge=0)
+    status: Optional[str] = Field(None, min_length=1, max_length=50)
+    data_inicio: Optional[date] = None
+    data_verificacao: Optional[date] = None
+    data_certificacao: Optional[date] = None
+    certificador: Optional[str] = None
+    numero_registro: Optional[str] = None
+    padrao: Optional[str] = None
+    ativo: Optional[bool] = None
 
 
 class CarbonoRelatorioResponse(BaseModel):
@@ -615,6 +651,17 @@ async def atualizar_outorga(
 
 # ── Carbono ───────────────────────────────────────────────────────────────────
 
+async def _nomes_unidades_carbono(session: AsyncSession, tenant_id: UUID, registros: list) -> dict[UUID, str]:
+    """Resolve nomes de unidades do tenant para os registros de carbono."""
+    ids = {registro.unidade_produtiva_id for registro in registros if registro.unidade_produtiva_id}
+    if not ids:
+        return {}
+    stmt = select(UnidadeProdutiva.id, UnidadeProdutiva.nome).where(
+        UnidadeProdutiva.tenant_id == tenant_id,
+        UnidadeProdutiva.id.in_(ids),
+    )
+    return {unidade_id: nome for unidade_id, nome in (await session.execute(stmt)).all()}
+
 @router.get("/carbono/dashboard", response_model=CarbonoResumoResponse, dependencies=[Depends(_carbono_permission("view"))])
 async def dashboard_carbono(
     tenant_id: UUID = Depends(get_tenant_id),
@@ -632,7 +679,12 @@ async def listar_emissoes_carbono(
     session: AsyncSession = Depends(get_session),
 ):
     svc = AmbientalService(session, tenant_id)
-    return await svc.listar_emissoes_carbono(escopo=escopo)
+    registros = await svc.listar_emissoes_carbono(escopo=escopo)
+    nomes = await _nomes_unidades_carbono(session, tenant_id, registros)
+    return [
+        {**CarbonoEmissaoResponse.model_validate(registro).model_dump(), "unidade_nome": nomes.get(registro.unidade_produtiva_id)}
+        for registro in registros
+    ]
 
 
 @router.post("/carbono/emissoes", response_model=CarbonoEmissaoResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(_carbono_permission("create"))])
@@ -642,10 +694,28 @@ async def criar_emissao_carbono(
     session: AsyncSession = Depends(get_session),
 ):
     svc = AmbientalService(session, tenant_id)
-    emissao = await svc.registrar_emissao_carbono(dados.model_dump(exclude_none=True))
-    await session.commit()
-    await session.refresh(emissao)
-    return emissao
+    try:
+        emissao = await svc.registrar_emissao_carbono(dados.model_dump(exclude_none=True))
+        await session.commit()
+        return emissao
+    except EntityNotFoundError:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Unidade produtiva não encontrada.")
+
+
+@router.patch("/carbono/emissoes/{emissao_id}", response_model=CarbonoEmissaoResponse, dependencies=[Depends(_carbono_permission("edit"))])
+async def atualizar_emissao_carbono(
+    emissao_id: int,
+    dados: CarbonoEmissaoUpdate,
+    tenant_id: UUID = Depends(get_tenant_id),
+    session: AsyncSession = Depends(get_session),
+):
+    svc = AmbientalService(session, tenant_id)
+    try:
+        emissao = await svc.atualizar_emissao_carbono(emissao_id, dados.model_dump(exclude_none=True))
+        await session.commit()
+        return emissao
+    except EntityNotFoundError:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Emissão de carbono não encontrada.")
 
 
 @router.get("/carbono/projetos", response_model=List[CarbonoProjetoResponse], dependencies=[Depends(_carbono_permission("list"))])
@@ -655,7 +725,12 @@ async def listar_projetos_carbono(
     session: AsyncSession = Depends(get_session),
 ):
     svc = AmbientalService(session, tenant_id)
-    return await svc.listar_projetos_carbono(status_filter=status_filter)
+    registros = await svc.listar_projetos_carbono(status_filter=status_filter)
+    nomes = await _nomes_unidades_carbono(session, tenant_id, registros)
+    return [
+        {**CarbonoProjetoResponse.model_validate(registro).model_dump(), "unidade_nome": nomes.get(registro.unidade_produtiva_id)}
+        for registro in registros
+    ]
 
 
 @router.post("/carbono/projetos", response_model=CarbonoProjetoResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(_carbono_permission("create"))])
@@ -665,10 +740,28 @@ async def criar_projeto_carbono(
     session: AsyncSession = Depends(get_session),
 ):
     svc = AmbientalService(session, tenant_id)
-    projeto = await svc.criar_projeto_carbono(dados.model_dump(exclude_none=True))
-    await session.commit()
-    await session.refresh(projeto)
-    return projeto
+    try:
+        projeto = await svc.criar_projeto_carbono(dados.model_dump(exclude_none=True))
+        await session.commit()
+        return projeto
+    except EntityNotFoundError:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Unidade produtiva não encontrada.")
+
+
+@router.patch("/carbono/projetos/{projeto_id}", response_model=CarbonoProjetoResponse, dependencies=[Depends(_carbono_permission("edit"))])
+async def atualizar_projeto_carbono(
+    projeto_id: int,
+    dados: CarbonoProjetoUpdate,
+    tenant_id: UUID = Depends(get_tenant_id),
+    session: AsyncSession = Depends(get_session),
+):
+    svc = AmbientalService(session, tenant_id)
+    try:
+        projeto = await svc.atualizar_projeto_carbono(projeto_id, dados.model_dump(exclude_none=True))
+        await session.commit()
+        return projeto
+    except EntityNotFoundError:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Projeto de carbono não encontrado.")
 
 
 @router.get("/carbono/relatorios", response_model=List[CarbonoRelatorioResponse], dependencies=[Depends(_carbono_permission("list"))])
@@ -689,7 +782,6 @@ async def criar_relatorio_carbono(
     svc = AmbientalService(session, tenant_id)
     relatorio = await svc.gerar_relatorio_carbono(periodo.periodo_inicio, periodo.periodo_fim)
     await session.commit()
-    await session.refresh(relatorio)
     return relatorio
 
 

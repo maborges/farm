@@ -53,8 +53,9 @@ async def test_dashboard_carbono_agrega_totais_e_contagens() -> None:
 async def test_registrar_emissao_carbono_preenche_factor_padrao_e_total() -> None:
     session = AsyncMock()
     tenant_id = uuid.uuid4()
+    unidade_produtiva_id = uuid.uuid4()
     emissao = MagicMock(spec=CarbonoEmissao)
-    session.execute.return_value = _result([])
+    session.execute.return_value = _result([SimpleNamespace(id=unidade_produtiva_id)])
 
     service = AmbientalService(session, tenant_id)
     session.flush = AsyncMock()
@@ -64,6 +65,7 @@ async def test_registrar_emissao_carbono_preenche_factor_padrao_e_total() -> Non
     created = await service.registrar_emissao_carbono(
         {
             "escopo": 1,
+            "unidade_produtiva_id": unidade_produtiva_id,
             "categoria": "diesel",
             "quantidade": 10,
             "unidade": "L",

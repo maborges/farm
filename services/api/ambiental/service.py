@@ -322,13 +322,14 @@ class CarbonoService:
         self.tenant_id = str(tenant_id)
 
     async def listar_emissoes(self, escopo: int | None = None) -> list[CarbonoEmissao]:
-        stmt = select(CarbonoEmissao).where(CarbonoEmissao.tenant_id == self.tenant_id)
+        stmt = select(CarbonoEmissao).where(CarbonoEmissao.tenant_id == self.tenant_id, CarbonoEmissao.ativo.is_(True))
         if escopo is not None:
             stmt = stmt.where(CarbonoEmissao.escopo == escopo)
         stmt = stmt.order_by(CarbonoEmissao.data_referencia.desc(), CarbonoEmissao.created_at.desc())
         return list((await self.session.execute(stmt)).scalars().all())
 
     async def registrar_emissao(self, dados: dict) -> CarbonoEmissao:
+        await self._validar_unidade_produtiva(dados["unidade_produtiva_id"])
         categoria = str(dados.get("categoria", "")).lower()
         fator = dados.get("fator_emissao")
         if fator is None:
@@ -358,18 +359,67 @@ class CarbonoService:
         return emissao
 
     async def listar_projetos(self, status: str | None = None) -> list[CarbonoProjeto]:
-        stmt = select(CarbonoProjeto).where(CarbonoProjeto.tenant_id == self.tenant_id)
+        stmt = select(CarbonoProjeto).where(CarbonoProjeto.tenant_id == self.tenant_id, CarbonoProjeto.ativo.is_(True))
         if status:
             stmt = stmt.where(CarbonoProjeto.status == status)
         stmt = stmt.order_by(CarbonoProjeto.created_at.desc())
         return list((await self.session.execute(stmt)).scalars().all())
 
     async def criar_projeto(self, dados: dict) -> CarbonoProjeto:
+        await self._validar_unidade_produtiva(dados["unidade_produtiva_id"])
         projeto = CarbonoProjeto(tenant_id=self.tenant_id, **dados)
         self.session.add(projeto)
         await self.session.flush()
         await self.session.refresh(projeto)
         return projeto
+
+    async def atualizar_emissao(self, emissao_id: int, dados: dict) -> CarbonoEmissao:
+        """Update an emission owned by this tenant and recalculate its total."""
+        emissao = await self._obter_emissao(emissao_id)
+        for field, value in dados.items():
+            setattr(emissao, field, value)
+        categoria = str(emissao.categoria).lower()
+        fator = emissao.fator_emissao if emissao.fator_emissao is not None else self.FACTORES_PADRAO.get(categoria, 0)
+        emissao.fator_emissao = float(fator)
+        emissao.total_co2e = float(emissao.quantidade) * float(fator)
+        await self.session.flush()
+        return emissao
+
+    async def atualizar_projeto(self, projeto_id: int, dados: dict) -> CarbonoProjeto:
+        """Update a project owned by this tenant."""
+        projeto = await self._obter_projeto(projeto_id)
+        for field, value in dados.items():
+            setattr(projeto, field, value)
+        await self.session.flush()
+        return projeto
+
+    async def _obter_emissao(self, emissao_id: int) -> CarbonoEmissao:
+        """Find an emission inside the tenant scope."""
+        result = await self.session.execute(select(CarbonoEmissao).where(CarbonoEmissao.id == emissao_id, CarbonoEmissao.tenant_id == self.tenant_id))
+        emissao = result.scalar_one_or_none()
+        if emissao is None:
+            raise EntityNotFoundError("Emissão de carbono não encontrada.")
+        return emissao
+
+    async def _obter_projeto(self, projeto_id: int) -> CarbonoProjeto:
+        """Find a project inside the tenant scope."""
+        result = await self.session.execute(select(CarbonoProjeto).where(CarbonoProjeto.id == projeto_id, CarbonoProjeto.tenant_id == self.tenant_id))
+        projeto = result.scalar_one_or_none()
+        if projeto is None:
+            raise EntityNotFoundError("Projeto de carbono não encontrado.")
+        return projeto
+
+    async def _validar_unidade_produtiva(self, unidade_produtiva_id: uuid.UUID) -> None:
+        """Ensure the carbon record belongs to an active farm in this tenant."""
+        result = await self.session.execute(
+            select(UnidadeProdutiva.id).where(
+                UnidadeProdutiva.id == unidade_produtiva_id,
+                UnidadeProdutiva.tenant_id == self.tenant_id,
+                UnidadeProdutiva.ativo.is_(True),
+            )
+        )
+        if result.scalar_one_or_none() is None:
+            raise EntityNotFoundError("Unidade produtiva não encontrada para este tenant.")
 
     async def listar_relatorios(self) -> list[CarbonoRelatorio]:
         stmt = (
@@ -467,11 +517,17 @@ class CarbonoService:
     async def registrar_emissao_carbono(self, dados: dict) -> CarbonoEmissao:
         return await self.registrar_emissao(dados)
 
+    async def atualizar_emissao_carbono(self, emissao_id: int, dados: dict) -> CarbonoEmissao:
+        return await self.atualizar_emissao(emissao_id, dados)
+
     async def listar_projetos_carbono(self, status_filter: str | None = None) -> list[CarbonoProjeto]:
         return await self.listar_projetos(status=status_filter)
 
     async def criar_projeto_carbono(self, dados: dict) -> CarbonoProjeto:
         return await self.criar_projeto(dados)
+
+    async def atualizar_projeto_carbono(self, projeto_id: int, dados: dict) -> CarbonoProjeto:
+        return await self.atualizar_projeto(projeto_id, dados)
 
     async def listar_relatorios_carbono(self) -> list[CarbonoRelatorio]:
         return await self.listar_relatorios()

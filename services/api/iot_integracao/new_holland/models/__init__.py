@@ -89,7 +89,8 @@ class CarbonoEmissao(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     tenant_id = Column(String(50), nullable=False, index=True)
-    unidade_produtiva_id = Column(Uuid(as_uuid=True), ForeignKey("production_units.id"))
+    unidade_produtiva_id = Column(Uuid(as_uuid=True), ForeignKey("unidades_produtivas.id", ondelete="RESTRICT"), nullable=False)
+    production_unit_id = Column(Uuid(as_uuid=True), ForeignKey("production_units.id", ondelete="SET NULL"))
     
     # Tipo de emissão
     escopo = Column(Integer, nullable=False)  # 1, 2, 3
@@ -115,6 +116,7 @@ class CarbonoEmissao(Base):
     
     created_at = Column(DateTime, default=datetime.utcnow)
     created_by = Column(Uuid(as_uuid=True), ForeignKey("usuarios.id"))
+    ativo = Column(Boolean, nullable=False, default=True)
 
 
 class CarbonoProjeto(Base):
@@ -123,7 +125,8 @@ class CarbonoProjeto(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     tenant_id = Column(String(50), nullable=False, index=True)
-    unidade_produtiva_id = Column(Uuid(as_uuid=True), ForeignKey("production_units.id", ondelete="CASCADE"))
+    unidade_produtiva_id = Column(Uuid(as_uuid=True), ForeignKey("unidades_produtivas.id", ondelete="RESTRICT"), nullable=False)
+    production_unit_id = Column(Uuid(as_uuid=True), ForeignKey("production_units.id", ondelete="SET NULL"))
     
     # Identificação
     nome = Column(String(200), nullable=False)
@@ -152,6 +155,7 @@ class CarbonoProjeto(Base):
     certificador = Column(String(200))
     numero_registro = Column(String(100))
     padrao = Column(String(50))  # Verra, Gold Standard
+    ativo = Column(Boolean, nullable=False, default=True)
     
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
