@@ -75,6 +75,22 @@ Este documento lista e agrupa as rotas do Monolito Backend (FastAPI) e a estrutu
 - Consumo somente leitura da base territorial/fundiária oficial.
 - Tenant-aware com isolamento via RLS e tenant atual extraído da sessão autenticada.
 
+### Ambiental
+
+**Módulos:** `AM1_COMPLIANCE` e `AM2_CARBONO`
+
+- `/api/v1/ambiental/dashboard`
+- `/api/v1/ambiental/car`
+- `/api/v1/ambiental/alertas`
+- `/api/v1/ambiental/outorgas`
+- `/api/v1/ambiental/carbono/dashboard`
+- `/api/v1/ambiental/carbono/emissoes`
+- `/api/v1/ambiental/carbono/projetos`
+- `/api/v1/ambiental/carbono/relatorios`
+- `/api/v1/ambiental/carbono/relatorios/{id}/pdf`
+
+Todas as rotas Ambientais exigem o módulo contratado e permissão granular no formato `ambiental:<recurso>:<ação>`. As operações são tenant-aware e utilizam os serviços com filtro explícito por `tenant_id`.
+
 ### Financeiro & Comercialização
 **Módulo**: Financeiro
 - `/api/v1/financeiro/despesas`, `/api/v1/financeiro/receitas`

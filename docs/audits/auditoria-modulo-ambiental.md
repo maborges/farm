@@ -154,3 +154,44 @@ O principal risco é a diferença entre o que a interface e a documentação com
 ## 7. Estado do workspace durante a auditoria
 
 Já existiam alterações pendentes no workspace antes da auditoria, incluindo `apps/web`, `services/api/ambiental/router.py`, modelos de carbono e migrations novas. Essas alterações foram preservadas e não foram modificadas durante a elaboração deste documento.
+
+## 8. Validação da fundação de segurança
+
+Após a aplicação da migration `20260826_ambiental_foundation`, foi executada a validação diretamente no PostgreSQL.
+
+Resultado aprovado:
+
+- As seis tabelas ambientais foram encontradas: `amb_registros_car`, `amb_alertas`, `amb_outorgas_hidricas`, `carbono_emissoes`, `carbono_projetos` e `carbono_relatorios`.
+- Todas retornaram `relrowsecurity = true` e `relforcerowsecurity = true`.
+- Cada tabela possui as quatro políticas esperadas por tenant: `SELECT`, `INSERT`, `UPDATE` e `DELETE`.
+- A revisão Alembic aplicada foi confirmada como `20260826_ambiental_foundation`.
+
+Conclusão da validação: a fundação de isolamento por tenant e a proteção RLS do módulo Ambiental estão ativas no banco. Esta validação é estrutural; ainda não substitui os testes funcionais de API, permissões por perfil, fluxos de formulário e cenários de isolamento entre tenants.
+
+## 9. Execução da Fase 2 — validação funcional do backend
+
+A Fase 2 foi concluída com contratos funcionais para os endpoints Ambientais:
+
+- Filtros de CAR, alertas e outorgas agora aceitam somente os valores dos enums de domínio existentes.
+- Alertas rejeitam área negativa e coordenadas fora dos limites geográficos.
+- Outorgas rejeitam vazão negativa e número vazio ou acima do limite do modelo.
+- Período de relatório continua rejeitando datas invertidas.
+- Exportação de relatório inexistente retorna HTTP 404, respeitando o isolamento do tenant.
+- A cobertura automatizada da área Ambiental passou em `38 passed, 1 skipped`, incluindo os testes de tenancy.
+- Compilação Python e `git diff --check` foram aprovados.
+
+Observação: a análise Ruff do código legado ainda aponta ocorrências preexistentes de estilo e tipagem no router/service Ambiental; elas não impediram os testes funcionais e foram mantidas fora do escopo corretivo desta fase.
+
+## 10. Execução da Fase 3 — integração da interface web
+
+A interface web Ambiental foi validada e alinhada aos contratos do backend:
+
+- O filtro de alertas abertos passou a funcionar com múltiplos status (`NOVO` e `EM_ANALISE`).
+- Ações de criação, edição, resolução e exclusão passaram a respeitar as permissões granulares do tenant na interface.
+- A exportação de relatórios de carbono passou a ser exibida somente para quem possui permissão de exportação.
+- Foi corrigida a regra de lint do histórico de alertas relacionada à restauração de filtros persistidos.
+- Foram preservados os componentes personalizados existentes, skeletons, estados vazios, breadcrumbs e padrão visual atual.
+- TypeScript e ESLint do módulo Ambiental foram aprovados.
+- A suíte backend Ambiental permaneceu aprovada com `27 passed`.
+
+Conclusão da Fase 3: a integração web está consistente com os contratos de API e com o RBAC Ambiental. A validação visual em navegador e os fluxos completos com dados reais permanecem como etapa de homologação operacional.

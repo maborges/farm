@@ -56,41 +56,27 @@ class AmbientalService(BaseService[RegistroCAR]):
         return list((await self.session.execute(stmt)).scalars().all())
 
     async def criar_car(self, dados: dict) -> RegistroCAR:
-        car = RegistroCAR(tenant_id=self.tenant_id, **dados)
-        self.session.add(car)
-        await self.session.flush()
-        await self.session.refresh(car)
-        return car
+        return await self._resource(RegistroCAR).create(dados)
 
     async def _get_car(self, car_id: uuid.UUID) -> RegistroCAR:
-        obj = (await self.session.execute(
-            select(RegistroCAR).where(RegistroCAR.id == car_id, RegistroCAR.tenant_id == self.tenant_id)
-        )).scalar_one_or_none()
-        if not obj:
-            raise EntityNotFoundError("CAR não encontrado.")
-        return obj
+        return await self._resource(RegistroCAR).get_or_fail(car_id)
 
     async def atualizar_car(self, car_id: uuid.UUID, dados: dict) -> RegistroCAR:
-        car = await self._get_car(car_id)
-        for k, v in dados.items():
-            setattr(car, k, v)
-        await self.session.flush()
-        await self.session.refresh(car)
-        return car
+        return await self._resource(RegistroCAR).update(car_id, dados)
 
     async def excluir_car(self, car_id: uuid.UUID) -> None:
-        car = await self._get_car(car_id)
-        await self.session.delete(car)
+        await self._resource(RegistroCAR).hard_delete(car_id)
 
     # ── Alertas ───────────────────────────────────────────────────────────────
 
     async def listar_alertas(
-        self, status_filter: Optional[str] = None,
+        self, status_filter: str | list[str] | None = None,
         severidade: Optional[str] = None, tipo: Optional[str] = None,
     ) -> list[AlertaAmbiental]:
         stmt = select(AlertaAmbiental).where(AlertaAmbiental.tenant_id == self.tenant_id).order_by(AlertaAmbiental.data_deteccao.desc())
         if status_filter:
-            stmt = stmt.where(AlertaAmbiental.status == status_filter)
+            statuses = status_filter if isinstance(status_filter, list) else [status_filter]
+            stmt = stmt.where(AlertaAmbiental.status.in_(statuses))
         if severidade:
             stmt = stmt.where(AlertaAmbiental.severidade == severidade)
         if tipo:
@@ -100,23 +86,10 @@ class AmbientalService(BaseService[RegistroCAR]):
     async def criar_alerta(self, dados: dict) -> AlertaAmbiental:
         if "data_deteccao" not in dados:
             dados["data_deteccao"] = date.today()
-        alerta = AlertaAmbiental(tenant_id=self.tenant_id, **dados)
-        self.session.add(alerta)
-        await self.session.flush()
-        await self.session.refresh(alerta)
-        return alerta
+        return await self._resource(AlertaAmbiental).create(dados)
 
     async def atualizar_alerta(self, alerta_id: uuid.UUID, dados: dict) -> AlertaAmbiental:
-        obj = (await self.session.execute(
-            select(AlertaAmbiental).where(AlertaAmbiental.id == alerta_id, AlertaAmbiental.tenant_id == self.tenant_id)
-        )).scalar_one_or_none()
-        if not obj:
-            raise EntityNotFoundError("Alerta não encontrado.")
-        for k, v in dados.items():
-            setattr(obj, k, v)
-        await self.session.flush()
-        await self.session.refresh(obj)
-        return obj
+        return await self._resource(AlertaAmbiental).update(alerta_id, dados)
 
     # ── Outorgas ──────────────────────────────────────────────────────────────
 
@@ -131,23 +104,14 @@ class AmbientalService(BaseService[RegistroCAR]):
         return list((await self.session.execute(stmt)).scalars().all())
 
     async def criar_outorga(self, dados: dict) -> OutorgaHidrica:
-        outorga = OutorgaHidrica(tenant_id=self.tenant_id, **dados)
-        self.session.add(outorga)
-        await self.session.flush()
-        await self.session.refresh(outorga)
-        return outorga
+        return await self._resource(OutorgaHidrica).create(dados)
 
     async def atualizar_outorga(self, outorga_id: uuid.UUID, dados: dict) -> OutorgaHidrica:
-        obj = (await self.session.execute(
-            select(OutorgaHidrica).where(OutorgaHidrica.id == outorga_id, OutorgaHidrica.tenant_id == self.tenant_id)
-        )).scalar_one_or_none()
-        if not obj:
-            raise EntityNotFoundError("Outorga não encontrada.")
-        for k, v in dados.items():
-            setattr(obj, k, v)
-        await self.session.flush()
-        await self.session.refresh(obj)
-        return obj
+        return await self._resource(OutorgaHidrica).update(outorga_id, dados)
+
+    def _resource(self, model: type) -> BaseService:
+        """Create a tenant-scoped service with audit logging for a resource."""
+        return BaseService(model, self.session, self.tenant_id)
 
     # ── Carbono / MRV ───────────────────────────────────────────────────────
 

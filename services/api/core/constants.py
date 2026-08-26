@@ -583,6 +583,8 @@ class TenantPermissions:
             "recommendations:execute",
             "recommendations:dismiss",
             "recommendations:reopen",
+            # Ambiental — gestão operacional
+            "ambiental:*",
         ],
 
         "agronomo": [
@@ -600,6 +602,21 @@ class TenantPermissions:
             "recommendations:accept",
             "recommendations:execute",
             "rh:view",
+            # Ambiental — consulta e registro técnico
+            "ambiental:dashboard:view",
+            "ambiental:car:view",
+            "ambiental:car:list",
+            "ambiental:car:edit",
+            "ambiental:outorgas:view",
+            "ambiental:outorgas:list",
+            "ambiental:outorgas:edit",
+            "ambiental:monitoramento:view",
+            "ambiental:monitoramento:list",
+            "ambiental:monitoramento:create",
+            "ambiental:monitoramento:edit",
+            "ambiental:carbono:view",
+            "ambiental:carbono:list",
+            "ambiental:carbono:export",
         ],
 
         "operador": [
@@ -639,6 +656,17 @@ class TenantPermissions:
             "estoque:implantacao_assistida:view",
             "estoque:implantacao_assistida:list",
             "recommendations:view",
+            # Ambiental — somente consulta
+            "ambiental:dashboard:view",
+            "ambiental:car:view",
+            "ambiental:car:list",
+            "ambiental:outorgas:view",
+            "ambiental:outorgas:list",
+            "ambiental:monitoramento:view",
+            "ambiental:monitoramento:list",
+            "ambiental:carbono:view",
+            "ambiental:carbono:list",
+            "ambiental:carbono:export",
         ],
 
         "financeiro": [
@@ -678,6 +706,20 @@ class TenantPermissions:
             "estoque:*:list",
             "estoque:*:export",
             "recommendations:view",
+            # Ambiental — auditoria e exportação
+            "ambiental:dashboard:view",
+            "ambiental:car:view",
+            "ambiental:car:list",
+            "ambiental:car:export",
+            "ambiental:outorgas:view",
+            "ambiental:outorgas:list",
+            "ambiental:outorgas:export",
+            "ambiental:monitoramento:view",
+            "ambiental:monitoramento:list",
+            "ambiental:monitoramento:export",
+            "ambiental:carbono:view",
+            "ambiental:carbono:list",
+            "ambiental:carbono:export",
         ],
     }
 

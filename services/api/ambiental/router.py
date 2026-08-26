@@ -3,10 +3,11 @@ from typing import List, Optional
 from uuid import UUID
 from datetime import date, datetime
 from sqlalchemy.ext.asyncio import AsyncSession
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from core.dependencies import get_tenant_id, get_session, require_module
+from core.dependencies import get_tenant_id, get_session, require_module_and_permission
 from core.exceptions import EntityNotFoundError
+from ambiental.models import StatusAlerta, StatusCAR, StatusOutorga, SeveridadeAlerta, TipoAlerta, TipoUsoOutorga
 from ambiental.service import AmbientalService
 from iot_integracao.new_holland.models import CarbonoEmissao, CarbonoProjeto, CarbonoRelatorio
 
@@ -14,17 +15,18 @@ router = APIRouter(prefix="/ambiental", tags=["Ambiental — Compliance"])
 
 MODULE = "AM1_COMPLIANCE"
 MODULE_CARBONO = "AM2_CARBONO"
-MODULE_CARBONO_DEPENDENCY = require_module(MODULE_CARBONO)
+def _carbono_permission(action: str):
+    return require_module_and_permission(MODULE_CARBONO, f"ambiental:carbono:{action}")
 
 
 # ── Schemas ───────────────────────────────────────────────────────────────────
 
 class CARCreate(BaseModel):
-    fazenda_nome: str
-    codigo_car: str
-    uf: str
-    municipio: Optional[str] = None
-    status: str = "PENDENTE"
+    fazenda_nome: str = Field(..., min_length=1, max_length=200)
+    codigo_car: str = Field(..., min_length=1, max_length=50)
+    uf: str = Field(..., min_length=2, max_length=2)
+    municipio: Optional[str] = Field(None, max_length=100)
+    status: StatusCAR = StatusCAR.PENDENTE
     area_total_ha: Optional[float] = None
     area_app_ha: Optional[float] = None
     area_rl_ha: Optional[float] = None
@@ -38,7 +40,7 @@ class CARCreate(BaseModel):
 
 
 class CARUpdate(BaseModel):
-    status: Optional[str] = None
+    status: Optional[StatusCAR] = None
     area_total_ha: Optional[float] = None
     area_app_ha: Optional[float] = None
     area_rl_ha: Optional[float] = None
@@ -72,22 +74,22 @@ class CARResponse(BaseModel):
 
 
 class AlertaCreate(BaseModel):
-    fazenda_nome: Optional[str] = None
+    fazenda_nome: Optional[str] = Field(None, max_length=200)
     unidade_produtiva_id: Optional[UUID] = None
-    tipo: str = "DESMATAMENTO"
-    severidade: str = "MEDIA"
-    area_ha: Optional[float] = None
+    tipo: TipoAlerta = TipoAlerta.DESMATAMENTO
+    severidade: SeveridadeAlerta = SeveridadeAlerta.MEDIA
+    area_ha: Optional[float] = Field(None, ge=0)
     descricao: Optional[str] = None
     fonte: Optional[str] = None
     talhao_nome: Optional[str] = None
-    latitude: Optional[float] = None
-    longitude: Optional[float] = None
+    latitude: Optional[float] = Field(None, ge=-90, le=90)
+    longitude: Optional[float] = Field(None, ge=-180, le=180)
     data_deteccao: Optional[date] = None
 
 
 class AlertaUpdate(BaseModel):
-    status: Optional[str] = None
-    severidade: Optional[str] = None
+    status: Optional[StatusAlerta] = None
+    severidade: Optional[SeveridadeAlerta] = None
     data_resolucao: Optional[date] = None
     resolucao_descricao: Optional[str] = None
 
@@ -116,19 +118,19 @@ class AlertaResponse(BaseModel):
 class OutorgaCreate(BaseModel):
     fazenda_nome: Optional[str] = None
     unidade_produtiva_id: Optional[UUID] = None
-    numero_outorga: str
+    numero_outorga: str = Field(..., min_length=1, max_length=100)
     orgao_emissor: Optional[str] = None
-    tipo_uso: str = "IRRIGACAO"
+    tipo_uso: TipoUsoOutorga = TipoUsoOutorga.IRRIGACAO
     corpo_hidrico: Optional[str] = None
-    vazao_outorgada_ls: Optional[float] = None
-    vazao_outorgada_m3h: Optional[float] = None
+    vazao_outorgada_ls: Optional[float] = Field(None, ge=0)
+    vazao_outorgada_m3h: Optional[float] = Field(None, ge=0)
     data_emissao: Optional[date] = None
     data_vencimento: Optional[date] = None
     observacoes: Optional[str] = None
 
 
 class OutorgaUpdate(BaseModel):
-    status: Optional[str] = None
+    status: Optional[StatusOutorga] = None
     vazao_outorgada_ls: Optional[float] = None
     vazao_outorgada_m3h: Optional[float] = None
     data_vencimento: Optional[date] = None
@@ -270,6 +272,17 @@ class CarbonoRelatorioResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class CarbonoPeriodoQuery(BaseModel):
+    periodo_inicio: date
+    periodo_fim: date
+
+    @model_validator(mode="after")
+    def validar_periodo(self):
+        if self.periodo_fim < self.periodo_inicio:
+            raise ValueError("O período final deve ser igual ou posterior ao período inicial.")
+        return self
+
+
 class CarbonoResumoResponse(BaseModel):
     total_emissoes: float
     total_creditos: float
@@ -288,7 +301,7 @@ class CarbonoResumoResponse(BaseModel):
 async def dashboard_ambiental(
     tenant_id: UUID = Depends(get_tenant_id),
     session: AsyncSession = Depends(get_session),
-    _: None = Depends(require_module(MODULE)),
+    _: None = Depends(require_module_and_permission(MODULE, "ambiental:dashboard:view")),
 ):
     svc = AmbientalService(session, tenant_id)
     return await svc.dashboard()
@@ -296,10 +309,10 @@ async def dashboard_ambiental(
 
 @router.get("/car", response_model=List[CARResponse])
 async def listar_cars(
-    status_filter: Optional[str] = Query(None, alias="status"),
+    status_filter: Optional[StatusCAR] = Query(None, alias="status"),
     tenant_id: UUID = Depends(get_tenant_id),
     session: AsyncSession = Depends(get_session),
-    _: None = Depends(require_module(MODULE)),
+    _: None = Depends(require_module_and_permission(MODULE, "ambiental:car:list")),
 ):
     svc = AmbientalService(session, tenant_id)
     return await svc.listar_cars(status_filter=status_filter)
@@ -310,7 +323,7 @@ async def criar_car(
     dados: CARCreate,
     tenant_id: UUID = Depends(get_tenant_id),
     session: AsyncSession = Depends(get_session),
-    _: None = Depends(require_module(MODULE)),
+    _: None = Depends(require_module_and_permission(MODULE, "ambiental:car:create")),
 ):
     svc = AmbientalService(session, tenant_id)
     car = await svc.criar_car(dados.model_dump(exclude_none=True))
@@ -325,7 +338,7 @@ async def atualizar_car(
     dados: CARUpdate,
     tenant_id: UUID = Depends(get_tenant_id),
     session: AsyncSession = Depends(get_session),
-    _: None = Depends(require_module(MODULE)),
+    _: None = Depends(require_module_and_permission(MODULE, "ambiental:car:edit")),
 ):
     svc = AmbientalService(session, tenant_id)
     try:
@@ -342,7 +355,7 @@ async def excluir_car(
     car_id: UUID,
     tenant_id: UUID = Depends(get_tenant_id),
     session: AsyncSession = Depends(get_session),
-    _: None = Depends(require_module(MODULE)),
+    _: None = Depends(require_module_and_permission(MODULE, "ambiental:car:delete")),
 ):
     svc = AmbientalService(session, tenant_id)
     try:
@@ -357,12 +370,12 @@ async def excluir_car(
 
 @router.get("/alertas", response_model=List[AlertaResponse])
 async def listar_alertas(
-    status_filter: Optional[str] = Query(None, alias="status"),
-    severidade: Optional[str] = Query(None),
-    tipo: Optional[str] = Query(None),
+    status_filter: Optional[list[StatusAlerta]] = Query(None, alias="status"),
+    severidade: Optional[SeveridadeAlerta] = Query(None),
+    tipo: Optional[TipoAlerta] = Query(None),
     tenant_id: UUID = Depends(get_tenant_id),
     session: AsyncSession = Depends(get_session),
-    _: None = Depends(require_module(MODULE)),
+    _: None = Depends(require_module_and_permission(MODULE, "ambiental:monitoramento:list")),
 ):
     svc = AmbientalService(session, tenant_id)
     return await svc.listar_alertas(status_filter=status_filter, severidade=severidade, tipo=tipo)
@@ -373,7 +386,7 @@ async def criar_alerta(
     dados: AlertaCreate,
     tenant_id: UUID = Depends(get_tenant_id),
     session: AsyncSession = Depends(get_session),
-    _: None = Depends(require_module(MODULE)),
+    _: None = Depends(require_module_and_permission(MODULE, "ambiental:monitoramento:create")),
 ):
     svc = AmbientalService(session, tenant_id)
     alerta = await svc.criar_alerta(dados.model_dump(exclude_none=True))
@@ -388,7 +401,7 @@ async def atualizar_alerta(
     dados: AlertaUpdate,
     tenant_id: UUID = Depends(get_tenant_id),
     session: AsyncSession = Depends(get_session),
-    _: None = Depends(require_module(MODULE)),
+    _: None = Depends(require_module_and_permission(MODULE, "ambiental:monitoramento:edit")),
 ):
     svc = AmbientalService(session, tenant_id)
     try:
@@ -404,10 +417,10 @@ async def atualizar_alerta(
 
 @router.get("/outorgas", response_model=List[OutorgaResponse])
 async def listar_outorgas(
-    status_filter: Optional[str] = Query(None, alias="status"),
+    status_filter: Optional[StatusOutorga] = Query(None, alias="status"),
     tenant_id: UUID = Depends(get_tenant_id),
     session: AsyncSession = Depends(get_session),
-    _: None = Depends(require_module(MODULE)),
+    _: None = Depends(require_module_and_permission(MODULE, "ambiental:outorgas:list")),
 ):
     svc = AmbientalService(session, tenant_id)
     return await svc.listar_outorgas(status_filter=status_filter)
@@ -418,7 +431,7 @@ async def criar_outorga(
     dados: OutorgaCreate,
     tenant_id: UUID = Depends(get_tenant_id),
     session: AsyncSession = Depends(get_session),
-    _: None = Depends(require_module(MODULE)),
+    _: None = Depends(require_module_and_permission(MODULE, "ambiental:outorgas:create")),
 ):
     svc = AmbientalService(session, tenant_id)
     outorga = await svc.criar_outorga(dados.model_dump(exclude_none=True))
@@ -433,7 +446,7 @@ async def atualizar_outorga(
     dados: OutorgaUpdate,
     tenant_id: UUID = Depends(get_tenant_id),
     session: AsyncSession = Depends(get_session),
-    _: None = Depends(require_module(MODULE)),
+    _: None = Depends(require_module_and_permission(MODULE, "ambiental:outorgas:edit")),
 ):
     svc = AmbientalService(session, tenant_id)
     try:
@@ -447,7 +460,7 @@ async def atualizar_outorga(
 
 # ── Carbono ───────────────────────────────────────────────────────────────────
 
-@router.get("/carbono/dashboard", response_model=CarbonoResumoResponse, dependencies=[Depends(MODULE_CARBONO_DEPENDENCY)])
+@router.get("/carbono/dashboard", response_model=CarbonoResumoResponse, dependencies=[Depends(_carbono_permission("view"))])
 async def dashboard_carbono(
     tenant_id: UUID = Depends(get_tenant_id),
     session: AsyncSession = Depends(get_session),
@@ -457,7 +470,7 @@ async def dashboard_carbono(
     return carbono
 
 
-@router.get("/carbono/emissoes", response_model=List[CarbonoEmissaoResponse], dependencies=[Depends(MODULE_CARBONO_DEPENDENCY)])
+@router.get("/carbono/emissoes", response_model=List[CarbonoEmissaoResponse], dependencies=[Depends(_carbono_permission("list"))])
 async def listar_emissoes_carbono(
     escopo: Optional[int] = Query(None, ge=1, le=3),
     tenant_id: UUID = Depends(get_tenant_id),
@@ -467,7 +480,7 @@ async def listar_emissoes_carbono(
     return await svc.listar_emissoes_carbono(escopo=escopo)
 
 
-@router.post("/carbono/emissoes", response_model=CarbonoEmissaoResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(MODULE_CARBONO_DEPENDENCY)])
+@router.post("/carbono/emissoes", response_model=CarbonoEmissaoResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(_carbono_permission("create"))])
 async def criar_emissao_carbono(
     dados: CarbonoEmissaoCreate,
     tenant_id: UUID = Depends(get_tenant_id),
@@ -480,7 +493,7 @@ async def criar_emissao_carbono(
     return emissao
 
 
-@router.get("/carbono/projetos", response_model=List[CarbonoProjetoResponse], dependencies=[Depends(MODULE_CARBONO_DEPENDENCY)])
+@router.get("/carbono/projetos", response_model=List[CarbonoProjetoResponse], dependencies=[Depends(_carbono_permission("list"))])
 async def listar_projetos_carbono(
     status_filter: Optional[str] = Query(None, alias="status"),
     tenant_id: UUID = Depends(get_tenant_id),
@@ -490,7 +503,7 @@ async def listar_projetos_carbono(
     return await svc.listar_projetos_carbono(status_filter=status_filter)
 
 
-@router.post("/carbono/projetos", response_model=CarbonoProjetoResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(MODULE_CARBONO_DEPENDENCY)])
+@router.post("/carbono/projetos", response_model=CarbonoProjetoResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(_carbono_permission("create"))])
 async def criar_projeto_carbono(
     dados: CarbonoProjetoCreate,
     tenant_id: UUID = Depends(get_tenant_id),
@@ -503,7 +516,7 @@ async def criar_projeto_carbono(
     return projeto
 
 
-@router.get("/carbono/relatorios", response_model=List[CarbonoRelatorioResponse], dependencies=[Depends(MODULE_CARBONO_DEPENDENCY)])
+@router.get("/carbono/relatorios", response_model=List[CarbonoRelatorioResponse], dependencies=[Depends(_carbono_permission("list"))])
 async def listar_relatorios_carbono(
     tenant_id: UUID = Depends(get_tenant_id),
     session: AsyncSession = Depends(get_session),
@@ -512,28 +525,30 @@ async def listar_relatorios_carbono(
     return await svc.listar_relatorios_carbono()
 
 
-@router.post("/carbono/relatorios", response_model=CarbonoRelatorioResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(MODULE_CARBONO_DEPENDENCY)])
+@router.post("/carbono/relatorios", response_model=CarbonoRelatorioResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(_carbono_permission("create"))])
 async def criar_relatorio_carbono(
-    periodo_inicio: date,
-    periodo_fim: date,
+    periodo: CarbonoPeriodoQuery = Depends(),
     tenant_id: UUID = Depends(get_tenant_id),
     session: AsyncSession = Depends(get_session),
 ):
     svc = AmbientalService(session, tenant_id)
-    relatorio = await svc.gerar_relatorio_carbono(periodo_inicio, periodo_fim)
+    relatorio = await svc.gerar_relatorio_carbono(periodo.periodo_inicio, periodo.periodo_fim)
     await session.commit()
     await session.refresh(relatorio)
     return relatorio
 
 
-@router.get("/carbono/relatorios/{relatorio_id}/pdf", dependencies=[Depends(MODULE_CARBONO_DEPENDENCY)])
+@router.get("/carbono/relatorios/{relatorio_id}/pdf", dependencies=[Depends(_carbono_permission("export"))])
 async def exportar_relatorio_carbono_pdf(
     relatorio_id: int,
     tenant_id: UUID = Depends(get_tenant_id),
     session: AsyncSession = Depends(get_session),
 ):
     svc = AmbientalService(session, tenant_id)
-    pdf_bytes = await svc.exportar_pdf_carbono(relatorio_id)
+    try:
+        pdf_bytes = await svc.exportar_pdf_carbono(relatorio_id)
+    except EntityNotFoundError:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Relatório de carbono não encontrado.")
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",

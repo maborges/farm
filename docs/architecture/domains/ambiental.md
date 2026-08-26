@@ -18,9 +18,9 @@ O Domínio Ambiental trata conformidade ambiental, monitoramento, CAR, outorgas,
 | Subdomínio | Objetivo | Entidades principais | Integrações | Status |
 |---|---|---|---|---|
 | CAR | Guardar cadastro ambiental rural | `RegistroCAR`, `CAR` | territorial, fundiário, imagem | IMPLEMENTADO |
-| Alertas Ambientais | Detectar risco e pendência | `AlertaAmbiental` | satélite, monitoramento, territorial | IMPLEMENTADO |
+| Alertas Ambientais | Registrar e tratar risco e pendência | `AlertaAmbiental` | satélite, monitoramento, territorial | IMPLEMENTADO — manual |
 | Outorgas | Controlar uso de água | `OutorgaHidrica` | irrigação, compliance | IMPLEMENTADO |
-| Monitoramento APP | Acompanhar preservação | `MonitoramentoAPP` | CAR, NDVI, satélite | IMPLEMENTADO |
+| Monitoramento APP | Acompanhar preservação | `MonitoramentoAPP` | CAR, NDVI, satélite | BASE PARCIAL |
 | Carbono | Registrar emissões e projeto | `CarbonoEmissao`, `CarbonoProjeto`, `CarbonoRelatorio` | ESG, certificações | PARCIAL |
 
 ## 4. Entidades
@@ -99,6 +99,18 @@ Evidência ESG
 | CAR | IMPLEMENTADO | Estrutura explícita no backend. |
 | Alertas | IMPLEMENTADO | Risco e compliance ativos. |
 | Outorgas | IMPLEMENTADO | Gestão hídrica presente. |
-| Monitoramento APP | IMPLEMENTADO | Ligado a imagem e satélite. |
+| Monitoramento APP | BASE PARCIAL | Serviços de imagem/NDVI existem, mas o fluxo satelital e o mapa ainda não estão integrados às rotas Ambientais. |
 | Carbono | PARCIAL | Funcionalidade emergente e transversal. |
 
+## 11. Fundação de dados e autorização
+
+A Fase 1 consolidou o contrato das entidades existentes sem criar uma fonte territorial paralela:
+
+- `unidade_produtiva_id` é o vínculo canônico das entidades Ambientais que representam uma propriedade/unidade;
+- `tenant_id` é obrigatório e filtrado no service e na camada de RLS;
+- as rotas exigem contratação do módulo e permissão granular por ação;
+- CAR, alertas, outorgas e carbono possuem schemas de entrada com enums e validações básicas;
+- a migration `20260826_ambiental_foundation` normaliza o legado e aplica políticas RLS às tabelas Ambientais existentes;
+- monitoramento satelital, APP/RL espacial, documentos, resíduos, CCIR e MRV completo permanecem nas fases seguintes.
+
+As permissões seguem o formato `ambiental:<recurso>:<ação>`, com ações `view`, `list`, `create`, `edit`, `delete` e `export` conforme o fluxo.
