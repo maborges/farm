@@ -62,6 +62,7 @@ class AmbientalService(BaseService[RegistroCAR]):
             "alertas_criticos": sum(1 for a in alertas if a.severidade == "CRITICA" and a.status != StatusAlerta.RESOLVIDO),
             "total_outorgas": len(outorgas),
             "outorgas_vencendo": sum(1 for o in outorgas if o.data_vencimento and hoje <= o.data_vencimento <= prazo),
+            "outorgas_vencidas": sum(1 for o in outorgas if o.data_vencimento and o.data_vencimento < hoje),
         }
 
     # ── CAR ───────────────────────────────────────────────────────────────────

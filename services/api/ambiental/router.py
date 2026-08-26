@@ -182,6 +182,7 @@ class DashboardAmbientalResponse(BaseModel):
     alertas_criticos: int
     total_outorgas: int
     outorgas_vencendo: int
+    outorgas_vencidas: int
 
 
 class CarbonoEmissaoCreate(BaseModel):
