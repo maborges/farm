@@ -57,7 +57,11 @@ Integrações para preenchimento automático e validação de dados regulatório
 **quero** informar o código CAR e ter os dados da propriedade importados automaticamente,  
 **para** garantir que área e localização estejam corretos conforme registro ambiental.
 
-> **Decisão de escopo (2026-08-26):** esta consulta permanece em backlog. O módulo Ambiental continuará usando os cadastros internos de unidade produtiva e imóvel rural como fonte dos identificadores fundiários. A futura integração SICAR deverá consultar apenas dados ambientais do CAR e não poderá sobrescrever automaticamente CCIR, NIRF, matrícula ou SIGEF.
+> **Decisão de escopo (2026-08-26):** os cadastros internos de unidade produtiva e imóvel rural continuam sendo a fonte dos identificadores fundiários. A consulta SICAR foi habilitada sob demanda no módulo Ambiental e consulta apenas dados ambientais do CAR; ela não sobrescreve CCIR, NIRF, matrícula ou SIGEF.
+
+> **Implementação inicial:** `POST /api/v1/ambiental/car/{id}/consultar-sicar` registra a data da tentativa, traduz o status retornado e mantém a identificação fundiária imutável. A sincronização periódica e o histórico de versões permanecem na Fase 2.
+
+> **Pendência de validação:** permanecem no backlog, até disponibilizarmos um código CAR válido, a validação real contra o SICAR, a configuração de credenciais OAuth, os testes de integração e a sincronização periódica. Os testes unitários com mocks já cobrem sucesso, erro de consulta e preservação da identificação fundiária.
 
 **Critérios de aceite:**
 - [ ] Campo CAR com máscara: `UF-XXXXXXXX-XXXX.XXXX.XXXX/XXXX-XX`

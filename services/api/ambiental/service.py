@@ -12,12 +12,25 @@ from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, Tabl
 
 from core.base_service import BaseService
 from core.exceptions import EntityNotFoundError
-from .models import RegistroCAR, AlertaAmbiental, OutorgaHidrica, StatusCAR, StatusAlerta
+from .models import (
+    RegistroCAR, AlertaAmbiental, OutorgaHidrica, StatusCAR, StatusAlerta,
+    OrigemDadosCAR, SituacaoSICAR,
+)
 from iot_integracao.new_holland.models import CarbonoEmissao, CarbonoProjeto, CarbonoRelatorio
 from core.models.unidade_produtiva import UnidadeProdutiva
 from core.cadastros.propriedade_imovel.models import PropriedadeImovel
 from core.cadastros.propriedades.propriedade_models import ExploracaoRural
 from imoveis.models.imovel import ImovelRural
+
+
+def _mapear_status_sicar(status: str | None) -> str | None:
+    """Converte códigos do SICAR para o enum de status Ambiental."""
+    return {
+        "AT": StatusCAR.ATIVO.value,
+        "PE": StatusCAR.PENDENTE.value,
+        "CA": StatusCAR.CANCELADO.value,
+        "SU": StatusCAR.SUSPENSO.value,
+    }.get((status or "").upper())
 
 
 class AmbientalService(BaseService[RegistroCAR]):
@@ -121,6 +134,23 @@ class AmbientalService(BaseService[RegistroCAR]):
 
     async def atualizar_car(self, car_id: uuid.UUID, dados: dict) -> RegistroCAR:
         return await self._resource(RegistroCAR).update(car_id, dados)
+
+    async def consultar_sicar(self, car_id: uuid.UUID) -> RegistroCAR:
+        """Consulta o SICAR e atualiza somente o estado da consulta ambiental."""
+        from integracoes.regulatorias.service import consultar_car, validar_formato_car
+
+        car = await self._get_car(car_id)
+        if not validar_formato_car(car.codigo_car):
+            raise ValueError("Código CAR fora do formato oficial para consulta SICAR.")
+        resultado = await consultar_car(car.codigo_car)
+        car.data_ultima_consulta_sicar = date.today()
+        if not resultado:
+            car.situacao_sicar = SituacaoSICAR.ERRO_CONSULTA.value
+            return car
+        car.situacao_sicar = SituacaoSICAR.VALIDO.value
+        car.origem_dados = OrigemDadosCAR.SICAR.value
+        car.status = _mapear_status_sicar(resultado.get("status")) or car.status
+        return car
 
     async def excluir_car(self, car_id: uuid.UUID) -> None:
         await self._resource(RegistroCAR).hard_delete(car_id)

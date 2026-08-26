@@ -434,6 +434,25 @@ async def atualizar_car(
         raise HTTPException(status.HTTP_404_NOT_FOUND, "CAR não encontrado.")
 
 
+@router.post("/car/{car_id}/consultar-sicar", response_model=CARResponse)
+async def consultar_car_sicar(
+    car_id: UUID,
+    tenant_id: UUID = Depends(get_tenant_id),
+    session: AsyncSession = Depends(get_session),
+    _: None = Depends(require_module_and_permission(MODULE, "ambiental:car:edit")),
+):
+    """Consulta o CAR no SICAR sob demanda e persiste o resultado."""
+    svc = AmbientalService(session, tenant_id)
+    try:
+        car = await svc.consultar_sicar(car_id)
+    except EntityNotFoundError:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "CAR não encontrado.")
+    except ValueError as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc))
+    await session.commit()
+    return car
+
+
 @router.delete("/car/{car_id}", status_code=200)
 async def excluir_car(
     car_id: UUID,
