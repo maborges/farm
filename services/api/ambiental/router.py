@@ -167,7 +167,7 @@ class DashboardAmbientalResponse(BaseModel):
 
 
 class CarbonoEmissaoCreate(BaseModel):
-    unidade_produtiva_id: Optional[int] = None
+    unidade_produtiva_id: Optional[UUID] = None
     escopo: int = Field(..., ge=1, le=3)
     categoria: str
     fonte: Optional[str] = None
@@ -179,13 +179,13 @@ class CarbonoEmissaoCreate(BaseModel):
     data_referencia: datetime
     observacoes: Optional[str] = None
     arquivo_comprovante: Optional[str] = None
-    created_by: Optional[int] = None
+    created_by: Optional[UUID] = None
 
 
 class CarbonoEmissaoResponse(BaseModel):
     id: int
     tenant_id: str
-    unidade_produtiva_id: Optional[int]
+    unidade_produtiva_id: Optional[UUID]
     escopo: int
     categoria: str
     fonte: Optional[str]
@@ -204,7 +204,7 @@ class CarbonoEmissaoResponse(BaseModel):
 
 
 class CarbonoProjetoCreate(BaseModel):
-    unidade_produtiva_id: Optional[int] = None
+    unidade_produtiva_id: Optional[UUID] = None
     nome: str
     descricao: Optional[str] = None
     tipo: str

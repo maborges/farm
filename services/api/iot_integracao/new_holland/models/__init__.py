@@ -1,7 +1,7 @@
 """Modelos para Sprint 26: New Holland, Marketplace, Carbono."""
 # ruff: noqa: E501, F401, I001, W293
 
-from sqlalchemy import Column, Integer, String, Float, DateTime, Date, ForeignKey, Text, Boolean, JSON
+from sqlalchemy import Column, Integer, String, Float, DateTime, Date, ForeignKey, Text, Boolean, JSON, Uuid
 from sqlalchemy.orm import backref, relationship
 from datetime import datetime
 
@@ -89,7 +89,7 @@ class CarbonoEmissao(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     tenant_id = Column(String(50), nullable=False, index=True)
-    unidade_produtiva_id = Column(Integer, ForeignKey("unidades_produtivas.id"))
+    unidade_produtiva_id = Column(Uuid(as_uuid=True), ForeignKey("production_units.id"))
     
     # Tipo de emissão
     escopo = Column(Integer, nullable=False)  # 1, 2, 3
@@ -114,7 +114,7 @@ class CarbonoEmissao(Base):
     arquivo_comprovante = Column(String(500))
     
     created_at = Column(DateTime, default=datetime.utcnow)
-    created_by = Column(Integer, ForeignKey("usuarios.id"))
+    created_by = Column(Uuid(as_uuid=True), ForeignKey("usuarios.id"))
 
 
 class CarbonoProjeto(Base):
@@ -123,7 +123,7 @@ class CarbonoProjeto(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     tenant_id = Column(String(50), nullable=False, index=True)
-    unidade_produtiva_id = Column(Integer, ForeignKey("unidades_produtivas.id", ondelete="CASCADE"))
+    unidade_produtiva_id = Column(Uuid(as_uuid=True), ForeignKey("production_units.id", ondelete="CASCADE"))
     
     # Identificação
     nome = Column(String(200), nullable=False)
@@ -155,13 +155,6 @@ class CarbonoProjeto(Base):
     
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
-
-    # Relacionamentos
-    fazenda = relationship(
-        "UnidadeProdutiva",
-        backref=backref("carbono_projetos", passive_deletes=True),
-    )
-
 
 class CarbonoRelatorio(Base):
     """Relatórios de pegada de carbono."""
