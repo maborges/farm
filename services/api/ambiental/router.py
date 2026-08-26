@@ -497,7 +497,6 @@ async def criar_alerta(
     except EntityNotFoundError:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Unidade produtiva não encontrada.")
     await session.commit()
-    await session.refresh(alerta)
     return alerta
 
 
@@ -513,7 +512,6 @@ async def atualizar_alerta(
     try:
         alerta = await svc.atualizar_alerta(alerta_id, dados.model_dump(exclude_none=True))
         await session.commit()
-        await session.refresh(alerta)
         return alerta
     except EntityNotFoundError:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Alerta não encontrado.")
