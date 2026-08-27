@@ -27,6 +27,7 @@ from certificacoes_esg.models import (
     PlanoAcaoCertificacao,
     ProgramaCertificacao,
     StatusPlanoAcao,
+    StatusProgramaCertificacao,
 )
 from certificacoes_esg.integrity import calculate_snapshot_hash, verify_snapshot_hash
 from certificacoes_esg.schemas import (
@@ -156,6 +157,33 @@ class CertificacoesESGService:
 
     def _query_tenant(self, model: type[Any]):
         return select(model).where(model.tenant_id == self.tenant_id)
+
+    async def listar_programas(self) -> list[ProgramaCertificacao]:
+        """Lista programas do tenant em ordem de atividade e início."""
+        stmt = self._query_tenant(ProgramaCertificacao).order_by(
+            ProgramaCertificacao.status_programa.asc(),
+            ProgramaCertificacao.data_inicio.desc(),
+        )
+        return list((await self.session.execute(stmt)).scalars().all())
+
+    async def criar_programa(self, dados: Any) -> ProgramaCertificacao:
+        """Cria um programa de certificação pertencente ao tenant atual."""
+        nome = self._normalize_text(dados.nome, "nome")
+        programa = ProgramaCertificacao(
+            tenant_id=self.tenant_id,
+            nome=nome,
+            tipo_certificacao=dados.tipo_certificacao,
+            status_programa=dados.status_programa,
+            data_inicio=dados.data_inicio,
+            data_fim=dados.data_fim,
+            organismo_certificador=dados.organismo_certificador,
+            escopo=dados.escopo,
+            observacoes=dados.observacoes,
+        )
+        self.session.add(programa)
+        await self.session.flush()
+        await self.session.refresh(programa)
+        return programa
 
     async def criar_evidencia(
         self,

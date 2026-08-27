@@ -28,6 +28,8 @@ from certificacoes_esg.schemas import (
     RelatorioESGIndicadorResponse,
     RelatorioESGEvidenciaCreate,
     RelatorioESGEvidenciaResponse,
+    ProgramaCertificacaoCreate,
+    ProgramaCertificacaoResponse,
 )
 from certificacoes_esg.models import (
     PrioridadePlanoAcao,
@@ -53,6 +55,30 @@ def _user_id_or_unauthorized(user_id: uuid.UUID | None) -> uuid.UUID:
 
 def _service(session: AsyncSession, tenant_id: uuid.UUID, user_id: uuid.UUID | None) -> CertificacoesESGService:
     return CertificacoesESGService(session, tenant_id, user_id=_user_id_or_unauthorized(user_id))
+
+
+@router.get("/programas", response_model=list[ProgramaCertificacaoResponse])
+async def listar_programas(
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    user_id: uuid.UUID | None = Depends(get_user_id),
+    session: AsyncSession = Depends(get_session),
+):
+    return await _service(session, tenant_id, user_id).listar_programas()
+
+
+@router.post("/programas", response_model=ProgramaCertificacaoResponse, status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_tenant_permission("certificacoes_esg:*"))]
+)
+async def criar_programa(
+    dados: ProgramaCertificacaoCreate,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    user_id: uuid.UUID | None = Depends(get_user_id),
+    session: AsyncSession = Depends(get_session),
+):
+    obj = await _service(session, tenant_id, user_id).criar_programa(dados)
+    await session.commit()
+    await session.refresh(obj)
+    return obj
 
 
 @router.post("/evidencias", response_model=EvidenciaCertificacaoResponse, status_code=status.HTTP_201_CREATED,
@@ -474,4 +500,3 @@ async def listar_evidencias_passaporte(
     session: AsyncSession = Depends(get_session),
 ):
     return await _service(session, tenant_id, user_id).listar_evidencias_passaporte(id)
-

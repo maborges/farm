@@ -17,6 +17,8 @@ from certificacoes_esg.models import (
     StatusPlanoAcao,
     TipoEvidencia,
     TipoEventoPassaporte,
+    TipoCertificacao,
+    StatusProgramaCertificacao,
 )
 
 FONTES_OFICIAIS_PROIBIDAS = {
@@ -41,6 +43,42 @@ class IntegridadeResponse(BaseModel):
     hash: str | None = None
     versao: int | None = None
     publicado_em: datetime | None = None
+
+
+class ProgramaCertificacaoCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    nome: str = Field(..., min_length=1, max_length=200)
+    tipo_certificacao: TipoCertificacao
+    status_programa: StatusProgramaCertificacao = StatusProgramaCertificacao.ATIVO
+    data_inicio: date
+    data_fim: date | None = None
+    organismo_certificador: str | None = Field(default=None, max_length=200)
+    escopo: str | None = None
+    observacoes: str | None = None
+
+    @model_validator(mode="after")
+    def validar_periodo(self) -> "ProgramaCertificacaoCreate":
+        if self.data_fim and self.data_fim < self.data_inicio:
+            raise ValueError("data_fim não pode ser anterior à data_inicio.")
+        return self
+
+
+class ProgramaCertificacaoResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    tenant_id: uuid.UUID
+    nome: str
+    tipo_certificacao: TipoCertificacao
+    status_programa: StatusProgramaCertificacao
+    data_inicio: date
+    data_fim: date | None = None
+    organismo_certificador: str | None = None
+    escopo: str | None = None
+    observacoes: str | None = None
+    created_at: datetime
+    updated_at: datetime
 
 
 class EvidenciaCertificacaoCreate(BaseModel):
