@@ -185,6 +185,17 @@ class CertificacoesESGService:
         await self.session.refresh(programa)
         return programa
 
+    async def atualizar_programa(self, programa_id: uuid.UUID, dados: Any) -> ProgramaCertificacao:
+        """Atualiza um programa do tenant e mantém o período consistente."""
+        programa = await self._query_or_fail(ProgramaCertificacao, programa_id, "Programa não encontrado.")
+        for field, value in dados.model_dump(exclude_none=True).items():
+            setattr(programa, field, self._normalize_text(value, field) if field == "nome" else value)
+        if programa.data_fim and programa.data_fim < programa.data_inicio:
+            raise BusinessRuleError("data_fim não pode ser anterior à data_inicio.")
+        await self.session.flush()
+        await self.session.refresh(programa)
+        return programa
+
     async def criar_evidencia(
         self,
         dados: EvidenciaCertificacaoCreate,

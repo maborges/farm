@@ -30,6 +30,7 @@ from certificacoes_esg.schemas import (
     RelatorioESGEvidenciaResponse,
     ProgramaCertificacaoCreate,
     ProgramaCertificacaoResponse,
+    ProgramaCertificacaoUpdate,
 )
 from certificacoes_esg.models import (
     PrioridadePlanoAcao,
@@ -76,6 +77,22 @@ async def criar_programa(
     session: AsyncSession = Depends(get_session),
 ):
     obj = await _service(session, tenant_id, user_id).criar_programa(dados)
+    await session.commit()
+    await session.refresh(obj)
+    return obj
+
+
+@router.patch("/programas/{programa_id}", response_model=ProgramaCertificacaoResponse,
+    dependencies=[Depends(require_tenant_permission("certificacoes_esg:*"))]
+)
+async def atualizar_programa(
+    programa_id: uuid.UUID,
+    dados: ProgramaCertificacaoUpdate,
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+    user_id: uuid.UUID | None = Depends(get_user_id),
+    session: AsyncSession = Depends(get_session),
+):
+    obj = await _service(session, tenant_id, user_id).atualizar_programa(programa_id, dados)
     await session.commit()
     await session.refresh(obj)
     return obj

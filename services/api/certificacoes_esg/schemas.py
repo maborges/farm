@@ -81,6 +81,19 @@ class ProgramaCertificacaoResponse(BaseModel):
     updated_at: datetime
 
 
+class ProgramaCertificacaoUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    nome: str | None = Field(default=None, min_length=1, max_length=200)
+    tipo_certificacao: TipoCertificacao | None = None
+    status_programa: StatusProgramaCertificacao | None = None
+    data_inicio: date | None = None
+    data_fim: date | None = None
+    organismo_certificador: str | None = Field(default=None, max_length=200)
+    escopo: str | None = None
+    observacoes: str | None = None
+
+
 class EvidenciaCertificacaoCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
