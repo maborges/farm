@@ -707,11 +707,12 @@ class CertificacoesESGService:
             titulo=titulo,
             public_token=public_token,
             publicado_publicamente_em=publicado_publicamente_em,
+            created_at=self._agora(),
+            updated_at=self._agora(),
             **dados.model_dump(exclude={"titulo"}),
         )
         self.session.add(obj)
         await self.session.flush()
-        await self.session.refresh(obj)
         return obj
 
     async def listar_passaportes_rastreabilidade(

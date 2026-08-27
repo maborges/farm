@@ -156,6 +156,7 @@ async def test_criar_passaporte_rastreabilidade_usa_tenant():
     obj = await service.criar_passaporte_rastreabilidade(payload)
     assert obj.tenant_id == tenant_id
     assert obj.created_by == user_id
+    session.refresh.assert_not_awaited()
 
 
 async def test_atualizar_status_passaporte_publicado_exige_snapshot_hash():

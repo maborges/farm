@@ -162,7 +162,6 @@ async def criar_nao_conformidade(
         created_by=_user_id_or_unauthorized(user_id),
     )
     await session.commit()
-    await session.refresh(obj)
     return obj
 
 
