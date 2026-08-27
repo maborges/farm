@@ -6,7 +6,12 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from pydantic import ValidationError
 
-from certificacoes_esg.models import StatusPassaporte, StatusRelatorioESG, TipoEventoPassaporte
+from certificacoes_esg.models import (
+    RelatorioESG,
+    StatusPassaporte,
+    StatusRelatorioESG,
+    TipoEventoPassaporte,
+)
 from certificacoes_esg.schemas import (
     PassaporteRastreabilidadeCreate,
     PassaporteRastreabilidadeEventoCreate,
@@ -17,6 +22,14 @@ from certificacoes_esg.schemas import (
 
 def _uuid() -> uuid.UUID:
     return uuid.uuid4()
+
+
+def test_modelo_relatorio_usa_publico_e_nao_publicado():
+    colunas = set(RelatorioESG.__table__.columns.keys())
+
+    assert "publico" in colunas
+    assert "publicado_em" in colunas
+    assert "publicado" not in colunas
 
 
 def test_relatorio_rejeita_periodo_invalido():
