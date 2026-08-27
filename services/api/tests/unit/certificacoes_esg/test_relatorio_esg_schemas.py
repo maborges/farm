@@ -18,6 +18,7 @@ from certificacoes_esg.schemas import (
     RelatorioESGCreate,
     RelatorioESGIndicadorCreate,
 )
+from enterprise.models.sprints_27_33 import ESGRelatorio
 
 
 def _uuid() -> uuid.UUID:
@@ -30,6 +31,7 @@ def test_modelo_relatorio_usa_publico_e_nao_publicado():
     assert "publico" in colunas
     assert "publicado_em" in colunas
     assert "publicado" not in colunas
+    assert ESGRelatorio.__table__.name == "enterprise_esg_relatorios"
 
 
 def test_relatorio_rejeita_periodo_invalido():

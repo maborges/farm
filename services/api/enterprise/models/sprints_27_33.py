@@ -104,9 +104,13 @@ class ESGIndicador(Base):
 
 
 class ESGRelatorio(Base):
-    """Relatórios ESG."""
-    __tablename__ = "esg_relatorios"
-    __table_args__ = {"extend_existing": True}
+    """Relatórios ESG do legado Enterprise.
+
+    O módulo moderno de certificações ESG usa ``esg_relatorios``. Manter
+    esse nome aqui faria o SQLAlchemy mesclar os dois modelos por causa do
+    ``extend_existing`` e incluir colunas legadas em inserts modernos.
+    """
+    __tablename__ = "enterprise_esg_relatorios"
 
     id = Column(Integer, primary_key=True, index=True)
     tenant_id = Column(String(50), nullable=False)
