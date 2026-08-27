@@ -313,7 +313,7 @@ class RelatorioESGUpdateStatus(BaseModel):
 
     @model_validator(mode="after")
     def validar_snapshot(self) -> "RelatorioESGUpdateStatus":
-        if self.snapshot_json is not None and not self.snapshot_hash:
+        if self.snapshot_json is not None and not self.snapshot_hash and self.status != StatusRelatorioESG.PUBLICADO:
             raise ValueError("snapshot_hash é obrigatório quando snapshot_json existir.")
         return self
 
@@ -445,7 +445,7 @@ class PassaporteRastreabilidadeUpdateStatus(BaseModel):
 
     @model_validator(mode="after")
     def validar_snapshot(self) -> "PassaporteRastreabilidadeUpdateStatus":
-        if self.snapshot_json is not None and not self.snapshot_hash:
+        if self.snapshot_json is not None and not self.snapshot_hash and self.status != StatusPassaporte.PUBLICADO:
             raise ValueError("snapshot_hash é obrigatório quando snapshot_json existir.")
         return self
 

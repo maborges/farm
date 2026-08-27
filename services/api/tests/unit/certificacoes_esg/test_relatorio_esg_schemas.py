@@ -15,8 +15,10 @@ from certificacoes_esg.models import (
 from certificacoes_esg.schemas import (
     PassaporteRastreabilidadeCreate,
     PassaporteRastreabilidadeEventoCreate,
+    PassaporteRastreabilidadeUpdateStatus,
     RelatorioESGCreate,
     RelatorioESGIndicadorCreate,
+    RelatorioESGUpdateStatus,
 )
 from enterprise.models.sprints_27_33 import ESGRelatorio
 
@@ -51,6 +53,20 @@ def test_relatorio_publicado_exige_hash_e_data():
             titulo="Relatório ESG",
             status=StatusRelatorioESG.PUBLICADO,
         )
+
+
+def test_publicacao_calcula_hash_do_snapshot_no_servico():
+    relatorio = RelatorioESGUpdateStatus(
+        status=StatusRelatorioESG.PUBLICADO,
+        snapshot_json={"dados": "publicação"},
+    )
+    passaporte = PassaporteRastreabilidadeUpdateStatus(
+        status=StatusPassaporte.PUBLICADO,
+        snapshot_json={"dados": "publicação"},
+    )
+
+    assert relatorio.snapshot_hash is None
+    assert passaporte.snapshot_hash is None
 
 
 def test_indicador_rejeita_valor_negativo():
