@@ -37,10 +37,12 @@ class BalancaEventEnvelope(BaseModel):
 
     event_id: UUID
     idempotency_key: str = Field(min_length=1, max_length=180)
-    event_type: str = Field(min_length=1, max_length=120)
+    capture_id: str = Field(min_length=1, max_length=120)
+    event_type: Literal["balanca.pesagem.concluida.v1"]
     event_version: Literal["v1"]
     occurred_at: datetime
-    balanca_account_id: UUID
+    received_at: datetime
+    account_id: UUID
     client_system: str = Field(min_length=1, max_length=80)
     client_tenant_id: str = Field(min_length=1, max_length=120)
     correlation_id: str = Field(min_length=1, max_length=160)

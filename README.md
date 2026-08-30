@@ -196,6 +196,17 @@ Reinicie o backend depois de alterar o ambiente. Sem essas três variáveis, as
 operações de pesagem do AgroSaaS são recusadas e nenhum banco local de Balança
 é utilizado como fallback.
 
+Para receber as confirmações por webhook, configure também o segredo HMAC da
+Conta no AgroSaaS e aponte o destino da Conta na TARA para:
+
+    BALANCA_WEBHOOK_ACCOUNT_SECRETS_JSON={"account_uuid":"segredo-compartilhado-com-a-tara"}
+    POST /api/v1/integracoes/balanca/events
+
+O endpoint valida a assinatura sobre método, caminho, timestamp e corpo bruto,
+deduplica por `event_id` e só confirma com `204` após publicar o evento nos
+subscribers internos. Falhas de processamento retornam erro para que a TARA
+faça retry; reentregas já registradas continuam sendo aceitas como sucesso.
+
 O primeiro usuário do backoffice é criado com
 `/opt/lampp/htdocs/balanca-platform/service/bootstrap_admin.py`.
 Depois do login em `/v1/auth/login`, o administrador emite uma credencial para

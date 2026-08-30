@@ -21,15 +21,18 @@ def test_ordem_balanca_exige_referencia_externa_e_correlacao() -> None:
 
 
 def test_evento_balanca_tem_envelope_versionado() -> None:
+    tenant_id = uuid4()
     event = BalancaEventEnvelope(
         event_id=uuid4(),
         idempotency_key="pesagem-1-concluida",
-        event_type="balanca.pesagem.concluida",
+        capture_id="capture-1",
+        event_type="balanca.pesagem.concluida.v1",
         event_version="v1",
         occurred_at=datetime.now(timezone.utc),
-        balanca_account_id=uuid4(),
+        received_at=datetime.now(timezone.utc),
+        account_id=uuid4(),
         client_system="agrosaas",
-        client_tenant_id="tenant-a",
+        client_tenant_id=str(tenant_id),
         correlation_id="corr-1",
         external_reference="compra-1",
         entity_id=uuid4(),

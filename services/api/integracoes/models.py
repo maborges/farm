@@ -227,6 +227,41 @@ class TenantIntegracao(Base):
     provider_id = synonym("integracao_id")
 
 
+class BalancaInboundEvent(Base):
+    """Evento recebido da TARA, persistido para deduplicação e auditoria."""
+
+    __tablename__ = "balanca_inbound_events"
+
+    event_id = Column(UUIDType(as_uuid=True), primary_key=True)
+    tenant_id = Column(UUIDType(as_uuid=True), _tenant_fk(), nullable=False, index=True)
+    account_id = Column(UUIDType(as_uuid=True), nullable=False)
+    event_type = Column(String(120), nullable=False)
+    idempotency_key = Column(String(180), nullable=False)
+    payload = Column(JSON, nullable=False)
+    received_at = Column(DateTime(timezone=True), nullable=False)
+    processed_at = Column(DateTime(timezone=True))
+
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "event_id", name="uq_balanca_inbound_events_tenant_event"),
+        Index("ix_balanca_inbound_events_tenant_received", "tenant_id", "received_at"),
+    )
+
+
+class BalancaWebhookCredential(Base):
+    """Credencial HMAC persistida para uma Conta TARA consumidora."""
+
+    __tablename__ = "balanca_webhook_credentials"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tenant_id = Column(UUIDType(as_uuid=True), _tenant_fk(), nullable=False, index=True)
+    balanca_account_id = Column(UUIDType(as_uuid=True), nullable=False, unique=True, index=True)
+    segredo_criptografado = Column(Text, nullable=False)
+    status = Column(String(20), nullable=False, default="ATIVO")
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow, nullable=False)
+    rotated_at = Column(DateTime(timezone=True))
+    updated_at = Column(DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+
 class IntegrationCredential(Base):
     """Credencial canônica de integração com segredo criptografado."""
 

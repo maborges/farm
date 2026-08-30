@@ -143,6 +143,8 @@ from wizard.models import (
     ImplantacaoPendencia,
 )
 from integracoes.models import (
+    BalancaInboundEvent,
+    BalancaWebhookCredential,
     IntegrationCredential,
     IntegrationFeature,
     IntegrationHealth,

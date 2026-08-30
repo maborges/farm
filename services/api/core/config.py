@@ -43,6 +43,25 @@ class Settings(BaseSettings):
     balanca_service_url: str = ""
     balanca_service_client_id: str = ""
     balanca_service_client_secret: str = ""
+    balanca_webhook_secret: str = ""
+    balanca_webhook_account_secrets_json: str = ""
+    balanca_webhook_max_skew_seconds: int = 300
+
+    def balanca_webhook_secret_for(self, account_id: str) -> str:
+        """Resolve the HMAC secret for one TARA account."""
+        if self.balanca_webhook_account_secrets_json:
+            import json
+            try:
+                values = json.loads(self.balanca_webhook_account_secrets_json)
+            except json.JSONDecodeError as exc:
+                raise ValueError("BALANCA_WEBHOOK_ACCOUNT_SECRETS_JSON inválido") from exc
+            secret = values.get(account_id)
+            if isinstance(secret, dict):
+                secret = secret.get("hmac_secret")
+            if secret:
+                return str(secret)
+            return ""
+        return self.balanca_webhook_secret
     allow_origins: list[str] = [
         "http://localhost:3000",
         "http://localhost:3001",
