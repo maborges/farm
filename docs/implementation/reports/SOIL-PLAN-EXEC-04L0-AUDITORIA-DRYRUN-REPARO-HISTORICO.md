@@ -5,7 +5,7 @@ criada. Nenhum código de produção, teste, model, schema ou migration foi alte
 
 ## 1. Resumo executivo
 
-Conectividade com o PostgreSQL de dev/homologação (`192.168.0.2/farms`, somente SELECT) foi confirmada
+Conectividade com o PostgreSQL de dev/homologação (`192.168.0.3/farms`, somente SELECT) foi confirmada
 (`SELECT 1` bem-sucedido via `psql`). A população real levantada nesta etapa é **maior** que a estimativa
 de 04J: **151 operações `REALIZADA` com `custo_total > 0` sem `CostAllocation` válida** (verificando
 ausência por **ambos** os vínculos históricos — `operation_execution_id` e `source_id`, conforme exigido

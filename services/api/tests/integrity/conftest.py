@@ -9,7 +9,7 @@ from core.config import settings
 def _db_url() -> str:
     url = str(settings.database_url)
     if "postgresql" not in url:
-        return "postgresql+asyncpg://borgus:numsey01@192.168.0.2/farms"
+        return "postgresql+asyncpg://borgus:numsey01@192.168.0.3/farms"
     return url
 
 

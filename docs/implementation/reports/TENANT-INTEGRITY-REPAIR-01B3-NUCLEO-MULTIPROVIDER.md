@@ -2,7 +2,7 @@
 
 **Data:** 2026-07-17  
 **Status:** CONCLUÍDO  
-**Banco:** `postgresql://borgus:numsey01@192.168.0.2/farms`  
+**Banco:** `postgresql://borgus:numsey01@192.168.0.3/farms`  
 **Head antes:** `tenant_integrity_repair_01b2_onda1`  
 **Head depois:** `tenant_integrity_repair_01b3_multiprovider`
 

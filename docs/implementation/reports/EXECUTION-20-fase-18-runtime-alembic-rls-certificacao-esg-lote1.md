@@ -2,7 +2,7 @@
 
 ## Banco usado na validacao
 - PostgreSQL configurado em `services/api/.env.local`
-- Host: `192.168.0.2`
+- Host: `192.168.0.3`
 - Database: `farms`
 - Schema: `farms`
 
