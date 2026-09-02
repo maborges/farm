@@ -316,10 +316,9 @@ class RomaneioService(BaseService[RomaneioColheita]):
         romaneio = await self.get_or_fail(romaneio_id)
 
         from integracoes.balanca import BalancaOrderRequest
-        from integracoes.balanca.client import BalancaServiceClient
+        from integracoes.tara.service import resolve_client
 
-        ordem = await BalancaServiceClient.from_settings().create_order(
-            str(self.tenant_id),
+        ordem = await (await resolve_client(self.session, str(self.tenant_id))).create_order(
             BalancaOrderRequest(
                 client_system="agrosaas",
                 client_tenant_id=str(self.tenant_id),

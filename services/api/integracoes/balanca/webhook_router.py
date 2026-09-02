@@ -34,7 +34,7 @@ async def receive_event(request: Request, session: AsyncSession = Depends(get_se
 
 class BalancaWebhookCredentialRequest(BaseModel):
     account_id: UUID
-    secret: str = Field(min_length=16)
+    secret: str = Field(min_length=32)
 
 
 class BalancaWebhookCredentialResponse(BaseModel):

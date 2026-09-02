@@ -432,6 +432,7 @@ from certificacoes_esg.public_router import router as router_certificacoes_esg_p
 from enterprise.routers.sprints_27_33_router import router as sprints_27_33_router
 from integracoes.sankhya.routers import router as sankhya_router
 from integracoes.openweather.routers import router as openweather_router
+from integracoes.tara.router import router as tara_router
 from integracoes.regulatorias.router import router as regulatorias_router
 
 # Contabilidade (COMENTADO - Usa Session síncrono, requer migração para AsyncSession)
@@ -534,6 +535,7 @@ app.include_router(marketplace_router, prefix="/api/v1/integracoes")
 app.include_router(balanca_webhook_router, prefix="/api/v1/integracoes")
 app.include_router(sankhya_router, prefix="/api/v1/integracoes")
 app.include_router(openweather_router, prefix="/api/v1/integracoes")
+app.include_router(tara_router, prefix="/api/v1/integracoes")
 app.include_router(regulatorias_router, prefix="/api/v1/integracoes/regulatorias")
 
 # Contabilidade (COMENTADO)

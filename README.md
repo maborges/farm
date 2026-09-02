@@ -39,6 +39,7 @@ Inventário técnico completo (versões, libs, infra): `docs/architecture/archit
 - Hedge de commodities (Mark-to-Market, exposição física × financeira)
 - Vínculo territorial/fundiário (Propriedade ↔ Imóvel Rural)
 - Balança (pesagem de carga e animais, offline-first, serviço desacoplado consumido por colheita/compras/vendas/pecuária)
+- TARA (adapter HTTP versionado, ordens, pesagens, eventos, webhooks e ativação de estações)
 
 Detalhamento de cada feature, decisões e histórico de implementação: `docs/CHANGELOG.md` (não faz parte da leitura padrão — consulte apenas quando precisar entender por que algo foi construído de determinada forma).
 
@@ -50,6 +51,20 @@ Detalhamento de cada feature, decisões e histórico de implementação: `docs/C
 - **Fluxo**: cadastra-se a propriedade → gera/organiza talhões → a safra vincula em `production-units` → módulos agrícolas operam sobre esses vínculos.
 
 Regras completas de fronteira territorial/fundiária: `docs/architecture/agrosaas-domain-map.md`.
+
+### Integração TARA
+
+O AgroSaaS acessa a Plataforma TARA exclusivamente por HTTP em
+`/api/v1/integracoes/tara`. A configuração por tenant é persistida no domínio
+canônico de integrações; o segredo do API Client é armazenado criptografado e
+nunca é retornado ao frontend ou aos logs. O cliente envia `X-Tenant-ID`,
+`X-Balanca-Client-ID` e `X-Balanca-Client-Secret` em todas as chamadas.
+
+Rotas principais: `PUT/GET /config`, `POST /clients`, `POST /orders`,
+`GET /orders/{id}`, `GET /weighings`, `POST /weighings/sync`, `GET /events`,
+`GET/PUT /webhooks`, `POST /webhooks/replay` e `POST /stations/activate`.
+A sincronização de pesagens preserva o cursor opaco no banco e só o avança
+após processar cada página com sucesso.
 
 ## Referência Oficial FIELD-CORE
 

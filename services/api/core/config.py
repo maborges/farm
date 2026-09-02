@@ -46,6 +46,12 @@ class Settings(BaseSettings):
     balanca_webhook_secret: str = ""
     balanca_webhook_account_secrets_json: str = ""
     balanca_webhook_max_skew_seconds: int = 300
+    # Somente valores de bootstrap/compatibilidade. A configuração operacional
+    # da TARA é persistida em tenant_integracoes.
+    tara_base_url: str = ""
+    tara_tenant_id: str = ""
+    tara_client_id: str = ""
+    tara_client_secret: str = ""
 
     def balanca_webhook_secret_for(self, account_id: str) -> str:
         """Resolve the HMAC secret for one TARA account."""

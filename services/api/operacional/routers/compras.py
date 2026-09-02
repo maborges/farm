@@ -271,10 +271,9 @@ async def solicitar_pesagem_balanca(
     """Vincula o pedido a uma pesagem oficial na estação de balança (entrada de
     carga — insumo ou produto de outro produtor)."""
     from integracoes.balanca import BalancaOrderRequest
-    from integracoes.balanca.client import BalancaServiceClient
+    from integracoes.tara.service import resolve_client
 
-    ordem = await BalancaServiceClient.from_settings().create_order(
-        str(tenant.id),
+    ordem = await (await resolve_client(session, str(tenant.id))).create_order(
         BalancaOrderRequest(
             client_system="agrosaas",
             client_tenant_id=str(tenant.id),

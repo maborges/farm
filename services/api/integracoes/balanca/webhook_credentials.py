@@ -28,7 +28,9 @@ async def resolve_webhook_secret(
     credential = result.scalar_one_or_none()
     if credential:
         return decrypt_integration_secret(credential.segredo_criptografado)
-    return config.balanca_webhook_secret_for(str(account_id))
+    # O segredo precisa ser cadastrado no banco, criptografado, por Conta.
+    # Nunca fazemos fallback para ambiente: isso impediria isolamento e rotação.
+    return ""
 
 
 async def upsert_webhook_credential(

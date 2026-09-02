@@ -163,10 +163,9 @@ async def solicitar_pesagem_balanca(
 ):
     """Vincula o animal a uma pesagem oficial na estação de balança (curral)."""
     from integracoes.balanca import BalancaOrderRequest
-    from integracoes.balanca.client import BalancaServiceClient
+    from integracoes.tara.service import resolve_client
 
-    ordem = await BalancaServiceClient.from_settings().create_order(
-        str(tenant_id),
+    ordem = await (await resolve_client(db, str(tenant_id))).create_order(
         BalancaOrderRequest(
             client_system="agrosaas",
             client_tenant_id=str(tenant_id),
