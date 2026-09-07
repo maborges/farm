@@ -1,0 +1,75 @@
+services:
+  api:
+    image: deepfarms-backend:pilot
+    container_name: deepfarms-api
+    restart: unless-stopped
+    command:
+      - uvicorn
+      - main:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+    env_file:
+      - ./services/api/.env.production
+    networks:
+      - deepfarms
+    expose:
+      - "8000"
+
+  automations-worker:
+    image: deepfarms-backend:pilot
+    container_name: deepfarms-automations-worker
+    restart: unless-stopped
+    command:
+      - python
+      - /app/scripts/run_worker.py
+    env_file:
+      - ./services/api/.env.production
+    networks:
+      - deepfarms
+
+  background-worker:
+    image: deepfarms-backend:pilot
+    container_name: deepfarms-background-worker
+    restart: unless-stopped
+    command:
+      - python
+      - -m
+      - background_worker
+    env_file:
+      - ./services/api/.env.production
+    networks:
+      - deepfarms
+
+  outbox-worker:
+    image: deepfarms-backend:pilot
+    container_name: deepfarms-outbox-worker
+    restart: unless-stopped
+    command:
+      - python
+      - -m
+      - events.outbox_worker
+      - run
+      - --loop
+    env_file:
+      - ./services/api/.env.production
+    networks:
+      - deepfarms
+
+  web:
+    image: deepfarms-web:pilot
+    container_name: deepfarms-web
+    restart: unless-stopped
+    environment:
+      BACKEND_URL: http://api:8000
+    depends_on:
+      - api
+    networks:
+      - deepfarms
+    expose:
+      - "3000"
+
+networks:
+  deepfarms:
+    name: deepfarms
