@@ -40,7 +40,14 @@ async def save_config(db: AsyncSession, tenant_id: str, payload: TaraConfigUpser
     await db.execute(text("SELECT set_config('app.current_tenant_id', :tenant, true)"), {"tenant": tenant_id})
     provider = await _provider(db)
     config = await _config(db, tenant_id, provider.id)
-    values = {"base_url": str(payload.base_url).rstrip("/"), "tara_tenant_id": payload.tenant_id, "client_id": payload.client_id}
+    previous_values = config.configuracoes or {} if config else {}
+    values = {
+        "base_url": str(payload.base_url).rstrip("/"),
+        "client_id": payload.client_id,
+        "client_system": payload.client_system or previous_values.get("client_system"),
+        "client_tenant_id": payload.client_tenant_id or previous_values.get("client_tenant_id"),
+        "tara_client_id": previous_values.get("tara_client_id"),
+    }
     if config is None:
         config = TenantIntegracao(tenant_id=tenant_id, integracao_id=provider.id, configuracoes=values, status="ativa", lifecycle_state="ACTIVE")
         db.add(config)
@@ -50,6 +57,10 @@ async def save_config(db: AsyncSession, tenant_id: str, payload: TaraConfigUpser
     if payload.client_secret:
         await _save_secret(db, tenant_id, provider.id, payload.client_secret, config)
     await db.commit()
+    # `set_config(..., true)` é válido somente na transação anterior. Após o
+    # commit, restabelecemos o contexto para que o refresh e a leitura da
+    # credencial continuem protegidos pelas políticas RLS do tenant.
+    await db.execute(text("SELECT set_config('app.current_tenant_id', :tenant, true)"), {"tenant": tenant_id})
     await db.refresh(config)
     return await config_response(db, config)
 
@@ -80,7 +91,7 @@ async def config_response(db: AsyncSession, config: TenantIntegracao) -> TaraCon
     """Converte configuração sem expor o segredo persistido."""
     secret = await _secret(db, config)
     values = config.configuracoes or {}
-    return TaraConfigResponse(id=config.id, tenant_id=str(config.tenant_id), base_url=values.get("base_url", ""), tara_tenant_id=values.get("tara_tenant_id", ""), client_id=values.get("client_id", ""), client_secret_configured=bool(secret), status=config.lifecycle_state)
+    return TaraConfigResponse(id=config.id, tenant_id=str(config.tenant_id), base_url=values.get("base_url", ""), client_id=values.get("client_id", ""), client_secret_configured=bool(secret), client_system=values.get("client_system"), client_tenant_id=values.get("client_tenant_id"), tara_client_id=values.get("tara_client_id"), status=config.lifecycle_state)
 
 
 async def _secret(db: AsyncSession, config: TenantIntegracao) -> str:
@@ -98,9 +109,37 @@ async def resolve_client(db: AsyncSession, tenant_id: str) -> TaraClient:
         raise TaraNotConfigured("Integração TARA não configurada para o tenant.")
     secret = await _secret(db, config)
     values = config.configuracoes or {}
-    if not all((values.get("base_url"), values.get("tara_tenant_id"), values.get("client_id"), secret)):
+    if not all((values.get("base_url"), values.get("client_id"), secret)):
         raise TaraNotConfigured("Configuração TARA incompleta.")
-    return TaraClient(values["base_url"], values["tara_tenant_id"], values["client_id"], secret)
+    return TaraClient(values["base_url"], values["client_id"], secret)
+
+
+async def diagnose_connection(db: AsyncSession, tenant_id: str) -> dict[str, object]:
+    """Valida a credencial e a associação do cliente sem expor segredos."""
+    provider = await _provider(db)
+    config = await _config(db, tenant_id, provider.id)
+    if not config:
+        return {"tara_reachable": False, "credentials_valid": False, "client_authorized": False, "client_registered": False, "status": "CONFIG_INCOMPLETE", "message": "A integração TARA ainda não foi configurada."}
+
+    values = config.configuracoes or {}
+    client_system = values.get("client_system")
+    client_tenant_id = values.get("client_tenant_id")
+    if not client_system or not client_tenant_id:
+        return {"tara_reachable": False, "credentials_valid": bool(values.get("client_id")), "client_authorized": False, "client_registered": False, "status": "CLIENT_IDENTITY_INCOMPLETE", "message": "Informe o sistema e o identificador textual do Cliente TARA."}
+
+    client = await resolve_client(db, tenant_id)
+    try:
+        response = await client.register_client({"sistema_cliente": client_system, "tenant_cliente_id": client_tenant_id, "nome_exibicao": f"{client_system} ({client_tenant_id})"})
+    except TaraApiError as exc:
+        status_map = {401: ("INVALID_CREDENTIALS", "Client ID ou Client Secret inválido."), 403: ("CLIENT_NOT_AUTHORIZED", "A API Key não está autorizada para este Cliente TARA."), 404: ("CLIENT_NOT_REGISTERED", "Cliente ainda não cadastrado na TARA."), 409: ("CLIENT_CONFLICT", "O Cliente já existe com dados incompatíveis.")}
+        status, message = status_map.get(exc.status_code, ("TARA_UNAVAILABLE", "A TARA está temporariamente indisponível."))
+        return {"tara_reachable": exc.status_code < 500, "credentials_valid": exc.status_code not in (401,), "client_authorized": exc.status_code not in (401, 403), "client_registered": False, "status": status, "message": message}
+
+    tara_client_id = response.get("id") or response.get("client_id") if isinstance(response, dict) else None
+    if tara_client_id:
+        config.configuracoes = {**values, "tara_client_id": str(tara_client_id)}
+        await db.commit()
+    return {"tara_reachable": True, "tenant_valid": True, "credentials_valid": True, "client_authorized": True, "client_registered": True, "status": "CONNECTED", "message": "Conexão e associação do Cliente TARA validadas com sucesso."}
 
 
 async def sync_weighings(db: AsyncSession, tenant_id: str, limit: int = 100) -> list[dict]:

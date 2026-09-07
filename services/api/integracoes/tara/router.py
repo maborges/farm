@@ -11,8 +11,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.dependencies import get_session, get_tenant_id, require_tenant_permission
 
 from .client import TaraApiError
-from .schemas import TaraClientRegistration, TaraConfigResponse, TaraConfigUpsert, TaraOrderCreate, TaraWeighingPage
-from .service import TaraNotConfigured, get_config, resolve_client, save_config, sync_weighings
+from .schemas import (
+    TaraClientRegistration,
+    TaraConfigResponse,
+    TaraConfigUpsert,
+    TaraOperatorCreate,
+    TaraOrderCreate,
+    TaraWeighingPage,
+)
+from .service import TaraNotConfigured, diagnose_connection, get_config, resolve_client, save_config, sync_weighings
 
 router = APIRouter(prefix="/tara", tags=["Integração TARA"])
 
@@ -34,6 +41,12 @@ async def write_config(payload: TaraConfigUpsert, tenant_id: UUID = Depends(get_
     return await save_config(db, str(tenant_id), payload)
 
 
+@router.post("/config/testar-conexao", dependencies=[Depends(require_tenant_permission("integrations:configure"))])
+async def test_connection(tenant_id: UUID = Depends(get_tenant_id), db: AsyncSession = Depends(get_session)) -> dict[str, object]:
+    """Diagnostica a conexão e a associação do Cliente sem retornar credenciais."""
+    return await diagnose_connection(db, str(tenant_id))
+
+
 @router.post("/clients", dependencies=[Depends(require_tenant_permission("integrations:configure"))])
 async def register_client(payload: TaraClientRegistration, tenant_id: UUID = Depends(get_tenant_id), db: AsyncSession = Depends(get_session)) -> Any:
     try:
@@ -46,6 +59,33 @@ async def register_client(payload: TaraClientRegistration, tenant_id: UUID = Dep
 async def create_order(payload: TaraOrderCreate, tenant_id: UUID = Depends(get_tenant_id), db: AsyncSession = Depends(get_session)) -> Any:
     try:
         return await (await resolve_client(db, str(tenant_id))).create_order(payload.model_dump(mode="json"))
+    except (TaraApiError, TaraNotConfigured) as exc:
+        raise _error(exc) from exc
+
+
+@router.post("/operators", dependencies=[Depends(require_tenant_permission("balanca:write"))])
+async def create_operator(payload: TaraOperatorCreate, tenant_id: UUID = Depends(get_tenant_id), db: AsyncSession = Depends(get_session)) -> Any:
+    """Publicamente projeta um operador do DeepFarms na TARA."""
+    try:
+        return await (await resolve_client(db, str(tenant_id))).create_operator(payload.model_dump(mode="json"))
+    except (TaraApiError, TaraNotConfigured) as exc:
+        raise _error(exc) from exc
+
+
+@router.get("/operators", dependencies=[Depends(require_tenant_permission("balanca:read"))])
+async def list_operators(tenant_id: UUID = Depends(get_tenant_id), db: AsyncSession = Depends(get_session)) -> Any:
+    """Consulta operadores do cliente na Conta TARA."""
+    try:
+        return await (await resolve_client(db, str(tenant_id))).list_operators()
+    except (TaraApiError, TaraNotConfigured) as exc:
+        raise _error(exc) from exc
+
+
+@router.post("/operators/{operator_id}/revoke", dependencies=[Depends(require_tenant_permission("balanca:configure"))])
+async def revoke_operator(operator_id: str, tenant_id: UUID = Depends(get_tenant_id), db: AsyncSession = Depends(get_session)) -> Any:
+    """Solicita revogação da projeção do operador na TARA."""
+    try:
+        return await (await resolve_client(db, str(tenant_id))).revoke_operator(operator_id)
     except (TaraApiError, TaraNotConfigured) as exc:
         raise _error(exc) from exc
 

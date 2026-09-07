@@ -35,7 +35,9 @@ class IAPredicaoRiscoService:
                 "impacto_estimado": 0.0,
                 "tempo_estimado": "N/A",
                 "acao_recomendada": "Inicie uma nova safra para habilitar previsões.",
-                "confianca": 0.0
+                "confianca": 0.0,
+                "tendencia_custo": 0.0,
+                "tendencia_receita": 0.0,
             }
 
         logger.info(f"[IAPredicao] Iniciando análise preditiva para safra {safra_id}")
@@ -55,7 +57,9 @@ class IAPredicaoRiscoService:
                 "impacto_estimado": 0.0,
                 "tempo_estimado": "N/A",
                 "acao_recomendada": "Continue registrando lançamentos para habilitar previsões.",
-                "confianca": 0.0
+                "confianca": 0.0,
+                "tendencia_custo": 0.0,
+                "tendencia_receita": 0.0,
             }
 
         # 2. Calcular Tendências (Delta)

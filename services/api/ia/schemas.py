@@ -39,7 +39,7 @@ class IAPredicaoRiscoResponse(BaseModel):
     risco: str
     descricao: str
     impacto_estimado: float
-    tempo_estimated: str
+    tempo_estimado: str
     acao_recomendada: str
     confianca: float
     tendencia_custo: float

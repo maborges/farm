@@ -16,7 +16,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.config import Settings
-from events import DomainEvent, publish_domain_event
+from events import DomainEvent, enqueue_domain_event
 from integracoes.models import BalancaInboundEvent
 
 from .schemas import BalancaEventEnvelope
@@ -134,7 +134,7 @@ def to_domain_event(envelope: BalancaEventEnvelope) -> DomainEvent:
 
 
 async def accept_event(session: AsyncSession, envelope: BalancaEventEnvelope) -> bool:
-    """Persist, publish, and commit one TARA event; return false for duplicates."""
+    """Persist one TARA event and enqueue its business processing."""
     tenant_id = _uuid_or_bad_request(envelope.client_tenant_id, "client_tenant_id")
     await session.execute(text("SELECT set_config('app.current_tenant_id', :tenant, true)"), {"tenant": str(tenant_id)})
     existing = await session.get(BalancaInboundEvent, envelope.event_id)
@@ -150,9 +150,9 @@ async def accept_event(session: AsyncSession, envelope: BalancaEventEnvelope) ->
     except IntegrityError:
         await session.rollback()
         return False
-    result = await publish_domain_event(to_domain_event(envelope), session=session)
-    if result.errors:
-        raise RuntimeError("Falha ao processar evento TARA")
+    await enqueue_domain_event(
+        to_domain_event(envelope), session=session, commit=False
+    )
     inbound = await session.get(BalancaInboundEvent, envelope.event_id)
     inbound.processed_at = datetime.now(timezone.utc)
     await session.commit()

@@ -20,14 +20,14 @@ class TaraApiError(RuntimeError):
 class TaraClient:
     """Implementa somente os endpoints HTTP públicos e versionados da TARA."""
 
-    def __init__(self, base_url: str, tenant_id: str, client_id: str, client_secret: str, timeout: float = 15) -> None:
+    def __init__(self, base_url: str, client_id: str, client_secret: str, timeout: float = 15) -> None:
         self.base_url = str(base_url).rstrip("/")
-        self.tenant_id, self.client_id, self.client_secret = tenant_id, client_id, client_secret
+        self.client_id, self.client_secret = client_id, client_secret
         self.timeout = timeout
 
     def _headers(self) -> dict[str, str]:
-        return {"Content-Type": "application/json", "X-Tenant-ID": self.tenant_id,
-                "X-Balanca-Client-ID": self.client_id, "X-Balanca-Client-Secret": self.client_secret}
+        headers = {"Content-Type": "application/json", "X-Balanca-Client-ID": self.client_id, "X-Balanca-Client-Secret": self.client_secret}
+        return headers
 
     async def _request(self, method: str, path: str, *, json: dict[str, Any] | None = None, params: dict[str, str] | None = None, idempotency_key: str | None = None) -> Any:
         """Executa requisição com retry apenas para falhas transitórias."""
@@ -63,6 +63,19 @@ class TaraClient:
         key = str(payload.get("external_reference") or payload.get("correlation_id"))
         return await self._request("POST", "/v1/orders", json=payload, idempotency_key=key)
 
+    async def create_operator(self, payload: dict[str, Any]) -> Any:
+        """Registra uma projeção de operador usando somente a API pública."""
+        key = str(payload.get("external_id") or payload.get("identificador_externo"))
+        return await self._request("POST", "/v1/operators", json=payload, idempotency_key=key)
+
+    async def list_operators(self) -> Any:
+        """Consulta operadores disponíveis para o cliente na Conta TARA."""
+        return await self._request("GET", "/v1/operators")
+
+    async def revoke_operator(self, operator_id: str) -> Any:
+        """Revoga um operador pela referência pública retornada pela TARA."""
+        return await self._request("POST", f"/v1/operators/{operator_id}/revoke", json={})
+
     async def get_order(self, order_id: str) -> Any:
         """Consulta uma Ordem por seu identificador TARA."""
         return await self._request("GET", f"/v1/orders/{order_id}")
@@ -80,6 +93,10 @@ class TaraClient:
         if cursor is not None:
             params["cursor"] = cursor
         return await self._request("GET", "/v1/events", params=params)
+
+    async def test_connection(self) -> Any:
+        """Valida credenciais e alcance da Conta por uma consulta leve."""
+        return await self._request("GET", "/v1/weighings", params={"limit": "1"})
 
     async def get_webhook(self) -> Any:
         """Consulta a configuração de webhook da Conta."""
