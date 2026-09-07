@@ -17,3 +17,5 @@ test-results/
 *.pyo
 .env.local
 **/.env.local
+.env
+**/.env
