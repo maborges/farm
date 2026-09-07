@@ -10,7 +10,7 @@ Manual operacional da Plataforma Balança: [docs/MANUAL_BALANCA.md](docs/MANUAL_
 
 Utilize português (pt-BR) para documentos e interações com o usuário, com acentuação correta e linguagem não técnica nas explicações.
 
-> Cópias espelhadas em `apps/web/` existem para compatibilidade histórica. A fonte oficial fica na raiz do repositório — confirme o caminho ativo antes de editar (ver `CONTEXTO.md` → "Sinais de Atenção").
+> A fonte oficial do frontend web é `apps/web/`. O backend principal fica em `services/api` e os contratos compartilhados em `packages/`.
 
 ## Arquitetura do Sistema
 

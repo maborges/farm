@@ -44,16 +44,9 @@ Regras completas de stack, segurança, RBAC e padrões de código vivem em `CLAU
 
 ## Sinais de Atenção (⚠️ único neste documento)
 
-Há indícios de duplicação ou espelhamento indevido dentro de `apps/web`, incluindo caminhos como:
-- `apps/web/services/api`
-- `apps/web/docs`
-- arquivos de banco e artefatos auxiliares dentro de `apps/web`
-
-Esses caminhos **não são a fonte primária** da aplicação. Antes de editar, confirme se o arquivo está no
-caminho ativo do projeto e não em uma cópia espelhada.
-
-**Nota de duplicação conhecida:** `API_REFERENCE_RBAC.md` apareceu cadastrado em dois caminhos idênticos
-durante auditoria — verificar se há espelhamento real no repositório e, se sim, eliminar uma das cópias.
+O frontend web é um diretório normal do monorepo em `apps/web`; ele não é submodule e não deve conter cópias
+de `services/api`, `docs`, bancos locais ou artefatos de build. O backend canônico fica exclusivamente em
+`services/api`.
 
 ## Fluxo Recomendado
 

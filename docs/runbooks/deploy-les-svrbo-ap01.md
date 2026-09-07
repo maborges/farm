@@ -575,16 +575,14 @@ Se aparecer `permission denied while trying to connect to the docker API`, confi
 
 ## 11. Baixar o código-fonte
 
-Backend e frontend estão em fontes Git diferentes:
+Backend e frontend são publicados pelo mesmo repositório monorepo:
 
-| Componente | Repositório | Destino no servidor |
+| Componente | Caminho no repositório | Destino no servidor |
 |---|---|---|
-| Backend e estrutura principal | `https://github.com/maborges/farm.git` | `/opt/agrosaas` |
-| Frontend web | `https://github.com/maborges/farm_web.git` | `/opt/agrosaas/apps/web` |
+| Backend e estrutura principal | `services/api` | `/opt/agrosaas/services/api` |
+| Frontend web | `apps/web` | `/opt/agrosaas/apps/web` |
 
-O frontend está registrado no repositório principal como um submódulo Git. Por isso, não faça apenas um `git clone` simples e não clone o frontend manualmente por cima de `apps/web`.
-
-Não use `--recurse-submodules` neste projeto. O repositório `farm_web.git` contém atualmente um gitlink interno sem configuração correspondente no `.gitmodules`; a recursão tenta acessar `apps/web/apps/web` e termina com erro. Inicialize somente o submódulo de primeiro nível conforme os comandos abaixo.
+O frontend faz parte do monorepo e não deve ser clonado ou atualizado separadamente.
 
 ### 11.1 Primeira instalação
 
@@ -596,19 +594,13 @@ Não use `--recurse-submodules` neste projeto. O repositório `farm_web.git` con
 ```bash
 cd /opt/agrosaas
 git clone https://github.com/maborges/farm.git .
-git submodule sync -- apps/web
-git submodule update --init apps/web
 ```
 
 Confirme os dois repositórios:
 
 ```bash
 git remote -v
-git submodule status
-git -C apps/web remote -v
 ```
-
-O comando `git submodule status` deve mostrar `apps/web` sem um sinal `-` no início da linha.
 
 ### 11.2 Se o repositório principal já foi clonado sem o frontend
 
@@ -617,8 +609,7 @@ O comando `git submodule status` deve mostrar `apps/web` sem um sinal `-` no in�
 
 ```bash
 cd /opt/agrosaas
-git submodule sync -- apps/web
-git submodule update --init apps/web
+git pull --ff-only
 ```
 
 ### 11.3 Atualizar backend e frontend
@@ -631,25 +622,11 @@ Atualize primeiro o repositório principal e depois coloque o frontend exatament
 ```bash
 cd /opt/agrosaas
 git pull --ff-only
-git submodule sync -- apps/web
-git submodule update --init apps/web
 ```
 
-Não use `git pull` diretamente dentro de `/opt/agrosaas/apps/web` durante um deploy normal. A versão correta do frontend é o commit registrado pelo repositório principal.
+Não execute `git pull` dentro de `/opt/agrosaas/apps/web`: esse diretório pertence ao monorepo.
 
 Se os repositórios forem privados, configure no servidor uma chave SSH técnica com acesso somente de leitura e substitua as URLs HTTPS pelas URLs SSH fornecidas pelo GitHub.
-
-### 11.4 Erro `No url found for submodule path 'apps/web/apps/web'`
-
-Se o clone já tiver baixado o backend e os aproximadamente 541 MB do frontend antes de mostrar esse erro, não faça o download novamente. Confirme o checkout:
-
-```bash
-cd /opt/agrosaas
-git submodule status apps/web
-git -C apps/web rev-parse HEAD
-```
-
-Se o primeiro comando mostrar `apps/web` sem `-` no início e o segundo retornar o commit esperado pelo primeiro, o frontend está pronto. Continue na seção 12. Nas próximas atualizações, use somente `git submodule update --init apps/web`, sem `--recursive`.
 
 ## 12. Arquivos de ambiente
 
@@ -1183,7 +1160,7 @@ sudo journalctl -u nginx -f
 0. **Como root:** backup do banco antes de qualquer migration (seção 9.7/9.8 — confirme nome do banco e binário `pg_dump` da versão certa primeiro).
 1. **Como usuário `agrosaas`:** entre no diretório do projeto.
 2. Faça `git pull --ff-only` no repositório principal.
-3. Atualize o submódulo `apps/web` para o commit referenciado.
+3. O frontend em `apps/web` já é atualizado junto com o monorepo.
 4. Atualize dependências se necessário.
 5. Rode `alembic upgrade head`. Se falhar com `InsufficientPrivilegeError: must be owner of table ...`, veja a seção 9.8 (ownership) — **como root**, corrija o ownership e repita o `alembic upgrade head`.
 6. Rode `pnpm --filter web build`.
@@ -1199,8 +1176,6 @@ sudo -u postgres /usr/pgsql-16/bin/pg_dump -Fc <nome_do_banco> | sudo tee "/srv/
 sudo -iu agrosaas
 cd /opt/agrosaas
 git pull --ff-only
-git submodule sync -- apps/web
-git submodule update --init apps/web
 
 cd /opt/agrosaas/services/api
 source .venv/bin/activate
@@ -1241,8 +1216,6 @@ Se a nova versão falhar:
 ```bash
 cd /opt/agrosaas
 git checkout <commit_anteriores_ou_tag>
-git submodule sync -- apps/web
-git submodule update --init apps/web
 
 cd /opt/agrosaas/services/api
 source .venv/bin/activate
