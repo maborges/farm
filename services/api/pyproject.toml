@@ -22,6 +22,7 @@ dependencies = [
     "pynfe>=0.4",
     "reportlab>=4.0.0",
     "cryptography>=42.0.0",
+    "requests>=2.32.0",
     # ML/DL para IA de diagnóstico
     "torch>=2.0.0",
     "torchvision>=0.15.0",
