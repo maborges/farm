@@ -152,20 +152,55 @@ MODEL_MODULES: tuple[str, ...] = (
 
 _loaded = False
 
-# Models declared in code but without physical evidence in the audited
-# database. They remain visible in the ORM registry, but are not approved for
-# materialization by BASELINE-DEEPFARMS-V1 until adoption is decided.
-BASELINE_PENDING_TABLES = frozenset({
-    "api_keys", "api_logs", "api_versions", "arracoamentos", "balanco_hidrico",
-    "benchmarks", "colaborador_apontamentos", "contratos_futuros",
-    "crm_ofertas_personalizadas", "crm_planos_comerciais", "crm_precificacao_modulo",
-    "crm_produtos", "enterprise_esg_relatorios", "esg_indicadores",
-    "estacoes_meteorologicas", "growth_landing_eventos", "hedge_registros",
-    "ilpf_modulos", "imagens_satelite", "integracao_new_holland",
-    "maquinas_new_holland", "marketplace_avaliacoes", "mrv_projetos",
-    "mrv_relatorios", "ndvi_registros", "pesagens", "pontos", "powerbi",
-    "preditivo", "sap", "sdks", "sensores_iot", "sensores_leituras",
-    "tanques_rede",
+# Final decisions from MIGRATION-METADATA-01C. Models remain visible in the
+# registry even when excluded from the future baseline, so code is not erased
+# merely because a feature is not deployed in the reference database.
+BASELINE_DECISIONS: dict[str, str] = {
+    "api_keys": "CODE_ONLY_NOT_DEPLOYED",
+    "api_logs": "CODE_ONLY_NOT_DEPLOYED",
+    "api_versions": "CODE_ONLY_NOT_DEPLOYED",
+    "arracoamentos": "DEAD_ORPHAN_MODEL",
+    "balanco_hidrico": "SUPERSEDED",
+    "benchmarks": "CODE_ONLY_NOT_DEPLOYED",
+    "colaborador_apontamentos": "DEAD_ORPHAN_MODEL",
+    "contratos_futuros": "SUPERSEDED",
+    "crm_ofertas_personalizadas": "ACTIVE_BASELINE",
+    "crm_planos_comerciais": "ACTIVE_BASELINE",
+    "crm_precificacao_modulo": "ACTIVE_BASELINE",
+    "crm_produtos": "ACTIVE_BASELINE",
+    "enterprise_esg_relatorios": "SUPERSEDED",
+    "esg_indicadores": "SUPERSEDED",
+    "estacoes_meteorologicas": "SUPERSEDED",
+    "growth_landing_eventos": "ACTIVE_BASELINE",
+    "hedge_registros": "SUPERSEDED",
+    "ilpf_modulos": "DEAD_ORPHAN_MODEL",
+    "imagens_satelite": "SUPERSEDED",
+    "integracao_new_holland": "CODE_ONLY_NOT_DEPLOYED",
+    "maquinas_new_holland": "CODE_ONLY_NOT_DEPLOYED",
+    "marketplace_avaliacoes": "CODE_ONLY_NOT_DEPLOYED",
+    "mrv_projetos": "DEAD_ORPHAN_MODEL",
+    "mrv_relatorios": "DEAD_ORPHAN_MODEL",
+    "ndvi_registros": "SUPERSEDED",
+    "pesagens": "DEAD_ORPHAN_MODEL",
+    "pontos": "DEAD_ORPHAN_MODEL",
+    "powerbi": "CODE_ONLY_NOT_DEPLOYED",
+    "preditivo": "CODE_ONLY_NOT_DEPLOYED",
+    "sap": "CODE_ONLY_NOT_DEPLOYED",
+    "sdks": "CODE_ONLY_NOT_DEPLOYED",
+    "sensores_iot": "DEAD_ORPHAN_MODEL",
+    "sensores_leituras": "DEAD_ORPHAN_MODEL",
+    "tanques_rede": "DEAD_ORPHAN_MODEL",
+}
+
+BASELINE_EXCLUDED_TABLES = frozenset(
+    name for name, decision in BASELINE_DECISIONS.items()
+    if decision != "ACTIVE_BASELINE"
+)
+
+LEGACY_BALANCA_TABLES = frozenset({
+    "balanca_afericoes", "balanca_avaliacoes_prestador", "balanca_dispositivos",
+    "balanca_fisicas", "balanca_operadores", "balanca_ordens",
+    "balanca_pesagens", "balanca_sync_tombstones",
 })
 
 
@@ -187,8 +222,8 @@ def registered_tables() -> MappingProxyType:
 
 
 def baseline_candidate_tables() -> frozenset[str]:
-    """Return the conservative model subset proposed for the future baseline."""
-    return frozenset(set(registered_tables()) - BASELINE_PENDING_TABLES)
+    """Return the frozen ORM subset approved for the future baseline."""
+    return frozenset(set(registered_tables()) - BASELINE_EXCLUDED_TABLES)
 
 
 def table_owners() -> dict[str, tuple[str, ...]]:

@@ -3,6 +3,9 @@ from pathlib import Path
 
 from core.database import Base
 from core.model_registry import (
+    BASELINE_DECISIONS,
+    BASELINE_EXCLUDED_TABLES,
+    LEGACY_BALANCA_TABLES,
     MODEL_MODULES,
     baseline_candidate_tables,
     register_models,
@@ -41,13 +44,24 @@ def test_registry_is_idempotent_and_reproducible() -> None:
     assert first == second
     assert len(MODEL_MODULES) > 0
     assert len(first) == 373
-    assert len(baseline_candidate_tables()) == 339
+    assert len(baseline_candidate_tables()) == 344
+    assert len(BASELINE_DECISIONS) == 34
+    assert not (set(baseline_candidate_tables()) & set(LEGACY_BALANCA_TABLES))
 
 
 def test_registry_covers_every_production_model_table() -> None:
     register_models()
 
     assert _discovered_table_names() <= set(Base.metadata.tables)
+
+
+def test_every_model_has_a_final_baseline_decision() -> None:
+    register_models()
+
+    discovered = _discovered_table_names()
+    decided = discovered - set(BASELINE_DECISIONS)
+    assert decided | set(BASELINE_DECISIONS) == discovered
+    assert not (set(BASELINE_EXCLUDED_TABLES) - discovered)
 
 
 def test_registry_has_no_incompatible_table_collisions() -> None:
