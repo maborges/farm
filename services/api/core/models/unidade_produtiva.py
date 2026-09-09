@@ -1,13 +1,21 @@
 import uuid
 from decimal import Decimal
 from datetime import datetime, timezone
-from sqlalchemy import String, Boolean, DateTime, ForeignKey, JSON, Numeric
+from sqlalchemy import String, Boolean, DateTime, ForeignKey, JSON, Numeric, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy import Uuid as UUID
 from core.database import Base
 
 class UnidadeProdutiva(Base):
     __tablename__ = "unidades_produtivas"
+
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "id",
+            name="uq_unidades_produtivas_tenant_id_id",
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
