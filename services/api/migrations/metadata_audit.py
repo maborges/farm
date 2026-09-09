@@ -3,14 +3,17 @@
 from __future__ import annotations
 
 import re
+from collections import defaultdict
 from dataclasses import dataclass
 
-from sqlalchemy import UniqueConstraint
+from sqlalchemy import Index, UniqueConstraint
 from sqlalchemy.dialects import postgresql
+from sqlalchemy.schema import CreateIndex
 from sqlalchemy.sql.sqltypes import String
 
 from core.database import Base
 from core.model_registry import baseline_candidate_tables, register_models
+from migrations.baseline_contract import SEQUENCE_NAMES
 
 TENANT_COMPOSITE_CONTRACT = frozenset(
     {
@@ -90,6 +93,61 @@ def _check_references(table: object, constraint: object) -> tuple[str, ...]:
     )
 
 
+def _index_definition(index: Index) -> tuple[object, ...]:
+    """Return the schema-relevant identity of an index."""
+    where = str(index.dialect_options["postgresql"].get("where", ""))
+    return (index.table.name, tuple(str(item) for item in index.expressions), index.unique, where)
+
+
+def _audit_indexes(baseline: set[str]) -> dict[str, object]:
+    """Audit all baseline indexes in the global PostgreSQL namespace."""
+    indexes = [index for name in baseline for index in Base.metadata.tables[name].indexes]
+    by_name: defaultdict[str, list[Index]] = defaultdict(list)
+    by_definition: defaultdict[tuple[object, ...], list[Index]] = defaultdict(list)
+    missing_columns: list[tuple[str, str | None, str]] = []
+    unique_redundancies: list[tuple[str, str | None, tuple[str, ...]]] = []
+    relation_names = baseline | set(SEQUENCE_NAMES)
+
+    for index in indexes:
+        by_name[index.name].append(index)
+        by_definition[_index_definition(index)].append(index)
+        try:
+            CreateIndex(index).compile(dialect=postgresql.dialect())
+        except Exception as error:  # pragma: no cover - defensive metadata guard
+            missing_columns.append((index.table.name, index.name, str(error)))
+        names = tuple(column.name for column in index.columns)
+        if any(name not in index.table.c for name in names):
+            missing_columns.append((index.table.name, index.name, ",".join(names)))
+        if index.unique and names in {
+            tuple(column.name for column in constraint.columns)
+            for constraint in index.table.constraints
+            if isinstance(constraint, UniqueConstraint)
+        }:
+            unique_redundancies.append((index.table.name, index.name, names))
+    duplicate_names = {
+        name: tuple(
+            (index.table.name, tuple(column.name for column in index.columns))
+            for index in values
+        )
+        for name, values in by_name.items()
+        if len(values) > 1
+    }
+    duplicate_definitions = {
+        definition: tuple(index.name for index in values)
+        for definition, values in by_definition.items()
+        if len(values) > 1
+    }
+    relation_collisions = tuple(sorted(name for name in by_name if name in relation_names))
+    return {
+        "total_indexes": len(indexes),
+        "duplicate_index_names": duplicate_names,
+        "duplicate_index_definitions": duplicate_definitions,
+        "index_relation_name_collisions": relation_collisions,
+        "indexes_missing_columns": tuple(missing_columns),
+        "redundant_unique_indexes": tuple(unique_redundancies),
+    }
+
+
 def audit_baseline_metadata() -> dict[str, object]:
     """Audit FKs, candidate keys, CHECK references and baseline scope read-only."""
     register_models()
@@ -151,7 +209,7 @@ def audit_baseline_metadata() -> dict[str, object]:
                         )
                     )
 
-    return {
+    result = {
         "baseline_tables": len(baseline),
         "foreign_keys": len(foreign_keys),
         "type_or_key_issues": tuple(issues),
@@ -163,3 +221,5 @@ def audit_baseline_metadata() -> dict[str, object]:
         ),
         "unnamed_foreign_keys": sum(fk.name is None for fk in foreign_keys),
     }
+    result.update(_audit_indexes(baseline))
+    return result

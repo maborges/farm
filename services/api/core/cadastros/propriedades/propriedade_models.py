@@ -29,7 +29,6 @@ class TipoDocumentoExploracao(str, enum.Enum):
 
 class Propriedade(Base):
     __tablename__ = "cadastros_propriedades"
-    __table_args__ = (Index("ix_propriedades_tenant", "tenant_id"),)
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
@@ -61,7 +60,6 @@ class Propriedade(Base):
 class ExploracaoRural(Base):
     __tablename__ = "cadastros_exploracoes_rurais"
     __table_args__ = (
-        Index("ix_exploracoes_tenant", "tenant_id"),
         Index("ix_exploracoes_vigencia", "data_inicio", "data_fim"),
     )
 

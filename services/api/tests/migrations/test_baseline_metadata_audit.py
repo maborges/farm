@@ -1,7 +1,13 @@
 """Regression tests for the read-only baseline metadata audit."""
 
+import re
+from collections import Counter
+
+from sqlalchemy.dialects import postgresql
+from sqlalchemy.schema import CreateIndex
+
 from core.database import Base
-from core.model_registry import register_models
+from core.model_registry import baseline_candidate_tables, register_models
 from migrations.metadata_audit import audit_baseline_metadata
 
 
@@ -64,3 +70,43 @@ def test_tenant_integrity_constraints_are_explicit() -> None:
         for constraint in table.foreign_key_constraints
     }
     assert expected_fks <= actual_fks
+
+
+def test_index_audit_has_no_namespace_or_definition_collisions() -> None:
+    """Require the baseline index inventory to be executable once per name."""
+    result = audit_baseline_metadata()
+    assert result["total_indexes"] == 1029
+    assert result["duplicate_index_names"] == {}
+    assert result["duplicate_index_definitions"] == {}
+    assert result["index_relation_name_collisions"] == ()
+    assert result["indexes_missing_columns"] == ()
+    assert result["redundant_unique_indexes"] == ()
+
+
+def test_index_audit_covers_campo_type_once() -> None:
+    """Prevent regression of the historical ix_campo_tarefas_type collision."""
+    register_models()
+    indexes = [
+        index
+        for name in baseline_candidate_tables()
+        for index in Base.metadata.tables[name].indexes
+        if index.name == "ix_campo_tarefas_type"
+    ]
+    assert len(indexes) == 1
+
+
+def test_compiled_baseline_indexes_emit_each_relation_name_once() -> None:
+    """Prevent duplicate CREATE INDEX relation names in generated DDL."""
+    register_models()
+    statements = [
+        str(CreateIndex(index).compile(dialect=postgresql.dialect()))
+        for name in baseline_candidate_tables()
+        for index in Base.metadata.tables[name].indexes
+    ]
+    names = [
+        match.group(1).strip('"')
+        for statement in statements
+        if (match := re.search(r"CREATE (?:UNIQUE )?INDEX\s+([^\s(]+)", statement))
+    ]
+    assert len(names) == len(statements)
+    assert {name: count for name, count in Counter(names).items() if count > 1} == {}

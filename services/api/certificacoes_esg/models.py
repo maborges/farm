@@ -729,10 +729,6 @@ class RelatorioESG(Base):
         ),
         Index("ix_esg_relatorios_tenant_status", "tenant_id", "status"),
         Index("ix_esg_relatorios_tenant_publico", "tenant_id", "publico"),
-        Index("ix_esg_relatorios_programa_id", "programa_id"),
-        Index("ix_esg_relatorios_propriedade_id", "propriedade_id"),
-        Index("ix_esg_relatorios_imovel_rural_id", "imovel_rural_id"),
-        Index("ix_esg_relatorios_propriedade_imovel_id", "propriedade_imovel_id"),
     )
 
 
@@ -780,7 +776,6 @@ class RelatorioESGIndicador(Base):
         CheckConstraint("valor IS NULL OR valor >= 0", name="ck_esg_relatorio_indicadores_valor_nao_negativo"),
         CheckConstraint("score IS NULL OR score >= 0", name="ck_esg_relatorio_indicadores_score_nao_negativo"),
         Index("ix_esg_relatorio_indicadores_tenant_relatorio", "tenant_id", "relatorio_id"),
-        Index("ix_esg_relatorio_indicadores_evidencia_id", "evidencia_id"),
     )
 
 
@@ -813,7 +808,6 @@ class RelatorioESGEvidencia(Base):
 
     __table_args__ = (
         Index("ix_esg_relatorio_evidencias_tenant_relatorio", "tenant_id", "relatorio_id"),
-        Index("ix_esg_relatorio_evidencias_evidencia_id", "evidencia_id"),
     )
 
 
@@ -928,12 +922,6 @@ class PassaporteRastreabilidade(Base):
         ),
         Index("ix_rastreabilidade_passaportes_tenant_status", "tenant_id", "status"),
         Index("ix_rastreabilidade_passaportes_tenant_publico", "tenant_id", "publico"),
-        Index("ix_rastreabilidade_passaportes_programa_id", "programa_id"),
-        Index("ix_rastreabilidade_passaportes_propriedade_id", "propriedade_id"),
-        Index("ix_rastreabilidade_passaportes_imovel_rural_id", "imovel_rural_id"),
-        Index("ix_rastreabilidade_passaportes_propriedade_imovel_id", "propriedade_imovel_id"),
-        Index("ix_rastreabilidade_passaportes_lote_rastreabilidade_id", "lote_rastreabilidade_id"),
-        Index("ix_rastreabilidade_passaportes_caderno_lote_comercial_id", "caderno_lote_comercial_id"),
     )
 
 
@@ -1011,5 +999,4 @@ class PassaporteRastreabilidadeEvidencia(Base):
 
     __table_args__ = (
         Index("ix_passaporte_evidencias_tenant_passaporte", "tenant_id", "passaporte_id"),
-        Index("ix_passaporte_evidencias_evidencia_id", "evidencia_id"),
     )

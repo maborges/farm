@@ -107,7 +107,6 @@ class SafraTarefa(Base):
 
     __table_args__ = (
         Index("ix_safra_tarefas_tenant_safra_status", "tenant_id", "safra_id", "status"),
-        Index("ix_safra_tarefas_talhao", "talhao_id"),
     )
 
 

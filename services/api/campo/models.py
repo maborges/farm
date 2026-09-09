@@ -122,8 +122,6 @@ class TarefaCampo(Base):
     __table_args__ = (
         UniqueConstraint("tenant_id", "client_id", name="uq_campo_tarefa_tenant_client"),
         Index("ix_campo_tarefas_tenant_status", "tenant_id", "status"),
-        Index("ix_campo_tarefas_unidade", "unidade_produtiva_id"),
-        Index("ix_campo_tarefas_type", "type"),
         Index("ix_ct_fazenda_data", "tenant_id", "data_programada", "status_execucao"),
         Index("ix_ct_operador", "operador_id", "status_execucao"),
         Index("ix_ct_dispositivo_data", "dispositivo_id", "data_programada"),

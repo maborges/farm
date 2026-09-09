@@ -92,7 +92,6 @@ class PlanoOperacionalTarefa(Base):
         # apenas reativando a mesma linha, não duplicando — ver service).
         UniqueConstraint("plano_operacional_id", "safra_tarefa_id", name="uq_plano_operacional_tarefa"),
         Index("ix_plano_op_tarefas_tenant_plano", "tenant_id", "plano_operacional_id"),
-        Index("ix_plano_op_tarefas_safra_tarefa", "safra_tarefa_id"),
     )
 
 
@@ -161,7 +160,6 @@ class PlanoOperacionalTarefaInsumo(Base):
 
     __table_args__ = (
         Index("ix_plano_op_tarefa_insumos_tenant_item", "tenant_id", "plano_operacional_tarefa_id"),
-        Index("ix_plano_op_tarefa_insumos_produto", "produto_id"),
     )
 
 

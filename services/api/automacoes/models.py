@@ -58,5 +58,4 @@ class AutomacaoConfiguracao(Base):
 
     __table_args__ = (
         UniqueConstraint("tenant_id", "safra_id", "regra", name="uq_automacao_config_regra"),
-        Index("ix_automacoes_conf_tenant", "tenant_id"),
     )
