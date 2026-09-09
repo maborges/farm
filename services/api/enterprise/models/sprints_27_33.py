@@ -351,7 +351,11 @@ class AnimalGenetica(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     tenant_id = Column(String(50), nullable=False)
-    animal_id = Column(Integer, ForeignKey("lotes.id"))  # Referenciar modelo existente
+    # The historical ``lotes`` table is not part of the approved registry and
+    # the original migration created this column without a foreign key.  Keep
+    # the legacy integer value visible to the application, but do not publish
+    # an invalid ORM dependency that prevents a clean metadata build.
+    animal_id = Column(Integer)
 
     # Identificação
     brinco = Column(String(50))
