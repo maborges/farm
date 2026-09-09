@@ -64,6 +64,7 @@ def _ensure_alembic_version_capacity(connection: Connection) -> None:
 
 def do_run_migrations(connection: Connection) -> None:
     if "postgresql" in DB_URL:
+        connection.execute(text("CREATE SCHEMA IF NOT EXISTS farms"))
         connection.execute(text("SET search_path TO farms"))
         _ensure_alembic_version_capacity(connection)
     context.configure(

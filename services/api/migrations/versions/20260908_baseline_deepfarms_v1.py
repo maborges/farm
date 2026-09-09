@@ -36,7 +36,7 @@ def _quote(name: str) -> str:
 
 
 def _create_schema() -> None:
-    op.execute(sa.text("CREATE SCHEMA farms"))
+    op.execute(sa.text("CREATE SCHEMA IF NOT EXISTS farms"))
     op.execute(sa.text("SET search_path TO farms"))
 
 
