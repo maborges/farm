@@ -170,7 +170,10 @@ class ImplantacaoOperacional(Base):
     __tablename__ = "wizard_implantacoes_operacionais"
     __table_args__ = (
         CheckConstraint(WIZARD_STATUS_CHECK, name="ck_wizard_implantacao_status"),
-        CheckConstraint(WIZARD_STAGE_CODE_CHECK, name="ck_wizard_implantacao_etapa_atual"),
+        CheckConstraint(
+            WIZARD_STAGE_CODE_CHECK.replace("codigo_etapa", "etapa_atual"),
+            name="ck_wizard_implantacao_etapa_atual",
+        ),
         CheckConstraint(
             "modo_implantacao IN ('ASSISTIDA', 'MANUAL_ASSISTIDA', "
             "'PILOTO_CONTROLADO', 'PARCEIRO')",
