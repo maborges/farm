@@ -1,6 +1,6 @@
 """Modelos consolidados para Sprints 27-33."""
 
-from sqlalchemy import Column, Integer, BigInteger, String, Float, DateTime, ForeignKey, Text, Boolean, JSON, Date
+from sqlalchemy import Column, Integer, BigInteger, String, Float, DateTime, ForeignKey, Text, Boolean, JSON, Date, Uuid as UUID
 from sqlalchemy.orm import relationship
 from datetime import datetime, date
 
@@ -236,7 +236,7 @@ class ConfinamentoLote(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     tenant_id = Column(String(50), nullable=False)
-    unidade_produtiva_id = Column(String(36), ForeignKey("unidades_produtivas.id"))
+    unidade_produtiva_id = Column(UUID(as_uuid=True), ForeignKey("unidades_produtivas.id"))
     
     # Identificação
     codigo = Column(String(50), nullable=False)
@@ -313,7 +313,7 @@ class Cocho(Base):
     data = Column(Date, nullable=False)
     turno = Column(String(20))  # manhã, tarde
     
-    responsavel_id = Column(String(36), ForeignKey("usuarios.id"))
+    responsavel_id = Column(UUID(as_uuid=True), ForeignKey("usuarios.id"))
     
     created_at = Column(DateTime, default=datetime.utcnow)
 

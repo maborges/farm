@@ -19,6 +19,7 @@ class Deposito(Base):
     ativo: Mapped[bool] = mapped_column(Boolean, default=True)
 
     __table_args__ = (
+        UniqueConstraint("tenant_id", "id", name="uq_estoque_depositos_tenant_id"),
         ForeignKeyConstraint(
             ["tenant_id", "unidade_produtiva_id"],
             ["unidades_produtivas.tenant_id", "unidades_produtivas.id"],

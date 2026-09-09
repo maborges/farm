@@ -63,7 +63,7 @@ class PecuariaSugestaoResponse(BaseModel):
 
 
 class ConfinamentoLoteCreate(BaseModel):
-    unidade_produtiva_id: Optional[int] = None
+    unidade_produtiva_id: Optional[UUID] = None
     codigo: str
     safra: Optional[str] = None
     total_animais: int = Field(..., ge=0)
@@ -90,7 +90,7 @@ class ConfinamentoLoteEncerrar(BaseModel):
 class ConfinamentoLoteResponse(BaseModel):
     id: int
     tenant_id: str
-    unidade_produtiva_id: Optional[int]
+    unidade_produtiva_id: Optional[UUID]
     codigo: str
     safra: Optional[str]
     total_animais: Optional[int]

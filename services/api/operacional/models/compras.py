@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, date, timezone
-from sqlalchemy import String, Boolean, DateTime, Date, ForeignKey, JSON, Float, Integer, Numeric, UniqueConstraint
+from sqlalchemy import String, Boolean, DateTime, Date, ForeignKey, ForeignKeyConstraint, JSON, Float, Integer, Numeric, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy import Uuid as UUID
 from core.database import Base
@@ -44,6 +44,7 @@ class PedidoCompra(Base):
     fornecedor_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("compras_fornecedores.id"), nullable=True, index=True
     )
+    deposito_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True, index=True)
     fornecedor_nome: Mapped[str] = mapped_column(String(150), nullable=False)
     fornecedor_contato: Mapped[str | None] = mapped_column(String(150))
     condicoes_pagamento: Mapped[str | None] = mapped_column(String(100), nullable=True)
@@ -79,6 +80,12 @@ class PedidoCompra(Base):
 
     __table_args__ = (
         UniqueConstraint("tenant_id", "numero", name="uq_compras_pedidos_tenant_numero"),
+        ForeignKeyConstraint(
+            ["tenant_id", "deposito_id"],
+            ["estoque_depositos.tenant_id", "estoque_depositos.id"],
+            name="fk_cp_tenant_deposito",
+            ondelete="NO ACTION",
+        ),
     )
 
     itens: Mapped[list["ItemPedidoCompra"]] = relationship(back_populates="pedido", lazy="noload")

@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone, date
-from sqlalchemy import String, Boolean, DateTime, Date, Float, Integer, ForeignKey, ForeignKeyConstraint, Text, JSON
+from sqlalchemy import String, Boolean, DateTime, Date, Float, Integer, ForeignKey, ForeignKeyConstraint, Text, JSON, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy import Uuid as UUID
 from core.database import Base
@@ -128,6 +128,7 @@ class Equipamento(Base):
     )
 
     __table_args__ = (
+        UniqueConstraint("tenant_id", "id", name="uq_cadastros_equipamentos_tenant_id"),
         ForeignKeyConstraint(
             ["tenant_id", "unidade_produtiva_id"],
             ["unidades_produtivas.tenant_id", "unidades_produtivas.id"],

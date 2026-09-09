@@ -3,6 +3,7 @@
 from sqlalchemy.orm import Session
 from typing import List, Dict, Optional
 from datetime import datetime, date
+import uuid
 
 from enterprise.models.sprints_27_33 import (
     MRVProjeto, MRVRelatorio,
@@ -156,7 +157,7 @@ class ConfinamentoService:
                    total_animais: int,
                    peso_inicial: float,
                    data_entrada: date,
-                   unidade_produtiva_id: int = None) -> ConfinamentoLote:
+                   unidade_produtiva_id: uuid.UUID | None = None) -> ConfinamentoLote:
         """Cria lote de confinamento."""
         lote = ConfinamentoLote(
             tenant_id=tenant_id,
