@@ -16,7 +16,14 @@ async def process_openweather_sync():
         now = datetime.now(timezone.utc).replace(tzinfo=None)
         
         # Encontra configurações ativas do OpenWeather
-        stmt = select(TenantIntegracao).join(
+        stmt = select(
+            TenantIntegracao.tenant_id,
+            TenantIntegracao.scope_id,
+            TenantIntegracao.scope_type,
+            TenantIntegracao.configuracoes,
+            TenantIntegracao.credenciais,
+            TenantIntegracao.ultima_sincronizacao,
+        ).join(
             MarketplaceIntegracao, TenantIntegracao.integracao_id == MarketplaceIntegracao.id
         ).where(
             TenantIntegracao.status == "ativa",
@@ -24,20 +31,20 @@ async def process_openweather_sync():
             MarketplaceIntegracao.slug == "openweather"
         )
         result = await db.execute(stmt)
-        configs = result.scalars().all()
+        configs = result.mappings().all()
 
         for config in configs:
             try:
-                tenant_id = str(config.tenant_id)
+                tenant_id = str(config["tenant_id"])
                 unidade_produtiva_id = (
-                    config.scope_id
-                    if config.scope_type == IntegrationScope.UNIDADE_PRODUTIVA.value
+                    config["scope_id"]
+                    if config["scope_type"] == IntegrationScope.UNIDADE_PRODUTIVA.value
                     else None
                 )
                 
                 # Extrai preferências de config do credenciais ou configuracoes
-                payload = config.configuracoes or {}
-                conn_payload = config.credenciais or {}
+                payload = config["configuracoes"] or {}
+                conn_payload = config["credenciais"] or {}
                 
                 daily_quota = int(payload.get("daily_quota", conn_payload.get("daily_quota", 1000)))
                 sync_freq = int(payload.get("sync_frequency_minutes", conn_payload.get("sync_frequency_minutes", 60)))
@@ -45,7 +52,7 @@ async def process_openweather_sync():
                 # Conta UPs ativas para o tenant
                 up_stmt = select(func.count(UnidadeProdutiva.id)).where(
                     UnidadeProdutiva.tenant_id == tenant_id,
-                    UnidadeProdutiva.deleted_at.is_(None)
+                    UnidadeProdutiva.ativo.is_(True)
                 )
                 up_result = await db.execute(up_stmt)
                 ups_count = max(1, up_result.scalar() or 1)
@@ -57,7 +64,7 @@ async def process_openweather_sync():
                 # Frequência final a ser usada
                 actual_freq = max(sync_freq, min_safe_freq)
                 
-                last_sync = config.ultima_sincronizacao
+                last_sync = config["ultima_sincronizacao"]
                 
                 if not last_sync or (now - last_sync).total_seconds() >= (actual_freq * 60):
                     logger.info(f"Executando sync OpenWeather para tenant {tenant_id}. Frequência aplicada: {actual_freq} min")
@@ -86,8 +93,10 @@ async def process_openweather_sync():
                             await svc.sincronizar_previsao_atual(tenant_id)
                     
             except Exception as e:
+                logger.exception(
+                    f"Erro ao sincronizar OpenWeather para o tenant {tenant_id}: {e}"
+                )
                 await db.rollback()
-                logger.error(f"Erro ao sincronizar OpenWeather para o tenant {config.tenant_id}: {e}")
                 
     except Exception as e:
         logger.error(f"Erro no loop do worker OpenWeather: {e}")

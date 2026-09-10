@@ -37,8 +37,14 @@ export async function proxy(req: NextRequest) {
         return NextResponse.next();
     }
 
-    // Hosts locais e o domínio principal seguem o fluxo padrão.
-    const isCustomDomain = !isLocalHost(hostname) && !hostname.includes("agrosaas.com");
+    // Hosts locais e domínios oficiais da plataforma seguem o fluxo padrão.
+    const isOfficialDomain =
+        hostname === "deepfarms.com.br" ||
+        hostname.endsWith(".deepfarms.com.br") ||
+        hostname === "agrosaas.com" ||
+        hostname.endsWith(".agrosaas.com");
+
+    const isCustomDomain = !isLocalHost(hostname) && !isOfficialDomain;
 
     if (isCustomDomain) {
         return NextResponse.rewrite(new URL(`/domain/${hostname}${url.pathname}`, req.url));

@@ -186,7 +186,7 @@ export default function TarefaDetailPage() {
   }
 
   async function handleConcluir() {
-    if (!canFinish) return;
+    if (!task || !canFinish) return;
     if (isAplicacaoInsumo && (!quantidadeRealValue || Number(quantidadeRealValue) < 0)) {
       alert("Informe a quantidade realmente utilizada do insumo.");
       return;

@@ -17,6 +17,9 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import engine, get_db_session
+from core.model_registry import register_models
+
+register_models()
 
 from .outbox_metrics import OutboxMetrics, get_observability_metrics, reset_observability_metrics
 from .outbox_model import DomainEventOutbox
@@ -1049,7 +1052,15 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if getattr(args, "loop", False) and getattr(args, "command", COMMAND_RUN) == COMMAND_RUN:
             return _run_with_event_loop(args)
-        return asyncio.run(_async_main(args))
+
+        async def run_once() -> int:
+            try:
+                return await _async_main(args)
+            finally:
+                await engine.dispose()
+
+        return asyncio.run(run_once())
+
     except KeyboardInterrupt:
         logger.bind(component="domain_event_outbox_worker").info(
             "domain_event_outbox_worker_interrupted"
@@ -1067,15 +1078,6 @@ def main(argv: list[str] | None = None) -> int:
             exception_message=str(exc),
         ).exception("domain_event_outbox_worker_unexpected_error")
         return EXIT_UNEXPECTED_ERROR
-    finally:
-        try:
-            asyncio.run(engine.dispose())
-        except RuntimeError:
-            loop = asyncio.new_event_loop()
-            try:
-                loop.run_until_complete(engine.dispose())
-            finally:
-                loop.close()
 
 
 if __name__ == "__main__":
