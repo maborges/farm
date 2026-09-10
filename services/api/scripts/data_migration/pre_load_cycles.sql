@@ -1,0 +1,17 @@
+ALTER TABLE farms."alert_events" DROP CONSTRAINT "alert_events_causation_id_fkey";
+ALTER TABLE farms."cadastros_areas_rurais" DROP CONSTRAINT "cadastros_areas_rurais_parent_id_fkey";
+ALTER TABLE farms."cadastros_categorias_produto" DROP CONSTRAINT "cadastros_categorias_produto_parent_id_fkey";
+ALTER TABLE farms."cadastros_produtos" DROP CONSTRAINT "cadastros_produtos_produto_referencia_id_fkey";
+ALTER TABLE farms."caderno_campo_entradas" DROP CONSTRAINT "caderno_campo_entradas_retifica_evento_id_fkey";
+ALTER TABLE farms."caderno_campo_entradas" DROP CONSTRAINT "caderno_campo_entradas_retificado_por_evento_id_fkey";
+ALTER TABLE farms."categoria_custom" DROP CONSTRAINT "categoria_custom_parent_id_fkey";
+ALTER TABLE farms."estoque_movimentos" DROP CONSTRAINT "estoque_movimentos_ajuste_de_fkey";
+ALTER TABLE farms."fin_planos_conta" DROP CONSTRAINT "fin_planos_conta_parent_id_fkey";
+ALTER TABLE farms."imoveis_documentos" DROP CONSTRAINT "imoveis_documentos_substituido_por_fkey";
+ALTER TABLE farms."pec_animais" DROP CONSTRAINT "pec_animais_mae_id_fkey";
+ALTER TABLE farms."pec_animais" DROP CONSTRAINT "pec_animais_pai_id_fkey";
+ALTER TABLE farms."planos_operacionais_tarefas_insumos" DROP CONSTRAINT "planos_operacionais_tarefas_insumos_substitui_item_id_fkey";
+ALTER TABLE farms."recommendation_results" DROP CONSTRAINT "recommendation_results_superseded_by_id_fkey";
+ALTER TABLE farms."production_units" DROP CONSTRAINT "production_units_cultivo_area_id_fkey";
+ALTER TABLE farms."romaneios_colheita" DROP CONSTRAINT "romaneios_colheita_qualidade_laudo_id_fkey";
+ALTER TABLE farms."operacoes_agricolas" DROP CONSTRAINT "operacoes_agricolas_tarefa_id_fkey";
