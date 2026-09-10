@@ -98,7 +98,10 @@ def _create_indexes(tables: list[sa.Table]) -> None:
 def _create_functions_and_triggers() -> None:
     op.execute(sa.text("""
         CREATE FUNCTION fn_estoque_movimentos_append_only()
-        RETURNS TRIGGER LANGUAGE plpgsql AS $$
+        RETURNS TRIGGER
+        LANGUAGE plpgsql
+        SET search_path = farms, pg_catalog
+        AS $$
         BEGIN
           RAISE EXCEPTION
             'estoque_movimentos is append-only: use ajuste_de for corrections'
@@ -108,7 +111,10 @@ def _create_functions_and_triggers() -> None:
     """))
     op.execute(sa.text("""
         CREATE FUNCTION fn_production_units_valida_soma()
-        RETURNS TRIGGER LANGUAGE plpgsql AS $$
+        RETURNS TRIGGER
+        LANGUAGE plpgsql
+        SET search_path = farms, pg_catalog
+        AS $$
         DECLARE v_soma NUMERIC(6,2);
         BEGIN
           SELECT COALESCE(SUM(percentual_participacao), 0) INTO v_soma
@@ -128,7 +134,10 @@ def _create_functions_and_triggers() -> None:
     """))
     op.execute(sa.text("""
         CREATE FUNCTION fn_production_units_refresh_status()
-        RETURNS TRIGGER LANGUAGE plpgsql AS $$
+        RETURNS TRIGGER
+        LANGUAGE plpgsql
+        SET search_path = farms, pg_catalog
+        AS $$
         DECLARE
           v_tenant_id UUID;
           v_safra_id UUID;

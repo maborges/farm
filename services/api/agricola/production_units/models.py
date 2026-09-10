@@ -1,7 +1,7 @@
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import Date, DateTime, ForeignKey, Numeric, String, text
+from sqlalchemy import Date, DateTime, ForeignKey, Numeric, String, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy import Uuid as UUIDType
 
@@ -43,6 +43,15 @@ class StatusConsorcioArea(Base):
     """Read model agregado de participação por tenant/safra/área."""
 
     __tablename__ = "status_consorcio_area"
+
+    __table_args__ = (
+        UniqueConstraint(
+            "tenant_id",
+            "safra_id",
+            "area_id",
+            name="uq_status_consorcio_area_safra_area",
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(UUIDType(as_uuid=True), primary_key=True, default=uuid.uuid4)
     tenant_id: Mapped[uuid.UUID] = mapped_column(

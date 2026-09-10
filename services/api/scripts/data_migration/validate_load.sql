@@ -77,7 +77,7 @@ BEGIN
       ('imoveis_rurais', 3), ('safras', 3), ('cultivo_areas', 15),
       ('operacoes_agricolas', 54), ('estoque_movimentos', 173),
       ('compras_pedidos', 15), ('financeiro_lancamentos', 19),
-      ('tenant_integracoes', 0), ('wizard_implantacoes_operacionais', 0)
+      ('tenant_integracoes', 5), ('wizard_implantacoes_operacionais', 2)
     ) AS expected(table_name, expected_count)
   LOOP
     EXECUTE format('SELECT count(*) FROM farms.%I', table_name) INTO actual_count;
@@ -95,7 +95,7 @@ WITH expected(table_name, expected_count) AS (
     ('imoveis_rurais', 3), ('safras', 3), ('cultivo_areas', 15),
     ('operacoes_agricolas', 54), ('estoque_movimentos', 173),
     ('compras_pedidos', 15), ('financeiro_lancamentos', 19),
-    ('tenant_integracoes', 0), ('wizard_implantacoes_operacionais', 0)
+    ('tenant_integracoes', 5), ('wizard_implantacoes_operacionais', 2)
 ), actual AS (
   SELECT table_name, (xpath('/row/count/text()', query_to_xml(
     format('SELECT count(*) FROM farms.%I', table_name), true, false, ''
