@@ -86,3 +86,37 @@ As três falhas preexistentes de timezone do follow-up worker continuam classifi
 **BRAND-RENAME-04 — STATUS: NO-GO**
 
 O código foi commitado e enviado ao GitHub, e a produção atual estava saudável no smoke pré-deploy. Porém, o deploy não pode ser considerado concluído porque o servidor não foi acessível por SSH e nenhum componente foi atualizado. Não executar novas tentativas até restabelecer o acesso e repetir os gates de produção.
+
+## 15. Retomada do deploy — 2026-09-11
+
+### Causa corrigida do SSH e host correto
+
+O bloqueio anterior foi causado pelo endpoint/usuário incorreto. A conexão correta foi confirmada com `ubuntu@ec2-56-126-104-183.sa-east-1.compute.amazonaws.com` usando `~/.ssh/deepfarms-pilot-key.pem`. O servidor respondeu como `ip-172-31-18-82`; o checkout monorepo é `/opt/deepfarms/farm`.
+
+### Estado inicial, SHAs e serviços
+
+- SHA atualmente implantado: `27f4410349b663187e0805743d8566ecc985c4d3`.
+- `origin/main` após `git fetch`: `991fe1f0e966593fed2bd04ee6c04c94a8815e49`.
+- Branch: `main`.
+- Working tree: **não limpa**.
+- Serviços `deepfarms-api`, `deepfarms-web`, `deepfarms-campo`, `deepfarms-worker`, `deepfarms-outbox` e `nginx`: `active`.
+
+Foram encontrados `apps/web/next-env.d.ts`, `.env.production` dos componentes e backups operacionais no checkout remoto. Conforme a regra de segurança, nenhum arquivo foi sobrescrito.
+
+### Pre-deploy smoke da retomada
+
+`deepfarms.com.br`, `app.deepfarms.com.br`, `campo.deepfarms.com.br` e `/docs` da API retornaram HTTP 200. `/openapi.json` respondeu JSON com o título atual `AgroSaaS API`, confirmando a versão anterior operacional.
+
+### Instalação, builds, restarts e pós-deploy
+
+Não foram executados instalação de dependências, builds, restarts, smoke pós-deploy, teste de e-mail ou geração de documentos em produção. Não houve rollback.
+
+### Banco e infraestrutura
+
+Não foram executados Alembic/migrations nem alterações de RDS, schema, dados, DNS, SSL, Nginx, storage ou units systemd.
+
+### Veredicto da retomada
+
+**BRAND-RENAME-04 — STATUS: NO-GO**
+
+A conexão SSH foi corrigida e o pre-deploy smoke passou, mas o working tree remoto contém alterações locais e arquivos operacionais não esperados. Para preservar esses dados e evitar sobrescrita destrutiva, o deploy foi interrompido antes da atualização, builds e restarts. É necessária revisão formal do checkout remoto antes de nova tentativa.
