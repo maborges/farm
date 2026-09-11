@@ -7,13 +7,17 @@ import uuid
 from loguru import logger
 from core.config import settings
 
+class SMTPPlatformConfigNotFoundError(RuntimeError):
+    """A configuração SMTP global da plataforma não foi cadastrada."""
+
+
 class EmailService:
     def __init__(self):
         template_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "templates")
         self.env = Environment(loader=FileSystemLoader(template_dir))
         
-    async def _get_smtp_config(self, tenant_id: uuid.UUID = None):
-        """Busca configuração SMTP com hierarquia: Tenant -> DB Global -> Env Vars."""
+    async def _get_smtp_config(self, tenant_id: uuid.UUID = None, allow_env_fallback: bool = True):
+        """Busca configuração SMTP com hierarquia configurável."""
         from core.database import async_session_maker
         from core.models.tenant import Tenant
         from core.models.configuration import ConfiguracaoSaaS
@@ -33,7 +37,12 @@ class EmailService:
             if config_db:
                 return config_db.valor
 
-        # 3. Fallback Env
+        if not allow_env_fallback:
+            raise SMTPPlatformConfigNotFoundError(
+                "Configuração SMTP global da plataforma não encontrada."
+            )
+
+        # 3. Fallback Env (mantido para os demais e-mails legados)
         return {
             "host": settings.smtp_host,
             "port": settings.smtp_port,
@@ -42,11 +51,23 @@ class EmailService:
             "from": settings.mail_from
         }
 
-    async def _send(self, to_email: str, subject: str, html_content: str, tenant_id: uuid.UUID = None):
+    async def _send(
+        self,
+        to_email: str,
+        subject: str,
+        html_content: str,
+        tenant_id: uuid.UUID = None,
+        allow_env_fallback: bool = True,
+    ):
         """Método interno para envio via SMTP dinâmico."""
-        config = await self._get_smtp_config(tenant_id)
+        config = await self._get_smtp_config(tenant_id, allow_env_fallback=allow_env_fallback)
         
-        from_email = config.get("from", settings.mail_from)
+        from_email = config.get("from") or (settings.mail_from if allow_env_fallback else "")
+
+        if not from_email:
+            raise SMTPPlatformConfigNotFoundError(
+                "Remetente não encontrado na configuração SMTP global da plataforma."
+            )
 
         message = EmailMessage()
         message["From"] = from_email
@@ -159,7 +180,12 @@ class EmailService:
         await self._send(email, "Confirme seu cadastro no AgroSaaS", html, tenant_id)
 
     async def send_password_recovery(self, email: str, nome_usuario: str, token: str, tenant_id: uuid.UUID = None):
-        """Envia e-mail de recuperação de senha com token expirável."""
+        """Envia recuperação usando exclusivamente o SMTP da plataforma.
+
+        O ``tenant_id`` é mantido na assinatura por compatibilidade com os
+        chamadores existentes, mas recuperação de senha é uma comunicação
+        transacional do AgroSaaS e não deve usar o SMTP white-label do tenant.
+        """
         template = self.env.get_template("emails/password_reset.html")
         reset_url = f"{settings.frontend_url}/reset-password?token={token}"
         from datetime import datetime
@@ -169,7 +195,13 @@ class EmailService:
             reset_url=reset_url,
             data_solicitacao=datetime.now().strftime("%d/%m/%Y às %H:%M")
         )
-        await self._send(email, "Recuperação de Senha - AgroSaaS 🔑", html, tenant_id)
+        await self._send(
+            email,
+            "Recuperação de Senha - AgroSaaS 🔑",
+            html,
+            tenant_id=None,
+            allow_env_fallback=False,
+        )
 
     async def send_pedido_compra_confirmacao(
         self,

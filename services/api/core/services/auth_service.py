@@ -18,7 +18,7 @@ from core.models.billing import AssinaturaTenant, PlanoAssinatura, Fatura
 from core.schemas.auth_schemas import LoginRequest, UserCreateRequest, TenantAcessoResponse, UnidadeProdutivaAcessoResponse as FazendaAcessoResponse, PerfilSimplesResponse, UsuarioMeResponse
 from core.config import settings
 from core.services.login_rate_limit_service import LoginRateLimitService
-from core.services.email_service import email_service
+from core.services.email_service import email_service, SMTPPlatformConfigNotFoundError
 from core.utils.cpf_cnpj import normalizar_documento_opcional, validar_cpf_ou_cnpj
 
 import bcrypt
@@ -715,6 +715,14 @@ class AuthService:
                 token=token_value,
                 tenant_id=tenant_id
             )
+        except SMTPPlatformConfigNotFoundError as exc:
+            logger.error(
+                f"Configuração SMTP global não encontrada para recuperação de senha: {exc}"
+            )
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Configuração SMTP da plataforma não encontrada.",
+            ) from exc
         except Exception as exc:
             logger.error(
                 f"Falha no envio do e-mail de recuperação para {user.email}: {exc}"
