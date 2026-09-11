@@ -4,7 +4,7 @@ import { IASettingsClient } from "./ia-settings-client";
 import { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Configurações de IA | AgroSaaS",
+    title: "Configurações de IA | DeepFarms",
   description: "Gerencie o Autopilot, Personas e Experimentos de IA.",
 };
 

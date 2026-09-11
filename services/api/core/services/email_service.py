@@ -127,10 +127,10 @@ class EmailService:
             nome_cliente=nome,
             nome_plano=plano,
             valor=f"{valor:.2f}",
-            referência="Mensalidade AgroSaaS",
+            referência="Mensalidade DeepFarms",
             login_url=f"{settings.frontend_url}/login"
         )
-        await self._send(email, "Pagamento Confirmado - AgroSaaS", html, tenant_id)
+        await self._send(email, "Pagamento Confirmado - DeepFarms", html, tenant_id)
 
     async def send_invoice_rejected(self, email: str, nome: str, justificativa: str, tenant_id: uuid.UUID = None):
         template = self.env.get_template("emails/invoice_rejected.html")
@@ -149,7 +149,7 @@ class EmailService:
             username=username,
             login_url=f"{settings.frontend_url}/login"
         )
-        await self._send(email, "Bem-vindo ao AgroSaaS! 🚜", html, tenant_id)
+        await self._send(email, "Bem-vindo ao DeepFarms! 🚜", html, tenant_id)
 
     async def send_invite(self, email: str, remetente: str, tenant_nome: str, perfil_nome: str, token: str, tenant_id: uuid.UUID = None):
         template = self.env.get_template("emails/invite.html")
@@ -159,7 +159,7 @@ class EmailService:
             perfil_nome=perfil_nome,
             invite_url=f"{settings.frontend_url}/convite/aceitar?token={token}"
         )
-        await self._send(email, f"Convite: {tenant_nome} no AgroSaaS", html, tenant_id)
+        await self._send(email, f"Convite: {tenant_nome} no DeepFarms", html, tenant_id)
 
     async def send_activation_link(self, email: str, nome: str, tenant_nome: str, token: str, tenant_id: uuid.UUID = None):
         template = self.env.get_template("emails/activation_link.html")
@@ -168,7 +168,7 @@ class EmailService:
             nome_tenant=tenant_nome,
             activation_url=f"{settings.frontend_url}/onboarding/ativar?token={token}",
         )
-        await self._send(email, "Confirme sua ativacao no AgroSaaS", html, tenant_id)
+        await self._send(email, "Confirme sua ativacao no DeepFarms", html, tenant_id)
 
     async def send_registration_confirmation(self, email: str, nome: str, tenant_nome: str, token: str, tenant_id: uuid.UUID = None):
         template = self.env.get_template("emails/registration_confirmation.html")
@@ -177,14 +177,14 @@ class EmailService:
             nome_tenant=tenant_nome,
             confirmation_url=f"{settings.frontend_url}/onboarding/confirmar-cadastro?token={token}",
         )
-        await self._send(email, "Confirme seu cadastro no AgroSaaS", html, tenant_id)
+        await self._send(email, "Confirme seu cadastro no DeepFarms", html, tenant_id)
 
     async def send_password_recovery(self, email: str, nome_usuario: str, token: str, tenant_id: uuid.UUID = None):
         """Envia recuperação usando exclusivamente o SMTP da plataforma.
 
         O ``tenant_id`` é mantido na assinatura por compatibilidade com os
         chamadores existentes, mas recuperação de senha é uma comunicação
-        transacional do AgroSaaS e não deve usar o SMTP white-label do tenant.
+        transacional do DeepFarms e não deve usar o SMTP white-label do tenant.
         """
         template = self.env.get_template("emails/password_reset.html")
         reset_url = f"{settings.frontend_url}/reset-password?token={token}"
@@ -197,7 +197,7 @@ class EmailService:
         )
         await self._send(
             email,
-            "Recuperação de Senha - AgroSaaS 🔑",
+            "Recuperação de Senha - DeepFarms 🔑",
             html,
             tenant_id=None,
             allow_env_fallback=False,
@@ -211,7 +211,7 @@ class EmailService:
         )
         await self._send(
             recipient,
-            "Teste de configuração SMTP - AgroSaaS",
+            "Teste de configuração SMTP - DeepFarms",
             html,
             tenant_id=None,
             allow_env_fallback=False,

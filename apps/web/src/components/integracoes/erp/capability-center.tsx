@@ -47,7 +47,7 @@ function buildSummary(capabilities: ErpCapabilityViewModel[]) {
 export function getErpCapabilitySectionCopy(providerName?: string | null) {
   return {
     title: "Dados sincronizados",
-    description: `O que ${providerName ? `o ${providerName}` : "o ERP"} troca com o AgroSaaS e a situação de cada fluxo.`,
+    description: `O que ${providerName ? `o ${providerName}` : "o ERP"} troca com o DeepFarms e a situação de cada fluxo.`,
   };
 }
 
@@ -116,7 +116,7 @@ export function ErpCapabilityCenter({
             <EmptyState
               icon={<ShieldAlert />}
               title="Configure o ERP para visualizar os dados sincronizados."
-              description="Depois de salvar e validar a conexão, esta área mostra quais dados podem circular entre o ERP e o AgroSaaS."
+              description="Depois de salvar e validar a conexão, esta área mostra quais dados podem circular entre o ERP e o DeepFarms."
               action={onConfigure
                 ? { label: "Abrir configuração", onClick: onConfigure }
                 : { label: "Abrir configuração", href: `#${configurationTargetId}` }}

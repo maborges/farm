@@ -388,7 +388,7 @@ export default function ResetPasswordPage() {
         <AuthLayout
             badgeLabel="Redefinição de Senha"
             title="Redefina sua senha com segurança."
-            description="Crie uma nova senha forte para proteger sua conta na plataforma AgroSaaS."
+            description="Crie uma nova senha forte para proteger sua conta na plataforma DeepFarms."
         >
             <Suspense
                 fallback={

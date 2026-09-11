@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { VisaoFundiariaImovelClient } from "@/components/territorial/territorial-visao";
 
 export const metadata: Metadata = {
-  title: "Visão Fundiária - AgroSaaS",
+  title: "Visão Fundiária - DeepFarms",
   description: "Visão consolidada do imóvel rural com propriedades vinculadas e leitura documental.",
 };
 

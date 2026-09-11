@@ -57,7 +57,7 @@ import { ThemeToggle } from "@/components/landing/ThemeToggle";
 
 /* ─────────────────── SEO ─────────────────── */
 export const metadata: Metadata = {
-  title: "AgroSaaS | Plataforma de Gestão Rural Integrada",
+  title: "DeepFarms | Plataforma de Gestão Rural Integrada",
   description:
     "Campo, estoque e financeiro em uma única plataforma. Conformidade EUDR, rastreabilidade SHA-256, IA financeira e gestão por safra. Comece grátis.",
 };
@@ -302,7 +302,7 @@ const aiFeatures = [
 
 const testimonials = [
   {
-    quote: "Antes do AgroSaaS, eu gastava 3 dias por mês fechando planilhas. Hoje o DRE da safra está pronto em tempo real, e a IA já me avisa se a margem está caindo.",
+    quote: "Antes do DeepFarms, eu gastava 3 dias por mês fechando planilhas. Hoje o DRE da safra está pronto em tempo real, e a IA já me avisa se a margem está caindo.",
     author: "Carlos Mendonça",
     role: "Produtor de Soja e Milho",
     region: "Mato Grosso",
@@ -398,7 +398,7 @@ const faqItems = [
   },
   {
     question: "O que é a conformidade EUDR?",
-    answer: "O EUDR exige que exportadores provem desmatamento zero. O AgroSaaS gera polígonos GeoJSON, integra satélite e cria passaportes SHA-256 de conformidade.",
+    answer: "O EUDR exige que exportadores provem desmatamento zero. O DeepFarms gera polígonos GeoJSON, integra satélite e cria passaportes SHA-256 de conformidade.",
   },
   {
     question: "Posso migrar dados de planilhas?",
@@ -492,10 +492,10 @@ export default function Home() {
           <header className="mb-10 flex items-center justify-between gap-4 lg:mb-12">
             <div className="flex items-center gap-3">
               <div className="flex size-10 items-center justify-center rounded-sm bg-primary/10 shadow-sm ring-1 ring-primary/20 backdrop-blur-sm">
-                <Image src="/logos/agrosaas-mark.svg" alt="AgroSaaS" width={22} height={22} className="opacity-90" />
+                <Image src="/logos/agrosaas-mark.svg" alt="DeepFarms" width={22} height={22} className="opacity-90" />
               </div>
               <div>
-                <div className="text-lg font-light uppercase tracking-widest text-primary">AgroSaaS</div>
+                <div className="text-lg font-light uppercase tracking-widest text-primary">DeepFarms</div>
                 <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Gestão rural premium</div>
               </div>
             </div>
@@ -957,7 +957,7 @@ export default function Home() {
                 <div className="flex size-8 items-center justify-center rounded-sm bg-primary text-primary-foreground">
                   <Sprout className="size-3.5" />
                 </div>
-                <span className="text-xs font-black uppercase tracking-[0.2em] text-primary">AgroSaaS</span>
+                <span className="text-xs font-black uppercase tracking-[0.2em] text-primary">DeepFarms</span>
               </div>
               <p className="text-xs leading-5 text-muted-foreground">
                 Plataforma de gestão rural integrada. Campo, estoque e financeiro em um único lugar.
@@ -997,7 +997,7 @@ export default function Home() {
               <div className="flex items-center gap-1.5"><LineChart className="size-3 text-primary/50" />ISO 27001</div>
             </div>
             <div className="text-[10px] text-muted-foreground">
-              © {new Date().getFullYear()} AgroSaaS. Todos os direitos reservados.
+              © {new Date().getFullYear()} DeepFarms. Todos os direitos reservados.
             </div>
           </div>
         </div>

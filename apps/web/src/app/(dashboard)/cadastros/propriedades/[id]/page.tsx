@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { PropriedadeDetalheClient } from "./propriedade-detalhe-client";
 
 export const metadata: Metadata = {
-  title: "Detalhes da Propriedade - AgroSaaS",
+  title: "Detalhes da Propriedade - DeepFarms",
   description: "Gerenciamento da área operacional e dados da propriedade.",
 };
 

@@ -476,7 +476,7 @@ export default function BillingPage() {
         <div className="p-6 flex flex-col gap-6 animate-in fade-in duration-500">
             <PageHeader
                 title="Faturamento e Planos"
-                description="Gerencie sua assinatura, histórico de pagamentos e compare os recursos disponíveis nos tiers AgroSaaS."
+                description="Gerencie sua assinatura, histórico de pagamentos e compare os recursos disponíveis nos tiers DeepFarms."
                 icon={<Crown className="text-primary" size={24} />}
                 actions={<IACommercialAssistantWidget surface="billing" compact triggerLabel="Assistente IA" />}
                 breadcrumbs={[
@@ -655,7 +655,7 @@ export default function BillingPage() {
                 <CardHeader className="pb-4">
                     <CardTitle className="text-xl font-black uppercase tracking-tight">Tabela de Preços</CardTitle>
                     <CardDescription className="text-xs font-medium">
-                        Transparência total nos tiers AgroSaaS.
+                        Transparência total nos tiers DeepFarms.
                     </CardDescription>
                 </CardHeader>
                 <CardContent>

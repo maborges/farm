@@ -425,7 +425,7 @@ export default function TenantSettingsPage() {
                         </CardTitle>
                     </CardHeader>
                     <CardContent className="text-sm space-y-4 text-muted-foreground leading-relaxed">
-                        <p>O AgroSaaS utiliza o modelo de pós-pagamento. Suas faturas são geradas no dia 05 de cada mês.</p>
+                        <p>O DeepFarms utiliza o modelo de pós-pagamento. Suas faturas são geradas no dia 05 de cada mês.</p>
                         <p>Para manter o acesso liberado, certifique-se de enviar o comprovante de PIX/Doc até a data de vencimento.</p>
                         <div className="p-4 bg-background rounded-sm border border-primary/5">
                             <p className="text-[10px] font-bold text-primary uppercase mb-1">Dados para Pagamento</p>

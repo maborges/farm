@@ -45,10 +45,10 @@ export function AuthLayout({
                     {/* Logo */}
                     <div className="flex items-center gap-3">
                         <div className="flex size-10 items-center justify-center rounded-sm bg-white/10 backdrop-blur-sm border border-white/15 shadow-lg">
-                            <Image src="/logos/agrosaas-mark.svg" alt="AgroSaaS" width={22} height={22} className="opacity-90" />
+                            <Image src="/logos/agrosaas-mark.svg" alt="DeepFarms" width={22} height={22} className="opacity-90" />
                         </div>
                         <div>
-                            <div className="text-lg font-light uppercase tracking-widest text-white">AgroSaaS</div>
+                            <div className="text-lg font-light uppercase tracking-widest text-white">DeepFarms</div>
                             <div className="text-[10px] font-medium uppercase tracking-wide text-white/60">Gestão rural premium</div>
                         </div>
                     </div>
@@ -81,7 +81,7 @@ export function AuthLayout({
 
                     {/* Rodapé */}
                     <div className="flex items-center justify-between">
-                        <p className="text-xs text-white/20">© 2026 AgroSaaS · Tecnologia de Precisão</p>
+                        <p className="text-xs text-white/20">© 2026 DeepFarms · Tecnologia de Precisão</p>
                         <p className="text-xs text-white/20">v2.4.1</p>
                     </div>
                 </div>
@@ -110,10 +110,10 @@ export function AuthLayout({
                     {/* Logo mobile */}
                     <div className="lg:hidden flex items-center gap-3 mb-6">
                         <div className="flex size-10 items-center justify-center rounded-sm bg-primary/10 shadow-sm ring-1 ring-primary/20 backdrop-blur-sm">
-                            <Image src="/logos/agrosaas-mark.svg" alt="AgroSaaS" width={22} height={22} className="opacity-90" />
+                            <Image src="/logos/agrosaas-mark.svg" alt="DeepFarms" width={22} height={22} className="opacity-90" />
                         </div>
                         <div>
-                            <div className="text-lg font-light uppercase tracking-widest text-primary">AgroSaaS</div>
+                            <div className="text-lg font-light uppercase tracking-widest text-primary">DeepFarms</div>
                             <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Gestão rural premium</div>
                         </div>
                     </div>

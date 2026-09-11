@@ -166,7 +166,7 @@ class NotificacaoService(BaseService[Notificacao]):
         )
         result = await self.session.execute(stmt)
 
-        assunto = f"AgroSaaS — Alerta Inteligente: {notif.titulo}"
+        assunto = f"DeepFarms — Alerta Inteligente: {notif.titulo}"
         for user, pref in result.all():
             email_ativo = pref.email_ativo if pref else True
             sensibilidade = pref.nivel_sensibilidade if pref else "ALTO"

@@ -9,7 +9,7 @@ const outfit = Outfit({
 });
 
 export const metadata: Metadata = {
-  title: "AgroSaaS | Dashboard",
+  title: "DeepFarms | Dashboard",
   description: "Sistema de Gestão do Agronegócio",
 };
 

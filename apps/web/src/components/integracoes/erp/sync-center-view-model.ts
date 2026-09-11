@@ -110,7 +110,7 @@ export function buildErpSyncCenterViewModel(
     if (cap.maturity === "P2" || cap.pilotTier === "P2" || cap.status === "NOT_AVAILABLE") {
       let description = "Planejado para fases futuras da integração.";
       if (cap.code === "estoque") {
-        description = "A sincronização do estoque administrativo do ERP está planejada para uma fase posterior. O estoque operacional continua sendo controlado pelo AgroSaaS.";
+        description = "A sincronização do estoque administrativo do ERP está planejada para uma fase posterior. O estoque operacional continua sendo controlado pelo DeepFarms.";
       } else if (cap.code === "pedidos") {
         description = "A sincronização de pedidos de venda está planejada para ser implementada em breve.";
       }

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { VisaoTerritorialPropriedadeClient } from "@/components/territorial/territorial-visao";
 
 export const metadata: Metadata = {
-  title: "Visão Territorial - AgroSaaS",
+  title: "Visão Territorial - DeepFarms",
   description: "Visão consolidada da propriedade com imóveis vinculados e leitura territorial.",
 };
 

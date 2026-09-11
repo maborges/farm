@@ -1,5 +1,5 @@
 """
-Constantes globais do AgroSaaS - Identificadores de Módulos Vendáveis
+Constantes globais do DeepFarms - Identificadores de Módulos Vendáveis
 Cada constante representa um módulo que pode ser contratado individualmente.
 """
 from enum import Enum
@@ -139,7 +139,7 @@ class ModuloMetadata:
     CATALOGO = {
         # CORE
         Modulos.CORE: {
-            "nome": "Núcleo AgroSaaS",
+            "nome": "Núcleo DeepFarms",
             "descricao": "Multi-tenancy, GIS, RBAC, Offline-first",
             "categoria": "CORE",
             "obrigatorio": True,

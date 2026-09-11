@@ -1,4 +1,4 @@
-# AgroSaaS - Plataforma de Gestão Rural Modular
+# DeepFarms - Plataforma de Gestão Rural Modular
 
 Sistema avançado para gestão de fazendas, focado em produtividade, isolamento de dados (multi-tenancy) e interface de alta performance.
 
@@ -20,9 +20,9 @@ Monorepo dividido em:
 - **../balanca-platform/station**: PWA de estação de balança offline-first (pesagem de carga e animais), desacoplado dos demais módulos.
 - **services/api**: Backend Python com FastAPI, SQLAlchemy e PostgreSQL.
 - **../balanca-platform/service**: Serviço independente de pesagem, estações, operadores,
-  outbox Observer e conciliação; o AgroSaaS fala com ele somente por contrato HTTP.
+outbox Observer e conciliação; o DeepFarms fala com ele somente por contrato HTTP.
 - **../balanca-platform/contracts**: Contratos próprios da integração da Balança.
-- **packages/zod-schemas**: Contratos compartilhados do AgroSaaS.
+- **packages/zod-schemas**: Contratos compartilhados do DeepFarms.
 
 Inventário técnico completo (versões, libs, infra): `docs/architecture/architecture-inventory.md`.
 
@@ -54,7 +54,7 @@ Regras completas de fronteira territorial/fundiária: `docs/architecture/agrosaa
 
 ### Integração TARA
 
-O AgroSaaS acessa a Plataforma TARA exclusivamente por HTTP em
+O DeepFarms acessa a Plataforma TARA exclusivamente por HTTP em
 `/api/v1/integracoes/tara`. A configuração por tenant é persistida no domínio
 canônico de integrações; o segredo do API Client é armazenado criptografado e
 nunca é retornado ao frontend ou aos logs. O cliente envia `X-Tenant-ID`,
@@ -73,7 +73,7 @@ Arquitetura consolidada do Caderno de Campo (governança, cadeia documental, pap
 ## Como Executar
 
 Execute cada bloco em um terminal separado, mantendo o backend ativo antes dos workers e das aplicações web.
-Para a Balança, a ordem recomendada é: banco/migrations, backend AgroSaaS,
+Para a Balança, a ordem recomendada é: banco/migrations, backend DeepFarms,
 serviço independente, configuração do conector, worker, backoffice web, PWA da
 estação e Bridge do indicador.
 
@@ -112,7 +112,7 @@ curl -fsS http://localhost:8000/docs >/dev/null && echo "API OK"
 
 ### 4. Iniciar o worker de automações
 
-O que faz: executa o scheduler de automações do AgroSaaS usando o virtualenv oficial da API.
+O que faz: executa o scheduler de automações do DeepFarms usando o virtualenv oficial da API.
 
 ```bash
 cd /opt/lampp/htdocs/farm
@@ -181,7 +181,7 @@ ao navegador. O proxy Next.js adiciona os headers no servidor.
 
 ### 9. Iniciar o serviço independente da Balança
 
-O que faz: disponibiliza a API consumida pela estação e pelo AgroSaaS. A
+O que faz: disponibiliza a API consumida pela estação e pelo DeepFarms. A
 instalação pode ser feita separadamente do backend principal.
 
 Comandos:
@@ -197,7 +197,7 @@ Comandos:
     psql --set=ON_ERROR_STOP=1 "$BALANCA_DATABASE_URL" -f migrations/003_contingency.sql
     ./start_server.sh
 
-### 9.1. Configurar o AgroSaaS para usar a Balança independente
+### 9.1. Configurar o DeepFarms para usar a Balança independente
 
 No arquivo de ambiente do backend, informe a URL e as credenciais de cliente
 emitidas pelo backoffice da Balança.
@@ -208,11 +208,11 @@ Esses valores ficam somente no servidor:
     BALANCA_SERVICE_CLIENT_SECRET=segredo-emitido-pelo-backoffice
 
 Reinicie o backend depois de alterar o ambiente. Sem essas três variáveis, as
-operações de pesagem do AgroSaaS são recusadas e nenhum banco local de Balança
+operações de pesagem do DeepFarms são recusadas e nenhum banco local de Balança
 é utilizado como fallback.
 
 Para receber as confirmações por webhook, configure também o segredo HMAC da
-Conta no AgroSaaS e aponte o destino da Conta na TARA para:
+Conta no DeepFarms e aponte o destino da Conta na TARA para:
 
     BALANCA_WEBHOOK_ACCOUNT_SECRETS_JSON={"account_uuid":"segredo-compartilhado-com-a-tara"}
     POST /api/v1/integracoes/balanca/events
@@ -225,7 +225,7 @@ faça retry; reentregas já registradas continuam sendo aceitas como sucesso.
 O primeiro usuário do backoffice é criado com
 `/opt/lampp/htdocs/balanca-platform/service/bootstrap_admin.py`.
 Depois do login em `/v1/auth/login`, o administrador emite uma credencial para
-cada consumidor em `/v1/admin/api-clients`; o AgroSaaS recebe somente seu
+cada consumidor em `/v1/admin/api-clients`; o DeepFarms recebe somente seu
 `client_id` e segredo, que devem ser rotacionados ou revogados pelo backoffice
 quando necessário.
 
@@ -236,7 +236,7 @@ O serviço Balança aceita pacotes físicos assinados em
 pendrive; o backoffice importa o arquivo pela interface que consuma essa API
 ou pelo utilitário `/opt/lampp/htdocs/balanca-platform/service/import_contingency.py`. O recurso pertence
 ao serviço Balança e pode ser utilizado por qualquer cliente integrado, não
-somente pelo AgroSaaS. O lote original, a assinatura, a sequência e o resultado
+somente pelo DeepFarms. O lote original, a assinatura, a sequência e o resultado
 de cada pesagem são preservados para auditoria e reprocessamento.
 
 ### 9.3. Iniciar o worker da Balança
@@ -352,7 +352,7 @@ pendentes.
 
 Execute as verificações abaixo:
 
-    curl -fsS http://127.0.0.1:8000/docs >/dev/null && echo "AgroSaaS API OK"
+    curl -fsS http://127.0.0.1:8000/docs >/dev/null && echo "DeepFarms API OK"
     curl -fsS http://127.0.0.1:8010/healthz && echo "Balanca service OK"
     curl -fsS http://127.0.0.1:8010/readyz && echo "Balanca database OK"
     curl -I http://127.0.0.1:3000

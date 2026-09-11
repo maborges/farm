@@ -782,7 +782,7 @@ export default function TenantsClient({ initialTenants, initialPlans }: TenantsC
         <div className="p-8 space-y-8 w-full max-w-full">
             <PageHeader
                 title="Gestão de Assinantes"
-                description="Controle de produtores, assinaturas e acesso do AgroSaaS."
+                description="Controle de produtores, assinaturas e acesso do DeepFarms."
                 actions={
                     <Button size="sm" variant="outline" className="gap-2" onClick={() => setShowCreateDialog(true)}>
                         <Plus className="h-4 w-4" />

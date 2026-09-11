@@ -163,7 +163,7 @@ function ActivateForm() {
               <div className="flex items-start justify-between gap-3">
                 <img
                   src="/AgroSaaS-icone.webp"
-                  alt="AgroSaaS Campo"
+                  alt="DeepFarms Campo"
                   className="h-12 w-12 object-contain"
                 />
                 <CampoPill className="shrink-0 border-primary/20 bg-accent/70 text-accent-foreground shadow-sm">

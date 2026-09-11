@@ -118,7 +118,7 @@ export function AtivarContaClientPage() {
         <div className="min-h-screen bg-muted/30 flex items-start justify-center p-4 pt-12">
             <div className="w-full max-w-2xl space-y-6">
                 <div className="text-center space-y-1">
-                    <h1 className="text-2xl font-bold">Bem-vindo ao AgroSaaS</h1>
+                    <h1 className="text-2xl font-bold">Bem-vindo ao DeepFarms</h1>
                     <p className="text-muted-foreground">
                         Confirme seus dados e defina sua senha para ativar a conta
                     </p>

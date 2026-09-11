@@ -62,7 +62,7 @@ export default function OnboardingSucessoPage() {
                             <CardTitle className="text-base">Conheça o Copiloto IA</CardTitle>
                         </div>
                         <CardDescription className="text-left leading-snug">
-                            O AgroSaaS mostra a decisão mais importante do dia e prepara a ação para você.
+                            O DeepFarms mostra a decisão mais importante do dia e prepara a ação para você.
                         </CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-3 pt-0">

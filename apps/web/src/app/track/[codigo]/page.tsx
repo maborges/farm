@@ -156,7 +156,7 @@ export default function TrackPage() {
 
                 {/* Rodapé */}
                 <p className="text-center text-xs text-muted-foreground pb-4">
-                    Informações verificadas pelo sistema AgroSaaS · {new Date().toLocaleDateString("pt-BR")}
+                    Informações verificadas pelo sistema DeepFarms · {new Date().toLocaleDateString("pt-BR")}
                 </p>
             </div>
         </div>

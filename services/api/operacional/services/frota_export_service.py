@@ -345,8 +345,8 @@ class FrotaExportService(FrotaDashboardService):
             'xmlns:dcterms="http://purl.org/dc/terms/" '
             'xmlns:dcmitype="http://purl.org/dc/dcmitype/" '
             'xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">'
-            "<dc:creator>AgroSaaS</dc:creator>"
-            "<cp:lastModifiedBy>AgroSaaS</cp:lastModifiedBy>"
+            "<dc:creator>DeepFarms</dc:creator>"
+            "<cp:lastModifiedBy>DeepFarms</cp:lastModifiedBy>"
             "<dcterms:created xsi:type=\"dcterms:W3CDTF\">"
             f"{datetime.now(timezone.utc).isoformat()}"
             "</dcterms:created>"
@@ -356,7 +356,7 @@ class FrotaExportService(FrotaDashboardService):
             '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
             '<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" '
             'xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes">'
-            "<Application>AgroSaaS</Application>"
+            "<Application>DeepFarms</Application>"
             "</Properties>"
         )
 

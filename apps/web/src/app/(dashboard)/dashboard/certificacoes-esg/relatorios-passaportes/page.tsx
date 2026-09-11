@@ -4,7 +4,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { RelatoriosPassaportesClient } from "./RelatoriosPassaportesClient";
 
 export const metadata: Metadata = {
-  title: "Relatórios ESG & Passaportes | AgroSaaS",
+  title: "Relatórios ESG & Passaportes | DeepFarms",
   description: "Gestão de Relatórios ESG e Passaportes de Rastreabilidade",
 };
 

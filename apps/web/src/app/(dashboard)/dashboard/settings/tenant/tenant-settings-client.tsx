@@ -301,7 +301,7 @@ export function TenantSettingsClient({ initialTenant, initialInvoices }: Props) 
                             </CardTitle>
                         </CardHeader>
                         <CardContent className="text-sm space-y-4 text-muted-foreground font-medium leading-relaxed">
-                            <p>O AgroSaaS utiliza o modelo de pós-pagamento. Suas faturas são geradas no dia 05 de cada mês com base no uso do período anterior.</p>
+                            <p>O DeepFarms utiliza o modelo de pós-pagamento. Suas faturas são geradas no dia 05 de cada mês com base no uso do período anterior.</p>
                             <p>Para manter o acesso liberado, certifique-se de enviar o comprovante de PIX até a data de vencimento.</p>
                             <div className="p-4 bg-muted/30 rounded-sm border border-dashed border-primary/10">
                                 <p className="text-[10px] font-black text-primary uppercase mb-1 tracking-tighter">Dados de Pagamento (PIX)</p>

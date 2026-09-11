@@ -2,7 +2,7 @@
 
 ## Visão Geral
 
-O canal de email do AgroSaaS é acionado exclusivamente pelo `NotificationDispatcher`, depois da avaliação de `Notification Policies`.
+O canal de email do DeepFarms é acionado exclusivamente pelo `NotificationDispatcher`, depois da avaliação de `Notification Policies`.
 
 Nesta fase:
 

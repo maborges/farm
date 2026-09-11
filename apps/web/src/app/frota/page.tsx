@@ -138,7 +138,7 @@ export default function FrotaLandingPage() {
                 <Tractor className="size-5" />
               </div>
               <div>
-                <div className="text-sm font-black uppercase tracking-[0.2em] text-primary">AgroSaaS Frota</div>
+                <div className="text-sm font-black uppercase tracking-[0.2em] text-primary">DeepFarms Frota</div>
                 <div className="text-xs text-muted-foreground">Inteligência em mecanização</div>
               </div>
             </Link>
@@ -183,8 +183,8 @@ export default function FrotaLandingPage() {
       <section className="bg-primary/5 py-24">
         <div className="mx-auto max-w-7xl px-6 lg:px-10">
           <div className="mb-16 max-w-3xl space-y-4">
-            <Badge className="bg-primary text-primary-foreground">A solução AgroSaaS</Badge>
-            <h2 className="text-4xl font-black tracking-tight">O AgroSaaS Frota transforma sua frota num centro de controle.</h2>
+            <Badge className="bg-primary text-primary-foreground">A solução DeepFarms</Badge>
+            <h2 className="text-4xl font-black tracking-tight">O DeepFarms Frota transforma sua frota num centro de controle.</h2>
             <p className="text-xl text-muted-foreground">Três perguntas que você vai conseguir responder no primeiro dia:</p>
           </div>
           <div className="grid gap-12 lg:grid-cols-2">
@@ -272,13 +272,13 @@ export default function FrotaLandingPage() {
 
               <div className="rounded-sm bg-emerald-600/10 p-4 border border-emerald-600/20">
                 <p className="text-sm text-emerald-900 leading-relaxed italic">
-                  "O AgroSaaS me mostrou que dois tratores estavam bebendo 2 litros a mais por hora. Corrigimos o ajuste e a economia pagou o sistema em 3 meses."
+                  "O DeepFarms me mostrou que dois tratores estavam bebendo 2 litros a mais por hora. Corrigimos o ajuste e a economia pagou o sistema em 3 meses."
                 </p>
                 <div className="mt-2 text-xs font-bold text-emerald-700">— João P., MT (5.000 hectares)</div>
               </div>
 
               <div className="text-center">
-                <p className="text-xs text-muted-foreground uppercase font-black tracking-widest mb-4">Economia estimada com AgroSaaS</p>
+                <p className="text-xs text-muted-foreground uppercase font-black tracking-widest mb-4">Economia estimada com DeepFarms</p>
                 <div className="text-5xl font-black text-emerald-600 tracking-tighter">Até 20%*</div>
                 <p className="text-[10px] text-muted-foreground mt-2">*Dependendo do cenário operacional e maturidade da gestão atual.</p>
               </div>
@@ -322,7 +322,7 @@ export default function FrotaLandingPage() {
             <div className="relative rounded-sm overflow-hidden border border-border/80 shadow-2xl">
               <img 
                 src="/home/borgus/.gemini/antigravity/brain/c5f639e9-0b11-4ab3-9f03-48d8aacf2388/frota_dashboard_preview_1778204083271.png" 
-                alt="Dashboard AgroSaaS Frota" 
+                alt="Dashboard DeepFarms Frota"
                 className="w-full h-auto"
               />
               <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent p-6 text-white text-left">
@@ -362,7 +362,7 @@ export default function FrotaLandingPage() {
               <div className="text-primary font-black uppercase tracking-widest text-sm">Para quem é</div>
               <h3 className="text-2xl font-black">Produtores e gestores que operam frotas próprias.</h3>
               <p className="text-muted-foreground leading-relaxed">
-                Se você tem pelo menos 3 máquinas operando, o AgroSaaS já se paga com a primeira economia de combustível ou preventiva evitada.
+                Se você tem pelo menos 3 máquinas operando, o DeepFarms já se paga com a primeira economia de combustível ou preventiva evitada.
               </p>
             </div>
             <div className="space-y-4">
@@ -432,7 +432,7 @@ export default function FrotaLandingPage() {
             <div className="space-y-2">
               <h3 className="text-xl font-bold">Precisa instalar GPS ou sensores nas máquinas?</h3>
               <p className="text-muted-foreground leading-relaxed">
-                Não. O AgroSaaS Frota é 100% software. Você começa a usar sem precisar mexer na parte elétrica ou mecânica dos seus tratores e colhedoras.
+                Não. O DeepFarms Frota é 100% software. Você começa a usar sem precisar mexer na parte elétrica ou mecânica dos seus tratores e colhedoras.
               </p>
             </div>
             <div className="space-y-2">
@@ -465,13 +465,13 @@ export default function FrotaLandingPage() {
             <div className="flex flex-col items-center gap-6">
               <div className="flex flex-wrap justify-center gap-4">
                 <Button asChild size="lg" variant="secondary" className="h-14 px-8 text-lg font-bold">
-                  <a href={getWhatsappComercialUrl("Quero testar o AgroSaaS na minha frota") ?? "/register"} target="_blank" rel="noopener noreferrer" data-track-event="cta_test_click_footer">
+                  <a href={getWhatsappComercialUrl("Quero testar o DeepFarms na minha frota") ?? "/register"} target="_blank" rel="noopener noreferrer" data-track-event="cta_test_click_footer">
                     Testar grátis por 14 dias
                     <ArrowRight className="ml-2 size-5" />
                   </a>
                 </Button>
                 <Button asChild size="lg" variant="outline" className="h-14 px-8 text-lg font-bold bg-transparent border-white/30 hover:bg-white/10 text-white">
-                  <a href={getWhatsappComercialUrl("Quero agendar uma demonstração do AgroSaaS") ?? "/register"} target="_blank" rel="noopener noreferrer" data-track-event="cta_demo_click_footer">
+                  <a href={getWhatsappComercialUrl("Quero agendar uma demonstração do DeepFarms") ?? "/register"} target="_blank" rel="noopener noreferrer" data-track-event="cta_demo_click_footer">
                     Agendar demonstração
                   </a>
                 </Button>
@@ -504,10 +504,10 @@ export default function FrotaLandingPage() {
         <div className="mx-auto max-w-7xl px-6 lg:px-10 flex flex-col md:flex-row justify-between items-center gap-6">
           <div className="flex items-center gap-3 grayscale opacity-70">
             <Tractor className="size-5" />
-            <span className="font-black tracking-widest uppercase text-sm">AgroSaaS Frota</span>
+            <span className="font-black tracking-widest uppercase text-sm">DeepFarms Frota</span>
           </div>
           <div className="text-sm text-muted-foreground">
-            © 2026 AgroSaaS. Todos os direitos reservados.
+            © 2026 DeepFarms. Todos os direitos reservados.
           </div>
         </div>
       </footer>

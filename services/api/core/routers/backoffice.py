@@ -509,10 +509,10 @@ async def reset_user_password(
         try:
             await email_service.send_email(
                 to=user.email,
-                subject="Redefinição de Senha - AgroSaaS",
+                subject="Redefinição de Senha - DeepFarms",
                 html_content=f"""
                 <h2>Olá {user.nome_completo or user.username},</h2>
-                <p>Sua senha foi redefinida pelo administrador do sistema AgroSaaS.</p>
+                <p>Sua senha foi redefinida pelo administrador do sistema DeepFarms.</p>
                 <p><strong>Senha temporária:</strong> <code>{senha_temporaria}</code></p>
                 <p>Por segurança, recomendamos criar uma nova senha no próximo acesso.</p>
                 """
@@ -671,7 +671,7 @@ async def reset_tenant_password(
         try:
             await email_service.send_email(
                 to=usuario.email,
-                subject="Redefinição de Senha - AgroSaaS",
+                subject="Redefinição de Senha - DeepFarms",
                 html_content=f"""
                 <h2>Olá {usuario.nome_completo or tenant.nome},</h2>
                 <p>Sua senha foi redefinida pelo administrador do sistema.</p>

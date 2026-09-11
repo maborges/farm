@@ -332,8 +332,8 @@ export function ErpPolicyManager({ onUpdated }: { onUpdated?: () => void }) {
                           </Select>
                           <p className="text-xs text-muted-foreground">
                             {editing.record_scope === "ALL_EXTERNAL"
-                              ? "Registros ausentes serão criados no AgroSaaS. Use somente quando todo o cadastro do ERP for necessário."
-                              : "Atualiza apenas pessoas que possuem um ID do ERP vinculado no AgroSaaS."}
+                              ? "Registros ausentes serão criados no DeepFarms. Use somente quando todo o cadastro do ERP for necessário."
+                              : "Atualiza apenas pessoas que possuem um ID do ERP vinculado no DeepFarms."}
                           </p>
                         </div>
                       ) : null}

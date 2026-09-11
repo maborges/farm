@@ -61,7 +61,7 @@ export default function BackofficeDashboardPage() {
         <div className="flex-1 flex flex-col gap-6 w-full px-4 md:px-8 py-8">
             <PageHeader
                 title="Dashboard Executivo"
-                description="Saúde financeira e operacional do AgroSaaS em tempo real."
+                description="Saúde financeira e operacional do DeepFarms em tempo real."
                 icon={<LayoutDashboard className="text-primary" size={22} />}
             />
 

@@ -21,7 +21,7 @@ def generate_dre_pdf(data: dict) -> bytes:
     elements = []
     
     # 1. Cabeçalho
-    elements.append(Paragraph("AgroSaaS - Gestão Inteligente", title_style))
+    elements.append(Paragraph("DeepFarms - Gestão Inteligente", title_style))
     elements.append(Paragraph(f"Demonstrativo de Resultados (DRE) - Gerado em {datetime.now().strftime('%d/%m/%Y %H:%M')}", header_style))
     elements.append(Spacer(1, 0.5*cm))
     

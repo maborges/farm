@@ -101,7 +101,7 @@ export default function IntegracoesPage() {
     <div className="p-6 flex flex-col gap-6">
       <PageHeader
         title="Integrações"
-        description="Gerencie as conexões oficiais do AgroSaaS, com acesso direto às configurações e diagnósticos."
+        description="Gerencie as conexões oficiais do DeepFarms, com acesso direto às configurações e diagnósticos."
       />
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">

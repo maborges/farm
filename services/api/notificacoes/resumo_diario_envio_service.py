@@ -115,7 +115,7 @@ class EnvioResumoDiarioService:
             resumo_data = await resumo_svc.obter_resumo(safra_id)
 
             # Formatar mensagem
-            titulo = f"📊 Seu Resumo Diário AgroSaaS — {datetime.now().strftime('%d/%m/%Y')}"
+            titulo = f"📊 Seu Resumo Diário DeepFarms — {datetime.now().strftime('%d/%m/%Y')}"
 
             corpo_texto = f"{resumo_data.resumo_ia}\n\n"
 

@@ -89,7 +89,7 @@ export function Topbar() {
                                     )}
                                 </div>
                                 <span className="font-black text-primary text-lg truncate">
-                                    {tenant?.nome ?? "AgroSaaS"}
+                                    {tenant?.nome ?? "DeepFarms"}
                                 </span>
                             </Link>
                         </>

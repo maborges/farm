@@ -1,12 +1,12 @@
-# AgroSaaS: Plataforma de Gestão Rural Modular e Inteligente
+# DeepFarms: Plataforma de Gestão Rural Modular e Inteligente
 
-O **AgroSaaS** é um ERP (Enterprise Resource Planning - Sistema de Gestão Empresarial) e um sistema de gestão rural projetado especificamente para proporcionar controle total sobre a fazenda, unindo as pontas operacionais e financeiras de forma modular.
+O **DeepFarms** é um ERP (Enterprise Resource Planning - Sistema de Gestão Empresarial) e um sistema de gestão rural projetado especificamente para proporcionar controle total sobre a fazenda, unindo as pontas operacionais e financeiras de forma modular.
 
 ## 1. O que a aplicação oferece e suas Vantagens
 A aplicação garante Alta Produtividade e Transparência Econômica, atendendo desde o gestor administrativo até o operador de máquinas. Suas maiores vantagens incluem a redução de retrabalho, o controle rigoroso de custos e a capacidade de tomada de decisão baseada em dados em tempo real.
 
 ## 2. Diferenciais em Relação ao Mercado
-Diferente da maioria dos softwares agrícolas engessados ou que exigem internet constante, o AgroSaaS se destaca por:
+Diferente da maioria dos softwares agrícolas engessados ou que exigem internet constante, o DeepFarms se destaca por:
 - **Offline-First via PWA (Progressive Web App):** O aplicativo de campo continua funcionando plenamente mesmo sem acesso à internet. Os dados ficam salvos localmente e são sincronizados (enviados à nuvem) assim que o dispositivo detecta conexão.
 - **Convergência Territorial e Fundiária:** Mantém a distinção clara e legal entre Propriedade (Unidade Operacional onde se planta) e Imóvel Rural (Documento legal, como CAR - Cadastro Ambiental Rural e Matrícula), vinculando-os automaticamente e evitando a duplicidade de dados comuns em sistemas legados.
 - **Design e UX (User Experience) Premium:** Focado em tolerância zero a interfaces confusas. Possui carregamento ultra-rápido, adaptação comportamental do usuário e alertas gamificados.
@@ -19,10 +19,10 @@ Diferente da maioria dos softwares agrícolas engessados ou que exigem internet 
 ## 4. Integração fluida com ERPs de Mercado
 A plataforma foi desenhada para conviver pacificamente com grandes sistemas corporativos.
 - **Integração com ERP Sankhya (Exemplo de Piloto):** A aplicação busca automaticamente Pessoas, Produtos, Fornecedores e Planos de Conta da base do cliente via *Gateways* (pontes seguras de conexão via APIs). 
-- O AgroSaaS atua como a origem central da operação de campo, enviando ou recebendo apenas os dados necessários para que a contabilidade final feche, sem duplicação de esforço humano.
+- O DeepFarms atua como a origem central da operação de campo, enviando ou recebendo apenas os dados necessários para que a contabilidade final feche, sem duplicação de esforço humano.
 
 ## 5. Wizard: Implantação Assistida
-Para combater a alta taxa de abandono de sistemas por dificuldade de configuração inicial, o AgroSaaS possui um **Wizard de Implantação**. 
+Para combater a alta taxa de abandono de sistemas por dificuldade de configuração inicial, o DeepFarms possui um **Wizard de Implantação**.
 - É um painel inteligente que guia o usuário do início ao fim: avalia pendências críticas (Ex: "Falta cadastrar um Talhão"), aponta o que está impedindo o início da operação (Go-Live) e garante que a equipe só use a ferramenta quando ela estiver perfeitamente configurada.
 
 ## 6. Segurança, RLS e Acessos por Convite
@@ -78,7 +78,7 @@ Tudo culmina na **DRE Agrícola**. Um painel executivo direto, isento de imposto
 
 ## 9.5. Integração Operacional: do Planejamento ao Almoxarifado
 
-Um dos maiores diferenciais do AgroSaaS é fechar o ciclo entre o que foi **planejado** e o que foi **fisicamente retirado e usado** no campo — eliminando a maior fonte de perda silenciosa de insumos em fazendas: a divergência entre "o que saiu do papel" e "o que realmente saiu do almoxarifado".
+Um dos maiores diferenciais do DeepFarms é fechar o ciclo entre o que foi **planejado** e o que foi **fisicamente retirado e usado** no campo — eliminando a maior fonte de perda silenciosa de insumos em fazendas: a divergência entre "o que saiu do papel" e "o que realmente saiu do almoxarifado".
 
 ### A. Requisição de Material (Picking List Automático)
 Ao confirmar uma Ordem de Serviço (OS) de campo, o sistema gera automaticamente uma **Requisição de Material** — uma lista de separação para o almoxarifado, já com os insumos e quantidades previstas para aquela tarefa. O responsável pelo estoque separa fisicamente os itens e o operador de campo confere a quantidade recebida no ato da retirada, assinando digitalmente (senha na web ou PIN no aplicativo de campo). **É nesse momento de conferência física — e não na simples criação da OS — que o estoque é efetivamente baixado**, pela quantidade realmente retirada. Isso garante que o saldo de estoque sempre reflita a realidade do almoxarifado, não uma previsão de planejamento.
@@ -100,7 +100,7 @@ O módulo de Compras cobre cotação com múltiplos fornecedores, emissão de pe
 ---
 
 ## 10. Aderência ao Projeto Raízes (Sustentabilidade e Rastreabilidade)
-A plataforma AgroSaaS foi arquitetada não apenas para gestão financeira, mas para se conectar perfeitamente a iniciativas de valor agregado, como o **Projeto Raízes** (rastreabilidade e originação do grão à xícara):
+A plataforma DeepFarms foi arquitetada não apenas para gestão financeira, mas para se conectar perfeitamente a iniciativas de valor agregado, como o **Projeto Raízes** (rastreabilidade e originação do grão à xícara):
 - **Conexão e Storytelling de Origem:** O sistema é capaz de exportar um *Passaporte de Rastreabilidade* comercial contendo os polígonos (desenho no mapa) dos talhões, cruzando com os registros sanitários. Isso permite que um QR Code seja impresso na saca de café, garantindo que o consumidor final conheça a história real daquela fazenda (storytelling) e assegurando que não houve desmatamento nas áreas produzidas (Conformidade EUDR - Regulação Anti-Desmatamento Europeia).
 - **Combate à Fraude e Pirataria (Blindagem Criptográfica):** Todo o percurso da lavoura é inalterável. A geração do Passaporte de Rastreabilidade assina um arquivo usando *Hash SHA-256*, um protocolo de criptografia bancária e determinística. Dessa forma, a exportadora e o consumidor de um "café gourmet" do Projeto Raízes têm a garantia absoluta da autenticidade da saca (sem misturas/blends de origens suspeitas) na cadeia de suprimentos.
 
@@ -108,7 +108,7 @@ A plataforma AgroSaaS foi arquitetada não apenas para gestão financeira, mas p
 
 ## 11. Valuation e Valor Comercial da Plataforma
 
-Para avaliar o valor de mercado (Valuation) de uma plataforma SaaS (Software as a Service) como o AgroSaaS, o mercado financeiro utiliza o **Múltiplo sobre o ARR** (Annual Recurring Revenue, ou Receita Recorrente Anual).
+Para avaliar o valor de mercado (Valuation) de uma plataforma SaaS (Software as a Service) como o DeepFarms, o mercado financeiro utiliza o **Múltiplo sobre o ARR** (Annual Recurring Revenue, ou Receita Recorrente Anual).
 
 ### A. Cálculo Base de Receita
 Considerando um cenário inicial enxuto de 100 clientes:

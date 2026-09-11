@@ -228,7 +228,7 @@ function ConfirmarPedidoContent() {
       </Card>
 
       <p className="text-center text-[10px] text-muted-foreground/30 mt-8 font-bold uppercase tracking-widest">
-        Segurança AgroSaaS · 2026
+        Segurança DeepFarms · 2026
       </p>
     </div>
   );

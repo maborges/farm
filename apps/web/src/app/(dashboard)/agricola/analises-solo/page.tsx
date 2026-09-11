@@ -22,7 +22,7 @@ function LoadingFallback() {
 }
 
 export const metadata = {
-    title: "Análise de Solo | AgroSaaS",
+    title: "Análise de Solo | DeepFarms",
     description: "Gestão técnica de fertilidade e recomendações de correção de solo.",
 };
 

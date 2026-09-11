@@ -4,7 +4,7 @@ import { AbastecimentoHeader } from "./_components/abastecimento-header";
 import { AbastecimentoList } from "./_components/abastecimento-list";
 
 export const metadata = {
-    title: "Abastecimentos — AgroSaaS",
+    title: "Abastecimentos — DeepFarms",
     description: "Controle de consumo de combustível e lubrificantes da frota.",
 };
 

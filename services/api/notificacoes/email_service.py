@@ -24,7 +24,7 @@ def _send_email_sync(destinatario: str, assunto: str, mensagem: str):
     <html>
       <body style="font-family: Arial, sans-serif; color: #333;">
         <div style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; max-width: 600px; margin: 0 auto;">
-            <h2 style="color: #ef4444;">AgroSaaS &mdash; Atenção na sua safra</h2>
+            <h2 style="color: #ef4444;">DeepFarms &mdash; Atenção na sua safra</h2>
             <p><strong>Problema detectado:</strong></p>
             <p>{mensagem.replace(chr(10), '<br>')}</p>
             <br>

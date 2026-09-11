@@ -681,7 +681,7 @@ async def resend_invite(
         await email_service.send_invite(
             email=convite.email_convidado,
             remetente=remetente,
-            tenant_nome=tenant.nome if tenant else "AgroSaaS",
+            tenant_nome=tenant.nome if tenant else "DeepFarms",
             perfil_nome=perfil.nome if perfil else "Membro",
             token=convite.token_convite,
             tenant_id=tenant_id,

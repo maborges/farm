@@ -1,6 +1,6 @@
 # Field PWA - Runbook de ambiente local
 
-## AgroSaaS — Guia de Inicialização dos Serviços
+## DeepFarms — Guia de Inicialização dos Serviços
 
 > Ambiente: Windows 11 + WSL2 (Ubuntu) + pnpm monorepo  
 > Estrutura: `/opt/lampp/htdocs/farm/`

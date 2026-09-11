@@ -135,8 +135,8 @@ async def lifespan(app):
 
 
 app = FastAPI(
-    title="AgroSaaS API",
-    description="Motor principal do AgroSaaS - The Modular Monolith",
+    title="DeepFarms API",
+    description="Motor principal do DeepFarms - The Modular Monolith",
     version="0.1.0",
     lifespan=lifespan,
 )

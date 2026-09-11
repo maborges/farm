@@ -232,7 +232,7 @@ function TicketChat({ ticket, onBack }: { ticket: Ticket; onBack: () => void }) 
                                     }
                                 `}>
                                     <div className={`text-[10px] font-semibold uppercase mb-1 opacity-60`}>
-                                        {msg.is_admin_reply ? "Suporte AgroSaaS" : "Você"}
+                                        {msg.is_admin_reply ? "Suporte DeepFarms" : "Você"}
                                     </div>
                                     <p className="whitespace-pre-wrap leading-relaxed">{msg.conteudo}</p>
                                     <div className={`text-[9px] mt-1.5 opacity-50 text-right`}>

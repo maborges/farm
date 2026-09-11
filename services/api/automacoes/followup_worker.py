@@ -140,7 +140,7 @@ async def _enviar_email_followup(
         import asyncio
         from notificacoes.email_service import enviar_email
 
-        assunto = f"AgroSaaS — Follow-up atrasado: {tenant_nome}"
+        assunto = f"DeepFarms — Follow-up atrasado: {tenant_nome}"
         asyncio.create_task(enviar_email(admin.email, assunto, mensagem))
         logger.info(f"[followup_worker] E-mail agendado para {admin.email}")
     except Exception as exc:

@@ -34,7 +34,7 @@ const ERP_CAPABILITY_CATALOG: Record<string, ErpCapabilityCatalogEntry> = {
     technicalOperations: ["Importação de pessoas"],
     preferredSyncMode: "MANUAL",
     operationalBoundary:
-      "O ERP é responsável pelos cadastros administrativos utilizados nesta integração. O AgroSaaS mantém seus vínculos e contextos operacionais.",
+      "O ERP é responsável pelos cadastros administrativos utilizados nesta integração. O DeepFarms mantém seus vínculos e contextos operacionais.",
   },
   produtos: {
     code: "produtos",
@@ -44,12 +44,12 @@ const ERP_CAPABILITY_CATALOG: Record<string, ErpCapabilityCatalogEntry> = {
     technicalOperations: ["Importação de produtos"],
     preferredSyncMode: "MANUAL",
     operationalBoundary:
-      "O ERP fornece os produtos e insumos administrativos. O uso operacional no AgroSaaS continua sujeito aos seus próprios cadastros e regras.",
+      "O ERP fornece os produtos e insumos administrativos. O uso operacional no DeepFarms continua sujeito aos seus próprios cadastros e regras.",
   },
   financeiro: {
     code: "financeiro",
     name: "Financeiro",
-    description: "Integrações financeiras administrativas do ERP sem transferir o domínio operacional do AgroSaaS.",
+    description: "Integrações financeiras administrativas do ERP sem transferir o domínio operacional do DeepFarms.",
     masterSystem: "ERP administrativo",
     technicalOperations: [
       "Importação financeira",
@@ -57,7 +57,7 @@ const ERP_CAPABILITY_CATALOG: Record<string, ErpCapabilityCatalogEntry> = {
       "Exportação de contas a receber",
     ],
     operationalBoundary:
-      "O ERP governa títulos, pagamentos, recebimentos e liquidações administrativas. O financeiro operacional do AgroSaaS permanece separado.",
+      "O ERP governa títulos, pagamentos, recebimentos e liquidações administrativas. O financeiro operacional do DeepFarms permanece separado.",
   },
   nfe: {
     code: "nfe",
@@ -86,14 +86,14 @@ const ERP_CAPABILITY_CATALOG: Record<string, ErpCapabilityCatalogEntry> = {
   estoque: {
     code: "estoque",
     name: "Estoque",
-    description: "Capability P2 planejada para estoque administrativo. O estoque operacional permanece no AgroSaaS.",
+    description: "Capability P2 planejada para estoque administrativo. O estoque operacional permanece no DeepFarms.",
     masterSystem: "ERP administrativo",
     technicalOperations: ["Sincronização planejada de estoque administrativo"],
     preferredSyncMode: "NOT_CONFIGURED",
     planningNote:
-      "Integração administrativa planejada. O estoque operacional continua sendo controlado pelo AgroSaaS.",
+      "Integração administrativa planejada. O estoque operacional continua sendo controlado pelo DeepFarms.",
     operationalBoundary:
-      "Esta capability se refere ao estoque administrativo do ERP. O estoque operacional continua sendo controlado pelo AgroSaaS.",
+      "Esta capability se refere ao estoque administrativo do ERP. O estoque operacional continua sendo controlado pelo DeepFarms.",
   },
 };
 
@@ -109,8 +109,8 @@ const OPERATIONAL_STATUS_LABELS: Record<ErpCapabilityOperationalStatus, string> 
 };
 
 const SYNC_DIRECTION_LABELS: Record<ErpSyncDirection, string> = {
-  ERP_TO_AGROSAAS: "ERP para AgroSaaS",
-  AGROSAAS_TO_ERP: "AgroSaaS para ERP",
+  ERP_TO_AGROSAAS: "ERP para DeepFarms",
+  AGROSAAS_TO_ERP: "DeepFarms para ERP",
   BIDIRECTIONAL_CONTROLLED: "Atualização controlada nos dois sentidos",
   EVIDENCE_RETURN: "Envio com retorno de confirmação",
   NONE: "Sem atualização ativa",

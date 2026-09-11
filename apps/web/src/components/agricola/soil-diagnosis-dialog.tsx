@@ -95,7 +95,7 @@ export function SoilDiagnosisDialog({ analiseId, onClose }: Props) {
                         <div>
                             <DialogTitle className="text-xl">Laudo Inteligente</DialogTitle>
                             <DialogDescription className="text-xs">
-                                Diagnóstico agronômico baseado no motor de regras do AgroSaaS.
+                                Diagnóstico agronômico baseado no motor de regras do DeepFarms.
                             </DialogDescription>
                         </div>
                     </div>

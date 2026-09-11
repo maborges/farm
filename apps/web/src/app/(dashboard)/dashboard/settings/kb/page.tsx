@@ -133,7 +133,7 @@ export default function KnowledgeBasePage() {
                             <>
                                 <CardHeader className="p-10 border-b bg-muted/5">
                                     <div className="flex items-center gap-2 text-xs font-bold text-primary uppercase mb-4">
-                                        <Book size={14} /> Wiki AgroSaaS
+                                        <Book size={14} /> Wiki DeepFarms
                                     </div>
                                     <CardTitle className="text-3xl font-black">{activeArticle?.titulo}</CardTitle>
                                     <CardDescription className="text-base mt-2">

@@ -238,7 +238,7 @@ export default function BackofficeAgroTemplatesPage() {
           </Link>
           <div>
             <h1 className="text-xl font-semibold tracking-tight text-foreground/90">Templates Agrícolas</h1>
-            <p className="text-xs text-muted-foreground">Modelos globais de governança e operação para o ecossistema AgroSaaS</p>
+            <p className="text-xs text-muted-foreground">Modelos globais de governança e operação para o ecossistema DeepFarms</p>
           </div>
         </div>
         <Button size="sm" variant="outline" className="h-8 rounded-sm" onClick={() => openNew(activeTab as any)}>

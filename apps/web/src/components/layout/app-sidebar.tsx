@@ -492,7 +492,7 @@ export function AppSidebar() {
                             )}
                         </div>
                         <span className="font-black text-primary text-lg truncate">
-                            {tenant?.nome ?? "AgroSaaS"}
+                            {tenant?.nome ?? "DeepFarms"}
                         </span>
                     </div>
                 </Link>

@@ -3,7 +3,7 @@ import { CrmClient } from "./_components/CrmClient";
 import { CRMStats, Estagio, KanbanData } from "./_components/types";
 
 export const metadata = {
-    title: "CRM - AgroSaaS",
+    title: "CRM - DeepFarms",
     description: "Gerencie leads e oportunidades comerciais no funil de vendas.",
 };
 

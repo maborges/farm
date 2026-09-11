@@ -153,7 +153,7 @@ function deriveStatus(params: {
 function deriveMasterSystem(item: CapabilityMatrixItem): string {
   return (
     getErpCapabilityCatalogEntry(getFeatureCode(item))?.masterSystem ||
-    (deriveDirection(item.direction) === "AGROSAAS_TO_ERP" ? "AgroSaaS" : "ERP")
+    (deriveDirection(item.direction) === "AGROSAAS_TO_ERP" ? "DeepFarms" : "ERP")
   );
 }
 

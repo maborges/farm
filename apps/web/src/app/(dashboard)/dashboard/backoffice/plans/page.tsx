@@ -57,7 +57,7 @@ interface PlanFormData {
 }
 
 const AVAILABLE_MODULES = [
-    { id: "CORE",                  label: "Núcleo AgroSaaS",          group: "Base" },
+    { id: "CORE",                  label: "Núcleo DeepFarms",          group: "Base" },
     { id: "A1_PLANEJAMENTO",       label: "Planejamento de Safra",    group: "Agrícola" },
     { id: "A2_CAMPO",              label: "Caderno de Campo",         group: "Agrícola" },
     { id: "A3_DEFENSIVOS",         label: "Defensivos e Receituário", group: "Agrícola" },

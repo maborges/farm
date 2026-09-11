@@ -63,13 +63,13 @@ export default async function PassaportePublicoPage({ params }: PageProps) {
 
   return (
     <div className="min-h-screen bg-neutral-50 dark:bg-neutral-900 text-neutral-900 dark:text-neutral-50 flex flex-col items-center">
-      {/* Header Público com Identidade Visual AgroSaaS */}
+      {/* Header Público com Identidade Visual DeepFarms */}
       <header className="w-full max-w-4xl py-6 px-4 flex items-center justify-between border-b border-neutral-200 dark:border-neutral-800">
         <div className="flex items-center gap-2">
           <div className="bg-emerald-600 p-2 rounded-md">
             <Leaf className="w-6 h-6 text-white" />
           </div>
-          <span className="text-xl font-bold tracking-tight text-emerald-800 dark:text-emerald-400">AgroSaaS</span>
+          <span className="text-xl font-bold tracking-tight text-emerald-800 dark:text-emerald-400">DeepFarms</span>
         </div>
         <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-500 font-medium">
           <ShieldCheck className="w-5 h-5" />
@@ -88,7 +88,7 @@ export default async function PassaportePublicoPage({ params }: PageProps) {
               Passaporte de Rastreabilidade Válido
             </h1>
             <p className="text-emerald-700 dark:text-emerald-400 mt-1">
-              Este documento foi certificado e emitido na plataforma AgroSaaS. Os dados abaixo são de origem garantida e inalterável desde a sua emissão.
+              Este documento foi certificado e emitido na plataforma DeepFarms. Os dados abaixo são de origem garantida e inalterável desde a sua emissão.
             </p>
           </div>
         </div>
@@ -165,7 +165,7 @@ export default async function PassaportePublicoPage({ params }: PageProps) {
 
       {/* Footer Público */}
       <footer className="w-full text-center py-8 text-neutral-500 dark:text-neutral-400 text-sm border-t border-neutral-200 dark:border-neutral-800">
-        <p>Desenvolvido com tecnologia <strong>AgroSaaS</strong></p>
+        <p>Desenvolvido com tecnologia <strong>DeepFarms</strong></p>
         <p className="mt-1">Garantindo transparência e conformidade ESG na cadeia produtiva.</p>
       </footer>
     </div>

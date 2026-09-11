@@ -79,7 +79,7 @@ class EmailNotificationAdapter(NotificationAdapter):
     ) -> EmailMessage:
         message = EmailMessage()
         event_type = str(event.metadata.get("event_type", event.source_type))
-        message["Subject"] = f"[AgroSaaS] {event_type}"
+        message["Subject"] = f"[DeepFarms] {event_type}"
         message["From"] = f"{config.smtp_from_name} <{config.smtp_from_email}>"
         message["To"] = ", ".join(recipients)
         message["Message-ID"] = make_msgid(domain=config.smtp_from_email.split("@")[-1])
@@ -97,7 +97,7 @@ class EmailNotificationAdapter(NotificationAdapter):
         )
         event_type = str(event.metadata.get("event_type", event.source_type))
         return (
-            "AgroSaaS Notification\n\n"
+            "DeepFarms Notification\n\n"
             f"Tipo: {event_type}\n"
             f"Prioridade: {event.priority.value}\n"
             f"Tenant: {event.tenant_id}\n"

@@ -15,7 +15,7 @@ const headlines = {
 };
 
 const subheadlines = {
-  A: "O AgroSaaS Frota identifica gargalos de combustível e manutenção. Redução real de custos comprovada em centenas de fazendas.",
+  A: "O DeepFarms Frota identifica gargalos de combustível e manutenção. Redução real de custos comprovada em centenas de fazendas.",
   B: "Implantação rápida e diagnósticos imediatos. Em uma semana você tem a visão total do custo por hora de cada equipamento.",
   C: "O sistema monitora preventivas e alertas críticos. Não deixe sua produção parar por falta de controle operacional.",
 };
