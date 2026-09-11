@@ -5,11 +5,12 @@ from typing import List, Optional
 from uuid import UUID
 from loguru import logger
 
-from core.dependencies import get_session, get_current_admin, get_current_tenant, get_current_user_claims
+from core.dependencies import get_session, get_current_admin, get_current_tenant, get_current_user_claims, get_current_user
 from core.exceptions import BusinessRuleError, EntityNotFoundError
 from core.models.tenant import Tenant
 from core.models.configuration import ConfiguracaoSaaS
 from core.models.tenant_config import ConfiguracaoTenant
+from core.models.auth import Usuario
 from core.schemas.config_schemas import (
     SaaSConfigResponse, SaaSConfigUpdate, SMTPConfig,
     TenantConfigResponse, TenantConfigUpdate,
@@ -29,6 +30,7 @@ from agricola.templates.service import PhaseTemplateService, OperationTemplateSe
 from integracoes.sankhya.services import SankhyaSyncService
 from integracoes.events import IntegrationSyncRequested
 from events.helpers import publish_domain_event_safe
+from core.services.email_service import email_service, SMTPPlatformConfigNotFoundError
 
 router = APIRouter(prefix="/config", tags=["Configurações"])
 
@@ -71,6 +73,30 @@ async def update_saas_config(
     await session.commit()
     await session.refresh(config)
     return config
+
+
+@router.post("/saas/smtp_global/test")
+async def test_global_smtp(
+    admin: dict = Depends(get_current_admin),
+    user: Usuario = Depends(get_current_user),
+):
+    """Envia um teste do SMTP global para o administrador autenticado."""
+    del admin
+    try:
+        await email_service.send_platform_smtp_test(user.email)
+    except SMTPPlatformConfigNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Configuração SMTP global da plataforma não encontrada.",
+        ) from exc
+    except Exception as exc:
+        logger.exception("Falha no teste do SMTP global da plataforma")
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Não foi possível enviar o e-mail de teste pelo SMTP global.",
+        ) from exc
+
+    return {"message": f"E-mail de teste enviado para {user.email}."}
 
 
 # =============================================================================

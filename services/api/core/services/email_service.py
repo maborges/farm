@@ -203,6 +203,20 @@ class EmailService:
             allow_env_fallback=False,
         )
 
+    async def send_platform_smtp_test(self, recipient: str):
+        """Envia um e-mail de teste usando somente o SMTP global da plataforma."""
+        html = (
+            "<h2>Teste de configuração SMTP</h2>"
+            "<p>O SMTP global da plataforma foi configurado corretamente.</p>"
+        )
+        await self._send(
+            recipient,
+            "Teste de configuração SMTP - AgroSaaS",
+            html,
+            tenant_id=None,
+            allow_env_fallback=False,
+        )
+
     async def send_pedido_compra_confirmacao(
         self,
         email: str,

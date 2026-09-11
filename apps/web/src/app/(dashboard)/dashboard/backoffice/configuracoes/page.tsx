@@ -54,6 +54,12 @@ export default function SaaSConfigPage() {
         }
     });
 
+    const testSmtpMutation = useMutation({
+        mutationFn: () => apiFetch<{ message: string }>("/config/saas/smtp_global/test", { method: "POST" }),
+        onSuccess: (result) => toast.success(result.message),
+        onError: () => toast.error("Não foi possível enviar o e-mail de teste. Verifique o SMTP global salvo."),
+    });
+
     useEffect(() => {
         if (configs) {
             const initial = configs.reduce((acc, c) => ({ ...acc, [c.chave]: c.valor }), {});
@@ -194,7 +200,7 @@ export default function SaaSConfigPage() {
                                     {hasSmtp ? (
                                         <StatusBadge status="ativo" />
                                     ) : (
-                                        <Badge variant="secondary" className="text-[10px]">.env</Badge>
+                                        <Badge variant="secondary" className="text-[10px]">Não configurado</Badge>
                                     )}
                                 </div>
                             </CardHeader>
@@ -247,11 +253,20 @@ export default function SaaSConfigPage() {
                                     />
                                 </div>
                             </CardContent>
-                            <CardFooter className="flex justify-end border-t py-4 bg-muted/10">
+                            <CardFooter className="flex justify-between border-t py-4 bg-muted/10">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => testSmtpMutation.mutate()}
+                                    disabled={updateMutation.isPending || testSmtpMutation.isPending || !hasSmtp}
+                                >
+                                    {testSmtpMutation.isPending ? <Loader2 size={14} className="mr-1.5 animate-spin" /> : <Mail size={14} className="mr-1.5" />}
+                                    Testar SMTP
+                                </Button>
                                 <Button
                                     size="sm"
                                     onClick={() => updateMutation.mutate({ chave: "smtp_global", valor: smtpLocal })}
-                                    disabled={updateMutation.isPending}
+                                    disabled={updateMutation.isPending || testSmtpMutation.isPending}
                                 >
                                     {updateMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
                                     Salvar
