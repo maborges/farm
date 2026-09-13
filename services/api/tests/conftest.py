@@ -20,6 +20,7 @@ import agricola.tarefas.models  # noqa: F401
 import agricola.production_units.models  # noqa: F401
 import agricola.romaneios.models  # noqa: F401
 import agricola.operacoes.models  # noqa: F401
+import agricola.receituario_agronomico.models  # noqa: F401 - registra FK usada pelo caderno de campo
 import operacional.models.qualidade  # noqa: F401
 import operacional.models.frota  # noqa: F401
 import operacional.models.apontamento  # noqa: F401
