@@ -137,7 +137,7 @@ export function TenantSwitcher() {
             <>
                 <NewSubscriptionWizard open={wizardOpen} onOpenChange={setWizardOpen} />
                 <div className="flex items-center gap-1">
-                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-sm border border-border bg-muted/20">
+                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-sm border border-border/60 bg-white/45 shadow-sm backdrop-blur-sm dark:bg-white/10">
                         <Briefcase size={14} className="text-primary shrink-0" />
                         <div className="flex flex-col leading-none">
                             <span className="text-[9px] uppercase font-bold text-muted-foreground tracking-wider">Produtor</span>

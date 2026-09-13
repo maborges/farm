@@ -51,10 +51,10 @@ export function AdminSidebar() {
 
     return (
         <aside className={cn(
-            "bg-sidebar text-sidebar-foreground border-r border-sidebar-border flex flex-col transition-all duration-300 h-dvh",
+            "glass-chrome flex flex-col transition-all duration-300 h-dvh",
             collapsed ? "w-16" : "w-64"
         )}>
-            <div className="p-4 border-b border-sidebar-border flex justify-between items-center">
+            <div className="p-4 border-b border-sidebar-border/50 flex justify-between items-center bg-white/5">
                 {!collapsed && (
                     <span className="font-bold text-xl text-primary tracking-tighter">
                         ANDRU

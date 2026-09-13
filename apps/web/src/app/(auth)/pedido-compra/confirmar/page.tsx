@@ -93,7 +93,7 @@ function ConfirmarPedidoContent() {
         </div>
       </div>
 
-      <Card className="rounded-sm border-border bg-card/60 backdrop-blur-xl shadow-premium p-8 relative overflow-hidden">
+      <Card className="rounded-sm border-border bg-card/75 backdrop-blur-md shadow-premium p-8 relative overflow-hidden">
         <div className="absolute top-0 left-0 w-full h-[1.5px] bg-gradient-to-r from-transparent via-primary/40 to-transparent" />
 
         {status === "loading" && (

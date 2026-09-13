@@ -318,8 +318,8 @@ export function NotificationBell() {
             </Button>
 
             <Sheet open={open} onOpenChange={handleOpenChange}>
-                <SheetContent className="w-[400px] flex flex-col p-0">
-                    <SheetHeader className="px-4 pt-4 pb-3 border-b flex-shrink-0">
+                <SheetContent className="glass-surface !bg-card/60 dark:!bg-card/55 w-[400px] flex flex-col p-0">
+                    <SheetHeader className="px-4 pt-4 pb-3 pr-12 border-b flex-shrink-0">
                         <div className="flex items-center justify-between">
                             <SheetTitle className="flex items-center gap-2 text-base">
                                 <Bell className="size-4" />

@@ -14,7 +14,7 @@ export type SectionShellProps = {
 
 export function SectionShell({ title, description, action, children }: SectionShellProps) {
   return (
-    <Card className="overflow-hidden border border-border/60 bg-card/60 backdrop-blur-md shadow-premium">
+    <Card className="overflow-hidden border border-border/60 bg-card shadow-premium">
       <CardHeader className="pb-4 border-b border-border/40 bg-muted/10">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="space-y-1">

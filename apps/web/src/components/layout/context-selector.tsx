@@ -129,7 +129,7 @@ export function ContextSelector() {
             <div className="flex items-center gap-2">
                 {/* Seletor de fazendas do grupo ativo */}
                 <Select value={selectValue} onValueChange={handleChange}>
-                    <SelectTrigger className="w-auto min-w-[220px] max-w-[260px] rounded-full border border-border bg-background/80 px-3 py-1.5 text-left shadow-sm backdrop-blur-sm transition-colors hover:bg-muted/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary/20 aria-expanded:bg-muted/70 aria-expanded:text-foreground">
+                    <SelectTrigger className="w-auto min-w-[220px] max-w-[260px] rounded-full border border-border/60 bg-white/45 px-3 py-1.5 text-left shadow-sm backdrop-blur-sm transition-colors hover:bg-white/70 hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary/20 aria-expanded:bg-white/70 aria-expanded:text-foreground dark:bg-white/10 dark:hover:bg-white/18">
                         <SelectValue placeholder="Selecionar contexto" />
                     </SelectTrigger>
                     <SelectContent className="w-[280px]">
@@ -165,7 +165,7 @@ export function ContextSelector() {
 
     // Se há apenas um contexto, manter o seletor original
     return (
-        <div className="flex items-center gap-3 relative group rounded-md border border-border bg-background px-3 py-1.5 text-sm shadow-sm transition-colors hover:bg-muted/50">
+        <div className="flex items-center gap-3 relative group rounded-md border border-border/60 bg-white/45 px-3 py-1.5 text-sm shadow-sm backdrop-blur-sm transition-colors hover:bg-white/70 dark:bg-white/10 dark:hover:bg-white/18">
             <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-sm bg-primary/10 text-primary">
                 {!isVisaoGrupo && fazendaLogoSrc ? (
                     <img src={fazendaLogoSrc} alt={fazendaAtiva?.nome ?? "Propriedade"} className="h-full w-full rounded-sm object-cover" />

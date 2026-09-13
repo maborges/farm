@@ -491,8 +491,8 @@ export default function Home() {
           {/* Nav */}
           <header className="mb-10 flex items-center justify-between gap-4 lg:mb-12">
             <div className="flex items-center gap-3">
-              <div className="flex size-10 items-center justify-center rounded-sm bg-primary/10 shadow-sm ring-1 ring-primary/20 backdrop-blur-sm">
-                <Image src="/logos/agrosaas-mark.svg" alt="DeepFarms" width={22} height={22} className="opacity-90" />
+              <div className="flex size-10 items-center justify-center">
+                <Image src="/logos/deepfarms-mark.svg" alt="DeepFarms" width={40} height={40} className="size-full object-contain" />
               </div>
               <div>
                 <div className="text-lg font-light uppercase tracking-widest text-primary">DeepFarms</div>
@@ -501,8 +501,8 @@ export default function Home() {
             </div>
             <nav className="flex items-center gap-2">
               <ThemeToggle />
-              <Button asChild variant="outline" size="sm" className="border-primary/40 text-primary hover:bg-primary/5"><Link href="/login">Entrar</Link></Button>
-              <Button asChild variant="outline" size="sm" className="border-primary bg-primary/5 text-primary hover:bg-primary/10 shadow-sm"><Link href="/register">Começar grátis</Link></Button>
+              <Button asChild variant="outline" size="sm" className="border-border bg-background/80 text-foreground transition-colors hover:border-primary/40 hover:bg-primary/5 hover:text-primary"><Link href="/login">Entrar</Link></Button>
+              <Button asChild variant="outline" size="sm" className="border-primary bg-primary text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 hover:text-primary-foreground"><Link href="/register">Começar grátis</Link></Button>
             </nav>
           </header>
 
@@ -527,12 +527,12 @@ export default function Home() {
               </p>
 
               <div className="flex flex-wrap gap-2">
-                <Button asChild variant="outline" size="sm" className="h-9 border-primary/50 text-primary hover:bg-primary/5 px-4 shadow-sm">
+                <Button asChild variant="outline" size="sm" className="h-9 border-primary bg-primary px-4 text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 hover:text-primary-foreground">
                   <Link href="/register" data-track-event="cta_test_click">
                     Começar grátis <ArrowRight className="ml-1.5 size-3.5" />
                   </Link>
                 </Button>
-                <Button asChild variant="outline" size="sm" className="h-9 border-border bg-background/80 px-4">
+                <Button asChild variant="outline" size="sm" className="h-9 border-border bg-background/80 px-4 text-foreground transition-colors hover:border-primary/40 hover:bg-primary/5 hover:text-primary">
                   <Link href="/login" data-track-event="cta_demo_click">
                     Ver demonstração <ChevronRight className="ml-1.5 size-3.5" />
                   </Link>
@@ -902,7 +902,7 @@ export default function Home() {
                 ))}
               </CardContent>
               <div className="px-5 pb-5">
-                <Button asChild className="w-full gap-2" variant="outline" size="sm">
+                <Button asChild className="w-full gap-2 transition-colors hover:border-primary/40 hover:bg-primary/5 hover:text-primary" variant="outline" size="sm">
                   <Link href={plan.href} data-track-event="plan_select" data-track-plan={plan.name}>
                     {plan.cta} <ArrowRight className="size-3.5" />
                   </Link>
@@ -937,10 +937,10 @@ export default function Home() {
               </p>
             </div>
             <div className="flex flex-wrap gap-2 sm:flex-row">
-              <Button asChild variant="outline" size="sm" className="h-9 border-primary/50 text-primary hover:bg-primary/5 px-4 shadow-sm">
+              <Button asChild variant="outline" size="sm" className="h-9 border-primary bg-primary px-4 text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 hover:text-primary-foreground">
                 <Link href="/register" data-track-event="cta_test_click">Começar grátis <ArrowRight className="ml-1.5 size-3.5" /></Link>
               </Button>
-              <Button asChild variant="outline" size="sm" className="h-9 border-border bg-background/80 px-4">
+              <Button asChild variant="outline" size="sm" className="h-9 border-border bg-background/80 px-4 text-foreground transition-colors hover:border-primary/40 hover:bg-primary/5 hover:text-primary">
                 <Link href="/login" data-track-event="cta_demo_click">Ver demonstração <ChevronRight className="ml-1.5 size-3.5" /></Link>
               </Button>
             </div>

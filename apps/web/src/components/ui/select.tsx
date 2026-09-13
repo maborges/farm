@@ -180,7 +180,7 @@ function SelectTrigger({
     type: "button" as const,
     ...props,
     className: cn(
-      "flex h-8 w-full items-center justify-between rounded-sm border border-primary/20 bg-background px-3 py-1 text-sm font-normal transition-all duration-300 outline-none focus:border-primary/60 focus:ring-4 focus:ring-primary/5 focus-visible:border-primary/60 focus-visible:ring-4 focus-visible:ring-primary/5 disabled:cursor-not-allowed disabled:opacity-50 dark:border-primary/35 dark:focus:border-primary/50 dark:focus-visible:border-primary/50 md:text-sm",
+      "flex h-8 w-full items-center justify-between rounded-sm border border-border/60 bg-white/55 px-3 py-1 text-sm font-normal text-foreground shadow-sm shadow-black/5 backdrop-blur-sm transition-all duration-300 outline-none focus:border-primary/60 focus:bg-white/70 focus:ring-4 focus:ring-primary/5 focus-visible:border-primary/60 focus-visible:bg-white/70 focus-visible:ring-4 focus-visible:ring-primary/5 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/20 dark:bg-white/10 dark:text-white dark:focus:border-primary/50 dark:focus:bg-white/15 dark:focus-visible:border-primary/50 md:text-sm",
       className
     ),
     onClick: handleClick,
@@ -288,7 +288,7 @@ function SelectContent({
           data-slot="select-content"
           role="listbox"
           className={cn(
-            "absolute z-50 min-w-[8rem] overflow-y-auto rounded-sm border border-sidebar-border bg-sidebar p-1 text-sidebar-foreground shadow-md",
+            "glass-chrome absolute z-50 min-w-[8rem] overflow-y-auto rounded-sm p-1",
             className
           )}
           style={{

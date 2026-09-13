@@ -14,7 +14,7 @@ export type MetricCardProps = {
 
 export function MetricCard({ label, value, description, icon, tone }: MetricCardProps) {
   return (
-    <Card className="overflow-hidden border border-border/50 bg-card/80 backdrop-blur-sm shadow-sm hover:shadow-md transition-shadow group">
+    <Card className="overflow-hidden border border-border/50 bg-card shadow-sm hover:shadow-md transition-shadow group">
       <CardContent className="p-5">
         <div className="flex items-start gap-4">
           <div className={cn("flex size-11 shrink-0 items-center justify-center rounded-sm ring-1 ring-inset ring-black/5 dark:ring-white/5", tone)}>{icon}</div>
@@ -41,7 +41,7 @@ export type DomainMiniCardProps = {
 
 export function DomainMiniCard({ title, resumo }: DomainMiniCardProps) {
   return (
-    <Card className="border border-border/60 shadow-sm bg-card/50 backdrop-blur-sm">
+    <Card className="border border-border/60 shadow-sm bg-card">
       <CardHeader className="pb-3 border-b border-border/40 bg-muted/10">
         <CardTitle className="text-sm font-semibold">{title}</CardTitle>
         <CardDescription className="text-[11px]">Quebra por domínio operacional</CardDescription>

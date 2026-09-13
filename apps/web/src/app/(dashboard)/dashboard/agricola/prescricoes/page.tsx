@@ -233,7 +233,7 @@ export default function PrescricoesVRAPage() {
 
             <div className="relative flex-1 rounded-sm overflow-hidden border border-border/40 shadow-2xl flex flex-col md:flex-row bg-background">
                 {/* Sidebar: Prescricao Catalog */}
-                <div className="w-full md:w-96 border-b md:border-b-0 md:border-r border-border/20 flex flex-col z-10 bg-background/50 backdrop-blur-xl">
+                <div className="w-full md:w-96 border-b md:border-b-0 md:border-r border-border/20 flex flex-col z-10 bg-background/85">
                     <div className="p-6 space-y-6 flex-1 overflow-y-auto">
                         <div className="space-y-4">
                             <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground flex items-center gap-2">

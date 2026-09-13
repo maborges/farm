@@ -149,7 +149,7 @@ function ActivateForm() {
       >
         <div className="absolute inset-0 flex items-center justify-center">
           <img
-            src="/AgroSaaS-icone.webp"
+            src="/deepfarms-campo-activation.webp"
             alt=""
             aria-hidden="true"
             className="h-auto w-[88%] translate-y-[-8%] opacity-40 select-none object-contain"
@@ -162,7 +162,7 @@ function ActivateForm() {
             <div className="space-y-3">
               <div className="flex items-start justify-between gap-3">
                 <img
-                  src="/AgroSaaS-icone.webp"
+                  src="/deepfarms-icon-192.webp"
                   alt="DeepFarms Campo"
                   className="h-12 w-12 object-contain"
                 />

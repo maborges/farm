@@ -300,15 +300,25 @@
   }
 
   .glass {
-    @apply bg-card/60 backdrop-blur-xl border border-border/50;
+    @apply bg-card/60 backdrop-blur-sm border border-border/50 shadow-sm shadow-black/5;
+  }
+
+  /* Receita compartilhada do glassmorphism para superfícies pequenas e overlays. */
+  .glass-surface {
+    @apply border border-border/50 bg-card/75 text-card-foreground shadow-xl shadow-black/10 backdrop-blur-sm;
+  }
+
+  /* Chrome fixo da aplicação: mesma linguagem, usando a paleta da navegação. */
+  .glass-chrome {
+    @apply border border-sidebar-border/40 bg-sidebar/70 text-sidebar-foreground shadow-sm shadow-black/10 backdrop-blur-md;
   }
 
   .glass-dark {
-    @apply bg-background/80 backdrop-blur-xl border border-border/10;
+    @apply bg-background/80 backdrop-blur-sm border border-border/10;
   }
 
   .agro-glass {
-    @apply bg-card/72 backdrop-blur-xl border border-primary/10;
+    @apply bg-card/65 backdrop-blur-sm border border-primary/10 shadow-sm shadow-black/5;
     box-shadow:
       0 20px 45px -24px rgba(46, 125, 50, 0.28),
       0 10px 24px -18px rgba(2, 132, 199, 0.18);
@@ -569,4 +579,3 @@
   mask-composite: exclude;
   pointer-events: none;
 }
-

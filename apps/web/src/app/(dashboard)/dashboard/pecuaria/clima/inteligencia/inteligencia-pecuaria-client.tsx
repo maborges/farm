@@ -39,7 +39,7 @@ export function InteligenciaPecuariaClient() {
 
     return (
         <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between bg-background/60 backdrop-blur-xl p-5 rounded-2xl border border-border/50 shadow-[0_4px_24px_-8px_rgba(0,0,0,0.1)] dark:shadow-none sticky top-6 z-20 transition-all">
+            <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between bg-background/80 p-5 rounded-2xl border border-border/50 shadow-[0_4px_24px_-8px_rgba(0,0,0,0.1)] dark:shadow-none sticky top-6 z-20 transition-all">
                 <div>
                     <h3 className="font-bold text-sm tracking-tight">Filtro de Análise</h3>
                     <p className="text-xs text-muted-foreground mt-0.5">

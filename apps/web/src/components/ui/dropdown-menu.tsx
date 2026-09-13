@@ -218,7 +218,7 @@ function DropdownMenuContent({
           data-slot="dropdown-menu-content"
           role="menu"
           className={cn(
-            "absolute z-50 min-w-[8rem] overflow-hidden rounded-sm border border-sidebar-border bg-sidebar text-sidebar-foreground shadow-md transition-all",
+            "glass-chrome absolute z-50 min-w-[8rem] overflow-hidden rounded-sm transition-all",
             className
           )}
           style={{

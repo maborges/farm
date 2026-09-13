@@ -237,7 +237,7 @@ export default function MapaGeoprocessamentoPage() {
                 }
             />
 
-            <div className="relative flex-1 rounded-sm overflow-hidden shadow-2xl border border-border flex flex-col lg:flex-row bg-muted/50 backdrop-blur-3xl">
+            <div className="relative flex-1 rounded-sm overflow-hidden shadow-2xl border border-border flex flex-col lg:flex-row bg-muted/80">
                 {/* Drawing Sidebar */}
                 {drawingMode && (
                     <div className="w-full lg:w-80 agro-glass border-b lg:border-b-0 lg:border-r border-primary/10 p-8 flex flex-col gap-8 z-10 animate-in fade-in duration-200">

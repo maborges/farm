@@ -6,11 +6,12 @@ export const metadata: Metadata = {
   title: "DeepFarms Campo",
   description: "Registros de campo offline-first",
   manifest: "/manifest.json",
-  appleWebApp: { capable: true, statusBarStyle: "default", title: "Campo" },
+  icons: { icon: "/deepfarms-favicon.ico" },
+  appleWebApp: { capable: true, statusBarStyle: "default", title: "DeepFarms Campo" },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#d97757",
+  themeColor: "#006B3D",
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,

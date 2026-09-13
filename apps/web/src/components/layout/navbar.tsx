@@ -30,14 +30,14 @@ export function Navbar() {
   const [isDarkMode, setIsDarkMode] = React.useState(true);
 
   return (
-    <header className="flex items-center justify-between h-16 px-6 bg-background border-b border-border sticky top-0 z-30 shadow-sm backdrop-blur-md">
+    <header className="glass-chrome flex items-center justify-between h-16 px-6 sticky top-0 z-30">
       {/* Search area */}
       <div className="flex items-center flex-1 max-w-md">
         <div className="relative w-full group">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-primary group-focus-within:text-primary/80 transition-colors" />
           <Input 
             placeholder="Search dashboard..." 
-            className="pl-10 h-9 border-border bg-muted/40 font-medium text-foreground focus:border-primary/50 focus:ring-primary/20 transition-all"
+            className="pl-10 h-9 border-border/60 bg-white/45 font-medium text-foreground shadow-sm backdrop-blur-sm focus:border-primary/50 focus:ring-primary/20 transition-all dark:bg-white/10"
           />
         </div>
       </div>
@@ -47,7 +47,7 @@ export function Navbar() {
         <Button 
           variant="outline" 
           size="sm" 
-          className="size-8 p-0 border-border bg-muted/40 group relative"
+          className="size-8 p-0 border-border/60 bg-white/45 group relative dark:bg-white/10"
           aria-label="Alternar tema"
           onClick={() => setIsDarkMode(!isDarkMode)}
         >
@@ -61,7 +61,7 @@ export function Navbar() {
         <Button 
           variant="outline" 
           size="sm" 
-          className="size-8 p-0 border-border bg-muted/40 group relative"
+          className="size-8 p-0 border-border/60 bg-white/45 group relative dark:bg-white/10"
           aria-label="Notificações"
         >
           <Bell className="size-4 text-primary transition-colors" />
@@ -73,7 +73,7 @@ export function Navbar() {
             <Button 
               variant="outline" 
               size="sm" 
-              className="flex items-center gap-2 h-9 px-2 border-border bg-muted/40 hover:bg-muted/80 transition-all font-semibold"
+              className="flex items-center gap-2 h-9 px-2 border-border/60 bg-white/45 hover:bg-white/70 transition-all font-semibold dark:bg-white/10 dark:hover:bg-white/18"
             >
               <div className="size-6 rounded-full bg-primary flex items-center justify-center text-[10px] text-primary-foreground font-bold tracking-tighter shadow-sm ring-1 ring-primary/20">
                 {user?.role === 'super-admin' ? 'SA' : 'AD'}
@@ -83,7 +83,7 @@ export function Navbar() {
               </span>
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56 mt-2 border-border bg-card text-card-foreground">
+          <DropdownMenuContent align="end" className="glass-surface w-56 mt-2">
             <DropdownMenuLabel className="flex flex-col gap-1 px-3 py-2">
               <span className="text-sm font-bold text-foreground leading-none">Rodolfo Farmer</span>
               <span className="text-[10px] text-muted-foreground font-medium">rodolfo@agromaster.com</span>

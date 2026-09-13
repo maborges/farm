@@ -10,29 +10,30 @@ const STEPS = [
 
 export default function RegisterPage() {
     return (
-        <div className="flex min-h-dvh bg-background">
+        <div
+            className="relative flex min-h-dvh overflow-hidden bg-slate-100 dark:bg-slate-950"
+            style={{
+                backgroundImage: "url('/images/deepfarms-hero.webp')",
+                backgroundSize: "cover",
+                backgroundPosition: "center",
+            }}
+        >
+            <div className="absolute inset-0 z-0 bg-white/40 dark:bg-slate-950/55" />
 
             {/* ── Painel hero (desktop) ─── */}
-            <div
-                className="hidden lg:flex lg:w-[58%] flex-col relative overflow-hidden rounded-r-lg"
-                style={{
-                    backgroundImage: "url('/images/login-bg.png')",
-                    backgroundSize: "cover",
-                    backgroundPosition: "center",
-                }}
-            >
-                <div className="absolute inset-0 bg-gradient-to-br from-black/80 to-primary/20 z-0" />
+            <div className="relative hidden flex-col overflow-hidden bg-transparent lg:flex lg:w-[58%]">
 
                 <div className="relative z-10 flex flex-col justify-between h-full p-14">
 
                     {/* Logo */}
                     <div className="flex items-center gap-3">
-                        <div className="flex size-10 items-center justify-center rounded-sm bg-white/10 backdrop-blur-sm border border-white/15 shadow-lg">
-                            <Image src="/logos/agrosaas-mark.svg" alt="DeepFarms" width={22} height={22} className="opacity-90" />
+                        <div className="flex size-10 items-center justify-center">
+                            <Image src="/logos/deepfarms-mark.svg" alt="DeepFarms" width={40} height={40} className="size-full object-contain dark:hidden" />
+                            <Image src="/logos/deepfarms-mark-negative.svg" alt="DeepFarms" width={40} height={40} className="hidden size-full object-contain dark:block" />
                         </div>
                         <div>
-                            <div className="text-lg font-light uppercase tracking-widest text-white">DeepFarms</div>
-                            <div className="text-[10px] font-medium uppercase tracking-wide text-white/60">Gestão rural premium</div>
+                            <div className="text-lg font-light uppercase tracking-widest text-slate-950 dark:text-white">DeepFarms</div>
+                            <div className="text-[10px] font-medium uppercase tracking-wide text-slate-600 dark:text-white/60">Gestão rural premium</div>
                         </div>
                     </div>
 
@@ -42,14 +43,14 @@ export default function RegisterPage() {
                             <p className="text-[10px] font-medium uppercase tracking-widest text-primary">
                                 Solicitar Acesso
                             </p>
-                            <h1 className="text-5xl font-light text-white leading-[1.1] text-balance">
+                            <h1 className="text-5xl font-light text-slate-950 leading-[1.1] text-balance dark:text-white">
                                 A nova era da{" "}
                                 <span className="text-primary font-semibold">
                                     produtividade
                                 </span>{" "}
                                 rural.
                             </h1>
-                            <p className="text-base text-white/50 leading-relaxed text-pretty">
+                            <p className="text-base text-slate-700 leading-relaxed text-pretty dark:text-white/50">
                                 Crie sua conta e comece a gerir sua fazenda com dados
                                 reais, mapas precisos e controle total de insumos.
                             </p>
@@ -57,7 +58,7 @@ export default function RegisterPage() {
 
                         {/* Steps de onboarding */}
                         <div className="space-y-3">
-                            <p className="text-[10px] font-medium uppercase tracking-widest text-white/30 mb-4">
+                            <p className="text-[10px] font-medium uppercase tracking-widest text-slate-600 mb-4 dark:text-white/30">
                                 Como funciona
                             </p>
                             {STEPS.map(({ step, title, desc }) => (
@@ -66,8 +67,8 @@ export default function RegisterPage() {
                                         {step}
                                     </div>
                                     <div>
-                                        <p className="text-sm font-semibold text-white/80">{title}</p>
-                                        <p className="text-xs text-white/35">{desc}</p>
+                                        <p className="text-sm font-semibold text-slate-800 dark:text-white/80">{title}</p>
+                                        <p className="text-xs text-slate-600 dark:text-white/35">{desc}</p>
                                     </div>
                                 </div>
                             ))}
@@ -84,20 +85,20 @@ export default function RegisterPage() {
 
                     {/* Rodapé */}
                     <div className="flex items-center justify-between">
-                        <p className="text-xs text-white/20">© 2026 DeepFarms · Tecnologia de Precisão</p>
-                        <p className="text-xs text-white/20">v2.4.1</p>
+                        <p className="text-xs text-slate-500 dark:text-white/20">© 2026 DeepFarms · Tecnologia de Precisão</p>
+                        <p className="text-xs text-slate-500 dark:text-white/20">v2.4.1</p>
                     </div>
                 </div>
             </div>
 
             {/* ── Formulário ─── */}
-            <div className="flex flex-1 flex-col items-center justify-center px-6 py-8 lg:py-12 relative overflow-y-auto">
+            <div className="relative z-10 flex flex-1 flex-col items-center justify-center overflow-y-auto px-6 py-8 lg:py-12">
 
                 {/* Watermark Logo */}
                 <div 
                     className="absolute inset-0 z-0 opacity-5 dark:opacity-10 pointer-events-none"
                     style={{
-                        backgroundImage: "url('/logos/agrosaas-mark.svg')",
+                        backgroundImage: "url('/logos/deepfarms-mark.svg')",
                         backgroundSize: "60%",
                         backgroundRepeat: "no-repeat",
                         backgroundPosition: "center",
@@ -108,8 +109,8 @@ export default function RegisterPage() {
 
                     {/* Logo mobile */}
                     <div className="lg:hidden flex items-center justify-center gap-3 mb-4">
-                        <div className="flex size-10 items-center justify-center rounded-sm bg-primary/10 shadow-sm ring-1 ring-primary/20 backdrop-blur-sm">
-                            <Image src="/logos/agrosaas-mark.svg" alt="DeepFarms" width={22} height={22} className="opacity-90" />
+                        <div className="flex size-10 items-center justify-center">
+                            <Image src="/logos/deepfarms-mark.svg" alt="DeepFarms" width={40} height={40} className="size-full object-contain" />
                         </div>
                         <div className="text-left">
                             <div className="text-lg font-light uppercase tracking-widest text-primary">DeepFarms</div>
@@ -118,7 +119,7 @@ export default function RegisterPage() {
                     </div>
 
                     {/* Card glassmorphism adaptativo */}
-                    <div className="rounded-sm border border-border bg-card/50 backdrop-blur-xl shadow-2xl shadow-black/10 p-6 lg:p-8">
+                    <div className="rounded-sm border border-slate-900/10 bg-white/65 p-6 text-slate-900 shadow-2xl shadow-black/10 backdrop-blur-sm [&_label]:text-slate-800 [&_p]:text-slate-700 [&_input]:border-slate-400/50 [&_input]:bg-white/45 [&_input]:text-slate-900 [&_input]:placeholder:text-slate-600/60 dark:border-white/8 dark:bg-white/5 dark:shadow-black/20 dark:text-slate-100 dark:[&_label]:text-slate-200 dark:[&_p]:text-slate-300 dark:[&_input]:border-white/20 dark:[&_input]:bg-white/10 dark:[&_input]:text-white dark:[&_input]:placeholder:text-white/50 lg:p-8">
                         <RegisterForm />
                     </div>
 
