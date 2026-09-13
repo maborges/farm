@@ -87,7 +87,7 @@ export function ForgotPasswordClient() {
                         <Button
                             variant="outline"
                             size="sm"
-                            className="w-full h-9 rounded-sm border-primary/40 text-primary hover:bg-primary hover:text-primary-foreground shadow-lg shadow-primary/10 transition-all duration-300 group"
+                            className="w-full group"
                         >
                             <span className="flex items-center gap-2 uppercase tracking-widest text-[10px] font-semibold">
                                 <ArrowLeft className="h-4 w-4" />
@@ -107,12 +107,15 @@ export function ForgotPasswordClient() {
 
                     <p className="text-center text-sm text-muted-foreground/60">
                         Não recebeu?{" "}
-                        <button
+                        <Button
+                            type="button"
                             onClick={() => setEmailSent(false)}
-                            className="text-primary font-semibold hover:underline transition-all"
+                            variant="link"
+                            size="sm"
+                            className="h-auto p-0 text-primary font-semibold"
                         >
                             Tentar novamente
-                        </button>
+                        </Button>
                     </p>
                 </div>
             </AuthLayout>
@@ -164,10 +167,10 @@ export function ForgotPasswordClient() {
 
                         <Button
                             type="submit"
-                            variant="outline"
+                            variant="default"
                             size="sm"
                             disabled={isLoading}
-                            className="w-full h-9 rounded-sm mt-2 border-primary/40 text-primary hover:bg-primary hover:text-primary-foreground shadow-lg shadow-primary/10 transition-all duration-300 group"
+                            className="w-full mt-2 group"
                         >
                             {isLoading ? (
                                 <Loader2 className="h-4 w-4 animate-spin" />

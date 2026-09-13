@@ -328,16 +328,20 @@ function ComparativoContent({ id, safraLabel }: { id: string; safraLabel: string
                         <div className="flex flex-wrap gap-4">
                             {/* BASE fixo */}
                             <div className="flex items-center gap-2 opacity-60 cursor-not-allowed">
-                                <Checkbox checked disabled />
-                                <Label className="text-sm cursor-not-allowed">
+                                <Checkbox id="cenario-base" checked disabled />
+                                <Label htmlFor="cenario-base" className="text-sm cursor-not-allowed">
                                     {cenarios.find((c) => c.eh_base)?.nome ?? "Base"}
                                     <Badge variant="secondary" className="ml-1.5 text-[10px] h-4 rounded-sm">BASE</Badge>
                                 </Label>
                             </div>
                             {nonBaseCenarios.map((c) => (
-                                <div key={c.id} className="flex items-center gap-2 cursor-pointer" onClick={() => toggleCenario(c.id)}>
-                                    <Checkbox checked={effectiveIds.has(c.id)} onCheckedChange={() => toggleCenario(c.id)} />
-                                    <Label className="text-sm cursor-pointer">
+                                <div key={c.id} className="flex items-center gap-2">
+                                    <Checkbox
+                                        id={`cenario-${c.id}`}
+                                        checked={effectiveIds.has(c.id)}
+                                        onCheckedChange={() => toggleCenario(c.id)}
+                                    />
+                                    <Label htmlFor={`cenario-${c.id}`} className="text-sm cursor-pointer">
                                         {c.nome}
                                         <Badge
                                             variant={TIPO_BADGE[c.tipo] as "default" | "secondary" | "destructive" | "outline"}

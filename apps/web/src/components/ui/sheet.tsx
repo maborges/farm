@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button"
 import {
   cloneElementWithProps,
   composeEventHandlers,
+  useFocusTrap,
   useControllableState,
 } from "./overlay-utils"
 
@@ -149,6 +150,7 @@ function SheetContent({
   showCloseButton?: boolean
 }) {
   const { open, setOpen } = useSheetContext()
+  const contentRef = React.useRef<HTMLDivElement | null>(null)
 
   React.useEffect(() => {
     if (!open) return
@@ -160,6 +162,14 @@ function SheetContent({
     window.addEventListener("keydown", handleEscape)
     return () => window.removeEventListener("keydown", handleEscape)
   }, [open, setOpen])
+
+  React.useEffect(() => {
+    if (open) {
+      contentRef.current?.focus()
+    }
+  }, [open])
+
+  useFocusTrap(contentRef, open)
 
   if (!open) return null
 
@@ -174,8 +184,12 @@ function SheetContent({
     <SheetPortal>
       <SheetOverlay />
       <div
+        ref={contentRef}
         data-slot="sheet-content"
         data-side={side}
+        role="dialog"
+        aria-modal="true"
+        tabIndex={-1}
         className={cn(
           "fixed z-50 flex flex-col gap-4 bg-background bg-clip-padding text-sm shadow-lg transition duration-200 ease-in-out",
           sideClasses,

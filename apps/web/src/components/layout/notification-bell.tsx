@@ -389,9 +389,15 @@ export function NotificationBell() {
                                             key={n.id}
                                             role="button"
                                             tabIndex={0}
+                                            aria-label={`${n.titulo}${!n.lida ? ". Não lida" : ""}`}
                                             className={`w-full text-left px-4 py-3 flex gap-3 transition-colors hover:bg-muted/50 cursor-pointer ${!n.lida ? "bg-muted/20" : ""}`}
                                             onClick={() => handleClickNotificacao(n)}
-                                            onKeyDown={(e) => { if (e.key === "Enter") handleClickNotificacao(n); }}
+                                            onKeyDown={(e) => {
+                                                if (e.key === "Enter" || e.key === " ") {
+                                                    e.preventDefault();
+                                                    handleClickNotificacao(n);
+                                                }
+                                            }}
                                         >
                                             {/* Icon bubble */}
                                             <div className={`mt-0.5 flex-shrink-0 flex size-8 items-center justify-center rounded-full ${cfg.bg}`}>

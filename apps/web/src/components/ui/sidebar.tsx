@@ -250,7 +250,7 @@ function Sidebar({
         <div
           data-sidebar="sidebar"
           data-slot="sidebar-inner"
-          className="flex size-full flex-col bg-sidebar/55 group-data-[variant=floating]:rounded-sm group-data-[variant=floating]:shadow-sm group-data-[variant=floating]:ring-1 group-data-[variant=floating]:ring-sidebar-border/40"
+          className="glass-chrome flex size-full flex-col group-data-[variant=floating]:rounded-sm group-data-[variant=floating]:shadow-sm group-data-[variant=floating]:ring-1 group-data-[variant=floating]:ring-sidebar-border/40"
         >
           {children}
         </div>
@@ -331,7 +331,7 @@ function SidebarInput({
     <Input
       data-slot="sidebar-input"
       data-sidebar="input"
-      className={cn("h-8 w-full bg-white/10 shadow-none dark:bg-white/5", className)}
+      className={cn("h-8 w-full bg-sidebar/35 shadow-none dark:bg-sidebar/25", className)}
       {...props}
     />
   )

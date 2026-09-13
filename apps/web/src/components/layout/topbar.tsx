@@ -66,7 +66,7 @@ export function Topbar() {
     };
 
     return (
-        <header className="glass-chrome sticky top-0 z-[var(--z-fixed)] w-full">
+        <header className="glass-chrome !bg-sidebar/45 dark:!bg-sidebar/35 absolute inset-x-0 top-0 z-[var(--z-fixed)] w-full">
             <div className="flex h-14 w-full min-w-0 items-center justify-between gap-4 px-4">
                 <div className="flex shrink-0 items-center gap-2">
                     {!mounted ? (

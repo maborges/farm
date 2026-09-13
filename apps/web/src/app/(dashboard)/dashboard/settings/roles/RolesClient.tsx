@@ -158,6 +158,17 @@ function PermissionTree({
                         <div
                             className="flex items-center gap-2 px-3 py-2 bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors select-none"
                             onClick={() => toggleExpand(mod.key)}
+                            onKeyDown={(event) => {
+                                if (event.key !== "Enter" && event.key !== " ") return;
+                                const target = event.target as HTMLElement;
+                                if (target.closest("button, a, input, select, textarea")) return;
+                                event.preventDefault();
+                                toggleExpand(mod.key);
+                            }}
+                            role="button"
+                            tabIndex={0}
+                            aria-expanded={isOpen}
+                            aria-label={`${isOpen ? "Recolher" : "Expandir"} módulo ${mod.label}`}
                         >
                             {isOpen ? <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />}
                             {!readonly && (

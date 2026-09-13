@@ -263,14 +263,14 @@ export function IASettingsClient() {
                           disabled={mutation.isPending}
                           className="mt-0.5"
                         />
-                        <div className="grid gap-0.5 leading-none cursor-pointer flex-1" onClick={() => handleTypeToggle(type.id, !data?.tipos_permitidos?.includes(type.id))}>
-                          <Label htmlFor={type.id} className="text-[10px] font-black uppercase cursor-pointer block">
+                        <Label htmlFor={type.id} className="grid gap-0.5 leading-none cursor-pointer flex-1">
+                          <span className="text-[10px] font-black uppercase">
                             {type.label}
-                          </Label>
+                          </span>
                           <p className="text-[9px] text-muted-foreground font-bold">
                             {type.desc}
                           </p>
-                        </div>
+                        </Label>
                       </div>
                     ))}
                   </div>

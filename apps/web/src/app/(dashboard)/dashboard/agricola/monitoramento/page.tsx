@@ -339,8 +339,8 @@ export default function MonitoramentoPragasPage() {
 
                                     <div>
                                         <label className="text-[10px] font-black uppercase text-muted-foreground tracking-widest px-1 mb-2 block">Evidência e Análise IA</label>
-                                        <div
-                                            onClick={() => document.getElementById('camera-input')?.click()}
+                                        <label
+                                            htmlFor="camera-input"
                                             className={`relative h-44 border-2 border-dashed rounded-sm flex flex-col items-center justify-center gap-3 overflow-hidden transition-all cursor-pointer group 
                                                 ${previewUrl ? 'border-primary/40 bg-muted/20' : 'border-primary/20 bg-primary/5 hover:bg-primary/10'}`}
                                         >
@@ -374,7 +374,7 @@ export default function MonitoramentoPragasPage() {
                                                 className="hidden"
                                                 onChange={handleFileChange}
                                             />
-                                        </div>
+                                        </label>
                                     </div>
                                 </div>
                             </div>

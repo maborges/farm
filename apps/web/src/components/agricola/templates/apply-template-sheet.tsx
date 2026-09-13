@@ -87,6 +87,19 @@ export function ApplyTemplateSheet({
   const nomeTalhao = (areaId: string) =>
     todasAreas.find(a => a.id === areaId)?.nome || `Talhão ${areaId.substring(0, 4)}`;
 
+  const toggleAllTalhoes = () => {
+    if (selectedTalhoes.length === allAreas.length) setSelectedTalhoes([]);
+    else setSelectedTalhoes(allAreas.map(a => a.area_id));
+  };
+
+  const toggleTalhao = (areaId: string) => {
+    setSelectedTalhoes(prev =>
+      prev.includes(areaId)
+        ? prev.filter(id => id !== areaId)
+        : [...prev, areaId]
+    );
+  };
+
   const applyMutation = useMutation({
     mutationFn: () => type === "PHASE"
       ? templateService.applyPhaseTemplate(safraId, selectedId!)
@@ -164,11 +177,13 @@ export function ApplyTemplateSheet({
                     <div className="h-px flex-1 bg-border" />
                   </div>
                   {templates?.map((tmpl) => (
-                    <div
+                    <button
+                      type="button"
                       key={tmpl.id}
                       onClick={() => setSelectedId(tmpl.id)}
+                      aria-pressed={selectedId === tmpl.id}
                       className={cn(
-                        "group relative p-3 rounded-sm border cursor-pointer transition-all duration-200",
+                        "group relative w-full p-3 rounded-sm border text-left transition-all duration-200",
                         selectedId === tmpl.id 
                           ? "border-primary/60 bg-primary/[0.03] shadow-sm ring-1 ring-primary/20" 
                           : "bg-card hover:bg-muted/30 hover:border-primary/30"
@@ -208,7 +223,7 @@ export function ApplyTemplateSheet({
                            </Badge>
                          )}
                       </div>
-                    </div>
+                    </button>
                   ))}
                 </div>
               )}
@@ -224,35 +239,46 @@ export function ApplyTemplateSheet({
                     </span>
                   </div>
                   <div className="grid gap-2">
-                    <div 
+                    <div
                       className="flex items-center space-x-2 p-2 rounded-sm hover:bg-muted/30 cursor-pointer border border-transparent"
-                      onClick={() => {
-                        if (selectedTalhoes.length === allAreas.length) setSelectedTalhoes([]);
-                        else setSelectedTalhoes(allAreas.map(a => a.area_id));
+                      onClick={toggleAllTalhoes}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          toggleAllTalhoes();
+                        }
                       }}
+                      role="button"
+                      tabIndex={0}
+                      aria-pressed={selectedTalhoes.length === allAreas.length && allAreas.length > 0}
                     >
                       <Checkbox
                         checked={selectedTalhoes.length === allAreas.length && allAreas.length > 0}
+                        tabIndex={-1}
                       />
                       <Label className="text-xs font-bold cursor-pointer">Selecionar todos os talhões</Label>
                     </div>
                     {allAreas.map((area) => (
-                      <div 
+                      <div
                         key={area.id} 
                         className={cn(
                           "flex items-center space-x-2 p-2 rounded-sm border transition-colors cursor-pointer hover:bg-muted/20",
                           selectedTalhoes.includes(area.area_id) ? "border-primary/20 bg-primary/5" : "border-transparent"
                         )}
-                        onClick={() => {
-                          setSelectedTalhoes(prev => 
-                            prev.includes(area.area_id) 
-                              ? prev.filter(id => id !== area.area_id) 
-                              : [...prev, area.area_id]
-                          );
+                        onClick={() => toggleTalhao(area.area_id)}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            toggleTalhao(area.area_id);
+                          }
                         }}
+                        role="button"
+                        tabIndex={0}
+                        aria-pressed={selectedTalhoes.includes(area.area_id)}
                       >
                         <Checkbox
                           checked={selectedTalhoes.includes(area.area_id)}
+                          tabIndex={-1}
                         />
                         <Label className="text-xs cursor-pointer flex-1">
                           {nomeTalhao(area.area_id)}

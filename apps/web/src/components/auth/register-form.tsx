@@ -272,11 +272,13 @@ export function RegisterForm() {
                                     {userInitial}
                                 </AvatarFallback>
                             </Avatar>
-                            <button
+                            <Button
                                 type="button"
                                 onClick={() => fileInputRef.current?.click()}
                                 disabled={isUploading}
-                                className="absolute -bottom-1 -right-1 size-5 rounded-sm bg-primary text-white flex items-center justify-center transition-all shadow-lg hover:bg-primary/90 disabled:opacity-50"
+                                variant="default"
+                                size="icon-xs"
+                                className="absolute -bottom-1 -right-1 rounded-sm shadow-lg"
                                 aria-label="Enviar foto"
                             >
                                 {isUploading ? (
@@ -284,7 +286,7 @@ export function RegisterForm() {
                                 ) : (
                                     <Camera className="size-2.5" />
                                 )}
-                            </button>
+                            </Button>
                             <input
                                 ref={fileInputRef}
                                 type="file"
@@ -387,7 +389,7 @@ export function RegisterForm() {
                             onClick={irParaEtapa2}
                             disabled={!step1Valido || isPending}
                             size="sm"
-                            className="bg-primary hover:bg-primary/90 text-white"
+                            variant="default"
                         >
                             Próximo <ChevronRight size={14} className="ml-1" />
                         </Button>
@@ -434,17 +436,16 @@ export function RegisterForm() {
                         {/* Toggle Mensal/Anual */}
                         <div className="flex items-center gap-2 p-1 bg-muted/40 rounded-sm w-fit mb-3 border border-border">
                             {(["MENSAL", "ANUAL"] as const).map((c) => (
-                                <button
+                                <Button
                                     key={c}
                                     type="button"
                                     onClick={() => setCiclo(c)}
-                                    className={`px-3 py-1.5 text-xs rounded-sm transition-colors ${ciclo === c
-                                            ? "bg-primary/20 text-primary font-semibold border border-primary/30"
-                                            : "text-muted-foreground hover:text-foreground"
-                                        }`}
+                                    variant={ciclo === c ? "default" : "ghost"}
+                                    size="sm"
+                                    className="px-3 py-1.5 text-xs"
                                 >
                                     {c === "MENSAL" ? "Mensal" : "Anual −20%"}
-                                </button>
+                                </Button>
                             ))}
                         </div>
 
@@ -486,6 +487,7 @@ export function RegisterForm() {
                                 {planos.map((plano) => (
                                     <button
                                         key={plano.id}
+                                        type="button"
                                         onClick={() => setPlanoSelecionado(plano)}
                                         className={`w-full text-left p-3 rounded-sm border transition-all ${planoSelecionado?.id === plano.id
                                                 ? "border-primary bg-primary/10 shadow-lg shadow-primary/10"
@@ -499,7 +501,7 @@ export function RegisterForm() {
                                                     {plano.destaque && <Star size={12} className="text-amber-400 fill-amber-400" />}
                                                     {plano.is_free && <Badge variant="secondary" className="text-[10px]">Grátis</Badge>}
                                                     {!plano.is_free && plano.tem_trial && (
-                                                        <Badge className="text-[10px] bg-primary text-white">{plano.dias_trial}d grátis</Badge>
+                                                        <Badge className="text-[10px] bg-primary text-primary-foreground">{plano.dias_trial}d grátis</Badge>
                                                     )}
                                                 </div>
                                                 {plano.descricao_marketing && (
@@ -546,7 +548,7 @@ export function RegisterForm() {
                             onClick={irParaEtapa3}
                             disabled={!step2Valido || isPending}
                             size="sm"
-                            className="bg-primary hover:bg-primary/90 text-white"
+                            variant="default"
                         >
                             Próximo <ChevronRight size={14} className="ml-1" />
                         </Button>
@@ -624,7 +626,8 @@ export function RegisterForm() {
                             onClick={handleSubmit}
                             disabled={isLoading}
                             size="lg"
-                            className="bg-primary hover:bg-primary/90 text-primary-foreground font-semibold uppercase tracking-widest text-xs border-0 shadow-lg shadow-primary/20 transition-all min-w-[180px]"
+                            variant="default"
+                            className="min-w-[180px] font-semibold uppercase tracking-widest text-xs"
                         >
                             {isLoading
                                 ? <><Loader2 size={14} className="mr-2 animate-spin" />Finalizando...</>

@@ -9,12 +9,14 @@ import { Button } from "@/components/ui/button"
 import {
   cloneElementWithProps,
   composeEventHandlers,
+  useFocusTrap,
   useControllableState,
 } from "./overlay-utils"
 
 type DialogContextValue = {
   open: boolean
   setOpen: (open: boolean) => void
+  triggerRef: React.MutableRefObject<HTMLElement | null>
 }
 
 const DialogContext = React.createContext<DialogContextValue | null>(null)
@@ -43,9 +45,10 @@ function Dialog({
     defaultProp: defaultOpen,
     onChange: onOpenChange,
   })
+  const triggerRef = React.useRef<HTMLElement | null>(null)
 
   return (
-    <DialogContext.Provider value={{ open: isOpen, setOpen: setIsOpen }}>
+    <DialogContext.Provider value={{ open: isOpen, setOpen: setIsOpen, triggerRef }}>
       <div data-slot="dialog" {...props}>
         {children}
       </div>
@@ -63,10 +66,13 @@ function DialogTrigger({
   render?: React.ReactElement
   asChild?: boolean
 }) {
-  const { setOpen } = useDialogContext()
+  const { setOpen, triggerRef } = useDialogContext()
   const triggerProps = {
     "data-slot": "dialog-trigger",
     type: "button" as const,
+    ref: (node: HTMLButtonElement | null) => {
+      triggerRef.current = node
+    },
     ...props,
     onClick: composeEventHandlers(onClick, () => setOpen(true)),
   }
@@ -152,7 +158,7 @@ function DialogContent({
 }: React.HTMLAttributes<HTMLDivElement> & {
   showCloseButton?: boolean
 }) {
-  const { open, setOpen } = useDialogContext()
+  const { open, setOpen, triggerRef } = useDialogContext()
   const contentRef = React.useRef<HTMLDivElement | null>(null)
 
   React.useEffect(() => {
@@ -171,8 +177,12 @@ function DialogContent({
   React.useEffect(() => {
     if (open) {
       contentRef.current?.focus()
+    } else {
+      triggerRef.current?.focus()
     }
-  }, [open])
+  }, [open, triggerRef])
+
+  useFocusTrap(contentRef, open)
 
   if (!open) return null
 

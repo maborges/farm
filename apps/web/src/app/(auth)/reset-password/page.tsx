@@ -65,7 +65,7 @@ function TokenInvalidoState() {
                     asChild
                     variant="outline"
                     size="sm"
-                    className="w-full rounded-sm border-primary/40 text-primary hover:bg-primary hover:text-primary-foreground shadow-lg shadow-primary/10 transition-all duration-300"
+                    className="w-full"
                 >
                     <Link href="/forgot-password">
                         <Mail className="h-4 w-4" />
@@ -128,7 +128,7 @@ function SenhaRedefenidaState() {
                 asChild
                 variant="outline"
                 size="sm"
-                className="w-full rounded-sm border-primary/40 text-primary hover:bg-primary hover:text-primary-foreground shadow-lg shadow-primary/10 transition-all duration-300"
+                className="w-full"
             >
                 <Link href="/login">
                     <ArrowLeft className="h-4 w-4" />
@@ -348,10 +348,10 @@ function ResetPasswordFormContent() {
                 {/* Submit */}
                 <Button
                     type="submit"
-                    variant="outline"
+                    variant="default"
                     size="sm"
                     disabled={isLoading}
-                    className="w-full rounded-sm mt-2 border-primary/40 text-primary hover:bg-primary hover:text-primary-foreground shadow-lg shadow-primary/10 transition-all duration-300 group"
+                    className="w-full mt-2 group"
                 >
                     {isLoading ? (
                         <Loader2 className="h-4 w-4 animate-spin" />

@@ -71,6 +71,11 @@ export function StatCard({
       onClick={onClick}
       role={onClick ? "button" : undefined}
       tabIndex={onClick ? 0 : undefined}
+      onKeyDown={onClick ? (event) => {
+        if (event.key !== "Enter" && event.key !== " ") return
+        event.preventDefault()
+        onClick()
+      } : undefined}
     >
       <CardContent className="p-4 flex items-center gap-4">
         {Icon && (

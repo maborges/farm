@@ -60,12 +60,12 @@ export function MegaMenuDesktop({ moduleGroups, accessItems = [], settingsItems 
 
     return (
         <div className="glass-surface flex flex-col max-h-[85vh] rounded-md overflow-hidden" role="dialog" aria-modal="true" aria-label="Mega Menu">
-            <div className="p-4 border-b border-border/50 flex gap-4 items-center bg-white/10 backdrop-blur-sm">
+            <div className="p-4 border-b border-border/50 flex gap-4 items-center bg-muted/20">
                 <div className="relative flex-1">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input 
                         placeholder="Buscar em módulos, seções e destinos..." 
-                        className="pl-9 bg-white/35 backdrop-blur-sm dark:bg-white/10"
+                        className="pl-9 bg-background/45 dark:bg-background/20"
                         value={search}
                         onChange={e => setSearch(e.target.value)}
                         autoFocus
@@ -139,7 +139,7 @@ export function MegaMenuDesktop({ moduleGroups, accessItems = [], settingsItems 
                     </nav>
                 )}
             </ScrollArea>
-            <div className="p-4 border-t border-border/50 bg-white/10 text-xs text-muted-foreground flex justify-between items-center backdrop-blur-sm">
+            <div className="p-4 border-t border-border/50 bg-muted/20 text-xs text-muted-foreground flex justify-between items-center">
                 <span>Navegue usando o teclado</span>
                 <span className="flex gap-1 items-center">
                     <kbd className="px-1.5 py-0.5 rounded border bg-background text-[10px] shadow-sm">Tab</kbd>

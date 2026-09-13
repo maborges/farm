@@ -70,14 +70,19 @@ function LoginLockBadge({ email }: { email: string }) {
     return (
         <Tooltip>
             <TooltipTrigger asChild>
-                <span className="inline-flex items-center gap-1 ml-1.5 cursor-pointer"
+                <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-xs"
+                    aria-label={`Desbloquear ${email}`}
+                    className="ml-1.5 text-amber-500 hover:bg-amber-500/10 hover:text-amber-600"
                     onClick={(e) => {
                         e.stopPropagation();
                         desbloquear.mutate(email);
                     }}
                 >
                     <Lock size={11} className="text-amber-500" />
-                </span>
+                </Button>
             </TooltipTrigger>
             <TooltipContent side="top" className="text-xs">
                 <div className="space-y-1">

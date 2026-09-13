@@ -24,6 +24,11 @@ type SelectContextValue = {
   children?: React.ReactNode
 }
 
+type SelectChildProps = {
+  value?: string
+  children?: React.ReactNode
+}
+
 const SelectContext = React.createContext<SelectContextValue | null>(null)
 
 function useSelectContext() {
@@ -109,7 +114,10 @@ function SelectValue({
     const extractText = (node: React.ReactNode): string => {
       if (typeof node === "string" || typeof node === "number") return String(node)
       if (Array.isArray(node)) return node.map(extractText).join(" ")
-      if (React.isValidElement(node)) return extractText((node.props as any).children)
+      if (React.isValidElement(node)) {
+        const nodeProps = node.props as SelectChildProps
+        return extractText(nodeProps.children)
+      }
       return ""
     }
 
@@ -118,7 +126,7 @@ function SelectValue({
       React.Children.forEach(nodes, (child) => {
         if (found) return
         if (!React.isValidElement(child)) return
-        const childProps = child.props as any
+        const childProps = child.props as SelectChildProps
         if (childProps && childProps.value === value && childProps.children) {
           found = extractText(childProps.children).replace(/\s+/g, " ").trim()
         } else if (childProps && childProps.children) {
@@ -180,7 +188,7 @@ function SelectTrigger({
     type: "button" as const,
     ...props,
     className: cn(
-      "flex h-8 w-full items-center justify-between rounded-sm border border-border/60 bg-white/55 px-3 py-1 text-sm font-normal text-foreground shadow-sm shadow-black/5 backdrop-blur-sm transition-all duration-300 outline-none focus:border-primary/60 focus:bg-white/70 focus:ring-4 focus:ring-primary/5 focus-visible:border-primary/60 focus-visible:bg-white/70 focus-visible:ring-4 focus-visible:ring-primary/5 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/20 dark:bg-white/10 dark:text-white dark:focus:border-primary/50 dark:focus:bg-white/15 dark:focus-visible:border-primary/50 md:text-sm",
+      "flex h-8 w-full items-center justify-between rounded-sm border border-border/60 bg-white/55 px-3 py-1 text-sm font-normal text-foreground shadow-sm shadow-black/5 backdrop-blur-sm transition-all duration-300 outline-none focus:border-primary/60 focus:bg-white/70 focus:ring-4 focus:ring-primary/5 focus-visible:border-primary/60 focus-visible:bg-white/70 focus-visible:ring-4 focus-visible:ring-primary/5 disabled:cursor-not-allowed disabled:border-border/70 disabled:bg-muted disabled:text-muted-foreground disabled:opacity-100 disabled:shadow-none dark:border-white/20 dark:bg-white/10 dark:text-white dark:focus:border-primary/50 dark:focus:bg-white/15 dark:focus-visible:border-primary/50 dark:disabled:border-border dark:disabled:bg-muted/70 dark:disabled:text-muted-foreground md:text-sm",
       className
     ),
     onClick: handleClick,

@@ -176,6 +176,16 @@ export function AssociationCenter({ configured = true }: AssociationCenterProps)
                 key={vm.id}
                 className="flex items-center justify-between rounded-sm border p-3 hover:bg-muted/50 cursor-pointer transition-colors"
                 onClick={() => setSelectedAssociation(items.find(i => i.id === vm.id) || null)}
+                onKeyDown={(event) => {
+                  if (event.key !== "Enter" && event.key !== " ") return
+                  const target = event.target as HTMLElement
+                  if (target.closest("button, a, input, select, textarea")) return
+                  event.preventDefault()
+                  setSelectedAssociation(items.find(i => i.id === vm.id) || null)
+                }}
+                role="button"
+                tabIndex={0}
+                aria-label={`Ver detalhes da associação ${vm.externalId}`}
               >
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
@@ -192,7 +202,15 @@ export function AssociationCenter({ configured = true }: AssociationCenterProps)
                   <p className="text-xs text-muted-foreground">
                     Capability: {vm.featureCode || "n/d"}
                   </p>
-                  <Button size="sm" variant="outline" className="mt-2 h-7 rounded-sm px-2 text-xs">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="mt-2 h-7 rounded-sm px-2 text-xs"
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      setSelectedAssociation(items.find(i => i.id === vm.id) || null)
+                    }}
+                  >
                     Detalhes
                   </Button>
                 </div>

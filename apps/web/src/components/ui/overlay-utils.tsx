@@ -42,6 +42,57 @@ function useControllableState<T>({
   return [value, setValue] as const
 }
 
+function useFocusTrap(ref: React.RefObject<HTMLElement | null>, active: boolean) {
+  React.useEffect(() => {
+    if (!active) return
+
+    const container = ref.current
+    if (!container) return
+
+    const focusableSelector = [
+      "a[href]",
+      "button:not([disabled])",
+      "input:not([disabled])",
+      "select:not([disabled])",
+      "textarea:not([disabled])",
+      "[tabindex]:not([tabindex='-1'])",
+    ].join(",")
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Tab") return
+
+      const focusable = Array.from(container.querySelectorAll<HTMLElement>(focusableSelector))
+      if (focusable.length === 0) {
+        event.preventDefault()
+        container.focus()
+        return
+      }
+
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      const current = document.activeElement
+
+      if (current === container || !container.contains(current)) {
+        event.preventDefault()
+        const target = event.shiftKey ? last : first
+        target.focus()
+        return
+      }
+
+      if (event.shiftKey && current === first) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && current === last) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
+
+    container.addEventListener("keydown", handleKeyDown)
+    return () => container.removeEventListener("keydown", handleKeyDown)
+  }, [active, ref])
+}
+
 function cloneElementWithProps<P extends Record<string, unknown>>(
   element: MaybeElement,
   props: P,
@@ -86,4 +137,4 @@ function cloneElementWithProps<P extends Record<string, unknown>>(
   return React.cloneElement(element, merged)
 }
 
-export { cloneElementWithProps, composeEventHandlers, useControllableState }
+export { cloneElementWithProps, composeEventHandlers, useControllableState, useFocusTrap }

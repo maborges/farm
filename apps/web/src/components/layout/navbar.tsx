@@ -37,7 +37,7 @@ export function Navbar() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-primary group-focus-within:text-primary/80 transition-colors" />
           <Input 
             placeholder="Search dashboard..." 
-            className="pl-10 h-9 border-border/60 bg-white/45 font-medium text-foreground shadow-sm backdrop-blur-sm focus:border-primary/50 focus:ring-primary/20 transition-all dark:bg-white/10"
+            className="pl-10 h-9 border-border/60 bg-background/45 font-medium text-foreground shadow-sm backdrop-blur-sm focus:border-primary/50 focus:ring-primary/20 transition-all dark:bg-background/20"
           />
         </div>
       </div>
@@ -47,7 +47,7 @@ export function Navbar() {
         <Button 
           variant="outline" 
           size="sm" 
-          className="size-8 p-0 border-border/60 bg-white/45 group relative dark:bg-white/10"
+          className="size-8 p-0 border-border/60 bg-background/45 group relative dark:bg-background/20"
           aria-label="Alternar tema"
           onClick={() => setIsDarkMode(!isDarkMode)}
         >
@@ -61,7 +61,7 @@ export function Navbar() {
         <Button 
           variant="outline" 
           size="sm" 
-          className="size-8 p-0 border-border/60 bg-white/45 group relative dark:bg-white/10"
+          className="size-8 p-0 border-border/60 bg-background/45 group relative dark:bg-background/20"
           aria-label="Notificações"
         >
           <Bell className="size-4 text-primary transition-colors" />
@@ -73,7 +73,7 @@ export function Navbar() {
             <Button 
               variant="outline" 
               size="sm" 
-              className="flex items-center gap-2 h-9 px-2 border-border/60 bg-white/45 hover:bg-white/70 transition-all font-semibold dark:bg-white/10 dark:hover:bg-white/18"
+              className="flex items-center gap-2 h-9 px-2 border-border/60 bg-background/45 hover:bg-background/70 transition-all font-semibold dark:bg-background/20 dark:hover:bg-background/35"
             >
               <div className="size-6 rounded-full bg-primary flex items-center justify-center text-[10px] text-primary-foreground font-bold tracking-tighter shadow-sm ring-1 ring-primary/20">
                 {user?.role === 'super-admin' ? 'SA' : 'AD'}

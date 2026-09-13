@@ -318,11 +318,11 @@ export function LoginForm() {
                         {pendingActivationEmail ? (
                             <Button
                                 type="button"
-                                variant="outline"
+                                variant="destructive"
                                 size="sm"
                                 disabled={isResendingActivation}
                                 onClick={handleResendActivation}
-                                className="h-8 border-destructive/30 text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                                className="h-8"
                             >
                                 {isResendingActivation ? (
                                     <span className="flex items-center gap-2">
@@ -395,11 +395,11 @@ export function LoginForm() {
                 {/* Botão de envio */}
                 <Button
                     type="submit"
-                    variant="outline"
+                    variant="default"
                     size="sm"
                     disabled={isLoading}
                     data-testid="login-button"
-                    className="w-full h-9 rounded-sm mt-2 border-primary/40 text-primary hover:bg-primary hover:text-primary-foreground shadow-lg shadow-primary/10 transition-all duration-300 group"
+                    className="w-full mt-2 group"
                 >
                     {isLoading ? (
                         <Loader2 className="h-4 w-4 animate-spin" />

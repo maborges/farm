@@ -128,7 +128,7 @@ export function ToolbarWeatherWidget() {
                 </Button>
             </PopoverTrigger>
             <PopoverContent align="end" sideOffset={8} className="w-[min(850px,calc(100vw-2rem))] rounded-sm p-0">
-                <div className="border-b border-border/50 bg-white/10 px-4 py-3 backdrop-blur-sm">
+                <div className="border-b border-border/50 bg-muted/30 px-4 py-3">
                     <div className="flex items-center justify-between gap-3">
                         <div>
                             <p className="text-sm font-semibold text-foreground">Condições climáticas</p>
@@ -165,7 +165,7 @@ export function ToolbarWeatherWidget() {
                                     const dia = data.toLocaleDateString("pt-BR", { weekday: "short" }).replace(".", "");
                                     const dataFormatada = data.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
                                     return (
-                                        <div key={previsao.data_previsao} className="flex items-center gap-2 rounded-sm border border-border/50 bg-white/35 px-2 py-1.5 text-[11px] backdrop-blur-sm dark:bg-white/10">
+                                        <div key={previsao.data_previsao} className="flex items-center gap-2 rounded-sm border border-border/50 bg-muted/30 px-2 py-1.5 text-[11px] dark:bg-muted/60">
                                             <span className="w-16 font-semibold capitalize">{dia} {dataFormatada}</span>
                                             <WeatherIcon condition={previsao.data_previsao === previsaoHoje?.data_previsao ? clima.condicao : undefined} className="size-3.5 text-primary/70" />
                                             <span className="ml-auto text-orange-600">{previsao.temp_max_c ?? "--"}°</span>
@@ -190,7 +190,7 @@ export function ToolbarWeatherWidget() {
                             </div>
                             <div className="max-h-[200px] space-y-1.5 overflow-y-auto pr-1">
                                 {periodosHoje.slice(0, 8).map((periodo) => (
-                                        <div key={periodo.horario} className="flex items-center justify-between rounded-sm border border-border/50 bg-white/35 px-2 py-1.5 text-[11px] backdrop-blur-sm dark:bg-white/10">
+                                        <div key={periodo.horario} className="flex items-center justify-between rounded-sm border border-border/50 bg-muted/30 px-2 py-1.5 text-[11px] dark:bg-muted/60">
                                         <span className="w-12 font-semibold">{formatarHorario(periodo.horario)}</span>
                                         <span>{periodo.temperatura_c ?? "--"}°C</span>
                                         <span className="text-blue-600">{Math.round(periodo.probabilidade_chuva_pct ?? 0)}%</span>
@@ -213,7 +213,7 @@ export function ToolbarWeatherWidget() {
 
 function Metric({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
     return (
-        <div className="rounded-sm border border-border/50 bg-white/35 px-2.5 py-2 backdrop-blur-sm dark:bg-white/10">
+        <div className="rounded-sm border border-border/50 bg-muted/30 px-2.5 py-2 dark:bg-muted/60">
             <div className="mb-1 flex items-center gap-1.5 text-[10px] text-muted-foreground">{icon}{label}</div>
             <p className="text-sm font-semibold text-foreground">{value}</p>
         </div>

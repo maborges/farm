@@ -443,7 +443,19 @@ export function DataTable<T extends Record<string, any>>({
                   <TableRow
                     key={index}
                     onClick={() => onRowClick?.(row)}
-                    className={cn("compact text-sm", onRowClick && "cursor-pointer", rowClassName?.(row))}
+                    onKeyDown={(event) => {
+                      if (!onRowClick || (event.key !== "Enter" && event.key !== " ")) return
+                      const target = event.target as HTMLElement
+                      if (target.closest("button, a, input, select, textarea")) return
+                      event.preventDefault()
+                      onRowClick(row)
+                    }}
+                    tabIndex={onRowClick ? 0 : undefined}
+                    className={cn(
+                      "compact text-sm",
+                      onRowClick && "cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+                      rowClassName?.(row)
+                    )}
                   >
                     {columns.map((column) => {
                       const isActionColumn = column.isActionColumn || column.id === "actions" || column.id === "acoes" || (column.sortable === false && column.filterable === false && column.exportable === false)

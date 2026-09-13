@@ -137,7 +137,7 @@ export function TenantSwitcher() {
             <>
                 <NewSubscriptionWizard open={wizardOpen} onOpenChange={setWizardOpen} />
                 <div className="flex items-center gap-1">
-                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-sm border border-border/60 bg-white/45 shadow-sm backdrop-blur-sm dark:bg-white/10">
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-sm border border-sidebar-border/40 bg-sidebar/35 shadow-sm backdrop-blur-sm dark:bg-sidebar/25">
                         <Briefcase size={14} className="text-primary shrink-0" />
                         <div className="flex flex-col leading-none">
                             <span className="text-[9px] uppercase font-bold text-muted-foreground tracking-wider">Produtor</span>
@@ -146,13 +146,16 @@ export function TenantSwitcher() {
                             </span>
                         </div>
                     </div>
-                    <button
+                    <Button
+                        type="button"
+                        variant="outline"
+                        size="icon-xs"
                         onClick={() => setWizardOpen(true)}
-                        className="flex size-6 items-center justify-center rounded-sm border border-border text-muted-foreground hover:text-primary hover:border-primary/50 transition-colors"
-                        title="Nova conta de produtor"
+                        className="text-muted-foreground hover:text-primary"
+                        aria-label="Nova conta de produtor"
                     >
                         <Plus size={12} />
-                    </button>
+                    </Button>
                 </div>
             </>
         );

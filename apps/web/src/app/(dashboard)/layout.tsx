@@ -36,9 +36,9 @@ export default async function DashboardLayout({
                         <TenantTabSyncWarning />
                         <FazendaPermissionSync />
                         <NavigationShell />
-                        <SidebarInset className="h-svh min-w-0 overflow-hidden bg-background text-foreground">
+                        <SidebarInset className="h-svh min-w-0 overflow-hidden bg-background/80 text-foreground">
                             <Topbar />
-                            <main className="flex min-h-0 flex-1 w-full overflow-y-auto overflow-x-hidden">
+                            <main className="flex min-h-0 flex-1 w-full overflow-y-auto overflow-x-hidden pt-14">
                                 <div className="flex w-full min-w-0 flex-1 flex-col">
                                     {children}
                                 </div>

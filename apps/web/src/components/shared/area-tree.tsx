@@ -104,6 +104,24 @@ export function AreaTreeItem({
     onSelect?.(area);
   };
 
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      handleSelect();
+      return;
+    }
+
+    if (!hasChildren) return;
+
+    if (event.key === "ArrowRight" && !isExpanded) {
+      event.preventDefault();
+      setIsExpanded(true);
+    } else if (event.key === "ArrowLeft" && isExpanded) {
+      event.preventDefault();
+      setIsExpanded(false);
+    }
+  };
+
   const handleAdd = (e: React.MouseEvent) => {
     e.stopPropagation();
     onAdd?.(area.id, area.tipo);
@@ -129,9 +147,26 @@ export function AreaTreeItem({
         )}
         style={{ paddingLeft: `${level * 24 + 12}px` }}
         onClick={handleSelect}
+        onKeyDown={handleKeyDown}
+        role="button"
+        tabIndex={0}
+        aria-label={`${AREA_LABELS[area.tipo] || area.tipo}: ${area.nome}`}
+        aria-expanded={hasChildren ? isExpanded : undefined}
       >
         {/* Toggle Chevron */}
-        <div onClick={handleToggle} className="shrink-0 w-5 flex items-center justify-center">
+        <button
+          type="button"
+          onClick={handleToggle}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.stopPropagation();
+            }
+          }}
+          className="shrink-0 w-5 h-8 flex items-center justify-center rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          aria-label={hasChildren ? (isExpanded ? `Recolher ${area.nome}` : `Expandir ${area.nome}`) : undefined}
+          tabIndex={hasChildren ? 0 : -1}
+          disabled={!hasChildren}
+        >
           {hasChildren ? (
             isExpanded
               ? <ChevronDown className="w-4 h-4 text-muted-foreground" />
@@ -139,7 +174,7 @@ export function AreaTreeItem({
           ) : (
             <span className="w-4" />
           )}
-        </div>
+        </button>
 
         {/* Ícone do tipo */}
         <div

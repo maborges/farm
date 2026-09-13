@@ -181,7 +181,9 @@ export function ChangePlanDialog({ open, onOpenChange, currentTenant }: ChangePl
                                 <Label className="text-sm font-bold">Ciclo de Faturamento</Label>
                                 <div className="flex gap-3">
                                     <button
+                                        type="button"
                                         onClick={() => setCiclo("MENSAL")}
+                                        aria-pressed={ciclo === "MENSAL"}
                                         className={`flex-1 p-3 rounded-lg border-2 transition-all ${
                                             ciclo === "MENSAL"
                                                 ? "border-primary bg-primary/5"
@@ -191,7 +193,9 @@ export function ChangePlanDialog({ open, onOpenChange, currentTenant }: ChangePl
                                         <p className="font-bold">Mensal</p>
                                     </button>
                                     <button
+                                        type="button"
                                         onClick={() => setCiclo("ANUAL")}
+                                        aria-pressed={ciclo === "ANUAL"}
                                         className={`flex-1 p-3 rounded-lg border-2 transition-all ${
                                             ciclo === "ANUAL"
                                                 ? "border-primary bg-primary/5"
@@ -219,13 +223,16 @@ export function ChangePlanDialog({ open, onOpenChange, currentTenant }: ChangePl
                                             const price = ciclo === "MENSAL" ? plano.preco_mensal : plano.preco_anual;
                                             
                                             return (
-                                                <div
+                                                <button
+                                                    type="button"
                                                     key={plano.id}
-                                                    className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
+                                                    disabled={isCurrent}
+                                                    aria-pressed={isSelected}
+                                                    className={`w-full p-4 rounded-lg border-2 text-left transition-all ${
                                                         isSelected
                                                             ? "border-primary bg-primary/5"
                                                             : isCurrent
-                                                            ? "border-muted bg-muted/30"
+                                                            ? "border-muted bg-muted/30 cursor-not-allowed"
                                                             : "border-border hover:border-primary/50"
                                                     }`}
                                                     onClick={() => !isCurrent && handleSelecionarPlano(plano.id)}
@@ -262,7 +269,7 @@ export function ChangePlanDialog({ open, onOpenChange, currentTenant }: ChangePl
                                                             <Check size={14} /> Plano selecionado
                                                         </div>
                                                     )}
-                                                </div>
+                                                </button>
                                             );
                                         })}
                                     </div>

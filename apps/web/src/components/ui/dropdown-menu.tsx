@@ -138,6 +138,8 @@ function DropdownMenuContent({
   const [placement, setPlacement] = React.useState<"top" | "bottom">("bottom")
   const [availableHeight, setAvailableHeight] = React.useState<number>(0)
   const [horizontalPlacement, setHorizontalPlacement] = React.useState<"start" | "end">(align)
+  const contentRef = React.useRef<HTMLDivElement | null>(null)
+  const wasOpen = React.useRef(false)
 
   const updatePlacement = React.useCallback(() => {
     const rect = triggerRef.current?.getBoundingClientRect() ?? anchorRect
@@ -196,6 +198,43 @@ function DropdownMenuContent({
     }
   }, [open, setOpen, updatePlacement])
 
+  React.useEffect(() => {
+    if (open) {
+      wasOpen.current = true
+      const frame = window.requestAnimationFrame(() => {
+        contentRef.current?.querySelector<HTMLElement>("[role='menuitem']:not([disabled])")?.focus()
+      })
+      return () => window.cancelAnimationFrame(frame)
+    }
+
+    if (wasOpen.current) {
+      wasOpen.current = false
+      triggerRef.current?.focus()
+    }
+  }, [open, triggerRef])
+
+  const handleMenuKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!contentRef.current) return
+
+    const navigationKeys = ["ArrowDown", "ArrowUp", "Home", "End"]
+    if (!navigationKeys.includes(event.key)) return
+
+    const items = Array.from(
+      contentRef.current.querySelectorAll<HTMLElement>("[role='menuitem']:not([disabled])")
+    )
+    if (items.length === 0) return
+
+    const currentIndex = items.indexOf(document.activeElement as HTMLElement)
+    const nextIndex = event.key === "Home"
+      ? 0
+      : event.key === "End"
+        ? items.length - 1
+        : (currentIndex + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length
+
+    event.preventDefault()
+    items[nextIndex].focus()
+  }
+
   if (!open || !anchorRect) return null
 
   const isEnd = horizontalPlacement === "end"
@@ -215,8 +254,11 @@ function DropdownMenuContent({
     <DropdownMenuPortal>
       <div className="fixed inset-0 z-50">
         <div
+          ref={contentRef}
           data-slot="dropdown-menu-content"
           role="menu"
+          tabIndex={-1}
+          onKeyDown={handleMenuKeyDown}
           className={cn(
             "glass-chrome absolute z-50 min-w-[8rem] overflow-hidden rounded-sm transition-all",
             className

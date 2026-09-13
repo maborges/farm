@@ -248,11 +248,13 @@ export default function PrescricoesVRAPage() {
                                     </div>
                                 ) : (
                                     prescricoes.map((p) => (
-                                        <div
+                                        <button
+                                            type="button"
                                             key={p.id}
                                             onClick={() => setActivePrescricaoId(p.id)}
+                                            aria-pressed={activePrescricaoId === p.id}
                                             className={`p-4 rounded-sm border-2 transition-all cursor-pointer group relative overflow-hidden
-                                                ${activePrescricaoId === p.id ? 'border-primary bg-primary/5 shadow-md' : 'border-transparent bg-muted/30 hover:bg-muted/50'}`}
+                                                w-full text-left ${activePrescricaoId === p.id ? 'border-primary bg-primary/5 shadow-md' : 'border-transparent bg-muted/30 hover:bg-muted/50'}`}
                                         >
                                             <div className="flex justify-between items-start mb-2 relative z-10">
                                                 <div className="space-y-1">
@@ -270,7 +272,7 @@ export default function PrescricoesVRAPage() {
                                             {activePrescricaoId === p.id && (
                                                 <div className="absolute right-0 top-0 bottom-0 w-1 bg-primary" />
                                             )}
-                                        </div>
+                                        </button>
                                     ))
                                 )}
                             </div>

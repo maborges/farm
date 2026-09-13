@@ -135,6 +135,21 @@ function HierarquiaItem({ node, level = 0 }: { node: HierarquiaNode; level?: num
   const [isExpanded, setIsExpanded] = useState(level < 2);
   const hasChildren = node.filhos && node.filhos.length > 0;
 
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!hasChildren) return;
+
+    if (event.key === "ArrowRight" && !isExpanded) {
+      event.preventDefault();
+      setIsExpanded(true);
+    } else if (event.key === "ArrowLeft" && isExpanded) {
+      event.preventDefault();
+      setIsExpanded(false);
+    } else if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      setIsExpanded((expanded) => !expanded);
+    }
+  };
+
   return (
     <div className="select-none">
       <div
@@ -143,11 +158,27 @@ function HierarquiaItem({ node, level = 0 }: { node: HierarquiaNode; level?: num
         )}
         style={{ paddingLeft: `${level * 20 + 8}px` }}
         onClick={() => hasChildren && setIsExpanded(!isExpanded)}
+        onKeyDown={handleKeyDown}
+        role={hasChildren ? "button" : undefined}
+        tabIndex={hasChildren ? 0 : undefined}
+        aria-label={AREA_LABELS[node.tipo] || node.tipo}
+        aria-expanded={hasChildren ? isExpanded : undefined}
       >
         {/* Toggle */}
         <button
+          type="button"
+          tabIndex={hasChildren ? 0 : -1}
+          disabled={!hasChildren}
+          aria-label={hasChildren ? (isExpanded ? `Recolher ${AREA_LABELS[node.tipo]}` : `Expandir ${AREA_LABELS[node.tipo]}`) : undefined}
+          onClick={(event) => {
+            event.stopPropagation();
+            if (hasChildren) setIsExpanded((expanded) => !expanded);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") event.stopPropagation();
+          }}
           className={cn(
-            "w-4 h-4 flex items-center justify-center rounded shrink-0",
+            "w-6 h-6 flex items-center justify-center rounded-sm shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
             hasChildren ? "opacity-100" : "opacity-0 pointer-events-none"
           )}
         >

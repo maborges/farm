@@ -54,7 +54,7 @@ export function AdminSidebar() {
             "glass-chrome flex flex-col transition-all duration-300 h-dvh",
             collapsed ? "w-16" : "w-64"
         )}>
-            <div className="p-4 border-b border-sidebar-border/50 flex justify-between items-center bg-white/5">
+            <div className="p-4 border-b border-sidebar-border/50 flex justify-between items-center bg-sidebar/25">
                 {!collapsed && (
                     <span className="font-bold text-xl text-primary tracking-tighter">
                         ANDRU
@@ -90,7 +90,7 @@ export function AdminSidebar() {
                                 <item.icon className={cn("size-4 shrink-0 shadow-sm", !collapsed && "mr-3")} />
                                 {!collapsed && <span className="truncate">{item.label}</span>}
                                 {collapsed && (
-                                    <div className="absolute left-14 bg-popover text-popover-foreground px-2 py-1 rounded text-xs invisible group-hover:visible shadow-md border whitespace-nowrap z-50">
+                                    <div className="glass-surface absolute left-14 px-2 py-1 rounded-sm text-xs invisible group-hover:visible whitespace-nowrap z-50">
                                         {item.label}
                                     </div>
                                 )}
@@ -125,7 +125,7 @@ export function AdminSidebar() {
                                     <item.icon className={cn("size-4 shrink-0 shadow-sm", !collapsed && "mr-3")} />
                                     {!collapsed && <span className="truncate">{item.label}</span>}
                                     {collapsed && (
-                                        <div className="absolute left-14 bg-popover text-popover-foreground px-2 py-1 rounded text-xs invisible group-hover:visible shadow-md border whitespace-nowrap z-50">
+                                        <div className="glass-surface absolute left-14 px-2 py-1 rounded-sm text-xs invisible group-hover:visible whitespace-nowrap z-50">
                                             {item.label}
                                         </div>
                                     )}
@@ -138,10 +138,10 @@ export function AdminSidebar() {
 
             <div className="p-3 border-t border-sidebar-border">
                 <Button 
-                    variant="outline" 
+                    variant="destructive"
                     size="sm"
                     className={cn(
-                        "w-full h-9 flex items-center justify-start text-destructive hover:bg-destructive shadow-sm hover:text-white border-destructive/20", 
+                        "w-full flex items-center justify-start",
                         collapsed && "justify-center px-0"
                     )}
                     onClick={() => console.log("Logout")}
