@@ -2,6 +2,7 @@ import pytest
 import uuid
 from httpx import AsyncClient
 from datetime import date, datetime
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
@@ -123,7 +124,29 @@ async def test_reprocessar_tarefa_idempotente(
 async def test_bloquear_tarefa_outro_tenant(
     client: AsyncClient, my_headers_admin: dict, session: AsyncSession, outro_tenant_id: uuid.UUID, unidade_produtiva_id: uuid.UUID
 ):
-    a1 = await _criar_animal(session, outro_tenant_id, unidade_produtiva_id, brinc="003", peso=100.0)
+    unidade_produtiva_outro_tenant = uuid.uuid4()
+    await session.execute(
+        text(
+            """
+            INSERT INTO tenants (id, nome, documento, ativo, storage_usado_mb, storage_limite_mb, idioma_padrao, created_at, updated_at)
+            VALUES (:tenant_id, 'Tenant B Sync', :documento, true, 0, 10240, 'pt-BR', NOW(), NOW())
+            ON CONFLICT DO NOTHING
+            """
+        ),
+        {"tenant_id": str(outro_tenant_id), "documento": outro_tenant_id.hex[:11]},
+    )
+    await session.execute(
+        text(
+            """
+            INSERT INTO unidades_produtivas (id, tenant_id, nome, ativo, created_at, updated_at)
+            VALUES (:id, :tenant_id, 'Fazenda B Sync', true, NOW(), NOW())
+            """
+        ),
+        {"id": str(unidade_produtiva_outro_tenant), "tenant_id": str(outro_tenant_id)},
+    )
+    await session.commit()
+
+    a1 = await _criar_animal(session, outro_tenant_id, unidade_produtiva_outro_tenant, brinc="003", peso=100.0)
     tarefa = await _criar_tarefa(session, outro_tenant_id, dados={
         "animais": [{"animal_id": str(a1.id), "peso_kg": 150.0}]
     })
