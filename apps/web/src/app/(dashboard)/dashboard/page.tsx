@@ -12,6 +12,10 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { PageHeader } from "@/components/shared/page-header";
 import { DashboardAlertsCard, type AlertSummaryPayload } from "@/components/dashboard/dashboard-alerts-card";
 import { DashboardCopilotCard } from "@/components/dashboard/dashboard-copilot-card";
+import { FirstStepsCard } from "@/components/dashboard/first-steps-card";
+import { RecentNavigationCard } from "@/components/dashboard/recent-navigation-card";
+import { PersonalDashboardWidgets } from "@/components/dashboard/personal-dashboard-widgets";
+import { AiOnboardingCard } from "@/components/dashboard/ai-onboarding-card";
 import { DashboardPageSkeleton, TenantSelectionPrompt } from "@/components/dashboard/dashboard-states";
 import { DomainMiniCard, MetricCard } from "@/components/dashboard/dashboard-metric-card";
 import { SectionShell, SectionSkeleton } from "@/components/dashboard/dashboard-section";
@@ -338,6 +342,8 @@ function DashboardContent() {
   });
   const copilotIsLoading =
     financeiroQuery.isLoading || operacionalQuery.isLoading || agricolaQuery.isLoading || pecuariaQuery.isLoading;
+  const firstStepsIsLoading =
+    !_hasHydrated || operacionalQuery.isLoading || (hasAgricultureGate && agricolaQuery.isLoading) || (profile.hasFinance && financeiroQuery.isLoading);
 
   return (
     <div className="flex flex-1 flex-col gap-6 p-6">
@@ -360,6 +366,21 @@ function DashboardContent() {
         {!profile.hasAgriculture && <Badge variant="outline" className="rounded-sm">Agricultura indisponível</Badge>}
         {!profile.hasLivestock && <Badge variant="outline" className="rounded-sm">Pecuária indisponível</Badge>}
       </div>
+
+      <FirstStepsCard
+        isLoading={firstStepsIsLoading}
+        hasProperty={unidadesProdutivasAutorizadas.length > 0}
+        hasHarvest={Boolean(agricolaData?.kpis.total_safras_ativas)}
+        hasOperation={Boolean(operationalData?.concluidas)}
+        hasFinance={profile.hasFinance}
+        hasFinanceData={hasFinancialData(financeData)}
+      />
+
+      <RecentNavigationCard />
+
+      <PersonalDashboardWidgets />
+
+      <AiOnboardingCard />
 
       {/* AÇÕES RÁPIDAS (Top Horizontal) */}
       <div className="flex flex-col gap-3">
@@ -509,6 +530,7 @@ function DashboardContent() {
           ctaHref="/dashboard/ia/resumo"
           isLoading={copilotIsLoading}
         />
+        <Button asChild variant="link" className="w-fit px-0 text-xs text-muted-foreground"><Link href="/aprendizado"><BookOpen className="mr-1 size-3.5" aria-hidden="true" />Aprenda a usar melhor a plataforma</Link></Button>
       </div>
 
       {/* INDICADORES RESUMIDOS */}

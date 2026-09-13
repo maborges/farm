@@ -221,16 +221,30 @@ export function SafraContextHeader({ safraId }: SafraContextHeaderProps) {
                     )}
                 </div>
 
-                {/* Mega Menu */}
-                <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                        <Button variant="outline" size="sm" className="gap-1.5">
+                <div className="flex items-center gap-2">
+                    <Button asChild size="sm" className="gap-1.5">
+                        <Link href={`/agricola/safras/${safraId}/operacoes`}>
+                            <ClipboardList className="size-3.5" />
+                            <span className="hidden lg:inline">Nova operação</span>
+                        </Link>
+                    </Button>
+                    <Button asChild variant="outline" size="sm" className="gap-1.5">
+                        <Link href={`/agricola/safras/${safraId}/caderno`}>
+                            <BookOpen className="size-3.5" />
+                            <span className="hidden lg:inline">Novo registro</span>
+                        </Link>
+                    </Button>
+
+                    {/* Mega Menu */}
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <Button variant="outline" size="sm" className="gap-1.5">
                             <Grid className="size-3.5 text-muted-foreground" />
                             <span className="text-xs font-semibold">Módulos da Safra</span>
                             <ChevronDown className="size-3 text-muted-foreground" />
-                        </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent className="w-[650px] md:w-[750px] p-5 max-h-[85vh] overflow-y-auto rounded-sm border bg-popover shadow-md" align="end">
+                            </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent className="w-[650px] md:w-[750px] p-5 max-h-[85vh] overflow-y-auto rounded-sm border bg-popover shadow-md" align="end">
                         <div className="flex items-center gap-2 pb-3 mb-4 border-b">
                             <Grid className="size-4 text-emerald-600 dark:text-emerald-400" />
                             <span className="text-sm font-semibold text-foreground">Módulos de Gestão da Safra</span>
@@ -272,8 +286,9 @@ export function SafraContextHeader({ safraId }: SafraContextHeaderProps) {
                                 </div>
                             ))}
                         </div>
-                    </DropdownMenuContent>
-                </DropdownMenu>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                </div>
             </div>
 
             {/* Context Strip (Desktop) - Appears only when NOT on main hub */}

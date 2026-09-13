@@ -98,21 +98,21 @@ export function AbastecimentoFormModal({ open, onOpenChange, initialData }: Prop
             onOpenChange(false);
             form.reset();
         },
-        onError: (error: any) => {
-            toast.error(error.message || "Erro ao salvar registro");
+        onError: (error: unknown) => {
+            toast.error(error instanceof Error ? error.message : "Erro ao salvar registro");
         },
     });
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-[600px]">
+            <DialogContent className="max-h-[calc(100dvh-2rem)] w-[calc(100%-1rem)] overflow-y-auto rounded-sm sm:max-w-[600px]">
                 <Form {...form}>
                     <form onSubmit={form.handleSubmit((v) => mutation.mutate(v))} className="space-y-4">
                         <DialogHeader>
                             <DialogTitle>{initialData ? "Editar Abastecimento" : "Novo Abastecimento"}</DialogTitle>
                         </DialogHeader>
 
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                             <FormField
                                 control={form.control}
                                 name="equipamento_id"
@@ -121,7 +121,7 @@ export function AbastecimentoFormModal({ open, onOpenChange, initialData }: Prop
                                         <FormLabel>Equipamento</FormLabel>
                                         <Select onValueChange={field.onChange} value={field.value}>
                                             <FormControl>
-                                                <SelectTrigger className="h-8 rounded-sm">
+                                                <SelectTrigger className="h-10 rounded-sm">
                                                     <SelectValue placeholder="Selecione..." />
                                                 </SelectTrigger>
                                             </FormControl>
@@ -145,7 +145,7 @@ export function AbastecimentoFormModal({ open, onOpenChange, initialData }: Prop
                                     <FormItem>
                                         <FormLabel>Data</FormLabel>
                                         <FormControl>
-                                            <Input type="date" className="h-8 rounded-sm" {...field} />
+                                            <Input type="date" className="h-10 rounded-sm" {...field} />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>
@@ -153,7 +153,7 @@ export function AbastecimentoFormModal({ open, onOpenChange, initialData }: Prop
                             />
                         </div>
 
-                        <div className="grid grid-cols-3 gap-4">
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                             <FormField
                                 control={form.control}
                                 name="horimetro_na_data"
@@ -164,7 +164,7 @@ export function AbastecimentoFormModal({ open, onOpenChange, initialData }: Prop
                                             <Input
                                                 type="number"
                                                 step="0.1"
-                                                className="h-8 rounded-sm"
+                                                className="h-10 rounded-sm"
                                                 name={field.name}
                                                 value={toInputValue(field.value)}
                                                 onChange={field.onChange}
@@ -186,7 +186,7 @@ export function AbastecimentoFormModal({ open, onOpenChange, initialData }: Prop
                                             <Input
                                                 type="number"
                                                 step="0.01"
-                                                className="h-8 rounded-sm"
+                                                className="h-10 rounded-sm"
                                                 name={field.name}
                                                 value={toInputValue(field.value)}
                                                 onChange={field.onChange}
@@ -208,7 +208,7 @@ export function AbastecimentoFormModal({ open, onOpenChange, initialData }: Prop
                                             <Input
                                                 type="number"
                                                 step="0.001"
-                                                className="h-8 rounded-sm"
+                                                className="h-10 rounded-sm"
                                                 name={field.name}
                                                 value={toInputValue(field.value)}
                                                 onChange={field.onChange}
@@ -222,7 +222,7 @@ export function AbastecimentoFormModal({ open, onOpenChange, initialData }: Prop
                             />
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                             <FormField
                                 control={form.control}
                                 name="local"
@@ -231,7 +231,7 @@ export function AbastecimentoFormModal({ open, onOpenChange, initialData }: Prop
                                         <FormLabel>Local de Abastecimento</FormLabel>
                                         <Select onValueChange={field.onChange} value={field.value}>
                                             <FormControl>
-                                                <SelectTrigger className="h-8 rounded-sm">
+                                                <SelectTrigger className="h-10 rounded-sm">
                                                     <SelectValue placeholder="Selecione..." />
                                                 </SelectTrigger>
                                             </FormControl>
@@ -253,7 +253,7 @@ export function AbastecimentoFormModal({ open, onOpenChange, initialData }: Prop
                                         <FormLabel>Combustível</FormLabel>
                                         <Select onValueChange={field.onChange} value={field.value}>
                                             <FormControl>
-                                                <SelectTrigger className="h-8 rounded-sm">
+                                                <SelectTrigger className="h-10 rounded-sm">
                                                     <SelectValue placeholder="Selecione..." />
                                                 </SelectTrigger>
                                             </FormControl>
@@ -273,7 +273,7 @@ export function AbastecimentoFormModal({ open, onOpenChange, initialData }: Prop
                             control={form.control}
                             name="tanque_cheio"
                             render={({ field }) => (
-                                <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-md border p-3">
+                                <FormItem className="flex flex-row items-start space-x-3 space-y-0 rounded-sm border p-3">
                                     <FormControl>
                                         <Checkbox
                                             checked={Boolean(field.value)}
@@ -287,11 +287,11 @@ export function AbastecimentoFormModal({ open, onOpenChange, initialData }: Prop
                             )}
                         />
 
-                        <DialogFooter>
-                            <Button variant="outline" type="button" onClick={() => onOpenChange(false)}>
+                        <DialogFooter className="gap-2">
+                            <Button className="w-full sm:w-auto" variant="outline" type="button" onClick={() => onOpenChange(false)}>
                                 Cancelar
                             </Button>
-                            <Button type="submit" disabled={mutation.isPending}>
+                            <Button className="w-full sm:w-auto" type="submit" disabled={mutation.isPending}>
                                 {mutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                 {initialData ? "Salvar Alterações" : "Registrar Abastecimento"}
                             </Button>

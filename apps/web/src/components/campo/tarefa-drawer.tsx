@@ -294,9 +294,9 @@ export function TarefaDrawer({ open, onOpenChange, mode = "create", tarefa = nul
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-md overflow-y-auto border-l border-border/50 bg-card/95 backdrop-blur-md shadow-2xl p-0">
+      <SheetContent className="w-full sm:max-w-md overflow-y-auto border-l border-border/50 bg-card/95 shadow-2xl p-0">
         <div className="flex flex-col h-full">
-          <SheetHeader className="p-6 border-b border-border/40 bg-muted/10">
+          <SheetHeader className="p-4 sm:p-6 border-b border-border/40 bg-muted/10">
             <SheetTitle className="text-xl font-light">{title}</SheetTitle>
             <p className="text-xs text-muted-foreground">
               {isReadOnly
@@ -306,7 +306,7 @@ export function TarefaDrawer({ open, onOpenChange, mode = "create", tarefa = nul
           </SheetHeader>
 
           {isReadOnly ? (
-            <div className="flex-1 space-y-4 p-6">
+            <div className="flex-1 space-y-4 p-4 sm:p-6">
               <InfoRow label="Título" value={tarefa?.titulo ?? "—"} />
               <InfoRow label="Tipo de Atividade" value={formatTipoTarefa(tarefa?.type)} />
               <InfoRow label="Módulo" value={tarefa?.module === "pecuaria" ? "Pecuária" : "Agrícola"} />
@@ -355,7 +355,7 @@ export function TarefaDrawer({ open, onOpenChange, mode = "create", tarefa = nul
             <>
               <form
                 onSubmit={handleSubmit((d) => submitHandler.mutate(d))}
-                className="flex-1 p-6 space-y-6"
+                className="flex-1 p-4 sm:p-6 space-y-6"
               >
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold">Título da Atividade *</Label>
@@ -363,7 +363,7 @@ export function TarefaDrawer({ open, onOpenChange, mode = "create", tarefa = nul
                   {errors.titulo && <p className="text-[10px] text-destructive font-medium">{errors.titulo.message}</p>}
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div className="space-y-1.5">
                     <Label className="text-xs font-semibold">Módulo *</Label>
                     <Select
@@ -438,7 +438,7 @@ export function TarefaDrawer({ open, onOpenChange, mode = "create", tarefa = nul
                   </div>
                 )}
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                   <div className="space-y-1.5">
                     <Label className="text-xs font-semibold">Data Programada *</Label>
                     <Input type="date" {...register("data_programada")} className="rounded-sm" />
@@ -495,7 +495,7 @@ export function TarefaDrawer({ open, onOpenChange, mode = "create", tarefa = nul
                 )}
               </form>
 
-              <div className="p-6 border-t border-border/40 bg-muted/10 flex items-center gap-3">
+              <div className="p-4 sm:p-6 border-t border-border/40 bg-muted/10 flex items-center gap-3">
                 <Button type="button" variant="outline" size="sm" className="flex-1 rounded-sm h-11 active:scale-[0.98] transition-transform" onClick={() => onOpenChange(false)}>
                   Cancelar
                 </Button>

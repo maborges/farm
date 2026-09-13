@@ -260,7 +260,7 @@ function DropdownMenuContent({
           tabIndex={-1}
           onKeyDown={handleMenuKeyDown}
           className={cn(
-            "glass-chrome absolute z-50 min-w-[8rem] overflow-hidden rounded-sm transition-all",
+            "glass-chrome absolute z-50 min-w-[8rem] overflow-y-auto rounded-sm transition-all",
             className
           )}
           style={{
@@ -273,7 +273,7 @@ function DropdownMenuContent({
           }}
           {...props}
         >
-          <div className="max-h-full overflow-y-auto p-1 outline-none">{children}</div>
+          <div className="p-1 outline-none">{children}</div>
         </div>
       </div>
     </DropdownMenuPortal>

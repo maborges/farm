@@ -8,6 +8,10 @@ import { FazendasSync } from "@/components/auth/fazendas-sync";
 import { AuthBootstrap } from "@/components/auth/auth-bootstrap";
 import { TenantTabSyncWarning } from "@/components/auth/tenant-tab-sync-warning";
 import { FazendaPermissionSync } from "@/components/auth/fazenda-permission-sync";
+import { RecentNavigationTracker } from "@/components/layout/recent-navigation-tracker";
+import { NavigationShortcuts } from "@/components/layout/navigation-shortcuts";
+import { ServiceWorkerRegistration } from "@/components/pwa/service-worker-registration";
+import { OfflineStatus } from "@/components/pwa/offline-status";
 import { cookies } from "next/headers";
 
 export default async function DashboardLayout({
@@ -35,6 +39,10 @@ export default async function DashboardLayout({
                         <FazendasSync />
                         <TenantTabSyncWarning />
                         <FazendaPermissionSync />
+                        <RecentNavigationTracker />
+                        <NavigationShortcuts />
+                        <ServiceWorkerRegistration />
+                        <OfflineStatus />
                         <NavigationShell />
                         <SidebarInset className="h-svh min-w-0 overflow-hidden bg-background/80 text-foreground">
                             <Topbar />

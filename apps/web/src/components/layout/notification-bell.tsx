@@ -318,7 +318,7 @@ export function NotificationBell() {
             </Button>
 
             <Sheet open={open} onOpenChange={handleOpenChange}>
-                <SheetContent className="glass-surface !bg-card/60 dark:!bg-card/55 w-[400px] flex flex-col p-0">
+                <SheetContent className="glass-surface !bg-card/60 dark:!bg-card/55 w-[min(400px,calc(100vw-1rem))] flex flex-col p-0">
                     <SheetHeader className="px-4 pt-4 pb-3 pr-12 border-b flex-shrink-0">
                         <div className="flex items-center justify-between">
                             <SheetTitle className="flex items-center gap-2 text-base">
@@ -393,6 +393,8 @@ export function NotificationBell() {
                                             className={`w-full text-left px-4 py-3 flex gap-3 transition-colors hover:bg-muted/50 cursor-pointer ${!n.lida ? "bg-muted/20" : ""}`}
                                             onClick={() => handleClickNotificacao(n)}
                                             onKeyDown={(e) => {
+                                                const target = e.target as HTMLElement;
+                                                if (target.closest("button, a, input, select, textarea")) return;
                                                 if (e.key === "Enter" || e.key === " ") {
                                                     e.preventDefault();
                                                     handleClickNotificacao(n);
@@ -427,7 +429,19 @@ export function NotificationBell() {
                                                     <span className="text-[10px] text-muted-foreground">{timeAgo}</span>
                                                     {!n.lida && <span className="sr-only">Não lida</span>}
                                                     {temRota && (
-                                                        <span className="text-[10px] text-primary ml-auto">Ver detalhes →</span>
+                                                        <Button
+                                                            type="button"
+                                                            variant="link"
+                                                            size="sm"
+                                                            className="ml-auto h-auto min-h-8 shrink-0 px-1 py-1 text-xs text-primary"
+                                                            aria-label={`Ver detalhes de ${n.titulo}`}
+                                                            onClick={(e) => {
+                                                                e.stopPropagation();
+                                                                handleClickNotificacao(n);
+                                                            }}
+                                                        >
+                                                            Ver detalhes
+                                                        </Button>
                                                     )}
                                                 </div>
                                                 {n.meta?.acao_executada && (
@@ -436,13 +450,13 @@ export function NotificationBell() {
                                                     </p>
                                                 )}
                                                 {acoesDisponiveis.length > 0 && (
-                                                    <div className="flex items-center gap-2 mt-2" onClick={(e) => e.stopPropagation()}>
+                                                    <div className="flex flex-wrap items-center gap-2 mt-2" onClick={(e) => e.stopPropagation()}>
                                                         {acoesDisponiveis.map((item) => (
                                                             <Button
                                                                 key={item.acao}
                                                                 size="sm"
                                                                 variant={item.acao === "dismiss" ? "ghost" : "outline"}
-                                                                className="h-7 text-xs"
+                                                                className="min-h-8 h-auto py-1 text-xs"
                                                                 onClick={() => setAcaoConfirmando({ notif: n, item })}
                                                             >
                                                                 {item.label}

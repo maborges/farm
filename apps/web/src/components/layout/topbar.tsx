@@ -24,6 +24,7 @@ import {
 } from "../ui/dropdown-menu";
 import { ChangePasswordDialog } from "./change-password-dialog";
 import { AppMegaMenu } from "./mega-menu/app-mega-menu";
+import { QuickAddMenu } from "./quick-add-menu";
 import { useNavigationPreference } from "@/hooks/use-navigation-preference";
 
 export function Topbar() {
@@ -106,6 +107,7 @@ export function Topbar() {
                         <TenantSwitcher />
                         <ChevronRight size={12} className="text-primary/40 shrink-0" />
                         <ContextSelector />
+                        <QuickAddMenu />
                         <ToolbarWeatherWidget />
                     </div>
 

@@ -13,7 +13,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
-import { useEffect, useState } from "react";
 
 interface EmDesenvolvimentoProps {
   titulo?: string;
@@ -21,6 +20,7 @@ interface EmDesenvolvimentoProps {
   funcionalidades?: string[];
   previsao?: string;
   voltarPara?: string;
+  interesseHref?: string;
 }
 
 export function EmDesenvolvimento({
@@ -29,9 +29,9 @@ export function EmDesenvolvimento({
   funcionalidades,
   previsao,
   voltarPara,
+  interesseHref = "/dashboard/settings/support",
 }: EmDesenvolvimentoProps) {
   const router = useRouter();
-  const [mounted, setMounted] = useState(false);
 
   // Busca configurações padrão do SaaS
   interface EmDesenvolvimentoConfig {
@@ -51,10 +51,6 @@ export function EmDesenvolvimento({
     staleTime: 1000 * 60 * 5, // 5 min
   });
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
   // Use provided props, fallback to SaaS config, then hardcoded defaults
   const tituloFinal = titulo || configsData?.valor?.titulo || "Em Desenvolvimento";
   const descricaoFinal = descricao || configsData?.valor?.descricao || "Esta funcionalidade está sendo construída com muito carinho e estará disponível em breve.";
@@ -62,13 +58,9 @@ export function EmDesenvolvimento({
   const previsaoFinal = previsao || configsData?.valor?.previsao || undefined;
   const voltarParaFinal = voltarPara || configsData?.valor?.voltarPara || "/dashboard";
 
-  if (!mounted) {
-    return null; // Avoid hydration mismatch
-  }
-
   return (
     <div className="flex items-center justify-center min-h-[80vh] p-8">
-      <Card className="w-full max-w-2xl">
+      <Card className="w-full max-w-2xl rounded-sm">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
             <div className="flex h-20 w-20 items-center justify-center rounded-full bg-primary/10">
@@ -149,9 +141,16 @@ export function EmDesenvolvimento({
           </div>
 
           {/* Notificação de lançamento */}
-          <div className="text-center text-xs text-muted-foreground pt-4 border-t">
-            <p>🚀 Quer ser notificado quando esta funcionalidade for lançada?</p>
-            <p>Entre em contato com nosso suporte!</p>
+          <div className="flex flex-col items-center gap-3 border-t pt-4 text-center sm:flex-row sm:justify-between sm:text-left">
+            <p className="text-xs text-muted-foreground">
+              Quer ser notificado quando esta funcionalidade for lançada?
+            </p>
+            <Button asChild variant="outline" size="sm" className="shrink-0">
+              <Link href={interesseHref}>
+                <Bell className="mr-2 size-4" />
+                Demonstrar interesse
+              </Link>
+            </Button>
           </div>
         </CardContent>
       </Card>

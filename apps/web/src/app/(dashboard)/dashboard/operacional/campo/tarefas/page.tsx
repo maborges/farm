@@ -332,9 +332,9 @@ export default function TarefasCampoPage() {
           { label: "Tarefas" },
         ]}
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex w-full flex-wrap items-center gap-2">
             <Select value={safraId || "all"} onValueChange={(v) => setSafraId(v === "all" ? "" : v)}>
-              <SelectTrigger className="w-[200px] h-9">
+              <SelectTrigger className="h-9 w-full sm:w-[200px]">
                 <SelectValue placeholder="Todas as safras" />
               </SelectTrigger>
               <SelectContent>
@@ -373,7 +373,7 @@ export default function TarefasCampoPage() {
                 setDrawerMode("create");
                 setDrawerOpen(true);
               }}
-              className="gap-2 rounded-sm"
+              className="w-full gap-2 rounded-sm sm:w-auto"
             >
               <Plus className="size-4" />
               Nova Tarefa
@@ -382,7 +382,7 @@ export default function TarefasCampoPage() {
         }
       />
 
-      <div className="bg-card/80 backdrop-blur-sm border border-border/50 rounded-sm shadow-premium overflow-hidden">
+      <div className="overflow-hidden rounded-sm border border-border/50 bg-card shadow-premium">
         <DataTable
           data={tarefasFiltradas}
           columns={columns}

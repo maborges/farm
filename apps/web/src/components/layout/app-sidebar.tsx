@@ -207,9 +207,9 @@ function BackofficeNav({
                                 </SidebarMenuButton>
                                 {isOpen && (
                                     <SidebarMenuSub id={submenuId}>
-                                        {section.items.map(({ href, icon: Icon, label }) => (
+                                        {section.items.map(({ href, icon: Icon, label, tip }) => (
                                             <SidebarMenuSubItem key={href}>
-                                                <SidebarMenuSubButton isActive={isItemActive(href, pathname, searchParams, section.items.find(i => i.href === href)?.exact)} render={<Link href={href} onClick={onNavigate} />}>
+                                                <SidebarMenuSubButton title={tip} isActive={isItemActive(href, pathname, searchParams, section.items.find(i => i.href === href)?.exact)} render={<Link href={href} onClick={onNavigate} />}>
                                                     <Icon className="size-3.5 text-primary" />
                                                     {label}
                                                 </SidebarMenuSubButton>
@@ -234,12 +234,11 @@ export function AppSidebar() {
     const user = useAppStore((state) => state.user);
     const activePlanTier = useAppStore((state) => state.activePlanTier());
 
-    const { moduleGroups, coreSections, backofficeSections, accessItems, settingsItems, activeModule, activeSection, activeBackofficeSection } = useVisibleNavigation();
+    const { moduleGroups, coreSections, backofficeSections, accessItems, settingsItems, activeModule, activeBackofficeSection } = useVisibleNavigation();
 
     // ── Unified toggle state ───────────────────────────────────────────────
     // Each key maps to "auto" | "open" | "closed"
     const [moduleToggle, setModuleToggle] = useState<Record<string, ToggleState>>({});
-    const [sectionToggle, setSectionToggle] = useState<Record<string, ToggleState>>({});
     const [backofficeToggle, setBackofficeToggle] = useState<Record<string, ToggleState>>({});
     const [searchQuery, setSearchQuery] = useState("");
     const deferredSearchQuery = useDeferredValue(searchQuery);
@@ -259,16 +258,6 @@ export function AppSidebar() {
             setModuleToggle((prev) => {
                 const next = { ...prev };
                 delete next[prevModule];
-                return next;
-            });
-            // Reset all section toggles for the old module
-            setSectionToggle((prev) => {
-                const next = { ...prev };
-                for (const key of Object.keys(next)) {
-                    if (key.startsWith(`${prevModule}:`)) {
-                        delete next[key];
-                    }
-                }
                 return next;
             });
         }
@@ -312,35 +301,10 @@ export function AppSidebar() {
         });
     }, [activeModule]);
 
-    // ── Section toggle handler ─────────────────────────────────────────────
-    const handleSectionToggle = useCallback((moduleKey: string, sectionKey: string) => {
-        const compositeKey = `${moduleKey}:${sectionKey}`;
-        setSectionToggle((prev) => {
-            const currentState = prev[compositeKey] ?? "auto";
-            const isCurrentlyOpen = resolveToggle(
-                currentState,
-                activeModule === moduleKey && activeSection === sectionKey
-            );
-            return {
-                ...prev,
-                [compositeKey]: isCurrentlyOpen ? "closed" : "open",
-            };
-        });
-    }, [activeModule, activeSection]);
-
     // ── Resolve whether a module is open ───────────────────────────────────
     const isModuleOpen = useCallback((key: string): boolean => {
         return resolveToggle(moduleToggle[key], activeModule === key);
     }, [moduleToggle, activeModule]);
-
-    // ── Resolve whether a section is open ──────────────────────────────────
-    const isSectionOpen = useCallback((moduleKey: string, sectionKey: string): boolean => {
-        const compositeKey = `${moduleKey}:${sectionKey}`;
-        return resolveToggle(
-            sectionToggle[compositeKey],
-            activeModule === moduleKey && activeSection === sectionKey
-        );
-    }, [sectionToggle, activeModule, activeSection]);
 
     const tenantLogoSrc = (() => {
         return resolveAssetUrl(tenant?.branding?.logoUrl);
@@ -662,7 +626,7 @@ export function AppSidebar() {
                                                             {/* Items dessa seção */}
                                                             {section.items.map((item) => (
                                                                     <SidebarMenuSubItem key={`${item.href}-${item.label}`}>
-                                                                        <SidebarMenuSubButton isActive={isItemActive(item.href, pathname, searchParams, item.exact)} render={<Link href={item.href} onClick={handleNavigation} />}>
+                                                                        <SidebarMenuSubButton title={item.tip} isActive={isItemActive(item.href, pathname, searchParams, item.exact)} render={<Link href={item.href} onClick={handleNavigation} />}>
                                                                             <item.icon className="size-3.5 flex-shrink-0 text-primary" />
                                                                             <span>{item.label}</span>
                                                                         </SidebarMenuSubButton>
@@ -720,7 +684,7 @@ export function AppSidebar() {
                                                                         <ModuleGate key={section.key} moduleId={sectionModuleId}>
                                                                             {visibleItems.map((item) => (
                                                                                 <SidebarMenuSubItem key={`${item.href}-${item.label}`} className="mb-1">
-                                                                                    <SidebarMenuSubButton isActive={isItemActive(item.href, pathname, searchParams, item.exact)} render={<Link href={item.href} onClick={handleNavigation} />} className="font-semibold text-primary">
+                                                                                    <SidebarMenuSubButton title={item.tip} isActive={isItemActive(item.href, pathname, searchParams, item.exact)} render={<Link href={item.href} onClick={handleNavigation} />} className="font-semibold text-primary">
                                                                                         <item.icon className="size-3.5 flex-shrink-0" />
                                                                                         <span className="truncate">{item.label}</span>
                                                                                         {item.alertBadge && hasCadernoAlerta && (
@@ -735,48 +699,31 @@ export function AppSidebar() {
                                                                     );
                                                                 }
 
-                                                                const sectionIsOpen = isSectionOpen(moduleGroup.key, section.key);
-                                                                const sectionSubmenuId = `sidebar-section-${section.key}`;
-                                                                const sectionHasActiveItem = section.items.some((item) =>
-                                                                    isItemActive(item.href, pathname, searchParams, item.exact)
-                                                                );
-
                                                                 return (
                                                                     <ModuleGate key={section.key} moduleId={sectionModuleId}>
-                                                                    <SidebarMenuSubItem>
-                                                                        <button
-                                                                            type="button"
-                                                                            onClick={() => handleSectionToggle(moduleGroup.key, section.key)}
-                                                                            aria-expanded={sectionIsOpen}
-                                                                            aria-controls={sectionSubmenuId}
-                                                                            className={cn(
-                                                                                "flex w-full items-center gap-2 px-1.5 py-1 text-left text-xs font-semibold text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                                                                                getSectionActiveStyle(moduleGroup.key),
-                                                                                sectionHasActiveItem && "text-primary"
-                                                                            )}
-                                                                        >
-                                                                            <span className="truncate">{section.label}</span>
-                                                                            {sectionIsOpen ? <ChevronDown className="ml-auto size-2.5 flex-shrink-0 " /> : <ChevronRight className="ml-auto size-2.5 flex-shrink-0 " />}
-                                                                        </button>
-
-                                                                        {sectionIsOpen && (
-                                                                            <SidebarMenuSub className="ml-1.5" id={sectionSubmenuId}>
-                                                                                {visibleItems.map((item) => (
-                                                                                    <SidebarMenuSubItem key={`${item.href}-${item.label}`}>
-                                                                                        <SidebarMenuSubButton isActive={isItemActive(item.href, pathname, searchParams, item.exact)} render={<Link href={item.href} onClick={handleNavigation} />}>
-                                                                                            <item.icon className="size-3.5 flex-shrink-0 text-primary" />
-                                                                                            <span className="truncate">{item.label}</span>
-                                                                                            {item.alertBadge && hasCadernoAlerta && (
-                                                                                                <Badge variant="destructive" className="ml-auto">
-                                                                                                    <AlertCircle className="size-3" />
-                                                                                                </Badge>
-                                                                                            )}
-                                                                                        </SidebarMenuSubButton>
-                                                                                    </SidebarMenuSubItem>
-                                                                                ))}
-                                                                            </SidebarMenuSub>
-                                                                        )}
-                                                                    </SidebarMenuSubItem>
+                                                                    <React.Fragment>
+                                                                        <SidebarMenuSubItem>
+                                                                            <div className={cn(
+                                                                                "px-1.5 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/70",
+                                                                                getSectionActiveStyle(moduleGroup.key)
+                                                                            )}>
+                                                                                {section.label}
+                                                                            </div>
+                                                                        </SidebarMenuSubItem>
+                                                                        {visibleItems.map((item) => (
+                                                                            <SidebarMenuSubItem key={`${item.href}-${item.label}`}>
+                                                                                <SidebarMenuSubButton title={item.tip} isActive={isItemActive(item.href, pathname, searchParams, item.exact)} render={<Link href={item.href} onClick={handleNavigation} />}>
+                                                                                    <item.icon className="size-3.5 flex-shrink-0 text-primary" />
+                                                                                    <span className="truncate">{item.label}</span>
+                                                                                    {item.alertBadge && hasCadernoAlerta && (
+                                                                                        <Badge variant="destructive" className="ml-auto">
+                                                                                            <AlertCircle className="size-3" />
+                                                                                        </Badge>
+                                                                                    )}
+                                                                                </SidebarMenuSubButton>
+                                                                            </SidebarMenuSubItem>
+                                                                        ))}
+                                                                    </React.Fragment>
                                                                     </ModuleGate>
                                                                 );
                                                             })}

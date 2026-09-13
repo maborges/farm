@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { useAppStore } from "@/lib/stores/app-store";
 import { 
@@ -370,9 +371,19 @@ export default function SaldosPage() {
           <div>
             <h3 className="text-lg font-bold uppercase tracking-tight">Análise Estratégica de Estoque</h3>
             <p className="text-sm text-muted-foreground max-w-md mx-auto">
-              Em breve: Visualize a distribuição de insumos em tempo real no mapa da sua propriedade e receba sugestões automáticas de compra.
+              Visualize a distribuição de insumos em tempo real no mapa da sua propriedade e receba sugestões automáticas de compra.
             </p>
           </div>
+          <div className="flex flex-wrap justify-center gap-2 text-xs text-muted-foreground">
+            <span className="rounded-sm border border-border/60 bg-background/60 px-2 py-1">Mapa de distribuição</span>
+            <span className="rounded-sm border border-border/60 bg-background/60 px-2 py-1">Sugestões de compra</span>
+          </div>
+          <Button asChild variant="outline" size="sm">
+            <Link href="/dashboard/settings/support">
+              <Bell className="mr-2 size-4" />
+              Demonstrar interesse
+            </Link>
+          </Button>
         </CardContent>
       </Card>
     </div>

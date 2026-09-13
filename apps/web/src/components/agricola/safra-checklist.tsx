@@ -220,13 +220,15 @@ export function SafraChecklist({ safraId, cultura, fase }: SafraChecklistProps) 
     return (
         <>
             {/* Cabeçalho da seção */}
-            <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex min-w-0 items-start gap-2">
                     <CheckSquare className="size-4 text-muted-foreground" />
-                    <h3 className="text-sm font-semibold">Checklist — {FASE_LABEL[fase] ?? fase}</h3>
-                    <span className="text-xs text-muted-foreground">— Obrigatórios para avanço de fase</span>
+                    <div className="min-w-0">
+                        <h3 className="text-sm font-semibold">Checklist — {FASE_LABEL[fase] ?? fase}</h3>
+                        <span className="text-xs text-muted-foreground">Obrigatórios para avanço de fase</span>
+                    </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">
                     <Button
                         size="sm"
                         variant="outline"
@@ -251,8 +253,8 @@ export function SafraChecklist({ safraId, cultura, fase }: SafraChecklistProps) 
             </div>
 
             {/* Progresso */}
-            <div className="flex items-center justify-between bg-muted/30 border border-border/50 rounded-sm p-3 mb-4">
-                <div className="flex items-center gap-3">
+            <div className="mb-4 flex flex-col gap-3 rounded-sm border border-border/50 bg-muted/30 p-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-wrap items-center gap-3">
                     <div className="flex flex-col">
                         <span className="text-sm font-bold">{concluidos}/{total} concluídos</span>
                         <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Progresso da Fase</span>
@@ -267,8 +269,8 @@ export function SafraChecklist({ safraId, cultura, fase }: SafraChecklistProps) 
                         {VEREDITO_BADGE[veredito].label}
                     </Badge>
                 </div>
-                <div className="flex items-center gap-3">
-                    <div className="w-32 h-1.5 bg-muted rounded-full overflow-hidden border border-border/50">
+                <div className="flex items-center gap-3 self-end sm:self-auto">
+                    <div className="h-1.5 w-32 overflow-hidden rounded-full border border-border/50 bg-muted">
                         <div
                             className="h-full bg-emerald-500 rounded-full transition-all"
                             style={{ width: total > 0 ? `${(concluidos / total) * 100}%` : "0%" }}
@@ -294,7 +296,7 @@ export function SafraChecklist({ safraId, cultura, fase }: SafraChecklistProps) 
                         <li
                             key={item.id}
                             className={cn(
-                                "group flex flex-col p-2.5 bg-muted/30 border border-border/50 rounded-md transition-colors relative",
+                                "group relative flex flex-col rounded-sm border border-border/50 bg-muted/30 p-2.5 transition-colors",
                                 isManual && "cursor-pointer hover:bg-muted/40",
                                 item.concluido && "border-emerald-200/60 bg-emerald-50/20",
                                 item.cancelado && "opacity-60 grayscale",
@@ -394,7 +396,7 @@ export function SafraChecklist({ safraId, cultura, fase }: SafraChecklistProps) 
                                         <Button
                                             size="sm"
                                             variant="outline"
-                                            className="h-6 text-[10px] px-2"
+                                            className="min-h-8 h-auto px-2 py-1 text-[10px]"
                                             onClick={(e) => { e.stopPropagation(); setGerarOsItem(item); }}
                                         >
                                             Gerar OS
@@ -404,7 +406,7 @@ export function SafraChecklist({ safraId, cultura, fase }: SafraChecklistProps) 
                                         <Button
                                             size="sm"
                                             variant="outline"
-                                            className="h-6 text-[10px] px-2"
+                                            className="min-h-8 h-auto px-2 py-1 text-[10px]"
                                             onClick={(e) => { e.stopPropagation(); assumirMutation.mutate(item.id); }}
                                             disabled={assumirMutation.isPending}
                                         >
@@ -415,7 +417,7 @@ export function SafraChecklist({ safraId, cultura, fase }: SafraChecklistProps) 
                                         <Button
                                             size="sm"
                                             variant="outline"
-                                            className="h-6 text-[10px] px-2 text-amber-700 border-amber-300"
+                                            className="min-h-8 h-auto border-amber-300 px-2 py-1 text-[10px] text-amber-700"
                                             onClick={(e) => { e.stopPropagation(); setOverrideItem(item); }}
                                         >
                                             Justificar OK parcial
