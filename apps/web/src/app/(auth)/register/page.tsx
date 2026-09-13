@@ -26,14 +26,14 @@ export default function RegisterPage() {
                 <div className="relative z-10 flex flex-col justify-between h-full p-14">
 
                     {/* Logo */}
-                    <div className="flex items-center gap-3">
-                        <div className="flex size-10 items-center justify-center">
-                            <Image src="/logos/deepfarms-mark.svg" alt="DeepFarms" width={40} height={40} className="size-full object-contain dark:hidden" />
-                            <Image src="/logos/deepfarms-mark-negative.svg" alt="DeepFarms" width={40} height={40} className="hidden size-full object-contain dark:block" />
+                    <div className="inline-flex items-center gap-4 rounded-sm border border-primary/20 bg-white/45 px-4 py-3 shadow-sm backdrop-blur-sm dark:border-white/15 dark:bg-white/8">
+                        <div className="flex size-14 shrink-0 items-center justify-center">
+                            <Image src="/logos/deepfarms-mark.svg" alt="DeepFarms" width={56} height={56} className="size-full object-contain dark:hidden" />
+                            <Image src="/logos/deepfarms-mark-negative.svg" alt="DeepFarms" width={56} height={56} className="hidden size-full object-contain dark:block" />
                         </div>
                         <div>
-                            <div className="text-lg font-light uppercase tracking-widest text-slate-950 dark:text-white">DeepFarms</div>
-                            <div className="text-[10px] font-medium uppercase tracking-wide text-slate-600 dark:text-white/60">Gestão rural premium</div>
+                            <div className="text-xl font-semibold uppercase tracking-[0.18em] text-slate-950 dark:text-white">DeepFarms</div>
+                            <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-600 dark:text-white/65">Gestão rural premium</div>
                         </div>
                     </div>
 
@@ -108,13 +108,13 @@ export default function RegisterPage() {
                 <div className="relative w-full max-w-[560px] space-y-6">
 
                     {/* Logo mobile */}
-                    <div className="lg:hidden flex items-center justify-center gap-3 mb-4">
-                        <div className="flex size-10 items-center justify-center">
-                            <Image src="/logos/deepfarms-mark.svg" alt="DeepFarms" width={40} height={40} className="size-full object-contain" />
+                    <div className="lg:hidden inline-flex items-center justify-center gap-4 mb-4 rounded-sm border border-primary/20 bg-white/45 px-4 py-3 shadow-sm backdrop-blur-sm dark:border-white/15 dark:bg-white/8">
+                        <div className="flex size-14 shrink-0 items-center justify-center">
+                            <Image src="/logos/deepfarms-mark.svg" alt="DeepFarms" width={56} height={56} className="size-full object-contain" />
                         </div>
                         <div className="text-left">
-                            <div className="text-lg font-light uppercase tracking-widest text-primary">DeepFarms</div>
-                            <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Gestão rural premium</div>
+                            <div className="text-xl font-semibold uppercase tracking-[0.18em] text-primary">DeepFarms</div>
+                            <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">Gestão rural premium</div>
                         </div>
                     </div>
 
