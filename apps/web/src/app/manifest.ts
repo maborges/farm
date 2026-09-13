@@ -8,7 +8,7 @@ export default function manifest(): MetadataRoute.Manifest {
     start_url: "/dashboard",
     display: "standalone",
     background_color: "#f8faf9",
-    theme_color: "#D97757",
+    theme_color: "#006B3D",
     icons: [{ src: "/logos/deepfarms-mark.svg", sizes: "any", type: "image/svg+xml", purpose: "any" }],
   };
 }

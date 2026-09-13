@@ -222,7 +222,7 @@ export const useAppStore = create<AppState>()(
                             documento: "",
                             slug: "",
                             dominio_customizado: null,
-                            branding: { primaryColor: "15 64% 59%" },
+                            branding: { primaryColor: "154 100% 21%" },
                         },
                         {
                             id: profile.id,

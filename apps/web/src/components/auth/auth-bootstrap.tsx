@@ -112,7 +112,7 @@ export function AuthBootstrap({
                         documento: "",
                         slug: "",
                         dominio_customizado: null,
-                        branding: { primaryColor: "15 64% 59%" },
+                        branding: { primaryColor: "154 100% 21%" },
                     } : null,
                     {
                         id: profile.id,

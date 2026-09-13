@@ -31,17 +31,17 @@
   --foreground: 15 10% 5%;
   --card: 0 0% 100%;
   --card-foreground: 0 0% 4%;
-  --primary: 15 64% 59%;
+  --primary: 154 100% 21%;
   --primary-foreground: 0 0% 98%;
   --secondary: 0 0% 88%;
   --secondary-foreground: 0 0% 9%;
   --muted: 15 10% 96%;
   --muted-foreground: 15 10% 40%;
-  --accent: 15 64% 88%;
-  --accent-foreground: 15 64% 15%;
-  --border: 15 50% 88%;
-  --input: 15 50% 88%;
-  --ring: 15 64% 59%;
+  --accent: 154 55% 91%;
+  --accent-foreground: 154 100% 15%;
+  --border: 154 35% 86%;
+  --input: 154 35% 86%;
+  --ring: 154 100% 21%;
   --destructive: 0 84% 60%;
   --radius: 0.5rem;
 }
@@ -51,17 +51,17 @@
   --foreground: 35 20% 94%;
   --card: 28 18% 10%;
   --card-foreground: 35 20% 96%;
-  --primary: 24 78% 65%;
-  --primary-foreground: 28 22% 10%;
+  --primary: 154 100% 21%;
+  --primary-foreground: 0 0% 98%;
   --secondary: 28 12% 17%;
   --secondary-foreground: 35 20% 96%;
   --muted: 28 12% 14%;
   --muted-foreground: 30 10% 68%;
-  --accent: 24 78% 65% / 0.14;
-  --accent-foreground: 24 78% 65%;
+  --accent: 154 100% 21% / 0.24;
+  --accent-foreground: 154 60% 72%;
   --border: 28 16% 22%;
   --input: 28 16% 22%;
-  --ring: 24 78% 65%;
+  --ring: 154 60% 58%;
   --destructive: 0 70% 42%;
 }
 
@@ -123,11 +123,11 @@ textarea {
 
 /* ── PWA Campo — Variáveis de módulo (exclusivas do campo) ─────── */
 :root {
-  --campo-pwa-agro: #22c55e;
-  --campo-pwa-agro-light: #dcfce7;
-  --campo-pwa-agro-mid: #86efac;
-  --campo-pwa-agro-dark-text: #15803d;
-  --campo-pwa-agro-bg: #f0fdf4;
+  --campo-pwa-agro: #006b3d;
+  --campo-pwa-agro-light: #dff3e8;
+  --campo-pwa-agro-mid: #7ac9a0;
+  --campo-pwa-agro-dark-text: #005530;
+  --campo-pwa-agro-bg: #eef9f2;
 
   --campo-pwa-pecuaria: #6366f1;
   --campo-pwa-pecuaria-light: #e0e7ff;
@@ -137,11 +137,11 @@ textarea {
 }
 
 .dark {
-  --campo-pwa-agro: #4ade80;
-  --campo-pwa-agro-light: rgba(74, 222, 128, 0.18);
-  --campo-pwa-agro-mid: rgba(74, 222, 128, 0.35);
-  --campo-pwa-agro-dark-text: #86efac;
-  --campo-pwa-agro-bg: rgba(74, 222, 128, 0.06);
+  --campo-pwa-agro: #55c98b;
+  --campo-pwa-agro-light: rgba(85, 201, 139, 0.18);
+  --campo-pwa-agro-mid: rgba(85, 201, 139, 0.35);
+  --campo-pwa-agro-dark-text: #9be7bc;
+  --campo-pwa-agro-bg: rgba(85, 201, 139, 0.06);
 
   --campo-pwa-pecuaria: #818cf8;
   --campo-pwa-pecuaria-light: rgba(129, 140, 248, 0.18);
