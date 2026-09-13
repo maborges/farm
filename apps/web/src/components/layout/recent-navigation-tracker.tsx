@@ -21,12 +21,30 @@ const LABELS: Array<[string, string]> = [
   ["/dashboard", "Dashboard"],
 ];
 
-function getLabel(pathname: string): string {
-  const match = LABELS.find(([href]) => pathname === href || pathname.startsWith(`${href}/`));
+const SEGMENT_LABELS: Record<string, string> = {
+  dashboard: "Dashboard",
+  agricola: "Agrícola",
+  operacional: "Operacional",
+  campo: "Campo",
+  frota: "Frota",
+  financeiro: "Financeiro",
+  pecuaria: "Pecuária",
+  suprimentos: "Suprimentos",
+  estoque: "Estoque",
+  cadastros: "Cadastros",
+  backoffice: "Backoffice",
+  configuracoes: "Configurações",
+};
+
+export function getRecentNavigationLabel(pathname: string): string {
+  const match = LABELS.find(([href]) => pathname === href || (href !== "/dashboard" && pathname.startsWith(`${href}/`)));
   if (match) return match[1];
 
-  const segment = pathname.split("/").filter(Boolean).at(-1);
-  return segment ? segment.replaceAll("-", " ").replace(/\b\w/g, (letter) => letter.toUpperCase()) : "Tela atual";
+  const segments = pathname.split("/").filter(Boolean);
+  if (segments.length === 0) return "Tela atual";
+
+  const labels = segments.map((segment) => SEGMENT_LABELS[segment] ?? segment.replaceAll("-", " ").replace(/\b\w/g, (letter) => letter.toUpperCase()));
+  return labels.join(" · ");
 }
 
 export function RecentNavigationTracker() {
@@ -38,7 +56,7 @@ export function RecentNavigationTracker() {
     try {
       const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "[]") as RecentNavigationItem[];
       const next: RecentNavigationItem[] = [
-        { href: pathname, label: getLabel(pathname), visitedAt: Date.now() },
+        { href: pathname, label: getRecentNavigationLabel(pathname), visitedAt: Date.now() },
         ...stored.filter((item) => item.href !== pathname),
       ].slice(0, MAX_ITEMS);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
@@ -49,4 +67,3 @@ export function RecentNavigationTracker() {
 
   return null;
 }
-

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ArrowRight, Clock3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import type { RecentNavigationItem } from "@/components/layout/recent-navigation-tracker";
+import { getRecentNavigationLabel, type RecentNavigationItem } from "@/components/layout/recent-navigation-tracker";
 
 const STORAGE_KEY = "agrosaas-recent-navigation";
 
@@ -14,7 +14,12 @@ export function RecentNavigationCard() {
   useEffect(() => {
     try {
       const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "[]") as RecentNavigationItem[];
-      setItems(stored.filter((item) => item.href !== "/dashboard").slice(0, 3));
+      setItems(
+        stored
+          .filter((item) => item.href !== "/dashboard")
+          .map((item) => ({ ...item, label: getRecentNavigationLabel(item.href) }))
+          .slice(0, 3),
+      );
     } catch {
       setItems([]);
     }
@@ -44,4 +49,3 @@ export function RecentNavigationCard() {
     </section>
   );
 }
-
