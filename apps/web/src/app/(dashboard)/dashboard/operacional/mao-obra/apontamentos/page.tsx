@@ -6,16 +6,16 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
-import { HardHat, Plus, Trash2 } from "lucide-react";
-import { PageHeader } from "@/components/shared";
+import { Clock3, HardHat, Plus, SearchX, Trash2, UsersRound, WalletCards, type LucideIcon } from "lucide-react";
+import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-    Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
-} from "@/components/ui/table";
+import { Skeleton } from "@/components/ui/skeleton";
+import { DataTable, type ColumnDef } from "@/components/ui/data-table";
 import {
     Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -40,6 +40,21 @@ interface Apontamento {
     tipo_operacao: string | null;
     custo_total: number | null;
     observacoes: string | null;
+}
+
+function SummaryCard({ label, value, icon: Icon, loading, tone = "primary" }: { label: string; value: number | string; icon: LucideIcon; loading: boolean; tone?: "primary" | "emerald" | "blue" | "amber" }) {
+    const tones = {
+        primary: "bg-primary/10 text-primary",
+        emerald: "bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30",
+        blue: "bg-blue-100 text-blue-600 dark:bg-blue-900/30",
+        amber: "bg-amber-100 text-amber-600 dark:bg-amber-900/30",
+    } as const;
+
+    return <Card className="rounded-sm shadow-sm"><CardContent className="flex items-start gap-4 p-5"><div className={`flex size-10 shrink-0 items-center justify-center rounded-sm ${tones[tone]}`}><Icon className="size-5" /></div><div className="min-w-0"><p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{label}</p>{loading ? <Skeleton className="mt-1 h-7 w-20" /> : <p className="mt-0.5 text-xl font-black tracking-tight tabular-nums">{value}</p>}</div></CardContent></Card>;
+}
+
+function ApontamentosSkeleton() {
+    return <Card className="rounded-sm shadow-sm"><CardContent className="space-y-3 p-4">{Array.from({ length: 6 }).map((_, index) => <Skeleton key={index} className="h-10 w-full rounded-sm" />)}</CardContent></Card>;
 }
 
 const TURNOS = [
@@ -128,107 +143,70 @@ export default function ApontamentosMaoObraPage() {
         onError: () => toast.error("Erro ao remover apontamento."),
     });
 
-    return (
-        <div className="p-8 space-y-6 max-w-6xl mx-auto w-full">
-            <PageHeader
-                title="Apontamento de Mão de Obra"
-                description="Registro manual de horas trabalhadas por colaborador, sem vínculo com equipamento."
-                icon={<HardHat className="size-5" />}
-            />
+    const totalHoras = apontamentos.reduce((total, item) => total + item.horas_trabalhadas * item.quantidade_pessoas, 0);
+    const totalCusto = apontamentos.reduce((total, item) => total + (item.custo_total ?? 0), 0);
+    const colaboradoresAtendidos = new Set(apontamentos.map((item) => item.pessoa_id)).size;
 
-            <Card className="shadow-sm">
-                <CardContent className="p-4 space-y-4">
-                    <div className="flex items-end justify-between gap-3 flex-wrap">
-                        <div className="flex items-end gap-3">
-                            <div className="space-y-2">
-                                <Label className="text-xs">Data início</Label>
-                                <Input type="date" className="h-8 text-xs" value={dataInicio} onChange={(e) => setDataInicio(e.target.value)} />
-                            </div>
-                            <div className="space-y-2">
-                                <Label className="text-xs">Data fim</Label>
-                                <Input type="date" className="h-8 text-xs" value={dataFim} onChange={(e) => setDataFim(e.target.value)} />
-                            </div>
-                        </div>
-                        <Button size="sm" className="gap-1.5 h-8" onClick={() => setNovoOpen(true)}>
-                            <Plus size={14} /> Novo Apontamento
+    const columns: ColumnDef<Apontamento>[] = [
+        {
+            id: "data", header: "Data", accessorKey: "data", sortable: true,
+            cell: (_value, item) => <span className="text-sm tabular-nums">{new Date(item.data).toLocaleDateString("pt-BR")}</span>,
+            exportFormat: (_value, item) => new Date(item.data).toLocaleDateString("pt-BR"),
+        },
+        {
+            id: "colaborador", header: "Colaborador", accessorFn: (item) => nomeColaborador(item.pessoa_id), sortable: true, filterable: true,
+            cell: (_value, item) => <span className="font-medium">{nomeColaborador(item.pessoa_id)}</span>,
+            exportFormat: (_value, item) => nomeColaborador(item.pessoa_id),
+        },
+        {
+            id: "turno", header: "Turno", accessorKey: "turno", filterable: true,
+            cell: (_value, item) => <Badge variant="outline" className="rounded-sm text-xs font-medium">{TURNOS.find((turno) => turno.value === item.turno)?.label ?? item.turno}</Badge>,
+            exportFormat: (_value, item) => TURNOS.find((turno) => turno.value === item.turno)?.label ?? item.turno,
+        },
+        { id: "horas", header: "Horas", accessorKey: "horas_trabalhadas", sortable: true, cell: (value) => <span className="block text-right tabular-nums">{Number(value).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span> },
+        { id: "pessoas", header: "Pessoas", accessorKey: "quantidade_pessoas", sortable: true, cell: (value) => <span className="block text-right tabular-nums">{value}</span> },
+        { id: "operacao", header: "Operação", accessorKey: "tipo_operacao", filterable: true, cell: (value) => value || "—" },
+        { id: "custo", header: "Custo total", accessorKey: "custo_total", sortable: true, cell: (value) => <span className="block text-right tabular-nums">{value != null ? Number(value).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : "—"}</span>, exportFormat: (value) => value != null ? Number(value).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : "—" },
+        {
+            id: "actions", header: "", exportable: false, sortable: false, filterable: false, isActionColumn: true,
+            cell: (_value, item) => (
+                <AlertDialog open={removerId === item.id} onOpenChange={(open) => !open && setRemoverId(null)}>
+                    <AlertDialogTrigger asChild>
+                        <Button size="icon" variant="ghost" className="size-7 text-destructive hover:text-destructive" aria-label={`Remover apontamento de ${nomeColaborador(item.pessoa_id)}`} onClick={() => setRemoverId(item.id)}>
+                            <Trash2 className="size-3.5" />
                         </Button>
-                    </div>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                        <AlertDialogHeader><AlertDialogTitle>Remover apontamento?</AlertDialogTitle><AlertDialogDescription>Esta ação não pode ser desfeita.</AlertDialogDescription></AlertDialogHeader>
+                        <AlertDialogFooter><AlertDialogCancel>Voltar</AlertDialogCancel><AlertDialogAction disabled={removerMutation.isPending} onClick={() => removerMutation.mutate(item.id)}>Remover</AlertDialogAction></AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
+            ),
+        },
+    ];
 
-                    <Table>
-                        <TableHeader>
-                            <TableRow className="text-xs">
-                                <TableHead>Data</TableHead>
-                                <TableHead>Colaborador</TableHead>
-                                <TableHead>Turno</TableHead>
-                                <TableHead className="text-right">Horas</TableHead>
-                                <TableHead className="text-right">Qtd. Pessoas</TableHead>
-                                <TableHead>Tipo de Operação</TableHead>
-                                <TableHead className="text-right">Custo Total</TableHead>
-                                <TableHead></TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {!isLoading && apontamentos.length === 0 ? (
-                                <TableRow>
-                                    <TableCell colSpan={8} className="text-center py-12 text-muted-foreground text-sm">
-                                        Nenhum apontamento registrado.
-                                    </TableCell>
-                                </TableRow>
-                            ) : (
-                                apontamentos.map((ap) => (
-                                    <TableRow key={ap.id}>
-                                        <TableCell className="text-xs py-2.5">
-                                            {new Date(ap.data).toLocaleDateString("pt-BR")}
-                                        </TableCell>
-                                        <TableCell className="text-xs">{nomeColaborador(ap.pessoa_id)}</TableCell>
-                                        <TableCell className="text-xs">
-                                            {TURNOS.find((t) => t.value === ap.turno)?.label ?? ap.turno}
-                                        </TableCell>
-                                        <TableCell className="text-right text-xs tabular-nums">
-                                            {ap.horas_trabalhadas.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
-                                        </TableCell>
-                                        <TableCell className="text-right text-xs tabular-nums">{ap.quantidade_pessoas}</TableCell>
-                                        <TableCell className="text-xs">{ap.tipo_operacao ?? "—"}</TableCell>
-                                        <TableCell className="text-right text-xs tabular-nums">
-                                            {ap.custo_total != null
-                                                ? `R$ ${ap.custo_total.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`
-                                                : "—"}
-                                        </TableCell>
-                                        <TableCell className="text-right">
-                                            <div className="flex items-center gap-0 justify-end">
-                                                <AlertDialog open={removerId === ap.id} onOpenChange={(open) => !open && setRemoverId(null)}>
-                                                    <AlertDialogTrigger asChild>
-                                                        <Button
-                                                            size="icon" variant="ghost" className="size-7 text-destructive hover:text-destructive"
-                                                            aria-label="Remover" onClick={() => setRemoverId(ap.id)}
-                                                        >
-                                                            <Trash2 className="size-3.5" />
-                                                        </Button>
-                                                    </AlertDialogTrigger>
-                                                    <AlertDialogContent>
-                                                        <AlertDialogHeader>
-                                                            <AlertDialogTitle>Remover apontamento?</AlertDialogTitle>
-                                                            <AlertDialogDescription>
-                                                                Esta ação não pode ser desfeita.
-                                                            </AlertDialogDescription>
-                                                        </AlertDialogHeader>
-                                                        <AlertDialogFooter>
-                                                            <AlertDialogCancel>Voltar</AlertDialogCancel>
-                                                            <AlertDialogAction onClick={() => removerMutation.mutate(ap.id)}>
-                                                                Remover
-                                                            </AlertDialogAction>
-                                                        </AlertDialogFooter>
-                                                    </AlertDialogContent>
-                                                </AlertDialog>
-                                            </div>
-                                        </TableCell>
-                                    </TableRow>
-                                ))
-                            )}
-                        </TableBody>
-                    </Table>
+    return (
+        <div className="space-y-6 p-6">
+            <PageHeader title="Apontamentos de mão de obra" description="Registre e acompanhe as horas trabalhadas pela equipe." icon={<HardHat className="size-5 text-primary" />} breadcrumbs={[{ label: "Operacional", href: "/operacional" }, { label: "Mão de obra" }, { label: "Apontamentos" }]} actions={<Button size="sm" onClick={() => setNovoOpen(true)}><Plus data-icon="inline-start" className="size-3.5" /> Novo apontamento</Button>} />
+
+            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+                <SummaryCard label="Apontamentos" value={apontamentos.length} icon={HardHat} loading={isLoading} />
+                <SummaryCard label="Colaboradores" value={colaboradoresAtendidos} icon={UsersRound} loading={isLoading} tone="emerald" />
+                <SummaryCard label="Horas apontadas" value={totalHoras.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} icon={Clock3} loading={isLoading} tone="blue" />
+                <SummaryCard label="Custo total" value={totalCusto.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} icon={WalletCards} loading={isLoading} tone="amber" />
+            </div>
+
+            <Card className="rounded-sm shadow-sm">
+                <CardContent className="flex flex-wrap items-end gap-3 p-4">
+                    <div className="space-y-1.5"><Label htmlFor="data-inicio" className="text-xs">Data inicial</Label><Input id="data-inicio" type="date" className="h-9 w-[170px] text-sm" value={dataInicio} onChange={(event) => setDataInicio(event.target.value)} /></div>
+                    <div className="space-y-1.5"><Label htmlFor="data-fim" className="text-xs">Data final</Label><Input id="data-fim" type="date" className="h-9 w-[170px] text-sm" value={dataFim} onChange={(event) => setDataFim(event.target.value)} /></div>
+                    {(dataInicio || dataFim) && <Button variant="ghost" size="sm" className="h-9" onClick={() => { setDataInicio(""); setDataFim(""); }}>Limpar período</Button>}
                 </CardContent>
             </Card>
+
+            {isLoading ? <ApontamentosSkeleton /> : apontamentos.length === 0 ? (
+                <div className="rounded-sm border-2 border-dashed bg-muted/20 py-14 text-center"><SearchX className="mx-auto mb-3 size-9 text-primary opacity-40" /><p className="text-sm font-medium">Nenhum apontamento encontrado</p><p className="mt-1 text-xs text-muted-foreground">Ajuste o período ou registre o primeiro apontamento.</p><Button size="sm" variant="outline" className="mt-4" onClick={() => setNovoOpen(true)}><Plus data-icon="inline-start" className="size-3.5" /> Registrar apontamento</Button></div>
+            ) : <DataTable columns={columns} data={apontamentos} searchable searchPlaceholder="Buscar colaborador ou operação..." exportable exportFileName="apontamentos-mao-de-obra" emptyMessage="Nenhum apontamento encontrado." />}
 
             <Dialog open={novoOpen} onOpenChange={setNovoOpen}>
                 <DialogContent className="max-w-xl">
