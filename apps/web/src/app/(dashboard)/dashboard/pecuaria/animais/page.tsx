@@ -125,7 +125,7 @@ function AnimalModal({
             if (isEditing) {
                 return apiFetch(`/pecuaria/animais/${animal.id}`, { method: "PATCH", body: JSON.stringify(payload) });
             }
-            return apiFetch("/pecuaria/animais/", { method: "POST", body: JSON.stringify(payload) });
+            return apiFetch("/pecuaria/animais", { method: "POST", body: JSON.stringify(payload) });
         },
         onSuccess: () => {
             toast.success(`Animal ${isEditing ? "atualizado" : "cadastrado"} com sucesso!`);
@@ -330,7 +330,7 @@ export default function AnimaisPage() {
     // pois o DataTable nativo faz paginação no cliente).
     const { data: response, isLoading } = useQuery({
         queryKey: ["animais", activeFazendaId],
-        queryFn: () => apiFetch<AnimalListResponse>(`/pecuaria/animais/?unidade_produtiva_id=${activeFazendaId}&page=1&page_size=200`),
+        queryFn: () => apiFetch<AnimalListResponse>(`/pecuaria/animais?unidade_produtiva_id=${activeFazendaId}&page=1&page_size=200`),
         enabled: !!activeFazendaId,
     });
 

@@ -217,7 +217,7 @@ export default function PlanejamentoManejosPage() {
     queryKey: ["pecuaria", "animais", activeFazendaId, loteId],
     queryFn: () =>
       apiFetch<AnimalListResponse>(
-        `/pecuaria/animais/?unidade_produtiva_id=${activeFazendaId}&lote_id=${loteId}&page=1&page_size=200`
+        `/pecuaria/animais?unidade_produtiva_id=${activeFazendaId}&lote_id=${loteId}&page=1&page_size=200`
       ),
     enabled: Boolean(activeFazendaId && loteId),
   });
