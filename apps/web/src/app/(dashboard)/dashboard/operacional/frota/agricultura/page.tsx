@@ -113,7 +113,7 @@ export default function FrotaAgriculturaPage() {
         description="Consolidação das jornadas da frota por safra, talhão, operação e equipamento com custo estimado."
         icon={<Sprout className="text-primary" size={22} />}
         breadcrumbs={[
-          { label: "Operacional", href: "/dashboard/operacional" },
+          { label: "Operacional", href: "/operacional" },
           { label: "Frota", href: "/dashboard/operacional/frota" },
           { label: "Uso Agrícola" },
         ]}

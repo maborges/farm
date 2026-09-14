@@ -158,7 +158,7 @@ export default function IrrigacaoPage() {
         <div className="p-8 space-y-6 max-w-6xl mx-auto w-full">
             <div className="flex items-center gap-3">
                 <Button variant="ghost" size="icon" asChild>
-                    <Link href="/operacional/patrimonio"><ArrowLeft size={18} /></Link>
+                    <Link href="/cadastros/imoveis"><ArrowLeft size={18} /></Link>
                 </Button>
                 <div className="flex-1">
                     <h1 className="text-2xl font-bold flex items-center gap-2">

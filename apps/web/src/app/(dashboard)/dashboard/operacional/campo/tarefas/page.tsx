@@ -327,7 +327,7 @@ export default function TarefasCampoPage() {
         description="Planeje e acompanhe as atividades dos operadores"
         icon={<ClipboardList className="size-5 text-primary" />}
         breadcrumbs={[
-          { label: "Operacional", href: "/dashboard/operacional" },
+          { label: "Operacional", href: "/operacional" },
           { label: "Campo", href: "/dashboard/operacional/campo/tarefas" },
           { label: "Tarefas" },
         ]}

@@ -68,7 +68,7 @@ export function CustosClient({ initialData, serverFazendaId }: CustosClientProps
         description="Consolidação econômica por equipamento com combustível, manutenção, peças e custo operacional por hora ou km."
         icon={<Wallet className="text-primary" size={22} />}
         breadcrumbs={[
-          { label: "Operacional", href: "/dashboard/operacional" },
+          { label: "Operacional", href: "/operacional" },
           { label: "Frota", href: "/dashboard/operacional/frota" },
           { label: "Custos" },
         ]}

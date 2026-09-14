@@ -172,6 +172,10 @@ class SessionHeartbeatMiddleware(BaseHTTPMiddleware):
         if not auth_header.startswith("Bearer "):
             return response
 
+        # Só uma interação real do frontend deve renovar uma sessão ociosa.
+        if request.headers.get("x-user-activity") != "true":
+            return response
+
         # Atualiza o heartbeat de forma assíncrona (fire-and-forget) com throttling
         token = auth_header[7:]
         token_hash = hashlib.sha256(token.encode()).hexdigest()
@@ -190,15 +194,17 @@ class SessionHeartbeatMiddleware(BaseHTTPMiddleware):
         from core.database import async_session_maker
         from sqlalchemy import update
         from core.models.sessao import SessaoAtiva
+        from core.services.session_timeout_service import get_session_idle_minutes, session_expiration
 
         async def update_heartbeat():
             try:
                 # O pool_timeout cuidará de travar se não houver conexões
                 async with async_session_maker() as session:
+                    idle_minutes = await get_session_idle_minutes(session)
                     await session.execute(
                         update(SessaoAtiva)
                         .where(SessaoAtiva.token_hash == token_hash, SessaoAtiva.status == "ATIVA")
-                        .values(ultimo_heartbeat=agora, expira_em=agora + timedelta(minutes=30))
+                        .values(ultimo_heartbeat=agora, expira_em=session_expiration(agora, idle_minutes))
                     )
                     await session.commit()
             except Exception:

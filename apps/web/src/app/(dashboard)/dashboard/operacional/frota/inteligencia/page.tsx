@@ -109,7 +109,7 @@ export default function FrotaInteligenciaPage() {
         description="Priorização automática da frota com score de risco, sinais operacionais e recomendações acionáveis."
         icon={<BrainCircuit className="text-primary" size={22} />}
         breadcrumbs={[
-          { label: "Operacional", href: "/dashboard/operacional" },
+          { label: "Operacional", href: "/operacional" },
           { label: "Frota", href: "/dashboard/operacional/frota" },
           { label: "Inteligência" },
         ]}

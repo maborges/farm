@@ -107,6 +107,12 @@ export async function apiFetch<T>(endpoint: string, options: FetchOptions = {}):
     if (token) {
         headers["Authorization"] = `Bearer ${token}`;
         headers["x-access-token"] = token;
+        if (typeof window !== "undefined") {
+            const lastActivity = Number(localStorage.getItem("agrosaas-last-activity") || 0);
+            if (lastActivity && Date.now() - lastActivity < 60_000) {
+                headers["x-user-activity"] = "true";
+            }
+        }
     } else if (!isPublicRoute) {
         // Sem token em rota protegida = não autenticado
         console.error(`❌ [apiFetch] Requisição sem token para: ${endpoint}`);
@@ -183,6 +189,11 @@ export async function apiFetch<T>(endpoint: string, options: FetchOptions = {}):
                     errorData,
                     url,
                 );
+            }
+
+            if (response.status === 401 && token && !isPublicRoute && typeof window !== "undefined") {
+                const { useAppStore } = await import("./stores/app-store");
+                void useAppStore.getState().logout();
             }
 
             // Trata erro de pagamento requerido (402)

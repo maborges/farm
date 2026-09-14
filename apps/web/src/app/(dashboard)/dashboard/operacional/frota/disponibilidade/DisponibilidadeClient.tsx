@@ -95,7 +95,7 @@ export function DisponibilidadeClient({ initialData, serverFazendaId }: Disponib
         description="Status de liberação dos equipamentos com integração de checklist, documentos, manutenção e OS abertas."
         icon={<ShieldAlert className="text-primary" size={22} />}
         breadcrumbs={[
-          { label: "Operacional", href: "/dashboard/operacional" },
+          { label: "Operacional", href: "/operacional" },
           { label: "Frota", href: "/dashboard/operacional/frota" },
           { label: "Disponibilidade" },
         ]}

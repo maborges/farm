@@ -270,7 +270,7 @@ export default function FrotaJornadasPage() {
         description="Apontamento de uso dos equipamentos com início, fim, operação, operador e atualização de leitura."
         icon={<Clock className="text-primary" size={22} />}
         breadcrumbs={[
-          { label: "Operacional", href: "/dashboard/operacional" },
+          { label: "Operacional", href: "/operacional" },
           { label: "Frota", href: "/dashboard/operacional/frota" },
           { label: "Jornadas" },
         ]}

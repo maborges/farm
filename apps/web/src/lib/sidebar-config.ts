@@ -56,7 +56,7 @@ export const CORE_CADASTROS: SidebarSection[] = [
     label: 'Minha Propriedade',
     icon: MapPin,
     items: [
-      { href: '/cadastros/propriedades', icon: Trees, label: 'Unidades Produtivas', tip: 'Cadastro operacional, sede e estrutura das suas fazendas', permission: 'tenant:fazendas:view' },
+      { href: '/cadastros/propriedades', icon: Trees, label: 'Unidades Produtivas', tip: 'Cadastro operacional, sede e estrutura das suas fazendas', permission: 'tenant:fazendas:view', exact: true },
       { href: '/cadastros/propriedades/talhoes', icon: MapPin, label: 'Georreferenciamento', tip: 'Mapa e geometria dos talhões', permission: 'agricola:talhoes:view' },
       { href: '/cadastros/commodities', icon: Sprout, label: 'Commodities', tip: 'Produtos agropecuários', permission: 'cadastros:commodities:view' },
     ],
@@ -116,7 +116,7 @@ export const MODULOS_OPERACIONAIS: SidebarModuleGroup[] = [
         label: 'Visão Geral',
         icon: LayoutDashboard,
         items: [
-          { href: '/cadastros/imoveis', icon: Home, label: 'Imóveis Rurais', tip: 'Cadastro legal', permission: 'imoveis:propriedades:view' },
+          { href: '/cadastros/imoveis', icon: Home, label: 'Imóveis Rurais', tip: 'Cadastro legal', permission: 'imoveis:propriedades:view', exact: true },
           { href: '/cadastros/imoveis/avaliacoes', icon: TrendingUp, label: 'Avaliação Patrimonial', tip: 'Laudos e histórico', permission: 'imoveis:avaliacoes:view' },
         ],
       },
@@ -125,7 +125,6 @@ export const MODULOS_OPERACIONAIS: SidebarModuleGroup[] = [
         label: 'Gestão',
         icon: FileText,
         items: [
-          { href: '/cadastros/imoveis', icon: FileText, label: 'Documentos e Cadastro', tip: 'NIRF, CAR, CCIR', permission: 'imoveis:documentos:view' },
         ],
       },
     ],
@@ -273,7 +272,7 @@ export const MODULOS_OPERACIONAIS: SidebarModuleGroup[] = [
         label: 'Dashboard',
         icon: LayoutDashboard,
         items: [
-          { href: '/suprimentos', icon: LayoutDashboard, label: 'Painel de Suprimentos', tip: 'Dashboard', permission: 'estoque:saldo:view' },
+          { href: '/suprimentos', icon: LayoutDashboard, label: 'Painel de Suprimentos', tip: 'Dashboard', permission: 'estoque:saldo:view', exact: true },
         ],
       },
       {
@@ -283,7 +282,7 @@ export const MODULOS_OPERACIONAIS: SidebarModuleGroup[] = [
         moduleId: 'O3_COMPRAS',
         items: [
           { href: '/suprimentos/compras/solicitacoes', icon: ClipboardList, label: 'Solicitações de Compra', tip: 'Gestão de Solicitações', permission: 'operacional:compras:view' },
-          { href: '/suprimentos/compras', icon: ShoppingCart, label: 'Pedidos de Compra', tip: 'POs', permission: 'operacional:compras:view' },
+          { href: '/suprimentos/compras', icon: ShoppingCart, label: 'Pedidos de Compra', tip: 'POs', permission: 'operacional:compras:view', exact: true },
           { href: '/dashboard/operacional/fornecedores', icon: Users, label: 'Fornecedores', tip: 'Suppliers', permission: 'estoque:fornecedores:view' },
         ],
       },
@@ -313,7 +312,7 @@ export const MODULOS_OPERACIONAIS: SidebarModuleGroup[] = [
         label: 'Dashboard',
         icon: LayoutDashboard,
         items: [
-          { href: '/operacional', icon: LayoutDashboard, label: 'Painel da Frota', tip: 'Dashboard', permission: 'operacional:frota:view' },
+          { href: '/operacional', icon: LayoutDashboard, label: 'Painel da Frota', tip: 'Dashboard', permission: 'operacional:frota:view', exact: true },
         ],
       },
       {
@@ -321,9 +320,8 @@ export const MODULOS_OPERACIONAIS: SidebarModuleGroup[] = [
         label: '① Operação',
         icon: Wrench,
         items: [
-          { href: '/dashboard/operacional/frota', icon: Tractor, label: 'Frota de Máquinas', tip: 'Veículos', permission: 'operacional:frota:view' },
+          { href: '/dashboard/operacional/frota', icon: Tractor, label: 'Frota de Máquinas', tip: 'Veículos', permission: 'operacional:frota:view', exact: true },
           { href: '/dashboard/operacional/manutencoes', icon: Wrench, label: 'Manutenções', tip: 'Manutencao', permission: 'operacional:oficina:view' },
-          { href: '/operacional/patrimonio', icon: Warehouse, label: 'Patrimônio', tip: 'Benfeitorias, manutenção e irrigação', permission: 'operacional:frota:view' },
           { href: '/dashboard/operacional/frota/manutencao-preventiva', icon: CalendarClock, label: 'Preventiva', tip: 'Preventiva', minimumTier: 'PROFISSIONAL', permission: 'operacional:oficina:view' },
           { href: '/dashboard/operacional/frota/consumo', icon: Droplets, label: 'Consumo & Eficiência', tip: 'Consumo', minimumTier: 'PROFISSIONAL', permission: 'operacional:abastecimento:view' },
           { href: '/dashboard/operacional/frota/custos', icon: Wallet, label: 'Custos Totais', tip: 'Custos', minimumTier: 'PROFISSIONAL', permission: 'operacional:relatorios:view' },
@@ -349,7 +347,7 @@ export const MODULOS_OPERACIONAIS: SidebarModuleGroup[] = [
         label: 'Dashboard',
         icon: LayoutDashboard,
         items: [
-          { href: '/dashboard/pecuaria', icon: LayoutDashboard, label: 'Painel de Rebanhos', tip: 'Dashboard', permission: 'pecuaria:dashboard:view' },
+          { href: '/dashboard/pecuaria', icon: LayoutDashboard, label: 'Painel de Rebanhos', tip: 'Dashboard', permission: 'pecuaria:dashboard:view', exact: true },
           { href: '/dashboard/pecuaria/sync-campo', icon: RefreshCcw, label: 'Sync Campo', tip: 'Monitoramento de Sincronização', permission: 'pecuaria:sync_campo:view' },
         ],
       },
@@ -402,7 +400,7 @@ export const MODULOS_OPERACIONAIS: SidebarModuleGroup[] = [
         label: 'Operação',
         icon: Scale,
         items: [
-          { href: '/dashboard/operacional/balanca', icon: Activity, label: 'Visão geral', tip: 'Integração TARA', permission: 'balanca:pesagem:view' },
+          { href: '/dashboard/operacional/balanca', icon: Activity, label: 'Visão geral', tip: 'Integração TARA', permission: 'balanca:pesagem:view', exact: true },
           { href: '/dashboard/operacional/balanca/operadores', icon: Users, label: 'Operadores', tip: 'Operadores integrados à TARA', permission: 'balanca:operador:view' },
           { href: '/dashboard/operacional/balanca/estacoes', icon: Smartphone, label: 'Estações', tip: 'Estações da TARA', permission: 'balanca:dispositivo:view' },
           { href: '/dashboard/operacional/balanca/pesagens', icon: Scale, label: 'Pesagens', tip: 'Consulta de pesagens', permission: 'balanca:pesagem:view' },
@@ -423,7 +421,7 @@ export const MODULOS_OPERACIONAIS: SidebarModuleGroup[] = [
         label: 'Dashboard',
         icon: LayoutDashboard,
         items: [
-          { href: '/dashboard/financeiro', icon: LayoutDashboard, label: 'Painel Financeiro', tip: 'Dashboard', permission: 'financeiro:dashboard:view' },
+          { href: '/dashboard/financeiro', icon: LayoutDashboard, label: 'Painel Financeiro', tip: 'Dashboard', permission: 'financeiro:dashboard:view', exact: true },
         ],
       },
       {
@@ -556,7 +554,7 @@ export const MODULOS_OPERACIONAIS: SidebarModuleGroup[] = [
         label: 'Dashboard',
         icon: LayoutDashboard,
         items: [
-          { href: '/dashboard/ambiental', icon: LayoutDashboard, label: 'Painel Ambiental', tip: 'Dashboard', permission: 'ambiental:dashboard:view' },
+          { href: '/dashboard/ambiental', icon: LayoutDashboard, label: 'Painel Ambiental', tip: 'Dashboard', permission: 'ambiental:dashboard:view', exact: true },
         ],
       },
       {
@@ -598,7 +596,7 @@ export const MODULOS_OPERACIONAIS: SidebarModuleGroup[] = [
         label: 'Dashboard',
         icon: LayoutDashboard,
         items: [
-          { href: '/dashboard/ia', icon: LayoutDashboard, label: 'Painel de IA', tip: 'Dashboard', permission: 'ia:dashboard:view' },
+          { href: '/dashboard/ia', icon: LayoutDashboard, label: 'Painel de IA', tip: 'Dashboard', permission: 'ia:dashboard:view', exact: true },
           { href: '/dashboard/inteligencia-operacional/recomendacoes', icon: BrainCircuit, label: 'Recomendações Operacionais', tip: 'Engine global', permission: 'ia:recomendacoes:view' },
         ],
       },

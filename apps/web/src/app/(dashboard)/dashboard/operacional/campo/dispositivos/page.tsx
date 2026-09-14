@@ -17,7 +17,7 @@ export default function DispositivosPage() {
         description="Gerencie tablets e celulares dos operadores de campo."
         icon={<Smartphone className="size-5 text-primary" />}
         breadcrumbs={[
-          { label: "Operacional", href: "/dashboard/operacional" },
+          { label: "Operacional", href: "/operacional" },
           { label: "Campo", href: "/dashboard/operacional/campo/tarefas" },
           { label: "Dispositivos" },
         ]}

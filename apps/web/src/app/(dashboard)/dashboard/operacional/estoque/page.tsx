@@ -107,7 +107,7 @@ export default function EstoquePage() {
                 title="Estoque"
                 description="Saldos, movimentações e alertas de estoque"
                 icon={<Package className="text-primary" size={22} />}
-                breadcrumbs={[{ label: "Operacional", href: "/dashboard/operacional" }, { label: "Estoque" }]}
+                breadcrumbs={[{ label: "Operacional", href: "/operacional" }, { label: "Estoque" }]}
                 actions={
                     <div className="flex gap-2">
                         <Button variant="outline" size="sm" className="rounded-sm" onClick={() => setShowDepDialog(true)}>

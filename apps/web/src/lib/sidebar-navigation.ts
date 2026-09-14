@@ -34,6 +34,7 @@ export type ToggleState = "auto" | "open" | "closed";
 
 const MODULE_PATHS: ReadonlyArray<readonly [string, SidebarModuleKey]> = [
   ["/dashboard/operacional/campo", "CAMPO"],
+  ["/dashboard/operacional/manutencoes", "O1-FROTA"],
   ["/dashboard/operacional/frota", "O1-FROTA"],
   ["/operacional", "O1-FROTA"],
   ["/suprimentos", "O1"],

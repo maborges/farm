@@ -128,6 +128,11 @@ test.describe("resolveMostSpecificMatch", () => {
 // ─── getActiveSectionFromPath ────────────────────────────────────────────────
 
 test.describe("getActiveSectionFromPath", () => {
+  test("Frota: /dashboard/operacional/manutencoes keeps O1-FROTA active", () => {
+    expect(getSidebarModuleFromPath("/dashboard/operacional/manutencoes")).toBe("O1-FROTA");
+    expect(getActiveSectionFromPath("O1-FROTA", "/dashboard/operacional/manutencoes", new URLSearchParams())).toBe("O1-manutencao");
+  });
+
   test("Agricultura: /agricola/operacoes activates A1-execucao, NOT A1-visao-geral", () => {
     const result = getActiveSectionFromPath(
       "A1",
@@ -288,6 +293,12 @@ test.describe("getActiveSectionFromPath", () => {
       new URLSearchParams()
     );
     expect(result).toBe("A1-visao-geral");
+  });
+});
+
+test.describe("isItemActive", () => {
+  test("does not activate a parent route when exact is requested", () => {
+    expect(isItemActive("/dashboard/operacional/frota", "/dashboard/operacional/frota/consumo", new URLSearchParams(), true)).toBe(false);
   });
 });
 

@@ -9,8 +9,9 @@ import uuid
 import hashlib
 import time
 import asyncio
+from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import text, select
+from sqlalchemy import text, select, update
 from sqlalchemy.exc import SQLAlchemyError
 from core.database import async_session_maker, DB_URL
 
@@ -216,17 +217,33 @@ async def get_current_user_claims(
     if cached is False:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Sessão encerrada ou revogada")
 
-    if cached is None:
+    # Sessões válidas precisam consultar expira_em em cada requisição; cachear
+    # o resultado positivo permitiria ultrapassar o timeout configurado.
+    if cached is not False:
         from core.models.sessao import SessaoAtiva
         try:
             result = await session.execute(
-                select(SessaoAtiva.status).where(SessaoAtiva.token_hash == token_hash)
+                select(SessaoAtiva.status, SessaoAtiva.expira_em).where(
+                    SessaoAtiva.token_hash == token_hash
+                )
             )
-            sessao_status = result.scalar_one_or_none()
+            sessao = result.one_or_none()
+            sessao_status = sessao[0] if sessao else None
 
             if sessao_status is not None and sessao_status != "ATIVA":
                 _cache_set(token_hash, False)
                 raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Sessão encerrada ou revogada")
+
+            expiracao = sessao[1] if sessao else None
+            if expiracao is not None and expiracao.tzinfo is None:
+                expiracao = expiracao.replace(tzinfo=timezone.utc)
+            if expiracao is not None and expiracao <= datetime.now(timezone.utc):
+                await session.execute(
+                    update(SessaoAtiva).where(SessaoAtiva.token_hash == token_hash).values(status="EXPIRADA")
+                )
+                await session.commit()
+                _cache_set(token_hash, False)
+                raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Sessão expirada por inatividade")
 
             _cache_set(token_hash, True)
         except (asyncio.TimeoutError, OSError, SQLAlchemyError) as exc:

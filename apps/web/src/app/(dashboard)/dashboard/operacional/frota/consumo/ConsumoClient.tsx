@@ -54,7 +54,7 @@ export function ConsumoClient({ initialData, serverFazendaId }: ConsumoClientPro
         description="Inteligência operacional de abastecimento com eficiência por equipamento, custos e alertas de anomalia."
         icon={<Droplets className="text-primary" size={22} />}
         breadcrumbs={[
-          { label: "Operacional", href: "/dashboard/operacional" },
+          { label: "Operacional", href: "/operacional" },
           { label: "Frota", href: "/dashboard/operacional/frota" },
           { label: "Consumo" },
         ]}

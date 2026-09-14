@@ -142,6 +142,9 @@ export default function SaaSConfigPage() {
         max_tentativas: 5,
         tempo_bloqueio_minutos: 15
     };
+    const sessaoLocal = localConfigs["sessao"] || {
+        tempo_inatividade_minutos: 30
+    };
 
     // Se não houver configs, usa valores padrão
     const configsExist = configs && configs.length > 0;
@@ -273,6 +276,32 @@ export default function SaaSConfigPage() {
                                 </Button>
                             </CardFooter>
                         </Card>
+                        <Card>
+                            <CardHeader className="border-b border-muted/20 bg-muted/10">
+                                <CardTitle className="flex items-center gap-2">
+                                    <Shield className="size-4 text-primary" />
+                                    Sessão da aplicação
+                                </CardTitle>
+                                <CardDescription className="text-xs">Desconexão automática por inatividade no frontend</CardDescription>
+                            </CardHeader>
+                            <CardContent className="pt-6 space-y-2">
+                                <Label className="text-[11px] uppercase font-bold text-muted-foreground">Tempo Inatividade (min)</Label>
+                                <Input
+                                    type="number"
+                                    min="1"
+                                    max="1440"
+                                    value={sessaoLocal.tempo_inatividade_minutos}
+                                    onChange={(e) => handleValueChange("sessao", "tempo_inatividade_minutos", parseInt(e.target.value) || 30)}
+                                    className="text-sm tabular-nums"
+                                />
+                            </CardContent>
+                            <CardFooter className="flex justify-end border-t py-4 bg-muted/10">
+                                <Button size="sm" onClick={() => updateMutation.mutate({ chave: "sessao", valor: sessaoLocal })} disabled={updateMutation.isPending}>
+                                    {updateMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />}
+                                    Salvar
+                                </Button>
+                            </CardFooter>
+                        </Card>
 
                         {/* STRIPE */}
                         <Card>
@@ -383,7 +412,7 @@ export default function SaaSConfigPage() {
                                 </div>
 
                                 <div className="space-y-2">
-                                    <Label className="text-[11px] uppercase font-bold text-muted-foreground">Tempo Bloqueio (min)</Label>
+                                    <Label className="text-[11px] uppercase font-bold text-muted-foreground">Tempo Bloqueio por Tentativas (min)</Label>
                                     <Input
                                         type="number"
                                         min="1"

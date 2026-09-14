@@ -11,6 +11,7 @@ import { FazendaPermissionSync } from "@/components/auth/fazenda-permission-sync
 import { RecentNavigationTracker } from "@/components/layout/recent-navigation-tracker";
 import { NavigationShortcuts } from "@/components/layout/navigation-shortcuts";
 import { ServiceWorkerRegistration } from "@/components/pwa/service-worker-registration";
+import { SessionIdleGuard } from "@/components/auth/session-idle-guard";
 import { OfflineStatus } from "@/components/pwa/offline-status";
 import { cookies } from "next/headers";
 
@@ -36,6 +37,7 @@ export default async function DashboardLayout({
                             tenantIdFromCookie={tenantIdFromCookie}
                             fazendaIdFromCookie={fazendaIdFromCookie}
                         />
+                        <SessionIdleGuard />
                         <FazendasSync />
                         <TenantTabSyncWarning />
                         <FazendaPermissionSync />

@@ -111,7 +111,7 @@ export function FrotaClient({ initialData, serverFazendaId }: FrotaClientProps) 
         title="Painel Executivo da Frota"
         description="Visão consolidada de custos, ordens de serviço, manutenção, abastecimento e risco operacional."
         icon={<Tractor className="text-primary" size={22} />}
-        breadcrumbs={[{ label: "Operacional", href: "/dashboard/operacional" }, { label: "Frota" }]}
+        breadcrumbs={[{ label: "Operacional", href: "/operacional" }, { label: "Frota" }]}
         actions={
           <FrotaToolbar
             hasProfessionalTier={hasProfessionalTier}

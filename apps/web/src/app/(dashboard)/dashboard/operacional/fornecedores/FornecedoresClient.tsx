@@ -134,7 +134,7 @@ export function FornecedoresClient({ initialData }: { initialData: Fornecedor[] 
                 title="Fornecedores"
                 description="Cadastro de fornecedores e parceiros comerciais."
                 icon={<Users className="text-primary" size={22} />}
-                breadcrumbs={[{ label: "Operacional", href: "/dashboard/operacional" }, { label: "Fornecedores" }]}
+                breadcrumbs={[{ label: "Operacional", href: "/operacional" }, { label: "Fornecedores" }]}
                 actions={
                     <Button variant="outline" size="sm" onClick={() => setShowDialog(true)} aria-label="Adicionar novo fornecedor">
                         <Plus data-icon="inline-start" className="size-3.5" /> Novo fornecedor

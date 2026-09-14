@@ -66,7 +66,7 @@ export default function MovimentacoesPage() {
                 title="Movimentações de Estoque"
                 description="Histórico completo de entradas, saídas, transferências e ajustes"
                 icon={<Activity className="text-primary" size={22} />}
-                breadcrumbs={[{ label: "Operacional", href: "/dashboard/operacional" }, { label: "Estoque", href: "/dashboard/operacional/estoque" }, { label: "Movimentações" }]}
+                breadcrumbs={[{ label: "Operacional", href: "/operacional" }, { label: "Estoque", href: "/dashboard/operacional/estoque" }, { label: "Movimentações" }]}
             />
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

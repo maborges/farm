@@ -18,6 +18,7 @@ from core.models.billing import AssinaturaTenant, PlanoAssinatura, Fatura
 from core.schemas.auth_schemas import LoginRequest, UserCreateRequest, TenantAcessoResponse, UnidadeProdutivaAcessoResponse as FazendaAcessoResponse, PerfilSimplesResponse, UsuarioMeResponse
 from core.config import settings
 from core.services.login_rate_limit_service import LoginRateLimitService
+from core.services.session_timeout_service import get_session_idle_minutes, session_expiration
 from core.services.email_service import email_service, SMTPPlatformConfigNotFoundError
 from core.utils.cpf_cnpj import normalizar_documento_opcional, validar_cpf_ou_cnpj
 
@@ -290,6 +291,7 @@ class AuthService:
 
             token_hash = hashlib.sha256(access_token.encode()).hexdigest()
             agora = datetime.now(timezone.utc)
+            idle_minutes = await get_session_idle_minutes(self.session)
 
             self.session.add(SessaoAtiva(
                 tenant_id=uuid.UUID(default_tenant_id),
@@ -299,7 +301,7 @@ class AuthService:
                 user_agent=user_agent,
                 inicio=agora,
                 ultimo_heartbeat=agora,
-                expira_em=agora + timedelta(minutes=30),
+                expira_em=session_expiration(agora, idle_minutes),
                 status="ATIVA",
             ))
             await self.session.commit()
@@ -404,6 +406,7 @@ class AuthService:
         import hashlib
         token_hash = hashlib.sha256(access_token.encode()).hexdigest()
         agora = datetime.now(timezone.utc)
+        idle_minutes = await get_session_idle_minutes(self.session)
         self.session.add(SessaoAtiva(
             tenant_id=tenant_id,
             usuario_id=user_id,
@@ -412,7 +415,7 @@ class AuthService:
             user_agent=user_agent,
             inicio=agora,
             ultimo_heartbeat=agora,
-            expira_em=agora + timedelta(minutes=30),
+            expira_em=session_expiration(agora, idle_minutes),
             status="ATIVA",
         ))
         await self.session.commit()

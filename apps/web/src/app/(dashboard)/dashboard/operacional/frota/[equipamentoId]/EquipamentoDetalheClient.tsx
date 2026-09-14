@@ -149,7 +149,7 @@ export function EquipamentoDetalheClient({
         description="Drill-down operacional com custos, consumo, ordens de serviço, manutenção, documentos e alertas."
         icon={<Tractor className="text-primary" size={22} />}
         breadcrumbs={[
-          { label: "Operacional", href: "/dashboard/operacional" },
+          { label: "Operacional", href: "/operacional" },
           { label: "Frota", href: "/dashboard/operacional/frota" },
           { label: data?.equipamento.nome ?? "Detalhe" },
         ]}

@@ -95,7 +95,7 @@ export function ManutencoesClient({
                 title="Manutenções & Oficina"
                 description="Gestão de ordens de serviço e histórico de manutenção da frota."
                 icon={<Wrench className="text-primary" size={22} />}
-                breadcrumbs={[{ label: "Operacional", href: "/dashboard/operacional" }, { label: "Frota", href: "/dashboard/operacional/frota" }, { label: "Manutenções" }]}
+                breadcrumbs={[{ label: "Operacional", href: "/operacional" }, { label: "Frota", href: "/dashboard/operacional/frota" }, { label: "Manutenções" }]}
                 actions={
                     <Button variant="outline" size="sm" className="rounded-sm" onClick={() => setShowOsDialog(true)}>
                         <Plus className="size-3.5 mr-2" /> Nova OS
