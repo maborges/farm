@@ -278,7 +278,7 @@ export default function SessionsBackofficePage() {
                             <Users size={24} />
                         </div>
                         <div>
-                            <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Tenants com Sessão</p>
+                            <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">Produtores com sessão</p>
                             <p className="text-2xl font-black">{stats ? Object.keys(stats.por_tenant).length : 0}</p>
                         </div>
                     </CardContent>

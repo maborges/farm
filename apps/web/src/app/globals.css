@@ -549,6 +549,83 @@
   animation-delay: 3s;
 }
 
+/* ─── Premium landing motion ────────────────────────────────────── */
+@keyframes landing-hero-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes landing-hero-card {
+  0%, 100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-5px) rotate(0.15deg);
+  }
+}
+
+@keyframes landing-status-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 hsl(var(--primary) / 0.16);
+  }
+  50% {
+    box-shadow: 0 0 0 5px hsl(var(--primary) / 0);
+  }
+}
+
+.landing-hero-reveal {
+  opacity: 0;
+  animation: landing-hero-reveal 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.landing-hero-badge { animation-delay: 80ms; }
+.landing-hero-title { animation-delay: 160ms; }
+.landing-hero-copy { animation-delay: 240ms; }
+.landing-hero-actions { animation-delay: 320ms; }
+.landing-hero-proof { animation-delay: 400ms; }
+
+.landing-hero-card {
+  animation: landing-hero-reveal 0.8s 180ms cubic-bezier(0.16, 1, 0.3, 1) both,
+    landing-hero-card 7s 1.2s ease-in-out infinite;
+}
+
+.landing-status-pulse {
+  animation: landing-status-pulse 2.4s ease-in-out infinite;
+}
+
+.landing-proof-card {
+  transition: transform 220ms ease, border-color 220ms ease, box-shadow 220ms ease;
+}
+
+.landing-proof-card:hover {
+  transform: translateY(-2px);
+  border-color: hsl(var(--primary) / 0.35);
+  box-shadow: 0 8px 20px hsl(var(--primary) / 0.08);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-hero-reveal,
+  .landing-hero-card,
+  .landing-status-pulse,
+  .float-glow,
+  .float-glow-delayed,
+  .marquee-track {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+
+  .landing-proof-card {
+    transition: none;
+  }
+}
+
 /* ─── Gradient border for featured cards ─────────────────────────── */
 .gradient-border {
   position: relative;

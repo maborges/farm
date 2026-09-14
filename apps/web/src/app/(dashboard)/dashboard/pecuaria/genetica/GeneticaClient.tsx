@@ -94,7 +94,7 @@ export default function GeneticaClient() {
   });
 
   if (!hasModule) {
-    return <Card><CardContent className="py-10 text-center text-sm text-muted-foreground">O módulo de genética não está contratado para este tenant.</CardContent></Card>;
+    return <Card><CardContent className="py-10 text-center text-sm text-muted-foreground">O módulo de genética não está contratado para este produtor.</CardContent></Card>;
   }
 
   const pct = (value?: number | null) => `${Number(value ?? 0).toFixed(1)}%`;

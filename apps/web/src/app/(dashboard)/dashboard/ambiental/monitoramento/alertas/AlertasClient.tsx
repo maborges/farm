@@ -211,7 +211,7 @@ export function AlertasClient({ initialData }: { initialData: Alerta[] }) {
                         <div className="py-10 flex flex-col items-center gap-2 text-center">
                             <XCircle size={32} className="text-destructive/70" />
                             <p className="text-sm font-medium">Não foi possível carregar os alertas.</p>
-                            <p className="text-xs text-muted-foreground">Atualize a página ou verifique sua sessão e o tenant selecionado.</p>
+                            <p className="text-xs text-muted-foreground">Atualize a página ou verifique sua sessão e o produtor selecionado.</p>
                         </div>
                     ) : alertas.length === 0 ? (
                         <div className="py-10 flex flex-col items-center gap-2">

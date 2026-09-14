@@ -85,7 +85,7 @@ export default function BackofficeDashboardPage() {
                 <Card className="border-l-[3px] border-l-primary">
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle className="text-[10px] font-black uppercase text-muted-foreground">
-                            Contas Ativas
+                            Produtores ativos
                         </CardTitle>
                         <Building2 className="size-4 text-blue-500" />
                     </CardHeader>

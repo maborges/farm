@@ -122,7 +122,7 @@ const STATUS_META: Record<
   NOT_STARTED: {
     label: "Não iniciado",
     className: "border-slate-300 bg-slate-100 text-slate-700",
-    description: "A implantação ainda não foi aberta para este tenant.",
+    description: "A implantação ainda não foi aberta para este produtor.",
   },
   IN_PROGRESS: {
     label: "Em progresso",
@@ -650,7 +650,7 @@ export function WizardClient() {
 
   if (status) {
     initialNodes.push(createNode("node-base", 0, 450, null, {
-      title: "Tenant Base Ativo",
+      title: "Produtor base ativo",
       description: `Implantação ID: ${status.implantacao_id.substring(0, 8)}...`,
       status: "COMPLETED"
     }));
@@ -677,7 +677,7 @@ export function WizardClient() {
         description:
           statusLoadStrategy === "ERP"
             ? "Configure a carga inicial e valide os cadastros importados antes do fluxo operacional."
-            : "Integração prevista para este tenant. Revise credenciais e escopo de carga.",
+            : "Integração prevista para este produtor. Revise credenciais e escopo de carga.",
         status: statusLoadStrategy === "ERP" ? "COMPLETED" : "ACTIVE",
         link: "/dashboard/settings/integracoes/erp",
         actionLabel: statusLoadStrategy === "ERP" ? "Validar integração" : "Configurar integração",
@@ -755,7 +755,7 @@ export function WizardClient() {
       <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
         <PageHeader
           title="Wizard de Implantação"
-          description="Fluxo de ativação operacional do Tenant."
+          description="Fluxo de ativação operacional do produtor."
           icon={<Sparkles className="size-5" />}
           breadcrumbs={[
             { label: "Dashboard", href: "/dashboard" },

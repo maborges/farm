@@ -32,8 +32,8 @@ export function TenantTabSyncWarning() {
             }
 
             if (novoTenantId && tenantIdRef.current && novoTenantId !== tenantIdRef.current) {
-                toast.warning("Tenant alterado em outra aba", {
-                    description: "Esta aba ainda está no tenant anterior. Recarregue para evitar erros de acesso.",
+                toast.warning("Produtor alterado em outra aba", {
+                    description: "Esta aba ainda está no produtor anterior. Recarregue para evitar erros de acesso.",
                     duration: 15_000,
                     action: {
                         label: "Recarregar",

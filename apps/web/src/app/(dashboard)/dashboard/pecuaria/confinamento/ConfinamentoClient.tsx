@@ -62,7 +62,7 @@ export default function ConfinamentoClient() {
   const createRacao = useMutation({ mutationFn: (payload: Record<string, unknown>) => apiFetch("/pecuaria/confinamento/racoes", { method: "POST", body: JSON.stringify(payload) }), onSuccess: () => { qc.invalidateQueries({ queryKey: ["pecuaria", "confinamento"] }); setRacaoOpen(false); toast.success("Ração criada"); } });
   const createCocho = useMutation({ mutationFn: (payload: Record<string, unknown>) => apiFetch("/pecuaria/confinamento/cochos", { method: "POST", body: JSON.stringify(payload) }), onSuccess: () => { qc.invalidateQueries({ queryKey: ["pecuaria", "confinamento"] }); setCochoOpen(false); toast.success("Cocho criado"); } });
 
-  if (!hasModule) return <div className="p-6"><Card><CardContent className="py-10 text-center text-sm text-muted-foreground">O módulo de confinamento não está contratado para este tenant.</CardContent></Card></div>;
+  if (!hasModule) return <div className="p-6"><Card><CardContent className="py-10 text-center text-sm text-muted-foreground">O módulo de confinamento não está contratado para este produtor.</CardContent></Card></div>;
 
   return (
     <div className="p-6 space-y-6">

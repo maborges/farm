@@ -17,7 +17,7 @@ export function CulturasClient() {
         <div>
           <h1 className="text-xl font-semibold">Culturas do Sistema</h1>
           <p className="text-sm text-muted-foreground">
-            Gerencie as culturas globais disponíveis para todos os tenants
+            Gerencie as culturas globais disponíveis para todos os produtores
           </p>
         </div>
       </div>

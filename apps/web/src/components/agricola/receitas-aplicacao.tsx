@@ -172,7 +172,7 @@ function ReceitaFormDialog({ open, onClose, receita }: { open: boolean; onClose:
                                     <div className="grid gap-1.5">
                                         <FieldLabel
                                             label="Produto"
-                                            help="Produto do catálogo (cadastros/produtos) que será usado como insumo. A busca considera produtos do sistema e do seu tenant."
+                                            help="Produto do catálogo (cadastros/produtos) que será usado como insumo. A busca considera produtos do sistema e do seu produtor."
                                         />
                                         <ProdutoCombobox
                                             value={insumo.produto_id}

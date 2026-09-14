@@ -42,6 +42,26 @@ class PlanoAssinaturaResponse(PlanoAssinaturaBase):
 
     model_config = ConfigDict(from_attributes=True)
 
+
+class LandingPlanoResponse(BaseModel):
+    """Dados comerciais publicados no catálogo público da landing page."""
+
+    id: uuid.UUID
+    nome: str
+    descricao: Optional[str] = None
+    descricao_marketing: Optional[str] = None
+    modulos_inclusos: List[str] = []
+    preco_mensal: float = 0.0
+    preco_anual: float = 0.0
+    plan_tier: str = "BASICO"
+    tem_trial: bool = True
+    dias_trial: int = 15
+    is_free: bool = False
+    destaque: bool = False
+    ordem: int = 0
+
+    model_config = ConfigDict(from_attributes=True)
+
 class FaturaResponse(BaseModel):
     id: uuid.UUID
     tenant_id: uuid.UUID

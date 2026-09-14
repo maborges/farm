@@ -9,7 +9,7 @@ from core.models.tenant import Tenant
 from core.models.billing import AssinaturaTenant, PlanoAssinatura, Fatura
 from core.models.unidade_produtiva import UnidadeProdutiva as Fazenda
 from core.models.auth import TenantUsuario
-from core.schemas.billing_schemas import FaturaResponse, PlanoAssinaturaResponse
+from core.schemas.billing_schemas import FaturaResponse, LandingPlanoResponse, PlanoAssinaturaResponse
 from core.services.storage_service import StorageService, increment_storage
 
 router = APIRouter(prefix="/billing", tags=["Billing / Conta"])
@@ -207,6 +207,21 @@ async def register_payment_proof(
 async def list_available_plans(session: AsyncSession = Depends(get_session)):
     """Lista todos os pacotes de assinatura ativos."""
     stmt = select(PlanoAssinatura).where(PlanoAssinatura.ativo == True).order_by(PlanoAssinatura.preco_mensal.asc())
+    result = await session.execute(stmt)
+    return result.scalars().all()
+
+
+@router.get("/plans/landing", response_model=List[LandingPlanoResponse])
+async def list_landing_plans(session: AsyncSession = Depends(get_session)):
+    """Lista somente planos ativos e explicitamente publicados no site."""
+    stmt = (
+        select(PlanoAssinatura)
+        .where(
+            PlanoAssinatura.ativo.is_(True),
+            PlanoAssinatura.disponivel_site.is_(True),
+        )
+        .order_by(PlanoAssinatura.ordem.asc(), PlanoAssinatura.preco_mensal.asc())
+    )
     result = await session.execute(stmt)
     return result.scalars().all()
 

@@ -61,7 +61,7 @@ export function SankhyaPeoplePreview({
         <CardTitle className="flex items-center gap-2 text-base">
           <Users className="h-4 w-4" /> Pessoas recebidas do Sankhya
         </CardTitle>
-        <CardDescription>Últimos registros persistidos pelo conector neste tenant.</CardDescription>
+        <CardDescription>Últimos registros persistidos pelo conector neste produtor.</CardDescription>
       </CardHeader>
       <CardContent>
         {state.kind === "loading" ? (

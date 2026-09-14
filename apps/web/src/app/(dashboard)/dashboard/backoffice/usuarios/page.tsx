@@ -153,7 +153,7 @@ export default function UsersBackofficePage() {
         },
         {
             id: "vinculos",
-            header: "Vínculos (Tenants)",
+            header: "Vínculos (Produtores)",
             accessorFn: (user) => user.tenants.join(", "),
             cell: (value, user) => (
                 <div className="flex flex-wrap gap-1">
@@ -168,7 +168,7 @@ export default function UsersBackofficePage() {
                     )}
                 </div>
             ),
-            filterPlaceholder: "Filtrar por tenant...",
+            filterPlaceholder: "Filtrar por produtor...",
             exportFormat: (value, user) => user.tenants.join(", ")
         },
         {
@@ -375,7 +375,7 @@ export default function UsersBackofficePage() {
                         <div className="rounded-md bg-amber-500/10 border border-amber-500/20 p-3 flex gap-2">
                             <AlertTriangle className="size-4 text-amber-500 flex-shrink-0 mt-0.5" />
                             <p className="text-xs text-amber-600 dark:text-amber-400">
-                                Este usuário é proprietário de um tenant. O reset de senha pode afetar o acesso dele à plataforma.
+                                Este usuário é proprietário de um produtor. O reset de senha pode afetar o acesso dele à plataforma.
                             </p>
                         </div>
                     )}

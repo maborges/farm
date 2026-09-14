@@ -84,7 +84,7 @@ export default function InteligenciaDashboardClient() {
                         <CardTitle className="text-destructive">Erro na Inteligência Climática</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-2 text-sm text-muted-foreground">
-                        <p>Tenant: {useAppStore.getState().tenant?.id ?? "não informado"}</p>
+                        <p>Produtor: {useAppStore.getState().tenant?.id ?? "não informado"}</p>
                         <p>Unidade produtiva: {activeFazendaId ?? "não informada"}</p>
                         <p>{inteligenciaError instanceof Error ? inteligenciaError.message : "Erro desconhecido ao carregar os dados avançados."}</p>
                     </CardContent>

@@ -136,7 +136,7 @@ export const useAppStore = create<AppState>()(
                     const assinaturas = (response.tenants || []).map((t) => ({
                         tenant_id: t.tenant_id,
                         tenant_nome: t.nome_tenant,
-                        plano_nome: t.perfil?.nome ?? "Tenant",
+                        plano_nome: t.perfil?.nome ?? "Produtor",
                         plano_tier: t.plan_tier ?? "BASICO",
                         status: t.is_owner ? "ATIVA" : "VINCULADO",
                         total_fazendas: t.fazendas?.length ?? 0,
@@ -169,7 +169,7 @@ export const useAppStore = create<AppState>()(
                     const profile = await apiFetch<AuthProfileResponse>("/auth/me");
                     const tenantAtual = profile.tenants.find((t) => t.tenant_id === tenantId);
                     if (!tenantAtual) {
-                        throw new Error("Tenant selecionado não encontrado no perfil atualizado.");
+                        throw new Error("Produtor selecionado não encontrado no perfil atualizado.");
                     }
 
                     const { setAuthCookies } = await import("@/app/actions/auth");

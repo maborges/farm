@@ -118,7 +118,7 @@ export function TabRelacionamentos({ pessoaId, relacionamentos }: Props) {
               </SelectContent>
             </Select>
             {unidadesProdutivas.length === 0 && (
-              <p className="text-xs text-muted-foreground">Nenhuma unidade produtiva disponível neste tenant.</p>
+              <p className="text-xs text-muted-foreground">Nenhuma unidade produtiva disponível neste produtor.</p>
             )}
           </div>
           <div className="flex justify-end gap-2 pt-1">

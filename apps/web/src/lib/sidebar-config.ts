@@ -736,7 +736,7 @@ export const SETTINGS_ITEMS: SidebarMenuItem[] = [
   { href: '/dashboard/settings/tenant', icon: Landmark, label: 'Meu Produtor', tip: 'Dados do Produtor', permission: 'tenant:settings:view' },
   { href: '/dashboard/implantacao/wizard', icon: Settings2, label: 'Wizard de Implantação', tip: 'Implantação operacional assistida', permission: 'tenant:settings:view' },
   { href: '/dashboard/configuracoes/globais', icon: Hash, label: 'Configurações Globais', tip: 'Ano agrícola, unidades, categorias e códigos de referência', permission: 'tenant:settings:view' },
-  { href: '/dashboard/settings/integracoes/erp', icon: ArrowLeftRight, label: 'Integrações ERP', tip: 'Configuração ERP do tenant', permission: 'integrations:view' },
+  { href: '/dashboard/settings/integracoes/erp', icon: ArrowLeftRight, label: 'Integrações ERP', tip: 'Configuração ERP do produtor', permission: 'integrations:view' },
   { href: '/dashboard/settings/integracoes/clima/openweather', icon: CloudSun, label: 'OpenWeather', tip: 'Configuração climática', permission: 'integrations:view' },
   { href: '/dashboard/settings/billing', icon: CreditCard, label: 'Assinatura e Pagamentos', tip: 'Assinatura', permission: 'tenant:billing:view' },
   { href: '/dashboard/settings/ia', icon: BrainCircuit, label: 'Uso de IA', tip: 'Inteligência Artificial', permission: 'tenant:billing:view' },

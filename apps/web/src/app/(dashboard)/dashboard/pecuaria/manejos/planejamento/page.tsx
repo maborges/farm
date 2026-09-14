@@ -750,7 +750,7 @@ export default function PlanejamentoManejosPage() {
             <Card className="rounded-sm shadow-sm">
               <CardHeader className="space-y-1 border-b border-border-subtle">
                 <CardTitle className="text-base">Planejamentos recentes</CardTitle>
-                <CardDescription>Últimas tarefas programadas do tenant na fazenda ativa.</CardDescription>
+                <CardDescription>Últimas tarefas programadas do produtor na fazenda ativa.</CardDescription>
               </CardHeader>
               <CardContent className="p-0">
                 {planejadosQuery.isLoading ? (

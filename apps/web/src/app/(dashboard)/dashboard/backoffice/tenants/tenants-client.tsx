@@ -205,7 +205,7 @@ function TenantDetailsDialog({
                             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                                 <Card className="rounded-sm border bg-background">
                                     <CardContent className="p-3">
-                                        <p className="text-[10px] uppercase text-muted-foreground">Tenant</p>
+                                        <p className="text-[10px] uppercase text-muted-foreground">Produtor</p>
                                         <p className="truncate text-sm font-semibold">{details.tenant.nome}</p>
                                     </CardContent>
                                 </Card>
@@ -372,7 +372,7 @@ function TenantDetailsDialog({
                                                             </div>
                                                             <p className="text-xs text-muted-foreground flex items-center gap-1">
                                                                 <Building2 className="size-3" />
-                                                                Escopo: <span className="font-medium text-foreground">Tenant raiz</span>
+                                                                Escopo: <span className="font-medium text-foreground">Produtor raiz</span>
                                                             </p>
                                                         </div>
 
@@ -735,7 +735,7 @@ export default function TenantsClient({ initialTenants, initialPlans }: TenantsC
             }),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["backoffice", "tenants"] });
-            toast.success("Tenant criado com sucesso!");
+            toast.success("Produtor criado com sucesso!");
             setShowCreateDialog(false);
             setCreateFormData({
                 nome_tenant: "",
@@ -754,7 +754,7 @@ export default function TenantsClient({ initialTenants, initialPlans }: TenantsC
                 dias_trial: 15
             });
         },
-        onError: (error: Error) => toast.error(error.message || "Erro ao criar tenant")
+        onError: (error: Error) => toast.error(error.message || "Erro ao criar produtor")
     });
 
     const assignPlanMutation = useMutation({
@@ -959,7 +959,7 @@ export default function TenantsClient({ initialTenants, initialPlans }: TenantsC
                                     <CardHeader className="pb-3">
                                         <CardTitle className="text-sm">Plano atual</CardTitle>
                                         <CardDescription className="text-xs">
-                                            Situação contratual já associada ao tenant.
+                                            Situação contratual já associada ao produtor.
                                         </CardDescription>
                                     </CardHeader>
                                     <CardContent className="grid gap-3">
@@ -975,7 +975,7 @@ export default function TenantsClient({ initialTenants, initialPlans }: TenantsC
                                                 </Badge>
                                             </div>
                                             <div className="rounded-sm border bg-muted/20 p-3">
-                                                <p className="text-[10px] uppercase text-muted-foreground">Tenant</p>
+                                                <p className="text-[10px] uppercase text-muted-foreground">Produtor</p>
                                                 <p className="text-sm font-medium">{selectedTenant?.nome}</p>
                                             </div>
                                         </div>
@@ -986,7 +986,7 @@ export default function TenantsClient({ initialTenants, initialPlans }: TenantsC
                                     <CardHeader className="pb-3">
                                         <CardTitle className="text-sm">Novo plano</CardTitle>
                                         <CardDescription className="text-xs">
-                                            Escolha um novo pacote para aplicar ao tenant.
+                                            Escolha um novo pacote para aplicar ao produtor.
                                         </CardDescription>
                                     </CardHeader>
                                     <CardContent className="grid gap-3">
@@ -1009,7 +1009,7 @@ export default function TenantsClient({ initialTenants, initialPlans }: TenantsC
                                         </div>
 
                                         <div className="rounded-sm border border-dashed bg-muted/10 p-3 text-xs text-muted-foreground">
-                                            Ao mudar o plano, módulos, limites e telemetria do tenant passam a seguir o contrato selecionado.
+                                            Ao mudar o plano, módulos, limites e telemetria do produtor passam a seguir o contrato selecionado.
                                         </div>
                                     </CardContent>
                                 </Card>
@@ -1241,7 +1241,7 @@ export default function TenantsClient({ initialTenants, initialPlans }: TenantsC
                                 !createFormData.plano_id
                             }
                         >
-                            {createTenantMutation.isPending ? "Criando..." : "Criar Tenant"}
+                            {createTenantMutation.isPending ? "Criando..." : "Criar produtor"}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

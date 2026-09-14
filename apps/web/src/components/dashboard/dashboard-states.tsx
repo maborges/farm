@@ -43,15 +43,15 @@ export function TenantSelectionPrompt() {
       <div className="w-full max-w-xl rounded-sm border border-border bg-card p-6 shadow-sm">
         <div className="space-y-2">
           <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-primary">Contexto pendente</p>
-          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Selecione o tenant ativo</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-foreground">Selecione o produtor ativo</h1>
           <p className="text-sm text-muted-foreground">
-            Sua conta tem acesso a mais de uma organização. Escolha qual tenant deve ser carregado antes de abrir o dashboard.
+            Sua conta tem acesso a mais de um produtor. Escolha qual produtor deve ser carregado antes de abrir o dashboard.
           </p>
         </div>
         <div className="mt-6 flex flex-wrap gap-3">
           <Link href="/selecionar-tenant">
             <Button size="sm" className="rounded-sm">
-              Escolher tenant
+              Escolher produtor
             </Button>
           </Link>
         </div>

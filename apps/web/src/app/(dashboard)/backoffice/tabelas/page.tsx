@@ -41,7 +41,7 @@ export default function BackofficeTabelasPage() {
     <div className="p-6 space-y-6">
       <PageHeader
         title="Tabelas Padrão do Sistema"
-        description="Registros globais disponíveis para consulta e uso em todos os tenants do sistema."
+        description="Registros globais disponíveis para consulta e uso em todos os produtores do sistema."
         breadcrumbs={[
           { label: "Backoffice", href: "/backoffice" },
           { label: "Tabelas Padrão" }

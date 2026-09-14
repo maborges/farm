@@ -185,7 +185,7 @@ export default function IACreditsAuditoriaPage() {
                     <div className="rounded-sm border border-border bg-card p-4 space-y-2">
                         <div className="flex items-center gap-2">
                             <Trophy className="size-3.5 text-amber-500" />
-                            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Top tenants por receita</p>
+                            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Top produtores por receita</p>
                         </div>
                         {resumoLoading ? (
                             <div className="space-y-1.5">
@@ -308,7 +308,7 @@ export default function IACreditsAuditoriaPage() {
                             <thead>
                                 <tr className="border-b border-border bg-muted/20">
                                     <th className="text-left px-4 py-2.5 font-semibold text-muted-foreground">Data</th>
-                                    <th className="text-left px-4 py-2.5 font-semibold text-muted-foreground">Tenant</th>
+                                    <th className="text-left px-4 py-2.5 font-semibold text-muted-foreground">Produtor</th>
                                     <th className="text-right px-4 py-2.5 font-semibold text-muted-foreground">Créditos</th>
                                     <th className="text-right px-4 py-2.5 font-semibold text-muted-foreground">Receita</th>
                                     <th className="text-right px-4 py-2.5 font-semibold text-muted-foreground">Custo</th>

@@ -428,7 +428,7 @@ export default function SolicitacoesPage() {
                                 <tr className="border-b border-border bg-muted/20">
                                     <th className="text-center px-4 py-2.5 font-semibold text-muted-foreground">Prioridade</th>
                                     <th className="text-left px-4 py-2.5 font-semibold text-muted-foreground">Data</th>
-                                    <th className="text-left px-4 py-2.5 font-semibold text-muted-foreground">Tenant</th>
+                                    <th className="text-left px-4 py-2.5 font-semibold text-muted-foreground">Produtor</th>
                                     <th className="text-right px-4 py-2.5 font-semibold text-muted-foreground">Créditos</th>
                                     <th className="text-right px-4 py-2.5 font-semibold text-muted-foreground">Valor</th>
                                     <th className="text-center px-4 py-2.5 font-semibold text-muted-foreground">Pagamento</th>

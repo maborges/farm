@@ -96,12 +96,12 @@ export default function SelectTenantPage() {
     if (isLoading && tenants.length === 0) {
         return (
             <AuthLayout
-                badgeLabel="Contexto multi-tenant"
-                title="Carregando seus tenants."
+                badgeLabel="Contexto do produtor"
+                title="Carregando seus produtores."
                 description="Estamos buscando as organizações vinculadas à sua conta para você escolher o contexto correto."
                 stats={[
                     { value: "1", label: "Conta autenticada" },
-                    { value: "0", label: "Tenant ativo" },
+                    { value: "0", label: "Produtor ativo" },
                     { value: "Seguro", label: "Troca de contexto" },
                 ]}
             >
@@ -116,10 +116,10 @@ export default function SelectTenantPage() {
         return (
             <AuthLayout
                 badgeLabel="Contexto automático"
-                title="Selecionando seu tenant."
+                title="Selecionando seu produtor."
                 description="Como você tem apenas uma organização vinculada, estamos abrindo o contexto automaticamente."
                 stats={[
-                    { value: "1", label: "Tenant disponível" },
+                    { value: "1", label: "Produtor disponível" },
                     { value: "Auto", label: "Seleção" },
                     { value: "Pronto", label: "Redirecionamento" },
                 ]}
@@ -133,18 +133,18 @@ export default function SelectTenantPage() {
 
     return (
         <AuthLayout
-            badgeLabel="Multi-tenant"
-            title="Escolha o tenant ativo."
-            description="Selecione a organização que você quer abrir agora. Você poderá trocar de contexto depois pelo topo do dashboard."
+            badgeLabel="Vários produtores"
+            title="Escolha o produtor ativo."
+            description="Selecione o produtor que você quer abrir agora. Você poderá trocar de contexto depois pelo topo do dashboard."
             stats={[
-                { value: String(tenants.length), label: "Organizações" },
+                { value: String(tenants.length), label: "Produtores" },
                 { value: "1", label: "Contexto por vez" },
                 { value: "Rápido", label: "Troca segura" },
             ]}
         >
             <div className="space-y-4">
                 <div className="rounded-sm border border-border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-                    Sua conta tem acesso a mais de um tenant. Escolher o contexto agora evita carregar dados do produtor errado.
+                    Sua conta tem acesso a mais de um produtor. Escolher o contexto agora evita carregar dados do produtor errado.
                 </div>
 
                 <div className="max-h-[420px] space-y-3 overflow-y-auto pr-1">
@@ -165,7 +165,7 @@ export default function SelectTenantPage() {
                                                 {tenant.nome_tenant}
                                             </h2>
                                             <Badge variant="outline" className="rounded-sm text-[10px] uppercase tracking-wider">
-                                                {tenant.perfil?.nome ?? "Tenant"}
+                                                {tenant.perfil?.nome ?? "Produtor"}
                                             </Badge>
                                         </div>
 

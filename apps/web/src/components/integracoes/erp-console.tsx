@@ -145,7 +145,7 @@ function formatLabel(value?: string | null) {
     NOT_CONFIGURED: "Não configurado",
     NONE: "Sem atualização",
     UNAVAILABLE: "Indisponível",
-    TENANT: "Tenant",
+    TENANT: "Produtor",
     ESTABELECIMENTO: "Estabelecimento",
   };
   if (translated[value]) {
@@ -922,7 +922,7 @@ export function ErpConsole() {
       await queryClient.refetchQueries({ queryKey: ["erp-status"] });
       toast({
         title: "ERP removido",
-        description: "A plataforma voltou ao estado sem ERP configurado para este tenant.",
+        description: "A plataforma voltou ao estado sem ERP configurado para este produtor.",
       });
     } catch (error) {
       const message =

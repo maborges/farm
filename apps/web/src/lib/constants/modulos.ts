@@ -1,5 +1,5 @@
 /**
- * Constantes de Módulos do AgroSaaS (Frontend)
+ * Constantes de Módulos da DeepFarms (Frontend)
  * DEVE estar sincronizado com services/api/core/constants.py
  */
 
@@ -82,8 +82,8 @@ export const ModuloMetadata: Record<
 > = {
   // CORE
   [Modulos.CORE]: {
-    nome: "Núcleo AgroSaaS",
-    descricao: "Multi-tenancy, GIS, RBAC, Offline-first",
+    nome: "Núcleo da plataforma",
+    descricao: "Produtores, mapas, permissões e operação offline",
     categoria: "CORE",
     cor: "bg-slate-500",
   },

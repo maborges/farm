@@ -45,6 +45,7 @@ import {
   Activity,
   HardDrive,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -54,6 +55,8 @@ import { LandingCarousel } from "@/components/landing/LandingCarousel";
 import { LandingFAQ } from "@/components/landing/LandingFAQ";
 import { CountUp } from "@/components/landing/CountUp";
 import { ThemeToggle } from "@/components/landing/ThemeToggle";
+import { apiFetchServer } from "@/lib/api-server";
+import { ModuloMetadata, Modulos, ModulosPorCategoria, normalizeModuleId, type ModuloId } from "@/lib/constants/modulos";
 
 /* ─────────────────── SEO ─────────────────── */
 export const metadata: Metadata = {
@@ -71,7 +74,7 @@ const trustBadges = [
   { icon: ShieldCheck, label: "SHA-256", description: "Criptografia de Dados" },
   { icon: FileCheck2, label: "Fairtrade Ready", description: "Auditoria Limpa" },
   { icon: LockKeyhole, label: "LGPD", description: "Privacidade e Proteção" },
-  { icon: Shield, label: "Multi-Tenant", description: "Isolamento Total" },
+  { icon: Shield, label: "Isolamento entre produtores", description: "Proteção total" },
   { icon: Smartphone, label: "PWA Offline", description: "Acesso sem Internet" },
 ];
 
@@ -225,7 +228,7 @@ const modules = [
 const differentiators = [
   {
     icon: Key,
-    title: "Segurança Multi-Tenant e RLS",
+    title: "Segurança e isolamento de dados",
     description: "Isolamento PostgreSQL (Row Level Security) e Keycloak, impedindo matematicamente o vazamento de dados entre fazendas.",
   },
   {
@@ -277,8 +280,8 @@ const complianceCards = [
   {
     icon: Shield,
     title: "LGPD",
-    subtitle: "Multi-Tenancy Isolado",
-    description: "Cada fazenda com dados cercados. Controle por papéis: Proprietário, Agrônomo, Gerente, Operador.",
+    subtitle: "Dados isolados por produtor",
+    description: "Cada produtor tem seus dados protegidos. Controle por papéis: Proprietário, Agrônomo, Gerente, Operador.",
     badge: "Compliance",
     color: "from-blue-500/15 to-blue-500/5" as const,
     iconColor: "text-blue-500" as const,
@@ -327,70 +330,111 @@ const testimonials = [
   },
 ];
 
-const plans = [
-  {
-    name: "Planejamento",
-    price: "R$ 79",
+interface LandingPlan {
+  id: string;
+  nome: string;
+  descricao?: string | null;
+  descricao_marketing?: string | null;
+  modulos_inclusos: string[];
+  preco_mensal: number;
+  preco_anual: number;
+  plan_tier: string;
+  tem_trial: boolean;
+  dias_trial: number;
+  is_free: boolean;
+  destaque: boolean;
+  ordem: number;
+}
+
+async function getLandingPlans(): Promise<LandingPlan[]> {
+  try {
+    return await apiFetchServer<LandingPlan[]>("/billing/plans/landing");
+  } catch {
+    return [];
+  }
+}
+
+function formatPlanPrice(plan: LandingPlan): { value: string; period: string } {
+  if (plan.is_free || plan.preco_mensal === 0) return { value: "Grátis", period: "" };
+  if (!plan.preco_mensal) return { value: "Sob consulta", period: "" };
+  return {
+    value: new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }).format(plan.preco_mensal),
     period: "/mês",
-    subtitle: "Para sair da planilha e organizar a operação base.",
-    badge: "Entrada rápida",
-    cta: "Começar grátis",
-    href: "/register",
-    features: [
-      "Planejamento operacional",
-      "Visão por safra e unidade",
-      "Caderno de campo básico",
-      "Cadastro de propriedades",
-      "Suporte por e-mail",
-    ],
-  },
-  {
-    name: "Profissional",
-    price: "R$ 249",
-    period: "/mês",
-    subtitle: "Controle real de custo, estoque e rotina gerencial.",
-    badge: "14 dias grátis",
-    cta: "Testar grátis por 14 dias",
-    href: "/register",
-    featured: true,
-    features: [
-      "Tudo do Planejamento +",
-      "Campo, estoque e financeiro integrados",
-      "DRE operacional por safra",
-      "Módulo de frota e manutenção",
-      "Copiloto IA financeiro",
-      "Simulação What-If",
-      "Suporte prioritário",
-    ],
-  },
-  {
-    name: "Enterprise",
-    price: "Sob consulta",
-    period: "",
-    subtitle: "Governança, multiunidade e integração consultiva.",
-    badge: "Escala e governança",
-    cta: "Falar com especialista",
-    href: "/login",
-    features: [
-      "Tudo do Profissional +",
-      "Polígonos GeoJSON (EUDR)",
-      "Assinaturas EPI offline",
-      "SHA-256 + QR Code",
-      "Bloqueio preventivo",
-      "Multi-unidade e holdings",
-      "Onboarding e SLA dedicados",
-    ],
-  },
+  };
+}
+
+function getPlanFeatures(plan: LandingPlan): string[] {
+  const names = plan.modulos_inclusos
+    .map((moduleId) => ModuloMetadata[normalizeModuleId(moduleId)]?.nome)
+    .filter((name): name is string => Boolean(name));
+  const visible = names.slice(0, 6);
+  const remaining = names.length - visible.length;
+  return remaining > 0 ? [...visible, `+ ${remaining} módulos incluídos`] : visible;
+}
+
+const moduleCategoryLabels: Record<string, string> = {
+  IMOVEIS: "Imóveis rurais",
+  AGRICOLA: "Agricultura",
+  PECUARIA: "Pecuária",
+  FINANCEIRO: "Financeiro",
+  OPERACIONAL: "Operação",
+  RH: "Pessoas e segurança",
+  AMBIENTAL: "Ambiental",
+  EXTENSAO: "Extensões inteligentes",
+};
+
+const moduleIconMap: Partial<Record<ModuloId, LucideIcon>> = {
+  [Modulos.CORE]: Layers3,
+  [Modulos.IMOVEIS_CADASTRO]: Map,
+  [Modulos.IMOVEIS_ARRENDAMENTOS]: Handshake,
+  [Modulos.IMOVEIS_AVALIACAO]: Scale,
+  [Modulos.AGRICOLA_PLANEJAMENTO]: ClipboardList,
+  [Modulos.AGRICOLA_CAMPO]: Sprout,
+  [Modulos.AGRICOLA_DEFENSIVOS]: ShieldCheck,
+  [Modulos.AGRICOLA_PRECISAO]: Microscope,
+  [Modulos.AGRICOLA_COLHEITA]: Tractor,
+  [Modulos.AGRICOLA_CLIMATICO]: Globe2,
+  [Modulos.AGRICOLA_INTELIGENCIA]: Brain,
+  [Modulos.PECUARIA_REBANHO]: Users,
+  [Modulos.PECUARIA_GENETICA]: Network,
+  [Modulos.PECUARIA_CONFINAMENTO]: Boxes,
+  [Modulos.PECUARIA_LEITE]: Activity,
+  [Modulos.PECUARIA_CLIMATICO]: Globe2,
+  [Modulos.PECUARIA_INTELIGENCIA]: Brain,
+  [Modulos.FINANCEIRO_TESOURARIA]: Wallet,
+  [Modulos.FINANCEIRO_CUSTOS_ABC]: Coins,
+  [Modulos.FINANCEIRO_FISCAL]: FileCheck2,
+  [Modulos.FINANCEIRO_HEDGING]: TrendingUp,
+  [Modulos.OPERACIONAL_FROTA]: Tractor,
+  [Modulos.OPERACIONAL_ESTOQUE]: Boxes,
+  [Modulos.OPERACIONAL_COMPRAS]: ShoppingCart,
+  [Modulos.OPERACIONAL_BALANCA]: Scale,
+  [Modulos.RH_REMUNERACAO]: Users,
+  [Modulos.RH_SEGURANCA]: Shield,
+  [Modulos.AMBIENTAL_COMPLIANCE]: Leaf,
+  [Modulos.AMBIENTAL_CARBONO]: Activity,
+  [Modulos.EXTENSAO_IA_COPILOT]: Brain,
+  [Modulos.EXTENSAO_IOT_SENSORES]: Gauge,
+  [Modulos.EXTENSAO_ERP_BRIDGE]: Plug,
+};
+
+const moduleCatalogSections: Array<{ key: string; title: string; ids: ModuloId[] }> = [
+  { key: "CORE", title: "Núcleo da plataforma", ids: [Modulos.CORE] },
+  ...Object.entries(ModulosPorCategoria).map(([key, ids]) => ({
+    key,
+    title: moduleCategoryLabels[key] ?? key,
+    ids,
+  })),
 ];
 
 const faqItems = [
   {
     question: "Posso testar a plataforma grátis?",
-    answer: "Sim! O plano Profissional oferece 14 dias gratuitos sem cartão de crédito. Você também pode começar pelo Planejamento a R$ 79/mês.",
+    answer: "Sim! Os planos publicados podem oferecer período de teste, conforme a configuração comercial vigente. Consulte as opções disponíveis e comece sem compromisso.",
   },
   {
-    question: "Como funciona o Multi-Tenancy?",
-    answer: "Cada fazenda possui dados completamente isolados. Um único usuário pode acessar múltiplas propriedades sem deslogar, com controle granular por papéis.",
+    question: "Como funciona o acesso por produtor?",
+    answer: "Cada produtor possui dados completamente isolados. Um único usuário pode acessar múltiplas propriedades sem deslogar, com controle granular por papéis.",
   },
   {
     question: "A plataforma funciona offline?",
@@ -435,7 +479,7 @@ function Section({ children, className = "", variant = "default", id, ...props }
     variant === "muted"
       ? "bg-muted/25"
       : variant === "accent"
-        ? "bg-[linear-gradient(180deg,rgba(217,119,87,0.05),rgba(11,99,111,0.03),transparent)]"
+        ? "bg-[linear-gradient(180deg,hsl(var(--primary)/0.08),hsl(var(--module-operacional)/0.04),transparent)]"
         : "";
 
   return (
@@ -475,78 +519,81 @@ function SectionHeader({
    Page
    ═══════════════════════════════════════════════════════ */
 
-export default function Home() {
+export default async function Home() {
+  const landingPlans = await getLandingPlans();
+  const trialPlan = landingPlans.find((plan) => plan.tem_trial && plan.dias_trial > 0);
+
   return (
     <main className="min-h-dvh bg-background text-foreground overflow-x-hidden">
 
       {/* ═══════════ HERO ═══════════ */}
       <section className="relative overflow-hidden">
         {/* Decorative */}
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_20%_0%,rgba(217,119,87,0.14),transparent),radial-gradient(ellipse_60%_40%_at_85%_10%,rgba(11,99,111,0.10),transparent)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_20%_0%,hsl(var(--primary)/0.14),transparent),radial-gradient(ellipse_60%_40%_at_85%_10%,hsl(var(--module-operacional)/0.10),transparent)]" />
         <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/50 to-transparent" />
         <div className="float-glow pointer-events-none absolute -left-24 top-16 size-56 rounded-full bg-primary/6 blur-3xl" />
         <div className="float-glow-delayed pointer-events-none absolute -right-16 top-32 size-40 rounded-full bg-primary/5 blur-3xl" />
 
         <div className="relative mx-auto max-w-7xl px-6 pb-10 pt-6 lg:px-10 lg:pb-14 lg:pt-8">
           {/* Nav */}
-          <header className="mb-10 flex items-center justify-between gap-4 lg:mb-12">
+          <header className="landing-hero-reveal mb-10 flex items-center justify-between gap-4 lg:mb-12">
             <div className="flex items-center gap-3">
-              <div className="flex size-10 items-center justify-center">
-                <Image src="/logos/deepfarms-mark.svg" alt="DeepFarms" width={40} height={40} className="size-full object-contain" />
+              <div className="flex size-12 items-center justify-center">
+                <Image src="/logos/deepfarms-mark.svg" alt="DeepFarms" width={48} height={48} className="size-full object-contain" />
               </div>
               <div>
-                <div className="text-lg font-light uppercase tracking-widest text-primary">DeepFarms</div>
-                <div className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Gestão rural premium</div>
+                <div className="text-xl font-semibold uppercase tracking-[0.16em] text-primary">DeepFarms</div>
+                <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Gestão rural integrada</div>
               </div>
             </div>
             <nav className="flex items-center gap-2">
               <ThemeToggle />
-              <Button asChild variant="outline" size="sm" className="border-border bg-background/80 text-foreground transition-colors hover:border-primary/40 hover:bg-primary/5 hover:text-primary"><Link href="/login">Entrar</Link></Button>
-              <Button asChild variant="outline" size="sm" className="border-primary bg-primary text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 hover:text-primary-foreground"><Link href="/register">Começar grátis</Link></Button>
+              <Button asChild variant="outline" size="sm"><Link href="/login">Entrar</Link></Button>
+              <Button asChild size="sm"><Link href="/register">Começar grátis</Link></Button>
             </nav>
           </header>
 
           {/* Content */}
           <div className="grid gap-8 lg:grid-cols-[1.15fr_0.85fr] lg:items-center lg:gap-10">
             <div className="space-y-6">
-              <Badge className="rounded-full border border-primary/20 bg-background/80 px-3 text-[10px] font-black uppercase tracking-[0.18em] text-primary shadow-sm">
+              <Badge className="landing-hero-reveal landing-hero-badge rounded-full border border-primary/20 bg-background/80 px-3 text-[10px] font-black uppercase tracking-[0.18em] text-primary shadow-sm">
                 <Globe2 className="mr-1.5 size-3" />
                 Conformidade EUDR 2025 · Fairtrade · LGPD
               </Badge>
 
-              <h1 className="max-w-[600px] text-4xl font-light leading-[1.1] tracking-tight text-balance sm:text-5xl md:text-6xl lg:text-[4rem]">
+              <h1 className="landing-hero-reveal landing-hero-title max-w-[600px] text-4xl font-light leading-[1.1] tracking-tight text-balance sm:text-5xl md:text-6xl lg:text-[4rem]">
                 Campo, estoque e financeiro{" "}
                 <span className="bg-gradient-to-r from-primary to-primary/60 bg-clip-text font-semibold text-transparent">
                   integrados em um único lugar.
                 </span>
               </h1>
 
-              <p className="max-w-xl text-base leading-7 text-muted-foreground lg:text-lg lg:leading-8">
+              <p className="landing-hero-reveal landing-hero-copy max-w-xl text-base leading-7 text-muted-foreground lg:text-lg lg:leading-8">
                 Controle operacional com saldo confiável, origem financeira vinculada e visão por safra.
                 Elimine planilhas e tome decisões com dados reais.
               </p>
 
-              <div className="flex flex-wrap gap-2">
-                <Button asChild variant="outline" size="sm" className="h-9 border-primary bg-primary px-4 text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 hover:text-primary-foreground">
+              <div className="landing-hero-reveal landing-hero-actions flex flex-wrap gap-2">
+                <Button asChild size="sm">
                   <Link href="/register" data-track-event="cta_test_click">
-                    Começar grátis <ArrowRight className="ml-1.5 size-3.5" />
+                    Começar grátis <ArrowRight className="size-3.5" />
                   </Link>
                 </Button>
-                <Button asChild variant="outline" size="sm" className="h-9 border-border bg-background/80 px-4 text-foreground transition-colors hover:border-primary/40 hover:bg-primary/5 hover:text-primary">
+                <Button asChild variant="outline" size="sm">
                   <Link href="/login" data-track-event="cta_demo_click">
-                    Ver demonstração <ChevronRight className="ml-1.5 size-3.5" />
+                    Ver demonstração <ChevronRight className="size-3.5" />
                   </Link>
                 </Button>
               </div>
 
-              <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+              <div className="landing-hero-reveal landing-hero-proof grid grid-cols-2 gap-2.5 sm:grid-cols-4">
                 {[
                   { icon: ShieldCheck, label: "GeoJSON EUDR" },
                   { icon: LockKeyhole, label: "Assinatura Offline" },
                   { icon: Shield, label: "SHA-256" },
                   { icon: Sprout, label: "Fechamento por Safra" },
                 ].map(({ icon: Icon, label }) => (
-                  <div key={label} className="rounded-sm border border-border/60 bg-card/80 px-3 py-2.5 text-xs font-semibold shadow-sm backdrop-blur">
+                  <div key={label} className="landing-proof-card rounded-sm border border-border/60 bg-card/80 px-3 py-2.5 text-xs font-semibold shadow-sm backdrop-blur">
                     <div className="flex items-center gap-1.5">
                       <Icon className="size-3.5 text-primary" />
                       <span>{label}</span>
@@ -557,14 +604,14 @@ export default function Home() {
             </div>
 
             {/* Executive card */}
-            <Card className="rounded-sm overflow-hidden border-primary/12 bg-card/92 py-0 shadow-2xl shadow-primary/8 backdrop-blur">
+            <Card className="landing-hero-card rounded-sm overflow-hidden border-primary/12 bg-card/92 py-0 shadow-2xl shadow-primary/8 backdrop-blur">
               <CardHeader className="border-b border-border/50 bg-muted/30 py-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <CardTitle className="text-lg font-black">Visão executiva</CardTitle>
                     <CardDescription className="text-xs">Dados que antes ficavam espalhados em planilhas.</CardDescription>
                   </div>
-                  <Badge variant="secondary" className="bg-primary/10 text-primary text-[10px]">Ao vivo</Badge>
+                  <Badge variant="secondary" className="landing-status-pulse bg-primary/10 text-primary text-[10px]">Ao vivo</Badge>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4 p-4">
@@ -637,6 +684,45 @@ export default function Home() {
               </Card>
             );
           })}
+        </div>
+      </Section>
+
+      {/* ═══════════ CATÁLOGO COMPLETO DE MÓDULOS ═══════════ */}
+      <Section variant="accent" data-animate>
+        <SectionHeader
+          badge="Catálogo completo"
+          title="Todos os módulos, organizados para a sua operação."
+          subtitle="Do cadastro rural às extensões de IA, cada frente da plataforma fica visível e pode evoluir com o seu negócio."
+        />
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3" data-animate-stagger>
+          {moduleCatalogSections.map(({ key, title, ids }) => (
+            <Card key={key} className="rounded-sm border-border/50 bg-card/75 py-0 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:border-primary/35 hover:shadow-lg hover:shadow-primary/8">
+              <CardHeader className="border-b border-border/40 p-5 pb-4">
+                <div className="flex items-center justify-between gap-3">
+                  <CardTitle className="text-base font-black tracking-tight">{title}</CardTitle>
+                  <Badge variant="secondary" className="bg-primary/8 text-[10px] font-bold text-primary">{ids.length} {ids.length === 1 ? "módulo" : "módulos"}</Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-3 p-5">
+                {ids.map((moduleId) => {
+                  const moduleInfo = ModuloMetadata[moduleId];
+                  if (!moduleInfo) return null;
+                  const ModuleIcon = moduleIconMap[moduleId] ?? Layers3;
+                  return (
+                    <div key={moduleId} className="flex items-start gap-2.5">
+                      <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-sm bg-primary/10 text-primary ring-1 ring-primary/15" aria-hidden="true">
+                        <ModuleIcon className="size-4" strokeWidth={1.8} />
+                      </span>
+                      <div className="min-w-0">
+                        <div className="text-xs font-bold text-foreground">{moduleInfo.nome}</div>
+                        <div className="mt-0.5 text-[11px] leading-5 text-muted-foreground">{moduleInfo.descricao}</div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </CardContent>
+            </Card>
+          ))}
         </div>
       </Section>
 
@@ -870,31 +956,45 @@ export default function Home() {
           subtitle="Evolua sem mudar de plataforma."
           center
         />
+        {landingPlans.length === 0 ? (
+          <Card className="mx-auto max-w-2xl rounded-sm border-border/60 bg-card/80 text-center shadow-sm">
+            <CardContent className="space-y-3 p-8">
+              <div className="mx-auto flex size-11 items-center justify-center rounded-full bg-primary/10 text-primary"><Sprout className="size-5" /></div>
+              <h3 className="text-lg font-black">Planos em atualização</h3>
+              <p className="text-sm leading-6 text-muted-foreground">Nossa equipe está preparando as opções comerciais para publicação. Fale com um especialista para conhecer a plataforma.</p>
+              <Button asChild size="sm" className="mt-2"><Link href="/login">Falar com especialista <ArrowRight className="size-3.5" /></Link></Button>
+            </CardContent>
+          </Card>
+        ) : (
         <div className="grid gap-5 lg:grid-cols-3" data-animate-stagger>
-          {plans.map((plan) => (
+          {landingPlans.map((plan) => {
+            const price = formatPlanPrice(plan);
+            const features = getPlanFeatures(plan);
+            const badge = plan.destaque ? "Mais escolhido" : plan.tem_trial && plan.dias_trial > 0 ? `${plan.dias_trial} dias grátis` : plan.plan_tier;
+            return (
             <Card
-              key={plan.name}
+              key={plan.id}
               className={
-                plan.featured
-                  ? "rounded-sm gradient-border border-primary/20 bg-[linear-gradient(180deg,rgba(217,119,87,0.05),rgba(255,255,255,0.92))] py-0 shadow-xl shadow-primary/8"
+                plan.destaque
+                  ? "rounded-sm gradient-border border-primary/20 bg-[linear-gradient(180deg,hsl(var(--primary)/0.08),hsl(var(--card)/0.92))] py-0 shadow-xl shadow-primary/8"
                   : "rounded-sm border-border/60 py-0 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:shadow-md"
               }
             >
               <CardHeader className="space-y-2 p-5 pb-3">
                 <div className="flex items-center justify-between gap-2">
-                  <CardTitle className="text-xl font-black">{plan.name}</CardTitle>
-                  <Badge className={plan.featured ? "bg-primary text-primary-foreground text-[10px]" : "border border-primary/20 bg-background text-primary text-[10px]"}>
-                    {plan.badge}
+                  <CardTitle className="text-xl font-black">{plan.nome}</CardTitle>
+                  <Badge className={plan.destaque ? "bg-primary text-primary-foreground text-[10px]" : "border border-primary/20 bg-background text-primary text-[10px]"}>
+                    {badge}
                   </Badge>
                 </div>
-                <CardDescription className="text-sm leading-6">{plan.subtitle}</CardDescription>
+                <CardDescription className="text-sm leading-6">{plan.descricao_marketing || plan.descricao || "Estruture sua operação rural com dados confiáveis."}</CardDescription>
                 <div className="flex items-baseline gap-0.5">
-                  <span className="text-3xl font-black">{plan.price}</span>
-                  {plan.period && <span className="text-sm text-muted-foreground">{plan.period}</span>}
+                  <span className="text-3xl font-black">{price.value}</span>
+                  {price.period && <span className="text-sm text-muted-foreground">{price.period}</span>}
                 </div>
               </CardHeader>
               <CardContent className="space-y-2 px-5 pb-3 pt-0">
-                {plan.features.map((f) => (
+                {features.map((f) => (
                   <div key={f} className="flex items-start gap-2 text-sm text-muted-foreground">
                     <Check className="mt-0.5 size-3.5 shrink-0 text-primary" />
                     <span>{f}</span>
@@ -902,15 +1002,17 @@ export default function Home() {
                 ))}
               </CardContent>
               <div className="px-5 pb-5">
-                <Button asChild className="w-full gap-2 transition-colors hover:border-primary/40 hover:bg-primary/5 hover:text-primary" variant="outline" size="sm">
-                  <Link href={plan.href} data-track-event="plan_select" data-track-plan={plan.name}>
-                    {plan.cta} <ArrowRight className="size-3.5" />
+                <Button asChild className="w-full" variant="outline" size="sm">
+                  <Link href="/register" data-track-event="plan_select" data-track-plan={plan.nome}>
+                    {plan.tem_trial ? "Começar agora" : "Escolher plano"} <ArrowRight className="size-3.5" />
                   </Link>
                 </Button>
               </div>
             </Card>
-          ))}
+            );
+          })}
         </div>
+        )}
       </Section>
 
       {/* ═══════════ FAQ ═══════════ */}
@@ -923,7 +1025,7 @@ export default function Home() {
 
       {/* ═══════════ CTA FINAL ═══════════ */}
       <Section variant="accent" data-animate>
-        <Card className="rounded-sm overflow-hidden border-primary/12 bg-[linear-gradient(135deg,rgba(217,119,87,0.10),transparent_50%)] py-0 shadow-xl shadow-primary/5">
+        <Card className="overflow-hidden rounded-sm border-primary/20 bg-primary/5 py-0 shadow-sm">
           <CardContent className="flex flex-col gap-6 p-6 lg:flex-row lg:items-center lg:justify-between lg:p-8">
             <div className="space-y-3">
               <div className="text-xs font-black uppercase tracking-[0.18em] text-primary">
@@ -933,15 +1035,15 @@ export default function Home() {
                 Troque retrabalho por operação integrada.
               </h2>
               <p className="max-w-lg text-sm text-muted-foreground leading-6">
-                14 dias grátis no Profissional. Sem cartão de crédito.
+                {trialPlan ? `${trialPlan.dias_trial} dias grátis no ${trialPlan.nome}.` : "Escolha o plano que acompanha o momento da sua operação."} Sem compromisso.
               </p>
             </div>
             <div className="flex flex-wrap gap-2 sm:flex-row">
-              <Button asChild variant="outline" size="sm" className="h-9 border-primary bg-primary px-4 text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 hover:text-primary-foreground">
-                <Link href="/register" data-track-event="cta_test_click">Começar grátis <ArrowRight className="ml-1.5 size-3.5" /></Link>
+              <Button asChild size="sm">
+                <Link href="/register" data-track-event="cta_test_click">Começar grátis <ArrowRight className="size-3.5" /></Link>
               </Button>
-              <Button asChild variant="outline" size="sm" className="h-9 border-border bg-background/80 px-4 text-foreground transition-colors hover:border-primary/40 hover:bg-primary/5 hover:text-primary">
-                <Link href="/login" data-track-event="cta_demo_click">Ver demonstração <ChevronRight className="ml-1.5 size-3.5" /></Link>
+              <Button asChild variant="outline" size="sm">
+                <Link href="/login" data-track-event="cta_demo_click">Ver demonstração <ChevronRight className="size-3.5" /></Link>
               </Button>
             </div>
           </CardContent>
@@ -983,7 +1085,7 @@ export default function Home() {
             <div className="space-y-3">
               <h4 className="text-xs font-black uppercase tracking-wider text-foreground">Contato</h4>
               <ul className="space-y-2 text-xs text-muted-foreground">
-                <li>contato@agrosaas.com.br</li>
+                <li>contato@deepfarms.com.br</li>
                 <li>+55 (11) 9 9999-0000</li>
                 <li className="pt-1 text-[10px]">Seg a Sex, 8 h às 18 h</li>
               </ul>

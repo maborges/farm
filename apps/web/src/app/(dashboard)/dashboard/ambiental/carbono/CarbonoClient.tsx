@@ -336,7 +336,7 @@ export function CarbonoClient() {
       />
 
       <div role="status" className="rounded-sm border border-violet-500/20 bg-violet-500/10 px-3 py-2 text-sm text-violet-800 dark:text-violet-200">
-        <strong>Visão consolidada:</strong> emissões, projetos e relatórios exibidos pertencem ao tenant. Novas emissões e projetos serão vinculados à unidade produtiva selecionada no topbar.
+        <strong>Visão consolidada:</strong> emissões, projetos e relatórios exibidos pertencem ao produtor. Novas emissões e projetos serão vinculados à unidade produtiva selecionada no topbar.
         {!unidadeSelecionada && <span className="ml-1 text-destructive">Selecione uma unidade para cadastrar.</span>}
       </div>
 

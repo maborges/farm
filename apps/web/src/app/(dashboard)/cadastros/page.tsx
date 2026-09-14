@@ -78,7 +78,7 @@ const cards = [
     href: "/unidades-produtivas",
     icon: Building2,
     title: "Fazendas & Unidades",
-    description: "Propriedades, grupos de fazendas e unidades produtivas do tenant.",
+    description: "Propriedades, grupos de fazendas e unidades produtivas do produtor.",
     color: "text-slate-600",
     bg: "bg-slate-50",
   },

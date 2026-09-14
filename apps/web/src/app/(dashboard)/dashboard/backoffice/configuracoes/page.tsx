@@ -501,7 +501,7 @@ export default function SaaSConfigPage() {
                         <Card className="opacity-50 grayscale cursor-not-allowed">
                             <CardHeader>
                                 <CardTitle className="text-base text-balance">Modo de Manutenção</CardTitle>
-                                <CardDescription>Bloquear acesso de todos os Tenants para manutenção programada (em breve)</CardDescription>
+                                <CardDescription>Bloquear acesso de todos os produtores para manutenção programada (em breve)</CardDescription>
                             </CardHeader>
                         </Card>
                     </div>

@@ -121,7 +121,7 @@ export default function BackofficeProfilesPage() {
             {/* Header */}
             <PageHeader
                 title="Perfis Padrão do Sistema"
-                description="Perfis globais disponíveis para todos os tenants. Alterações refletem imediatamente."
+                description="Perfis globais disponíveis para todos os produtores. Alterações refletem imediatamente."
                 icon={<Shield className="text-primary" size={22} />}
                 actions={
                     <Dialog open={createOpen} onOpenChange={setCreateOpen}>
@@ -140,7 +140,7 @@ export default function BackofficeProfilesPage() {
                                     <div className="flex flex-col gap-1">
                                         <DialogTitle>Criar Perfil Padrão</DialogTitle>
                                         <DialogDescription>
-                                    Este perfil ficará disponível para todos os tenants da plataforma.
+                                    Este perfil ficará disponível para todos os produtores da plataforma.
                                     Arraste os módulos entre as colunas para definir o nível de acesso.
                                         </DialogDescription>
                                     </div>
@@ -165,7 +165,7 @@ export default function BackofficeProfilesPage() {
                 <div>
                     <p className="text-sm font-medium text-amber-700 dark:text-amber-400">Atenção: impacto global</p>
                     <p className="text-xs text-muted-foreground mt-0.5 text-pretty">
-                        Editar ou remover um perfil padrão afeta todos os tenants que o utilizam.
+                        Editar ou remover um perfil padrão afeta todos os produtores que o utilizam.
                         Perfis em uso não podem ser removidos sem reatribuição.
                     </p>
                 </div>
@@ -178,7 +178,7 @@ export default function BackofficeProfilesPage() {
                         <Shield size={40} className="opacity-20" aria-hidden />
                         <div className="text-center space-y-1">
                             <p className="text-sm font-medium text-foreground">Nenhum perfil padrão cadastrado</p>
-                            <p className="text-xs text-pretty">Crie perfis que estarão disponíveis para todos os tenants.</p>
+                            <p className="text-xs text-pretty">Crie perfis que estarão disponíveis para todos os produtores.</p>
                         </div>
                         <Button
                             variant="outline"
@@ -216,7 +216,7 @@ export default function BackofficeProfilesPage() {
                             <div className="flex flex-col gap-1">
                                 <DialogTitle>Editar Perfil Padrão</DialogTitle>
                                 <DialogDescription>
-                            Alterações em &quot;{editTarget?.nome}&quot; refletem em todos os tenants que usam este perfil.
+                            Alterações em &quot;{editTarget?.nome}&quot; refletem em todos os produtores que usam este perfil.
                                 </DialogDescription>
                             </div>
                         </div>
@@ -292,7 +292,7 @@ function SystemProfileCard({
                                     <AlertDialogDescription className="text-pretty">
                                         {profile.em_uso > 0
                                             ? `Este perfil está em uso por ${profile.em_uso} usuário(s). Reatribua-os antes de remover.`
-                                            : "Esta ação remove o perfil de todos os tenants que o utilizam."}
+                                            : "Esta ação remove o perfil de todos os produtores que o utilizam."}
                                     </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
@@ -329,7 +329,7 @@ function SystemProfileCard({
                 </div>
                 <div className="mt-2 flex items-center gap-1 text-xs text-muted-foreground tabular-nums">
                     <Users size={10} aria-hidden />
-                    <span>{profile.em_uso} tenant{profile.em_uso !== 1 ? "s" : ""} usando</span>
+                    <span>{profile.em_uso} produtor{profile.em_uso !== 1 ? "es" : ""} usando</span>
                 </div>
             </CardContent>
         </Card>

@@ -31,7 +31,7 @@ export function ThemeToggle() {
     <Button
       variant="outline"
       size="sm"
-      className="size-8 rounded-sm p-0 text-primary border-primary/20 hover:border-primary/45"
+      className="size-8 p-0"
       onClick={() => setTheme(isDark ? "light" : "dark")}
       aria-label="Alternar tema escuro/claro"
     >

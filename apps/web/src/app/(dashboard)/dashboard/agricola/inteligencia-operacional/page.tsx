@@ -556,7 +556,7 @@ export default function InteligenciaOperacionalAgricolaPage() {
               <ul className="mt-2 space-y-2 text-sm text-foreground">
                 <li>• A nova camada não cria tarefas reais.</li>
                 <li>• A origem de cada plano permanece rastreável até diagnóstico, recomendação ou prioridade.</li>
-                <li>• O payload mantém o recorte de tenant, safra, ProductionUnit e período.</li>
+                <li>• O payload mantém o recorte do produtor, safra, ProductionUnit e período.</li>
               </ul>
             </div>
           </CardContent>

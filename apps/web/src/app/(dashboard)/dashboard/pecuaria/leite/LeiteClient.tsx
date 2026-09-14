@@ -39,7 +39,7 @@ export default function LeiteClient() {
 
   const createMutation = useMutation({ mutationFn: (payload: Record<string, unknown>) => apiFetch("/pecuaria/leite/producao", { method: "POST", body: JSON.stringify(payload) }), onSuccess: () => { qc.invalidateQueries({ queryKey: ["pecuaria", "leite"] }); setOpen(false); toast.success("Produção registrada"); } });
 
-  if (!hasModule) return <div className="p-6"><Card><CardContent className="py-10 text-center text-sm text-muted-foreground">O módulo de leite não está contratado para este tenant.</CardContent></Card></div>;
+  if (!hasModule) return <div className="p-6"><Card><CardContent className="py-10 text-center text-sm text-muted-foreground">O módulo de leite não está contratado para este produtor.</CardContent></Card></div>;
 
   return (
     <div className="p-6 space-y-6">

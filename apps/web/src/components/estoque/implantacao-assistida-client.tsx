@@ -409,7 +409,7 @@ export function ImplantacaoAssistidaListPage() {
       ) : null}
 
       {canView && canList ? <div className="grid gap-4 md:grid-cols-4">
-        <StatCard title="Sessões" value={String(resumo.total)} hint="processos listados no tenant atual" />
+        <StatCard title="Sessões" value={String(resumo.total)} hint="processos listados no produtor atual" />
         <StatCard title="Confirmadas" value={String(resumo.confirmadas)} hint="já gravadas como saldo inicial" tone="sky" />
         <StatCard title="Prontas" value={String(resumo.pendentes)} hint="aptas para confirmação" tone="emerald" />
         <StatCard title="Com Erros" value={String(resumo.comErro)} hint="ainda exigem correção por linha" tone="red" />
@@ -666,7 +666,7 @@ export function ImplantacaoAssistidaNewPage() {
               </div>
               <div className="flex gap-3 rounded-sm border border-sky-200 bg-sky-50 p-3 text-sky-900">
                 <ShieldCheck className="mt-0.5 size-4 shrink-0" />
-                <p>O parser e a validação já respeitam o `tenant_id` e o contexto da unidade produtiva quando aplicado ao depósito.</p>
+                <p>O parser e a validação já respeitam o `tenant_id` e o contexto do produtor quando aplicado ao depósito.</p>
               </div>
             </CardContent>
           </Card>
@@ -1467,7 +1467,7 @@ export function ImplantacaoAssistidaAuditPage({ sessionId }: { sessionId: string
     <div className="p-6 space-y-6 w-full">
       <PageHeader
         title="Auditoria da Implantação"
-        description="Trilha tenant-scoped da sessão de implantação assistida."
+        description="Trilha vinculada ao produtor da sessão de implantação assistida."
         icon={<ShieldCheck className="size-4 text-primary" />}
         breadcrumbs={[
           { label: "Dashboard", href: "/dashboard" },
@@ -1486,7 +1486,7 @@ export function ImplantacaoAssistidaAuditPage({ sessionId }: { sessionId: string
       {!canViewAudit ? (
         <SectionEmpty
           title="Acesso restrito"
-          description="Seu perfil não possui permissão para consultar a auditoria do tenant."
+          description="Seu perfil não possui permissão para consultar a auditoria do produtor."
         />
       ) : null}
 

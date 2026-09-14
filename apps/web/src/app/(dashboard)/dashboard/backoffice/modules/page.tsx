@@ -9,6 +9,7 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency } from "@/lib/utils";
+import { ModuloMetadata, normalizeModuleId } from "@/lib/constants/modulos";
 import {
     Layers, Sprout, Beef, Receipt, Wrench, MapPin, Users, Trees, Puzzle,
     Package, DollarSign, TrendingUp, Info,
@@ -149,6 +150,7 @@ export default function ModulesPage() {
         if (items.length) acc[cat] = items;
         return acc;
     }, {});
+    const moduleDescriptionById = new Map(modules.map(modulo => [modulo.id, modulo.descricao]));
 
     // Métricas resumidas
     const totalModules = modules.length;
@@ -284,14 +286,21 @@ export default function ModulesPage() {
                                                 Requer
                                             </p>
                                             <div className="flex flex-wrap gap-1">
-                                                {mod.dependencias.map(dep => (
-                                                    <code
-                                                        key={dep}
-                                                        className="inline-flex items-center px-1.5 py-0.5 rounded bg-muted text-[10px] font-mono text-muted-foreground"
-                                                    >
-                                                        {dep}
-                                                    </code>
-                                                ))}
+                                                {mod.dependencias.map(dep => {
+                                                    const dependencyDescription =
+                                                        moduleDescriptionById.get(dep) ??
+                                                        ModuloMetadata[normalizeModuleId(dep)]?.descricao ??
+                                                        dep;
+
+                                                    return (
+                                                        <span
+                                                            key={dep}
+                                                            className="inline-flex max-w-full items-center rounded-sm bg-muted px-1.5 py-0.5 text-[10px] leading-4 text-muted-foreground"
+                                                        >
+                                                            {dependencyDescription}
+                                                        </span>
+                                                    );
+                                                })}
                                             </div>
                                         </div>
                                     )}

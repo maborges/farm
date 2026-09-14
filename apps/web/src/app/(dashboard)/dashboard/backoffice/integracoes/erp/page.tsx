@@ -156,7 +156,7 @@ export default async function ErpBridgePage() {
     <div className="flex flex-col gap-6 p-4 md:p-8">
       <PageHeader
         title="Acompanhamento das Integrações ERP"
-        description="Painel de apoio do backoffice para acompanhar a situação da integração, investigar falhas e orientar o tenant."
+        description="Painel de apoio do backoffice para acompanhar a situação da integração, investigar falhas e orientar o produtor."
         icon={<Database className="text-primary" size={22} />}
         breadcrumbs={[
           { label: "Backoffice", href: "/dashboard/backoffice/dashboard" },
@@ -200,7 +200,7 @@ export default async function ErpBridgePage() {
               <ArrowRightLeft className="size-4 text-primary" />
               Funções acompanhadas
             </CardTitle>
-            <CardDescription>Funções observadas no ERP conectado do tenant. ERP atual: Sankhya, como provider conectado nesta fase.</CardDescription>
+            <CardDescription>Funções observadas no ERP conectado do produtor. ERP atual: Sankhya, como provider conectado nesta fase.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             {CONNECTORS.map((connector) => (
@@ -224,7 +224,7 @@ export default async function ErpBridgePage() {
               <ShieldAlert className="size-4 text-primary" />
               Governança e suporte
             </CardTitle>
-            <CardDescription>O backoffice observa. O tenant configura a integração.</CardDescription>
+            <CardDescription>O backoffice observa. O produtor configura a integração.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex items-center justify-between rounded-sm border bg-muted/20 px-3 py-2">

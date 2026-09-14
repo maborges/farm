@@ -87,7 +87,7 @@ export default function BackofficeChecklistTemplatesPage() {
           <Link href="/backoffice/tabelas"><Button variant="ghost" size="icon" className="size-8"><ArrowLeft className="size-4" /></Button></Link>
           <div>
             <h1 className="text-xl font-semibold">Templates de Checklist</h1>
-            <p className="text-sm text-muted-foreground">Modelos globais disponíveis a todos os tenants</p>
+            <p className="text-sm text-muted-foreground">Modelos globais disponíveis a todos os produtores</p>
           </div>
         </div>
         <Button size="sm" onClick={openNew}><Plus className="size-4 mr-1" />Novo Template</Button>
