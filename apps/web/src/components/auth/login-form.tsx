@@ -19,6 +19,7 @@ import { Separator } from "@/components/ui/separator";
 import { setAuthCookies, setContextCookies } from "@/app/actions/auth";
 import { extractTenantContextsFromToken } from "@/lib/jwt";
 import type { TenantRole, TenantSummary } from "@/types/global";
+import { isStaleServerActionError } from "@/lib/server-action-errors";
 
 const loginSchema = z.object({
     email: z.string().email({ message: "Insira um e-mail válido." }),
@@ -227,6 +228,20 @@ export function LoginForm() {
 
         } catch (error: unknown) {
             console.error("Erro no login:", error);
+
+            if (isStaleServerActionError(error)) {
+                const friendlyMessage = "A página foi atualizada. Clique em ‘Atualizar página’ para continuar.";
+                setSubmitError(friendlyMessage);
+                toast.error("A página precisa ser atualizada", {
+                    description: "O sistema foi atualizado enquanto esta página estava aberta.",
+                    action: {
+                        label: "Atualizar página",
+                        onClick: () => window.location.reload(),
+                    },
+                    duration: Infinity,
+                });
+                return;
+            }
 
             const msg: string = error instanceof Error ? error.message : "Erro inesperado ao autenticar.";
             const lowerMsg = msg.toLowerCase();
