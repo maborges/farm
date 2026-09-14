@@ -116,7 +116,7 @@ function AnimalModal({
     // Buscar lotes para o select
     const { data: lotes = [] } = useQuery({
         queryKey: ["lotes", fazendaId],
-        queryFn: () => apiFetch<LoteBovino[]>(`/pecuaria/lotes/?unidade_produtiva_id=${fazendaId}`),
+        queryFn: () => apiFetch<LoteBovino[]>(`/pecuaria/lotes?unidade_produtiva_id=${fazendaId}`),
         enabled: !!fazendaId,
     });
 

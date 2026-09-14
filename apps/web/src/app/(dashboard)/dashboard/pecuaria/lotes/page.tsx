@@ -48,7 +48,7 @@ function NovoLoteModal({ fazendaId, onClose }: { fazendaId: string; onClose: () 
 
     const mutation = useMutation({
         mutationFn: (payload: LoteBovinoCreate) =>
-            apiFetch("/pecuaria/lotes/", { method: "POST", body: JSON.stringify(payload) }),
+            apiFetch("/pecuaria/lotes", { method: "POST", body: JSON.stringify(payload) }),
         onSuccess: () => {
             toast.success("Lote criado com sucesso!");
             queryClient.invalidateQueries({ queryKey: ["lotes"] });
@@ -236,7 +236,7 @@ export default function LotesBovinosPage() {
     const { data: lotes = [], isLoading } = useQuery({
         queryKey: ["lotes", activeFazendaId, isVisaoGrupo],
         queryFn: () =>
-            apiFetch<LoteBovino[]>(isVisaoGrupo ? "/pecuaria/lotes/" : `/pecuaria/lotes/?unidade_produtiva_id=${activeFazendaId}`),
+            apiFetch<LoteBovino[]>(isVisaoGrupo ? "/pecuaria/lotes" : `/pecuaria/lotes?unidade_produtiva_id=${activeFazendaId}`),
         enabled: isVisaoGrupo || !!activeFazendaId,
     });
 

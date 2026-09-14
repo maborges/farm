@@ -192,7 +192,7 @@ export default function PlanejamentoManejosPage() {
 
   const { data: lotes = [], isLoading: lotesLoading } = useQuery<LoteOption[]>({
     queryKey: ["pecuaria", "lotes", activeFazendaId],
-    queryFn: () => apiFetch<LoteOption[]>(`/pecuaria/lotes/?unidade_produtiva_id=${activeFazendaId}`),
+    queryFn: () => apiFetch<LoteOption[]>(`/pecuaria/lotes?unidade_produtiva_id=${activeFazendaId}`),
     enabled: Boolean(activeFazendaId),
   });
 

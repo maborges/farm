@@ -240,7 +240,7 @@ export default function ManejoPage() {
 
     const { data: lotes = [] } = useQuery({
         queryKey: ["lotes"],
-        queryFn: () => apiFetch<any[]>("/pecuaria/lotes/"),
+        queryFn: () => apiFetch<any[]>("/pecuaria/lotes"),
     });
 
     const countByTipo = (tipo: string) => manejos.filter((m: any) => m.tipo_evento === tipo).length;
