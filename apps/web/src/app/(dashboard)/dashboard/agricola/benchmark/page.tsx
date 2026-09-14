@@ -149,7 +149,7 @@ export default function BenchmarkOperacionalEconomicoAgricolaPage() {
 
   const { data: safras = [], isLoading: isLoadingSafras, error: safraError } = useQuery<SafraResumo[]>({
     queryKey: ["agricola-benchmark", "safras", safraScopeId],
-    queryFn: () => apiFetch(`/safras${safraScopeId ? `?unidade_produtiva_id=${safraScopeId}` : ""}`),
+        queryFn: () => apiFetch(`/safras/${safraScopeId ? `?unidade_produtiva_id=${safraScopeId}` : ""}`),
     enabled: hasProfessionalTier,
   });
 

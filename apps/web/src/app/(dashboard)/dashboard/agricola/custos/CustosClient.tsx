@@ -33,7 +33,7 @@ export function CustosClient({
 
     const { data: safras = [] } = useQuery<Safra[]>({
         queryKey: ["agricola", "safras", activeFazendaId],
-        queryFn: () => apiFetch(`/safras${qs}`),
+        queryFn: () => apiFetch(`/safras/${qs}`),
         initialData: activeFazendaId === initialActiveFazendaId ? initialSafras : undefined,
     });
     

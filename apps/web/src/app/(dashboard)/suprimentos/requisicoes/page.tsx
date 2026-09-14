@@ -75,7 +75,7 @@ function NovaRequisicaoDialog({ onClose }: { onClose: () => void }) {
   });
   const { data: safras = [] } = useQuery<SafraResumo[]>({
     queryKey: ["safras-requisicao", tenantId],
-    queryFn: () => apiFetch("/safras"),
+    queryFn: () => apiFetch("/safras/"),
     enabled: !!tenantId,
   });
   const safraAtiva = safras.find((s) => !["ENCERRADA", "CANCELADA"].includes(s.status)) ?? null;

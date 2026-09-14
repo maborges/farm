@@ -23,7 +23,7 @@ export default async function PainelPage({ searchParams }: { searchParams?: Page
         const [exposicaoRes, posicaoRes, safrasRes] = await Promise.allSettled([
             apiFetchServer<HedgeExposicao>(`/financeiro/hedge/exposicao${qs}`),
             apiFetchServer<HedgePosicao>(`/financeiro/hedge/posicao${qs}`),
-            apiFetchServer<SafraOption[]>("/safras")
+            apiFetchServer<SafraOption[]>("/safras/")
         ]);
 
         if (exposicaoRes.status === "fulfilled") exposicao = exposicaoRes.value;

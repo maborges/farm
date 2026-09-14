@@ -15,7 +15,7 @@ export default async function ContratosPage({ searchParams }: { searchParams?: P
     try {
         const [contratosRes, safrasRes, commoditiesRes] = await Promise.allSettled([
             apiFetchServer<ContratoFuturo[]>("/financeiro/hedge/contratos"),
-            apiFetchServer<SafraOption[]>("/safras"),
+            apiFetchServer<SafraOption[]>("/safras/"),
             apiFetchServer<CommodityOption[]>("/cadastros/commodities")
         ]);
 

@@ -270,7 +270,7 @@ export default function SafraPage() {
 
     const { data: safras = [], isLoading } = useQuery({
         queryKey: ["safras", activeFazendaId],
-        queryFn: () => apiFetch<Safra[]>(`/safras${qs}`),
+        queryFn: () => apiFetch<Safra[]>(`/safras/${qs}`),
         enabled: !!activeFazendaId,
     });
 

@@ -217,7 +217,7 @@ export default function LancamentosOperacionaisPage() {
     // Fetch Safras for filtering
     const { data: safras = [] } = useQuery<Safra[]>({
         queryKey: ["safras", activeFazendaId],
-        queryFn: () => apiFetch(`/safras${activeFazendaId ? `?unidade_produtiva_id=${activeFazendaId}` : ""}`),
+        queryFn: () => apiFetch(`/safras/${activeFazendaId ? `?unidade_produtiva_id=${activeFazendaId}` : ""}`),
         enabled: !!activeFazendaId,
     });
 

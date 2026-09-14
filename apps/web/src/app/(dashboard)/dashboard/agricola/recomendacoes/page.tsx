@@ -151,7 +151,7 @@ export default function RecomendacoesOperacionaisEconomicasAgricolaPage() {
 
   const { data: safras = [], isLoading: isLoadingSafras } = useQuery<SafraResumo[]>({
     queryKey: ["agricola-recomendacoes", "safras", safraScopeId],
-    queryFn: () => apiFetch(`/safras${safraScopeId ? `?unidade_produtiva_id=${safraScopeId}` : ""}`),
+        queryFn: () => apiFetch(`/safras/${safraScopeId ? `?unidade_produtiva_id=${safraScopeId}` : ""}`),
     enabled: hasProfessionalTier,
   });
 

@@ -243,7 +243,7 @@ export default function DREAgricolaV1Page() {
 
   const { data: safras = [], isLoading: isLoadingSafras, isError: isErrorSafras, error: safraError } = useQuery<SafraResumo[]>({
     queryKey: ["agricola-dre", "safras", safraScopeId],
-    queryFn: () => apiFetch(`/safras${safraScopeId ? `?unidade_produtiva_id=${safraScopeId}` : ""}`),
+    queryFn: () => apiFetch(`/safras/${safraScopeId ? `?unidade_produtiva_id=${safraScopeId}` : ""}`),
     enabled: hasProfessionalTier,
   });
 

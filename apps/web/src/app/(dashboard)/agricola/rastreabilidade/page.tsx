@@ -17,7 +17,7 @@ interface Safra { id: string; cultura: string; ano_safra: string; }
 export default function RastreabilidadePage() {
     const { data: safras = [] } = useQuery<Safra[]>({
         queryKey: ["safras"],
-        queryFn: () => apiFetch("/safras"),
+        queryFn: () => apiFetch("/safras/"),
     });
     const hasEnterpriseTier = useHasTier("ENTERPRISE");
 

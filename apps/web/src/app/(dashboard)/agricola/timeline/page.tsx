@@ -30,7 +30,7 @@ export default function TimelinePage() {
     // Fetch safras
     const { data: safras = [], isLoading: isLoadingSafras } = useQuery<Safra[]>({
         queryKey: ["safras"],
-        queryFn: () => apiFetch("/safras"),
+        queryFn: () => apiFetch("/safras/"),
     });
 
     const activeSafras = safras.filter(s => !["ENCERRADA", "CANCELADA"].includes(s.status));

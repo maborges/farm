@@ -54,7 +54,7 @@ export function ContratosClient({
 
     const { data: safras = [] } = useQuery<SafraOption[]>({
         queryKey: ["agricola", "safras"],
-        queryFn: () => apiFetch("/safras"),
+        queryFn: () => apiFetch("/safras/"),
         initialData: initialSafras,
         staleTime: 0,
         refetchOnMount: "always",

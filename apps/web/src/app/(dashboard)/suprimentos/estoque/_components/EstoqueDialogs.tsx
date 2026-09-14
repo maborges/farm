@@ -269,7 +269,7 @@ export function SaidaDialog({ produtos, depositos, saldos, onClose, onSuccess }:
 
   const { data: safras = [] } = useQuery<{ id: string; ano_safra: string }[]>({
     queryKey: ["safras-ativas"],
-    queryFn: () => apiFetch("/safras?status=EM_ANDAMENTO&limit=50"),
+    queryFn: () => apiFetch("/safras/?status=EM_ANDAMENTO&limit=50"),
     staleTime: 60_000,
   });
 
@@ -549,7 +549,7 @@ export function AjusteDialog({ produtos, depositos, saldos, onClose, onSuccess }
 
   const { data: safras = [] } = useQuery<{ id: string; ano_safra: string }[]>({
     queryKey: ["safras-ativas"],
-    queryFn: () => apiFetch("/safras?status=EM_ANDAMENTO&limit=50"),
+    queryFn: () => apiFetch("/safras/?status=EM_ANDAMENTO&limit=50"),
     staleTime: 60_000,
     enabled: ehPerda,
   });

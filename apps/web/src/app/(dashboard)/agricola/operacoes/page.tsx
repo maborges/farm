@@ -58,7 +58,7 @@ export default function OperacoesPage() {
     // ── Data fetching ──────────────────────────────────────────────────────────
     const { data: safras = [], isLoading: isLoadingSafras } = useQuery<Safra[]>({
         queryKey: ["safras"],
-        queryFn: () => apiFetch("/safras"),
+        queryFn: () => apiFetch("/safras/"),
     });
 
     const { data: talhoes = [] } = useQuery<AreaRural[]>({

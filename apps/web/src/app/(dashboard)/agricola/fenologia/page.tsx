@@ -68,7 +68,7 @@ export default function FenologiaPage() {
     // Fetch safras ativas para o filtro e form
     const { data: safras = [], isLoading: isLoadingSafras } = useQuery<Safra[]>({
         queryKey: ["safras", "ativas"],
-        queryFn: () => apiFetch("/safras"),
+        queryFn: () => apiFetch("/safras/"),
     });
 
     const activeSafras = safras.filter(s => !["ENCERRADA", "CANCELADA"].includes(s.status));

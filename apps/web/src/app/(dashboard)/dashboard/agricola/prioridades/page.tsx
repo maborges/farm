@@ -201,7 +201,7 @@ export default function PrioridadesOperacionaisEconomicasAgricolaPage() {
 
   const { data: safras = [], isLoading: isLoadingSafras } = useQuery<SafraResumo[]>({
     queryKey: ["agricola-prioridades", "safras", safraScopeId],
-    queryFn: () => apiFetch(`/safras${safraScopeId ? `?unidade_produtiva_id=${safraScopeId}` : ""}`),
+    queryFn: () => apiFetch(`/safras/${safraScopeId ? `?unidade_produtiva_id=${safraScopeId}` : ""}`),
     enabled: hasProfessionalTier,
   });
 

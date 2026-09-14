@@ -96,7 +96,7 @@ export default function TarefasCampoPage() {
 
   const { data: safras = [] } = useQuery<Safra[]>({
     queryKey: ["safras"],
-    queryFn: () => apiFetch("/safras"),
+    queryFn: () => apiFetch("/safras/"),
   });
 
   const { data: areas = [] } = useQuery<AreaRural[]>({

@@ -153,7 +153,7 @@ export default function FrotaJornadasPage() {
 
   const { data: safras = [] } = useQuery<SafraOption[]>({
     queryKey: ["frota", "safras-opcoes"],
-    queryFn: () => apiFetch("/safras"),
+    queryFn: () => apiFetch("/safras/"),
     enabled: hasProfessionalTier,
   });
 

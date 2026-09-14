@@ -40,7 +40,7 @@ export default function RomaneiosPage() {
 
     const { data: safras = [], isLoading: loadingSafras } = useQuery<Safra[]>({
         queryKey: ["safras"],
-        queryFn: () => apiFetch("/safras"),
+        queryFn: () => apiFetch("/safras/"),
     });
 
     const { data: talhoesSafra = [], isLoading: loadingTalhoes } = useQuery<TalhaoSafra[]>({

@@ -144,7 +144,7 @@ export default function EficienciaOperacionalAgricolaPage() {
 
   const { data: safras = [], isLoading: isLoadingSafras, isError: isErrorSafras, error: safraError } = useQuery<SafraResumo[]>({
     queryKey: ["agricola-eficiencia", "safras", safraScopeId],
-    queryFn: () => apiFetch(`/safras${safraScopeId ? `?unidade_produtiva_id=${safraScopeId}` : ""}`),
+        queryFn: () => apiFetch(`/safras/${safraScopeId ? `?unidade_produtiva_id=${safraScopeId}` : ""}`),
     enabled: hasProfessionalTier,
   });
 
@@ -705,4 +705,3 @@ export default function EficienciaOperacionalAgricolaPage() {
     </div>
   );
 }
-

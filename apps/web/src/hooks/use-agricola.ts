@@ -97,7 +97,7 @@ export function useSafrasAtivas(unidadeProdutivaId?: string) {
     queryKey: ["safras-ativas", unidadeProdutivaId],
     queryFn: async () => {
       const data = await apiFetch<SafraAtiva[]>(
-        `/safras${unidadeProdutivaId ? `?unidade_produtiva_id=${unidadeProdutivaId}` : ""}`
+        `/safras/${unidadeProdutivaId ? `?unidade_produtiva_id=${unidadeProdutivaId}` : ""}`
       );
       return data.filter((s) => {
         if (typeof s.ativa === "boolean") {

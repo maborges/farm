@@ -138,7 +138,7 @@ export default function DiagnosticoOperacionalEconomicoAgricolaPage() {
 
   const { data: safras = [], isLoading: isLoadingSafras, error: safraError } = useQuery<SafraResumo[]>({
     queryKey: ["agricola-diagnostico", "safras", safraScopeId],
-    queryFn: () => apiFetch(`/safras${safraScopeId ? `?unidade_produtiva_id=${safraScopeId}` : ""}`),
+        queryFn: () => apiFetch(`/safras/${safraScopeId ? `?unidade_produtiva_id=${safraScopeId}` : ""}`),
     enabled: hasProfessionalTier,
   });
 

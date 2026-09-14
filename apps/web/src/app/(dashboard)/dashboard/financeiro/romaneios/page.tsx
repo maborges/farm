@@ -41,7 +41,7 @@ export default function RomaneiosPage() {
 
     const { data: safras = [] } = useQuery<Safra[]>({
         queryKey: ["agricola", "safras", activeFazendaId],
-        queryFn: () => apiFetch(`/safras${qs}`),
+        queryFn: () => apiFetch(`/safras/${qs}`),
     });
     const { data: kpis, isLoading: loadingKpis } = useQuery<RomaneioKPIs>({
         queryKey: ["romaneios", "kpis", activeFazendaId],

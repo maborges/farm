@@ -29,7 +29,7 @@ export default async function MtMPage({ searchParams }: { searchParams?: PageSea
     try {
         const [snapshotsRes, safrasRes, contratosRes] = await Promise.allSettled([
             apiFetchServer<HedgePositionSnapshot[]>(`/financeiro/hedge/snapshots?limit=100${safraParam}`),
-            apiFetchServer<SafraOption[]>("/safras"),
+            apiFetchServer<SafraOption[]>("/safras/"),
             apiFetchServer<ContratoOption[]>("/financeiro/hedge/contratos")
         ]);
 

@@ -62,7 +62,7 @@ export default function DefensivosPage() {
 
     const { data: safras = [] } = useQuery<Safra[]>({
         queryKey: ["safras"],
-        queryFn: () => apiFetch("/safras"),
+        queryFn: () => apiFetch("/safras/"),
     });
 
     const { data: talhoes = [] } = useQuery<AreaRural[]>({

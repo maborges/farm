@@ -231,7 +231,7 @@ export default function DREOperacionalPage() {
     // Fetch Safras
     const { data: safras = [] } = useQuery<Safra[]>({
         queryKey: ["safras", activeFazendaId],
-        queryFn: () => apiFetch(`/safras${activeFazendaId ? `?unidade_produtiva_id=${activeFazendaId}` : ""}`),
+        queryFn: () => apiFetch(`/safras/${activeFazendaId ? `?unidade_produtiva_id=${activeFazendaId}` : ""}`),
         enabled: !!activeFazendaId,
     });
 

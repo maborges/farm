@@ -471,7 +471,7 @@ export function SafraCreateDialog({ open, onOpenChange, safraId, initialSafra, i
                     }
                 }));
             } else {
-                await apiFetch("/safras", {
+                await apiFetch("/safras/", {
                     method: "POST",
                     body: JSON.stringify({
                         ano_safra: data.ano_safra,

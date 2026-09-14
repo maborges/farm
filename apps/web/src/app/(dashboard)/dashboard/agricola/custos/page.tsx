@@ -11,7 +11,7 @@ export default async function CustosPage() {
     let initialCustos: ResumosCustos | null = null;
 
     try {
-        safras = await apiFetchServer<Safra[]>(`/safras${qs}`);
+        safras = await apiFetchServer<Safra[]>(`/safras/${qs}`);
         if (safras && safras.length > 0) {
             initialCustos = await apiFetchServer<ResumosCustos>(`/custos/safra/${safras[0].id}`);
         }

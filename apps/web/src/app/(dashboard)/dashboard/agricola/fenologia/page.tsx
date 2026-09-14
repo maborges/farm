@@ -36,7 +36,7 @@ export default function FenologiaPage() {
     });
     const { data: safras = [] } = useQuery<Safra[]>({
         queryKey: ["agricola", "safras", activeFazendaId],
-        queryFn: () => apiFetch(`/safras${qs}`),
+        queryFn: () => apiFetch(`/safras/${qs}`),
     });
     const { data: registros = [], isLoading: loadingReg } = useQuery<RegistroFenologia[]>({
         queryKey: ["agricola", "fenologia", "registros", safraId],
