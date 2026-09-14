@@ -9,7 +9,7 @@ export default async function ReceituariosPage() {
 
     let initialReceituarios: ReceituarioAgronomico[] = [];
     try {
-        initialReceituarios = await apiFetchServer<ReceituarioAgronomico[]>("/agricola/receituarios");
+        initialReceituarios = await apiFetchServer<ReceituarioAgronomico[]>("/agricola/receituarios/");
     } catch (e) {
         // Ignora erro no servidor — Client refaz o fetch.
     }

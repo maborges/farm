@@ -27,7 +27,7 @@ interface Safra { id: string; ano_safra?: string; nome?: string }
 interface Talhao { id: string; nome: string }
 
 function receituariosUrl() {
-    return "/agricola/receituarios";
+    return "/agricola/receituarios/";
 }
 
 async function fetchReceituarios() {
@@ -101,7 +101,7 @@ export function ReceituariosClient({
 
     const criarMut = useMutation({
         mutationFn: (payload: ReceituarioAgronomicoCreate) =>
-            apiFetch<ReceituarioAgronomico>("/agricola/receituarios", { method: "POST", body: payload }),
+            apiFetch<ReceituarioAgronomico>("/agricola/receituarios/", { method: "POST", body: payload }),
         onSuccess: () => {
             qc.invalidateQueries({ queryKey: ["agricola", "receituarios"] });
             setShowDialog(false);
