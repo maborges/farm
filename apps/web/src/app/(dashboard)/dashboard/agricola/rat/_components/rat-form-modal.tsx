@@ -49,7 +49,7 @@ export function RatFormModal({ open, onOpenChange }: RatFormModalProps) {
 
     const { data: talhoes = [] } = useQuery({
         queryKey: ["talhoes", activeFazendaId],
-        queryFn: () => apiFetch<any[]>(`/cadastros/areas-rurais/?tipo=TALHAO&unidade_produtiva_id=${activeFazendaId}`),
+        queryFn: () => apiFetch<any[]>(`/cadastros/areas-rurais?tipo=TALHAO&unidade_produtiva_id=${activeFazendaId}`),
         enabled: !!activeFazendaId && hasProfessionalTier,
     });
 

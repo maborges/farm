@@ -198,7 +198,7 @@ export default function PlanejamentoManejosPage() {
 
   const { data: areas = [] } = useQuery<AreaOption[]>({
     queryKey: ["cadastros", "areas-rurais", activeFazendaId],
-    queryFn: () => apiFetch<AreaOption[]>(`/cadastros/areas-rurais/?unidade_produtiva_id=${activeFazendaId}`),
+    queryFn: () => apiFetch<AreaOption[]>(`/cadastros/areas-rurais?unidade_produtiva_id=${activeFazendaId}`),
     enabled: Boolean(activeFazendaId),
   });
 

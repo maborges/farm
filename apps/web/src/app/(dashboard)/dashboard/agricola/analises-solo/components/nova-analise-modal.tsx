@@ -194,7 +194,7 @@ export function NovaAnaliseModal({ onClose }: NovaAnaliseModalProps) {
 
     const { data: talhoes = [] } = useQuery<TalhaoTerritorialRef[]>({
         queryKey: ["talhoes", "nova-analise-solo"],
-        queryFn: () => apiFetch<TalhaoTerritorialRef[]>("/cadastros/areas-rurais/?tipo=TALHAO"),
+        queryFn: () => apiFetch<TalhaoTerritorialRef[]>("/cadastros/areas-rurais?tipo=TALHAO"),
     });
 
     const { data: unidadesProdutivas = [] } = useQuery<UnidadeProdutivaRef[]>({

@@ -79,7 +79,7 @@ export function ReceituariosClient({
 
     const { data: talhoes = [] } = useQuery<Talhao[]>({
         queryKey: ["talhoes", activeFazendaId],
-        queryFn: () => apiFetch<Talhao[]>(`/cadastros/areas-rurais/?tipo=TALHAO&unidade_produtiva_id=${activeFazendaId}`),
+        queryFn: () => apiFetch<Talhao[]>(`/cadastros/areas-rurais?tipo=TALHAO&unidade_produtiva_id=${activeFazendaId}`),
         enabled: !!activeFazendaId && showDialog,
     });
 

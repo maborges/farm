@@ -11,7 +11,7 @@ export default async function PiquetesPage() {
   if (activeFazendaId) {
     try {
       initialData = await apiFetchServer<PiqueteArea[]>(
-        `/cadastros/areas-rurais/?tipo=PIQUETE&unidade_produtiva_id=${activeFazendaId}`
+        `/cadastros/areas-rurais?tipo=PIQUETE&unidade_produtiva_id=${activeFazendaId}`
       );
     } catch {
       // Silencia erro se a API não retornar nada
@@ -19,7 +19,7 @@ export default async function PiquetesPage() {
 
     try {
       initialAreas = await apiFetchServer<AreaRuralOption[]>(
-        `/cadastros/areas-rurais/?unidade_produtiva_id=${activeFazendaId}`
+        `/cadastros/areas-rurais?unidade_produtiva_id=${activeFazendaId}`
       );
     } catch {
       // Silencia erro se a API não retornar nada

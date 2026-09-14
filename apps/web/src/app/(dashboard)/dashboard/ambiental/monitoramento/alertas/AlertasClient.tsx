@@ -110,7 +110,7 @@ export function AlertasClient({ initialData }: { initialData: Alerta[] }) {
     });
     const { data: talhoes = [], isLoading: carregandoTalhoes } = useQuery<Talhao[]>({
         queryKey: ["ambiental", "alertas", "talhoes", activeFazendaId],
-        queryFn: () => apiFetch("/cadastros/areas-rurais/", { params: { tipo: "TALHAO", unidade_produtiva_id: activeFazendaId } }),
+        queryFn: () => apiFetch("/cadastros/areas-rurais", { params: { tipo: "TALHAO", unidade_produtiva_id: activeFazendaId } }),
         enabled: !!activeFazendaId && showForm,
     });
 

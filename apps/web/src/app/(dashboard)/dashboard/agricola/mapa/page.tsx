@@ -83,7 +83,7 @@ export default function MapaGeoprocessamentoPage() {
 
     const { data: talhoes = [], isLoading: loadingTalhoes } = useQuery({
         queryKey: ["talhoes", activeFazendaId],
-        queryFn: () => apiFetch<any[]>(`/cadastros/areas-rurais/?tipo=TALHAO&unidade_produtiva_id=${activeFazendaId}`),
+        queryFn: () => apiFetch<any[]>(`/cadastros/areas-rurais?tipo=TALHAO&unidade_produtiva_id=${activeFazendaId}`),
         enabled: !!activeFazendaId
     });
 
@@ -99,7 +99,7 @@ export default function MapaGeoprocessamentoPage() {
     });
 
     const createTalhaoMutation = useMutation({
-        mutationFn: (payload: any) => apiFetch("/cadastros/areas-rurais/", { method: "POST", body: JSON.stringify(payload) }),
+        mutationFn: (payload: any) => apiFetch("/cadastros/areas-rurais", { method: "POST", body: JSON.stringify(payload) }),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["talhoes", activeFazendaId] });
             toast.success("Talhão registrado com sucesso!");

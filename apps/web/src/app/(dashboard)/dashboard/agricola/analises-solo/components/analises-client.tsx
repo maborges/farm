@@ -137,7 +137,7 @@ export function AnalisesClient() {
         queryKey: ["talhoes", "analises-solo"],
         queryFn: async () => {
             try {
-                return await apiFetch<TalhaoTerritorialRef[]>("/cadastros/areas-rurais/?tipo=TALHAO");
+                return await apiFetch<TalhaoTerritorialRef[]>("/cadastros/areas-rurais?tipo=TALHAO");
             } catch (err) {
                 console.warn("Failed to fetch talhoes", err);
                 return [];

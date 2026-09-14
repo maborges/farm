@@ -45,7 +45,7 @@ export function RelatorioTecnicoList() {
 
     const { data: talhoes = [] } = useQuery<any[]>({
         queryKey: ["talhoes", activeFazendaId, "rat"],
-        queryFn: () => apiFetch(`/cadastros/areas-rurais/?tipo=TALHAO&unidade_produtiva_id=${activeFazendaId}`),
+        queryFn: () => apiFetch(`/cadastros/areas-rurais?tipo=TALHAO&unidade_produtiva_id=${activeFazendaId}`),
         enabled: !!activeFazendaId && hasProfessionalTier,
     });
 

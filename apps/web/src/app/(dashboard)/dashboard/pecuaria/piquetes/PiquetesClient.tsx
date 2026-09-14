@@ -109,7 +109,7 @@ function NovoPiqueteDialog({
 
   const mutation = useMutation({
     mutationFn: (payload: PiqueteCreate) =>
-      apiFetch("/cadastros/areas-rurais/", { method: "POST", body: JSON.stringify(payload) }),
+      apiFetch("/cadastros/areas-rurais", { method: "POST", body: JSON.stringify(payload) }),
     onSuccess: () => {
       toast.success("Piquete criado com sucesso.");
       queryClient.invalidateQueries({ queryKey: ["piquetes"] });
@@ -327,14 +327,14 @@ export function PiquetesClient({
   const { data: areas = [] } = useQuery<AreaRuralOption[]>({
     queryKey: ["areas-rurais", activeFazendaId],
     queryFn: () =>
-      apiFetch<AreaRuralOption[]>(`/cadastros/areas-rurais/?unidade_produtiva_id=${activeFazendaId}`),
+      apiFetch<AreaRuralOption[]>(`/cadastros/areas-rurais?unidade_produtiva_id=${activeFazendaId}`),
     enabled: Boolean(activeFazendaId),
     initialData: activeFazendaId === initialActiveFazendaId ? initialAreas : undefined,
   });
 
   const { data: piquetes = [], isLoading } = useQuery<PiqueteArea[]>({
     queryKey: ["piquetes", activeFazendaId],
-    queryFn: () => apiFetch<PiqueteArea[]>(`/cadastros/areas-rurais/?tipo=PIQUETE&unidade_produtiva_id=${activeFazendaId}`),
+    queryFn: () => apiFetch<PiqueteArea[]>(`/cadastros/areas-rurais?tipo=PIQUETE&unidade_produtiva_id=${activeFazendaId}`),
     enabled: Boolean(activeFazendaId),
     initialData: activeFazendaId === initialActiveFazendaId ? initialData : undefined,
   });

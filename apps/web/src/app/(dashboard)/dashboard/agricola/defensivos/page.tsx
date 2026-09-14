@@ -70,7 +70,7 @@ export default function DefensivosPage() {
         queryFn: () => {
             const params = new URLSearchParams({ tipo: "TALHAO" });
             if (activeFazendaId) params.set("unidade_produtiva_id", activeFazendaId);
-            return apiFetch(`/cadastros/areas-rurais/?${params}`);
+            return apiFetch(`/cadastros/areas-rurais?${params}`);
         },
     });
 

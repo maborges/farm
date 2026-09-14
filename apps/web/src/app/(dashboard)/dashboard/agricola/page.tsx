@@ -98,7 +98,7 @@ function NovaSafraModal({ fazendaId, onClose }: { fazendaId: string; onClose: ()
 
     const { data: talhoes = [] } = useQuery({
         queryKey: ["talhoes", fazendaId],
-        queryFn: () => apiFetch<any[]>(`/cadastros/areas-rurais/?tipo=TALHAO&unidade_produtiva_id=${fazendaId}`),
+        queryFn: () => apiFetch<any[]>(`/cadastros/areas-rurais?tipo=TALHAO&unidade_produtiva_id=${fazendaId}`),
         enabled: !!fazendaId,
     });
 
@@ -276,7 +276,7 @@ export default function SafraPage() {
 
     const { data: talhoes = [] } = useQuery({
         queryKey: ["talhoes", activeFazendaId],
-        queryFn: () => apiFetch<any[]>(`/cadastros/areas-rurais/?tipo=TALHAO&unidade_produtiva_id=${activeFazendaId}`),
+        queryFn: () => apiFetch<any[]>(`/cadastros/areas-rurais?tipo=TALHAO&unidade_produtiva_id=${activeFazendaId}`),
         enabled: !!activeFazendaId,
     });
 

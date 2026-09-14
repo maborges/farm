@@ -94,7 +94,7 @@ export default function OperacoesAgricolasPage() {
 
     const { data: talhoes } = useQuery<any[]>({
         queryKey: ["talhoes", activeFazendaId],
-        queryFn: () => apiFetch(`/cadastros/areas-rurais/?tipo=TALHAO&unidade_produtiva_id=${activeFazendaId}`),
+        queryFn: () => apiFetch(`/cadastros/areas-rurais?tipo=TALHAO&unidade_produtiva_id=${activeFazendaId}`),
         enabled: !!activeFazendaId
     });
 

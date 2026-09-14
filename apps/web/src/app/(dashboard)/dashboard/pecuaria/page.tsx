@@ -104,7 +104,7 @@ export default function PecuariaDashboard() {
 
     const { data: piquetes = [] } = useQuery<PiqueteTerritorial[]>({
         queryKey: ["piquetes", activeFazendaId],
-        queryFn: () => apiFetch<PiqueteTerritorial[]>(`/cadastros/areas-rurais/?tipo=PIQUETE&unidade_produtiva_id=${activeFazendaId}`),
+        queryFn: () => apiFetch<PiqueteTerritorial[]>(`/cadastros/areas-rurais?tipo=PIQUETE&unidade_produtiva_id=${activeFazendaId}`),
         enabled: !!activeFazendaId,
     });
 
