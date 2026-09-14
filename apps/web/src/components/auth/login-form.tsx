@@ -183,6 +183,9 @@ export function LoginForm() {
                 profile.tenants,
             );
 
+            // Uma nova autenticação não deve herdar o tempo ocioso da sessão anterior.
+            localStorage.setItem("agrosaas-last-activity", String(Date.now()));
+
             if (!isSuper && profile.tenants.length > 1) {
                 await setContextCookies(undefined, null);
                 router.replace("/selecionar-tenant");

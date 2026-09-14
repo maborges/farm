@@ -245,6 +245,8 @@ export const useAppStore = create<AppState>()(
                         profile.tenants,
                     );
 
+                    localStorage.setItem("agrosaas-last-activity", String(Date.now()));
+
                     // Recarrega a página para atualizar o contexto
                     window.location.href = "/dashboard";
                 } catch (error) {
@@ -317,6 +319,7 @@ export const useAppStore = create<AppState>()(
                 }
                 set({ ...initialState, _hasHydrated: true });
                 if (typeof window !== "undefined") {
+                    localStorage.removeItem("agrosaas-last-activity");
                     window.location.href = "/login";
                 }
             },

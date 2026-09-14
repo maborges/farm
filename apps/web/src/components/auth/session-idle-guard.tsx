@@ -17,7 +17,7 @@ const DEFAULT_IDLE_MINUTES = 30;
 export function SessionIdleGuard() {
     const token = useAppStore((state) => state.token);
     const logout = useAppStore((state) => state.logout);
-    const lastActivityRef = useRef(Date.now());
+    const lastActivityRef = useRef(0);
     const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const { data } = useQuery<SessionConfig[]>({
         queryKey: ["session-idle-config"],
@@ -26,8 +26,11 @@ export function SessionIdleGuard() {
         staleTime: 60_000,
     });
 
-    const minutes = data?.find((item) => item.chave === "sessao" && item.ativo)
-        ?.valor?.tempo_inatividade_minutos ?? DEFAULT_IDLE_MINUTES;
+    const configuredMinutes = data?.find((item) => item.chave === "sessao" && item.ativo)
+        ?.valor?.tempo_inatividade_minutos;
+    const minutes = Number.isFinite(configuredMinutes) && configuredMinutes > 0
+        ? configuredMinutes
+        : DEFAULT_IDLE_MINUTES;
 
     useEffect(() => {
         if (!token) return;
@@ -48,7 +51,12 @@ export function SessionIdleGuard() {
         };
 
         const persisted = Number(localStorage.getItem(ACTIVITY_KEY) || 0);
-        if (persisted > 0) lastActivityRef.current = persisted;
+        if (Number.isFinite(persisted) && persisted > 0 && persisted <= Date.now()) {
+            lastActivityRef.current = persisted;
+        } else {
+            lastActivityRef.current = Date.now();
+            localStorage.setItem(ACTIVITY_KEY, String(lastActivityRef.current));
+        }
         ["mousedown", "keydown", "touchstart", "scroll", "pointerdown"].forEach((event) =>
             window.addEventListener(event, markActivity, { passive: true }),
         );
