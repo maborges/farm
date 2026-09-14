@@ -457,7 +457,6 @@ from pecuaria.routers import campo_sync
 from pecuaria.routers import dashboard as pecuaria_dashboard
 from pecuaria.climatico.router import router as pecuaria_climatico_router, router_backoffice as pecuaria_climatico_backoffice_router
 app.include_router(pecuaria_climatico_backoffice_router, prefix="/api/v1/backoffice")
-from operacional.routers import frota as frota_router
 app.include_router(router_safras, prefix="/api/v1")
 app.include_router(router_cultivos, prefix="/api/v1")
 app.include_router(router_agricola_talhoes, prefix="/api/v1")
@@ -576,7 +575,6 @@ app.include_router(router_atividades, prefix="/api/v1")
 
 from automacoes.router import router as router_automacoes
 app.include_router(router_automacoes, prefix="/api/v1")
-app.include_router(frota_router.router, prefix="/api/v1")
 
 # Campo PWA
 from campo.router import router as campo_router, sync_router as campo_sync_router
