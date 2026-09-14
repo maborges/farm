@@ -197,7 +197,7 @@ export default function TalhoesPage() {
     const { data: allAreas = [], isLoading } = useQuery<Talhao[]>({
         queryKey: ["areas-rurais", activeFazendaId],
         queryFn: async () => {
-            const res = await apiFetch<Talhao[]>(`/cadastros/areas-rurais/?unidade_produtiva_id=${activeFazendaId}`);
+            const res = await apiFetch<Talhao[]>(`/cadastros/areas-rurais?unidade_produtiva_id=${activeFazendaId}`);
             return res.map(t => {
                 if (typeof t.geometria === "string") {
                     try { t.geometria = JSON.parse(t.geometria); } catch { t.geometria = null; }
