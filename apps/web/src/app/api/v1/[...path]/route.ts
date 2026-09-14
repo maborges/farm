@@ -100,6 +100,13 @@ async function proxy(request: NextRequest, ctx: { params: Promise<{ path: string
     headers.delete("content-length");
     headers.delete("transfer-encoding");
     headers.delete("accept-encoding");
+    // O FastAPI recebe HTTP na rede interna. Repassar o protocolo externo
+    // (https) faz o middleware de HTTPS redirecionar o fetch para TLS na
+    // porta HTTP interna, resultando em "fetch failed" atrás do Nginx.
+    headers.delete("forwarded");
+    headers.delete("x-forwarded-host");
+    headers.delete("x-forwarded-port");
+    headers.delete("x-forwarded-proto");
 
     let response: Response | null = null;
     let lastError: unknown = null;
