@@ -12,7 +12,7 @@ from ia.schemas import IAGrowthTipoOferta
 
 from core.constants import PlanTier
 from core.models.billing import AssinaturaTenant, PlanoAssinatura
-from core.models.auth import Usuario
+from core.models.auth import Usuario, TenantUsuario
 from ia.models import (
     IAGrowthEvento, IAGrowthConfig, IAGrowthConfigHistorico, IAGrowthSugestaoRegistro,
     IAGrowthExperimento, IAGrowthExperimentoVariante, IAGrowthExperimentoEvento,
@@ -87,7 +87,7 @@ STATUS_INCENTIVO_ATIVO = {"OFERECIDO", "APROVADO"}
 STATUS_INCENTIVO_AGUARDANDO = {"PENDENTE_APROVACAO"}
 
 GROWTH_FEATURE_LABELS = {
-    "growth_engine_enabled": "Motor de Growth",
+    "growth_engine_enabled": "Gestão comercial",
     "growth_autopilot_enabled": "Autopilot",
     "growth_llm_copy_enabled": "Copy via LLM",
     "growth_incentivos_enabled": "Incentivos controlados",
@@ -2711,7 +2711,8 @@ class IAGrowthService:
         total_q = await db.execute(
             select(func.count(IAGrowthUserProfile.user_id))
             .join(Usuario, Usuario.id == IAGrowthUserProfile.user_id)
-            .where(Usuario.tenant_id == tenant_id)
+            .join(TenantUsuario, TenantUsuario.usuario_id == Usuario.id)
+            .where(TenantUsuario.tenant_id == tenant_id, TenantUsuario.status == "ATIVO")
         )
         total_usuarios = total_q.scalar() or 0
 
@@ -2719,7 +2720,8 @@ class IAGrowthService:
         dist_q = await db.execute(
             select(IAGrowthUserProfile.perfil, func.count(IAGrowthUserProfile.user_id))
             .join(Usuario, Usuario.id == IAGrowthUserProfile.user_id)
-            .where(Usuario.tenant_id == tenant_id)
+            .join(TenantUsuario, TenantUsuario.usuario_id == Usuario.id)
+            .where(TenantUsuario.tenant_id == tenant_id, TenantUsuario.status == "ATIVO")
             .group_by(IAGrowthUserProfile.perfil)
         )
         distribuicao = {r[0]: r[1] for r in dist_q.all()}
@@ -2872,7 +2874,9 @@ class IAGrowthService:
         desde = datetime.now(timezone.utc) - timedelta(days=periodo_dias)
 
         users_rows = await db.execute(
-            select(Usuario.id).where(Usuario.tenant_id == tenant_id)
+            select(Usuario.id).join(TenantUsuario, TenantUsuario.usuario_id == Usuario.id).where(
+                TenantUsuario.tenant_id == tenant_id, TenantUsuario.status == "ATIVO"
+            )
         )
         user_ids = [row[0] for row in users_rows.all()]
 
@@ -3481,7 +3485,9 @@ class IAGrowthService:
         }
 
         user_rows = await db.execute(
-            select(Usuario.id, Usuario.nome_completo, Usuario.username).where(Usuario.tenant_id == tenant_id)
+            select(Usuario.id, Usuario.nome_completo, Usuario.username)
+            .join(TenantUsuario, TenantUsuario.usuario_id == Usuario.id)
+            .where(TenantUsuario.tenant_id == tenant_id, TenantUsuario.status == "ATIVO")
         )
         usuarios = user_rows.all()
 

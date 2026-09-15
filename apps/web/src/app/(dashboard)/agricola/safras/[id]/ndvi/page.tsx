@@ -69,7 +69,7 @@ export default function NdviPage({ params }: { params: Promise<{ id: string }> }
                     <Lock className="size-4" />
                     <AlertTitle>NDVI disponível no PROFISSIONAL</AlertTitle>
                     <AlertDescription className="space-y-3">
-                        <p>O plano atual mantém o acesso à safra. Série temporal, sincronização Sentinel-2 e análise de vegetação exigem tier PROFISSIONAL.</p>
+                        <p>O plano atual mantém o acesso à safra. Série temporal, sincronização Sentinel-2 e análise de vegetação exigem plano Profissional.</p>
                         <Button
                             asChild
                             size="sm"

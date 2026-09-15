@@ -248,7 +248,7 @@ export function IAGrowthPersonasDashboard() {
             searchable={true}
             searchPlaceholder="Filtrar personas..."
             exportable={true}
-            exportFileName="performance_personas_growth"
+            exportFileName="desempenho_perfis_clientes"
             className="border-none p-0 shadow-none"
           />
         </div>

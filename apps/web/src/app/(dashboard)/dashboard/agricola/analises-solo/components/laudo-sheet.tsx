@@ -353,7 +353,7 @@ export function LaudoSheet({
                             <AlertTitle>Prescrição técnica disponível no PROFISSIONAL</AlertTitle>
                             <AlertDescription className="space-y-3">
                                 <p>
-                                    O plano atual mantém a leitura da análise de solo. Recomendações agronômicas automáticas exigem tier PROFISSIONAL.
+                                    O plano atual mantém a leitura da análise de solo. Recomendações agronômicas automáticas exigem plano Profissional.
                                 </p>
                                 <Button asChild size="sm" className="rounded-sm">
                                     <Link href="/dashboard/settings/billing">Ver planos</Link>

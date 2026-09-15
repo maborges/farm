@@ -371,7 +371,7 @@ export default function CadernoCampoPage({ params }: { params: Promise<{ id: str
           <Lock className="size-4" />
           <AlertTitle>Exportação e assinatura do caderno disponíveis no ENTERPRISE</AlertTitle>
           <AlertDescription className="space-y-3">
-              <p>O registro operacional permanece liberado. Exportar o PDF oficial/auditoria e assinar a última versão exigem tier ENTERPRISE.</p>
+              <p>O registro operacional permanece liberado. Exportar o PDF oficial/auditoria e assinar a última versão exigem plano Enterprise.</p>
               <Button
                 asChild
                 size="sm"

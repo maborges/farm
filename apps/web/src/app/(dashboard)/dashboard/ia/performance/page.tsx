@@ -3,6 +3,7 @@
 import React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
+import { useAppStore } from "@/lib/stores/app-store";
 import { PageHeader } from "@/components/shared/page-header";
 import { IACommercialAssistantWidget } from "@/components/ia/ia-commercial-assistant-widget";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -75,7 +76,7 @@ function MetricCard({
     };
 
     return (
-        <Card className="rounded-sm shadow-sm overflow-hidden border-l-4 border-l-emerald-500">
+        <Card className="rounded-sm shadow-sm overflow-hidden">
             <CardContent className="p-5">
                 <div className="flex items-center justify-between">
                     <div>
@@ -150,6 +151,8 @@ interface IAAutopilotMetricas {
 }
 
 export default function IAPerformancePage() {
+    const currentUser = useAppStore((state) => state.user);
+    const canReviewIncentives = currentUser?.tenant_role === "owner";
     const { data: dashboardData, isLoading: isDashboardLoading } = useQuery<IAPerformanceDashboard>({
         queryKey: ["ia-performance-dashboard"],
         queryFn: () => apiFetch("/ia/performance/dashboard"),
@@ -436,7 +439,7 @@ export default function IAPerformancePage() {
                         icon={CheckCircle2}
                         color="blue"
                     />
-                    <Card className="rounded-sm shadow-sm overflow-hidden border-l-4 border-l-amber-500">
+                    <Card className="rounded-sm shadow-sm overflow-hidden">
                         <CardContent className="p-5">
                             <div className="flex items-center justify-between">
                                 <div>
@@ -476,7 +479,7 @@ export default function IAPerformancePage() {
             <AutopilotGrowthSection />
             <ROIGrowthSection />
             <AprendizadoGrowthSection />
-            <AprovacaoIncentivosSection />
+            {canReviewIncentives && <AprovacaoIncentivosSection />}
             <IncentivosControladosSection />
             <PlanoRecomendacaoSection />
             <OfertasPerformanceSection />
@@ -549,7 +552,7 @@ function AutopilotGrowthSection() {
                 <div className="flex items-center gap-2">
                     <ShieldAlert size={16} className="text-primary" />
                     <h2 className="text-sm font-black uppercase tracking-widest text-foreground">
-                        Autopilot de Growth
+                        Automação comercial
                     </h2>
                     <Badge variant="outline" className={`text-[9px] rounded-sm ${ativo ? "border-emerald-500/20 text-emerald-700 bg-emerald-500/5" : "border-slate-400/20 text-slate-600 bg-slate-500/5"}`}>
                         {ativo ? "ON" : "OFF"}
@@ -724,7 +727,7 @@ function ROIGrowthSection() {
                 <div className="flex items-center gap-2">
                     <DollarSign size={16} className="text-emerald-600" />
                     <h2 className="text-sm font-black uppercase tracking-widest text-foreground">
-                        ROI do Growth
+                        Retorno das ações comerciais
                     </h2>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -769,7 +772,7 @@ function ROIGrowthSection() {
             <div className="flex items-center gap-2 flex-wrap">
                 <DollarSign size={16} className="text-emerald-600" />
                 <h2 className="text-sm font-black uppercase tracking-widest text-foreground">
-                    ROI do Growth
+                    Retorno das ações comerciais
                 </h2>
                 <Badge variant="outline" className="text-[9px] rounded-sm">Estimado</Badge>
             </div>
@@ -780,7 +783,7 @@ function ROIGrowthSection() {
                 <MetricCard title="Conversões" value={data.conversoes.toString()} subtitle="Upgrade ou ação concluída" icon={CheckCircle2} color="amber" />
                 <MetricCard title="CTR" value={`${data.ctr.toLocaleString("pt-BR", { minimumFractionDigits: 1 })}%`} subtitle="Exibição → clique" icon={MousePointerClick} color="purple" />
                 <MetricCard title="Aceite incentivos" value={`${data.taxa_aceite_incentivos.toLocaleString("pt-BR", { minimumFractionDigits: 1 })}%`} subtitle={`${data.incentivos_aceitos} aceitos`} icon={Sparkles} color="blue" />
-                <MetricCard title="Recuperados churn" value={data.usuarios_recuperados_churn.toString()} subtitle="Usuários reengajados pelo Growth" icon={ShieldAlert} color="emerald" />
+                <MetricCard title="Usuários recuperados" value={data.usuarios_recuperados_churn.toString()} subtitle="Usuários recuperados pelas ações de retenção" icon={ShieldAlert} color="emerald" />
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -856,7 +859,7 @@ function AprendizadoGrowthSection() {
                 <div className="flex items-center gap-2 flex-wrap">
                     <RotateCcw size={16} className="text-primary" />
                     <h2 className="text-sm font-black uppercase tracking-widest text-foreground">
-                        Aprendizado do Growth
+                        Otimização das ações comerciais
                     </h2>
                     <Badge variant="outline" className="text-[9px] rounded-sm">Auditável</Badge>
                 </div>
@@ -963,7 +966,7 @@ function IncentivosControladosSection() {
                 <h2 className="text-sm font-black uppercase tracking-widest text-foreground">
                     Incentivos Controlados
                 </h2>
-                <Badge variant="outline" className="text-[9px] rounded-sm">IA-Growth-21</Badge>
+                <Badge variant="outline" className="text-[9px] rounded-sm">Incentivos comerciais</Badge>
             </div>
 
             {isLoading ? (
@@ -1274,7 +1277,7 @@ function GrowthChurnSection() {
                 <h2 className="text-sm font-black uppercase tracking-widest text-foreground">
                     Risco de Churn
                 </h2>
-                <Badge variant="outline" className="text-[9px] rounded-sm">IA-Growth-15</Badge>
+                <Badge variant="outline" className="text-[9px] rounded-sm">Retenção de clientes</Badge>
             </div>
 
             {isLoading ? (
@@ -1431,7 +1434,7 @@ function OportunidadesReceitaSection() {
                         Oportunidades de Receita
                     </h2>
                     <Badge variant="outline" className="text-[9px] rounded-sm border-primary/30 text-primary">
-                        IA-Growth-18
+                        Oportunidades comerciais
                     </Badge>
                 </div>
                 {data && (
@@ -1582,7 +1585,7 @@ function OportunidadesReceitaSection() {
                             {oportunidades.map((item: IAGrowthOportunidadeItem, index: number) => {
                                 const categoriaCfg = OPORTUNIDADE_CONFIG[item.categoria] ?? OPORTUNIDADE_CONFIG.NEUTRO;
                                 return (
-                                    <Card key={item.usuario_id} className="rounded-sm shadow-sm border-l-4 border-l-primary/40">
+                                    <Card key={item.usuario_id} className="rounded-sm shadow-sm">
                                         <CardContent className="p-4 space-y-4">
                                             <div className="flex items-start justify-between gap-3">
                                                 <div className="space-y-2 min-w-0">
@@ -1773,7 +1776,7 @@ function SugestoesSection() {
                     {sugestoes.map(s => {
                         const imp = IMPACTO_CONFIG[s.impacto] ?? IMPACTO_CONFIG.BAIXO;
                         return (
-                            <Card key={s.id} className={`rounded-sm shadow-sm border-l-4 ${s.impacto === "ALTO" ? "border-l-rose-500" : s.impacto === "MÉDIO" ? "border-l-amber-500" : "border-l-slate-300"}`}>
+                            <Card key={s.id} className="rounded-sm shadow-sm">
                                 <CardContent className="p-4 space-y-3">
                                     <div className="flex items-start justify-between gap-3">
                                         <div className="flex items-center gap-2 flex-wrap">
@@ -2062,7 +2065,7 @@ function OfertasPerformanceSection() {
                                 icon={DollarSign}
                                 color="amber"
                             />
-                            <Card className="rounded-sm shadow-sm overflow-hidden border-l-4 border-l-primary">
+                            <Card className="rounded-sm shadow-sm overflow-hidden">
                                 <CardContent className="p-5">
                                     <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">Tipo líder</p>
                                     <h3 className="text-2xl font-bold">{topOffer ? (OFERTA_LABELS[topOffer.tipo_oferta]?.label ?? topOffer.tipo_oferta) : "—"}</h3>

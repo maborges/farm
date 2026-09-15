@@ -542,7 +542,7 @@ export function CultivoAnaliseSoloDrawer({ area, open, onClose, onSuccess }: Pro
                                     <AlertTitle>Laudo inteligente disponível no PROFISSIONAL</AlertTitle>
                                     <AlertDescription className="space-y-3">
                                         <p>
-                                            A análise pode permanecer vinculada ao talhão. Recomendações automáticas e geração de tarefas exigem tier PROFISSIONAL.
+                                            A análise pode permanecer vinculada ao talhão. Recomendações automáticas e geração de tarefas exigem plano Profissional.
                                         </p>
                                         <Button
                                             asChild
@@ -647,7 +647,7 @@ export function CultivoAnaliseSoloDrawer({ area, open, onClose, onSuccess }: Pro
                                     <Lock className="size-4" />
                                     <AlertTitle>Geração de tarefas por IA disponível no PROFISSIONAL</AlertTitle>
                                     <AlertDescription>
-                                        O plano atual mantém a operação básica do cultivo. A automação de recomendações exige tier PROFISSIONAL.
+                                        O plano atual mantém a operação básica do cultivo. A automação de recomendações exige plano Profissional.
                                     </AlertDescription>
                                 </Alert>
                             )}

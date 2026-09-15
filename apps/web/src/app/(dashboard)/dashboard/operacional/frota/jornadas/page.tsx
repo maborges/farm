@@ -295,7 +295,7 @@ export default function FrotaJornadasPage() {
       {!hasProfessionalTier ? (
         <TierUpgradeCard
           title="Jornadas disponíveis no Profissional"
-          description="Acompanhamento operacional de uso real, horas, km e custo estimado exige o tier Profissional."
+          description="Acompanhamento operacional de uso real, horas, km e custo estimado exige o plano Profissional."
           requiredTier="PROFISSIONAL"
           feature="frota_jornadas"
           surface="frota_jornadas_page"

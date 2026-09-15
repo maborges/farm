@@ -6,7 +6,7 @@ import { apiFetch } from "@/lib/api";
 import { useAppStore } from "@/lib/stores/app-store";
 import Link from "next/link";
 import {
-    LayoutDashboard, PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis,
+    PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis,
     Tooltip as ReTooltip, ResponsiveContainer
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { format, parseISO, isValid } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
-    Beef, Layers, MapPin, Scale, Syringe, Baby, Skull,
+    Beef, Layers, MapPin, Scale, Syringe, Baby, Skull, LayoutDashboard,
     Weight, Shuffle, ChevronRight, TrendingUp, Activity
 } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";

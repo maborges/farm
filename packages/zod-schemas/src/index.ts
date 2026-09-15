@@ -17,3 +17,4 @@ export * from "./agricola/index";
 
 // Cadastros
 export * from "./commodity-schemas";
+export * from "./nota-fiscal";

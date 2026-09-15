@@ -48,7 +48,7 @@ export function RelatorioTecnicoHeader() {
                     <Lock className="size-4" />
                     <AlertTitle>RAT disponível no PROFISSIONAL</AlertTitle>
                     <AlertDescription>
-                        Relatórios técnicos e prescrições agronômicas exigem tier PROFISSIONAL.
+                        Relatórios técnicos e prescrições agronômicas exigem plano Profissional.
                     </AlertDescription>
                 </Alert>
             )}

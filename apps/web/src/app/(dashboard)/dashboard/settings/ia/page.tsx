@@ -13,7 +13,7 @@ export default function IAAutopilotSettingsPage() {
     <div className="flex flex-1 flex-col gap-6 p-6">
       <PageHeader
         title="Uso de IA"
-        description="Gestão de autonomia, perfis comportamentais e experimentos de growth."
+        description="Gestão de autonomia, perfis de clientes e testes de ações comerciais."
         icon={<BrainCircuit className="h-8 w-8 text-primary" />}
         breadcrumbs={[
           { label: "Dashboard", href: "/dashboard" },

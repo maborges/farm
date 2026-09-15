@@ -11,8 +11,18 @@ from core.models.unidade_produtiva import UnidadeProdutiva as Fazenda
 from core.models.auth import TenantUsuario
 from core.schemas.billing_schemas import FaturaResponse, LandingPlanoResponse, PlanoAssinaturaResponse
 from core.services.storage_service import StorageService, increment_storage
+from core.services.tenant_branding import upload_tenant_logo
 
 router = APIRouter(prefix="/billing", tags=["Billing / Conta"])
+
+@router.post("/my-account/logo")
+async def upload_my_account_logo(
+    arquivo: UploadFile = File(..., description="Logo JPEG, PNG ou WebP. Máx 2MB."),
+    tenant: Tenant = Depends(get_current_tenant),
+    session: AsyncSession = Depends(get_session),
+):
+    """Args: imagem, conta autenticada e sessão. Return: URL. Raises: erro de upload."""
+    return {"logo_url_grupo": await upload_tenant_logo(tenant, session, arquivo)}
 
 @router.get("/my-account")
 async def get_my_account(tenant: Tenant = Depends(get_current_tenant), session: AsyncSession = Depends(get_session)):
@@ -61,6 +71,7 @@ async def get_my_account(tenant: Tenant = Depends(get_current_tenant), session: 
             "email_responsavel": tenant.email_responsavel,
             "telefone_responsavel": tenant.telefone_responsavel,
             "idioma_padrao": tenant.idioma_padrao,
+            "logo_url_grupo": (tenant.branding or {}).get("logoUrl"),
         },
         "assinatura": assinatura_data
     }
@@ -129,6 +140,7 @@ async def update_my_account(
             "email_responsavel": tenant.email_responsavel,
             "telefone_responsavel": tenant.telefone_responsavel,
             "idioma_padrao": tenant.idioma_padrao,
+            "logo_url_grupo": (tenant.branding or {}).get("logoUrl"),
         },
         "assinatura": assinatura_data
     }

@@ -79,7 +79,7 @@ export function ConsumoClient({ initialData, serverFazendaId }: ConsumoClientPro
       {!hasProfessionalTier ? (
         <TierUpgradeCard
           title="Consumo e eficiência disponíveis no Profissional"
-          description="Indicadores de eficiência, ranking e alertas operacionais de abastecimento exigem o tier profissional."
+          description="Indicadores de eficiência, ranking e alertas operacionais de abastecimento exigem o plano Profissional."
           requiredTier="PROFISSIONAL"
           feature="frota_consumo_eficiencia"
           surface="frota_consumo_page"

@@ -242,24 +242,24 @@ function GrowthEngineSection({ config, currentTier }: { config: ReturnType<typeo
     const packageCards = [
         {
             tier: "BASICO" as const,
-            title: "Growth Básico",
-            subtitle: "Métricas básicas e CTAs simples.",
+            title: "Gestão comercial básica",
+            subtitle: "Indicadores básicos e sugestões de ações.",
             icon: ShieldCheck,
-            features: ["Métricas básicas", "CTAs simples", "Fallback seguro"],
+            features: ["Métricas básicas", "Sugestões de ações", "Recomendações disponíveis sem IA"],
         },
         {
             tier: "PROFISSIONAL" as const,
-            title: "Growth Inteligente",
-            subtitle: "Personas, timing e recomendação de plano.",
+            title: "Gestão comercial inteligente",
+            subtitle: "Perfis de clientes, momento de contato e recomendação de plano.",
             icon: BrainCircuit,
-            features: ["Personas", "Timing inteligente", "Recomendação de plano", "ROI básico"],
+            features: ["Perfis de clientes", "Momento ideal de contato", "Recomendação de plano", "Retorno das ações"],
         },
         {
             tier: "ENTERPRISE" as const,
-            title: "Growth Autopilot",
-            subtitle: "Automação, LLM, incentivos e learning.",
+            title: "Gestão comercial automatizada",
+            subtitle: "Automação, mensagens com IA, incentivos e melhoria contínua.",
             icon: Zap,
-            features: ["Autopilot", "LLM copy", "Incentivos controlados", "Approval flow", "Learning weights", "ROI avançado"],
+            features: ["Ações automáticas", "Mensagens com IA", "Incentivos controlados", "Aprovação de incentivos", "Ajuste das recomendações", "Análise detalhada do retorno"],
         },
     ];
 
@@ -271,7 +271,7 @@ function GrowthEngineSection({ config, currentTier }: { config: ReturnType<typeo
                         <div className="flex items-center gap-2">
                             <Sparkles className="text-primary" />
                             <CardTitle className="text-base font-black uppercase tracking-tight">
-                                Configurações do Growth Engine
+                                Configurações da gestão comercial
                             </CardTitle>
                         </div>
                         <Badge variant="outline" className={`rounded-sm text-[10px] font-black uppercase tracking-widest ${activeBadge.className}`}>
@@ -328,7 +328,7 @@ function GrowthEngineSection({ config, currentTier }: { config: ReturnType<typeo
                     <Button asChild variant="outline" size="sm" className="gap-2 rounded-sm font-black uppercase text-[10px]">
                         <Link href={config.cta_upgrade_url}>
                             <ArrowRight size={14} />
-                            {nextTier ? `Ver Growth ${TIER_LABELS[nextTier]}` : config.cta_upgrade_label}
+                            {nextTier ? `Ver recursos do plano ${TIER_LABELS[nextTier]}` : config.cta_upgrade_label}
                         </Link>
                     </Button>
                     <Button asChild variant="ghost" size="sm" className="gap-2 rounded-sm font-black uppercase text-[10px] text-muted-foreground">
@@ -477,7 +477,7 @@ export default function BillingPage() {
         <div className="p-6 flex flex-col gap-6 animate-in fade-in duration-500">
             <PageHeader
                 title="Assinatura e Pagamentos"
-                description="Gerencie sua assinatura, histórico de pagamentos e compare os recursos disponíveis nos tiers DeepFarms."
+                description="Gerencie sua assinatura, histórico de pagamentos e compare os recursos disponíveis nos planos DeepFarms."
                 icon={<CreditCard className="text-primary" size={24} />}
                 actions={<IACommercialAssistantWidget surface="billing" compact triggerLabel="Assistente IA" />}
                 breadcrumbs={[
@@ -573,7 +573,7 @@ export default function BillingPage() {
                         <Badge variant="outline" className="w-fit rounded-sm text-[9px] uppercase font-black">
                             Matriz de Recursos
                         </Badge>
-                        <CardTitle className="text-base font-black uppercase tracking-tight">O que cada tier libera</CardTitle>
+                        <CardTitle className="text-base font-black uppercase tracking-tight">Recursos disponíveis em cada plano</CardTitle>
                     </CardHeader>
                     <CardContent className="overflow-x-auto">
                         <Table>
@@ -656,7 +656,7 @@ export default function BillingPage() {
                 <CardHeader className="pb-4">
                     <CardTitle className="text-xl font-black uppercase tracking-tight">Tabela de Preços</CardTitle>
                     <CardDescription className="text-xs font-medium">
-                        Transparência total nos tiers DeepFarms.
+                        Transparência total nos planos DeepFarms.
                     </CardDescription>
                 </CardHeader>
                 <CardContent>

@@ -173,7 +173,7 @@ export function RastreabilidadeLotes({ safraId, safras = [] }: Props) {
                 <Lock className="size-4" />
                 <AlertTitle>Rastreabilidade disponível no ENTERPRISE</AlertTitle>
                 <AlertDescription className="space-y-3">
-                    <p>O plano atual mantém a operação agrícola básica. Lotes auditáveis, cadeia de rastreio e certificações exigem tier ENTERPRISE.</p>
+                    <p>O plano atual mantém a operação agrícola básica. Lotes auditáveis, cadeia de rastreio e certificações exigem plano Enterprise.</p>
                     <Button
                         asChild
                         size="sm"

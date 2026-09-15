@@ -63,7 +63,7 @@ export function FrotaInteligenciaPanel({
       ) : !hasEnterpriseTier ? (
         <TierUpgradeCard
           title="Inteligência operacional no Enterprise"
-          description="Score de risco e recomendações automáticas ficam liberados no tier Enterprise."
+          description="Score de risco e recomendações automáticas ficam liberados no plano Enterprise."
           requiredTier="ENTERPRISE"
           feature="frota_inteligencia_dashboard"
           surface="frota_dashboard"

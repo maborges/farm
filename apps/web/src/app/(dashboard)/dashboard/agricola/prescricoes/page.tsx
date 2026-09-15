@@ -189,7 +189,7 @@ export default function PrescricoesVRAPage() {
                     <Lock className="size-4" />
                     <AlertTitle>Prescrições VRA disponíveis no ENTERPRISE</AlertTitle>
                     <AlertDescription className="space-y-3">
-                        <p>Mapas de taxa variável, ingestão de sensores e exportações de prescrição exigem tier ENTERPRISE.</p>
+                        <p>Mapas de taxa variável, ingestão de sensores e exportações de prescrição exigem plano Enterprise.</p>
                         <Button asChild size="sm" className="rounded-sm">
                             <Link href="/dashboard/settings/billing">Ver planos</Link>
                         </Button>

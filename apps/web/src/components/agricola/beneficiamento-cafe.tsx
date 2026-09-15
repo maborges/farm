@@ -225,7 +225,7 @@ export function BeneficiamentoCafe({ safraId, talhoes }: Props) {
                 <Lock className="size-4" />
                 <AlertTitle>Beneficiamento avançado disponível no PROFISSIONAL</AlertTitle>
                 <AlertDescription className="space-y-3">
-                    <p>O plano atual mantém a operação de safra. Lotes de beneficiamento, KPIs e relatórios de rendimento exigem tier PROFISSIONAL.</p>
+                    <p>O plano atual mantém a operação de safra. Lotes de beneficiamento, KPIs e relatórios de rendimento exigem plano Profissional.</p>
                     <Button
                         asChild
                         size="sm"

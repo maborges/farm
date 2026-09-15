@@ -250,7 +250,7 @@ export default function AgricolaReportsPage() {
                     <AlertTitle>Relatórios agrícolas disponíveis no PROFISSIONAL</AlertTitle>
                     <AlertDescription className="space-y-3">
                         <p>
-                            A operação agrícola básica permanece acessível. Relatórios gerenciais, lucratividade e insights exigem tier PROFISSIONAL.
+                            A operação agrícola básica permanece acessível. Relatórios gerenciais, lucratividade e insights exigem plano Profissional.
                         </p>
                         <Button
                             asChild

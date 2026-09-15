@@ -124,7 +124,7 @@ export default function CadernoGlobalPage() {
           <Lock className="size-4" />
           <AlertTitle>Exportações e assinaturas disponíveis no ENTERPRISE</AlertTitle>
           <AlertDescription className="space-y-3">
-            <p>O caderno operacional continua acessível. Exportar PDF, listar exportações e assinar documentos exigem tier ENTERPRISE.</p>
+            <p>O caderno operacional continua acessível. Exportar PDF, listar exportações e assinar documentos exigem plano Enterprise.</p>
             <Button
               asChild
               size="sm"

@@ -138,7 +138,7 @@ export default function FrotaAgriculturaPage() {
       {!hasEnterpriseTier ? (
         <TierUpgradeCard
           title="Integração Frota x Agricultura disponível no Enterprise"
-          description="Custo por safra, talhão e operação com integração agrícola faz parte do tier Enterprise."
+          description="Custo por safra, talhão e operação com integração agrícola faz parte do plano Enterprise."
           requiredTier="ENTERPRISE"
           feature="frota_agricultura"
           surface="frota_agricultura_page"

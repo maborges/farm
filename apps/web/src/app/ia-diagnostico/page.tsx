@@ -52,7 +52,7 @@ export default function IADiagnosticoPage() {
           <Lock className="size-4" />
           <AlertTitle>Diagnóstico IA disponível no PROFISSIONAL</AlertTitle>
           <AlertDescription className="space-y-3">
-            <p>O plano atual mantém a operação agrícola básica. Upload e análise automática de imagens exigem tier PROFISSIONAL.</p>
+            <p>O plano atual mantém a operação agrícola básica. Upload e análise automática de imagens exigem plano Profissional.</p>
             <Button asChild size="sm" className="rounded-sm">
               <Link href="/dashboard/settings/billing">Ver planos</Link>
             </Button>

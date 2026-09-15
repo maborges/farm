@@ -67,7 +67,7 @@ export function IAGrowthExperimentosDashboard() {
         <div className="space-y-1">
           <h2 className="text-xl font-black uppercase tracking-tight flex items-center gap-2">
             <FlaskConical className="h-5 w-5 text-emerald-600" />
-            Experimentos A/B de Growth
+            Comparação de ações comerciais
           </h2>
           <p className="text-xs text-muted-foreground font-medium uppercase">
             Gerencie e acompanhe o desempenho das variações de CTAs e mensagens.

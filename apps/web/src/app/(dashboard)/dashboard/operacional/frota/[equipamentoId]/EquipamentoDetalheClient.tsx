@@ -351,7 +351,7 @@ export function EquipamentoDetalheClient({
                   ) : (
                     <TierUpgradeCard
                       title="Score de risco no Enterprise"
-                      description="Score de risco e recomendações automáticas do equipamento fazem parte do tier Enterprise."
+                      description="Score de risco e recomendações automáticas do equipamento fazem parte do plano Enterprise."
                       requiredTier="ENTERPRISE"
                       feature="frota_inteligencia_detalhe"
                       surface="frota_equipamento_detalhe"

@@ -572,7 +572,7 @@ async def get_growth_plano_recomendado(
     claims: dict = Depends(get_current_user_claims),
     session: AsyncSession = Depends(get_session),
 ):
-    """Recomendação consultiva de plano para o tenant/usuário (IA-Growth-16).
+    """Recomendação consultiva de plano para a conta e o usuário (IA-Growth-16).
 
     Não altera billing — apenas sugere plano + copy + CTA com base em fit.
     """
@@ -591,14 +591,8 @@ async def get_growth_plano_recomendado_metricas(
 ):
     """Distribuição/CTR/conversão por plano recomendado (IA-Growth-16).
 
-    Restrito a owner/admin do tenant. Usuário comum só consome o CTA do
-    endpoint principal.
+    Consulta de leitura para usuários que já possuem acesso ao Growth.
     """
-    if not claims.get("is_owner"):
-        raise HTTPException(
-            status_code=403,
-            detail="Apenas o proprietário do tenant pode acessar métricas de Growth.",
-        )
     from ia.growth_service import IAGrowthService
     return await IAGrowthService.metricas_plano_recomendado(session, tenant_id, periodo_dias)
 
@@ -637,9 +631,7 @@ async def get_growth_incentivos_pendentes(
     claims: dict = Depends(get_current_user_claims),
     session: AsyncSession = Depends(get_session),
 ):
-    """Lista incentivos pendentes de aprovação. Restrito ao owner."""
-    if claims.get("is_owner") is not True:
-        raise HTTPException(status_code=403, detail="Apenas o proprietário do tenant pode revisar incentivos pendentes.")
+    """Lista incentivos pendentes para usuários com acesso ao Growth."""
     from ia.growth_service import IAGrowthService
     return IAGrowthIncentivosAprovacaoResponse(**await IAGrowthService.listar_incentivos_pendentes(
         session,
@@ -658,7 +650,7 @@ async def post_growth_incentivo_aprovar(
 ):
     """Aprova um incentivo pendente. Restrito ao owner."""
     if claims.get("is_owner") is not True:
-        raise HTTPException(status_code=403, detail="Apenas o proprietário do tenant pode aprovar incentivos.")
+        raise HTTPException(status_code=403, detail="Apenas o proprietário da conta pode aprovar incentivos.")
     from ia.growth_service import IAGrowthService
     aprovado_por = uuid.UUID(claims["sub"]) if claims.get("sub") else uuid.uuid4()
     try:
@@ -682,7 +674,7 @@ async def post_growth_incentivo_reprovar(
 ):
     """Reprova um incentivo pendente. Restrito ao owner."""
     if claims.get("is_owner") is not True:
-        raise HTTPException(status_code=403, detail="Apenas o proprietário do tenant pode reprovar incentivos.")
+        raise HTTPException(status_code=403, detail="Apenas o proprietário da conta pode reprovar incentivos.")
     from ia.growth_service import IAGrowthService
     reprovado_por = uuid.UUID(claims["sub"]) if claims.get("sub") else uuid.uuid4()
     try:
@@ -753,11 +745,6 @@ async def get_growth_ofertas_performance(
     session: AsyncSession = Depends(get_session),
 ):
     """Consolida distribuição, conversão e impacto por tipo de oferta."""
-    if not (claims.get("role") in {"owner", "admin"} or claims.get("is_owner") is True):
-        raise HTTPException(
-            status_code=403,
-            detail="Apenas proprietários e administradores podem acessar performance de ofertas.",
-        )
     from ia.growth_service import IAGrowthService
     resultado = await IAGrowthService.metricas_ofertas(session, tenant_id, periodo_dias)
     return IAGrowthOfertasPerformanceResponse(**resultado)
@@ -770,12 +757,7 @@ async def get_growth_roi(
     claims: dict = Depends(get_current_user_claims),
     session: AsyncSession = Depends(get_session),
 ):
-    """Métricas executivas de ROI do Growth. Restrito ao owner/admin."""
-    if not (claims.get("role") in {"owner", "admin"} or claims.get("is_owner") is True):
-        raise HTTPException(
-            status_code=403,
-            detail="Apenas proprietários e administradores podem acessar o ROI do Growth.",
-        )
+    """Métricas executivas de ROI para usuários com acesso ao Growth."""
     from ia.growth_service import IAGrowthService
     return IAGrowthROIResponse(**await IAGrowthService.calcular_roi_growth(session, tenant_id, periodo_dias))
 
@@ -787,12 +769,7 @@ async def get_growth_learning_weights(
     claims: dict = Depends(get_current_user_claims),
     session: AsyncSession = Depends(get_session),
 ):
-    """Lista os pesos aprendidos do Growth. Restrito ao owner/admin."""
-    if not (claims.get("role") in {"owner", "admin"} or claims.get("is_owner") is True):
-        raise HTTPException(
-            status_code=403,
-            detail="Apenas proprietários e administradores podem acessar os pesos do Growth.",
-        )
+    """Lista os pesos aprendidos do Growth para usuários autorizados na função."""
     from ia.growth_service import IAGrowthService
     return IAGrowthLearningWeightsResponse(**await IAGrowthService.listar_learning_weights(session, tenant_id, periodo_dias))
 
@@ -808,7 +785,7 @@ async def post_growth_learning_recalcular(
     if not (claims.get("role") in {"owner", "admin"} or claims.get("is_owner") is True):
         raise HTTPException(
             status_code=403,
-            detail="Apenas proprietários e administradores podem recalcular os pesos do Growth.",
+            detail="Apenas proprietários e administradores podem recalcular os critérios das recomendações comerciais.",
         )
     from ia.growth_service import IAGrowthService
     return IAGrowthLearningRecalcularResponse(**await IAGrowthService.recalcular_pesos_growth(session, tenant_id, periodo_dias))
@@ -824,7 +801,7 @@ async def post_growth_plano_recomendado_clique(
     from ia.growth_service import IAGrowthService
     ok = await IAGrowthService.marcar_plano_recomendado_evento(session, tenant_id, log_id, "clique")
     if not ok:
-        raise HTTPException(status_code=404, detail="Recomendação não encontrada para este tenant.")
+        raise HTTPException(status_code=404, detail="Recomendação não encontrada para esta conta.")
     return {"status": "ok"}
 
 
@@ -838,7 +815,7 @@ async def post_growth_plano_recomendado_conversao(
     from ia.growth_service import IAGrowthService
     ok = await IAGrowthService.marcar_plano_recomendado_evento(session, tenant_id, log_id, "conversao")
     if not ok:
-        raise HTTPException(status_code=404, detail="Recomendação não encontrada para este tenant.")
+        raise HTTPException(status_code=404, detail="Recomendação não encontrada para esta conta.")
     return {"status": "ok"}
 
 
@@ -884,9 +861,7 @@ async def get_growth_config(
     claims: dict = Depends(get_current_user_claims),
     session: AsyncSession = Depends(get_session),
 ):
-    """Lista configurações de CTA por contexto do tenant (Growth-03)."""
-    if not claims.get("is_owner"):
-        raise HTTPException(status_code=403, detail="Apenas o proprietário do tenant pode acessar configurações de growth.")
+    """Lista configurações de CTA por contexto da conta (Growth-03)."""
     from ia.growth_service import IAGrowthService
     return await IAGrowthService.listar_configs(session, tenant_id)
 
@@ -901,7 +876,7 @@ async def patch_growth_config(
 ):
     """Aplica ajuste manual em config de CTA (Growth-03). Requer is_owner."""
     if not claims.get("is_owner"):
-        raise HTTPException(status_code=403, detail="Apenas o proprietário do tenant pode alterar configurações de growth.")
+        raise HTTPException(status_code=403, detail="Apenas o proprietário da conta pode alterar configurações da gestão comercial.")
     from ia.growth_service import IAGrowthService
     usuario_id_str = claims.get("sub")
     usuario_id = uuid.UUID(usuario_id_str) if usuario_id_str else None
@@ -917,7 +892,7 @@ async def reverter_growth_config(
 ):
     """Reverte config do contexto para defaults de fábrica (Growth-03)."""
     if not claims.get("is_owner"):
-        raise HTTPException(status_code=403, detail="Apenas o proprietário do tenant pode reverter configurações de growth.")
+        raise HTTPException(status_code=403, detail="Apenas o proprietário da conta pode reverter configurações da gestão comercial.")
     from ia.growth_service import IAGrowthService
     usuario_id_str = claims.get("sub")
     usuario_id = uuid.UUID(usuario_id_str) if usuario_id_str else None
@@ -933,8 +908,6 @@ async def get_growth_config_historico(
     session: AsyncSession = Depends(get_session),
 ):
     """Histórico auditável de alterações em configurações de CTA (Growth-04)."""
-    if not claims.get("is_owner"):
-        raise HTTPException(status_code=403, detail="Apenas o proprietário do tenant pode visualizar o histórico de growth.")
     from ia.growth_service import IAGrowthService
     return await IAGrowthService.listar_historico(session, tenant_id, contexto, periodo_dias)
 
@@ -947,8 +920,6 @@ async def get_growth_sugestoes(
     session: AsyncSession = Depends(get_session),
 ):
     """Sugestões persistidas de otimização de CTAs (Growth-05/06)."""
-    if not claims.get("is_owner"):
-        raise HTTPException(status_code=403, detail="Apenas o proprietário do tenant pode visualizar sugestões de growth.")
     from ia.growth_service import IAGrowthService
     return await IAGrowthService.gerar_sugestoes_otimizacao(session, tenant_id, periodo_dias)
 
@@ -962,7 +933,7 @@ async def aplicar_growth_sugestao(
 ):
     """Aplica sugestão de otimização e atualiza config (Growth-06)."""
     if not claims.get("is_owner"):
-        raise HTTPException(status_code=403, detail="Apenas o proprietário do tenant pode aplicar sugestões.")
+        raise HTTPException(status_code=403, detail="Apenas o proprietário da conta pode aplicar sugestões.")
     from ia.growth_service import IAGrowthService
     usuario_id = uuid.UUID(claims["sub"]) if claims.get("sub") else None
     try:
@@ -980,7 +951,7 @@ async def ignorar_growth_sugestao(
 ):
     """Marca sugestão como ignorada (Growth-06)."""
     if not claims.get("is_owner"):
-        raise HTTPException(status_code=403, detail="Apenas o proprietário do tenant pode ignorar sugestões.")
+        raise HTTPException(status_code=403, detail="Apenas o proprietário da conta pode ignorar sugestões.")
     from ia.growth_service import IAGrowthService
     usuario_id = uuid.UUID(claims["sub"]) if claims.get("sub") else None
     try:
@@ -997,8 +968,6 @@ async def get_growth_sugestoes_desempenho(
     session: AsyncSession = Depends(get_session),
 ):
     """Avalia resultado das sugestões aplicadas vs. métricas reais (Growth-07)."""
-    if not claims.get("is_owner"):
-        raise HTTPException(status_code=403, detail="Apenas o proprietário do tenant pode visualizar o desempenho das sugestões.")
     from ia.growth_service import IAGrowthService
     return await IAGrowthService.avaliar_resultado_sugestoes(session, tenant_id, periodo_dias)
 
@@ -1012,8 +981,6 @@ async def listar_experimentos(
     session: AsyncSession = Depends(get_session),
 ):
     """Lista experimentos de growth do tenant (Growth-08)."""
-    if not claims.get("is_owner"):
-        raise HTTPException(status_code=403, detail="Apenas o proprietário pode gerir experimentos.")
     from ia.growth_service import IAGrowthService
     return await IAGrowthService.listar_experimentos(session, tenant_id, contexto, status)
 
@@ -2565,12 +2532,21 @@ async def obter_dashboard_performance_ia(
     """Consolida métricas de performance e ROI da IA para o dashboard."""
     return await IAPerformanceService.get_dashboard_metrics(session, tenant_id)
 
+
+@router.get("/performance/recomendacao-upgrade", response_model=IAUpgradeRecomendacaoResponse)
+async def obter_recomendacao_upgrade_ia(
+    session: AsyncSession = Depends(get_session),
+    tenant_id: uuid.UUID = Depends(get_tenant_id),
+):
+    """Mantém o contrato do dashboard legado de performance da IA."""
+    return await IARecomendacaoUpgradeService.get_recomendacao(session, tenant_id)
+
 @router.get("/autopilot/config", response_model=AutopilotConfigResponse)
 async def get_autopilot_config(
     tenant_id: uuid.UUID = Depends(get_tenant_id),
     session: AsyncSession = Depends(get_session)
 ):
-    """Retorna as configurações de autopilot do tenant (Step 210)."""
+    """Retorna as configurações de autopilot da conta (Step 210)."""
     config = await IAAutopilotService.get_config(session, tenant_id)
     return AutopilotConfigResponse(
         ativo=config.ativo,
@@ -2595,10 +2571,10 @@ async def update_autopilot_config(
     claims: dict = Depends(get_current_user_claims),
     session: AsyncSession = Depends(get_session)
 ):
-    """Atualiza as configurações de autopilot do tenant (Step 210)."""
+    """Atualiza as configurações de autopilot da conta (Step 210)."""
     is_owner = claims.get("role") == "owner" or claims.get("is_owner") is True or claims.get("role") == "admin"
     if not is_owner:
-        raise HTTPException(status_code=403, detail="Acesso restrito a proprietários e administradores do tenant.")
+        raise HTTPException(status_code=403, detail="Acesso restrito a proprietários e administradores da conta.")
     updates = body.dict(exclude_unset=True)
     config = await IAAutopilotService.update_config(session, tenant_id, updates)
     return AutopilotConfigResponse(
@@ -2626,7 +2602,7 @@ async def get_growth_engine_config(
     """Retorna a configuração comercial do Growth Engine e os gates efetivos."""
     is_owner = claims.get("role") == "owner" or claims.get("is_owner") is True or claims.get("role") == "admin"
     if not is_owner:
-        raise HTTPException(status_code=403, detail="Acesso restrito a proprietários e administradores do tenant.")
+        raise HTTPException(status_code=403, detail="Acesso restrito a proprietários e administradores da conta.")
     from ia.growth_service import IAGrowthService
     return IAGrowthEngineConfigResponse(**await IAGrowthService.get_growth_engine_config(session, tenant_id))
 
@@ -2641,7 +2617,7 @@ async def update_growth_engine_config(
     """Atualiza a configuração comercial do Growth Engine dentro dos limites do plano."""
     is_owner = claims.get("role") == "owner" or claims.get("is_owner") is True or claims.get("role") == "admin"
     if not is_owner:
-        raise HTTPException(status_code=403, detail="Acesso restrito a proprietários e administradores do tenant.")
+        raise HTTPException(status_code=403, detail="Acesso restrito a proprietários e administradores da conta.")
     updates = body.dict(exclude_unset=True)
     config = await IAAutopilotService.update_config(session, tenant_id, updates)
     from ia.growth_service import IAGrowthService
@@ -2657,7 +2633,7 @@ async def get_growth_autopilot_status(
     """Retorna status, auditoria recente e impacto estimado do Autopilot de Growth."""
     is_owner = claims.get("role") == "owner" or claims.get("is_owner") is True or claims.get("role") == "admin"
     if not is_owner:
-        raise HTTPException(status_code=403, detail="Acesso restrito a proprietários e administradores do tenant.")
+        raise HTTPException(status_code=403, detail="Acesso restrito a proprietários e administradores da conta.")
 
     from ia.growth_service import IAGrowthService
     resultado = await IAGrowthService.get_status_autopilot(session, tenant_id, periodo_dias)
@@ -2676,7 +2652,7 @@ async def get_performance_personas(
     # Verifica se é owner (pode vir via role ou claims específicas do sistema)
     is_owner = claims.get("role") == "owner" or claims.get("is_owner") is True
     if not is_owner:
-        raise HTTPException(status_code=403, detail="Acesso restrito a proprietários do tenant.")
+        raise HTTPException(status_code=403, detail="Acesso restrito a proprietários da conta.")
 
     from ia.growth_service import IAGrowthService
     return await IAGrowthService.get_dashboard_personas(session, tenant_id, periodo_dias)
@@ -2692,7 +2668,7 @@ async def get_performance_churn(
     """Retorna consolidado de risco de churn e impacto de CTAs preventivos (IA-Growth-15)."""
     is_owner = claims.get("role") == "owner" or claims.get("is_owner") is True
     if not is_owner:
-        raise HTTPException(status_code=403, detail="Acesso restrito a proprietários do tenant.")
+        raise HTTPException(status_code=403, detail="Acesso restrito a proprietários da conta.")
 
     from ia.growth_service import IAGrowthService
     return await IAGrowthService.get_dashboard_churn(session, tenant_id, periodo_dias)
@@ -2713,7 +2689,7 @@ async def get_oportunidades_receita(
     """Retorna oportunidades priorizadas de revenue intelligence (IA-Growth-18)."""
     is_privileged = claims.get("role") in {"owner", "admin"} or claims.get("is_owner") is True
     if not is_privileged:
-        raise HTTPException(status_code=403, detail="Acesso restrito a proprietários e administradores do tenant.")
+        raise HTTPException(status_code=403, detail="Acesso restrito a proprietários e administradores da conta.")
 
     from ia.growth_service import IAGrowthService
 

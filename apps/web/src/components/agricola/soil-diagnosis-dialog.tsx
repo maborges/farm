@@ -108,7 +108,7 @@ export function SoilDiagnosisDialog({ analiseId, onClose }: Props) {
                             <AlertTitle>Inteligência de solo disponível no PROFISSIONAL</AlertTitle>
                             <AlertDescription className="space-y-3">
                                 <p>
-                                    O plano atual mantém o acesso operacional às análises. Recomendações automáticas e geração de planejamento exigem tier PROFISSIONAL.
+                                    O plano atual mantém o acesso operacional às análises. Recomendações automáticas e geração de planejamento exigem plano Profissional.
                                 </p>
                                 <Button
                                     asChild

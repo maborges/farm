@@ -44,7 +44,7 @@ export default function RastreabilidadePage() {
                     <Lock className="size-4" />
                     <AlertTitle>Rastreabilidade disponível no ENTERPRISE</AlertTitle>
                     <AlertDescription className="space-y-3">
-                        <p>Lotes auditáveis, cadeia de rastreio e certificações exigem tier ENTERPRISE.</p>
+                        <p>Lotes auditáveis, cadeia de rastreio e certificações exigem plano Enterprise.</p>
                         <Button
                             asChild
                             size="sm"

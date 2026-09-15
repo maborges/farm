@@ -58,7 +58,7 @@ export function RelatorioTecnicoList() {
                     <Lock className="size-4" />
                     <AlertTitle>Relatórios Técnicos disponíveis no PROFISSIONAL</AlertTitle>
                     <AlertDescription className="space-y-3">
-                        <p>O plano atual mantém o acesso operacional à fazenda. RATs e recomendações técnicas exigem tier PROFISSIONAL.</p>
+                        <p>O plano atual mantém o acesso operacional à fazenda. RATs e recomendações técnicas exigem plano Profissional.</p>
                         <Button asChild size="sm" className="rounded-sm">
                             <Link href="/dashboard/settings/billing">Ver planos</Link>
                         </Button>

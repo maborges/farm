@@ -1,7 +1,7 @@
 import uuid
 import enum
 from datetime import datetime, timezone
-from sqlalchemy import String, Integer, Float, DateTime, Text, ForeignKey, Enum as SQLEnum
+from sqlalchemy import String, Integer, Float, DateTime, Text, ForeignKey, JSON, LargeBinary, Enum as SQLEnum
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy import Uuid as SQLUUID
 from core.database import Base
@@ -25,6 +25,9 @@ class StatusSEFAZ(str, enum.Enum):
 
 class NotaFiscal(Base):
     __tablename__ = "fin_notas_fiscais"
+
+    gestao: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    xml_original: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True, deferred=True)
 
     id: Mapped[uuid.UUID] = mapped_column(SQLUUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     tenant_id: Mapped[uuid.UUID] = mapped_column(

@@ -257,9 +257,9 @@ export function DispositivoDialog({ open, onOpenChange }: DispositivoDialogProps
               <Button 
                 type="submit" 
                 form="dispositivo-form" 
-                variant="outline"
+                variant="default"
                 size="sm" 
-                className="rounded-sm bg-primary text-primary-foreground hover:bg-primary/90 border-primary/20"
+                className="rounded-sm"
                 disabled={criar.isPending}
               >
                 {criar.isPending ? (

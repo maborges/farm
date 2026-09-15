@@ -63,7 +63,7 @@ export default function BeneficiamentoPage() {
                     <Lock className="size-4" />
                     <AlertTitle>Beneficiamento disponível no PROFISSIONAL</AlertTitle>
                     <AlertDescription className="space-y-3">
-                        <p>O plano atual mantém a safra aberta. Lotes, KPIs e relatório de rendimento exigem tier PROFISSIONAL.</p>
+                        <p>O plano atual mantém a safra aberta. Lotes, KPIs e relatório de rendimento exigem plano Profissional.</p>
                         <Button
                             asChild
                             size="sm"

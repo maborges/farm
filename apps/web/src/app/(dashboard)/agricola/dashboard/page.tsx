@@ -500,7 +500,7 @@ export default function DashboardAgricolaPage() {
                     <AlertTitle>Alertas inteligentes disponíveis no PROFISSIONAL</AlertTitle>
                     <AlertDescription className="space-y-3">
                         <p>
-                            A visão operacional agrícola continua disponível. A verificação automática de alertas exige tier PROFISSIONAL.
+                            A visão operacional agrícola continua disponível. A verificação automática de alertas exige plano Profissional.
                         </p>
                         <Button
                             asChild
