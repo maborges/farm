@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  LayoutDashboard,
   Leaf,
   ShieldAlert,
   Droplets,
@@ -106,7 +107,7 @@ export default function AmbientalPage() {
       <PageHeader
         title="Painel Ambiental"
         description="Acompanhe conformidade, recursos hídricos e ocorrências ambientais."
-        icon={<Leaf className="size-5 text-primary" />}
+        icon={<LayoutDashboard className="size-5 text-primary" />}
         breadcrumbs={[
           { label: "Dashboard", href: "/dashboard" },
           { label: "Ambiental" },

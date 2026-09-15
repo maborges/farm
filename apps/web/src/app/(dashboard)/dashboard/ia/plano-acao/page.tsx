@@ -5,7 +5,7 @@ import { IAPlanoAcaoCard } from "@/components/ia/ia-plano-acao-card";
 import { PageHeader } from "@/components/shared/page-header";
 import { Separator } from "@/components/ui/separator";
 import { useSearchParams } from "next/navigation";
-import { BrainCircuit } from "lucide-react";
+import { Zap } from "lucide-react";
 
 export default function IAPlanoAcaoPage() {
     const searchParams = useSearchParams();
@@ -20,9 +20,9 @@ export default function IAPlanoAcaoPage() {
     return (
         <div className="flex flex-1 flex-col gap-6 p-6">
             <PageHeader 
-                title="Plano de Ação Detalhado"
+                title="Plano de Ação"
                 description="Estratégias geradas pela inteligência artificial para otimização da safra."
-                icon={<BrainCircuit className="text-primary animate-pulse" size={24} />}
+                icon={<Zap className="text-primary animate-pulse" size={24} />}
                 breadcrumbs={breadcrumbs}
             />
 

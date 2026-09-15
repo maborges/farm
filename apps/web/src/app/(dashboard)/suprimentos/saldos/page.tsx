@@ -5,7 +5,7 @@ import Link from "next/link";
 import { apiFetch } from "@/lib/api";
 import { useAppStore } from "@/lib/stores/app-store";
 import { 
-  Warehouse, Package, AlertTriangle, TrendingUp,
+  Activity, Warehouse, Package, AlertTriangle, TrendingUp,
   PieChart, Bell, Settings2, CheckCircle2
 } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
@@ -200,7 +200,7 @@ export default function SaldosPage() {
       <PageHeader
         title="Saldos de Estoque"
         description="Visão detalhada do inventário disponível em todos os depósitos."
-        icon={<Warehouse className="size-4 text-primary" />}
+        icon={<Activity className="size-4 text-primary" />}
         breadcrumbs={[
           { label: "Dashboard", href: "/dashboard" },
           { label: "Suprimentos", href: "/suprimentos" },
@@ -210,11 +210,11 @@ export default function SaldosPage() {
 
       {/* Alertas de Reposição */}
       {itensCriticos > 0 && (
-        <Card className="rounded-sm border-l-4 border-l-orange-500 shadow-md bg-orange-50/20 overflow-hidden animate-in fade-in slide-in-from-top-4">
+        <Card className="rounded-sm shadow-md bg-orange-50/20 overflow-hidden animate-in fade-in slide-in-from-top-4">
           <CardContent className="p-4">
             <div className="flex items-start gap-3">
               <div className="mt-0.5 p-2 bg-orange-100 rounded-full">
-                <Bell className="size-4 text-orange-600 animate-bounce" />
+                <Bell className="size-4 text-orange-600 animate-pulse" />
               </div>
               <div className="flex-1">
                 <h4 className="text-sm font-black text-orange-800 uppercase tracking-tight">Alertas de Reposição Necessária</h4>
@@ -247,7 +247,7 @@ export default function SaldosPage() {
 
       {/* KPI Section */}
       <div className="grid gap-4 md:grid-cols-4">
-        <Card className="rounded-sm border-l-4 border-l-emerald-500 shadow-sm bg-emerald-50/10">
+        <Card className="rounded-sm shadow-sm bg-emerald-50/10">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
@@ -259,7 +259,7 @@ export default function SaldosPage() {
           </CardContent>
         </Card>
         
-        <Card className="rounded-sm border-l-4 border-l-blue-500 shadow-sm bg-blue-50/10">
+        <Card className="rounded-sm shadow-sm bg-blue-50/10">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
@@ -272,8 +272,8 @@ export default function SaldosPage() {
         </Card>
 
         <Card className={cn(
-          "rounded-sm border-l-4 shadow-sm",
-          itensCriticos > 0 ? "border-l-red-500 bg-red-50/10" : "border-l-green-500 bg-green-50/10"
+          "rounded-sm shadow-sm",
+          itensCriticos > 0 ? "bg-red-50/10" : "bg-green-50/10"
         )}>
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
@@ -288,7 +288,7 @@ export default function SaldosPage() {
           </CardContent>
         </Card>
 
-        <Card className="rounded-sm border-l-4 border-l-primary shadow-sm bg-primary/5">
+        <Card className="rounded-sm shadow-sm bg-primary/5">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
@@ -304,7 +304,7 @@ export default function SaldosPage() {
       {/* Main Content: Grouped by Product */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {Object.values(saldosPorProduto).map((item) => (
-          <Card key={item.nome} className="rounded-sm shadow-sm overflow-hidden border-t-2 border-t-primary/20">
+          <Card key={item.nome} className="rounded-sm shadow-sm overflow-hidden">
             <CardHeader className="p-4 pb-2 bg-muted/20">
               <div className="flex items-start justify-between">
                 <div className="min-w-0 flex-1">

@@ -75,7 +75,7 @@ export default function TimelinePage() {
     return (
         <div className="space-y-6 p-6">
             <PageHeader
-                title="Timeline de Operações"
+                title="Timeline Operacional"
                 description="Visualização cronológica e status de execução das operações na safra."
                 breadcrumbs={[{ label: "Agrícola", href: "/agricola" }, { label: "Timeline" }]}
                 icon={<Activity className="text-primary" size={22} />}
@@ -123,7 +123,7 @@ export default function TimelinePage() {
 
                             <div className="space-y-4">
                                 {ops.map(op => (
-                                    <Card key={op.id} className="shadow-sm border-l-4 border-l-primary hover:shadow-md transition-shadow rounded-sm">
+                                    <Card key={op.id} className="shadow-sm hover:shadow-md transition-shadow rounded-sm">
                                         <CardContent className="p-4 flex flex-col sm:flex-row gap-4">
                                             <div className="flex flex-col min-w-[120px] text-sm">
                                                 <span className="font-semibold font-mono tabular-nums">{format(parseISO(op.data_realizada), "dd/MM/yyyy")}</span>

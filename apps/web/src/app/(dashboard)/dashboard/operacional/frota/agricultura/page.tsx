@@ -109,7 +109,7 @@ export default function FrotaAgriculturaPage() {
   return (
     <div className="space-y-6 p-6">
       <PageHeader
-        title="Uso Agrícola da Frota"
+        title="Uso Agrícola"
         description="Consolidação das jornadas da frota por safra, talhão, operação e equipamento com custo estimado."
         icon={<Sprout className="text-primary" size={22} />}
         breadcrumbs={[

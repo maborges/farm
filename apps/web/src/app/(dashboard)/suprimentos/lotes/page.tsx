@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
 import { useAppStore } from "@/lib/stores/app-store";
 import { toast } from "sonner";
-import { Plus, PackageSearch, AlertTriangle, X, Save } from "lucide-react";
+import { Plus, Layers, PackageSearch, AlertTriangle, X, Save } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -164,11 +164,11 @@ function LoteCard({ lote, produtos, depositos }: { lote: Lote; produtos: Produto
   const vencendo = lote.data_validade && new Date(lote.data_validade) <= new Date(Date.now() + 30 * 86400000);
 
   return (
-    <Card className={`border-l-4 ${
-      lote.status === "ATIVO" ? "border-l-green-500"
-      : lote.status === "VENCIDO" ? "border-l-red-500"
-      : lote.status === "ESGOTADO" && lote.esgotado_por_estorno ? "border-l-amber-400"
-      : "border-l-gray-300"
+    <Card className={`border-t-2 ${
+      lote.status === "ATIVO" ? "border-t-green-500/70"
+      : lote.status === "VENCIDO" ? "border-t-red-500/70"
+      : lote.status === "ESGOTADO" && lote.esgotado_por_estorno ? "border-t-amber-400/70"
+      : "border-t-gray-300"
     }`}>
       <CardHeader className="pb-2">
         <div className="flex items-start justify-between">
@@ -248,7 +248,7 @@ export default function LotesPage() {
       <PageHeader
         title="Lotes de Estoque"
         description="Rastreabilidade por lote — validade, quantidade e origem de cada item."
-        icon={<PackageSearch className="size-4 text-primary" />}
+        icon={<Layers className="size-4 text-primary" />}
         breadcrumbs={[
           { label: "Dashboard", href: "/dashboard" },
           { label: "Suprimentos", href: "/suprimentos" },

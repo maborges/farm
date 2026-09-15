@@ -194,7 +194,7 @@ export default function BillingBackofficePage() {
     return (
         <div className="p-8 space-y-8 w-full max-w-full">
             <PageHeader
-                title="Gestão Financeira SaaS"
+                title="Faturamento & Cobranças"
                 description="Conciliação de pagamentos e auditoria de faturas."
                 icon={<Receipt className="text-primary" size={22} />}
                 breadcrumbs={[{ label: "Backoffice" }, { label: "Financeiro" }]}

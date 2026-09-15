@@ -210,7 +210,7 @@ export const MODULOS_OPERACIONAIS: SidebarModuleGroup[] = [
           { href: '/dashboard/agricola/rentabilidade', icon: TrendingUp, label: 'Rentabilidade Agrícola', tip: 'Rentabilidade e Margem', minimumTier: 'PROFISSIONAL', permission: 'agricola:relatorios:view' },
           { href: '/dashboard/agricola/dre', icon: FileText, label: 'DRE Agrícola v1', tip: 'Visão oficial econômica', minimumTier: 'PROFISSIONAL', permission: 'agricola:relatorios:view' },
           { href: '/agricola/relatorios', icon: FileText, label: 'Relatórios', tip: 'Relatórios', permission: 'agricola:relatorios:view' },
-          { href: '/dashboard/agricola', icon: BrainCircuit, label: 'Central de Inteligência', tip: 'Hub de Analytics', minimumTier: 'PROFISSIONAL', permission: 'agricola:dashboard:view', exact: true },
+          { href: '/dashboard/agricola', icon: Sprout, label: 'Ciclos de Produção', tip: 'Safras e desempenho produtivo', minimumTier: 'PROFISSIONAL', permission: 'agricola:dashboard:view', exact: true },
         ],
       },
       {
@@ -400,7 +400,7 @@ export const MODULOS_OPERACIONAIS: SidebarModuleGroup[] = [
         label: 'Operação',
         icon: Scale,
         items: [
-          { href: '/dashboard/operacional/balanca', icon: Activity, label: 'Visão geral', tip: 'Integração TARA', permission: 'balanca:pesagem:view', exact: true },
+          { href: '/dashboard/operacional/balanca', icon: Scale, label: 'Balança', tip: 'Integração TARA', permission: 'balanca:pesagem:view', exact: true },
           { href: '/dashboard/operacional/balanca/operadores', icon: Users, label: 'Operadores', tip: 'Operadores integrados à TARA', permission: 'balanca:operador:view' },
           { href: '/dashboard/operacional/balanca/estacoes', icon: Smartphone, label: 'Estações', tip: 'Estações da TARA', permission: 'balanca:dispositivo:view' },
           { href: '/dashboard/operacional/balanca/pesagens', icon: Scale, label: 'Pesagens', tip: 'Consulta de pesagens', permission: 'balanca:pesagem:view' },

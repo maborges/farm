@@ -310,9 +310,9 @@ export default function OperacoesPage() {
     return (
         <div className="p-6 space-y-6">
             <PageHeader
-                title="Operações do Campo"
+                title="Operações Consolidadas"
                 description="Registro, histórico e rastreabilidade das operações agrícolas."
-                breadcrumbs={[{ label: "Agrícola", href: "/agricola" }, { label: "Operações do Campo" }]}
+                breadcrumbs={[{ label: "Agrícola", href: "/agricola" }, { label: "Operações Consolidadas" }]}
                 icon={<Tractor className="text-primary" size={22} />}
                 actions={
                     <div className="flex gap-2">

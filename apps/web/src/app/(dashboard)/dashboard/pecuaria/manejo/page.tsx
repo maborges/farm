@@ -248,7 +248,7 @@ export default function ManejoPage() {
     return (
         <div className="p-6 space-y-6 animate-in fade-in duration-700">
             <PageHeader
-                title="Manejo do Rebanho"
+                title="Manejos Sanitários"
                 description="Registro de eventos: nascimentos, pesagens, vacinações e transferências."
                 icon={<Syringe className="text-primary" size={22} />}
                 breadcrumbs={[

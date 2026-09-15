@@ -51,7 +51,7 @@ export default function LcdprPage() {
     return (
         <div className="space-y-6 p-6">
             <PageHeader
-                title="LCDPR — Livro Caixa Digital do Produtor Rural"
+                title="LCDPR"
                 description="Exportação do Carnê-Leão e relatórios fiscais para o produtor rural"
                 icon={<BookOpen className="text-primary" size={22} />}
                 breadcrumbs={[

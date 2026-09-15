@@ -183,9 +183,9 @@ export default function SyncCampoPage() {
     return (
         <div className="p-6 space-y-6">
             <PageHeader 
-                title="Sincronização do Campo"
+                title="Sync Campo"
                 description="Monitoramento de tarefas pecuárias enviadas pelo aplicativo de campo"
-                icon={<Smartphone size={22} className="text-primary" />}
+                icon={<RefreshCcw size={22} className="text-primary" />}
                 breadcrumbs={[
                     { label: "Pecuária", href: "/dashboard/pecuaria/rebanho" },
                     { label: "Sincronização do Campo" },

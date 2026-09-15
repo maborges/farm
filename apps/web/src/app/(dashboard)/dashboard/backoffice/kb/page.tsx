@@ -242,7 +242,7 @@ export default function BackofficeKBPage() {
         <div className="p-6 md:p-8 space-y-6 md:space-y-8 w-full max-w-[1600px] mx-auto">
             {/* ─── Header ────────────────────────────────────────────────────── */}
             <PageHeader
-                title="Gestão da Wiki"
+                title="Base de Conhecimento"
                 description="Crie e gerencie os artigos da base de conhecimento para os usuários."
                 icon={<Book className="text-primary" size={22} />}
                 actions={

@@ -15,6 +15,7 @@ import type { PlanTierId } from "@/types/global";
 import {
     ArrowRight,
     Check,
+    CreditCard,
     Crown,
     ExternalLink,
     FileText,
@@ -475,13 +476,13 @@ export default function BillingPage() {
     return (
         <div className="p-6 flex flex-col gap-6 animate-in fade-in duration-500">
             <PageHeader
-                title="Faturamento e Planos"
+                title="Assinatura e Pagamentos"
                 description="Gerencie sua assinatura, histórico de pagamentos e compare os recursos disponíveis nos tiers DeepFarms."
-                icon={<Crown className="text-primary" size={24} />}
+                icon={<CreditCard className="text-primary" size={24} />}
                 actions={<IACommercialAssistantWidget surface="billing" compact triggerLabel="Assistente IA" />}
                 breadcrumbs={[
                     { label: "Configurações", href: "/dashboard/settings" },
-                    { label: "Faturamento" }
+                    { label: "Assinatura e Pagamentos" }
                 ]}
             />
 

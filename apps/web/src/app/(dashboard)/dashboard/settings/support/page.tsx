@@ -519,7 +519,7 @@ export default function SupportPage() {
                     { label: "Configurações", href: "/dashboard/settings" },
                     { label: "Suporte" },
                 ]}
-                icon={<LifeBuoy className="h-8 w-8 text-primary" />}
+                icon={<MessageSquare className="h-8 w-8 text-primary" />}
                 actions={
                     view === "list" ? (
                         <Button

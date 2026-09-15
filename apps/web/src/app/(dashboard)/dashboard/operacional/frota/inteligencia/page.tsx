@@ -105,7 +105,7 @@ export default function FrotaInteligenciaPage() {
   return (
     <div className="space-y-6 p-6">
       <PageHeader
-        title="Inteligência Operacional"
+        title="Inteligência"
         description="Priorização automática da frota com score de risco, sinais operacionais e recomendações acionáveis."
         icon={<BrainCircuit className="text-primary" size={22} />}
         breadcrumbs={[

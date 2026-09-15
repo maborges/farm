@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { FileText } from "lucide-react";
+import { Wheat } from "lucide-react";
 
 import { PageHeader } from "@/components/shared/page-header";
 import { RomaneiosColheita } from "@/components/agricola/romaneios-colheita";
@@ -61,7 +61,7 @@ export default function RomaneiosPage() {
             <PageHeader
                 title="Romaneios de Colheita"
                 description="Registro e controle de peso, qualidade e produtividade por talhão"
-                icon={<FileText className="text-primary" size={22} />}
+                icon={<Wheat className="text-primary" size={22} />}
                 breadcrumbs={[
                     { label: "Agrícola", href: "/agricola" },
                     { label: "Romaneios" },

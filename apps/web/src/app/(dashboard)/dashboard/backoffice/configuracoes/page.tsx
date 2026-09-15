@@ -2,7 +2,7 @@
 
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
-import { Settings2, Save, Loader2, Database, AlertCircle, CheckCircle2, CreditCard, Construction, Lock, Mail, Shield } from "lucide-react";
+import { Settings, Settings2, Save, Loader2, Database, AlertCircle, CheckCircle2, CreditCard, Construction, Lock, Mail, Shield } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -154,7 +154,7 @@ export default function SaaSConfigPage() {
             <PageHeader
                 title="Parâmetros do SaaS"
                 description="Configurações globais persistidas no banco de dados."
-                icon={<Settings2 className="text-primary" size={22} />}
+                icon={<Settings className="text-primary" size={22} />}
                 actions={
                     <Badge variant="outline" className="bg-primary/5 gap-2 px-3 py-1">
                         <Database size={14} className="text-primary" /> Persistente

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Activity, ArrowRightLeft, Database, FileText, PlugZap, ShieldAlert } from "lucide-react";
+import { Activity, ArrowLeftRight, ArrowRightLeft, Database, FileText, PlugZap, ShieldAlert } from "lucide-react";
 
 import { ErpTimeline, type ErpTimelineItem } from "@/components/integracoes/erp-timeline";
 import { PageHeader } from "@/components/shared/page-header";
@@ -155,9 +155,9 @@ export default async function ErpBridgePage() {
   return (
     <div className="flex flex-col gap-6 p-4 md:p-8">
       <PageHeader
-        title="Acompanhamento das Integrações ERP"
+        title="Integrações ERP"
         description="Painel de apoio do backoffice para acompanhar a situação da integração, investigar falhas e orientar o produtor."
-        icon={<Database className="text-primary" size={22} />}
+        icon={<ArrowLeftRight className="text-primary" size={22} />}
         breadcrumbs={[
           { label: "Backoffice", href: "/dashboard/backoffice/dashboard" },
           { label: "Acompanhamento das Integrações ERP" },

@@ -412,12 +412,12 @@ export default function DREOperacionalPage() {
     return (
         <div className="flex flex-col gap-6 p-6">
             <PageHeader
-                title="DRE Agrícola"
+                title="DRE Operacional"
                 description="Resultado consolidado por safra, com custos apropriados e despesas sem dupla contagem financeira."
                 icon={<FileText size={22} className="text-primary" />}
                 breadcrumbs={[
                     { label: "Financeiro", href: "/dashboard/financeiro/lancamentos" },
-                    { label: "DRE Agrícola" }
+                    { label: "DRE Operacional" }
                 ]}
                 actions={
                     <div className="flex items-center gap-4">
@@ -566,7 +566,7 @@ export default function DREOperacionalPage() {
 
                     {/* ── Simulation Panel ── */}
                     {simulacaoAberta && (
-                        <Card className="rounded-sm border-t-4 border-t-amber-500 shadow-lg bg-amber-50/30 border animate-in slide-in-from-top duration-300 mb-6">
+                        <Card className="rounded-sm shadow-lg bg-amber-50/30 border animate-in slide-in-from-top duration-300 mb-6">
                             <CardHeader className="pb-3">
                                 <div className="flex items-center justify-between">
                                     <div className="space-y-1">
@@ -746,7 +746,7 @@ export default function DREOperacionalPage() {
 
                     {/* ── Summary Cards ── */}
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                        <Card className="rounded-sm border-l-4 border-l-green-500 shadow-sm">
+                        <Card className="rounded-sm shadow-sm">
                             <CardContent className="p-5">
                                 <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider mb-1">Receita Bruta</p>
                                 <div className="flex items-baseline gap-2">
@@ -756,7 +756,7 @@ export default function DREOperacionalPage() {
                             </CardContent>
                         </Card>
 
-                        <Card className="rounded-sm border-l-4 border-l-red-500 shadow-sm">
+                        <Card className="rounded-sm shadow-sm">
                             <CardContent className="p-5">
                                 <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider mb-1">Custos e Despesas</p>
                                 <div className="flex items-baseline gap-2">
@@ -766,7 +766,7 @@ export default function DREOperacionalPage() {
                             </CardContent>
                         </Card>
 
-                        <Card className="rounded-sm border-l-4 border-l-primary shadow-sm bg-primary/[0.02]">
+                        <Card className="rounded-sm shadow-sm bg-primary/[0.02]">
                             <CardContent className="p-5">
                                 <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider mb-1">Resultado Operacional</p>
                                 <h2 className={`text-2xl font-black tabular-nums ${(dre?.resultado_operacional ?? 0) >= 0 ? "text-primary" : "text-destructive"}`}>
@@ -775,7 +775,7 @@ export default function DREOperacionalPage() {
                             </CardContent>
                         </Card>
 
-                        <Card className="rounded-sm border-l-4 border-l-amber-500 shadow-sm">
+                        <Card className="rounded-sm shadow-sm">
                             <CardContent className="p-5">
                                 <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider mb-1">Margem Operacional</p>
                                 <div className="flex items-center gap-2">
@@ -790,7 +790,7 @@ export default function DREOperacionalPage() {
 
                     {/* ── Decision Tracking: Real vs Planned ── */}
                     {analiseDesvio && (
-                        <Card className="rounded-sm border-t-4 border-t-indigo-600 shadow-md bg-indigo-50/20 border animate-in slide-in-from-right duration-500">
+                        <Card className="rounded-sm shadow-md bg-indigo-50/20 border animate-in slide-in-from-right duration-500">
                             <CardHeader className="pb-2">
                                 <div className="flex items-center justify-between">
                                     <div className="space-y-1">
@@ -908,7 +908,7 @@ export default function DREOperacionalPage() {
                     )}
 
                     {/* ── IA Analysis Card ── */}
-                    <Card className="rounded-sm border-t-4 border-t-primary shadow-md overflow-hidden bg-gradient-to-br from-primary/[0.03] to-background border">
+                    <Card className="rounded-sm shadow-md overflow-hidden bg-gradient-to-br from-primary/[0.03] to-background border">
                         <CardHeader className="pb-3 flex flex-row items-center justify-between">
                             <div className="space-y-1">
                                 <CardTitle className="text-sm font-bold flex items-center gap-2 text-primary">

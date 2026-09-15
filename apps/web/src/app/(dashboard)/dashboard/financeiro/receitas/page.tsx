@@ -367,11 +367,11 @@ export default function ReceitasPage() {
     return (
         <div className="p-6 space-y-6">
             <PageHeader
-                title="Contas a Receber"
+                title="Minhas Receitas"
                 description="Acompanhe vendas de grãos, gado e outros faturamentos da fazenda."
                 breadcrumbs={[
                     { label: "Financeiro", href: "/dashboard/financeiro" },
-                    { label: "Receitas" },
+                    { label: "Minhas Receitas" },
                 ]}
                 icon={<CreditCard className="text-primary" size={22} />}
                 actions={

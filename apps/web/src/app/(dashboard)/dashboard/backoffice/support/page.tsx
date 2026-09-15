@@ -285,7 +285,7 @@ export default function AdminSupportPage() {
             {!selectedTicketId ? (
                 <>
                     <PageHeader
-                        title="Gerenciamento de Suporte"
+                        title="Chamados"
                         description="Atenda os usuários e resolva pendências da plataforma."
                         icon={<LifeBuoy className="text-primary" size={22} />}
                     />

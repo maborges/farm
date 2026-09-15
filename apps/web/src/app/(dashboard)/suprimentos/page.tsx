@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
 import { useAppStore } from "@/lib/stores/app-store";
 import {
-  Warehouse, ShoppingCart, Package, ClipboardList,
+  LayoutDashboard, Warehouse, ShoppingCart, Package, ClipboardList,
   AlertTriangle, Lock, ArrowRight, BarChart3, FileSpreadsheet,
 } from "lucide-react";
 import { PageHeader } from "@/components/shared";
@@ -108,9 +108,9 @@ export default function SuprimentosPage() {
   return (
     <div className="p-6 space-y-6 w-full">
       <PageHeader
-        title="Estoque & Suprimentos"
+        title="Painel de Suprimentos"
         description="Gestão completa de materiais — do pedido ao consumo."
-        icon={<Warehouse className="text-primary" />}
+        icon={<LayoutDashboard className="text-primary" />}
         breadcrumbs={[
           { label: "Dashboard", href: "/dashboard" },
           { label: "Suprimentos" },

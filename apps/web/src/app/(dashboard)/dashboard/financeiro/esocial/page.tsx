@@ -123,7 +123,7 @@ export default function FiscalESocialPage() {
     return (
         <div className="flex flex-col gap-6 p-6">
             <PageHeader
-                title="eSocial — Fiscal"
+                title="eSocial"
                 description="Controle de eventos periódicos e de folha de pagamento para o eSocial."
                 icon={<CheckCircle2 className="text-primary" size={22} />}
                 breadcrumbs={[

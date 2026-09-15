@@ -80,8 +80,9 @@ export function SmtpClient({ initialData }: { initialData?: SMTPFormData | null 
     return (
         <div className="p-8 space-y-8 w-full max-w-full">
             <PageHeader
-                title="Comunicação por E-mail"
+                title="Configuração de E-mail"
                 description="Configure seu próprio servidor SMTP para enviar e-mails personalizados com sua marca (White-label)."
+                icon={<Mail className="text-primary" size={22} />}
                 breadcrumbs={[{ label: "Configurações" }, { label: "SMTP" }]}
             />
 

@@ -6,7 +6,7 @@ import { apiFetch } from "@/lib/api";
 import { useAppStore } from "@/lib/stores/app-store";
 import Link from "next/link";
 import {
-    PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis,
+    LayoutDashboard, PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis,
     Tooltip as ReTooltip, ResponsiveContainer
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -176,9 +176,9 @@ export default function PecuariaDashboard() {
 
             <div>
                 <PageHeader
-                    title="Pecuária"
+                    title="Painel de Rebanhos"
                     description="Painel do rebanho — lotes, manejos e piquetes"
-                    icon={<Beef className="size-6" />}
+                    icon={<LayoutDashboard className="size-6" />}
                     actions={
                         <div className="flex gap-2">
                             <Link href="/dashboard/pecuaria/lotes">

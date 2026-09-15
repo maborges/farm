@@ -87,9 +87,9 @@ export default function CustosPage() {
     return (
         <div className="space-y-6 p-6">
             <PageHeader
-                title="Custeio"
+                title="Custeio Agrícola"
                 description="Custo de produção por safra com orçamento, apropriação econômica e histórico."
-                breadcrumbs={[{ label: "Agrícola", href: "/agricola" }, { label: "Custeio" }]}
+                breadcrumbs={[{ label: "Agrícola", href: "/agricola" }, { label: "Custeio Agrícola" }]}
                 icon={<Wallet className="text-primary" size={22} />}
             />
 

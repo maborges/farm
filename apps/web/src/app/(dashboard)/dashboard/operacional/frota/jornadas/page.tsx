@@ -266,7 +266,7 @@ export default function FrotaJornadasPage() {
   return (
     <div className="space-y-6 p-6">
       <PageHeader
-        title="Jornadas Operacionais"
+        title="Jornadas"
         description="Apontamento de uso dos equipamentos com início, fim, operação, operador e atualização de leitura."
         icon={<Clock className="text-primary" size={22} />}
         breadcrumbs={[

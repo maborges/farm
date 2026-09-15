@@ -5,7 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
 import { useAppStore } from "@/lib/stores/app-store";
 import { toast } from "sonner";
-import { ClipboardList, Plus, CheckCircle2, XCircle, Package, Clock, ArrowRight } from "lucide-react";
+import { ClipboardList, FileCheck, Plus, CheckCircle2, XCircle, Package, Clock, ArrowRight } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -605,9 +605,9 @@ export default function RequisicoesPage() {
   return (
     <div className="p-6 space-y-6 w-full">
       <PageHeader
-        title="Requisições de Material"
+        title="Requisições"
         description="Solicitações internas ao almoxarifado — fluxo de aprovação e entrega."
-        icon={<ClipboardList className="size-4 text-primary" />}
+        icon={<FileCheck className="size-4 text-primary" />}
         breadcrumbs={[
           { label: "Dashboard", href: "/dashboard" },
           { label: "Suprimentos", href: "/suprimentos" },

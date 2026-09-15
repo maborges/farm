@@ -471,7 +471,7 @@ export default function DashboardAgricolaPage() {
         <div className="p-6 space-y-8">
             {/* ── Header ── */}
             <PageHeader
-                title="Dashboard Agrícola"
+                title="Painel Agrícola"
                 description="Visão consolidada de safras, custos, produção e alertas"
                 icon={<LayoutDashboard className="size-6 text-primary" />}
                 breadcrumbs={[{ label: "Agrícola", href: "/agricola" }, { label: "Dashboard" }]}

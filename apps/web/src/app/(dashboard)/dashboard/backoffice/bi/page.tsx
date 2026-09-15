@@ -96,7 +96,7 @@ export default function BackofficeBIPage() {
             </svg>
 
             <PageHeader
-                title="Dashboard de BI"
+                title="Business Intelligence"
                 description="Análise profunda de unit economics e retenção do SaaS."
                 icon={<BarChart3 className="text-primary" size={22} />}
                 actions={

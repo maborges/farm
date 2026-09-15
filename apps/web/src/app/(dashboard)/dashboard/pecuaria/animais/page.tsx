@@ -450,7 +450,7 @@ export default function AnimaisPage() {
     return (
         <div className="p-6 space-y-6">
             <PageHeader
-                title="Rebanho Individual"
+                title="Meus Animais"
                 description="Gerencie seus animais de forma detalhada e individualizada"
                 icon={<Beef size={22} className="text-primary" />}
                 breadcrumbs={[

@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
     BrainCircuit,
+    Activity,
     TrendingUp,
     Clock,
     CheckCircle2,
@@ -204,9 +205,9 @@ export default function IAPerformancePage() {
     return (
         <div className="p-6 space-y-6 bg-slate-50/50 dark:bg-slate-950/50 min-h-screen">
             <PageHeader 
-                title="Performance do Copiloto IA" 
+                title="Performance & Eficiência"
                 description="Consolidado de eficiência, taxas de conversão e ROI das ações assistidas."
-                icon={<BrainCircuit className="text-emerald-600" size={24} />}
+                icon={<Activity className="text-emerald-600" size={24} />}
                 actions={<IACommercialAssistantWidget surface="performance" compact triggerLabel="Assistente IA" />}
                 breadcrumbs={[
                     { label: "Dashboard", href: "/dashboard" },

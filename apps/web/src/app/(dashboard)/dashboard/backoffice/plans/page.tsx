@@ -588,7 +588,7 @@ export default function PlansBackofficePage() {
     return (
         <div className="p-8 space-y-8 w-full max-w-full">
             <PageHeader
-                title="Catálogo de Planos"
+                title="Planos & Preços"
                 description="Configure os pacotes comerciais e módulos disponíveis."
                 icon={<Package className="text-primary" size={22} />}
                 actions={

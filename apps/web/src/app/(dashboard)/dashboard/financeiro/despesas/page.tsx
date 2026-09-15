@@ -348,7 +348,7 @@ export default function DespesasPage() {
     return (
         <div className="p-6 space-y-6">
             <PageHeader
-                title="Despesas"
+                title="Minhas Despesas"
                 description="Acompanhe boletos, faturas e controle o Custeio ABC da agricultura."
                 breadcrumbs={[
                     { label: "Financeiro", href: "/dashboard/financeiro" },

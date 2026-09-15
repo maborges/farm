@@ -337,7 +337,7 @@ export default function LotesBovinosPage() {
         <div className="p-6 space-y-6 animate-in fade-in duration-200">
             {/* Header */}
             <PageHeader
-                title="Rebanho: Lotes"
+                title="Lotes"
                 description="Gerencie a quantidade de cabeças, pesagem e movimentação entre pastos."
                 icon={<ClipboardList size={22} className="text-primary" />}
                 breadcrumbs={[

@@ -74,8 +74,9 @@ export default function KnowledgeBasePage() {
     return (
         <div className="p-8 space-y-8 w-full max-w-full">
             <PageHeader
-                title="Como podemos ajudar?"
+                title="Base de Conhecimento"
                 description="Pesquise por tutoriais, guias de uso e resoluções de problemas comuns."
+                icon={<Book className="text-primary" size={22} />}
             />
             <div className="relative w-full max-w-2xl">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 size-5 text-muted-foreground" />
