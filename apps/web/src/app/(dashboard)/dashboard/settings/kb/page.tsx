@@ -1,21 +1,23 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { apiFetch } from "@/lib/api";
-import {
-    Search, Book, ChevronRight,
-    Tractor, Sprout, HandCoins, HelpCircle,
-    FileText, Lightbulb, ShieldCheck
-} from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Skeleton } from "@/components/ui/skeleton";
-import { useState } from "react";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { PageHeader } from "@/components/shared/page-header";
-import ReactMarkdown from 'react-markdown';
+import ReactMarkdown from "react-markdown";
 import Link from "next/link";
+import type { LucideIcon } from "lucide-react";
+import {
+    BookOpen, ChevronRight, CircleHelp, FileText, HandCoins, Lightbulb,
+    Package, Search, ShieldCheck, Sprout, Tractor, UsersRound,
+} from "lucide-react";
+
+import { apiFetch } from "@/lib/api";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Skeleton } from "@/components/ui/skeleton";
+import { PageHeader } from "@/components/shared/page-header";
 
 interface KBArticle {
     id: string;
@@ -23,159 +25,125 @@ interface KBArticle {
     slug: string;
     conteudo: string;
     visualizacoes: number;
+    updated_at: string;
 }
 
 interface KBCategory {
     id: string;
     nome: string;
-    icone: string;
+    icone: string | null;
     artigos: KBArticle[];
+}
+
+const categoryIcons: Record<string, LucideIcon> = {
+    BookOpen,
+    HandCoins,
+    Lightbulb,
+    Package,
+    ShieldCheck,
+    Sprout,
+    Tractor,
+    UsersRound,
+};
+
+function formatDate(value: string): string {
+    return new Intl.DateTimeFormat("pt-BR", { dateStyle: "medium" }).format(new Date(value));
 }
 
 export default function KnowledgeBasePage() {
     const [searchTerm, setSearchTerm] = useState("");
     const [selectedArticleSlug, setSelectedArticleSlug] = useState<string | null>(null);
+    const normalizedSearch = searchTerm.trim().toLocaleLowerCase("pt-BR");
 
-    const { data: categories, isLoading } = useQuery<KBCategory[]>({
+    const { data: categories = [], isLoading, isError, refetch } = useQuery<KBCategory[]>({
         queryKey: ["kb", "public"],
-        queryFn: () => apiFetch("/kb/categories")
+        queryFn: () => apiFetch("/kb/categories"),
     });
 
-    const { data: activeArticle, isLoading: isLoadingArticle } = useQuery<KBArticle>({
-        queryKey: ["kb", "article", selectedArticleSlug],
-        queryFn: () => apiFetch(`/kb/articles/${selectedArticleSlug}`),
-        enabled: !!selectedArticleSlug
-    });
+    const filteredCategories = useMemo(() => categories
+        .map((category) => ({
+            ...category,
+            artigos: category.artigos.filter((article) => !normalizedSearch
+                || category.nome.toLocaleLowerCase("pt-BR").includes(normalizedSearch)
+                || article.titulo.toLocaleLowerCase("pt-BR").includes(normalizedSearch)
+                || article.conteudo.toLocaleLowerCase("pt-BR").includes(normalizedSearch)),
+        }))
+        .filter((category) => category.artigos.length > 0), [categories, normalizedSearch]);
 
-    const getIcon = (name: string) => {
-        const icons: any = {
-            'Tractor': <Tractor size={20} />,
-            'Sprout': <Sprout size={20} />,
-            'HandCoins': <HandCoins size={20} />,
-            'ShieldCheck': <ShieldCheck size={20} />,
-            'Lightbulb': <Lightbulb size={20} />
-        };
-        return icons[name] || <FileText size={20} />;
-    };
+    const selectedArticle = useMemo(() => filteredCategories
+        .flatMap((category) => category.artigos)
+        .find((article) => article.slug === selectedArticleSlug) ?? null,
+    [filteredCategories, selectedArticleSlug]);
+
+    useEffect(() => {
+        if (!selectedArticle && filteredCategories[0]?.artigos[0]) {
+            setSelectedArticleSlug(filteredCategories[0].artigos[0].slug);
+        }
+    }, [filteredCategories, selectedArticle]);
+
+    const articleCount = categories.reduce((total, category) => total + category.artigos.length, 0);
 
     if (isLoading) {
-        return <div className="p-8 space-y-4"><Skeleton className="h-10 w-64" /><Skeleton className="h-96 w-full" /></div>;
+        return (
+            <div className="flex flex-col gap-6 p-6 lg:p-8">
+                <Skeleton className="h-24 w-full" />
+                <Skeleton className="h-12 w-full max-w-2xl" />
+                <Skeleton className="h-[560px] w-full" />
+            </div>
+        );
     }
 
-    // Filter categories and articles based on search
-    const filteredKB = categories?.map(cat => ({
-        ...cat,
-        artigos: cat.artigos.filter(art =>
-            art.titulo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            cat.nome.toLowerCase().includes(searchTerm.toLowerCase())
-        )
-    })).filter(cat => cat.artigos.length > 0);
-
     return (
-        <div className="p-8 space-y-8 w-full max-w-full">
+        <div className="flex w-full max-w-full flex-col gap-6 p-6 lg:p-8">
             <PageHeader
                 title="Base de Conhecimento"
-                description="Pesquise por tutoriais, guias de uso e resoluções de problemas comuns."
-                icon={<Book className="text-primary" size={22} />}
+                description="Guias práticos para configurar, planejar, executar e acompanhar a operação."
+                icon={<BookOpen className="text-primary" size={22} />}
             />
-            <div className="relative w-full max-w-2xl">
-                <Search className="absolute left-4 top-1/2 -translate-y-1/2 size-5 text-muted-foreground" />
-                <Input
-                    placeholder="Ex: Como cadastrar um talhão, configurar sementes..."
-                    className="pl-12 h-14 text-lg rounded-sm border-2 focus:ring-primary shadow-lg bg-surface"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                />
+
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                <Card><CardHeader className="gap-1 p-4"><CardDescription>Tópicos disponíveis</CardDescription><CardTitle className="text-2xl">{categories.length}</CardTitle></CardHeader></Card>
+                <Card><CardHeader className="gap-1 p-4"><CardDescription>Guias e tutoriais</CardDescription><CardTitle className="text-2xl">{articleCount}</CardTitle></CardHeader></Card>
+                <Card className="md:col-span-2 xl:col-span-1"><CardHeader className="gap-1 p-4"><CardDescription>Como usar</CardDescription><CardTitle className="text-sm">Escolha um tópico ou pesquise uma tarefa</CardTitle></CardHeader></Card>
             </div>
 
-            <div className="grid gap-8 md:grid-cols-12 flex-1">
-                {/* Categories & Articles List */}
-                <div className="md:col-span-4 space-y-6">
-                    <h2 className="text-sm font-bold uppercase tracking-widest text-muted-foreground opacity-50 px-2">Categorias de Apoio</h2>
-                    <div className="space-y-4">
-                        {filteredKB?.map((cat) => (
-                            <div key={cat.id} className="space-y-2">
-                                <div className="flex items-center gap-2 px-2 py-1 text-primary font-bold">
-                                    {getIcon(cat.icone)}
-                                    <span>{cat.nome}</span>
-                                </div>
-                                <div className="space-y-1">
-                                    {cat.artigos.map(art => (
-                                        <button
-                                            key={art.id}
-                                            onClick={() => setSelectedArticleSlug(art.slug)}
-                                            className={`w-full text-left p-3 rounded-sm text-sm font-medium transition-all group flex items-center justify-between
-                                                ${selectedArticleSlug === art.slug
-                                                    ? 'bg-primary text-primary-foreground shadow-md'
-                                                    : 'hover:bg-muted/50 text-muted-foreground hover:text-foreground'
-                                                }`}
-                                        >
-                                            <span className="truncate">{art.titulo}</span>
-                                            <ChevronRight size={14} className={`opacity-0 group-hover:opacity-100 ${selectedArticleSlug === art.slug ? 'opacity-100' : ''}`} />
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                        ))}
-                    </div>
+            <div className="relative w-full max-w-3xl">
+                <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input aria-label="Pesquisar na Base de Conhecimento" placeholder="Ex.: cadastrar talhão, importar XML, registrar pesagem" className="pl-9" value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} />
+            </div>
+
+            {isError ? (
+                <Alert variant="destructive"><CircleHelp /><AlertTitle>Não foi possível carregar a Base de Conhecimento</AlertTitle><AlertDescription className="flex flex-wrap items-center gap-3">Verifique sua conexão e tente novamente.<Button size="sm" variant="outline" onClick={() => refetch()}>Tentar novamente</Button></AlertDescription></Alert>
+            ) : categories.length === 0 ? (
+                <Alert><BookOpen /><AlertTitle>A Base de Conhecimento está sendo preparada</AlertTitle><AlertDescription>Os guias ainda não foram publicados. Enquanto isso, a equipe pode usar o canal de suporte para obter ajuda.</AlertDescription></Alert>
+            ) : (
+                <div className="grid min-h-[560px] gap-5 lg:grid-cols-[minmax(280px,0.8fr)_minmax(0,2fr)]">
+                    <Card className="overflow-hidden">
+                        <CardHeader className="border-b p-4"><CardTitle className="text-base">Navegue por tópico</CardTitle><CardDescription>Conteúdos organizados pela rotina da fazenda.</CardDescription></CardHeader>
+                        <ScrollArea className="h-[500px] lg:h-[640px]"><CardContent className="flex flex-col gap-5 p-4">
+                            {filteredCategories.map((category) => {
+                                const Icon = categoryIcons[category.icone ?? ""] ?? FileText;
+                                return <section key={category.id} className="flex flex-col gap-2">
+                                    <div className="flex items-center gap-2 text-sm font-semibold"><Icon className="size-4 text-primary" />{category.nome}</div>
+                                    <div className="flex flex-col gap-1">{category.artigos.map((article) => (
+                                        <Button key={article.id} variant={selectedArticleSlug === article.slug ? "secondary" : "ghost"} className="h-auto justify-between whitespace-normal px-3 py-2 text-left text-sm" onClick={() => setSelectedArticleSlug(article.slug)}><span>{article.titulo}</span><ChevronRight data-icon="inline-end" /></Button>
+                                    ))}</div>
+                                </section>;
+                            })}
+                            {filteredCategories.length === 0 ? <p className="text-sm text-muted-foreground">Nenhum guia corresponde à sua busca.</p> : null}
+                        </CardContent></ScrollArea>
+                    </Card>
+
+                    <Card className="overflow-hidden">
+                        {selectedArticle ? <>
+                            <CardHeader className="border-b p-6"><CardDescription>Guia da Base de Conhecimento</CardDescription><CardTitle className="text-2xl">{selectedArticle.titulo}</CardTitle><CardDescription>Atualizado em {formatDate(selectedArticle.updated_at)} · {selectedArticle.visualizacoes} visualizações</CardDescription></CardHeader>
+                            <ScrollArea className="h-[500px] lg:h-[640px]"><CardContent className="prose max-w-none p-6 dark:prose-invert"><ReactMarkdown>{selectedArticle.conteudo}</ReactMarkdown></CardContent></ScrollArea>
+                        </> : <CardContent className="flex h-full min-h-[500px] flex-col items-center justify-center gap-3 p-8 text-center"><Search className="size-10 text-muted-foreground" /><CardTitle>Nenhum guia encontrado</CardTitle><CardDescription>Tente outra palavra ou navegue pelos tópicos disponíveis.</CardDescription></CardContent>}
+                    </Card>
                 </div>
+            )}
 
-                {/* Article Content */}
-                <Card className="md:col-span-8 bg-surface shadow-xl border-none overflow-hidden min-h-[600px] flex flex-col">
-                    {selectedArticleSlug ? (
-                        isLoadingArticle ? (
-                            <CardContent className="p-12 space-y-4">
-                                <Skeleton className="h-10 w-3/4" />
-                                <Skeleton className="h-4 w-full" />
-                                <Skeleton className="h-4 w-5/6" />
-                                <Skeleton className="h-64 w-full" />
-                            </CardContent>
-                        ) : (
-                            <>
-                                <CardHeader className="p-10 border-b bg-muted/5">
-                                    <div className="flex items-center gap-2 text-xs font-bold text-primary uppercase mb-4">
-                                        <Book size={14} /> Wiki DeepFarms
-                                    </div>
-                                    <CardTitle className="text-3xl font-black">{activeArticle?.titulo}</CardTitle>
-                                    <CardDescription className="text-base mt-2">
-                                        Última atualização: {new Date().toLocaleDateString('pt-BR')} • {activeArticle?.visualizacoes} visualizações
-                                    </CardDescription>
-                                </CardHeader>
-                                <CardContent className="p-10 prose prose-slate max-w-none dark:prose-invert">
-                                    <ReactMarkdown>
-                                        {activeArticle?.conteudo || ""}
-                                    </ReactMarkdown>
-
-                                    <div className="mt-12 pt-8 border-t border-dashed flex flex-col items-center text-center space-y-4">
-                                        <p className="text-sm font-medium text-muted-foreground">Este artigo foi útil?</p>
-                                        <div className="flex gap-4">
-                                            <Button variant="outline" size="sm" className="rounded-full px-6">Sim, obrigado!</Button>
-                                            <Button variant="outline" size="sm" className="rounded-full px-6 text-red-500 hover:text-red-600">Não muito...</Button>
-                                        </div>
-                                    </div>
-                                </CardContent>
-                            </>
-                        )
-                    ) : (
-                        <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground p-12 text-center">
-                            <Lightbulb size={80} className="mb-6 opacity-10 animate-pulse" />
-                            <h3 className="text-xl font-bold text-foreground">Conhecimento é poder!</h3>
-                            <p className="max-w-xs mt-2">Selecione um tópico à esquerda ou use a busca acima para encontrar o que precisa.</p>
-                        </div>
-                    )}
-                </Card>
-            </div>
-
-            {/* CTA Help */}
-            <div className="mt-12 p-8 bg-primary/5 rounded-sm border-2 border-primary/10 flex flex-col md:flex-row items-center justify-between gap-6">
-                <div>
-                    <h3 className="text-xl font-bold">Ainda precisa de ajuda?</h3>
-                    <p className="text-muted-foreground">Fale diretamente com nossa equipe de especialistas através do canal oficial.</p>
-                </div>
-                <Button variant="outline" size="sm" className="rounded-full px-8 shadow-lg hover:scale-105 transition-transform">
-                    <Link href="/settings/support">Falar com o Suporte</Link>
-                </Button>
-            </div>
+            <Card><CardHeader className="flex-row items-center justify-between gap-4 p-5"><div className="flex flex-col gap-1"><CardTitle className="text-base">Ainda precisa de ajuda?</CardTitle><CardDescription>Descreva a situação para que a equipe de suporte possa orientar você.</CardDescription></div><Button asChild size="sm" variant="outline"><Link href="/dashboard/settings/support">Falar com o suporte</Link></Button></CardHeader></Card>
         </div>
     );
 }

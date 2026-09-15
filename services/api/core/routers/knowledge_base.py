@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
-from sqlalchemy.orm import selectinload
+from sqlalchemy import select
+from sqlalchemy.orm import selectinload, with_loader_criteria
 from typing import List
 import uuid
 
@@ -23,18 +23,27 @@ async def list_kb_public(session: AsyncSession = Depends(get_session)):
     stmt = (
         select(ConhecimentoCategoria)
         .options(selectinload(ConhecimentoCategoria.artigos))
+        .options(
+            with_loader_criteria(
+                ConhecimentoArtigo,
+                lambda artigo: artigo.is_publico.is_(True),
+                include_aliases=True,
+            )
+        )
         .order_by(ConhecimentoCategoria.ordem)
     )
     result = await session.execute(stmt)
     categorias = result.scalars().all()
     
-    # Nota: Em produção, filtraríamos apenas artigos is_publico=True
     return categorias
 
 @router.get("/articles/{slug}", response_model=ConhecimentoArtigoResponse)
 async def get_article_by_slug(slug: str, session: AsyncSession = Depends(get_session)):
     """Busca um artigo pelo slug e incrementa visualizações."""
-    stmt = select(ConhecimentoArtigo).where(ConhecimentoArtigo.slug == slug)
+    stmt = select(ConhecimentoArtigo).where(
+        ConhecimentoArtigo.slug == slug,
+        ConhecimentoArtigo.is_publico.is_(True),
+    )
     result = await session.execute(stmt)
     artigo = result.scalar_one_or_none()
     
