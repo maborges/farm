@@ -9,6 +9,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
+import { usePermission } from "@/hooks/use-permission";
 import { RecomendacoesOperacionais } from "@/components/agricola/climatico/recomendacoes-operacionais";
 import { RecomendacoesPecuaria } from "@/components/pecuaria/climatico/recomendacoes-pecuaria";
 import { format } from "date-fns";
@@ -84,6 +85,7 @@ interface ClimaticoDashboardClientProps {
 export default function ClimaticoDashboardClient({ mode = "agricola" }: ClimaticoDashboardClientProps) {
     const { activeFazendaId } = useAppStore();
     const { toast } = useToast();
+    const canSyncClimate = usePermission("integrations:sync");
 
     const { data: resumo, error: resumoError, isLoading: isLoadingResumo } = useQuery<ResumoClimatico>({
         queryKey: ["agricola", "climatico", "resumo", activeFazendaId],
@@ -170,6 +172,15 @@ export default function ClimaticoDashboardClient({ mode = "agricola" }: Climatic
                     <div className="flex gap-2 items-center">
                         <button
                             onClick={() => {
+                                if (!canSyncClimate) {
+                                    toast({
+                                        title: "Acesso não autorizado",
+                                        description: "A sincronização climática é permitida apenas para administradores e proprietários.",
+                                        variant: "destructive",
+                                    });
+                                    return;
+                                }
+
                                 toast({ title: "Sincronizando", description: "Buscando dados no OpenWeather..." });
                                 apiFetch<{ message: string }>(`/climatico/sincronizar/${activeFazendaId}`, { method: "POST" })
                                     .then((res) => {
@@ -182,7 +193,13 @@ export default function ClimaticoDashboardClient({ mode = "agricola" }: Climatic
                                     })
                                     .catch(err => {
                                         console.error(err);
-                                        toast({ title: "Erro", description: "Não foi possível comunicar com o servidor.", variant: "destructive" });
+                                        toast({
+                                            title: "Não foi possível sincronizar",
+                                            description: err?.status === 403
+                                                ? "A sincronização climática é permitida apenas para administradores e proprietários."
+                                                : "Não foi possível comunicar com o servidor.",
+                                            variant: "destructive",
+                                        });
                                     });
                             }}
                             className="bg-primary text-primary-foreground hover:bg-primary/90 px-3 py-1.5 text-xs font-medium rounded-sm flex items-center gap-2"
