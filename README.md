@@ -12,6 +12,42 @@ Utilize português (pt-BR) para documentos e interações com o usuário, com ac
 
 > A fonte oficial do frontend web é `apps/web/`. O backend principal fica em `services/api` e os contratos compartilhados em `packages/`.
 
+## Acesso SSH e deploy em produção
+
+O servidor de produção é acessado pelo usuário `ubuntu`, com a chave privada
+local autorizada para o ambiente. O checkout do monorepo no servidor fica em
+`/opt/deepfarms/farm`.
+
+```bash
+ssh -i ~/.ssh/deepfarms-pilot-key.pem ubuntu@ec2-56-126-104-183.sa-east-1.compute.amazonaws.com
+```
+
+Depois de conectado, confirme o checkout e os serviços antes de publicar:
+
+```bash
+cd /opt/deepfarms/farm
+git fetch origin main
+git status --short
+systemctl is-active deepfarms-api deepfarms-web deepfarms-campo deepfarms-worker deepfarms-outbox nginx
+```
+
+Execute `git pull --ff-only origin main` somente depois de classificar e
+preservar qualquer alteração local, configuração `.env.production` ou backup
+operacional apresentado pelo `git status`.
+
+Para alterações somente no Web, faça o build e reinicie apenas esse serviço:
+
+```bash
+NODE_OPTIONS=--max-old-space-size=1024 pnpm --filter web build
+sudo systemctl restart deepfarms-web
+curl -fsS http://127.0.0.1:3000/ >/dev/null && echo "Web OK"
+```
+
+Não execute `git reset --hard`, `git clean` ou remova arquivos `.env.production`
+e backups operacionais do servidor. O procedimento completo, incluindo migrations,
+rollback e verificações de saúde, está em
+[docs/runbooks/deploy-les-svrbo-ap01.md](docs/runbooks/deploy-les-svrbo-ap01.md).
+
 ## Arquitetura do Sistema
 
 Monorepo dividido em:

@@ -18,6 +18,27 @@ router = APIRouter(
 )
 
 
+async def _carregar_lead(session: AsyncSession, lead_id: UUID) -> LeadCRM | None:
+    """Recarrega lead com relacionamentos estagio e atividades via joinedload.
+
+    Args:
+        session: Sessão assíncrona do SQLAlchemy.
+        lead_id: UUID do lead a ser carregado.
+
+    Returns:
+        Instância de LeadCRM com relacionamentos carregados, ou None.
+    """
+    result = await session.execute(
+        select(LeadCRM)
+        .options(
+            joinedload(LeadCRM.estagio),
+            joinedload(LeadCRM.atividades),
+        )
+        .where(LeadCRM.id == lead_id)
+    )
+    return result.unique().scalar_one_or_none()
+
+
 # ==================== SCHEMAS ====================
 
 # --- Pipeline Estágios ---
@@ -483,8 +504,8 @@ async def criar_lead(
     lead = LeadCRM(**data.model_dump())
     session.add(lead)
     await session.commit()
-    await session.refresh(lead, ["estagio"])
-    return lead
+    lead_carregado = await _carregar_lead(session, lead.id)
+    return lead_carregado
 
 
 @router.put(
@@ -508,8 +529,8 @@ async def atualizar_lead(
         setattr(lead, field, value)
 
     await session.commit()
-    await session.refresh(lead, ["estagio"])
-    return lead
+    lead_carregado = await _carregar_lead(session, lead.id)
+    return lead_carregado
 
 
 @router.patch(
@@ -534,8 +555,8 @@ async def mover_lead(
 
     lead.estagio_id = data.estagio_id
     await session.commit()
-    await session.refresh(lead, ["estagio"])
-    return lead
+    lead_carregado = await _carregar_lead(session, lead.id)
+    return lead_carregado
 
 
 @router.patch(
@@ -560,8 +581,8 @@ async def converter_lead(
         lead.tenant_convertido_id = data.tenant_convertido_id
 
     await session.commit()
-    await session.refresh(lead, ["estagio"])
-    return lead
+    lead_carregado = await _carregar_lead(session, lead.id)
+    return lead_carregado
 
 
 @router.patch(
@@ -584,8 +605,8 @@ async def perder_lead(
     lead.motivo_perda = data.motivo_perda
 
     await session.commit()
-    await session.refresh(lead, ["estagio"])
-    return lead
+    lead_carregado = await _carregar_lead(session, lead.id)
+    return lead_carregado
 
 
 @router.patch(
@@ -609,8 +630,8 @@ async def reabrir_lead(
     lead.tenant_convertido_id = None
 
     await session.commit()
-    await session.refresh(lead, ["estagio"])
-    return lead
+    lead_carregado = await _carregar_lead(session, lead.id)
+    return lead_carregado
 
 
 @router.patch(
@@ -633,8 +654,8 @@ async def aprovar_lead(
     lead.status = "aprovado"
 
     await session.commit()
-    await session.refresh(lead, ["estagio"])
-    return lead
+    lead_carregado = await _carregar_lead(session, lead.id)
+    return lead_carregado
 
 
 # ==================== ENDPOINTS - ATIVIDADES ====================
