@@ -15,7 +15,7 @@ O banco funcional `farms` não foi utilizado como substituto.
 ## Ambiente e segurança
 
 Consultas realizadas, somente leitura, contra o servidor PostgreSQL
-`192.168.0.3`:
+`192.168.0.2`:
 
 ```sql
 SELECT current_database(), current_user, inet_server_addr();

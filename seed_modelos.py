@@ -8,7 +8,7 @@ import json
 import asyncpg
 
 async def main():
-    conn = await asyncpg.connect("postgresql://borgus:numsey01@192.168.0.3/farms")
+    conn = await asyncpg.connect("postgresql://borgus:numsey01@192.168.0.2/farms")
 
     models = [
         {

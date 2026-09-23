@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 DB_CONFIG = {
-    'host': os.getenv('DB_HOST', '192.168.0.3'),
+    'host': os.getenv('DB_HOST', '192.168.0.2'),
     'database': os.getenv('DB_NAME', 'farms'),
     'user': os.getenv('DB_USER', 'borgus'),
     'password': os.getenv('DB_PASSWORD', 'numsey01')
