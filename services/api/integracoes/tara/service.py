@@ -111,7 +111,11 @@ async def resolve_client(db: AsyncSession, tenant_id: str) -> TaraClient:
     values = config.configuracoes or {}
     if not all((values.get("base_url"), values.get("client_id"), secret)):
         raise TaraNotConfigured("Configuração TARA incompleta.")
-    return TaraClient(values["base_url"], values["client_id"], secret)
+    client = TaraClient(values["base_url"], values["client_id"], secret)
+    # A chamada HTTP seguinte pode durar vários segundos. Não mantenha uma
+    # conexão do pool do DeepFarms ocupada enquanto a TARA responde.
+    await db.rollback()
+    return client
 
 
 async def diagnose_connection(db: AsyncSession, tenant_id: str) -> dict[str, object]:
@@ -137,6 +141,14 @@ async def diagnose_connection(db: AsyncSession, tenant_id: str) -> dict[str, obj
 
     tara_client_id = response.get("id") or response.get("client_id") if isinstance(response, dict) else None
     if tara_client_id:
+        # ``resolve_client`` libera a transação antes da chamada HTTP. Como o
+        # contexto de tenant é ``SET LOCAL``, o rollback também o remove. O
+        # salvamento abaixo precisa reativá-lo para continuar protegido por
+        # RLS.
+        await db.execute(
+            text("SELECT set_config('app.current_tenant_id', :tenant, true)"),
+            {"tenant": tenant_id},
+        )
         config.configuracoes = {**values, "tara_client_id": str(tara_client_id)}
         await db.commit()
     return {"tara_reachable": True, "tenant_valid": True, "credentials_valid": True, "client_authorized": True, "client_registered": True, "status": "CONNECTED", "message": "Conexão e associação do Cliente TARA validadas com sucesso."}
@@ -146,14 +158,22 @@ async def sync_weighings(db: AsyncSession, tenant_id: str, limit: int = 100) -> 
     """Recupera todas as páginas e salva o cursor apenas após cada sucesso."""
     provider = await _provider(db)
     config = await _config(db, tenant_id, provider.id)
+    config_values = dict(config.configuracoes or {}) if config else {}
     client = await resolve_client(db, tenant_id)
-    cursor = (config.configuracoes or {}).get("weighings_next_cursor") if config else None
+    cursor = config_values.get("weighings_next_cursor") if config else None
     items: list[dict] = []
     while True:
         page = await client.list_weighings(limit, cursor)
         items.extend(page.get("items", []))
         next_cursor = page.get("next_cursor")
-        config.configuracoes = {**(config.configuracoes or {}), "weighings_next_cursor": next_cursor}
+        # Cada commit encerra a transação local e o próximo ciclo precisa
+        # reativar o tenant antes de atualizar o cursor sob RLS.
+        await db.execute(
+            text("SELECT set_config('app.current_tenant_id', :tenant, true)"),
+            {"tenant": tenant_id},
+        )
+        config.configuracoes = {**config_values, "weighings_next_cursor": next_cursor}
+        config_values = dict(config.configuracoes)
         await db.commit()
         if next_cursor is None:
             return items

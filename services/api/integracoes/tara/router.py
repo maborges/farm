@@ -63,7 +63,7 @@ async def create_order(payload: TaraOrderCreate, tenant_id: UUID = Depends(get_t
         raise _error(exc) from exc
 
 
-@router.post("/operators", dependencies=[Depends(require_tenant_permission("balanca:write"))])
+@router.post("/operators", dependencies=[Depends(require_tenant_permission("balanca:operador:create"))])
 async def create_operator(payload: TaraOperatorCreate, tenant_id: UUID = Depends(get_tenant_id), db: AsyncSession = Depends(get_session)) -> Any:
     """Publicamente projeta um operador do DeepFarms na TARA."""
     try:
@@ -72,7 +72,7 @@ async def create_operator(payload: TaraOperatorCreate, tenant_id: UUID = Depends
         raise _error(exc) from exc
 
 
-@router.get("/operators", dependencies=[Depends(require_tenant_permission("balanca:read"))])
+@router.get("/operators", dependencies=[Depends(require_tenant_permission("balanca:operador:view"))])
 async def list_operators(tenant_id: UUID = Depends(get_tenant_id), db: AsyncSession = Depends(get_session)) -> Any:
     """Consulta operadores do cliente na Conta TARA."""
     try:
@@ -81,7 +81,7 @@ async def list_operators(tenant_id: UUID = Depends(get_tenant_id), db: AsyncSess
         raise _error(exc) from exc
 
 
-@router.post("/operators/{operator_id}/revoke", dependencies=[Depends(require_tenant_permission("balanca:configure"))])
+@router.post("/operators/{operator_id}/revoke", dependencies=[Depends(require_tenant_permission("balanca:operador:edit"))])
 async def revoke_operator(operator_id: str, tenant_id: UUID = Depends(get_tenant_id), db: AsyncSession = Depends(get_session)) -> Any:
     """Solicita revogação da projeção do operador na TARA."""
     try:

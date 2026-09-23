@@ -51,11 +51,11 @@ async def solicitar_pesagem_balanca(
 ):
     """Vincula a comercialização a uma pesagem oficial na estação de balança
     (venda de carga)."""
-    from integracoes.balanca import BalancaOrderRequest
+    from integracoes.tara.schemas import TaraOrderCreate
     from integracoes.tara.service import resolve_client
 
     ordem = await (await resolve_client(session, str(tenant_id))).create_order(
-        BalancaOrderRequest(
+        TaraOrderCreate(
             client_system="agrosaas",
             client_tenant_id=str(tenant_id),
             external_reference=f"financeiro:comercializacao:{comercializacao_id}",

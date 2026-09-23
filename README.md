@@ -12,41 +12,153 @@ Utilize português (pt-BR) para documentos e interações com o usuário, com ac
 
 > A fonte oficial do frontend web é `apps/web/`. O backend principal fica em `services/api` e os contratos compartilhados em `packages/`.
 
-## Acesso SSH e deploy em produção
+## Deploy em produção
 
 O servidor de produção é acessado pelo usuário `ubuntu`, com a chave privada
-local autorizada para o ambiente. O checkout do monorepo no servidor fica em
-`/opt/deepfarms/farm`.
+local autorizada. O checkout do monorepo fica em `/opt/deepfarms/farm`.
 
 ```bash
 ssh -i ~/.ssh/deepfarms-pilot-key.pem ubuntu@ec2-56-126-104-183.sa-east-1.compute.amazonaws.com
 ```
 
-Depois de conectado, confirme o checkout e os serviços antes de publicar:
+### Preparação para qualquer atualização
+
+No servidor, confirme o estado antes de alterar o checkout. Só execute o
+`git pull` depois de preservar e classificar toda alteração local — em especial
+arquivos `.env.production`, backups e artefatos operacionais gerados pelo build.
 
 ```bash
 cd /opt/deepfarms/farm
 git fetch origin main
 git status --short
 systemctl is-active deepfarms-api deepfarms-web deepfarms-campo deepfarms-worker deepfarms-outbox nginx
+git pull --ff-only origin main
 ```
 
-Execute `git pull --ff-only origin main` somente depois de classificar e
-preservar qualquer alteração local, configuração `.env.production` ou backup
-operacional apresentado pelo `git status`.
+Se `git status --short` não estiver vazio, interrompa o procedimento e resolva
+o estado do checkout antes do `pull`. Não use `git reset --hard`, `git clean`
+nem remova arquivos de ambiente ou backups para forçar a atualização.
 
-Para alterações somente no Web, faça o build e reinicie apenas esse serviço:
+Se o `pnpm-lock.yaml` ou algum `package.json` mudou, atualize as dependências
+do workspace uma vez antes de atualizar Web ou Campo:
 
 ```bash
-NODE_OPTIONS=--max-old-space-size=1024 pnpm --filter web build
+cd /opt/deepfarms/farm
+pnpm install --frozen-lockfile
+```
+
+### Atualização individual de cada módulo
+
+Execute primeiro a preparação acima. Em seguida, aplique somente o bloco do
+módulo que recebeu alteração. Quando houver migration, atualize a API antes dos
+consumidores que usam o banco.
+
+#### API e migrations
+
+Use para mudanças em `services/api/` ou em migrations. O restart inclui a API
+e os dois processos que executam código Python do backend.
+
+```bash
+cd /opt/deepfarms/farm/services/api
+./.venv/bin/alembic upgrade head
+sudo systemctl restart deepfarms-api deepfarms-worker deepfarms-outbox
+curl -fsS http://127.0.0.1:8000/docs >/dev/null && echo "API OK"
+```
+
+#### Painel Web
+
+Use para mudanças em `apps/web/` ou nos pacotes compartilhados consumidos pelo
+painel.
+
+```bash
+cd /opt/deepfarms/farm
+NODE_OPTIONS=--max-old-space-size=1536 pnpm --filter web build
 sudo systemctl restart deepfarms-web
 curl -fsS http://127.0.0.1:3000/ >/dev/null && echo "Web OK"
 ```
 
-Não execute `git reset --hard`, `git clean` ou remova arquivos `.env.production`
-e backups operacionais do servidor. O procedimento completo, incluindo migrations,
-rollback e verificações de saúde, está em
-[docs/runbooks/deploy-les-svrbo-ap01.md](docs/runbooks/deploy-les-svrbo-ap01.md).
+#### PWA Campo
+
+Use para mudanças em `apps/campo/` ou nos pacotes compartilhados consumidos
+pelo PWA.
+
+```bash
+cd /opt/deepfarms/farm
+pnpm --filter @agro/campo build
+sudo systemctl restart deepfarms-campo
+curl -fsS http://127.0.0.1:3002/ >/dev/null && echo "Campo OK"
+```
+
+#### Workers
+
+Use quando a alteração estiver apenas em `scripts/run_worker.py`,
+`background_worker` ou `events/outbox_worker`, sem mudanças de schema/API.
+
+```bash
+cd /opt/deepfarms/farm
+sudo systemctl restart deepfarms-worker deepfarms-outbox
+systemctl is-active deepfarms-worker deepfarms-outbox
+```
+
+#### Verificação final
+
+Após qualquer atualização, confirme que todos os serviços permanecem ativos.
+Para um deploy completo, valide também os três endereços públicos.
+
+```bash
+systemctl is-active deepfarms-api deepfarms-web deepfarms-campo deepfarms-worker deepfarms-outbox nginx
+curl -fsS https://deepfarms.com.br/ >/dev/null && echo "Site OK"
+curl -fsS https://app.deepfarms.com.br/ >/dev/null && echo "App OK"
+curl -fsS https://campo.deepfarms.com.br/ >/dev/null && echo "Campo público OK"
+```
+
+### Primeiro deploy
+
+Use este roteiro somente em um servidor novo, depois de instalar Git, Python
+3.12, Node.js 22, Corepack/pnpm, PostgreSQL, Nginx e criar as units systemd
+`deepfarms-api`, `deepfarms-web`, `deepfarms-campo`, `deepfarms-worker` e
+`deepfarms-outbox`. A configuração detalhada de sistema, banco, Nginx e units
+está no [runbook de produção](docs/runbooks/deploy-les-svrbo-ap01.md).
+
+O deploy é nativo no servidor, com processos gerenciados por `systemd`.
+
+Como o usuário que executará a aplicação, faça o clone e instale as
+dependências:
+
+```bash
+sudo mkdir -p /opt/deepfarms
+sudo chown ubuntu:ubuntu /opt/deepfarms
+git clone <URL_DO_REPOSITORIO> /opt/deepfarms/farm
+cd /opt/deepfarms/farm
+corepack enable
+pnpm install --frozen-lockfile
+cd services/api
+python3.12 -m venv .venv
+./.venv/bin/pip install --upgrade pip setuptools wheel
+./.venv/bin/pip install -e .
+```
+
+Crie `services/api/.env.production` e os arquivos de ambiente de Web e Campo a
+partir dos valores seguros do ambiente. Eles contêm segredos e não devem ser
+versionados nem copiados para o README. Com o banco acessível e as variáveis
+configuradas, construa e publique a primeira versão:
+
+```bash
+cd /opt/deepfarms/farm/services/api
+./.venv/bin/alembic upgrade head
+
+cd /opt/deepfarms/farm
+NODE_OPTIONS=--max-old-space-size=1536 pnpm --filter web build
+pnpm --filter @agro/campo build
+
+sudo systemctl daemon-reload
+sudo systemctl enable --now deepfarms-api deepfarms-web deepfarms-campo deepfarms-worker deepfarms-outbox
+systemctl is-active deepfarms-api deepfarms-web deepfarms-campo deepfarms-worker deepfarms-outbox nginx
+```
+
+Finalize usando a verificação final acima. Não é necessário reiniciar o Nginx
+em deploys de código; faça isso somente quando sua configuração tiver mudado e
+após validar com `sudo nginx -t`.
 
 ## Arquitetura do Sistema
 

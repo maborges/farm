@@ -315,11 +315,11 @@ class RomaneioService(BaseService[RomaneioColheita]):
         peso_bruto_kg/tara_kg deste romaneio a partir do evento publicado."""
         romaneio = await self.get_or_fail(romaneio_id)
 
-        from integracoes.balanca import BalancaOrderRequest
+        from integracoes.tara.schemas import TaraOrderCreate
         from integracoes.tara.service import resolve_client
 
         ordem = await (await resolve_client(self.session, str(self.tenant_id))).create_order(
-            BalancaOrderRequest(
+            TaraOrderCreate(
                 client_system="agrosaas",
                 client_tenant_id=str(self.tenant_id),
                 external_reference=f"agricola:romaneio:{romaneio.id}",

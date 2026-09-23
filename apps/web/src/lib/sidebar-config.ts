@@ -400,7 +400,6 @@ export const MODULOS_OPERACIONAIS: SidebarModuleGroup[] = [
         label: 'Operação',
         icon: Scale,
         items: [
-          { href: '/dashboard/operacional/balanca', icon: Scale, label: 'Balança', tip: 'Integração TARA', permission: 'balanca:pesagem:view', exact: true },
           { href: '/dashboard/operacional/balanca/operadores', icon: Users, label: 'Operadores', tip: 'Operadores integrados à TARA', permission: 'balanca:operador:view' },
           { href: '/dashboard/operacional/balanca/estacoes', icon: Smartphone, label: 'Estações', tip: 'Estações da TARA', permission: 'balanca:dispositivo:view' },
           { href: '/dashboard/operacional/balanca/pesagens', icon: Scale, label: 'Pesagens', tip: 'Consulta de pesagens', permission: 'balanca:pesagem:view' },
@@ -736,6 +735,7 @@ export const SETTINGS_ITEMS: SidebarMenuItem[] = [
   { href: '/dashboard/configuracoes/globais', icon: Hash, label: 'Configurações Globais', tip: 'Ano agrícola, unidades, categorias e códigos de referência', permission: 'tenant:settings:view' },
   { href: '/dashboard/settings/integracoes/erp', icon: ArrowLeftRight, label: 'Integrações ERP', tip: 'Configuração ERP do produtor', permission: 'integrations:view' },
   { href: '/dashboard/settings/integracoes/clima/openweather', icon: CloudSun, label: 'OpenWeather', tip: 'Configuração climática', permission: 'integrations:view' },
+  { href: '/dashboard/settings/integracoes/tara', icon: Scale, label: 'Tara-Balança', tip: 'Configuração da conexão com a TARA', permission: 'integrations:view' },
   { href: '/dashboard/settings/billing', icon: CreditCard, label: 'Assinatura e Pagamentos', tip: 'Assinatura', permission: 'tenant:billing:view' },
   { href: '/dashboard/settings/ia', icon: BrainCircuit, label: 'Uso de IA', tip: 'Inteligência Artificial', permission: 'tenant:billing:view' },
   { href: '/dashboard/settings/kb', icon: Book, label: 'Base de Conhecimento', tip: 'Wiki' },

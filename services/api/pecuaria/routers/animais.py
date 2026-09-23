@@ -162,11 +162,11 @@ async def solicitar_pesagem_balanca(
     db: AsyncSession = Depends(get_session),
 ):
     """Vincula o animal a uma pesagem oficial na estação de balança (curral)."""
-    from integracoes.balanca import BalancaOrderRequest
+    from integracoes.tara.schemas import TaraOrderCreate
     from integracoes.tara.service import resolve_client
 
     ordem = await (await resolve_client(db, str(tenant_id))).create_order(
-        BalancaOrderRequest(
+        TaraOrderCreate(
             client_system="agrosaas",
             client_tenant_id=str(tenant_id),
             external_reference=f"pecuaria:animal:{animal_id}",

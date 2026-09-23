@@ -191,7 +191,13 @@ export async function apiFetch<T>(endpoint: string, options: FetchOptions = {}):
                 );
             }
 
-            if (response.status === 401 && token && !isPublicRoute && typeof window !== "undefined") {
+            // Um 401 da integração TARA representa falha da credencial técnica
+            // do sistema cliente, não expiração da sessão humana do DeepFarms.
+            // Não deslogar o operador nesse caso: a tela de integração deve
+            // apresentar a mensagem de acesso negado e permitir a correção da
+            // configuração.
+            const isTaraIntegrationRoute = normalizedEndpoint.startsWith("/integracoes/tara");
+            if (response.status === 401 && token && !isPublicRoute && !isTaraIntegrationRoute && typeof window !== "undefined") {
                 const { useAppStore } = await import("./stores/app-store");
                 void useAppStore.getState().logout();
             }

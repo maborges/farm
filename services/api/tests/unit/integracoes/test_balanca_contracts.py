@@ -6,6 +6,7 @@ from pydantic import ValidationError
 
 from integracoes.balanca import BalancaEventEnvelope, BalancaOrderRequest
 from integracoes.balanca.events import completed_weighing_metadata
+from integracoes.tara.schemas import TaraOrderCreate
 
 
 def test_ordem_balanca_exige_referencia_externa_e_correlacao() -> None:
@@ -18,6 +19,48 @@ def test_ordem_balanca_exige_referencia_externa_e_correlacao() -> None:
             subject_type="VEICULO",
             tipo_pesagem="UNICA",
         )
+
+
+def test_contrato_tara_aceita_multipla_com_natureza_e_identidade_local_opcional() -> None:
+    order = TaraOrderCreate(
+        client_system="agrosaas",
+        client_tenant_id="tenant-a",
+        external_reference="operacional:compra:pedido-1",
+        correlation_id="corr-1",
+        subject_type="VEICULO",
+        tipo_pesagem="MULTIPLA",
+        modalidade="MULTIPLA",
+        natureza_operacao="RECEBIMENTO",
+        contexto={"carga": {"produto": {"codigo_externo": "CAF-001"}}},
+    )
+    assert order.origem_operacao == "EXTERNA"
+    assert order.modalidade == "MULTIPLA"
+    assert order.natureza_operacao == "RECEBIMENTO"
+    assert order.operation_local_id is None
+
+
+def test_contrato_tara_rejeita_multipla_sem_natureza() -> None:
+    with pytest.raises(ValidationError):
+        TaraOrderCreate(
+            client_system="agrosaas",
+            client_tenant_id="tenant-a",
+            external_reference="external-1",
+            correlation_id="corr-1",
+            subject_type="VEICULO",
+            tipo_pesagem="MULTIPLA",
+        )
+
+
+def test_contrato_legado_de_balanca_permanece_alias_compativel() -> None:
+    order = BalancaOrderRequest(
+        client_system="agrosaas",
+        client_tenant_id="tenant-a",
+        external_reference="pecuaria:animal:1",
+        correlation_id="corr-1",
+        subject_type="ANIMAL",
+        tipo_pesagem="UNICA",
+    )
+    assert isinstance(order, TaraOrderCreate)
 
 
 def test_evento_balanca_tem_envelope_versionado() -> None:

@@ -6,28 +6,11 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from integracoes.tara.schemas import TaraOrderCreate
 
-class BalancaExternalReference(BaseModel):
-    """Identidade da operação no sistema consumidor da Balança."""
-
-    client_system: str = Field(min_length=1, max_length=80)
-    client_tenant_id: str = Field(min_length=1, max_length=120)
-    external_reference: str = Field(min_length=1, max_length=160)
-    correlation_id: str = Field(min_length=1, max_length=160)
-
-
-class BalancaOrderRequest(BalancaExternalReference):
-    """Contrato para solicitar uma ordem na Plataforma Balança."""
-
-    subject_type: Literal["VEICULO", "ANIMAL"]
-    tipo_pesagem: Literal[
-        "UNICA",
-        "DUPLA",
-        "DUPLA_ENTRADA_DESCARGA",
-        "DUPLA_SAIDA_CARREGAMENTO",
-    ]
-    contexto: dict[str, Any] = Field(default_factory=dict)
-    data_agendada: datetime | None = None
+# Alias transitório: fluxos legados ainda importam este nome, mas o contrato
+# canônico de criação de Ordem pertence à integração HTTP com a Plataforma TARA.
+BalancaOrderRequest = TaraOrderCreate
 
 
 class BalancaEventEnvelope(BaseModel):

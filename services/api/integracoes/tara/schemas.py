@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, HttpUrl
+from pydantic import BaseModel, Field, HttpUrl, model_validator
 
 
 class TaraConfigUpsert(BaseModel):
@@ -35,12 +35,33 @@ class TaraOrderCreate(BaseModel):
     """Ordem criada pelo sistema consumidor."""
 
     client_system: str = Field(min_length=1, max_length=80)
-    client_tenant_id: str = Field(min_length=1, max_length=160)
-    external_reference: str = Field(min_length=1, max_length=160)
-    correlation_id: str = Field(min_length=1, max_length=160)
+    client_tenant_id: str = Field(min_length=1, max_length=120)
+    external_reference: str = Field(min_length=1, max_length=180)
+    correlation_id: str = Field(min_length=1, max_length=120)
     subject_type: Literal["VEICULO", "ANIMAL"]
-    tipo_pesagem: str = Field(min_length=1, max_length=60)
+    tipo_pesagem: Literal[
+        "UNICA",
+        "DUPLA",
+        "DUPLA_ENTRADA_DESCARGA",
+        "DUPLA_SAIDA_CARREGAMENTO",
+        "MULTIPLA",
+    ]
+    natureza_operacao: Literal[
+        "RECEBIMENTO", "EXPEDICAO", "TRANSFERENCIA", "DEVOLUCAO", "OUTRA"
+    ] | None = None
+    modalidade: Literal["UNICA", "MULTIPLA"] | None = None
+    origem_operacao: Literal["EXTERNA"] = "EXTERNA"
+    operation_local_id: str | None = Field(default=None, min_length=1, max_length=120)
     contexto: dict[str, Any] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def validar_operacao_multipla(self) -> TaraOrderCreate:
+        if self.tipo_pesagem == "MULTIPLA":
+            if self.natureza_operacao is None:
+                raise ValueError("natureza_operacao é obrigatória para pesagem MULTIPLA")
+            if self.modalidade not in (None, "MULTIPLA"):
+                raise ValueError("modalidade deve ser MULTIPLA quando tipo_pesagem for MULTIPLA")
+        return self
 
 
 class TaraClientRegistration(BaseModel):
