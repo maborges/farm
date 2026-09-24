@@ -22,7 +22,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { resolveAssetUrl } from "@/lib/runtime-config";
 import {
     Dialog, DialogContent, DialogDescription,
     DialogHeader, DialogTitle, DialogTrigger, DialogBody, DialogFooter,
@@ -87,6 +88,9 @@ const createColumns = (
                 return (
                     <div className="flex items-center gap-3">
                         <Avatar className={`h-9 w-9 border-2 border-background shadow-sm ${isInvite ? "opacity-60" : ""}`}>
+                            {item.foto_perfil_url ? (
+                                <AvatarImage src={resolveAssetUrl(item.foto_perfil_url)} alt={displayName} />
+                            ) : null}
                             <AvatarFallback className={`${isInvite ? "bg-amber-500/5 text-amber-500" : "bg-primary/5 text-primary"} text-xs font-bold`}>
                                 {initial}
                             </AvatarFallback>

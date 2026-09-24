@@ -1,5 +1,6 @@
 import { db, type CampoEventoOffline, type LocalTask, type TaskModule } from "@/lib/db";
 import { useSessionStore } from "@/lib/stores/session-store";
+import { cacheCampoBrandAssets } from "@/lib/campo-assets";
 
 const API_BASE = "/api/v1";
 
@@ -18,6 +19,7 @@ interface SyncPullPayload {
     nome: string;
     municipio?: string;
     uf?: string;
+    logo_url?: string | null;
   }>;
   talhoes?: Array<{
     id: string;
@@ -517,6 +519,13 @@ export async function pullSync(): Promise<void> {
       }
     }
   });
+
+  // Baixa e persiste avatar/logos em IndexedDB. Falha de uma imagem não pode
+  // invalidar o sync dos dados operacionais.
+  await cacheCampoBrandAssets(
+    session,
+    data.fazendas ?? [],
+  );
 
   // Atualiza last_sync_at na sessão
   await useSessionStore.getState().updateLastSync(data.sync_at);

@@ -97,7 +97,7 @@ export function CampoBottomNav() {
         <nav
           aria-label="Navegação principal"
           className={cn(
-            "animate-[campo-nav-in_240ms_cubic-bezier(0.16,1,0.3,1)] border-x border-t border-border/80 bg-card/95 p-1 pt-4 text-card-foreground shadow-lg backdrop-blur supports-[backdrop-filter]:bg-card/88 transition-shadow duration-200",
+            "animate-[campo-nav-in_240ms_cubic-bezier(0.16,1,0.3,1)] glass-chrome rounded-t-2xl border-b-0 p-1 pt-4 transition-shadow duration-200",
             hasScrolled ? "shadow-xl" : "shadow-lg"
           )}
           style={{ paddingBottom: "calc(0.2rem + env(safe-area-inset-bottom))" }}

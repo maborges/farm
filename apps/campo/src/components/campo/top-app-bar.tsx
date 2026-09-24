@@ -1,11 +1,14 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useLiveQuery } from "dexie-react-hooks";
-import { Check, Signal, SignalHigh, RefreshCw, CircleCheck, CircleAlert, MapPinned, MapPinOff, Warehouse } from "lucide-react";
+import { Check, Signal, SignalHigh, RefreshCw, CircleCheck, CircleAlert, MapPinned, MapPinOff, Warehouse, LogOut, Sun, Moon } from "lucide-react";
+import { useTheme } from "@/components/theme-provider";
 import { db } from "@/lib/db";
 import { useSessionStore } from "@/lib/stores/session-store";
 import { BottomSheet } from "@/components/bottom-sheet";
+import { useCachedCampoImage } from "@/lib/campo-assets";
 
 function cn(...values: Array<string | false | null | undefined>) {
   return values.filter(Boolean).join(" ");
@@ -40,7 +43,15 @@ export function CampoTopAppBar({
 }) {
   const { session, setActiveFazenda } = useSessionStore();
   const [dialogOpen, setDialogOpen] = useState(false);
-  const avatarSrc = resolveCampoAvatarUrl(session?.user_avatar_url);
+  const [avatarMenuOpen, setAvatarMenuOpen] = useState(false);
+  const router = useRouter();
+  const { theme, setTheme } = useTheme();
+  const cachedAvatarSrc = useCachedCampoImage(
+    "user_avatar",
+    session?.user_id,
+    session?.user_avatar_url,
+  );
+  const avatarSrc = cachedAvatarSrc ?? resolveCampoAvatarUrl(session?.user_avatar_url);
   const userInitial = (session?.user_name ?? "O").trim().charAt(0).toUpperCase();
   const avatarColor = resolveAvatarColor(session?.user_name ?? "O");
 
@@ -55,6 +66,11 @@ export function CampoTopAppBar({
     () => (fazendas ?? []).find((fazenda) => fazenda?.id === session?.active_fazenda_id),
     [fazendas, session?.active_fazenda_id]
   );
+  const cachedFazendaLogoSrc = useCachedCampoImage(
+    "fazenda_logo",
+    activeFazenda?.id,
+    activeFazenda?.logo_url,
+  );
 
   const canSelectFazenda = (fazendas?.length ?? 0) > 1;
   const syncOk = isOnline && pendingCount === 0 && (syncStatus === "success" || syncStatus === "idle");
@@ -62,7 +78,7 @@ export function CampoTopAppBar({
   return (
     <>
       <div className="sticky top-0 z-40" style={{ paddingTop: "env(safe-area-inset-top)" }}>
-        <div className="border-b border-border/80 bg-card/95 px-4 py-2 sm:px-6 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-card/88">
+        <div className="glass-chrome border-b px-4 py-2 sm:px-6">
           <div className="flex items-center gap-2">
             <button
               type="button"
@@ -77,8 +93,12 @@ export function CampoTopAppBar({
                   : "cursor-default text-foreground"
               )}
             >
-              <span className="flex size-8 shrink-0 items-center justify-center rounded-xl bg-[var(--campo-pwa-agro-light)] dark:bg-[var(--campo-pwa-agro-bg)] text-[var(--campo-pwa-agro-dark-text)] dark:text-[var(--campo-pwa-agro)]">
-                <Warehouse className="size-3.5" />
+              <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-[var(--campo-pwa-agro-light)] dark:bg-[var(--campo-pwa-agro-bg)] text-[var(--campo-pwa-agro-dark-text)] dark:text-[var(--campo-pwa-agro)]">
+                {cachedFazendaLogoSrc ? (
+                  <img src={cachedFazendaLogoSrc} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  <Warehouse className="size-3.5" />
+                )}
               </span>
               <span className="min-w-0">
                 <span className="block truncate text-sm font-semibold leading-4 text-foreground">
@@ -104,8 +124,10 @@ export function CampoTopAppBar({
               label="GPS"
             />
 
-            <div
-              className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border shadow-sm text-[11px] font-semibold text-white"
+            <button
+              type="button"
+              onClick={() => setAvatarMenuOpen(true)}
+              className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border shadow-sm text-[11px] font-semibold text-white transition-all active:scale-95"
               style={avatarSrc ? undefined : { background: avatarColor }}
             >
               {avatarSrc ? (
@@ -113,7 +135,7 @@ export function CampoTopAppBar({
               ) : (
                 <span>{userInitial}</span>
               )}
-            </div>
+            </button>
           </div>
         </div>
       </div>
@@ -163,6 +185,55 @@ export function CampoTopAppBar({
               </button>
             );
           })}
+        </div>
+      </BottomSheet>
+
+      <BottomSheet
+        open={avatarMenuOpen}
+        onOpenChange={setAvatarMenuOpen}
+        title="Conta do Operador"
+        description="Gerencie sua sessão ou aparência."
+      >
+        <div className="flex flex-col px-3 pb-3 gap-2">
+          {/* Theme Switcher */}
+          <button
+            type="button"
+            onClick={() => {
+              setTheme(theme === "dark" ? "light" : "dark");
+              setAvatarMenuOpen(false);
+            }}
+            className="flex min-h-[56px] w-full items-center justify-between gap-3 rounded-2xl px-4 py-3 text-left text-sm transition-all active:scale-95 bg-transparent text-foreground hover:bg-muted/70 active:bg-black/5 dark:active:bg-white/10"
+          >
+            <div className="flex items-center gap-3">
+              <div className="flex size-10 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-sm">
+                {theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
+              </div>
+              <div>
+                <p className="font-medium">Mudar Aparência</p>
+                <p className="text-xs text-muted-foreground">Alternar para tema {theme === "dark" ? "claro" : "escuro"}</p>
+              </div>
+            </div>
+          </button>
+
+          {/* Lock/Logout */}
+          <button
+            type="button"
+            onClick={() => {
+              setAvatarMenuOpen(false);
+              router.push("/pin");
+            }}
+            className="flex min-h-[56px] w-full items-center justify-between gap-3 rounded-2xl px-4 py-3 text-left text-sm transition-all active:scale-95 bg-transparent text-foreground hover:bg-muted/70 active:bg-black/5 dark:active:bg-white/10"
+          >
+            <div className="flex items-center gap-3">
+              <div className="flex size-10 items-center justify-center rounded-full border border-border bg-card text-muted-foreground shadow-sm">
+                <LogOut className="size-4" />
+              </div>
+              <div>
+                <p className="font-medium">Bloquear Sessão</p>
+                <p className="text-xs text-muted-foreground">Exigir PIN novamente</p>
+              </div>
+            </div>
+          </button>
         </div>
       </BottomSheet>
     </>

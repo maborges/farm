@@ -217,8 +217,8 @@ export function NotificationBell() {
         function connect() {
             if (!active || ws?.readyState === WebSocket.CONNECTING || ws?.readyState === WebSocket.OPEN) return;
 
-            const wsBase = process.env.NEXT_PUBLIC_WS_URL ?? getWsBaseUrl().replace(/\/api\/v1$/, "");
-            ws = new WebSocket(`${wsBase}/api/v1/notificacoes/ws?token=${token}`);
+            const wsBase = getWsBaseUrl();
+            ws = new WebSocket(`${wsBase}/notificacoes/ws?token=${token}`);
 
             ws.onopen = () => {
                 if (active) setWsConectado(true);

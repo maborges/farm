@@ -79,7 +79,7 @@ export function PwaModuleCard({
         "relative flex w-full flex-col rounded-2xl border p-5 text-left shadow-sm",
         "transition-all duration-200 ease-out",
         "active:scale-[0.96] active:shadow-none",
-        "hover:shadow-md",
+        "hover-lift",
         "disabled:pointer-events-none disabled:opacity-40",
         c.border,
         c.bg,

@@ -622,7 +622,7 @@ export const MODULOS_OPERACIONAIS: SidebarModuleGroup[] = [
   {
     key: 'CAMPO',
     label: 'Campo PWA',
-    icon: Smartphone,
+    icon: Sprout,
     moduleId: 'A2_CAMPO',
     sections: [
       {

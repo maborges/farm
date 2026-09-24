@@ -225,6 +225,22 @@ class DispositivoService:
                 "Dispositivo sem fazendas autorizadas. Revise o cadastro e gere um novo código."
             )
 
+        # Revoga dispositivo anterior com a mesma fingerprint para evitar UniqueViolationError
+        await self.session.execute(
+            update(DispositivoCampo)
+            .where(
+                and_(
+                    DispositivoCampo.device_fingerprint == req.device_fingerprint,
+                    DispositivoCampo.id != device.id,
+                )
+            )
+            .values(
+                status="REVOGADO",
+                revoked_at=datetime.utcnow(),
+                device_fingerprint=None,
+            )
+        )
+
         # Marca fingerprint e ativa
         device.device_fingerprint = req.device_fingerprint
         device.pin_hash = req.pin_hash
@@ -937,7 +953,13 @@ class SyncService:
                 for s in safras_rows
             ],
             "fazendas": [
-                {"id": f.id, "nome": f.nome, "municipio": f.municipio, "uf": f.uf}
+                {
+                    "id": f.id,
+                    "nome": f.nome,
+                    "municipio": f.municipio,
+                    "uf": f.uf,
+                    "logo_url": f.logo_url,
+                }
                 for f in fazendas_rows
             ],
             "talhoes": [

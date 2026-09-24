@@ -244,6 +244,19 @@ export interface CachedFazenda {
   nome: string;
   municipio?: string;
   uf?: string;
+  logo_url?: string | null;
+}
+
+export type CachedImageKind = "user_avatar" | "fazenda_logo";
+
+export interface CachedImage {
+  id: string;
+  kind: CachedImageKind;
+  owner_id: string;
+  source_url: string;
+  blob: Blob;
+  mime_type: string;
+  updated_at: string;
 }
 
 export interface CachedTalhao {
@@ -377,6 +390,7 @@ export class CampoDatabase extends Dexie {
   recomendacoes_climaticas!: Table<CachedRecomendacaoClimatica>;
   recomendacoes_operacionais!: Table<CachedRecomendacaoOperacional>;
   pessoas_operacionais!: Table<PessoaOperacional>;
+  cached_images!: Table<CachedImage>;
 
   constructor() {
     super("campo_db");
@@ -643,6 +657,27 @@ export class CampoDatabase extends Dexie {
       recomendacoes_climaticas: "id, unidade_produtiva_id, tipo_operacao",
       recomendacoes_operacionais: "id, unidade_produtiva_id, domain, status, priority, updated_at",
       pessoas_operacionais: "id, unidade_produtiva_id, pessoa_id",
+    });
+    this.version(15).stores({
+      session: "id",
+      tasks:
+        "id, server_id, type, module, fazenda_id, talhao_id, lote_id, status, origem, status_execucao, data_programada, synced, created_at",
+      sync_queue: "id, entity_id, entity_type, status, created_at",
+      caderno_events: "local_id, server_id, tenant_id, safra_id, talhao_id, device_id, sync_status, review_required, created_at",
+      caderno_server_events:
+        "server_id, local_id, device_id, safra_id, talhao_id, status_evento, documental_status, updated_at, data_registro",
+      caderno_drafts: "id, user_id, task_id, updated_at",
+      fazendas: "id",
+      talhoes: "id, fazenda_id",
+      lotes: "id, fazenda_id",
+      animais: "id, unidade_produtiva_id, lote_id, numero_brinco, nome, categoria, sexo, status",
+      insumos: "id, categoria",
+      safras: "id, status",
+      colaboradores: "id",
+      recomendacoes_climaticas: "id, unidade_produtiva_id, tipo_operacao",
+      recomendacoes_operacionais: "id, unidade_produtiva_id, domain, status, priority, updated_at",
+      pessoas_operacionais: "id, unidade_produtiva_id, pessoa_id",
+      cached_images: "id, kind, owner_id, source_url, updated_at",
     });
   }
 }

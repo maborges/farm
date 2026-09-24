@@ -97,6 +97,7 @@ class FazendaSync(BaseModel):
     nome: str
     municipio: str | None
     uf: str | None
+    logo_url: str | None = None
 
 
 class TalhaoSync(BaseModel):

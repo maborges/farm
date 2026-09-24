@@ -1,4 +1,5 @@
 const DEFAULT_BACKEND_ORIGIN = "http://127.0.0.1:8000";
+const DEFAULT_BACKEND_WS_ORIGIN = "ws://127.0.0.1:8000";
 const DEFAULT_API_PATH = "/api/v1";
 
 function trimTrailingSlash(value: string) {
@@ -21,6 +22,15 @@ function normalizeApiBase(value: string) {
     }
 
     return `${trimmed}${DEFAULT_API_PATH}`;
+}
+
+function normalizeWsOrigin(value: string) {
+    const trimmed = trimTrailingSlash(value);
+    const origin = trimmed.endsWith(DEFAULT_API_PATH)
+        ? trimmed.slice(0, -DEFAULT_API_PATH.length)
+        : trimmed;
+
+    return origin.replace(/^http/, "ws");
 }
 
 function getServerBackendOrigin() {
@@ -65,7 +75,17 @@ export function getApiOrigin() {
 }
 
 export function getWsBaseUrl() {
-    return `${getApiOrigin().replace(/^http/, "ws")}${DEFAULT_API_PATH}`;
+    const configured = process.env.NEXT_PUBLIC_WS_URL?.trim();
+    if (configured) {
+        return `${normalizeWsOrigin(configured)}${DEFAULT_API_PATH}`;
+    }
+
+    const publicApiUrl = process.env.NEXT_PUBLIC_API_URL?.trim();
+    if (publicApiUrl?.startsWith("http://") || publicApiUrl?.startsWith("https://")) {
+        return `${normalizeWsOrigin(publicApiUrl)}${DEFAULT_API_PATH}`;
+    }
+
+    return `${DEFAULT_BACKEND_WS_ORIGIN}${DEFAULT_API_PATH}`;
 }
 
 export function getWhatsappComercialUrl(mensagem: string) {

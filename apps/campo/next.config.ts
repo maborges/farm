@@ -30,9 +30,32 @@ const withPWA = require("next-pwa")({
   ],
 });
 
+function getBackendOrigin() {
+  const raw = (
+    process.env.BACKEND_URL ||
+    process.env.NEXT_PUBLIC_API_URL ||
+    "http://127.0.0.1:8000"
+  ).replace(/\/$/, "");
+
+  if (raw.endsWith("/api/v1")) return raw.replace(/\/api\/v1$/, "");
+  return raw.startsWith("http://") || raw.startsWith("https://")
+    ? raw
+    : "http://127.0.0.1:8000";
+}
+
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   turbopack: {},
+  // As URLs de avatar/logo são retornadas pelo backend como /static/...
+  // e precisam funcionar também quando o PWA está servido em outra porta.
+  async rewrites() {
+    return [
+      {
+        source: "/static/:path*",
+        destination: `${getBackendOrigin()}/static/:path*`,
+      },
+    ];
+  },
 };
 
 module.exports = withPWA(nextConfig);

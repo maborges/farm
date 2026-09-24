@@ -153,7 +153,7 @@ export default function HomePage() {
 
       {/* ── Cabeçalho de boas-vindas ── */}
       <div
-        className="campo-pwa-card-stagger rounded-2xl border border-border bg-card px-5 py-5 shadow-sm"
+        className="campo-pwa-card-stagger rounded-2xl glass-surface px-5 py-5"
         style={{ "--campo-pwa-delay": "0ms" } as React.CSSProperties}
       >
         <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">

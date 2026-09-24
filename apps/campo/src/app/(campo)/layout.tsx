@@ -48,7 +48,19 @@ export default function CampoLayout({ children }: { children: React.ReactNode })
 
   return (
     <ErrorBoundary>
-      <div className="flex min-h-dvh flex-col">
+      {/* Ambient Agtech Background with subtle glow */}
+      <div className="pointer-events-none fixed inset-0 overflow-hidden -z-10 bg-background">
+        <img
+          src="/images/login-bg.png"
+          alt=""
+          aria-hidden="true"
+          className="h-full w-full object-cover object-center opacity-30 select-none dark:opacity-20 transition-opacity"
+        />
+        <div className="absolute inset-0 bg-gradient-to-b from-emerald-950/60 via-background/85 to-background dark:from-emerald-950/80 dark:via-background/90 dark:to-background" />
+        <div className="absolute -top-24 left-1/2 -translate-x-1/2 h-72 w-72 rounded-full bg-emerald-500/15 blur-3xl" />
+      </div>
+
+      <div className="flex min-h-dvh flex-col relative z-0">
         <CampoTopAppBar
           pendingCount={pendingCount}
           isOnline={isOnline}

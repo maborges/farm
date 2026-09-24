@@ -75,6 +75,7 @@ async function clearCacheTables(): Promise<void> {
       db.recomendacoes_climaticas,
       db.recomendacoes_operacionais,
       db.pessoas_operacionais,
+      db.cached_images,
     ],
     async () => {
       await Promise.all([
@@ -93,6 +94,7 @@ async function clearCacheTables(): Promise<void> {
         db.recomendacoes_climaticas.clear(),
         db.recomendacoes_operacionais.clear(),
         db.pessoas_operacionais.clear(),
+        db.cached_images.clear(),
       ]);
     }
   );
