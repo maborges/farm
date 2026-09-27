@@ -55,11 +55,39 @@ class DashboardAgricolaService:
         else:
             area_total = 0.0
 
-        stmt_custo = select(func.coalesce(func.sum(OperacaoAgricola.custo_total), 0)).where(
-            OperacaoAgricola.tenant_id == self.tenant_id,
-            OperacaoAgricola.safra_id.in_(safra_ids_ativas) if safra_ids_ativas else False,
+        operacoes_ativas = list(
+            (
+                await self.session.execute(
+                    select(OperacaoAgricola).where(
+                        OperacaoAgricola.tenant_id == self.tenant_id,
+                        OperacaoAgricola.safra_id.in_(safra_ids_ativas)
+                        if safra_ids_ativas
+                        else False,
+                    )
+                )
+            )
+            .scalars()
+            .all()
         )
-        custo_acumulado = float((await self.session.execute(stmt_custo)).scalar() or 0)
+        allocation_por_operacao: dict[UUID, float] = defaultdict(float)
+        operacao_ids = [operacao.id for operacao in operacoes_ativas]
+        if operacao_ids:
+            stmt_alloc = (
+                select(OperacaoExecucao.operacao_id, func.sum(CostAllocation.amount))
+                .join(CostAllocation, CostAllocation.operation_execution_id == OperacaoExecucao.id)
+                .where(
+                    CostAllocation.tenant_id == self.tenant_id,
+                    OperacaoExecucao.tenant_id == self.tenant_id,
+                    OperacaoExecucao.operacao_id.in_(operacao_ids),
+                )
+                .group_by(OperacaoExecucao.operacao_id)
+            )
+            for operacao_id, total in (await self.session.execute(stmt_alloc)).all():
+                allocation_por_operacao[operacao_id] = float(total or 0)
+        custo_acumulado = sum(
+            allocation_por_operacao.get(operacao.id, float(operacao.custo_total or 0))
+            for operacao in operacoes_ativas
+        )
 
         if safra_ids_ativas:
             stmt_meta = select(func.coalesce(

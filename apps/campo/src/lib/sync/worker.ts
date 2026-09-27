@@ -112,7 +112,7 @@ export async function recoverInFlight(): Promise<void> {
     logger.warn("SyncWorker", `Recuperando ${stuck.length} item(s) IN_FLIGHT`);
     const now = new Date().toISOString();
 
-    await db.transaction("rw", [db.sync_queue, db.caderno_events], async () => {
+    await db.transaction("rw", [db.sync_queue, db.caderno_events, db.requisicao_operacoes], async () => {
       await db.sync_queue.bulkUpdate(
         stuck.map((item) => ({ key: item.id, changes: { status: "PENDING" as const } }))
       );
@@ -146,6 +146,23 @@ export async function recoverInFlight(): Promise<void> {
             updated_at: now,
           });
         }
+      }
+
+      const materialReceiptIds = stuck
+        .filter((item) =>
+          item.entity_type === "material_receipt" || item.entity_type === "material_disposition"
+        )
+        .map((item) => item.entity_id);
+      if (materialReceiptIds.length > 0) {
+        await db.requisicao_operacoes.bulkUpdate(
+          materialReceiptIds.map((id) => ({
+            key: id,
+            changes: {
+              status: "PENDING" as const,
+              error: "Sincronização interrompida. O envio será retomado automaticamente.",
+            },
+          }))
+        );
       }
     });
   }

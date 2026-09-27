@@ -941,6 +941,20 @@ class SyncService:
         )
         recomendacoes_climaticas = self._build_recomendacoes_climaticas(recomendacoes_operacionais)
 
+        # Requisições são projetadas somente para o responsável/delegado
+        # contextual do dispositivo. Ausência de PessoaUsuario não concede
+        # acesso amplo; o bloco fica vazio até a identidade ser regularizada.
+        from operacional.services.requisicao_recebimento_service import (
+            RequisicaoRecebimentoService,
+        )
+
+        requisicoes_materiais = [
+            projection.model_dump(mode="json")
+            for projection in await RequisicaoRecebimentoService(
+                self.session, self.tenant_id
+            ).listar_para_campo(device=self.device, usuario_id=self.device.user_id)
+        ]
+
         return {
             "sync_at": datetime.utcnow(),
             "safras": [
@@ -1020,6 +1034,7 @@ class SyncService:
                 for c, nome_exibicao, cpf in colaboradores_rows
             ],
             "pessoas_operacionais": pessoas_operacionais,
+            "requisicoes_materiais": requisicoes_materiais,
             "tarefas_pendentes": [
                 {
                     "id": t.id,

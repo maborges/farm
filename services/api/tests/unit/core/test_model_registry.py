@@ -36,6 +36,13 @@ def _discovered_table_names() -> set[str]:
 
 
 def test_registry_is_idempotent_and_reproducible() -> None:
+    intentional_01c_tables = {
+        "estoque_requisicao_item_eventos",
+        "estoque_requisicao_responsabilidades",
+    }
+    intentional_01c1_tables = {
+        "cadastros_pessoas_usuarios",
+    }
     register_models()
     first = set(Base.metadata.tables)
     register_models()
@@ -43,8 +50,13 @@ def test_registry_is_idempotent_and_reproducible() -> None:
 
     assert first == second
     assert len(MODEL_MODULES) > 0
-    assert len(first) == 373
-    assert len(baseline_candidate_tables()) == 344
+    assert intentional_01c_tables <= first
+    assert intentional_01c_tables <= baseline_candidate_tables()
+    assert intentional_01c1_tables <= first
+    assert intentional_01c1_tables <= baseline_candidate_tables()
+    intentional_tables = intentional_01c_tables | intentional_01c1_tables
+    assert len(first) == 373 + len(intentional_tables)
+    assert len(baseline_candidate_tables()) == 344 + len(intentional_tables)
     assert len(BASELINE_DECISIONS) == 34
     assert not (set(baseline_candidate_tables()) & set(LEGACY_BALANCA_TABLES))
 

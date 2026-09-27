@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone, date
-from sqlalchemy import String, Boolean, DateTime, ForeignKey, JSON, Date, Integer
+from sqlalchemy import String, Boolean, DateTime, ForeignKey, JSON, Date, Integer, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy import Uuid as UUID
 from core.database import Base
@@ -66,6 +66,10 @@ class TenantUsuario(Base):
     data_validade_acesso: Mapped[date | None] = mapped_column(Date, nullable=True) # Data para prestadores temporários perderem acesso
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "usuario_id", name="uq_tenant_usuarios_tenant_usuario"),
+    )
 
 
 class UnidadeProdutivaUsuario(Base):

@@ -3,7 +3,7 @@ import uuid
 from datetime import date, datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy import func, text, delete, or_
+from sqlalchemy import delete, exists, func, or_, text
 from loguru import logger
 from core.exceptions import BusinessRuleError, EntityNotFoundError
 from core.base_service import BaseService
@@ -31,6 +31,7 @@ from operacional.services.estoque_fifo import consumir_lotes_fifo, atualizar_sal
 from operacional.services.estoque_ledger import registrar_ledger_estoque
 from operacional.models.estoque import EstoqueMovimento, LoteEstoque
 from agricola.custos.allocation_service import registrar_cost_allocation
+from agricola.custos.constants import REQUISICAO_CONSUMO
 from agricola.custos.models import CostAllocation
 from agricola.alertas.service import AlertasAgricolasService, WorkflowGovernanceEvent
 from financeiro.models.despesa import Despesa
@@ -473,22 +474,49 @@ class OperacaoService(BaseService[OperacaoAgricola]):
         return descricao
 
     async def _requisicao_entregue_da_operacao(self, operacao_id: UUID):
-        """Retorna a RequisicaoMaterial ENTREGUE vinculada a esta OS, se houver.
-        Quando existe, o estoque já saiu do almoxarifado pela conferência da
-        requisição (REQUISICAO-MATERIAL-01) — a operação NÃO deve baixar de
-        novo via FIFO, sob risco de dupla baixa do mesmo insumo."""
-        from operacional.models.estoque import RequisicaoMaterial, ItemRequisicao
+        """Retorna a requisição canônica iniciada vinculada à OS.
 
+        Qualquer reserva, picking ou entrega canônica bloqueia o FIFO legado;
+        permitir a operação continuar nesse estado faria o saldo sair novamente
+        antes do fluxo de consumo da fase 01F.
+        """
+        from operacional.models.estoque import (
+            ItemRequisicao,
+            RequisicaoItemEvento,
+            RequisicaoMaterial,
+            ReservaEstoque,
+        )
+
+        evento_canonico = exists(
+            select(1).where(
+                RequisicaoItemEvento.tenant_id == RequisicaoMaterial.tenant_id,
+                RequisicaoItemEvento.requisicao_id == RequisicaoMaterial.id,
+            )
+        )
+        reserva_canonica = exists(
+            select(1)
+            .select_from(ReservaEstoque)
+            .join(ItemRequisicao, ItemRequisicao.id == ReservaEstoque.item_requisicao_id)
+            .where(
+                ReservaEstoque.tenant_id == RequisicaoMaterial.tenant_id,
+                ItemRequisicao.tenant_id == RequisicaoMaterial.tenant_id,
+                ItemRequisicao.requisicao_id == RequisicaoMaterial.id,
+                ReservaEstoque.item_requisicao_id.is_not(None),
+            )
+        )
         stmt = select(RequisicaoMaterial).where(
             RequisicaoMaterial.tenant_id == self.tenant_id,
             RequisicaoMaterial.operacao_agricola_id == operacao_id,
-            RequisicaoMaterial.status == "ENTREGUE",
-        )
+            or_(evento_canonico, reserva_canonica),
+        ).order_by(RequisicaoMaterial.data_solicitacao.desc())
         requisicao = (await self.session.execute(stmt)).scalars().first()
         if requisicao is None:
             return None, {}
 
-        stmt_itens = select(ItemRequisicao).where(ItemRequisicao.requisicao_id == requisicao.id)
+        stmt_itens = select(ItemRequisicao).where(
+            ItemRequisicao.tenant_id == self.tenant_id,
+            ItemRequisicao.requisicao_id == requisicao.id,
+        )
         itens = (await self.session.execute(stmt_itens)).scalars().all()
         itens_por_produto: dict[UUID, list] = {}
         for item in itens:
@@ -527,6 +555,12 @@ class OperacaoService(BaseService[OperacaoAgricola]):
             if operacao.status == "REALIZADA"
             else (None, {})
         )
+
+        if requisicao_entregue is not None and requisicao_entregue.status != "ENTREGUE":
+            raise BusinessRuleError(
+                "A operação possui uma entrega canônica parcial; o FIFO legado está bloqueado "
+                "até a conclusão do fluxo de requisição/consumo."
+            )
 
         for insumo in insumos_data:
             quantidade_total = insumo.dose_por_ha * (insumo.area_aplicada or area_base_ha)
@@ -700,7 +734,13 @@ class OperacaoService(BaseService[OperacaoAgricola]):
             production_unit_id=operacao.production_unit_id,
         )
         if allocation is not None:
-            allocation.amount = float(operacao.custo_total or 0.0)
+            custo_consumos_canonicos = await self._custo_consumos_canonicos(
+                operacao_execucao.id if operacao_execucao else None,
+            )
+            allocation.amount = max(
+                float(operacao.custo_total or 0.0) - custo_consumos_canonicos,
+                0.0,
+            )
             allocation.allocation_basis = float(operacao.area_aplicada_ha or 0.0) or None
             allocation.allocation_date = operacao.data_realizada
             self.session.add(allocation)
@@ -723,6 +763,7 @@ class OperacaoService(BaseService[OperacaoAgricola]):
         production_unit_id: UUID | None,
     ) -> CostAllocation | None:
         stmt = select(CostAllocation).where(CostAllocation.tenant_id == self.tenant_id)
+        stmt = stmt.where(CostAllocation.source == "OPERATION_EXECUTION")
         if operacao_execucao_id is not None:
             stmt = stmt.where(CostAllocation.operation_execution_id == operacao_execucao_id)
         elif production_unit_id is not None:
@@ -734,6 +775,19 @@ class OperacaoService(BaseService[OperacaoAgricola]):
             return None
         stmt = stmt.limit(1)
         return (await self.session.execute(stmt)).scalars().first()
+
+    async def _custo_consumos_canonicos(self, operacao_execucao_id: UUID | None) -> float:
+        """Calcula o material canônico já apropriado para a execução."""
+        if operacao_execucao_id is None:
+            return 0.0
+        total = await self.session.scalar(
+            select(func.coalesce(func.sum(CostAllocation.amount), 0)).where(
+                CostAllocation.tenant_id == self.tenant_id,
+                CostAllocation.operation_execution_id == operacao_execucao_id,
+                CostAllocation.source == REQUISICAO_CONSUMO,
+            )
+        )
+        return float(total or 0.0)
 
     async def _garantir_execucao_e_allocation_leves(
         self,
@@ -798,7 +852,13 @@ class OperacaoService(BaseService[OperacaoAgricola]):
             )
             return None, None
 
-        custo_operacional = float(operacao.custo_total or 0.0)
+        custo_consumos_canonicos = await self._custo_consumos_canonicos(
+            operacao_execucao.id,
+        )
+        custo_operacional = max(
+            float(operacao.custo_total or 0.0) - custo_consumos_canonicos,
+            0.0,
+        )
         if custo_operacional <= 0 or operacao.production_unit_id is None:
             if custo_operacional > 0 and operacao.production_unit_id is None and regra.exige_cost_allocation:
                 finding = alertas_svc.build_finding(
@@ -1086,6 +1146,13 @@ class OperacaoService(BaseService[OperacaoAgricola]):
         )
         self.session.add(operacao)
         await self.session.flush()
+
+        if operacao.status == "REALIZADA":
+            from operacional.services.requisicao_posse_service import RequisicaoPosseService
+
+            await RequisicaoPosseService.validar_operacao_conciliada(
+                self.session, self.tenant_id, operacao.id
+            )
 
         # 3. Processa insumos e baixa estoque (FIFO). Se falhar, a transação inteira é revertida.
         ledger_consumos = []
@@ -1382,6 +1449,12 @@ class OperacaoService(BaseService[OperacaoAgricola]):
         status_anterior: str,
         custo_total_anterior: float = 0.0,
     ) -> OperacaoAgricola:
+        if dados_dict.get("status") == "REALIZADA" and status_anterior != "REALIZADA":
+            from operacional.services.requisicao_posse_service import RequisicaoPosseService
+
+            await RequisicaoPosseService.validar_operacao_conciliada(
+                self.session, self.tenant_id, operacao_id
+            )
         operacao = await super().update(operacao_id, dados_dict)
 
         area_alterada = "area_aplicada_ha" in dados_dict

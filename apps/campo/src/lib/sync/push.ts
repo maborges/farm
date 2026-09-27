@@ -1,4 +1,4 @@
-import { db, type CampoEventoOffline, type LocalSession, type SyncQueueItem } from "@/lib/db";
+import { db, type CachedRequisicao, type CampoEventoOffline, type LocalSession, type SyncQueueItem } from "@/lib/db";
 import { useSessionStore } from "@/lib/stores/session-store";
 import { promoverEvidenciasParaUpload } from "@/lib/caderno-offline";
 
@@ -24,6 +24,9 @@ export async function pushSync(): Promise<void> {
 
     const taskItems = pending.filter((item) => item.entity_type === "task");
     const cadernoItems = pending.filter((item) => item.entity_type === "caderno_event");
+    const materialItems = pending.filter((item) =>
+      item.entity_type === "material_receipt" || item.entity_type === "material_disposition"
+    );
 
     if (taskItems.length > 0) {
       await pushTaskSync(session, taskItems);
@@ -31,6 +34,104 @@ export async function pushSync(): Promise<void> {
 
     if (cadernoItems.length > 0) {
       await pushCadernoSync(session, cadernoItems);
+    }
+
+    if (materialItems.length > 0) {
+      await pushMaterialOperationSync(session, materialItems);
+    }
+
+    // Não deixe uma entidade futura desconhecida provocar loop infinito:
+    // somente os tipos com processador são mantidos pendentes.
+    const supported = new Set(["task", "caderno_event", "material_receipt", "material_disposition"]);
+    const unsupported = pending.filter((item) => !supported.has(item.entity_type));
+    if (unsupported.length > 0) {
+      await db.sync_queue.bulkUpdate(
+        unsupported.map((item) => ({
+          key: item.id,
+          changes: { status: "FAILED" as const, last_error: `Tipo de sync não suportado: ${item.entity_type}` },
+        }))
+      );
+    }
+  }
+}
+
+async function applyMaterialProjection(request: CachedRequisicao): Promise<void> {
+  const now = new Date().toISOString();
+  const items = (request.itens ?? []).map((item) => ({
+    ...item,
+    requisicao_id: request.id,
+    tenant_id: request.tenant_id,
+    updated_at: now,
+  }));
+  await db.requisicoes.put({ ...request, itens: items, updated_at: now });
+  await db.requisicao_itens.bulkPut(items);
+}
+
+async function pushMaterialOperationSync(
+  session: LocalSession,
+  pending: SyncQueueItem[],
+): Promise<void> {
+  for (const queueItem of pending.sort((a, b) => a.created_at.localeCompare(b.created_at))) {
+    await db.sync_queue.update(queueItem.id, { status: "IN_FLIGHT" });
+    const payload = queueItem.payload;
+    try {
+      const destination = queueItem.entity_type === "material_disposition" ? "destinar" : "receber";
+      const res = await fetch(
+        `${API_BASE}/campo/requisicoes/${String(payload.requisicao_id)}/${destination}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.device_token}`,
+          },
+          body: JSON.stringify(payload),
+        },
+      );
+      const body = await res.json().catch(() => ({}));
+      if (res.ok) {
+        await db.transaction("rw", [db.sync_queue, db.requisicao_operacoes, db.requisicoes, db.requisicao_itens], async () => {
+          await db.sync_queue.update(queueItem.id, { status: "DONE", last_error: undefined });
+          await db.requisicao_operacoes.update(queueItem.entity_id, {
+            status: "ACK",
+            server_event_id: body.evento_id ?? null,
+            error: null,
+          });
+          if (body.projection) await applyMaterialProjection(body.projection);
+        });
+        continue;
+      }
+
+      const message = typeof body?.detail === "string"
+        ? body.detail
+        : body?.detail?.message ?? `Erro ${res.status}`;
+      if (res.status === 409) {
+        const projection = body?.projection ?? body?.detail?.projection;
+        await db.transaction("rw", [db.sync_queue, db.requisicao_operacoes, db.requisicoes, db.requisicao_itens], async () => {
+          await db.sync_queue.update(queueItem.id, { status: "DONE", last_error: message });
+          await db.requisicao_operacoes.update(queueItem.entity_id, { status: "CONFLICT", error: message });
+          if (projection) await applyMaterialProjection(projection);
+        });
+        continue;
+      }
+
+      const attempts = (queueItem.attempts ?? 0) + 1;
+      const queueStatus: SyncQueueItem["status"] = attempts >= 5 ? "FAILED" : "PENDING";
+      await db.transaction("rw", [db.sync_queue, db.requisicao_operacoes], async () => {
+        await db.sync_queue.update(queueItem.id, { status: queueStatus, attempts, last_error: message });
+        await db.requisicao_operacoes.update(queueItem.entity_id, { status: "ERROR", error: message });
+      });
+    } catch (error) {
+      await db.transaction("rw", [db.sync_queue, db.requisicao_operacoes], async () => {
+        await db.sync_queue.update(queueItem.id, {
+          status: "PENDING",
+          last_error: error instanceof Error ? error.message : "Falha de rede",
+        });
+        await db.requisicao_operacoes.update(queueItem.entity_id, {
+          status: "PENDING",
+          error: error instanceof Error ? error.message : "Falha de rede",
+        });
+      });
+      throw error;
     }
   }
 }

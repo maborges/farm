@@ -16,6 +16,15 @@ from events import DomainEvent, publish_domain_event_safe
 
 from campo.models import DispositivoCampo, TarefaCampo
 from campo.service import CampoAgricolaSyncService, DispositivoService, SyncService, TarefaProgramadaService
+from operacional.services.requisicao_recebimento_service import RequisicaoRecebimentoService
+from operacional.services.requisicao_posse_service import RequisicaoPosseService
+from operacional.schemas.estoque import (
+    DestinacaoCampoAck,
+    DestinacaoRequisicaoRequest,
+    RecebimentoRequisicaoRequest,
+    RequisicaoCampoProjection,
+    RecebimentoCampoAck,
+)
 from campo.schemas import (
     DeviceCreate,
     DeviceCreateResponse,
@@ -534,22 +543,124 @@ async def invalidar_tarefa(
 # Requisições de material — autenticados com device_token + PIN pessoal
 # ---------------------------------------------------------------------------
 
-@router.get("/requisicoes", response_model=list[dict])
+@router.get("/requisicoes", response_model=list[RequisicaoCampoProjection])
 async def listar_requisicoes_campo(
     device_id: uuid.UUID,
     operacao_agricola_id: uuid.UUID,
     request: Request,
     session: AsyncSession = Depends(get_session),
 ):
-    """Requisições (picking list) vinculadas à OS da tarefa — pode haver mais
-    de uma (inicial + complementos)."""
-    from operacional.services.estoque_service import EstoqueService
-
+    """Projeção de entregas pendentes de conferência autorizadas ao Campo."""
     device = await _get_device_from_token(device_id, request, session)
-    svc = EstoqueService(session, device.tenant_id)
-    requisicoes = await svc.listar_requisicoes_por_operacao(operacao_agricola_id)
-    from operacional.schemas.estoque import RequisicaoResponse
-    return [RequisicaoResponse.model_validate(r).model_dump(mode="json") for r in requisicoes]
+    svc = RequisicaoRecebimentoService(session, device.tenant_id)
+    return await svc.listar_para_campo(
+        device=device,
+        usuario_id=device.user_id,
+        operacao_agricola_id=operacao_agricola_id,
+    )
+
+
+@router.post(
+    "/requisicoes/{req_id}/receber",
+    response_model=RecebimentoCampoAck,
+)
+async def receber_requisicao_campo(
+    req_id: uuid.UUID,
+    body: RecebimentoRequisicaoRequest,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    """Confere uma entrega já baixada, sem novo movimento físico.
+
+    A identidade do recebedor vem do dispositivo/token autenticado; campos de
+    usuário enviados pelo cliente não participam da autorização.
+    """
+    device_id = body.dispositivo_id
+    if device_id is None:
+        raise HTTPException(status_code=422, detail="dispositivo_id é obrigatório.")
+    device = await _get_device_from_token(device_id, request, session)
+    svc = RequisicaoRecebimentoService(session, device.tenant_id)
+    try:
+        result = await svc.receber(
+            req_id,
+            body,
+            usuario_id=device.user_id,
+            dispositivo_id=device.id,
+        )
+        await session.commit()
+        return result
+    except (EntityNotFoundError, BusinessRuleError, TenantViolationError) as exc:
+        await session.rollback()
+        message = str(exc)
+        if "Versão" in message or "versão" in message or "obsoleta" in message:
+            projection = next(
+                (
+                    value
+                    for value in await svc.listar_para_campo(
+                        device=device,
+                        usuario_id=device.user_id,
+                    )
+                    if value.id == req_id
+                ),
+                None,
+            )
+            raise HTTPException(
+                status_code=409,
+                detail={"message": message, "projection": projection.model_dump(mode="json") if projection else None},
+            )
+        raise HTTPException(status_code=422, detail=message)
+
+
+@router.post(
+    "/requisicoes/{req_id}/destinar",
+    response_model=DestinacaoCampoAck,
+)
+async def destinar_requisicao_campo(
+    req_id: uuid.UUID,
+    body: DestinacaoRequisicaoRequest,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+):
+    """Registra consumo, devolução ou ocorrência sobre posse recebida.
+
+    O endpoint não altera estoque para consumo/perda/dano/extravio. Devolução
+    é a única destinação que cria entrada física, dentro da mesma transação.
+    """
+    if body.dispositivo_id is None:
+        raise HTTPException(status_code=422, detail="dispositivo_id é obrigatório.")
+    device = await _get_device_from_token(body.dispositivo_id, request, session)
+    svc = RequisicaoPosseService(session, device.tenant_id)
+    try:
+        result = await svc.destinar(
+            req_id,
+            body,
+            usuario_id=device.user_id,
+            dispositivo_id=device.id,
+        )
+        await session.commit()
+        return result
+    except (EntityNotFoundError, BusinessRuleError, TenantViolationError) as exc:
+        await session.rollback()
+        message = str(exc)
+        if "Versão" in message or "versão" in message or "obsoleta" in message:
+            projection = next(
+                (
+                    value
+                    for value in await RequisicaoRecebimentoService(
+                        session, device.tenant_id
+                    ).listar_para_campo(device=device, usuario_id=device.user_id)
+                    if value.id == req_id
+                ),
+                None,
+            )
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "message": message,
+                    "projection": projection.model_dump(mode="json") if projection else None,
+                },
+            )
+        raise HTTPException(status_code=422, detail=message)
 
 
 @router.post("/requisicoes/{req_id}/confirmar-retirada", response_model=dict)

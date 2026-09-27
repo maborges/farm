@@ -83,6 +83,8 @@ async def test_entregar_requisicao_repassa_safra_para_lancamento_financeiro():
     session.execute = AsyncMock(side_effect=[_Result(req), _Result([item])])
     svc = EstoqueService(session, tenant_id)
     svc._resolver_safra_contexto_requisicao = AsyncMock(return_value=safra_id)
+    svc._requisicao_canonica_iniciada = AsyncMock(return_value=False)
+    svc._enriquecer_nomes_requisicao = AsyncMock(return_value=req)
     svc.registrar_saida = AsyncMock(return_value=SimpleNamespace(id=uuid.uuid4()))
 
     resultado = await svc.entregar_requisicao(

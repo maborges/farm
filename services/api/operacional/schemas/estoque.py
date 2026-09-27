@@ -2,12 +2,20 @@ from pydantic import BaseModel, Field, ConfigDict
 from typing import Literal, Optional, List
 from datetime import datetime, date
 import uuid
+from decimal import Decimal
+
+from operacional.domain.requisicao_material import (
+    CompatibilidadeLegado,
+    NaturezaItem,
+    TipoRequisicaoItemEvento,
+)
 
 TipoDeposito = Literal["GERAL", "COMBUSTIVEL", "DEFENSIVOS", "PECAS", "GRAOS", "OUTROS"]
 StatusLote = Literal["ATIVO", "VENCIDO", "ESGOTADO", "BLOQUEADO"]
 
 
 # ── Lote ──────────────────────────────────────────────────────────────────────
+
 
 class LoteCreate(BaseModel):
     produto_id: uuid.UUID
@@ -51,10 +59,13 @@ class LoteResponse(BaseModel):
     # consumo normal) — ver ComprasService.estornar_recebimento.
     esgotado_por_estorno: bool = False
     model_config = ConfigDict(from_attributes=True)
+
+
 TipoMovimentacao = Literal["ENTRADA", "SAIDA", "TRANSFERENCIA", "AJUSTE"]
 
 
 # ── Depósito ──────────────────────────────────────────────────────────────────
+
 
 class DepositoCreate(BaseModel):
     unidade_produtiva_id: uuid.UUID
@@ -81,6 +92,7 @@ class DepositoResponse(BaseModel):
 
 
 # ── Saldo ─────────────────────────────────────────────────────────────────────
+
 
 class SaldoResponse(BaseModel):
     id: uuid.UUID
@@ -112,6 +124,7 @@ class SaldoMaximoUpdateRequest(BaseModel):
 
 
 # ── Localização física ──────────────────────────────────────────────────────
+
 
 class EstoqueLocalizacaoCreate(BaseModel):
     deposito_id: uuid.UUID
@@ -150,6 +163,7 @@ class EstoqueLocalizacaoResponse(BaseModel):
 
 # ── Movimentações ─────────────────────────────────────────────────────────────
 
+
 class EntradaEstoqueRequest(BaseModel):
     deposito_id: uuid.UUID
     produto_id: uuid.UUID
@@ -158,7 +172,9 @@ class EntradaEstoqueRequest(BaseModel):
     custo_unitario: float = Field(0.0, ge=0)
     motivo: Optional[str] = Field(None, max_length=255)
     origem_id: Optional[uuid.UUID] = None
-    origem_tipo: Optional[str] = Field(None, max_length=50, description="PEDIDO_COMPRA | AJUSTE | INICIAL")
+    origem_tipo: Optional[str] = Field(
+        None, max_length=50, description="PEDIDO_COMPRA | AJUSTE | INICIAL"
+    )
     lote_id: Optional[uuid.UUID] = None
 
 
@@ -170,7 +186,9 @@ class SaidaEstoqueRequest(BaseModel):
     motivo: Optional[str] = Field(None, max_length=255)
     origem_id: Optional[uuid.UUID] = None
     origem_tipo: Optional[str] = Field(None, max_length=50)
-    lote_id: Optional[uuid.UUID] = None  # Se informado, desconta do lote específico (PEPS por padrão)
+    lote_id: Optional[uuid.UUID] = (
+        None  # Se informado, desconta do lote específico (PEPS por padrão)
+    )
     safra_id: Optional[uuid.UUID] = None  # Quando informado, gera lançamento financeiro automático
 
 
@@ -183,7 +201,9 @@ class AjusteEstoqueRequest(BaseModel):
     # perda física (quebra/deterioração) de contagem de inventário ou correção de
     # lançamento — impossibilitando relatório de perdas. Default preserva o
     # comportamento anterior (toda origem seguia como "AJUSTE").
-    categoria_ajuste: Literal["CONTAGEM_INVENTARIO", "PERDA", "CORRECAO_LANCAMENTO"] = "CONTAGEM_INVENTARIO"
+    categoria_ajuste: Literal["CONTAGEM_INVENTARIO", "PERDA", "CORRECAO_LANCAMENTO"] = (
+        "CONTAGEM_INVENTARIO"
+    )
     # Risco residual #4 (OPERATIONS-GAP-01): opcionais — só usados quando
     # categoria_ajuste="PERDA" e o usuário quer vincular a perda a uma
     # safra/talhão específico, permitindo gerar CostAllocation (despesa no DRE).
@@ -227,15 +247,22 @@ class MovimentacaoResponse(BaseModel):
 
 # ── Requisição Interna ────────────────────────────────────────────────────────
 
+
 class ItemRequisicaoCreate(BaseModel):
     produto_id: uuid.UUID
     quantidade_solicitada: float = Field(..., gt=0)
     deposito_id: Optional[uuid.UUID] = None
+    natureza_item: Optional[NaturezaItem] = None
     observacoes: Optional[str] = Field(None, max_length=255)
 
 
 class RequisicaoCreate(BaseModel):
     unidade_produtiva_id: uuid.UUID
+    safra_id: Optional[uuid.UUID] = None
+    safra_tarefa_id: Optional[uuid.UUID] = None
+    plano_operacional_tarefa_id: Optional[uuid.UUID] = None
+    operacao_agricola_id: Optional[uuid.UUID] = None
+    responsavel_pessoa_id: Optional[uuid.UUID] = None
     data_necessidade: Optional[date] = None
     origem_tipo: str = Field("OUTRO", description="ORDEM_SERVICO | MANUTENCAO | PRODUCAO | OUTRO")
     origem_id: Optional[uuid.UUID] = None
@@ -263,6 +290,30 @@ class RequisicaoEntregarRequest(BaseModel):
     itens: List[ItemEntregaUpdate]
 
 
+class RequisicaoItemOperacaoCanonicaRequest(BaseModel):
+    """Comando idempotente para um item e um lote/depósito por vez.
+
+    A granularidade unitária mantém a associação entre picking, entrega e
+    movimento físico determinística, inclusive quando há múltiplos lotes.
+    """
+
+    quantidade: float = Field(..., gt=0)
+    deposito_id: Optional[uuid.UUID] = None
+    lote_id: Optional[uuid.UUID] = None
+    base_version: Optional[int] = Field(None, ge=1)
+    client_operation_id: str = Field(..., min_length=1, max_length=120)
+    ocorrido_em_dispositivo: Optional[datetime] = None
+    motivo: Optional[str] = Field(None, max_length=1000)
+
+
+class ReservaItemCanonicaRequest(BaseModel):
+    quantidade: float = Field(..., gt=0)
+    deposito_id: uuid.UUID
+    base_version: Optional[int] = Field(None, ge=1)
+    client_operation_id: Optional[str] = Field(None, min_length=1, max_length=120)
+    motivo: Optional[str] = Field(None, max_length=255)
+
+
 class ItemConferidoUpdate(BaseModel):
     item_id: uuid.UUID
     quantidade_conferida: float = Field(..., ge=0)
@@ -270,7 +321,9 @@ class ItemConferidoUpdate(BaseModel):
 
 class ConfirmarRetiradaRequest(BaseModel):
     itens: List[ItemConferidoUpdate] = Field(..., min_length=1)
-    email: str = Field(..., description="E-mail de quem está retirando — pode diferir do usuário logado")
+    email: str = Field(
+        ..., description="E-mail de quem está retirando — pode diferir do usuário logado"
+    )
     senha: str = Field(..., min_length=1)
 
 
@@ -281,7 +334,9 @@ class ItemDevolvidoUpdate(BaseModel):
 
 class ConfirmarDevolucaoRequest(BaseModel):
     itens: List[ItemDevolvidoUpdate] = Field(..., min_length=1)
-    email: str = Field(..., description="E-mail de quem está devolvendo — pode diferir do usuário logado")
+    email: str = Field(
+        ..., description="E-mail de quem está devolvendo — pode diferir do usuário logado"
+    )
     senha: str = Field(..., min_length=1)
 
 
@@ -292,6 +347,11 @@ class RequisicaoConfirmacaoResponse(BaseModel):
     usuario_id: uuid.UUID
     metodo: str
     email_informado: Optional[str] = None
+    device_id: Optional[uuid.UUID] = None
+    client_operation_id: Optional[str] = None
+    versao_requisicao: Optional[int] = None
+    resultado: Optional[str] = None
+    correlation_id: Optional[uuid.UUID] = None
     confirmado_em: datetime
 
     model_config = {"from_attributes": True}
@@ -308,6 +368,7 @@ class ItemRequisicaoResponse(BaseModel):
     quantidade_aprovada: Optional[float]
     quantidade_entregue: Optional[float]
     quantidade_devolvida: Optional[float] = None
+    natureza_item: Optional[NaturezaItem] = None
     observacoes: Optional[str]
     model_config = ConfigDict(from_attributes=True)
 
@@ -316,6 +377,11 @@ class RequisicaoResponse(BaseModel):
     id: uuid.UUID
     numero: Optional[str] = None
     unidade_produtiva_id: uuid.UUID
+    safra_id: Optional[uuid.UUID] = None
+    safra_tarefa_id: Optional[uuid.UUID] = None
+    plano_operacional_tarefa_id: Optional[uuid.UUID] = None
+    operacao_agricola_id: Optional[uuid.UUID] = None
+    responsavel_pessoa_id: Optional[uuid.UUID] = None
     solicitante_id: uuid.UUID
     solicitante_nome: Optional[str] = None
     aprovador_id: Optional[uuid.UUID]
@@ -325,19 +391,174 @@ class RequisicaoResponse(BaseModel):
     status: str
     origem_tipo: str
     origem_id: Optional[uuid.UUID]
+    version: int
+    compatibilidade_legado: Optional[CompatibilidadeLegado] = None
     observacoes: Optional[str]
     itens: List[ItemRequisicaoResponse] = []
     model_config = ConfigDict(from_attributes=True)
 
 
+class RecebimentoRequisicaoRequest(BaseModel):
+    """Comando idempotente de conferência para uma entrega específica."""
+
+    item_id: uuid.UUID
+    entrega_evento_id: uuid.UUID
+    quantidade_recebida: Decimal = Field(..., ge=0)
+    resultado: Literal[
+        "RECEBIDO_INTEGRAL", "RECEBIDO_PARCIAL", "RECUSADO", "DIVERGENTE"
+    ]
+    base_version: int = Field(..., ge=1)
+    client_operation_id: str = Field(..., min_length=1, max_length=120)
+    dispositivo_id: Optional[uuid.UUID] = None
+    ocorrido_em_dispositivo: Optional[datetime] = None
+    motivo: Optional[str] = Field(None, max_length=1000)
+
+
+class DestinacaoRequisicaoRequest(BaseModel):
+    """Comando idempotente para consumir ou dar destino à posse recebida."""
+
+    item_id: uuid.UUID
+    entrega_evento_id: uuid.UUID
+    tipo_evento: Literal["CONSUMO", "DEVOLUCAO", "PERDA", "DANO", "EXTRAVIO"]
+    quantidade: Decimal = Field(..., gt=0)
+    base_version: int = Field(..., ge=1)
+    client_operation_id: str = Field(..., min_length=1, max_length=120)
+    operacao_execucao_id: Optional[uuid.UUID] = None
+    deposito_id: Optional[uuid.UUID] = None
+    lote_id: Optional[uuid.UUID] = None
+    dispositivo_id: Optional[uuid.UUID] = None
+    ocorrido_em_dispositivo: Optional[datetime] = None
+    motivo: Optional[str] = Field(None, max_length=1000)
+
+
+class EntregaCampoProjection(BaseModel):
+    id: uuid.UUID
+    quantidade_entregue: float
+    quantidade_recebida: float
+    quantidade_recusada: float
+    quantidade_pendente_conferencia: float
+    quantidade_consumida: float = 0.0
+    quantidade_devolvida: float = 0.0
+    quantidade_perdida: float = 0.0
+    quantidade_danificada: float = 0.0
+    quantidade_extraviada: float = 0.0
+    quantidade_em_posse: float = 0.0
+    status_conciliacao: str = "PENDENTE_CONFERENCIA"
+    lote_id: Optional[uuid.UUID] = None
+    deposito_id: Optional[uuid.UUID] = None
+    unidade: str
+    entregue_em: datetime
+
+
+class ItemRequisicaoCampoProjection(BaseModel):
+    id: uuid.UUID
+    produto_id: uuid.UUID
+    produto_nome: Optional[str] = None
+    natureza_item: Optional[NaturezaItem] = None
+    unidade: str
+    quantidade_aprovada: float
+    quantidade_entregue: float
+    quantidade_recebida: float
+    quantidade_recusada: float
+    quantidade_pendente_conferencia: float
+    quantidade_em_posse: float
+    quantidade_consumida: float = 0.0
+    quantidade_devolvida: float = 0.0
+    quantidade_perdida: float = 0.0
+    quantidade_danificada: float = 0.0
+    quantidade_extraviada: float = 0.0
+    status_conferencia: str
+    status_conciliacao: str = "PENDENTE_CONFERENCIA"
+    entregas: List[EntregaCampoProjection]
+
+
+class OperacaoExecucaoCampoProjection(BaseModel):
+    id: uuid.UUID
+    status: str
+    data_execucao: date
+
+
+class RequisicaoCampoProjection(BaseModel):
+    id: uuid.UUID
+    numero: Optional[str] = None
+    tenant_id: uuid.UUID
+    unidade_produtiva_id: uuid.UUID
+    safra_id: Optional[uuid.UUID] = None
+    safra_tarefa_id: Optional[uuid.UUID] = None
+    operacao_agricola_id: Optional[uuid.UUID] = None
+    responsavel_pessoa_id: Optional[uuid.UUID] = None
+    responsavel_autorizado: bool
+    version: int
+    status: str
+    status_efetivo: str
+    status_conciliacao: str = "PENDENTE_CONCILIACAO"
+    data_solicitacao: datetime
+    execucoes: List[OperacaoExecucaoCampoProjection] = []
+    itens: List[ItemRequisicaoCampoProjection]
+
+
+class RecebimentoCampoAck(BaseModel):
+    evento_id: uuid.UUID
+    requisicao_id: uuid.UUID
+    item_id: uuid.UUID
+    client_operation_id: str
+    version: int
+    resultado: str
+    projection: RequisicaoCampoProjection
+
+
+class DestinacaoCampoAck(BaseModel):
+    evento_id: uuid.UUID
+    movimento_id: Optional[uuid.UUID] = None
+    requisicao_id: uuid.UUID
+    item_id: uuid.UUID
+    client_operation_id: str
+    version: int
+    tipo_evento: str
+    projection: RequisicaoCampoProjection
+
+
+class RequisicaoItemEventoCreate(BaseModel):
+    """Contrato para registrar um fato canônico por item, sem endpoint nesta fase."""
+
+    item_id: uuid.UUID
+    tipo_evento: TipoRequisicaoItemEvento
+    quantidade: Decimal = Field(..., gt=0)
+    unidade: str = Field(..., min_length=1, max_length=30)
+    produto_id: Optional[uuid.UUID] = None
+    lote_id: Optional[uuid.UUID] = None
+    deposito_id: Optional[uuid.UUID] = None
+    operacao_agricola_id: Optional[uuid.UUID] = None
+    operacao_execucao_id: Optional[uuid.UUID] = None
+    usuario_id: Optional[uuid.UUID] = None
+    pessoa_operacional_id: Optional[uuid.UUID] = None
+    dispositivo_id: Optional[uuid.UUID] = None
+    ocorrido_em_dispositivo: Optional[datetime] = None
+    motivo: Optional[str] = Field(None, max_length=1000)
+    versao_requisicao_esperada: Optional[int] = Field(None, ge=1)
+    correlation_id: Optional[uuid.UUID] = None
+    causation_id: Optional[uuid.UUID] = None
+    evento_entrega_id: Optional[uuid.UUID] = None
+    resultado_conferencia: Optional[Literal[
+        "RECEBIDO_INTEGRAL", "RECEBIDO_PARCIAL", "RECUSADO", "DIVERGENTE"
+    ]] = None
+    client_operation_id: Optional[str] = Field(None, min_length=1, max_length=120)
+    provenance: str = Field("CANONICAL", pattern="^(CANONICAL|LEGACY_BACKFILL)$")
+
+
 # ── Reservas de Estoque ────────────────────────────────────────────────────────
+
 
 class ReservaCreate(BaseModel):
     produto_id: uuid.UUID
     deposito_id: uuid.UUID
     quantidade: float = Field(..., gt=0)
     motivo: str = Field(..., min_length=3, max_length=255)
-    referencia_tipo: Optional[str] = Field(None, max_length=50, description="ORDEM_SERVICO | PEDIDO_COMPRA | SAFRA | REQUISICAO | MANUAL")
+    referencia_tipo: Optional[str] = Field(
+        None,
+        max_length=50,
+        description="ORDEM_SERVICO | PEDIDO_COMPRA | SAFRA | REQUISICAO | MANUAL",
+    )
     referencia_id: Optional[uuid.UUID] = None
 
 
@@ -346,7 +567,9 @@ class ReservaCancelarRequest(BaseModel):
 
 
 class ReservaConsumirRequest(BaseModel):
-    quantidade: Optional[float] = Field(None, gt=0, description="Se omitido, consome a quantidade total reservada")
+    quantidade: Optional[float] = Field(
+        None, gt=0, description="Se omitido, consome a quantidade total reservada"
+    )
     motivo: Optional[str] = Field(None, max_length=255)
 
 
@@ -356,16 +579,19 @@ class ReservaResponse(BaseModel):
     deposito_id: uuid.UUID
     criado_por_id: Optional[uuid.UUID]
     quantidade: float
+    quantidade_consumida: float = 0.0
     motivo: str
     referencia_tipo: Optional[str]
     referencia_id: Optional[uuid.UUID]
     status: str
+    client_operation_id: Optional[str] = None
     created_at: datetime
     updated_at: datetime
     model_config = ConfigDict(from_attributes=True)
 
 
 # ── Alertas ───────────────────────────────────────────────────────────────────
+
 
 class AlertaEstoqueItem(BaseModel):
     id: uuid.UUID
@@ -377,7 +603,10 @@ class AlertaEstoqueItem(BaseModel):
     estoque_minimo: float
     unidade_medida: str
     quantidade_sugerida: float
+
+
 # ── Auditoria ──────────────────────────────────────────────────────────────────
+
 
 class LancamentoFinanceiroSimplificado(BaseModel):
     id: uuid.UUID

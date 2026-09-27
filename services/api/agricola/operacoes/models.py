@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import String, Numeric, Boolean, Date, DateTime, Time, Text, ForeignKey, text, JSON, Uuid, Index
+from sqlalchemy import String, Numeric, Boolean, Date, DateTime, Time, Text, ForeignKey, UniqueConstraint, text, JSON, Uuid, Index
 from uuid import UUID
 import uuid
 from datetime import datetime, date, time
@@ -66,6 +66,7 @@ class OperacaoAgricola(Base):
     execucoes: Mapped[list["OperacaoExecucao"]] = relationship(back_populates="operacao", cascade="all, delete-orphan", lazy="selectin")
 
     __table_args__ = (
+        UniqueConstraint("tenant_id", "id", name="uq_operacoes_agricolas_tenant_id"),
         Index("ix_operacoes_origem_invalidada", "tenant_id", "origem_invalidada"),
     )
 
@@ -97,6 +98,10 @@ class OperacaoExecucao(Base):
     updated_at: Mapped[datetime] = mapped_column(server_default=text("(CURRENT_TIMESTAMP)"), onupdate=datetime.utcnow)
 
     operacao: Mapped["OperacaoAgricola"] = relationship(back_populates="execucoes", lazy="noload")
+
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "id", name="uq_operacoes_execucoes_tenant_id"),
+    )
 
 class InsumoOperacao(Base):
     __tablename__ = "insumos_operacao"

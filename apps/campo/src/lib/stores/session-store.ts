@@ -16,6 +16,7 @@ export interface LocalPendingSummary {
   tasks: number;
   cadernoEvents: number;
   cadernoDrafts: number;
+  requisicaoOperacoes: number;
   total: number;
 }
 
@@ -76,6 +77,9 @@ async function clearCacheTables(): Promise<void> {
       db.recomendacoes_operacionais,
       db.pessoas_operacionais,
       db.cached_images,
+      db.requisicoes,
+      db.requisicao_itens,
+      db.requisicao_operacoes,
     ],
     async () => {
       await Promise.all([
@@ -95,6 +99,9 @@ async function clearCacheTables(): Promise<void> {
         db.recomendacoes_operacionais.clear(),
         db.pessoas_operacionais.clear(),
         db.cached_images.clear(),
+        db.requisicoes.clear(),
+        db.requisicao_itens.clear(),
+        db.requisicao_operacoes.clear(),
       ]);
     }
   );
@@ -104,11 +111,12 @@ async function clearCacheTables(): Promise<void> {
 // e seria destruído por clearCacheTables(). Usada só para informar o usuário
 // — nunca para decidir se a limpeza acontece (a limpeza é sempre obrigatória).
 export async function getLocalPendingSummary(): Promise<LocalPendingSummary> {
-  const [syncQueue, tasks, cadernoEvents, cadernoDrafts] = await Promise.all([
+  const [syncQueue, tasks, cadernoEvents, cadernoDrafts, requisicaoOperacoes] = await Promise.all([
     db.sync_queue.where("status").notEqual("DONE").count(),
     db.tasks.filter((task) => task.synced !== true).count(),
     db.caderno_events.where("sync_status").notEqual("SYNCED").count(),
     db.caderno_drafts.count(),
+    db.requisicao_operacoes.where("status").anyOf(["PENDING", "IN_FLIGHT"]).count(),
   ]);
 
   return {
@@ -116,7 +124,8 @@ export async function getLocalPendingSummary(): Promise<LocalPendingSummary> {
     tasks,
     cadernoEvents,
     cadernoDrafts,
-    total: syncQueue + tasks + cadernoEvents + cadernoDrafts,
+    requisicaoOperacoes,
+    total: syncQueue + tasks + cadernoEvents + cadernoDrafts + requisicaoOperacoes,
   };
 }
 

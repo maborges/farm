@@ -26,6 +26,7 @@ from core.cadastros.pessoas.models import (
     Pessoa, PessoaDocumento, PessoaContato, PessoaEndereco, PessoaBancario,
     TipoRelacionamento, PessoaRelacionamento,
     PessoaConsentimento, PessoaAcessoLog,
+    PessoaUsuario,
 )
 
 # Cadastros — propriedades / áreas rurais

@@ -1,6 +1,19 @@
 import uuid
 from datetime import datetime, date, timezone
-from sqlalchemy import String, Boolean, DateTime, Date, ForeignKey, Text, JSON, UniqueConstraint
+from sqlalchemy import (
+    String,
+    Boolean,
+    DateTime,
+    Date,
+    ForeignKey,
+    ForeignKeyConstraint,
+    CheckConstraint,
+    Text,
+    JSON,
+    UniqueConstraint,
+    Index,
+    text,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy import Uuid as UUID
 from core.database import Base
@@ -102,6 +115,84 @@ class Pessoa(Base):
     dados_bancarios: Mapped[list["PessoaBancario"]] = relationship(back_populates="pessoa", lazy="noload", cascade="all, delete-orphan")
     relacionamentos: Mapped[list["PessoaRelacionamento"]] = relationship(back_populates="pessoa", lazy="noload", cascade="all, delete-orphan")
     consentimentos: Mapped[list["PessoaConsentimento"]] = relationship(back_populates="pessoa", lazy="noload", cascade="all, delete-orphan")
+    identidades_operacionais: Mapped[list["PessoaUsuario"]] = relationship(
+        back_populates="pessoa", lazy="noload", cascade="all, delete-orphan"
+    )
+
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "id", name="uq_cadastros_pessoas_tenant_id"),
+    )
+
+
+class PessoaUsuario(Base):
+    """Vínculo canônico e contextual entre conta autenticada e Pessoa.
+
+    ``Usuario`` é global na plataforma, enquanto ``Pessoa`` é tenant-scoped.
+    A vigência e o status preservam o histórico sem permitir duas identidades
+    operacionais ativas para a mesma conta ou Pessoa no mesmo tenant.
+    """
+
+    __tablename__ = "cadastros_pessoas_usuarios"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    pessoa_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
+    usuario_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="ATIVO")
+    vigencia_inicio: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+    vigencia_fim: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    vinculado_por_usuario_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=True
+    )
+    revogado_por_usuario_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("usuarios.id"), nullable=True
+    )
+    motivo: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+
+    pessoa: Mapped["Pessoa"] = relationship(back_populates="identidades_operacionais", lazy="noload")
+
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "id", name="uq_pessoa_usuario_tenant_id"),
+        ForeignKeyConstraint(
+            ["tenant_id", "pessoa_id"],
+            ["cadastros_pessoas.tenant_id", "cadastros_pessoas.id"],
+            name="fk_pessoa_usuario_tenant_pessoa",
+            ondelete="NO ACTION",
+        ),
+        ForeignKeyConstraint(
+            ["tenant_id", "usuario_id"],
+            ["tenant_usuarios.tenant_id", "tenant_usuarios.usuario_id"],
+            name="fk_pessoa_usuario_tenant_usuario",
+            ondelete="NO ACTION",
+        ),
+        CheckConstraint("status IN ('ATIVO','REVOGADO')", name="ck_pessoa_usuario_status"),
+        CheckConstraint(
+            "vigencia_fim IS NULL OR vigencia_fim > vigencia_inicio",
+            name="ck_pessoa_usuario_vigencia",
+        ),
+        Index(
+            "uq_pessoa_usuario_tenant_pessoa_ativo",
+            "tenant_id",
+            "pessoa_id",
+            unique=True,
+            postgresql_where=text("status = 'ATIVO'"),
+        ),
+        Index(
+            "uq_pessoa_usuario_tenant_usuario_ativo",
+            "tenant_id",
+            "usuario_id",
+            unique=True,
+            postgresql_where=text("status = 'ATIVO'"),
+        ),
+        Index("ix_pessoa_usuario_tenant_vigencia", "tenant_id", "usuario_id", "vigencia_fim"),
+    )
 
 
 # ---------------------------------------------------------------------------

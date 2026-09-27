@@ -331,7 +331,7 @@ export default function TarefaDetailPage() {
       )}
 
       {/* Requisições de material — só para tarefas nascidas de OS, durante a execução */}
-      {operacaoAgricolaId && task.status_execucao === "EM_EXECUCAO" && (
+      {operacaoAgricolaId && (
         <RequisicoesSection operacaoAgricolaId={operacaoAgricolaId} />
       )}
 

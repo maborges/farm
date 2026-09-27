@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, date
-from sqlalchemy import String, Numeric, Text, ForeignKey, Date, DateTime, Index
+from sqlalchemy import String, Numeric, Text, ForeignKey, Date, DateTime, Index, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy import Uuid as UUIDType
 from sqlalchemy.dialects.postgresql import JSONB
@@ -106,6 +106,7 @@ class SafraTarefa(Base):
     updated_at: Mapped[datetime] = mapped_column(default=datetime.utcnow, onupdate=datetime.utcnow)
 
     __table_args__ = (
+        UniqueConstraint("tenant_id", "id", name="uq_safra_tarefas_tenant_id"),
         Index("ix_safra_tarefas_tenant_safra_status", "tenant_id", "safra_id", "status"),
     )
 

@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, date
 from typing import TYPE_CHECKING
-from sqlalchemy import String, Numeric, Boolean, Integer, Date, Text, ForeignKey, text
+from sqlalchemy import String, Numeric, Boolean, Integer, Date, Text, ForeignKey, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy import Uuid as UUID
@@ -56,6 +56,10 @@ class Safra(Base):
 
     created_at: Mapped[datetime] = mapped_column(server_default=text("(CURRENT_TIMESTAMP)"))
     updated_at: Mapped[datetime] = mapped_column(server_default=text("(CURRENT_TIMESTAMP)"), onupdate=datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "id", name="uq_safras_tenant_id"),
+    )
 
     # Relacionamentos
     cultivos: Mapped[list["Cultivo"]] = relationship(

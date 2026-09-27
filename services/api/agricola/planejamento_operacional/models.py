@@ -91,6 +91,7 @@ class PlanoOperacionalTarefa(Base):
         # Uma tarefa só entra 1x no mesmo plano (pode reentrar após remoção lógica
         # apenas reativando a mesma linha, não duplicando — ver service).
         UniqueConstraint("plano_operacional_id", "safra_tarefa_id", name="uq_plano_operacional_tarefa"),
+        UniqueConstraint("tenant_id", "id", name="uq_plano_op_tarefas_tenant_id"),
         Index("ix_plano_op_tarefas_tenant_plano", "tenant_id", "plano_operacional_id"),
     )
 

@@ -1,7 +1,7 @@
 import uuid
 from datetime import date, datetime, timezone
 
-from sqlalchemy import Date, DateTime, ForeignKey, Numeric, String, Text, UniqueConstraint
+from sqlalchemy import Date, DateTime, ForeignKey, ForeignKeyConstraint, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy import Uuid as UUIDType
 
@@ -22,6 +22,9 @@ class CostAllocation(Base):
     )
     source: Mapped[str] = mapped_column(String(32), nullable=False)
     source_id: Mapped[uuid.UUID | None] = mapped_column(UUIDType(as_uuid=True), nullable=True)
+    requisicao_item_evento_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUIDType(as_uuid=True), nullable=True, index=True
+    )
     operation_execution_id: Mapped[uuid.UUID | None] = mapped_column(
         UUIDType(as_uuid=True), ForeignKey("operacoes_execucoes.id", ondelete="SET NULL"), nullable=True
     )
@@ -38,7 +41,18 @@ class CostAllocation(Base):
     allocation_method: Mapped[str] = mapped_column(String(24), nullable=False, default="DIRECT")
     allocation_basis: Mapped[float | None] = mapped_column(Numeric(18, 6), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
-
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["tenant_id", "requisicao_item_evento_id"],
+            ["estoque_requisicao_item_eventos.tenant_id", "estoque_requisicao_item_eventos.id"],
+            name="fk_cost_allocations_tenant_req_item_evento",
+            ondelete="RESTRICT",
+        ),
+        UniqueConstraint(
+            "tenant_id", "requisicao_item_evento_id",
+            name="uq_cost_allocations_tenant_req_item_evento",
+        ),
+    )
 
 class ProdutoColhidoCostAllocation(Base):
     """Alternativa C (OPERATIONS-GAP-01): rateio persistido entre ProdutoColhido (lote)

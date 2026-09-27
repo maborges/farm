@@ -1,5 +1,6 @@
 from core.dependencies import require_tenant_permission
 from fastapi import APIRouter, Depends, Query
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
 import uuid
@@ -7,6 +8,8 @@ import uuid
 from core.dependencies import get_session, get_current_tenant, require_limit, require_module
 from core.models.tenant import Tenant
 from operacional.services.estoque_service import EstoqueService
+from operacional.services.requisicao_canonica_service import RequisicaoCanonicaService
+from operacional.models.estoque import RequisicaoMaterial
 from core.dependencies import get_current_user
 from core.models.auth import Usuario
 from operacional.schemas.estoque import (
@@ -18,6 +21,7 @@ from operacional.schemas.estoque import (
     SaldoMinimoUpdateRequest, SaldoMaximoUpdateRequest,
     LoteCreate, LoteUpdate, LoteResponse,
     RequisicaoCreate, RequisicaoAprovarRequest, RequisicaoEntregarRequest, RequisicaoResponse,
+    RequisicaoItemOperacaoCanonicaRequest, ReservaItemCanonicaRequest,
     ConfirmarRetiradaRequest, ConfirmarDevolucaoRequest,
     ReservaCreate, ReservaCancelarRequest, ReservaConsumirRequest, ReservaResponse,
     EstoqueLocalizacaoCreate, EstoqueLocalizacaoUpdate, EstoqueLocalizacaoResponse,
@@ -28,6 +32,10 @@ router = APIRouter(prefix="/estoque", tags=["Operacional — Estoque"], dependen
 
 def _svc(session: AsyncSession, tenant: Tenant) -> EstoqueService:
     return EstoqueService(session, tenant.id)
+
+
+def _canonical_svc(session: AsyncSession, tenant: Tenant) -> RequisicaoCanonicaService:
+    return RequisicaoCanonicaService(session, tenant.id)
 
 
 # ── Lotes ─────────────────────────────────────────────────────────────────────
@@ -406,6 +414,91 @@ async def separar_requisicao(
     result = await svc.atualizar_status_requisicao(req_id, "SEPARANDO")
     await session.commit()
     return await svc._carregar_itens_requisicao(result)
+
+
+@router.post(
+    "/requisicoes/{req_id}/itens/{item_id}/reservar-canonico",
+    response_model=ReservaResponse,
+    status_code=201,
+    dependencies=[Depends(require_tenant_permission("operacional:*"))],
+)
+async def reservar_item_canonico(
+    req_id: uuid.UUID,
+    item_id: uuid.UUID,
+    data: ReservaItemCanonicaRequest,
+    tenant: Tenant = Depends(get_current_tenant),
+    session: AsyncSession = Depends(get_session),
+    usuario: Usuario = Depends(get_current_user),
+):
+    result = await _canonical_svc(session, tenant).reservar_item(req_id, item_id, data, usuario.id)
+    await session.commit()
+    return result
+
+
+async def _canonical_request_response(
+    req_id: uuid.UUID, tenant: Tenant, session: AsyncSession
+) -> RequisicaoMaterial:
+    req = (await session.execute(
+        select(RequisicaoMaterial).where(
+            RequisicaoMaterial.id == req_id,
+            RequisicaoMaterial.tenant_id == tenant.id,
+        )
+    )).scalars().first()
+    if not req:
+        raise ValueError("Requisição canônica não encontrada após commit.")
+    return await _svc(session, tenant)._carregar_itens_requisicao(req)
+
+
+@router.post(
+    "/requisicoes/{req_id}/itens/{item_id}/separar-canonico",
+    response_model=RequisicaoResponse,
+    dependencies=[Depends(require_tenant_permission("operacional:*"))],
+)
+async def separar_item_canonico(
+    req_id: uuid.UUID,
+    item_id: uuid.UUID,
+    data: RequisicaoItemOperacaoCanonicaRequest,
+    tenant: Tenant = Depends(get_current_tenant),
+    session: AsyncSession = Depends(get_session),
+    usuario: Usuario = Depends(get_current_user),
+):
+    await _canonical_svc(session, tenant).separar_item(req_id, item_id, data, usuario.id)
+    await session.commit()
+    return await _canonical_request_response(req_id, tenant, session)
+
+
+@router.post(
+    "/requisicoes/{req_id}/itens/{item_id}/entregar-canonico",
+    response_model=RequisicaoResponse,
+    dependencies=[Depends(require_tenant_permission("operacional:*"))],
+)
+async def entregar_item_canonico(
+    req_id: uuid.UUID,
+    item_id: uuid.UUID,
+    data: RequisicaoItemOperacaoCanonicaRequest,
+    tenant: Tenant = Depends(get_current_tenant),
+    session: AsyncSession = Depends(get_session),
+    usuario: Usuario = Depends(get_current_user),
+):
+    await _canonical_svc(session, tenant).entregar_item(req_id, item_id, data, usuario.id)
+    await session.commit()
+    return await _canonical_request_response(req_id, tenant, session)
+
+
+@router.patch(
+    "/requisicoes/{req_id}/cancelar-canonico",
+    response_model=RequisicaoResponse,
+    dependencies=[Depends(require_tenant_permission("operacional:*"))],
+)
+async def cancelar_requisicao_canonica(
+    req_id: uuid.UUID,
+    tenant: Tenant = Depends(get_current_tenant),
+    session: AsyncSession = Depends(get_session),
+    usuario: Usuario = Depends(get_current_user),
+):
+    result = await _canonical_svc(session, tenant).cancelar(req_id, usuario.id)
+    await session.commit()
+    return await _svc(session, tenant)._carregar_itens_requisicao(result)
 
 
 @router.patch("/requisicoes/{req_id}/entregar", response_model=RequisicaoResponse,

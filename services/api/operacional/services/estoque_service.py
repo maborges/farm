@@ -9,7 +9,7 @@ from sqlalchemy.exc import IntegrityError
 from loguru import logger
 
 from core.base_service import BaseService
-from core.exceptions import BusinessRuleError, EntityNotFoundError
+from core.exceptions import BusinessRuleError, EntityNotFoundError, TenantViolationError
 from core.services.sequencial_service import SequencialService
 from core.models.auth import Usuario
 from core.models.unidade_produtiva import UnidadeProdutiva
@@ -26,7 +26,7 @@ from core.operational_context import (
 from operacional.models.estoque import (
     Deposito, EstoqueMovimento, SaldoEstoque,
     LoteEstoque, RequisicaoMaterial, ItemRequisicao, ReservaEstoque, EstoqueLocalizacao,
-    RequisicaoConfirmacao,
+    RequisicaoConfirmacao, RequisicaoItemEvento,
 )
 from operacional.models.compras import Fornecedor, PedidoCompra
 from core.cadastros.models import ProdutoCatalogo
@@ -47,12 +47,44 @@ from operacional.schemas.estoque import (
     EstoqueLocalizacaoCreate, EstoqueLocalizacaoUpdate, EstoqueLocalizacaoResponse,
 )
 from operacional.services.estoque_ledger import registrar_ledger_estoque
+from operacional.services.requisicao_fundacao_service import RequisicaoFundacaoService
 from financeiro.models.lancamento import LancamentoFinanceiro
 
 
 class EstoqueService(BaseService[SaldoEstoque]):
     def __init__(self, session: AsyncSession, tenant_id: UUID):
         super().__init__(SaldoEstoque, session, tenant_id)
+
+    async def _requisicao_canonica_iniciada(self, requisicao_id: UUID) -> bool:
+        """Detecta reserva ou evento canônico já persistido para a requisição.
+
+        Args:
+            requisicao_id: Identificador da requisição no tenant atual.
+        Returns:
+            True quando o fluxo canônico já possui uma reserva ou evento.
+        Raises:
+            None.
+        """
+        evento = await self.session.scalar(
+            select(RequisicaoItemEvento.id).where(
+                RequisicaoItemEvento.tenant_id == self.tenant_id,
+                RequisicaoItemEvento.requisicao_id == requisicao_id,
+            ).limit(1)
+        )
+        if evento is not None:
+            return True
+        reserva = await self.session.scalar(
+            select(ReservaEstoque.id)
+            .join(ItemRequisicao, ItemRequisicao.id == ReservaEstoque.item_requisicao_id)
+            .where(
+                ReservaEstoque.tenant_id == self.tenant_id,
+                ItemRequisicao.tenant_id == self.tenant_id,
+                ItemRequisicao.requisicao_id == requisicao_id,
+                ReservaEstoque.item_requisicao_id.is_not(None),
+            )
+            .limit(1)
+        )
+        return reserva is not None
 
     async def _get_produto(self, produto_id: UUID) -> ProdutoCatalogo | None:
         stmt = select(ProdutoCatalogo).where(
@@ -953,6 +985,13 @@ class EstoqueService(BaseService[SaldoEstoque]):
         return (await self.session.execute(stmt_safra)).scalar_one_or_none()
 
     async def registrar_saida(self, data: SaidaEstoqueRequest) -> EstoqueMovimento:
+        # A entrega canônica já possui o único movimento físico. O caminho
+        # genérico legado não pode gerar outra saída para a mesma requisição.
+        if data.origem_tipo == "REQUISICAO" and data.origem_id:
+            if await self._requisicao_canonica_iniciada(data.origem_id):
+                raise BusinessRuleError(
+                    "A requisição já iniciou o fluxo canônico; o caminho legado não pode baixar novamente."
+                )
         await self._get_produto_or_fail(data.produto_id)
         await self._validar_receituario_obrigatorio(
             data.produto_id,
@@ -1469,11 +1508,17 @@ class EstoqueService(BaseService[SaldoEstoque]):
         return requisicoes
 
     async def criar_requisicao(self, data: RequisicaoCreate, solicitante_id: UUID) -> RequisicaoMaterial:
+        await RequisicaoFundacaoService.validar_origem(self.session, self.tenant_id, data)
         numero = await SequencialService(self.session, self.tenant_id).proximo_numero("estoque_requisicao")
         req = RequisicaoMaterial(
             tenant_id=self.tenant_id,
             numero=numero,
             unidade_produtiva_id=data.unidade_produtiva_id,
+            safra_id=data.safra_id,
+            safra_tarefa_id=data.safra_tarefa_id,
+            plano_operacional_tarefa_id=data.plano_operacional_tarefa_id,
+            operacao_agricola_id=data.operacao_agricola_id,
+            responsavel_pessoa_id=data.responsavel_pessoa_id,
             solicitante_id=solicitante_id,
             data_necessidade=data.data_necessidade,
             origem_tipo=data.origem_tipo,
@@ -1485,10 +1530,12 @@ class EstoqueService(BaseService[SaldoEstoque]):
         await self.session.flush()
         for item_data in data.itens:
             item = ItemRequisicao(
+                tenant_id=self.tenant_id,
                 requisicao_id=req.id,
                 produto_id=item_data.produto_id,
                 deposito_id=item_data.deposito_id,
                 quantidade_solicitada=item_data.quantidade_solicitada,
+                natureza_item=item_data.natureza_item.value if item_data.natureza_item else None,
                 observacoes=item_data.observacoes,
             )
             self.session.add(item)
@@ -1508,6 +1555,8 @@ class EstoqueService(BaseService[SaldoEstoque]):
         (gerar_operacao_planejada). Idempotente: não duplica se já existir uma
         requisição para esta operação. Pode haver mais de uma requisição por OS
         (complementos), então esta função só cobre a geração inicial."""
+        if operacao.tenant_id != self.tenant_id:
+            raise TenantViolationError("Operação não pertence ao tenant atual.", tenant_id=self.tenant_id, resource="operacao_agricola")
         stmt_existente = select(RequisicaoMaterial).where(
             RequisicaoMaterial.tenant_id == self.tenant_id,
             RequisicaoMaterial.operacao_agricola_id == operacao.id,
@@ -1526,6 +1575,9 @@ class EstoqueService(BaseService[SaldoEstoque]):
             tenant_id=self.tenant_id,
             numero=numero,
             unidade_produtiva_id=unidade_produtiva_id,
+            safra_id=operacao.safra_id,
+            safra_tarefa_id=operacao.tarefa_id,
+            responsavel_pessoa_id=operacao.operador_id,
             solicitante_id=solicitante_id,
             data_necessidade=data_necessidade,
             origem_tipo="ORDEM_SERVICO",
@@ -1539,14 +1591,57 @@ class EstoqueService(BaseService[SaldoEstoque]):
 
         for insumo in insumos:
             item = ItemRequisicao(
+                tenant_id=self.tenant_id,
                 requisicao_id=req.id,
                 produto_id=insumo.produto_id,
                 quantidade_solicitada=float(insumo.quantidade_total or 0.0),
+                natureza_item="CONSUMIVEL",
                 observacoes=f"Insumo planejado da OS — dose {insumo.dose_por_ha} {insumo.unidade}/ha",
             )
             self.session.add(item)
 
         await self.session.flush()
+        # Reaproveita a reserva já criada pela etapa de planejamento quando a
+        # OS é a materialização de uma única tarefa de plano. Esta associação
+        # não cria saldo reservado adicional.
+        from agricola.planejamento_operacional.models import (
+            PlanoOperacionalTarefa,
+            PlanoOperacionalTarefaInsumo,
+        )
+        stmt_planos = select(PlanoOperacionalTarefa).where(
+            PlanoOperacionalTarefa.tenant_id == self.tenant_id,
+            PlanoOperacionalTarefa.safra_tarefa_id == operacao.tarefa_id,
+        )
+        planos = list((await self.session.execute(stmt_planos)).scalars().all())
+        if len(planos) == 1:
+            req.plano_operacional_tarefa_id = planos[0].id
+            itens_req = list((await self.session.execute(
+                select(ItemRequisicao).where(
+                    ItemRequisicao.tenant_id == self.tenant_id,
+                    ItemRequisicao.requisicao_id == req.id,
+                )
+            )).scalars().all())
+            insumos_plan = list((await self.session.execute(
+                select(PlanoOperacionalTarefaInsumo).where(
+                    PlanoOperacionalTarefaInsumo.tenant_id == self.tenant_id,
+                    PlanoOperacionalTarefaInsumo.plano_operacional_tarefa_id == planos[0].id,
+                    PlanoOperacionalTarefaInsumo.reserva_estoque_id.is_not(None),
+                )
+            )).scalars().all())
+            for item in itens_req:
+                candidatos = [i for i in insumos_plan if i.produto_id == item.produto_id]
+                if len(candidatos) != 1:
+                    continue
+                reserva = await self.session.get(ReservaEstoque, candidatos[0].reserva_estoque_id)
+                if (
+                    reserva
+                    and reserva.tenant_id == self.tenant_id
+                    and reserva.item_requisicao_id is None
+                    and reserva.produto_id == item.produto_id
+                    and reserva.status in ("ATIVA", "PARCIALMENTE_CONSUMIDA")
+                ):
+                    reserva.item_requisicao_id = item.id
+                    item.deposito_id = reserva.deposito_id
         await self.session.refresh(req)
         return await self._carregar_itens_requisicao(req)
 
@@ -1592,11 +1687,18 @@ class EstoqueService(BaseService[SaldoEstoque]):
             raise BusinessRuleError(f"Requisição não pode ser aprovada no status '{req.status}'.")
 
         item_map = {i.item_id: i for i in data.itens}
-        stmt_itens = select(ItemRequisicao).where(ItemRequisicao.requisicao_id == req_id)
+        stmt_itens = select(ItemRequisicao).where(
+            ItemRequisicao.tenant_id == self.tenant_id,
+            ItemRequisicao.requisicao_id == req_id,
+        )
         itens = (await self.session.execute(stmt_itens)).scalars().all()
         for item in itens:
             if item.id in item_map:
                 upd = item_map[item.id]
+                if upd.quantidade_aprovada > float(item.quantidade_solicitada):
+                    raise BusinessRuleError(
+                        f"Quantidade aprovada do item {item.id} não pode exceder a solicitada."
+                    )
                 item.quantidade_aprovada = upd.quantidade_aprovada
                 if upd.deposito_id:
                     item.deposito_id = upd.deposito_id
@@ -1621,9 +1723,17 @@ class EstoqueService(BaseService[SaldoEstoque]):
         if req.status not in ("APROVADA", "SEPARANDO"):
             raise BusinessRuleError(f"Requisição não pode ser entregue no status '{req.status}'.")
 
+        if await self._requisicao_canonica_iniciada(req_id):
+            raise BusinessRuleError(
+                "A requisição já iniciou o fluxo canônico; use a entrega canônica por item."
+            )
+
         safra_id = await self._resolver_safra_contexto_requisicao(req)
         item_map = {i.item_id: i for i in data.itens}
-        stmt_itens = select(ItemRequisicao).where(ItemRequisicao.requisicao_id == req_id)
+        stmt_itens = select(ItemRequisicao).where(
+            ItemRequisicao.tenant_id == self.tenant_id,
+            ItemRequisicao.requisicao_id == req_id,
+        )
         itens = (await self.session.execute(stmt_itens)).scalars().all()
         for item in itens:
             if item.id not in item_map:
@@ -1876,25 +1986,27 @@ class EstoqueService(BaseService[SaldoEstoque]):
 
     async def cancelar_reserva(self, reserva_id: UUID) -> ReservaEstoque:
         reserva = await self._get_reserva(reserva_id)
-        if reserva.status != "ATIVA":
+        if reserva.status not in ("ATIVA", "PARCIALMENTE_CONSUMIDA"):
             raise BusinessRuleError(f"Reserva não pode ser cancelada no status '{reserva.status}'.")
         saldo = await self._get_ou_criar_saldo(reserva.deposito_id, reserva.produto_id)
-        saldo.quantidade_reservada = max(0.0, float(saldo.quantidade_reservada) - float(reserva.quantidade))
-        reserva.status = "CANCELADA"
+        restante = max(0.0, float(reserva.quantidade) - float(reserva.quantidade_consumida or 0.0))
+        saldo.quantidade_reservada = max(0.0, float(saldo.quantidade_reservada) - restante)
+        reserva.status = "LIBERADA"
         await self.session.flush()
         await self.session.refresh(reserva)
         return reserva
 
     async def consumir_reserva(self, reserva_id: UUID, data: ReservaConsumirRequest) -> ReservaEstoque:
         reserva = await self._get_reserva(reserva_id)
-        if reserva.status != "ATIVA":
+        if reserva.status not in ("ATIVA", "PARCIALMENTE_CONSUMIDA"):
             raise BusinessRuleError(f"Reserva não pode ser consumida no status '{reserva.status}'.")
-        qtd = data.quantidade or reserva.quantidade
-        if qtd > reserva.quantidade:
-            raise BusinessRuleError(f"Quantidade a consumir ({qtd:.3f}) excede a reserva ({reserva.quantidade:.3f}).")
+        restante = max(0.0, float(reserva.quantidade) - float(reserva.quantidade_consumida or 0.0))
+        qtd = data.quantidade or restante
+        if qtd > restante:
+            raise BusinessRuleError(f"Quantidade a consumir ({qtd:.3f}) excede a reserva restante ({restante:.3f}).")
         # Libera a reserva antes de registrar saída (evita conflito na checagem de disponível)
         saldo = await self._get_ou_criar_saldo(reserva.deposito_id, reserva.produto_id)
-        saldo.quantidade_reservada = max(0.0, float(saldo.quantidade_reservada) - float(reserva.quantidade))
+        saldo.quantidade_reservada = max(0.0, float(saldo.quantidade_reservada) - qtd)
         # Registra saída física
         await self.registrar_saida(SaidaEstoqueRequest(
             deposito_id=reserva.deposito_id,
@@ -1904,7 +2016,8 @@ class EstoqueService(BaseService[SaldoEstoque]):
             origem_id=reserva.referencia_id,
             origem_tipo=reserva.referencia_tipo or "RESERVA",
         ))
-        reserva.status = "CONSUMIDA"
+        reserva.quantidade_consumida = float(reserva.quantidade_consumida or 0.0) + qtd
+        reserva.status = "CONSUMIDA" if reserva.quantidade_consumida >= reserva.quantidade else "PARCIALMENTE_CONSUMIDA"
         await self.session.flush()
         await self.session.refresh(reserva)
         return reserva

@@ -1,4 +1,4 @@
-import { db, type CampoEventoOffline, type LocalTask, type TaskModule } from "@/lib/db";
+import { db, type CampoEventoOffline, type CachedItemRequisicao, type CachedRequisicao, type LocalTask, type TaskModule } from "@/lib/db";
 import { useSessionStore } from "@/lib/stores/session-store";
 import { cacheCampoBrandAssets } from "@/lib/campo-assets";
 
@@ -117,6 +117,61 @@ interface SyncPullPayload {
     nome_exibicao: string;
     unidade_produtiva_id: string;
     papeis: string[];
+  }>;
+  requisicoes_materiais?: Array<{
+    id: string;
+    numero?: string | null;
+    tenant_id: string;
+    unidade_produtiva_id: string;
+    safra_id?: string | null;
+    safra_tarefa_id?: string | null;
+    operacao_agricola_id?: string | null;
+    responsavel_pessoa_id?: string | null;
+    responsavel_autorizado: boolean;
+    version: number;
+    status: string;
+    status_efetivo: string;
+    status_conciliacao?: string;
+    data_solicitacao: string;
+    execucoes?: Array<{ id: string; status: string; data_execucao: string }>;
+    itens: Array<{
+      id: string;
+      produto_id: string;
+      produto_nome?: string | null;
+      natureza_item?: "CONSUMIVEL" | "RETORNAVEL" | null;
+      unidade: string;
+      quantidade_aprovada: number;
+      quantidade_entregue: number;
+      quantidade_recebida: number;
+      quantidade_recusada: number;
+      quantidade_pendente_conferencia: number;
+      quantidade_em_posse: number;
+      quantidade_consumida?: number;
+      quantidade_devolvida?: number;
+      quantidade_perdida?: number;
+      quantidade_danificada?: number;
+      quantidade_extraviada?: number;
+      status_conferencia: string;
+      status_conciliacao?: string;
+      entregas: Array<{
+        id: string;
+        quantidade_entregue: number;
+        quantidade_recebida: number;
+        quantidade_recusada: number;
+        quantidade_pendente_conferencia: number;
+        quantidade_consumida?: number;
+        quantidade_devolvida?: number;
+        quantidade_perdida?: number;
+        quantidade_danificada?: number;
+        quantidade_extraviada?: number;
+        quantidade_em_posse?: number;
+        status_conciliacao?: string;
+        lote_id?: string | null;
+        deposito_id?: string | null;
+        unidade: string;
+        entregue_em: string;
+      }>;
+    }>;
   }>;
   recomendacoes_climaticas?: Array<{
     unidade_produtiva_id: string;
@@ -239,6 +294,9 @@ export async function pullSync(): Promise<void> {
       db.recomendacoes_climaticas,
       db.recomendacoes_operacionais,
       db.pessoas_operacionais,
+      db.requisicoes,
+      db.requisicao_itens,
+      db.requisicao_operacoes,
     ],
     async () => {
     // Colaboradores
@@ -259,6 +317,28 @@ export async function pullSync(): Promise<void> {
           papeis: Array.from(new Set(p.papeis || [])),
         }));
         await db.pessoas_operacionais.bulkPut(payload);
+      }
+    }
+
+    // Projeção de recebimento: é cache do estado canônico, nunca fonte de
+    // verdade. Operações pendentes permanecem na fila e serão reconciliadas
+    // pelo ACK/CONFLICT do push.
+    if (data.requisicoes_materiais) {
+      const now = new Date().toISOString();
+      for (const request of data.requisicoes_materiais) {
+        const cachedRequest: CachedRequisicao = {
+          ...request,
+          updated_at: now,
+          itens: request.itens.map((item) => ({
+            ...item,
+            requisicao_id: request.id,
+            tenant_id: request.tenant_id,
+            updated_at: now,
+          })),
+        };
+        await db.requisicoes.put(cachedRequest);
+        const cachedItems: CachedItemRequisicao[] = cachedRequest.itens;
+        await db.requisicao_itens.bulkPut(cachedItems);
       }
     }
 

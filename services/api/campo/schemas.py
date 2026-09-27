@@ -231,6 +231,7 @@ class SyncPullResponse(BaseModel):
     insumos: list[InsumoSync]
     colaboradores: list[ColaboradorSync] = Field(default_factory=list)
     pessoas_operacionais: list[PessoaOperacionalSync] = Field(default_factory=list)
+    requisicoes_materiais: list[dict[str, Any]] = Field(default_factory=list)
     tarefas_pendentes: list[TarefaPendenteSync]
     eventos_caderno_oficiais: list[EventoCadernoOficialSync] = Field(default_factory=list)
     recomendacoes_operacionais: list[RecomendacaoOperacionalSync] = Field(default_factory=list)

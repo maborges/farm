@@ -110,6 +110,102 @@ export interface LocalTask {
   sync_conflict?: string;
 }
 
+export type NaturezaItemCampo = "CONSUMIVEL" | "RETORNAVEL";
+export type ResultadoRecebimentoCampo =
+  | "RECEBIDO_INTEGRAL"
+  | "RECEBIDO_PARCIAL"
+  | "RECUSADO"
+  | "DIVERGENTE";
+
+export interface CachedEntregaRequisicao {
+  id: string;
+  quantidade_entregue: number;
+  quantidade_recebida: number;
+  quantidade_recusada: number;
+  quantidade_pendente_conferencia: number;
+  quantidade_consumida?: number;
+  quantidade_devolvida?: number;
+  quantidade_perdida?: number;
+  quantidade_danificada?: number;
+  quantidade_extraviada?: number;
+  quantidade_em_posse?: number;
+  status_conciliacao?: string;
+  lote_id?: string | null;
+  deposito_id?: string | null;
+  unidade: string;
+  entregue_em: string;
+}
+
+export interface CachedItemRequisicao {
+  id: string;
+  requisicao_id: string;
+  tenant_id: string;
+  produto_id: string;
+  produto_nome?: string | null;
+  natureza_item?: NaturezaItemCampo | null;
+  unidade: string;
+  quantidade_aprovada: number;
+  quantidade_entregue: number;
+  quantidade_recebida: number;
+  quantidade_recusada: number;
+  quantidade_pendente_conferencia: number;
+  quantidade_em_posse: number;
+  quantidade_consumida?: number;
+  quantidade_devolvida?: number;
+  quantidade_perdida?: number;
+  quantidade_danificada?: number;
+  quantidade_extraviada?: number;
+  status_conferencia: string;
+  status_conciliacao?: string;
+  entregas: CachedEntregaRequisicao[];
+  updated_at: string;
+}
+
+export interface CachedRequisicao {
+  id: string;
+  tenant_id: string;
+  numero?: string | null;
+  unidade_produtiva_id: string;
+  safra_id?: string | null;
+  safra_tarefa_id?: string | null;
+  operacao_agricola_id?: string | null;
+  responsavel_pessoa_id?: string | null;
+  responsavel_autorizado: boolean;
+  version: number;
+  status: string;
+  status_efetivo: string;
+  status_conciliacao?: string;
+  data_solicitacao: string;
+  execucoes?: Array<{ id: string; status: string; data_execucao: string }>;
+  itens: CachedItemRequisicao[];
+  updated_at: string;
+}
+
+export type MaterialReceiptLocalStatus = "PENDING" | "IN_FLIGHT" | "ACK" | "CONFLICT" | "ERROR";
+
+export interface RequisicaoOperacaoPendente {
+  id: string; // client_operation_id estável
+  tenant_id: string;
+  usuario_id: string;
+  pessoa_id?: string | null;
+  device_id: string;
+  requisicao_id: string;
+  item_id: string;
+  entrega_evento_id: string;
+  quantidade_recebida: number;
+  resultado: ResultadoRecebimentoCampo;
+  motivo?: string | null;
+  base_version: number;
+  tipo_evento?: "CONSUMO" | "DEVOLUCAO" | "PERDA" | "DANO" | "EXTRAVIO";
+  operacao_execucao_id?: string | null;
+  deposito_id?: string | null;
+  lote_id?: string | null;
+  created_at_device: string;
+  status: MaterialReceiptLocalStatus;
+  server_event_id?: string | null;
+  error?: string | null;
+}
+
 export interface SyncQueueItem {
   id: string;                       // UUID local
   operation: "CREATE" | "UPDATE" | "DELETE";
@@ -391,6 +487,9 @@ export class CampoDatabase extends Dexie {
   recomendacoes_operacionais!: Table<CachedRecomendacaoOperacional>;
   pessoas_operacionais!: Table<PessoaOperacional>;
   cached_images!: Table<CachedImage>;
+  requisicoes!: Table<CachedRequisicao>;
+  requisicao_itens!: Table<CachedItemRequisicao>;
+  requisicao_operacoes!: Table<RequisicaoOperacaoPendente>;
 
   constructor() {
     super("campo_db");
@@ -679,6 +778,19 @@ export class CampoDatabase extends Dexie {
       pessoas_operacionais: "id, unidade_produtiva_id, pessoa_id",
       cached_images: "id, kind, owner_id, source_url, updated_at",
     });
+    this.version(16).stores({
+      requisicoes: "id, tenant_id, unidade_produtiva_id, operacao_agricola_id, status_efetivo, updated_at",
+      requisicao_itens: "id, requisicao_id, tenant_id, quantidade_pendente_conferencia, status_conferencia, updated_at",
+      requisicao_operacoes: "id, tenant_id, requisicao_id, item_id, status, created_at_device",
+    });
+    this.version(17).upgrade((tx) =>
+      tx.table("requisicao_operacoes").toCollection().modify((operation) => {
+        if (typeof operation.tipo_evento === "undefined") operation.tipo_evento = undefined;
+        if (typeof operation.operacao_execucao_id === "undefined") operation.operacao_execucao_id = null;
+        if (typeof operation.deposito_id === "undefined") operation.deposito_id = null;
+        if (typeof operation.lote_id === "undefined") operation.lote_id = null;
+      })
+    );
   }
 }
 

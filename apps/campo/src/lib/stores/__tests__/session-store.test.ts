@@ -24,6 +24,19 @@ async function seedCacheTables(): Promise<void> {
   await db.talhoes.add({ id: "talhao-1", nome: "Talhão 1", fazenda_id: "fazenda-1", tipo: "LAVOURA" });
   await db.insumos.add({ id: "insumo-1", nome: "Ureia", tipo: "FERTILIZANTE" });
   await db.safras.add({ id: "safra-1", ano_safra: "2025/26", status: "ATIVA" });
+  await db.requisicoes.add({
+    id: "req-1",
+    tenant_id: "tenant-a",
+    unidade_produtiva_id: "fazenda-1",
+    operacao_agricola_id: "operacao-1",
+    responsavel_autorizado: true,
+    version: 1,
+    status: "ENTREGUE",
+    status_efetivo: "PENDENTE_CONFERENCIA",
+    data_solicitacao: new Date().toISOString(),
+    itens: [],
+    updated_at: new Date().toISOString(),
+  });
 }
 
 async function seedPendingWork(): Promise<void> {
@@ -85,6 +98,21 @@ async function seedPendingWork(): Promise<void> {
     fotos: [],
     updated_at: new Date().toISOString(),
   });
+
+  await db.requisicao_operacoes.add({
+    id: "receipt-1",
+    tenant_id: "tenant-a",
+    usuario_id: "user-a",
+    device_id: "device-1",
+    requisicao_id: "req-1",
+    item_id: "item-1",
+    entrega_evento_id: "delivery-1",
+    quantidade_recebida: 1,
+    resultado: "RECEBIDO_INTEGRAL",
+    base_version: 1,
+    created_at_device: new Date().toISOString(),
+    status: "PENDING",
+  });
 }
 
 async function allCacheTablesEmpty(): Promise<boolean> {
@@ -104,6 +132,9 @@ async function allCacheTablesEmpty(): Promise<boolean> {
     db.recomendacoes_climaticas.count(),
     db.recomendacoes_operacionais.count(),
     db.pessoas_operacionais.count(),
+    db.requisicoes.count(),
+    db.requisicao_itens.count(),
+    db.requisicao_operacoes.count(),
   ]);
   return counts.every((count) => count === 0);
 }
@@ -174,6 +205,7 @@ describe("session-store — guardrails de isolamento", () => {
     expect(notice?.summary.tasks).toBe(1);
     expect(notice?.summary.cadernoEvents).toBe(1);
     expect(notice?.summary.cadernoDrafts).toBe(1);
+    expect(notice?.summary.requisicaoOperacoes).toBe(1);
   });
 
   it("Teste 4 — itens já concluídos/sincronizados não geram aviso de pendência", async () => {
