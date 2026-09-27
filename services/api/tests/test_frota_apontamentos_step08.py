@@ -313,6 +313,25 @@ async def test_apontamento_valido_cria_allocacao_e_rastreabilidade(session: Asyn
 
 
 @pytest.mark.asyncio
+async def test_equipamento_sem_jornadas_retorna_consolidado_vazio(session: AsyncSession, tenant_id: uuid.UUID):
+    await _garantir_tenant(session, tenant_id)
+    up_id = await _criar_up(session, tenant_id, "UP sem jornadas")
+    equipamento = await _criar_equipamento(session, tenant_id, up_id, "Trator sem jornadas")
+
+    resposta = await FrotaAgriculturaService(session, tenant_id).obter_equipamento(
+        equipamento_id=equipamento.id,
+        unidade_produtiva_id=up_id,
+    )
+
+    assert resposta.equipamento_id == equipamento.id
+    assert resposta.equipamento_nome == "Trator sem jornadas"
+    assert resposta.resumo.horas_totais == 0.0
+    assert resposta.por_safra == []
+    assert resposta.por_talhao == []
+    assert resposta.por_operacao == []
+
+
+@pytest.mark.asyncio
 async def test_apontamento_deriva_custo_por_ha_sem_custo_total_manual(session: AsyncSession, tenant_id: uuid.UUID):
     await _garantir_tenant(session, tenant_id)
     up_id = await _criar_up(session, tenant_id, "UP Step08-D")

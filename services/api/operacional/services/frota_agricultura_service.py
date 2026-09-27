@@ -96,16 +96,15 @@ class FrotaAgriculturaService(FrotaJornadaService):
         unidade_produtiva_id: uuid.UUID | None = None,
     ) -> FrotaAgriculturaEquipamentoResponse:
         agora = datetime.now(timezone.utc)
+        equipamento = await self._obter_equipamento(equipamento_id, unidade_produtiva_id)
         registros = await self._montar_registros(
             unidade_produtiva_id=unidade_produtiva_id,
             equipamento_id=equipamento_id,
         )
-        if not registros:
-            raise EntityNotFoundError("Equipamento sem jornadas agrícolas no tenant/contexto informado.")
         return FrotaAgriculturaEquipamentoResponse(
             equipamento_id=equipamento_id,
-            equipamento_nome=registros[0].equipamento_nome,
-            equipamento_tipo=registros[0].equipamento_tipo,
+            equipamento_nome=registros[0].equipamento_nome if registros else equipamento.nome,
+            equipamento_tipo=registros[0].equipamento_tipo if registros else equipamento.tipo,
             resumo=self._montar_resumo(registros),
             por_safra=self._agrupar_por_safra(registros),
             por_talhao=self._agrupar_por_talhao(registros),

@@ -138,7 +138,7 @@ export function EquipamentoDetalheClient({
       apiFetch(`/frota/agricultura/equipamentos/${equipamentoId}`, {
         params: activeFazendaId ? { unidade_produtiva_id: activeFazendaId } : undefined,
       }),
-    enabled: Boolean(equipamentoId),
+    enabled: Boolean(equipamentoId) && hasEnterpriseTier,
     retry: false,
   });
 

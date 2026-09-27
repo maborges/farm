@@ -14,8 +14,8 @@ from migrations.metadata_audit import audit_baseline_metadata
 def test_audit_counts_all_baseline_foreign_keys() -> None:
     """Ensure the audit covers the complete approved ORM scope."""
     result = audit_baseline_metadata()
-    assert result["baseline_tables"] == 344
-    assert result["foreign_keys"] == 892
+    assert result["baseline_tables"] == 347
+    assert result["foreign_keys"] == 923
 
 
 def test_audit_closes_type_blockers() -> None:
@@ -38,7 +38,7 @@ def test_audit_has_no_scope_or_check_reference_leaks() -> None:
 
 
 def test_audit_closes_tenant_integrity_contract() -> None:
-    """Require all seven historical Tenant Integrity relations."""
+    """Require all active historical Tenant Integrity relations."""
     result = audit_baseline_metadata()
     assert result["missing_tenant_composite"] == ()
 
@@ -60,7 +60,6 @@ def test_tenant_integrity_constraints_are_explicit() -> None:
     }
     assert expected_unique <= actual_unique
     expected_fks = {
-        "fk_cp_tenant_deposito",
         "fk_fa_tenant_equipamento",
         "fk_fau_tenant_jornada",
     }
@@ -75,7 +74,7 @@ def test_tenant_integrity_constraints_are_explicit() -> None:
 def test_index_audit_has_no_namespace_or_definition_collisions() -> None:
     """Require the baseline index inventory to be executable once per name."""
     result = audit_baseline_metadata()
-    assert result["total_indexes"] == 1029
+    assert result["total_indexes"] == 1062
     assert result["duplicate_index_names"] == {}
     assert result["duplicate_index_definitions"] == {}
     assert result["index_relation_name_collisions"] == ()

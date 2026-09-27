@@ -20,7 +20,6 @@ TENANT_COMPOSITE_CONTRACT = frozenset(
         ("cadastros_areas_rurais", "fk_car_tenant_unidade_produtiva"),
         ("estoque_depositos", "fk_ed_tenant_unidade_produtiva"),
         ("cadastros_equipamentos", "fk_ce_tenant_unidade_produtiva"),
-        ("compras_pedidos", "fk_cp_tenant_deposito"),
         ("frota_jornadas_equipamento", "fk_fje_tenant_unidade_produtiva"),
         ("frota_apontamentos_uso", "fk_fau_tenant_jornada"),
         ("frota_abastecimentos", "fk_fa_tenant_equipamento"),

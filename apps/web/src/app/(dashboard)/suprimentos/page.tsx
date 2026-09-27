@@ -99,8 +99,8 @@ export default function SuprimentosPage() {
   ];
 
   const badgeClass: Record<string, string> = {
-    red:    "bg-red-100 text-red-700 border-red-200",
-    blue:   "bg-blue-100 text-blue-700 border-blue-200",
+    red: "bg-red-100 text-red-700 border-red-200",
+    blue: "bg-blue-100 text-blue-700 border-blue-200",
     orange: "bg-orange-100 text-orange-700 border-orange-200",
     purple: "bg-purple-100 text-purple-700 border-purple-200",
   };
