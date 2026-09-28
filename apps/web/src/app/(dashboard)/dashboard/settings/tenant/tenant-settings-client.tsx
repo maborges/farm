@@ -6,7 +6,7 @@ import { useRef, useState } from "react";
 import {
     ShieldCheck,
     FileText, UploadCloud, Info,
-    Receipt, Landmark, Pencil, X, Check
+    Receipt, Landmark, Pencil, X, Check, Building2
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { PageHeader } from "@/components/shared/page-header";
@@ -172,10 +172,15 @@ export function TenantSettingsClient({ initialTenant, initialInvoices }: Props) 
     }
 
     return (
-        <div className="p-8 space-y-8 w-full max-w-full">
+        <div className="p-6 flex flex-col gap-6 animate-in fade-in duration-500">
             <PageHeader
                 title="Meu Produtor"
                 description="Gerencie o plano, módulos e histórico de pagamentos da sua assinatura."
+                icon={<Building2 className="text-primary" size={24} />}
+                breadcrumbs={[
+                    { label: "Configurações", href: "/dashboard/settings" },
+                    { label: "Meu Produtor" }
+                ]}
             />
 
             <div className="grid gap-6 md:grid-cols-3">
@@ -214,8 +219,7 @@ export function TenantSettingsClient({ initialTenant, initialInvoices }: Props) 
                                         idioma_padrao: "Idioma padrão",
                                         logo_url_grupo: "Logo marca do grupo",
                                     };
-                                    // @ts-ignore
-                                    const value = tenant?.tenant[field];
+                                    const value: string | null | undefined = tenant?.tenant[field];
                                     const isEditing = editingField === field;
                                     return (
                                         <div key={field} className="flex items-center gap-2 group min-h-[50px]">
