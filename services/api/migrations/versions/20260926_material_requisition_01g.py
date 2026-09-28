@@ -62,11 +62,12 @@ def upgrade() -> None:
         ["tenant_id", "requisicao_item_evento_id"],
         schema="farms",
     )
-    op.drop_constraint(
-        "ck_cost_allocations_source",
-        "cost_allocations",
-        type_="check",
-        schema="farms",
+    # Instalações anteriores não possuíam necessariamente esta constraint.
+    # Use DDL idempotente para que o contrato novo possa ser aplicado tanto
+    # sobre esses bancos quanto sobre os que já trazem a versão anterior.
+    op.execute(
+        "ALTER TABLE farms.cost_allocations "
+        "DROP CONSTRAINT IF EXISTS ck_cost_allocations_source"
     )
     op.create_check_constraint(
         "ck_cost_allocations_source",
