@@ -53,7 +53,6 @@ CLAUDE.md
 CONTEXTO.md
 SKILLS_INDEX.md
 skills-lock.json
-claudeignore
 
 # Arquivos temporários, pacotes e downloads
 *.log
@@ -65,70 +64,8 @@ claudeignore
 *.deb
 %TEMP%*
 
-# Scripts/debug avulsos da raiz
-analyze_frontend.py
-analyze_frontend_results.json
-audit_db.py
-audit_db2.py
-check_tipos.py
-check_tipos_operacao.sql
-convert.py
-create_context_header.js
-debug_db.py
-debug_implantacao.py
-debug_wizard.py
-extract.py
-extract2.py
-fix.js
-fix2.js
-fix3.js
-fix_all.py
-fix_compras_tests.py
-fix_compras_tests2.py
-fix_dialogs.py
-fix_estoque_all.py
-fix_estoque_tests.py
-fix_estoque_tests2.py
-fix_estoque_tests3.py
-fix_estoque_tests4.py
-fix_imports.py
-fix_sankhya.py
-fix_sankhya_again.py
-fix_tests.py
-generate_report.py
-generate_report2.py
-patch2.py
-patch_dialog.py
-patch_router.py
-patch_schema.py
-patch_sync_service.py
-query_checklist.py
-query_db.py
-remove_breadcrumbs.js
-replace_dashboard.js
-replace_safra.js
-rewrite_sidebar.py
-scratch.py
-scratch_db.py
-scratch_fix.py
-scratch_replace.py
-split-estoque.js
-test_api_update.py
-test_db.py
-test_login.py
-test_plano.py
-test_pydantic.py
-test_rls.py
-test_update.py
-test_update2.py
-test_update3.py
-trace_update.py
-truncate.py
-update_router.py
-update_routers.py
+# Quarentena de arquivos obsoletos aguardando revisão humana
+lixo/
 
 # Compose atual é de desenvolvimento e não deve entrar nas imagens
 docker-compose.yml
-
-# SQL avulso de manutenção
-add_fornecedor_fields.sql

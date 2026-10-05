@@ -6,7 +6,7 @@ Aplicar a identidade gráfica DeepFarms aprovada nos consumidores visuais ativos
 
 ## 2. Baseline
 
-- Pacote fonte autorizado: `DeepFarms-IDENTIDADE-VISUAL-DEFINITIVA.zip`.
+- Pacote fonte autorizado: `docs/assets/branding/source/DeepFarms-IDENTIDADE-VISUAL-DEFINITIVA.zip`.
 - Master imutável: `deepfarms-mark-master.svg`.
 - Legados preservados: `apps/web/public/logos/agrosaas-mark.svg`, `apps/campo/public/AgroSaaS-icone.webp`, ícones Campo anteriores e `apps/campo/public/sw.js` antes da regeneração.
 - Não houve remoção, migration, alteração de API, SMTP, banco, RDS, DNS, SSL, Nginx ou storage.
