@@ -27,6 +27,7 @@ import {
     LayoutDashboard,
     AlertCircle,
     Search, X,
+    BookOpen,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
@@ -581,6 +582,17 @@ export function AppSidebar() {
                                             >
                                                 <LayoutDashboard className="size-3.5 flex-shrink-0 text-primary" />
                                                 <span className="truncate">Dashboard</span>
+                                            </SidebarMenuButton>
+                                        </SidebarMenuItem>
+                                        <SidebarMenuItem>
+                                            <SidebarMenuButton
+                                                render={<Link href="/manual" onClick={handleNavigation} />}
+                                                isActive={pathname === "/manual" || pathname.startsWith("/manual/")}
+                                                tooltip="Manual do Usuário & Ajuda"
+                                                className="relative data-[active=true]:bg-primary/5 data-[active=true]:text-primary data-[active=true]:font-bold before:absolute before:left-0 before:top-1 before:bottom-1 before:w-[2px] before:bg-primary before:rounded-full before:opacity-0 data-[active=true]:before:opacity-100 transition-all"
+                                            >
+                                                <BookOpen className="size-3.5 flex-shrink-0 text-primary" />
+                                                <span className="truncate">Manual do Usuário</span>
                                             </SidebarMenuButton>
                                         </SidebarMenuItem>
                                     </SidebarMenu>

@@ -1,0 +1,15 @@
+1
+00:00:00,000 --> 00:00:03,313
+Com contas a pagar, a receber e fluxo de caixa,
+
+2
+00:00:03,313 --> 00:00:06,555
+você enxerga os compromissos da fazenda. E tem
+
+3
+00:00:06,555 --> 00:00:09,657
+informação para decidir o próximo passo, sem
+
+4
+00:00:09,657 --> 00:00:11,278
+depender só da memória.

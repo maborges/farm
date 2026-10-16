@@ -1,0 +1,35 @@
+1
+00:00:00,000 --> 00:00:03,119
+Dentro da plataforma, você terá acesso à gestão
+
+2
+00:00:03,119 --> 00:00:06,238
+agrícola completa. Aqui você vai planejar a sua
+
+3
+00:00:06,238 --> 00:00:09,357
+safra, tratar cada talhão de forma organizada e
+
+4
+00:00:09,357 --> 00:00:12,608
+registrar os apontamentos. E isso não acontece só
+
+5
+00:00:12,608 --> 00:00:15,926
+no computador: a plataforma conta com o Caderno de
+
+6
+00:00:15,926 --> 00:00:19,045
+Campo. A sua equipe registra as operações mesmo
+
+7
+00:00:19,045 --> 00:00:22,097
+sem internet no celular ou tablet e, assim que
+
+8
+00:00:22,097 --> 00:00:25,415
+houver conexão, a plataforma atualiza o escritório
+
+9
+00:00:25,415 --> 00:00:26,476
+automaticamente.

@@ -1,0 +1,4 @@
+1
+00:00:00,000 --> 00:00:30,984
+Resumindo: nós temos a Unidade Produtiva, que é a operação; os Imóveis Rurais, que são a parte legal e documental; e os Talhões, que é onde a produção acontece no dia a dia. Compreender essa hierarquia é o primeiro passo para o sucesso na plataforma. Como essa estrutura é a base de tudo, nos próximos vídeos vamos aprender, na prática, como cadastrar a sua primeira Unidade Produtiva e desenhar os seus talhões no mapa. Até lá!
+

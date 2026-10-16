@@ -1,0 +1,39 @@
+1
+00:00:00,000 --> 00:00:02,456
+Na barra superior, você também encontra
+
+2
+00:00:02,456 --> 00:00:05,416
+informações e recursos globais. Temos um acesso
+
+3
+00:00:05,416 --> 00:00:08,565
+direto às condições climáticas da sua propriedade.
+
+4
+00:00:08,565 --> 00:00:11,462
+Logo ao lado, o botão de Ações Rápidas permite
+
+5
+00:00:11,462 --> 00:00:14,359
+criar novos registros rapidamente. Você também
+
+6
+00:00:14,359 --> 00:00:17,382
+pode escolher trabalhar no modo claro ou no modo
+
+7
+00:00:17,382 --> 00:00:19,964
+escuro, bastando um clique para ajustar a
+
+8
+00:00:19,964 --> 00:00:22,987
+aparência. E por fim, o ícone do sino, onde você
+
+9
+00:00:22,987 --> 00:00:25,947
+pode visualizar todas as notificações e alertas
+
+10
+00:00:25,947 --> 00:00:27,395
+importantes do sistema.

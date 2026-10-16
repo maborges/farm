@@ -1,0 +1,4 @@
+1
+00:00:00,000 --> 00:00:24,720
+O Talhão é a peça fundamental do planejamento agrícola. É exatamente no talhão que as safras serão plantadas, os defensivos serão aplicados e as colheitas serão registradas. Ao estruturarmos corretamente os talhões e suas áreas, a plataforma conseguirá calcular os seus custos de produção com precisão cirúrgica e gerar mapas de produtividade.
+

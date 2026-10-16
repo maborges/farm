@@ -7,6 +7,7 @@ Sistema avançado para gestão de fazendas, focado em produtividade, isolamento 
 A ordem oficial de leitura para agentes de IA vive em **`docs/architecture/ai-bootstrap.md`** — não repetida aqui.
 
 Manual operacional da Plataforma Balança: [docs/MANUAL_BALANCA.md](docs/MANUAL_BALANCA.md).
+Manual do Usuário da Plataforma (Documentação e Portal Interativo `/manual`): [docs/manual-usuario/README.md](docs/manual-usuario/README.md).
 
 Utilize português (pt-BR) para documentos e interações com o usuário, com acentuação correta e linguagem não técnica nas explicações.
 

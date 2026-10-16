@@ -1,0 +1,4 @@
+1
+00:00:00,000 --> 00:00:26,952
+Na aula anterior, vimos como a unidade produtiva e seus talhões organizam o lugar onde a produção acontece. Agora precisamos identificar o que será cultivado nessas áreas. Para a operação agrícola, a DeepFarms usa um catálogo de culturas. É dele que vem a escolha da cultura quando formos preparar uma safra. Vamos conferir esse catálogo antes de criar qualquer registro.
+

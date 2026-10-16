@@ -1,0 +1,31 @@
+1
+00:00:00,000 --> 00:00:03,038
+Quando uma atividade é executada, os insumos
+
+2
+00:00:03,038 --> 00:00:06,490
+utilizados não precisam ser lançados duas vezes. A
+
+3
+00:00:06,490 --> 00:00:09,735
+plataforma integra os suprimentos à operação. O
+
+4
+00:00:09,735 --> 00:00:13,049
+sistema acompanha a reposição, a baixa do insumo
+
+5
+00:00:13,049 --> 00:00:16,432
+no momento exato em que ele é usado e até mesmo a
+
+6
+00:00:16,432 --> 00:00:19,677
+devolução de sobras ao almoxarifado, garantindo
+
+7
+00:00:19,677 --> 00:00:22,922
+uma rastreabilidade de ponta a ponta e evitando
+
+8
+00:00:22,922 --> 00:00:24,234
+perdas silenciosas.

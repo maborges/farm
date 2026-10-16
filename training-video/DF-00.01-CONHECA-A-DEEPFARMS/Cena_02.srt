@@ -1,0 +1,31 @@
+1
+00:00:00,000 --> 00:00:03,362
+Sabemos que na maioria das propriedades, o grande
+
+2
+00:00:03,362 --> 00:00:06,724
+problema não é a falta de anotações. O problema é
+
+3
+00:00:06,724 --> 00:00:09,606
+que o campo, o almoxarifado e o escritório
+
+4
+00:00:09,606 --> 00:00:13,037
+trabalham de forma separada. Você tem apontamentos
+
+5
+00:00:13,037 --> 00:00:16,056
+de papel, planilhas de compras isoladas e um
+
+6
+00:00:16,056 --> 00:00:19,487
+sistema financeiro que só recebe o dado depois que
+
+7
+00:00:19,487 --> 00:00:22,712
+tudo aconteceu. Isso gera retrabalho e decisões
+
+8
+00:00:22,712 --> 00:00:26,074
+baseadas em aproximações, em vez de custos reais.

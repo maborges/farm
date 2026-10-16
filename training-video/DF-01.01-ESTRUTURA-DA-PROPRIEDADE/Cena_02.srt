@@ -1,0 +1,35 @@
+1
+00:00:00,000 --> 00:00:03,475
+Toda a nossa estrutura começa aqui, nas Unidades
+
+2
+00:00:03,475 --> 00:00:06,878
+Produtivas. Na DeepFarms, uma Unidade Produtiva
+
+3
+00:00:06,878 --> 00:00:10,353
+representa a sua operação no dia a dia. Pode ser
+
+4
+00:00:10,353 --> 00:00:13,756
+uma fazenda própria, um sítio, ou até mesmo uma
+
+5
+00:00:13,756 --> 00:00:17,086
+área de arrendamento. É o local físico onde as
+
+6
+00:00:17,086 --> 00:00:20,561
+suas máquinas ficam guardadas, onde a sua equipe
+
+7
+00:00:20,561 --> 00:00:23,891
+trabalha e onde a produção realmente acontece.
+
+8
+00:00:23,891 --> 00:00:27,294
+Toda a sua gestão estará sempre vinculada a uma
+
+9
+00:00:27,294 --> 00:00:28,597
+Unidade Produtiva.

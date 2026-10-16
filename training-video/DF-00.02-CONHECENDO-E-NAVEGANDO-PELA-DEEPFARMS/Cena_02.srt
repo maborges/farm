@@ -1,0 +1,39 @@
+1
+00:00:00,000 --> 00:00:02,481
+Do lado esquerdo, temos o menu principal, que
+
+2
+00:00:02,481 --> 00:00:05,237
+concentra toda a nossa navegação. Uma dica valiosa
+
+3
+00:00:05,237 --> 00:00:07,938
+logo de início é a barra de pesquisa: ao invés de
+
+4
+00:00:07,938 --> 00:00:10,529
+procurar por uma tela específica abrindo menus,
+
+5
+00:00:10,529 --> 00:00:13,065
+você pode simplesmente digitar o que precisa e
+
+6
+00:00:13,065 --> 00:00:15,380
+acessar instantaneamente. Você também pode
+
+7
+00:00:15,380 --> 00:00:18,081
+trabalhar com esse menu retraído para ampliar sua
+
+8
+00:00:18,081 --> 00:00:20,562
+área de trabalho. E se preferir, a plataforma
+
+9
+00:00:20,562 --> 00:00:23,263
+oferece a visualização em Mega Menu, que pode ser
+
+10
+00:00:23,263 --> 00:00:25,634
+ativada lá nas configurações do seu perfil.

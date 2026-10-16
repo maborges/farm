@@ -1,0 +1,4 @@
+1
+00:00:00,000 --> 00:00:38,160
+Comece procurando as culturas que a propriedade realmente produz. A lista pode incluir referências fornecidas pelo sistema, como soja. A coluna ‘Origem’ ajuda a distinguir essas referências dos cadastros personalizados da sua operação. Uma cultura do sistema já pode ser usada quando está ativa; não é preciso criar outra só para ter uma cópia com o mesmo nome. O grupo ajuda a organizar a consulta. Já os parâmetros de solo pertencem a uma configuração agronômica mais específica, que veremos no contexto de análise de solo.
+

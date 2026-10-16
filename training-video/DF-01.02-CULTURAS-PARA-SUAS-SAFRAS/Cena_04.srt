@@ -1,0 +1,4 @@
+1
+00:00:00,000 --> 00:00:25,080
+Depois de salvar, conferimos se a cultura aparece como personalizada e ativa. Essa verificação evita seguir com um nome duplicado ou com um cadastro que não estará disponível para uso. Se uma informação precisar ser corrigida, o cadastro personalizado pode ser editado por aqui. As referências do sistema não são editadas pela propriedade.
+

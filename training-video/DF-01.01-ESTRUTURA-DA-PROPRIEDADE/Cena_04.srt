@@ -1,0 +1,4 @@
+1
+00:00:00,000 --> 00:00:20,232
+E quando olhamos para dentro da Unidade Produtiva, nós encontramos a Estrutura de Áreas. É aqui que dividimos a propriedade geograficamente. Nós podemos usar as 'Glebas' para representar grandes blocos ou macro-regiões da fazenda, e dentro das Glebas, nós temos os 'Talhões'.
+

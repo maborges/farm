@@ -1,0 +1,4 @@
+1
+00:00:00,000 --> 00:00:31,008
+Aqui está o motivo de prepararmos a cultura agora. Ao montar um cultivo na safra, a DeepFarms pede a cultura e os talhões onde ela será conduzida. Os talhões vêm da estrutura da propriedade; a cultura vem do catálogo que acabamos de conferir. O nome da cultivar, quando for relevante, é informado no cultivo. Nesta aula estamos apenas preparando a referência da cultura. A criação e o planejamento da safra ficam para a etapa operacional.
+

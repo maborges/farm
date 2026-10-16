@@ -1,0 +1,31 @@
+1
+00:00:00,000 --> 00:00:02,570
+Agora você conhece a estrutura geral da
+
+2
+00:00:02,570 --> 00:00:05,865
+plataforma e como todas essas frentes trabalham de
+
+3
+00:00:05,865 --> 00:00:09,028
+forma conectada para proteger a rentabilidade do
+
+4
+00:00:09,028 --> 00:00:11,927
+seu negócio. Nosso próximo passo é entrar na
+
+5
+00:00:11,927 --> 00:00:15,090
+plataforma de verdade. Nos próximos vídeos vamos
+
+6
+00:00:15,090 --> 00:00:18,385
+ensinar, tela a tela, como utilizar cada um desses
+
+7
+00:00:18,385 --> 00:00:21,680
+recursos na prática, começando por organizar a sua
+
+8
+00:00:21,680 --> 00:00:22,998
+propriedade. Até lá!

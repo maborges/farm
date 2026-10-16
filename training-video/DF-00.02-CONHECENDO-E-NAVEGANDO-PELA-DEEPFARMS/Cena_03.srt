@@ -1,0 +1,27 @@
+1
+00:00:00,000 --> 00:00:03,063
+A plataforma está organizada de forma lógica,
+
+2
+00:00:03,063 --> 00:00:06,466
+separada por áreas. Logo abaixo do Dashboard temos
+
+3
+00:00:06,466 --> 00:00:09,869
+os 'Cadastros', que servem de base para o sistema.
+
+4
+00:00:09,869 --> 00:00:13,136
+Em seguida, ficam os módulos operacionais. Basta
+
+5
+00:00:13,136 --> 00:00:16,267
+expandir a área que você deseja trabalhar para
+
+6
+00:00:16,267 --> 00:00:19,398
+acessar as funcionalidades relacionadas àquele
+
+7
+00:00:19,398 --> 00:00:20,555
+setor da fazenda.

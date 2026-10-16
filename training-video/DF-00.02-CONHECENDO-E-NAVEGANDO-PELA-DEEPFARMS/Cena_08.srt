@@ -1,0 +1,27 @@
+1
+00:00:00,000 --> 00:00:02,970
+E se em algum momento você quiser voltar para o
+
+2
+00:00:02,970 --> 00:00:05,560
+ponto de partida, basta clicar na logo da
+
+3
+00:00:05,560 --> 00:00:08,530
+DeepFarms para retornar ao Dashboard. Agora que
+
+4
+00:00:08,530 --> 00:00:11,689
+você já conhece a organização do sistema e sabe se
+
+5
+00:00:11,689 --> 00:00:14,469
+localizar, estamos prontos para avançar. Nos
+
+6
+00:00:14,469 --> 00:00:17,312
+próximos vídeos, vamos começar a organizar os
+
+7
+00:00:17,312 --> 00:00:19,397
+dados básicos da sua propriedade.

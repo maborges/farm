@@ -1,0 +1,15 @@
+1
+00:00:00,000 --> 00:00:02,792
+O DeepFarms conecta o campo, o estoque e o
+
+2
+00:00:02,792 --> 00:00:05,850
+financeiro da sua fazenda. Para você reunir as
+
+3
+00:00:05,850 --> 00:00:09,041
+informações e entender para onde está indo o seu
+
+4
+00:00:09,041 --> 00:00:09,639
+dinheiro.

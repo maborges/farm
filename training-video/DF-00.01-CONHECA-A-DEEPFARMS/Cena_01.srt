@@ -1,0 +1,31 @@
+1
+00:00:00,000 --> 00:00:02,985
+Olá, seja bem-vindo à DeepFarms! Se você está
+
+2
+00:00:02,985 --> 00:00:05,904
+assistindo a este vídeo, significa que a sua
+
+3
+00:00:05,904 --> 00:00:09,155
+propriedade rural acaba de dar um grande passo na
+
+4
+00:00:09,155 --> 00:00:12,406
+profissionalização da gestão. Nesta primeira aula
+
+5
+00:00:12,406 --> 00:00:15,723
+não vamos inserir dados ou operar o sistema ainda.
+
+6
+00:00:15,723 --> 00:00:18,907
+O objetivo agora é mostrar exatamente o que você
+
+7
+00:00:18,907 --> 00:00:22,224
+tem nas mãos e como as diferentes áreas da fazenda
+
+8
+00:00:22,224 --> 00:00:25,276
+vão se comportar dentro dessa nova plataforma.

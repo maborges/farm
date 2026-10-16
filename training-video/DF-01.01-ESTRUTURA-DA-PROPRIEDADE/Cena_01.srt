@@ -1,0 +1,27 @@
+1
+00:00:00,000 --> 00:00:03,245
+Olá! Agora que você já conhece a DeepFarms e sabe
+
+2
+00:00:03,245 --> 00:00:06,225
+como navegar pela plataforma, vamos começar a
+
+3
+00:00:06,225 --> 00:00:09,470
+preparar as informações da sua propriedade. Antes
+
+4
+00:00:09,470 --> 00:00:12,582
+de lançarmos uma safra, registrarmos animais ou
+
+5
+00:00:12,582 --> 00:00:15,694
+controlarmos o financeiro, precisamos ensinar à
+
+6
+00:00:15,694 --> 00:00:18,740
+plataforma como o seu negócio está estruturado
+
+7
+00:00:18,740 --> 00:00:20,395
+fisicamente e legalmente.

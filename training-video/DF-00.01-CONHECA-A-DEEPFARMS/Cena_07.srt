@@ -1,0 +1,27 @@
+1
+00:00:00,000 --> 00:00:02,796
+Com o planejamento agrícola e o consumo do
+
+2
+00:00:02,796 --> 00:00:05,991
+estoque alinhados, o módulo Financeiro ganha uma
+
+3
+00:00:05,991 --> 00:00:09,253
+precisão imensa. Ao invés de estimar gastos, você
+
+4
+00:00:09,253 --> 00:00:12,049
+passa a ter um Demonstrativo de Resultados
+
+5
+00:00:12,049 --> 00:00:15,045
+Operacional por safra. Você descobre a margem
+
+6
+00:00:15,045 --> 00:00:17,907
+exata de cada unidade produtiva cruzando as
+
+7
+00:00:17,907 --> 00:00:20,636
+despesas e as vendas reais, sem achismos.

@@ -1,0 +1,39 @@
+1
+00:00:00,000 --> 00:00:02,625
+Na barra superior, nós encontramos um dos
+
+2
+00:00:02,625 --> 00:00:05,826
+recursos mais importantes do sistema: o Seletor de
+
+3
+00:00:05,826 --> 00:00:08,835
+Contexto Ativo. É aqui que definimos sobre qual
+
+4
+00:00:08,835 --> 00:00:12,036
+propriedade estamos trabalhando. Ao selecionar uma
+
+5
+00:00:12,036 --> 00:00:14,597
+fazenda específica, os dados e cadastros
+
+6
+00:00:14,597 --> 00:00:17,094
+apresentados na plataforma passam a ser
+
+7
+00:00:17,094 --> 00:00:20,231
+exclusivamente daquela unidade. Se houver mais de
+
+8
+00:00:20,231 --> 00:00:23,304
+uma propriedade, você também poderá usar a Visão
+
+9
+00:00:23,304 --> 00:00:26,441
+Consolidada para enxergar os dados gerais de todo
+
+10
+00:00:26,441 --> 00:00:26,953
+o grupo.

@@ -1,0 +1,19 @@
+1
+00:00:00,000 --> 00:00:02,947
+Para suportar todo esse trabalho, nós também
+
+2
+00:00:02,947 --> 00:00:05,894
+controlamos as suas máquinas. Você acompanha
+
+3
+00:00:05,894 --> 00:00:09,176
+hodômetro, horímetro e manutenções preventivas, e
+
+4
+00:00:09,176 --> 00:00:12,190
+a plataforma cuida de ratear o custo exato da
+
+5
+00:00:12,190 --> 00:00:13,596
+máquina na sua safra.

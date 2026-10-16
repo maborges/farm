@@ -1,0 +1,23 @@
+1
+00:00:00,000 --> 00:00:03,484
+E se a sua propriedade também atua com animais, a
+
+2
+00:00:03,484 --> 00:00:06,399
+plataforma possui o módulo de Pecuária de
+
+3
+00:00:06,399 --> 00:00:09,599
+Precisão. Ele permite acompanhar o rebanho de
+
+4
+00:00:09,599 --> 00:00:13,154
+forma detalhada, registrar os manejos sanitários e
+
+5
+00:00:13,154 --> 00:00:16,638
+reprodutivos, e até monitorar a evolução do peso,
+
+6
+00:00:16,638 --> 00:00:19,198
+tudo integrado no mesmo ecossistema.

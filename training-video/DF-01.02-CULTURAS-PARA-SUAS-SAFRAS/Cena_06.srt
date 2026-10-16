@@ -1,0 +1,4 @@
+1
+00:00:00,000 --> 00:00:27,696
+Pronto. Agora você sabe conferir as culturas disponíveis e acrescentar uma cultura própria somente quando ela faltar. Com a estrutura da propriedade e as culturas preparadas, a escolha do que será cultivado em cada talhão terá uma base consistente. Antes de entrar nos processos da safra, ainda vamos preparar os itens que a operação utiliza, como insumos e materiais. Até a próxima aula!
+

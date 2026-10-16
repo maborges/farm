@@ -1,0 +1,27 @@
+1
+00:00:00,000 --> 00:00:03,197
+Para ajustar preferências da sua conta, alterar a
+
+2
+00:00:03,197 --> 00:00:06,329
+sua senha ou mudar o formato do menu para o Mega
+
+3
+00:00:06,329 --> 00:00:09,526
+Menu que comentei agora há pouco, basta acessar o
+
+4
+00:00:09,526 --> 00:00:12,201
+seu perfil clicando no seu usuário. Já as
+
+5
+00:00:12,201 --> 00:00:15,463
+configurações do sistema e o controle de acesso de
+
+6
+00:00:15,463 --> 00:00:18,464
+outras pessoas ficam na parte inferior do menu
+
+7
+00:00:18,464 --> 00:00:19,116
+principal.

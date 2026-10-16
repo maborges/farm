@@ -1,0 +1,4 @@
+1
+00:00:00,000 --> 00:00:36,696
+Se uma cultura usada pela propriedade não aparece na lista, aí sim criamos uma referência própria. Neste exemplo, a fazenda de treinamento também cultiva gergelim. Damos ao cadastro o nome pelo qual a equipe identifica essa cultura e escolhemos o grupo correspondente. Os dados técnicos, como o ciclo em dias, só devem ser preenchidos quando houver uma referência confiável. Não precisamos inventar valores para concluir o cadastro. Mantemos a cultura ativa para que ela possa aparecer nas seleções da operação agrícola.
+

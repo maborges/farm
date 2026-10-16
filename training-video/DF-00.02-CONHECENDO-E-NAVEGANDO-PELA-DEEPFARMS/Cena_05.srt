@@ -1,0 +1,55 @@
+1
+00:00:00,000 --> 00:00:02,874
+Logo ao lado, no ícone de maleta, nós temos o
+
+2
+00:00:02,874 --> 00:00:06,067
+seletor de Produtor. É fundamental entender como a
+
+3
+00:00:06,067 --> 00:00:09,005
+DeepFarms gerencia as informações: a estrutura
+
+4
+00:00:09,005 --> 00:00:11,943
+começa pelo 'Assinante', que é você, o usuário
+
+5
+00:00:11,943 --> 00:00:15,008
+conectado; abaixo de você estão os 'Produtores',
+
+6
+00:00:15,008 --> 00:00:18,137
+que representam as empresas ou CPFs titulares das
+
+7
+00:00:18,137 --> 00:00:21,330
+contas; e, por fim, dentro de cada Produtor, temos
+
+8
+00:00:21,330 --> 00:00:24,332
+os 'Contextos', que são as fazendas físicas que
+
+9
+00:00:24,332 --> 00:00:27,461
+acabamos de ver. É essa estrutura inteligente que
+
+10
+00:00:27,461 --> 00:00:30,590
+permite gerenciar múltiplos negócios e diferentes
+
+11
+00:00:30,590 --> 00:00:33,783
+propriedades com total separação e segurança, tudo
+
+12
+00:00:33,783 --> 00:00:36,785
+em um único acesso. Não se preocupe, pois ainda
+
+13
+00:00:36,785 --> 00:00:39,723
+vamos falar bastante sobre essa estrutura mais
+
+14
+00:00:39,723 --> 00:00:40,233
+adiante.

@@ -1,0 +1,19 @@
+1
+00:00:00,000 --> 00:00:03,066
+A operação realizada no talhão, com os insumos
+
+2
+00:00:03,066 --> 00:00:06,132
+registrados, atualiza o estoque e os custos da
+
+3
+00:00:06,132 --> 00:00:09,398
+produção. Você acompanha o que foi usado e quanto
+
+4
+00:00:09,398 --> 00:00:12,331
+custou. Mais clareza para planejar a próxima
+
+5
+00:00:12,331 --> 00:00:12,797
+compra.

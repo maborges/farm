@@ -1,0 +1,23 @@
+1
+00:00:00,000 --> 00:00:03,261
+Olá! Seja bem-vindo à DeepFarms. Após acessar sua
+
+2
+00:00:03,261 --> 00:00:06,189
+conta, a primeira tela que você encontra é o
+
+3
+00:00:06,189 --> 00:00:09,517
+Dashboard. A partir daqui, você tem acesso a todas
+
+4
+00:00:09,517 --> 00:00:12,778
+as ferramentas e informações da plataforma. Vamos
+
+5
+00:00:12,778 --> 00:00:15,840
+conhecer como a interface está organizada para
+
+6
+00:00:15,840 --> 00:00:17,637
+você navegar com segurança.

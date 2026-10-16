@@ -1,0 +1,27 @@
+1
+00:00:00,000 --> 00:00:03,208
+Toda essa riqueza de informações alimenta os
+
+2
+00:00:03,208 --> 00:00:06,416
+nossos motores de Inteligência. Com os dados
+
+3
+00:00:06,416 --> 00:00:10,061
+consistentes, o Copiloto da plataforma atua ao seu
+
+4
+00:00:10,061 --> 00:00:13,269
+lado: sugerindo ações operacionais, emitindo
+
+5
+00:00:13,269 --> 00:00:16,477
+alertas de risco sobre oscilação no preço de
+
+6
+00:00:16,477 --> 00:00:19,977
+insumos e ajudando você a simular cenários antes
+
+7
+00:00:19,977 --> 00:00:22,237
+de fechar negócios importantes.
