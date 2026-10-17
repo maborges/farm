@@ -89,6 +89,7 @@ from core.cadastros.propriedade_imovel.router import router as router_propriedad
 
 # Growth — Landing Tracking (público, sem autenticação)
 from growth import router as growth_router
+from public_mercado.router import router as public_mercado_router, service as ptax_service
 from core.background_jobs import run_background_jobs
 from wizard.router import router as wizard_router
 from integracoes.erp.router import router as erp_router
@@ -127,6 +128,7 @@ async def lifespan(app):
         await asyncio.gather(*tasks, return_exceptions=True)
     except asyncio.CancelledError:
         pass
+    await ptax_service.cache.close()
     
     # Libera pool de conexões do banco
     from core.database import engine
@@ -164,7 +166,7 @@ class SessionHeartbeatMiddleware(BaseHTTPMiddleware):
 
         # Ignora rotas de login/register e arquivos estáticos
         path = request.url.path
-        if path.startswith(("/api/v1/auth/login", "/api/v1/auth/register", "/docs", "/openapi", "/health")):
+        if path.startswith(("/api/v1/auth/login", "/api/v1/auth/register", "/api/v1/public/mercado/ptax", "/docs", "/openapi", "/health")):
             return response
 
         # Tenta extrair o token do header Authorization
@@ -224,7 +226,7 @@ class TenantRLSMiddleware(BaseHTTPMiddleware):
     get_session() usa esse valor para ativar RLS automaticamente em PostgreSQL,
     garantindo isolamento mesmo em routers que usam get_session diretamente.
     """
-    _SKIP_PATHS = ("/api/v1/auth/", "/docs", "/openapi", "/health", "/static")
+    _SKIP_PATHS = ("/api/v1/auth/", "/api/v1/public/mercado/ptax", "/docs", "/openapi", "/health", "/static")
 
     async def dispatch(self, request, call_next):
         path = request.url.path
@@ -284,6 +286,13 @@ app.add_middleware(
         "http://127.0.0.1:3003",
         "http://127.0.0.1:3004",
     ],
+    # Permite somente o PWA Agro em portas locais conhecidas quando acessado
+    # por outro dispositivo da rede privada. Origens públicas continuam na
+    # lista explícita acima.
+    allow_origin_regex=(
+        r"^http://(?:10(?:\.\d{1,3}){3}|192\.168(?:\.\d{1,3}){2}|"
+        r"172\.(?:1[6-9]|2\d|3[01])(?:\.\d{1,3}){2}):(3003|3004)$"
+    ),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -321,6 +330,7 @@ app.include_router(reports.router, prefix="/api/v1")
 app.include_router(configuration.router, prefix="/api/v1")
 app.include_router(frota.router, prefix="/api/v1")
 app.include_router(growth_router.router, prefix="/api/v1")
+app.include_router(public_mercado_router, prefix="/api/v1")
 app.include_router(estoque.router, prefix="/api/v1")
 app.include_router(contagem_estoque.router, prefix="/api/v1")
 app.include_router(estoque_implantacao.router, prefix="/api/v1")

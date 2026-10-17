@@ -11,6 +11,8 @@ class Settings(BaseSettings):
 
     database_url: str = "sqlite+aiosqlite:///./agrosaas.db"
     redis_url: str = "redis://localhost:6379/0"
+    ptax_cache_ttl_seconds: int = 900
+    ptax_single_worker_fallback: bool = True
     db_pool_size: int = 3
     db_max_overflow: int = 2
     db_pool_timeout: int = 15
@@ -87,6 +89,7 @@ class Settings(BaseSettings):
         "http://0.0.0.0:3004",
         "http://local.agrosass.com.br:3000",
         "http://local.agrosass.com.br:3001",
+        "https://agro.deepfarms.com.br",
     ]
 
     # Storage Config (local | s3 | minio)
