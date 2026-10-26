@@ -1,16 +1,19 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select, func, or_, update
 from sqlalchemy.orm import selectinload
-from typing import List
+from typing import Any, List
 import uuid
 from loguru import logger
 
 from core.dependencies import get_session, get_current_admin
 from core.models.tenant import Tenant
 from core.models.auth import Usuario, TenantUsuario
+from core.models.sessao import SessaoAtiva
 from core.models.billing import AssinaturaTenant, PlanoAssinatura, Fatura
 from core.models.support import ChamadoSuporte, MensagemChamado, TicketStatus
+from core.models.admin_audit_log import AdminAuditLog
+from core.services.admin_audit_service import resolve_admin_identity
 from core.schemas.billing_schemas import (
     PlanoAssinaturaCreate, PlanoAssinaturaResponse, PlanoAssinaturaUpdate,
     FaturaResponse, ReviewInvoiceRequest
@@ -22,6 +25,22 @@ from core.schemas.auth_schemas import LoginBloqueadoItem, LoginBloqueadosListaRe
 from core.services.email_service import email_service
 
 router = APIRouter(prefix="/backoffice", tags=["Backoffice"])
+
+
+def _extrair_admin_identity(claims_or_user: Any) -> tuple[uuid.UUID, str]:
+    """Extrai UUID e e-mail do operador administrativo com tolerância a dict ou model."""
+    if isinstance(claims_or_user, dict):
+        admin_sub = claims_or_user.get("sub") or claims_or_user.get("id")
+        admin_email = claims_or_user.get("email") or claims_or_user.get("username") or "admin@deepfarms.com"
+    else:
+        admin_sub = getattr(claims_or_user, "id", None)
+        admin_email = getattr(claims_or_user, "email", None) or getattr(claims_or_user, "username", "admin@deepfarms.com")
+    try:
+        admin_uid = uuid.UUID(str(admin_sub))
+    except (ValueError, TypeError):
+        admin_uid = uuid.uuid4()
+    return admin_uid, str(admin_email)
+
 
 @router.get("/bi/stats", dependencies=[Depends(get_current_admin)])
 async def get_bi_stats(session: AsyncSession = Depends(get_session)):
@@ -86,9 +105,14 @@ async def get_backoffice_stats(session: AsyncSession = Depends(get_session)):
     """Métricas avançadas para o Dashboard Administrativo do SaaS."""
     
     # 1. Contagens Básicas
-    total_tenants = (await session.execute(select(func.count(Tenant.id)))).scalar()
-    active_tenants = (await session.execute(select(func.count(Tenant.id)).where(Tenant.ativo == True))).scalar()
-    total_users = (await session.execute(select(func.count(Usuario.id)))).scalar()
+    total_tenants = (await session.execute(select(func.count(Tenant.id)))).scalar() or 0
+    active_tenants = (await session.execute(select(func.count(Tenant.id)).where(Tenant.ativo == True))).scalar() or 0
+    total_users = (await session.execute(select(func.count(Usuario.id)))).scalar() or 0
+
+    # Total de usuários gratuitos vs comerciais
+    commercial_users_stmt = select(func.count(func.distinct(TenantUsuario.usuario_id)))
+    commercial_users = (await session.execute(commercial_users_stmt)).scalar() or 0
+    free_users = max(0, total_users - commercial_users)
     
     # 2. Receita Mensal Recorrente (MRR) - Estimativa baseada em planos ativos
     # Seleciona soma dos preços mensais das assinaturas ATIVAS
@@ -125,7 +149,9 @@ async def get_backoffice_stats(session: AsyncSession = Depends(get_session)):
             "mrr": float(mrr_total),
             "tenants_ativos": active_tenants,
             "tenants_total": total_tenants,
-            "usuarios_total": total_users
+            "usuarios_total": total_users,
+            "usuarios_gratuitos_total": free_users,
+            "usuarios_comerciais_total": commercial_users,
         },
         "graficos": {
             "receita": receita_trend,
@@ -368,13 +394,7 @@ async def review_invoice(
     
     fatura, tenant, plano, owner_email, owner_nome = row
 
-    admin_id_str = admin_claims.get("sub")
-    if not admin_id_str:
-        raise HTTPException(status_code=403, detail="Token administrativo inválido.")
-    try:
-        admin_id = uuid.UUID(admin_id_str)
-    except ValueError:
-        raise HTTPException(status_code=403, detail="Token administrativo inválido.")
+    admin_id, _ = _extrair_admin_identity(admin_claims)
 
     from datetime import datetime, timezone
 
@@ -414,45 +434,89 @@ async def review_invoice(
 async def list_global_users(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=1000),
+    search: str | None = Query(None, description="Busca por nome, email ou username"),
+    account_type: str | None = Query("all", description="Filtro por tipo de conta: all, free, commercial"),
     session: AsyncSession = Depends(get_session),
 ):
-    """Lista todos os usuários da plataforma com seus vínculos."""
-
-    # Busca usuários, nomes dos tenants e se é owner
-    stmt = (
-        select(
-            Usuario,
-            func.string_agg(Tenant.nome, ',').label("tenants"),
-            func.bool_or(TenantUsuario.is_owner).label("is_owner")
+    """Lista todos os usuários da plataforma com seus vínculos, filtros e produtos contratados."""
+    stmt = select(Usuario)
+    if search:
+        search_filter = f"%{search.strip().lower()}%"
+        stmt = stmt.where(
+            or_(
+                func.lower(Usuario.nome_completo).like(search_filter),
+                func.lower(Usuario.email).like(search_filter),
+                func.lower(Usuario.username).like(search_filter),
+            )
         )
-        .outerjoin(TenantUsuario, Usuario.id == TenantUsuario.usuario_id)
-        .outerjoin(Tenant, TenantUsuario.tenant_id == Tenant.id)
-        .group_by(Usuario.id)
-        .order_by(Usuario.created_at.desc())
-        .offset(skip)
-        .limit(limit)
+
+    if account_type and account_type.lower() == "free":
+        subq_tenants = select(TenantUsuario.usuario_id).distinct()
+        stmt = stmt.where(Usuario.id.not_in(subq_tenants), Usuario.is_superuser == False)
+    elif account_type and account_type.lower() == "commercial":
+        subq_tenants = select(TenantUsuario.usuario_id).distinct()
+        stmt = stmt.where(Usuario.id.in_(subq_tenants))
+
+    stmt = stmt.order_by(Usuario.created_at.desc()).offset(skip).limit(limit)
+    usuarios = (await session.execute(stmt)).scalars().all()
+
+    if not usuarios:
+        return []
+
+    user_ids = [u.id for u in usuarios]
+    stmt_tenants = (
+        select(TenantUsuario.usuario_id, TenantUsuario.is_owner, Tenant.nome)
+        .join(Tenant, TenantUsuario.tenant_id == Tenant.id)
+        .where(TenantUsuario.usuario_id.in_(user_ids))
     )
-    result = await session.execute(stmt)
+    tenants_res = (await session.execute(stmt_tenants)).all()
+
+    tenant_map: dict[uuid.UUID, list[str]] = {u.id: [] for u in usuarios}
+    owner_map: dict[uuid.UUID, bool] = {u.id: False for u in usuarios}
+    for uid, is_owner, t_nome in tenants_res:
+        if t_nome:
+            tenant_map[uid].append(t_nome)
+        if is_owner:
+            owner_map[uid] = True
 
     users = []
-    for row in result:
-        u = row.Usuario
+    for u in usuarios:
+        u_tenants = tenant_map.get(u.id, [])
+        is_owner = owner_map.get(u.id, False)
+
+        if u.is_superuser:
+            acc_type = "PLATFORM_ADMIN"
+            produtos = ["Backoffice Global", "SaaS Comercial", "DeepFarms Agro"]
+        elif u_tenants:
+            acc_type = "COMMERCIAL"
+            produtos = ["SaaS Comercial", "DeepFarms Agro"]
+        else:
+            acc_type = "INDIVIDUAL_FREE"
+            produtos = ["DeepFarms Agro Gratuito"]
+
         users.append({
             "id": u.id,
             "nome": u.nome_completo,
             "email": u.email,
             "username": u.username,
             "is_superuser": u.is_superuser,
-            "is_owner": row.is_owner or False,
+            "is_owner": is_owner,
             "ativo": u.ativo,
+            "account_type": acc_type,
+            "produtos": produtos,
             "data_cadastro": u.created_at,
-            "tenants": row.tenants.split(",") if row.tenants else []
+            "tenants": u_tenants,
         })
     return users
 
-@router.post("/users/{user_id}/toggle-status", dependencies=[Depends(get_current_admin)])
-async def toggle_user_status(user_id: uuid.UUID, session: AsyncSession = Depends(get_session)):
-    """Bloqueia ou desbloqueia um usuário globalmente."""
+@router.post("/users/{user_id}/toggle-status")
+async def toggle_user_status(
+    user_id: uuid.UUID,
+    request: Request,
+    session: AsyncSession = Depends(get_session),
+    admin_claims: dict = Depends(get_current_admin),
+):
+    """Bloqueia ou desbloqueia um usuário globalmente, invalidando sessões ativas se bloqueado."""
     user = await session.get(Usuario, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="Usuário indisponível ou não encontrado.")
@@ -472,15 +536,47 @@ async def toggle_user_status(user_id: uuid.UUID, session: AsyncSession = Depends
             detail="Não é possível desativar o proprietário (owner) de um tenant."
         )
 
+    anterior = user.ativo
     user.ativo = not user.ativo
+    sessoes_revogadas = 0
+    if not user.ativo:
+        stmt_revoke = (
+            update(SessaoAtiva)
+            .where(
+                SessaoAtiva.usuario_id == user_id,
+                SessaoAtiva.status == "ATIVA",
+            )
+            .values(status="ENCERRADA")
+        )
+        res_revoke = await session.execute(stmt_revoke)
+        sessoes_revogadas = res_revoke.rowcount or 0
+
+    # Auditoria administrativa
+    admin_uid, admin_email = await resolve_admin_identity(session, admin_claims)
+
+    audit_entry = AdminAuditLog(
+        admin_user_id=admin_uid,
+        admin_email=admin_email,
+        acao="USUARIO_BLOQUEADO" if not user.ativo else "USUARIO_DESBLOQUEADO",
+        entidade="usuario",
+        entidade_id=user.id,
+        descricao=f"Usuário {user.email} {'bloqueado' if not user.ativo else 'desbloqueado'} via painel administrativo.",
+        dados_anteriores={"ativo": anterior},
+        dados_novos={"ativo": user.ativo, "sessoes_revogadas": sessoes_revogadas},
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    )
+    session.add(audit_entry)
     await session.commit()
     return {"id": user_id, "novo_status": user.ativo}
 
-@router.post("/users/{user_id}/reset-password", dependencies=[Depends(get_current_admin)])
+@router.post("/users/{user_id}/reset-password")
 async def reset_user_password(
     user_id: uuid.UUID,
+    request: Request,
     enviar_email: bool = True,
-    session: AsyncSession = Depends(get_session)
+    session: AsyncSession = Depends(get_session),
+    admin_claims: dict = Depends(get_current_admin),
 ):
     """
     Reseta a senha de um usuário global e retorna a senha temporária.
@@ -502,6 +598,22 @@ async def reset_user_password(
     senha_temporaria = ''.join(secrets.choice(caracteres) for _ in range(12))
 
     user.senha_hash = hash_password(senha_temporaria)
+
+    # Auditoria administrativa
+    admin_uid, admin_email = await resolve_admin_identity(session, admin_claims)
+
+    audit_entry = AdminAuditLog(
+        admin_user_id=admin_uid,
+        admin_email=admin_email,
+        acao="USUARIO_RESET_SENHA",
+        entidade="usuario",
+        entidade_id=user.id,
+        descricao=f"Senha do usuário {user.email} resetada pelo operador administrativo.",
+        dados_novos={"enviar_email": enviar_email},
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    )
+    session.add(audit_entry)
     await session.commit()
 
     # Enviar e-mail com a senha temporária
@@ -586,14 +698,7 @@ async def admin_reply_to_ticket(
     if not chamado:
         raise HTTPException(status_code=404, detail="Chamado indisponível ou não encontrado.")
 
-    admin_id_str = admin_claims.get("sub")
-    if not admin_id_str:
-        raise HTTPException(status_code=403, detail="Acesso restrito ao Backoffice administrativo.")
-
-    try:
-        admin_id = uuid.UUID(admin_id_str)
-    except ValueError:
-        raise HTTPException(status_code=403, detail="Token administrativo inválido.")
+    admin_id, _ = _extrair_admin_identity(admin_claims)
     
     msg = MensagemChamado(
         chamado_id=ticket_id,
@@ -697,7 +802,7 @@ async def reset_tenant_password(
 async def change_tenant_plan(
     tenant_id: uuid.UUID,
     novo_plano_id: uuid.UUID,
-    admin_user: Usuario = Depends(get_current_admin),
+    admin_user: Any = Depends(get_current_admin),
     session: AsyncSession = Depends(get_session)
 ):
     """
@@ -735,9 +840,10 @@ async def change_tenant_plan(
 
     # Registrar no audit log
     from core.models.admin_audit_log import AdminAuditLog
+    admin_uid, admin_email = await resolve_admin_identity(session, admin_user)
     audit = AdminAuditLog(
-        admin_user_id=admin_user.id,
-        admin_email=admin_user.email,
+        admin_user_id=admin_uid,
+        admin_email=admin_email,
         acao="tenant.change_plan",
         entidade="tenant",
         entidade_id=tenant_id,

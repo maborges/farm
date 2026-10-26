@@ -22,7 +22,14 @@ from core.routers import backoffice
 from core.routers import billing
 from core.routers import backoffice_admins
 from core.routers import backoffice_tenants
+from core.routers import backoffice_agro
+from core.routers import backoffice_agro_config
+from core.routers import backoffice_agro_providers
+from core.routers import backoffice_agro_mercado
+from core.routers import backoffice_agro_catalogo
+from core.routers import backoffice_agro_dashboard
 from core.routers import backoffice_agro_templates
+from public_agro.router import router as public_agro_router
 from core.routers import team
 from core.routers import plan_changes
 from core.routers import backoffice_plan_changes
@@ -89,7 +96,9 @@ from core.cadastros.propriedade_imovel.router import router as router_propriedad
 
 # Growth — Landing Tracking (público, sem autenticação)
 from growth import router as growth_router
-from public_mercado.router import router as public_mercado_router, service as ptax_service
+from public_mercado.router import router as public_mercado_router, service as ptax_service, macro_service, sidra_service
+from public_clima.router import router as public_clima_router, service as public_clima_service
+from agro_identity.byok_router import router as agro_byok_router
 from core.background_jobs import run_background_jobs
 from wizard.router import router as wizard_router
 from integracoes.erp.router import router as erp_router
@@ -120,6 +129,15 @@ async def lifespan(app):
     else:
         logger.info("Background jobs embutidos desabilitados. Use o worker separado.")
 
+    # Repositório legado SQLite agro_identity desacoplado da inicialização padrão (AGRO-ADMIN-01B2B)
+    if settings.enable_legacy_agro_db:
+        try:
+            from agro_identity.database import init_agro_db
+
+            await init_agro_db()
+        except Exception as exc:
+            logger.warning(f"Repositório legado SQLite agro_identity não inicializado: {exc}")
+
     yield
     # Shutdown
     for task in tasks:
@@ -128,8 +146,15 @@ async def lifespan(app):
         await asyncio.gather(*tasks, return_exceptions=True)
     except asyncio.CancelledError:
         pass
+    if settings.enable_legacy_agro_db:
+        from agro_identity.database import close_agro_db
+
+        await close_agro_db()
     await ptax_service.cache.close()
-    
+    await macro_service.cache.close()
+    await sidra_service.cache.close()
+    await public_clima_service.cache.close()
+
     # Libera pool de conexões do banco
     from core.database import engine
     await engine.dispose()
@@ -166,7 +191,7 @@ class SessionHeartbeatMiddleware(BaseHTTPMiddleware):
 
         # Ignora rotas de login/register e arquivos estáticos
         path = request.url.path
-        if path.startswith(("/api/v1/auth/login", "/api/v1/auth/register", "/api/v1/public/mercado/ptax", "/docs", "/openapi", "/health")):
+        if path.startswith(("/api/v1/auth/login", "/api/v1/auth/register", "/api/v1/public/", "/api/v1/agro/", "/docs", "/openapi", "/health")):
             return response
 
         # Tenta extrair o token do header Authorization
@@ -226,7 +251,7 @@ class TenantRLSMiddleware(BaseHTTPMiddleware):
     get_session() usa esse valor para ativar RLS automaticamente em PostgreSQL,
     garantindo isolamento mesmo em routers que usam get_session diretamente.
     """
-    _SKIP_PATHS = ("/api/v1/auth/", "/api/v1/public/mercado/ptax", "/docs", "/openapi", "/health", "/static")
+    _SKIP_PATHS = ("/api/v1/auth/", "/api/v1/public/", "/api/v1/agro/", "/docs", "/openapi", "/health", "/static")
 
     async def dispatch(self, request, call_next):
         path = request.url.path
@@ -306,6 +331,12 @@ app.include_router(onboarding.router, prefix="/api/v1")
 app.include_router(backoffice.router, prefix="/api/v1")
 app.include_router(backoffice_admins.router, prefix="/api/v1")
 app.include_router(backoffice_tenants.router, prefix="/api/v1")
+app.include_router(backoffice_agro.router, prefix="/api/v1")
+app.include_router(backoffice_agro_config.router, prefix="/api/v1")
+app.include_router(backoffice_agro_providers.router, prefix="/api/v1")
+app.include_router(backoffice_agro_mercado.router, prefix="/api/v1")
+app.include_router(backoffice_agro_catalogo.router, prefix="/api/v1")
+app.include_router(backoffice_agro_dashboard.router, prefix="/api/v1")
 app.include_router(team.router, prefix="/api/v1")
 app.include_router(cupons.router, prefix="/api/v1")
 app.include_router(backoffice_audit.router, prefix="/api/v1")
@@ -331,6 +362,13 @@ app.include_router(configuration.router, prefix="/api/v1")
 app.include_router(frota.router, prefix="/api/v1")
 app.include_router(growth_router.router, prefix="/api/v1")
 app.include_router(public_mercado_router, prefix="/api/v1")
+app.include_router(public_clima_router, prefix="/api/v1")
+app.include_router(public_agro_router, prefix="/api/v1")
+if settings.enable_legacy_agro_db:
+    from agro_identity.router import router as agro_identity_router
+
+    app.include_router(agro_identity_router, prefix="/api/v1")
+app.include_router(agro_byok_router, prefix="/api/v1")
 app.include_router(estoque.router, prefix="/api/v1")
 app.include_router(contagem_estoque.router, prefix="/api/v1")
 app.include_router(estoque_implantacao.router, prefix="/api/v1")

@@ -38,6 +38,7 @@ def make_mock_user(
 @pytest.fixture
 def mock_session():
     session = AsyncMock()
+    session.add = MagicMock()
     return session
 
 
@@ -67,7 +68,13 @@ async def test_login_credenciais_validas(auth_service, mock_session):
 
     assert returned_user.id == user.id
     assert token is not None
-    payload = jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
+    payload = jwt.decode(
+        token,
+        settings.jwt_secret_key,
+        algorithms=[settings.jwt_algorithm],
+        audience=settings.jwt_audience,
+        issuer=settings.jwt_issuer,
+    )
     assert payload["sub"] == str(user.id)
 
 
@@ -136,7 +143,13 @@ async def test_token_claims_corretos(auth_service, mock_session):
          patch("core.services.login_rate_limit_service.LoginRateLimitService.registrar_tentativa_sucesso", new=AsyncMock()):
         _, token = await auth_service.authenticate_user(login_data)
 
-    payload = jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
+    payload = jwt.decode(
+        token,
+        settings.jwt_secret_key,
+        algorithms=[settings.jwt_algorithm],
+        audience=settings.jwt_audience,
+        issuer=settings.jwt_issuer,
+    )
     assert "sub" in payload
     assert "modules" in payload
     assert "exp" in payload
@@ -197,13 +210,17 @@ async def test_login_sem_tenant_ativo(auth_service, mock_session):
     login_data = LoginRequest(email=user.email, senha="Senha@123")
 
     with patch("core.services.login_rate_limit_service.LoginRateLimitService.verificar_bloqueio", new=AsyncMock(return_value=(False, None))), \
-         patch("core.services.login_rate_limit_service.LoginRateLimitService.registrar_tentativa_sucesso", new=AsyncMock()):
+         patch("core.services.login_rate_limit_service.LoginRateLimitService.registrar_tentativa_sucesso", new=AsyncMock()), \
+         patch("core.services.auth_service.get_session_idle_minutes", new=AsyncMock(return_value=30)):
         returned_user, token = await auth_service.authenticate_user(login_data)
 
     assert returned_user.id == user.id
     assert token is not None
-    mock_session.add.assert_not_called()
-    mock_session.commit.assert_not_called()
+    assert mock_session.add.call_count == 1
+    persisted_session = mock_session.add.call_args.args[0]
+    assert persisted_session.tenant_id is None
+    assert persisted_session.usuario_id == user.id
+    mock_session.commit.assert_awaited_once()
 
 
 # ---------------------------------------------------------------------------
@@ -292,7 +309,13 @@ def test_token_expiracao_customizada():
     svc = AuthService(MagicMock())
 
     token = svc.create_access_token({"sub": "test"}, expires_delta=timedelta(minutes=5))
-    payload = jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
+    payload = jwt.decode(
+        token,
+        settings.jwt_secret_key,
+        algorithms=[settings.jwt_algorithm],
+        audience=settings.jwt_audience,
+        issuer=settings.jwt_issuer,
+    )
 
     from datetime import datetime, timezone
     exp = datetime.fromtimestamp(payload["exp"], tz=timezone.utc)

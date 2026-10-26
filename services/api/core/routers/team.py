@@ -318,7 +318,7 @@ async def invite_team_member(
         .where(
             and_(
                 TenantUsuario.tenant_id == tenant_id,
-                Usuario.email == data.email
+                func.lower(Usuario.email) == str(data.email).strip().lower()
             )
         )
     )
@@ -334,7 +334,7 @@ async def invite_team_member(
         select(ConviteAcesso).where(
             and_(
                 ConviteAcesso.tenant_id == tenant_id,
-                ConviteAcesso.email_convidado == data.email,
+                func.lower(ConviteAcesso.email_convidado) == str(data.email).strip().lower(),
                 ConviteAcesso.status == "PENDENTE"
             )
         )
@@ -352,7 +352,7 @@ async def invite_team_member(
 
     convite = ConviteAcesso(
         tenant_id=tenant_id,
-        email_convidado=data.email,
+        email_convidado=str(data.email).strip().lower(),
         perfil_id=perfil_uuid,
         unidades_produtivas_ids=data.fazendas_ids,
         token_convite=token,

@@ -1,0 +1,50 @@
+# DeepFarms Agro — PWA Gratuito para Produtores Rurais
+
+Aplicativo web progressivo (PWA) gratuito do DeepFarms, voltado ao produtor rural brasileiro. Oferece ferramentas operacionais autônomas, informações agropecuárias e funcionamento 100% offline.
+
+## Features
+
+### Calculadoras Agrícolas e Homologação PWA (DEEPFARMS-AGRO-FREE-01E1)
+
+**Descrição:**  
+Conjunto de 5 ferramentas matemáticas essenciais para a rotina no campo: conversão de sacas/kg/t, conversor de áreas rurais e alqueires regionais, estimativa de frete agrícola, análise de custo por hectare com ponto de equilíbrio (break-even) e conversor geral de grandezas do Sistema Internacional com proteção dimensional.
+
+**Fluxo de Funcionamento:**
+1. **Acesso e Pré-Cache:** Ao acessar a rota `/calculadoras` pelo navegador ou PWA instalado, o Service Worker ativa o cache local de todos os scripts e do App Shell.
+2. **Seleção de Ferramenta:** O produtor escolhe na barra superior a calculadora desejada:
+   - **Sacas, Kg e Toneladas:** Permite definir a massa por saca (padrão 60 kg para soja/milho, 50 kg para café/feijão) e converter instantaneamente quantidades de sacas, quilogramas ou toneladas.
+   - **Áreas Rurais:** Converte qualquer medida entre Hectares (10.000 m²), Metros Quadrados (m²), Alqueire Paulista (24.200 m²), Alqueire Mineiro/Goiano (48.400 m²) e Alqueire do Norte (27.225 m²), alertando sobre variações regionais.
+   - **Estimativa de Frete:** Informa carga e tarifa negociada (R$/tonelada ou R$/saca) somada a despesas extras (pedágios/seguros), gerando custo total estimado e custos efetivos unitários.
+   - **Custo por Hectare e Ponto de Equilíbrio:** A partir de área, custos totais, produtividade e preço de venda informado manualmente, projeta o custo por hectare, resultado operacional e as metas mínimas de preço e produtividade de equilíbrio (Break-Even).
+   - **Conversor Geral:** Converte grandezas de Massa, Área, Volume e Comprimento, bloqueando dimensionalmente conversões incompatíveis.
+3. **Cálculo Determinístico:** O motor matemático opera de forma puramente local e síncrona. Nenhum dado é enviado para a nuvem.
+4. **Resiliência Offline:** O produtor pode utilizar as ferramentas mesmo sem sinal de celular ou em modo avião, com recarregamento garantido via CacheStorage.
+
+### Catálogo Extensível e Consulta de Mercado (DEEPFARMS-AGRO-FREE-01E2E-A)
+
+**Descrição:**  
+Painel de consulta de commodities agropecuárias (grãos, café, pecuária, fibras) com filtros por categoria comercial, busca textual por produto/praça e links institucionais certificados para fontes primárias oficiais (CEPEA/ESALQ, B3, CONAB e IRGA), operando em conjunto com o card oficial de câmbio PTAX do Banco Central do Brasil.
+
+**Fluxo de Funcionamento:**
+1. **Acesso ao Painel:** O produtor acessa a rota `/mercado`, onde o Server Component (RSC) renderiza o catálogo completo com zero latência de banco de dados e preserva a política estrita de não exibir cotações simuladas ou desautorizadas.
+2. **Câmbio PTAX em Tempo Real:** No topo, o componente `PtaxCard` exibe a cotação oficial do Banco Central, histórico intradiário de boletins e suporte a moedas estrangeiras (USD, EUR, etc.), com cache local offline.
+3. **Filtros e Busca de Commodities:** O produtor filtra os produtos pelas abas de categorias (*Grãos e Oleaginosas*, *Café e Culturas Específicas*, *Pecuária*, *Fibras e Outros*) ou digita no campo de busca para localizar por nome, praça de referência (ex: Paranaguá, Campinas, Barretos) ou classificação científica botânica (*Glycine max*, *Zea mays*, *Coffea arabica*).
+4. **Consulta Segura na Fonte Primária:** Cada card apresenta os metadados auditados e um botão de ação com validação estrita de segurança (`ShieldCheck`), que abre a página oficial da instituição de pesquisa em nova aba (`rel="noopener noreferrer" target="_blank"`), garantindo informação fidedigna com total segurança jurídica autoral.
+
+## Como Executar
+
+```bash
+# Desenvolvimento local
+pnpm --filter agro dev
+
+# Testes unitários (Vitest)
+pnpm --filter agro test
+
+# Testes de navegador e homologação PWA (Playwright)
+pnpm --filter agro test:e2e
+
+# Verificações de qualidade
+pnpm --filter agro typecheck
+pnpm --filter agro lint
+pnpm --filter agro build
+```

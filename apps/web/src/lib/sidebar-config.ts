@@ -673,6 +673,19 @@ export const BACKOFFICE_SECTIONS: BackofficeSection[] = [
     ],
   },
   {
+    key: 'backoffice-agro',
+    label: 'DeepFarms Agro',
+    icon: Wheat,
+    items: [
+      { href: '/dashboard/backoffice/agro', icon: LayoutDashboard, label: 'Painel Executivo', tip: 'Métricas executivas, observabilidade e governança', permission: 'backoffice:agro:view', exact: true },
+      { href: '/dashboard/backoffice/agro/usuarios', icon: Users, label: 'Produtores Agro', tip: 'Gestão de produtores rurais e cofre BYOK', permission: 'backoffice:agro:view' },
+      { href: '/dashboard/backoffice/agro/bibliotecas', icon: BookOpen, label: 'Bibliotecas Globais', tip: 'Catálogos canônicos de commodities, culturas e unidades', permission: 'backoffice:agro:view' },
+      { href: '/dashboard/backoffice/agro/provedores', icon: CloudSun, label: 'Provedores Climáticos', tip: 'Gestão de adaptadores meteorológicos, credenciais e contingência', permission: 'backoffice:agro:config:view' },
+      { href: '/dashboard/backoffice/agro/mercado', icon: TrendingUp, label: 'Mercado & Fontes Oficiais', tip: 'Governança de PTAX, SGS, SIDRA e snapshots DERAL', permission: 'backoffice:agro:market:view' },
+      { href: '/dashboard/backoffice/agro/configuracoes', icon: Settings, label: 'Configurações Globais', tip: 'Parâmetros dinâmicos, avisos legais e feature flags', permission: 'backoffice:agro:config:view' },
+    ],
+  },
+  {
     key: 'backoffice-financeiro',
     label: 'Financeiro',
     icon: Receipt,

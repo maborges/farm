@@ -20,6 +20,7 @@ from .tenant_audit_log import TenantAuditLog
 from .module_usage import ModuleUsageStat
 from .crm import PipelineEstagio, LeadCRM, AtividadeCRM
 from .sequencial import SequencialContador
+from .usuario_byok import UsuarioByokCredential
 
 # Cadastros — pessoas
 from core.cadastros.pessoas.models import (

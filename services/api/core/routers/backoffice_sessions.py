@@ -20,7 +20,7 @@ router = APIRouter(
 
 class SessionResponse(BaseModel):
     id: UUID
-    tenant_id: UUID
+    tenant_id: UUID | None = None
     usuario_id: UUID
     unidade_produtiva_id: UUID | None
     ip_address: str | None
@@ -81,16 +81,19 @@ async def get_session_stats(
 async def listar_sessions(
     status_filtro: str | None = None,
     tenant_id: UUID | None = None,
+    usuario_id: UUID | None = None,
     session: AsyncSession = Depends(get_session),
     current_admin: dict = Depends(get_current_admin),
 ):
-    """Lista sessões com filtros opcionais."""
+    """Lista sessões com filtros opcionais (incluindo usuário global)."""
     stmt = select(SessaoAtiva).order_by(desc(SessaoAtiva.ultimo_heartbeat)).limit(200)
 
     if status_filtro:
         stmt = stmt.where(SessaoAtiva.status == status_filtro)
     if tenant_id:
         stmt = stmt.where(SessaoAtiva.tenant_id == tenant_id)
+    if usuario_id:
+        stmt = stmt.where(SessaoAtiva.usuario_id == usuario_id)
 
     result = await session.execute(stmt)
     return result.scalars().all()
@@ -138,3 +141,30 @@ async def encerrar_sessions_tenant(
         s.status = "ENCERRADA"
 
     await session.commit()
+
+
+@router.delete(
+    "/user/{usuario_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[Depends(require_permission("backoffice:sessions:delete"))],
+)
+async def encerrar_sessions_usuario(
+    usuario_id: UUID,
+    session: AsyncSession = Depends(get_session),
+    current_admin: dict = Depends(get_current_admin),
+):
+    """Encerra todas as sessões ativas de um usuário específico (global ou Agro)."""
+    del current_admin
+    stmt = (
+        select(SessaoAtiva)
+        .where(SessaoAtiva.usuario_id == usuario_id)
+        .where(SessaoAtiva.status == "ATIVA")
+    )
+    result = await session.execute(stmt)
+    sessoes = result.scalars().all()
+
+    for s in sessoes:
+        s.status = "ENCERRADA"
+
+    await session.commit()
+

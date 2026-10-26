@@ -3,17 +3,21 @@ from core.model_registry import baseline_candidate_tables, register_models
 from migrations.baseline_contract import (
     BASELINE_ORM_TABLE_COUNT,
     BASELINE_SCHEMA,
+    CHECK_CONTRACT,
     CONTRACT_STATUS,
     DISCOVERED_MODEL_COUNT,
     ENUM_CONTRACT,
     FK_CONTRACT,
     FK_DECISIONS,
     FUNCTION_CONTRACT,
+    INDEX_CONTRACT,
     NULLABLE_DECISIONS,
     PHYSICAL_TABLES_OUTSIDE_BASELINE,
     POLICY_CONTRACT,
     POLICY_INVALID_COUNT,
     POLICY_OUTSIDE_BASELINE_COUNT,
+    POSTGRESQL_VALIDATION_PENDING,
+    REFERENCE_COMPARISON,
     REQUIRED_SEQUENCE_NAMES,
     RLS_CONTRACT,
     RLS_ENABLED_TABLES,
@@ -23,6 +27,7 @@ from migrations.baseline_contract import (
     SERVER_DEFAULT_DECISIONS,
     TRIGGER_CONTRACT,
     TYPE_DECISIONS,
+    UNIQUE_CONTRACT,
     UNRESOLVED_COUNTS,
 )
 
@@ -36,7 +41,7 @@ def test_baseline_revision_is_independent_and_uses_contract_sources() -> None:
     )
     assert revision.revision == "baseline_deepfarms_v1"
     assert revision.down_revision is None
-    assert len(revision.baseline_candidate_tables()) == 344
+    assert len(revision.baseline_candidate_tables()) == BASELINE_ORM_TABLE_COUNT == 348
     assert "MetaData.create_all(" not in revision.__doc__
     source = Path(revision.__file__).read_text()
     assert "Base.metadata.create_all(" not in source
@@ -94,13 +99,30 @@ def test_non_orm_inventory_is_explicit_and_read_only() -> None:
 def test_structural_closure_gate_cannot_hide_open_decisions() -> None:
     assert UNRESOLVED_COUNTS["fk_target"] == 0
     assert UNRESOLVED_COUNTS["nullable"] == 0
+    assert UNRESOLVED_COUNTS["function"] == 0
+    assert UNRESOLVED_COUNTS["trigger"] == 0
+    assert UNRESOLVED_COUNTS["required_index"] == 0
+    assert UNRESOLVED_COUNTS["unique"] > 0
+    assert UNRESOLVED_COUNTS["check"] > 0
+    assert REFERENCE_COMPARISON["aligned_with_current_head"] is False
+    assert POSTGRESQL_VALIDATION_PENDING
+    assert len(UNIQUE_CONTRACT) == 76
+    assert len(CHECK_CONTRACT) == 76
+    assert len(INDEX_CONTRACT) == 1063
+    assert all(item["source"] == "ORM_CURRENT" for item in UNIQUE_CONTRACT.values())
+    assert all(item["source"] == "ORM_CURRENT" for item in CHECK_CONTRACT.values())
+    assert all(item["source"] == "ORM_CURRENT" for item in INDEX_CONTRACT.values())
+    assert all(
+        item["historical_reference_parity"] == "NOT_PROVEN"
+        for item in (*UNIQUE_CONTRACT.values(), *CHECK_CONTRACT.values())
+    )
     assert any(value > 0 for key, value in UNRESOLVED_COUNTS.items() if key != "fk_target")
     assert CONTRACT_STATUS != "GO"
 
 
 def test_rls_and_policies_are_complete_for_the_baseline() -> None:
     baseline = baseline_candidate_tables()
-    assert len(RLS_CONTRACT) == len(baseline) == 344
+    assert len(RLS_CONTRACT) == len(baseline) == BASELINE_ORM_TABLE_COUNT == 348
     assert all(
         item["classification"]
         in {"RLS_REQUIRED", "RLS_REQUIRED_NO_FORCE", "RLS_NOT_REQUIRED"}
@@ -118,12 +140,10 @@ def test_rls_and_policies_are_complete_for_the_baseline() -> None:
 def test_minimum_type_default_and_sequence_contract_is_executable() -> None:
     assert TYPE_DECISIONS["type_blocker_for_create"] == 0
     assert SERVER_DEFAULT_DECISIONS["unresolved_required_server_default"] == 0
-    assert len(SEQUENCE_CONTRACT) == 35
-    assert len(REQUIRED_SEQUENCE_NAMES) == 32
-    assert all(
-        item["baseline_decision"] in {"REQUIRED", "NOT_REQUIRED"}
-        for item in SEQUENCE_CONTRACT.values()
-    )
+    assert len(SEQUENCE_CONTRACT) == 33
+    assert len(REQUIRED_SEQUENCE_NAMES) == 33
+    assert set(SEQUENCE_CONTRACT) == REQUIRED_SEQUENCE_NAMES
+    assert all(item["creation_authority"] == "ORM_TABLE_DDL" for item in SEQUENCE_CONTRACT.values())
 
     from sqlalchemy.dialects import postgresql
     from sqlalchemy.schema import CreateTable

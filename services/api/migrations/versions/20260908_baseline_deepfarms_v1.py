@@ -21,7 +21,6 @@ from migrations.baseline_contract import (
     POLICY_CONTRACT,
     REQUIRED_SEQUENCE_NAMES,
     RLS_CONTRACT,
-    SEQUENCE_CONTRACT,
 )
 
 revision = "baseline_deepfarms_v1"
@@ -44,19 +43,6 @@ def _create_enums() -> None:
     for name, values in ENUM_CONTRACT.items():
         enum = ENUM(*values, name=name, schema="farms")
         op.execute(CreateEnumType(enum))
-
-
-def _create_sequences() -> None:
-    for name in sorted(REQUIRED_SEQUENCE_NAMES):
-        contract = SEQUENCE_CONTRACT[name]
-        data_type = contract["data_type"]
-        maxvalue = contract["maxvalue"]
-        op.execute(sa.text(
-            f"CREATE SEQUENCE farms.{_quote(name)} AS {data_type} "
-            f"START WITH {contract['start']} INCREMENT BY {contract['increment']} "
-            f"MINVALUE {contract['minvalue']} MAXVALUE {maxvalue} "
-            f"CACHE {contract['cache']}"
-        ))
 
 
 def _create_tables() -> list[sa.Table]:
@@ -267,7 +253,6 @@ def upgrade() -> None:
     """Create the approved DeepFarms schema in dependency-safe order."""
     _create_schema()
     _create_enums()
-    _create_sequences()
     tables = _create_tables()
     _create_foreign_keys(tables)
     _create_indexes(tables)
@@ -302,8 +287,12 @@ def downgrade() -> None:
     register_models()
     for name in sorted(baseline_candidate_tables(), reverse=True):
         op.drop_table(name)
+    # Existing disposable databases created by the pre-fix revision can have
+    # orphaned explicit sequences. Corrected installs already drop the
+    # SERIAL/BIGSERIAL-owned sequences with their tables, so this is cleanup
+    # only and is intentionally guarded.
     for name in sorted(REQUIRED_SEQUENCE_NAMES, reverse=True):
-        op.execute(sa.text(f"DROP SEQUENCE {_quote(name)}"))
+        op.execute(sa.text(f"DROP SEQUENCE IF EXISTS farms.{_quote(name)}"))
     for name in reversed(tuple(ENUM_CONTRACT)):
         op.execute(DropEnumType(ENUM(*ENUM_CONTRACT[name], name=name, schema="farms")))
     op.execute(sa.text("DROP SCHEMA farms"))

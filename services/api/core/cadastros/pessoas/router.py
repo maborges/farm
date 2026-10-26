@@ -25,14 +25,14 @@ router_tipos = APIRouter(prefix="/cadastros/tipos-relacionamento", tags=["Cadast
 def get_optional_tenant_id(request: Request) -> Optional[uuid.UUID]:
     """Retorna tenant_id do JWT se disponível, None caso contrário (sem exigir auth)."""
     try:
-        from core.dependencies import get_token, get_current_user_claims
-        from jose import jwt
-        from core.config import settings
+        from core.dependencies import _decode_platform_token, verify_commercial_jwt_guardrail
+
         authorization = request.headers.get("Authorization", "")
         if not authorization.startswith("Bearer "):
             return None
         token = authorization.split(" ")[1]
-        payload = jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
+        verify_commercial_jwt_guardrail(token)
+        payload = _decode_platform_token(token)
         tid = payload.get("tenant_id")
         return uuid.UUID(tid) if tid else None
     except Exception:

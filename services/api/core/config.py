@@ -13,14 +13,43 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
     ptax_cache_ttl_seconds: int = 900
     ptax_single_worker_fallback: bool = True
+    macro_cache_ttl_seconds: int = 1800
+    clima_cache_ttl_seconds: int = 1800
+    clima_single_worker_fallback: bool = True
+    clima_grid_step_degrees: float = 0.05
+    clima_timeout_seconds: float = 5.0
+    # "database" mantém a configuração dinâmica existente; "environment" usa
+    # exclusivamente as configurações estáticas deste processo para clima.
+    clima_config_source: str = "database"
+    open_meteo_base_url: str = "https://api.open-meteo.com/v1/forecast"
+    open_meteo_api_key: str = ""
+    open_meteo_licensed: bool = False
+    open_meteo_allow_unlicensed_public: bool = False
+    openweather_base_url: str = "https://api.openweathermap.org/data/3.0/onecall"
+    openweather_api_key: str = ""
+    openweather_licensed: bool = False
+    openweather_allow_unlicensed_public: bool = False
+    weatherapi_base_url: str = "https://api.weatherapi.com/v1"
+    weatherapi_api_key: str = ""
+    weatherapi_enabled: bool = False
+    weatherapi_max_forecast_days: int = 3
+    weatherapi_timeout_seconds: float = 5.0
+    weatherapi_monthly_quota_limit: int = 100000
+    clima_active_provider: str = "WEATHERAPI"
     db_pool_size: int = 3
     db_max_overflow: int = 2
     db_pool_timeout: int = 15
     session_cache_ttl_seconds: int = 300
+    # Banco/rotas SQLite de identidade Agro existem apenas para inspeção legada opt-in.
+    enable_legacy_agro_db: bool = False
 
     jwt_secret_key: str = "super_secret_for_development_change_in_production"
     jwt_algorithm: str = "HS256"
+    jwt_issuer: str = "deepfarms:identity"
+    jwt_audience: str = "deepfarms:platform"
     access_token_expire_minutes: int = 60 * 24 * 7 # 7 days
+    free_registration_max_attempts: int = 5
+    free_registration_window_seconds: int = 900
 
     # Stripe Config
     stripe_secret_key: str = ""
@@ -42,6 +71,7 @@ class Settings(BaseSettings):
     # que realmente hospedam o worker precisam habilitá-lo explicitamente.
     run_embedded_jobs: bool = False
     integrations_secret_key: str = ""
+    platform_credentials_master_key: str = ""
     nfe_consulta_config_dir: str = ""
     balanca_service_url: str = ""
     balanca_service_client_id: str = ""
@@ -90,6 +120,9 @@ class Settings(BaseSettings):
         "http://local.agrosass.com.br:3000",
         "http://local.agrosass.com.br:3001",
         "https://agro.deepfarms.com.br",
+        "https://api.deepfarms.com.br",
+        "https://app.deepfarms.com.br",
+        "https://campo.deepfarms.com.br",
     ]
 
     # Storage Config (local | s3 | minio)

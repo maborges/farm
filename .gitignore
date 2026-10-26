@@ -19,3 +19,8 @@ test-results/
 **/.env.local
 .env
 **/.env
+data/
+var/
+*.db
+*.db-shm
+*.db-wal

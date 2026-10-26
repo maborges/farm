@@ -1,0 +1,92 @@
+name: AGRO-ADMIN-01B2D Homologação PostgreSQL 16
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'services/api/**'
+      - '.github/workflows/agro-admin-01b2d-postgres-homologacao.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  homologacao-postgresql-16:
+    name: Homologação PostgreSQL 16 Descartável
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: deepfarms_test
+          POSTGRES_PASSWORD: test_secure_password_ci_2026
+          POSTGRES_DB: farms_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      APP_ENV: test
+      CI_POSTGRESQL: "true"
+      DATABASE_URL: "postgresql+asyncpg://deepfarms_test:test_secure_password_ci_2026@localhost:5432/farms_test"
+      TEST_DATABASE_URL: "postgresql+asyncpg://deepfarms_test:test_secure_password_ci_2026@localhost:5432/farms_test"
+      JWT_SECRET_KEY: "ci-secret-key-homologacao-agro-admin-01b2d-min-32-chars"
+      JWT_ALGORITHM: "HS256"
+      JWT_ISSUER: "deepfarms:identity"
+      JWT_AUDIENCE: "deepfarms:platform"
+      ENABLE_LEGACY_AGRO_DB: "false"
+      AGRO_VAULT_MASTER_KEY: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      FRONTEND_URL: "http://localhost:3000"
+
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Instalar dependências da API
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e "./services/api[dev]"
+
+      - name: Guardrail Anti-Vazamento e Isolamento de Ambiente
+        run: |
+          echo "=== Verificando isolamento de banco de dados ==="
+          # Assegura que DATABASE_URL aponta estritamente para localhost/127.0.0.1
+          python -c "
+          import os, sys, urllib.parse
+          url = os.environ['DATABASE_URL']
+          parsed = urllib.parse.urlparse(url)
+          host = parsed.hostname or ''
+          if host not in ('localhost', '127.0.0.1'):
+              print(f'ERRO FATAL: Host do banco não é local: {host}', file=sys.stderr)
+              sys.exit(1)
+          if '192.168.' in url or 'rds.amazonaws.com' in url:
+              print('ERRO FATAL: Tentativa de apontar para rede compartilhada ou RDS!', file=sys.stderr)
+              sys.exit(1)
+          print(f'✓ Isolamento verificado com sucesso: {host}:{parsed.port}/{parsed.path}')
+          "
+
+      - name: Executar script de homologação de migrations e rollback
+        run: |
+          PYTHONPATH=services/api python services/api/scripts/homologar_postgresql_ci.py
+
+      - name: Executar suíte completa de testes de integração PostgreSQL 16
+        run: |
+          PYTHONPATH=services/api pytest \
+            services/api/tests/unit/core/test_homologacao_01b2c_e2e_fluxos.py \
+            services/api/tests/unit/test_agro_byok.py \
+            services/api/tests/unit/test_agro_byok_migration.py \
+            services/api/tests/unit/test_agro_admin_01b2d_safety.py \
+            services/api/tests/unit/core/test_free_registration.py \
+            -v --tb=short

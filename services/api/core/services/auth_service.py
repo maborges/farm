@@ -1,5 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from fastapi import HTTPException, status, Request
 from passlib.context import CryptContext
 from datetime import datetime, timedelta, timezone
@@ -15,7 +16,7 @@ from core.models.auth import Usuario, TenantUsuario, PerfilAcesso, UnidadeProdut
 from core.models.tenant import Tenant
 from core.models.unidade_produtiva import UnidadeProdutiva as Fazenda
 from core.models.billing import AssinaturaTenant, PlanoAssinatura, Fatura
-from core.schemas.auth_schemas import LoginRequest, UserCreateRequest, TenantAcessoResponse, UnidadeProdutivaAcessoResponse as FazendaAcessoResponse, PerfilSimplesResponse, UsuarioMeResponse
+from core.schemas.auth_schemas import FreeUserCreateRequest, LoginRequest, UserCreateRequest, TenantAcessoResponse, UnidadeProdutivaAcessoResponse as FazendaAcessoResponse, PerfilSimplesResponse, UsuarioMeResponse
 from core.config import settings
 from core.services.login_rate_limit_service import LoginRateLimitService
 from core.services.session_timeout_service import get_session_idle_minutes, session_expiration
@@ -33,6 +34,13 @@ def _slugify_tenant_name(value: str) -> str:
     normalized = unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode("ascii")
     slug = re.sub(r"[^a-z0-9]+", "-", normalized.lower()).strip("-")
     return slug or "tenant"
+
+
+def _username_base(email: str) -> str:
+    local = email.partition("@")[0]
+    normalized = unicodedata.normalize("NFKD", local).encode("ascii", "ignore").decode("ascii")
+    username = re.sub(r"[^a-z0-9_]+", "_", normalized.lower()).strip("_")
+    return (username or "usuario")[:40]
 
 class AuthService:
     def __init__(self, session: AsyncSession):
@@ -57,14 +65,82 @@ class AuthService:
                 if context_tenant_id:
                     to_encode["tenant_id"] = str(context_tenant_id)
 
+        now = datetime.now(timezone.utc)
         if expires_delta:
-            expire = datetime.now(timezone.utc) + expires_delta
+            expire = now + expires_delta
         else:
-            expire = datetime.now(timezone.utc) + timedelta(minutes=settings.access_token_expire_minutes)
-            
-        to_encode.update({"exp": expire})
+            expire = now + timedelta(minutes=settings.access_token_expire_minutes)
+
+        tenant_id = to_encode.get("tenant_id")
+        is_superuser = bool(to_encode.get("is_superuser"))
+        account_type = to_encode.get("account_type")
+        if not account_type:
+            account_type = "PLATFORM_ADMIN" if is_superuser else (
+                "COMMERCIAL" if tenant_id else "INDIVIDUAL_FREE"
+            )
+        product_scope = to_encode.get("product_scope")
+        if not product_scope:
+            if account_type == "PLATFORM_ADMIN":
+                product_scope = ["backoffice", "saas", "agro:free"]
+            elif account_type == "COMMERCIAL":
+                product_scope = ["saas", "agro:free"]
+            else:
+                product_scope = ["agro:free"]
+
+        to_encode.update({
+            "exp": expire,
+            "iat": now,
+            "jti": str(uuid.uuid4()),
+            "iss": settings.jwt_issuer,
+            "aud": settings.jwt_audience,
+            "token_version": 2,
+            "account_type": account_type,
+            "product_scope": product_scope,
+        })
         encoded_jwt = jwt.encode(to_encode, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
         return encoded_jwt
+
+    async def register_free_user(self, user_data: FreeUserCreateRequest) -> tuple[Usuario | None, bool]:
+        """Cria identidade global sem tenant com resposta externa não enumerável."""
+        email = str(user_data.email).strip().lower()
+        # O custo do bcrypt ocorre também para contas existentes, reduzindo o
+        # sinal temporal utilizável para enumeração.
+        hashed_pw = self.get_password_hash(user_data.senha)
+        existing = (await self.session.execute(
+            select(Usuario.id).where(func.lower(Usuario.email) == email)
+        )).scalar_one_or_none()
+        if existing is not None:
+            return None, False
+
+        base = _username_base(email)
+        for attempt in range(8):
+            username = base if attempt == 0 else f"{base}_{secrets.token_hex(4)}"
+            db_user = Usuario(
+                email=email,
+                username=username,
+                nome_completo=user_data.nome,
+                apelido=user_data.nome.split()[0][:20],
+                senha_hash=hashed_pw,
+            )
+            try:
+                async with self.session.begin_nested():
+                    self.session.add(db_user)
+                    await self.session.flush()
+                await self.session.commit()
+                logger.info("Identidade gratuita criada", user_id=str(db_user.id))
+                return db_user, True
+            except IntegrityError:
+                duplicate_email = (await self.session.execute(
+                    select(Usuario.id).where(func.lower(Usuario.email) == email)
+                )).scalar_one_or_none()
+                if duplicate_email is not None:
+                    return None, False
+
+        logger.error("Não foi possível reservar username único para cadastro gratuito")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Cadastro temporariamente indisponível",
+        )
 
     async def register_user(self, user_data: UserCreateRequest) -> Usuario:
         # Check if email or username exists
@@ -112,7 +188,8 @@ class AuthService:
         from core.services.configuracoes_service import ConfiguracoesService
 
         # Busca usuário primeiro para descobrir o tenant
-        stmt = select(Usuario).where(Usuario.email == login_data.email)
+        normalized_login_email = str(login_data.email).strip().lower()
+        stmt = select(Usuario).where(func.lower(Usuario.email) == normalized_login_email)
         result = await self.session.execute(stmt)
         user = result.scalar_one_or_none()
 
@@ -279,37 +356,30 @@ class AuthService:
             "tenant_contexts": tenant_contexts,
             "is_superuser": user.is_superuser,
             "plan_tier": plan_tier,
+            "session_required": True,
         }
         
         access_token = self.create_access_token(data=claims)
         
-        # Persistência de sessão depende de tenant_id porque a tabela legado
-        # ainda mantém a coluna como obrigatória no banco de dados.
-        if default_tenant_id:
-            from core.models.sessao import SessaoAtiva
-            import hashlib
+        from core.models.sessao import SessaoAtiva
+        import hashlib
 
-            token_hash = hashlib.sha256(access_token.encode()).hexdigest()
-            agora = datetime.now(timezone.utc)
-            idle_minutes = await get_session_idle_minutes(self.session)
+        token_hash = hashlib.sha256(access_token.encode()).hexdigest()
+        agora = datetime.now(timezone.utc)
+        idle_minutes = await get_session_idle_minutes(self.session)
 
-            self.session.add(SessaoAtiva(
-                tenant_id=uuid.UUID(default_tenant_id),
-                usuario_id=user.id,
-                token_hash=token_hash,
-                ip_address=ip_address,
-                user_agent=user_agent,
-                inicio=agora,
-                ultimo_heartbeat=agora,
-                expira_em=session_expiration(agora, idle_minutes),
-                status="ATIVA",
-            ))
-            await self.session.commit()
-        else:
-            logger.warning(
-                "Sessão ativa não persistida porque o usuário ainda não possui tenant ativo.",
-                user_id=str(user.id),
-            )
+        self.session.add(SessaoAtiva(
+            tenant_id=uuid.UUID(default_tenant_id) if default_tenant_id else None,
+            usuario_id=user.id,
+            token_hash=token_hash,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            inicio=agora,
+            ultimo_heartbeat=agora,
+            expira_em=session_expiration(agora, idle_minutes),
+            status="ATIVA",
+        ))
+        await self.session.commit()
         
         return user, access_token
 
@@ -397,6 +467,7 @@ class AuthService:
             "tenant_contexts": tenant_contexts,
             "is_superuser": user.is_superuser,
             "plan_tier": plan_tier,
+            "session_required": True,
         }
 
         access_token = self.create_access_token(data=claims)
@@ -493,6 +564,7 @@ class AuthService:
                 modulos=t_modulos,
             ))
 
+        display_name = user.nome_completo or user.apelido or user.username
         response = UsuarioMeResponse(
             id=user.id,
             email=user.email,
@@ -504,7 +576,13 @@ class AuthService:
             foto_perfil_url=user.foto_perfil_url,
             is_superuser=user.is_superuser,
             navigation_mode=user.navigation_mode,
-            tenants=tenants_response
+            tenants=tenants_response,
+            ativo=user.ativo,
+            nome=display_name,
+            email_verificado=True,
+            emailVerificado=True,
+            created_at=user.created_at,
+            createdAt=user.created_at,
         )
         return response
 
@@ -659,7 +737,8 @@ class AuthService:
         from core.services.email_service import email_service
 
         # Busca usuário pelo email
-        stmt = select(Usuario).where(Usuario.email == email)
+        normalized_email = email.strip().lower()
+        stmt = select(Usuario).where(func.lower(Usuario.email) == normalized_email)
         result = await self.session.execute(stmt)
         user = result.scalar_one_or_none()
 
@@ -738,7 +817,7 @@ class AuthService:
         return {
             "sucesso": True,
             "mensagem": "Se o e-mail estiver cadastrado, você receberá as instruções para recuperação de senha.",
-            "email": user.email
+            "email": None
         }
 
     async def verify_reset_token(self, token: str) -> dict:

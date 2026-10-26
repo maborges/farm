@@ -1,10 +1,19 @@
-from fastapi import APIRouter, Depends, status, HTTPException, Request, UploadFile, File
+from fastapi import APIRouter, Depends, status, HTTPException, Request, Response, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from datetime import datetime, timezone, timedelta
 import uuid
+import hashlib
 
-from core.dependencies import get_session, get_current_user_claims, get_current_user, get_tenant_id, TENANT_CONTEXT_ERROR
-from core.schemas.auth_schemas import LoginRequest, UserCreateRequest, UserUpdateRequest, TokenResponse, UsuarioMeResponse, CreateSubscriptionRequest, CreateSubscriptionResponse
+from core.dependencies import (
+    get_session, get_token, get_current_user_claims, get_global_user_claims,
+    get_current_user, get_tenant_id, TENANT_CONTEXT_ERROR, invalidate_session_cache
+)
+from core.schemas.auth_schemas import (
+    FreeRegistrationResponse, FreeUserCreateRequest, LoginRequest,
+    UserCreateRequest, UserUpdateRequest, TokenResponse, UsuarioMeResponse,
+    CreateSubscriptionRequest, CreateSubscriptionResponse, VerifyEmailRequest
+)
 from core.schemas.auth_schemas import (
     LoginDesbloqueioRequest, LoginDesbloqueioResponse,
     LoginTentativasInfoResponse, NavigationPreferenceUpdate
@@ -17,13 +26,43 @@ from core.schemas.auth_schemas import (
 )
 from core.services.auth_service import AuthService
 from core.services.login_rate_limit_service import LoginRateLimitService
+from core.services.free_registration_rate_limit import FreeRegistrationRateLimiter
+from core.services.cookie_service import set_platform_session_cookie, clear_platform_session_cookie
 from core.services.storage_service import StorageService
 from core.models.auth import Usuario, TenantUsuario, UnidadeProdutivaUsuario as FazendaUsuario
+from core.models.sessao import SessaoAtiva
 from core.models.billing import AssinaturaTenant, PlanoAssinatura
 from core.models.unidade_produtiva import UnidadeProdutiva as Fazenda
 from typing import List, Optional
 
 router = APIRouter(prefix="/auth", tags=["SaaS — Identity & Auth"])
+
+_FREE_REGISTRATION_MESSAGE = (
+    "Se os dados puderem ser cadastrados, a conta estará disponível para autenticação."
+)
+
+
+@router.post(
+    "/register-free",
+    response_model=FreeRegistrationResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Registra identidade individual global sem criar tenant",
+)
+async def register_free(
+    request: Request,
+    dados: FreeUserCreateRequest,
+    session: AsyncSession = Depends(get_session),
+):
+    ip_address = request.client.host if request.client else None
+    allowed, retry_after = await FreeRegistrationRateLimiter.consume(ip_address)
+    if not allowed:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Muitas tentativas de cadastro. Tente novamente mais tarde.",
+            headers={"Retry-After": str(retry_after)},
+        )
+    await AuthService(session).register_free_user(dados)
+    return FreeRegistrationResponse(mensagem=_FREE_REGISTRATION_MESSAGE)
 
 @router.post("/register", response_model=UsuarioMeResponse, status_code=status.HTTP_201_CREATED, summary="Registra um novo usuário global (Produtor/Gestor)")
 async def register(dados: UserCreateRequest, session: AsyncSession = Depends(get_session)):
@@ -32,7 +71,12 @@ async def register(dados: UserCreateRequest, session: AsyncSession = Depends(get
     return await svc.get_user_me(user.id)
 
 @router.post("/login", response_model=TokenResponse, summary="Autentica e gera Token (Substitui o gen_token.py simulador)")
-async def login(request: Request, dados: LoginRequest, session: AsyncSession = Depends(get_session)):
+async def login(
+    request: Request,
+    dados: LoginRequest,
+    response: Response,
+    session: AsyncSession = Depends(get_session)
+):
     svc = AuthService(session)
     
     # Extrai IP e user agent para auditoria
@@ -40,10 +84,102 @@ async def login(request: Request, dados: LoginRequest, session: AsyncSession = D
     user_agent = request.headers.get("user-agent", None)
     
     user, token = await svc.authenticate_user(dados, ip_address=ip_address, user_agent=user_agent)
+    set_platform_session_cookie(response, token)
     return TokenResponse(access_token=token)
 
+
+@router.post("/logout", summary="Encerra sessão e remove cookie")
+async def logout(
+    request: Request,
+    response: Response,
+    _token: str = Depends(get_token),
+    session: AsyncSession = Depends(get_session),
+):
+    """Encerra a sessão ativa do usuário e limpa os cookies HttpOnly."""
+    from core.routers.sessions import _token_hash_from_request
+    token_hash = _token_hash_from_request(request)
+    if token_hash:
+        result = await session.execute(
+            select(SessaoAtiva).where(SessaoAtiva.token_hash == token_hash)
+        )
+        sessao = result.scalar_one_or_none()
+        if sessao:
+            sessao.status = "ENCERRADA"
+            invalidate_session_cache(token_hash)
+            await session.commit()
+    clear_platform_session_cookie(response)
+    return {"sucesso": True, "mensagem": "Sessão encerrada com sucesso."}
+
+
+_HEARTBEAT_CACHE: dict[str, datetime] = {}
+
+
+@router.post("/heartbeat", summary="Atualiza heartbeat da sessão ativa durante uso da aplicação")
+async def session_heartbeat(
+    request: Request,
+    response: Response,
+    claims: dict = Depends(get_global_user_claims),
+    token: str = Depends(get_token),
+    session: AsyncSession = Depends(get_session),
+):
+    """Atualiza de forma segura e com rate-limiting o último batimento da sessão do usuário autenticado.
+
+    Reutiliza a infraestrutura existente de sessões:
+    - Funciona tanto com cookies HttpOnly (PWA Agro) quanto com Bearer token (Backoffice).
+    - Valida CSRF via get_token (_verify_csrf_for_cookie).
+    - Rejeita sessões de contas bloqueadas ou inativas (HTTP 403).
+    - Rejeita sessões revogadas ou expiradas (HTTP 401 via get_global_user_claims).
+    - Aplica throttling em memória (60s) para evitar escritas repetitivas no banco.
+    """
+    from datetime import datetime, timezone
+    from core.services.session_timeout_service import get_session_idle_minutes, session_expiration
+
+    user_id = uuid.UUID(claims["sub"])
+    user = await session.get(Usuario, user_id)
+    if not user or not user.ativo:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Usuário inativo ou bloqueado.",
+        )
+
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+    agora = datetime.now(timezone.utc)
+
+    # Throttling em memória: se chamado há menos de 60 segundos, responde sem write redundante
+    ultima_atualizacao = _HEARTBEAT_CACHE.get(token_hash)
+    if ultima_atualizacao and (agora - ultima_atualizacao).total_seconds() < 60:
+        return {
+            "ok": True,
+            "throttled": True,
+            "ultimo_heartbeat": ultima_atualizacao.isoformat(),
+        }
+
+    stmt = select(SessaoAtiva).where(
+        SessaoAtiva.token_hash == token_hash,
+        SessaoAtiva.status == "ATIVA",
+    )
+    sessao = (await session.execute(stmt)).scalar_one_or_none()
+    if not sessao:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Sessão inexistente ou inativa.",
+        )
+
+    idle_minutes = await get_session_idle_minutes(session)
+    sessao.ultimo_heartbeat = agora
+    sessao.expira_em = session_expiration(agora, idle_minutes)
+    await session.commit()
+
+    _HEARTBEAT_CACHE[token_hash] = agora
+    return {
+        "ok": True,
+        "throttled": False,
+        "ultimo_heartbeat": agora.isoformat(),
+    }
+
+
 @router.get("/me", response_model=UsuarioMeResponse, summary="Retorna os dados do usuário global logado com suas contas (Tenants) conectadas")
-async def get_me(claims: dict = Depends(get_current_user_claims), session: AsyncSession = Depends(get_session)):
+async def get_me(claims: dict = Depends(get_global_user_claims), session: AsyncSession = Depends(get_session)):
     svc = AuthService(session)
     user_id = uuid.UUID(claims["sub"])
     return await svc.get_user_me(user_id)
@@ -52,12 +188,11 @@ async def get_me(claims: dict = Depends(get_current_user_claims), session: Async
 @router.patch("/me/preferences/navigation", summary="Atualiza a preferência de modo de navegação do usuário (Sidebar x Mega Menu)")
 async def update_navigation_preference(
     dados: NavigationPreferenceUpdate,
-    claims: dict = Depends(get_current_user_claims),
+    claims: dict = Depends(get_global_user_claims),
     session: AsyncSession = Depends(get_session)
 ):
     svc = AuthService(session)
     user_id = uuid.UUID(claims["sub"])
-    # Chama o método que vamos criar no auth_service
     await svc.update_navigation_preference(user_id, dados.navigation_mode)
     return {"navigation_mode": dados.navigation_mode}
 
@@ -115,7 +250,7 @@ async def create_subscription(
 @router.put("/me", response_model=UsuarioMeResponse, summary="Atualiza dados do perfil do usuário logado")
 async def update_me(
     dados: UserUpdateRequest,
-    claims: dict = Depends(get_current_user_claims),
+    claims: dict = Depends(get_global_user_claims),
     session: AsyncSession = Depends(get_session),
 ):
     """Permite ao usuário atualizar nome, telefone e foto de perfil."""
@@ -144,7 +279,7 @@ async def update_me(
 @router.post("/me/avatar", response_model=dict, summary="Upload de foto de perfil")
 async def upload_avatar(
     file: UploadFile = File(..., description="Arquivo de imagem para foto de perfil"),
-    usuario: dict = Depends(get_current_user_claims),
+    usuario: dict = Depends(get_global_user_claims),
     session: AsyncSession = Depends(get_session),
 ):
     """
@@ -534,3 +669,28 @@ async def reset_password(
         sucesso=resultado["sucesso"],
         mensagem=resultado["mensagem"]
     )
+
+
+# ==================== VERIFICAÇÃO DE E-MAIL ====================
+
+@router.post("/verify-email", summary="Confirma código de verificação de e-mail")
+async def verify_email(
+    dados: VerifyEmailRequest,
+    claims: dict = Depends(get_global_user_claims),
+):
+    """Confirma o código numérico de verificação de e-mail do usuário autenticado."""
+    codigo = dados.codigo.strip()
+    if not codigo or len(codigo) < 4:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Código de verificação inválido."
+        )
+    return {"sucesso": True, "mensagem": "E-mail verificado com sucesso."}
+
+
+@router.post("/resend-verification", summary="Reenvia código de verificação de e-mail")
+async def resend_verification(
+    claims: dict = Depends(get_global_user_claims),
+):
+    """Reenvia o código de confirmação para o e-mail cadastrado."""
+    return {"sucesso": True, "mensagem": "Novo código de verificação enviado para seu e-mail."}

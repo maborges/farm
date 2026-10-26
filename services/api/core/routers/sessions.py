@@ -10,7 +10,6 @@ Endpoints:
 import hashlib
 import uuid
 from datetime import datetime
-from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
@@ -18,7 +17,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.dependencies import (
-    get_current_user_claims,
+    get_global_user_claims,
     get_session,
     get_tenant_id,
     invalidate_session_cache,
@@ -60,6 +59,9 @@ def _token_hash_from_request(request: Request) -> str | None:
     auth = request.headers.get("Authorization", "")
     if auth.startswith("Bearer "):
         return hashlib.sha256(auth[7:].encode()).hexdigest()
+    cookie_token = request.cookies.get("deepfarms_agro_session") or request.cookies.get("deepfarms_session")
+    if cookie_token:
+        return hashlib.sha256(cookie_token.encode()).hexdigest()
     return None
 
 
@@ -67,10 +69,10 @@ def _token_hash_from_request(request: Request) -> str | None:
 # Endpoints — sessões do próprio usuário
 # ---------------------------------------------------------------------------
 
-@router.get("/me", response_model=List[SessaoResponse])
+@router.get("/me", response_model=list[SessaoResponse])
 async def listar_minhas_sessoes(
     request: Request,
-    claims: dict = Depends(get_current_user_claims),
+    claims: dict = Depends(get_global_user_claims),
     db: AsyncSession = Depends(get_session),
 ):
     """Lista todas as sessões ativas do usuário logado."""
@@ -95,7 +97,7 @@ async def listar_minhas_sessoes(
 @router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
 async def revogar_todas_minhas_sessoes(
     request: Request,
-    claims: dict = Depends(get_current_user_claims),
+    claims: dict = Depends(get_global_user_claims),
     db: AsyncSession = Depends(get_session),
 ):
     """Encerra todas as sessões do usuário logado (exceto a atual)."""
@@ -120,7 +122,7 @@ async def revogar_todas_minhas_sessoes(
 @router.delete("/me/{sessao_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def revogar_minha_sessao(
     sessao_id: uuid.UUID,
-    claims: dict = Depends(get_current_user_claims),
+    claims: dict = Depends(get_global_user_claims),
     db: AsyncSession = Depends(get_session),
 ):
     """Encerra uma sessão específica do usuário logado."""
@@ -141,7 +143,7 @@ async def revogar_minha_sessao(
 
 @router.get(
     "/team",
-    response_model=List[SessaoMembroResponse],
+    response_model=list[SessaoMembroResponse],
     dependencies=[Depends(require_tenant_permission("core:sessions:view"))],
 )
 async def listar_sessoes_equipe(
@@ -195,7 +197,7 @@ async def revogar_sessao_membro(
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
 async def logout(
     request: Request,
-    claims: dict = Depends(get_current_user_claims),
+    claims: dict = Depends(get_global_user_claims),
     db: AsyncSession = Depends(get_session),
 ):
     """Encerra a sessão atual do usuário (logout)."""

@@ -433,8 +433,10 @@ class BackofficePermissions:
             "backoffice:users:toggle_status",
             "backoffice:support:*",
             "backoffice:config:view",
+            "backoffice:config:edit",
             "backoffice:kb:*",
             "backoffice:profiles:*",
+            "backoffice:agro:*",
         ],
 
         "suporte": [
@@ -443,6 +445,9 @@ class BackofficePermissions:
             "backoffice:users:view",
             "backoffice:support:*",
             "backoffice:kb:*",
+            "backoffice:agro:view",
+            "backoffice:agro:users:view",
+            "backoffice:agro:config:view",
         ],
 
         "financeiro": [
@@ -461,6 +466,8 @@ class BackofficePermissions:
             "backoffice:tenants:view",
             "backoffice:tenants:assign_plan",
             "backoffice:bi:view",
+            "backoffice:agro:view",
+            "backoffice:agro:users:view",
         ]
     }
 
@@ -477,7 +484,12 @@ class BackofficePermissions:
         if permission in user_perms:
             return True
 
-        # Wildcard de recurso (ex: "tenants:*" permite "tenants:view")
+        # Wildcard de recurso (ex: "backoffice:agro:*" ou "backoffice:tenants:*")
+        for perm in user_perms:
+            if perm.endswith(":*") and permission.startswith(perm[:-1]):
+                return True
+
+        # Wildcard de recurso simples (ex: "tenants:*" permite "tenants:view")
         if ":" in permission:
             resource, action = permission.split(":", 1)
             wildcard = f"{resource}:*"

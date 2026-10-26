@@ -1,0 +1,260 @@
+version: '3.8'
+
+# ==============================================================================
+# DeepFarms Agro — Ambiente de Staging Isolado e Efêmero (AGRO-ADMIN-01H1)
+# ==============================================================================
+# ISOLAMENTO E SEGURANÇA:
+# 1. Todas as portas estão vinculadas estritamente a 127.0.0.1 (sem binding 0.0.0.0).
+# 2. Volumes e rede interna 'staging_agro_net' completamente segregados de dev/prod.
+# 3. Segredos são injetados exclusivamente via .env.staging (sem credenciais hardcoded).
+# 4. Zero comunicação permitida com RDS, ElastiCache ou S3 de produção.
+# ==============================================================================
+
+networks:
+  staging_agro_net:
+    driver: bridge
+    internal: false
+
+volumes:
+  staging_postgres_data:
+    name: deepfarms_staging_postgres_data
+  staging_redis_data:
+    name: deepfarms_staging_redis_data
+  staging_minio_data:
+    name: deepfarms_staging_minio_data
+
+services:
+  # ----------------------------------------------------------------------------
+  # 1. Banco de Dados Relacional: PostgreSQL 16
+  # ----------------------------------------------------------------------------
+  staging-postgres:
+    image: postgres:16-alpine
+    container_name: deepfarms-agro-staging-db
+    restart: unless-stopped
+    networks:
+      - staging_agro_net
+    ports:
+      - "127.0.0.1:5433:5432"
+    environment:
+      POSTGRES_USER: ${STAGING_DB_USER:-staging_agro}
+      POSTGRES_PASSWORD: ${STAGING_DB_PASSWORD:?Defina STAGING_DB_PASSWORD no .env.staging}
+      POSTGRES_DB: ${STAGING_DB_NAME:-deepfarms_agro_staging}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - staging_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${STAGING_DB_USER:-staging_agro} -d ${STAGING_DB_NAME:-deepfarms_agro_staging}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: "1.00"
+          memory: 1024M
+
+  # ----------------------------------------------------------------------------
+  # 2. Cache e Mensageria: Redis 7
+  # ----------------------------------------------------------------------------
+  staging-redis:
+    image: redis:7-alpine
+    container_name: deepfarms-agro-staging-redis
+    restart: unless-stopped
+    networks:
+      - staging_agro_net
+    ports:
+      - "127.0.0.1:6380:6379"
+    command: >
+      sh -c 'redis-server --requirepass "${STAGING_REDIS_PASSWORD:?Defina STAGING_REDIS_PASSWORD no .env.staging}" --appendonly yes'
+    volumes:
+      - staging_redis_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"${STAGING_REDIS_PASSWORD}\" ping | grep -q PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 512M
+
+  # ----------------------------------------------------------------------------
+  # 3. Object Storage Local para Testes: MinIO
+  # ----------------------------------------------------------------------------
+  staging-minio:
+    image: minio/minio:RELEASE.2024-03-05T04-48-44Z
+    container_name: deepfarms-agro-staging-minio
+    restart: unless-stopped
+    networks:
+      - staging_agro_net
+    ports:
+      - "127.0.0.1:9002:9000"
+      - "127.0.0.1:9003:9001"
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${STAGING_MINIO_USER:-staging_minio_admin}
+      MINIO_ROOT_PASSWORD: ${STAGING_MINIO_PASSWORD:?Defina STAGING_MINIO_PASSWORD no .env.staging}
+    volumes:
+      - staging_minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          cpus: "0.50"
+          memory: 512M
+
+  # ----------------------------------------------------------------------------
+  # 4. Backend Worker 1: FastAPI API
+  # ----------------------------------------------------------------------------
+  staging-api-worker-1:
+    build:
+      context: ../..
+      dockerfile: Dockerfile.backend
+    container_name: deepfarms-agro-staging-api-1
+    restart: unless-stopped
+    networks:
+      - staging_agro_net
+    ports:
+      - "127.0.0.1:8001:8000"
+    depends_on:
+      staging-postgres:
+        condition: service_healthy
+      staging-redis:
+        condition: service_healthy
+    environment:
+      ENVIRONMENT: staging
+      APP_ENV: staging
+      WORKER_ID: worker-staging-1
+      DATABASE_URL: postgresql+asyncpg://${STAGING_DB_USER:-staging_agro}:${STAGING_DB_PASSWORD}@staging-postgres:5432/${STAGING_DB_NAME:-deepfarms_agro_staging}
+      REDIS_URL: redis://:${STAGING_REDIS_PASSWORD}@staging-redis:6379/0
+      JWT_SECRET_KEY: ${STAGING_JWT_SECRET_KEY:?Defina STAGING_JWT_SECRET_KEY no .env.staging}
+      PLATFORM_CREDENTIALS_MASTER_KEY: ${STAGING_PLATFORM_CREDENTIALS_MASTER_KEY:?Defina STAGING_PLATFORM_CREDENTIALS_MASTER_KEY no .env.staging}
+      INTEGRATIONS_SECRET_KEY: ${STAGING_INTEGRATIONS_SECRET_KEY:-staging_integrations_key_32chars_min}
+      S3_ENDPOINT_URL: http://staging-minio:9000
+      S3_ACCESS_KEY: ${STAGING_MINIO_USER:-staging_minio_admin}
+      S3_SECRET_KEY: ${STAGING_MINIO_PASSWORD}
+      S3_BUCKET_NAME: deepfarms-staging-bucket
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://127.0.0.1:8000/api/v1/health\").read()' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: "1.00"
+          memory: 1024M
+
+  # ----------------------------------------------------------------------------
+  # 5. Backend Worker 2: FastAPI API (Simulação Multi-Worker)
+  # ----------------------------------------------------------------------------
+  staging-api-worker-2:
+    build:
+      context: ../..
+      dockerfile: Dockerfile.backend
+    container_name: deepfarms-agro-staging-api-2
+    restart: unless-stopped
+    networks:
+      - staging_agro_net
+    ports:
+      - "127.0.0.1:8002:8000"
+    depends_on:
+      staging-postgres:
+        condition: service_healthy
+      staging-redis:
+        condition: service_healthy
+    environment:
+      ENVIRONMENT: staging
+      APP_ENV: staging
+      WORKER_ID: worker-staging-2
+      DATABASE_URL: postgresql+asyncpg://${STAGING_DB_USER:-staging_agro}:${STAGING_DB_PASSWORD}@staging-postgres:5432/${STAGING_DB_NAME:-deepfarms_agro_staging}
+      REDIS_URL: redis://:${STAGING_REDIS_PASSWORD}@staging-redis:6379/0
+      JWT_SECRET_KEY: ${STAGING_JWT_SECRET_KEY:?Defina STAGING_JWT_SECRET_KEY no .env.staging}
+      PLATFORM_CREDENTIALS_MASTER_KEY: ${STAGING_PLATFORM_CREDENTIALS_MASTER_KEY:?Defina STAGING_PLATFORM_CREDENTIALS_MASTER_KEY no .env.staging}
+      INTEGRATIONS_SECRET_KEY: ${STAGING_INTEGRATIONS_SECRET_KEY:-staging_integrations_key_32chars_min}
+      S3_ENDPOINT_URL: http://staging-minio:9000
+      S3_ACCESS_KEY: ${STAGING_MINIO_USER:-staging_minio_admin}
+      S3_SECRET_KEY: ${STAGING_MINIO_PASSWORD}
+      S3_BUCKET_NAME: deepfarms-staging-bucket
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import urllib.request; urllib.request.urlopen(\"http://127.0.0.1:8000/api/v1/health\").read()' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    deploy:
+      resources:
+        limits:
+          cpus: "1.00"
+          memory: 1024M
+
+  # ----------------------------------------------------------------------------
+  # 6. Backoffice Web: Next.js (Porta 3001)
+  # ----------------------------------------------------------------------------
+  staging-web:
+    build:
+      context: ../..
+      dockerfile: Dockerfile.web
+    container_name: deepfarms-agro-staging-web
+    restart: unless-stopped
+    networks:
+      - staging_agro_net
+    ports:
+      - "127.0.0.1:3001:3000"
+    depends_on:
+      staging-api-worker-1:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_URL: http://127.0.0.1:8001
+    healthcheck:
+      test: ["CMD-SHELL", "node -e 'require(\"http\").get(\"http://127.0.0.1:3000\", (r) => { if (r.statusCode < 500) process.exit(0); else process.exit(1); })'"]
+      interval: 15s
+      timeout: 5s
+      retries: 4
+      start_period: 25s
+    deploy:
+      resources:
+        limits:
+          cpus: "1.00"
+          memory: 1024M
+
+  # ----------------------------------------------------------------------------
+  # 7. PWA Agro: Next.js (Porta 3005)
+  # ----------------------------------------------------------------------------
+  staging-agro:
+    build:
+      context: ../..
+      dockerfile: Dockerfile.agro
+    container_name: deepfarms-agro-staging-agro
+    restart: unless-stopped
+    networks:
+      - staging_agro_net
+    ports:
+      - "127.0.0.1:3005:3004"
+    depends_on:
+      staging-api-worker-1:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_URL: http://127.0.0.1:8001
+    healthcheck:
+      test: ["CMD-SHELL", "node -e 'require(\"http\").get(\"http://127.0.0.1:3004\", (r) => { if (r.statusCode < 500) process.exit(0); else process.exit(1); })'"]
+      interval: 15s
+      timeout: 5s
+      retries: 4
+      start_period: 25s
+    deploy:
+      resources:
+        limits:
+          cpus: "1.00"
+          memory: 1024M

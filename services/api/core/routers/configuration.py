@@ -1,16 +1,20 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List, Optional
 from uuid import UUID
 from loguru import logger
 
-from core.dependencies import get_session, get_current_admin, get_current_tenant, get_current_user_claims, get_current_user
+from core.dependencies import get_session, get_current_admin, get_current_tenant, get_current_user_claims, get_current_user, require_permission
 from core.exceptions import BusinessRuleError, EntityNotFoundError
 from core.models.tenant import Tenant
 from core.models.configuration import ConfiguracaoSaaS
 from core.models.tenant_config import ConfiguracaoTenant
 from core.models.auth import Usuario
+from core.models.admin_audit_log import AdminAuditLog
+from core.services.config_masking import mask_sensitive_data
+from core.services.agro_config_service import agro_config_service, extrair_admin_identity
+from core.services.admin_audit_service import resolve_admin_identity
 from core.schemas.config_schemas import (
     SaaSConfigResponse, SaaSConfigUpdate, SMTPConfig,
     TenantConfigResponse, TenantConfigUpdate,
@@ -42,23 +46,59 @@ router = APIRouter(prefix="/config", tags=["Configurações"])
 @router.get("/saas", response_model=List[SaaSConfigResponse])
 async def list_saas_configs(
     session: AsyncSession = Depends(get_session),
-    claims: dict = Depends(get_current_user_claims)
+    admin_claims: dict = Depends(require_permission("backoffice:config:view")),
 ):
+    """Lista todas as configurações globais da plataforma, com segredos mascarados."""
+    del admin_claims
     stmt = select(ConfiguracaoSaaS)
     result = await session.execute(stmt)
-    return result.scalars().all()
+    records = result.scalars().all()
+
+    return [
+        SaaSConfigResponse(
+            chave=rec.chave,
+            valor=mask_sensitive_data(rec.valor, parent_key=rec.chave),
+            descricao=rec.descricao,
+            ativo=rec.ativo,
+        )
+        for rec in records
+    ]
 
 
 @router.put("/saas/{chave}", response_model=SaaSConfigResponse)
 async def update_saas_config(
     chave: str,
     data: SaaSConfigUpdate,
+    request: Request,
     session: AsyncSession = Depends(get_session),
-    claims: dict = Depends(get_current_user_claims)
+    admin_claims: dict = Depends(require_permission("backoffice:config:edit")),
 ):
+    """Atualiza ou cria uma configuração global com validação, auditoria e mascaramento."""
+    # Se a chave pertencer ao namespace do Agro, delega para validação tipada e versionamento
+    if chave.startswith("agro:"):
+        config, _ = await agro_config_service.update_config(
+            session=session,
+            chave=chave,
+            novo_valor=data.valor,
+            admin_claims=admin_claims,
+            descricao=data.descricao,
+            ativo=data.ativo,
+            ip_address=request.client.host if request.client else None,
+            user_agent=request.headers.get("user-agent"),
+        )
+        return SaaSConfigResponse(
+            chave=config.chave,
+            valor=mask_sensitive_data(config.valor, parent_key=config.chave),
+            descricao=config.descricao,
+            ativo=config.ativo,
+        )
+
+    # Configurações gerais do SaaS
     stmt = select(ConfiguracaoSaaS).where(ConfiguracaoSaaS.chave == chave)
     result = await session.execute(stmt)
     config = result.scalar_one_or_none()
+
+    dados_anteriores = config.valor if config and isinstance(config.valor, dict) else {}
 
     if not config:
         config = ConfiguracaoSaaS(chave=chave, valor=data.valor, descricao=data.descricao)
@@ -70,9 +110,29 @@ async def update_saas_config(
         if data.ativo is not None:
             config.ativo = data.ativo
 
+    admin_uid, admin_email = await resolve_admin_identity(session, admin_claims)
+    audit = AdminAuditLog(
+        admin_user_id=admin_uid,
+        admin_email=admin_email,
+        acao="saas.config.update",
+        entidade="configuracoes_saas",
+        descricao=f"Configuração global da plataforma '{chave}' atualizada pelo operador {admin_email}.",
+        dados_anteriores=mask_sensitive_data(dados_anteriores, parent_key=chave),
+        dados_novos=mask_sensitive_data(data.valor, parent_key=chave),
+        ip_address=request.client.host if request.client else None,
+        user_agent=request.headers.get("user-agent"),
+    )
+    session.add(audit)
+
     await session.commit()
     await session.refresh(config)
-    return config
+
+    return SaaSConfigResponse(
+        chave=config.chave,
+        valor=mask_sensitive_data(config.valor, parent_key=config.chave),
+        descricao=config.descricao,
+        ativo=config.ativo,
+    )
 
 
 @router.post("/saas/smtp_global/test")

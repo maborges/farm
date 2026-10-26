@@ -110,13 +110,8 @@ def _resolve_request_tenant_id(request: Request | None) -> uuid.UUID | None:
 
     try:
         token = authorization.split(" ", 1)[1]
-        payload = jwt.decode(
-            token,
-            settings.jwt_secret_key,
-            algorithms=[settings.jwt_algorithm],
-            options={"verify_exp": False},
-        )
-    except (IndexError, JWTError):
+        payload = _decode_platform_token(token)
+    except (IndexError, HTTPException):
         return None
 
     tenant_id_str = payload.get("tenant_id")
@@ -179,38 +174,153 @@ async def get_session(request: Request = None) -> AsyncGenerator[AsyncSession, N
             raise
         yield session
 
-def get_token(request: Request) -> str:
-    authorization = request.headers.get("Authorization")
-    if not authorization or not authorization.startswith("Bearer "):
+def _verify_csrf_for_cookie(request: Request) -> None:
+    """Valida CSRF quando a requisição é autenticada por cookie e altera estado."""
+    if request.method not in ("POST", "PUT", "PATCH", "DELETE"):
+        return
+
+    sec_fetch_site = request.headers.get("sec-fetch-site")
+    if sec_fetch_site == "cross-site":
         logger.warning(
-            "Auth header ausente ou inválido",
+            "CSRF bloqueado por sec-fetch-site cross-site",
             path=str(request.url.path),
             method=request.method,
-            has_authorization_header=authorization is not None,
-            authorization_prefix=(authorization[:20] if authorization else None),
-            origin=request.headers.get("origin"),
-            referer=request.headers.get("referer"),
         )
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Não autenticado"
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Requisição cross-site bloqueada por política de segurança CSRF.",
         )
-    return authorization.split(" ")[1]
 
-async def get_current_user_claims(
-    token: str = Depends(get_token),
-    session: AsyncSession = Depends(get_session),
-) -> dict:
-    """Extrai as claims do JWT e valida se a sessão está ativa no banco."""
+    origin = request.headers.get("origin")
+    referer = request.headers.get("referer")
+    effective_origin: str | None = None
+    if origin:
+        effective_origin = origin.rstrip("/")
+    elif referer:
+        from urllib.parse import urlparse
+        parsed = urlparse(referer)
+        if parsed.scheme and parsed.netloc:
+            effective_origin = f"{parsed.scheme}://{parsed.netloc}"
 
+    if effective_origin:
+        allowed = {o.rstrip("/") for o in settings.allow_origins}
+        if effective_origin not in allowed and not effective_origin.endswith(".deepfarms.com.br"):
+            custom_csrf = request.headers.get("X-Agro-CSRF") or request.headers.get("X-Requested-With")
+            if not custom_csrf:
+                logger.warning(
+                    "CSRF bloqueado por origem não autorizada",
+                    origin=effective_origin,
+                    path=str(request.url.path),
+                )
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Origem não autorizada para operações autenticadas por cookie.",
+                )
+
+
+def get_token(request: Request) -> str:
+    authorization = request.headers.get("Authorization")
+    if authorization and authorization.startswith("Bearer "):
+        return authorization.split(" ")[1]
+
+    # Cookie fallback (deepfarms_agro_session ou deepfarms_session)
+    cookie_token = request.cookies.get("deepfarms_agro_session") or request.cookies.get("deepfarms_session")
+    if cookie_token:
+        _verify_csrf_for_cookie(request)
+        return cookie_token
+
+    logger.warning(
+        "Auth header e cookie ausentes ou inválidos",
+        path=str(request.url.path),
+        method=request.method,
+        has_authorization_header=authorization is not None,
+        origin=request.headers.get("origin"),
+        referer=request.headers.get("referer"),
+    )
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Não autenticado"
+    )
+
+def verify_commercial_jwt_guardrail(token: str = Depends(get_token)) -> str:
+    """GUARDRAIL MANDATÓRIO: Tokens de identidade individual do DeepFarms Agro (INDIVIDUAL_FREE)
+
+    NUNCA têm permissão para acessar rotas e recursos comerciais do SaaS.
+    Rejeita imediatamente com 403 Forbidden ANTES de adquirir qualquer conexão do pool comercial.
+    """
     try:
-        payload = jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
-    except JWTError:
+        unverified_claims = jwt.get_unverified_claims(token)
+        account_type = unverified_claims.get("account_type")
+        scopes = unverified_claims.get("product_scope") or []
+        token_version = unverified_claims.get("token_version", 1)
+        is_v2 = isinstance(token_version, int) and token_version >= 2
+        if (
+            account_type == "INDIVIDUAL_FREE"
+            or unverified_claims.get("iss") == "deepfarms:agro:auth"
+            or (is_v2 and account_type != "PLATFORM_ADMIN" and "saas" not in scopes)
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Tokens de identidade individual do DeepFarms Agro não possuem acesso aos recursos comerciais do SaaS.",
+            )
+    except HTTPException:
+        raise
+    except Exception:
+        pass
+    return token
+
+
+def _decode_platform_token(token: str) -> dict:
+    """Valida tokens v2 estritamente e mantém leitura temporária de JWTs legados."""
+    try:
+        unverified = jwt.get_unverified_claims(token)
+        options: dict = {}
+        decode_kwargs: dict = {}
+        token_version = unverified.get("token_version", 1)
+        is_v2 = isinstance(token_version, int) and token_version >= 2
+        if is_v2:
+            decode_kwargs = {
+                "issuer": settings.jwt_issuer,
+                "audience": settings.jwt_audience,
+            }
+        else:
+            options = {"verify_aud": False, "verify_iss": False}
+        payload = jwt.decode(
+            token,
+            settings.jwt_secret_key,
+            algorithms=[settings.jwt_algorithm],
+            options=options,
+            **decode_kwargs,
+        )
+    except JWTError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token inválido ou expirado",
-        )
+        ) from exc
 
+    token_version = payload.get("token_version", 1)
+    if isinstance(token_version, int) and token_version >= 2:
+        account_type = payload.get("account_type")
+        scopes = payload.get("product_scope")
+        if not isinstance(scopes, list) or not scopes:
+            raise HTTPException(status_code=401, detail="Token sem escopo de produto")
+        if account_type not in {"INDIVIDUAL_FREE", "COMMERCIAL", "PLATFORM_ADMIN"}:
+            raise HTTPException(status_code=401, detail="Tipo de conta inválido")
+        if account_type == "INDIVIDUAL_FREE" and (
+            payload.get("tenant_id") is not None or "agro:free" not in scopes
+        ):
+            raise HTTPException(status_code=403, detail="Contexto comercial inválido")
+        if account_type == "COMMERCIAL" and (
+            not payload.get("tenant_id") or "saas" not in scopes
+        ):
+            raise HTTPException(status_code=403, detail="Contexto comercial inválido")
+        if account_type == "PLATFORM_ADMIN" and "backoffice" not in scopes:
+            raise HTTPException(status_code=403, detail="Escopo administrativo inválido")
+    return payload
+
+
+async def _validate_token_session(token: str, session: AsyncSession) -> dict:
+    payload = _decode_platform_token(token)
     token_hash = hashlib.sha256(token.encode()).hexdigest()
     cached = _cache_get(token_hash)
 
@@ -229,6 +339,10 @@ async def get_current_user_claims(
             )
             sessao = result.one_or_none()
             sessao_status = sessao[0] if sessao else None
+
+            if payload.get("session_required") is True and sessao is None:
+                _cache_set(token_hash, False)
+                raise HTTPException(status_code=401, detail="Sessão inexistente ou revogada")
 
             if sessao_status is not None and sessao_status != "ATIVA":
                 _cache_set(token_hash, False)
@@ -271,6 +385,22 @@ async def get_current_user_claims(
 
     return payload
 
+
+async def get_global_user_claims(
+    token: str = Depends(get_token),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Valida identidade global, inclusive contas sem tenant."""
+    return await _validate_token_session(token, session)
+
+
+async def get_current_user_claims(
+    token: str = Depends(verify_commercial_jwt_guardrail),
+    session: AsyncSession = Depends(get_session),
+) -> dict:
+    """Valida identidade e impede que contas gratuitas alcancem rotas comerciais."""
+    return await _validate_token_session(token, session)
+
 async def get_tenant_id(
     request: Request,
     claims: dict = Depends(get_current_user_claims),
@@ -287,6 +417,22 @@ async def get_tenant_id(
             except ValueError:
                 raise HTTPException(status_code=403, detail=TENANT_CONTEXT_ERROR)
             if header_tenant_id != tenant_id:
+                raise HTTPException(status_code=403, detail=TENANT_CONTEXT_ERROR)
+        if not claims.get("is_superuser"):
+            from core.models.auth import TenantUsuario
+
+            try:
+                user_id = uuid.UUID(claims["sub"])
+            except (KeyError, ValueError):
+                raise HTTPException(status_code=403, detail=TENANT_CONTEXT_ERROR)
+            link = (await session.execute(
+                select(TenantUsuario.id).where(
+                    TenantUsuario.tenant_id == tenant_id,
+                    TenantUsuario.usuario_id == user_id,
+                    TenantUsuario.status == "ATIVO",
+                )
+            )).scalar_one_or_none()
+            if link is None:
                 raise HTTPException(status_code=403, detail=TENANT_CONTEXT_ERROR)
         await _activate_session_tenant(session, tenant_id)
         return tenant_id
@@ -786,6 +932,9 @@ def require_permission(permissao: str):
         from core.models.admin_user import AdminUser
         if claims.get("is_superuser"):
             return claims
+        claims_perms = claims.get("permissoes") or []
+        if permissao in claims_perms:
+            return claims
         user_id_str = claims.get("sub")
         if user_id_str:
             try:
@@ -802,6 +951,52 @@ def require_permission(permissao: str):
         if BackofficePermissions.has_permission(role, permissao):
             return claims
         raise HTTPException(status_code=403, detail=f"Permissão negada: {permissao}")
+    return dependency
+
+
+def require_any_permission(*permissoes: Any):
+    """Dependency para verificar se o operador possui pelo menos uma das permissões indicadas."""
+    flat_perms: list[str] = []
+    for item in permissoes:
+        if isinstance(item, (list, tuple, set)):
+            flat_perms.extend([str(x) for x in item])
+        else:
+            flat_perms.append(str(item))
+
+    async def dependency(
+        claims: dict = Depends(get_current_admin),
+        session: AsyncSession = Depends(get_session)
+    ):
+        from core.constants import BackofficePermissions
+        from core.models.admin_user import AdminUser
+        if claims.get("is_superuser"):
+            return claims
+        claims_perms = claims.get("permissoes") or []
+        for p in flat_perms:
+            if p in claims_perms:
+                return claims
+        user_id_str = claims.get("sub")
+        if user_id_str:
+            try:
+                admin_id = uuid.UUID(user_id_str)
+                result = await session.execute(
+                    select(AdminUser).where(AdminUser.id == admin_id, AdminUser.ativo == True)
+                )
+                admin_user = result.scalar_one_or_none()
+                if admin_user:
+                    for p in flat_perms:
+                        if admin_user.tem_permissao(p) or BackofficePermissions.has_permission(admin_user.role, p):
+                            return claims
+            except ValueError:
+                pass
+        role = claims.get("role", "admin")
+        for p in flat_perms:
+            if BackofficePermissions.has_permission(role, p):
+                return claims
+        raise HTTPException(
+            status_code=403,
+            detail=f"Permissão negada. Requer ao menos uma das seguintes permissões: {', '.join(flat_perms)}"
+        )
     return dependency
 
 async def resolver_permissao_usuario(

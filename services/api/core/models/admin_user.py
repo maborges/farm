@@ -37,17 +37,5 @@ class AdminUser(Base):
 
     def tem_permissao(self, permissao: str) -> bool:
         """Verifica se admin tem permissão."""
-        from core.dependencies import ADMIN_PERMISSIONS
-        user_perms = ADMIN_PERMISSIONS.get(self.role, [])
-
-        if "*" in user_perms:
-            return True
-
-        if ":" not in permissao:
-            return permissao in user_perms
-
-        resource, action = permissao.split(":")
-        return any(
-            perm == permissao or perm == f"{resource}:*"
-            for perm in user_perms
-        )
+        from core.constants import BackofficePermissions
+        return BackofficePermissions.has_permission(self.role, permissao)

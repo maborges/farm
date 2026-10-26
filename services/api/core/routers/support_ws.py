@@ -71,7 +71,10 @@ async def _resolve_user_from_token(token: str) -> tuple[str, bool]:
         HTTPException 401 se token inválido.
     """
     try:
-        payload = jwt.decode(token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm])
+        from core.dependencies import _decode_platform_token, verify_commercial_jwt_guardrail
+
+        verify_commercial_jwt_guardrail(token)
+        payload = _decode_platform_token(token)
         user_id: str = payload.get("sub")
         tenant_id: str = payload.get("tenant_id")
         if not user_id:

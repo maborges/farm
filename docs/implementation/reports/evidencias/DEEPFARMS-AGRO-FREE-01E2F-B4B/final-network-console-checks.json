@@ -1,0 +1,218 @@
+{
+  "requests": [
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:3006/api/v1/public/mercado/ptax"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:3006/api/v1/public/mercado/indicadores-macro"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:3006/api/v1/public/mercado/ibge/catalogo"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:3006/api/v1/public/mercado/ibge/estatisticas?produto=soja&nivel=BRASIL&anos=5"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:3006/api/v1/public/mercado/precos"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:3006/api/v1/public/mercado/ptax"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:3006/api/v1/public/mercado/indicadores-macro"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:3006/api/v1/public/mercado/ibge/catalogo"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:3006/api/v1/public/mercado/ibge/estatisticas?produto=soja&nivel=BRASIL&anos=5"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:3006/api/v1/public/mercado/precos"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:3006/api/v1/public/mercado/ptax"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:3006/api/v1/public/mercado/indicadores-macro"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:3006/api/v1/public/mercado/ibge/catalogo"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:3006/api/v1/public/mercado/ibge/estatisticas?produto=soja&nivel=BRASIL&anos=5"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:3006/api/v1/public/mercado/precos"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:3006/api/v1/public/mercado/ibge/catalogo"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:3006/api/v1/public/mercado/precos"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:3006/api/v1/public/mercado/ptax"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:3006/api/v1/public/mercado/precos"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:3006/api/v1/public/mercado/ptax"
+    },
+    {
+      "method": "GET",
+      "url": "http://127.0.0.1:3006/api/v1/public/mercado/precos"
+    }
+  ],
+  "responses": [
+    {
+      "url": "http://127.0.0.1:3006/api/v1/public/mercado/precos",
+      "status": 200,
+      "body": "{\"sucesso\":true,\"versao\":\"1.0\",\"dataConsultaIso\":\"2026-10-21T23:20:44.771491Z\",\"cacheAtualizadoEmIso\":\"2026-10-21T23:13:13.939311Z\",\"estadoDisponibilidade\":\"NORMAL\",\"avisoLegal\":\"Preço médio semanal recebido pelo produtor, publicado pelo DERAL/SEAB-PR. Não constitui cotação em tempo real nem contrato futuro.\",\"itens\":[{\"id\":\"arroz\",\"commodityNome\":\"Arroz em Casca\",\"produtoOriginal\":\"Arroz em casca irrigado\",\"classificacao\":\"Arroz em casca irrigado — preço médio recebido pelo produtor\",\"valor\":107.0,\"moeda\":\"BRL\",\"unidade\":\"Saca de 60 kg\",\"pracaReferencia\":\"Paraná — média semanal estadual\",\"fonteOficial\":\"Departamento de Economia Rural / SEAB-PR\",\"siglaFonte\":\"DERAL/SEAB-PR\",\"linkOficial\":\"https://www.agricultura.pr.gov.br/deral/precos\",\"urlConsultaInstitucional\":\"https://www.agricultura.pr.gov.br/deral/precos\",\"urlDocumentoDownload\":\"https://www.agricultura.pr.gov.br/system/files/publico/Precos/prp.xls\",\"tipoPreco\":\"PRECO_MEDIO_RECEBIDO_PRODUTOR\",\"periodicidade\":\"SEMANAL\",\"dataReferencia\":\"2026-10-16\",\"dataConsultaIso\":\"2026-10-21T23:13:13.939311Z\",\"defasagemDiasAproximada\":5,\"indicacaoTemporal\":\"Semanal — Preço Médio Produtor\",\"avisoLegal\":\"Preço médio semanal recebido pelo produtor, publicado pelo DERAL/SEAB-PR. Não constitui cotação em tempo real nem contrato futuro.\",\"documentoOficial\":\"https://www.agricultura.pr.gov.br/system/files/publico/Precos/prp.xls\",\"documentoHashSha256\":\"65582dc4c47c8993415dc71ee9af6ed69651b7279d65ab31f4316a1bc787dde1\",\"dataPublicacao\":null,\"registroOriginal\":\"Rav!X6\",\"valorOriginal\":107.0009,\"unidadeOriginal\":\"60 kg\",\"transformacaoAplicada\":\"Arredondamento decimal HALF_UP para 2 casas\"},{\"id\":\"milho\",\"commodityNome\":\"Milho Físico\",\"produtoOriginal\":\"Milho\",\"classificacao\":\"Milho — preço médio recebido pelo produtor\",\"valor\":51.77,\"moeda\":\"BRL\",\"unidade\":\"Saca de 60 kg\",\"pracaReferencia\":\"Paraná — média semanal estadual\",\"fonteOficial\":\"Departamento de Economia Rural / SEAB-PR\",\"siglaFonte\":\"DERAL/SEAB-PR\",\"linkOficial\":\"https://www.agricultura.pr.gov.br/deral/precos\",\"urlConsultaInstitucional\":\"https://www.agricultura.pr.gov.br/deral/precos\",\"urlDocumentoDownload\":\"https://www.agricultura.pr.gov.br/system/files/publico/Precos/prp.xls\",\"tipoPreco\":\"PRECO_MEDIO_RECEBIDO_PRODUTOR\",\"periodicidade\":\"SEMANAL\",\"dataReferencia\":\"2026-10-16\",\"dataConsultaIso\":\"2026-10-21T23:13:13.939311Z\",\"defasagemDiasAproximada\":5,\"indicacaoTemporal\":\"Semanal — Preço Médio Produtor\",\"avisoLegal\":\"Preço médio semanal recebido pelo produtor, publicado pelo DERAL/SEAB-PR. Não constitui cotação em tempo real nem contrato futuro.\",\"documentoOficial\":\"https://www.agricultura.pr.gov.br/system/files/publico/Precos/prp.xls\",\"documentoHashSha256\":\"65582dc4c47c8993415dc71ee9af6ed69651b7279d65ab31f4316a1bc787dde1\",\"dataPublicacao\":null,\"registroOriginal\":\"Rav!X11\",\"valorOriginal\":51.7745,\"unidadeOriginal\":\"60 kg\",\"transformacaoAplicada\":\"Arredondamento decimal HALF_UP para 2 casas\"},{\"id\":\"soja\",\"commodityNome\":\"Soja em Grão\",\"produtoOriginal\":\"Soja\",\"classificacao\":\"Soja — preço médio recebido pelo produtor\",\"valor\":134.98,\"moeda\":\"BRL\",\"unidade\":\"Saca de 60 kg\",\"pracaReferencia\":\"Paraná — média semanal estadual\",\"fonteOficial\":\"Departamento de Economia Rural / SEAB-PR\",\"siglaFonte\":\"DERAL/SEAB-PR\",\"linkOficial\":\"https://www.agricultura.pr.gov.br/deral/precos\",\"urlConsultaInstitucional\":\"https://www.agricultura.pr.gov.br/deral/precos\",\"urlDocumentoDownload\":\"https://www.agricultura.pr.gov.br/system/files/publico/Precos/prp.xls\",\"tipoPreco\":\"PRECO_MEDIO_RECEBIDO_PRODUTOR\",\"periodicidade\":\"SEMANAL\",\"dataReferencia\":\"2026-10-16\",\"dataConsultaIso\":\"2026-10-21T23:13:13.939311Z\",\"defasagemDiasAproximada\":5,\"indicacaoTemporal\":\"Semanal — Preço Médio Produtor\",\"avisoLegal\":\"Preço médio semanal recebido pelo produtor, publicado pelo DERAL/SEAB-PR. Não constitui cotação em tempo real nem contrato futuro.\",\"documentoOficial\":\"https://www.agricultura.pr.gov.br/system/files/publico/Precos/prp.xls\",\"documentoHashSha256\":\"65582dc4c47c8993415dc71ee9af6ed69651b7279d65ab31f4316a1bc787dde1\",\"dataPublicacao\":null,\"registroOriginal\":\"Rav!X12\",\"valorOriginal\":134.9794,\"unidadeOriginal\":\"60 kg\",\"transformacaoAplicada\":\"Arredondamento decimal HALF_UP para 2 casas\"},{\"id\":\"trigo\",\"commodityNome\":\"Trigo em Grão\",\"produtoOriginal\":\"Trigo\",\"classificacao\":\"Trigo — preço médio recebido pelo produtor\",\"valor\":78.93,\"moeda\":\"BRL\",\"unidade\":\"Saca de 60 kg\",\"pracaReferencia\":\"Paraná — média semanal estadual\",\"fonteOficial\":\"Departamento de Economia Rural / SEAB-PR\",\"siglaFonte\":\"DERAL/SEAB-PR\",\"linkOficial\":\"https://www.agricultura.pr.gov.br/deral/precos\",\"urlConsultaInstitucional\":\"https://www.agricultura.pr.gov.br/deral/precos\",\"urlDocumentoDownload\":\"https://www.agricultura.pr.gov.br/system/files/publico/Precos/prp.xls\",\"tipoPreco\":\"PRECO_MEDIO_RECEBIDO_PRODUTOR\",\"periodicidade\":\"SEMANAL\",\"dataReferencia\":\"2026-10-16\",\"dataConsultaIso\":\"2026-10-21T23:13:13.939311Z\",\"defasagemDiasAproximada\":5,\"indicacaoTemporal\":\"Semanal — Preço Médio Produtor\",\"avisoLegal\":\"Preço médio semanal recebido pelo produtor, publicado pelo DERAL/SEAB-PR. Não constitui cotação em tempo real nem contrato futuro.\",\"documentoOficial\":\"https://www.agricultura.pr.gov.br/system/files/publico/Precos/prp.xls\",\"documentoHashSha256\":\"65582dc4c47c8993415dc71ee9af6ed69651b7279d65ab31f4316a1bc787dde1\",\"dataPublicacao\":null,\"registroOriginal\":\"Rav!X17\",\"valorOriginal\":78.9314,\"unidadeOriginal\":\"60 kg\",\"transformacaoAplicada\":\"Arredondamento decimal HALF_UP para 2 casas\"},{\"id\":\"boi-gordo\",\"commodityNome\":\"Boi Gordo\",\"produtoOriginal\":\"Boi gordo\",\"classificacao\":\"Boi gordo — preço médio recebido pelo produtor\",\"valor\":371.21,\"moeda\":\"BRL\",\"unidade\":\"Arroba\",\"pracaReferencia\":\"Paraná — média semanal estadual\",\"fonteOficial\":\"Departamento de Economia Rural / SEAB-PR\",\"siglaFonte\":\"DERAL/SEAB-PR\",\"linkOficial\":\"https://www.agricultura.pr.gov.br/deral/precos\",\"urlConsultaInstitucional\":\"https://www.agricultura.pr.gov.br/deral/precos\",\"urlDocumentoDownload\":\"https://www.agricultura.pr.gov.br/system/files/publico/Precos/prp.xls\",\"tipoPreco\":\"PRECO_MEDIO_RECEBIDO_PRODUTOR\",\"periodicidade\":\"SEMANAL\",\"dataReferencia\":\"2026-10-16\",\"dataConsultaIso\":\"2026-10-21T23:13:13.939311Z\",\"defasagemDiasAproximada\":5,\"indicacaoTemporal\":\"Semanal — Preço Médio Produtor\",\"avisoLegal\":\"Preço médio semanal recebido pelo produtor, publicado pelo DERAL/SEAB-PR. Não constitui cotação em tempo real nem contrato futuro.\",\"documentoOficial\":\"https://www.agricultura.pr.gov.br/system/files/publico/Precos/prp.xls\",\"documentoHashSha256\":\"65582dc4c47c8993415dc71ee9af6ed69651b7279d65ab31f4316a1bc787dde1\",\"dataPublicacao\":null,\"registroOriginal\":\"Rav!X46\",\"valorOriginal\":371.205,\"unidadeOriginal\":\"arroba\",\"transformacaoAplicada\":\"Arredondamento decimal HALF_UP para 2 casas\"}]}"
+    },
+    {
+      "url": "http://127.0.0.1:3006/api/v1/public/mercado/precos",
+      "status": 200,
+      "body": ""
+    },
+    {
+      "url": "http://127.0.0.1:3006/api/v1/public/mercado/precos",
+      "status": 200,
+      "body": "{\"sucesso\":true,\"versao\":\"1.0\",\"dataConsultaIso\":\"2026-10-21T23:20:47.098354Z\",\"cacheAtualizadoEmIso\":\"2026-10-21T23:13:13.939311Z\",\"estadoDisponibilidade\":\"NORMAL\",\"avisoLegal\":\"Preço médio semanal recebido pelo produtor, publicado pelo DERAL/SEAB-PR. Não constitui cotação em tempo real nem contrato futuro.\",\"itens\":[{\"id\":\"arroz\",\"commodityNome\":\"Arroz em Casca\",\"produtoOriginal\":\"Arroz em casca irrigado\",\"classificacao\":\"Arroz em casca irrigado — preço médio recebido pelo produtor\",\"valor\":107.0,\"moeda\":\"BRL\",\"unidade\":\"Saca de 60 kg\",\"pracaReferencia\":\"Paraná — média semanal estadual\",\"fonteOficial\":\"Departamento de Economia Rural / SEAB-PR\",\"siglaFonte\":\"DERAL/SEAB-PR\",\"linkOficial\":\"https://www.agricultura.pr.gov.br/deral/precos\",\"urlConsultaInstitucional\":\"https://www.agricultura.pr.gov.br/deral/precos\",\"urlDocumentoDownload\":\"https://www.agricultura.pr.gov.br/system/files/publico/Precos/prp.xls\",\"tipoPreco\":\"PRECO_MEDIO_RECEBIDO_PRODUTOR\",\"periodicidade\":\"SEMANAL\",\"dataReferencia\":\"2026-10-16\",\"dataConsultaIso\":\"2026-10-21T23:13:13.939311Z\",\"defasagemDiasAproximada\":5,\"indicacaoTemporal\":\"Semanal — Preço Médio Produtor\",\"avisoLegal\":\"Preço médio semanal recebido pelo produtor, publicado pelo DERAL/SEAB-PR. Não constitui cotação em tempo real nem contrato futuro.\",\"documentoOficial\":\"https://www.agricultura.pr.gov.br/system/files/publico/Precos/prp.xls\",\"documentoHashSha256\":\"65582dc4c47c8993415dc71ee9af6ed69651b7279d65ab31f4316a1bc787dde1\",\"dataPublicacao\":null,\"registroOriginal\":\"Rav!X6\",\"valorOriginal\":107.0009,\"unidadeOriginal\":\"60 kg\",\"transformacaoAplicada\":\"Arredondamento decimal HALF_UP para 2 casas\"},{\"id\":\"milho\",\"commodityNome\":\"Milho Físico\",\"produtoOriginal\":\"Milho\",\"classificacao\":\"Milho — preço médio recebido pelo produtor\",\"valor\":51.77,\"moeda\":\"BRL\",\"unidade\":\"Saca de 60 kg\",\"pracaReferencia\":\"Paraná — média semanal estadual\",\"fonteOficial\":\"Departamento de Economia Rural / SEAB-PR\",\"siglaFonte\":\"DERAL/SEAB-PR\",\"linkOficial\":\"https://www.agricultura.pr.gov.br/deral/precos\",\"urlConsultaInstitucional\":\"https://www.agricultura.pr.gov.br/deral/precos\",\"urlDocumentoDownload\":\"https://www.agricultura.pr.gov.br/system/files/publico/Precos/prp.xls\",\"tipoPreco\":\"PRECO_MEDIO_RECEBIDO_PRODUTOR\",\"periodicidade\":\"SEMANAL\",\"dataReferencia\":\"2026-10-16\",\"dataConsultaIso\":\"2026-10-21T23:13:13.939311Z\",\"defasagemDiasAproximada\":5,\"indicacaoTemporal\":\"Semanal — Preço Médio Produtor\",\"avisoLegal\":\"Preço médio semanal recebido pelo produtor, publicado pelo DERAL/SEAB-PR. Não constitui cotação em tempo real nem contrato futuro.\",\"documentoOficial\":\"https://www.agricultura.pr.gov.br/system/files/publico/Precos/prp.xls\",\"documentoHashSha256\":\"65582dc4c47c8993415dc71ee9af6ed69651b7279d65ab31f4316a1bc787dde1\",\"dataPublicacao\":null,\"registroOriginal\":\"Rav!X11\",\"valorOriginal\":51.7745,\"unidadeOriginal\":\"60 kg\",\"transformacaoAplicada\":\"Arredondamento decimal HALF_UP para 2 casas\"},{\"id\":\"soja\",\"commodityNome\":\"Soja em Grão\",\"produtoOriginal\":\"Soja\",\"classificacao\":\"Soja — preço médio recebido pelo produtor\",\"valor\":134.98,\"moeda\":\"BRL\",\"unidade\":\"Saca de 60 kg\",\"pracaReferencia\":\"Paraná — média semanal estadual\",\"fonteOficial\":\"Departamento de Economia Rural / SEAB-PR\",\"siglaFonte\":\"DERAL/SEAB-PR\",\"linkOficial\":\"https://www.agricultura.pr.gov.br/deral/precos\",\"urlConsultaInstitucional\":\"https://www.agricultura.pr.gov.br/deral/precos\",\"urlDocumentoDownload\":\"https://www.agricultura.pr.gov.br/system/files/publico/Precos/prp.xls\",\"tipoPreco\":\"PRECO_MEDIO_RECEBIDO_PRODUTOR\",\"periodicidade\":\"SEMANAL\",\"dataReferencia\":\"2026-10-16\",\"dataConsultaIso\":\"2026-10-21T23:13:13.939311Z\",\"defasagemDiasAproximada\":5,\"indicacaoTemporal\":\"Semanal — Preço Médio Produtor\",\"avisoLegal\":\"Preço médio semanal recebido pelo produtor, publicado pelo DERAL/SEAB-PR. Não constitui cotação em tempo real nem contrato futuro.\",\"documentoOficial\":\"https://www.agricultura.pr.gov.br/system/files/publico/Precos/prp.xls\",\"documentoHashSha256\":\"65582dc4c47c8993415dc71ee9af6ed69651b7279d65ab31f4316a1bc787dde1\",\"dataPublicacao\":null,\"registroOriginal\":\"Rav!X12\",\"valorOriginal\":134.9794,\"unidadeOriginal\":\"60 kg\",\"transformacaoAplicada\":\"Arredondamento decimal HALF_UP para 2 casas\"},{\"id\":\"trigo\",\"commodityNome\":\"Trigo em Grão\",\"produtoOriginal\":\"Trigo\",\"classificacao\":\"Trigo — preço médio recebido pelo produtor\",\"valor\":78.93,\"moeda\":\"BRL\",\"unidade\":\"Saca de 60 kg\",\"pracaReferencia\":\"Paraná — média semanal estadual\",\"fonteOficial\":\"Departamento de Economia Rural / SEAB-PR\",\"siglaFonte\":\"DERAL/SEAB-PR\",\"linkOficial\":\"https://www.agricultura.pr.gov.br/deral/precos\",\"urlConsultaInstitucional\":\"https://www.agricultura.pr.gov.br/deral/precos\",\"urlDocumentoDownload\":\"https://www.agricultura.pr.gov.br/system/files/publico/Precos/prp.xls\",\"tipoPreco\":\"PRECO_MEDIO_RECEBIDO_PRODUTOR\",\"periodicidade\":\"SEMANAL\",\"dataReferencia\":\"2026-10-16\",\"dataConsultaIso\":\"2026-10-21T23:13:13.939311Z\",\"defasagemDiasAproximada\":5,\"indicacaoTemporal\":\"Semanal — Preço Médio Produtor\",\"avisoLegal\":\"Preço médio semanal recebido pelo produtor, publicado pelo DERAL/SEAB-PR. Não constitui cotação em tempo real nem contrato futuro.\",\"documentoOficial\":\"https://www.agricultura.pr.gov.br/system/files/publico/Precos/prp.xls\",\"documentoHashSha256\":\"65582dc4c47c8993415dc71ee9af6ed69651b7279d65ab31f4316a1bc787dde1\",\"dataPublicacao\":null,\"registroOriginal\":\"Rav!X17\",\"valorOriginal\":78.9314,\"unidadeOriginal\":\"60 kg\",\"transformacaoAplicada\":\"Arredondamento decimal HALF_UP para 2 casas\"},{\"id\":\"boi-gordo\",\"commodityNome\":\"Boi Gordo\",\"produtoOriginal\":\"Boi gordo\",\"classificacao\":\"Boi gordo — preço médio recebido pelo produtor\",\"valor\":371.21,\"moeda\":\"BRL\",\"unidade\":\"Arroba\",\"pracaReferencia\":\"Paraná — média semanal estadual\",\"fonteOficial\":\"Departamento de Economia Rural / SEAB-PR\",\"siglaFonte\":\"DERAL/SEAB-PR\",\"linkOficial\":\"https://www.agricultura.pr.gov.br/deral/precos\",\"urlConsultaInstitucional\":\"https://www.agricultura.pr.gov.br/deral/precos\",\"urlDocumentoDownload\":\"https://www.agricultura.pr.gov.br/system/files/publico/Precos/prp.xls\",\"tipoPreco\":\"PRECO_MEDIO_RECEBIDO_PRODUTOR\",\"periodicidade\":\"SEMANAL\",\"dataReferencia\":\"2026-10-16\",\"dataConsultaIso\":\"2026-10-21T23:13:13.939311Z\",\"defasagemDiasAproximada\":5,\"indicacaoTemporal\":\"Semanal — Preço Médio Produtor\",\"avisoLegal\":\"Preço médio semanal recebido pelo produtor, publicado pelo DERAL/SEAB-PR. Não constitui cotação em tempo real nem contrato futuro.\",\"documentoOficial\":\"https://www.agricultura.pr.gov.br/system/files/publico/Precos/prp.xls\",\"documentoHashSha256\":\"65582dc4c47c8993415dc71ee9af6ed69651b7279d65ab31f4316a1bc787dde1\",\"dataPublicacao\":null,\"registroOriginal\":\"Rav!X46\",\"valorOriginal\":371.205,\"unidadeOriginal\":\"arroba\",\"transformacaoAplicada\":\"Arredondamento decimal HALF_UP para 2 casas\"}]}"
+    },
+    {
+      "url": "http://127.0.0.1:3006/api/v1/public/mercado/precos",
+      "status": 200,
+      "body": ""
+    },
+    {
+      "url": "http://127.0.0.1:3006/api/v1/public/mercado/precos",
+      "status": 200,
+      "body": "{\"sucesso\":true,\"versao\":\"1.0\",\"dataConsultaIso\":\"2026-10-21T23:20:48.292913Z\",\"cacheAtualizadoEmIso\":\"2026-10-21T23:13:13.939311Z\",\"estadoDisponibilidade\":\"NORMAL\",\"avisoLegal\":\"Preço médio semanal recebido pelo produtor, publicado pelo DERAL/SEAB-PR. Não constitui cotação em tempo real nem contrato futuro.\",\"itens\":[{\"id\":\"arroz\",\"commodityNome\":\"Arroz em Casca\",\"produtoOriginal\":\"Arroz em casca irrigado\",\"classificacao\":\"Arroz em casca irrigado — preço médio recebido pelo produtor\",\"valor\":107.0,\"moeda\":\"BRL\",\"unidade\":\"Saca de 60 kg\",\"pracaReferencia\":\"Paraná — média semanal estadual\",\"fonteOficial\":\"Departamento de Economia Rural / SEAB-PR\",\"siglaFonte\":\"DERAL/SEAB-PR\",\"linkOficial\":\"https://www.agricultura.pr.gov.br/deral/precos\",\"urlConsultaInstitucional\":\"https://www.agricultura.pr.gov.br/deral/precos\",\"urlDocumentoDownload\":\"https://www.agricultura.pr.gov.br/system/files/publico/Precos/prp.xls\",\"tipoPreco\":\"PRECO_MEDIO_RECEBIDO_PRODUTOR\",\"periodicidade\":\"SEMANAL\",\"dataReferencia\":\"2026-10-16\",\"dataConsultaIso\":\"2026-10-21T23:13:13.939311Z\",\"defasagemDiasAproximada\":5,\"indicacaoTemporal\":\"Semanal — Preço Médio Produtor\",\"avisoLegal\":\"Preço médio semanal recebido pelo produtor, publicado pelo DERAL/SEAB-PR. Não constitui cotação em tempo real nem contrato futuro.\",\"documentoOficial\":\"https://www.agricultura.pr.gov.br/system/files/publico/Precos/prp.xls\",\"documentoHashSha256\":\"65582dc4c47c8993415dc71ee9af6ed69651b7279d65ab31f4316a1bc787dde1\",\"dataPublicacao\":null,\"registroOriginal\":\"Rav!X6\",\"valorOriginal\":107.0009,\"unidadeOriginal\":\"60 kg\",\"transformacaoAplicada\":\"Arredondamento decimal HALF_UP para 2 casas\"},{\"id\":\"milho\",\"commodityNome\":\"Milho Físico\",\"produtoOriginal\":\"Milho\",\"classificacao\":\"Milho — preço médio recebido pelo produtor\",\"valor\":51.77,\"moeda\":\"BRL\",\"unidade\":\"Saca de 60 kg\",\"pracaReferencia\":\"Paraná — média semanal estadual\",\"fonteOficial\":\"Departamento de Economia Rural / SEAB-PR\",\"siglaFonte\":\"DERAL/SEAB-PR\",\"linkOficial\":\"https://www.agricultura.pr.gov.br/deral/precos\",\"urlConsultaInstitucional\":\"https://www.agricultura.pr.gov.br/deral/precos\",\"urlDocumentoDownload\":\"https://www.agricultura.pr.gov.br/system/files/publico/Precos/prp.xls\",\"tipoPreco\":\"PRECO_MEDIO_RECEBIDO_PRODUTOR\",\"periodicidade\":\"SEMANAL\",\"dataReferencia\":\"2026-10-16\",\"dataConsultaIso\":\"2026-10-21T23:13:13.939311Z\",\"defasagemDiasAproximada\":5,\"indicacaoTemporal\":\"Semanal — Preço Médio Produtor\",\"avisoLegal\":\"Preço médio semanal recebido pelo produtor, publicado pelo DERAL/SEAB-PR. Não constitui cotação em tempo real nem contrato futuro.\",\"documentoOficial\":\"https://www.agricultura.pr.gov.br/system/files/publico/Precos/prp.xls\",\"documentoHashSha256\":\"65582dc4c47c8993415dc71ee9af6ed69651b7279d65ab31f4316a1bc787dde1\",\"dataPublicacao\":null,\"registroOriginal\":\"Rav!X11\",\"valorOriginal\":51.7745,\"unidadeOriginal\":\"60 kg\",\"transformacaoAplicada\":\"Arredondamento decimal HALF_UP para 2 casas\"},{\"id\":\"soja\",\"commodityNome\":\"Soja em Grão\",\"produtoOriginal\":\"Soja\",\"classificacao\":\"Soja — preço médio recebido pelo produtor\",\"valor\":134.98,\"moeda\":\"BRL\",\"unidade\":\"Saca de 60 kg\",\"pracaReferencia\":\"Paraná — média semanal estadual\",\"fonteOficial\":\"Departamento de Economia Rural / SEAB-PR\",\"siglaFonte\":\"DERAL/SEAB-PR\",\"linkOficial\":\"https://www.agricultura.pr.gov.br/deral/precos\",\"urlConsultaInstitucional\":\"https://www.agricultura.pr.gov.br/deral/precos\",\"urlDocumentoDownload\":\"https://www.agricultura.pr.gov.br/system/files/publico/Precos/prp.xls\",\"tipoPreco\":\"PRECO_MEDIO_RECEBIDO_PRODUTOR\",\"periodicidade\":\"SEMANAL\",\"dataReferencia\":\"2026-10-16\",\"dataConsultaIso\":\"2026-10-21T23:13:13.939311Z\",\"defasagemDiasAproximada\":5,\"indicacaoTemporal\":\"Semanal — Preço Médio Produtor\",\"avisoLegal\":\"Preço médio semanal recebido pelo produtor, publicado pelo DERAL/SEAB-PR. Não constitui cotação em tempo real nem contrato futuro.\",\"documentoOficial\":\"https://www.agricultura.pr.gov.br/system/files/publico/Precos/prp.xls\",\"documentoHashSha256\":\"65582dc4c47c8993415dc71ee9af6ed69651b7279d65ab31f4316a1bc787dde1\",\"dataPublicacao\":null,\"registroOriginal\":\"Rav!X12\",\"valorOriginal\":134.9794,\"unidadeOriginal\":\"60 kg\",\"transformacaoAplicada\":\"Arredondamento decimal HALF_UP para 2 casas\"},{\"id\":\"trigo\",\"commodityNome\":\"Trigo em Grão\",\"produtoOriginal\":\"Trigo\",\"classificacao\":\"Trigo — preço médio recebido pelo produtor\",\"valor\":78.93,\"moeda\":\"BRL\",\"unidade\":\"Saca de 60 kg\",\"pracaReferencia\":\"Paraná — média semanal estadual\",\"fonteOficial\":\"Departamento de Economia Rural / SEAB-PR\",\"siglaFonte\":\"DERAL/SEAB-PR\",\"linkOficial\":\"https://www.agricultura.pr.gov.br/deral/precos\",\"urlConsultaInstitucional\":\"https://www.agricultura.pr.gov.br/deral/precos\",\"urlDocumentoDownload\":\"https://www.agricultura.pr.gov.br/system/files/publico/Precos/prp.xls\",\"tipoPreco\":\"PRECO_MEDIO_RECEBIDO_PRODUTOR\",\"periodicidade\":\"SEMANAL\",\"dataReferencia\":\"2026-10-16\",\"dataConsultaIso\":\"2026-10-21T23:13:13.939311Z\",\"defasagemDiasAproximada\":5,\"indicacaoTemporal\":\"Semanal — Preço Médio Produtor\",\"avisoLegal\":\"Preço médio semanal recebido pelo produtor, publicado pelo DERAL/SEAB-PR. Não constitui cotação em tempo real nem contrato futuro.\",\"documentoOficial\":\"https://www.agricultura.pr.gov.br/system/files/publico/Precos/prp.xls\",\"documentoHashSha256\":\"65582dc4c47c8993415dc71ee9af6ed69651b7279d65ab31f4316a1bc787dde1\",\"dataPublicacao\":null,\"registroOriginal\":\"Rav!X17\",\"valorOriginal\":78.9314,\"unidadeOriginal\":\"60 kg\",\"transformacaoAplicada\":\"Arredondamento decimal HALF_UP para 2 casas\"},{\"id\":\"boi-gordo\",\"commodityNome\":\"Boi Gordo\",\"produtoOriginal\":\"Boi gordo\",\"classificacao\":\"Boi gordo — preço médio recebido pelo produtor\",\"valor\":371.21,\"moeda\":\"BRL\",\"unidade\":\"Arroba\",\"pracaReferencia\":\"Paraná — média semanal estadual\",\"fonteOficial\":\"Departamento de Economia Rural / SEAB-PR\",\"siglaFonte\":\"DERAL/SEAB-PR\",\"linkOficial\":\"https://www.agricultura.pr.gov.br/deral/precos\",\"urlConsultaInstitucional\":\"https://www.agricultura.pr.gov.br/deral/precos\",\"urlDocumentoDownload\":\"https://www.agricultura.pr.gov.br/system/files/publico/Precos/prp.xls\",\"tipoPreco\":\"PRECO_MEDIO_RECEBIDO_PRODUTOR\",\"periodicidade\":\"SEMANAL\",\"dataReferencia\":\"2026-10-16\",\"dataConsultaIso\":\"2026-10-21T23:13:13.939311Z\",\"defasagemDiasAproximada\":5,\"indicacaoTemporal\":\"Semanal — Preço Médio Produtor\",\"avisoLegal\":\"Preço médio semanal recebido pelo produtor, publicado pelo DERAL/SEAB-PR. Não constitui cotação em tempo real nem contrato futuro.\",\"documentoOficial\":\"https://www.agricultura.pr.gov.br/system/files/publico/Precos/prp.xls\",\"documentoHashSha256\":\"65582dc4c47c8993415dc71ee9af6ed69651b7279d65ab31f4316a1bc787dde1\",\"dataPublicacao\":null,\"registroOriginal\":\"Rav!X46\",\"valorOriginal\":371.205,\"unidadeOriginal\":\"arroba\",\"transformacaoAplicada\":\"Arredondamento decimal HALF_UP para 2 casas\"}]}"
+    }
+  ],
+  "console": [
+    {
+      "type": "error",
+      "text": "Failed to load resource: net::ERR_INTERNET_DISCONNECTED"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: net::ERR_INTERNET_DISCONNECTED"
+    },
+    {
+      "type": "error",
+      "text": "Failed to load resource: net::ERR_INTERNET_DISCONNECTED"
+    }
+  ],
+  "failures": [
+    {
+      "url": "http://127.0.0.1:3006/conta?_rsc=ix4gv",
+      "error": "net::ERR_ABORTED"
+    },
+    {
+      "url": "http://127.0.0.1:3006/comunidade?_rsc=ix4gv",
+      "error": "net::ERR_ABORTED"
+    },
+    {
+      "url": "http://127.0.0.1:3006/api/v1/public/mercado/precos",
+      "error": "net::ERR_ABORTED"
+    },
+    {
+      "url": "http://127.0.0.1:3006/calculadoras?_rsc=ix4gv",
+      "error": "net::ERR_ABORTED"
+    },
+    {
+      "url": "https://olinda.bcb.gov.br/olinda/servico/PTAX/versao/v1/odata/CotacaoMoedaDia(moeda=@moeda,dataCotacao=@dataCotacao)?@moeda=%27USD%27&@dataCotacao=%2710-21-2026%27&$format=json",
+      "error": "net::ERR_ABORTED"
+    },
+    {
+      "url": "http://127.0.0.1:3006/api/v1/public/mercado/ibge/estatisticas?produto=soja&nivel=BRASIL&anos=5",
+      "error": "net::ERR_ABORTED"
+    },
+    {
+      "url": "http://127.0.0.1:3006/api/v1/public/mercado/indicadores-macro",
+      "error": "net::ERR_ABORTED"
+    },
+    {
+      "url": "http://127.0.0.1:3006/api/v1/public/mercado/ibge/catalogo",
+      "error": "net::ERR_ABORTED"
+    },
+    {
+      "url": "http://127.0.0.1:3006/api/v1/public/mercado/ptax",
+      "error": "net::ERR_ABORTED"
+    },
+    {
+      "url": "http://127.0.0.1:3006/mercado?_rsc=ix4gv",
+      "error": "net::ERR_ABORTED"
+    },
+    {
+      "url": "https://olinda.bcb.gov.br/olinda/servico/PTAX/versao/v1/odata/CotacaoMoedaDia(moeda=@moeda,dataCotacao=@dataCotacao)?@moeda=%27USD%27&@dataCotacao=%2710-21-2026%27&$format=json",
+      "error": "net::ERR_INTERNET_DISCONNECTED"
+    },
+    {
+      "url": "http://127.0.0.1:3006/conta?_rsc=c8xxw",
+      "error": "net::ERR_ABORTED"
+    },
+    {
+      "url": "http://127.0.0.1:3006/clima?_rsc=ix4gv",
+      "error": "net::ERR_ABORTED"
+    },
+    {
+      "url": "http://127.0.0.1:3006/?_rsc=ix4gv",
+      "error": "net::ERR_ABORTED"
+    },
+    {
+      "url": "http://127.0.0.1:3006/conta?_rsc=1dv6d",
+      "error": "net::ERR_ABORTED"
+    },
+    {
+      "url": "http://127.0.0.1:3006/api/v1/public/mercado/ibge/catalogo",
+      "error": "net::ERR_INTERNET_DISCONNECTED"
+    },
+    {
+      "url": "http://127.0.0.1:3006/api/v1/public/mercado/precos",
+      "error": "net::ERR_INTERNET_DISCONNECTED"
+    },
+    {
+      "url": "http://127.0.0.1:3006/api/v1/public/mercado/precos",
+      "error": "net::ERR_ABORTED"
+    }
+  ],
+  "checks": {
+    "sameOrigin": true,
+    "noLocalhost8000": true,
+    "reload": true,
+    "navigation": true,
+    "offlineOldData": true,
+    "recovery": true,
+    "mobile": true
+  },
+  "mobileResponses": [
+    {
+      "url": "http://127.0.0.1:3006/api/v1/public/mercado/precos",
+      "status": 200
+    }
+  ]
+}

@@ -50,8 +50,11 @@ export async function apiFetch<T>(endpoint: string, options: FetchOptions = {}):
         }
     }
 
-    // Normalizar endpoint: garantir que comece com / e não tenha duplicação de path
-    const normalizedEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
+    // Normalizar endpoint: garantir que comece com / e não tenha duplicação de path /api/v1
+    let normalizedEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
+    if (normalizedEndpoint.startsWith("/api/v1/")) {
+        normalizedEndpoint = normalizedEndpoint.replace(/^\/api\/v1/, "");
+    }
 
     // Rotas públicas que não exigem autenticação
     const publicRoutes = [

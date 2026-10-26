@@ -1,0 +1,108 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme inline {
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+}
+
+:root {
+  /* Identidade Oficial DeepFarms (Verde Esmeralda Agro #006B3D) */
+  --background: 140 10% 98%;
+  --foreground: 150 25% 10%;
+
+  --card: 0 0% 100%;
+  --card-foreground: 150 25% 10%;
+
+  --popover: 0 0% 100%;
+  --popover-foreground: 150 25% 10%;
+
+  --primary: 154 100% 21%; /* #006B3D */
+  --primary-foreground: 0 0% 100%;
+
+  --secondary: 150 15% 92%;
+  --secondary-foreground: 150 30% 15%;
+
+  --muted: 150 10% 94%;
+  --muted-foreground: 150 10% 40%;
+
+  --accent: 154 35% 92%;
+  --accent-foreground: 154 100% 18%;
+
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+
+  --border: 150 15% 88%;
+  --input: 150 15% 88%;
+  --ring: 154 100% 21%;
+
+  --radius: 0.5rem;
+}
+
+.dark {
+  --background: 155 30% 6%;
+  --foreground: 140 15% 95%;
+
+  --card: 155 25% 9%;
+  --card-foreground: 140 15% 95%;
+
+  --popover: 155 25% 9%;
+  --popover-foreground: 140 15% 95%;
+
+  --primary: 150 70% 38%; /* Verde vivo com alto contraste no escuro */
+  --primary-foreground: 0 0% 100%;
+
+  --secondary: 155 20% 16%;
+  --secondary-foreground: 140 15% 90%;
+
+  --muted: 155 20% 14%;
+  --muted-foreground: 150 10% 65%;
+
+  --accent: 154 40% 18%;
+  --accent-foreground: 150 70% 50%;
+
+  --destructive: 0 75% 55%;
+  --destructive-foreground: 0 0% 100%;
+
+  --border: 155 20% 18%;
+  --input: 155 20% 18%;
+  --ring: 150 70% 38%;
+}
+
+* {
+  border-color: var(--color-border);
+  box-sizing: border-box;
+}
+
+body {
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+  font-feature-settings: "rlig" 1, "calt" 1;
+  min-height: 100vh;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Área mínima de toque de 44px para dispositivos móveis */
+button, a {
+  touch-action: manipulation;
+}

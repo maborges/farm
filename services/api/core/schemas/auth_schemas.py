@@ -12,6 +12,29 @@ class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
 
+
+class FreeUserCreateRequest(BaseModel):
+    """Cadastro individual sem criar ou exigir vínculo comercial."""
+
+    model_config = {"extra": "forbid"}
+
+    nome: str = Field(..., min_length=2, max_length=150)
+    email: EmailStr
+    senha: str = Field(..., min_length=8, max_length=128)
+
+    @field_validator("nome")
+    @classmethod
+    def normalizar_nome(cls, value: str) -> str:
+        normalized = " ".join(value.split())
+        if len(normalized) < 2:
+            raise ValueError("Nome inválido")
+        return normalized
+
+
+class FreeRegistrationResponse(BaseModel):
+    sucesso: bool = True
+    mensagem: str
+
 # ==================== SCHEMAS PARA DESBLOQUEIO ====================
 
 class LoginDesbloqueioRequest(BaseModel):
@@ -78,12 +101,22 @@ class UsuarioMeResponse(BaseModel):
     username: str
     cpf: Optional[str] = None
     telefone: Optional[str] = None
-    nome_completo: Optional[str]
+    nome_completo: Optional[str] = None
     apelido: Optional[str] = None
-    foto_perfil_url: Optional[str]
-    is_superuser: bool
+    foto_perfil_url: Optional[str] = None
+    is_superuser: bool = False
     navigation_mode: str = "SIDEBAR"
-    tenants: List[TenantAcessoResponse]
+    tenants: List[TenantAcessoResponse] = []
+    ativo: bool = True
+    nome: Optional[str] = None
+    email_verificado: bool = True
+    emailVerificado: bool = True
+    created_at: Optional[datetime] = None
+    createdAt: Optional[datetime] = None
+
+
+class VerifyEmailRequest(BaseModel):
+    codigo: str = Field(..., min_length=4, max_length=10)
 
 class UserCreateRequest(BaseModel):
     email: EmailStr

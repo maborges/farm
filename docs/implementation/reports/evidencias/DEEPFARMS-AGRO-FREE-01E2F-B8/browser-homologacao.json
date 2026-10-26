@@ -1,0 +1,201 @@
+{
+  "desktop": {
+    "commodities": 22,
+    "cardsComPreco": 21,
+    "algodaoSemPreco": true,
+    "sojaBrl": "R$ 134,98",
+    "historicoExplicito": true,
+    "dataReferenciaVisivel": true,
+    "fonteVisivel": true
+  },
+  "moedasDisponiveis": 11,
+  "cambio": {
+    "USD": {
+      "brlPreservado": true,
+      "equivalente": "Equiv.: ≈ US$ 26,85 / Saca de 60 kg PTAX 21/10/2026"
+    },
+    "EUR": {
+      "brlPreservado": true,
+      "equivalente": "Equiv.: ≈ € 23,90 / Saca de 60 kg PTAX 22/10/2026"
+    },
+    "GBP": {
+      "brlPreservado": true,
+      "equivalente": "Equiv.: ≈ £ 20,03 / Saca de 60 kg PTAX 22/10/2026"
+    }
+  },
+  "browserContracts": [
+    {
+      "endpoint": "/api/v1/public/mercado/catalogo",
+      "status": 200,
+      "totalItens": 22,
+      "itens": 22,
+      "id": null,
+      "detail": null
+    },
+    {
+      "endpoint": "/api/v1/public/mercado/precos",
+      "status": 200,
+      "totalItens": 21,
+      "itens": 21,
+      "id": null,
+      "detail": null
+    },
+    {
+      "endpoint": "/api/v1/public/mercado/precos/soja",
+      "status": 200,
+      "totalItens": null,
+      "itens": null,
+      "id": "soja",
+      "detail": null
+    },
+    {
+      "endpoint": "/api/v1/public/mercado/precos/algodao",
+      "status": 404,
+      "totalItens": null,
+      "itens": null,
+      "id": null,
+      "detail": "Cotação pública para commodity 'algodao' não homologada"
+    }
+  ],
+  "navegacaoPreservouBrl": true,
+  "offline": {
+    "dadoSalvoVisivel": true,
+    "brlPreservado": true,
+    "statusVisivel": true
+  },
+  "recuperacaoRede": true,
+  "mobile": {
+    "commodities": 22,
+    "sojaBrl": "R$ 134,98",
+    "algodaoSemPreco": true
+  },
+  "network": [
+    {
+      "url": "http://127.0.0.1:3015/api/v1/public/mercado/ptax",
+      "status": 200,
+      "method": "GET"
+    },
+    {
+      "url": "http://127.0.0.1:3015/api/v1/public/mercado/indicadores-macro",
+      "status": 200,
+      "method": "GET"
+    },
+    {
+      "url": "http://127.0.0.1:3015/api/v1/public/mercado/ibge/catalogo",
+      "status": 200,
+      "method": "GET"
+    },
+    {
+      "url": "http://127.0.0.1:3015/api/v1/public/mercado/ibge/estatisticas?produto=soja&nivel=BRASIL&anos=5",
+      "status": 200,
+      "method": "GET"
+    },
+    {
+      "url": "http://127.0.0.1:3015/api/v1/public/mercado/precos",
+      "status": 200,
+      "method": "GET"
+    },
+    {
+      "url": "http://127.0.0.1:3015/api/v1/public/mercado/ptax",
+      "status": 200,
+      "method": "GET"
+    },
+    {
+      "url": "http://127.0.0.1:3015/api/v1/public/mercado/catalogo",
+      "status": 200,
+      "method": "GET"
+    },
+    {
+      "url": "http://127.0.0.1:3015/api/v1/public/mercado/precos",
+      "status": 200,
+      "method": "GET"
+    },
+    {
+      "url": "http://127.0.0.1:3015/api/v1/public/mercado/precos/soja",
+      "status": 200,
+      "method": "GET"
+    },
+    {
+      "url": "http://127.0.0.1:3015/api/v1/public/mercado/precos/algodao",
+      "status": 404,
+      "method": "GET"
+    },
+    {
+      "url": "http://127.0.0.1:3015/api/v1/public/mercado/ibge/catalogo",
+      "status": 200,
+      "method": "GET"
+    },
+    {
+      "url": "http://127.0.0.1:3015/api/v1/public/mercado/ibge/estatisticas?produto=soja&nivel=BRASIL&anos=5",
+      "status": 200,
+      "method": "GET"
+    },
+    {
+      "url": "http://127.0.0.1:3015/api/v1/public/mercado/indicadores-macro",
+      "status": 200,
+      "method": "GET"
+    },
+    {
+      "url": "http://127.0.0.1:3015/api/v1/public/mercado/precos",
+      "status": 200,
+      "method": "GET"
+    },
+    {
+      "url": "http://127.0.0.1:3015/api/v1/public/mercado/precos",
+      "status": 200,
+      "method": "GET"
+    },
+    {
+      "url": "http://127.0.0.1:3015/api/v1/public/mercado/ibge/catalogo",
+      "status": 200,
+      "method": "GET"
+    },
+    {
+      "url": "http://127.0.0.1:3015/api/v1/public/mercado/ibge/estatisticas?produto=soja&nivel=BRASIL&anos=5",
+      "status": 200,
+      "method": "GET"
+    },
+    {
+      "url": "http://127.0.0.1:3015/api/v1/public/mercado/indicadores-macro",
+      "status": 200,
+      "method": "GET"
+    },
+    {
+      "url": "http://127.0.0.1:3015/api/v1/public/mercado/precos",
+      "status": 200,
+      "method": "GET"
+    }
+  ],
+  "consoleErrors": [
+    "Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "Failed to load resource: net::ERR_INTERNET_DISCONNECTED",
+    "Failed to load resource: net::ERR_INTERNET_DISCONNECTED"
+  ],
+  "pageErrors": [],
+  "requestFailuresOnline": [
+    {
+      "url": "https://olinda.bcb.gov.br/olinda/servico/PTAX/versao/v1/odata/CotacaoMoedaDia(moeda=@moeda,dataCotacao=@dataCotacao)?@moeda=%27USD%27&@dataCotacao=%2710-21-2026%27&$format=json",
+      "error": "net::ERR_ABORTED"
+    },
+    {
+      "url": "http://127.0.0.1:3015/calculadoras?_rsc=1jxuo",
+      "error": "net::ERR_ABORTED"
+    },
+    {
+      "url": "http://127.0.0.1:3015/mercado?_rsc=1m2c3",
+      "error": "net::ERR_ABORTED"
+    },
+    {
+      "url": "https://olinda.bcb.gov.br/olinda/servico/PTAX/versao/v1/odata/CotacaoMoedaDia(moeda=@moeda,dataCotacao=@dataCotacao)?@moeda=%27GBP%27&@dataCotacao=%2710-22-2026%27&$format=json",
+      "error": "net::ERR_ABORTED"
+    },
+    {
+      "url": "http://127.0.0.1:3015/mercado?_rsc=c8xxw",
+      "error": "net::ERR_ABORTED"
+    },
+    {
+      "url": "http://127.0.0.1:3015/calculadoras?_rsc=1aa0y",
+      "error": "net::ERR_ABORTED"
+    }
+  ]
+}

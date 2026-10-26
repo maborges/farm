@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone, date
 import secrets
 
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import func, select
 from fastapi import HTTPException, status
 
 from core.models.auth import Usuario, ConviteAcesso, PerfilAcesso, TenantUsuario, UnidadeProdutivaUsuario as FazendaUsuario
@@ -182,7 +182,7 @@ class OnboardingService:
 
         convite = ConviteAcesso(
             tenant_id=tenant_id,
-            email_convidado=data.email_convidado,
+            email_convidado=str(data.email_convidado).strip().lower(),
             perfil_id=data.perfil_id,
             unidades_produtivas_ids=data.unidades_produtivas_ids,
             token_convite=token,
@@ -238,7 +238,9 @@ class OnboardingService:
                 fazendas_nomes.append(f.nome)
 
         # Verificar se o email já tem conta na plataforma
-        stmt_user = select(Usuario).where(Usuario.email == convite.email_convidado)
+        stmt_user = select(Usuario).where(
+            func.lower(Usuario.email) == convite.email_convidado.strip().lower()
+        )
         usuario_existente = (await self.session.execute(stmt_user)).scalar_one_or_none()
 
         return {
@@ -270,7 +272,9 @@ class OnboardingService:
             raise HTTPException(status_code=400, detail="Convite expirado.")
 
         # Checar se email já tem conta
-        stmt_user = select(Usuario).where(Usuario.email == convite.email_convidado)
+        stmt_user = select(Usuario).where(
+            func.lower(Usuario.email) == convite.email_convidado.strip().lower()
+        )
         existente = (await self.session.execute(stmt_user)).scalar_one_or_none()
         if existente:
             raise HTTPException(status_code=400, detail="Este e-mail já possui conta. Faça login e aceite o convite.")
@@ -320,7 +324,9 @@ class OnboardingService:
             await self.session.commit()
             raise HTTPException(status_code=400, detail="Convite expirado.")
 
-        usuario_stmt = select(Usuario).where(Usuario.email == convite.email_convidado)
+        usuario_stmt = select(Usuario).where(
+            func.lower(Usuario.email) == convite.email_convidado.strip().lower()
+        )
         usuario = (await self.session.execute(usuario_stmt)).scalar_one_or_none()
         if not usuario:
             raise HTTPException(
