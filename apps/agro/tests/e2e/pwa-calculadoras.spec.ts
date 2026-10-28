@@ -1,4 +1,20 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
+
+async function waitForServiceWorkerControl(page: Page): Promise<void> {
+  await expect.poll(async () => {
+    try {
+      return await page.evaluate(() =>
+        Boolean(
+          navigator.serviceWorker?.controller &&
+          sessionStorage.getItem("deepfarms_agro_sw_controlled_reload_v1") === "done"
+        )
+      );
+    } catch {
+      return false;
+    }
+  }, { timeout: 15_000 }).toBe(true);
+  await page.waitForLoadState("networkidle");
+}
 
 test.describe("DEEPFARMS-AGRO-FREE-01E1A — Calculadoras Agrícolas e Homologação PWA", () => {
   test.beforeEach(async ({ page }) => {
@@ -11,42 +27,20 @@ test.describe("DEEPFARMS-AGRO-FREE-01E1A — Calculadoras Agrícolas e Homologa�
   test("1. Registra e ativa o Service Worker no navegador", async ({ page }) => {
     await page.goto("/");
     await page.waitForLoadState("networkidle");
-
-    // Aguarda registro do Service Worker
-    const swRegistered = await page.evaluate(async () => {
-      if (!("serviceWorker" in navigator)) return false;
-      const registration = await navigator.serviceWorker.getRegistration();
-      return !!registration;
-    });
-
-    expect(swRegistered).toBe(true);
-
-    // Valida que o Service Worker está ativo ou controlando a página
-    const swAtivo = await page.evaluate(async () => {
-      const reg = await navigator.serviceWorker.ready;
-      return reg && reg.active !== null;
-    });
-
+    await waitForServiceWorkerControl(page);
+    const swAtivo = await page.evaluate(async () => Boolean((await navigator.serviceWorker.ready).active));
     expect(swAtivo).toBe(true);
   });
 
   test("2. Verifica pré-cache do App Shell no CacheStorage", async ({ page }) => {
     await page.goto("/");
     await page.waitForLoadState("networkidle");
-
-    // Aguarda o Service Worker completar o install & activate
-    await page.evaluate(async () => {
-      await navigator.serviceWorker.ready;
-      // Pequena pausa para garantir pre-cache concluído
-      await new Promise((resolve) => setTimeout(resolve, 800));
-    });
+    await waitForServiceWorkerControl(page);
 
     const chavesCache = await page.evaluate(async () => {
-      const keys = await caches.keys();
-      const agroCacheKey = keys.find((k) => k.startsWith("deepfarms-agro-")) || "deepfarms-agro-v2";
-      const cache = await caches.open(agroCacheKey);
-      const requests = await cache.keys();
-      return requests.map((req) => new URL(req.url).pathname);
+      const keys = (await caches.keys()).filter((key) => key.startsWith("deepfarms-agro-"));
+      const requests = await Promise.all(keys.map(async (key) => (await caches.open(key)).keys()));
+      return requests.flat().map((req) => new URL(req.url).pathname);
     });
 
     expect(chavesCache).toContain("/");
@@ -58,6 +52,7 @@ test.describe("DEEPFARMS-AGRO-FREE-01E1A — Calculadoras Agrícolas e Homologa�
   test("3. Interface e cálculos interativos das 5 ferramentas com correções 01E1A", async ({ page }) => {
     await page.goto("/calculadoras");
     await page.waitForLoadState("networkidle");
+    await waitForServiceWorkerControl(page);
 
     // Verifica título principal
     await expect(page.locator("h1")).toContainText("Calculadoras e Conversores Agrícolas");
@@ -137,18 +132,14 @@ test.describe("DEEPFARMS-AGRO-FREE-01E1A — Calculadoras Agrícolas e Homologa�
     // 1. Visita inicial para garantir cache
     await page.goto("/calculadoras");
     await page.waitForLoadState("networkidle");
-
-    // Aguarda o Service Worker controlar a página
-    await page.evaluate(async () => {
-      await navigator.serviceWorker.ready;
-      await new Promise((resolve) => setTimeout(resolve, 800));
-    });
+    await waitForServiceWorkerControl(page);
 
     // 2. Simula perda total de internet (modo avião / offline)
     await context.setOffline(true);
 
     // 3. Recarrega a página offline
-    await page.reload({ waitUntil: "domcontentloaded" });
+    await page.reload({ waitUntil: "load" });
+    await page.waitForLoadState("networkidle");
 
     // Valida que a página carregou do cache offline com sucesso
     await expect(page.locator("h1")).toContainText("Calculadoras e Conversores Agrícolas");
@@ -171,6 +162,7 @@ test.describe("DEEPFARMS-AGRO-FREE-01E1A — Calculadoras Agrícolas e Homologa�
   test("5. Segurança: Service Worker não intercepta nem cacheia /api/", async ({ page }) => {
     await page.goto("/");
     await page.waitForLoadState("networkidle");
+    await waitForServiceWorkerControl(page);
 
     // Testa chamada para rota /api/
     await page.evaluate(async () => {
@@ -184,9 +176,11 @@ test.describe("DEEPFARMS-AGRO-FREE-01E1A — Calculadoras Agrícolas e Homologa�
 
     // A rota /api/ deve ir para a rede sem cache do SW
     const cacheApi = await page.evaluate(async () => {
-      const cache = await caches.open("deepfarms-agro-v1");
-      const match = await cache.match("/api/status-teste");
-      return match !== undefined;
+      const cacheNames = await caches.keys();
+      const matches = await Promise.all(
+        cacheNames.map(async (name) => (await caches.open(name)).match("/api/status-teste"))
+      );
+      return matches.some((match) => match !== undefined);
     });
 
     expect(cacheApi).toBe(false);

@@ -1,146 +1,193 @@
 "use client";
 
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { Download, X, Share } from "lucide-react";
+import { Download, Share, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
-  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed"; platform?: string }>;
 }
 
-let isHydrated = false;
+const DISMISSED_KEY = "deepfarms_agro_install_invite_dismissed_v1";
+const DISMISSED_EVENT = "deepfarms-agro-install-dismissed";
 
-function subscribeClient(callback: () => void) {
-  isHydrated = true;
-  queueMicrotask(() => {
-    callback();
-  });
-  return () => {};
+function subscribeStandalone(callback: () => void) {
+  const media = window.matchMedia("(display-mode: standalone)");
+  media.addEventListener("change", callback);
+  window.addEventListener("appinstalled", callback);
+  return () => {
+    media.removeEventListener("change", callback);
+    window.removeEventListener("appinstalled", callback);
+  };
 }
 
-function getIsStandalone() {
-  if (!isHydrated || typeof window === "undefined") return false;
+function subscribeDismissed(callback: () => void) {
+  window.addEventListener("storage", callback);
+  window.addEventListener(DISMISSED_EVENT, callback);
+  return () => {
+    window.removeEventListener("storage", callback);
+    window.removeEventListener(DISMISSED_EVENT, callback);
+  };
+}
+
+function getDismissed(): boolean {
+  try {
+    return window.localStorage.getItem(DISMISSED_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+
+function isStandalone(): boolean {
   return (
     window.matchMedia("(display-mode: standalone)").matches ||
     ("standalone" in window.navigator &&
-      Boolean((window.navigator as unknown as { standalone?: boolean }).standalone))
+      Boolean((window.navigator as Navigator & { standalone?: boolean }).standalone))
   );
 }
 
-function getIsIOS() {
-  if (!isHydrated || typeof window === "undefined") return false;
-  return /iphone|ipad|ipod/.test(window.navigator.userAgent.toLowerCase());
+function isAppleMobile(): boolean {
+  const { userAgent, platform, maxTouchPoints } = window.navigator;
+  return /iphone|ipad|ipod/i.test(userAgent) || (platform === "MacIntel" && maxTouchPoints > 1);
+}
+
+function isSafari(): boolean {
+  const { userAgent } = window.navigator;
+  return /safari/i.test(userAgent) && !/crios|fxios|edgios|opios/i.test(userAgent);
 }
 
 export function InstallPrompt() {
+  const standalone = useSyncExternalStore(subscribeStandalone, isStandalone, () => false);
+  const appleMobile = useSyncExternalStore(() => () => {}, isAppleMobile, () => false);
+  const safari = useSyncExternalStore(() => () => {}, isSafari, () => false);
+  const dismissed = useSyncExternalStore(subscribeDismissed, getDismissed, () => false);
+  const [dismissedThisSession, setDismissedThisSession] = useState(false);
+  const [installed, setInstalled] = useState(false);
+  const [showInstructions, setShowInstructions] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
-  const [dismissed, setDismissed] = useState(false);
-
-  const isStandalone = useSyncExternalStore(subscribeClient, getIsStandalone, () => false);
-  const isIOS = useSyncExternalStore(subscribeClient, getIsIOS, () => false);
 
   useEffect(() => {
-    const handleBeforeInstall = (e: Event) => {
-      e.preventDefault();
-      setDeferredPrompt(e as BeforeInstallPromptEvent);
+    const handleBeforeInstall = (event: Event) => {
+      event.preventDefault();
+      setDeferredPrompt(event as BeforeInstallPromptEvent);
     };
-
     const handleAppInstalled = () => {
+      setInstalled(true);
       setDeferredPrompt(null);
     };
 
     window.addEventListener("beforeinstallprompt", handleBeforeInstall);
     window.addEventListener("appinstalled", handleAppInstalled);
-
     return () => {
       window.removeEventListener("beforeinstallprompt", handleBeforeInstall);
       window.removeEventListener("appinstalled", handleAppInstalled);
     };
   }, []);
 
-  const handleInstallClick = async () => {
+  const dismiss = () => {
+    setDismissedThisSession(true);
+    try {
+      window.localStorage.setItem(DISMISSED_KEY, "true");
+    } catch {
+      // A dispensa vale para a sessão atual mesmo sem acesso ao armazenamento local.
+    }
+    window.dispatchEvent(new Event(DISMISSED_EVENT));
+  };
+
+  const install = async () => {
     if (!deferredPrompt) return;
-    await deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === "accepted") {
-      setDeferredPrompt(null);
+    const prompt = deferredPrompt;
+    setDeferredPrompt(null);
+    try {
+      await prompt.prompt();
+      await prompt.userChoice;
+      // A escolha do prompt não comprova instalação; somente appinstalled/standalone a comprova.
+    } catch {
+      setShowInstructions(true);
     }
   };
 
-  // Se já está instalado ou foi dispensado, não exibe
-  if (isStandalone || dismissed) {
-    return null;
-  }
+  if (standalone || installed || dismissed || dismissedThisSession) return null;
 
-  // Banner para Android/Chromium quando evento nativo disparado
-  if (deferredPrompt) {
-    return (
-      <aside
-        aria-label="Instalação do aplicativo"
-        className="mb-4 p-3 rounded-sm border border-primary/30 bg-primary/5 flex items-center justify-between gap-3"
+  return (
+    <aside
+      aria-label="Instale o DeepFarms Agro"
+      className="relative rounded-sm border border-primary/25 bg-primary/5 p-4 sm:p-5"
+      data-testid="install-invite"
+    >
+      <button
+        type="button"
+        onClick={dismiss}
+        aria-label="Dispensar convite de instalação"
+        className="absolute right-2 top-2 rounded-sm p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className="p-2 rounded-sm bg-primary/10 text-primary flex-shrink-0">
-            <Download className="w-4 h-4" />
-          </div>
-          <div className="min-w-0">
-            <p className="text-xs font-semibold text-foreground truncate">
-              Instalar DeepFarms Agro
-            </p>
-            <p className="text-[11px] text-muted-foreground truncate">
-              Acesso rápido e funcionamento offline na lavoura
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-1.5 flex-shrink-0">
-          <Button
-            variant="default"
-            size="sm"
-            onClick={handleInstallClick}
-            className="text-xs"
-          >
-            Instalar
-          </Button>
-          <button
-            onClick={() => setDismissed(true)}
-            aria-label="Fechar aviso de instalação"
-            className="p-1 rounded-sm text-muted-foreground hover:text-foreground hover:bg-muted"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      </aside>
-    );
-  }
+        <X className="h-4 w-4" aria-hidden="true" />
+      </button>
 
-  // Guia discreto para iOS Safari
-  if (isIOS) {
-    return (
-      <aside
-        aria-label="Instalação no iPhone ou iPad"
-        className="mb-4 p-3 rounded-sm border border-border bg-card text-xs flex items-center justify-between gap-3"
-      >
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className="p-2 rounded-sm bg-muted text-foreground flex-shrink-0">
-            <Share className="w-4 h-4" />
+      <div className="flex flex-col gap-4 pr-7 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 items-start gap-3">
+          <span className="mt-0.5 rounded-sm bg-primary/10 p-2 text-primary" aria-hidden="true">
+            {appleMobile ? <Share className="h-5 w-5" /> : <Download className="h-5 w-5" />}
+          </span>
+          <div className="space-y-1">
+            <h2 className="text-sm font-semibold text-foreground sm:text-base">
+              Leve o DeepFarms Agro para o campo!
+            </h2>
+            <p className="text-xs leading-relaxed text-muted-foreground sm:text-sm">
+              Tenha previsão do tempo, indicadores do mercado e calculadoras agrícolas sempre à mão.
+            </p>
+            <p className="text-xs font-medium text-foreground">
+              Gratuito. Sem cadastro. Direto no seu celular.
+            </p>
+            <p className="text-[11px] text-muted-foreground">
+              Instalação rápida, sem precisar procurar na loja de aplicativos.
+            </p>
           </div>
-          <p className="text-[11px] text-muted-foreground">
-            Para instalar no iPhone/iPad: toque em{" "}
-            <span className="font-semibold text-foreground">Compartilhar</span> e depois em{" "}
-            <span className="font-semibold text-foreground">Adicionar à Tela de Início</span>.
-          </p>
         </div>
-        <button
-          onClick={() => setDismissed(true)}
-          aria-label="Fechar dica"
-          className="p-1 rounded-sm text-muted-foreground hover:text-foreground flex-shrink-0"
+
+        <div className="flex shrink-0 flex-col items-start gap-2 sm:items-end">
+          {deferredPrompt ? (
+            <Button type="button" onClick={install} size="sm" className="gap-2">
+              <Download className="h-4 w-4" aria-hidden="true" />
+              Instalar aplicativo
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setShowInstructions((current) => !current)}
+              aria-expanded={showInstructions}
+              aria-controls="install-instructions"
+            >
+              Como instalar
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {showInstructions && (
+        <div
+          id="install-instructions"
+          className="mt-4 border-t border-border/70 pt-3 text-xs leading-relaxed text-muted-foreground"
+          data-testid="install-instructions"
         >
-          <X className="w-4 h-4" />
-        </button>
-      </aside>
-    );
-  }
-
-  return null;
+          {appleMobile ? (
+            <p>
+              {safari ? (
+                <>No Safari, toque em <strong className="text-foreground">Compartilhar</strong> e escolha <strong className="text-foreground">Adicionar à Tela de Início</strong>.</>
+              ) : (
+                <>No iPhone ou iPad, abra esta página no Safari, toque em <strong className="text-foreground">Compartilhar</strong> e escolha <strong className="text-foreground">Adicionar à Tela de Início</strong>.</>
+              )}
+            </p>
+          ) : (
+            <p>
+              No menu do navegador, procure <strong className="text-foreground">Instalar aplicativo</strong> ou <strong className="text-foreground">Adicionar à tela inicial</strong>. A opção pode variar conforme o navegador.
+            </p>
+          )}
+        </div>
+      )}
+    </aside>
+  );
 }
