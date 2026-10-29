@@ -18,15 +18,15 @@ async def seed_admin_user():
     async with async_session_maker() as session:
         # Verificar se já existe
         from sqlalchemy import select
-        stmt = select(AdminUser).where(AdminUser.email == "admin@agrosass.com")
+        stmt = select(AdminUser).where(AdminUser.email == "admin@deepfarms.com.br")
         result = await session.execute(stmt)
         if result.scalar_one_or_none():
             print("✅ Admin user já existe")
             return
 
         admin = AdminUser(
-            email="admin@agrosass.com",
-            senha_hash=hash_password("admin123"),
+            email="admin@deepfarms.com.br",
+            senha_hash=hash_password("agro1234"),
             nome="Administrador",
             role="super_admin",
             ativo=True
@@ -34,7 +34,7 @@ async def seed_admin_user():
 
         session.add(admin)
         await session.commit()
-        print("✅ Admin user criado: admin@agrosass.com / admin123")
+        print("✅ Admin user criado: admin@deepfarms.com.br / agro1234")
 
 
 async def seed_email_templates():
@@ -44,10 +44,10 @@ async def seed_email_templates():
             {
                 "codigo": "WELCOME",
                 "nome": "Boas-vindas",
-                "assunto": "Bem-vindo ao AgroSaaS!",
+                "assunto": "Bem-vindo ao DeepFarms!",
                 "corpo_html": """
                     <h2>Olá {{nome_responsavel}},</h2>
-                    <p>Bem-vindo ao AgroSaaS!</p>
+                    <p>Bem-vindo ao DeepFarms!</p>
                     <p>Sua conta foi criada com sucesso.</p>
                     <p><strong>Dados de acesso:</strong></p>
                     <ul>
@@ -56,14 +56,14 @@ async def seed_email_templates():
                     </ul>
                     <p><a href="{{tenant_url}}">Acessar sistema</a></p>
                 """,
-                "corpo_texto": "Bem-vindo ao AgroSaaS! Acesse: {{tenant_url}}",
+                "corpo_texto": "Bem-vindo ao DeepFarms! Acesse: {{tenant_url}}",
                 "variaveis": ["nome_responsavel", "tenant_url", "email"],
                 "tipo": "transacional"
             },
             {
                 "codigo": "PASSWORD_RESET",
                 "nome": "Reset de Senha",
-                "assunto": "Redefinição de Senha - AgroSaaS",
+                "assunto": "Redefinição de Senha - DeepFarms",
                 "corpo_html": """
                     <h2>Olá {{nome_responsavel}},</h2>
                     <p>Sua senha foi redefinida.</p>
