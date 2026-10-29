@@ -5,6 +5,12 @@ from pathlib import Path
 # Adicionar raiz do projeto ao path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from core.model_registry import register_models
+
+# Importa e registra o conjunto canônico de modelos antes que uma consulta
+# configure os mappers globais do SQLAlchemy.
+register_models()
+
 from sqlalchemy.ext.asyncio import AsyncSession
 from core.database import async_session_maker
 from core.models.admin_user import AdminUser
