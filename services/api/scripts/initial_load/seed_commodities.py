@@ -7,15 +7,19 @@ Cada commodity já vem com suas classificações de qualidade padrão.
 Executar:
     cd services/api && .venv/bin/python scripts/initial_load/seed_commodities.py
 """
-import sys
 import asyncio
+import json
+import sys
+
 sys.path.insert(0, '.')
 
-from core.config import settings
 from core.cadastros.commodities.models import (
-    TipoCommodity, UnidadeCommodity,
-    Commodity, CommodityClassificacao,
+    Commodity,
+    CommodityClassificacao,
+    TipoCommodity,
+    UnidadeCommodity,
 )
+from core.config import settings
 
 COMMODITIES_SEED = [
     # -----------------------------------------------------------------------
@@ -290,6 +294,12 @@ async def run_seed():
                         classificacoes_existing_count += 1
                         continue
 
+                    parametros_extras = cls.get("descricao_extra")
+                    if parametros_extras is not None:
+                        parametros_extras = json.dumps(
+                            {"descricao_extra": parametros_extras}, ensure_ascii=False
+                        )
+
                     await conn.execute("""
                         INSERT INTO cadastros_commodities_classificacoes (
                             id, commodity_id, classe, descricao,
@@ -312,7 +322,7 @@ async def run_seed():
                         cls.get("ardidos_max_pct"),
                         cls.get("esverdeados_max_pct"),
                         cls.get("quebrados_max_pct"),
-                        cls.get("descricao_extra"),
+                        parametros_extras,
                     )
                     classificacoes_count += 1
     finally:
