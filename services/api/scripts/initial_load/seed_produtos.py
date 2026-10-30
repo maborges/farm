@@ -11,14 +11,19 @@ Uso:
     PYTHONPATH=. python scripts/initial_load/seed_produtos.py
 """
 import asyncio
+
 from sqlalchemy import select
-from core.database import async_session_maker
-import core.models  # noqa: F401
 
 from core.cadastros.produtos.models import (
-    Marca, ModeloProduto, CategoriaProduto, Produto,
-    ProdutoAgricola, ProdutoEstoque, ProdutoEPI,
+    CategoriaProduto,
+    Marca,
+    ModeloProduto,
+    Produto,
+    ProdutoAgricola,
+    ProdutoEPI,
+    ProdutoEstoque,
 )
+from core.database import async_session_maker
 
 # ---------------------------------------------------------------------------
 # Produtos padrão
@@ -813,98 +818,138 @@ PRODUTOS = [
     },
 ]
 
+# Produtos mantidos fora da carga global até resolver pendências documentais.
+# Os defensivos têm dados regulatórios sem fonte verificável neste catálogo;
+# `requer_receituario` controla bloqueio operacional e não admite valor neutro.
+PENDENCIAS_PRODUTOS = {
+    "SEM-MILHO-NK7059": (
+        "O modelo NK 7059 IPRO está vinculado à Syngenta no catálogo de modelos, "
+        "mas este produto declara Nidera; a associação correta não foi comprovada."
+    ),
+    "DEF-GLI-RND-1L": "Dados regulatórios e exigência de receituário sem fonte verificável.",
+    "DEF-GLI-RNDWG-250": "Dados regulatórios e exigência de receituário sem fonte verificável.",
+    "DEF-PAR-GRX-1L": "Produto com paraquate: não disponibilizar como item global ativo.",
+    "DEF-FUN-ELA-200": "Dados regulatórios e exigência de receituário sem fonte verificável.",
+    "DEF-FUN-PRI-1L": "Dados regulatórios e exigência de receituário sem fonte verificável.",
+    "DEF-FUN-COM-1L": "Dados regulatórios e exigência de receituário sem fonte verificável.",
+    "DEF-INS-TAL-1L": "Dados regulatórios e exigência de receituário sem fonte verificável.",
+}
+PRODUTOS_ELEGIVEIS = tuple(
+    produto
+    for produto in PRODUTOS
+    if produto["codigo_interno"] not in PENDENCIAS_PRODUTOS
+)
+
 
 # ---------------------------------------------------------------------------
 # Seed
 # ---------------------------------------------------------------------------
 
 async def seed():
+    from sqlalchemy.orm import configure_mappers
+
+    from core.model_registry import register_models
+
+    register_models()
+    configure_mappers()
+
     async with async_session_maker() as session:
-        # Carregar marcas (sistema)
-        marca_map: dict[str, object] = {}
-        stmt = select(Marca).where(Marca.tenant_id.is_(None))
-        for m in (await session.execute(stmt)).scalars().all():
-            marca_map[m.nome] = m
+        try:
+            for codigo, motivo in PENDENCIAS_PRODUTOS.items():
+                print(f"  ⚠ {codigo} fora da carga: {motivo}")
 
-        # Carregar modelos (sistema)
-        modelo_map: dict[tuple[object, str], object] = {}
-        stmt = select(ModeloProduto)
-        for mod in (await session.execute(stmt)).scalars().all():
-            modelo_map[(mod.marca_id, mod.nome)] = mod
+            # Carregar somente marcas globais.
+            marca_map: dict[str, object] = {}
+            stmt = select(Marca).where(Marca.tenant_id.is_(None))
+            for marca in (await session.execute(stmt)).scalars().all():
+                marca_map[marca.nome] = marca
 
-        # Carregar categorias (sistema)
-        cat_map: dict[str, object] = {}
-        stmt = select(CategoriaProduto)
-        for c in (await session.execute(stmt)).scalars().all():
-            cat_map[c.nome] = c
+            # A chave inclui a marca para evitar associação cruzada de modelos.
+            modelo_map: dict[tuple[object, str], object] = {}
+            stmt = select(ModeloProduto).where(ModeloProduto.tenant_id.is_(None))
+            for modelo in (await session.execute(stmt)).scalars().all():
+                modelo_map[(modelo.marca_id, modelo.nome)] = modelo
 
-        print("\n── Produtos padrão globais (tenant_id=NULL) ──────────────")
-        for produto_padrao in PRODUTOS:
-            item = dict(produto_padrao)
-            marca_nome = item.pop("marca", None)
-            modelo_nome = item.pop("modelo", None)
-            cat_nome = item.pop("categoria", None)
-            detalhe_agricola = item.pop("detalhe_agricola", None)
-            detalhe_estoque = item.pop("detalhe_estoque", None)
-            detalhe_epi = item.pop("detalhe_epi", None)
+            cat_map: dict[str, object] = {}
+            stmt = select(CategoriaProduto).where(CategoriaProduto.tenant_id.is_(None))
+            for categoria in (await session.execute(stmt)).scalars().all():
+                cat_map[categoria.nome] = categoria
 
-            marca_obj = None
-            if marca_nome:
-                marca_obj = marca_map.get(marca_nome)
-                if not marca_obj:
-                    print(f"  ✗ Marca '{marca_nome}' não encontrada para {item['nome']}")
-                    continue
+            print("\n── Produtos padrão globais (tenant_id=NULL) ──────────────")
+            for produto_padrao in PRODUTOS_ELEGIVEIS:
+                item = dict(produto_padrao)
+                marca_nome = item.pop("marca", None)
+                modelo_nome = item.pop("modelo", None)
+                cat_nome = item.pop("categoria", None)
+                detalhe_agricola = item.pop("detalhe_agricola", None)
+                detalhe_estoque = item.pop("detalhe_estoque", None)
+                detalhe_epi = item.pop("detalhe_epi", None)
 
-            modelo_obj = None
-            if modelo_nome:
-                modelo_obj = (
-                    modelo_map.get((marca_obj.id, modelo_nome))
-                    if marca_obj
-                    else None
+                marca_obj = None
+                if marca_nome:
+                    marca_obj = marca_map.get(marca_nome)
+                    if not marca_obj:
+                        raise ValueError(
+                            f"Marca global '{marca_nome}' não encontrada para "
+                            f"o produto {item['codigo_interno']}"
+                        )
+
+                modelo_obj = None
+                if modelo_nome:
+                    if not marca_obj:
+                        raise ValueError(
+                            f"Produto {item['codigo_interno']} referencia o modelo "
+                            f"'{modelo_nome}' sem informar uma marca"
+                        )
+                    modelo_obj = modelo_map.get((marca_obj.id, modelo_nome))
+                    if not modelo_obj or modelo_obj.marca_id != marca_obj.id:
+                        raise ValueError(
+                            f"Modelo global '{modelo_nome}' não encontrado para a "
+                            f"marca '{marca_nome}' no produto {item['codigo_interno']}"
+                        )
+
+                categoria_obj = None
+                if cat_nome:
+                    categoria_obj = cat_map.get(cat_nome)
+                    if not categoria_obj:
+                        raise ValueError(
+                            f"Categoria global '{cat_nome}' não encontrada para "
+                            f"o produto {item['codigo_interno']}"
+                        )
+
+                stmt = select(Produto).where(
+                    Produto.codigo_interno == item["codigo_interno"],
+                    Produto.tenant_id.is_(None),
                 )
-                if not modelo_obj:
-                    print(
-                        f"  ⚠ Modelo '{modelo_nome}' não encontrado para a marca "
-                        f"'{marca_nome}' no produto {item['nome']}"
-                    )
-
-            categoria_obj = None
-            if cat_nome:
-                categoria_obj = cat_map.get(cat_nome)
-                if not categoria_obj:
-                    print(f"  ✗ Categoria '{cat_nome}' não encontrada para {item['nome']}")
+                existing = (await session.execute(stmt)).scalar_one_or_none()
+                if existing:
+                    print(f"  ✓ {item['nome']} já existe")
                     continue
 
-            stmt = select(Produto).where(
-                Produto.codigo_interno == item["codigo_interno"],
-                Produto.tenant_id.is_(None),
-            )
-            existing = (await session.execute(stmt)).scalar_one_or_none()
-            if existing:
-                print(f"  ✓ {item['nome']} já existe")
-                continue
+                produto = Produto(
+                    tenant_id=None,
+                    marca_id=marca_obj.id if marca_obj else None,
+                    modelo_id=modelo_obj.id if modelo_obj else None,
+                    categoria_id=categoria_obj.id if categoria_obj else None,
+                    ativo=True,
+                    **item,
+                )
+                session.add(produto)
+                await session.flush()
 
-            produto = Produto(
-                tenant_id=None,
-                marca_id=marca_obj.id if marca_obj else None,
-                modelo_id=modelo_obj.id if modelo_obj else None,
-                categoria_id=categoria_obj.id if categoria_obj else None,
-                ativo=True,
-                **item,
-            )
-            session.add(produto)
-            await session.flush()
+                if detalhe_agricola:
+                    session.add(ProdutoAgricola(produto_id=produto.id, **detalhe_agricola))
+                if detalhe_estoque:
+                    session.add(ProdutoEstoque(produto_id=produto.id, **detalhe_estoque))
+                if detalhe_epi:
+                    session.add(ProdutoEPI(produto_id=produto.id, **detalhe_epi))
 
-            if detalhe_agricola:
-                session.add(ProdutoAgricola(produto_id=produto.id, **detalhe_agricola))
-            if detalhe_estoque:
-                session.add(ProdutoEstoque(produto_id=produto.id, **detalhe_estoque))
-            if detalhe_epi:
-                session.add(ProdutoEPI(produto_id=produto.id, **detalhe_epi))
+                print(f"  + {item['nome']} criado")
 
-            print(f"  + {item['nome']} criado")
-
-        await session.commit()
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
     print("\nSeed de produtos concluído.")
 
 
