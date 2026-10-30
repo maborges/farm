@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import sys
 from pathlib import Path
+from uuid import uuid4
 
 import pytest
 
@@ -17,6 +18,7 @@ from clean_install.seed_contract import (  # noqa: E402
     SEED_CATALOGS,
     SEED_ORDER,
     SEEDS,
+    SeedRow,
     apply_seeds,
     ordered_seed_rows,
     validate_seed_contract,
@@ -62,6 +64,73 @@ def test_seed_ids_and_order_are_deterministic() -> None:
     assert [row.catalog for row in ordered_seed_rows()] == sorted(
         [row.catalog for row in ordered_seed_rows()], key=SEED_ORDER.index
     )
+
+
+def test_product_category_seed_orders_parent_before_child_and_grandchild() -> None:
+    categories = [
+        row for row in ordered_seed_rows() if row.catalog == "product_categories"
+    ]
+    positions = {row.id: index for index, row in enumerate(categories)}
+    by_name = {row.data["nome"]: row for row in categories}
+
+    for index, row in enumerate(categories):
+        parent_id = row.data["parent_id"]
+        if parent_id is not None:
+            assert positions[parent_id] < index
+
+    assert positions[by_name["Insumos Agrícolas"].id] < positions[by_name["Defensivos"].id]
+    assert positions[by_name["Defensivos"].id] < positions[by_name["Herbicidas"].id]
+
+
+def test_product_category_order_is_deterministic_when_seed_input_is_reversed(monkeypatch) -> None:
+    import clean_install.seed_contract as contract
+
+    expected = [
+        row.id for row in ordered_seed_rows() if row.catalog == "product_categories"
+    ]
+    monkeypatch.setattr(contract, "SEEDS", tuple(reversed(SEEDS)))
+    actual = [
+        row.id for row in ordered_seed_rows() if row.catalog == "product_categories"
+    ]
+    assert actual == expected
+
+
+def _category_row(name, row_id, parent_id) -> SeedRow:
+    return SeedRow(
+        "product_categories",
+        "cadastros_categorias_produto",
+        ("nome",),
+        (("id", str(row_id)), ("nome", name), ("parent_id", parent_id)),
+    )
+
+
+def test_product_category_order_rejects_missing_parent(monkeypatch) -> None:
+    import clean_install.seed_contract as contract
+
+    missing_parent = uuid4()
+    child = _category_row("Filha", uuid4(), missing_parent)
+    monkeypatch.setattr(contract, "SEEDS", (child,))
+    with pytest.raises(ValueError, match="missing parent"):
+        ordered_seed_rows()
+
+
+def test_product_category_order_rejects_cycles(monkeypatch) -> None:
+    import clean_install.seed_contract as contract
+
+    parent_id = uuid4()
+    child_id = uuid4()
+    rows = (
+        _category_row("Pai", parent_id, child_id),
+        _category_row("Filha", child_id, parent_id),
+    )
+    monkeypatch.setattr(contract, "SEEDS", rows)
+    with pytest.raises(ValueError, match="cycle"):
+        ordered_seed_rows()
+
+
+def test_product_category_contract_has_no_cycles() -> None:
+    categories = [row for row in ordered_seed_rows() if row.catalog == "product_categories"]
+    assert len(categories) == len([row for row in SEEDS if row.catalog == "product_categories"])
 
 
 def test_seed_rows_match_current_orm_columns_and_global_scope() -> None:
@@ -117,6 +186,13 @@ class MemoryConnection:
             return MemoryResult(None)
         if sql.lstrip().startswith("INSERT"):
             row = next(row for row in SEEDS if row.table == table and row.id == params["id"])
+            if table == "cadastros_categorias_produto" and params["parent_id"] is not None:
+                parent_exists = any(
+                    existing_table == table and existing.get("id") == params["parent_id"]
+                    for (existing_table, _), existing in self.rows.items()
+                )
+                if not parent_exists:
+                    raise AssertionError("Category parent must be inserted before its child")
             natural = "|".join(str(row.data[column]) for column in row.natural_key)
             values = dict(params)
             if "fases_permitidas" in values:
@@ -138,6 +214,23 @@ def test_seed_apply_is_idempotent_and_refuses_drift() -> None:
     connection.rows[(existing.table, key)]["nome"] = "alterado"
     with pytest.raises(ValueError, match="Seed drift"):
         apply_seeds(connection)
+
+
+def test_seed_preserves_existing_product_category_id() -> None:
+    connection = MemoryConnection()
+    category = next(
+        row
+        for row in SEEDS
+        if row.catalog == "product_categories" and row.data["nome"] == "Adjuvantes"
+    )
+    natural_key = "|".join(str(category.data[column]) for column in category.natural_key)
+    existing_id = uuid4()
+    connection.rows[(category.table, natural_key)] = category.data | {"id": existing_id}
+
+    inserted = apply_seeds(connection, catalogs=("product_categories",))
+
+    assert inserted["product_categories"] == 29
+    assert connection.rows[(category.table, natural_key)]["id"] == existing_id
 
 
 def test_initial_load_catalog_subset_is_idempotent_and_excludes_optional_catalogs() -> None:

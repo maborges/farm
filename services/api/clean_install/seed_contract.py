@@ -6,6 +6,7 @@ credential, integration, or demonstration records are seeded.
 
 from __future__ import annotations
 
+import heapq
 import json
 import sys
 from dataclasses import dataclass
@@ -207,8 +208,68 @@ SEED_CATALOGS = {
 
 
 def ordered_seed_rows() -> tuple[SeedRow, ...]:
-    order = {name: index for index, name in enumerate(SEED_ORDER)}
-    return tuple(sorted(SEEDS, key=lambda row: (order[row.catalog], row.catalog, row.id.hex)))
+    ordered: list[SeedRow] = []
+    for catalog in SEED_ORDER:
+        rows = tuple(row for row in SEEDS if row.catalog == catalog)
+        if catalog == "product_categories":
+            ordered.extend(_order_product_categories(rows))
+        else:
+            ordered.extend(sorted(rows, key=lambda row: row.id.hex))
+    return tuple(ordered)
+
+
+def _order_product_categories(rows: tuple[SeedRow, ...]) -> tuple[SeedRow, ...]:
+    """Order category rows parent-first with stable UUID tie-breaking.
+
+    Args:
+        rows: Product-category rows from the seed contract.
+
+    Returns:
+        Rows in deterministic topological order.
+
+    Raises:
+        ValueError: If a parent is missing, an ID repeats, or a cycle exists.
+    """
+    by_id = {row.id: row for row in rows}
+    if len(by_id) != len(rows):
+        raise ValueError("Duplicate product-category seed ID")
+
+    children: dict[UUID, list[SeedRow]] = {category_id: [] for category_id in by_id}
+    parent_counts = {category_id: 0 for category_id in by_id}
+    for row in rows:
+        parent_id = row.data.get("parent_id")
+        if parent_id is None:
+            continue
+        if parent_id not in by_id:
+            raise ValueError(
+                f"Product category {row.data.get('nome')} has missing parent {parent_id}"
+            )
+        children[parent_id].append(row)
+        parent_counts[row.id] += 1
+
+    ready = [
+        (row.id.hex, row.id, row)
+        for row in rows
+        if parent_counts[row.id] == 0
+    ]
+    heapq.heapify(ready)
+    ordered: list[SeedRow] = []
+    while ready:
+        _, category_id, row = heapq.heappop(ready)
+        ordered.append(row)
+        for child in children[category_id]:
+            parent_counts[child.id] -= 1
+            if parent_counts[child.id] == 0:
+                heapq.heappush(ready, (child.id.hex, child.id, child))
+
+    if len(ordered) != len(rows):
+        blocked = sorted(
+            row.data.get("nome", str(row.id))
+            for row in rows
+            if parent_counts[row.id] > 0
+        )
+        raise ValueError(f"Product-category hierarchy contains a cycle: {blocked}")
+    return tuple(ordered)
 
 
 def validate_seed_contract() -> None:
@@ -251,6 +312,7 @@ def validate_seed_contract() -> None:
         for row in category_rows
     ):
         raise ValueError("Product-category seed references a missing parent category")
+    _order_product_categories(tuple(category_rows))
 
     allowed_phases = {
         "PLANEJADA",

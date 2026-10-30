@@ -8,7 +8,7 @@ BASELINE_REVISION = "baseline_deepfarms_v1"
 SEED_CONTRACT_VERSION = "global_catalogs_v1"
 # Filled from the reviewed source files and asserted before any snapshot DDL.
 BASELINE_SHA256 = "b32da6be0f5f089c9d75fc2c0da4784e8dccaeb6303be5c03dbc6156c8275fbc"
-SEED_CONTRACT_SHA256 = "abf7b0238a2344616f41d76aba8adf0cfe7147f433d86bde700effdfe23088bd"
+SEED_CONTRACT_SHA256 = "92e09a8584142e0da7ebac3e5b13cbcc1663105a895d47dba1927d09d8c6cea8"
 
 
 def artifact_hashes(api_root: Path) -> dict[str, str]:
