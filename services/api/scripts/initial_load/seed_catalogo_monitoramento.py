@@ -88,6 +88,13 @@ async def _seed_catalogo(session) -> tuple[int, int]:
 
 
 async def seed():
+    from sqlalchemy.orm import configure_mappers
+
+    from core.model_registry import register_models
+
+    register_models()
+    configure_mappers()
+
     async with async_session_maker() as session:
         inseridos, existentes = await _seed_catalogo(session)
     print(
