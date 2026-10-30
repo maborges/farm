@@ -7,12 +7,12 @@ Cada cultura vem com parâmetros agronômicos realistas para o contexto brasilei
 Executar:
     cd services/api && .venv/bin/python scripts/initial_load/seed_culturas.py
 """
-import sys
 import asyncio
+import sys
+
 sys.path.insert(0, '.')
 
 from core.config import settings
-
 
 CULTURAS_SEED = [
     # -----------------------------------------------------------------------
@@ -420,55 +420,57 @@ async def run_seed():
     import asyncpg
 
     url = str(settings.database_url).replace("postgresql+asyncpg://", "postgresql://")
-    conn = await asyncpg.connect(url)
+    conn = await asyncpg.connect(url, server_settings={"search_path": "farms, public"})
 
     created_count = 0
     skipped_count = 0
 
-    for item in CULTURAS_SEED:
-        nome = item["nome"]
-        nome_cientifico = item.get("nome_cientifico")
+    try:
+        for item in CULTURAS_SEED:
+            nome = item["nome"]
+            nome_cientifico = item.get("nome_cientifico")
 
-        # Verificar se já existe (por nome + grupo)
-        exists = await conn.fetchval(
-            "SELECT id FROM cadastros_culturas WHERE nome = $1 AND grupo = $2 AND sistema = true",
-            nome,
-            item["grupo"],
-        )
-        if exists:
-            print(f"  ⏭️  {nome} — já existe, pulando")
-            skipped_count += 1
-            continue
-
-        # Inserir cultura
-        await conn.execute("""
-            INSERT INTO cadastros_culturas (
-                id, tenant_id, sistema, nome, nome_cientifico, grupo,
-                ciclo_dias_min, ciclo_dias_max, espacamento_cm,
-                populacao_plantas_ha, produtividade_media_sc_ha,
-                dados_extras, ativa, created_at, updated_at
-            ) VALUES (
-                gen_random_uuid(), NULL, true,
-                $1, $2, $3,
-                $4, $5, $6,
-                $7, $8,
-                NULL, true, NOW(), NOW()
+            # Verificar se já existe (por nome + grupo)
+            exists = await conn.fetchval(
+                "SELECT id FROM cadastros_culturas "
+                "WHERE nome = $1 AND grupo = $2 AND sistema = true",
+                nome,
+                item["grupo"],
             )
-        """,
-            nome,
-            nome_cientifico,
-            item["grupo"],
-            item.get("ciclo_dias_min"),
-            item.get("ciclo_dias_max"),
-            item.get("espacamento_cm"),
-            item.get("populacao_plantas_ha"),
-            item.get("produtividade_media_sc_ha"),
-        )
+            if exists:
+                print(f"  ⏭️  {nome} — já existe, pulando")
+                skipped_count += 1
+                continue
 
-        created_count += 1
-        print(f"  ✅ {nome} ({nome_cientifico}) — criada")
+            # Inserir cultura
+            await conn.execute("""
+                INSERT INTO cadastros_culturas (
+                    id, tenant_id, sistema, nome, nome_cientifico, grupo,
+                    ciclo_dias_min, ciclo_dias_max, espacamento_cm,
+                    populacao_plantas_ha, produtividade_media_sc_ha,
+                    dados_extras, ativa, created_at, updated_at
+                ) VALUES (
+                    gen_random_uuid(), NULL, true,
+                    $1, $2, $3,
+                    $4, $5, $6,
+                    $7, $8,
+                    NULL, true, NOW(), NOW()
+                )
+            """,
+                nome,
+                nome_cientifico,
+                item["grupo"],
+                item.get("ciclo_dias_min"),
+                item.get("ciclo_dias_max"),
+                item.get("espacamento_cm"),
+                item.get("populacao_plantas_ha"),
+                item.get("produtividade_media_sc_ha"),
+            )
 
-    await conn.close()
+            created_count += 1
+            print(f"  ✅ {nome} ({nome_cientifico}) — criada")
+    finally:
+        await conn.close()
 
     print()
     print("=" * 60)
