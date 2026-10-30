@@ -89,12 +89,21 @@ TEMPLATES = [
 
 async def seed_checklist_templates(session):
     """Cria os templates globais sem depender de tenants existentes."""
-    existing_items = set(
-        (await session.execute(
+    try:
+        return await _seed_checklist_templates(session)
+    except Exception:
+        await session.rollback()
+        raise
+
+
+async def _seed_checklist_templates(session):
+    existing_items = {
+        (fase, cultura, item.titulo): item
+        for fase, cultura, item in (await session.execute(
             select(
                 PhaseTemplate.fase,
                 PhaseTemplate.cultura,
-                PhaseTemplateChecklistItem.titulo,
+                PhaseTemplateChecklistItem,
             )
             .join(PhaseTemplate)
             .where(
@@ -102,16 +111,22 @@ async def seed_checklist_templates(session):
                 PhaseTemplate.is_system_default.is_(True),
             )
         )).tuples().all()
-    )
+    }
 
     containers = {}
+    ordens = {}
     inseridos = 0
     for fase, cultura, titulo, obrigatorio in TEMPLATES:
+        container_key = (fase, cultura)
+        ordem = ordens.get(container_key, 0)
+        ordens[container_key] = ordem + 1
+
         key = (fase, cultura, titulo)
         if key in existing_items:
+            if existing_items[key].ordem != ordem:
+                existing_items[key].ordem = ordem
             continue
 
-        container_key = (fase, cultura)
         container = containers.get(container_key)
         if container is None:
             container = (
@@ -137,17 +152,16 @@ async def seed_checklist_templates(session):
                 await session.flush()
             containers[container_key] = container
 
-        session.add(
-            PhaseTemplateChecklistItem(
-                phase_template_id=container.id,
-                titulo=titulo,
-                descricao=None,
-                obrigatorio=obrigatorio,
-                ordem=0,
-                ativo=True,
-            )
+        item = PhaseTemplateChecklistItem(
+            phase_template_id=container.id,
+            titulo=titulo,
+            descricao=None,
+            obrigatorio=obrigatorio,
+            ordem=ordem,
+            ativo=True,
         )
-        existing_items.add(key)
+        session.add(item)
+        existing_items[key] = item
         inseridos += 1
 
     await session.commit()
@@ -155,6 +169,13 @@ async def seed_checklist_templates(session):
 
 
 async def seed():
+    from sqlalchemy.orm import configure_mappers
+
+    from core.model_registry import register_models
+
+    register_models()
+    configure_mappers()
+
     async with async_session_maker() as session:
         inseridos = await seed_checklist_templates(session)
         print(f"Seed concluído: {inseridos} itens de checklist inseridos.")
