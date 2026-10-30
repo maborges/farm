@@ -10,12 +10,14 @@ Uso:
     source .venv/bin/activate
     python scripts/initial_load/seed_tabelas_produto.py
 """
+import argparse
 import asyncio
-from sqlalchemy import select
-from core.database import async_session_maker
-import core.models  # noqa: F401
 
-from core.cadastros.produtos.models import Marca, ModeloProduto, CategoriaProduto
+from sqlalchemy import select
+
+import core.models  # noqa: F401
+from core.cadastros.produtos.models import CategoriaProduto, Marca, ModeloProduto
+from core.database import async_session_maker
 
 # ---------------------------------------------------------------------------
 # Marcas padrão
@@ -153,7 +155,7 @@ CATEGORIAS = [
 # Seed
 # ---------------------------------------------------------------------------
 
-async def seed():
+async def seed(only_marcas_modelos: bool = False):
     async with async_session_maker() as session:
         print("\n── Marcas ──────────────────────────────────────────")
         marca_map: dict[str, Marca] = {}
@@ -192,6 +194,11 @@ async def seed():
             )
             session.add(obj)
             print(f"  + {item['nome']} criado")
+
+        if only_marcas_modelos:
+            await session.commit()
+            print("\nSeed de marcas e modelos concluído.")
+            return
 
         print("\n── Categorias ──────────────────────────────────────")
         cat_map: dict[str, CategoriaProduto] = {}
@@ -250,4 +257,11 @@ async def seed():
 
 
 if __name__ == "__main__":
-    asyncio.run(seed())
+    parser = argparse.ArgumentParser(description="Carga inicial das tabelas de produtos")
+    parser.add_argument(
+        "--only-marcas-modelos",
+        action="store_true",
+        help="carrega somente marcas e modelos, sem consultar ou alterar categorias",
+    )
+    args = parser.parse_args()
+    asyncio.run(seed(only_marcas_modelos=args.only_marcas_modelos))
