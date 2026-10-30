@@ -34,14 +34,24 @@ def _revision_module():
 
 def test_seed_contract_has_explicit_order_and_only_global_required_catalogs() -> None:
     validate_seed_contract()
-    assert SEED_ORDER == ("units", "product_categories", "operation_phases", "relationship_types")
+    assert SEED_ORDER == (
+        "units",
+        "product_categories",
+        "operation_phases",
+        "relationship_types",
+        "service_types",
+    )
     assert all(row.scope == "global" for row in SEEDS)
     assert len([row for row in SEEDS if row.catalog == "units"]) == 24
-    assert len([row for row in SEEDS if row.catalog == "product_categories"]) == 15
+    unit_codes = {row.data["codigo"] for row in SEEDS if row.catalog == "units"}
+    assert "d" in unit_codes
+    assert "DIA" not in unit_codes
+    assert len([row for row in SEEDS if row.catalog == "product_categories"]) == 30
     assert len([row for row in SEEDS if row.catalog == "operation_phases"]) == 9
     assert len([row for row in SEEDS if row.catalog == "relationship_types"]) == 11
+    assert len([row for row in SEEDS if row.catalog == "service_types"]) == 10
     assert SEED_CATALOGS["commodity_conversions"]["required"] is False
-    assert SEED_CATALOGS["service_types"]["required"] is False
+    assert SEED_CATALOGS["service_types"]["required"] is True
     assert SEED_CATALOGS["zoosanitary_defaults"]["required"] is False
 
 
@@ -128,6 +138,20 @@ def test_seed_apply_is_idempotent_and_refuses_drift() -> None:
     connection.rows[(existing.table, key)]["nome"] = "alterado"
     with pytest.raises(ValueError, match="Seed drift"):
         apply_seeds(connection)
+
+
+def test_initial_load_catalog_subset_is_idempotent_and_excludes_optional_catalogs() -> None:
+    connection = MemoryConnection()
+    selected = SEED_ORDER
+    first = apply_seeds(connection, catalogs=selected)
+    assert first == {
+        "units": 24,
+        "product_categories": 30,
+        "operation_phases": 9,
+        "relationship_types": 11,
+        "service_types": 10,
+    }
+    assert sum(apply_seeds(connection, catalogs=selected).values()) == 0
 
 
 def test_install_revision_is_separate_and_never_stamps_historical_head(monkeypatch) -> None:

@@ -5,7 +5,7 @@ Cria as commodities base com sistema=True (não editáveis pelo tenant).
 Cada commodity já vem com suas classificações de qualidade padrão.
 
 Executar:
-    cd services/api && .venv/bin/python scripts/seed_commodities.py
+    cd services/api && .venv/bin/python scripts/initial_load/seed_commodities.py
 """
 import sys
 import asyncio
@@ -137,7 +137,7 @@ COMMODITIES_SEED = [
         "descricao": "Arroz em casca (Oryza sativa)",
         "tipo": TipoCommodity.AGRICOLA.value,
         "unidade_padrao": UnidadeCommodity.SACA_60KG.value,
-        "peso_unidade": 50.0,
+        "peso_unidade": 60.0,
         "umidade_padrao_pct": 13.0,
         "impureza_padrao_pct": 1.0,
         "possui_cotacao": True,
@@ -233,93 +233,101 @@ async def run_seed():
     conn = await asyncpg.connect(url)
 
     created_count = 0
-    skipped_count = 0
+    existing_count = 0
     classificacoes_count = 0
+    classificacoes_existing_count = 0
 
-    for item in COMMODITIES_SEED:
-        codigo = item["codigo"]
+    try:
+        async with conn.transaction():
+            for item in COMMODITIES_SEED:
+                codigo = item["codigo"]
 
-        # Verificar se já existe
-        exists = await conn.fetchval(
-            "SELECT id FROM cadastros_commodities WHERE codigo = $1", codigo
-        )
-        if exists:
-            print(f"  ⏭️  {item['nome']} ({codigo}) — já existe, pulando")
-            skipped_count += 1
-            continue
-
-        # Inserir commodity
-        commodity_id = await conn.fetchval("""
-            INSERT INTO cadastros_commodities (
-                id, tenant_id, sistema, nome, codigo, descricao,
-                tipo, unidade_padrao, peso_unidade,
-                umidade_padrao_pct, impureza_padrao_pct,
-                possui_cotacao, bolsa_referencia, codigo_bolsa,
-                ativo, created_at, updated_at
-            ) VALUES (
-                gen_random_uuid(), NULL, true,
-                $1, $2, $3,
-                $4, $5, $6,
-                $7, $8,
-                $9, $10, $11,
-                true, NOW(), NOW()
-            ) RETURNING id
-        """,
-            item["nome"],
-            item["codigo"],
-            item["descricao"],
-            item["tipo"],
-            item["unidade_padrao"],
-            item.get("peso_unidade"),
-            item.get("umidade_padrao_pct"),
-            item.get("impureza_padrao_pct"),
-            item["possui_cotacao"],
-            item.get("bolsa_referencia"),
-            item.get("codigo_bolsa"),
-        )
-
-        created_count += 1
-        print(f"  ✅ {item['nome']} ({codigo}) — criada")
-
-        # Inserir classificações
-        for cls in item.get("classificacoes", []):
-            await conn.execute("""
-                INSERT INTO cadastros_commodities_classificacoes (
-                    id, commodity_id, classe, descricao,
-                    umidade_max_pct, impureza_max_pct, avariados_max_pct,
-                    ardidos_max_pct, esverdeados_max_pct, quebrados_max_pct,
-                    parametros_extras, ativo
-                ) VALUES (
-                    gen_random_uuid(), $1, $2, $3,
-                    $4, $5, $6,
-                    $7, $8, $9,
-                    $10, true
+                commodity_id = await conn.fetchval(
+                    "SELECT id FROM cadastros_commodities WHERE codigo = $1", codigo
                 )
-            """,
-                commodity_id,
-                cls["classe"],
-                cls.get("descricao"),
-                cls.get("umidade_max_pct"),
-                cls.get("impureza_max_pct"),
-                cls.get("avariados_max_pct"),
-                cls.get("ardidos_max_pct"),
-                cls.get("esverdeados_max_pct"),
-                cls.get("quebrados_max_pct"),
-                cls.get("descricao_extra"),
-            )
-            classificacoes_count += 1
+                if commodity_id:
+                    existing_count += 1
+                    print(f"  ⏭️  {item['nome']} ({codigo}) — já existe")
+                else:
+                    commodity_id = await conn.fetchval("""
+                        INSERT INTO cadastros_commodities (
+                            id, tenant_id, sistema, nome, codigo, descricao,
+                            tipo, unidade_padrao, peso_unidade,
+                            umidade_padrao_pct, impureza_padrao_pct,
+                            possui_cotacao, bolsa_referencia, codigo_bolsa,
+                            ativo, created_at, updated_at
+                        ) VALUES (
+                            gen_random_uuid(), NULL, true,
+                            $1, $2, $3,
+                            $4, $5, $6,
+                            $7, $8,
+                            $9, $10, $11,
+                            true, NOW(), NOW()
+                        ) RETURNING id
+                    """,
+                        item["nome"],
+                        item["codigo"],
+                        item["descricao"],
+                        item["tipo"],
+                        item["unidade_padrao"],
+                        item.get("peso_unidade"),
+                        item.get("umidade_padrao_pct"),
+                        item.get("impureza_padrao_pct"),
+                        item["possui_cotacao"],
+                        item.get("bolsa_referencia"),
+                        item.get("codigo_bolsa"),
+                    )
+                    created_count += 1
+                    print(f"  ✅ {item['nome']} ({codigo}) — criada")
 
-    await conn.close()
+                # Completa classificações faltantes sem alterar as existentes.
+                for cls in item.get("classificacoes", []):
+                    exists = await conn.fetchval("""
+                        SELECT id FROM cadastros_commodities_classificacoes
+                        WHERE commodity_id = $1 AND classe = $2
+                    """, commodity_id, cls["classe"])
+                    if exists:
+                        classificacoes_existing_count += 1
+                        continue
+
+                    await conn.execute("""
+                        INSERT INTO cadastros_commodities_classificacoes (
+                            id, commodity_id, classe, descricao,
+                            umidade_max_pct, impureza_max_pct, avariados_max_pct,
+                            ardidos_max_pct, esverdeados_max_pct, quebrados_max_pct,
+                            parametros_extras, ativo
+                        ) VALUES (
+                            gen_random_uuid(), $1, $2, $3,
+                            $4, $5, $6,
+                            $7, $8, $9,
+                            $10, true
+                        )
+                    """,
+                        commodity_id,
+                        cls["classe"],
+                        cls.get("descricao"),
+                        cls.get("umidade_max_pct"),
+                        cls.get("impureza_max_pct"),
+                        cls.get("avariados_max_pct"),
+                        cls.get("ardidos_max_pct"),
+                        cls.get("esverdeados_max_pct"),
+                        cls.get("quebrados_max_pct"),
+                        cls.get("descricao_extra"),
+                    )
+                    classificacoes_count += 1
+    finally:
+        await conn.close()
 
     print()
     print("=" * 60)
     print(f"  Criadas:     {created_count}")
-    print(f"  Puladas:     {skipped_count}")
-    print(f"  Classificações: {classificacoes_count}")
+    print(f"  Já existentes: {existing_count}")
+    print(f"  Classificações criadas: {classificacoes_count}")
+    print(f"  Classificações existentes: {classificacoes_existing_count}")
     print("=" * 60)
 
-    if created_count == 0:
-        print("  Nenhuma commodity nova criada (todas já existiam).")
+    if created_count == 0 and classificacoes_count == 0:
+        print("  Nenhuma commodity ou classificação nova criada.")
     else:
         print("  ✅ Seed concluído com sucesso!")
 

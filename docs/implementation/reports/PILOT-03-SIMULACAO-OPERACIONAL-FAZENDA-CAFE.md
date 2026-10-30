@@ -52,7 +52,7 @@ Fato encontrado:
 
 - `Safra` e `Cultivo` existem com rotas próprias em [services/api/agricola/safras/router.py](/opt/lampp/htdocs/farm/services/api/agricola/safras/router.py:22) e [services/api/agricola/cultivos/router.py](/opt/lampp/htdocs/farm/services/api/agricola/cultivos/router.py:18);
 - `Cultivo` suporta `cultivar_id`, `cultivar_nome`, `commodity_id` e `espacamento_cm` em [services/api/agricola/cultivos/models.py](/opt/lampp/htdocs/farm/services/api/agricola/cultivos/models.py:15);
-- café existe como cultura oficial em [services/api/scripts/seed_culturas.py](/opt/lampp/htdocs/farm/services/api/scripts/seed_culturas.py:357) e [services/api/core/cadastros/produtos/models.py](/opt/lampp/htdocs/farm/services/api/core/cadastros/produtos/models.py:388);
+- café existe como cultura oficial em [services/api/scripts/initial_load/seed_culturas.py](/opt/lampp/htdocs/farm/services/api/scripts/initial_load/seed_culturas.py:357) e [services/api/core/cadastros/produtos/models.py](/opt/lampp/htdocs/farm/services/api/core/cadastros/produtos/models.py:388);
 - há orçamento e itens de planejamento por safra em [services/api/agricola/a1_planejamento/router.py](/opt/lampp/htdocs/farm/services/api/agricola/a1_planejamento/router.py:21).
 
 Leitura operacional:
@@ -214,7 +214,7 @@ Leitura operacional:
 | Tema | Evidência |
 | --- | --- |
 | Wizard e checklist de implantação | [services/api/wizard/services.py](/opt/lampp/htdocs/farm/services/api/wizard/services.py:59), [services/api/wizard/checklist_engine.py](/opt/lampp/htdocs/farm/services/api/wizard/checklist_engine.py:60) |
-| Cultura café | [services/api/scripts/seed_culturas.py](/opt/lampp/htdocs/farm/services/api/scripts/seed_culturas.py:357), [services/api/core/cadastros/produtos/models.py](/opt/lampp/htdocs/farm/services/api/core/cadastros/produtos/models.py:388) |
+| Cultura café | [services/api/scripts/initial_load/seed_culturas.py](/opt/lampp/htdocs/farm/services/api/scripts/initial_load/seed_culturas.py:357), [services/api/core/cadastros/produtos/models.py](/opt/lampp/htdocs/farm/services/api/core/cadastros/produtos/models.py:388) |
 | Cultivo e cultivar | [services/api/agricola/cultivos/models.py](/opt/lampp/htdocs/farm/services/api/agricola/cultivos/models.py:15), [services/api/agricola/cultivos/router.py](/opt/lampp/htdocs/farm/services/api/agricola/cultivos/router.py:18) |
 | Planejamento | [services/api/agricola/a1_planejamento/router.py](/opt/lampp/htdocs/farm/services/api/agricola/a1_planejamento/router.py:21) |
 | Operações agrícolas | [services/api/agricola/operacoes/router.py](/opt/lampp/htdocs/farm/services/api/agricola/operacoes/router.py:25), [apps/web/src/app/(dashboard)/dashboard/agricola/operacoes/page.tsx](/opt/lampp/htdocs/farm/apps/web/src/app/(dashboard)/dashboard/agricola/operacoes/page.tsx:1) |

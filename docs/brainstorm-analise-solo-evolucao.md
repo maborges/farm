@@ -54,7 +54,7 @@ Tabela `analises_solo` com todos os parâmetros laboratoriais. Cálculo automát
 - Nova tabela `solo_parametros_cultura` + model + service + router
 - `analises_solo/service.py` — refatorar `gerar_recomendacoes()` para lookup dinâmico
 - `analises_solo/router.py` — endpoint `GET /analises-solo/culturas-disponiveis`
-- `scripts/seed_parametros_solo.py` — seed das faixas Embrapa para culturas do sistema
+- `scripts/initial_load/seed_parametros_solo.py` — seed das faixas para culturas do sistema
 - Migration Alembic
 
 ### Frontend

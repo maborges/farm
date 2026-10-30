@@ -10,7 +10,7 @@ from unittest.mock import patch
 from sqlalchemy import select
 
 from core.models.admin_user import AdminUser
-
+from core.models.auth import Usuario
 
 API_ROOT = Path(__file__).parents[2]
 
@@ -21,7 +21,7 @@ def test_seed_bootstrap_registers_mappers_and_compiles_admin_query() -> None:
     code = (
         "import sys; "
         "sys.path.insert(0, '.'); "
-        "import scripts.seed_admin; "
+        "import scripts.initial_load.seed_admin; "
         "from sqlalchemy import select; "
         "from core.models.admin_user import AdminUser; "
         "from sqlalchemy.orm import configure_mappers; "
@@ -41,18 +41,23 @@ def test_seed_bootstrap_registers_mappers_and_compiles_admin_query() -> None:
 
 
 def test_admin_seed_is_idempotent(monkeypatch) -> None:
-    import scripts.seed_admin as seed_admin
+    from initial_load import seed_admin
 
     saved_admins = []
+    saved_users = []
 
     class FakeSession:
-        async def execute(self, _statement):
+        async def execute(self, statement):
+            target = saved_admins if "admin_users" in str(statement) else saved_users
             return SimpleNamespace(
-                scalar_one_or_none=lambda: saved_admins[0] if saved_admins else None
+                scalar_one_or_none=lambda: target[0] if target else None
             )
 
-        def add(self, admin):
-            saved_admins.append(admin)
+        def add(self, record):
+            if isinstance(record, AdminUser):
+                saved_admins.append(record)
+            else:
+                saved_users.append(record)
 
         async def commit(self):
             return None
@@ -73,6 +78,10 @@ def test_admin_seed_is_idempotent(monkeypatch) -> None:
 
     asyncio.run(run_twice())
     assert len(saved_admins) == 1
+    assert len(saved_users) == 1
+    assert isinstance(saved_users[0], Usuario)
+    assert saved_users[0].is_superuser is True
+    assert saved_users[0].senha_hash == saved_admins[0].senha_hash
 
 
 def test_seed_registers_models_without_breaking_safra_cultivo_relationship() -> None:

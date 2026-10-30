@@ -5,7 +5,7 @@ Cria o catálogo de culturas base com sistema=True (não editáveis pelo tenant)
 Cada cultura vem com parâmetros agronômicos realistas para o contexto brasileiro.
 
 Executar:
-    cd services/api && .venv/bin/python scripts/seed_culturas.py
+    cd services/api && .venv/bin/python scripts/initial_load/seed_culturas.py
 """
 import sys
 import asyncio

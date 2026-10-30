@@ -21,14 +21,17 @@ class MonitoramentoCatalogoService(BaseService[MonitoramentoCatalogo]):
 
     async def listar(self, tipo: str | None = None, cultura: str | None = None) -> list[MonitoramentoCatalogo]:
         """Retorna entradas do tenant + entradas system (is_system=True) visíveis para todos."""
-        from sqlalchemy import or_
+        from sqlalchemy import and_, or_
         stmt = (
             select(MonitoramentoCatalogo)
             .where(
                 MonitoramentoCatalogo.ativo == True,
                 or_(
                     MonitoramentoCatalogo.tenant_id == self.tenant_id,
-                    MonitoramentoCatalogo.is_system == True,
+                    and_(
+                        MonitoramentoCatalogo.tenant_id.is_(None),
+                        MonitoramentoCatalogo.is_system.is_(True),
+                    ),
                 ),
             )
             .order_by(MonitoramentoCatalogo.tipo, MonitoramentoCatalogo.nome_popular)

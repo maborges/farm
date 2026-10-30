@@ -33,7 +33,7 @@ class OnboardingService:
         if not perfil:
             raise HTTPException(
                 status_code=500,
-                detail="Perfil padrão 'owner' não encontrado. Execute: python scripts/seed_perfis.py"
+                detail="Perfil padrão 'owner' não encontrado. Execute: python scripts/initial_load/seed_perfis.py"
             )
         return perfil
 

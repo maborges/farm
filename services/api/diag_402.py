@@ -86,7 +86,7 @@ async def main():
         if not assinaturas:
             print("\n❌ PROBLEMA: Tenant sem assinatura!")
             print("\n💡 SOLUÇÃO:")
-            print("   Execute: cd services/api && python3 scripts/seed_plans.py")
+            print("   Execute: cd services/api && python3 scripts/initial_load/seed_plans.py")
             print("   Execute: cd services/api && python3 scripts/seed_dev.py")
             print("\n   Ou use o backoffice para ativar um plano para o tenant.")
         else:

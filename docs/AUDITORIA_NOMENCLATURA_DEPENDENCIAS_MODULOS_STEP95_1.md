@@ -61,7 +61,7 @@ Fontes principais de runtime:
 
 Fontes de compatibilidade, seeds ou historico:
 
-- `services/api/scripts/seed_plans.py`
+- `services/api/scripts/initial_load/seed_plans.py`
 - `services/api/scripts/seed_plan_pricing.py`
 - `services/api/migrations/versions/4492badc2748_add_plan_changes_and_dynamic_pricing.py`
 - `services/api/migrations/versions/5563c3f1a6d4_add_plan_tier_limits_crm_sessions.py`

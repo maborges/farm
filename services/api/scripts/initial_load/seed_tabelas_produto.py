@@ -8,7 +8,7 @@ criar registros adicionais com tenant_id preenchido.
 Uso:
     cd services/api
     source .venv/bin/activate
-    python scripts/seed_tabelas_produto.py
+    python scripts/initial_load/seed_tabelas_produto.py
 """
 import asyncio
 from sqlalchemy import select
@@ -57,6 +57,10 @@ MARCAS = [
     {"nome": "Mobil",           "pais_origem": "EUA"},
     {"nome": "Castrol",         "pais_origem": "Reino Unido"},
     {"nome": "Total Energies",  "pais_origem": "França"},
+    # Combustíveis
+    {"nome": "Petrobras",       "pais_origem": "Brasil"},
+    {"nome": "Ipiranga",         "pais_origem": "Brasil"},
+    {"nome": "Raízen",           "pais_origem": "Brasil"},
     # EPIs e ferramentas
     {"nome": "3M",              "pais_origem": "EUA"},
     {"nome": "Bosch",           "pais_origem": "Alemanha"},

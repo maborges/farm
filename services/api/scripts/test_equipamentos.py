@@ -14,7 +14,7 @@ Pré-requisitos:
 Uso:
     cd services/api
     source .venv/bin/activate
-    python scripts/seed_equipamentos.py
+    python scripts/test_equipamentos.py
 """
 
 import sys

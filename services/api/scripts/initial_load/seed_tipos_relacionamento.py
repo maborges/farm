@@ -1,0 +1,87 @@
+"""Papéis globais de relacionamento copiados do catálogo aprovado."""
+
+# (id, código, nome, cor, ícone, descrição)
+RELATIONSHIP_TYPES = (
+    (
+        "e183cab0-720f-4d97-ae35-7bc9c8e08f04",
+        "AGRONOMO",
+        "Agrônomo",
+        "#16A34A",
+        "sprout",
+        "Engenheiro agrônomo responsável técnico (CREA) por Receituários Agronômicos",
+    ),
+    ("ca3492be-da57-41a0-a660-2ca83d47a8b0", "CLIENTE", "Cliente", "#10B981", "user-check", None),
+    (
+        "0e136bf6-64bd-47be-a218-7c3c7614d243",
+        "COLABORADOR",
+        "Colaborador / Funcionário",
+        "#EC4899",
+        "hard-hat",
+        None,
+    ),
+    (
+        "4c92e235-2e9f-4227-81fe-99edd1d0ed46",
+        "FORNECEDOR",
+        "Fornecedor",
+        "#F59E0B",
+        "truck",
+        None,
+    ),
+    (
+        "c7f33318-7779-404c-8368-298085f9b819",
+        "ORGAO",
+        "Órgão / Instituição",
+        "#64748B",
+        "building-2",
+        None,
+    ),
+    (
+        "e2c27045-66dd-4c4f-a80d-4b0645f7ce79",
+        "PARCEIRO",
+        "Parceiro",
+        "#6366F1",
+        "handshake",
+        None,
+    ),
+    (
+        "0dadec90-b0ae-433e-b358-7999c1bf47fd",
+        "POSTO_RECEBIMENTO",
+        "Posto de Recebimento",
+        "#0EA5E9",
+        "recycle",
+        "Estabelecimento/revenda credenciado para devolução de embalagens de defensivos "
+        "(Lei 9.974/2000)",
+    ),
+    (
+        "a9d5b17c-8d71-40c0-ab75-833359efb364",
+        "PRESTADOR",
+        "Prestador de Serviço",
+        "#8B5CF6",
+        "wrench",
+        None,
+    ),
+    (
+        "9bef5a88-81c9-4af4-acfc-9978a38b9384",
+        "PROPRIETARIO",
+        "Proprietário / Arrendador",
+        "#0EA5E9",
+        "landmark",
+        None,
+    ),
+    (
+        "a859c0f7-8b86-4163-a118-f28f2d456a3a",
+        "RESPONSAVEL_TECNICO",
+        "Responsável Técnico",
+        "#14B8A6",
+        "clipboard-check",
+        None,
+    ),
+    (
+        "e45fb7cd-dc28-4626-b933-2885f2216dbc",
+        "TRANSPORTADORA",
+        "Transportadora",
+        "#3B82F6",
+        "truck-moving",
+        None,
+    ),
+)

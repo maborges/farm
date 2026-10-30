@@ -10,17 +10,11 @@ Cria um pipeline comercial padrão com as seguintes colunas:
 5. Fechamento
 """
 import asyncio
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.orm import sessionmaker
-import os
-from datetime import datetime, timezone
 
-# Importar models
-import sys
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from sqlalchemy import select
 
+from core.database import async_session_maker
 from core.models.crm import PipelineEstagio
-from core.config import settings
 
 # Dados dos estágios padrão
 ESTAGIOS_PADRAO = [
@@ -52,32 +46,35 @@ ESTAGIOS_PADRAO = [
 ]
 
 
-async def seed():
-    """Cria estágios padrão do CRM."""
-    db_url = str(settings.database_url)
-    if not db_url or "postgresql" not in db_url:
-        db_url = "sqlite+aiosqlite:///./agrosaas.db"
-
-    engine = create_async_engine(db_url, echo=False)
-    async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-
-    async with async_session() as session:
-        print("🌱 Seedando estágios do CRM...")
-
-        for dados in ESTAGIOS_PADRAO:
-            estagio = PipelineEstagio(
+async def seed_estagios_crm(session):
+    """Cria os estágios globais padrão sem duplicar nomes já cadastrados."""
+    existing_names = set(
+        (await session.execute(select(PipelineEstagio.nome))).scalars().all()
+    )
+    inserted = 0
+    for dados in ESTAGIOS_PADRAO:
+        if dados["nome"] in existing_names:
+            continue
+        session.add(
+            PipelineEstagio(
                 nome=dados["nome"],
                 cor=dados["cor"],
                 ordem=dados["ordem"],
                 ativo=True,
             )
-            session.add(estagio)
-            print(f"  ✓ Criado: {dados['nome']}")
+        )
+        existing_names.add(dados["nome"])
+        inserted += 1
 
-        await session.commit()
-        print("\n✅ Seed concluído com sucesso!")
+    await session.commit()
+    return inserted
 
-    await engine.dispose()
+
+async def seed():
+    """Cria estágios padrão do CRM usando a sessão configurada pela API."""
+    async with async_session_maker() as session:
+        inserted = await seed_estagios_crm(session)
+        print(f"Seed concluído: {inserted} estágios de CRM inseridos.")
 
 
 if __name__ == "__main__":

@@ -8,17 +8,29 @@ BASELINE_REVISION = "baseline_deepfarms_v1"
 SEED_CONTRACT_VERSION = "global_catalogs_v1"
 # Filled from the reviewed source files and asserted before any snapshot DDL.
 BASELINE_SHA256 = "b32da6be0f5f089c9d75fc2c0da4784e8dccaeb6303be5c03dbc6156c8275fbc"
-SEED_CONTRACT_SHA256 = "1e6a717dc70effdc9cbc65407bbf4126ed2f59b36f2a6b0c7f8d37a61507b4fe"
+SEED_CONTRACT_SHA256 = "abf7b0238a2344616f41d76aba8adf0cfe7147f433d86bde700effdfe23088bd"
 
 
 def artifact_hashes(api_root: Path) -> dict[str, str]:
     import hashlib
 
     baseline = api_root / "migrations/versions/20260908_baseline_deepfarms_v1.py"
-    seeds = api_root / "clean_install/seed_contract.py"
+    seed_sources = (
+        api_root / "clean_install/seed_contract.py",
+        api_root / "scripts/initial_load/seed_unidades_medida.py",
+        api_root / "scripts/initial_load/seed_categorias_produto.py",
+        api_root / "scripts/initial_load/seed_fases_operacao.py",
+        api_root / "scripts/initial_load/seed_tipos_servico.py",
+        api_root / "scripts/initial_load/seed_tipos_relacionamento.py",
+    )
+    seed_digest = hashlib.sha256()
+    for source in seed_sources:
+        seed_digest.update(source.relative_to(api_root).as_posix().encode())
+        seed_digest.update(b"\0")
+        seed_digest.update(source.read_bytes())
     return {
         "baseline_sha256": hashlib.sha256(baseline.read_bytes()).hexdigest(),
-        "seed_contract_sha256": hashlib.sha256(seeds.read_bytes()).hexdigest(),
+        "seed_contract_sha256": seed_digest.hexdigest(),
     }
 
 

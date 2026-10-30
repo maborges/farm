@@ -18,6 +18,7 @@ from core.models.unidade_produtiva import UnidadeProdutiva as Fazenda
 from core.models.billing import AssinaturaTenant, PlanoAssinatura, Fatura
 from core.schemas.auth_schemas import FreeUserCreateRequest, LoginRequest, UserCreateRequest, TenantAcessoResponse, UnidadeProdutivaAcessoResponse as FazendaAcessoResponse, PerfilSimplesResponse, UsuarioMeResponse
 from core.config import settings
+from core.constants import normalize_tenant_role
 from core.services.login_rate_limit_service import LoginRateLimitService
 from core.services.session_timeout_service import get_session_idle_minutes, session_expiration
 from core.services.email_service import email_service, SMTPPlatformConfigNotFoundError
@@ -290,7 +291,7 @@ class AuthService:
             # Fetch profile to get roles
             perfil_stmt = select(PerfilAcesso).where(PerfilAcesso.id == first_tu.perfil_id)
             perfil = (await self.session.execute(perfil_stmt)).scalar_one_or_none()
-            role_name = perfil.nome.lower() if perfil else "operador"
+            role_name = normalize_tenant_role(perfil.nome) if perfil else "operador"
             
             # Fetch allowed unidades produtivas
             fazenda_usu_stmt = select(FazendaUsuario).where(
@@ -344,7 +345,7 @@ class AuthService:
         plan_tier = tenant_contexts[0]["plan_tier"] if tenant_contexts else "BASICO"
 
         # Role do tenant (owner/admin) para acesso implícito
-        tenant_role = perfil.nome.lower() if (not user.is_superuser and perfil) else None
+        tenant_role = normalize_tenant_role(perfil.nome) if (not user.is_superuser and perfil) else None
 
         # Generate token payload
         claims = {
@@ -413,7 +414,9 @@ class AuthService:
             perfil = (await self.session.execute(
                 select(PerfilAcesso).where(PerfilAcesso.id == first_tu.perfil_id)
             )).scalar_one_or_none()
-        role_name = "owner" if first_tu.is_owner else (perfil.nome.lower() if perfil else "operador")
+        role_name = "owner" if first_tu.is_owner else (
+            normalize_tenant_role(perfil.nome) if perfil else "operador"
+        )
 
         modulos: list[str] = ["CORE"]
         fazendas_auth: list[dict] = []

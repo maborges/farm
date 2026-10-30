@@ -1,12 +1,13 @@
 """
 Seed de templates de checklist agronômico por fase.
-Uso: PYTHONPATH=/opt/lampp/htdocs/farm/services/api python scripts/seed_checklist_templates.py
+Uso: PYTHONPATH=. python scripts/initial_load/seed_checklist_templates.py
 """
 import asyncio
-from sqlalchemy import select, text
-from core.database import async_session_maker
-from core.models import Tenant  # noqa: F401
+
+from sqlalchemy import select
+
 from agricola.models.templates import PhaseTemplate, PhaseTemplateChecklistItem
+from core.database import async_session_maker
 
 # (fase, cultura, titulo, obrigatorio)
 TEMPLATES = [
@@ -45,11 +46,26 @@ TEMPLATES = [
     ("DESENVOLVIMENTO", None,    "Aplicar herbicida de pós-emergência conforme infestação",  False),
     ("DESENVOLVIMENTO", None,    "Registrar estágio fenológico atual",                        True),
     ("DESENVOLVIMENTO", None,    "Aplicar adubação de cobertura",                             True),
-    ("DESENVOLVIMENTO", None,    "Avaliar necessidade de fungicida preventivo",                False),
-    ("DESENVOLVIMENTO", "SOJA",  "Aplicar fungicida para ferrugem asiática (V6–R1)",           True),
-    ("DESENVOLVIMENTO", "SOJA",  "Monitorar percevejo marrom (a partir de R3)",                True),
-    ("DESENVOLVIMENTO", "MILHO", "Aplicar N em cobertura (V4–V6)",                             True),
-    ("DESENVOLVIMENTO", "MILHO", "Monitorar lagarta-do-cartucho",                              True),
+    (
+        "DESENVOLVIMENTO", None,
+        "Avaliar necessidade de fungicida preventivo", False,
+    ),
+    (
+        "DESENVOLVIMENTO", "SOJA",
+        "Aplicar fungicida para ferrugem asiática (V6–R1)", True,
+    ),
+    (
+        "DESENVOLVIMENTO", "SOJA",
+        "Monitorar percevejo marrom (a partir de R3)", True,
+    ),
+    (
+        "DESENVOLVIMENTO", "MILHO",
+        "Aplicar N em cobertura (V4–V6)", True,
+    ),
+    (
+        "DESENVOLVIMENTO", "MILHO",
+        "Monitorar lagarta-do-cartucho", True,
+    ),
 
     # ─── COLHEITA ────────────────────────────────────────────────────────────
     ("COLHEITA", None,    "Verificar umidade dos grãos antes da colheita",  True),
@@ -71,63 +87,77 @@ TEMPLATES = [
 ]
 
 
-async def seed():
-    async with async_session_maker() as session:
-        row = (await session.execute(text("SELECT id FROM tenants LIMIT 1"))).fetchone()
-        if not row:
-            print("Nenhum tenant encontrado.")
-            return
-        tenant_id = row[0]
+async def seed_checklist_templates(session):
+    """Cria os templates globais sem depender de tenants existentes."""
+    existing_items = set(
+        (await session.execute(
+            select(
+                PhaseTemplate.fase,
+                PhaseTemplate.cultura,
+                PhaseTemplateChecklistItem.titulo,
+            )
+            .join(PhaseTemplate)
+            .where(
+                PhaseTemplate.tenant_id.is_(None),
+                PhaseTemplate.is_system_default.is_(True),
+            )
+        )).tuples().all()
+    )
 
-        # Busca títulos existentes para evitar duplicatas nos itens
-        existing_items = set(
-            r[0]
-            for r in (
+    containers = {}
+    inseridos = 0
+    for fase, cultura, titulo, obrigatorio in TEMPLATES:
+        key = (fase, cultura, titulo)
+        if key in existing_items:
+            continue
+
+        container_key = (fase, cultura)
+        container = containers.get(container_key)
+        if container is None:
+            container = (
                 await session.execute(
-                    select(PhaseTemplateChecklistItem.titulo).join(PhaseTemplate).where(
-                        PhaseTemplate.is_system_default == True
+                    select(PhaseTemplate).where(
+                        PhaseTemplate.tenant_id.is_(None),
+                        PhaseTemplate.cultura == cultura,
+                        PhaseTemplate.fase == fase,
+                        PhaseTemplate.is_system_default.is_(True),
                     )
                 )
-            ).all()
-        )
-
-        inseridos = 0
-        for fase, cultura, titulo, obrigatorio in TEMPLATES:
-            if titulo in existing_items:
-                continue
-            
-            # Busca ou cria o container para a fase
-            stmt_container = select(PhaseTemplate).where(
-                PhaseTemplate.tenant_id == None,
-                PhaseTemplate.cultura == cultura,
-                PhaseTemplate.fase == fase
-            )
-            container = (await session.execute(stmt_container)).scalar_one_or_none()
-            
-            if not container:
+            ).scalar_one_or_none()
+            if container is None:
                 container = PhaseTemplate(
                     tenant_id=None,
                     cultura=cultura,
                     fase=fase,
                     titulo=f"Template {fase}" + (f" - {cultura}" if cultura else ""),
                     is_system_default=True,
-                    ativo=True
+                    ativo=True,
                 )
                 session.add(container)
                 await session.flush()
+            containers[container_key] = container
 
-            session.add(PhaseTemplateChecklistItem(
+        session.add(
+            PhaseTemplateChecklistItem(
                 phase_template_id=container.id,
                 titulo=titulo,
                 descricao=None,
                 obrigatorio=obrigatorio,
                 ordem=0,
-                ativo=True
-            ))
-            inseridos += 1
+                ativo=True,
+            )
+        )
+        existing_items.add(key)
+        inseridos += 1
 
-        await session.commit()
-        print(f"Seed concluído: {inseridos} templates inseridos ({len(existing_items)} já existiam).")
+    await session.commit()
+    return inseridos
+
+
+async def seed():
+    async with async_session_maker() as session:
+        inseridos = await seed_checklist_templates(session)
+        print(f"Seed concluído: {inseridos} itens de checklist inseridos.")
 
 
 if __name__ == "__main__":

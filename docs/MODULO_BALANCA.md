@@ -197,7 +197,7 @@ A Balança é um módulo comercializável próprio (`core/constants.py`,
   (`/sync/pull`, `/sync/push` — device token, sem JWT de usuário). Módulos
   clientes (romaneios/compras/vendas/pecuária) chamam `PesagemService`
   diretamente em Python, não via HTTP — não passam por esse gate.
-- **Planos:** `scripts/seed_plans.py` inclui `O4_BALANCA` nos planos Prata
+- **Planos:** `scripts/initial_load/seed_plans.py` inclui `O4_BALANCA` nos planos correspondentes
   (Profissional) e Ouro (Empresarial) para instalações novas. Em bancos já
   seedados, foi feito um backfill pontual adicionando `O4_BALANCA` a todo
   plano que já tinha `A2_CAMPO` (mesmo critério do gate temporário anterior)

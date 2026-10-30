@@ -58,7 +58,7 @@ def upgrade():
         ), {"pessoa_id": pessoa_id, "id": colaborador_id})
 
     # 2. Garante o TipoRelacionamento COLABORADOR (global, tenant_id NULL) — mesmo
-    #    seed de scripts/seed_tipos_relacionamento.py, caso ainda não tenha rodado.
+    #    seed de scripts/initial_load/seed_tipos_relacionamento.py, caso ainda não tenha rodado.
     tipo_row = conn.execute(sa.text(
         "SELECT id FROM cadastros_tipos_relacionamento WHERE codigo = 'COLABORADOR' AND tenant_id IS NULL"
     )).fetchone()

@@ -2,6 +2,7 @@
 Constantes globais do DeepFarms - Identificadores de Módulos Vendáveis
 Cada constante representa um módulo que pode ser contratado individualmente.
 """
+import unicodedata
 from enum import Enum
 
 
@@ -530,6 +531,19 @@ class TenantRoles:
     }
 
 
+def normalize_tenant_role(role: str | None) -> str | None:
+    """Normaliza nomes de exibição para os identificadores usados nas rotas."""
+    if role is None:
+        return None
+    normalized = unicodedata.normalize("NFKD", str(role).strip())
+    normalized = normalized.encode("ascii", "ignore").decode("ascii").lower()
+    aliases = {
+        "administrador": TenantRoles.ADMIN,
+        "proprietario": TenantRoles.OWNER,
+    }
+    return aliases.get(normalized, normalized)
+
+
 class TenantPermissions:
     """
     Mapeamento de permissões para usuários de tenants.
@@ -736,23 +750,26 @@ class TenantPermissions:
     }
 
     @classmethod
-    def has_permission(cls, role: str, permission: str, custom_permissions: dict = None) -> bool:
+    def has_permission(cls, role: str, permission: str, custom_permissions: dict | None = None) -> bool:
         """
         Verifica se uma role tem determinada permissão.
 
         Args:
             role: Nome do perfil
             permission: Permissão a verificar (ex: "agricola:operacoes:create")
-            custom_permissions: Permissões customizadas do PerfilAcesso (dict JSON)
+            custom_permissions: JSON de permissões do PerfilAcesso, independente
+                de o registro ser padrão ou criado por um usuário.
 
         Returns:
             bool: True se tem permissão
         """
-        # Se tem permissões customizadas, usar elas
-        if custom_permissions:
+        # O JSON define as permissões tanto dos perfis padrão quanto dos
+        # personalizados. `is_custom` identifica a origem do registro.
+        if custom_permissions is not None:
             return cls._check_custom_permissions(custom_permissions, permission)
 
         # Usar permissões padrão do perfil
+        role = normalize_tenant_role(role)
         user_perms = cls.PERMISSIONS_MAP.get(role, [])
 
         # Wildcard total
@@ -793,8 +810,11 @@ class TenantPermissions:
             "permissions": ["tenant:users:*", "agricola:*"]
         }
         """
-        if not permission:
+        if not isinstance(custom_perms, dict) or not permission:
             return False
+
+        if custom_perms.get("*") == "*":
+            return True
 
         # Formato novo: {"granted": [...]}
         granted = custom_perms.get("granted")
@@ -820,6 +840,8 @@ class TenantPermissions:
     @staticmethod
     def _match_permission_list(perm_list: list, permission: str) -> bool:
         """Verifica se uma permissão bate com qualquer entrada da lista (suporta wildcards)."""
+        if not isinstance(perm_list, list):
+            return False
         if "*" in perm_list:
             return True
         if permission in perm_list:

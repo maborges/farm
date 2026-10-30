@@ -904,6 +904,7 @@ def require_role(roles_allowed: List[str]):
         claims: dict = Depends(get_current_user_claims)
     ):
         from loguru import logger
+        from core.constants import normalize_tenant_role
         target_fazenda_id = request.headers.get("x-fazenda-id")
         fazendas_auth = claims.get("fazendas_auth", [])
         role = next((f.get("role") for f in fazendas_auth if f.get("id") == target_fazenda_id), None)
@@ -911,6 +912,9 @@ def require_role(roles_allowed: List[str]):
         # Admin/Owner do tenant tem acesso implícito a todas as fazendas
         tenant_role = claims.get("role")
         is_superuser = claims.get("is_superuser", False)
+        role = normalize_tenant_role(role)
+        tenant_role = normalize_tenant_role(tenant_role)
+        roles_allowed = [normalize_tenant_role(item) for item in roles_allowed]
         logger.debug(f"require_role: fazenda={target_fazenda_id}, role_from_db={role}, tenant_role={tenant_role}, is_superuser={is_superuser}")
 
         # Owner e admin do tenant são tratados como 'admin' para permissão
@@ -1039,7 +1043,7 @@ async def resolver_permissao_usuario(
             perfil_acesso = row_f[1]
     if perfil_acesso:
         return TenantPermissions.has_permission(
-            perfil_acesso.nome.lower(), permission, perfil_acesso.permissoes if perfil_acesso.is_custom else None
+            perfil_acesso.nome, permission, perfil_acesso.permissoes
         )
     return False
 
@@ -1049,10 +1053,10 @@ async def resolver_role_tenant_usuario(
     tenant_id: uuid.UUID,
     usuario_id: uuid.UUID,
 ) -> str | None:
-    """Retorna o nome de perfil (role) do usuário no tenant, em minúsculas.
+    """Retorna o identificador canônico do perfil do usuário no tenant.
 
     Mesma resolução usada por `require_role` no login (`auth_service.py`, onde
-    `fazendas_auth[i].role = perfil.nome.lower()` vem do perfil do TenantUsuario,
+    `fazendas_auth[i].role` vem do perfil do TenantUsuario,
     não de `FazendaUsuario.perfil_fazenda_id` — ignorado ali também). `is_owner`
     é tratado como "admin", igual ao `require_role`. Retorna None se sem vínculo ativo.
     """
@@ -1069,7 +1073,10 @@ async def resolver_role_tenant_usuario(
     tenant_usuario, perfil_acesso = row
     if tenant_usuario.is_owner:
         return "admin"
-    return perfil_acesso.nome.lower() if perfil_acesso else None
+    if perfil_acesso:
+        from core.constants import normalize_tenant_role
+        return normalize_tenant_role(perfil_acesso.nome)
+    return None
 
 
 def require_tenant_permission(permission: str):

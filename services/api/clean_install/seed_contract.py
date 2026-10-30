@@ -7,13 +7,25 @@ credential, integration, or demonstration records are seeded.
 from __future__ import annotations
 
 import json
+import sys
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
+from pathlib import Path
 from uuid import UUID, uuid5
 
 from sqlalchemy import text
 from sqlalchemy.engine import Connection
+
+SCRIPTS_ROOT = Path(__file__).resolve().parents[1] / "scripts"
+if str(SCRIPTS_ROOT) not in sys.path:
+    sys.path.insert(0, str(SCRIPTS_ROOT))
+
+from initial_load.seed_categorias_produto import PRODUCT_CATEGORIES  # noqa: E402
+from initial_load.seed_fases_operacao import OPERATION_PHASES  # noqa: E402
+from initial_load.seed_tipos_relacionamento import RELATIONSHIP_TYPES  # noqa: E402
+from initial_load.seed_tipos_servico import SERVICE_TYPES  # noqa: E402
+from initial_load.seed_unidades_medida import UNITS  # noqa: E402
 
 SEED_NAMESPACE = UUID("3f8697d8-a25e-4d29-8248-96d653102deb")
 
@@ -33,6 +45,12 @@ class SeedRow:
 
     @property
     def id(self) -> UUID:
+        configured_id = self.data.get("id")
+        if configured_id and configured_id != "{id}":
+            try:
+                return UUID(str(configured_id))
+            except ValueError:
+                pass
         natural = "|".join(str(self.data[column]) for column in self.natural_key)
         return uuid5(SEED_NAMESPACE, f"{self.catalog}:{natural}")
 
@@ -41,33 +59,8 @@ def _row(catalog: str, table: str, key: tuple[str, ...], **values: object) -> Se
     return SeedRow(catalog, table, key, tuple(values.items()))
 
 
-# Final unit codes incorporate the later ISO 80000 normalization (h/s/min/d/a).
-UNITS = (
-    ("KG", "Quilograma", "massa", "KG", "1", 2, True),
-    ("G", "Grama", "massa", "KG", "0.001", 3, False),
-    ("TON", "Tonelada", "massa", "KG", "1000", 4, False),
-    ("SC60", "Saca 60 kg", "massa", "KG", "60", 2, False),
-    ("SC50", "Saca 50 kg", "massa", "KG", "50", 2, False),
-    ("L", "Litro", "volume", "L", "1", 2, True),
-    ("ML", "Mililitro", "volume", "L", "0.001", 3, False),
-    ("M3", "Metro cúbico", "volume", "L", "1000", 4, False),
-    ("HA", "Hectare", "area", "HA", "1", 2, True),
-    ("M2", "Metro quadrado", "area", "HA", "0.0001", 0, False),
-    ("HM", "Hora-máquina", "hora_maquina", "HM", "1", 2, True),
-    ("HH", "Homem-hora", "hora_homem", "HH", "1", 2, True),
-    ("UN", "Unidade", "contagem", "UN", "1", 0, True),
-    ("BRL", "Real brasileiro", "moeda", "BRL", "1", 2, True),
-    ("h", "Hora", "tempo", "h", "1", 2, True),
-    ("DIA", "Dia", "tempo", "h", "24", 2, False),
-    ("min", "Minuto", "tempo", "h", "0.016666667", 4, False),
-    ("s", "Segundo", "tempo", "h", "0.000277778", 0, False),
-    ("SEMANA", "Semana", "tempo", "h", "168", 0, False),
-    ("MES", "Mês", "tempo", "h", "720", 0, False),
-    ("a", "Ano", "tempo", "h", "8760", 0, False),
-    ("MANHA", "Manhã (turno de 8h)", "tempo", "h", "8", 0, False),
-    ("TARDE", "Tarde (turno de 8h)", "tempo", "h", "8", 0, False),
-    ("NOITE", "Noite (turno de 8h)", "tempo", "h", "8", 0, False),
-)
+_CATEGORY_IDS = {category[1]: UUID(category[0]) for category in PRODUCT_CATEGORIES}
+
 
 SEEDS: tuple[SeedRow, ...] = (
     tuple(
@@ -94,85 +87,37 @@ SEEDS: tuple[SeedRow, ...] = (
             "product_categories",
             "cadastros_categorias_produto",
             ("nome",),
-            id=f"11111111-ca70-0000-0000-{index:012d}",
+            id=category_id,
             tenant_id=None,
             sistema=True,
-            parent_id=None,
+            parent_id=_CATEGORY_IDS[parent_name] if parent_name else None,
             nome=name,
-            descricao=None,
-            cor=None,
-            icone=None,
-            ordem=0,
+            descricao=description,
+            cor=color,
+            icone=icon,
+            ordem=order,
             ativo=True,
         )
-        for index, name in enumerate(
-            (
-                "Sementes",
-                "Defensivos Agrícolas",
-                "Fertilizantes e Corretivos",
-                "Inoculantes",
-                "Adjuvantes",
-                "Ração",
-                "Medicamentos Veterinários",
-                "Vacinas",
-                "Sal Mineral e Suplementos",
-                "Peças de Máquinas",
-                "Lubrificantes",
-                "Combustíveis",
-                "Materiais de Uso Geral",
-                "Equipamentos de Proteção Individual",
-                "Serviços Contratados",
-            ),
-            1,
-        )
+        for category_id, name, description, color, icon, order, parent_name in PRODUCT_CATEGORIES
     )
     + tuple(
         _row(
             "operation_phases",
             "agricola_operacao_tipo_fase",
             ("tipo_operacao",),
-            id="{id}",
+            id=phase_id,
             tipo_operacao=kind,
             fases_permitidas=phases,
             descricao=description,
         )
-        for kind, phases, description in (
-            ("PLANTIO", ["PLANTIO", "DESENVOLVIMENTO"], "Semeadura e plantio"),
-            ("ADUBAÇÃO", ["PREPARO_SOLO", "DESENVOLVIMENTO"], "Adubação de base ou cobertura"),
-            (
-                "PULVERIZAÇÃO",
-                ["PLANEJADA", "DESENVOLVIMENTO", "COLHEITA"],
-                "Aplicação de defensivos ou bioinsumos",
-            ),
-            ("COLHEITA", ["COLHEITA"], "Colheita manual ou mecanizada"),
-            (
-                "OPERAÇÃO_MECANIZADA",
-                ["PLANTIO", "DESENVOLVIMENTO"],
-                "Operações gerais com máquinas e implementos",
-            ),
-            ("PREPARO_SOLO", ["PREPARO_SOLO"], "Aração, gradagem, subsolagem e preparo de área"),
-            ("CALAGEM", ["PREPARO_SOLO"], "Aplicação de calcário"),
-            ("IRRIGAÇÃO", ["DESENVOLVIMENTO", "COLHEITA"], "Operações de irrigação"),
-            (
-                "OUTROS",
-                [
-                    "PLANEJADA",
-                    "PREPARO_SOLO",
-                    "PLANTIO",
-                    "DESENVOLVIMENTO",
-                    "COLHEITA",
-                    "POS_COLHEITA",
-                ],
-                "Outras operações de campo",
-            ),
-        )
+        for phase_id, kind, phases, description in OPERATION_PHASES
     )
     + tuple(
         _row(
             "relationship_types",
             "cadastros_tipos_relacionamento",
             ("codigo",),
-            id="{id}",
+            id=relationship_id,
             tenant_id=None,
             codigo=code,
             nome=name,
@@ -182,32 +127,22 @@ SEEDS: tuple[SeedRow, ...] = (
             sistema=True,
             ativo=True,
         )
-        for code, name, color, icon, description in (
-            ("FORNECEDOR", "Fornecedor", "#F59E0B", "truck", None),
-            ("CLIENTE", "Cliente", "#10B981", "user-check", None),
-            ("PARCEIRO", "Parceiro", "#6366F1", "handshake", None),
-            ("PRESTADOR", "Prestador de Serviço", "#8B5CF6", "wrench", None),
-            ("TRANSPORTADORA", "Transportadora", "#3B82F6", "truck-moving", None),
-            ("COLABORADOR", "Colaborador / Funcionário", "#EC4899", "hard-hat", None),
-            ("PROPRIETARIO", "Proprietário / Arrendador", "#0EA5E9", "landmark", None),
-            ("ORGAO", "Órgão / Instituição", "#64748B", "building-2", None),
-            ("RESPONSAVEL_TECNICO", "Responsável Técnico", "#14B8A6", "clipboard-check", None),
-            (
-                "AGRONOMO",
-                "Agrônomo",
-                "#16A34A",
-                "sprout",
-                "Engenheiro agrônomo responsável técnico (CREA) por Receituários Agronômicos",
-            ),
-            (
-                "POSTO_RECEBIMENTO",
-                "Posto de Recebimento",
-                "#0EA5E9",
-                "recycle",
-                "Estabelecimento/revenda credenciado para devolução de embalagens de defensivos "
-                "(Lei 9.974/2000)",
-            ),
+        for relationship_id, code, name, color, icon, description in RELATIONSHIP_TYPES
+    )
+    + tuple(
+        _row(
+            "service_types",
+            "cadastros_tipos_servico",
+            ("nome",),
+            id=service_id,
+            tenant_id=None,
+            nome=name,
+            unidade_medida=unit,
+            custo_referencia=cost,
+            observacoes=notes,
+            ativo=True,
         )
+        for service_id, name, unit, cost, notes in SERVICE_TYPES
     )
 )
 
@@ -215,7 +150,13 @@ SEEDS: tuple[SeedRow, ...] = (
 # records follow unit and category catalogs. Conversion rows are deliberately
 # excluded: their historic rows depend on a commodity catalog with no clean
 # install seed contract and include agronomic assumptions.
-SEED_ORDER = ("units", "product_categories", "operation_phases", "relationship_types")
+SEED_ORDER = (
+    "units",
+    "product_categories",
+    "operation_phases",
+    "relationship_types",
+    "service_types",
+)
 SEED_CATALOGS = {
     "units": {"table": "unidades_medida", "required": True, "scope": "global", "depends_on": ()},
     "product_categories": {
@@ -238,10 +179,9 @@ SEED_CATALOGS = {
     },
     "service_types": {
         "table": "cadastros_tipos_servico",
-        "required": False,
+        "required": True,
         "scope": "global",
         "depends_on": ("units",),
-        "reason": "suggestion-only legacy values reference units absent from final unit contract",
     },
     "commodity_conversions": {
         "table": "unidades_medida_conversoes",
@@ -304,6 +244,14 @@ def validate_seed_contract() -> None:
     if any(count != 1 for count in base_counts.values()):
         raise ValueError("Each seeded unit dimension must have exactly one base unit")
 
+    category_rows = [row for row in SEEDS if row.catalog == "product_categories"]
+    category_ids = {row.id for row in category_rows}
+    if any(
+        row.data["parent_id"] is not None and row.data["parent_id"] not in category_ids
+        for row in category_rows
+    ):
+        raise ValueError("Product-category seed references a missing parent category")
+
     allowed_phases = {
         "PLANEJADA",
         "PREPARO_SOLO",
@@ -320,13 +268,23 @@ def validate_seed_contract() -> None:
         raise ValueError("Operation-phase seed contains an unknown crop phase")
 
 
-def apply_seeds(connection: Connection) -> dict[str, int]:
+def apply_seeds(
+    connection: Connection,
+    *,
+    catalogs: tuple[str, ...] | None = None,
+) -> dict[str, int]:
     """Insert absent global rows; accept exact matches and reject drift."""
     validate_seed_contract()
+    selected_catalogs = set(SEED_ORDER if catalogs is None else catalogs)
+    unknown_catalogs = selected_catalogs - set(SEED_ORDER)
+    if unknown_catalogs:
+        raise ValueError(f"Unknown seed catalogs: {sorted(unknown_catalogs)}")
     inserted: dict[str, int] = {name: 0 for name in SEED_ORDER}
     for row in ordered_seed_rows():
+        if row.catalog not in selected_catalogs:
+            continue
         values = row.data | {"id": row.id}
-        if row.table == "cadastros_categorias_produto":
+        if row.table in {"cadastros_categorias_produto", "cadastros_tipos_servico"}:
             values["created_at"] = datetime.now().astimezone()
             values["updated_at"] = values["created_at"]
         key_filter = " AND ".join(

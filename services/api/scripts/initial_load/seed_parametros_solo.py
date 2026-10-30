@@ -3,13 +3,15 @@ Seed de parâmetros de interpretação de solo para culturas do sistema.
 
 Baseado nas tabelas Embrapa para cerrado brasileiro (padrão geral, sem região).
 Executar após seed_culturas.py:
-    cd services/api && .venv/bin/python scripts/seed_parametros_solo.py
+    cd services/api && .venv/bin/python scripts/initial_load/seed_parametros_solo.py
 """
-import sys
 import asyncio
-sys.path.insert(0, ".")
 
-from core.config import settings
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from core.cadastros.produtos.models import ProdutoCultura, SoloParametroCultura
+from core.database import async_session_maker
 
 # Parâmetros por cultura: lista de faixas por parâmetro
 # Estrutura: (parametro, faixa_min, faixa_max, classificacao, rec_dose_kg_ha, obs)
@@ -18,7 +20,10 @@ PARAMETROS = {
         "v_meta_pct_padrao": 60.0,
         "faixas": [
             # Fósforo mg/dm³
-            ("FOSFORO", 0,    6,    "MUITO_BAIXO", 130, "P muito baixo. Aplicar 130 kg/ha P₂O₅ + incorporar calcário."),
+            (
+                "FOSFORO", 0, 6, "MUITO_BAIXO", 130,
+                "P muito baixo. Aplicar 130 kg/ha P₂O₅ + incorporar calcário.",
+            ),
             ("FOSFORO", 6,    12,   "BAIXO",       100, "P baixo. Aplicar 100 kg/ha P₂O₅."),
             ("FOSFORO", 12,   25,   "MEDIO",        65, "P médio. Aplicar 65 kg/ha P₂O₅."),
             ("FOSFORO", 25,   None, "ALTO",          35, "P alto. Manutenção: 35 kg/ha P₂O₅."),
@@ -62,7 +67,10 @@ PARAMETROS = {
     "Café": {
         "v_meta_pct_padrao": 50.0,
         "faixas": [
-            ("FOSFORO", 0,    5,    "MUITO_BAIXO", 150, "P muito baixo para café. Aplicar 150 kg/ha P₂O₅."),
+            (
+                "FOSFORO", 0, 5, "MUITO_BAIXO", 150,
+                "P muito baixo para café. Aplicar 150 kg/ha P₂O₅.",
+            ),
             ("FOSFORO", 5,    10,   "BAIXO",       120, "P baixo. Aplicar 120 kg/ha P₂O₅."),
             ("FOSFORO", 10,   20,   "MEDIO",        80, "P médio. Aplicar 80 kg/ha P₂O₅."),
             ("FOSFORO", 20,   None, "ALTO",          40, "P alto. Manutenção: 40 kg/ha P₂O₅."),
@@ -103,61 +111,77 @@ PARAMETROS = {
 }
 
 
-async def run_seed():
-    import asyncpg
-
-    url = str(settings.database_url).replace("postgresql+asyncpg://", "postgresql://")
-    conn = await asyncpg.connect(url)
-
+async def seed_parametros_solo(session: AsyncSession) -> tuple[int, int, int]:
+    """Insere faixas globais ausentes e atualiza o V% padrão das culturas."""
     created = 0
     skipped = 0
+    missing_cultures = 0
 
     for nome_cultura, dados in PARAMETROS.items():
-        # Buscar cultura do sistema
-        cultura_id = await conn.fetchval(
-            "SELECT id FROM cadastros_culturas WHERE nome = $1 AND sistema = true",
-            nome_cultura,
+        cultura = await session.scalar(
+            select(ProdutoCultura).where(
+                ProdutoCultura.nome == nome_cultura,
+                ProdutoCultura.sistema.is_(True),
+                ProdutoCultura.tenant_id.is_(None),
+            )
         )
-        if not cultura_id:
-            print(f"  ⚠️  Cultura '{nome_cultura}' não encontrada — execute seed_culturas.py primeiro")
+        if cultura is None:
+            print(
+                f"  ⚠️  Cultura '{nome_cultura}' não encontrada — "
+                "execute seed_culturas.py primeiro"
+            )
+            missing_cultures += 1
             continue
 
-        # Atualizar v_meta_pct_padrao
-        await conn.execute(
-            "UPDATE cadastros_culturas SET v_meta_pct_padrao = $1 WHERE id = $2",
-            dados["v_meta_pct_padrao"],
-            cultura_id,
+        cultura.v_meta_pct_padrao = dados["v_meta_pct_padrao"]
+
+        existing_keys = set(
+            (await session.execute(
+                select(SoloParametroCultura.parametro, SoloParametroCultura.faixa_min).where(
+                    SoloParametroCultura.cultura_id == cultura.id,
+                    SoloParametroCultura.tenant_id.is_(None),
+                    SoloParametroCultura.regiao.is_(None),
+                )
+            )).tuples().all()
         )
 
         for (parametro, faixa_min, faixa_max, classificacao, rec_dose, obs) in dados["faixas"]:
-            exists = await conn.fetchval(
-                """SELECT id FROM solo_parametros_cultura
-                   WHERE cultura_id=$1 AND tenant_id IS NULL AND regiao IS NULL
-                   AND parametro=$2 AND faixa_min=$3""",
-                cultura_id, parametro, faixa_min,
-            )
-            if exists:
+            key = (parametro, faixa_min)
+            if key in existing_keys:
                 skipped += 1
                 continue
 
-            await conn.execute(
-                """INSERT INTO solo_parametros_cultura
-                   (id, cultura_id, tenant_id, regiao, parametro,
-                    faixa_min, faixa_max, classificacao, rec_dose_kg_ha, obs,
-                    created_at, updated_at)
-                   VALUES (gen_random_uuid(), $1, NULL, NULL, $2,
-                           $3, $4, $5, $6, $7, NOW(), NOW())""",
-                cultura_id, parametro, faixa_min, faixa_max, classificacao, rec_dose, obs,
+            session.add(
+                SoloParametroCultura(
+                    cultura_id=cultura.id,
+                    tenant_id=None,
+                    regiao=None,
+                    parametro=parametro,
+                    faixa_min=faixa_min,
+                    faixa_max=faixa_max,
+                    classificacao=classificacao,
+                    rec_dose_kg_ha=rec_dose,
+                    obs=obs,
+                )
             )
+            existing_keys.add(key)
             created += 1
 
         print(f"  ✅ {nome_cultura} — parâmetros processados")
 
-    await conn.close()
+    await session.commit()
+    return created, skipped, missing_cultures
+
+
+async def run_seed():
+    async with async_session_maker() as session:
+        created, skipped, missing_cultures = await seed_parametros_solo(session)
 
     print()
     print("=" * 60)
     print(f"  Criados: {created}  |  Pulados: {skipped}")
+    if missing_cultures:
+        print(f"  Culturas ausentes: {missing_cultures}")
     print("=" * 60)
 
 

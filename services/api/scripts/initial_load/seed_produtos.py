@@ -8,7 +8,7 @@ Os produtos são gravados com tenant_id=NULL para servirem como catálogo padrã
 Uso:
     cd services/api
     source .venv/bin/activate
-    PYTHONPATH=. python scripts/seed_produtos.py
+    PYTHONPATH=. python scripts/initial_load/seed_produtos.py
 """
 import asyncio
 from sqlalchemy import select
@@ -827,10 +827,10 @@ async def seed():
             marca_map[m.nome] = m
 
         # Carregar modelos (sistema)
-        modelo_map: dict[str, object] = {}
+        modelo_map: dict[tuple[object, str], object] = {}
         stmt = select(ModeloProduto)
         for mod in (await session.execute(stmt)).scalars().all():
-            modelo_map[mod.nome] = mod
+            modelo_map[(mod.marca_id, mod.nome)] = mod
 
         # Carregar categorias (sistema)
         cat_map: dict[str, object] = {}
@@ -857,9 +857,16 @@ async def seed():
 
             modelo_obj = None
             if modelo_nome:
-                modelo_obj = modelo_map.get(modelo_nome)
+                modelo_obj = (
+                    modelo_map.get((marca_obj.id, modelo_nome))
+                    if marca_obj
+                    else None
+                )
                 if not modelo_obj:
-                    print(f"  ⚠ Modelo '{modelo_nome}' não encontrado para {item['nome']}")
+                    print(
+                        f"  ⚠ Modelo '{modelo_nome}' não encontrado para a marca "
+                        f"'{marca_nome}' no produto {item['nome']}"
+                    )
 
             categoria_obj = None
             if cat_nome:

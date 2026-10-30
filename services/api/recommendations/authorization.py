@@ -160,8 +160,7 @@ class RecommendationAuthorizationService:
     def _has_permission(profile: PerfilAcesso | None, permission: str) -> bool:
         if profile is None:
             return False
-        custom = profile.permissoes if profile.is_custom else None
-        return TenantPermissions.has_permission(profile.nome.lower(), permission, custom)
+        return TenantPermissions.has_permission(profile.nome, permission, profile.permissoes)
 
     def _require_permission(self, profile: PerfilAcesso | None, permission: str) -> None:
         if not self._has_permission(profile, permission):

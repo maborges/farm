@@ -2,8 +2,10 @@ import asyncio
 import sys
 from pathlib import Path
 
-# Adicionar raiz do projeto ao path
-sys.path.insert(0, str(Path(__file__).parent.parent))
+# Keep the existing API import root when this module runs from the package.
+API_ROOT = Path(__file__).resolve().parents[2]
+if str(API_ROOT) not in sys.path:
+    sys.path.insert(0, str(API_ROOT))
 
 from core.model_registry import register_models
 
@@ -13,6 +15,7 @@ register_models()
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from core.database import async_session_maker
+from core.models.auth import Usuario
 from core.models.admin_user import AdminUser
 from core.models.email_template import EmailTemplate
 from core.services.auth_service import hash_password
@@ -20,27 +23,52 @@ import uuid
 
 
 async def seed_admin_user():
-    """Cria usuário admin padrão."""
+    """Cria o admin do backoffice e sua identidade superuser em usuarios."""
     async with async_session_maker() as session:
-        # Verificar se já existe
-        from sqlalchemy import select
+        from sqlalchemy import func, select
+
         stmt = select(AdminUser).where(AdminUser.email == "admin@deepfarms.com.br")
-        result = await session.execute(stmt)
-        if result.scalar_one_or_none():
-            print("✅ Admin user já existe")
-            return
+        admin = (await session.execute(stmt)).scalar_one_or_none()
+        admin_criado = admin is None
+        if admin is None:
+            admin = AdminUser(
+                email="admin@deepfarms.com.br",
+                senha_hash=hash_password("agro1234"),
+                nome="Administrador",
+                role="super_admin",
+                ativo=True,
+            )
+            session.add(admin)
 
-        admin = AdminUser(
-            email="admin@deepfarms.com.br",
-            senha_hash=hash_password("agro1234"),
-            nome="Administrador",
-            role="super_admin",
-            ativo=True
+        # O login da aplicação e o fluxo de recuperação usam `usuarios`,
+        # enquanto o cadastro de permissões do backoffice usa `admin_users`.
+        # As duas identidades compartilham e-mail e hash inicial da senha.
+        usuario_stmt = select(Usuario).where(
+            func.lower(Usuario.email) == admin.email.strip().lower()
         )
+        usuario = (await session.execute(usuario_stmt)).scalar_one_or_none()
+        usuario_criado = usuario is None
+        if usuario is None:
+            usuario = Usuario(
+                email=admin.email,
+                username=admin.email.split("@", 1)[0][:50],
+                senha_hash=admin.senha_hash,
+                nome_completo=admin.nome,
+                apelido=admin.nome[:20],
+                is_superuser=True,
+                ativo=admin.ativo,
+            )
+            session.add(usuario)
+        elif not usuario.is_superuser:
+            # O seed atribui explicitamente a função administrativa; conserva
+            # a senha já existente para não redefinir credenciais em reexecuções.
+            usuario.is_superuser = True
 
-        session.add(admin)
         await session.commit()
-        print("✅ Admin user criado: admin@deepfarms.com.br / agro1234")
+        if admin_criado or usuario_criado:
+            print("✅ Identidades administrativas verificadas/criadas")
+        else:
+            print("✅ Admin user já existe")
 
 
 async def seed_email_templates():

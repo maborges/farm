@@ -2,11 +2,10 @@
 import asyncio
 
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.config import settings
+from core.database import async_session_maker
 from core.models.knowledge_base import ConhecimentoArtigo, ConhecimentoCategoria
-
 
 KB_INICIAL = {
     "Comece por aqui": ("BookOpen", 10, [
@@ -118,14 +117,16 @@ Pesquise nesta Base de Conhecimento antes de abrir uma solicitação. Se precisa
 
 async def seed_kb() -> None:
     """Cria apenas categorias e artigos ausentes, sem alterar conteúdo existente."""
-    engine = create_async_engine(settings.database_url)
-    session_factory = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-    async with session_factory() as session:
-        for nome, (icone, ordem, artigos) in KB_INICIAL.items():
-            categoria = await _find_or_create_category(session, nome, icone, ordem)
-            await _create_missing_articles(session, categoria, artigos)
-        await session.commit()
-    await engine.dispose()
+    async with async_session_maker() as session:
+        await seed_kb_with_session(session)
+
+
+async def seed_kb_with_session(session: AsyncSession) -> None:
+    """Aplica as categorias e artigos à sessão da carga inicial."""
+    for nome, (icone, ordem, artigos) in KB_INICIAL.items():
+        categoria = await _find_or_create_category(session, nome, icone, ordem)
+        await _create_missing_articles(session, categoria, artigos)
+    await session.commit()
 
 
 async def _find_or_create_category(

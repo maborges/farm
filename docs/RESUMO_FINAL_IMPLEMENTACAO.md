@@ -219,7 +219,7 @@ INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
 ### **2. Criar Seed de Perfis Padrão (RECOMENDADO)**
 
 ```python
-# scripts/seed_perfis.py
+# scripts/initial_load/seed_perfis.py
 import asyncio
 from core.database import async_session_maker
 from core.models.auth import PerfilAcesso
@@ -249,7 +249,7 @@ asyncio.run(seed())
 ```
 
 ```bash
-python scripts/seed_perfis.py
+python scripts/initial_load/seed_perfis.py
 ```
 
 ### **3. Testar Endpoints**

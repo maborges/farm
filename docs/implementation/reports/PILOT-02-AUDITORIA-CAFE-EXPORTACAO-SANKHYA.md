@@ -29,7 +29,7 @@ Interpretação prática:
 ## 3. Evidências por arquivo
 
 - Cultura oficial e parâmetros agronômicos: `ProdutoCultura` em [services/api/core/cadastros/produtos/models.py](/opt/lampp/htdocs/farm/services/api/core/cadastros/produtos/models.py:388).
-- Seed explícita de `Café`: [services/api/scripts/seed_culturas.py](/opt/lampp/htdocs/farm/services/api/scripts/seed_culturas.py:357).
+- Seed explícita de `Café`: [services/api/scripts/initial_load/seed_culturas.py](/opt/lampp/htdocs/farm/services/api/scripts/initial_load/seed_culturas.py:357).
 - Fenologia específica de café, incluindo floração, cereja e passa: [services/api/agricola/fenologia/seed_escalas.py](/opt/lampp/htdocs/farm/services/api/agricola/fenologia/seed_escalas.py:34).
 - Cultivo com `cultivar_id`, `espacamento_cm` e vínculo econômico/operacional: [services/api/agricola/cultivos/models.py](/opt/lampp/htdocs/farm/services/api/agricola/cultivos/models.py:15).
 - Safra ainda com `cultura` legada, mas orientada a `Cultivo`: [services/api/agricola/safras/models.py](/opt/lampp/htdocs/farm/services/api/agricola/safras/models.py:38).
