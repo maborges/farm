@@ -16,7 +16,16 @@ async def test_initial_load_runs_required_seeds_in_order(monkeypatch):
         seed_plans,
     )
 
+    from core import model_registry
+
     calls = []
+    register_models = model_registry.register_models
+
+    def record_model_registration():
+        calls.append("orm_models")
+        register_models()
+
+    monkeypatch.setattr(model_registry, "register_models", record_model_registration)
 
     async def record(name):
         calls.append(name)
@@ -45,6 +54,7 @@ async def test_initial_load_runs_required_seeds_in_order(monkeypatch):
     await run.run_initial_load()
 
     assert calls == [
+        "orm_models",
         "catalogos",
         "perfis",
         "plans",

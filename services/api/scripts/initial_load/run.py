@@ -25,6 +25,13 @@ def parse_args() -> argparse.Namespace:
 
 
 async def run_initial_load() -> None:
+    from sqlalchemy.orm import configure_mappers
+
+    from core.model_registry import register_models
+
+    register_models()
+    configure_mappers()
+
     from core.database import async_session_maker
     from initial_load import (
         seed_catalogos,
