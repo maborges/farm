@@ -17,13 +17,15 @@ class _Result:
 
 
 class _ProductSeedSession:
-    def __init__(self):
+    def __init__(self, events):
+        self.events = events
         self.entities_queried = []
         self.added = []
         self.existing = {}
         self.commit_count = 0
 
     async def execute(self, statement):
+        self.events.append("query")
         entity = statement.column_descriptions[0]["entity"]
         self.entities_queried.append(entity)
         params = statement.compile().params
@@ -58,7 +60,10 @@ class _ProductSeedSession:
 async def test_execucao_seletiva_carrega_marcas_modelos_sem_tocar_categorias(
     monkeypatch, capsys
 ):
-    session = _ProductSeedSession()
+    from core import model_registry
+
+    events = []
+    session = _ProductSeedSession(events)
 
     class SessionContext:
         async def __aenter__(self):
@@ -68,6 +73,13 @@ async def test_execucao_seletiva_carrega_marcas_modelos_sem_tocar_categorias(
             return None
 
     monkeypatch.setattr(seed_tabelas_produto, "async_session_maker", SessionContext)
+    monkeypatch.setattr(
+        model_registry, "register_models", lambda: events.append("register_models")
+    )
+    monkeypatch.setattr(
+        "sqlalchemy.orm.configure_mappers",
+        lambda: events.append("configure_mappers"),
+    )
 
     await seed_tabelas_produto.seed(only_marcas_modelos=True)
     added_count = len(session.added)
@@ -89,3 +101,18 @@ async def test_execucao_seletiva_carrega_marcas_modelos_sem_tocar_categorias(
     assert modelos
     assert all(obj.marca_id in {marca.id for marca in marcas.values()} for obj in modelos)
     assert session.commit_count == 2
+    assert events[:3] == ["register_models", "configure_mappers", "query"]
+    second_run_start = first_run_query_count + 2
+    assert events[second_run_start : second_run_start + 2] == [
+        "register_models",
+        "configure_mappers",
+    ]
+
+
+def test_registro_orm_do_projeto_configura_os_mappers_do_seed():
+    from sqlalchemy.orm import configure_mappers
+
+    from core.model_registry import register_models
+
+    register_models()
+    configure_mappers()

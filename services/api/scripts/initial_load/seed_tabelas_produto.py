@@ -156,6 +156,13 @@ CATEGORIAS = [
 # ---------------------------------------------------------------------------
 
 async def seed(only_marcas_modelos: bool = False):
+    from sqlalchemy.orm import configure_mappers
+
+    from core.model_registry import register_models
+
+    register_models()
+    configure_mappers()
+
     async with async_session_maker() as session:
         print("\n── Marcas ──────────────────────────────────────────")
         marca_map: dict[str, Marca] = {}
