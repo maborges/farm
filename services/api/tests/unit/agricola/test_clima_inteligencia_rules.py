@@ -1,17 +1,20 @@
 from datetime import date
 
+import pytest
+
 from agricola.climatico.models import RegistroClima
 from agricola.climatico.service import ClimaService
 
 
-def test_risco_fitossanitario_ignora_variavel_ausente() -> None:
-    regras = {"condicoes": [{"variavel": "vento_kmh", "operador": ">=", "valor": 10, "peso": 1}]}
-    assert ClimaService._avaliar_modelo(regras, {"umidade_rel_pct": 90}) == 0
+def test_risco_fitossanitario_nao_calcula_com_variavel_ausente() -> None:
+    regras = {"condicoes": [{"variavel": "temp_media_c", "operador": ">=", "valor": 10, "peso": 1}]}
+    assert ClimaService._avaliar_modelo(regras, {"umidade_rel_pct": 90}) is None
 
 
-def test_risco_fitossanitario_ignora_peso_invalido() -> None:
+def test_risco_fitossanitario_rejeita_peso_invalido() -> None:
     regras = {"condicoes": [{"variavel": "temp_media_c", "operador": ">=", "valor": 20, "peso": 0}]}
-    assert ClimaService._avaliar_modelo(regras, {"temp_media_c": 25}) == 0
+    with pytest.raises(ValueError, match="peso"):
+        ClimaService._avaliar_modelo(regras, {"temp_media_c": 25})
 
 
 def test_risco_fitossanitario_classificacao_tem_limites() -> None:

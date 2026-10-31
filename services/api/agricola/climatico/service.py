@@ -1,21 +1,31 @@
+import math
+from dataclasses import dataclass
 from datetime import date, timedelta
+from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import cast, func, text, or_
+from fastapi import HTTPException, status
+from sqlalchemy import cast, func, or_, text
 from sqlalchemy.dialects.postgresql import UUID as PG_UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
-from agricola.climatico.models import RegistroClima, PrevisaoClima, ModeloFitossanitario
+from agricola.climatico.models import ModeloFitossanitario, PrevisaoClima, RegistroClima
 from agricola.climatico.schemas import (
-    ClimaResumoResponse, 
-    ClimaAlertaResponse, 
+    ClimaAlertaResponse,
+    ClimaResumoResponse,
     ModeloFitossanitarioCreate,
-    ModeloFitossanitarioUpdate
+    ModeloFitossanitarioUpdate,
+    validar_regras_fitossanitarias,
 )
-from alert_engine.models import OperationalAlert, AlertStatus
+from alert_engine.models import AlertStatus, OperationalAlert
 from core.base_service import BaseService
-from fastapi import HTTPException, status
+
+
+@dataclass(frozen=True)
+class ResultadoRiscoFitossanitario:
+    status: str
+    resultados: list[dict]
 
 
 class ClimaService(BaseService[RegistroClima]):
@@ -223,7 +233,7 @@ class ClimaService(BaseService[RegistroClima]):
             })
 
         # ---- Motor de Inteligência Fitossanitária ----
-        risco_doencas = await self._calcular_risco_doencas(
+        resultado_fitossanitario = await self._calcular_risco_doencas(
             unidade_produtiva_id=unidade_produtiva_id,
             registros=registros,
         )
@@ -233,10 +243,11 @@ class ClimaService(BaseService[RegistroClima]):
             "gdu_progresso_pct": None,
             "riscos": riscos,
             "historico": historico,
+            "risco_fitossanitario_status": resultado_fitossanitario.status,
             "agricultura": {
                 "janela_pulverizacao": [],
                 "balanco_hidrico": self._calcular_balanco_hidrico(registros),
-                "risco_doencas": risco_doencas,
+                "risco_doencas": resultado_fitossanitario.resultados,
             } if registros else None,
         }
 
@@ -262,7 +273,7 @@ class ClimaService(BaseService[RegistroClima]):
         self,
         unidade_produtiva_id: UUID,
         registros: list[RegistroClima],
-    ) -> list[dict]:
+    ) -> ResultadoRiscoFitossanitario:
         """Cruza dados climáticos com culturas ativas e modelos de risco fitossanitário.
 
         Args:
@@ -270,11 +281,11 @@ class ClimaService(BaseService[RegistroClima]):
             registros: Registros climáticos dos últimos N dias.
 
         Returns:
-            Lista de dicts com doença, cultura, nível e probabilidade calculados.
+            Estado do cálculo e resultados de favorabilidade climática.
         """
         from agricola.cultivos.models import Cultivo, CultivoArea
-        from core.cadastros.propriedades.models import AreaRural
         from agricola.safras.models import Safra
+        from core.cadastros.propriedades.models import AreaRural
 
         # Buscar culturas ativas (safras em plantio ou desenvolvimento)
         fases_ativas = ["PLANTIO", "DESENVOLVIMENTO", "PREPARO_SOLO"]
@@ -296,89 +307,167 @@ class ClimaService(BaseService[RegistroClima]):
         result_culturas = await self.session.execute(stmt_safras)
         culturas_ativas = [row[0] for row in result_culturas.fetchall()]
 
-        if not culturas_ativas or not registros:
-            return []
+        if not culturas_ativas:
+            return ResultadoRiscoFitossanitario("SEM_CULTURA_ATIVA", [])
 
-        # Obter modelos personalizados
-        stmt_personalizados = select(ModeloFitossanitario).where(
-            ModeloFitossanitario.tenant_id == self.tenant_id,
-            ModeloFitossanitario.cultura.in_(culturas_ativas)
-        )
-        res_pers = await self.session.execute(stmt_personalizados)
-        modelos_personalizados = list(res_pers.scalars().all())
-        culturas_com_modelo = {m.cultura for m in modelos_personalizados}
-        
-        # Obter modelos globais para culturas que NÃO têm modelo personalizado
+        modelos_personalizados = []
+        if self.tenant_id is not None:
+            stmt_personalizados = select(ModeloFitossanitario).where(
+                ModeloFitossanitario.tenant_id == self.tenant_id,
+                ModeloFitossanitario.cultura.in_(culturas_ativas),
+            )
+            res_pers = await self.session.execute(stmt_personalizados)
+            modelos_personalizados = list(res_pers.scalars().all())
+
         stmt_globais = select(ModeloFitossanitario).where(
             ModeloFitossanitario.tenant_id.is_(None),
-            ModeloFitossanitario.cultura.in_(culturas_ativas)
+            ModeloFitossanitario.cultura.in_(culturas_ativas),
         )
-        if culturas_com_modelo:
-            stmt_globais = stmt_globais.where(ModeloFitossanitario.cultura.notin_(culturas_com_modelo))
-            
         res_glob = await self.session.execute(stmt_globais)
-        modelos_globais_faltantes = res_glob.scalars().all()
+        modelos_globais = res_glob.scalars().all()
 
-        # Modelos globais são somente leitura durante a análise. A personalização
-        # deve ocorrer por uma ação explícita, nunca como efeito colateral de GET.
-        modelos_finais = modelos_personalizados + list(modelos_globais_faltantes)
+        # Resolve somente a chave exata; uma regra local para outra doença não
+        # remove os modelos globais restantes da cultura.
+        modelos_por_chave = {
+            (modelo.cultura, modelo.doenca): modelo for modelo in modelos_globais
+        }
+        for modelo in modelos_personalizados:
+            modelos_por_chave[(modelo.cultura, modelo.doenca)] = modelo
+        modelos_finais = list(modelos_por_chave.values())
 
         if not modelos_finais:
-            return []
+            return ResultadoRiscoFitossanitario("SEM_MODELO_APLICAVEL", [])
 
-        # Calcular estatísticas dos últimos 7 dias
-        ultimos_7 = registros[-7:]
-        stats = self._calcular_stats_climaticas(ultimos_7)
+        # Requer a janela de sete datas distintas usada pelo agregador. Isso é
+        # suficiência técnica da janela atual, não validação epidemiológica.
+        datas_disponiveis = sorted({registro.data_registro for registro in registros})
+        if len(datas_disponiveis) < 7:
+            return ResultadoRiscoFitossanitario(
+                "DADOS_CLIMATICOS_INSUFICIENTES", []
+            )
+        datas_janela = set(datas_disponiveis[-7:])
+        registros_janela = [
+            registro for registro in registros if registro.data_registro in datas_janela
+        ]
+        stats, variaveis_invalidas = self._calcular_stats_climaticas(registros_janela)
 
-        # Avaliar cada modelo contra as estatísticas
         resultado = []
+        estados = []
         for modelo in modelos_finais:
-            prob = self._avaliar_modelo(modelo.regras_risco, stats)
-            nivel = self._classificar_nivel(prob, modelo.regras_risco)
+            try:
+                regras = validar_regras_fitossanitarias(modelo.regras_risco)
+            except (TypeError, ValueError):
+                estados.append("CONFIGURACAO_INVALIDA")
+                continue
+
+            variaveis_regra = {condicao["variavel"] for condicao in regras["condicoes"]}
+            if variaveis_regra.intersection(variaveis_invalidas):
+                estados.append("DADOS_CLIMATICOS_INVALIDOS")
+                continue
+
+            favorabilidade = self._avaliar_modelo(regras, stats)
+            if favorabilidade is None:
+                estados.append("DADOS_CLIMATICOS_INSUFICIENTES")
+                continue
+
+            nivel_legado = self._classificar_nivel(favorabilidade, regras)
+            nivel_favorabilidade = {
+                "baixo": "baixa",
+                "medio": "moderada",
+                "alto": "alta",
+                "critico": "muito_alta",
+            }[nivel_legado]
             resultado.append({
                 "doenca": modelo.doenca,
                 "cultura": modelo.cultura,
-                "nivel": nivel,
-                "probabilidade_pct": prob,
+                "nivel_favorabilidade": nivel_favorabilidade,
+                "favorabilidade_pct": favorabilidade,
+                # Campos mantidos como aliases deprecated para clientes antigos.
+                "nivel": nivel_legado,
+                "probabilidade_pct": favorabilidade,
                 "auto_copied": False,
             })
+            estados.append("CALCULADO")
 
-        return sorted(resultado, key=lambda x: x["probabilidade_pct"], reverse=True)
+        if all(estado == "CALCULADO" for estado in estados):
+            status_resultado = "CALCULADO"
+        elif len(set(estados)) == 1:
+            status_resultado = estados[0]
+        else:
+            status_resultado = "PARCIAL"
+
+        return ResultadoRiscoFitossanitario(
+            status_resultado,
+            sorted(resultado, key=lambda item: item["favorabilidade_pct"], reverse=True),
+        )
 
     @staticmethod
-    def _calcular_stats_climaticas(registros: list[RegistroClima]) -> dict[str, float]:
+    def _calcular_stats_climaticas(
+        registros: list[RegistroClima],
+    ) -> tuple[dict[str, float | None], set[str]]:
         """Calcula médias e acumulados das variáveis climáticas.
 
         Args:
             registros: Lista de RegistroClima a analisar.
 
         Returns:
-            dict com médias de cada campo relevante.
+            (médias, variáveis inválidas). Ausências permanecem como None.
         """
         if not registros:
-            return {}
+            return {}, set()
 
         campos = ["temp_media_c", "temp_max_c", "temp_min_c", "umidade_rel_pct", "precipitacao_mm"]
-        stats: dict[str, float] = {}
+        stats: dict[str, float | None] = {}
+        invalidas: set[str] = set()
         for campo in campos:
-            valores = [float(getattr(r, campo)) for r in registros if getattr(r, campo) is not None]
-            stats[campo] = sum(valores) / len(valores) if valores else 0.0
-        return stats
+            valores = []
+            for registro in registros:
+                bruto = getattr(registro, campo)
+                if bruto is None:
+                    continue
+                if isinstance(bruto, bool) or not isinstance(bruto, int | float | Decimal):
+                    invalidas.add(campo)
+                    continue
+                try:
+                    valor = float(bruto)
+                except (OverflowError, ValueError):
+                    invalidas.add(campo)
+                    continue
+                if not math.isfinite(valor):
+                    invalidas.add(campo)
+                    continue
+                if campo == "umidade_rel_pct" and not 0 <= valor <= 100:
+                    invalidas.add(campo)
+                    continue
+                if campo == "precipitacao_mm" and valor < 0:
+                    invalidas.add(campo)
+                    continue
+                # Faixa ampla de plausibilidade física para temperatura do ar;
+                # não é limiar fitossanitário.
+                if campo.startswith("temp_") and not -90 <= valor <= 60:
+                    invalidas.add(campo)
+                    continue
+                valores.append(valor)
+            media = sum(valores) / len(valores) if valores else None
+            if media is not None and not math.isfinite(media):
+                invalidas.add(campo)
+                media = None
+            stats[campo] = media
+        return stats, invalidas
 
     @staticmethod
-    def _avaliar_modelo(regras: dict, stats: dict[str, float]) -> int:
-        """Avalia as condições climáticas contra as regras JSON de um modelo fitossanitário.
+    def _avaliar_modelo(regras: dict, stats: dict[str, float | None]) -> int | None:
+        """Calcula score heurístico de favorabilidade, nunca probabilidade.
 
         Args:
             regras: dict de regras lido do campo JSONB do ModeloFitossanitario.
             stats: Estatísticas climáticas calculadas.
 
         Returns:
-            Probabilidade de 0 a 100.
+            Favorabilidade heurística de 0 a 100 ou None se faltar uma variável.
         """
-        condicoes = regras.get("condicoes", [])
-        if not condicoes:
-            return 0
+        regras = validar_regras_fitossanitarias(regras)
+        condicoes = regras["condicoes"]
 
         score_total = 0.0
         peso_total = 0.0
@@ -387,7 +476,9 @@ class ClimaService(BaseService[RegistroClima]):
             variavel = cond.get("variavel")
             operador = cond.get("operador")
             peso = float(cond.get("peso", 1.0))
-            if peso <= 0 or variavel not in stats:
+            if variavel not in stats or stats[variavel] is None:
+                return None
+            if peso <= 0:
                 continue
             valor_real = stats[variavel]
 
@@ -412,21 +503,21 @@ class ClimaService(BaseService[RegistroClima]):
         return max(0, min(100, round((score_total / peso_total) * 100)))
 
     @staticmethod
-    def _classificar_nivel(probabilidade: int, regras: dict) -> str:
-        """Classifica o nível de risco com base nos limiares definidos no modelo.
+    def _classificar_nivel(favorabilidade_pct: int, regras: dict) -> str:
+        """Classifica a faixa do score de favorabilidade configurada no modelo.
 
         Args:
-            probabilidade: Probabilidade calculada (0-100).
-            regras: dict de regras com os limiares nivel_critico_pct, nivel_alto_pct, nivel_medio_pct.
+            favorabilidade_pct: Score heurístico de 0 a 100.
+            regras: JSON validado com os limiares de faixa existentes.
 
         Returns:
-            String: 'critico', 'alto', 'medio' ou 'baixo'.
+            Faixa legada: 'critico', 'alto', 'medio' ou 'baixo'.
         """
-        if probabilidade >= regras.get("nivel_critico_pct", 80):
+        if favorabilidade_pct >= regras.get("nivel_critico_pct", 80):
             return "critico"
-        if probabilidade >= regras.get("nivel_alto_pct", 60):
+        if favorabilidade_pct >= regras.get("nivel_alto_pct", 60):
             return "alto"
-        if probabilidade >= regras.get("nivel_medio_pct", 35):
+        if favorabilidade_pct >= regras.get("nivel_medio_pct", 35):
             return "medio"
         return "baixo"
 
@@ -570,6 +661,14 @@ class ModeloFitossanitarioService:
         
         if not global_modelo:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Modelo global não encontrado.")
+
+        try:
+            validar_regras_fitossanitarias(global_modelo.regras_risco)
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="O modelo global possui regras inválidas e não pode ser copiado.",
+            ) from exc
             
         # Verifica se o tenant já possui um para a mesma cultura/doenca
         existing_stmt = select(ModeloFitossanitario).where(

@@ -1,7 +1,101 @@
+import math
 from datetime import date, datetime
+from typing import Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+VARIAVEIS_CLIMATICAS_FITOSSANITARIAS = frozenset({
+    "temp_media_c",
+    "temp_max_c",
+    "temp_min_c",
+    "umidade_rel_pct",
+    "precipitacao_mm",
+})
+OPERADORES_FITOSSANITARIOS = frozenset({">=", "<=", ">", "<", "between"})
+
+
+def _numero_finito(valor: object) -> bool:
+    if isinstance(valor, bool) or not isinstance(valor, int | float):
+        return False
+    try:
+        return math.isfinite(float(valor))
+    except (OverflowError, ValueError):
+        return False
+
+
+def _limite_variavel_valido(variavel: str, valor: int | float) -> bool:
+    if variavel == "umidade_rel_pct":
+        return 0 <= valor <= 100
+    if variavel == "precipitacao_mm":
+        return valor >= 0
+    if variavel.startswith("temp_"):
+        return -90 <= valor <= 60
+    return True
+
+
+def validar_regras_fitossanitarias(regras: dict) -> dict:
+    """Valida estrutura mecânica do JSON; não valida eficácia agronômica."""
+    if not isinstance(regras, dict):
+        raise ValueError("regras_risco deve ser um objeto JSON")
+
+    condicoes = regras.get("condicoes")
+    if not isinstance(condicoes, list) or not condicoes:
+        raise ValueError("regras_risco.condicoes deve conter ao menos uma condição")
+
+    peso_total = 0.0
+    for indice, condicao in enumerate(condicoes):
+        prefixo = f"condicoes[{indice}]"
+        if not isinstance(condicao, dict):
+            raise ValueError(f"{prefixo} deve ser um objeto")
+
+        variavel = condicao.get("variavel")
+        if variavel not in VARIAVEIS_CLIMATICAS_FITOSSANITARIAS:
+            raise ValueError(f"{prefixo}.variavel não é suportada")
+
+        operador = condicao.get("operador")
+        if operador not in OPERADORES_FITOSSANITARIOS:
+            raise ValueError(f"{prefixo}.operador não é suportado")
+
+        peso = condicao.get("peso", 1)
+        if not _numero_finito(peso) or peso <= 0:
+            raise ValueError(f"{prefixo}.peso deve ser numérico, finito e positivo")
+        peso_total += float(peso)
+        if not math.isfinite(peso_total):
+            raise ValueError("a soma dos pesos deve ser finita")
+
+        if operador == "between":
+            limites = (condicao.get("min"), condicao.get("max"))
+            if any(
+                not _numero_finito(limite)
+                for limite in limites
+            ):
+                raise ValueError(f"{prefixo}.min e .max devem ser numéricos e finitos")
+            if limites[0] > limites[1]:
+                raise ValueError(f"{prefixo}.min não pode ser maior que .max")
+            if any(not _limite_variavel_valido(variavel, limite) for limite in limites):
+                raise ValueError(f"{prefixo} possui limites fora do domínio da variável")
+        else:
+            valor = condicao.get("valor")
+            if not _numero_finito(valor):
+                raise ValueError(f"{prefixo}.valor deve ser numérico e finito")
+            if not _limite_variavel_valido(variavel, valor):
+                raise ValueError(f"{prefixo}.valor está fora do domínio da variável")
+
+    niveis = {
+        "nivel_medio_pct": regras.get("nivel_medio_pct", 35),
+        "nivel_alto_pct": regras.get("nivel_alto_pct", 60),
+        "nivel_critico_pct": regras.get("nivel_critico_pct", 80),
+    }
+    for nome, valor in niveis.items():
+        if not _numero_finito(valor):
+            raise ValueError(f"{nome} deve ser numérico e finito")
+        if not 0 <= valor <= 100:
+            raise ValueError(f"{nome} deve estar entre 0 e 100")
+    if not (niveis["nivel_medio_pct"] <= niveis["nivel_alto_pct"] <= niveis["nivel_critico_pct"]):
+        raise ValueError("limiares devem obedecer medio <= alto <= critico")
+
+    return regras
 
 
 class ClimaResponse(BaseModel):
@@ -93,11 +187,19 @@ class RiscoClimatico(BaseModel):
 
 
 class RiscoDoencaResponse(BaseModel):
-    """Risco fitossanitário calculado pelo motor de inteligência para uma cultura ativa."""
+    """Pontuação heurística de favorabilidade climática, não diagnóstico/probabilidade."""
     doenca: str
     cultura: str
-    nivel: str  # baixo, medio, alto, critico
-    probabilidade_pct: int
+    nivel_favorabilidade: Literal["baixa", "moderada", "alta", "muito_alta"]
+    favorabilidade_pct: int = Field(ge=0, le=100)
+    nivel: str = Field(
+        deprecated=True,
+        description="Alias legado de nivel_favorabilidade; não representa severidade da doença.",
+    )
+    probabilidade_pct: int = Field(
+        deprecated=True,
+        description="Alias legado de favorabilidade_pct; não é probabilidade epidemiológica.",
+    )
     auto_copied: bool = False
 
 
@@ -114,6 +216,15 @@ class ClimaInteligenciaResponse(BaseModel):
     riscos: list[RiscoClimatico]
     historico: list[SerieTemporalClima]
     agricultura: AgriculturaInteligenciaResponse | None = None
+    risco_fitossanitario_status: Literal[
+        "SEM_CULTURA_ATIVA",
+        "SEM_MODELO_APLICAVEL",
+        "DADOS_CLIMATICOS_INSUFICIENTES",
+        "DADOS_CLIMATICOS_INVALIDOS",
+        "CONFIGURACAO_INVALIDA",
+        "PARCIAL",
+        "CALCULADO",
+    ] = "DADOS_CLIMATICOS_INSUFICIENTES"
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -125,13 +236,21 @@ class ModeloFitossanitarioBase(BaseModel):
 
 
 class ModeloFitossanitarioCreate(ModeloFitossanitarioBase):
-    pass
+    @field_validator("regras_risco")
+    @classmethod
+    def validar_json_fitossanitario(cls, value: dict) -> dict:
+        return validar_regras_fitossanitarias(value)
 
 
 class ModeloFitossanitarioUpdate(BaseModel):
     cultura: str | None = None
     doenca: str | None = None
     regras_risco: dict | None = None
+
+    @field_validator("regras_risco")
+    @classmethod
+    def validar_json_fitossanitario(cls, value: dict | None) -> dict | None:
+        return validar_regras_fitossanitarias(value) if value is not None else None
 
 
 class ModeloFitossanitarioResponse(ModeloFitossanitarioBase):

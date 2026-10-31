@@ -121,17 +121,23 @@ export default function InteligenciaDashboardClient() {
             />
 
             {!hasData ? (
-                <Card className="border-dashed border-2 border-border/60 bg-muted/30">
-                    <CardContent className="p-16 flex flex-col items-center justify-center text-center space-y-4">
-                        <CloudSun size={48} className="text-muted-foreground/50" />
-                        <div>
-                            <h3 className="text-lg font-bold">Nenhum Histórico Encontrado</h3>
-                            <p className="text-sm text-muted-foreground max-w-sm">
-                                O processamento de inteligência exige dados históricos armazenados. Verifique se a integração do OpenWeather está ativa e gerando registros.
-                            </p>
-                        </div>
-                    </CardContent>
-                </Card>
+                <div className="space-y-6">
+                    <Card className="border-dashed border-2 border-border/60 bg-muted/30">
+                        <CardContent className="p-16 flex flex-col items-center justify-center text-center space-y-4">
+                            <CloudSun size={48} className="text-muted-foreground/50" />
+                            <div>
+                                <h3 className="text-lg font-bold">Nenhum Histórico Encontrado</h3>
+                                <p className="text-sm text-muted-foreground max-w-sm">
+                                    O processamento de inteligência exige dados históricos armazenados. Verifique se a integração climática está ativa e gerando registros.
+                                </p>
+                            </div>
+                        </CardContent>
+                    </Card>
+                    <RiscoDoencasCard
+                        data={inteligencia?.agricultura?.risco_doencas}
+                        status={inteligencia?.risco_fitossanitario_status}
+                    />
+                </div>
             ) : (
                 <div className="mt-6 space-y-6">
                     <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
@@ -167,7 +173,10 @@ export default function InteligenciaDashboardClient() {
                                     <BalancoHidricoCard data={inteligencia.agricultura?.balanco_hidrico} />
                                 </div>
                                 <div className="lg:col-span-3">
-                                    <RiscoDoencasCard data={inteligencia.agricultura?.risco_doencas} />
+                                    <RiscoDoencasCard
+                                        data={inteligencia.agricultura?.risco_doencas}
+                                        status={inteligencia.risco_fitossanitario_status}
+                                    />
                                 </div>
                             </div>
                         )}

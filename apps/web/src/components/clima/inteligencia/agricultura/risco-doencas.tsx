@@ -3,41 +3,52 @@
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Bug, ThermometerSun, Droplet, Filter, Check } from "lucide-react";
+import { Bug, Filter, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DropdownMenu, DropdownMenuItem, DropdownMenuContent, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 
-import { RiscoDoenca } from "@/lib/agricola/clima-api";
+import { RiscoDoenca, RiscoFitossanitarioStatus } from "@/lib/agricola/clima-api";
 
 interface Props {
-  /** Lista de riscos calculados pelo motor de inteligência do backend. */
+  /** Pontuações de favorabilidade climática calculadas pelo backend. */
   data?: RiscoDoenca[];
+  status?: RiscoFitossanitarioStatus;
 }
 
-export function RiscoDoencasCard({ data }: Props) {
+export function RiscoDoencasCard({ data, status }: Props) {
   const [selectedCulturas, setSelectedCulturas] = useState<string[]>([]);
   const riscos: RiscoDoenca[] = data ?? [];
 
 
   const getNivelColor = (nivel: string) => {
     switch (nivel) {
-      case "baixo": return "bg-emerald-500";
-      case "medio": return "bg-amber-400";
-      case "alto": return "bg-orange-500";
-      case "critico": return "bg-red-600";
+      case "baixa": return "bg-emerald-500";
+      case "moderada": return "bg-amber-400";
+      case "alta": return "bg-orange-500";
+      case "muito_alta": return "bg-red-600";
       default: return "bg-slate-300";
     }
   };
 
   const getLabelColor = (nivel: string) => {
     switch (nivel) {
-      case "baixo": return "text-emerald-700 bg-emerald-50 border-emerald-200";
-      case "medio": return "text-amber-700 bg-amber-50 border-amber-200";
-      case "alto": return "text-orange-700 bg-orange-50 border-orange-200";
-      case "critico": return "text-red-700 bg-red-50 border-red-200";
+      case "baixa": return "text-emerald-700 bg-emerald-50 border-emerald-200";
+      case "moderada": return "text-amber-700 bg-amber-50 border-amber-200";
+      case "alta": return "text-orange-700 bg-orange-50 border-orange-200";
+      case "muito_alta": return "text-red-700 bg-red-50 border-red-200";
       default: return "text-slate-700 bg-slate-50 border-slate-200";
     }
+  };
+
+  const statusText: Record<RiscoFitossanitarioStatus, string> = {
+    SEM_CULTURA_ATIVA: "Nenhuma cultura ativa foi encontrada para esta unidade.",
+    SEM_MODELO_APLICAVEL: "Não há modelo de favorabilidade cadastrado para as culturas ativas.",
+    DADOS_CLIMATICOS_INSUFICIENTES: "Histórico climático insuficiente para avaliar os modelos disponíveis.",
+    DADOS_CLIMATICOS_INVALIDOS: "Há medições climáticas inválidas para as variáveis exigidas pelos modelos.",
+    CONFIGURACAO_INVALIDA: "Um ou mais modelos possuem regras inválidas e não foram avaliados.",
+    PARCIAL: "Resultado parcial: alguns modelos não puderam ser avaliados com os dados disponíveis.",
+    CALCULADO: "Pontuação heurística de favorabilidade climática. Não confirma doença nem indica aplicação de defensivos.",
   };
 
   return (
@@ -46,10 +57,10 @@ export function RiscoDoencasCard({ data }: Props) {
         <div className="flex flex-col gap-1.5">
           <CardTitle className="flex items-center gap-2 text-base">
             <Bug className="h-5 w-5 text-purple-500" />
-            Previsão de Risco de Doenças (Fitossanitário)
+            Favorabilidade Climática Fitossanitária
           </CardTitle>
           <CardDescription>
-            Modelos climáticos de favorabilidade para surtos de fungos e bactérias.
+            Favorabilidade das condições climáticas observadas; não é diagnóstico nem probabilidade de doença.
           </CardDescription>
         </div>
         <div>
@@ -90,6 +101,16 @@ export function RiscoDoencasCard({ data }: Props) {
         </div>
       </CardHeader>
       <CardContent>
+        {status && (
+          <p className="mb-4 rounded-sm bg-muted/50 p-3 text-sm text-muted-foreground" role="status">
+            {statusText[status]}
+          </p>
+        )}
+        {riscos.length === 0 && (
+          <p className="py-5 text-center text-sm text-muted-foreground">
+            Nenhuma pontuação de favorabilidade foi calculada. Ausência de resultado não significa risco baixo.
+          </p>
+        )}
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
           {riscos.filter(r => selectedCulturas.length === 0 || selectedCulturas.includes(r.cultura)).map((risco, index) => (
             <div key={index} className="p-4 rounded-sm border border-border bg-card flex flex-col gap-3">
@@ -99,33 +120,25 @@ export function RiscoDoencasCard({ data }: Props) {
                   <span className="text-xs text-muted-foreground uppercase font-semibold">{risco.cultura}</span>
                   <span className="font-bold">{risco.doenca}</span>
                 </div>
-                <div className={cn("px-2 py-1 rounded-sm text-[10px] font-bold uppercase border", getLabelColor(risco.nivel))}>
-                  {risco.nivel}
+                <div className={cn("px-2 py-1 rounded-sm text-[10px] font-bold uppercase border", getLabelColor(risco.nivel_favorabilidade))}>
+                  {risco.nivel_favorabilidade.replace("_", " ")}
                 </div>
               </div>
 
               <div className="flex flex-col gap-1 mt-2">
                 <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span>Probabilidade</span>
-                  <span className="font-bold">{risco.probabilidade_pct}%</span>
+                  <span>Favorabilidade climática</span>
+                  <span className="font-bold">{risco.favorabilidade_pct}%</span>
                 </div>
                 <Progress 
-                  value={risco.probabilidade_pct} 
+                  value={risco.favorabilidade_pct}
                   className="h-2"
-                  indicatorClassName={getNivelColor(risco.nivel)}
+                  indicatorClassName={getNivelColor(risco.nivel_favorabilidade)}
                 />
               </div>
-
-              <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground border-t border-border pt-3">
-                <div className="flex items-center gap-1" title="Favorabilidade por Temperatura">
-                  <ThermometerSun size={14} className={risco.probabilidade_pct > 50 ? "text-orange-500" : ""} />
-                  <span>Temp. Ideal</span>
-                </div>
-                <div className="flex items-center gap-1" title="Favorabilidade por Umidade/Molhamento Foliar">
-                  <Droplet size={14} className={risco.probabilidade_pct > 70 ? "text-blue-500" : ""} />
-                  <span>Alta Umidade</span>
-                </div>
-              </div>
+              <p className="mt-2 border-t border-border pt-3 text-xs text-muted-foreground">
+                Indicador climático heurístico. Confirme sintomas e condições da lavoura em campo.
+              </p>
             </div>
           ))}
         </div>

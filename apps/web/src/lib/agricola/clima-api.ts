@@ -91,10 +91,23 @@ export const fetchCulturas = async (isBackoffice = false): Promise<Cultura[]> =>
 export interface RiscoDoenca {
   doenca: string;
   cultura: string;
+  nivel_favorabilidade: "baixa" | "moderada" | "alta" | "muito_alta";
+  favorabilidade_pct: number;
+  /** @deprecated Alias temporário de compatibilidade; não é probabilidade. */
   nivel: "baixo" | "medio" | "alto" | "critico";
+  /** @deprecated Alias temporário de compatibilidade; não é probabilidade. */
   probabilidade_pct: number;
   auto_copied?: boolean;
 }
+
+export type RiscoFitossanitarioStatus =
+  | "SEM_CULTURA_ATIVA"
+  | "SEM_MODELO_APLICAVEL"
+  | "DADOS_CLIMATICOS_INSUFICIENTES"
+  | "DADOS_CLIMATICOS_INVALIDOS"
+  | "CONFIGURACAO_INVALIDA"
+  | "PARCIAL"
+  | "CALCULADO";
 
 export interface AgriculturaInteligencia {
   janela_pulverizacao: JanelaPulverizacao[];
@@ -108,6 +121,7 @@ export interface ClimaInteligenciaResponse {
   riscos: RiscoClimatico[];
   historico: SerieTemporalClima[];
   agricultura?: AgriculturaInteligencia; // Opcional até o backend implementar
+  risco_fitossanitario_status?: RiscoFitossanitarioStatus;
 }
 
 export async function fetchInteligenciaClimatica(
