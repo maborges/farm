@@ -31,6 +31,23 @@ Painel de consulta de commodities agropecuárias (grãos, café, pecuária, fibr
 3. **Filtros e Busca de Commodities:** O produtor filtra os produtos pelas abas de categorias (*Grãos e Oleaginosas*, *Café e Culturas Específicas*, *Pecuária*, *Fibras e Outros*) ou digita no campo de busca para localizar por nome, praça de referência (ex: Paranaguá, Campinas, Barretos) ou classificação científica botânica (*Glycine max*, *Zea mays*, *Coffea arabica*).
 4. **Consulta Segura na Fonte Primária:** Cada card apresenta os metadados auditados e um botão de ação com validação estrita de segurança (`ShieldCheck`), que abre a página oficial da instituição de pesquisa em nova aba (`rel="noopener noreferrer" target="_blank"`), garantindo informação fidedigna com total segurança jurídica autoral.
 
+### UI/UX Adaptativa Multi-Dispositivo (Mobile, Tablet e Desktop)
+
+**Descrição:**  
+Motor de detecção determinística de ambiente (`mobile`, `tablet`, `desktop`, modo `standalone` PWA vs navegador e sistema operacional `ios`/`android`/`other`) acoplado ao App Shell adaptativo, conferindo experiência nativa de aplicativo móvel em celulares e tablets sem perder a produtividade em telas desktop.
+
+**Fluxo de Funcionamento:**
+1. **Identificação do Ambiente em Tempo de Execução:** O módulo `device-detection` avalia dimensões de viewport, capacidade de toque (`maxTouchPoints` / `pointer: coarse`), assinatura de tablets (incluindo iPadOS sob `MacIntel`) e `display-mode: standalone`.
+2. **Adaptação no Celular (`mobile`):**
+   - Ativa a **Bottom Navigation Dock** nativa com 5 abas principais (*Início*, *Clima*, *Mercado*, *Calculadoras* e *Conta*), indicador superior de aba ativa e suporte a `safe-area-inset-bottom`.
+   - Transforma o cabeçalho superior em uma **App Bar Contextual** com botão nativo de retorno em subpáginas, título do módulo ativo e atalho rápido para o município selecionado.
+   - Exibe grade rápida estilo **App Launcher** na tela inicial, seletores horizontais deslizantes (`snap-x`) nas calculadoras e atalhos rápidos de seção no painel de mercado.
+   - Converte modais (como o seletor de município) em **Bottom Sheets** nativos com alça de arraste.
+3. **Adaptação no Tablet (`tablet`):**
+   - Oculta a barra inferior e ativa uma **Navigation Rail** lateral retrátil à esquerda com alvos de toque ampliados, preservando a área útil vertical e horizontal.
+4. **Adaptação no Desktop (`desktop`):**
+   - Exibe **Sidebar Retrátil** expandida por módulos contratados/operacionais (*Ferramentas de Campo* e *Comunidade & Conta*) combinada com barra de navegação superior e diagnóstico do modo de execução.
+
 ## Como Executar
 
 ```bash

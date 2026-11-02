@@ -1,13 +1,13 @@
 "use client";
 
 import React, { useState } from "react";
-import { Scale, Map, Truck, DollarSign, ArrowRightLeft, ShieldCheck } from "lucide-react";
+import { ArrowRightLeft, DollarSign, Map, Scale, ShieldCheck, Truck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { CalculadoraSacas } from "./calculadora-sacas";
 import { CalculadoraAreas } from "./calculadora-areas";
-import { CalculadoraFrete } from "./calculadora-frete";
-import { CalculadoraCustoHectare } from "./calculadora-custo-hectare";
 import { CalculadoraConversorGeral } from "./calculadora-conversor-geral";
+import { CalculadoraCustoHectare } from "./calculadora-custo-hectare";
+import { CalculadoraFrete } from "./calculadora-frete";
+import { CalculadoraSacas } from "./calculadora-sacas";
 
 export type IdCalculadora =
   | "sacas"
@@ -60,9 +60,14 @@ export function CalculadorasContainer() {
   const [ativa, setAtiva] = useState<IdCalculadora>("sacas");
 
   return (
-    <div className="space-y-4">
-      {/* Barra de Navegação entre Ferramentas */}
-      <div className="flex flex-wrap items-center gap-1.5 p-1 rounded-sm bg-muted/40 border border-border/60">
+    <div className="flex flex-col gap-3.5 sm:gap-4">
+      {/* Barra de Navegação entre Ferramentas (Deslizante no Mobile / Segmented no Tablet & Desktop) */}
+      <div
+        className="flex items-center gap-1.5 p-1 rounded-sm bg-muted/40 border border-border/60 overflow-x-auto scrollbar-none snap-x snap-mandatory sm:flex-wrap"
+        role="tablist"
+        aria-label="Selecionar calculadora agrícola"
+        data-testid="calculadoras-segmented-bar"
+      >
         {ABAS_CALCULADORAS.map((aba) => {
           const Icone = aba.icone;
           const selecionada = ativa === aba.id;
@@ -72,7 +77,8 @@ export function CalculadorasContainer() {
               key={aba.id}
               type="button"
               onClick={() => setAtiva(aba.id)}
-              className={`flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-sm transition-all cursor-pointer ${
+              aria-pressed={selecionada}
+              className={`shrink-0 snap-start flex items-center gap-2 px-3 py-2 sm:py-1.5 min-h-[38px] sm:min-h-[32px] text-xs font-medium rounded-sm transition-all cursor-pointer active:scale-95 ${
                 selecionada
                   ? "bg-background text-foreground shadow-xs border border-border/80 font-semibold"
                   : "text-muted-foreground hover:text-foreground hover:bg-muted/60"

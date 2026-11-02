@@ -1,7 +1,6 @@
 import type * as React from "react";
 import type { Metadata, Viewport } from "next";
-import { Header } from "@/components/layout/header";
-import { BottomNav } from "@/components/layout/bottom-nav";
+import { AdaptiveShell } from "@/components/layout/adaptive-shell";
 import { ThemeProvider } from "@/components/layout/theme-provider";
 import { ServiceWorkerRegister } from "@/components/pwa/service-worker-register";
 import "./globals.css";
@@ -24,7 +23,7 @@ export const metadata: Metadata = {
   },
   appleWebApp: {
     capable: true,
-    statusBarStyle: "default",
+    statusBarStyle: "black-translucent",
     title: "DeepFarms Agro",
   },
   formatDetection: {
@@ -38,6 +37,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 5,
   userScalable: true,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({
@@ -49,7 +49,7 @@ export default function RootLayout({
     <html lang="pt-BR" suppressHydrationWarning>
       <head />
       <body
-        className="min-h-screen flex flex-col bg-background text-foreground antialiased selection:bg-primary/20 selection:text-primary"
+        className="min-h-dvh flex flex-col bg-background text-foreground antialiased selection:bg-primary/20 selection:text-primary"
         suppressHydrationWarning
       >
         <ThemeProvider
@@ -59,11 +59,7 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <ServiceWorkerRegister />
-          <Header />
-          <main className="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 py-4 pb-20 md:pb-8">
-            {children}
-          </main>
-          <BottomNav />
+          <AdaptiveShell>{children}</AdaptiveShell>
         </ThemeProvider>
       </body>
     </html>

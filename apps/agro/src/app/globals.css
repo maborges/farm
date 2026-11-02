@@ -28,7 +28,7 @@
 
 :root {
   /* Identidade Oficial DeepFarms (Verde Esmeralda Agro #006B3D) */
-  --background: 140 10% 98%;
+  --background: 140 12% 97%;
   --foreground: 150 25% 10%;
 
   --card: 0 0% 100%;
@@ -43,8 +43,8 @@
   --secondary: 150 15% 92%;
   --secondary-foreground: 150 30% 15%;
 
-  --muted: 150 10% 94%;
-  --muted-foreground: 150 10% 40%;
+  --muted: 150 12% 93%;
+  --muted-foreground: 150 10% 38%;
 
   --accent: 154 35% 92%;
   --accent-foreground: 154 100% 18%;
@@ -52,11 +52,11 @@
   --destructive: 0 84% 60%;
   --destructive-foreground: 0 0% 100%;
 
-  --border: 150 15% 88%;
-  --input: 150 15% 88%;
+  --border: 150 15% 87%;
+  --input: 150 15% 87%;
   --ring: 154 100% 21%;
 
-  --radius: 0.5rem;
+  --radius: 0.375rem;
 }
 
 .dark {
@@ -75,7 +75,7 @@
   --secondary: 155 20% 16%;
   --secondary-foreground: 140 15% 90%;
 
-  --muted: 155 20% 14%;
+  --muted: 155 20% 13%;
   --muted-foreground: 150 10% 65%;
 
   --accent: 154 40% 18%;
@@ -94,15 +94,50 @@
   box-sizing: border-box;
 }
 
+html {
+  overscroll-behavior-y: none;
+  -webkit-text-size-adjust: 100%;
+}
+
 body {
   background-color: var(--color-background);
   color: var(--color-foreground);
   font-feature-settings: "rlig" 1, "calt" 1;
-  min-height: 100vh;
+  min-height: 100dvh;
+  overscroll-behavior-y: none;
   -webkit-tap-highlight-color: transparent;
 }
 
-/* Área mínima de toque de 44px para dispositivos móveis */
-button, a {
+/* Ergonomia de toque para dispositivos móveis e tablets */
+button,
+a,
+[role="tab"],
+[role="option"] {
   touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Utilitários de Safe Area nativa (iOS Dynamic Island / Home Indicator / Android Gesture Bar) */
+.safe-area-pt {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+.safe-area-pb {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.safe-area-px {
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
+
+/* Oculta barra de rolagem mantendo scroll horizontal fluido por toque */
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
 }

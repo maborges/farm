@@ -1,16 +1,18 @@
 "use client";
 
 import * as React from "react";
-import { Search, MapPin, Crosshair, X, Loader2, AlertCircle, Check } from "lucide-react";
+import { AlertCircle, Check, Crosshair, Loader2, MapPin, Search, X } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import {
   fetchMunicipios,
   type LocalidadeClima,
   type MunicipioBuscaItem,
 } from "@/lib/clima/localidade";
 import { useLocalidadeClima } from "@/lib/clima/localidade-store";
+import { useDeviceContext } from "@/lib/device/use-device-context";
+import { cn } from "@/lib/utils";
 
 const UFS_BRASIL = [
   "TODAS", "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO",
@@ -28,6 +30,9 @@ export function SeletorLocalidadeModal({
   onClose,
 }: SeletorLocalidadeModalProps): React.ReactElement | null {
   const { localidade, setLocalidade } = useLocalidadeClima();
+  const { layoutProfile } = useDeviceContext();
+  const isBottomSheet = layoutProfile.sheetPresentation === "bottom-sheet";
+
   const [searchTerm, setSearchTerm] = React.useState("");
   const [selectedUf, setSelectedUf] = React.useState<string>("TODAS");
   const [itens, setItens] = React.useState<MunicipioBuscaItem[]>([]);
@@ -210,16 +215,36 @@ export function SeletorLocalidadeModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-background/80 backdrop-blur-xs"
+      className={cn(
+        "fixed inset-0 z-50 flex bg-background/80 backdrop-blur-xs",
+        isBottomSheet
+          ? "items-end justify-center p-0"
+          : "items-center justify-center p-3 sm:p-4"
+      )}
       role="dialog"
       aria-modal="true"
       aria-labelledby="modal-localidade-title"
+      data-presentation={layoutProfile.sheetPresentation}
       ref={modalRef}
       onClick={(e) => {
         if (e.target === modalRef.current) onClose();
       }}
     >
-      <div className="relative w-full max-w-lg rounded-sm border border-border bg-card text-card-foreground shadow-lg flex flex-col max-h-[85vh] overflow-hidden">
+      <div
+        className={cn(
+          "relative w-full max-w-lg border border-border bg-card text-card-foreground shadow-lg flex flex-col overflow-hidden",
+          isBottomSheet
+            ? "rounded-t-md border-b-0 max-h-[88dvh] safe-area-pb"
+            : "rounded-sm max-h-[85vh]"
+        )}
+      >
+        {/* Indicador de Arraste Nativo (Bottom Sheet Handle) para Mobile */}
+        {isBottomSheet && (
+          <div className="pt-2 pb-0.5 flex justify-center" aria-hidden="true">
+            <div className="w-10 h-1 rounded-full bg-muted-foreground/30" />
+          </div>
+        )}
+
         {/* Cabeçalho do Diálogo */}
         <div className="flex items-center justify-between p-3.5 border-b border-border/80">
           <div className="flex items-center gap-2">
@@ -231,7 +256,7 @@ export function SeletorLocalidadeModal({
           <Button
             variant="ghost"
             size="icon"
-            className="h-7 w-7 rounded-sm"
+            className="h-8 w-8 rounded-sm"
             onClick={onClose}
             aria-label="Fechar diálogo de seleção"
           >
@@ -247,7 +272,7 @@ export function SeletorLocalidadeModal({
               type="button"
               variant="outline"
               size="sm"
-              className="w-full justify-center gap-2 h-9 text-xs font-medium border-primary/30 hover:bg-primary/5 active:bg-primary/10"
+              className="w-full justify-center gap-2 min-h-[42px] sm:min-h-[36px] text-xs font-medium border-primary/30 hover:bg-primary/5 active:bg-primary/10"
               onClick={handleUseGps}
               disabled={isGpsLoading}
               id="btn-usar-gps"
@@ -298,7 +323,7 @@ export function SeletorLocalidadeModal({
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Ex: Londrina, Sorriso, Ribeirão..."
-                className="pl-8 text-xs h-8 rounded-sm"
+                className="pl-8 text-xs h-10 sm:h-8 rounded-sm"
                 aria-label="Pesquisar município"
                 id="input-busca-municipio"
               />
@@ -307,7 +332,7 @@ export function SeletorLocalidadeModal({
             <select
               value={selectedUf}
               onChange={(e) => setSelectedUf(e.target.value)}
-              className="h-8 rounded-sm border border-border bg-background px-2 text-xs text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              className="h-10 sm:h-8 rounded-sm border border-border bg-background px-2 text-xs text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               aria-label="Filtrar por estado (UF)"
               id="select-filtro-uf"
             >
@@ -341,7 +366,7 @@ export function SeletorLocalidadeModal({
                       <button
                         type="button"
                         onClick={() => handleSelectMunicipio(item)}
-                        className={`w-full flex items-center justify-between p-2 text-left rounded-sm text-xs hover:bg-accent hover:text-accent-foreground transition-colors cursor-pointer ${
+                        className={`w-full flex items-center justify-between p-2.5 sm:p-2 min-h-[44px] sm:min-h-0 text-left rounded-sm text-xs hover:bg-accent hover:text-accent-foreground active:bg-accent/80 transition-colors cursor-pointer ${
                           isSelected ? "bg-accent/60 font-medium" : ""
                         }`}
                         role="option"
@@ -444,7 +469,7 @@ export function SeletorLocalidadeModal({
         {/* Rodapé Informativo */}
         <div className="p-2.5 px-3.5 border-t border-border/80 bg-muted/20 text-[10px] text-muted-foreground flex items-center justify-between">
           <span>Fonte: IBGE (Sedes Municipais / SIRGAS 2000)</span>
-          <Button variant="ghost" size="sm" className="h-6 text-[11px] px-2" onClick={onClose}>
+          <Button variant="ghost" size="sm" className="h-7 text-[11px] px-2.5" onClick={onClose}>
             Fechar
           </Button>
         </div>
