@@ -5,8 +5,7 @@ from uuid import UUID
 from typing import List
 
 from core.constants import PlanTier
-from core.database import get_db
-from core.dependencies import get_current_user, get_tenant_id, require_module, require_tier
+from core.dependencies import get_current_user, get_session, get_tenant_id, require_module, require_tier
 from agricola.templates.schemas import (
     PhaseTemplateRead, PhaseTemplateDetail, PhaseTemplateCreate, PhaseTemplateUpdate,
     OperationTemplateRead, OperationTemplateDetail, OperationTemplateCreate, OperationTemplateUpdate,
@@ -36,7 +35,7 @@ router = APIRouter(
 async def listar_phase_templates(
     cultura: str | None = None,
     fase: str | None = None,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _permission: None = Depends(require_tenant_permission("agricola:template:listar")),
 ):
@@ -46,7 +45,7 @@ async def listar_phase_templates(
 @router.get("/phase/{id}", response_model=PhaseTemplateDetail)
 async def obter_phase_template(
     id: UUID,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _permission: None = Depends(require_tenant_permission("agricola:template:listar")),
 ):
@@ -56,7 +55,7 @@ async def obter_phase_template(
 @router.post("/phase", response_model=PhaseTemplateRead)
 async def criar_phase_template(
     dados: PhaseTemplateCreate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _permission: None = Depends(require_tenant_permission("agricola:template:criar")),
 ):
@@ -70,7 +69,7 @@ async def criar_phase_template(
 async def atualizar_phase_template(
     id: UUID,
     dados: PhaseTemplateUpdate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _permission: None = Depends(require_tenant_permission("agricola:template:editar")),
 ):
@@ -83,7 +82,7 @@ async def atualizar_phase_template(
 @router.delete("/phase/{id}")
 async def excluir_phase_template(
     id: UUID,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _permission: None = Depends(require_tenant_permission("agricola:template:excluir")),
 ):
@@ -95,7 +94,7 @@ async def excluir_phase_template(
 @router.post("/phase/{id}/duplicate", response_model=PhaseTemplateRead)
 async def duplicar_phase_template(
     id: UUID,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _permission: None = Depends(require_tenant_permission("agricola:template:criar")),
 ):
@@ -112,7 +111,7 @@ async def duplicar_phase_template(
 async def criar_phase_checklist_item(
     template_id: UUID,
     dados: PhaseTemplateChecklistItemCreate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _permission: None = Depends(require_tenant_permission("agricola:template:editar")),
 ):
@@ -127,7 +126,7 @@ async def atualizar_phase_checklist_item(
     template_id: UUID,
     item_id: UUID,
     dados: PhaseTemplateChecklistItemUpdate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _permission: None = Depends(require_tenant_permission("agricola:template:editar")),
 ):
@@ -141,7 +140,7 @@ async def atualizar_phase_checklist_item(
 async def excluir_phase_checklist_item(
     template_id: UUID,
     item_id: UUID,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _permission: None = Depends(require_tenant_permission("agricola:template:editar")),
 ):
@@ -154,7 +153,7 @@ async def excluir_phase_checklist_item(
 async def criar_phase_task(
     template_id: UUID,
     dados: PhaseTemplateTaskCreate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _permission: None = Depends(require_tenant_permission("agricola:template:editar")),
 ):
@@ -169,7 +168,7 @@ async def atualizar_phase_task(
     template_id: UUID,
     task_id: UUID,
     dados: PhaseTemplateTaskUpdate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _permission: None = Depends(require_tenant_permission("agricola:template:editar")),
 ):
@@ -183,7 +182,7 @@ async def atualizar_phase_task(
 async def excluir_phase_task(
     template_id: UUID,
     task_id: UUID,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _permission: None = Depends(require_tenant_permission("agricola:template:editar")),
 ):
@@ -199,7 +198,7 @@ async def excluir_phase_task(
 async def listar_operation_templates(
     cultura: str | None = None,
     fase: str | None = None,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _permission: None = Depends(require_tenant_permission("agricola:template:listar")),
 ):
@@ -209,7 +208,7 @@ async def listar_operation_templates(
 @router.get("/operations/{id}", response_model=OperationTemplateDetail)
 async def obter_operation_template(
     id: UUID,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _permission: None = Depends(require_tenant_permission("agricola:template:listar")),
 ):
@@ -219,7 +218,7 @@ async def obter_operation_template(
 @router.post("/operations", response_model=OperationTemplateRead)
 async def criar_operation_template(
     dados: OperationTemplateCreate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _permission: None = Depends(require_tenant_permission("agricola:template:criar")),
 ):
@@ -233,7 +232,7 @@ async def criar_operation_template(
 async def atualizar_operation_template(
     id: UUID,
     dados: OperationTemplateUpdate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _permission: None = Depends(require_tenant_permission("agricola:template:editar")),
 ):
@@ -246,7 +245,7 @@ async def atualizar_operation_template(
 @router.delete("/operations/{id}")
 async def excluir_operation_template(
     id: UUID,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _permission: None = Depends(require_tenant_permission("agricola:template:excluir")),
 ):
@@ -258,7 +257,7 @@ async def excluir_operation_template(
 @router.post("/operations/{id}/duplicate", response_model=OperationTemplateRead)
 async def duplicar_operation_template(
     id: UUID,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _permission: None = Depends(require_tenant_permission("agricola:template:criar")),
 ):
@@ -275,7 +274,7 @@ async def duplicar_operation_template(
 async def criar_operation_template_item(
     template_id: UUID,
     dados: OperationTemplateItemCreate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _permission: None = Depends(require_tenant_permission("agricola:template:editar")),
 ):
@@ -290,7 +289,7 @@ async def atualizar_operation_template_item(
     template_id: UUID,
     item_id: UUID,
     dados: OperationTemplateItemUpdate,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _permission: None = Depends(require_tenant_permission("agricola:template:editar")),
 ):
@@ -304,7 +303,7 @@ async def atualizar_operation_template_item(
 async def excluir_operation_template_item(
     template_id: UUID,
     item_id: UUID,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
     _permission: None = Depends(require_tenant_permission("agricola:template:editar")),
 ):
@@ -319,7 +318,7 @@ async def excluir_operation_template_item(
 @router.post("/apply/phase")
 async def aplicar_template_fase(
     dados: ApplyPhaseTemplateRequest,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id)
 ):
     service = TemplateApplicationService(db, tenant_id)
@@ -330,7 +329,7 @@ async def aplicar_template_fase(
 @router.post("/apply/operations")
 async def aplicar_template_operacoes(
     dados: ApplyOperationTemplateRequest,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id)
 ):
     service = TemplateApplicationService(db, tenant_id)

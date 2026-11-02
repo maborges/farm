@@ -156,7 +156,8 @@ def test_rotas_tenant_scoped_devem_usar_sessao_rls() -> None:
     routers = _read(SANKHYA_ROUTERS)
     core_deps = _read(CORE_DEPS)
 
-    assert "SET LOCAL app.current_tenant_id" in core_deps
+    assert "set_config('app.current_tenant_id', :tenant_id, true)" in core_deps
+    assert "after_begin" in _read("services/api/core/database.py")
     assert "Depends(get_session)" in routers
     assert "Depends(get_db)" not in routers
 

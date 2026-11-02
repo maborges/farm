@@ -42,14 +42,17 @@ def _result(tenant_id):
 
 @pytest.mark.asyncio
 async def test_productive_cycle_runs_each_active_tenant_under_one_lock(monkeypatch) -> None:
-    lock_session = SimpleNamespace()
+    lock_connection = SimpleNamespace(commit=AsyncMock())
+    dispatcher_engine = SimpleNamespace(
+        connect=lambda: AsyncSessionContext(lock_connection)
+    )
     tenant_a = uuid4()
     tenant_b = uuid4()
     run_tenant = AsyncMock(return_value=SimpleNamespace())
     acquire_lock = AsyncMock(return_value=True)
     release_lock = AsyncMock()
 
-    monkeypatch.setattr(scheduler_module, "async_session_maker", _session_factory(lock_session))
+    monkeypatch.setattr(scheduler_module, "dispatcher_engine", dispatcher_engine)
     monkeypatch.setattr(scheduler_module, "_acquire_scheduler_lock", acquire_lock)
     monkeypatch.setattr(scheduler_module, "_release_scheduler_lock", release_lock)
     monkeypatch.setattr(scheduler_module, "_list_active_tenant_ids", AsyncMock(return_value=[tenant_a, tenant_b]))
@@ -61,16 +64,20 @@ async def test_productive_cycle_runs_each_active_tenant_under_one_lock(monkeypat
     assert run_tenant.await_args_list[0].args[0] == tenant_a
     assert run_tenant.await_args_list[1].args[0] == tenant_b
     assert all(call.kwargs["batch_size"] == 2 for call in run_tenant.await_args_list)
-    acquire_lock.assert_awaited_once_with(lock_session)
-    release_lock.assert_awaited_once_with(lock_session)
+    acquire_lock.assert_awaited_once_with(lock_connection)
+    lock_connection.commit.assert_awaited_once()
+    release_lock.assert_awaited_once_with(lock_connection)
 
 
 @pytest.mark.asyncio
 async def test_productive_cycle_skips_when_concurrent_lock_is_busy(monkeypatch) -> None:
-    lock_session = SimpleNamespace()
+    lock_connection = SimpleNamespace()
+    dispatcher_engine = SimpleNamespace(
+        connect=lambda: AsyncSessionContext(lock_connection)
+    )
     run_tenant = AsyncMock()
 
-    monkeypatch.setattr(scheduler_module, "async_session_maker", _session_factory(lock_session))
+    monkeypatch.setattr(scheduler_module, "dispatcher_engine", dispatcher_engine)
     monkeypatch.setattr(scheduler_module, "_acquire_scheduler_lock", AsyncMock(return_value=False))
     monkeypatch.setattr(scheduler_module, "_run_tenant_cycle", run_tenant)
 
@@ -81,9 +88,18 @@ async def test_productive_cycle_skips_when_concurrent_lock_is_busy(monkeypatch) 
 
 
 @pytest.mark.asyncio
+async def test_productive_cycle_fails_closed_without_dispatcher(monkeypatch) -> None:
+    monkeypatch.setattr(scheduler_module, "dispatcher_engine", None)
+
+    with pytest.raises(RuntimeError, match="RECOMMENDATION_DISPATCHER_DATABASE_URL"):
+        await scheduler_module.run_scheduled_recommendation_cycle()
+
+
+@pytest.mark.asyncio
 async def test_release_lock_ignores_already_closed_postgres_connection() -> None:
     session = SimpleNamespace(
-        get_bind=lambda: SimpleNamespace(dialect=SimpleNamespace(name="postgresql")),
+        dialect=SimpleNamespace(name="postgresql"),
+        rollback=AsyncMock(),
         execute=AsyncMock(
             side_effect=InterfaceError(
                 "SELECT pg_advisory_unlock(:lock_id)",
@@ -96,6 +112,23 @@ async def test_release_lock_ignores_already_closed_postgres_connection() -> None
 
     await scheduler_module._release_scheduler_lock(session)
 
+    session.rollback.assert_awaited_once()
+    session.invalidate.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_release_lock_invalidates_connection_when_unlock_fails() -> None:
+    session = SimpleNamespace(
+        dialect=SimpleNamespace(name="postgresql"),
+        rollback=AsyncMock(),
+        execute=AsyncMock(side_effect=RuntimeError("unlock failed")),
+        invalidate=AsyncMock(),
+    )
+
+    with pytest.raises(RuntimeError, match="unlock failed"):
+        await scheduler_module._release_scheduler_lock(session)
+
+    session.rollback.assert_awaited_once()
     session.invalidate.assert_awaited_once()
 
 
@@ -114,6 +147,7 @@ async def test_tenant_cycle_sets_and_clears_rls_context_and_commits(monkeypatch)
         run_scheduled_recommendations=AsyncMock(return_value=_result(tenant_id))
     )
 
+    monkeypatch.setattr(scheduler_module, "_activate_session_tenant", AsyncMock())
     monkeypatch.setattr(scheduler_module, "async_session_maker", _session_factory(session))
     monkeypatch.setattr(scheduler_module, "RecommendationLifecycleService", lambda *args: lifecycle)
     monkeypatch.setattr(scheduler_module, "RecommendationSchedulerService", lambda *args: scheduler_service)
@@ -134,10 +168,9 @@ async def test_tenant_cycle_sets_and_clears_rls_context_and_commits(monkeypatch)
         batch_size=3,
         max_batches=1,
     )
-    assert session.execute.await_count == 2
-    assert "set_config('app.current_tenant_id'" in str(session.execute.await_args_list[0].args[0])
-    assert "RESET app.current_tenant_id" in str(session.execute.await_args_list[1].args[0])
-    assert session.commit.await_count == 2
+    scheduler_module._activate_session_tenant.assert_awaited_once_with(session, tenant_id)
+    assert session.execute.await_count == 0
+    assert session.commit.await_count == 1
     assert session.rollback.await_count == 1
     assert session.info == {}
 
@@ -157,6 +190,7 @@ async def test_tenant_cycle_dry_run_skips_expiration_and_persistence(monkeypatch
         run_scheduled_recommendations=AsyncMock(return_value=_result(tenant_id))
     )
 
+    monkeypatch.setattr(scheduler_module, "_activate_session_tenant", AsyncMock())
     monkeypatch.setattr(scheduler_module, "async_session_maker", _session_factory(session))
     monkeypatch.setattr(scheduler_module, "RecommendationLifecycleService", lambda *args: lifecycle)
     monkeypatch.setattr(scheduler_module, "RecommendationSchedulerService", lambda *args: scheduler_service)
@@ -171,7 +205,7 @@ async def test_tenant_cycle_dry_run_skips_expiration_and_persistence(monkeypatch
     assert result is not None
     assert result.recommendations_expired == 0
     lifecycle.expire_due_recommendations.assert_not_awaited()
-    assert session.commit.await_count == 1
+    assert session.commit.await_count == 0
     assert session.rollback.await_count == 1
 
 
@@ -190,6 +224,7 @@ async def test_tenant_cycle_contains_scheduler_failure(monkeypatch) -> None:
         run_scheduled_recommendations=AsyncMock(side_effect=RuntimeError("provider batch failed"))
     )
 
+    monkeypatch.setattr(scheduler_module, "_activate_session_tenant", AsyncMock())
     monkeypatch.setattr(scheduler_module, "async_session_maker", _session_factory(session))
     monkeypatch.setattr(scheduler_module, "RecommendationLifecycleService", lambda *args: lifecycle)
     monkeypatch.setattr(scheduler_module, "RecommendationSchedulerService", lambda *args: scheduler_service)

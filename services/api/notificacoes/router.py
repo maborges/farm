@@ -12,7 +12,7 @@ from notificacoes.models import Notificacao
 from notificacoes.schemas import NotificacaoCreate, NotificacaoResponse, MarcarLidasRequest, NotificacaoPreferenciaUpdate, NotificacaoPreferenciaResponse, NotificacaoAcaoRequest
 from notificacoes.service import NotificacaoService, manager
 from notificacoes.alertas_engine import AlertasEngine
-from core.dependencies import get_current_user
+from core.dependencies import get_current_user, get_current_user_identity
 
 router = APIRouter(prefix="/notificacoes", tags=["Notificações"])
 
@@ -28,7 +28,7 @@ async def listar(
     limit: int = 50,
     session: AsyncSession = Depends(get_session),
     tenant_id: UUID = Depends(get_tenant_id),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user_identity),
 ):
     svc = NotificacaoService(session, tenant_id)
     return await svc.listar(current_user.id, lida=lida, limit=limit)

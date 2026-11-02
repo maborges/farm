@@ -10,6 +10,13 @@ class Settings(BaseSettings):
     version: str = "0.1.0"
 
     database_url: str = "sqlite+aiosqlite:///./agrosaas.db"
+    require_restricted_runtime_role: bool = False
+    # Migration opt-in: only the allowlisted login/notification HTTP methods
+    # use separate RLS roles; all other dependencies keep the legacy engine.
+    rls_dev_route_sessions_enabled: bool = False
+    authentication_database_url: str = ""
+    authentication_database_role: str = "deepfarms_auth"
+    recommendation_dispatcher_database_url: str = ""
     redis_url: str = "redis://localhost:6379/0"
     ptax_cache_ttl_seconds: int = 900
     ptax_single_worker_fallback: bool = True

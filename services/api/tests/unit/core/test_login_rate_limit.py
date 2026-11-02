@@ -66,6 +66,34 @@ class TestVerificarBloqueio:
         assert data_desbloqueio is None
 
     @pytest.mark.asyncio
+    async def test_limite_personalizado_persiste_data_de_bloqueio(self, mock_session):
+        """Configuração menor que o guard padrão ainda produz bloqueio persistido."""
+        tentativa = TentativaLogin(
+            email="tenant@example.com",
+            tentativas_count=2,
+            bloqueado=False,
+            created_at=datetime.now(timezone.utc),
+        )
+        mock_result = MagicMock()
+        mock_result.scalar_one_or_none.return_value = tentativa
+        mock_session.execute.return_value = mock_result
+        service = LoginRateLimitService(
+            mock_session,
+            seguranca_config={
+                "rate_limiting_ativo": True,
+                "max_tentativas": 2,
+                "tempo_bloqueio_minutos": 7,
+            },
+        )
+
+        bloqueado, data_desbloqueio = await service.verificar_bloqueio("tenant@example.com")
+
+        assert bloqueado is True
+        assert tentativa.bloqueado is True
+        assert data_desbloqueio is not None
+        assert mock_session.commit.await_count == 1
+
+    @pytest.mark.asyncio
     async def test_bloqueado_com_desbloqueio_futuro(self, rate_limit_service, mock_session):
         """Usuário bloqueado com desbloqueio futuro permanece bloqueado."""
         tentativa = TentativaLogin(

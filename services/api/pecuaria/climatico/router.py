@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from core.database import get_db
-from core.dependencies import get_current_admin, get_tenant_id, require_module
+from core.dependencies import get_current_admin, get_session, get_tenant_id, require_module
 from pecuaria.climatico.schemas import (
     InteligenciaPecuariaResponse,
     ModeloZoosanitarioCreate,
@@ -30,7 +30,7 @@ async def analisar_estresse(
     unidade_produtiva_id: UUID,
     especie: str = Query(..., description="Bovino de Leite, Bovino de Corte, etc"),
     tenant_id: UUID = Depends(get_tenant_id),
-    session: AsyncSession = Depends(get_db),
+    session: AsyncSession = Depends(get_session),
     _: None = Depends(require_module("P1_REBANHO")),
 ) -> InteligenciaPecuariaResponse | None:
     svc = InteligenciaPecuariaService(session)
@@ -47,7 +47,7 @@ async def analisar_estresse(
 )
 async def listar_modelos(
     tenant_id: UUID = Depends(get_tenant_id),
-    session: AsyncSession = Depends(get_db),
+    session: AsyncSession = Depends(get_session),
     _: None = Depends(require_module("P1_REBANHO")),
 ) -> list[ModeloZoosanitarioResponse]:
     svc = ModeloZoosanitarioService(session)
@@ -58,7 +58,7 @@ async def listar_modelos(
 async def recomendacoes_operacionais_pecuaria(
     unidade_produtiva_id: UUID,
     tenant_id: UUID = Depends(get_tenant_id),
-    session: AsyncSession = Depends(get_db),
+    session: AsyncSession = Depends(get_session),
     _: None = Depends(require_module("P1_CONTROLE")),
 ):
     svc = ClimaPecuariaRecommendationService(session, tenant_id)
@@ -74,7 +74,7 @@ async def recomendacoes_operacionais_pecuaria(
 async def criar_modelo(
     payload: ModeloZoosanitarioCreate,
     tenant_id: UUID = Depends(get_tenant_id),
-    session: AsyncSession = Depends(get_db),
+    session: AsyncSession = Depends(get_session),
     _: None = Depends(require_module("P1_REBANHO")),
 ) -> ModeloZoosanitarioResponse:
     svc = ModeloZoosanitarioService(session)
@@ -90,7 +90,7 @@ async def atualizar_modelo(
     model_id: UUID,
     payload: ModeloZoosanitarioUpdate,
     tenant_id: UUID = Depends(get_tenant_id),
-    session: AsyncSession = Depends(get_db),
+    session: AsyncSession = Depends(get_session),
     _: None = Depends(require_module("P1_REBANHO")),
 ) -> ModeloZoosanitarioResponse:
     svc = ModeloZoosanitarioService(session)
@@ -105,7 +105,7 @@ async def atualizar_modelo(
 async def remover_modelo(
     model_id: UUID,
     tenant_id: UUID = Depends(get_tenant_id),
-    session: AsyncSession = Depends(get_db),
+    session: AsyncSession = Depends(get_session),
     _: None = Depends(require_module("P1_REBANHO")),
 ) -> None:
     svc = ModeloZoosanitarioService(session)
@@ -121,7 +121,7 @@ async def remover_modelo(
 async def copiar_modelo_global(
     model_id: UUID,
     tenant_id: UUID = Depends(get_tenant_id),
-    session: AsyncSession = Depends(get_db),
+    session: AsyncSession = Depends(get_session),
     _: None = Depends(require_module("P1_REBANHO")),
 ) -> ModeloZoosanitarioResponse:
     svc = ModeloZoosanitarioService(session)

@@ -156,8 +156,12 @@ async def lifespan(app):
     await public_clima_service.cache.close()
 
     # Libera pool de conexões do banco
-    from core.database import engine
+    from core.database import authentication_engine, dispatcher_engine, engine
     await engine.dispose()
+    if dispatcher_engine is not None:
+        await dispatcher_engine.dispose()
+    if authentication_engine is not None:
+        await authentication_engine.dispose()
     logger.info("Database engine disposed on shutdown.")
 
 

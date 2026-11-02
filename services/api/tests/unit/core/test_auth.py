@@ -35,6 +35,17 @@ def make_mock_user(
     return user
 
 
+def make_login_material(user):
+    return {
+        "usuario_id": user.id,
+        "email": user.email,
+        "username": user.username,
+        "senha_hash": user.senha_hash,
+        "is_superuser": user.is_superuser,
+        "ativo": user.ativo,
+    }
+
+
 @pytest.fixture
 def mock_session():
     session = AsyncMock()
@@ -57,7 +68,7 @@ async def test_login_credenciais_validas(auth_service, mock_session):
     user = make_mock_user()
 
     result_mock = MagicMock()
-    result_mock.scalar_one_or_none.return_value = user
+    result_mock.mappings.return_value.one_or_none.return_value = make_login_material(user)
     result_mock.scalars.return_value.all.return_value = []  # sem tenants
     mock_session.execute.return_value = result_mock
 
@@ -88,13 +99,15 @@ async def test_login_email_invalido(auth_service, mock_session):
     from fastapi import HTTPException
 
     result_mock = MagicMock()
-    result_mock.scalar_one_or_none.return_value = None
+    result_mock.mappings.return_value.one_or_none.return_value = None
     mock_session.execute.return_value = result_mock
 
     login_data = LoginRequest(email="naoexiste@teste.com", senha="qualquer")
 
-    with pytest.raises(HTTPException) as exc_info:
-        await auth_service.authenticate_user(login_data)
+    with patch("core.services.login_rate_limit_service.LoginRateLimitService.verificar_bloqueio", new=AsyncMock(return_value=(False, None))), \
+         patch("core.services.login_rate_limit_service.LoginRateLimitService.registrar_tentativa_falha", new=AsyncMock()):
+        with pytest.raises(HTTPException) as exc_info:
+            await auth_service.authenticate_user(login_data)
 
     assert exc_info.value.status_code == 401
 
@@ -111,7 +124,7 @@ async def test_login_senha_invalida(auth_service, mock_session):
     user = make_mock_user(senha="SenhaCorreta@123")
 
     result_mock = MagicMock()
-    result_mock.scalar_one_or_none.return_value = user
+    result_mock.mappings.return_value.one_or_none.return_value = make_login_material(user)
     mock_session.execute.return_value = result_mock
 
     login_data = LoginRequest(email="fazendeiro@teste.com", senha="SenhaErrada@999")
@@ -134,7 +147,7 @@ async def test_token_claims_corretos(auth_service, mock_session):
     user = make_mock_user()
 
     result_mock = MagicMock()
-    result_mock.scalar_one_or_none.return_value = user
+    result_mock.mappings.return_value.one_or_none.return_value = make_login_material(user)
     result_mock.scalars.return_value.all.return_value = []
     mock_session.execute.return_value = result_mock
 
@@ -168,7 +181,7 @@ async def test_login_usuario_inativo(auth_service, mock_session):
     user = make_mock_user(ativo=False)
 
     result_mock = MagicMock()
-    result_mock.scalar_one_or_none.return_value = user
+    result_mock.mappings.return_value.one_or_none.return_value = make_login_material(user)
     mock_session.execute.return_value = result_mock
 
     login_data = LoginRequest(email="fazendeiro@teste.com", senha="Senha@123")
@@ -191,10 +204,11 @@ async def test_login_sem_tenant_ativo(auth_service, mock_session):
     user = make_mock_user()
 
     user_result = MagicMock()
-    user_result.scalar_one_or_none.return_value = user
+    user_result.mappings.return_value.one_or_none.return_value = make_login_material(user)
 
     tenant_usuario_result = MagicMock()
     tenant_usuario_result.scalar_one_or_none.return_value = None
+    tenant_usuario_result.scalars.return_value.all.return_value = []
 
     tenant_links_result = MagicMock()
     tenant_links_result.scalars.return_value.all.return_value = []

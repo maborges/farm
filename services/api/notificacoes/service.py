@@ -3,7 +3,7 @@ from uuid import UUID
 from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy import update, func, and_
+from sqlalchemy import update, func, and_, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from fastapi import WebSocket
 from loguru import logger
@@ -92,26 +92,54 @@ class NotificacaoService(BaseService[Notificacao]):
         import asyncio
         from core.database import async_session_maker
 
+        restricted_route_session = (
+            self.session.info.get("rls_dev_restricted_route") is True
+        )
+        if restricted_route_session:
+            from core.database import rls_dev_async_session_maker
+
+            if rls_dev_async_session_maker is None:
+                raise RuntimeError(
+                    "Restricted notification background session is unavailable"
+                )
+            background_session_maker = rls_dev_async_session_maker
+        else:
+            background_session_maker = async_session_maker
+
+        def _open_background_session():
+            authenticated_user_id = None
+            if restricted_route_session:
+                authenticated_user_id = self.session.info.get("user_id")
+                if authenticated_user_id is None:
+                    raise RuntimeError(
+                        "Authenticated user context is required for restricted notification effects"
+                    )
+            bg_session = background_session_maker()
+            if restricted_route_session:
+                bg_session.info["rls_dev_restricted_route"] = True
+                bg_session.info["tenant_id"] = self.tenant_id
+                bg_session.info["user_id"] = authenticated_user_id
+            return bg_session
+
         async def _atualizar_e_notificar():
             msg_final = dados.mensagem
             if dados.nivel in ["WARNING", "DANGER"] or dados.tipo == "OPORTUNIDADE":
                 try:
                     # Usar uma nova sessão para não interferir na sessão atual
-                    async with async_session_maker() as bg_session:
+                    async with _open_background_session() as bg_session:
                         bg_svc = NotificacaoService(bg_session, self.tenant_id)
                         msg_final = await bg_svc.gerar_mensagem_ia(dados)
                         if msg_final != dados.mensagem:
-                            notif_db = await bg_session.get(Notificacao, notif.id)
-                            if notif_db:
-                                notif_db.mensagem = msg_final
-                                await bg_session.commit()
+                            await bg_svc._persistir_mensagem_gerada(
+                                notif.id, msg_final
+                            )
                 except Exception as e:
                     logger.error(f"Erro no background task de IA: {e}")
 
             # Envio de email — um por usuário elegível (preferência própria), não mais um só responsável
             if notif.nivel == "DANGER" or dados.tipo == "OPORTUNIDADE":
                 try:
-                    async with async_session_maker() as bg_session:
+                    async with _open_background_session() as bg_session:
                         bg_svc = NotificacaoService(bg_session, self.tenant_id)
                         await bg_svc._enviar_emails_por_preferencia(notif, dados.tipo, msg_final)
                 except Exception as e:
@@ -145,8 +173,28 @@ class NotificacaoService(BaseService[Notificacao]):
         cada usuário tem email_ativo/nivel_sensibilidade próprios; sem preferência
         cadastrada, o padrão é elegível (email_ativo=True, sensibilidade=ALTO).
         """
-        from core.models.auth import Usuario, TenantUsuario
         from notificacoes.email_service import enviar_email
+
+        assunto = f"DeepFarms — Alerta Inteligente: {notif.titulo}"
+        if self.session.info.get("rls_dev_restricted_route") is True:
+            result = await self.session.execute(
+                text(
+                    "SELECT email FROM farms.notification_recipient_emails("
+                    ":notification_id)"
+                ),
+                {"notification_id": notif.id},
+            )
+            for email in result.scalars().all():
+                try:
+                    await enviar_email(email, assunto, msg_final)
+                except Exception as e:
+                    logger.error(
+                        "Erro ao enviar email de notificação via runtime restrito: {}",
+                        type(e).__name__,
+                    )
+            return
+
+        from core.models.auth import Usuario, TenantUsuario
 
         stmt = (
             select(Usuario, NotificacaoPreferencia)
@@ -166,7 +214,6 @@ class NotificacaoService(BaseService[Notificacao]):
         )
         result = await self.session.execute(stmt)
 
-        assunto = f"DeepFarms — Alerta Inteligente: {notif.titulo}"
         for user, pref in result.all():
             email_ativo = pref.email_ativo if pref else True
             sensibilidade = pref.nivel_sensibilidade if pref else "ALTO"
@@ -180,6 +227,29 @@ class NotificacaoService(BaseService[Notificacao]):
                 await enviar_email(user.email, assunto, msg_final)
             except Exception as e:
                 logger.error(f"Erro ao enviar email de notificação para {user.email}: {e}")
+
+    async def _persistir_mensagem_gerada(
+        self, notification_id: UUID, message: str
+    ) -> bool:
+        """Persist an AI message within the authorized Tenant boundary."""
+        if self.session.info.get("rls_dev_restricted_route") is True:
+            result = await self.session.execute(
+                text(
+                    "SELECT farms.update_notification_message("
+                    ":notification_id, :message)"
+                ),
+                {"notification_id": notification_id, "message": message},
+            )
+            updated = bool(result.scalar_one())
+            await self.session.commit()
+            return updated
+
+        notif_db = await self.session.get(Notificacao, notification_id)
+        if notif_db is None:
+            return False
+        notif_db.mensagem = message
+        await self.session.commit()
+        return True
 
     async def gerar_mensagem_ia(self, dados: NotificacaoCreate) -> str:
         """Gera uma mensagem curta e impactante usando IA para notificações externas (Step 196)."""

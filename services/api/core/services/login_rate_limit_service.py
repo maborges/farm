@@ -83,8 +83,14 @@ class LoginRateLimitService:
                     logger.warning(f"Login bloqueado para {email} até {tentativa.data_desbloqueio}")
                     return True, tentativa.data_desbloqueio
             else:
-                # Bloqueado sem data de desbloqueio (deveria ter)
-                return True, None
+                # Repara estado legado incompleto para que callers sempre
+                # recebam um prazo concreto de bloqueio.
+                tentativa.data_bloqueio = tentativa.data_bloqueio or datetime.now(timezone.utc)
+                tentativa.data_desbloqueio = datetime.now(timezone.utc) + timedelta(
+                    minutes=self.tempo_bloqueio_minutos
+                )
+                await self.session.commit()
+                return True, tentativa.data_desbloqueio
 
         # Verifica se as tentativas estão dentro da janela de tempo
         janela_inicio = datetime.now(timezone.utc) - timedelta(minutes=self.janela_tempo_minutos)
@@ -97,6 +103,13 @@ class LoginRateLimitService:
 
         # Verifica se atingiu o limite
         if tentativa.tentativas_count >= self.max_tentativas:
+            agora = datetime.now(timezone.utc)
+            tentativa.bloqueado = True
+            tentativa.data_bloqueio = agora
+            tentativa.data_desbloqueio = agora + timedelta(
+                minutes=self.tempo_bloqueio_minutos
+            )
+            await self.session.commit()
             return True, tentativa.data_desbloqueio
 
         return False, None

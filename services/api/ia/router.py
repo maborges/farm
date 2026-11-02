@@ -4,7 +4,6 @@ from decimal import Decimal
 from datetime import datetime, timezone
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
-from core.database import get_db
 from core.config import settings
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc, Integer as sa_Integer
@@ -469,7 +468,7 @@ async def prever_risco_financeiro(
 @router.get("/financeiro/simulacao-estresse", response_model=IAEstresseFinanceiroResponse)
 async def get_simulacao_estresse(
     safra_id: Optional[uuid.UUID] = Query(None),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_session),
     tenant: Tenant = Depends(get_current_tenant)
 ):
     """Retorna a simulação de estresse financeiro (Step 206)."""
@@ -1128,7 +1127,7 @@ async def track_click_experimento(
 @router.get("/financeiro/plano-acao", response_model=IAPlanoAcaoResponse)
 async def get_plano_acao(
     safra_id: Optional[uuid.UUID] = Query(None),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id)
 ):
     """Retorna o plano de ação automático para recuperação financeira (Step 207)."""

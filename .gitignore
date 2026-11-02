@@ -17,6 +17,8 @@ test-results/
 *.pyo
 .env.local
 **/.env.local
+.env.rls-canary.local
+**/.env.rls-canary.local
 .env
 **/.env
 data/

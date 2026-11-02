@@ -1,5 +1,5 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.exc import IntegrityError
 from fastapi import HTTPException, status, Request
 from passlib.context import CryptContext
@@ -55,6 +55,62 @@ class AuthService:
 
     def get_password_hash(self, password):
         return hash_password(password)
+
+    async def _read_restricted_login_material(self, auth_session, email: str):
+        """Read one pre-authentication record through the dedicated SQL function."""
+        result = await auth_session.execute(
+            text("SELECT * FROM farms.auth_login_material(:email)"),
+            {"email": email},
+        )
+        rows = result.mappings().all()
+        if len(rows) > 1:
+            raise RuntimeError("Multiple users match the normalized login email")
+        return rows[0] if rows else None
+
+    @staticmethod
+    def _user_from_login_material(material):
+        """Build the minimal user value needed after bcrypt verification."""
+        if material is None:
+            return None
+        return Usuario(
+            id=material["usuario_id"],
+            email=material["email"],
+            username=material["username"],
+            senha_hash=material["senha_hash"],
+            is_superuser=material["is_superuser"],
+            ativo=material["ativo"],
+        )
+
+    @staticmethod
+    async def _tenant_login_rate_config(session, tenant_id) -> dict:
+        """Read only the rate-limit keys after bcrypt and Tenant membership validation."""
+        from core.models.tenant_config import ConfiguracaoTenant
+
+        result = await session.execute(
+            select(ConfiguracaoTenant.chave, ConfiguracaoTenant.valor).where(
+                ConfiguracaoTenant.tenant_id == tenant_id,
+                ConfiguracaoTenant.categoria == "seguranca",
+                ConfiguracaoTenant.chave.in_(
+                    ("rate_limiting_ativo", "max_tentativas", "tempo_bloqueio_minutos")
+                ),
+                ConfiguracaoTenant.ativo.is_(True),
+            )
+        )
+        config = {row.chave: row.valor for row in result.all()}
+        return {
+            "rate_limiting_ativo": config.get("rate_limiting_ativo", True),
+            "max_tentativas": config.get("max_tentativas", 5),
+            "tempo_bloqueio_minutos": config.get("tempo_bloqueio_minutos", 15),
+        }
+
+    @staticmethod
+    async def _register_login_failure(rate_service, email, reason, ip, user_agent):
+        await rate_service.registrar_tentativa_falha(
+            email=email,
+            motivo=reason,
+            ip_address=ip,
+            user_agent=user_agent,
+        )
         
     def create_access_token(self, data: dict, expires_delta: Optional[timedelta] = None):
         to_encode = data.copy()
@@ -186,95 +242,124 @@ class AuthService:
             HTTPException 401: Credenciais inválidas
             HTTPException 403: Usuário inativo
         """
-        from core.services.configuracoes_service import ConfiguracoesService
-
-        # Busca usuário primeiro para descobrir o tenant
         normalized_login_email = str(login_data.email).strip().lower()
-        stmt = select(Usuario).where(func.lower(Usuario.email) == normalized_login_email)
-        result = await self.session.execute(stmt)
-        user = result.scalar_one_or_none()
+        restricted_auth = (
+            settings.require_restricted_runtime_role
+            or settings.rls_dev_route_sessions_enabled
+        )
+        auth_session = self.session
+        isolated_auth_session = False
+        if restricted_auth:
+            from core.database import authentication_async_session_maker
 
-        # Descobre tenant do usuário para pegar config de segurança
-        seguranca_config = None
-        if user:
+            if authentication_async_session_maker is None:
+                raise RuntimeError("Isolated authentication database session is not configured")
+            auth_session = authentication_async_session_maker()
+            isolated_auth_session = True
+        auth_session.info["login_email"] = normalized_login_email
+        # Before credentials are verified, the auth identity sees only the
+        # requested email's attempt counter and the dedicated credential
+        # function. Tenant settings and memberships are deliberately absent.
+        rate_limit_svc = LoginRateLimitService(auth_session)
+
+        try:
+            bloqueado, data_desbloqueio = await rate_limit_svc.verificar_bloqueio(
+                normalized_login_email
+            )
+            if bloqueado:
+                minutos = max(1, int((data_desbloqueio - datetime.now(timezone.utc)).total_seconds() / 60))
+                raise HTTPException(
+                    status_code=status.HTTP_423_LOCKED,
+                    detail=f"Conta bloqueada por segurança. Tente novamente em {minutos} minuto(s).",
+                    headers={"Retry-After": str(minutos * 60)},
+                )
+
+            if restricted_auth:
+                material = await self._read_restricted_login_material(
+                    auth_session, normalized_login_email
+                )
+                user = self._user_from_login_material(material)
+            else:
+                material = (await auth_session.execute(
+                    select(
+                        Usuario.id.label("usuario_id"),
+                        Usuario.email,
+                        Usuario.username,
+                        Usuario.senha_hash,
+                        Usuario.is_superuser,
+                        Usuario.ativo,
+                    ).where(func.lower(func.trim(Usuario.email)) == normalized_login_email)
+                )).mappings().one_or_none()
+                user = self._user_from_login_material(material)
+
+            if not user:
+                await self._register_login_failure(rate_limit_svc, normalized_login_email, "USUARIO_NAO_ENCONTRADO", ip_address, user_agent)
+                raise HTTPException(status_code=401, detail="Email ou senha incorretos")
+            if not user.senha_hash:
+                await self._register_login_failure(rate_limit_svc, normalized_login_email, "USUARIO_SEM_HASH", ip_address, user_agent)
+                raise HTTPException(status_code=401, detail="Login via senha não habilitado para este usuário")
+            if not self.verify_password(login_data.senha, user.senha_hash):
+                await self._register_login_failure(rate_limit_svc, normalized_login_email, "SENHA_INVALIDA", ip_address, user_agent)
+                raise HTTPException(status_code=401, detail="Email ou senha incorretos")
+            if not user.ativo:
+                await self._register_login_failure(rate_limit_svc, normalized_login_email, "USUARIO_INATIVO", ip_address, user_agent)
+                raise HTTPException(status_code=403, detail="Usuário inativo")
+
+            user.senha_hash = None
+
+            # bcrypt passed: now establish the authenticated user context and
+            # resolve the first active Tenant through the restricted runtime.
+            self.session.info["user_id"] = user.id
             tenant_usuario_stmt = select(TenantUsuario).where(
                 TenantUsuario.usuario_id == user.id,
-                TenantUsuario.status == "ATIVO"
-            ).limit(1)
-            tenant_usuario_result = await self.session.execute(tenant_usuario_stmt)
-            tenant_usuario = tenant_usuario_result.scalar_one_or_none()
-
-            if tenant_usuario and not user.is_superuser:
-                svc = ConfiguracoesService(self.session, tenant_usuario.tenant_id)
-                seguranca_config = await svc.get_seguranca_config()
-
-        # Inicializa serviço de rate limiting com config do tenant
-        rate_limit_svc = LoginRateLimitService(self.session, seguranca_config=seguranca_config)
-
-        # Verifica se está bloqueado
-        bloqueado, data_desbloqueio = await rate_limit_svc.verificar_bloqueio(login_data.email)
-
-        if bloqueado:
-            minutos_restantes = max(1, int((data_desbloqueio - datetime.now(timezone.utc)).total_seconds() / 60))
-            raise HTTPException(
-                status_code=status.HTTP_423_LOCKED,
-                detail=f"Conta bloqueada por segurança. Tente novamente em {minutos_restantes} minuto(s).",
-                headers={"Retry-After": str(minutos_restantes * 60)}
+                TenantUsuario.status == "ATIVO",
             )
+            tenant_usuarios = (await self.session.execute(tenant_usuario_stmt)).scalars().all()
 
-        logger.debug(f"🔍 Tentativa de autenticação para: {login_data.email}")
-        
-        # Usuário não encontrado
-        if not user:
-            logger.warning(f"❌ Usuário não encontrado: {login_data.email}")
-            await rate_limit_svc.registrar_tentativa_falha(
-                email=login_data.email,
-                motivo="USUARIO_NAO_ENCONTRADO",
-                ip_address=ip_address,
-                user_agent=user_agent
-            )
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Email ou senha incorretos")
+            tenant_rate_config = None
+            if not user.is_superuser and tenant_usuarios:
+                first_tenant_id = tenant_usuarios[0].tenant_id
+                self.session.info["tenant_id"] = first_tenant_id
+                # The membership read opened a transaction with only user_id.
+                # End that read transaction so the next one installs both
+                # authenticated user and Tenant context before protected SQL.
+                await self.session.commit()
+                if restricted_auth:
+                    tenant_rate_config = await self._tenant_login_rate_config(
+                        self.session, first_tenant_id
+                    )
+                else:
+                    from core.services.configuracoes_service import ConfiguracoesService
+                    tenant_rate_config = await ConfiguracoesService(
+                        self.session, first_tenant_id
+                    ).get_seguranca_config()
 
-        if not user.senha_hash:
-            logger.warning(f"❌ Usuário sem senha (SSO?): {login_data.email}")
-            await rate_limit_svc.registrar_tentativa_falha(
-                email=login_data.email,
-                motivo="USUARIO_SEM_HASH",
-                ip_address=ip_address,
-                user_agent=user_agent
-            )
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Login via senha não habilitado para este usuário")
+            # Apply the Tenant's policy only after bcrypt. The generic
+            # pre-authentication guard remains in force for unknown emails and
+            # invalid passwords; see the activation report for this unavoidable
+            # difference in when personalized thresholds can take effect.
+            if tenant_rate_config is not None:
+                tenant_rate_limit = LoginRateLimitService(
+                    auth_session, seguranca_config=tenant_rate_config
+                )
+                bloqueado, data_desbloqueio = await tenant_rate_limit.verificar_bloqueio(
+                    normalized_login_email
+                )
+                if bloqueado:
+                    minutos = max(1, int((data_desbloqueio - datetime.now(timezone.utc)).total_seconds() / 60))
+                    raise HTTPException(
+                        status_code=status.HTTP_423_LOCKED,
+                        detail=f"Conta bloqueada por segurança. Tente novamente em {minutos} minuto(s).",
+                        headers={"Retry-After": str(minutos * 60)},
+                    )
+            await rate_limit_svc.registrar_tentativa_sucesso(normalized_login_email)
+        finally:
+            if isolated_auth_session:
+                await auth_session.close()
 
-        # Senha inválida
-        if not self.verify_password(login_data.senha, user.senha_hash):
-            logger.warning(f"❌ Senha incorreta para: {login_data.email}")
-            await rate_limit_svc.registrar_tentativa_falha(
-                email=login_data.email,
-                motivo="SENHA_INVALIDA",
-                ip_address=ip_address,
-                user_agent=user_agent
-            )
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Email ou senha incorretos")
-
-        # Usuário inativo
-        if not user.ativo:
-            await rate_limit_svc.registrar_tentativa_falha(
-                email=login_data.email,
-                motivo="USUARIO_INATIVO",
-                ip_address=ip_address,
-                user_agent=user_agent
-            )
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Usuário inativo")
-
-        # Login bem-sucedido - registra e reseta contador
-        await rate_limit_svc.registrar_tentativa_sucesso(login_data.email)
-            
         # Build the dynamic token claims based on the first tenant or default structure
         # A good SaaS token only holds current "active" tenant context, not ALL tenants.
         # But our old mock injected all. Let's find first active tenant to inject as default context.
-        
-        tenant_usuario_stmt = select(TenantUsuario).where(TenantUsuario.usuario_id == user.id, TenantUsuario.status == "ATIVO")
-        tenant_usuarios = (await self.session.execute(tenant_usuario_stmt)).scalars().all()
         
         default_tenant_id = None
         modulos = ["CORE"]
@@ -287,6 +372,7 @@ class AuthService:
         if not user.is_superuser and tenant_usuarios:
             first_tu = tenant_usuarios[0]
             default_tenant_id = str(first_tu.tenant_id)
+            self.session.info["tenant_id"] = first_tu.tenant_id
             
             # Fetch profile to get roles
             perfil_stmt = select(PerfilAcesso).where(PerfilAcesso.id == first_tu.perfil_id)

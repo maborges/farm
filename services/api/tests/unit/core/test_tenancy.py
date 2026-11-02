@@ -153,6 +153,107 @@ async def test_get_tenant_id_rejeita_header_sem_vinculo_ativo():
     assert "tenant_id" not in session.info
 
 
+@pytest.mark.asyncio
+async def test_get_current_tenant_exige_membership_e_ativa_contexto(monkeypatch):
+    from types import SimpleNamespace
+    from core.dependencies import get_current_tenant
+
+    user_id = uuid.uuid4()
+    tenant_id = uuid.uuid4()
+    membership = MagicMock()
+    membership.scalar_one_or_none.return_value = uuid.uuid4()
+    tenant_result = MagicMock()
+    tenant_result.scalar_one_or_none.return_value = SimpleNamespace(id=tenant_id, ativo=True)
+    session = AsyncMock()
+    session.info = {}
+    session.execute.side_effect = [membership, AsyncMock(), tenant_result]
+
+    tenant = await get_current_tenant(
+        {"sub": str(user_id), "tenant_id": str(tenant_id), "is_superuser": False},
+        session,
+    )
+
+    assert tenant.id == tenant_id
+    assert session.info["tenant_id"] == tenant_id
+    assert session.execute.await_count == 3
+    context_statement, context_params = session.execute.await_args_list[1].args
+    assert "set_config('app.current_tenant_id', :tenant_id, true)" in str(context_statement)
+    assert context_params == {"tenant_id": str(tenant_id)}
+
+
+@pytest.mark.asyncio
+async def test_get_current_tenant_nao_ativa_contexto_sem_membership():
+    from core.dependencies import get_current_tenant, TENANT_CONTEXT_ERROR
+
+    session = AsyncMock()
+    session.info = {}
+    membership = MagicMock()
+    membership.scalar_one_or_none.return_value = None
+    session.execute.return_value = membership
+
+    with pytest.raises(HTTPException) as exc_info:
+        await get_current_tenant(
+            {"sub": str(uuid.uuid4()), "tenant_id": str(TENANT_A), "is_superuser": False},
+            session,
+        )
+
+    assert exc_info.value.status_code == 403
+    assert exc_info.value.detail == TENANT_CONTEXT_ERROR
+    assert "tenant_id" not in session.info
+    session.execute.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_claims_com_tenant_so_ativam_contexto_apos_validar_membership(monkeypatch):
+    from core.dependencies import get_current_user_claims
+
+    tenant_id = uuid.uuid4()
+    claims = {"sub": str(uuid.uuid4()), "tenant_id": str(tenant_id), "is_superuser": False}
+    membership = MagicMock()
+    membership.scalar_one_or_none.return_value = uuid.uuid4()
+    session = AsyncMock()
+    session.info = {}
+    session.execute.side_effect = [membership, AsyncMock()]
+    monkeypatch.setattr(
+        "core.dependencies._validate_token_session",
+        AsyncMock(return_value=claims),
+    )
+
+    result = await get_current_user_claims("signed-valid-token", session)
+
+    assert result is claims
+    assert session.info["tenant_id"] == tenant_id
+    assert session.execute.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_claims_com_tenant_sem_membership_sao_rejeitadas(monkeypatch):
+    from core.dependencies import get_current_user_claims, TENANT_CONTEXT_ERROR
+
+    claims = {
+        "sub": str(uuid.uuid4()),
+        "tenant_id": str(TENANT_A),
+        "is_superuser": False,
+    }
+    membership = MagicMock()
+    membership.scalar_one_or_none.return_value = None
+    session = AsyncMock()
+    session.info = {}
+    session.execute.return_value = membership
+    monkeypatch.setattr(
+        "core.dependencies._validate_token_session",
+        AsyncMock(return_value=claims),
+    )
+
+    with pytest.raises(HTTPException) as exc_info:
+        await get_current_user_claims("signed-valid-token", session)
+
+    assert exc_info.value.status_code == 403
+    assert exc_info.value.detail == TENANT_CONTEXT_ERROR
+    assert "tenant_id" not in session.info
+    session.execute.assert_awaited_once()
+
+
 # ---------------------------------------------------------------------------
 # CORE-TEN-04: Listar múltiplos tenants do usuário
 # ---------------------------------------------------------------------------
@@ -258,8 +359,8 @@ async def test_require_module_contratado_permite():
 
 
 @pytest.mark.asyncio
-async def test_get_session_reaplica_rls_via_jwt_quando_request_state_nao_tem_tenant(monkeypatch):
-    """CORE-TEN-06: get_session mantém o RLS ativo mesmo sem request.state."""
+async def test_get_session_nao_confia_em_claim_ou_estado_nao_autorizado(monkeypatch):
+    """A sessão permanece neutra até get_tenant_id validar membership."""
     from core.dependencies import get_session
     from core.services.auth_service import AuthService
 
@@ -305,19 +406,21 @@ async def test_get_session_reaplica_rls_via_jwt_quando_request_state_nao_tem_ten
         "http_version": "1.1",
     }
     request = Request(scope)
+    request.state.rls_tenant_id = tenant_id
 
     gen = get_session(request)
     session = await gen.__anext__()
 
     assert session is fake_session
-    assert fake_session.info["tenant_id"] == tenant_id
-    assert fake_session.execute.await_count == 1
-    assert str(tenant_id) in str(fake_session.execute.await_args.args[0])
+    assert "tenant_id" not in fake_session.info
+    fake_session.execute.assert_not_awaited()
 
-    # O contexto é transacional; uma nova ativação deve reaplicá-lo mesmo que
-    # session.info ainda contenha o mesmo tenant.
+    # A ativação só ocorre pelo caminho que valida membership.
     from core.dependencies import _activate_session_tenant
     await _activate_session_tenant(fake_session, tenant_id)
-    assert fake_session.execute.await_count == 2
+    assert fake_session.execute.await_count == 1
+    statement, params = fake_session.execute.await_args.args
+    assert "set_config('app.current_tenant_id', :tenant_id, true)" in str(statement)
+    assert params == {"tenant_id": str(tenant_id)}
 
     await gen.aclose()

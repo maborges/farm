@@ -13,7 +13,11 @@ from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text, select, update
 from sqlalchemy.exc import SQLAlchemyError
-from core.database import async_session_maker, DB_URL
+from core.database import (
+    async_session_maker,
+    rls_dev_async_session_maker,
+    DB_URL,
+)
 
 try:
     from asyncpg.exceptions import TooManyConnectionsError
@@ -60,12 +64,30 @@ def invalidate_session_cache(token_hash: str) -> None:
 
 
 async def _activate_session_tenant(session: AsyncSession, tenant_id: uuid.UUID) -> None:
-    """Ativa o contexto RLS do tenant para a sessão atual."""
-    # SET LOCAL é perdido quando a transação termina. Não basta confiar no
-    # cache em session.info: uma dependência anterior pode ter feito commit ou
-    # rollback e deixado a conexão novamente com o contexto vazio.
+    """Ativa um Tenant já autenticado e autorizado na transação atual."""
     if "postgresql" in DB_URL:
-        await session.execute(text(f"SET LOCAL app.current_tenant_id = '{tenant_id}';"))
+        try:
+            await session.execute(
+                text("SELECT set_config('app.current_tenant_id', :tenant_id, true)"),
+                {"tenant_id": str(tenant_id)},
+            )
+        except (asyncio.TimeoutError, OSError, SQLAlchemyError) as exc:
+            logger.error(
+                "Falha ao ativar contexto Tenant no banco",
+                error_type=type(exc).__name__,
+                detail=str(exc),
+            )
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Banco de dados indisponível ou pool de conexões esgotado. Tente novamente em instantes.",
+            ) from exc
+        except Exception as exc:
+            if _is_connection_exhaustion_error(exc):
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail="Banco de dados indisponível ou pool de conexões esgotado. Tente novamente em instantes.",
+                ) from exc
+            raise
     session.info["tenant_id"] = tenant_id
 
 
@@ -83,51 +105,6 @@ def _is_connection_exhaustion_error(exc: Exception) -> bool:
     )
 
 
-def _resolve_request_tenant_id(request: Request | None) -> uuid.UUID | None:
-    """Recupera o tenant do contexto do request, com fallback via JWT.
-
-    O caminho preferencial continua sendo `request.state.rls_tenant_id`, preenchido
-    pelo middleware. O fallback pelo Authorization existe para manter o RLS ativo
-    mesmo quando o contexto de request não foi propagado até a dependência.
-    """
-    if request is None:
-        return None
-
-    tenant_id = getattr(request.state, "rls_tenant_id", None)
-    if tenant_id:
-        try:
-            return uuid.UUID(str(tenant_id))
-        except (TypeError, ValueError):
-            logger.warning(
-                "Tenant RLS inválido em request.state.",
-                tenant_id=str(tenant_id),
-                path=str(request.url.path),
-            )
-
-    authorization = request.headers.get("Authorization")
-    if not authorization or not authorization.startswith("Bearer "):
-        return None
-
-    try:
-        token = authorization.split(" ", 1)[1]
-        payload = _decode_platform_token(token)
-    except (IndexError, HTTPException):
-        return None
-
-    tenant_id_str = payload.get("tenant_id")
-    if not tenant_id_str:
-        return None
-
-    try:
-        return uuid.UUID(str(tenant_id_str))
-    except (TypeError, ValueError):
-        logger.warning(
-            "Tenant RLS inválido no JWT.",
-            tenant_id=str(tenant_id_str),
-            path=str(request.url.path),
-        )
-        return None
-
 if TYPE_CHECKING:
     from core.constants import PlanTier
 
@@ -135,43 +112,39 @@ if TYPE_CHECKING:
 # CORE DEPENDENCIES (Top-level)
 # ==============================================================================
 
+RLS_DEV_RESTRICTED_ROUTE_PAIRS = frozenset({
+    ("POST", "/api/v1/auth/login"),
+    ("POST", "/api/v1/notificacoes/"),
+    ("GET", "/api/v1/notificacoes/"),
+})
+
+
+def uses_restricted_route_session(request: Request | None) -> bool:
+    """Select restricted runtime only for the three explicitly approved routes."""
+    if not settings.rls_dev_route_sessions_enabled or request is None:
+        return False
+    return (request.method.upper(), request.url.path) in RLS_DEV_RESTRICTED_ROUTE_PAIRS
+
+
 async def get_session(request: Request = None) -> AsyncGenerator[AsyncSession, None]:
     """
-    Dependency de sessão. Se o middleware TenantRLSMiddleware tiver extraído
-    um tenant_id do JWT, ativa RLS automaticamente — mesmo em routers que
-    usam get_session diretamente (fail-safe). Se o contexto do middleware não
-    estiver disponível, reaproveita o tenant do próprio JWT.
+    Abre sessão sem presumir Tenant. O contexto só é instalado por dependências
+    que validam a identidade, a sessão e a autorização de acesso ao Tenant.
+    O argumento Request permanece por compatibilidade com chamadas existentes.
     """
-    async with async_session_maker() as session:
-        tenant_id = _resolve_request_tenant_id(request)
-        try:
-            if tenant_id:
-                await _activate_session_tenant(session, tenant_id)
-        except (asyncio.TimeoutError, OSError, SQLAlchemyError) as exc:
-            logger.error(
-                "Falha ao adquirir sessão do banco de dados",
-                error_type=type(exc).__name__,
-                detail=str(exc),
-                path=str(request.url.path) if request else None,
-            )
-            print(f"CRITICAL DB ERROR: {type(exc).__name__}: {exc}")
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="Banco de dados indisponível ou pool de conexões esgotado. Tente novamente em instantes.",
-            ) from exc
-        except Exception as exc:
-            if _is_connection_exhaustion_error(exc):
-                logger.warning(
-                    "Pool de conexões do Postgres esgotado",
-                    error_type=type(exc).__name__,
-                    detail=str(exc),
-                    path=str(request.url.path) if request else None,
-                )
-                raise HTTPException(
-                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                    detail="Banco de dados indisponível ou pool de conexões esgotado. Tente novamente em instantes.",
-                ) from exc
-            raise
+    restricted = uses_restricted_route_session(request)
+    if restricted:
+        if rls_dev_async_session_maker is None:
+            # Never fall back to the legacy owner if opt-in restricted routing
+            # is enabled but its credentials/engine did not initialize.
+            raise RuntimeError("Restricted route session is enabled but unavailable")
+        session_maker = rls_dev_async_session_maker
+    else:
+        session_maker = async_session_maker
+
+    async with session_maker() as session:
+        if restricted:
+            session.info["rls_dev_restricted_route"] = True
         yield session
 
 def _verify_csrf_for_cookie(request: Request) -> None:
@@ -321,6 +294,14 @@ def _decode_platform_token(token: str) -> dict:
 
 async def _validate_token_session(token: str, session: AsyncSession) -> dict:
     payload = _decode_platform_token(token)
+    try:
+        authenticated_user_id = uuid.UUID(str(payload["sub"]))
+    except (KeyError, TypeError, ValueError) as exc:
+        raise HTTPException(status_code=401, detail="Token inválido: identificador de usuário ausente.") from exc
+
+    # The signed JWT establishes only the user identity. RLS can now scope the
+    # session and membership bootstrap to that user before Tenant authorization.
+    session.info["user_id"] = authenticated_user_id
     token_hash = hashlib.sha256(token.encode()).hexdigest()
     cached = _cache_get(token_hash)
 
@@ -398,8 +379,32 @@ async def get_current_user_claims(
     token: str = Depends(verify_commercial_jwt_guardrail),
     session: AsyncSession = Depends(get_session),
 ) -> dict:
-    """Valida identidade e impede que contas gratuitas alcancem rotas comerciais."""
-    return await _validate_token_session(token, session)
+    """Valida identidade/sessão e ativa claim Tenant somente após membership."""
+    claims = await _validate_token_session(token, session)
+    tenant_id_str = claims.get("tenant_id")
+    if not tenant_id_str or claims.get("is_superuser"):
+        return claims
+
+    try:
+        tenant_id = uuid.UUID(str(tenant_id_str))
+        user_id = uuid.UUID(str(claims["sub"]))
+    except (KeyError, TypeError, ValueError) as exc:
+        raise HTTPException(status_code=403, detail=TENANT_CONTEXT_ERROR) from exc
+
+    from core.models.auth import TenantUsuario
+
+    membership = await session.execute(
+        select(TenantUsuario.id).where(
+            TenantUsuario.tenant_id == tenant_id,
+            TenantUsuario.usuario_id == user_id,
+            TenantUsuario.status == "ATIVO",
+        )
+    )
+    if membership.scalar_one_or_none() is None:
+        raise HTTPException(status_code=403, detail=TENANT_CONTEXT_ERROR)
+
+    await _activate_session_tenant(session, tenant_id)
+    return claims
 
 async def get_tenant_id(
     request: Request,
@@ -525,6 +530,27 @@ async def get_current_user(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Usuário não encontrado ou inativo.")
     return user
 
+
+async def get_current_user_identity(
+    claims: dict = Depends(get_current_user_claims),
+    session: AsyncSession = Depends(get_session),
+):
+    """Validate the current user with a minimal projection for notification reads."""
+    from types import SimpleNamespace
+    from core.models.auth import Usuario
+
+    try:
+        user_id = uuid.UUID(str(claims["sub"]))
+    except (KeyError, TypeError, ValueError) as exc:
+        raise HTTPException(status_code=401, detail="Token inválido: identificador de usuário ausente.") from exc
+
+    row = (await session.execute(
+        select(Usuario.id, Usuario.ativo).where(Usuario.id == user_id)
+    )).one_or_none()
+    if row is None or not row.ativo:
+        raise HTTPException(status_code=401, detail="Usuário não encontrado ou inativo.")
+    return SimpleNamespace(id=row.id, ativo=row.ativo)
+
 async def get_current_tenant(
     claims: dict = Depends(get_current_user_claims),
     session: AsyncSession = Depends(get_session)
@@ -540,7 +566,8 @@ async def get_current_tenant(
         except ValueError:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Token inválido: tenant ID malformado.")
 
-    if tenant_id is None:
+    user_id: uuid.UUID | None = None
+    if not claims.get("is_superuser"):
         user_id_str = claims.get("sub")
         if not user_id_str:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=TENANT_CONTEXT_ERROR)
@@ -549,6 +576,22 @@ async def get_current_tenant(
             user_id = uuid.UUID(user_id_str)
         except ValueError:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Token inválido: identificador de usuário malformado.")
+
+        from core.models.auth import TenantUsuario
+        if tenant_id is not None:
+            membership = await session.execute(
+                select(TenantUsuario.id).where(
+                    TenantUsuario.tenant_id == tenant_id,
+                    TenantUsuario.usuario_id == user_id,
+                    TenantUsuario.status == "ATIVO",
+                )
+            )
+            if membership.scalar_one_or_none() is None:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=TENANT_CONTEXT_ERROR)
+
+    if tenant_id is None:
+        if user_id is None:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=TENANT_CONTEXT_ERROR)
 
         from core.models.auth import TenantUsuario
         result = await session.execute(
@@ -574,6 +617,7 @@ async def get_current_tenant(
         else:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=TENANT_CONTEXT_ERROR)
 
+    await _activate_session_tenant(session, tenant_id)
     result = await session.execute(select(Tenant).where(Tenant.id == tenant_id))
     tenant = result.scalar_one_or_none()
     if not tenant or not tenant.ativo:

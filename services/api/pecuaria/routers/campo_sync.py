@@ -2,8 +2,7 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.database import get_db
-from core.dependencies import get_current_user, get_tenant_id
+from core.dependencies import get_current_user, get_session, get_tenant_id
 from pecuaria.services.manejo_sync_service import ManejoSyncService, ManejoSyncResult
 
 
@@ -31,7 +30,7 @@ async def list_sync_status(
     data_fim: Optional[date] = None,
     page: int = 1,
     page_size: int = 50,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
     current_user: dict = Depends(get_current_user),
 ):
@@ -128,7 +127,7 @@ async def list_sync_status(
 )
 async def processar_tarefa_campo(
     tarefa_campo_id: uuid.UUID,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_session),
     tenant_id: uuid.UUID = Depends(get_tenant_id),
     current_user: dict = Depends(get_current_user),
 ):

@@ -10,9 +10,10 @@ from loguru import logger
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select, text
 from sqlalchemy.exc import DBAPIError
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncConnection, AsyncSession
 
-from core.database import async_session_maker
+from core.database import async_session_maker, dispatcher_engine
+from core.dependencies import _activate_session_tenant
 from core.models.tenant import Tenant
 
 from .engine import RecommendationEngineResult
@@ -369,15 +370,28 @@ async def run_scheduled_recommendation_cycle(
     max_batches: int | None = None,
 ) -> int:
     """Run the existing recommendation scheduler once for each active tenant."""
-    async with async_session_maker() as lock_session:
-        if not await _acquire_scheduler_lock(lock_session):
+    if dispatcher_engine is None:
+        raise RuntimeError(
+            "RECOMMENDATION_DISPATCHER_DATABASE_URL is required for scheduler discovery"
+        )
+
+    # A session-level advisory lock belongs to the physical PostgreSQL
+    # connection. Keep that connection checked out across COMMIT and the whole
+    # Tenant loop, otherwise AsyncSession may return it to the pool and another
+    # session can reacquire the same reentrant lock on that backend.
+    async with dispatcher_engine.connect() as lock_connection:
+        if not await _acquire_scheduler_lock(lock_connection):
             logger.bind(component="recommendation_scheduler_cycle").debug(
                 "recommendation_scheduler_cycle_skipped",
                 reason="lock_busy",
             )
             return 0
         try:
-            tenant_ids = await _list_active_tenant_ids()
+            tenant_ids = await _list_active_tenant_ids(lock_connection)
+            # PostgreSQL session advisory locks survive COMMIT. End the
+            # discovery snapshot while the checked-out connection retains the
+            # lock for all work.
+            await lock_connection.commit()
             completed = 0
             for tenant_id in tenant_ids:
                 result = await _run_tenant_cycle(
@@ -390,7 +404,7 @@ async def run_scheduled_recommendation_cycle(
                     completed += 1
             return completed
         finally:
-            await _release_scheduler_lock(lock_session)
+            await _release_scheduler_lock(lock_connection)
 
 
 async def _run_tenant_cycle(
@@ -447,62 +461,57 @@ async def _run_tenant_cycle(
             await _clear_tenant_context(session)
 
 
-async def _acquire_scheduler_lock(session: AsyncSession) -> bool:
+async def _acquire_scheduler_lock(connection: AsyncConnection) -> bool:
     """Acquire the PostgreSQL advisory lock used to prevent overlapping cycles."""
-    if session.get_bind().dialect.name != "postgresql":
+    if connection.dialect.name != "postgresql":
         return True
     return bool(
-        await session.scalar(
+        await connection.scalar(
             text("SELECT pg_try_advisory_lock(:lock_id)"),
             {"lock_id": _SCHEDULER_ADVISORY_LOCK},
         )
     )
 
 
-async def _release_scheduler_lock(session: AsyncSession) -> None:
+async def _release_scheduler_lock(connection: AsyncConnection) -> None:
     """Release the cycle lock before returning its connection to the pool."""
-    if session.get_bind().dialect.name == "postgresql":
+    if connection.dialect.name == "postgresql":
         try:
-            await session.execute(
+            # Session advisory locks survive transaction rollback. Recover the
+            # pinned dispatcher connection if discovery left its transaction failed.
+            await connection.rollback()
+            await connection.execute(
                 text("SELECT pg_advisory_unlock(:lock_id)"),
                 {"lock_id": _SCHEDULER_ADVISORY_LOCK},
             )
-        except DBAPIError as exc:
-            # PostgreSQL releases session advisory locks when the connection
-            # closes. A connection lost during a long tenant cycle therefore
-            # has no lock left to release; invalidating it avoids returning a
-            # broken connection to the pool without turning cleanup into a
-            # false scheduler-cycle failure.
-            if "connection is closed" not in str(exc.orig).lower():
-                raise
-            logger.bind(component="recommendation_scheduler_cycle").warning(
-                "recommendation_scheduler_lock_released_by_connection_close"
-            )
-            await session.invalidate()
+        except Exception as exc:
+            # A session lock survives transaction rollback. If explicit unlock
+            # fails for any reason, discard the pinned backend so a still-open
+            # session lock can never leak back into the dispatcher pool.
+            await connection.invalidate()
+            if isinstance(exc, DBAPIError) and "connection is closed" in str(exc.orig).lower():
+                logger.bind(component="recommendation_scheduler_cycle").warning(
+                    "recommendation_scheduler_lock_released_by_connection_close"
+                )
+                return
+            raise
 
 
-async def _list_active_tenant_ids() -> list[UUID]:
-    """List scheduler targets without sharing tenant sessions between iterations."""
-    async with async_session_maker() as session:
-        rows = await session.execute(select(Tenant.id).where(Tenant.ativo.is_(True)))
-        return list(rows.scalars())
+async def _list_active_tenant_ids(connection: AsyncConnection) -> list[UUID]:
+    """List only eligible Tenant IDs using the restricted dispatcher connection."""
+    rows = await connection.execute(select(Tenant.id).where(Tenant.ativo.is_(True)))
+    return list(rows.scalars())
 
 
 async def _set_tenant_context(session: AsyncSession, tenant_id: UUID) -> None:
-    """Set the RLS tenant context for the whole worker session."""
-    session.info["tenant_id"] = str(tenant_id)
-    await session.execute(
-        text("SELECT set_config('app.current_tenant_id', :tenant_id, false)"),
-        {"tenant_id": str(tenant_id)},
-    )
+    """Activate an already-dispatched Tenant through the central 01G helper."""
+    await _activate_session_tenant(session, tenant_id)
 
 
 async def _clear_tenant_context(session: AsyncSession) -> None:
-    """Reset RLS state before the pooled connection can be reused."""
+    """End the transaction-local Tenant scope before returning the session."""
     try:
         await session.rollback()
-        await session.execute(text("RESET app.current_tenant_id"))
-        await session.commit()
         session.info.pop("tenant_id", None)
     except Exception:
         await session.invalidate()
