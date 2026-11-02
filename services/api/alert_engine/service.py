@@ -677,7 +677,12 @@ class AlertLifecycleService:
         return data
 
     async def _set_rls_context(self) -> None:
-        await self.session.execute(text(f"SET LOCAL app.current_tenant_id = '{self.tenant_id}';"))
+        if hasattr(self.session, "info") and isinstance(self.session.info, dict):
+            self.session.info["tenant_id"] = self.tenant_id
+        await self.session.execute(
+            text("SELECT set_config('app.current_tenant_id', :tenant_id, true)"),
+            {"tenant_id": str(self.tenant_id)},
+        )
 
     def _build_filtered_alerts_stmt(
         self,

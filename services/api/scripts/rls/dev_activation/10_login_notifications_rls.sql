@@ -205,19 +205,33 @@ REVOKE REFERENCES (id) ON farms.tenants, farms.usuarios,
 
 -- As tabelas abaixo contêm dados do fluxo tenant-scoped ou de identidade.
 ALTER TABLE farms.usuarios ENABLE ROW LEVEL SECURITY;
+ALTER TABLE farms.usuarios FORCE ROW LEVEL SECURITY;
 ALTER TABLE farms.tenant_usuarios ENABLE ROW LEVEL SECURITY;
+ALTER TABLE farms.tenant_usuarios FORCE ROW LEVEL SECURITY;
 ALTER TABLE farms.perfis_acesso ENABLE ROW LEVEL SECURITY;
+ALTER TABLE farms.perfis_acesso FORCE ROW LEVEL SECURITY;
 ALTER TABLE farms.unidade_produtiva_usuarios ENABLE ROW LEVEL SECURITY;
+ALTER TABLE farms.unidade_produtiva_usuarios FORCE ROW LEVEL SECURITY;
 ALTER TABLE farms.assinaturas_tenant ENABLE ROW LEVEL SECURITY;
+ALTER TABLE farms.assinaturas_tenant FORCE ROW LEVEL SECURITY;
 ALTER TABLE farms.unidades_produtivas ENABLE ROW LEVEL SECURITY;
+ALTER TABLE farms.unidades_produtivas FORCE ROW LEVEL SECURITY;
 ALTER TABLE farms.configuracoes_saas ENABLE ROW LEVEL SECURITY;
+ALTER TABLE farms.configuracoes_saas FORCE ROW LEVEL SECURITY;
 ALTER TABLE farms.configuracoes_tenant ENABLE ROW LEVEL SECURITY;
+ALTER TABLE farms.configuracoes_tenant FORCE ROW LEVEL SECURITY;
 ALTER TABLE farms.sessoes_ativas ENABLE ROW LEVEL SECURITY;
+ALTER TABLE farms.sessoes_ativas FORCE ROW LEVEL SECURITY;
 ALTER TABLE farms.login_tentativas ENABLE ROW LEVEL SECURITY;
+ALTER TABLE farms.login_tentativas FORCE ROW LEVEL SECURITY;
 ALTER TABLE farms.notificacoes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE farms.notificacoes FORCE ROW LEVEL SECURITY;
 ALTER TABLE farms.notificacoes_leituras ENABLE ROW LEVEL SECURITY;
+ALTER TABLE farms.notificacoes_leituras FORCE ROW LEVEL SECURITY;
 ALTER TABLE farms.notificacoes_preferencias ENABLE ROW LEVEL SECURITY;
+ALTER TABLE farms.notificacoes_preferencias FORCE ROW LEVEL SECURITY;
 ALTER TABLE farms.tenant_audit_log ENABLE ROW LEVEL SECURITY;
+ALTER TABLE farms.tenant_audit_log FORCE ROW LEVEL SECURITY;
 
 -- A função pre-auth roda como role NOLOGIN e só possui SELECT das colunas
 -- explicitamente utilizadas. As policies internas permitem leitura no escopo

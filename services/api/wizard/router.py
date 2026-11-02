@@ -119,7 +119,8 @@ async def _commit_and_restore_rls(session: AsyncSession):
     if tenant_id:
         validated_tenant_id = uuid.UUID(str(tenant_id))
         await session.execute(
-            text(f"SET LOCAL app.current_tenant_id = '{validated_tenant_id}';")
+            text("SELECT set_config('app.current_tenant_id', :tenant_id, true)"),
+            {"tenant_id": str(validated_tenant_id)},
         )
 
 

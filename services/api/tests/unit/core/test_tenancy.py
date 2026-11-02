@@ -424,3 +424,149 @@ async def test_get_session_nao_confia_em_claim_ou_estado_nao_autorizado(monkeypa
     assert params == {"tenant_id": str(tenant_id)}
 
     await gen.aclose()
+
+
+@pytest.mark.asyncio
+async def test_claims_superuser_com_tenant_ativa_contexto_rls(monkeypatch):
+    """Superuser com tenant_id no token deve ativar o contexto RLS na sessão."""
+    from core.dependencies import get_current_user_claims
+
+    tenant_id = uuid.uuid4()
+    claims = {
+        "sub": str(uuid.uuid4()),
+        "tenant_id": str(tenant_id),
+        "is_superuser": True,
+    }
+    session = AsyncMock()
+    session.info = {}
+    monkeypatch.setattr(
+        "core.dependencies._validate_token_session",
+        AsyncMock(return_value=claims),
+    )
+
+    result = await get_current_user_claims("signed-superuser-token", session)
+
+    assert result is claims
+    assert session.info["tenant_id"] == tenant_id
+    session.execute.assert_awaited_once()
+    statement, params = session.execute.await_args.args
+    assert "set_config('app.current_tenant_id', :tenant_id, true)" in str(statement)
+    assert params == {"tenant_id": str(tenant_id)}
+
+
+@pytest.mark.asyncio
+async def test_require_module_faz_rollback_e_reativa_rls_quando_telemetria_falha(monkeypatch):
+    """Falha na telemetria de require_module deve fazer rollback e reativar o RLS."""
+    from core.dependencies import require_module
+
+    tenant_id = uuid.uuid4()
+    claims = {
+        "sub": str(uuid.uuid4()),
+        "tenant_id": str(tenant_id),
+        "is_superuser": False,
+    }
+    session = AsyncMock()
+    session.info = {}
+    monkeypatch.setattr(
+        "core.dependencies._get_modulos_do_tenant",
+        AsyncMock(return_value=["CORE", "A1_PLANEJAMENTO"]),
+    )
+    monkeypatch.setattr(
+        "core.services.module_usage_service.increment_module_usage",
+        AsyncMock(side_effect=RuntimeError("permission denied for table module_usage_stats")),
+    )
+
+    dep = require_module("A1_PLANEJAMENTO")
+    result = await dep(request=None, claims=claims, session=session)
+
+    assert result is True
+    session.rollback.assert_awaited_once()
+    assert session.info["tenant_id"] == tenant_id
+    statement, params = session.execute.await_args.args
+    assert "set_config('app.current_tenant_id', :tenant_id, true)" in str(statement)
+    assert params == {"tenant_id": str(tenant_id)}
+
+
+@pytest.mark.asyncio
+async def test_outbox_and_alert_engine_set_rls_context_parameterized_and_sync_session_info():
+    """Serviços assíncronos devem usar set_config parametrizado e gravar session.info['tenant_id']."""
+    from types import SimpleNamespace
+    from alert_engine.generators._support import set_rls_context
+    from alert_engine.service import AlertLifecycleService
+    from events.outbox_service import DomainEventOutboxService
+
+    tenant_id = uuid.uuid4()
+
+    # 1. DomainEventOutboxService
+    outbox_session = AsyncMock()
+    outbox_session.info = {}
+    outbox_session.bind = SimpleNamespace(dialect=SimpleNamespace(name="postgresql"))
+    outbox_svc = DomainEventOutboxService(session=outbox_session, tenant_id=tenant_id)
+    await outbox_svc._set_rls_context(tenant_id)
+    assert outbox_session.info["tenant_id"] == tenant_id
+    stmt1, params1 = outbox_session.execute.await_args.args
+    assert "set_config('app.current_tenant_id', :tenant_id, true)" in str(stmt1)
+    assert params1 == {"tenant_id": str(tenant_id)}
+
+    # 2. AlertLifecycleService
+    alert_session = AsyncMock()
+    alert_session.info = {}
+    alert_svc = AlertLifecycleService(session=alert_session, tenant_id=tenant_id)
+    await alert_svc._set_rls_context()
+    assert alert_session.info["tenant_id"] == tenant_id
+    stmt2, params2 = alert_session.execute.await_args.args
+    assert "set_config('app.current_tenant_id', :tenant_id, true)" in str(stmt2)
+    assert params2 == {"tenant_id": str(tenant_id)}
+
+    # 3. alert_engine.generators._support.set_rls_context
+    gen_session = AsyncMock()
+    gen_session.info = {}
+    await set_rls_context(gen_session, tenant_id)
+    assert gen_session.info["tenant_id"] == tenant_id
+    stmt3, params3 = gen_session.execute.await_args.args
+    assert "set_config('app.current_tenant_id', :tenant_id, true)" in str(stmt3)
+    assert params3 == {"tenant_id": str(tenant_id)}
+
+
+@pytest.mark.asyncio
+async def test_device_token_helpers_activate_session_tenant(monkeypatch):
+    """Autenticação por device_token em campo e caderno deve ativar o contexto RLS na sessão."""
+    from datetime import datetime, timedelta
+    from types import SimpleNamespace
+    from jose import jwt
+    from core.config import settings
+    from campo.router import _get_device_from_token as campo_get_device
+    from agricola.caderno.router import _get_device_from_token as caderno_get_device
+
+    tenant_id = uuid.uuid4()
+    device_id = uuid.uuid4()
+    token = jwt.encode(
+        {"type": "device", "device_id": str(device_id)},
+        settings.jwt_secret_key,
+        algorithm=settings.jwt_algorithm,
+    )
+    fake_device = SimpleNamespace(
+        id=device_id,
+        tenant_id=tenant_id,
+        status="ATIVO",
+        expires_at=datetime.utcnow() + timedelta(days=1),
+    )
+
+    for helper in (campo_get_device, caderno_get_device):
+        device_query_result = MagicMock()
+        device_query_result.scalar_one_or_none.return_value = fake_device
+        session = AsyncMock()
+        session.info = {}
+        session.execute.side_effect = [device_query_result, AsyncMock()]
+        req = SimpleNamespace(headers={"Authorization": f"Bearer {token}"})
+
+        returned_device = await helper(device_id, req, session)
+
+        assert returned_device is fake_device
+        assert session.info["tenant_id"] == tenant_id
+        assert session.execute.await_count == 2
+        stmt, params = session.execute.await_args_list[1].args
+        assert "set_config('app.current_tenant_id', :tenant_id, true)" in str(stmt)
+        assert params == {"tenant_id": str(tenant_id)}
+
+

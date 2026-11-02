@@ -422,6 +422,7 @@ def _drop_rls_and_append_only() -> None:
         for action in ("select", "insert", "update", "delete"):
             op.execute(f"DROP POLICY IF EXISTS {prefix}_{action}_tenant ON farms.{table_name}")
         op.execute(f"ALTER TABLE farms.{table_name} NO FORCE ROW LEVEL SECURITY")
+        op.execute(f"ALTER TABLE farms.{table_name} DISABLE ROW LEVEL SECURITY")
 
 
 def downgrade() -> None:

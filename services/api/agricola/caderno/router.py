@@ -82,6 +82,9 @@ async def _get_device_from_token(device_id: UUID, request: Request, session: Asy
     if device.expires_at < datetime.utcnow():
         raise HTTPException(status_code=403, detail="Token do dispositivo expirado")
 
+    from core.dependencies import _activate_session_tenant
+
+    await _activate_session_tenant(session, device.tenant_id)
     return device
 
 

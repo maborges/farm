@@ -5,8 +5,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 
 from core.constants import PlanTier
-from core.database import get_db
-from core.dependencies import get_current_tenant, require_module, require_tier
+from core.dependencies import get_current_tenant, get_session, require_module, require_tier
 
 router = APIRouter(
     prefix="/diagnosticos",
@@ -22,7 +21,7 @@ router = APIRouter(
 def listar_diagnosticos(
     skip: int = 0,
     limit: int = 100,
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_session),
     tenant_id: str = Depends(get_current_tenant)
 ):
     """Lista diagnosticos."""
@@ -33,7 +32,7 @@ def listar_diagnosticos(
 @router.post("/", status_code=201)
 def criar_diagnostico(
     # dados: DiagnosticoCreate,
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_session),
     tenant_id: str = Depends(get_current_tenant)
 ):
     """Cria diagnostico."""

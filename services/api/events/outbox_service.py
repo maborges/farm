@@ -75,8 +75,20 @@ class DomainEventOutboxService:
             tenant_id=effective_tenant_id,
             event_type=event_type,
         )
-        rows = await self.session.execute(stmt)
-        return list(rows.scalars().all())
+        rows = list((await self.session.execute(stmt)).scalars().all())
+        if not rows and effective_tenant_id is None and not self._is_sqlite():
+            for tid in await self._resolve_rls_tenant_ids():
+                remaining = batch_size - len(rows)
+                if remaining <= 0:
+                    break
+                await self._set_rls_context(tid)
+                t_stmt = self._due_statement(
+                    batch_size=remaining,
+                    tenant_id=tid,
+                    event_type=event_type,
+                )
+                rows.extend((await self.session.execute(t_stmt)).scalars().all())
+        return rows
 
     async def claim_batch(
         self,
@@ -98,6 +110,33 @@ class DomainEventOutboxService:
         if self._supports_skip_locked():
             stmt = stmt.with_for_update(skip_locked=True)
         rows = list((await self.session.execute(stmt)).scalars().all())
+        if not rows and effective_tenant_id is None and not self._is_sqlite():
+            now = datetime.now(timezone.utc)  # noqa: UP017
+            claimed_rows: list[DomainEventOutbox] = []
+            for tid in await self._resolve_rls_tenant_ids():
+                remaining = batch_size - len(claimed_rows)
+                if remaining <= 0:
+                    break
+                await self._set_rls_context(tid)
+                t_stmt = self._due_statement(
+                    batch_size=remaining,
+                    tenant_id=tid,
+                    event_type=event_type,
+                )
+                if self._supports_skip_locked():
+                    t_stmt = t_stmt.with_for_update(skip_locked=True)
+                t_rows = list((await self.session.execute(t_stmt)).scalars().all())
+                if not t_rows:
+                    continue
+                for row in t_rows:
+                    row.status = DomainEventOutboxStatus.PROCESSING.value
+                    row.attempts += 1
+                    row.locked_at = now
+                    row.locked_by = relay_id or "domain-event-outbox-relay"
+                await self.session.flush()
+                claimed_rows.extend(t_rows)
+            return claimed_rows
+
         now = datetime.now(timezone.utc)  # noqa: UP017
         for row in rows:
             row.status = DomainEventOutboxStatus.PROCESSING.value
@@ -110,6 +149,8 @@ class DomainEventOutboxService:
     async def mark_processed(self, row: DomainEventOutbox) -> DomainEventOutbox:
         """Mark an outbox row as processed."""
 
+        if getattr(row, "tenant_id", None) is not None:
+            await self._set_rls_context(row.tenant_id)
         now = datetime.now(timezone.utc)  # noqa: UP017
         row.status = DomainEventOutboxStatus.PROCESSED.value
         row.processed_at = now
@@ -126,6 +167,8 @@ class DomainEventOutboxService:
     ) -> DomainEventOutbox:
         """Mark an outbox row as failed or dead letter after retries."""
 
+        if getattr(row, "tenant_id", None) is not None:
+            await self._set_rls_context(row.tenant_id)
         now = datetime.now(timezone.utc)  # noqa: UP017
         row.failed_at = now
         row.last_error = self._error_message(error)
@@ -198,9 +241,30 @@ class DomainEventOutboxService:
             raise ValueError("tenant mismatch for outbox service")
 
     async def _set_rls_context(self, tenant_id: UUID) -> None:
+        if hasattr(self.session, "info") and isinstance(self.session.info, dict):
+            self.session.info["tenant_id"] = tenant_id
         if self._is_sqlite():
             return
-        await self.session.execute(text(f"SET LOCAL app.current_tenant_id = '{tenant_id}';"))
+        await self.session.execute(
+            text("SELECT set_config('app.current_tenant_id', :tenant_id, true)"),
+            {"tenant_id": str(tenant_id)},
+        )
+
+    async def _resolve_rls_tenant_ids(self) -> list[UUID]:
+        if self._is_sqlite() or not hasattr(self.session, "execute"):
+            return []
+        from core.models.tenant import Tenant
+
+        try:
+            result = await self.session.execute(
+                select(Tenant.id).where(Tenant.ativo.is_(True))
+            )
+            scalars = getattr(result, "scalars", None)
+            if not callable(scalars):
+                return []
+            return [tid for tid in scalars().all() if isinstance(tid, UUID)]
+        except Exception:
+            return []
 
     def _idempotency_key(self, event: DomainEvent) -> str:
         namespace = self._namespace_for_event(event)

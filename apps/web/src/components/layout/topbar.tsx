@@ -322,7 +322,7 @@ export function Topbar(): React.ReactElement {
                   aria-label="Abrir menu do perfil"
                   className="h-8 min-w-0 gap-1.5 rounded-sm px-2 hover:bg-muted/60 hover:text-foreground aria-expanded:bg-muted/70 aria-expanded:text-foreground focus-visible:ring-primary/20"
                 >
-                  <Avatar className="size-6 border border-border bg-muted rounded-sm">
+                  <Avatar className="h-5 w-5 size-5 border border-border/60 bg-muted rounded-sm">
                     <AvatarImage src={avatarSrc} alt={displayName} />
                     <AvatarFallback className="rounded-sm text-[10px] font-bold">
                       {userInitial}

@@ -137,6 +137,31 @@ def test_rls_and_policies_are_complete_for_the_baseline() -> None:
     assert RLS_CONTRACT["propriedade_imovel"]["forced"] is False
 
 
+def test_rls_policies_use_nullif_and_protect_global_models_and_public_passports() -> None:
+    for item in POLICY_CONTRACT.values():
+        for expr_key in ("using_expression", "with_check_expression"):
+            expr = item.get(expr_key)
+            if expr and "current_setting('app.current_tenant_id'" in expr:
+                assert "NULLIF(current_setting('app.current_tenant_id'" in expr, (
+                    f"Policy {item['name']} on {item['table']} lacks NULLIF in {expr_key}: {expr}"
+                )
+
+    for model_table in ("modelos_fitossanitarios", "modelos_zoosanitarios"):
+        select_pol = POLICY_CONTRACT[("farms", model_table, f"{model_table}_select")]
+        assert "tenant_id IS NULL" in (select_pol["using_expression"] or "")
+        for cmd_suffix in ("insert", "update", "delete"):
+            pol = POLICY_CONTRACT[("farms", model_table, f"{model_table}_{cmd_suffix}")]
+            assert "tenant_id IS NULL" not in (pol["using_expression"] or "")
+            assert "tenant_id IS NULL" not in (pol["with_check_expression"] or "")
+
+    passaporte_select = POLICY_CONTRACT[
+        ("farms", "rastreabilidade_passaportes", "rastreabilidade_passaportes_select_tenant")
+    ]
+    assert "publico = true" in (passaporte_select["using_expression"] or "")
+    assert "PUBLICADO" in (passaporte_select["using_expression"] or "")
+
+
+
 def test_minimum_type_default_and_sequence_contract_is_executable() -> None:
     assert TYPE_DECISIONS["type_blocker_for_create"] == 0
     assert SERVER_DEFAULT_DECISIONS["unresolved_required_server_default"] == 0

@@ -5,8 +5,12 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import date
 
-from core.database import get_db
-from core.dependencies import get_current_tenant, require_module, require_tenant_permission
+from core.dependencies import (
+    get_current_tenant,
+    get_session,
+    require_module,
+    require_tenant_permission,
+)
 from enterprise.services.sprints_27_33_service import (
     MRVService, ESGService, PisciculturaService,
     ConfinamentoService, GeneticaService, HedgingService,
@@ -16,39 +20,39 @@ from enterprise.services.sprints_27_33_service import (
 router = APIRouter(prefix="/sprints27-33", tags=["Sprints 27-33"], dependencies=[Depends(require_module("EXT_IA"))])
 
 
-def get_mrv_service(db: Session = Depends(get_db)) -> MRVService:
+def get_mrv_service(db: Session = Depends(get_session)) -> MRVService:
     return MRVService(db)
 
 
-def get_esg_service(db: Session = Depends(get_db)) -> ESGService:
+def get_esg_service(db: Session = Depends(get_session)) -> ESGService:
     return ESGService(db)
 
 
-def get_piscicultura_service(db: Session = Depends(get_db)) -> PisciculturaService:
+def get_piscicultura_service(db: Session = Depends(get_session)) -> PisciculturaService:
     return PisciculturaService(db)
 
 
-def get_confinamento_service(db: Session = Depends(get_db)) -> ConfinamentoService:
+def get_confinamento_service(db: Session = Depends(get_session)) -> ConfinamentoService:
     return ConfinamentoService(db)
 
 
-def get_genetica_service(db: Session = Depends(get_db)) -> GeneticaService:
+def get_genetica_service(db: Session = Depends(get_session)) -> GeneticaService:
     return GeneticaService(db)
 
 
-def get_hedging_service(db: Session = Depends(get_db)) -> HedgingService:
+def get_hedging_service(db: Session = Depends(get_session)) -> HedgingService:
     return HedgingService(db)
 
 
-def get_iot_service(db: Session = Depends(get_db)) -> IoTService:
+def get_iot_service(db: Session = Depends(get_session)) -> IoTService:
     return IoTService(db)
 
 
-def get_ilpf_service(db: Session = Depends(get_db)) -> ILPFService:
+def get_ilpf_service(db: Session = Depends(get_session)) -> ILPFService:
     return ILPFService(db)
 
 
-def get_colaborador_service(db: Session = Depends(get_db)) -> ColaboradorService:
+def get_colaborador_service(db: Session = Depends(get_session)) -> ColaboradorService:
     return ColaboradorService(db)
 
 

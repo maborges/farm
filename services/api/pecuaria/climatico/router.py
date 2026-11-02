@@ -3,7 +3,6 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.database import get_db
 from core.dependencies import get_current_admin, get_session, get_tenant_id, require_module
 from pecuaria.climatico.schemas import (
     InteligenciaPecuariaResponse,
@@ -138,22 +137,22 @@ router_backoffice = APIRouter(
 )
 
 @router_backoffice.get("", response_model=list[ModeloZoosanitarioResponse])
-async def list_global_models(session: AsyncSession = Depends(get_db)) -> list[ModeloZoosanitarioResponse]:
+async def list_global_models(session: AsyncSession = Depends(get_session)) -> list[ModeloZoosanitarioResponse]:
     # Acesso restrito via main.py (include_router under backoffice dependencies)
     svc = ModeloZoosanitarioService(session)
     return await svc.get_all_models(tenant_id=None)
 
 @router_backoffice.post("", response_model=ModeloZoosanitarioResponse, status_code=status.HTTP_201_CREATED)
-async def create_global_model(payload: ModeloZoosanitarioCreate, session: AsyncSession = Depends(get_db)) -> ModeloZoosanitarioResponse:
+async def create_global_model(payload: ModeloZoosanitarioCreate, session: AsyncSession = Depends(get_session)) -> ModeloZoosanitarioResponse:
     svc = ModeloZoosanitarioService(session)
     return await svc.create_model(tenant_id=None, payload=payload, is_global=True)
 
 @router_backoffice.put("/{model_id}", response_model=ModeloZoosanitarioResponse)
-async def update_global_model(model_id: UUID, payload: ModeloZoosanitarioUpdate, session: AsyncSession = Depends(get_db)) -> ModeloZoosanitarioResponse:
+async def update_global_model(model_id: UUID, payload: ModeloZoosanitarioUpdate, session: AsyncSession = Depends(get_session)) -> ModeloZoosanitarioResponse:
     svc = ModeloZoosanitarioService(session)
     return await svc.update_model(tenant_id=None, model_id=model_id, payload=payload)
 
 @router_backoffice.delete("/{model_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_global_model(model_id: UUID, session: AsyncSession = Depends(get_db)) -> None:
+async def delete_global_model(model_id: UUID, session: AsyncSession = Depends(get_session)) -> None:
     svc = ModeloZoosanitarioService(session)
     await svc.delete_model(tenant_id=None, model_id=model_id)

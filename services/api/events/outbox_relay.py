@@ -105,6 +105,10 @@ class DomainEventOutboxRelay:
         event = self.service.rebuild_domain_event(row)
         started_at = datetime.now(timezone.utc)  # noqa: UP017
         try:
+            if getattr(row, "tenant_id", None) is not None and hasattr(
+                self.service, "_set_rls_context"
+            ):
+                await self.service._set_rls_context(row.tenant_id)
             publisher_result = await publish_domain_event(
                 event,
                 session=self.session,

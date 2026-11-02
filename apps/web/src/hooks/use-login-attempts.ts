@@ -19,7 +19,8 @@ export interface LoginTentativasInfo {
 export function useLoginTentativas(email: string | null) {
     return useQuery<LoginTentativasInfo>({
         queryKey: ["login-tentativas", email],
-        queryFn: () => apiFetch(`/backoffice/login/tentativas/${email}`),
+        // Usuários sem falhas anteriores retornam 404; isso é normal para o badge de bloqueio.
+        queryFn: () => apiFetch(`/backoffice/login/tentativas/${email}`, { suppressErrorLog: true }),
         enabled: !!email,
         retry: false,
     });

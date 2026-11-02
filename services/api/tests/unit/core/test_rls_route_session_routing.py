@@ -102,3 +102,11 @@ async def test_restricted_route_fails_closed_without_factory(monkeypatch):
     with pytest.raises(RuntimeError, match="Restricted route session"):
         await anext(dependencies.get_session(_request("POST", "/api/v1/auth/login")))
     assert legacy_called is False
+
+
+def test_all_routes_flag_selects_restricted_session_for_any_route(monkeypatch):
+    monkeypatch.setattr(dependencies.settings, "rls_dev_route_sessions_enabled", True)
+    monkeypatch.setattr(dependencies.settings, "rls_dev_all_routes_enabled", True)
+    assert dependencies.uses_restricted_route_session(_request("GET", "/api/v1/safras")) is True
+    assert dependencies.uses_restricted_route_session(_request("POST", "/api/v1/campo/requisicoes")) is True
+

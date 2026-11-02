@@ -1,31 +1,9 @@
+import { type ClassValue, clsx } from "clsx"
+import { twMerge } from "tailwind-merge"
 import { parseDecimalBR } from "@farm/utils"
 
-type ClassValue =
-  | string
-  | number
-  | boolean
-  | null
-  | undefined
-  | ClassValue[]
-  | Record<string, boolean | null | undefined>
-
-function toClassValue(input: ClassValue): string {
-  if (!input) return ""
-  if (typeof input === "string" || typeof input === "number") {
-    return String(input)
-  }
-  if (Array.isArray(input)) {
-    return input.map(toClassValue).filter(Boolean).join(" ")
-  }
-
-  return Object.entries(input)
-    .filter(([, value]) => Boolean(value))
-    .map(([key]) => key)
-    .join(" ")
-}
-
-export function cn(...inputs: ClassValue[]) {
-  return inputs.map(toClassValue).filter(Boolean).join(" ")
+export function cn(...inputs: ClassValue[]): string {
+  return twMerge(clsx(inputs))
 }
 
 export function formatCurrency(value: number) {

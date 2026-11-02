@@ -4,8 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
 
-from core.database import get_db
-from core.dependencies import get_current_tenant, require_module
+from core.dependencies import get_current_tenant, get_session, require_module
 
 router = APIRouter(prefix="/comparador_precos", tags=["Comparador_Precos"], dependencies=[Depends(require_module("EXT_IOT"))])
 
@@ -14,7 +13,7 @@ router = APIRouter(prefix="/comparador_precos", tags=["Comparador_Precos"], depe
 def listar_comparador_precos(
     skip: int = 0,
     limit: int = 100,
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_session),
     tenant_id: str = Depends(get_current_tenant)
 ):
     """Lista comparador_precos."""
@@ -25,7 +24,7 @@ def listar_comparador_precos(
 @router.post("/", status_code=201)
 def criar_comparador_preco(
     # dados: Comparador_PrecoCreate,
-    db: Session = Depends(get_db),
+    db: Session = Depends(get_session),
     tenant_id: str = Depends(get_current_tenant)
 ):
     """Cria comparador_preco."""

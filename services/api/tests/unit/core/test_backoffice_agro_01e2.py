@@ -119,6 +119,23 @@ async def test_security_rbac_free_user_and_read_only_access(setup_01e2_app):
         resp_saas = await client.get("/api/v1/config/saas")
         assert resp_saas.status_code == 403
 
+        # Mas usuário autenticado do tenant (ex: owner) pode ler chaves globais de leitura ("sessao")
+        from core.dependencies import get_current_user_claims
+        app.dependency_overrides[get_current_user_claims] = lambda: {
+            "sub": str(uuid.uuid4()),
+            "email": "owner@fazenda.com",
+            "role": "owner",
+            "is_superuser": False,
+        }
+        resp_sessao = await client.get("/api/v1/config/saas/sessao")
+        assert resp_sessao.status_code == 200
+        assert resp_sessao.json()["chave"] == "sessao"
+
+        # E continua bloqueado ao tentar ler chaves sensíveis do SaaS (ex: smtp_global)
+        resp_smtp = await client.get("/api/v1/config/saas/smtp_global")
+        assert resp_smtp.status_code == 403
+        app.dependency_overrides.pop(get_current_user_claims, None)
+
     # 2. Operador suporte com permissão de visualização mas SEM permissão de edição
     app.dependency_overrides[get_current_admin] = lambda: {
         "sub": str(suporte_id),

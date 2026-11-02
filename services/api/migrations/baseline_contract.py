@@ -412,6 +412,39 @@ POLICY_SNAPSHOT_GZIP_B64 = (
 )
 
 
+def _harden_policy_expr(
+    table: str,
+    cmd: str,
+    expr: str | None,
+) -> str | None:
+    """Ensure NULLIF safe cast, global model write protection, and public passport read."""
+    if not expr:
+        return expr
+    hardened = expr.replace(
+        "(current_setting('app.current_tenant_id'::text, true))::uuid",
+        "(NULLIF(current_setting('app.current_tenant_id'::text, true), ''::text))::uuid",
+    )
+    if table in ("modelos_fitossanitarios", "modelos_zoosanitarios") and cmd != "SELECT":
+        hardened = (
+            "((tenant_id)::text = NULLIF(current_setting('app.current_tenant_id'::text, true), ''::text))"
+        )
+    elif table == "rastreabilidade_passaportes" and cmd == "SELECT":
+        hardened = (
+            "((tenant_id = (NULLIF(current_setting('app.current_tenant_id'::text, true), ''::text))::uuid) "
+            "OR ((publico = true) AND ((status)::text = 'PUBLICADO'::text)))"
+        )
+    elif (
+        table in ("rastreabilidade_passaporte_eventos", "rastreabilidade_passaporte_evidencias")
+        and cmd == "SELECT"
+    ):
+        hardened = (
+            "((tenant_id = (NULLIF(current_setting('app.current_tenant_id'::text, true), ''::text))::uuid) "
+            f"OR (EXISTS ( SELECT 1 FROM rastreabilidade_passaportes rp WHERE ((rp.id = {table}.passaporte_id) "
+            "AND (rp.publico = true) AND ((rp.status)::text = 'PUBLICADO'::text)))))"
+        )
+    return hardened
+
+
 def load_policy_contract() -> dict[tuple[str, str, str], dict[str, object]]:
     """Decode the read-only pg_policies snapshot captured for this phase."""
     rows = json.loads(gzip.decompress(base64.b64decode(POLICY_SNAPSHOT_GZIP_B64)))
@@ -423,8 +456,12 @@ def load_policy_contract() -> dict[tuple[str, str, str], dict[str, object]]:
             "command": row["cmd"],
             "roles": tuple(row["roles"]),
             "permissive": row["permissive"] == "PERMISSIVE",
-            "using_expression": row["qual"],
-            "with_check_expression": row["with_check"],
+            "using_expression": _harden_policy_expr(
+                row["tablename"], row["cmd"], row["qual"]
+            ),
+            "with_check_expression": _harden_policy_expr(
+                row["tablename"], row["cmd"], row["with_check"]
+            ),
             "source": "DATABASE_CURRENT",
             "reason": "policy captured from pg_policies and target is in baseline",
         }

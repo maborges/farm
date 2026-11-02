@@ -120,9 +120,11 @@ RLS_DEV_RESTRICTED_ROUTE_PAIRS = frozenset({
 
 
 def uses_restricted_route_session(request: Request | None) -> bool:
-    """Select restricted runtime only for the three explicitly approved routes."""
+    """Select restricted runtime for approved routes (or all routes when enabled)."""
     if not settings.rls_dev_route_sessions_enabled or request is None:
         return False
+    if getattr(settings, "rls_dev_all_routes_enabled", False):
+        return True
     return (request.method.upper(), request.url.path) in RLS_DEV_RESTRICTED_ROUTE_PAIRS
 
 
@@ -382,7 +384,7 @@ async def get_current_user_claims(
     """Valida identidade/sessão e ativa claim Tenant somente após membership."""
     claims = await _validate_token_session(token, session)
     tenant_id_str = claims.get("tenant_id")
-    if not tenant_id_str or claims.get("is_superuser"):
+    if not tenant_id_str:
         return claims
 
     try:
@@ -390,6 +392,10 @@ async def get_current_user_claims(
         user_id = uuid.UUID(str(claims["sub"]))
     except (KeyError, TypeError, ValueError) as exc:
         raise HTTPException(status_code=403, detail=TENANT_CONTEXT_ERROR) from exc
+
+    if claims.get("is_superuser"):
+        await _activate_session_tenant(session, tenant_id)
+        return claims
 
     from core.models.auth import TenantUsuario
 
@@ -741,7 +747,11 @@ def require_module(required_module: str):
             # ser rejeitada pela política de tenant.
             await _activate_session_tenant(session, tenant_id)
         except Exception:
-            pass  # Telemetria nunca deve bloquear a requisição
+            try:
+                await session.rollback()
+                await _activate_session_tenant(session, tenant_id)
+            except Exception:
+                pass  # Telemetria nunca deve bloquear a requisição
 
         return True
     return _dependency

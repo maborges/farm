@@ -65,6 +65,53 @@ async def list_saas_configs(
     ]
 
 
+_PUBLIC_READONLY_SAAS_KEYS = frozenset({"sessao", "em_desenvolvimento"})
+
+
+@router.get("/saas/{chave}", response_model=SaaSConfigResponse)
+async def get_saas_config_by_key(
+    chave: str,
+    session: AsyncSession = Depends(get_session),
+    claims: dict = Depends(get_current_user_claims),
+):
+    """Retorna uma configuração global em modo somente leitura para chaves públicas do sistema."""
+    if chave not in _PUBLIC_READONLY_SAAS_KEYS and not claims.get("is_superuser"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Acesso restrito ao Backoffice administrativo.",
+        )
+
+    stmt = select(ConfiguracaoSaaS).where(ConfiguracaoSaaS.chave == chave)
+    result = await session.execute(stmt)
+    rec = result.scalar_one_or_none()
+    if not rec:
+        if chave == "sessao":
+            return SaaSConfigResponse(
+                chave="sessao",
+                valor={"tempo_inatividade_minutos": 30},
+                descricao="Configuração padrão de expiração de sessão por inatividade",
+                ativo=True,
+            )
+        if chave == "em_desenvolvimento":
+            return SaaSConfigResponse(
+                chave="em_desenvolvimento",
+                valor={},
+                descricao="Configuração padrão de tela em desenvolvimento",
+                ativo=True,
+            )
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Configuração '{chave}' não encontrada.",
+        )
+
+    return SaaSConfigResponse(
+        chave=rec.chave,
+        valor=mask_sensitive_data(rec.valor, parent_key=rec.chave),
+        descricao=rec.descricao,
+        ativo=rec.ativo,
+    )
+
+
 @router.put("/saas/{chave}", response_model=SaaSConfigResponse)
 async def update_saas_config(
     chave: str,

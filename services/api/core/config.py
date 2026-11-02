@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     # Migration opt-in: only the allowlisted login/notification HTTP methods
     # use separate RLS roles; all other dependencies keep the legacy engine.
     rls_dev_route_sessions_enabled: bool = False
+    rls_dev_all_routes_enabled: bool = False
     authentication_database_url: str = ""
     authentication_database_role: str = "deepfarms_auth"
     recommendation_dispatcher_database_url: str = ""

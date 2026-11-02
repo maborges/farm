@@ -6,7 +6,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 
-from core.database import get_db
+from core.dependencies import get_session
+
+get_db = get_session
 from certificacoes_esg.models import PassaporteRastreabilidade, StatusPassaporte
 from certificacoes_esg.schemas import PassaportePublicoResponse, IntegridadeResponse
 from certificacoes_esg.service import CertificacoesESGPublicService
@@ -20,7 +22,7 @@ router = APIRouter()
 )
 async def get_passaporte_publico(
     public_token: uuid.UUID,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_session),
 ) -> Any:
     """
     Retorna os dados públicos de um passaporte publicado.
@@ -74,7 +76,7 @@ async def get_passaporte_publico(
 )
 async def verify_passaporte_integridade(
     public_token: uuid.UUID,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_session),
 ) -> Any:
     """
     Endpoint público para validar se o snapshot_json do passaporte

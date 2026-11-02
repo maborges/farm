@@ -10,8 +10,12 @@ from alert_engine.models import ACTIVE_ALERT_STATUSES, OperationalAlert
 
 async def set_rls_context(session: AsyncSession, tenant_id: UUID) -> None:
     """Bind the current tenant in the database session for RLS-aware queries."""
-
-    await session.execute(text(f"SET LOCAL app.current_tenant_id = '{tenant_id}';"))
+    if hasattr(session, "info") and isinstance(session.info, dict):
+        session.info["tenant_id"] = tenant_id
+    await session.execute(
+        text("SELECT set_config('app.current_tenant_id', :tenant_id, true)"),
+        {"tenant_id": str(tenant_id)},
+    )
 
 
 async def has_active_alert(session: AsyncSession, tenant_id: UUID, dedupe_key: str) -> bool:

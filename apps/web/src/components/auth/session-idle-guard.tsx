@@ -19,15 +19,19 @@ export function SessionIdleGuard() {
     const logout = useAppStore((state) => state.logout);
     const lastActivityRef = useRef(0);
     const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    const { data } = useQuery<SessionConfig[]>({
+    const { data } = useQuery<SessionConfig | SessionConfig[]>({
         queryKey: ["session-idle-config"],
-        queryFn: () => apiFetch("/config/saas"),
+        queryFn: () => apiFetch("/config/saas/sessao"),
         enabled: Boolean(token),
         staleTime: 60_000,
     });
 
-    const configuredMinutes = data?.find((item) => item.chave === "sessao" && item.ativo)
-        ?.valor?.tempo_inatividade_minutos;
+    const sessionItem = Array.isArray(data)
+        ? data.find((item) => item.chave === "sessao" && item.ativo)
+        : data?.chave === "sessao" && data?.ativo
+          ? data
+          : undefined;
+    const configuredMinutes = sessionItem?.valor?.tempo_inatividade_minutos;
     const minutes = Number.isFinite(configuredMinutes) && configuredMinutes > 0
         ? configuredMinutes
         : DEFAULT_IDLE_MINUTES;

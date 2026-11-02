@@ -63,10 +63,10 @@ def _rel(path: Path) -> str:
     return str(path.relative_to(ROOT))
 
 # ---------------------------------------------------------------------------
-# R1 — get_session em router fora de core/
+# R1 — get_db em router fora de core/
 # ---------------------------------------------------------------------------
 
-_R1_PATTERN = re.compile(r"Depends\s*\(\s*get_session\s*\)")
+_R1_PATTERN = re.compile(r"Depends\s*\(\s*get_db\s*\)")
 
 def check_r1():
     for f in _router_files():
@@ -81,8 +81,8 @@ def check_r1():
         for lineno, line in enumerate(text.splitlines(), 1):
             if _R1_PATTERN.search(line):
                 ERRORS.append(
-                    f"[R1] {rel}:{lineno} — Depends(get_session) em router tenant-scoped. "
-                    f"Use Depends(get_session) e deixe o RLS ser aplicado pelo middleware."
+                    f"[R1] {rel}:{lineno} — Depends(get_db) em router tenant-scoped. "
+                    f"Use Depends(get_session) (core.dependencies) para propagar app.current_tenant_id no PostgreSQL RLS."
                 )
 
 # ---------------------------------------------------------------------------

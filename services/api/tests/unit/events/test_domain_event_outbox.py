@@ -365,3 +365,37 @@ async def test_list_pending_can_filter_by_event_type(tenant_id: UUID) -> None:
 
     assert len(rows) == 1
     assert rows[0].event_type == "campo.sync.falha"
+
+
+@pytest.mark.asyncio
+async def test_claim_batch_without_tenant_iterates_active_tenants_under_rls(
+    tenant_id: UUID,
+    outro_tenant_id: UUID,
+) -> None:
+    service, store = _service_and_store()
+    await service.enqueue(
+        _event(tenant_id, "campo.tarefa.invalidada", "CAMPO_TAREFA_INVALIDADA", uuid.uuid4())
+    )
+    await service.enqueue(
+        _event(outro_tenant_id, "campo.sync.falha", "CAMPO_SYNC_FALHA", uuid.uuid4())
+    )
+
+    # Simulate PostgreSQL RLS where unscoped query (tenant_id=None) returns 0 rows
+    orig_execute = store.execute
+
+    async def rls_execute(statement: Any, params: Any = None) -> _FakeQueryResult:
+        if isinstance(statement, tuple) and statement and statement[0] == "due":
+            _, batch_size, tid, event_type = statement
+            if tid is None:
+                return _FakeQueryResult([])
+        return await orig_execute(statement)
+
+    store.execute = rls_execute  # type: ignore[method-assign]
+    service._is_sqlite = lambda: False  # type: ignore[method-assign]
+    service._resolve_rls_tenant_ids = AsyncMock(return_value=[tenant_id, outro_tenant_id])  # type: ignore[method-assign]
+
+    claimed = await service.claim_batch(batch_size=10, tenant_id=None)
+
+    assert len(claimed) == 2
+    assert {r.tenant_id for r in claimed} == {tenant_id, outro_tenant_id}
+

@@ -5,8 +5,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import date
 
-from core.database import get_db
-from core.dependencies import get_current_tenant
+from core.dependencies import get_current_tenant, get_session
 from iot_integracao.new_holland.models import (
     IntegracaoNewHolland, MaquinaNewHolland,
     MarketplaceIntegracao, TenantIntegracao,
@@ -19,15 +18,15 @@ from iot_integracao.new_holland.services import (
 router = APIRouter(prefix="/sprint26", tags=["Sprint 26"])
 
 
-def get_nh_service(db: Session = Depends(get_db)) -> NewHollandService:
+def get_nh_service(db: Session = Depends(get_session)) -> NewHollandService:
     return NewHollandService(db)
 
 
-def get_marketplace_service(db: Session = Depends(get_db)) -> MarketplaceService:
+def get_marketplace_service(db: Session = Depends(get_session)) -> MarketplaceService:
     return MarketplaceService(db)
 
 
-def get_carbono_service(db: Session = Depends(get_db)) -> CarbonoService:
+def get_carbono_service(db: Session = Depends(get_session)) -> CarbonoService:
     return CarbonoService(db)
 
 
