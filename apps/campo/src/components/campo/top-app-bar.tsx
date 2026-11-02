@@ -1,16 +1,18 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Image from "next/image";
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useLiveQuery } from "dexie-react-hooks";
 import {
-  ArrowLeft,
   Check,
   ChevronDown,
+  ChevronLeft,
   CircleAlert,
   CircleCheck,
-  Laptop,
   LogOut,
+  MapPin,
   MapPinOff,
   MapPinned,
   Moon,
@@ -20,42 +22,25 @@ import {
   Smartphone,
   Sun,
   Tablet,
+  User,
   Warehouse,
 } from "lucide-react";
 import { BottomSheet } from "@/components/bottom-sheet";
 import { useTheme } from "@/components/theme-provider";
-import { useCachedCampoImage } from "@/lib/campo-assets";
 import { db } from "@/lib/db";
 import { useDeviceContext } from "@/lib/device/use-device-context";
 import { useSessionStore } from "@/lib/stores/session-store";
-import { resolveCampoRouteMeta } from "./nav-items";
+import {
+  OPERACAO_ITEMS,
+  isCampoRouteActive,
+  resolveCampoRouteMeta,
+} from "./nav-items";
 
 function cn(...values: Array<string | false | null | undefined>): string {
   return values.filter(Boolean).join(" ");
 }
 
-function resolveCampoAvatarUrl(url?: string): string | undefined {
-  if (!url) return undefined;
-  return url;
-}
-
-/**
- * Gera uma cor HSL determinística baseada na inicial do nome do operador.
- *
- * Args:
- *   name (string): Nome do operador autenticado.
- *
- * Return:
- *   string: String CSS HSL segura para uso em avatar.
- *
- * Raises:
- *   Nenhuma exceção é lançada.
- */
-function resolveAvatarColor(name: string): string {
-  const code = (name.trim().charCodeAt(0) || 65) % 360;
-  const hue = code < 20 ? code + 40 : code;
-  return `hsl(${hue}, 55%, 42%)`;
-}
+const TOP_NAV_ITEMS = OPERACAO_ITEMS.filter((item) => item.showInTopNav);
 
 export function CampoTopAppBar({
   pendingCount,
@@ -71,23 +56,16 @@ export function CampoTopAppBar({
   const pathname = usePathname();
   const router = useRouter();
   const { session, setActiveFazenda } = useSessionStore();
-  const { layoutProfile, isHydrated } = useDeviceContext();
+  const { layoutProfile } = useDeviceContext();
   const { theme, setTheme } = useTheme();
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [avatarMenuOpen, setAvatarMenuOpen] = useState(false);
 
   const routeMeta = useMemo(() => resolveCampoRouteMeta(pathname), [pathname]);
-  const isMobile = layoutProfile.deviceCategory === "mobile";
-
-  const cachedAvatarSrc = useCachedCampoImage(
-    "user_avatar",
-    session?.user_id,
-    session?.user_avatar_url
-  );
-  const avatarSrc = cachedAvatarSrc ?? resolveCampoAvatarUrl(session?.user_avatar_url);
-  const userInitial = (session?.user_name ?? "O").trim().charAt(0).toUpperCase();
-  const avatarColor = resolveAvatarColor(session?.user_name ?? "O");
+  const ActiveIcon = routeMeta.icon;
+  const isSubpage = !routeMeta.isRoot;
+  const firstName = (session?.user_name ?? "Operador").split(" ")[0] || "Operador";
 
   const fazendas = useLiveQuery(async () => {
     const ids = session?.fazenda_ids ?? [];
@@ -100,11 +78,6 @@ export function CampoTopAppBar({
     () => (fazendas ?? []).find((fazenda) => fazenda?.id === session?.active_fazenda_id),
     [fazendas, session?.active_fazenda_id]
   );
-  const cachedFazendaLogoSrc = useCachedCampoImage(
-    "fazenda_logo",
-    activeFazenda?.id,
-    activeFazenda?.logo_url
-  );
 
   const canSelectFazenda = (fazendas?.length ?? 0) > 1;
   const syncOk =
@@ -113,144 +86,200 @@ export function CampoTopAppBar({
   return (
     <>
       <header
-        data-device-category={layoutProfile.deviceCategory}
+        data-testid="campo-app-header"
+        data-device={layoutProfile.deviceCategory}
         data-execution-mode={layoutProfile.executionMode}
-        className="sticky top-0 z-40 select-none"
-        style={{ paddingTop: "env(safe-area-inset-top)" }}
+        className="sticky top-0 z-40 w-full border-b border-border/80 bg-background/95 backdrop-blur-md supports-[backdrop-filter]:bg-background/85 safe-area-pt select-none"
       >
-        <div className="glass-chrome border-b border-border/80 px-3 py-2 sm:px-5">
-          <div className="mx-auto flex max-w-6xl items-center justify-between gap-2">
-            {/* Esquerda: Botão voltar contextual no mobile em sub-rotas + Seletor de Fazenda */}
-            <div className="flex min-w-0 flex-1 items-center gap-2">
-              {!routeMeta.isRoot && isMobile && (
-                <button
-                  type="button"
-                  onClick={() => router.push(routeMeta.backHref)}
-                  aria-label="Voltar"
-                  className="inline-flex size-8 shrink-0 items-center justify-center rounded-sm border border-border bg-card text-foreground shadow-2xs transition-transform active:scale-95"
-                >
-                  <ArrowLeft className="size-4" />
-                </button>
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 h-14 flex items-center justify-between gap-2 sm:gap-4">
+          {/* Bloco Esquerdo: Identidade DeepFarms Campo ou App Bar Contextual no Mobile */}
+          <div className="flex items-center gap-2 min-w-0">
+            {isSubpage && (
+              <Link
+                href={routeMeta.backHref}
+                aria-label="Voltar"
+                title="Voltar"
+                className="md:hidden inline-flex items-center justify-center w-9 h-9 -ml-1 rounded-sm text-foreground hover:bg-muted active:scale-95 transition-all shrink-0"
+              >
+                <ChevronLeft className="w-5 h-5 text-primary" />
+              </Link>
+            )}
+
+            <Link
+              href="/home"
+              className={cn(
+                "flex items-center gap-2.5 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-sm group min-w-0",
+                isSubpage && "hidden md:flex"
               )}
-
-              <button
-                type="button"
-                onClick={() => {
-                  if (canSelectFazenda) setDialogOpen(true);
-                }}
-                disabled={!canSelectFazenda}
-                className={cn(
-                  "inline-flex min-h-[40px] min-w-0 items-center gap-2 rounded-sm px-2 py-1 text-left transition-all",
-                  canSelectFazenda
-                    ? "border border-border/70 bg-card/70 text-foreground hover:bg-muted/70 active:scale-95"
-                    : "cursor-default text-foreground"
-                )}
-              >
-                <span className="flex size-7 shrink-0 items-center justify-center overflow-hidden rounded-sm bg-[var(--campo-pwa-agro-light)] dark:bg-[var(--campo-pwa-agro-bg)] text-[var(--campo-pwa-agro-dark-text)] dark:text-[var(--campo-pwa-agro)]">
-                  {cachedFazendaLogoSrc ? (
-                    <img src={cachedFazendaLogoSrc} alt="" className="h-full w-full object-cover" />
-                  ) : (
-                    <Warehouse className="size-3.5" />
-                  )}
+              title="Ir para página inicial do DeepFarms Campo"
+            >
+              <div className="relative w-7 h-7 shrink-0 rounded-sm bg-primary/10 p-0.5">
+                <Image
+                  src="/logos/deepfarms-mark.svg"
+                  alt="DeepFarms Campo"
+                  width={28}
+                  height={28}
+                  priority
+                  className="w-full h-full object-contain"
+                />
+              </div>
+              <div className="flex flex-col min-w-0">
+                <div className="flex items-center gap-1.5 leading-none">
+                  <span className="font-bold tracking-tight text-foreground text-sm truncate">
+                    DeepFarms
+                  </span>
+                  <span className="text-primary font-bold text-xs px-1.5 py-0.5 rounded-sm bg-primary/10">
+                    Campo
+                  </span>
+                </div>
+                <span className="text-[10px] text-muted-foreground hidden sm:inline truncate">
+                  {layoutProfile.executionMode === "standalone"
+                    ? "Aplicativo de Campo (PWA)"
+                    : "Operação Rural Offline-First"}
                 </span>
-                <span className="min-w-0 flex-1">
-                  {!routeMeta.isRoot && isMobile ? (
-                    <>
-                      <span className="block truncate text-xs font-bold leading-tight text-foreground">
-                        {routeMeta.title}
-                      </span>
-                      <span className="block truncate text-[10px] font-medium leading-tight text-muted-foreground">
-                        {activeFazenda?.nome ?? "Unidade produtiva"}
-                      </span>
-                    </>
-                  ) : (
-                    <>
-                      <span className="block truncate text-xs sm:text-sm font-bold leading-tight text-foreground">
-                        {activeFazenda?.nome ?? "Unidade produtiva"}
-                      </span>
-                      <span className="hidden sm:block truncate text-[10px] text-muted-foreground">
-                        {routeMeta.title} • {routeMeta.subtitle}
-                      </span>
-                    </>
-                  )}
-                </span>
-                {canSelectFazenda && (
-                  <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" />
-                )}
-              </button>
-            </div>
+              </div>
+            </Link>
 
-            {/* Direita: Indicadores operacionais + Badge de ambiente + Tema + Avatar */}
-            <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-              {isHydrated && (
-                <span
-                  className="hidden sm:inline-flex items-center gap-1 rounded-sm border border-border bg-muted/60 px-2 py-1 text-[10px] font-semibold text-muted-foreground"
-                  title={`Executando em modo ${layoutProfile.deviceCategory} (${layoutProfile.executionMode})`}
+            {/* Título Contextual de App Nativo quando em subpágina no Mobile */}
+            {isSubpage && (
+              <div className="flex md:hidden items-center gap-2 min-w-0">
+                <div className="p-1.5 rounded-sm bg-primary/10 text-primary shrink-0">
+                  <ActiveIcon className="w-4 h-4" />
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <span className="font-bold tracking-tight text-foreground text-sm leading-tight truncate">
+                    {routeMeta.title}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground leading-tight truncate">
+                    {activeFazenda?.nome ?? routeMeta.subtitle}
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Navegação Horizontal para Desktop (mesmo padrão visual de Agro) */}
+          <nav
+            className="hidden lg:flex items-center gap-1"
+            aria-label="Navegação principal"
+          >
+            {TOP_NAV_ITEMS.map((item) => {
+              const Icon = item.icon;
+              const isActive = isCampoRouteActive(pathname, item.href);
+
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={cn(
+                    "flex items-center gap-1.5 px-3 py-1.5 rounded-sm text-xs font-medium transition-colors",
+                    isActive
+                      ? "bg-primary text-primary-foreground font-semibold"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                  )}
                 >
-                  {layoutProfile.deviceCategory === "mobile" ? (
-                    <Smartphone className="size-3 text-primary" />
-                  ) : layoutProfile.deviceCategory === "tablet" ? (
-                    <Tablet className="size-3 text-primary" />
-                  ) : (
-                    <Laptop className="size-3 text-primary" />
-                  )}
-                  <span className="capitalize">{layoutProfile.deviceCategory}</span>
-                </span>
+                  <Icon className="w-3.5 h-3.5" />
+                  <span>{item.label}</span>
+                </Link>
+              );
+            })}
+          </nav>
+
+          {/* Controles Direitos: Fazenda Ativa, Status, Dispositivo, Operador e Tema */}
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            {/* Seletor de Fazenda Ativa (mesmo estilo da Localidade Ativa do Agro) */}
+            <button
+              type="button"
+              onClick={() => {
+                if (canSelectFazenda) setDialogOpen(true);
+              }}
+              disabled={!canSelectFazenda}
+              title={
+                canSelectFazenda
+                  ? "Trocar unidade produtiva ativa"
+                  : activeFazenda?.nome ?? "Unidade produtiva"
+              }
+              className={cn(
+                "inline-flex items-center gap-1 px-2 py-1 rounded-sm bg-primary/10 text-primary text-[11px] font-medium max-w-[130px] sm:max-w-[180px] transition-colors",
+                canSelectFazenda ? "hover:bg-primary/15 cursor-pointer" : "cursor-default"
               )}
+            >
+              <MapPin className="w-3 h-3 shrink-0" />
+              <span className="truncate">
+                {activeFazenda?.nome ?? "Unidade ativa"}
+              </span>
+              {canSelectFazenda && <ChevronDown className="w-3 h-3 shrink-0" />}
+            </button>
 
-              <StatusIndicator
-                active={isOnline}
-                icon={isOnline ? SignalHigh : Signal}
-                label={isOnline ? "OnLine" : "OffLine"}
-              />
-              <StatusIndicator
-                active={syncOk}
-                icon={
-                  syncStatus === "syncing" ? RefreshCw : syncOk ? CircleCheck : CircleAlert
-                }
-                label={pendingCount > 0 ? `SYNC (${pendingCount})` : "SYNC"}
-                spinning={syncStatus === "syncing"}
-                onClick={() => router.push("/sync")}
-              />
-              <StatusIndicator
-                active={gpsStatus === "DISPONIVEL"}
-                icon={gpsStatus === "DISPONIVEL" ? MapPinned : MapPinOff}
-                label="GPS"
-              />
+            {/* Indicadores compactos de Rede, Sync e GPS */}
+            <StatusBadge
+              active={isOnline}
+              icon={isOnline ? SignalHigh : Signal}
+              label={isOnline ? "Online" : "Offline"}
+            />
+            <StatusBadge
+              active={syncOk}
+              icon={
+                syncStatus === "syncing" ? RefreshCw : syncOk ? CircleCheck : CircleAlert
+              }
+              label={pendingCount > 0 ? `Sync (${pendingCount})` : "Sync"}
+              spinning={syncStatus === "syncing"}
+              onClick={() => router.push("/sync")}
+            />
+            <StatusBadge
+              active={gpsStatus === "DISPONIVEL"}
+              icon={gpsStatus === "DISPONIVEL" ? MapPinned : MapPinOff}
+              label="GPS"
+              hideOnTiny
+            />
 
-              {/* Alternância rápida Dark/Light Mode (AGRO-03) */}
-              <button
-                type="button"
-                onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-                aria-label="Alternar tema claro ou escuro"
-                title={theme === "dark" ? "Mudar para modo claro" : "Mudar para modo escuro"}
-                className="inline-flex size-8 items-center justify-center rounded-sm border border-border bg-card text-muted-foreground shadow-2xs transition-colors hover:bg-accent hover:text-foreground active:scale-95"
-              >
-                {theme === "dark" ? (
-                  <Sun className="size-3.5 text-amber-400" />
-                ) : (
-                  <Moon className="size-3.5" />
-                )}
-              </button>
+            {/* Indicador Adaptativo de Ambiente (Mobile / Tablet / Standalone) */}
+            <span
+              data-testid="header-device-badge"
+              className="hidden sm:inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-sm border border-primary/25 text-muted-foreground font-semibold"
+            >
+              {layoutProfile.deviceCategory === "mobile" ? (
+                <Smartphone className="w-3 h-3 text-primary" />
+              ) : layoutProfile.deviceCategory === "tablet" ? (
+                <Tablet className="w-3 h-3 text-primary" />
+              ) : null}
+              <span>
+                {layoutProfile.executionMode === "standalone"
+                  ? "PWA"
+                  : layoutProfile.deviceCategory === "mobile"
+                    ? "Mobile"
+                    : layoutProfile.deviceCategory === "tablet"
+                      ? "Tablet"
+                      : "Web"}
+              </span>
+            </span>
 
-              <button
-                type="button"
-                onClick={() => setAvatarMenuOpen(true)}
-                aria-label="Conta do operador"
-                className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-sm border border-border shadow-2xs text-[11px] font-bold text-white transition-all active:scale-95"
-                style={avatarSrc ? undefined : { background: avatarColor }}
-              >
-                {avatarSrc ? (
-                  <img
-                    src={avatarSrc}
-                    alt={session?.user_name ?? "Operador"}
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <span>{userInitial}</span>
-                )}
-              </button>
-            </div>
+            {/* Botão Conta do Operador (mesmo estilo do botão Minha Conta do Agro) */}
+            <button
+              type="button"
+              onClick={() => setAvatarMenuOpen(true)}
+              aria-label="Conta do Operador"
+              title="Conta do Operador"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-sm text-xs font-medium border border-border bg-background hover:bg-accent text-foreground transition-colors min-h-[34px]"
+            >
+              <User className="w-3.5 h-3.5 text-primary" />
+              <span className="hidden sm:inline">{firstName}</span>
+            </button>
+
+            {/* Alternador de Tema Claro/Escuro */}
+            <button
+              type="button"
+              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+              aria-label={theme === "dark" ? "Ativar modo claro" : "Ativar modo escuro"}
+              title={theme === "dark" ? "Ativar modo claro" : "Ativar modo escuro"}
+              className="inline-flex items-center justify-center h-8 w-8 rounded-sm border border-border bg-background hover:bg-accent text-foreground transition-colors shrink-0"
+            >
+              {theme === "dark" ? (
+                <Sun className="w-3.5 h-3.5 text-amber-500" />
+              ) : (
+                <Moon className="w-3.5 h-3.5 text-foreground" />
+              )}
+            </button>
           </div>
         </div>
       </header>
@@ -329,7 +358,11 @@ export function CampoTopAppBar({
           >
             <div className="flex items-center gap-3">
               <div className="flex size-9 items-center justify-center rounded-sm border border-border bg-muted text-muted-foreground">
-                {theme === "dark" ? <Sun className="size-4 text-amber-400" /> : <Moon className="size-4" />}
+                {theme === "dark" ? (
+                  <Sun className="size-4 text-amber-500" />
+                ) : (
+                  <Moon className="size-4" />
+                )}
               </div>
               <div>
                 <p className="font-semibold">Mudar Aparência</p>
@@ -364,40 +397,43 @@ export function CampoTopAppBar({
   );
 }
 
-function StatusIndicator({
+function StatusBadge({
   active,
   icon: Icon,
   label,
   spinning = false,
+  hideOnTiny = false,
   onClick,
 }: {
   active: boolean;
   icon: typeof Signal;
   label: string;
   spinning?: boolean;
+  hideOnTiny?: boolean;
   onClick?: () => void;
 }) {
   const classes = cn(
-    "inline-flex shrink-0 items-center gap-1 rounded-sm border px-1.5 py-1 text-[10px] font-semibold uppercase tracking-[0.1em]",
+    "inline-flex shrink-0 items-center gap-1 rounded-sm border px-1.5 py-0.5 text-[10px] font-semibold",
+    hideOnTiny && "hidden sm:inline-flex",
     active
-      ? "border-green-200/80 bg-green-50/80 text-green-700 dark:border-green-900/50 dark:bg-green-950/30 dark:text-green-300"
-      : "border-rose-200/80 bg-rose-50/80 text-rose-700 dark:border-rose-900/50 dark:bg-rose-950/30 dark:text-rose-300",
-    onClick && "cursor-pointer active:scale-95 transition-transform"
+      ? "border-emerald-500/30 bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
+      : "border-amber-500/30 bg-amber-500/15 text-amber-700 dark:text-amber-400",
+    onClick && "cursor-pointer hover:opacity-85 active:scale-95 transition-all"
   );
 
   if (onClick) {
     return (
       <button type="button" onClick={onClick} className={classes}>
-        <Icon className={cn("size-3", spinning && "animate-spin")} />
-        <span className="hidden xs:inline sm:inline">{label}</span>
+        <Icon className={cn("w-3 h-3", spinning && "animate-spin")} />
+        <span className="hidden md:inline">{label}</span>
       </button>
     );
   }
 
   return (
-    <div className={classes}>
-      <Icon className={cn("size-3", spinning && "animate-spin")} />
-      <span className="hidden xs:inline sm:inline">{label}</span>
-    </div>
+    <span className={classes}>
+      <Icon className={cn("w-3 h-3", spinning && "animate-spin")} />
+      <span className="hidden md:inline">{label}</span>
+    </span>
   );
 }

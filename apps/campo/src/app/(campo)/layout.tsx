@@ -51,48 +51,35 @@ export default function CampoLayout({ children }: { children: React.ReactNode })
 
   return (
     <ErrorBoundary>
-      {/* Ambient Agtech Background with subtle glow */}
-      <div className="pointer-events-none fixed inset-0 overflow-hidden -z-10 bg-background">
-        <img
-          src="/images/login-bg.png"
-          alt=""
-          aria-hidden="true"
-          className="h-full w-full object-cover object-center opacity-25 select-none dark:opacity-15 transition-opacity"
-        />
-        <div className="absolute inset-0 bg-gradient-to-b from-emerald-950/55 via-background/88 to-background dark:from-emerald-950/75 dark:via-background/92 dark:to-background" />
-        <div className="absolute -top-24 left-1/2 -translate-x-1/2 h-72 w-72 rounded-full bg-emerald-500/15 blur-3xl" />
-      </div>
-
       <div
+        id="campo-adaptive-shell"
         data-device-category={layoutProfile.deviceCategory}
         data-execution-mode={layoutProfile.executionMode}
         data-navigation-mode={layoutProfile.navigationMode}
+        data-platform-os={layoutProfile.platformOS}
         data-density={layoutProfile.density}
-        className="relative z-0 flex min-h-dvh w-full overflow-x-hidden"
+        className="min-h-dvh flex flex-col bg-background text-foreground safe-area-px"
       >
-        {/* Sidebar retrátil (Rail em Tablet 768px+, Sidebar expandida em Desktop 1024px+) */}
-        <AdaptiveCampoSidebar />
+        <CampoTopAppBar
+          pendingCount={pendingCount}
+          isOnline={isOnline}
+          syncStatus={status}
+          gpsStatus={gps.status}
+        />
 
-        <div className="flex min-h-dvh min-w-0 flex-1 flex-col">
-          <CampoTopAppBar
-            pendingCount={pendingCount}
-            isOnline={isOnline}
-            syncStatus={status}
-            gpsStatus={gps.status}
-          />
+        <div className="flex-1 flex w-full max-w-7xl mx-auto">
+          <AdaptiveCampoSidebar />
 
-          <div className="mx-auto flex w-full max-w-lg md:max-w-5xl lg:max-w-6xl flex-col gap-2 px-3 pt-2.5 sm:px-5">
-            <OfflineBanner />
-            <CampoPwaInstallBanner />
-          </div>
-
-          <main className="mx-auto flex-1 w-full max-w-lg md:max-w-5xl lg:max-w-6xl px-3 pb-24 pt-3 sm:px-5 md:pb-8">
-            <div className="campo-pwa-page w-full">{children}</div>
+          <main className="flex-1 min-w-0 w-full max-w-5xl mx-auto px-3 sm:px-5 md:px-6 py-3 sm:py-5 pb-24 md:pb-8">
+            <div className="flex flex-col gap-3">
+              <OfflineBanner />
+              <CampoPwaInstallBanner />
+              <div className="campo-pwa-page w-full">{children}</div>
+            </div>
           </main>
-
-          {/* Bottom Navigation nativa exclusiva para Mobile (< 768px) */}
-          <CampoBottomNav />
         </div>
+
+        <CampoBottomNav />
       </div>
     </ErrorBoundary>
   );

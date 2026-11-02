@@ -21,6 +21,8 @@ export interface CampoNavItem {
   href: string;
   icon: LucideIcon;
   description: string;
+  showInTopNav?: boolean;
+  showInBottomDock?: boolean;
 }
 
 export interface CampoNavModuleGroup {
@@ -33,34 +35,41 @@ export interface CampoNavModuleGroup {
 export interface CampoRouteMeta {
   title: string;
   subtitle: string;
+  icon: LucideIcon;
   isRoot: boolean;
   backHref: string;
 }
 
-const OPERACAO_ITEMS: CampoNavItem[] = [
+export const OPERACAO_ITEMS: CampoNavItem[] = [
   {
     id: "home",
-    label: "Início Operacional",
+    label: "Início",
     shortLabel: "Início",
     href: "/home",
     icon: Home,
-    description: "Visão do turno, clima e atalhos rápidos",
+    description: "Visão do turno, módulos e atalhos rápidos",
+    showInTopNav: true,
+    showInBottomDock: true,
   },
   {
     id: "tarefas",
-    label: "Tarefas Programadas",
+    label: "Tarefas",
     shortLabel: "Tarefas",
     href: "/tarefas",
     icon: ClipboardList,
     description: "Execução e acompanhamento de ordens de campo",
+    showInTopNav: true,
+    showInBottomDock: true,
   },
   {
     id: "caderno",
-    label: "Caderno de Campo",
+    label: "Caderno",
     shortLabel: "Caderno",
     href: "/caderno",
     icon: BookText,
     description: "Registros oficiais com fotos e georreferenciamento",
+    showInTopNav: true,
+    showInBottomDock: true,
   },
   {
     id: "recomendacoes",
@@ -69,14 +78,18 @@ const OPERACAO_ITEMS: CampoNavItem[] = [
     href: "/recomendacoes",
     icon: Sparkles,
     description: "Orientações operacionais e inteligência de campo",
+    showInTopNav: true,
+    showInBottomDock: false,
   },
   {
     id: "sync",
-    label: "Sincronização Offline",
+    label: "Sincronização",
     shortLabel: "Sync",
     href: "/sync",
     icon: RefreshCw,
     description: "Fila local, conflitos e diagnóstico do dispositivo",
+    showInTopNav: true,
+    showInBottomDock: true,
   },
 ];
 
@@ -206,7 +219,8 @@ export function getContractedCampoModuleGroups(
 ): CampoNavModuleGroup[] {
   const normalized = (contractedModules ?? []).map((m) => m.toLowerCase());
   const hasUnrestricted = normalized.length === 0;
-  const hasAgricola = hasUnrestricted || normalized.includes("agricola") || normalized.includes("agricultura");
+  const hasAgricola =
+    hasUnrestricted || normalized.includes("agricola") || normalized.includes("agricultura");
   const hasPecuaria = hasUnrestricted || normalized.includes("pecuaria");
 
   const groups: CampoNavModuleGroup[] = [
@@ -241,55 +255,133 @@ export function getContractedCampoModuleGroups(
 const ROUTE_META_MAP: Array<{ match: string; meta: CampoRouteMeta }> = [
   {
     match: "/agricultura",
-    meta: { title: "Agricultura", subtitle: "Manejo de lavoura e safras", isRoot: false, backHref: "/home" },
+    meta: {
+      title: "Agricultura",
+      subtitle: "Manejo de lavoura e safras",
+      icon: Sprout,
+      isRoot: false,
+      backHref: "/home",
+    },
   },
   {
     match: "/pecuaria",
-    meta: { title: "Pecuária", subtitle: "Manejo de lotes e rebanho", isRoot: false, backHref: "/home" },
+    meta: {
+      title: "Pecuária",
+      subtitle: "Manejo de lotes e rebanho",
+      icon: Beef,
+      isRoot: false,
+      backHref: "/home",
+    },
   },
   {
     match: "/tarefas",
-    meta: { title: "Tarefas", subtitle: "Ordens programadas do turno", isRoot: false, backHref: "/home" },
+    meta: {
+      title: "Tarefas",
+      subtitle: "Ordens programadas do turno",
+      icon: ClipboardList,
+      isRoot: false,
+      backHref: "/home",
+    },
   },
   {
     match: "/caderno",
-    meta: { title: "Caderno de Campo", subtitle: "Registro técnico georreferenciado", isRoot: false, backHref: "/home" },
+    meta: {
+      title: "Caderno de Campo",
+      subtitle: "Registro técnico georreferenciado",
+      icon: BookText,
+      isRoot: false,
+      backHref: "/home",
+    },
   },
   {
     match: "/recomendacoes",
-    meta: { title: "Recomendações", subtitle: "Inteligência operacional offline", isRoot: false, backHref: "/home" },
+    meta: {
+      title: "Recomendações",
+      subtitle: "Inteligência operacional offline",
+      icon: Sparkles,
+      isRoot: false,
+      backHref: "/home",
+    },
   },
   {
     match: "/sync",
-    meta: { title: "Sincronização", subtitle: "Fila offline e integridade", isRoot: false, backHref: "/home" },
+    meta: {
+      title: "Sincronização",
+      subtitle: "Fila offline e integridade",
+      icon: RefreshCw,
+      isRoot: false,
+      backHref: "/home",
+    },
   },
   {
     match: "/campo/aplicacao",
-    meta: { title: "Aplicação de Insumo", subtitle: "Registro operacional agrícola", isRoot: false, backHref: "/agricultura" },
+    meta: {
+      title: "Aplicação de Insumo",
+      subtitle: "Registro operacional agrícola",
+      icon: Sprout,
+      isRoot: false,
+      backHref: "/agricultura",
+    },
   },
   {
     match: "/campo/colheita",
-    meta: { title: "Colheita", subtitle: "Apontamento de produção", isRoot: false, backHref: "/agricultura" },
+    meta: {
+      title: "Colheita",
+      subtitle: "Apontamento de produção",
+      icon: Wheat,
+      isRoot: false,
+      backHref: "/agricultura",
+    },
   },
   {
     match: "/campo/epi",
-    meta: { title: "Entrega de EPI", subtitle: "Segurança do trabalho", isRoot: false, backHref: "/agricultura" },
+    meta: {
+      title: "Entrega de EPI",
+      subtitle: "Segurança do trabalho",
+      icon: ShieldHalf,
+      isRoot: false,
+      backHref: "/agricultura",
+    },
   },
   {
     match: "/campo/pesagem",
-    meta: { title: "Pesagem de Rebanho", subtitle: "Manejo de curral", isRoot: false, backHref: "/pecuaria" },
+    meta: {
+      title: "Pesagem de Rebanho",
+      subtitle: "Manejo de curral",
+      icon: Scale,
+      isRoot: false,
+      backHref: "/pecuaria",
+    },
   },
   {
     match: "/campo/vacinacao",
-    meta: { title: "Vacinação", subtitle: "Controle sanitário", isRoot: false, backHref: "/pecuaria" },
+    meta: {
+      title: "Vacinação",
+      subtitle: "Controle sanitário",
+      icon: Syringe,
+      isRoot: false,
+      backHref: "/pecuaria",
+    },
   },
   {
     match: "/campo/reproducao",
-    meta: { title: "Reprodução", subtitle: "Cobertura, prenhez, parto e desmama", isRoot: false, backHref: "/pecuaria" },
+    meta: {
+      title: "Reprodução",
+      subtitle: "Cobertura, prenhez, parto e desmama",
+      icon: Dna,
+      isRoot: false,
+      backHref: "/pecuaria",
+    },
   },
   {
     match: "/campo/tarefa",
-    meta: { title: "Execução de Tarefa", subtitle: "Ordem operacional em andamento", isRoot: false, backHref: "/tarefas" },
+    meta: {
+      title: "Execução de Tarefa",
+      subtitle: "Ordem operacional em andamento",
+      icon: ClipboardList,
+      isRoot: false,
+      backHref: "/tarefas",
+    },
   },
 ];
 
@@ -300,7 +392,7 @@ const ROUTE_META_MAP: Array<{ match: string; meta: CampoRouteMeta }> = [
  *   pathname (string): Caminho atual da URL.
  *
  * Return:
- *   CampoRouteMeta: Título, subtítulo, flag de rota raiz e destino de retorno.
+ *   CampoRouteMeta: Título, subtítulo, ícone, flag de rota raiz e destino de retorno.
  *
  * Raises:
  *   Nenhuma exceção é lançada.
@@ -310,6 +402,7 @@ export function resolveCampoRouteMeta(pathname: string): CampoRouteMeta {
     return {
       title: "Início Operacional",
       subtitle: "Operação offline-first no campo",
+      icon: Home,
       isRoot: true,
       backHref: "/home",
     };
@@ -325,9 +418,9 @@ export function resolveCampoRouteMeta(pathname: string): CampoRouteMeta {
 
   return {
     title: "Operação de Campo",
-    subtitle: "AgroCampo PWA",
+    subtitle: "DeepFarms Campo",
+    icon: Sprout,
     isRoot: false,
     backHref: "/home",
   };
 }
-

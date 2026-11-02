@@ -1,23 +1,25 @@
 "use client";
 
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useLiveQuery } from "dexie-react-hooks";
 import {
+  ArrowRight,
   Beef,
   BookText,
   ClipboardList,
   CloudSun,
   RefreshCw,
+  ShieldCheck,
   Sparkles,
   Sprout,
+  WifiOff,
 } from "lucide-react";
 import { PwaAlertStrip } from "@/components/campo/pwa-alert-strip";
 import { PwaModuleCard } from "@/components/campo/pwa-module-card";
 import { PwaProgressRing } from "@/components/campo/pwa-progress-ring";
 import { PwaQuickAction } from "@/components/campo/pwa-quick-action";
 import { CampoSessionClearNotice } from "@/components/campo/session-clear-notice";
-import { CampoButton } from "@/components/campo/ui";
 import { db } from "@/lib/db";
 import { useDeviceContext } from "@/lib/device/use-device-context";
 import { formatInt } from "@/lib/format";
@@ -172,55 +174,57 @@ export default function HomePage() {
   return (
     <div
       data-device-category={layoutProfile.deviceCategory}
-      className="flex flex-col gap-4 pb-8"
+      className="flex flex-col gap-4 sm:gap-6"
     >
       {clearNotice && <CampoSessionClearNotice notice={clearNotice} />}
 
-      {/* ── Cabeçalho Operacional Adaptativo ── */}
-      <div
-        className="campo-pwa-card-stagger rounded-sm border border-border bg-card/90 px-4 py-3.5 shadow-xs backdrop-blur-xs sm:px-5 sm:py-4"
-        style={{ "--campo-pwa-delay": "0ms" } as CSSProperties}
-      >
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-primary">
-              {shortDate} • Turno de Campo
-            </p>
-            <h1 className="mt-0.5 text-lg sm:text-xl font-bold tracking-tight text-foreground">
-              {greeting}, {firstName}
-            </h1>
+      {/* Cabeçalho Compacto de App Mobile / Hero Adaptativo no Desktop (mesmo padrão visual do Agro) */}
+      <section className="rounded-sm border border-border bg-card p-3.5 sm:p-5 shadow-xs relative overflow-hidden">
+        <div className="max-w-2xl flex flex-col gap-1.5">
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+            <span className="inline-flex items-center rounded-sm border px-2 py-0.5 text-[10px] font-semibold border-emerald-500/30 bg-emerald-500/15 text-emerald-700 dark:text-emerald-400">
+              {shortDate} • Turno Ativo
+            </span>
             {activeFazendaNome && (
-              <p className="mt-0.5 text-xs text-muted-foreground">
-                Unidade ativa:{" "}
-                <span className="font-semibold text-foreground">{activeFazendaNome}</span>
-              </p>
+              <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+                <ShieldCheck className="w-3.5 h-3.5 text-primary" /> {activeFazendaNome}
+              </span>
             )}
-          </div>
-
-          <div className="flex items-center gap-2">
-            <span className="rounded-sm border border-border bg-muted/60 px-2.5 py-1 text-[11px] font-semibold text-foreground">
-              {formatInt(tarefasPendentes?.length ?? 0)} pendente
-              {(tarefasPendentes?.length ?? 0) !== 1 ? "s" : ""}
+            <span className="text-[11px] text-muted-foreground hidden sm:inline-flex items-center gap-1">
+              • <WifiOff className="w-3 h-3 text-emerald-600 dark:text-emerald-400" /> Modo Offline Ativo
             </span>
           </div>
+          <h1 className="text-base sm:text-xl md:text-2xl font-bold tracking-tight text-foreground leading-snug">
+            {greeting}, {firstName} — Operação de Campo
+          </h1>
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            Execute tarefas programadas, registre apontamentos no caderno oficial com fotos e GPS e acompanhe recomendações técnicas da propriedade.
+          </p>
         </div>
-      </div>
+      </section>
 
-      {/* ── Alertas Operacionais ── */}
+      {/* Alertas Operacionais */}
       {alertItems.length > 0 && (
         <PwaAlertStrip items={alertItems} onTap={() => router.push("/tarefas")} />
       )}
 
-      {/* ── Lançador Rápido de Operação Diária (estilo App Nativo) ── */}
-      <section id="nova-atividade">
-        <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
-          Acesso Rápido
-        </p>
-        <div className="grid grid-cols-4 gap-2">
+      {/* Atalhos Rápidos e Módulos Contratados (mesmo padrão visual de App Launcher + Cards do Agro) */}
+      <section id="nova-atividade" className="flex flex-col gap-2.5" aria-label="Acesso rápido às ferramentas">
+        <div className="flex items-center justify-between">
+          <h2 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Acesso Rápido às Operações
+          </h2>
+          <span className="text-[10px] text-muted-foreground sm:hidden">
+            Toque para abrir
+          </span>
+        </div>
+
+        {/* Grade de Ícones Rápidos para Toque (App Tiles) */}
+        <div className="grid grid-cols-4 gap-2" data-testid="mobile-launcher-tiles">
           <PwaQuickAction
             label="Tarefas"
             icon={ClipboardList}
-            color="agro"
+            color="blue"
             badge={
               (tarefasPendentes?.length ?? 0) > 0
                 ? String(tarefasPendentes?.length)
@@ -237,7 +241,7 @@ export default function HomePage() {
           <PwaQuickAction
             label="Alertas"
             icon={Sparkles}
-            color="neutral"
+            color="pecuaria"
             badge={
               urgentRecomendacoes.length > 0
                 ? String(urgentRecomendacoes.length)
@@ -253,18 +257,13 @@ export default function HomePage() {
             onClick={() => router.push("/sync")}
           />
         </div>
-      </section>
 
-      {/* ── Módulos Contratados ── */}
-      <section>
-        <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
-          Módulos Contratados
-        </p>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {/* Cards Detalhados dos Módulos Contratados */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
           {hasAgricola && (
             <PwaModuleCard
-              label="Agricultura"
-              sublabel="Caderno, aplicações, colheita e EPI"
+              label="Módulo Agrícola"
+              sublabel="Caderno de campo, aplicações de insumos, registro de colheita e entrega de EPI."
               icon={Sprout}
               taskCount={pendingByDomain.AGRICULTURA}
               urgentCount={urgentByDomain.AGRICULTURA}
@@ -275,8 +274,8 @@ export default function HomePage() {
           )}
           {hasPecuaria && (
             <PwaModuleCard
-              label="Pecuária"
-              sublabel="Pesagem, vacinação e reprodução"
+              label="Módulo Pecuária"
+              sublabel="Pesagem de animais e lotes, vacinação sanitária, cobertura, diagnóstico e parto."
               icon={Beef}
               taskCount={pendingByDomain.PECUARIA}
               urgentCount={urgentByDomain.PECUARIA}
@@ -299,26 +298,33 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ── Progresso do dia ── */}
+      {/* Progresso do dia */}
       <PwaProgressRing done={doneCount} total={totalTarefas} />
 
-      {/* ── Acesso rápido ao sync quando há pendentes ── */}
-      {pendingCount > 0 && (
-        <div
-          className="campo-pwa-card-stagger"
-          style={{ "--campo-pwa-delay": "240ms" } as CSSProperties}
-        >
-          <CampoButton
-            variant="secondary"
-            size="sm"
-            className="w-full rounded-sm py-2.5"
-            onClick={() => router.push("/sync")}
-          >
-            Sincronizar {formatInt(pendingCount)} item{pendingCount !== 1 ? "s" : ""} pendente
-            {pendingCount !== 1 ? "s" : ""}
-          </CampoButton>
+      {/* Rodapé de status de sincronização no mesmo estilo da chamada inferior do Agro */}
+      <section className="p-3.5 sm:p-4 rounded-sm border border-border/80 bg-muted/40 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+        <div className="flex flex-col gap-1 max-w-xl">
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+            <RefreshCw className="w-4 h-4 text-primary" />
+            <span>
+              {pendingCount > 0
+                ? `${formatInt(pendingCount)} apontamento${pendingCount !== 1 ? "s" : ""} aguardando envio ao servidor`
+                : "Fila offline sincronizada e pronta para operação sem rede"}
+            </span>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Todos os registros feitos no <strong className="text-foreground font-semibold">DeepFarms Campo</strong> ficam protegidos no dispositivo até a confirmação do servidor.
+          </p>
         </div>
-      )}
+        <button
+          type="button"
+          onClick={() => router.push("/sync")}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-border rounded-sm bg-background hover:bg-accent text-foreground transition-colors shrink-0"
+        >
+          <span>Abrir Sincronização</span>
+          <ArrowRight className="w-3.5 h-3.5 text-muted-foreground" />
+        </button>
+      </section>
     </div>
   );
 }

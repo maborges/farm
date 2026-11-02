@@ -55,13 +55,13 @@ const SHOW_NAV_ROUTES = new Set([
 ]);
 
 /**
- * Barra de navegação inferior nativa para dispositivos móveis (< 768px), oculta em tablets e desktops.
+ * Barra de navegação inferior móvel com o mesmo padrão visual de abas do módulo Agro.
  *
  * Args:
  *   Nenhum argumento.
  *
  * Return:
- *   JSX.Element | null: Dock inferior com atalho central de novo apontamento.
+ *   JSX.Element | null: Dock móvel de 5 colunas com indicador superior e pílula ativa.
  *
  * Raises:
  *   Nenhuma exceção é lançada.
@@ -98,44 +98,45 @@ export function CampoBottomNav() {
   return (
     <>
       <nav
-        aria-label="Navegação principal mobile"
+        aria-label="Navegação móvel"
+        data-testid="mobile-bottom-dock"
         data-navigation-mode={layoutProfile.navigationMode}
-        className="fixed inset-x-0 bottom-0 z-40 md:hidden border-t border-border/80 bg-card/95 backdrop-blur-lg shadow-[0_-4px_20px_rgba(0,0,0,0.08)] select-none"
-        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+        className={cn(
+          "md:hidden fixed bottom-0 left-0 right-0 z-40 border-t border-border/80 bg-card/95 backdrop-blur-lg supports-[backdrop-filter]:bg-card/85 shadow-[0_-2px_12px_rgba(0,0,0,0.06)] safe-area-pb select-none",
+          layoutProfile.executionMode === "standalone" && "pb-1"
+        )}
       >
-        <div className="mx-auto grid h-16 max-w-lg grid-cols-5 items-center gap-1 px-2">
+        <div className="grid grid-cols-5 items-center h-16 max-w-lg mx-auto px-1">
           {LEFT_ITEMS.map((item) => (
             <DockNavLink
               key={item.key}
               item={item}
-              active={isCampoRouteActive(pathname, item.href)}
+              isActive={isCampoRouteActive(pathname, item.href)}
               onTap={handleTap}
             />
           ))}
 
-          {/* Botão Central de Novo Apontamento */}
-          <div className="flex items-center justify-center">
-            <button
-              type="button"
-              onClick={() => {
-                handleTap();
-                setQuickSheetOpen(true);
-              }}
-              aria-label="Registrar nova atividade de campo"
-              className="flex size-11 flex-col items-center justify-center rounded-sm border border-primary bg-primary text-primary-foreground shadow-md transition-transform active:scale-90"
-            >
-              <Plus className="size-5 stroke-[2.25]" />
-              <span className="text-[9px] font-bold uppercase tracking-wider leading-none mt-0.5">
-                Novo
-              </span>
-            </button>
-          </div>
+          {/* Aba central de Novo Registro (mesmo padrão de aba do dock do Agro) */}
+          <button
+            type="button"
+            onClick={() => {
+              handleTap();
+              setQuickSheetOpen(true);
+            }}
+            aria-label="Registrar nova atividade de campo"
+            className="relative flex flex-col items-center justify-center h-full min-h-[48px] rounded-sm transition-all text-[11px] font-semibold text-primary active:scale-95"
+          >
+            <div className="px-3 py-1 rounded-full bg-primary text-primary-foreground shadow-2xs flex items-center justify-center">
+              <Plus className="w-4 h-4" />
+            </div>
+            <span className="leading-tight mt-0.5 truncate max-w-[68px]">Novo</span>
+          </button>
 
           {RIGHT_ITEMS.map((item) => (
             <DockNavLink
               key={item.key}
               item={item}
-              active={isCampoRouteActive(pathname, item.href)}
+              isActive={isCampoRouteActive(pathname, item.href)}
               badge={item.key === "sync" ? syncBadge : undefined}
               isSyncing={item.key === "sync" && status === "syncing"}
               onTap={handleTap}
@@ -154,7 +155,7 @@ export function CampoBottomNav() {
         <div className="flex flex-col gap-3 p-4">
           {hasAgricola && (
             <div>
-              <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+              <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                 Módulo Agrícola
               </p>
               <div className="grid grid-cols-2 gap-2">
@@ -162,6 +163,7 @@ export function CampoBottomNav() {
                   label="Caderno de Campo"
                   sublabel="Ocorrência / Foto"
                   icon={BookText}
+                  tone="emerald"
                   onClick={() => {
                     setQuickSheetOpen(false);
                     router.push("/caderno");
@@ -171,6 +173,7 @@ export function CampoBottomNav() {
                   label="Aplicação"
                   sublabel="Defensivo / Insumo"
                   icon={Sprout}
+                  tone="emerald"
                   onClick={() => {
                     setQuickSheetOpen(false);
                     router.push("/campo/aplicacao");
@@ -180,6 +183,7 @@ export function CampoBottomNav() {
                   label="Colheita"
                   sublabel="Cargas e umidade"
                   icon={Wheat}
+                  tone="amber"
                   onClick={() => {
                     setQuickSheetOpen(false);
                     router.push("/campo/colheita");
@@ -189,6 +193,7 @@ export function CampoBottomNav() {
                   label="Entrega de EPI"
                   sublabel="Comprovante"
                   icon={ShieldHalf}
+                  tone="blue"
                   onClick={() => {
                     setQuickSheetOpen(false);
                     router.push("/campo/epi");
@@ -200,7 +205,7 @@ export function CampoBottomNav() {
 
           {hasPecuaria && (
             <div>
-              <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+              <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
                 Módulo Pecuária
               </p>
               <div className="grid grid-cols-2 gap-2">
@@ -208,6 +213,7 @@ export function CampoBottomNav() {
                   label="Pesagem"
                   sublabel="Animal ou lote"
                   icon={Scale}
+                  tone="amber"
                   onClick={() => {
                     setQuickSheetOpen(false);
                     router.push("/campo/pesagem");
@@ -217,6 +223,7 @@ export function CampoBottomNav() {
                   label="Vacinação"
                   sublabel="Manejo sanitário"
                   icon={Syringe}
+                  tone="blue"
                   onClick={() => {
                     setQuickSheetOpen(false);
                     router.push("/campo/vacinacao");
@@ -226,6 +233,7 @@ export function CampoBottomNav() {
                   label="Reprodução"
                   sublabel="Cobertura / Parto"
                   icon={Dna}
+                  tone="purple"
                   onClick={() => {
                     setQuickSheetOpen(false);
                     router.push("/campo/reproducao/cobertura");
@@ -242,13 +250,13 @@ export function CampoBottomNav() {
 
 function DockNavLink({
   item,
-  active,
+  isActive,
   badge,
   isSyncing,
   onTap,
 }: {
   item: NavItem;
-  active: boolean;
+  isActive: boolean;
   badge?: string;
   isSyncing?: boolean;
   onTap: () => void;
@@ -259,30 +267,35 @@ function DockNavLink({
     <Link
       href={item.href}
       onClick={onTap}
-      aria-current={active ? "page" : undefined}
+      aria-current={isActive ? "page" : undefined}
       className={cn(
-        "relative flex h-12 flex-col items-center justify-center gap-1 rounded-sm px-1 text-center transition-all duration-150 active:scale-95",
-        active
-          ? "bg-primary/12 text-primary font-semibold"
+        "relative flex flex-col items-center justify-center h-full min-h-[48px] rounded-sm transition-all text-[11px] font-medium active:scale-95",
+        isActive
+          ? "text-primary font-semibold"
           : "text-muted-foreground hover:text-foreground"
       )}
     >
-      <span
+      {isActive && (
+        <span
+          className="absolute top-0 left-1/2 -translate-x-1/2 w-7 h-0.5 rounded-full bg-primary"
+          aria-hidden="true"
+        />
+      )}
+
+      <div
         className={cn(
-          "absolute top-0.5 h-0.5 w-6 rounded-full transition-all",
-          active ? "bg-primary" : "bg-transparent"
+          "px-3 py-1 rounded-full transition-colors flex items-center justify-center",
+          isActive ? "bg-primary/15 text-primary" : "text-current"
         )}
-      />
-      <Icon
-        className={cn(
-          "size-4.5 transition-transform",
-          active && "scale-105",
-          isSyncing && "animate-spin"
-        )}
-      />
-      <span className="max-w-full truncate text-[10px] leading-none">{item.label}</span>
+      >
+        <Icon className={cn("w-4 h-4", isSyncing && "animate-spin")} />
+      </div>
+      <span className="leading-tight mt-0.5 truncate max-w-[68px]">
+        {item.label}
+      </span>
+
       {badge && (
-        <span className="absolute right-1.5 top-1 inline-flex min-w-[16px] items-center justify-center rounded-sm bg-amber-500 px-1 py-0.2 text-[9px] font-bold leading-tight text-white">
+        <span className="absolute right-2 top-1.5 inline-flex min-w-[15px] items-center justify-center rounded-sm bg-amber-500 px-1 py-0.2 text-[9px] font-bold leading-tight text-white">
           {badge}
         </span>
       )}
@@ -294,24 +307,33 @@ function QuickLaunchButton({
   label,
   sublabel,
   icon: Icon,
+  tone,
   onClick,
 }: {
   label: string;
   sublabel: string;
   icon: LucideIcon;
+  tone: "emerald" | "amber" | "blue" | "purple";
   onClick: () => void;
 }) {
+  const toneClass = {
+    emerald: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
+    amber: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+    blue: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
+    purple: "bg-purple-500/10 text-purple-600 dark:text-purple-400",
+  }[tone];
+
   return (
     <button
       type="button"
       onClick={onClick}
-      className="flex items-center gap-2.5 rounded-sm border border-border bg-card p-3 text-left shadow-2xs transition-all hover:bg-muted/70 active:scale-95"
+      className="flex items-center gap-2.5 rounded-sm border border-border bg-card p-3 text-left shadow-xs transition-all hover:border-primary/50 active:scale-95"
     >
-      <span className="flex size-9 shrink-0 items-center justify-center rounded-sm bg-primary/10 text-primary">
-        <Icon className="size-4.5" />
-      </span>
+      <div className={cn("p-2 rounded-sm shrink-0", toneClass)}>
+        <Icon className="w-4 h-4" />
+      </div>
       <span className="min-w-0">
-        <span className="block truncate text-xs font-bold text-foreground">{label}</span>
+        <span className="block truncate text-xs font-semibold text-foreground">{label}</span>
         <span className="block truncate text-[10px] text-muted-foreground">{sublabel}</span>
       </span>
     </button>

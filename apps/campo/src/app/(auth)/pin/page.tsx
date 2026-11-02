@@ -1,20 +1,13 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useSessionStore } from "@/lib/stores/session-store";
+import { Delete, Loader2, LogOut, ShieldCheck } from "lucide-react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { useCachedCampoImage } from "@/lib/campo-assets";
-import {
-  Delete,
-  Lock,
-  LogOut,
-  Radio,
-  ShieldCheck,
-  User,
-  Sparkles,
-  Loader2,
-} from "lucide-react";
+import { useDeviceContext } from "@/lib/device/use-device-context";
+import { useSessionStore } from "@/lib/stores/session-store";
 
 const PIN_LENGTH = 6;
 
@@ -41,10 +34,11 @@ const KEYPAD_KEYS: Array<KeypadConfig | null> = [
 export default function PinPage() {
   const router = useRouter();
   const { loginWithPIN, session, loadSession, validateDeviceSession } = useSessionStore();
+  const { layoutProfile } = useDeviceContext();
   const cachedAvatarSrc = useCachedCampoImage(
     "user_avatar",
     session?.user_id,
-    session?.user_avatar_url,
+    session?.user_avatar_url
   );
   const [digits, setDigits] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -52,17 +46,17 @@ export default function PinPage() {
   const pinInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
-    loadSession().then(() => {
+    void loadSession().then(() => {
       const s = useSessionStore.getState().session;
       if (!s) {
         router.replace("/activate?reason=device_invalid");
         return;
       }
-      validateDeviceSession().then((valid) => {
+      void validateDeviceSession().then((valid) => {
         if (!valid) router.replace("/activate?reason=device_revoked");
       });
     });
-  }, []);
+  }, [loadSession, router, validateDeviceSession]);
 
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
@@ -121,89 +115,86 @@ export default function PinPage() {
   const userInitial = (session?.user_name ?? "O").trim().charAt(0).toUpperCase();
 
   return (
-    <main className="relative flex min-h-dvh w-full items-center justify-center bg-gradient-to-b from-stone-900 via-stone-950 to-black p-0 sm:p-4 md:p-6 overflow-x-hidden selection:bg-emerald-500/30">
-      {/* Mobile Frame Container */}
-      <div className="relative flex h-dvh w-full flex-col justify-between overflow-y-auto xl:h-[840px] xl:max-h-[94vh] xl:max-w-[420px] xl:rounded-[36px] xl:border xl:border-white/10 xl:shadow-[0_25px_60px_-15px_rgba(0,0,0,0.85)] bg-background">
-        {/* Ambient Agtech Background with subtle glow */}
-        <div className="pointer-events-none absolute inset-0 overflow-hidden">
-          <img
-            src="/images/login-bg.png"
-            alt=""
-            aria-hidden="true"
-            className="h-full w-full object-cover object-center opacity-30 select-none dark:opacity-20 transition-opacity"
-          />
-          <div className="absolute inset-0 bg-gradient-to-b from-emerald-950/60 via-background/85 to-background dark:from-emerald-950/80 dark:via-background/90 dark:to-background" />
-          <div className="absolute -top-24 left-1/2 -translate-x-1/2 h-72 w-72 rounded-full bg-emerald-500/15 blur-3xl" />
-        </div>
+    <div
+      data-device-category={layoutProfile.deviceCategory}
+      data-execution-mode={layoutProfile.executionMode}
+      className="min-h-dvh flex flex-col bg-background text-foreground safe-area-px"
+    >
+      <input
+        ref={pinInputRef}
+        type="password"
+        inputMode="numeric"
+        pattern="[0-9]*"
+        autoComplete="current-password"
+        enterKeyHint="done"
+        value={digits.join("")}
+        onChange={(e) => void handlePinInputChange(e.target.value)}
+        className="pointer-events-none absolute left-0 top-0 h-px w-px opacity-0"
+        aria-label="PIN do dispositivo"
+      />
 
-        {/* Hidden input for software keyboards if needed */}
-        <input
-          ref={pinInputRef}
-          type="password"
-          inputMode="numeric"
-          pattern="[0-9]*"
-          autoComplete="current-password"
-          enterKeyHint="done"
-          value={digits.join("")}
-          onChange={(e) => void handlePinInputChange(e.target.value)}
-          className="pointer-events-none absolute left-0 top-0 h-px w-px opacity-0"
-          aria-label="PIN do dispositivo"
-        />
-
-        {/* ── Top Mobile Status Bar ── */}
-        <header
-          className="relative z-10 flex items-center justify-between px-5 pt-4 sm:px-6 sm:pt-5"
-          style={{ paddingTop: "max(1rem, env(safe-area-inset-top))" }}
-        >
-          <div className="flex items-center gap-2.5">
-            <div className="flex size-9 items-center justify-center rounded-xl bg-card/80 p-1.5 shadow-md border border-border/70 backdrop-blur-md">
-              <img
+      {/* Top App Bar Unificado (mesmo padrão visual do Agro) */}
+      <header className="sticky top-0 z-40 w-full border-b border-border/80 bg-background/95 backdrop-blur-md supports-[backdrop-filter]:bg-background/85 safe-area-pt select-none">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 h-14 flex items-center justify-between gap-2 sm:gap-4">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="relative w-7 h-7 shrink-0 rounded-sm bg-primary/10 p-0.5">
+              <Image
                 src="/logos/deepfarms-mark.svg"
-                alt="DeepFarms"
-                className="size-full object-contain"
+                alt="DeepFarms Campo"
+                width={28}
+                height={28}
+                priority
+                className="w-full h-full object-contain"
               />
             </div>
-            <div>
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs font-bold tracking-tight text-foreground">DeepFarms</span>
-                <span className="rounded-full bg-emerald-600/15 px-1.5 py-0.2 text-[9px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
+            <div className="flex flex-col min-w-0">
+              <div className="flex items-center gap-1.5 leading-none">
+                <span className="font-bold tracking-tight text-foreground text-sm truncate">
+                  DeepFarms
+                </span>
+                <span className="text-primary font-bold text-xs px-1.5 py-0.5 rounded-sm bg-primary/10">
                   Campo
                 </span>
               </div>
+              <span className="text-[10px] text-muted-foreground hidden sm:inline truncate">
+                Desbloqueio por PIN Operacional
+              </span>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
-            <div className="inline-flex items-center gap-1.5 rounded-full border border-emerald-600/20 bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-800 dark:text-emerald-300 backdrop-blur-md">
+            <span className="inline-flex items-center gap-1.5 rounded-sm border border-emerald-500/30 bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-400">
               <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
               <span>Conectado</span>
-            </div>
+            </span>
             <ThemeToggle />
           </div>
-        </header>
+        </div>
+      </header>
 
-        {/* ── Center Content: Avatar & PIN Indicators ── */}
-        <div className="relative z-10 flex flex-1 flex-col items-center justify-center px-6 py-2 md:py-10 max-w-xl mx-auto w-full">
-          {/* Operator Avatar */}
-          <div className="relative mb-3 flex flex-col items-center">
-            <div className="relative flex size-18 items-center justify-center rounded-full bg-gradient-to-br from-emerald-600 to-emerald-800 p-0.5 shadow-xl ring-4 ring-emerald-500/15">
+      {/* Conteúdo Central */}
+      <main className="flex-1 flex flex-col items-center justify-center w-full max-w-md mx-auto px-4 py-6">
+        <div className="w-full rounded-sm border border-border bg-card p-5 shadow-2xs flex flex-col items-center">
+          {/* Avatar do Operador */}
+          <div className="relative mb-2 flex flex-col items-center">
+            <div className="relative flex size-16 items-center justify-center rounded-sm bg-primary/10 text-primary p-0.5 border border-primary/20">
               {cachedAvatarSrc ?? session?.user_avatar_url ? (
                 <img
                   src={cachedAvatarSrc ?? session?.user_avatar_url ?? undefined}
                   alt={session?.user_name ?? "Operador"}
-                  className="size-full rounded-full object-cover"
+                  className="size-full rounded-sm object-cover"
                 />
               ) : (
-                <div className="flex size-full items-center justify-center rounded-full bg-emerald-700 font-bold text-2xl text-white">
+                <div className="flex size-full items-center justify-center rounded-sm bg-primary font-bold text-xl text-primary-foreground">
                   {userInitial}
                 </div>
               )}
-              <span className="absolute bottom-0 right-0 flex size-5 items-center justify-center rounded-full border-2 border-background bg-emerald-500 text-white">
+              <span className="absolute -bottom-1 -right-1 flex size-5 items-center justify-center rounded-sm border border-background bg-primary text-primary-foreground">
                 <ShieldCheck className="size-3" />
               </span>
             </div>
 
-            <h1 className="mt-2 text-xl font-bold tracking-tight text-foreground">
+            <h1 className="mt-2.5 text-base sm:text-lg font-bold tracking-tight text-foreground">
               {session?.user_name?.split(" ")[0] ?? "Operador"}
             </h1>
             <p className="text-xs text-muted-foreground">
@@ -211,9 +202,9 @@ export default function PinPage() {
             </p>
           </div>
 
-          {/* 6-Dot PIN Indicator */}
+          {/* Indicador de 6 dígitos */}
           <div
-            className="my-3 flex items-center justify-center gap-4 cursor-pointer"
+            className="my-3 flex items-center justify-center gap-3.5 cursor-pointer"
             onClick={() => pinInputRef.current?.focus()}
           >
             {Array.from({ length: PIN_LENGTH }).map((_, i) => {
@@ -221,27 +212,26 @@ export default function PinPage() {
               return (
                 <div
                   key={i}
-                  className={`size-3.5 rounded-full transition-all duration-200 ${
+                  className={`size-3 rounded-full transition-all duration-200 ${
                     error
-                      ? "border-2 border-rose-500 bg-rose-500/30 scale-110"
+                      ? "border-2 border-destructive bg-destructive/30 scale-110"
                       : isFilled
-                        ? "border-2 border-emerald-600 bg-emerald-600 scale-120 shadow-md shadow-emerald-600/40"
-                        : "border-2 border-border bg-card/60"
+                        ? "border-2 border-primary bg-primary scale-110"
+                        : "border-2 border-border bg-muted"
                   }`}
                 />
               );
             })}
           </div>
 
-          {/* Error Message */}
           {error ? (
-            <p className="mt-1 h-5 text-center text-xs font-semibold text-rose-500 animate-in fade-in slide-in-from-top-1">
+            <p className="h-5 text-center text-xs font-semibold text-destructive">
               {error}
             </p>
           ) : (
-            <div className="mt-1 h-5 flex items-center justify-center gap-1 text-[11px] text-muted-foreground/75">
+            <div className="h-5 flex items-center justify-center gap-1 text-[11px] text-muted-foreground">
               {loading ? (
-                <span className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-medium">
+                <span className="flex items-center gap-1.5 text-primary font-medium">
                   <Loader2 className="size-3 animate-spin" /> Verificando PIN...
                 </span>
               ) : (
@@ -250,35 +240,31 @@ export default function PinPage() {
             </div>
           )}
 
-          {/* ── Native-Style Numeric Keypad ── */}
-          <div className="mt-4 grid w-full max-w-[320px] grid-cols-3 gap-x-5 gap-y-3 justify-items-center md:gap-y-6 md:gap-x-8 xl:gap-y-3 xl:gap-x-5 xl:max-w-[280px]">
+          {/* Teclado Numérico no padrão rounded-sm do Agro */}
+          <div className="mt-4 grid w-full max-w-[280px] grid-cols-3 gap-2.5 justify-items-center">
             {KEYPAD_KEYS.map((item, idx) => {
-              if (!item) return <div key={idx} className="size-16" />;
+              if (!item) return <div key={idx} className="h-13 w-full" />;
               const isDelete = item.digit === "⌫";
 
               return (
                 <button
                   key={idx}
                   type="button"
-                  onClick={() => (isDelete ? handleDelete() : handleDigit(item.digit))}
+                  onClick={() => (isDelete ? handleDelete() : void handleDigit(item.digit))}
                   disabled={loading}
-                  className={`
-                    relative flex size-16 flex-col items-center justify-center rounded-full transition-all active:scale-90 select-none
-                    ${
-                      isDelete
-                        ? "text-muted-foreground hover:text-foreground active:bg-muted/50"
-                        : "border border-border/80 bg-card/85 text-foreground shadow-sm hover:border-emerald-600/40 active:bg-emerald-600/15"
-                    }
-                    disabled:opacity-40
-                  `}
+                  className={`flex h-13 w-full flex-col items-center justify-center rounded-sm border transition-all active:scale-95 select-none disabled:opacity-40 ${
+                    isDelete
+                      ? "border-transparent bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
+                      : "border-border bg-background text-foreground shadow-2xs hover:border-primary/50 hover:bg-accent"
+                  }`}
                 >
                   {isDelete ? (
-                    <Delete className="size-6 text-muted-foreground" strokeWidth={1.5} />
+                    <Delete className="size-5 text-muted-foreground" strokeWidth={1.75} />
                   ) : (
                     <>
-                      <span className="text-2xl font-semibold leading-none">{item.digit}</span>
+                      <span className="text-lg font-bold leading-none">{item.digit}</span>
                       {item.sub && (
-                        <span className="mt-0.5 text-[9px] font-bold tracking-widest text-muted-foreground uppercase leading-none">
+                        <span className="mt-0.5 text-[8px] font-semibold tracking-widest text-muted-foreground uppercase leading-none">
                           {item.sub}
                         </span>
                       )}
@@ -289,22 +275,18 @@ export default function PinPage() {
             })}
           </div>
         </div>
+      </main>
 
-        {/* ── Mobile Footer: Trocar Usuário / Reativar ── */}
-        <footer
-          className="relative z-10 flex flex-col items-center gap-2 px-5 pb-4 pt-1 sm:px-6"
-          style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
+      <footer className="border-t border-border/60 bg-muted/20 py-3 px-4 flex justify-center safe-area-pb">
+        <button
+          type="button"
+          onClick={() => router.push("/activate")}
+          className="inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground active:scale-95"
         >
-          <button
-            type="button"
-            onClick={() => router.push("/activate")}
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground transition-colors hover:text-foreground active:scale-95"
-          >
-            <LogOut className="size-3.5" />
-            <span>Trocar operador ou reativar</span>
-          </button>
-        </footer>
-      </div>
-    </main>
+          <LogOut className="size-3.5 text-primary" />
+          <span>Trocar operador ou reativar dispositivo</span>
+        </button>
+      </footer>
+    </div>
   );
 }

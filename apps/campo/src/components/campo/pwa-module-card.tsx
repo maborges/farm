@@ -1,7 +1,7 @@
 "use client";
 
 import type { CSSProperties } from "react";
-import { type LucideIcon } from "lucide-react";
+import { ArrowRight, type LucideIcon } from "lucide-react";
 import { formatInt } from "@/lib/format";
 
 type ModuleColor = "agro" | "pecuaria";
@@ -18,41 +18,12 @@ interface PwaModuleCardProps {
   animDelay?: string;
 }
 
-const COLOR_MAP: Record<
-  ModuleColor,
-  {
-    border: string;
-    bg: string;
-    iconBg: string;
-    iconColor: string;
-    badgeBg: string;
-    badgeText: string;
-    urgentBg: string;
-    urgentText: string;
-    pulse: string;
-  }
-> = {
+const COLOR_MAP: Record<ModuleColor, { iconBox: string }> = {
   agro: {
-    border: "border-[var(--campo-pwa-agro-light)] dark:border-[var(--campo-pwa-agro-mid)]",
-    bg: "bg-[var(--campo-pwa-agro-bg)] dark:bg-[var(--campo-pwa-agro-bg)]",
-    iconBg: "bg-[var(--campo-pwa-agro-light)] dark:bg-[var(--campo-pwa-agro-light)]",
-    iconColor: "text-[var(--campo-pwa-agro-dark-text)] dark:text-[var(--campo-pwa-agro)]",
-    badgeBg: "bg-[var(--campo-pwa-agro-light)] dark:bg-[var(--campo-pwa-agro-light)]",
-    badgeText: "text-[var(--campo-pwa-agro-dark-text)] dark:text-[var(--campo-pwa-agro)]",
-    urgentBg: "bg-rose-100 dark:bg-rose-950/40",
-    urgentText: "text-rose-700 dark:text-rose-300",
-    pulse: "bg-[var(--campo-pwa-agro)]",
+    iconBox: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
   },
   pecuaria: {
-    border: "border-[var(--campo-pwa-pecuaria-light)] dark:border-[var(--campo-pwa-pecuaria-mid)]",
-    bg: "bg-[var(--campo-pwa-pecuaria-bg)] dark:bg-[var(--campo-pwa-pecuaria-bg)]",
-    iconBg: "bg-[var(--campo-pwa-pecuaria-light)] dark:bg-[var(--campo-pwa-pecuaria-light)]",
-    iconColor: "text-[var(--campo-pwa-pecuaria-dark-text)] dark:text-[var(--campo-pwa-pecuaria)]",
-    badgeBg: "bg-[var(--campo-pwa-pecuaria-light)] dark:bg-[var(--campo-pwa-pecuaria-light)]",
-    badgeText: "text-[var(--campo-pwa-pecuaria-dark-text)] dark:text-[var(--campo-pwa-pecuaria)]",
-    urgentBg: "bg-rose-100 dark:bg-rose-950/40",
-    urgentText: "text-rose-700 dark:text-rose-300",
-    pulse: "bg-[var(--campo-pwa-pecuaria)]",
+    iconBox: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
   },
 };
 
@@ -75,72 +46,34 @@ export function PwaModuleCard({
       onClick={onClick}
       disabled={disabled}
       style={{ "--campo-pwa-delay": animDelay } as CSSProperties}
-      className={[
-        "campo-pwa-card-stagger",
-        "relative flex w-full flex-col rounded-sm border p-4 text-left shadow-xs",
-        "transition-all duration-150 ease-out",
-        "active:scale-[0.97] active:shadow-none",
-        "hover-lift",
-        "disabled:pointer-events-none disabled:opacity-40",
-        c.border,
-        c.bg,
-      ].join(" ")}
+      className="group campo-pwa-card-stagger flex h-full w-full flex-col justify-between rounded-sm border border-border bg-card text-card-foreground text-left shadow-2xs transition-all hover:border-primary/50 hover:shadow-xs active:scale-[0.99] disabled:pointer-events-none disabled:opacity-40"
     >
-      {/* Dot de status ativo */}
-      <span
-        className={[
-          "campo-pwa-pulse-dot absolute right-3.5 top-3.5 size-2 rounded-full",
-          taskCount > 0 ? c.pulse : "bg-muted-foreground/30",
-        ].join(" ")}
-      />
+      {/* Topo no mesmo padrão visual do CardHeader do Agro */}
+      <div className="flex w-full flex-row items-start justify-between p-3.5 pb-2 sm:p-5 sm:pb-2">
+        <div className={["p-2.5 rounded-sm", c.iconBox].join(" ")}>
+          <Icon className="w-5 h-5" />
+        </div>
 
-      {/* Ícone */}
-      <span
-        className={[
-          "flex size-11 items-center justify-center rounded-sm",
-          c.iconBg,
-          c.iconColor,
-        ].join(" ")}
-      >
-        <Icon className="size-6" strokeWidth={1.85} />
-      </span>
-
-      {/* Título e subtítulo */}
-      <p className="mt-3 text-sm sm:text-base font-bold tracking-tight text-foreground">
-        {label}
-      </p>
-      <p className="mt-0.5 text-[11px] text-muted-foreground">{sublabel}</p>
-
-      {/* Badges de contagem */}
-      <div className="mt-3 flex flex-wrap gap-1.5">
-        <span
-          className={[
-            "inline-flex items-center gap-1 rounded-sm px-2 py-0.5 text-[10px] font-semibold",
-            c.badgeBg,
-            c.badgeText,
-          ].join(" ")}
-        >
-          {formatInt(taskCount)} tarefa{taskCount !== 1 ? "s" : ""}
-        </span>
-
-        {urgentCount > 0 && (
-          <span
-            className={[
-              "inline-flex items-center gap-1 rounded-sm px-2 py-0.5 text-[10px] font-semibold",
-              c.urgentBg,
-              c.urgentText,
-            ].join(" ")}
-          >
-            {formatInt(urgentCount)} urgente{urgentCount !== 1 ? "s" : ""}
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="inline-flex items-center rounded-sm border border-border px-2 py-0.5 text-[10px] font-semibold text-foreground">
+            {formatInt(taskCount)} tarefa{taskCount !== 1 ? "s" : ""}
           </span>
-        )}
+
+          {urgentCount > 0 && (
+            <span className="inline-flex items-center rounded-sm border border-rose-500/30 bg-rose-500/15 px-2 py-0.5 text-[10px] font-semibold text-rose-700 dark:text-rose-400">
+              {formatInt(urgentCount)} urgente{urgentCount !== 1 ? "s" : ""}
+            </span>
+          )}
+        </div>
       </div>
 
-      {/* Seta de acesso */}
-      <div className="mt-3 flex items-center justify-end">
-        <span className={["text-[11px] font-semibold", c.badgeText].join(" ")}>
-          Acessar →
-        </span>
+      {/* Conteúdo no mesmo padrão visual do CardContent do Agro */}
+      <div className="flex w-full flex-col gap-1 p-3.5 pt-0 sm:p-5 sm:pt-0">
+        <div className="flex items-center justify-between text-base font-semibold leading-none tracking-tight text-foreground">
+          <span>{label}</span>
+          <ArrowRight className="w-4 h-4 text-muted-foreground group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
+        </div>
+        <p className="text-xs text-muted-foreground leading-relaxed">{sublabel}</p>
       </div>
     </button>
   );
