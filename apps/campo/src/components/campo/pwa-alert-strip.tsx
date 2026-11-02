@@ -45,7 +45,7 @@ export function PwaAlertStrip({ items, onTap }: PwaAlertStripProps) {
 
   const sharedClassName = (s: { bg: string; text: string; border: string }) =>
     [
-      "flex w-full items-center gap-2.5 rounded-xl border px-3.5 py-2.5 text-left",
+      "flex w-full items-center gap-2.5 rounded-sm border px-3.5 py-2.5 text-left",
       "transition-all duration-150 active:scale-[0.99]",
       s.bg,
       s.text,

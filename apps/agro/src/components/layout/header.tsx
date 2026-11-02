@@ -23,6 +23,19 @@ export function Header(): React.ReactElement {
   const ActiveIcon = activeNav.icon;
   const isSubpage = pathname !== "/";
   const topNavItems = AGRO_NAV_ITEMS.filter((item) => item.showInTopNav);
+  const locationLabel = localidade
+    ? localidade.tipoOrigem === "GPS"
+      ? "GPS Ativo"
+      : `${localidade.nome}${localidade.uf ? `/${localidade.uf}` : ""}`
+    : "";
+  const locationClassName =
+    "inline-flex items-center gap-1 px-2 py-1 rounded-sm bg-primary/10 text-primary text-[11px] font-medium max-w-[130px] sm:max-w-[180px]";
+  const locationContent = (
+    <>
+      <MapPin className="w-3 h-3 shrink-0" />
+      <span className="truncate">{locationLabel}</span>
+    </>
+  );
 
   return (
     <>
@@ -133,20 +146,24 @@ export function Header(): React.ReactElement {
           {/* Controles Direitos: Localidade Ativa, Indicador de Dispositivo, Conta e Tema */}
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             {/* Atalho rápido de município ativo na App Bar */}
-            {isLoaded && localidade && pathname !== "/clima" && (
-              <Link
-                href="/clima"
-                title="Ver clima da localidade selecionada"
-                className="inline-flex items-center gap-1 px-2 py-1 rounded-sm bg-primary/10 text-primary hover:bg-primary/15 text-[11px] font-medium transition-colors max-w-[130px] sm:max-w-[180px]"
-              >
-                <MapPin className="w-3 h-3 shrink-0" />
-                <span className="truncate">
-                  {localidade.tipoOrigem === "GPS"
-                    ? "GPS Ativo"
-                    : `${localidade.nome}${localidade.uf ? `/${localidade.uf}` : ""}`}
+            {isLoaded && localidade &&
+              (pathname === "/clima" ? (
+                <span
+                  title="Localidade selecionada"
+                  aria-label={`Localidade selecionada: ${locationLabel}`}
+                  className={locationClassName}
+                >
+                  {locationContent}
                 </span>
-              </Link>
-            )}
+              ) : (
+                <Link
+                  href="/clima"
+                  title="Ver clima da localidade selecionada"
+                  className={`${locationClassName} hover:bg-primary/15 transition-colors`}
+                >
+                  {locationContent}
+                </Link>
+              ))}
 
             {/* Indicador Adaptativo de Ambiente (Mobile / Tablet / Standalone) */}
             <Badge

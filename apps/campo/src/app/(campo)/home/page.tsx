@@ -1,19 +1,33 @@
 "use client";
 
-import { useLiveQuery } from "dexie-react-hooks";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
-import { Sprout, Beef, CloudSun } from "lucide-react";
-import { db } from "@/lib/db";
-import { consumeSessionClearNotice, useSessionStore, type SessionClearNotice } from "@/lib/stores/session-store";
-import { useSyncStore } from "@/lib/stores/sync-store";
-import { CampoSessionClearNotice } from "@/components/campo/session-clear-notice";
-import { PwaModuleCard } from "@/components/campo/pwa-module-card";
+import { useLiveQuery } from "dexie-react-hooks";
+import {
+  Beef,
+  BookText,
+  ClipboardList,
+  CloudSun,
+  RefreshCw,
+  Sparkles,
+  Sprout,
+} from "lucide-react";
 import { PwaAlertStrip } from "@/components/campo/pwa-alert-strip";
+import { PwaModuleCard } from "@/components/campo/pwa-module-card";
 import { PwaProgressRing } from "@/components/campo/pwa-progress-ring";
-import { resolveTaskDomain } from "@/lib/task-domain";
+import { PwaQuickAction } from "@/components/campo/pwa-quick-action";
+import { CampoSessionClearNotice } from "@/components/campo/session-clear-notice";
 import { CampoButton } from "@/components/campo/ui";
+import { db } from "@/lib/db";
+import { useDeviceContext } from "@/lib/device/use-device-context";
 import { formatInt } from "@/lib/format";
+import {
+  consumeSessionClearNotice,
+  useSessionStore,
+  type SessionClearNotice,
+} from "@/lib/stores/session-store";
+import { useSyncStore } from "@/lib/stores/sync-store";
+import { resolveTaskDomain } from "@/lib/task-domain";
 
 function resolveGreeting(): string {
   const hour = new Date().getHours();
@@ -34,6 +48,7 @@ export default function HomePage() {
   const router = useRouter();
   const { session } = useSessionStore();
   const { pendingCount } = useSyncStore();
+  const { layoutProfile } = useDeviceContext();
   const [clearNotice, setClearNotice] = useState<SessionClearNotice | null>(null);
 
   useEffect(() => {
@@ -43,7 +58,7 @@ export default function HomePage() {
   const hoje = new Date().toISOString().slice(0, 10);
   const greeting = resolveGreeting();
   const shortDate = formatShortDate();
-  const firstName = (session?.user_name ?? "").split(" ")[0] ?? "Operador";
+  const firstName = (session?.user_name ?? "").split(" ")[0] || "Operador";
 
   const fazendas = useLiveQuery(async () => {
     const ids = session?.fazenda_ids ?? [];
@@ -57,7 +72,10 @@ export default function HomePage() {
     [fazendas, session?.active_fazenda_id]
   );
 
-  const recomendacoesOperacionais = useLiveQuery(() => db.recomendacoes_operacionais.toArray(), []);
+  const recomendacoesOperacionais = useLiveQuery(
+    () => db.recomendacoes_operacionais.toArray(),
+    []
+  );
 
   const tarefasPendentes = useLiveQuery(
     () =>
@@ -112,7 +130,12 @@ export default function HomePage() {
   );
 
   const urgentRecomendacoes = useMemo(
-    () => (recomendacoesOperacionais ?? []).filter((r) => r.priority === "URGENT" && ["CREATED", "VIEWED", "REOPENED"].includes(r.status)),
+    () =>
+      (recomendacoesOperacionais ?? []).filter(
+        (r) =>
+          r.priority === "URGENT" &&
+          ["CREATED", "VIEWED", "REOPENED"].includes(r.status)
+      ),
     [recomendacoesOperacionais]
   );
 
@@ -120,7 +143,6 @@ export default function HomePage() {
     (tarefasPendentes?.length ?? 0) + (tarefasConcluidas?.length ?? 0);
   const doneCount = tarefasConcluidas?.length ?? 0;
 
-  // Alertas para exibição
   const alertItems = useMemo(() => {
     const items: { id: string; label: string; severity: "urgent" | "warning" | "info" }[] = [];
     if (atrasadas.length > 0) {
@@ -148,75 +170,134 @@ export default function HomePage() {
   }, [atrasadas.length, urgentRecomendacoes.length, pendingCount]);
 
   return (
-    <div className="flex flex-col gap-5 pb-32">
+    <div
+      data-device-category={layoutProfile.deviceCategory}
+      className="flex flex-col gap-4 pb-8"
+    >
       {clearNotice && <CampoSessionClearNotice notice={clearNotice} />}
 
-      {/* ── Cabeçalho de boas-vindas ── */}
+      {/* ── Cabeçalho Operacional Adaptativo ── */}
       <div
-        className="campo-pwa-card-stagger rounded-2xl glass-surface px-5 py-5"
-        style={{ "--campo-pwa-delay": "0ms" } as React.CSSProperties}
+        className="campo-pwa-card-stagger rounded-sm border border-border bg-card/90 px-4 py-3.5 shadow-xs backdrop-blur-xs sm:px-5 sm:py-4"
+        style={{ "--campo-pwa-delay": "0ms" } as CSSProperties}
       >
-        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-          {shortDate}
-        </p>
-        <h1 className="mt-1 text-xl font-bold tracking-tight text-foreground">
-          {greeting}, {firstName}
-        </h1>
-        {activeFazendaNome && (
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            Unidade ativa:{" "}
-            <span className="font-semibold text-foreground">{activeFazendaNome}</span>
-          </p>
-        )}
-        <p className="mt-1.5 text-xs text-muted-foreground">
-          O que você vai fazer hoje?
-        </p>
-      </div>
-
-      {/* ── Cards de módulo ── */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        {hasAgricola && (
-          <PwaModuleCard
-            label="Agricultura"
-            sublabel="Caderno, aplicações, colheita e EPI"
-            icon={Sprout}
-            taskCount={pendingByDomain.AGRICULTURA}
-            urgentCount={urgentByDomain.AGRICULTURA}
-            color="agro"
-            animDelay="60ms"
-            onClick={() => router.push("/agricultura")}
-          />
-        )}
-        {hasPecuaria && (
-          <PwaModuleCard
-            label="Pecuária"
-            sublabel="Pesagem, vacinação e reprodução"
-            icon={Beef}
-            taskCount={pendingByDomain.PECUARIA}
-            urgentCount={urgentByDomain.PECUARIA}
-            color="pecuaria"
-            animDelay="160ms"
-            onClick={() => router.push("/pecuaria")}
-          />
-        )}
-        {!hasAgricola && !hasPecuaria && (
-          <div className="flex min-h-[120px] flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-muted/30 p-6 text-center">
-            <CloudSun className="size-8 text-muted-foreground" strokeWidth={1.5} />
-            <p className="mt-3 text-sm font-medium text-foreground">Nenhum módulo ativo</p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Entre em contato com o administrador para liberar acesso.
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-primary">
+              {shortDate} • Turno de Campo
             </p>
+            <h1 className="mt-0.5 text-lg sm:text-xl font-bold tracking-tight text-foreground">
+              {greeting}, {firstName}
+            </h1>
+            {activeFazendaNome && (
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Unidade ativa:{" "}
+                <span className="font-semibold text-foreground">{activeFazendaNome}</span>
+              </p>
+            )}
           </div>
-        )}
+
+          <div className="flex items-center gap-2">
+            <span className="rounded-sm border border-border bg-muted/60 px-2.5 py-1 text-[11px] font-semibold text-foreground">
+              {formatInt(tarefasPendentes?.length ?? 0)} pendente
+              {(tarefasPendentes?.length ?? 0) !== 1 ? "s" : ""}
+            </span>
+          </div>
+        </div>
       </div>
 
-      {/* ── Alertas ── */}
+      {/* ── Alertas Operacionais ── */}
       {alertItems.length > 0 && (
-        <PwaAlertStrip
-          items={alertItems}
-          onTap={() => router.push("/tarefas")}
-        />
+        <PwaAlertStrip items={alertItems} onTap={() => router.push("/tarefas")} />
       )}
+
+      {/* ── Lançador Rápido de Operação Diária (estilo App Nativo) ── */}
+      <section id="nova-atividade">
+        <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
+          Acesso Rápido
+        </p>
+        <div className="grid grid-cols-4 gap-2">
+          <PwaQuickAction
+            label="Tarefas"
+            icon={ClipboardList}
+            color="agro"
+            badge={
+              (tarefasPendentes?.length ?? 0) > 0
+                ? String(tarefasPendentes?.length)
+                : undefined
+            }
+            onClick={() => router.push("/tarefas")}
+          />
+          <PwaQuickAction
+            label="Caderno"
+            icon={BookText}
+            color="agro"
+            onClick={() => router.push("/caderno")}
+          />
+          <PwaQuickAction
+            label="Alertas"
+            icon={Sparkles}
+            color="neutral"
+            badge={
+              urgentRecomendacoes.length > 0
+                ? String(urgentRecomendacoes.length)
+                : undefined
+            }
+            onClick={() => router.push("/recomendacoes")}
+          />
+          <PwaQuickAction
+            label="Sync"
+            icon={RefreshCw}
+            color="neutral"
+            badge={pendingCount > 0 ? String(pendingCount) : undefined}
+            onClick={() => router.push("/sync")}
+          />
+        </div>
+      </section>
+
+      {/* ── Módulos Contratados ── */}
+      <section>
+        <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.16em] text-muted-foreground">
+          Módulos Contratados
+        </p>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {hasAgricola && (
+            <PwaModuleCard
+              label="Agricultura"
+              sublabel="Caderno, aplicações, colheita e EPI"
+              icon={Sprout}
+              taskCount={pendingByDomain.AGRICULTURA}
+              urgentCount={urgentByDomain.AGRICULTURA}
+              color="agro"
+              animDelay="60ms"
+              onClick={() => router.push("/agricultura")}
+            />
+          )}
+          {hasPecuaria && (
+            <PwaModuleCard
+              label="Pecuária"
+              sublabel="Pesagem, vacinação e reprodução"
+              icon={Beef}
+              taskCount={pendingByDomain.PECUARIA}
+              urgentCount={urgentByDomain.PECUARIA}
+              color="pecuaria"
+              animDelay="140ms"
+              onClick={() => router.push("/pecuaria")}
+            />
+          )}
+          {!hasAgricola && !hasPecuaria && (
+            <div className="col-span-full flex min-h-[120px] flex-col items-center justify-center rounded-sm border border-dashed border-border bg-muted/30 p-6 text-center">
+              <CloudSun className="size-8 text-muted-foreground" strokeWidth={1.5} />
+              <p className="mt-3 text-sm font-medium text-foreground">
+                Nenhum módulo ativo
+              </p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Entre em contato com o administrador para liberar acesso.
+              </p>
+            </div>
+          )}
+        </div>
+      </section>
 
       {/* ── Progresso do dia ── */}
       <PwaProgressRing done={doneCount} total={totalTarefas} />
@@ -225,14 +306,16 @@ export default function HomePage() {
       {pendingCount > 0 && (
         <div
           className="campo-pwa-card-stagger"
-          style={{ "--campo-pwa-delay": "300ms" } as React.CSSProperties}
+          style={{ "--campo-pwa-delay": "240ms" } as CSSProperties}
         >
           <CampoButton
             variant="secondary"
-            className="w-full rounded-2xl py-3"
+            size="sm"
+            className="w-full rounded-sm py-2.5"
             onClick={() => router.push("/sync")}
           >
-            Sincronizar {formatInt(pendingCount)} item{pendingCount !== 1 ? "s" : ""} pendente{pendingCount !== 1 ? "s" : ""}
+            Sincronizar {formatInt(pendingCount)} item{pendingCount !== 1 ? "s" : ""} pendente
+            {pendingCount !== 1 ? "s" : ""}
           </CampoButton>
         </div>
       )}

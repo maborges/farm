@@ -44,21 +44,21 @@ export function PwaQuickAction({
       type="button"
       onClick={onClick}
       className={[
-        "relative flex flex-col items-center justify-center gap-2 rounded-2xl border px-3 py-4 text-center shadow-sm",
+        "relative flex flex-col items-center justify-center gap-1.5 rounded-sm border px-2.5 py-3 text-center shadow-2xs",
         "transition-all duration-150 ease-out",
         "active:scale-[0.95] active:shadow-none",
         c.bg,
       ].join(" ")}
     >
       {badge && (
-        <span className="absolute -right-1.5 -top-1.5 flex size-4 items-center justify-center rounded-full bg-rose-500 text-[9px] font-bold text-white shadow-sm">
+        <span className="absolute -right-1 -top-1 flex size-4 items-center justify-center rounded-sm bg-rose-500 text-[9px] font-bold text-white shadow-2xs">
           {badge}
         </span>
       )}
 
       <span
         className={[
-          "flex size-11 items-center justify-center rounded-xl",
+          "flex size-10 items-center justify-center rounded-sm",
           "bg-white/60 dark:bg-black/20",
           c.icon,
         ].join(" ")}

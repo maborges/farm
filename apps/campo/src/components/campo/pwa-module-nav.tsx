@@ -1,11 +1,11 @@
 "use client";
 
-import { ArrowLeft } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { useLiveQuery } from "dexie-react-hooks";
-import { useSessionStore } from "@/lib/stores/session-store";
+import { ArrowLeft } from "lucide-react";
 import { db } from "@/lib/db";
+import { useSessionStore } from "@/lib/stores/session-store";
 
 type ModuleColor = "agro" | "pecuaria";
 
@@ -46,12 +46,12 @@ export function PwaModuleNav({ title, color, backHref = "/home" }: PwaModuleNavP
   );
 
   return (
-    <div className="flex items-center gap-2.5 pb-1">
+    <div className="hidden md:flex items-center gap-2.5 pb-1">
       <button
         type="button"
         onClick={() => router.push(backHref)}
         className={[
-          "flex size-9 shrink-0 items-center justify-center rounded-xl border border-border bg-card shadow-sm",
+          "flex size-9 shrink-0 items-center justify-center rounded-sm border border-border bg-card shadow-2xs",
           "transition-all duration-150 active:scale-95",
           c.back,
         ].join(" ")}
@@ -63,7 +63,7 @@ export function PwaModuleNav({ title, color, backHref = "/home" }: PwaModuleNavP
       <div className="flex min-w-0 flex-1 items-center gap-2">
         <span className={["campo-pwa-pulse-dot size-2 shrink-0 rounded-full", c.dot].join(" ")} />
         <div className="min-w-0">
-          <p className={["text-[10px] font-semibold uppercase tracking-[0.16em]", c.text].join(" ")}>
+          <p className={["text-[10px] font-bold uppercase tracking-[0.16em]", c.text].join(" ")}>
             {title}
           </p>
           {activeFazendaNome && (

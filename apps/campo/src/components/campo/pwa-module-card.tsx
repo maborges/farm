@@ -1,5 +1,6 @@
 "use client";
 
+import type { CSSProperties } from "react";
 import { type LucideIcon } from "lucide-react";
 import { formatInt } from "@/lib/format";
 
@@ -73,12 +74,12 @@ export function PwaModuleCard({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      style={{ "--campo-pwa-delay": animDelay } as React.CSSProperties}
+      style={{ "--campo-pwa-delay": animDelay } as CSSProperties}
       className={[
         "campo-pwa-card-stagger",
-        "relative flex w-full flex-col rounded-2xl border p-5 text-left shadow-sm",
-        "transition-all duration-200 ease-out",
-        "active:scale-[0.96] active:shadow-none",
+        "relative flex w-full flex-col rounded-sm border p-4 text-left shadow-xs",
+        "transition-all duration-150 ease-out",
+        "active:scale-[0.97] active:shadow-none",
         "hover-lift",
         "disabled:pointer-events-none disabled:opacity-40",
         c.border,
@@ -88,7 +89,7 @@ export function PwaModuleCard({
       {/* Dot de status ativo */}
       <span
         className={[
-          "campo-pwa-pulse-dot absolute right-4 top-4 size-2 rounded-full",
+          "campo-pwa-pulse-dot absolute right-3.5 top-3.5 size-2 rounded-full",
           taskCount > 0 ? c.pulse : "bg-muted-foreground/30",
         ].join(" ")}
       />
@@ -96,23 +97,25 @@ export function PwaModuleCard({
       {/* Ícone */}
       <span
         className={[
-          "flex size-14 items-center justify-center rounded-2xl",
+          "flex size-11 items-center justify-center rounded-sm",
           c.iconBg,
           c.iconColor,
         ].join(" ")}
       >
-        <Icon className="size-7" strokeWidth={1.75} />
+        <Icon className="size-6" strokeWidth={1.85} />
       </span>
 
       {/* Título e subtítulo */}
-      <p className="mt-4 text-base font-bold tracking-tight text-foreground">{label}</p>
-      <p className="mt-0.5 text-xs text-muted-foreground">{sublabel}</p>
+      <p className="mt-3 text-sm sm:text-base font-bold tracking-tight text-foreground">
+        {label}
+      </p>
+      <p className="mt-0.5 text-[11px] text-muted-foreground">{sublabel}</p>
 
       {/* Badges de contagem */}
-      <div className="mt-4 flex flex-wrap gap-2">
+      <div className="mt-3 flex flex-wrap gap-1.5">
         <span
           className={[
-            "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold",
+            "inline-flex items-center gap-1 rounded-sm px-2 py-0.5 text-[10px] font-semibold",
             c.badgeBg,
             c.badgeText,
           ].join(" ")}
@@ -123,7 +126,7 @@ export function PwaModuleCard({
         {urgentCount > 0 && (
           <span
             className={[
-              "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold",
+              "inline-flex items-center gap-1 rounded-sm px-2 py-0.5 text-[10px] font-semibold",
               c.urgentBg,
               c.urgentText,
             ].join(" ")}
@@ -134,8 +137,8 @@ export function PwaModuleCard({
       </div>
 
       {/* Seta de acesso */}
-      <div className="mt-4 flex items-center justify-end">
-        <span className={["text-xs font-semibold", c.badgeText].join(" ")}>
+      <div className="mt-3 flex items-center justify-end">
+        <span className={["text-[11px] font-semibold", c.badgeText].join(" ")}>
           Acessar →
         </span>
       </div>

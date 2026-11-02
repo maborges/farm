@@ -194,6 +194,14 @@ Detalhamento de cada feature, decisões e histórico de implementação: `docs/C
 
 ## Features
 
+### UI/UX Adaptativa Multi-Dispositivo — PWA Agro (`apps/agro`) e PWA Campo (`apps/campo`)
+- **Descrição curta:** Arquitetura de UI/UX adaptativa que identifica em tempo de execução onde os aplicativos `apps/agro` e `apps/campo` estão sendo executados (`mobile`, `tablet` ou `desktop`; modo instalado `standalone` vs `browser`; `ios`, `android` ou `other`) e adapta automaticamente a navegação, modais, cabeçalhos, densidade de toque e ergonomia nativa.
+- **Fluxo de funcionamento:**
+  1. Ao carregar `apps/agro` ou `apps/campo`, o provedor `DeviceContextProvider` avalia sinais reais do dispositivo (largura de viewport, `matchMedia("(pointer: coarse)")`, `matchMedia("(display-mode: standalone)")`, `navigator.standalone` no iOS e `userAgent`) através do motor puro `device-detection.ts`.
+  2. **Em Smartphones (`mobile`, `< 768px`):** A interface assume comportamento de aplicativo nativo de campo com barra superior contextual (exibindo botão de retorno, título da sub-rota ativa e unidade produtiva selecionada), dock inferior fixo (`BottomNav`) com `safe-area-inset-bottom`, lançador rápido central (`+ Novo`) para iniciar apontamentos de qualquer tela, seletores e gavetas em formato *Bottom Sheet* (`sheetPresentation: "bottom-sheet"`) e bloqueio de *overscroll* de navegador.
+  3. **Em Tablets (`tablet`, `768px–1023px` ou iPadOS/Android Tablet):** A barra inferior de celular dá lugar à `AdaptiveSidebar` iniciada em modo **Navigation Rail** retrátil lateral, liberando área útil vertical no campo e apresentando seletores e formulários como modais centralizados (`centered-dialog`).
+  4. **Em Desktops (`desktop`, `>= 1024px` com ponteiro fino):** A `AdaptiveSidebar` expande os menus separados por módulo contratado (`Operação de Campo`, `Módulo Agrícola` e `Módulo Pecuária`), permitindo retração manual, alternância imediata de tema Claro/Escuro e grades operacionais multi-colunas.
+
 ### DeepFarms Agro — Correções Críticas de Sessão, Cotas e Preparação de Staging (AGRO-ADMIN-01H1)
 - **Descrição curta:** Implementação das correções críticas levantadas na auditoria integrada AGRO-ADMIN-01G, contemplando o endpoint leve de heartbeat com cookies HttpOnly para a PWA Agro, reserva atômica de cotas de provedores de clima no Redis com rollback em falha upstream, eliminação do fallback de JWT_SECRET_KEY em staging/produção para a PLATFORM_CREDENTIALS_MASTER_KEY, recalibração estrita da matriz de homologação para 27.3% (3/11 aprovados com evidências auditadas) e provisionamento de artefatos efêmeros de staging.
 - **Fluxo de funcionamento:**

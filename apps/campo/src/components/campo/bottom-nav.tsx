@@ -1,13 +1,29 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { Plus, House, RefreshCw, BookText, ClipboardList, type LucideIcon } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import {
+  BookText,
+  ClipboardList,
+  Dna,
+  House,
+  Plus,
+  RefreshCw,
+  Scale,
+  ShieldHalf,
+  Sprout,
+  Syringe,
+  Wheat,
+  type LucideIcon,
+} from "lucide-react";
+import { BottomSheet } from "@/components/bottom-sheet";
+import { useDeviceContext } from "@/lib/device/use-device-context";
 import { useSessionStore } from "@/lib/stores/session-store";
 import { useSyncStore } from "@/lib/stores/sync-store";
+import { isCampoRouteActive } from "./nav-items";
 
-function cn(...values: Array<string | false | null | undefined>) {
+function cn(...values: Array<string | false | null | undefined>): string {
   return values.filter(Boolean).join(" ");
 }
 
@@ -18,43 +34,50 @@ type NavItem = {
   icon: LucideIcon;
 };
 
-// 4 itens fixos — atalhos de ação ficam dentro dos módulos (/agricultura, /pecuaria)
-const BASE_ITEMS: NavItem[] = [
+const LEFT_ITEMS: NavItem[] = [
   { key: "home", label: "Início", href: "/home", icon: House },
   { key: "tarefas", label: "Tarefas", href: "/tarefas", icon: ClipboardList },
-  { key: "sync", label: "Sync", href: "/sync", icon: RefreshCw },
-  { key: "caderno", label: "Caderno", href: "/caderno", icon: BookText },
 ];
 
-const SHOW_NAV_ROUTES = new Set(["/home", "/sync", "/caderno", "/agricultura", "/pecuaria", "/tarefas", "/recomendacoes"]);
+const RIGHT_ITEMS: NavItem[] = [
+  { key: "caderno", label: "Caderno", href: "/caderno", icon: BookText },
+  { key: "sync", label: "Sync", href: "/sync", icon: RefreshCw },
+];
 
+const SHOW_NAV_ROUTES = new Set([
+  "/home",
+  "/sync",
+  "/caderno",
+  "/agricultura",
+  "/pecuaria",
+  "/tarefas",
+  "/recomendacoes",
+]);
+
+/**
+ * Barra de navegação inferior nativa para dispositivos móveis (< 768px), oculta em tablets e desktops.
+ *
+ * Args:
+ *   Nenhum argumento.
+ *
+ * Return:
+ *   JSX.Element | null: Dock inferior com atalho central de novo apontamento.
+ *
+ * Raises:
+ *   Nenhuma exceção é lançada.
+ */
 export function CampoBottomNav() {
   const pathname = usePathname();
-  const { isOnline, pendingCount, status } = useSyncStore();
+  const router = useRouter();
+  const { layoutProfile } = useDeviceContext();
+  const { session } = useSessionStore();
+  const { pendingCount, status } = useSyncStore();
+  const [quickSheetOpen, setQuickSheetOpen] = useState(false);
 
-  const shouldShow = SHOW_NAV_ROUTES.has(pathname);
-  const items = BASE_ITEMS;
-  const [isRendered, setIsRendered] = useState(shouldShow);
-  const [hasScrolled, setHasScrolled] = useState(false);
+  const shouldShow =
+    SHOW_NAV_ROUTES.has(pathname) && layoutProfile.navigationMode === "bottom-nav";
 
-  useEffect(() => {
-    if (shouldShow) {
-      setIsRendered(true);
-      return;
-    }
-
-    const timer = window.setTimeout(() => setIsRendered(false), 180);
-    return () => window.clearTimeout(timer);
-  }, [shouldShow]);
-
-  useEffect(() => {
-    const update = () => setHasScrolled(window.scrollY > 12);
-    update();
-    window.addEventListener("scroll", update, { passive: true });
-    return () => window.removeEventListener("scroll", update);
-  }, []);
-
-  if ((!isRendered && !shouldShow) || items.length === 0) {
+  if (!shouldShow) {
     return null;
   }
 
@@ -64,109 +87,233 @@ export function CampoBottomNav() {
     }
   };
 
-  const syncMeta =
-    status === "syncing"
-      ? "Sync"
-      : pendingCount > 0
-      ? `${pendingCount}`
-      : "";
+  const modules = (session?.modules ?? []).map((m) => m.toLowerCase());
+  const hasAll = modules.length === 0;
+  const hasAgricola = hasAll || modules.includes("agricola") || modules.includes("agricultura");
+  const hasPecuaria = hasAll || modules.includes("pecuaria");
+
+  const syncBadge =
+    status === "syncing" ? "Sync" : pendingCount > 0 ? `${pendingCount}` : "";
 
   return (
-    <div
+    <>
+      <nav
+        aria-label="Navegação principal mobile"
+        data-navigation-mode={layoutProfile.navigationMode}
+        className="fixed inset-x-0 bottom-0 z-40 md:hidden border-t border-border/80 bg-card/95 backdrop-blur-lg shadow-[0_-4px_20px_rgba(0,0,0,0.08)] select-none"
+        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+      >
+        <div className="mx-auto grid h-16 max-w-lg grid-cols-5 items-center gap-1 px-2">
+          {LEFT_ITEMS.map((item) => (
+            <DockNavLink
+              key={item.key}
+              item={item}
+              active={isCampoRouteActive(pathname, item.href)}
+              onTap={handleTap}
+            />
+          ))}
+
+          {/* Botão Central de Novo Apontamento */}
+          <div className="flex items-center justify-center">
+            <button
+              type="button"
+              onClick={() => {
+                handleTap();
+                setQuickSheetOpen(true);
+              }}
+              aria-label="Registrar nova atividade de campo"
+              className="flex size-11 flex-col items-center justify-center rounded-sm border border-primary bg-primary text-primary-foreground shadow-md transition-transform active:scale-90"
+            >
+              <Plus className="size-5 stroke-[2.25]" />
+              <span className="text-[9px] font-bold uppercase tracking-wider leading-none mt-0.5">
+                Novo
+              </span>
+            </button>
+          </div>
+
+          {RIGHT_ITEMS.map((item) => (
+            <DockNavLink
+              key={item.key}
+              item={item}
+              active={isCampoRouteActive(pathname, item.href)}
+              badge={item.key === "sync" ? syncBadge : undefined}
+              isSyncing={item.key === "sync" && status === "syncing"}
+              onTap={handleTap}
+            />
+          ))}
+        </div>
+      </nav>
+
+      {/* Bottom Sheet de Lançamento Rápido de Atividades */}
+      <BottomSheet
+        open={quickSheetOpen}
+        onOpenChange={setQuickSheetOpen}
+        title="Novo Apontamento de Campo"
+        description="Selecione o registro que deseja iniciar agora mesmo sem conexão."
+      >
+        <div className="flex flex-col gap-3 p-4">
+          {hasAgricola && (
+            <div>
+              <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                Módulo Agrícola
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <QuickLaunchButton
+                  label="Caderno de Campo"
+                  sublabel="Ocorrência / Foto"
+                  icon={BookText}
+                  onClick={() => {
+                    setQuickSheetOpen(false);
+                    router.push("/caderno");
+                  }}
+                />
+                <QuickLaunchButton
+                  label="Aplicação"
+                  sublabel="Defensivo / Insumo"
+                  icon={Sprout}
+                  onClick={() => {
+                    setQuickSheetOpen(false);
+                    router.push("/campo/aplicacao");
+                  }}
+                />
+                <QuickLaunchButton
+                  label="Colheita"
+                  sublabel="Cargas e umidade"
+                  icon={Wheat}
+                  onClick={() => {
+                    setQuickSheetOpen(false);
+                    router.push("/campo/colheita");
+                  }}
+                />
+                <QuickLaunchButton
+                  label="Entrega de EPI"
+                  sublabel="Comprovante"
+                  icon={ShieldHalf}
+                  onClick={() => {
+                    setQuickSheetOpen(false);
+                    router.push("/campo/epi");
+                  }}
+                />
+              </div>
+            </div>
+          )}
+
+          {hasPecuaria && (
+            <div>
+              <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                Módulo Pecuária
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <QuickLaunchButton
+                  label="Pesagem"
+                  sublabel="Animal ou lote"
+                  icon={Scale}
+                  onClick={() => {
+                    setQuickSheetOpen(false);
+                    router.push("/campo/pesagem");
+                  }}
+                />
+                <QuickLaunchButton
+                  label="Vacinação"
+                  sublabel="Manejo sanitário"
+                  icon={Syringe}
+                  onClick={() => {
+                    setQuickSheetOpen(false);
+                    router.push("/campo/vacinacao");
+                  }}
+                />
+                <QuickLaunchButton
+                  label="Reprodução"
+                  sublabel="Cobertura / Parto"
+                  icon={Dna}
+                  onClick={() => {
+                    setQuickSheetOpen(false);
+                    router.push("/campo/reproducao/cobertura");
+                  }}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+      </BottomSheet>
+    </>
+  );
+}
+
+function DockNavLink({
+  item,
+  active,
+  badge,
+  isSyncing,
+  onTap,
+}: {
+  item: NavItem;
+  active: boolean;
+  badge?: string;
+  isSyncing?: boolean;
+  onTap: () => void;
+}) {
+  const Icon = item.icon;
+
+  return (
+    <Link
+      href={item.href}
+      onClick={onTap}
+      aria-current={active ? "page" : undefined}
       className={cn(
-        "fixed inset-x-0 bottom-0 z-40 lg:hidden transition-all duration-200 ease-out",
-        shouldShow ? "translate-y-0 opacity-100" : "translate-y-5 opacity-0"
+        "relative flex h-12 flex-col items-center justify-center gap-1 rounded-sm px-1 text-center transition-all duration-150 active:scale-95",
+        active
+          ? "bg-primary/12 text-primary font-semibold"
+          : "text-muted-foreground hover:text-foreground"
       )}
     >
-      <div className="w-full px-4">
-        <div className="pointer-events-none relative z-10">
-          <Link
-            href="/home#nova-atividade"
-            onClick={handleTap}
-            aria-label="Nova atividade manual"
-            className={cn(
-              "pointer-events-auto absolute left-1/2 top-0 flex -translate-x-1/2 -translate-y-1/2 items-center gap-1 rounded-full border border-primary bg-primary px-3 py-2 text-primary-foreground shadow-md transition-all duration-150 ease-out active:scale-95 active:opacity-90",
-              hasScrolled ? "-translate-y-[48%] scale-[1.02] shadow-lg" : ""
-            )}
-          >
-            <Plus className="size-3.5" />
-            <span className="text-[9px] font-semibold uppercase tracking-[0.12em]">Novo</span>
-          </Link>
-        </div>
+      <span
+        className={cn(
+          "absolute top-0.5 h-0.5 w-6 rounded-full transition-all",
+          active ? "bg-primary" : "bg-transparent"
+        )}
+      />
+      <Icon
+        className={cn(
+          "size-4.5 transition-transform",
+          active && "scale-105",
+          isSyncing && "animate-spin"
+        )}
+      />
+      <span className="max-w-full truncate text-[10px] leading-none">{item.label}</span>
+      {badge && (
+        <span className="absolute right-1.5 top-1 inline-flex min-w-[16px] items-center justify-center rounded-sm bg-amber-500 px-1 py-0.2 text-[9px] font-bold leading-tight text-white">
+          {badge}
+        </span>
+      )}
+    </Link>
+  );
+}
 
-        <nav
-          aria-label="Navegação principal"
-          className={cn(
-            "animate-[campo-nav-in_240ms_cubic-bezier(0.16,1,0.3,1)] glass-chrome rounded-t-2xl border-b-0 p-1 pt-4 transition-shadow duration-200",
-            hasScrolled ? "shadow-xl" : "shadow-lg"
-          )}
-          style={{ paddingBottom: "calc(0.2rem + env(safe-area-inset-bottom))" }}
-        >
-          <div className="grid gap-1.5" style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}>
-            {items.map((item) => {
-              const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
-              const Icon = item.icon;
-
-              return (
-                <Link
-                  key={item.key}
-                  href={item.href}
-                  onClick={handleTap}
-                  aria-current={active ? "page" : undefined}
-                  className={cn(
-                    "group flex min-h-[54px] flex-col items-center justify-center gap-0.5 rounded-sm border px-1 py-1 text-center transition-all duration-150 ease-out active:scale-95",
-                    active
-                      ? "translate-y-[-1px] border-primary/30 bg-accent text-accent-foreground shadow-sm"
-                      : "border-transparent text-muted-foreground active:bg-black/5 dark:active:bg-white/10"
-                  )}
-                >
-                  <span
-                    className={cn(
-                      "h-0.5 w-7 rounded-full transition-all duration-200",
-                      active ? "bg-primary" : "bg-transparent"
-                    )}
-                  />
-                  <Icon className={cn("size-4.5 transition-transform duration-200", active && "scale-105")} />
-                  <span
-                    className={cn(
-                      "max-w-full truncate text-[10px] font-medium leading-none transition-colors duration-200",
-                      active ? "text-accent-foreground" : "text-muted-foreground"
-                    )}
-                  >
-                    {item.label}
-                  </span>
-                  {item.key === "sync" && (
-                    syncMeta && (
-                      <span
-                        className={cn(
-                          "inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.12em]",
-                          status === "syncing"
-                            ? "bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-200"
-                            : pendingCount > 0
-                              ? "bg-amber-50 text-amber-800 dark:bg-amber-950/30 dark:text-amber-200"
-                              : "bg-muted text-muted-foreground"
-                        )}
-                      >
-                        <span
-                          className={cn(
-                            "size-1.5 rounded-full",
-                            status === "syncing"
-                              ? "animate-pulse bg-sky-200"
-                              : pendingCount > 0
-                                ? "bg-amber-500"
-                                : "bg-muted-foreground"
-                          )}
-                        />
-                        {syncMeta}
-                      </span>
-                    )
-                  )}
-                </Link>
-              );
-            })}
-          </div>
-        </nav>
-      </div>
-    </div>
+function QuickLaunchButton({
+  label,
+  sublabel,
+  icon: Icon,
+  onClick,
+}: {
+  label: string;
+  sublabel: string;
+  icon: LucideIcon;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex items-center gap-2.5 rounded-sm border border-border bg-card p-3 text-left shadow-2xs transition-all hover:bg-muted/70 active:scale-95"
+    >
+      <span className="flex size-9 shrink-0 items-center justify-center rounded-sm bg-primary/10 text-primary">
+        <Icon className="size-4.5" />
+      </span>
+      <span className="min-w-0">
+        <span className="block truncate text-xs font-bold text-foreground">{label}</span>
+        <span className="block truncate text-[10px] text-muted-foreground">{sublabel}</span>
+      </span>
+    </button>
   );
 }

@@ -1,7 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Outfit } from "next/font/google";
-import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
+import { DeviceContextProvider } from "@/lib/device/use-device-context";
+import "./globals.css";
 
 const outfit = Outfit({
   subsets: ["latin"],
@@ -21,6 +22,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -30,7 +32,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         className="bg-background text-foreground antialiased"
         suppressHydrationWarning
       >
-        <ThemeProvider defaultTheme="light">{children}</ThemeProvider>
+        <ThemeProvider defaultTheme="light">
+          <DeviceContextProvider>{children}</DeviceContextProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

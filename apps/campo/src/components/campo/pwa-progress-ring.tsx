@@ -16,7 +16,7 @@ export function PwaProgressRing({ done, total, label }: PwaProgressRingProps) {
   const doneDots = Math.round((done / total) * dots);
 
   return (
-    <div className="campo-pwa-card-stagger flex flex-col gap-2 rounded-2xl border border-border bg-card px-4 py-3.5 shadow-sm"
+    <div className="campo-pwa-card-stagger flex flex-col gap-2 rounded-sm border border-border bg-card px-4 py-3.5 shadow-xs"
          style={{ "--campo-pwa-delay": "200ms" } as React.CSSProperties}>
       <div className="flex items-center justify-between gap-3">
         <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">

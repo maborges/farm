@@ -177,7 +177,7 @@
   --border: 154 35% 86%;
   --input: 154 35% 86%;
   --ring: 154 100% 21%;
-  --radius: 0.5rem;
+  --radius: 0.25rem;
 
   /* ── Sidebar (light) ───────────────────────────────────────── */
   --sidebar: 0 0% 98.5%;
@@ -763,3 +763,28 @@
 .campo-pwa-banner {
   animation: campo-pwa-banner-in 200ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
+
+/* ── Ergonomia Nativa PWA Mobile / Tablet ──────────────────────── */
+html,
+body {
+  overscroll-behavior-y: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.safe-area-pb {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.safe-area-pt {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
