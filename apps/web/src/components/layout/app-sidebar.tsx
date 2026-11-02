@@ -7,6 +7,7 @@ import { apiFetch } from "@/lib/api";
 import {
     Sidebar,
     SidebarContent,
+    SidebarFooter,
     SidebarGroup,
     SidebarGroupContent,
     SidebarGroupLabel,
@@ -23,16 +24,23 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-    ChevronRight, ChevronDown, Sprout,
+    ChevronRight, ChevronDown,
     LayoutDashboard,
     AlertCircle,
     Search, X,
     BookOpen,
+    Laptop,
+    Smartphone,
+    Tablet,
 } from "lucide-react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useVisibleNavigation, canSeeTenantItem } from "@/hooks/use-visible-navigation";
+import { useDeviceContext } from "@/lib/device/use-device-context";
 import { ModuleGate } from "../shared/module-gate";
+import { ContextSelector } from "./context-selector";
+import { TenantSwitcher } from "./tenant-switcher";
 import { cn } from "@/lib/utils";
 import { resolveAssetUrl } from "@/lib/runtime-config";
 import { hasBackofficePermission, hasTenantPermission } from "@/lib/permissions";
@@ -231,9 +239,17 @@ export function AppSidebar() {
     const pathname = usePathname();
     const searchParams = useSearchParams();
     const { isMobile, setOpenMobile } = useSidebar();
+    const { deviceCategory, executionMode } = useDeviceContext();
     const tenant = useAppStore((state) => state.tenant);
     const user = useAppStore((state) => state.user);
     const activePlanTier = useAppStore((state) => state.activePlanTier());
+
+    const DeviceIcon =
+        deviceCategory === "tablet"
+            ? Tablet
+            : deviceCategory === "mobile"
+                ? Smartphone
+                : Laptop;
 
     const { moduleGroups, coreSections, backofficeSections, accessItems, settingsItems, activeModule, activeBackofficeSection } = useVisibleNavigation();
 
@@ -311,7 +327,7 @@ export function AppSidebar() {
         return resolveAssetUrl(tenant?.branding?.logoUrl);
     })();
 
-        const searchGroups = useMemo(() => {
+    const searchGroups = useMemo(() => {
         const coreItems = coreSections.flatMap((section) =>
             section.items.map((item) => ({
                 ...item,
@@ -433,383 +449,450 @@ export function AppSidebar() {
 
     return (
         <Sidebar collapsible="icon">
-            <SidebarHeader className="border-b border-border/50 h-14 flex items-center justify-center p-0 overflow-hidden">
-                <Link href="/dashboard" className="flex items-center justify-center w-full h-full outline-none" onClick={handleNavigation}>
-                    {/* Collapsed */}
-                    <div className="hidden group-data-[collapsible=icon]:flex w-full items-center justify-center">
-                        <div className="flex size-8 items-center justify-center rounded-sm bg-primary text-primary-foreground shadow-sm">
-                            <Sprout className="size-3.5" />
-                        </div>
-                    </div>
-                    {/* Expanded */}
-                    <div className="group-data-[collapsible=icon]:hidden flex items-center gap-2.5 px-3 w-full">
-                        <div className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-md bg-primary/5 text-primary shadow-sm ring-1 ring-border/60">
-                            {tenantLogoSrc ? (
-                                <img
-                                    src={tenantLogoSrc}
-                                    alt={tenant?.nome ?? "Logo"}
-                                    className="h-full w-full object-contain p-1.5"
+                <SidebarHeader className="border-b border-border/60 h-14 flex items-center justify-center p-0 overflow-hidden">
+                    <Link href="/dashboard" className="flex items-center justify-center w-full h-full outline-none" onClick={handleNavigation}>
+                        {/* Collapsed */}
+                        <div className="hidden group-data-[collapsible=icon]:flex w-full items-center justify-center">
+                                <div className="flex size-8 items-center justify-center rounded-sm bg-primary/10 p-1">
+                                    <Image
+                                        src="/logos/deepfarms-mark.svg"
+                                        alt="DeepFarms"
+                                        width={24}
+                                        height={24}
+                                        className="h-full w-full object-contain"
+                                    />
+                                </div>
+                            </div>
+                            {/* Expanded */}
+                                    <div className="group-data-[collapsible=icon]:hidden flex items-center gap-2.5 px-3 w-full min-w-0">
+                                        <div className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-sm bg-primary/10 p-1 text-primary">
+                                            {tenantLogoSrc ? (
+                                                <img
+                                                    src={tenantLogoSrc}
+                                                    alt={tenant?.nome ?? "Logo"}
+                                                    className="h-full w-full object-contain"
+                                                />
+                                            ) : (
+                                <Image
+                                    src="/logos/deepfarms-mark.svg"
+                                    alt="DeepFarms"
+                                    width={28}
+                                    height={28}
+                                    className="h-full w-full object-contain"
                                 />
-                            ) : (
-                                <div className="flex size-9 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground shadow-sm">
-                                    <Sprout className="size-3.5" />
+                                            )}
+                                        </div>
+                                        <div className="flex flex-col min-w-0">
+                                            <div className="flex items-center gap-1.5 leading-none">
+                                                <span className="font-bold tracking-tight text-foreground text-sm truncate">
+                                                    {tenant?.nome ?? "DeepFarms"}
+                                                </span>
+                                                <span className="text-primary font-bold text-[10px] px-1.5 py-0.5 rounded-sm bg-primary/10 shrink-0">
+                                                    Gestão
+                                                </span>
+                                            </div>
+                                            <span className="text-[10px] text-muted-foreground truncate mt-0.5">
+                                                {executionMode === "standalone"
+                                                    ? "Aplicativo de Gestão (PWA)"
+                                                    : "Gestão Rural Integrada"}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </Link>
+                            </SidebarHeader>
+
+                            {/* Seletor de Produtor e Fazenda dentro da gaveta mobile */}
+                            {isMobile && tenant && (
+                                <div className="border-b border-border/60 bg-muted/20 px-3 py-2 flex flex-col gap-2">
+                                    <div className="flex items-center justify-between gap-2">
+                                        <TenantSwitcher />
+                                    </div>
+                                    <ContextSelector />
                                 </div>
                             )}
-                        </div>
-                        <span className="font-black text-primary text-lg truncate">
-                            {tenant?.nome ?? "DeepFarms"}
-                        </span>
-                    </div>
-                </Link>
-            </SidebarHeader>
 
-            {tenant && (
-                <div className="group-data-[collapsible=icon]:hidden border-b border-border/50 px-3 py-2">
-                    <div className="flex items-center gap-1.5">
-                        <div className="relative min-w-0 flex-1">
-                            <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-                            <Input
-                                value={searchQuery}
-                                onChange={(event) => setSearchQuery(event.target.value)}
-                                placeholder="Pesquisar menu..."
-                                aria-label="Pesquisar itens do menu"
-                                className="h-8 rounded-sm bg-sidebar-accent/40 pl-8 text-xs"
-                            />
-                        </div>
-                        {searchQuery && (
-                            <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon"
-                                className="size-8 shrink-0"
-                                aria-label="Limpar pesquisa do menu"
-                                onClick={() => setSearchQuery("")}
-                            >
-                                <X data-icon="icon" />
-                            </Button>
-                        )}
-                    </div>
-                </div>
+                            {tenant && (
+                                    <div className="group-data-[collapsible=icon]:hidden border-b border-border/60 px-3 py-2">
+                                        <div className="flex items-center gap-1.5">
+                                            <div className="relative min-w-0 flex-1">
+                                                <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+                                                <Input
+                                                    value={searchQuery}
+                                                    onChange={(event) => setSearchQuery(event.target.value)}
+                                                    placeholder="Pesquisar menu..."
+                                                    aria-label="Pesquisar itens do menu"
+                                                    className="h-8 rounded-sm bg-sidebar-accent/40 pl-8 text-xs"
+                                                />
+                                            </div>
+                                            {searchQuery && (
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="size-8 p-0 shrink-0 rounded-sm"
+                                                    aria-label="Limpar pesquisa do menu"
+                                                    onClick={() => setSearchQuery("")}
+                                                >
+                                                    <X data-icon="icon" className="size-3.5" />
+                                                </Button>
+                                            )}
+                                        </div>
+                                    </div>
             )}
 
-            <SidebarContent>
-                {isSearching ? (
-                    <SidebarGroup>
-                        <SidebarGroupLabel>
-                            {filteredSearchGroups.total === 1
-                                ? "1 item encontrado"
-                                : `${filteredSearchGroups.total} itens encontrados`}
-                        </SidebarGroupLabel>
-                        <SidebarGroupContent>
-                            {filteredSearchGroups.total === 0 ? (
-                                <div className="px-2 py-6 text-center text-xs text-muted-foreground">
-                                    Nenhum item encontrado para &quot;{deferredSearchQuery}&quot;.
-                                </div>
-                            ) : (
-                                <SidebarMenu>
-                                    {filteredSearchGroups.coreItems.length > 0 && (
-                                        <>
-                                            <SidebarMenuSubItem>
-                                                <div className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground/60">
-                                                    Cadastros
-                                                </div>
-                                            </SidebarMenuSubItem>
-                                            {renderSearchItems(filteredSearchGroups.coreItems)}
-                                        </>
-                                    )}
-
-                                    {filteredSearchGroups.moduleGroups.map((moduleGroup) => (
-                                        <ModuleGate key={moduleGroup.key} moduleId={moduleGroup.moduleId}>
-                                            <SidebarMenuSubItem>
-                                                <div className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground/60">
-                                                    {moduleGroup.label}
-                                                </div>
-                                            </SidebarMenuSubItem>
-                                            {renderSearchItems(moduleGroup.items)}
-                                        </ModuleGate>
-                                    ))}
-
-                                    {filteredSearchGroups.backofficeItems.length > 0 && (
-                                        <>
-                                            <SidebarMenuSubItem>
-                                                <div className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground/60">
-                                                    Administração SaaS
-                                                </div>
-                                            </SidebarMenuSubItem>
-                                            {renderSearchItems(filteredSearchGroups.backofficeItems)}
-                                        </>
-                                    )}
-
-                                    {filteredSearchGroups.accessItems.length > 0 && (
-                                        <>
-                                            <SidebarMenuSubItem>
-                                                <div className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground/60">
-                                                    Gestão de Acessos
-                                                </div>
-                                            </SidebarMenuSubItem>
-                                            {renderSearchItems(filteredSearchGroups.accessItems)}
-                                        </>
-                                    )}
-
-                                    {filteredSearchGroups.settingsItems.length > 0 && (
-                                        <>
-                                            <SidebarMenuSubItem>
-                                                <div className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground/60">
-                                                    Configurações
-                                                </div>
-                                            </SidebarMenuSubItem>
-                                            {renderSearchItems(filteredSearchGroups.settingsItems)}
-                                        </>
-                                    )}
-                                </SidebarMenu>
-                            )}
-                        </SidebarGroupContent>
-                    </SidebarGroup>
-                ) : (
-                    <>
-                        {/* ── Geral ─────────────────────────────────── */}
-                        {tenant && (
-                            <SidebarGroup>
-                                <SidebarGroupLabel>Geral</SidebarGroupLabel>
-                                <SidebarGroupContent>
-                                    <SidebarMenu>
-                                        <SidebarMenuItem>
-                                            <SidebarMenuButton
-                                                render={<Link href="/dashboard" onClick={handleNavigation} />}
-                                                isActive={pathname === "/dashboard"}
-                                                tooltip="Dashboard"
-                                                className="relative data-[active=true]:bg-primary/5 data-[active=true]:text-primary data-[active=true]:font-bold before:absolute before:left-0 before:top-1 before:bottom-1 before:w-[2px] before:bg-primary before:rounded-full before:opacity-0 data-[active=true]:before:opacity-100 transition-all"
-                                            >
-                                                <LayoutDashboard className="size-3.5 flex-shrink-0 text-primary" />
-                                                <span className="truncate">Dashboard</span>
-                                            </SidebarMenuButton>
-                                        </SidebarMenuItem>
-                                        <SidebarMenuItem>
-                                            <SidebarMenuButton
-                                                render={<Link href="/manual" onClick={handleNavigation} />}
-                                                isActive={pathname === "/manual" || pathname.startsWith("/manual/")}
-                                                tooltip="Manual do Usuário & Ajuda"
-                                                className="relative data-[active=true]:bg-primary/5 data-[active=true]:text-primary data-[active=true]:font-bold before:absolute before:left-0 before:top-1 before:bottom-1 before:w-[2px] before:bg-primary before:rounded-full before:opacity-0 data-[active=true]:before:opacity-100 transition-all"
-                                            >
-                                                <BookOpen className="size-3.5 flex-shrink-0 text-primary" />
-                                                <span className="truncate">Manual do Usuário</span>
-                                            </SidebarMenuButton>
-                                        </SidebarMenuItem>
-                                    </SidebarMenu>
-                                </SidebarGroupContent>
-                            </SidebarGroup>
-                        )}
-
-                        {/* ── Módulos ───────────────────────────────── */}
-                        {tenant && (
-                            <SidebarGroup>
-                                <SidebarGroupLabel>Módulos</SidebarGroupLabel>
-                                <SidebarGroupContent>
-                                    <SidebarMenu>
-
-                                        {/* CORE — Cadastros e Tabelas Compartilhadas */}
-                                        {coreSections.length > 0 && (
-                                        <SidebarMenuItem>
-                                            <SidebarMenuButton
-                                                onClick={() => handleModuleToggle("CADASTROS")}
-                                                isActive={pathname.startsWith("/cadastros")}
-                                                tooltip="Cadastros.."
-                                                aria-expanded={isCadastrosOpen}
-                                                aria-controls={cadastrosSubmenuId}
-                                            >
-                                                {CORE_CADASTROS[0]?.icon && (() => {
-                                                    const Icon = CORE_CADASTROS[0].icon;
-                                                    return <Icon className="size-3.5 text-primary" />;
-                                                })()}
-                                                <span className="font-semibold">Cadastros</span>
-                                                {isCadastrosOpen ? <ChevronDown className="ml-auto size-3.5 " /> : <ChevronRight className="ml-auto size-3.5 " />}
-                                            </SidebarMenuButton>
-                                            {isCadastrosOpen && (
-                                                <SidebarMenuSub id={cadastrosSubmenuId}>
-                                                    {coreSections.map((section) => (
-                                                        <React.Fragment key={section.key}>
-                                                            {/* Seção de label */}
-                                                            <SidebarMenuSubItem>
-                                                                <div className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground/60">
-                                                                    {section.label}
-                                                                </div>
-                                                            </SidebarMenuSubItem>
-
-                                                            {/* Items dessa seção */}
-                                                            {section.items.map((item) => (
-                                                                    <SidebarMenuSubItem key={`${item.href}-${item.label}`}>
-                                                                        <SidebarMenuSubButton title={item.tip} isActive={isItemActive(item.href, pathname, searchParams, item.exact)} render={<Link href={item.href} onClick={handleNavigation} />}>
-                                                                            <item.icon className="size-3.5 flex-shrink-0 text-primary" />
-                                                                            <span>{item.label}</span>
-                                                                        </SidebarMenuSubButton>
+                                    <SidebarContent>
+                                        {isSearching ? (
+                                            <SidebarGroup>
+                                                <SidebarGroupLabel>
+                                                    {filteredSearchGroups.total === 1
+                                                        ? "1 item encontrado"
+                                                        : `${filteredSearchGroups.total} itens encontrados`}
+                                                </SidebarGroupLabel>
+                                                <SidebarGroupContent>
+                                                    {filteredSearchGroups.total === 0 ? (
+                                                        <div className="px-2 py-6 text-center text-xs text-muted-foreground">
+                                                            Nenhum item encontrado para &quot;{deferredSearchQuery}&quot;.
+                                                        </div>
+                                                    ) : (
+                                                        <SidebarMenu>
+                                                            {filteredSearchGroups.coreItems.length > 0 && (
+                                                                <>
+                                                                    <SidebarMenuSubItem>
+                                                                        <div className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground/60">
+                                                                            Cadastros
+                                                                        </div>
                                                                     </SidebarMenuSubItem>
-                                                                ))}
-                                                        </React.Fragment>
-                                                    ))}
-                                                </SidebarMenuSub>
-                                            )}
-                                        </SidebarMenuItem>
-                                        )}
+                                                                    {renderSearchItems(filteredSearchGroups.coreItems)}
+                                                                </>
+                                                            )}
 
-                                        {/* Módulos Operacionais */}
-                                        {moduleGroups.map((moduleGroup) => {
-                                            const moduleKey = moduleGroup.key as ModuleKey;
-                                            const moduleIsOpen = isModuleOpen(moduleKey);
-                                            const moduleSubmenuId = `sidebar-module-${moduleGroup.key}`;
-                                            const moduleIsActive = moduleGroup.sections.some((section) =>
-                                                section.items.some((item) => isItemActive(item.href, pathname, searchParams, item.exact))
-                                            );
+                                                            {filteredSearchGroups.moduleGroups.map((moduleGroup) => (
+                                                                <ModuleGate key={moduleGroup.key} moduleId={moduleGroup.moduleId}>
+                                                                    <SidebarMenuSubItem>
+                                                                        <div className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground/60">
+                                                                            {moduleGroup.label}
+                                                                        </div>
+                                                                    </SidebarMenuSubItem>
+                                                                    {renderSearchItems(moduleGroup.items)}
+                                                                </ModuleGate>
+                                                            ))}
 
-                                            return (
-                                            <ModuleGate key={moduleGroup.key} moduleId={moduleGroup.moduleId}>
-                                                <SidebarMenuItem>
-                                                <SidebarMenuButton
-                                                        onClick={() => handleModuleToggle(moduleKey)}
-                                                        isActive={moduleIsActive}
-                                                        tooltip={moduleGroup.label}
-                                                        className={cn(moduleActive[moduleGroup.key as keyof typeof moduleActive] || "data-[active=true]:bg-primary/10 data-[active=true]:text-primary")}
-                                                        aria-expanded={moduleIsOpen}
-                                                        aria-controls={moduleSubmenuId}
-                                                    >
-                                                        <moduleGroup.icon className="size-3.5 text-primary" />
-                                                        <span className="font-semibold">{moduleGroup.label}</span>
-                                                        {moduleIsOpen ? <ChevronDown className="ml-auto size-3.5 " /> : <ChevronRight className="ml-auto size-3.5 " />}
-                                                    </SidebarMenuButton>
+                                                            {filteredSearchGroups.backofficeItems.length > 0 && (
+                                                                <>
+                                                                    <SidebarMenuSubItem>
+                                                                        <div className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground/60">
+                                                                            Administração SaaS
+                                                                        </div>
+                                                                    </SidebarMenuSubItem>
+                                                                    {renderSearchItems(filteredSearchGroups.backofficeItems)}
+                                                                </>
+                                                            )}
 
-                                                    {moduleIsOpen && (
-                                                        <SidebarMenuSub id={moduleSubmenuId}>
-                                                            {moduleGroup.sections.map((section) => {
-                                                                const visibleItems = section.items.filter(
-                                                                    (item) =>
-                                                                        (!item.minimumTier || tierAtLeast(activePlanTier, item.minimumTier)) &&
-                                                                        canSeeTenantItem(user, item.permission)
-                                                                );
-                                                                if (visibleItems.length === 0) {
-                                                                    return null;
-                                                                }
-                                                                const isDirectGroup = section.label === "Dashboard" || section.label === "Visão Geral";
+                                                            {filteredSearchGroups.accessItems.length > 0 && (
+                                                                <>
+                                                                    <SidebarMenuSubItem>
+                                                                        <div className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground/60">
+                                                                            Gestão de Acessos
+                                                                        </div>
+                                                                    </SidebarMenuSubItem>
+                                                                    {renderSearchItems(filteredSearchGroups.accessItems)}
+                                                                </>
+                                                            )}
 
-                                                                const sectionModuleId = section.moduleId ?? moduleGroup.moduleId;
+                                                            {filteredSearchGroups.settingsItems.length > 0 && (
+                                                                <>
+                                                                    <SidebarMenuSubItem>
+                                                                        <div className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground/60">
+                                                                            Configurações
+                                                                        </div>
+                                                                    </SidebarMenuSubItem>
+                                                                    {renderSearchItems(filteredSearchGroups.settingsItems)}
+                                                                </>
+                                                            )}
+                                                        </SidebarMenu>
+                                                    )}
+                                                </SidebarGroupContent>
+                                            </SidebarGroup>
+                                        ) : (
+                                            <>
+                                                {/* ── Geral ─────────────────────────────────── */}
+                                                {tenant && (
+                                                    <SidebarGroup>
+                                                        <SidebarGroupLabel>Geral</SidebarGroupLabel>
+                                                        <SidebarGroupContent>
+                                                            <SidebarMenu>
+                                                                <SidebarMenuItem>
+                                                                    <SidebarMenuButton
+                                                                        render={<Link href="/dashboard" onClick={handleNavigation} />}
+                                                                        isActive={pathname === "/dashboard"}
+                                                                        tooltip="Dashboard"
+                                                                        className="relative data-[active=true]:bg-primary/5 data-[active=true]:text-primary data-[active=true]:font-bold before:absolute before:left-0 before:top-1 before:bottom-1 before:w-[2px] before:bg-primary before:rounded-full before:opacity-0 data-[active=true]:before:opacity-100 transition-all"
+                                                                    >
+                                                                        <LayoutDashboard className="size-3.5 flex-shrink-0 text-primary" />
+                                                                        <span className="truncate">Dashboard</span>
+                                                                    </SidebarMenuButton>
+                                                                </SidebarMenuItem>
+                                                                <SidebarMenuItem>
+                                                                    <SidebarMenuButton
+                                                                        render={<Link href="/manual" onClick={handleNavigation} />}
+                                                                        isActive={pathname === "/manual" || pathname.startsWith("/manual/")}
+                                                                        tooltip="Manual do Usuário & Ajuda"
+                                                                        className="relative data-[active=true]:bg-primary/5 data-[active=true]:text-primary data-[active=true]:font-bold before:absolute before:left-0 before:top-1 before:bottom-1 before:w-[2px] before:bg-primary before:rounded-full before:opacity-0 data-[active=true]:before:opacity-100 transition-all"
+                                                                    >
+                                                                        <BookOpen className="size-3.5 flex-shrink-0 text-primary" />
+                                                                        <span className="truncate">Manual do Usuário</span>
+                                                                    </SidebarMenuButton>
+                                                                </SidebarMenuItem>
+                                                            </SidebarMenu>
+                                                        </SidebarGroupContent>
+                                                    </SidebarGroup>
+                                                )}
 
-                                                                if (isDirectGroup) {
+                                                {/* ── Módulos ───────────────────────────────── */}
+                                                {tenant && (
+                                                    <SidebarGroup>
+                                                        <SidebarGroupLabel>Módulos</SidebarGroupLabel>
+                                                        <SidebarGroupContent>
+                                                            <SidebarMenu>
+
+                                                                {/* CORE — Cadastros e Tabelas Compartilhadas */}
+                                                                {coreSections.length > 0 && (
+                                                                    <SidebarMenuItem>
+                                                                        <SidebarMenuButton
+                                                                            onClick={() => handleModuleToggle("CADASTROS")}
+                                                                            isActive={pathname.startsWith("/cadastros")}
+                                                                            tooltip="Cadastros.."
+                                                                            aria-expanded={isCadastrosOpen}
+                                                                            aria-controls={cadastrosSubmenuId}
+                                                                        >
+                                                                            {CORE_CADASTROS[0]?.icon && (() => {
+                                                                                const Icon = CORE_CADASTROS[0].icon;
+                                                                                return <Icon className="size-3.5 text-primary" />;
+                                                                            })()}
+                                                                            <span className="font-semibold">Cadastros</span>
+                                                                            {isCadastrosOpen ? <ChevronDown className="ml-auto size-3.5 " /> : <ChevronRight className="ml-auto size-3.5 " />}
+                                                                        </SidebarMenuButton>
+                                                                        {isCadastrosOpen && (
+                                                                            <SidebarMenuSub id={cadastrosSubmenuId}>
+                                                                                {coreSections.map((section) => (
+                                                                                    <React.Fragment key={section.key}>
+                                                                                        {/* Seção de label */}
+                                                                                        <SidebarMenuSubItem>
+                                                                                            <div className="px-2 py-1.5 text-[10px] font-semibold text-muted-foreground/60">
+                                                                                                {section.label}
+                                                                                            </div>
+                                                                                        </SidebarMenuSubItem>
+
+                                                                                        {/* Items dessa seção */}
+                                                                                        {section.items.map((item) => (
+                                                                                            <SidebarMenuSubItem key={`${item.href}-${item.label}`}>
+                                                                                                <SidebarMenuSubButton title={item.tip} isActive={isItemActive(item.href, pathname, searchParams, item.exact)} render={<Link href={item.href} onClick={handleNavigation} />}>
+                                                                                                    <item.icon className="size-3.5 flex-shrink-0 text-primary" />
+                                                                                                    <span>{item.label}</span>
+                                                                                                </SidebarMenuSubButton>
+                                                                                            </SidebarMenuSubItem>
+                                                                                        ))}
+                                                                                    </React.Fragment>
+                                                                                ))}
+                                                                            </SidebarMenuSub>
+                                                                        )}
+                                                                    </SidebarMenuItem>
+                                                                )}
+
+                                                                {/* Módulos Operacionais */}
+                                                                {moduleGroups.map((moduleGroup) => {
+                                                                    const moduleKey = moduleGroup.key as ModuleKey;
+                                                                    const moduleIsOpen = isModuleOpen(moduleKey);
+                                                                    const moduleSubmenuId = `sidebar-module-${moduleGroup.key}`;
+                                                                    const moduleIsActive = moduleGroup.sections.some((section) =>
+                                                                        section.items.some((item) => isItemActive(item.href, pathname, searchParams, item.exact))
+                                                                    );
+
                                                                     return (
-                                                                        <ModuleGate key={section.key} moduleId={sectionModuleId}>
-                                                                            {visibleItems.map((item) => (
-                                                                                <SidebarMenuSubItem key={`${item.href}-${item.label}`} className="mb-1">
-                                                                                    <SidebarMenuSubButton title={item.tip} isActive={isItemActive(item.href, pathname, searchParams, item.exact)} render={<Link href={item.href} onClick={handleNavigation} />} className="font-semibold text-primary">
-                                                                                        <item.icon className="size-3.5 flex-shrink-0" />
-                                                                                        <span className="truncate">{item.label}</span>
-                                                                                        {item.alertBadge && hasCadernoAlerta && (
-                                                                                            <Badge variant="destructive" className="ml-auto">
-                                                                                                <AlertCircle className="size-3" />
-                                                                                            </Badge>
-                                                                                        )}
-                                                                                    </SidebarMenuSubButton>
-                                                                                </SidebarMenuSubItem>
-                                                                            ))}
+                                                                        <ModuleGate key={moduleGroup.key} moduleId={moduleGroup.moduleId}>
+                                                                            <SidebarMenuItem>
+                                                                                <SidebarMenuButton
+                                                                                    onClick={() => handleModuleToggle(moduleKey)}
+                                                                                    isActive={moduleIsActive}
+                                                                                    tooltip={moduleGroup.label}
+                                                                                    className={cn(moduleActive[moduleGroup.key as keyof typeof moduleActive] || "data-[active=true]:bg-primary/10 data-[active=true]:text-primary")}
+                                                                                    aria-expanded={moduleIsOpen}
+                                                                                    aria-controls={moduleSubmenuId}
+                                                                                >
+                                                                                    <moduleGroup.icon className="size-3.5 text-primary" />
+                                                                                    <span className="font-semibold">{moduleGroup.label}</span>
+                                                                                    {moduleIsOpen ? <ChevronDown className="ml-auto size-3.5 " /> : <ChevronRight className="ml-auto size-3.5 " />}
+                                                                                </SidebarMenuButton>
+
+                                                                                {moduleIsOpen && (
+                                                                                    <SidebarMenuSub id={moduleSubmenuId}>
+                                                                                        {moduleGroup.sections.map((section) => {
+                                                                                            const visibleItems = section.items.filter(
+                                                                                                (item) =>
+                                                                                                    (!item.minimumTier || tierAtLeast(activePlanTier, item.minimumTier)) &&
+                                                                                                    canSeeTenantItem(user, item.permission)
+                                                                                            );
+                                                                                            if (visibleItems.length === 0) {
+                                                                                                return null;
+                                                                                            }
+                                                                                            const isDirectGroup = section.label === "Dashboard" || section.label === "Visão Geral";
+
+                                                                                            const sectionModuleId = section.moduleId ?? moduleGroup.moduleId;
+
+                                                                                            if (isDirectGroup) {
+                                                                                                return (
+                                                                                                    <ModuleGate key={section.key} moduleId={sectionModuleId}>
+                                                                                                        {visibleItems.map((item) => (
+                                                                                                            <SidebarMenuSubItem key={`${item.href}-${item.label}`} className="mb-1">
+                                                                                                                <SidebarMenuSubButton title={item.tip} isActive={isItemActive(item.href, pathname, searchParams, item.exact)} render={<Link href={item.href} onClick={handleNavigation} />} className="font-semibold text-primary">
+                                                                                                                    <item.icon className="size-3.5 flex-shrink-0" />
+                                                                                                                    <span className="truncate">{item.label}</span>
+                                                                                                                    {item.alertBadge && hasCadernoAlerta && (
+                                                                                                                        <Badge variant="destructive" className="ml-auto">
+                                                                                                                            <AlertCircle className="size-3" />
+                                                                                                                        </Badge>
+                                                                                                                    )}
+                                                                                                                </SidebarMenuSubButton>
+                                                                                                            </SidebarMenuSubItem>
+                                                                                                        ))}
+                                                                                                    </ModuleGate>
+                                                                                                );
+                                                                                            }
+
+                                                                                            return (
+                                                                                                <ModuleGate key={section.key} moduleId={sectionModuleId}>
+                                                                                                    <React.Fragment>
+                                                                                                        <SidebarMenuSubItem>
+                                                                                                            <div className={cn(
+                                                                                                                "px-1.5 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/70",
+                                                                                                                getSectionActiveStyle(moduleGroup.key)
+                                                                                                            )}>
+                                                                                                                {section.label}
+                                                                                                            </div>
+                                                                                                        </SidebarMenuSubItem>
+                                                                                                        {visibleItems.map((item) => (
+                                                                                                            <SidebarMenuSubItem key={`${item.href}-${item.label}`}>
+                                                                                                                <SidebarMenuSubButton title={item.tip} isActive={isItemActive(item.href, pathname, searchParams, item.exact)} render={<Link href={item.href} onClick={handleNavigation} />}>
+                                                                                                                    <item.icon className="size-3.5 flex-shrink-0 text-primary" />
+                                                                                                                    <span className="truncate">{item.label}</span>
+                                                                                                                    {item.alertBadge && hasCadernoAlerta && (
+                                                                                                                        <Badge variant="destructive" className="ml-auto">
+                                                                                                                            <AlertCircle className="size-3" />
+                                                                                                                        </Badge>
+                                                                                                                    )}
+                                                                                                                </SidebarMenuSubButton>
+                                                                                                            </SidebarMenuSubItem>
+                                                                                                        ))}
+                                                                                                    </React.Fragment>
+                                                                                                </ModuleGate>
+                                                                                            );
+                                                                                        })}
+                                                                                    </SidebarMenuSub>
+                                                                                )}
+                                                                            </SidebarMenuItem>
                                                                         </ModuleGate>
                                                                     );
-                                                                }
-
-                                                                return (
-                                                                    <ModuleGate key={section.key} moduleId={sectionModuleId}>
-                                                                    <React.Fragment>
-                                                                        <SidebarMenuSubItem>
-                                                                            <div className={cn(
-                                                                                "px-1.5 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/70",
-                                                                                getSectionActiveStyle(moduleGroup.key)
-                                                                            )}>
-                                                                                {section.label}
-                                                                            </div>
-                                                                        </SidebarMenuSubItem>
-                                                                        {visibleItems.map((item) => (
-                                                                            <SidebarMenuSubItem key={`${item.href}-${item.label}`}>
-                                                                                <SidebarMenuSubButton title={item.tip} isActive={isItemActive(item.href, pathname, searchParams, item.exact)} render={<Link href={item.href} onClick={handleNavigation} />}>
-                                                                                    <item.icon className="size-3.5 flex-shrink-0 text-primary" />
-                                                                                    <span className="truncate">{item.label}</span>
-                                                                                    {item.alertBadge && hasCadernoAlerta && (
-                                                                                        <Badge variant="destructive" className="ml-auto">
-                                                                                            <AlertCircle className="size-3" />
-                                                                                        </Badge>
-                                                                                    )}
-                                                                                </SidebarMenuSubButton>
-                                                                            </SidebarMenuSubItem>
-                                                                        ))}
-                                                                    </React.Fragment>
-                                                                    </ModuleGate>
-                                                                );
-                                                            })}
-                                                        </SidebarMenuSub>
-                                                    )}
-                                                </SidebarMenuItem>
-                                            </ModuleGate>
-                                        );
-                                        })}
+                                                                })}
 
 
-                                    </SidebarMenu>
-                                </SidebarGroupContent>
-                            </SidebarGroup>
-                        )}
+                                                            </SidebarMenu>
+                                                        </SidebarGroupContent>
+                                                    </SidebarGroup>
+                                                )}
 
-                        {/* ── Administração SaaS (6 seções agrupadas por domínio) ── */}
-                        <BackofficeNav
-                            pathname={pathname}
-                            searchParams={searchParams}
-                            user={user}
-                            backofficeToggle={backofficeToggle}
-                            setBackofficeToggle={setBackofficeToggle}
-                            onNavigate={handleNavigation}
-                        />
+                                                {/* ── Administração SaaS (6 seções agrupadas por domínio) ── */}
+                                                <BackofficeNav
+                                                    pathname={pathname}
+                                                    searchParams={searchParams}
+                                                    user={user}
+                                                    backofficeToggle={backofficeToggle}
+                                                    setBackofficeToggle={setBackofficeToggle}
+                                                    onNavigate={handleNavigation}
+                                                />
 
-                        {/* ── Gestão de Acessos ─────────────────────── */}
-                        {tenant && accessItems.length > 0 && (
-                            <SidebarGroup>
-                                <SidebarGroupLabel>Gestão de Acessos</SidebarGroupLabel>
-                                <SidebarGroupContent>
-                                    <SidebarMenu>
-                                        {accessItems.map(({ href, icon: Icon, label, tip, exact }) => (
-                                            <SidebarMenuItem key={href}>
-                                                <SidebarMenuButton
-                                                    isActive={isItemActive(href, pathname, searchParams, exact)}
-                                                    tooltip={tip}
-                                                    className="relative data-[active=true]:bg-primary/5 data-[active=true]:text-primary data-[active=true]:font-bold before:absolute before:left-0 before:top-1 before:bottom-1 before:w-[2px] before:bg-primary before:rounded-full before:opacity-0 data-[active=true]:before:opacity-100 transition-all"
-                                                    render={<Link href={href} onClick={handleNavigation} />}
-                                                >
-                                                    <Icon className="size-3.5 shrink-0 text-primary" />
-                                                    <span className="truncate">{label}</span>
-                                                </SidebarMenuButton>
-                                            </SidebarMenuItem>
-                                        ))}
-                                    </SidebarMenu>
-                                </SidebarGroupContent>
-                            </SidebarGroup>
-                        )}
+                                                {/* ── Gestão de Acessos ─────────────────────── */}
+                                                {tenant && accessItems.length > 0 && (
+                                                    <SidebarGroup>
+                                                        <SidebarGroupLabel>Gestão de Acessos</SidebarGroupLabel>
+                                                        <SidebarGroupContent>
+                                                            <SidebarMenu>
+                                                                {accessItems.map(({ href, icon: Icon, label, tip, exact }) => (
+                                                                    <SidebarMenuItem key={href}>
+                                                                        <SidebarMenuButton
+                                                                            isActive={isItemActive(href, pathname, searchParams, exact)}
+                                                                            tooltip={tip}
+                                                                            className="relative data-[active=true]:bg-primary/5 data-[active=true]:text-primary data-[active=true]:font-bold before:absolute before:left-0 before:top-1 before:bottom-1 before:w-[2px] before:bg-primary before:rounded-full before:opacity-0 data-[active=true]:before:opacity-100 transition-all"
+                                                                            render={<Link href={href} onClick={handleNavigation} />}
+                                                                        >
+                                                                            <Icon className="size-3.5 shrink-0 text-primary" />
+                                                                            <span className="truncate">{label}</span>
+                                                                        </SidebarMenuButton>
+                                                                    </SidebarMenuItem>
+                                                                ))}
+                                                            </SidebarMenu>
+                                                        </SidebarGroupContent>
+                                                    </SidebarGroup>
+                                                )}
 
-                        {/* ── Configurações ─────────────────────────── */}
-                        {tenant && settingsItems.length > 0 && <SidebarGroup>
-                            <SidebarGroupLabel>Configurações</SidebarGroupLabel>
-                            <SidebarGroupContent>
-                                <SidebarMenu>
-                                    {settingsItems.map(({ href, icon: Icon, label, tip, exact }) => (
-                                        <SidebarMenuItem key={href}>
-                                            <SidebarMenuButton
-                                                isActive={isItemActive(href, pathname, searchParams, exact)}
-                                                tooltip={tip}
-                                                className="relative data-[active=true]:bg-primary/5 data-[active=true]:text-primary data-[active=true]:font-bold before:absolute before:left-0 before:top-1 before:bottom-1 before:w-[2px] before:bg-primary before:rounded-full before:opacity-0 data-[active=true]:before:opacity-100 transition-all font-medium text-sidebar-foreground/80"
-                                                render={<Link href={href} onClick={handleNavigation} />}
-                                            >
-                                                <Icon className="size-3.5 shrink-0 text-primary" />
-                                                <span className="truncate">{label}</span>
-                                            </SidebarMenuButton>
-                                        </SidebarMenuItem>
-                                    ))}
-                                </SidebarMenu>
-                            </SidebarGroupContent>
-                        </SidebarGroup>}
-                    </>
-                )}
-            </SidebarContent>
-        </Sidebar>
-    );
+                                                {/* ── Configurações ─────────────────────────── */}
+                                                {tenant && settingsItems.length > 0 && <SidebarGroup>
+                                                    <SidebarGroupLabel>Configurações</SidebarGroupLabel>
+                                                    <SidebarGroupContent>
+                                                        <SidebarMenu>
+                                                            {settingsItems.map(({ href, icon: Icon, label, tip, exact }) => (
+                                                                <SidebarMenuItem key={href}>
+                                                                    <SidebarMenuButton
+                                                                        isActive={isItemActive(href, pathname, searchParams, exact)}
+                                                                        tooltip={tip}
+                                                                        className="relative data-[active=true]:bg-primary/5 data-[active=true]:text-primary data-[active=true]:font-bold before:absolute before:left-0 before:top-1 before:bottom-1 before:w-[2px] before:bg-primary before:rounded-full before:opacity-0 data-[active=true]:before:opacity-100 transition-all font-medium text-sidebar-foreground/80"
+                                                                        render={<Link href={href} onClick={handleNavigation} />}
+                                                                    >
+                                                                        <Icon className="size-3.5 shrink-0 text-primary" />
+                                                                        <span className="truncate">{label}</span>
+                                                                    </SidebarMenuButton>
+                                                                </SidebarMenuItem>
+                                                            ))}
+                                                        </SidebarMenu>
+                                                    </SidebarGroupContent>
+                                                </SidebarGroup>}
+                                            </>
+                                        )}
+                                    </SidebarContent>
+
+                                    {/* Rodapé com Diagnóstico do Ambiente Detectado */}
+                                    <SidebarFooter className="border-t border-border/60 bg-muted/20 p-2.5">
+                                        <div
+                                            className="hidden group-data-[collapsible=icon]:flex flex-col items-center gap-1 py-1 text-muted-foreground"
+                                            title={`Ambiente: ${deviceCategory === "tablet" ? "Tablet" : deviceCategory === "mobile" ? "Mobile" : "Desktop"} (${executionMode === "standalone" ? "PWA Instalado" : "Navegador"})`}
+                                        >
+                                            <DeviceIcon className="size-4 text-primary" />
+                                            <span className="text-[9px] font-medium uppercase">
+                                                {deviceCategory === "tablet" ? "Tab" : "Web"}
+                                            </span>
+                                        </div>
+                                        <div className="group-data-[collapsible=icon]:hidden flex items-center justify-between gap-2 px-1 py-0.5">
+                                            <div className="flex items-center gap-2 min-w-0">
+                                                <div className="p-1.5 rounded-sm bg-primary/10 text-primary shrink-0">
+                                                    <DeviceIcon className="size-3.5" />
+                                                </div>
+                                                <div className="flex flex-col min-w-0">
+                                                    <span className="text-[11px] font-semibold text-foreground truncate">
+                                                        {deviceCategory === "tablet"
+                                                            ? "Modo Tablet"
+                                                            : deviceCategory === "mobile"
+                                                                ? "Modo Mobile"
+                                                                : "Modo Desktop"}
+                                                    </span>
+                                                    <span className="text-[10px] text-muted-foreground truncate">
+                                                        {executionMode === "standalone" ? "PWA Instalado" : "Acesso via Navegador"}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                            <Badge variant="outline" className="text-[9px] px-1.5 py-0 rounded-sm shrink-0">
+                                                {executionMode === "standalone" ? "App" : "Web"}
+                                            </Badge>
+                                        </div>
+                                    </SidebarFooter>
+                                </Sidebar>
+                            );
 }

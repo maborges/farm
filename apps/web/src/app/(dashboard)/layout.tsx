@@ -1,5 +1,6 @@
 import { Topbar } from "@/components/layout/topbar";
 import { NavigationShell } from "@/components/layout/navigation-shell";
+import { AdaptiveDashboardShell } from "@/components/layout/adaptive-dashboard-shell";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SessionGuard } from "@/components/auth/session-guard";
@@ -25,6 +26,7 @@ export default async function DashboardLayout({
     const tenantIdFromCookie = cookieStore.get("tenant_id")?.value ?? null;
     const fazendaIdFromCookie = cookieStore.get("unidade_produtiva_id")?.value ?? null;
     const sidebarState = cookieStore.get("sidebar_state")?.value;
+    const hasExplicitSidebarCookie = sidebarState === "true" || sidebarState === "false";
     const sidebarOpen = sidebarState !== "false";
 
     return (
@@ -46,12 +48,12 @@ export default async function DashboardLayout({
                         <ServiceWorkerRegistration />
                         <OfflineStatus />
                         <NavigationShell />
-                        <SidebarInset className="h-svh min-w-0 overflow-hidden bg-background/80 text-foreground">
-                            <Topbar />
-                            <main className="flex min-h-0 flex-1 w-full overflow-y-auto overflow-x-hidden pt-14">
-                                <div className="flex w-full min-w-0 flex-1 flex-col">
-                                    {children}
-                                </div>
+                            <SidebarInset className="h-svh min-w-0 overflow-hidden bg-background text-foreground">
+                                <Topbar />
+                                <main className="flex min-h-0 flex-1 w-full overflow-y-auto overflow-x-hidden pt-14">
+                                        <AdaptiveDashboardShell hasExplicitSidebarCookie={hasExplicitSidebarCookie}>
+                                            {children}
+                                </AdaptiveDashboardShell>
                             </main>
                         </SidebarInset>
                     </TooltipProvider>

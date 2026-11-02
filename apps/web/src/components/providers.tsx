@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ThemeProvider, useTheme } from "@/components/theme-provider";
 import { toast, Toaster } from "sonner";
+import { DeviceContextProvider } from "@/lib/device/use-device-context";
 import { isStaleServerActionError } from "@/lib/server-action-errors";
 
 function SonnerProvider() {
@@ -66,9 +67,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
     return (
         <QueryClientProvider client={queryClient}>
             <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-                <SonnerProvider />
-                <ServerActionErrorHandler />
-                {children}
+                <DeviceContextProvider>
+                    <SonnerProvider />
+                    <ServerActionErrorHandler />
+                    {children}
+                </DeviceContextProvider>
             </ThemeProvider>
         </QueryClientProvider>
     );

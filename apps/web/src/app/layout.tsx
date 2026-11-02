@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Outfit } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/providers";
@@ -9,8 +9,21 @@ const outfit = Outfit({
 });
 
 export const metadata: Metadata = {
-  title: "DeepFarms | Dashboard",
-  description: "Sistema de Gestão do Agronegócio",
+  title: "DeepFarms | Gestão Rural",
+  description: "Sistema Integrado de Gestão do Agronegócio",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "DeepFarms Gestão",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#006B3D",
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
 };
 
 export default function RootLayout({

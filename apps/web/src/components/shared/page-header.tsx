@@ -53,23 +53,23 @@ export function PageHeader({
             <HeaderBackButton />
           </nav>
         )}
-        <h1 className="flex items-center gap-3 text-balance text-3xl font-light leading-tight text-foreground">
-          {icon && (
-            <span className="inline-flex shrink-0 text-primary bg-primary/10 p-2 rounded-sm border border-primary/20 shadow-sm ring-1 ring-primary/10">
-              {icon}
-            </span>
+          <h1 className="flex items-center gap-2.5 text-balance text-xl sm:text-2xl md:text-3xl font-bold tracking-tight leading-tight text-foreground">
+            {icon && (
+                <span className="inline-flex shrink-0 text-primary bg-primary/10 p-2 rounded-sm border border-primary/20 shadow-xs">
+                  {icon}
+                </span>
           )}
-          {title}
-        </h1>
+                {title}
+              </h1>
         {description && (
-          <p className="text-sm text-muted-foreground text-pretty">{description}</p>
-        )}
+          <p className="text-xs sm:text-sm text-muted-foreground text-pretty">{description}</p>
+            )}
+          </div>
+          {actions && (
+            <div className="flex flex-wrap items-center gap-2 mt-2 md:mt-0">
+              {actions}
+            </div>
+          )}
       </div>
-      {actions && (
-        <div className="flex flex-wrap items-center gap-2 mt-2 md:mt-0">
-          {actions}
-        </div>
-      )}
-    </div>
-  );
+      );
 }

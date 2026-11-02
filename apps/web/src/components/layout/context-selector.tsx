@@ -19,13 +19,13 @@ import { resolveAssetUrl } from "@/lib/runtime-config";
 
 export function ContextSelector() {
     const router = useRouter();
-    const { 
-        grupos, 
-        activeGrupoId, 
-        activeFazendaId, 
-        isVisaoGrupo, 
-        setActiveFazenda, 
-        setActiveGrupo, 
+    const {
+        grupos,
+        activeGrupoId,
+        activeFazendaId,
+        isVisaoGrupo,
+        setActiveFazenda,
+        setActiveGrupo,
         tenant,
         tenantContexts,
         loadTenantContexts,
@@ -129,35 +129,35 @@ export function ContextSelector() {
             <div className="flex items-center gap-2">
                 {/* Seletor de fazendas do grupo ativo */}
                 <Select value={selectValue} onValueChange={handleChange}>
-                    <SelectTrigger className="w-auto min-w-[220px] max-w-[260px] rounded-full border border-sidebar-border/40 bg-sidebar/35 px-3 py-1.5 text-left shadow-sm backdrop-blur-sm transition-colors hover:bg-sidebar/55 hover:text-foreground focus-visible:ring-2 focus-visible:ring-primary/20 aria-expanded:bg-sidebar/55 aria-expanded:text-foreground dark:bg-sidebar/25 dark:hover:bg-sidebar/40">
-                        <SelectValue placeholder="Selecionar contexto" />
-                    </SelectTrigger>
-                    <SelectContent className="w-[280px]">
-                        {multiGrupo && (
-                            <SelectItem value="TODOS" className="font-medium">
-                                Visão Consolidada
-                            </SelectItem>
-                        )}
+                        <SelectTrigger className="h-8 w-auto min-w-[180px] max-w-[240px] rounded-sm border border-border bg-card px-2.5 py-1 text-xs text-left shadow-xs transition-colors hover:bg-accent/50 hover:text-foreground focus-visible:ring-1 focus-visible:ring-ring">
+                            <SelectValue placeholder="Selecionar contexto" />
+                        </SelectTrigger>
+                        <SelectContent className="w-[280px]">
+                            {multiGrupo && (
+                                <SelectItem value="TODOS" className="font-medium">
+                                    Visão Consolidada
+                                </SelectItem>
+                            )}
 
-                        {grupos.filter((g) => g.id === activeGrupoId).map((grupo) => (
-                            <div key={grupo.id} className="py-1">
-                                <div className="px-2 pb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                                    {grupo.nome}
-                                </div>
-                                {grupo.fazendas.length === 0 ? (
-                                    <SelectItem value={`grupo:${grupo.id}`} disabled className="italic text-muted-foreground">
-                                        (sem fazendas cadastradas)
-                                    </SelectItem>
-                                ) : (
-                                    grupo.fazendas.map((faz) => (
-                                        <SelectItem key={faz.id} value={faz.id} className="pl-4">
-                                            {faz.nome}
+                            {grupos.filter((g) => g.id === activeGrupoId).map((grupo) => (
+                                <div key={grupo.id} className="py-1">
+                                    <div className="px-2 pb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                        {grupo.nome}
+                                    </div>
+                                    {grupo.fazendas.length === 0 ? (
+                                        <SelectItem value={`grupo:${grupo.id}`} disabled className="italic text-muted-foreground">
+                                            (sem fazendas cadastradas)
                                         </SelectItem>
-                                    ))
-                                )}
-                            </div>
-                        ))}
-                    </SelectContent>
+                                    ) : (
+                                        grupo.fazendas.map((faz) => (
+                                            <SelectItem key={faz.id} value={faz.id} className="pl-4">
+                                                {faz.nome}
+                                            </SelectItem>
+                                        ))
+                                    )}
+                                </div>
+                            ))}
+                        </SelectContent>
                 </Select>
             </div>
         );
@@ -165,50 +165,50 @@ export function ContextSelector() {
 
     // Se há apenas um contexto, manter o seletor original
     return (
-        <div className="flex items-center gap-3 relative group rounded-md border border-sidebar-border/40 bg-sidebar/35 px-3 py-1.5 text-sm shadow-sm backdrop-blur-sm transition-colors hover:bg-sidebar/55 dark:bg-sidebar/25 dark:hover:bg-sidebar/40">
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-sm bg-primary/10 text-primary">
-                {!isVisaoGrupo && fazendaLogoSrc ? (
-                    <img src={fazendaLogoSrc} alt={fazendaAtiva?.nome ?? "Propriedade"} className="h-full w-full rounded-sm object-cover" />
-                ) : isVisaoGrupo ? (
-                    <Building2 size={16} />
-                ) : (
-                    <Trees size={16} />
-                )}
-            </div>
-
-            <div className="flex flex-col">
-                <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider mb-0.5">Contexto Ativo</span>
-                <Select value={selectValue} onValueChange={handleChange}>
-                    <SelectTrigger className="h-auto border-0 bg-transparent p-0 text-sm font-medium shadow-none focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 w-full hover:bg-transparent justify-between gap-2 max-w-[150px] lg:max-w-[200px]">
-                        <SelectValue placeholder={fazendaAtiva?.nome ?? tenant?.nome ?? "Selecionar contexto"} className="truncate" />
-                    </SelectTrigger>
-                    <SelectContent className="w-[280px]">
-                        {multiGrupo && (
-                            <SelectItem value="TODOS" className="font-bold">
-                                🌐 Visão Consolidada
-                            </SelectItem>
+                <div className="flex items-center gap-2 relative group rounded-sm border border-border bg-card px-2.5 py-1 text-xs shadow-xs transition-colors hover:bg-accent/50">
+                    <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-sm bg-primary/10 text-primary">
+                        {!isVisaoGrupo && fazendaLogoSrc ? (
+                            <img src={fazendaLogoSrc} alt={fazendaAtiva?.nome ?? "Propriedade"} className="h-full w-full rounded-sm object-cover" />
+                        ) : isVisaoGrupo ? (
+                    <Building2 size={14} />
+                        ) : (
+                    <Trees size={14} />
                         )}
+                    </div>
 
-                        {grupos.map((grupo) => (
-                            <div key={grupo.id}>
-                                <div className="px-2 py-1.5 text-[10px] font-semibold uppercase text-muted-foreground">
-                                    {grupo.nome}
-                                </div>
-                                {grupo.fazendas.length === 0 && (
-                                    <SelectItem disabled value={`grupo:${grupo.id}`} className="italic text-muted-foreground pl-4">
-                                        (sem fazendas cadastradas)
-                                    </SelectItem>
-                                )}
-                                {grupo.fazendas.map((faz) => (
-                                    <SelectItem key={faz.id} value={faz.id} className="pl-4">
-                                        {faz.nome}
-                                    </SelectItem>
-                                ))}
-                            </div>
-                        ))}
-                    </SelectContent>
-                </Select>
-            </div>
-        </div>
-    );
+                        <div className="flex flex-col min-w-0">
+                            <span className="text-[9px] uppercase font-bold text-muted-foreground tracking-wider leading-none">Propriedade</span>
+                            <Select value={selectValue} onValueChange={handleChange}>
+                                    <SelectTrigger className="h-auto border-0 bg-transparent p-0 text-xs font-semibold shadow-none focus:ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 w-full hover:bg-transparent justify-between gap-1.5 max-w-[150px] lg:max-w-[200px]">
+                                        <SelectValue placeholder={fazendaAtiva?.nome ?? tenant?.nome ?? "Selecionar contexto"} className="truncate" />
+                                    </SelectTrigger>
+                                    <SelectContent className="w-[280px]">
+                                        {multiGrupo && (
+                                            <SelectItem value="TODOS" className="font-bold">
+                                                🌐 Visão Consolidada
+                                            </SelectItem>
+                                        )}
+
+                                        {grupos.map((grupo) => (
+                                            <div key={grupo.id}>
+                                                <div className="px-2 py-1.5 text-[10px] font-semibold uppercase text-muted-foreground">
+                                                    {grupo.nome}
+                                                </div>
+                                                {grupo.fazendas.length === 0 && (
+                                                    <SelectItem disabled value={`grupo:${grupo.id}`} className="italic text-muted-foreground pl-4">
+                                                        (sem fazendas cadastradas)
+                                                    </SelectItem>
+                                                )}
+                                                {grupo.fazendas.map((faz) => (
+                                                    <SelectItem key={faz.id} value={faz.id} className="pl-4">
+                                                        {faz.nome}
+                                                    </SelectItem>
+                                                ))}
+                                            </div>
+                                        ))}
+                                    </SelectContent>
+                            </Select>
+                        </div>
+                    </div>
+                    );
 }

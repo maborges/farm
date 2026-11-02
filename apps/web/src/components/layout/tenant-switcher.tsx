@@ -137,7 +137,7 @@ export function TenantSwitcher() {
             <>
                 <NewSubscriptionWizard open={wizardOpen} onOpenChange={setWizardOpen} />
                 <div className="flex items-center gap-1">
-                <div className="flex items-center gap-2 px-3 py-1.5 rounded-sm border border-sidebar-border/40 bg-sidebar/35 shadow-sm backdrop-blur-sm dark:bg-sidebar/25">
+                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-sm border border-sidebar-border/40 bg-sidebar/35 shadow-sm backdrop-blur-sm dark:bg-sidebar/25">
                         <Briefcase size={14} className="text-primary shrink-0" />
                         <div className="flex flex-col leading-none">
                             <span className="text-[9px] uppercase font-bold text-muted-foreground tracking-wider">Produtor</span>
@@ -164,62 +164,62 @@ export function TenantSwitcher() {
     // Multi-tenant — dropdown
     return (
         <>
-        <NewSubscriptionWizard open={wizardOpen} onOpenChange={setWizardOpen} />
-        <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-                <Button
-                    variant="ghost"
-                    size="sm"
-                    className="min-w-0 gap-1.5 rounded-full px-1.5 hover:bg-muted/60 hover:text-foreground aria-expanded:bg-muted/70 aria-expanded:text-foreground focus-visible:ring-primary/20"
-                    disabled={switching}
-                    aria-label="Selecionar produtor"
-                >
-                    <Briefcase className="size-4 shrink-0 text-primary" />
-                    <span className="hidden max-w-[110px] text-left md:flex md:flex-col md:justify-center">
-                        <span className="text-[11px] font-medium leading-tight text-foreground truncate">
-                            {tenant?.nome || "Selecionar"}
-                        </span>
-                    </span>
-                    <ChevronDown className="hidden size-3.5 shrink-0 text-primary transition-transform duration-200 md:block group-aria-expanded/button:rotate-180" />
-                </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-56">
-                <DropdownMenuLabel className="flex flex-col gap-1 px-3 py-2">
-                    <span className="text-sm font-semibold text-foreground leading-none">Trocar Produtor</span>
-                    <span className="text-xs text-muted-foreground truncate max-w-48">{tenant?.nome ?? ""}</span>
-                </DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                {tenants.map((t) => {
-                    const isActive = String(t.tenant_id) === activeTenantId;
-                    return (
-                        <DropdownMenuItem
-                            key={t.tenant_id}
-                            onClick={() => switchTenant(t)}
-                            disabled={switching || isActive}
-                            className="gap-2 cursor-pointer"
-                        >
-                            <div className="flex flex-1 flex-col gap-0.5">
-                                <span className={`text-sm font-medium leading-none ${isActive ? "text-primary" : "text-foreground"}`}>
-                                    {t.nome_tenant}
+            <NewSubscriptionWizard open={wizardOpen} onOpenChange={setWizardOpen} />
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 min-w-0 gap-1.5 rounded-sm px-2.5 hover:bg-muted/60 hover:text-foreground aria-expanded:bg-muted/70 aria-expanded:text-foreground focus-visible:ring-primary/20"
+                        disabled={switching}
+                        aria-label="Selecionar produtor"
+                    >
+                            <Briefcase className="size-3.5 shrink-0 text-primary" />
+                            <span className="max-w-[120px] text-left flex flex-col justify-center">
+                                <span className="text-[11px] font-medium leading-tight text-foreground truncate">
+                                    {tenant?.nome || "Selecionar"}
                                 </span>
-                                <span className="text-[11px] text-muted-foreground truncate">
-                                    {t.perfil?.nome ?? "Membro"}
-                                </span>
-                            </div>
-                            {isActive && <Check className="size-4 shrink-0 text-primary" />}
-                        </DropdownMenuItem>
-                    );
-                })}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                    onClick={() => setWizardOpen(true)}
-                    className="gap-2 cursor-pointer text-primary"
-                >
-                    <Plus size={12} />
-                    Nova conta de produtor
-                </DropdownMenuItem>
-            </DropdownMenuContent>
-        </DropdownMenu>
+                            </span>
+                            <ChevronDown className="size-3.5 shrink-0 text-primary transition-transform duration-200 group-aria-expanded/button:rotate-180" />
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-56">
+                    <DropdownMenuLabel className="flex flex-col gap-1 px-3 py-2">
+                        <span className="text-sm font-semibold text-foreground leading-none">Trocar Produtor</span>
+                        <span className="text-xs text-muted-foreground truncate max-w-48">{tenant?.nome ?? ""}</span>
+                    </DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {tenants.map((t) => {
+                        const isActive = String(t.tenant_id) === activeTenantId;
+                        return (
+                            <DropdownMenuItem
+                                key={t.tenant_id}
+                                onClick={() => switchTenant(t)}
+                                disabled={switching || isActive}
+                                className="gap-2 cursor-pointer"
+                            >
+                                <div className="flex flex-1 flex-col gap-0.5">
+                                    <span className={`text-sm font-medium leading-none ${isActive ? "text-primary" : "text-foreground"}`}>
+                                        {t.nome_tenant}
+                                    </span>
+                                    <span className="text-[11px] text-muted-foreground truncate">
+                                        {t.perfil?.nome ?? "Membro"}
+                                    </span>
+                                </div>
+                                {isActive && <Check className="size-4 shrink-0 text-primary" />}
+                            </DropdownMenuItem>
+                        );
+                    })}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                        onClick={() => setWizardOpen(true)}
+                        className="gap-2 cursor-pointer text-primary"
+                    >
+                        <Plus size={12} />
+                        Nova conta de produtor
+                    </DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
         </>
     );
 }
