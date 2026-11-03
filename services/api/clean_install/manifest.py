@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from clean_install import INSTALL_VERSION
+
 BASELINE_REVISION = "baseline_deepfarms_v1"
 SEED_CONTRACT_VERSION = "global_catalogs_v1"
 # Filled from the reviewed source files and asserted before any snapshot DDL.

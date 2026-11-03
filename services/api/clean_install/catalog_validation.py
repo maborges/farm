@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import re
+from collections import defaultdict
+from typing import Any
 
 from sqlalchemy import text
 from sqlalchemy.engine import Connection
@@ -284,6 +286,106 @@ def _index_policy_rows(rows) -> dict[tuple[str, str, str], tuple[object, ...]]:
     return indexed
 
 
+def _probe_canonical_check_definitions(
+    connection: Connection,
+    checks_by_table: dict[str, list[dict[str, object]]],
+) -> dict[tuple[str, str], str]:
+    """Compile canonical PostgreSQL CHECK definitions via temporary table probe.
+
+    Creates an empty temporary table matching each table's schema, applies the
+    contracted CHECK constraints, and queries PostgreSQL's canonical deparsed
+    representation via pg_get_constraintdef.
+
+    Args:
+        connection: Active SQLAlchemy database connection.
+        checks_by_table: Mapping of table_name -> list of CHECK contract entries.
+
+    Returns:
+        Mapping of (table_name, constraint_name) -> canonical deparsed definition.
+
+    Raises:
+        None.
+    """
+    if connection.dialect.name != "postgresql":
+        return {}
+
+    probe_defs: dict[tuple[str, str], str] = {}
+    with connection.begin_nested():
+        for table_name, checks in checks_by_table.items():
+            probe_name = f"_df_probe_{table_name}"
+            try:
+                connection.execute(
+                    text(
+                        f'CREATE TEMP TABLE "{probe_name}" '
+                        f'(LIKE "farms"."{table_name}") ON COMMIT DROP'
+                    )
+                )
+                for item in checks:
+                    c_name = str(item["name"])
+                    c_def = str(item["definition"])
+                    connection.execute(
+                        text(
+                            f'ALTER TABLE "{probe_name}" '
+                            f'ADD CONSTRAINT "{c_name}" CHECK ({c_def})'
+                        )
+                    )
+                rows = connection.execute(
+                    text("""
+                        SELECT con.conname, pg_get_constraintdef(con.oid, false)
+                        FROM pg_constraint con
+                        JOIN pg_class c ON c.oid = con.conrelid
+                        WHERE c.relname = :probe_name
+                          AND c.relnamespace = pg_my_temp_schema()
+                          AND con.contype = 'c'
+                    """),
+                    {"probe_name": probe_name},
+                ).all()
+                for conname, def_sql in rows:
+                    probe_defs[(table_name, conname)] = def_sql
+            finally:
+                connection.execute(text(f'DROP TABLE IF EXISTS "{probe_name}"'))
+
+    return probe_defs
+
+
+def _resolve_expected_indexes(
+    connection: Connection,
+    index_contract: dict[str, dict[str, object]],
+    metadata_tables: dict[str, Any],
+) -> set[tuple[str, str]]:
+    """Resolve expected index names matching PostgreSQL identifier truncation.
+
+    PostgreSQL limits identifiers to 63 bytes. SQLAlchemy shortens long index names
+    using a deterministic hash suffix. This function resolves physical names
+    using the SQLAlchemy PostgreSQL dialect preparer.
+
+    Args:
+        connection: Active SQLAlchemy database connection.
+        index_contract: Contract dictionary mapping index names to specifications.
+        metadata_tables: Base.metadata.tables mapping table names to Table objects.
+
+    Returns:
+        Set of (table_name, physical_index_name) tuples.
+
+    Raises:
+        None.
+    """
+    preparer = connection.dialect.identifier_preparer
+    resolved: set[tuple[str, str]] = set()
+    for item in index_contract.values():
+        table_name = str(item["table"])
+        index_name = str(item["name"])
+        table_obj = metadata_tables.get(table_name)
+        actual_name = index_name
+        if table_obj is not None:
+            for ix in table_obj.indexes:
+                if ix.name == index_name:
+                    actual_name = preparer.format_index(ix).strip('"')
+                    break
+        resolved.add((table_name, actual_name))
+    return resolved
+
+
 def _sequence_default_matches(
     default: str | None,
     sequence: dict[str, object],
@@ -496,9 +598,19 @@ def validate_catalog(
                 JOIN pg_class rel ON rel.oid = con.conrelid
                 JOIN pg_namespace n ON n.oid = con.connamespace
                 WHERE n.nspname = 'farms' AND con.contype IN ('u', 'c')
+                  AND rel.relname NOT IN (
+                      'deepfarms_install_version','alembic_version','deepfarms_install_manifest'
+                  )
             """)
         )
     )
+
+    checks_by_table: dict[str, list[dict[str, object]]] = defaultdict(list)
+    for item in CHECK_CONTRACT.values():
+        checks_by_table[str(item["table"])].append(item)
+
+    probe_check_defs = _probe_canonical_check_definitions(connection, checks_by_table)
+
     expected_constraints = [
         (
             BASELINE_SCHEMA,
@@ -514,7 +626,10 @@ def validate_catalog(
             item["table"],
             _expected_constraint_name(item),
             "CHECK",
-            f"CHECK ({item['definition']})",
+            probe_check_defs.get(
+                (str(item["table"]), _expected_constraint_name(item)),
+                f"CHECK ({item['definition']})",
+            ),
         )
         for item in CHECK_CONTRACT.values()
     ]
@@ -528,12 +643,16 @@ def validate_catalog(
     }
     unique_count = sum(kind == "UNIQUE" for _, _, _, kind, _ in actual_constraints)
     check_count = sum(kind == "CHECK" for _, _, _, kind, _ in actual_constraints)
+    constraint_differences = _constraint_inventory_differences(
+        expected_constraints, actual_constraints
+    )
     if (
-        expected_constraint_ids != actual_constraint_ids
+        constraint_differences
+        or expected_constraint_ids != actual_constraint_ids
         or unique_count != len(UNIQUE_CONTRACT)
         or check_count != len(CHECK_CONTRACT)
     ):
-        details = _constraint_inventory_differences(expected_constraints, actual_constraints)
+        details = list(constraint_differences)
         if unique_count != len(UNIQUE_CONTRACT):
             details.append(
                 f"UNIQUE count expected={len(UNIQUE_CONTRACT)} actual={unique_count}"
@@ -556,6 +675,9 @@ def validate_catalog(
                 JOIN pg_class index_rel ON index_rel.oid=idx.indexrelid
                 JOIN pg_namespace n ON n.oid=table_rel.relnamespace
                 WHERE n.nspname='farms'
+                  AND table_rel.relname NOT IN (
+                      'deepfarms_install_version','alembic_version','deepfarms_install_manifest'
+                  )
                   AND NOT EXISTS (
                     SELECT 1 FROM pg_constraint con
                     WHERE con.conindid=idx.indexrelid AND con.contype IN ('p','u','x')
@@ -564,9 +686,20 @@ def validate_catalog(
             ),
         )
     )
-    expected_indexes = {(item["table"], item["name"]) for item in INDEX_CONTRACT.values()}
+    expected_indexes = _resolve_expected_indexes(
+        connection, INDEX_CONTRACT, Base.metadata.tables
+    )
     if actual_indexes != expected_indexes:
-        raise RuntimeError("Clean-install ORM index inventory mismatch")
+        missing_ix = sorted(expected_indexes - actual_indexes)
+        extra_ix = sorted(actual_indexes - expected_indexes)
+        details = []
+        if missing_ix:
+            details.append(f"missing={missing_ix}")
+        if extra_ix:
+            details.append(f"extra={extra_ix}")
+        raise RuntimeError(
+            f"Clean-install ORM index inventory mismatch: {'; '.join(details)}"
+        )
 
     enum_labels = {
         enum: tuple(
@@ -615,33 +748,18 @@ def validate_catalog(
     if objects != expected:
         raise RuntimeError("Clean-install function/trigger inventory mismatch")
 
-    if expected_manifest is not None:
-        from clean_install.manifest import BASELINE_REVISION, INSTALL_VERSION, SEED_CONTRACT_VERSION
+    from clean_install.installer_contract import validate_installer_objects
 
-        manifest = connection.execute(
-            text("""
-                SELECT singleton, install_version, baseline_revision, baseline_sha256,
-                       seed_contract_version, seed_contract_sha256
-                FROM farms.deepfarms_install_manifest
-            """)
-        ).one_or_none()
-        expected_values = (
-            True,
-            INSTALL_VERSION,
-            BASELINE_REVISION,
-            expected_manifest["baseline_sha256"],
-            SEED_CONTRACT_VERSION,
-            expected_manifest["seed_contract_sha256"],
+    installer_errors = validate_installer_objects(
+        connection,
+        expected_manifest=expected_manifest,
+        check_version=check_version,
+    )
+    if installer_errors:
+        raise RuntimeError(
+            "Clean-install installer catalog validation failed:\n"
+            + "\n".join(f" - {err}" for err in installer_errors)
         )
-        if manifest != expected_values:
-            raise RuntimeError("Clean-install manifest differs from pinned artifacts")
-
-    if check_version:
-        version = connection.execute(
-            text("SELECT version_num FROM farms.deepfarms_install_version")
-        ).scalar_one_or_none()
-        if version != "deepfarms_clean_install_v1":
-            raise RuntimeError("Clean-install version row missing or unexpected")
     return {
         "tables": len(actual_tables),
         "columns": len(actual_columns),
