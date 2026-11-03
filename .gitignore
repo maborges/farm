@@ -25,8 +25,10 @@ test-results/
 **/.env.*
 !.env.example
 !**/.env.example
-data/
-var/
+/data/
+/var/
+!services/api/public_mercado/data/
+!services/api/public_clima/data/
 *.db
 *.db-shm
 *.db-wal
