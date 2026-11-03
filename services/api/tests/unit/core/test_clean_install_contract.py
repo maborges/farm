@@ -14,6 +14,8 @@ sys.path.insert(0, str(REPO_ROOT / "scripts" / "homologacao"))
 
 from clean_install import INSTALL_VERSION  # noqa: E402
 from clean_install.catalog_validation import (  # noqa: E402
+    _constraint_inventory_differences,
+    _expected_constraint_name,
     _policy_inventory_differences,
     _sequence_default_matches,
 )
@@ -27,7 +29,11 @@ from clean_install.seed_contract import (  # noqa: E402
     ordered_seed_rows,
     validate_seed_contract,
 )
-from migrations.baseline_contract import SEQUENCE_CONTRACT  # noqa: E402
+from migrations.baseline_contract import (  # noqa: E402
+    CHECK_CONTRACT,
+    SEQUENCE_CONTRACT,
+    UNIQUE_CONTRACT,
+)
 
 
 def _revision_module():
@@ -68,6 +74,61 @@ def test_sequence_default_rejects_different_or_modified_expressions(default) -> 
     sequence = SEQUENCE_CONTRACT["animal_genetica_id_seq"]
 
     assert not _sequence_default_matches(default, sequence, True)
+
+
+def test_unnamed_unique_constraints_match_postgresql_generated_names() -> None:
+    from sqlalchemy.dialects import postgresql
+    from sqlalchemy.schema import CreateTable
+
+    from core.database import Base
+    from core.model_registry import register_models
+
+    register_models()
+    unnamed_unique = [item for item in UNIQUE_CONTRACT.values() if item["name"] is None]
+    assert len(unnamed_unique) == 9
+
+    for item in unnamed_unique:
+        expected_name = f"{item['table']}_{'_'.join(item['definition'])}_key"
+        ddl = str(
+            CreateTable(Base.metadata.tables[item["table"]]).compile(
+                dialect=postgresql.dialect()
+            )
+        )
+        assert _expected_constraint_name(item) == expected_name
+        assert len(expected_name.encode("utf-8")) < 64
+        assert f"UNIQUE ({', '.join(item['definition'])})" in ddl
+        assert f"CONSTRAINT {expected_name}" not in ddl
+
+    assert all(item["name"] is not None for item in CHECK_CONTRACT.values())
+
+
+def test_constraint_diagnostic_reports_missing_extra_type_and_definitions() -> None:
+    expected = [
+        ("farms", "tenant_data", "tenant_data_key", "UNIQUE", "UNIQUE (tenant_id, code)"),
+        ("farms", "tenant_data", "ck_tenant_data", "CHECK", "CHECK (code <> '')"),
+    ]
+    actual = [
+        ("farms", "tenant_data", "tenant_data_other_key", "UNIQUE", "UNIQUE (code)"),
+        ("farms", "tenant_data", "ck_tenant_data", "UNIQUE", "UNIQUE (code)"),
+    ]
+
+    differences = _constraint_inventory_differences(expected, actual)
+
+    assert any(
+        "missing UNIQUE constraint farms.tenant_data.tenant_data_key" in item
+        for item in differences
+    )
+    assert any(
+        "unexpected UNIQUE constraint farms.tenant_data.tenant_data_other_key" in item
+        for item in differences
+    )
+    assert any(
+        "definition expected=" in item
+        and "CHECK (code <> '')" in item
+        and "actual='UNIQUE (code)'" in item
+        for item in differences
+    )
+    assert any("type expected='CHECK' actual='UNIQUE'" in item for item in differences)
 
 
 def test_policy_inventory_ignores_role_order_only() -> None:

@@ -152,6 +152,76 @@ def _copy_sql_comment(expression: str, index: int, output: list[str]) -> int:
     return cursor
 
 
+def _expected_constraint_name(item: dict[str, object]) -> str:
+    """Resolve a missing ORM UNIQUE name using PostgreSQL's default naming rule.
+
+    Args:
+        item: UNIQUE or CHECK contract entry.
+
+    Returns:
+        The explicit contract name or PostgreSQL's generated UNIQUE name.
+
+    Raises:
+        ValueError: If a CHECK constraint has no explicit name.
+    """
+    if item["name"]:
+        return str(item["name"])
+    if item["kind"] != "UNIQUE":
+        raise ValueError(f"Unnamed {item['kind']} constraint on {item['table']}")
+    columns = "_".join(item["definition"])
+    generated = f"{item['table']}_{columns}_key"
+    encoded = generated.encode("utf-8")
+    return encoded[:63].decode("utf-8", errors="ignore")
+
+
+def _constraint_inventory_differences(expected_rows, actual_rows) -> list[str]:
+    """Report missing, unexpected, and differing UNIQUE/CHECK constraint attributes.
+
+    Args:
+        expected_rows: Constraint rows from the canonical ORM contract.
+        actual_rows: Constraint rows returned by PostgreSQL catalogs.
+
+    Returns:
+        Human-readable inventory differences, including expected and actual definitions.
+
+    Raises:
+        None.
+    """
+    expected = {
+        (schema, table, name): (kind, definition)
+        for schema, table, name, kind, definition in expected_rows
+    }
+    actual = {
+        (schema, table, name): (kind, definition)
+        for schema, table, name, kind, definition in actual_rows
+    }
+    differences = []
+    for identity in sorted(expected.keys() - actual.keys()):
+        kind, definition = expected[identity]
+        differences.append(
+            f"missing {kind} constraint {'.'.join(identity)}; expected definition={definition!r}"
+        )
+    for identity in sorted(actual.keys() - expected.keys()):
+        kind, definition = actual[identity]
+        differences.append(
+            f"unexpected {kind} constraint {'.'.join(identity)}; found definition={definition!r}"
+        )
+    for identity in sorted(expected.keys() & actual.keys()):
+        expected_kind, expected_definition = expected[identity]
+        actual_kind, actual_definition = actual[identity]
+        if expected_kind != actual_kind:
+            differences.append(
+                f"{'.'.join(identity)}: type expected={expected_kind!r} actual={actual_kind!r}; "
+                f"definition expected={expected_definition!r} actual={actual_definition!r}"
+            )
+        elif expected_definition != actual_definition:
+            differences.append(
+                f"{'.'.join(identity)}: definition expected={expected_definition!r} "
+                f"actual={actual_definition!r}"
+            )
+    return differences
+
+
 def _policy_inventory_differences(expected_rows, actual_rows) -> list[str]:
     """Describe policy inventory differences while treating roles as an unordered set.
 
@@ -245,6 +315,7 @@ def validate_catalog(
     from core.database import Base
     from core.model_registry import baseline_candidate_tables, register_models
     from migrations.baseline_contract import (
+        BASELINE_SCHEMA,
         CHECK_CONTRACT,
         ENUM_CONTRACT,
         FK_CONTRACT,
@@ -415,24 +486,64 @@ def validate_catalog(
     if len(fk_rows) != len(FK_CONTRACT):
         raise RuntimeError("Clean-install foreign-key inventory mismatch")
 
-    constraint_rows = set(
+    actual_constraints = list(
         connection.execute(
             text("""
-        SELECT rel.relname, con.conname, con.contype FROM pg_constraint con
-        JOIN pg_class rel ON rel.oid=con.conrelid
-        JOIN pg_namespace n ON n.oid=con.connamespace
-        WHERE n.nspname='farms' AND con.contype IN ('u','c')
-    """)
+                SELECT n.nspname, rel.relname, con.conname,
+                       CASE con.contype WHEN 'u' THEN 'UNIQUE' ELSE 'CHECK' END,
+                       pg_get_constraintdef(con.oid, false)
+                FROM pg_constraint con
+                JOIN pg_class rel ON rel.oid = con.conrelid
+                JOIN pg_namespace n ON n.oid = con.connamespace
+                WHERE n.nspname = 'farms' AND con.contype IN ('u', 'c')
+            """)
         )
     )
-    expected_unique = {(item["table"], item["name"], "u") for item in UNIQUE_CONTRACT.values()}
-    expected_checks = {(item["table"], item["name"], "c") for item in CHECK_CONTRACT.values()}
-    if not (expected_unique | expected_checks).issubset(constraint_rows):
-        raise RuntimeError("Clean-install UNIQUE/CHECK constraint inventory mismatch")
-    if len([row for row in constraint_rows if row[2] == "u"]) != len(UNIQUE_CONTRACT):
-        raise RuntimeError("Clean-install UNIQUE constraint count mismatch")
-    if len([row for row in constraint_rows if row[2] == "c"]) != len(CHECK_CONTRACT):
-        raise RuntimeError("Clean-install CHECK constraint count mismatch")
+    expected_constraints = [
+        (
+            BASELINE_SCHEMA,
+            item["table"],
+            _expected_constraint_name(item),
+            "UNIQUE",
+            f"UNIQUE ({', '.join(item['definition'])})",
+        )
+        for item in UNIQUE_CONTRACT.values()
+    ] + [
+        (
+            BASELINE_SCHEMA,
+            item["table"],
+            _expected_constraint_name(item),
+            "CHECK",
+            f"CHECK ({item['definition']})",
+        )
+        for item in CHECK_CONTRACT.values()
+    ]
+    expected_constraint_ids = {
+        (schema, table, name, kind)
+        for schema, table, name, kind, _ in expected_constraints
+    }
+    actual_constraint_ids = {
+        (schema, table, name, kind)
+        for schema, table, name, kind, _ in actual_constraints
+    }
+    unique_count = sum(kind == "UNIQUE" for _, _, _, kind, _ in actual_constraints)
+    check_count = sum(kind == "CHECK" for _, _, _, kind, _ in actual_constraints)
+    if (
+        expected_constraint_ids != actual_constraint_ids
+        or unique_count != len(UNIQUE_CONTRACT)
+        or check_count != len(CHECK_CONTRACT)
+    ):
+        details = _constraint_inventory_differences(expected_constraints, actual_constraints)
+        if unique_count != len(UNIQUE_CONTRACT):
+            details.append(
+                f"UNIQUE count expected={len(UNIQUE_CONTRACT)} actual={unique_count}"
+            )
+        if check_count != len(CHECK_CONTRACT):
+            details.append(f"CHECK count expected={len(CHECK_CONTRACT)} actual={check_count}")
+        raise RuntimeError(
+            "Clean-install UNIQUE/CHECK constraint inventory mismatch:\n"
+            + "\n".join(f" - {detail}" for detail in details)
+        )
 
     actual_indexes = set(
         map(
