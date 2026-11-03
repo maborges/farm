@@ -8,7 +8,7 @@ permissions:
 
 jobs:
   homologacao-postgresql-16:
-    name: Homologação PostgreSQL 16 Descartável
+    name: Instalação limpa canônica + testes PostgreSQL 16 descartável
     runs-on: ubuntu-latest
 
     services:
@@ -72,14 +72,19 @@ jobs:
           print(f'✓ Isolamento verificado com sucesso: {host}:{parsed.port}/{parsed.path}')
           "
 
-      - name: Executar script de homologação de migrations e rollback
+      - name: Homologar instalação limpa canônica
         run: |
-          PYTHONPATH=services/api python services/api/scripts/homologar_postgresql_ci.py
+          PYTHONPATH=services/api python services/api/scripts/homologar_clean_install_ci.py
 
-      - name: Executar suíte completa de testes de integração PostgreSQL 16
+      - name: Registrar limite da cobertura de migrations históricas
+        run: |
+          echo "::notice title=Downgrade histórico não homologado::A homologação de banco vazio usa somente deepfarms_clean_install_v1. O teste histórico de upgrade/downgrade em services/api/scripts/homologar_postgresql_ci.py foi preservado, não é executado neste gate e não está aprovado para banco vazio; depende de fixture histórica ainda não definida."
+
+      - name: Executar testes existentes compatíveis com a instalação limpa
         run: |
           PYTHONPATH=services/api pytest \
             services/api/tests/unit/core/test_homologacao_01b2c_e2e_fluxos.py \
+            services/api/tests/unit/core/test_clean_install_ci_homologation.py \
             services/api/tests/unit/test_agro_byok.py \
             services/api/tests/unit/test_agro_byok_migration.py \
             services/api/tests/unit/test_agro_admin_01b2d_safety.py \

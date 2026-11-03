@@ -128,7 +128,7 @@ jobs:
       - name: Test release guards without Docker or database access
         run: python -m unittest discover -s scripts/cicd/tests -v
 
-  api-postgres-tests:
+  clean-install-postgres:
     needs: changed-components
     if: >-
       inputs.full_validation == true ||
@@ -138,13 +138,13 @@ jobs:
     uses: ./.github/workflows/agro-admin-01b2d-postgres-homologacao.yml
 
   image-build-validation:
-    needs: [changed-components, frontend-validation, cicd-script-tests, api-postgres-tests]
+    needs: [changed-components, frontend-validation, cicd-script-tests, clean-install-postgres]
     if: >-
       always() &&
       needs.changed-components.result == 'success' &&
       needs.frontend-validation.result == 'success' &&
       needs.cicd-script-tests.result == 'success' &&
-      (needs.changed-components.outputs.backend != 'true' || needs.api-postgres-tests.result == 'success') &&
+      (needs.changed-components.outputs.backend != 'true' || needs.clean-install-postgres.result == 'success') &&
       needs.changed-components.outputs.any == 'true'
     runs-on: ubuntu-latest
     strategy:

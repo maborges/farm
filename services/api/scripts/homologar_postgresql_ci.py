@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
-"""Script de Homologação em PostgreSQL 16 Descartável (AGRO-ADMIN-01B2D).
+"""Historical Alembic migration/downgrade regression (not clean-install CI).
+
+This script exercises the historical migration graph and its downgrade behavior.
+It is preserved for a separately approved historical fixture; it is not valid
+for initializing an empty database and is not invoked by the clean-install CI
+workflow. That fixture has not yet been defined.
 
 Executa:
-1. Verificação estrita de isolamento de banco de dados (rejeita conexões compartilhadas/RDS).
-2. Execução da cadeia completa de migrations Alembic (upgrade head).
+1. Verificação de isolamento de um alvo PostgreSQL temporário.
+2. Execução da cadeia histórica de migrations Alembic (upgrade head).
 3. Validação das constraints e schema PostgreSQL:
    - farms.sessoes_ativas.tenant_id nullable.
    - farms.usuario_byok_credenciais presente com constraints adequadas.
