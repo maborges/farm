@@ -108,10 +108,14 @@ jobs:
         if: inputs.full_validation == true || needs.changed-components.outputs[matrix.component] == 'true'
         run: pnpm --filter '${{ matrix.filter }}' lint
       - name: Run Agro unit tests
-        if: matrix.component == 'agro'
+        if: >-
+          matrix.component == 'agro' &&
+          (inputs.full_validation == true || needs.changed-components.outputs[matrix.component] == 'true')
         run: pnpm --filter agro test
       - name: Run Web static guard tests
-        if: matrix.component == 'web'
+        if: >-
+          matrix.component == 'web' &&
+          (inputs.full_validation == true || needs.changed-components.outputs[matrix.component] == 'true')
         run: pnpm --filter web test:sidebar
 
   cicd-script-tests:
