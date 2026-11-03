@@ -1,5 +1,5 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import func, select, text
+from sqlalchemy import func, select, text, update
 from sqlalchemy.exc import IntegrityError
 from fastapi import HTTPException, status, Request
 from passlib.context import CryptContext
@@ -451,6 +451,12 @@ class AuthService:
         from core.models.sessao import SessaoAtiva
         import hashlib
 
+        if default_tenant_id and not user.is_superuser:
+            await self._verificar_disponibilidade_licenca_simultanea(
+                tenant_id=uuid.UUID(default_tenant_id),
+                usuario_id=user.id,
+            )
+
         token_hash = hashlib.sha256(access_token.encode()).hexdigest()
         agora = datetime.now(timezone.utc)
         idle_minutes = await get_session_idle_minutes(self.session)
@@ -469,6 +475,89 @@ class AuthService:
         await self.session.commit()
         
         return user, access_token
+
+    async def _verificar_disponibilidade_licenca_simultanea(
+        self,
+        tenant_id: uuid.UUID,
+        usuario_id: uuid.UUID,
+    ) -> None:
+        """
+        Verifica se há licença de acesso simultâneo disponível para o tenant antes de criar
+        uma nova sessão ativa. Limpa sessões expiradas e encerra sessões anteriores do mesmo
+        usuário no mesmo tenant para permitir reconexão sem autotravamento.
+
+        Args:
+            tenant_id: ID do tenant alvo do login/troca de contexto.
+            usuario_id: ID do usuário autenticado.
+
+        Raises:
+            HTTPException 403: Quando todas as licenças simultâneas contratadas estão em uso.
+        """
+        from core.models.sessao import SessaoAtiva
+
+        agora = datetime.now(timezone.utc)
+
+        # 1. Expirar sessões vencidas do tenant
+        await self.session.execute(
+            update(SessaoAtiva)
+            .where(
+                SessaoAtiva.tenant_id == tenant_id,
+                SessaoAtiva.status == "ATIVA",
+                SessaoAtiva.expira_em <= agora,
+            )
+            .values(status="EXPIRADA")
+        )
+
+        # 2. Encerrar eventual sessão ativa anterior do próprio usuário no mesmo tenant
+        await self.session.execute(
+            update(SessaoAtiva)
+            .where(
+                SessaoAtiva.tenant_id == tenant_id,
+                SessaoAtiva.usuario_id == usuario_id,
+                SessaoAtiva.status == "ATIVA",
+            )
+            .values(status="ENCERRADA")
+        )
+
+        # 3. Consultar limite de acessos simultâneos contratados na assinatura do tenant
+        assin_stmt = (
+            select(
+                AssinaturaTenant.usuarios_contratados,
+                PlanoAssinatura.limite_usuarios_maximo,
+                PlanoAssinatura.limite_usuarios_minimo,
+            )
+            .join(PlanoAssinatura, AssinaturaTenant.plano_id == PlanoAssinatura.id)
+            .where(
+                AssinaturaTenant.tenant_id == tenant_id,
+                AssinaturaTenant.status.in_(["ATIVA", "TRIAL", "PENDENTE_PAGAMENTO"]),
+            )
+            .limit(1)
+        )
+        assin_row = (await self.session.execute(assin_stmt)).first()
+        if not assin_row:
+            return
+
+        limite_simultaneo = assin_row[0] or assin_row[1] or assin_row[2]
+        if not limite_simultaneo or limite_simultaneo <= 0:
+            return
+
+        # 4. Contar sessões simultâneas ativas no tenant
+        count_stmt = select(func.count(SessaoAtiva.id)).where(
+            SessaoAtiva.tenant_id == tenant_id,
+            SessaoAtiva.status == "ATIVA",
+            SessaoAtiva.expira_em > agora,
+        )
+        sessoes_ativas = (await self.session.execute(count_stmt)).scalar_one() or 0
+
+        if sessoes_ativas >= limite_simultaneo:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=(
+                    f"Não há licença de acesso simultâneo disponível no momento "
+                    f"({sessoes_ativas}/{limite_simultaneo} acessos simultâneos em uso). "
+                    "Aguarde a liberação de um acesso ou contrate mais acessos simultâneos para o seu pacote."
+                ),
+            )
 
     async def generate_token_for_tenant(
         self,
@@ -560,6 +649,12 @@ class AuthService:
         }
 
         access_token = self.create_access_token(data=claims)
+
+        if not user.is_superuser:
+            await self._verificar_disponibilidade_licenca_simultanea(
+                tenant_id=tenant_id,
+                usuario_id=user_id,
+            )
 
         # Registrar nova sessão
         from core.models.sessao import SessaoAtiva
@@ -754,6 +849,7 @@ class AuthService:
             tipo_assinatura="TENANT",
             ciclo_pagamento=ciclo,
             status=status_assin,
+            usuarios_contratados=plano.limite_usuarios_minimo or 1,
             data_inicio=agora,
             data_proxima_renovacao=trial_expira_em,
         )

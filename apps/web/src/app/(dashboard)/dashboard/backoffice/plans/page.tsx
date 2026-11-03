@@ -1,8 +1,9 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiFetch } from "@/lib/api";
-import { Plus, Check, X, Package, Edit, Users, Tractor, Globe, Briefcase, Sparkles, Star } from "lucide-react";
+import { Plus, Check, X, Package, Edit, Users, Tractor, Globe, Briefcase, Sparkles, Star, Trash2, DollarSign } from "lucide-react";
+import { toast } from "sonner";
 import { Switch } from "@/components/ui/switch";
 import { Card, CardHeader, CardContent, CardTitle, CardDescription } from "@/components/ui/card";
 import { PageHeader } from "@/components/shared/page-header";
@@ -17,11 +18,10 @@ import {
     Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
     DialogDescription,
 } from "@/components/ui/dialog";
-import { toast } from "sonner";
-import { useState, useEffect } from "react";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { apiFetch } from "@/lib/api";
 import { formatCurrency } from "@/lib/utils";
 import { getPacotes, type PacoteId } from "@/lib/constants/pacotes";
-import { StatusBadge } from "@/components/ui/status-badge";
 
 interface PlanResponse {
     id: string;
@@ -39,6 +39,16 @@ interface PlanResponse {
     disponivel_site: boolean;
     disponivel_crm: boolean;
     created_at: string;
+}
+
+interface PlanPricingTier {
+    id: string;
+    plano_id: string;
+    faixa_inicio: number;
+    faixa_fim: number | null;
+    preco_por_usuario_mensal: number;
+    preco_por_usuario_anual: number;
+    ativo: boolean;
 }
 
 interface PlanFormData {
@@ -372,14 +382,26 @@ function PlanFormDialog({
                             )}
                             <form id="plan-form" onSubmit={onSubmit} className="space-y-4">
                         {/* Dados básicos */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div className="space-y-2">
-                                <Label htmlFor="nome">Nome do plano *</Label>
-                                <Input id="nome" value={form.nome} onChange={e => set("nome", e.target.value)} placeholder="Ex: Profissional" />
+                                <Label htmlFor="nome">Nome do pacote *</Label>
+                                <Input id="nome" className="h-8 text-xs rounded-sm" value={form.nome} onChange={e => set("nome", e.target.value)} placeholder="Ex: Profissional" />
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="limite_usuarios_maximo">Limite máximo de usuários</Label>
-                                <Input id="limite_usuarios_maximo" type="number" min="1" value={form.limite_usuarios_maximo ?? ""} onChange={e => set("limite_usuarios_maximo", e.target.value ? Number(e.target.value) : null)} placeholder="Vazio = ilimitado" />
+                                <Label htmlFor="limite_usuarios_minimo">Acessos simultâneos inclusos</Label>
+                                <Input
+                                    id="limite_usuarios_minimo"
+                                    type="number"
+                                    min="1"
+                                    className="h-8 text-xs rounded-sm"
+                                    value={form.limite_usuarios_minimo}
+                                    onChange={e => set("limite_usuarios_minimo", Math.max(1, Number(e.target.value) || 1))}
+                                    placeholder="Ex: 2"
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="limite_usuarios_maximo">Máximo de acessos simultâneos</Label>
+                                <Input id="limite_usuarios_maximo" type="number" min="1" className="h-8 text-xs rounded-sm" value={form.limite_usuarios_maximo ?? ""} onChange={e => set("limite_usuarios_maximo", e.target.value ? Number(e.target.value) : null)} placeholder="Vazio = ilimitado" />
                             </div>
                         </div>
 
@@ -552,10 +574,205 @@ function PlanFormDialog({
     );
 }
 
+function PlanPricingDialog({
+    plan,
+    open,
+    onOpenChange,
+}: {
+    plan: PlanResponse;
+    open: boolean;
+    onOpenChange: (v: boolean) => void;
+}) {
+    const queryClient = useQueryClient();
+    const [faixaInicio, setFaixaInicio] = useState("1");
+    const [faixaFim, setFaixaFim] = useState("");
+    const [precoMensal, setPrecoMensal] = useState("");
+    const [precoAnual, setPrecoAnual] = useState("");
+
+    const { data: faixas, isLoading } = useQuery<PlanPricingTier[]>({
+        queryKey: ["backoffice", "plan-pricing", plan.id],
+        queryFn: () => apiFetch(`/backoffice/plan-changes/pricing/${plan.id}`),
+        enabled: open,
+    });
+
+    const createTierMutation = useMutation({
+        mutationFn: (payload: object) =>
+            apiFetch("/backoffice/plan-changes/pricing", {
+                method: "POST",
+                body: JSON.stringify(payload),
+            }),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["backoffice", "plan-pricing", plan.id] });
+            toast.success("Faixa de preço adicional cadastrada!");
+            setFaixaInicio("1");
+            setFaixaFim("");
+            setPrecoMensal("");
+            setPrecoAnual("");
+        },
+        onError: (err: { detail?: string }) => {
+            toast.error(err.detail || "Erro ao cadastrar faixa de preço.");
+        },
+    });
+
+    const deleteTierMutation = useMutation({
+        mutationFn: (pricingId: string) =>
+            apiFetch(`/backoffice/plan-changes/pricing/${pricingId}`, {
+                method: "DELETE",
+            }),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["backoffice", "plan-pricing", plan.id] });
+            toast.success("Faixa removida!");
+        },
+        onError: () => toast.error("Erro ao remover faixa."),
+    });
+
+    const handleAddTier = (e: React.FormEvent) => {
+        e.preventDefault();
+        const inicio = parseInt(faixaInicio, 10);
+        const fim = faixaFim.trim() ? parseInt(faixaFim, 10) : null;
+        const mensal = parseBRL(precoMensal);
+        const anual = parseBRL(precoAnual) || mensal * 10;
+
+        if (!inicio || inicio < 1) {
+            toast.error("Informe o início da faixa de acessos adicionais (>= 1).");
+            return;
+        }
+        if (mensal <= 0) {
+            toast.error("Informe o valor mensal por acesso adicional.");
+            return;
+        }
+
+        createTierMutation.mutate({
+            plano_id: plan.id,
+            faixa_inicio: inicio,
+            faixa_fim: fim,
+            preco_por_usuario_mensal: mensal,
+            preco_por_usuario_anual: anual,
+        });
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={onOpenChange}>
+            <DialogContent className="sm:max-w-2xl rounded-sm">
+                <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2 text-base">
+                        <DollarSign className="size-4 text-primary" />
+                        Tabela de Acessos Simultâneos Adicionais — {plan.nome}
+                    </DialogTitle>
+                    <DialogDescription className="text-xs">
+                        O pacote base ({formatCurrency(plan.preco_mensal)}/mês) inclui{" "}
+                        <strong>{plan.limite_usuarios_minimo || 1} acesso(s) simultâneo(s)</strong>. Configure abaixo o valor por
+                        acesso simultâneo contratado a mais, por faixa de quantidade adicional.
+                    </DialogDescription>
+                </DialogHeader>
+
+                <div className="space-y-4">
+                    <form onSubmit={handleAddTier} className="grid grid-cols-2 sm:grid-cols-5 gap-2 items-end p-3 border rounded-sm bg-muted/20">
+                        <div className="space-y-1">
+                            <Label className="text-[11px]">De (adicional)</Label>
+                            <Input
+                                type="number"
+                                min="1"
+                                className="h-8 text-xs rounded-sm"
+                                value={faixaInicio}
+                                onChange={e => setFaixaInicio(e.target.value)}
+                                placeholder="1"
+                            />
+                        </div>
+                        <div className="space-y-1">
+                            <Label className="text-[11px]">Até (vazio = ∞)</Label>
+                            <Input
+                                type="number"
+                                min="1"
+                                className="h-8 text-xs rounded-sm"
+                                value={faixaFim}
+                                onChange={e => setFaixaFim(e.target.value)}
+                                placeholder="∞"
+                            />
+                        </div>
+                        <div className="space-y-1">
+                            <Label className="text-[11px]">R$/acesso (Mês)</Label>
+                            <Input
+                                type="text"
+                                inputMode="numeric"
+                                className="h-8 text-xs rounded-sm"
+                                value={precoMensal}
+                                onChange={e => setPrecoMensal(maskBRL(e.target.value))}
+                                placeholder="0,00"
+                            />
+                        </div>
+                        <div className="space-y-1">
+                            <Label className="text-[11px]">R$/acesso (Ano)</Label>
+                            <Input
+                                type="text"
+                                inputMode="numeric"
+                                className="h-8 text-xs rounded-sm"
+                                value={precoAnual}
+                                onChange={e => setPrecoAnual(maskBRL(e.target.value))}
+                                placeholder="0,00"
+                            />
+                        </div>
+                        <Button
+                            type="submit"
+                            variant="outline"
+                            size="sm"
+                            disabled={createTierMutation.isPending}
+                            className="h-8 rounded-sm gap-1"
+                        >
+                            <Plus className="size-3.5" />
+                            Adicionar
+                        </Button>
+                    </form>
+
+                    <div className="border rounded-sm divide-y">
+                        {isLoading ? (
+                            <div className="p-4 text-xs text-muted-foreground text-center">Carregando faixas...</div>
+                        ) : !faixas || faixas.length === 0 ? (
+                            <div className="p-4 text-xs text-muted-foreground text-center">
+                                Nenhuma faixa de acesso adicional configurada para este pacote.
+                            </div>
+                        ) : (
+                            faixas.map(tier => (
+                                <div key={tier.id} className="flex items-center justify-between px-3 py-2 text-xs">
+                                    <div>
+                                        <span className="font-semibold">
+                                            +{tier.faixa_inicio} a {tier.faixa_fim ? `+${tier.faixa_fim}` : "∞"} acesso(s) extra(s)
+                                        </span>
+                                        <span className="text-muted-foreground ml-2">
+                                            • {formatCurrency(tier.preco_por_usuario_mensal)}/mês ({formatCurrency(tier.preco_por_usuario_anual)}/ano por acesso)
+                                        </span>
+                                    </div>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-7 w-7 p-0 border-0 text-destructive hover:text-destructive"
+                                        onClick={() => deleteTierMutation.mutate(tier.id)}
+                                        disabled={deleteTierMutation.isPending}
+                                    >
+                                        <Trash2 className="size-3.5" />
+                                    </Button>
+                                </div>
+                            ))
+                        )}
+                    </div>
+                </div>
+
+                <DialogFooter>
+                    <Button type="button" variant="outline" size="sm" className="rounded-sm" onClick={() => onOpenChange(false)}>
+                        Fechar
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
 export default function PlansBackofficePage() {
     const queryClient = useQueryClient();
     const [createOpen, setCreateOpen] = useState(false);
     const [editPlan, setEditPlan] = useState<PlanResponse | null>(null);
+    const [pricingPlan, setPricingPlan] = useState<PlanResponse | null>(null);
 
     const { data: plans, isLoading } = useQuery<PlanResponse[]>({
         queryKey: ["backoffice", "plans"],
@@ -654,14 +871,12 @@ export default function PlansBackofficePage() {
                             <div className="space-y-2 pt-4 border-t">
                                 <div className="flex items-center gap-2 text-sm">
                                     <Users className="size-4 text-primary" />
-                                    {plan.limite_usuarios_maximo ?? "∞"} usuários
+                                    {plan.limite_usuarios_minimo || 1} incluso(s) • máx. {plan.limite_usuarios_maximo ?? "∞"} simultâneos
                                 </div>
-                                {plan.limite_hectares && (
-                                    <div className="flex items-center gap-2 text-sm">
-                                        <Tractor className="size-4 text-primary" />
-                                        Até {plan.limite_hectares} ha
-                                    </div>
-                                )}
+                                <div className="flex items-center gap-2 text-sm">
+                                    <Tractor className="size-4 text-primary" />
+                                    {plan.limite_hectares ? `Limite de ${plan.limite_hectares.toLocaleString("pt-BR")} ha` : "Hectares ilimitados"}
+                                </div>
                                 <div className="flex items-center gap-2 text-sm">
                                     <Package className="size-4 text-primary" />
                                     {plan.max_categorias_plano === -1 ? "Categorias ilimitadas" : `${plan.max_categorias_plano} categorias`}
@@ -688,11 +903,19 @@ export default function PlansBackofficePage() {
                             </div>
                         </CardContent>
 
-                        <div className="p-6 bg-muted/30 border-t mt-auto">
+                        <div className="p-6 bg-muted/30 border-t mt-auto space-y-2">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="w-full gap-2 rounded-sm"
+                                onClick={() => setPricingPlan(plan)}
+                            >
+                                <DollarSign className="h-3.5 w-3.5" /> Tabela de Acessos Extras
+                            </Button>
                             <Button
                                 variant={plan.ativo ? "outline" : "default"}
                                 size="sm"
-                                className="w-full gap-2"
+                                className="w-full gap-2 rounded-sm"
                                 onClick={() => toggleStatusMutation.mutate(plan.id)}
                                 disabled={toggleStatusMutation.isPending}
                             >
@@ -735,6 +958,15 @@ export default function PlansBackofficePage() {
                     initial={editPlan}
                     planId={editPlan.id}
                     key={editPlan.id}
+                />
+            )}
+
+            {/* Dialog de tabela de preços por acesso simultâneo adicional */}
+            {pricingPlan && (
+                <PlanPricingDialog
+                    plan={pricingPlan}
+                    open={!!pricingPlan}
+                    onOpenChange={v => { if (!v) setPricingPlan(null); }}
                 />
             )}
         </div>

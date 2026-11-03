@@ -156,7 +156,7 @@ function normalizeGeometry(
     value?: Record<string, unknown> | string | null
 ): GeoJSON.Feature<GeoJSON.Geometry> | null {
     if (!value) return null;
-    
+
     let parsedValue = value;
     if (typeof value === "string") {
         try {
@@ -165,7 +165,7 @@ function normalizeGeometry(
             return null;
         }
     }
-    
+
     if (typeof parsedValue !== "object" || parsedValue === null || !("type" in parsedValue)) return null;
 
     const geo = (parsedValue as unknown) as GeoJSON.Feature<GeoJSON.Geometry> | GeoJSON.Geometry | GeoJSON.FeatureCollection;
@@ -328,90 +328,116 @@ export function PropriedadesClient() {
 
     const grupos: { id: string; nome: string }[] = [];
 
-    const { data: limiteInfo } = useQuery<{ atual: number; limite: number | null; atingido: boolean }>({
-        queryKey: ["fazendas-limite"],
-        queryFn: async () => {
-            const r = await apiFetch<{ max_fazendas: { atual: number; limite: number; atingido: boolean } }>("/billing/limits");
-            return r.max_fazendas;
-        },
-        retry: false,
-        enabled: isReady && !!token,
-    });
+        const { data: limitesTenant } = useQuery<{
+            max_fazendas: { atual: number; limite: number | null; atingido: boolean };
+            limite_hectares?: { atual: number; limite: number | null; atingido: boolean };
+        }>({
+            queryKey: ["fazendas-limite"],
+            queryFn: async () => {
+                return await apiFetch<{
+                    max_fazendas: { atual: number; limite: number | null; atingido: boolean };
+                    limite_hectares?: { atual: number; limite: number | null; atingido: boolean };
+                }>("/billing/limits");
+            },
+            retry: false,
+            enabled: isReady && !!token,
+        });
+        const limiteInfo = limitesTenant?.max_fazendas;
+        const limiteHectaresInfo = limitesTenant?.limite_hectares;
 
-    const createMutation = useMutation({
-        mutationFn: (data: CreateCadastroCompletoInput) =>
-            apiFetch("/unidades-produtivas/cadastro-completo", { method: "POST", body: JSON.stringify(data) }),
-        onSuccess: async (created: UnidadeProdutiva) => {
-            toast.success("Unidade produtiva cadastrada com sucesso!");
-            const hydrated = await queryClient.fetchQuery<UnidadeProdutiva>({
-                queryKey: ["unidades-produtivas", created.id],
-                queryFn: () => apiFetch(`/unidades-produtivas/${created.id}`),
-                staleTime: 0,
-            }).catch(() => created);
-            queryClient.setQueryData<UnidadeProdutiva[]>(["unidades-produtivas"], (current = []) => {
-                const next = current.filter((item) => item.id !== created.id);
-                return [hydrated, ...next];
+        const createMutation = useMutation({
+            mutationFn: (data: CreateCadastroCompletoInput) =>
+                apiFetch("/unidades-produtivas/cadastro-completo", { method: "POST", body: JSON.stringify(data) }),
+            onSuccess: async (created: UnidadeProdutiva) => {
+                toast.success("Unidade produtiva cadastrada com sucesso!");
+                const hydrated = await queryClient.fetchQuery<UnidadeProdutiva>({
+                    queryKey: ["unidades-produtivas", created.id],
+                    queryFn: () => apiFetch(`/unidades-produtivas/${created.id}`),
+                    staleTime: 0,
+                }).catch(() => created);
+                queryClient.setQueryData<UnidadeProdutiva[]>(["unidades-produtivas"], (current = []) => {
+                    const next = current.filter((item) => item.id !== created.id);
+                    return [hydrated, ...next];
+                });
+                queryClient.setQueryData(["unidades-produtivas", created.id], hydrated);
+                queryClient.invalidateQueries({ queryKey: ["unidades-produtivas"] });
+                queryClient.invalidateQueries({ queryKey: ["imoveis-rurais"] });
+                queryClient.invalidateQueries({ queryKey: ["visao-territorial"] });
+                queryClient.invalidateQueries({ queryKey: ["visao-fundiaria"] });
+                queryClient.invalidateQueries({ queryKey: ["fazendas-limite"] });
+                queryClient.invalidateQueries({ queryKey: ["areas-rurais-all"] });
+                setSheetOpen(false);
+            },
+            onError: (err: Error) => {
+                    const msg = err.message || "Erro ao criar unidade produtiva";
+                    if (msg.toLowerCase().includes("limite") || msg.toLowerCase().includes("pacote") || msg.toLowerCase().includes("upgrade")) {
+                        toast.error(msg, {
+                            action: {
+                                label: "Fazer Upgrade",
+                                onClick: () => { window.location.href = "/dashboard/settings/billing"; },
+                            },
+                        });
+                    } else {
+                        toast.error(msg);
+                    }
+                },
             });
-            queryClient.setQueryData(["unidades-produtivas", created.id], hydrated);
-            queryClient.invalidateQueries({ queryKey: ["unidades-produtivas"] });
-            queryClient.invalidateQueries({ queryKey: ["imoveis-rurais"] });
-            queryClient.invalidateQueries({ queryKey: ["visao-territorial"] });
-            queryClient.invalidateQueries({ queryKey: ["visao-fundiaria"] });
-            queryClient.invalidateQueries({ queryKey: ["fazendas-limite"] });
-            queryClient.invalidateQueries({ queryKey: ["areas-rurais-all"] });
-            setSheetOpen(false);
-        },
-        onError: (err: Error) => {
-            if (err.message?.toLowerCase().includes("limite")) {
-                toast.error("Limite de unidades produtivas do plano atingido. Faça upgrade.");
-            } else {
-                toast.error(err.message || "Erro ao criar unidade produtiva");
-            }
-        },
-    });
 
-    const updateMutation = useMutation({
-        mutationFn: ({ id, data }: { id: string; data: UpdateCadastroCompletoInput }) =>
-            apiFetch(`/unidades-produtivas/${id}/cadastro-completo`, { method: "PUT", body: JSON.stringify(data) }),
-        onSuccess: async (updated: UnidadeProdutiva) => {
-            toast.success("Unidade produtiva atualizada!");
-            const hydrated = await queryClient.fetchQuery<UnidadeProdutiva>({
-                queryKey: ["unidades-produtivas", updated.id],
-                queryFn: () => apiFetch(`/unidades-produtivas/${updated.id}`),
-                staleTime: 0,
-            }).catch(() => updated);
-            queryClient.setQueryData<UnidadeProdutiva[]>(["unidades-produtivas"], (current = []) =>
-                current.map((item) => (item.id === updated.id ? hydrated : item))
-            );
-            queryClient.setQueryData(["unidades-produtivas", updated.id], hydrated);
-            queryClient.invalidateQueries({ queryKey: ["unidades-produtivas"] });
-            queryClient.invalidateQueries({ queryKey: ["imoveis-rurais"] });
-            queryClient.invalidateQueries({ queryKey: ["visao-territorial"] });
-            queryClient.invalidateQueries({ queryKey: ["visao-fundiaria"] });
-            queryClient.invalidateQueries({ queryKey: ["areas-rurais-all"] });
-            setEditTarget(null);
-            setSheetOpen(false);
-        },
-        onError: (err: Error) => toast.error(err.message || "Erro ao atualizar"),
-    });
+        const updateMutation = useMutation({
+            mutationFn: ({ id, data }: { id: string; data: UpdateCadastroCompletoInput }) =>
+                apiFetch(`/unidades-produtivas/${id}/cadastro-completo`, { method: "PUT", body: JSON.stringify(data) }),
+            onSuccess: async (updated: UnidadeProdutiva) => {
+                toast.success("Unidade produtiva atualizada!");
+                const hydrated = await queryClient.fetchQuery<UnidadeProdutiva>({
+                    queryKey: ["unidades-produtivas", updated.id],
+                    queryFn: () => apiFetch(`/unidades-produtivas/${updated.id}`),
+                    staleTime: 0,
+                }).catch(() => updated);
+                queryClient.setQueryData<UnidadeProdutiva[]>(["unidades-produtivas"], (current = []) =>
+                    current.map((item) => (item.id === updated.id ? hydrated : item))
+                );
+                queryClient.setQueryData(["unidades-produtivas", updated.id], hydrated);
+                queryClient.invalidateQueries({ queryKey: ["unidades-produtivas"] });
+                queryClient.invalidateQueries({ queryKey: ["imoveis-rurais"] });
+                queryClient.invalidateQueries({ queryKey: ["visao-territorial"] });
+                queryClient.invalidateQueries({ queryKey: ["visao-fundiaria"] });
+                queryClient.invalidateQueries({ queryKey: ["fazendas-limite"] });
+                queryClient.invalidateQueries({ queryKey: ["areas-rurais-all"] });
+                setEditTarget(null);
+                setSheetOpen(false);
+            },
+            onError: (err: Error) => {
+                const msg = err.message || "Erro ao atualizar";
+                if (msg.toLowerCase().includes("limite") || msg.toLowerCase().includes("pacote") || msg.toLowerCase().includes("upgrade")) {
+                    toast.error(msg, {
+                        action: {
+                            label: "Fazer Upgrade",
+                            onClick: () => { window.location.href = "/dashboard/settings/billing"; },
+                        },
+                    });
+                } else {
+                    toast.error(msg);
+                }
+            },
+        });
 
-    const deleteMutation = useMutation({
-        mutationFn: (id: string) => apiFetch(`/unidades-produtivas/${id}`, { method: "DELETE" }),
-        onSuccess: () => {
-            toast.success("Unidade produtiva removida.");
-            queryClient.invalidateQueries({ queryKey: ["unidades-produtivas"] });
-            queryClient.invalidateQueries({ queryKey: ["fazendas-limite"] });
-            queryClient.invalidateQueries({ queryKey: ["areas-rurais-all"] });
-            setDeleteTarget(null);
-        },
-        onError: (err: Error) => toast.error(err.message || "Erro ao remover"),
-    });
+        const deleteMutation = useMutation({
+            mutationFn: (id: string) => apiFetch(`/unidades-produtivas/${id}`, { method: "DELETE" }),
+            onSuccess: () => {
+                toast.success("Unidade produtiva removida.");
+                queryClient.invalidateQueries({ queryKey: ["unidades-produtivas"] });
+                queryClient.invalidateQueries({ queryKey: ["fazendas-limite"] });
+                queryClient.invalidateQueries({ queryKey: ["areas-rurais-all"] });
+                setDeleteTarget(null);
+            },
+            onError: (err: Error) => toast.error(err.message || "Erro ao remover"),
+        });
 
-    const fazendaAtivaDoStore = unidadesProdutivasAutorizadas.find((f) => f.id === activeFazendaId);
+        const fazendaAtivaDoStore = unidadesProdutivasAutorizadas.find((f) => f.id === activeFazendaId);
 
-    function mergeFazenda(base?: Partial<UnidadeProdutiva> | null, extra?: Partial<UnidadeProdutiva> | null): UnidadeProdutiva | null {
+        function mergeFazenda(base ?: Partial<UnidadeProdutiva> | null, extra ?: Partial<UnidadeProdutiva> | null): UnidadeProdutiva | null {
         const source = { ...(base ?? {}) } as Partial<UnidadeProdutiva>;
-        if (extra) {
+        if(extra) {
             for (const k in extra) {
                 const key = k as keyof UnidadeProdutiva;
                 if (extra[key] !== undefined && extra[key] !== null) {
@@ -420,371 +446,380 @@ export function PropriedadesClient() {
             }
         }
         
-        if (!source.id) return null;
+        if(!source.id) return null;
 
-        return {
-            id: source.id,
-            tenant_id: source.tenant_id ?? "",
-            nome: source.nome ?? areaRuralRaiz?.nome ?? "Propriedade ativa",
-            tipo_propriedade: source.tipo_propriedade ?? "fazenda",
-            cpf_cnpj: source.cpf_cnpj ?? null,
-            inscricao_estadual: source.inscricao_estadual ?? null,
-            cep: source.cep ?? null,
-            logradouro: source.logradouro ?? null,
-            numero: source.numero ?? null,
-            complemento: source.complemento ?? null,
-            bairro: source.bairro ?? null,
-            municipio: source.municipio ?? null,
-            uf: source.uf ?? null,
-            ibge_municipio_codigo: source.ibge_municipio_codigo ?? null,
-            area_total_ha: source.area_total_ha ?? areaRuralRaiz?.area_hectares_manual ?? areaRuralRaiz?.area_hectares ?? null,
-            area_total_calculada_ha: source.area_total_calculada_ha ?? areaRuralRaiz?.area_hectares ?? areaRuralRaiz?.area_hectares_manual ?? null,
-            area_app_ha: source.area_app_ha ?? null,
-            area_rl_ha: source.area_rl_ha ?? null,
-            coordenadas_sede: source.coordenadas_sede ?? null,
-            geometria: source.geometria ?? null,
-            logo_url: source.logo_url ?? null,
-            ativo: source.ativo ?? true,
-            created_at: source.created_at ?? "",
-            updated_at: source.updated_at ?? "",
-        };
+    return {
+        id: source.id,
+        tenant_id: source.tenant_id ?? "",
+        nome: source.nome ?? areaRuralRaiz?.nome ?? "Propriedade ativa",
+        tipo_propriedade: source.tipo_propriedade ?? "fazenda",
+        cpf_cnpj: source.cpf_cnpj ?? null,
+        inscricao_estadual: source.inscricao_estadual ?? null,
+        cep: source.cep ?? null,
+        logradouro: source.logradouro ?? null,
+        numero: source.numero ?? null,
+        complemento: source.complemento ?? null,
+        bairro: source.bairro ?? null,
+        municipio: source.municipio ?? null,
+        uf: source.uf ?? null,
+        ibge_municipio_codigo: source.ibge_municipio_codigo ?? null,
+        area_total_ha: source.area_total_ha ?? areaRuralRaiz?.area_hectares_manual ?? areaRuralRaiz?.area_hectares ?? null,
+        area_total_calculada_ha: source.area_total_calculada_ha ?? areaRuralRaiz?.area_hectares ?? areaRuralRaiz?.area_hectares_manual ?? null,
+        area_app_ha: source.area_app_ha ?? null,
+        area_rl_ha: source.area_rl_ha ?? null,
+        coordenadas_sede: source.coordenadas_sede ?? null,
+        geometria: source.geometria ?? null,
+        logo_url: source.logo_url ?? null,
+        ativo: source.ativo ?? true,
+        created_at: source.created_at ?? "",
+        updated_at: source.updated_at ?? "",
+    };
+}
+
+const fazendaFallback = mergeFazenda(
+    activeFazendaId ? { id: activeFazendaId } : null,
+    fazendaAtivaDetalhe ?? fazendaAtivaDoStore ?? null
+);
+
+const fazendasBase =
+    fazendas.length > 0
+        ? fazendas
+        : unidadesProdutivasAutorizadas.length > 0
+            ? unidadesProdutivasAutorizadas
+            : fazendaFallback
+                ? [fazendaFallback]
+                : [];
+
+const fazendasDisponiveis = fazendasBase.map((fazenda) =>
+    fazenda.id === activeFazendaId
+        ? (mergeFazenda(fazenda, fazendaAtivaDetalhe ?? fazendaAtivaDoStore ?? null) ?? fazenda)
+        : fazenda
+);
+const showLoadError = !!error && fazendasDisponiveis.length === 0;
+const limiteAtingido = limiteInfo?.atingido ?? false;
+
+function openCreate() {
+    if (limiteAtingido) {
+        toast.error("Limite de unidades produtivas do plano atingido. Faça upgrade.");
+        return;
     }
+    setEditTarget(null);
+    setSheetOpen(true);
+}
+function openEdit(f: UnidadeProdutiva) { setEditTarget(f); setSheetOpen(true); }
 
-    const fazendaFallback = mergeFazenda(
-        activeFazendaId ? { id: activeFazendaId } : null,
-        fazendaAtivaDetalhe ?? fazendaAtivaDoStore ?? null
-    );
+function handleInvalidSubmit(formErrors: FieldErrors<CreateUnidadeProdutivaValues>) {
+    const firstError = Object.values(formErrors)[0];
+    const message = firstError?.message;
+    toast.error(typeof message === "string" && message.trim() ? message : "Preencha os campos obrigatórios.");
+}
 
-    const fazendasBase =
-        fazendas.length > 0
-            ? fazendas
-            : unidadesProdutivasAutorizadas.length > 0
-                ? unidadesProdutivasAutorizadas
-                : fazendaFallback
-                    ? [fazendaFallback]
-                    : [];
-
-    const fazendasDisponiveis = fazendasBase.map((fazenda) =>
-        fazenda.id === activeFazendaId
-            ? (mergeFazenda(fazenda, fazendaAtivaDetalhe ?? fazendaAtivaDoStore ?? null) ?? fazenda)
-            : fazenda
-    );
-    const showLoadError = !!error && fazendasDisponiveis.length === 0;
-    const limiteAtingido = limiteInfo?.atingido ?? false;
-
-    function openCreate() {
-        if (limiteAtingido) {
-            toast.error("Limite de unidades produtivas do plano atingido. Faça upgrade.");
-            return;
-        }
-        setEditTarget(null);
-        setSheetOpen(true);
-    }
-    function openEdit(f: UnidadeProdutiva) { setEditTarget(f); setSheetOpen(true); }
-
-    function handleInvalidSubmit(formErrors: FieldErrors<CreateUnidadeProdutivaValues>) {
-        const firstError = Object.values(formErrors)[0];
-        const message = firstError?.message;
-        toast.error(typeof message === "string" && message.trim() ? message : "Preencha os campos obrigatórios.");
-    }
-
-    const columns = useMemo<ColumnDef<UnidadeProdutiva>[]>(() => [
-        {
-            id: "nome",
-            header: "Nome",
-            accessorKey: "nome",
-            cell: (value, row) => (
-                <div className="flex items-center gap-3">
-                    <div className="size-8 rounded-sm bg-primary/10 flex items-center justify-center shrink-0">
-                        {row.logo_url ? <img src={resolveLogo(row.logo_url) ?? ""} className="size-8 object-cover rounded-sm" alt="Logo" /> : <Landmark className="size-4 text-primary" />}
-                    </div>
-                    <div className="flex flex-col">
-                        <span className="font-medium">{value}</span>
-                        <span className="text-[10px] text-muted-foreground">{[row.municipio, row.uf].filter(Boolean).join(" - ")}</span>
-                    </div>
+const columns = useMemo<ColumnDef<UnidadeProdutiva>[]>(() => [
+    {
+        id: "nome",
+        header: "Nome",
+        accessorKey: "nome",
+        cell: (value, row) => (
+            <div className="flex items-center gap-3">
+                <div className="size-8 rounded-sm bg-primary/10 flex items-center justify-center shrink-0">
+                    {row.logo_url ? <img src={resolveLogo(row.logo_url) ?? ""} className="size-8 object-cover rounded-sm" alt="Logo" /> : <Landmark className="size-4 text-primary" />}
                 </div>
-            )
-        },
-        {
-            id: "tipo",
-            header: "Tipo",
-            accessorFn: (row) => TIPO_LABEL[normalizeTipo(row.tipo_propriedade)] ?? row.tipo_propriedade,
-        },
-        {
-            id: "area",
-            header: "Área Total",
-            accessorKey: "area_total_ha",
-            cell: (value) => value ? `${Number(value).toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} ha` : "-",
-        },
-        {
-            id: "area_real",
-            header: "Área Útil",
-            accessorFn: (row) => Math.max(
-                0,
-                toAreaNumber(row.area_total_ha) - toAreaNumber(row.area_app_ha) - toAreaNumber(row.area_rl_ha)
-            ),
-            cell: (value) => value ? `${Number(value).toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} ha` : "-",
-        },
-        {
-            id: "imoveis",
-            header: "Imóveis vinculados",
-            accessorFn: (row) => {
-                const principal = row.territorio?.imovel_principal?.id ? 1 : 0;
-                const secundarios = row.territorio?.imoveis_secundarios?.length ?? 0;
-                return principal + secundarios;
-            },
-            cell: (value) => `${value ?? 0}`,
-        },
-        {
-            id: "status",
-            header: "Status",
-            accessorKey: "ativo",
-            cell: (value, row) => (
-                <div className="flex items-center gap-2">
-                    <Badge variant={value ? "default" : "secondary"} className="text-[10px] rounded-sm">
-                        {value ? "Ativa" : "Inativa"}
-                    </Badge>
-                    {row.territorio?.estado_de_convergencia && row.territorio.estado_de_convergencia !== "CANONICAL" && (
-                        <TooltipProvider>
-                            <Tooltip>
-                                <TooltipTrigger>
-                                    <AlertTriangle className="size-3.5 text-amber-500" />
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                    <p>Esta propriedade possui pendências de migração territorial.</p>
-                                    <p className="text-xs text-muted-foreground">Estado: {row.territorio.estado_de_convergencia}</p>
-                                </TooltipContent>
-                            </Tooltip>
-                        </TooltipProvider>
-                    )}
-                </div>
-            )
-        },
-        {
-            id: "acoes",
-            header: "",
-            exportable: false,
-            sortable: false,
-            filterable: false,
-            cell: (_, row) => (
-                <div className="flex items-center gap-0 justify-end">
-                    <TooltipProvider>
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <Button size="icon" variant="ghost" className="size-7 text-primary hover:text-primary rounded-sm" asChild>
-                                    <Link href={`/cadastros/propriedades/${row.id}/visao-territorial`}>
-                                        <Eye className="size-3.5" />
-                                    </Link>
-                                </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>Visão territorial</TooltipContent>
-                        </Tooltip>
-                    </TooltipProvider>
-
-                    <TooltipProvider>
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <Button size="icon" variant="ghost" className="size-7 text-primary hover:text-primary rounded-sm" asChild>
-                                    <Link href={`/cadastros/propriedades/${row.id}`}>
-                                        <TreePine className="size-3.5" />
-                                    </Link>
-                                </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>Estrutura de Áreas</TooltipContent>
-                        </Tooltip>
-                    </TooltipProvider>
-    
-                    <TooltipProvider>
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <Button size="icon" variant="ghost" className="size-7 text-primary hover:text-primary rounded-sm" onClick={() => openEdit(row)}>
-                                    <Pencil className="size-3.5" />
-                                </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>Editar</TooltipContent>
-                        </Tooltip>
-                    </TooltipProvider>
-    
-                    <TooltipProvider>
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <Button size="icon" variant="ghost" className="size-7 text-destructive hover:text-destructive rounded-sm" onClick={() => setDeleteTarget(row)}>
-                                    <Trash2 className="size-3.5" />
-                                </Button>
-                            </TooltipTrigger>
-                            <TooltipContent>Remover</TooltipContent>
-                        </Tooltip>
-                    </TooltipProvider>
-                </div>
-            )
-        }
-    ], []);
-
-    const totalArea = fazendasDisponiveis.reduce((acc, f) => acc + toAreaNumber(f.area_total_ha), 0);
-    const totalAreaReal = fazendasDisponiveis.reduce((acc, f) => {
-        const total = toAreaNumber(f.area_total_ha);
-        const app = toAreaNumber(f.area_app_ha);
-        const rl = toAreaNumber(f.area_rl_ha);
-        return acc + Math.max(0, total - app - rl);
-    }, 0);
-    const totalAtivas = fazendasDisponiveis.filter((f) => f.ativo).length;
-
-    if (!isReady || isLoading) {
-        return (
-            <div className="p-6 space-y-6">
-                <Skeleton className="h-10 w-64" />
-                <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
-                    {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-sm shadow-sm" />)}
-                </div>
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-40 rounded-sm shadow-sm" />)}
+                <div className="flex flex-col">
+                    <span className="font-medium">{value}</span>
+                    <span className="text-[10px] text-muted-foreground">{[row.municipio, row.uf].filter(Boolean).join(" - ")}</span>
                 </div>
             </div>
-        );
-    }
+        )
+    },
+    {
+        id: "tipo",
+        header: "Tipo",
+        accessorFn: (row) => TIPO_LABEL[normalizeTipo(row.tipo_propriedade)] ?? row.tipo_propriedade,
+    },
+    {
+        id: "area",
+        header: "Área Total",
+        accessorKey: "area_total_ha",
+        cell: (value) => value ? `${Number(value).toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} ha` : "-",
+    },
+    {
+        id: "area_real",
+        header: "Área Útil",
+        accessorFn: (row) => Math.max(
+            0,
+            toAreaNumber(row.area_total_ha) - toAreaNumber(row.area_app_ha) - toAreaNumber(row.area_rl_ha)
+        ),
+        cell: (value) => value ? `${Number(value).toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} ha` : "-",
+    },
+    {
+        id: "imoveis",
+        header: "Imóveis vinculados",
+        accessorFn: (row) => {
+            const principal = row.territorio?.imovel_principal?.id ? 1 : 0;
+            const secundarios = row.territorio?.imoveis_secundarios?.length ?? 0;
+            return principal + secundarios;
+        },
+        cell: (value) => `${value ?? 0}`,
+    },
+    {
+        id: "status",
+        header: "Status",
+        accessorKey: "ativo",
+        cell: (value, row) => (
+            <div className="flex items-center gap-2">
+                <Badge variant={value ? "default" : "secondary"} className="text-[10px] rounded-sm">
+                    {value ? "Ativa" : "Inativa"}
+                </Badge>
+                {row.territorio?.estado_de_convergencia && row.territorio.estado_de_convergencia !== "CANONICAL" && (
+                    <TooltipProvider>
+                        <Tooltip>
+                            <TooltipTrigger>
+                                <AlertTriangle className="size-3.5 text-amber-500" />
+                            </TooltipTrigger>
+                            <TooltipContent>
+                                <p>Esta propriedade possui pendências de migração territorial.</p>
+                                <p className="text-xs text-muted-foreground">Estado: {row.territorio.estado_de_convergencia}</p>
+                            </TooltipContent>
+                        </Tooltip>
+                    </TooltipProvider>
+                )}
+            </div>
+        )
+    },
+    {
+        id: "acoes",
+        header: "",
+        exportable: false,
+        sortable: false,
+        filterable: false,
+        cell: (_, row) => (
+            <div className="flex items-center gap-0 justify-end">
+                <TooltipProvider>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <Button size="icon" variant="ghost" className="size-7 text-primary hover:text-primary rounded-sm" asChild>
+                                <Link href={`/cadastros/propriedades/${row.id}/visao-territorial`}>
+                                    <Eye className="size-3.5" />
+                                </Link>
+                            </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Visão territorial</TooltipContent>
+                    </Tooltip>
+                </TooltipProvider>
 
+                <TooltipProvider>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <Button size="icon" variant="ghost" className="size-7 text-primary hover:text-primary rounded-sm" asChild>
+                                <Link href={`/cadastros/propriedades/${row.id}`}>
+                                    <TreePine className="size-3.5" />
+                                </Link>
+                            </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Estrutura de Áreas</TooltipContent>
+                    </Tooltip>
+                </TooltipProvider>
+
+                <TooltipProvider>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <Button size="icon" variant="ghost" className="size-7 text-primary hover:text-primary rounded-sm" onClick={() => openEdit(row)}>
+                                <Pencil className="size-3.5" />
+                            </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Editar</TooltipContent>
+                    </Tooltip>
+                </TooltipProvider>
+
+                <TooltipProvider>
+                    <Tooltip>
+                        <TooltipTrigger asChild>
+                            <Button size="icon" variant="ghost" className="size-7 text-destructive hover:text-destructive rounded-sm" onClick={() => setDeleteTarget(row)}>
+                                <Trash2 className="size-3.5" />
+                            </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Remover</TooltipContent>
+                    </Tooltip>
+                </TooltipProvider>
+            </div>
+        )
+    }
+], []);
+
+const totalArea = fazendasDisponiveis.reduce((acc, f) => acc + toAreaNumber(f.area_total_ha), 0);
+const totalAreaReal = fazendasDisponiveis.reduce((acc, f) => {
+    const total = toAreaNumber(f.area_total_ha);
+    const app = toAreaNumber(f.area_app_ha);
+    const rl = toAreaNumber(f.area_rl_ha);
+    return acc + Math.max(0, total - app - rl);
+}, 0);
+const totalAtivas = fazendasDisponiveis.filter((f) => f.ativo).length;
+
+if (!isReady || isLoading) {
     return (
         <div className="p-6 space-y-6">
-            <PageHeader
-                title="Unidades Produtivas"
-                description="Gerencie as operações, sedes e localizações operacionais da sua conta."
-                icon={<Trees className="text-primary" size={22} />}
-                breadcrumbs={[
-                    { label: "Cadastros", href: "/cadastros" },
-                    { label: "Unidades Produtivas" },
-                ]}
-                actions={
-                    <PermissionGuard permission="tenant:fazendas:create">
-                        <Button size="sm" onClick={openCreate} disabled={limiteAtingido} variant="outline" className="rounded-sm">
-                            <Plus className="size-3.5 mr-1.5" /> Nova Unidade Produtiva
-                        </Button>
-                    </PermissionGuard>
-                }
-            />
-
+            <Skeleton className="h-10 w-64" />
             <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
-                <PropertyMetricCard icon={Landmark} label="Total" value={fazendasDisponiveis.length} tone="primary" />
-                <PropertyMetricCard icon={TreePine} label="Ativas" value={totalAtivas} tone="success" />
-                <PropertyMetricCard
-                    icon={Ruler}
-                    label="Área operacional informada"
-                    value={`${totalArea.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} ha`}
-                    subtitle="Soma das áreas declaradas"
-                />
-                <PropertyMetricCard
-                    icon={Trees}
-                    label="Área útil estimada"
-                    value={`${totalAreaReal.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} ha`}
-                    subtitle="Área informada - APP/RL de referência"
-                    tone="success"
-                />
-                <PropertyMetricCard
-                    icon={Layers}
-                    label="Área calculada pela geometria"
-                    value={`${areaCalculada.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} ha`}
-                    subtitle={`Var. ${((areaCalculada / (totalArea || 1) - 1) * 100).toFixed(1)}% vs informada`}
-                />
+                {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-sm shadow-sm" />)}
             </div>
-
-            {limiteInfo && (
-                <PlanUsageBanner
-                    label="unidade(s) produtiva(s)"
-                    atual={limiteInfo.atual}
-                    limite={limiteInfo.limite}
-                    atingido={limiteInfo.atingido}
-                />
-            )}
-
-            {showLoadError && (
-                <Alert variant="destructive" className="rounded-sm">
-                    <AlertTriangle className="size-4" />
-                    <AlertDescription>Não foi possível carregar as unidades produtivas.</AlertDescription>
-                </Alert>
-            )}
-
-            <Card className="shadow-sm">
-                <CardHeader className="border-b">
-                    <CardTitle>Lista de Unidades Produtivas</CardTitle>
-                    <CardDescription>
-                        Consulte, edite e exporte as unidades produtivas cadastradas para o tenant ativo.
-                    </CardDescription>
-                </CardHeader>
-                <CardContent className="pt-4">
-                    <DataTable
-                        data={fazendasDisponiveis}
-                        columns={columns}
-                        searchable={true}
-                        searchPlaceholder="Buscar unidade produtiva..."
-                        exportable={true}
-                        exportFileName="unidades_produtivas_export"
-                        emptyMessage="Nenhuma unidade produtiva cadastrada ou encontrada."
-                    />
-
-                    {fazendasDisponiveis.length > 0 && (
-                        <div className="mt-4 flex justify-end border-t pt-4">
-                            <div className="flex flex-col gap-3 rounded-sm border bg-muted/30 p-3 text-sm sm:flex-row sm:items-center sm:gap-6">
-                                <div className="flex flex-col sm:items-end">
-                                    <span className="text-[10px] font-bold uppercase text-muted-foreground">Total Operacional Informado</span>
-                                    <span className="font-mono text-lg font-semibold text-foreground">
-                                        {totalArea.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} ha
-                                    </span>
-                                </div>
-                                <div className="hidden w-px bg-border sm:block" />
-                                <div className="flex flex-col sm:items-end">
-                                    <span className="text-[10px] font-bold uppercase text-muted-foreground">Total Útil Estimado</span>
-                                    <span className="font-mono text-lg font-semibold text-primary">
-                                        {totalAreaReal.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} ha
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-                </CardContent>
-            </Card>
-
-            {/* Dialog de criação/edição */}
-            <PropriedadeDialog
-                key={`${sheetOpen ? "open" : "closed"}-${editTarget?.id ?? "new"}`}
-                open={sheetOpen}
-                onOpenChange={(v) => { setSheetOpen(v); if (!v) setEditTarget(null); }}
-                fazenda={editTarget ?? undefined}
-                grupos={grupos}
-                isPending={createMutation.isPending || updateMutation.isPending}
-                onSubmit={(data) => {
-                    if (editTarget) {
-                        updateMutation.mutate({ id: editTarget.id, data: data as UpdateCadastroCompletoInput });
-                    } else {
-                        createMutation.mutate(data as CreateCadastroCompletoInput);
-                    }
-                }}
-                onInvalidSubmit={handleInvalidSubmit}
-            />
-
-            {/* Dialog de exclusão */}
-            {deleteTarget && (
-                <AlertDialog open onOpenChange={() => setDeleteTarget(null)}>
-                    <AlertDialogContent className="rounded-sm">
-                        <AlertDialogHeader>
-                            <AlertDialogTitle>Remover unidade produtiva?</AlertDialogTitle>
-                            <AlertDialogDescription>
-                                A unidade produtiva <strong>{deleteTarget.nome}</strong> e os dados operacionais vinculados serão removidos permanentemente.
-                            </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                            <AlertDialogCancel disabled={deleteMutation.isPending} className="rounded-sm">Cancelar</AlertDialogCancel>
-                            <AlertDialogAction
-                                onClick={() => deleteMutation.mutate(deleteTarget.id)}
-                                disabled={deleteMutation.isPending}
-                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90 rounded-sm"
-                            >
-                                {deleteMutation.isPending ? "Removendo..." : "Remover"}
-                            </AlertDialogAction>
-                        </AlertDialogFooter>
-                    </AlertDialogContent>
-                </AlertDialog>
-            )}
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-40 rounded-sm shadow-sm" />)}
+            </div>
         </div>
     );
+}
+
+return (
+    <div className="p-6 space-y-6">
+        <PageHeader
+            title="Unidades Produtivas"
+            description="Gerencie as operações, sedes e localizações operacionais da sua conta."
+            icon={<Trees className="text-primary" size={22} />}
+            breadcrumbs={[
+                { label: "Cadastros", href: "/cadastros" },
+                { label: "Unidades Produtivas" },
+            ]}
+            actions={
+                <PermissionGuard permission="tenant:fazendas:create">
+                    <Button size="sm" onClick={openCreate} disabled={limiteAtingido} variant="outline" className="rounded-sm">
+                        <Plus className="size-3.5 mr-1.5" /> Nova Unidade Produtiva
+                    </Button>
+                </PermissionGuard>
+            }
+        />
+
+        <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
+            <PropertyMetricCard icon={Landmark} label="Total" value={fazendasDisponiveis.length} tone="primary" />
+            <PropertyMetricCard icon={TreePine} label="Ativas" value={totalAtivas} tone="success" />
+            <PropertyMetricCard
+                icon={Ruler}
+                label="Área operacional informada"
+                value={`${totalArea.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} ha`}
+                subtitle="Soma das áreas declaradas"
+            />
+            <PropertyMetricCard
+                icon={Trees}
+                label="Área útil estimada"
+                value={`${totalAreaReal.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} ha`}
+                subtitle="Área informada - APP/RL de referência"
+                tone="success"
+            />
+            <PropertyMetricCard
+                icon={Layers}
+                label="Área calculada pela geometria"
+                value={`${areaCalculada.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} ha`}
+                subtitle={`Var. ${((areaCalculada / (totalArea || 1) - 1) * 100).toFixed(1)}% vs informada`}
+            />
+        </div>
+
+        {limiteHectaresInfo && limiteHectaresInfo.limite !== null && (
+            <PlanUsageBanner
+                label="ha contratados no pacote"
+                atual={limiteHectaresInfo.atual}
+                limite={limiteHectaresInfo.limite}
+                atingido={limiteHectaresInfo.atingido}
+            />
+        )}
+
+        {limiteInfo && (
+            <PlanUsageBanner
+                label="unidade(s) produtiva(s)"
+                atual={limiteInfo.atual}
+                limite={limiteInfo.limite}
+                atingido={limiteInfo.atingido}
+            />
+        )}
+
+        {showLoadError && (
+            <Alert variant="destructive" className="rounded-sm">
+                <AlertTriangle className="size-4" />
+                <AlertDescription>Não foi possível carregar as unidades produtivas.</AlertDescription>
+            </Alert>
+        )}
+
+        <Card className="shadow-sm">
+            <CardHeader className="border-b">
+                <CardTitle>Lista de Unidades Produtivas</CardTitle>
+                <CardDescription>
+                    Consulte, edite e exporte as unidades produtivas cadastradas para o tenant ativo.
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-4">
+                <DataTable
+                    data={fazendasDisponiveis}
+                    columns={columns}
+                    searchable={true}
+                    searchPlaceholder="Buscar unidade produtiva..."
+                    exportable={true}
+                    exportFileName="unidades_produtivas_export"
+                    emptyMessage="Nenhuma unidade produtiva cadastrada ou encontrada."
+                />
+
+                {fazendasDisponiveis.length > 0 && (
+                    <div className="mt-4 flex justify-end border-t pt-4">
+                        <div className="flex flex-col gap-3 rounded-sm border bg-muted/30 p-3 text-sm sm:flex-row sm:items-center sm:gap-6">
+                            <div className="flex flex-col sm:items-end">
+                                <span className="text-[10px] font-bold uppercase text-muted-foreground">Total Operacional Informado</span>
+                                <span className="font-mono text-lg font-semibold text-foreground">
+                                    {totalArea.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} ha
+                                </span>
+                            </div>
+                            <div className="hidden w-px bg-border sm:block" />
+                            <div className="flex flex-col sm:items-end">
+                                <span className="text-[10px] font-bold uppercase text-muted-foreground">Total Útil Estimado</span>
+                                <span className="font-mono text-lg font-semibold text-primary">
+                                    {totalAreaReal.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} ha
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </CardContent>
+        </Card>
+
+        {/* Dialog de criação/edição */}
+        <PropriedadeDialog
+            key={`${sheetOpen ? "open" : "closed"}-${editTarget?.id ?? "new"}`}
+            open={sheetOpen}
+            onOpenChange={(v) => { setSheetOpen(v); if (!v) setEditTarget(null); }}
+            fazenda={editTarget ?? undefined}
+            grupos={grupos}
+            isPending={createMutation.isPending || updateMutation.isPending}
+            onSubmit={(data) => {
+                if (editTarget) {
+                    updateMutation.mutate({ id: editTarget.id, data: data as UpdateCadastroCompletoInput });
+                } else {
+                    createMutation.mutate(data as CreateCadastroCompletoInput);
+                }
+            }}
+            onInvalidSubmit={handleInvalidSubmit}
+        />
+
+        {/* Dialog de exclusão */}
+        {deleteTarget && (
+            <AlertDialog open onOpenChange={() => setDeleteTarget(null)}>
+                <AlertDialogContent className="rounded-sm">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Remover unidade produtiva?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            A unidade produtiva <strong>{deleteTarget.nome}</strong> e os dados operacionais vinculados serão removidos permanentemente.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel disabled={deleteMutation.isPending} className="rounded-sm">Cancelar</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={() => deleteMutation.mutate(deleteTarget.id)}
+                            disabled={deleteMutation.isPending}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90 rounded-sm"
+                        >
+                            {deleteMutation.isPending ? "Removendo..." : "Remover"}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+        )}
+    </div>
+);
 }
 
 type MetricTone = "default" | "primary" | "success";
@@ -1105,7 +1140,7 @@ function PropertyGeolocationDialog({
                             )}
                         </Map>
                     )}
-                    
+
                     <div className="absolute top-4 right-4 z-10 pointer-events-none">
                         <MapVisualizationToggle
                             className="pointer-events-auto"
@@ -1378,25 +1413,25 @@ function PropriedadeDialog({
 
     return (
         <>
-        <Dialog open={open} onOpenChange={(value) => {
-            if (!value) setGeoDialogOpen(false);
-            onOpenChange(value);
-        }}>
-            <DialogContent className="max-h-[calc(100vh-2rem)] w-[calc(100vw-2rem)] max-w-5xl rounded-sm p-0">
-                <DialogHeader>
-                    <div className="flex items-center gap-2 px-5 pt-5">
-                        <Landmark className="size-5 text-primary" />
-                        <DialogTitle>{isEdit ? "Editar Unidade Produtiva" : "Nova Unidade Produtiva"}</DialogTitle>
-                    </div>
-                    <DialogDescription className="px-5 pb-4">
-                        {isEdit
-                            ? "Atualize os dados operacionais da unidade produtiva."
-                            : "Cadastre a operação, a sede e a localização da unidade produtiva."}
-                    </DialogDescription>
-                </DialogHeader>
+            <Dialog open={open} onOpenChange={(value) => {
+                if (!value) setGeoDialogOpen(false);
+                onOpenChange(value);
+            }}>
+                <DialogContent className="max-h-[calc(100vh-2rem)] w-[calc(100vw-2rem)] max-w-5xl rounded-sm p-0">
+                    <DialogHeader>
+                        <div className="flex items-center gap-2 px-5 pt-5">
+                            <Landmark className="size-5 text-primary" />
+                            <DialogTitle>{isEdit ? "Editar Unidade Produtiva" : "Nova Unidade Produtiva"}</DialogTitle>
+                        </div>
+                        <DialogDescription className="px-5 pb-4">
+                            {isEdit
+                                ? "Atualize os dados operacionais da unidade produtiva."
+                                : "Cadastre a operação, a sede e a localização da unidade produtiva."}
+                        </DialogDescription>
+                    </DialogHeader>
 
-                <form onSubmit={handleSubmit(handleFormSubmit, onInvalidSubmit)} className="flex min-h-0 flex-1 flex-col">
-                    <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto px-5 pb-5 lg:grid-cols-2">
+                    <form onSubmit={handleSubmit(handleFormSubmit, onInvalidSubmit)} className="flex min-h-0 flex-1 flex-col">
+                        <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto px-5 pb-5 lg:grid-cols-2">
                             {(Object.keys(errors).length > 0 || coordinateErrors.lat || coordinateErrors.lng) && (
                                 <Alert variant="destructive" className="rounded-sm lg:col-span-2">
                                     <AlertTriangle className="size-4" />
@@ -1586,17 +1621,17 @@ function PropriedadeDialog({
                                     </FieldGroup>
 
                                     <FieldGroup>
-                                    <FieldLabel htmlFor="ibge" label="Código IBGE" help="Código de 7 dígitos do município da sede operacional." />
-                                    <Input
-                                        id="ibge"
-                                        placeholder="3550308"
-                                        maxLength={7}
-                                        {...register("ibge_municipio_codigo")}
-                                        disabled={isPending}
-                                        aria-invalid={Boolean(errors.ibge_municipio_codigo)}
-                                        className={cn("h-8 rounded-sm tabular-nums", getFieldErrorClass(Boolean(errors.ibge_municipio_codigo)))}
-                                    />
-                                    <FieldErrorMessage message={errors.ibge_municipio_codigo?.message} />
+                                        <FieldLabel htmlFor="ibge" label="Código IBGE" help="Código de 7 dígitos do município da sede operacional." />
+                                        <Input
+                                            id="ibge"
+                                            placeholder="3550308"
+                                            maxLength={7}
+                                            {...register("ibge_municipio_codigo")}
+                                            disabled={isPending}
+                                            aria-invalid={Boolean(errors.ibge_municipio_codigo)}
+                                            className={cn("h-8 rounded-sm tabular-nums", getFieldErrorClass(Boolean(errors.ibge_municipio_codigo)))}
+                                        />
+                                        <FieldErrorMessage message={errors.ibge_municipio_codigo?.message} />
                                     </FieldGroup>
                                 </div>
                             </div>
@@ -1800,27 +1835,27 @@ function PropriedadeDialog({
                                     </p>
                                 </div>
                             )}
-                    </div>
+                        </div>
 
-                    <DialogFooter className="border-t px-5 py-3">
-                        <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isPending} className="rounded-sm" size="sm">
-                            Cancelar
-                        </Button>
-                        <Button type="submit" disabled={isPending} className="rounded-sm" size="sm">
-                            {isPending ? "Salvando..." : isEdit ? "Salvar Alterações" : "Cadastrar Unidade Produtiva"}
-                        </Button>
-                    </DialogFooter>
-                </form>
-            </DialogContent>
-        </Dialog>
-        <PropertyGeolocationDialog
-            open={geoDialogOpen}
-            onOpenChange={setGeoDialogOpen}
-            initialGeometry={geometry ? { type: "Feature", properties: {}, geometry } : fazenda?.geometria ?? null}
-            coordenadasSede={fazenda?.coordenadas_sede}
-            onGeometryChange={setGeometry}
-            onAreaChange={setCalculatedArea}
-        />
+                        <DialogFooter className="border-t px-5 py-3">
+                            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isPending} className="rounded-sm" size="sm">
+                                Cancelar
+                            </Button>
+                            <Button type="submit" disabled={isPending} className="rounded-sm" size="sm">
+                                {isPending ? "Salvando..." : isEdit ? "Salvar Alterações" : "Cadastrar Unidade Produtiva"}
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
+            <PropertyGeolocationDialog
+                open={geoDialogOpen}
+                onOpenChange={setGeoDialogOpen}
+                initialGeometry={geometry ? { type: "Feature", properties: {}, geometry } : fazenda?.geometria ?? null}
+                coordenadasSede={fazenda?.coordenadas_sede}
+                onGeometryChange={setGeometry}
+                onAreaChange={setCalculatedArea}
+            />
         </>
     );
 }

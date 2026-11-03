@@ -1221,7 +1221,7 @@ def require_limit(limit_type: str):
 
         # Buscar assinatura ativa do tenant
         stmt = (
-            select(PlanoAssinatura)
+            select(PlanoAssinatura, AssinaturaTenant)
             .join(AssinaturaTenant, AssinaturaTenant.plano_id == PlanoAssinatura.id)
             .where(
                 AssinaturaTenant.tenant_id == tenant_id,
@@ -1231,7 +1231,9 @@ def require_limit(limit_type: str):
         )
         stmt = stmt.limit(1)
         result = await session.execute(stmt)
-        plano = result.scalar_one_or_none()
+        row = result.first()
+        plano = row[0] if row else None
+        assinatura = row[1] if row else None
 
         if not plano:
             # Sem assinatura ativa — usar limites padrão ou bloquear
@@ -1260,17 +1262,46 @@ def require_limit(limit_type: str):
                     headers={"X-Limit-Type": "max_fazendas", "X-Limit-Max": str(limite), "X-Limit-Current": str(atual)},
                 )
 
+        elif limit_type == "limite_hectares":
+            limite = float(plano.limite_hectares) if plano.limite_hectares is not None else None
+            if limite is None or limite <= 0:
+                return True  # Ilimitado
+
+            from core.models.unidade_produtiva import UnidadeProdutiva as Fazenda
+            area_stmt = select(
+                func.coalesce(
+                    func.sum(
+                        func.coalesce(Fazenda.area_total_calculada_ha, Fazenda.area_total_ha, 0)
+                    ),
+                    0,
+                )
+            ).where(Fazenda.tenant_id == tenant_id, Fazenda.ativo == True)
+            atual = float((await session.execute(area_stmt)).scalar_one() or 0)
+
+            if atual >= limite:
+                raise HTTPException(
+                    status_code=402,
+                    detail=_limit_message("hectares", limite, atual, "ha utilizados"),
+                    headers={"X-Limit-Type": "limite_hectares", "X-Limit-Max": str(limite), "X-Limit-Current": str(atual)},
+                )
+
         elif limit_type == "max_usuarios":
-            # Verificar primeiro o limite do plano
-            limite = plano.limite_usuarios_maximo
+            # Valida limite de acessos simultâneos contratados
+            limite = (
+                (assinatura.usuarios_contratados if assinatura else None)
+                or plano.limite_usuarios_maximo
+                or plano.limite_usuarios_minimo
+            )
             if limite is None:
                 return True  # Ilimitado
 
-            # Contar usuários ativos do tenant
-            from core.models.auth import TenantUsuario
-            count_stmt = select(func.count(TenantUsuario.id)).where(
-                TenantUsuario.tenant_id == tenant_id,
-                TenantUsuario.status == "ATIVO",
+            from core.models.sessao import SessaoAtiva
+            from datetime import datetime, timezone
+            agora = datetime.now(timezone.utc)
+            count_stmt = select(func.count(SessaoAtiva.id)).where(
+                SessaoAtiva.tenant_id == tenant_id,
+                SessaoAtiva.status == "ATIVA",
+                SessaoAtiva.expira_em > agora,
             )
             count_result = await session.execute(count_stmt)
             atual = count_result.scalar_one() or 0
@@ -1278,7 +1309,7 @@ def require_limit(limit_type: str):
             if atual >= limite:
                 raise HTTPException(
                     status_code=402,
-                    detail=_limit_message("usuários", limite, atual, "usuário(s) ativo(s)"),
+                    detail=_limit_message("acessos simultâneos", limite, atual, "acesso(s) simultâneo(s) em uso"),
                     headers={"X-Limit-Type": "max_usuarios", "X-Limit-Max": str(limite), "X-Limit-Current": str(atual)},
                 )
 
@@ -1353,7 +1384,7 @@ def check_limit_soft(limit_type: str) -> dict:
 
         # Buscar assinatura ativa do tenant
         stmt = (
-            select(PlanoAssinatura)
+            select(PlanoAssinatura, AssinaturaTenant)
             .join(AssinaturaTenant, AssinaturaTenant.plano_id == PlanoAssinatura.id)
             .where(
                 AssinaturaTenant.tenant_id == tenant_id,
@@ -1363,7 +1394,9 @@ def check_limit_soft(limit_type: str) -> dict:
         )
         stmt = stmt.limit(1)
         result = await session.execute(stmt)
-        plano = result.scalar_one_or_none()
+        row = result.first()
+        plano = row[0] if row else None
+        assinatura = row[1] if row else None
 
         if not plano:
             return {"atual": 0, "limite": 0, "porcentagem": 0.0, "atingido": False}
@@ -1381,15 +1414,38 @@ def check_limit_soft(limit_type: str) -> dict:
             count_result = await session.execute(count_stmt)
             atual = count_result.scalar_one() or 0
 
+        elif limit_type == "limite_hectares":
+            limite = float(plano.limite_hectares) if plano.limite_hectares is not None else None
+            if limite is None or limite <= 0:
+                return {"atual": 0, "limite": None, "porcentagem": 0.0, "atingido": False}
+
+            from core.models.unidade_produtiva import UnidadeProdutiva as Fazenda
+            area_stmt = select(
+                func.coalesce(
+                    func.sum(
+                        func.coalesce(Fazenda.area_total_calculada_ha, Fazenda.area_total_ha, 0)
+                    ),
+                    0,
+                )
+            ).where(Fazenda.tenant_id == tenant_id, Fazenda.ativo == True)
+            atual = float((await session.execute(area_stmt)).scalar_one() or 0)
+
         elif limit_type == "max_usuarios":
-            limite = plano.limite_usuarios_maximo
+            limite = (
+                (assinatura.usuarios_contratados if assinatura else None)
+                or plano.limite_usuarios_maximo
+                or plano.limite_usuarios_minimo
+            )
             if limite is None:
                 return {"atual": 0, "limite": None, "porcentagem": 0.0, "atingido": False}
 
-            from core.models.auth import TenantUsuario
-            count_stmt = select(func.count(TenantUsuario.id)).where(
-                TenantUsuario.tenant_id == tenant_id,
-                TenantUsuario.status == "ATIVO",
+            from core.models.sessao import SessaoAtiva
+            from datetime import datetime, timezone
+            agora = datetime.now(timezone.utc)
+            count_stmt = select(func.count(SessaoAtiva.id)).where(
+                SessaoAtiva.tenant_id == tenant_id,
+                SessaoAtiva.status == "ATIVA",
+                SessaoAtiva.expira_em > agora,
             )
             count_result = await session.execute(count_stmt)
             atual = count_result.scalar_one() or 0

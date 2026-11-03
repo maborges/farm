@@ -65,6 +65,58 @@ class UnidadeProdutivaService(BaseService[UnidadeProdutiva]):
                 "Faça upgrade do plano para continuar."
             )
 
+    async def _check_limite_hectares(
+        self,
+        nova_area_ha: Decimal | float | None,
+        excluir_unidade_id: uuid.UUID | None = None,
+    ) -> None:
+        """Verifica se a soma de hectares das propriedades ativas respeita o limite do pacote.
+
+        Args:
+            nova_area_ha: Área em hectares da propriedade sendo criada ou atualizada.
+            excluir_unidade_id: ID da propriedade atual para desconsiderar na soma em atualizações.
+
+        Returns:
+            None: Validação aprovada sem retorno.
+
+        Raises:
+            BusinessRuleError: Quando a área somada ultrapassa o limite_hectares do plano.
+        """
+        if nova_area_ha is None or Decimal(str(nova_area_ha)) <= 0:
+            return
+
+        stmt_plano = (
+            select(PlanoAssinatura.limite_hectares)
+            .join(AssinaturaTenant, AssinaturaTenant.plano_id == PlanoAssinatura.id)
+            .where(
+                AssinaturaTenant.tenant_id == self.tenant_id,
+                AssinaturaTenant.status.in_(["ATIVA", "TRIAL"]),
+            )
+            .limit(1)
+        )
+        limite_ha = (await self.session.execute(stmt_plano)).scalar_one_or_none()
+        if limite_ha is None or Decimal(str(limite_ha)) <= 0:
+            return
+
+        area_expr = func.coalesce(UnidadeProdutiva.area_total_calculada_ha, UnidadeProdutiva.area_total_ha, 0)
+        stmt_soma = select(func.coalesce(func.sum(area_expr), 0)).where(
+            UnidadeProdutiva.tenant_id == self.tenant_id,
+            UnidadeProdutiva.ativo == True,
+        )
+        if excluir_unidade_id is not None:
+            stmt_soma = stmt_soma.where(UnidadeProdutiva.id != excluir_unidade_id)
+
+        area_atual = Decimal(str((await self.session.execute(stmt_soma)).scalar_one() or 0))
+        area_nova = Decimal(str(nova_area_ha))
+        limite_decimal = Decimal(str(limite_ha))
+
+        if area_atual + area_nova > limite_decimal:
+            raise BusinessRuleError(
+                f"Seu pacote permite até {limite_decimal:.2f} hectares no total. "
+                f"Área já cadastrada: {area_atual:.2f} ha; tentativa: +{area_nova:.2f} ha. "
+                "Faça upgrade de pacote para cadastrar uma área maior."
+            )
+
     # ------------------------------------------------------------------
     # CRUD principal
     # ------------------------------------------------------------------
@@ -96,6 +148,9 @@ class UnidadeProdutivaService(BaseService[UnidadeProdutiva]):
         else:
             obj_data["area_total_calculada_ha"] = None
 
+        area_efetiva = obj_data.get("area_total_calculada_ha") or obj_data.get("area_total_ha")
+        await self._check_limite_hectares(area_efetiva)
+
         return await super().create(obj_data)
 
     async def update(self, id: uuid.UUID, dados: UnidadeProdutivaUpdate | dict) -> UnidadeProdutiva:
@@ -120,6 +175,10 @@ class UnidadeProdutivaService(BaseService[UnidadeProdutiva]):
                 obj_data["area_total_calculada_ha"] = await self._calcular_area_georreferenciada(geometria)
             else:
                 obj_data["area_total_calculada_ha"] = None
+
+        if "area_total_calculada_ha" in obj_data or "area_total_ha" in obj_data:
+            area_efetiva = obj_data.get("area_total_calculada_ha") or obj_data.get("area_total_ha")
+            await self._check_limite_hectares(area_efetiva, excluir_unidade_id=id)
 
         unidade = await super().update(id, obj_data)
         return unidade

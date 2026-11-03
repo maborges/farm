@@ -8,8 +8,8 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.database import async_session_maker
-from core.dependencies import get_current_user, get_tenant_id, require_tenant_permission
+from core.dependencies import get_current_user, get_session, get_tenant_id, require_tenant_permission
+from core.models.auth import Usuario
 from core.services.mudanca_plano_service import MudancaPlanoService
 from core.services.asaas_service import AsaasService
 from core.schemas.plan_changes_schemas import (
@@ -34,8 +34,9 @@ router = APIRouter(prefix="/billing/mudancas-plano", tags=["Mudanças de Plano"]
 )
 async def simular_mudanca_plano(
     request: SimularMudancaPlanoRequest,
-    current_user: dict = Depends(get_current_user),
-    tenant_id: UUID = Depends(get_tenant_id)
+    current_user: Usuario = Depends(get_current_user),
+    tenant_id: UUID = Depends(get_tenant_id),
+    session: AsyncSession = Depends(get_session),
 ):
     """
     Simula mudança de plano.
@@ -45,26 +46,27 @@ async def simular_mudanca_plano(
     - Data de aplicação (downgrade)
     - Diferença de módulos e recursos
     """
-    async with async_session_maker() as session:
-        service = MudancaPlanoService(session, tenant_id)
+    service = MudancaPlanoService(session, tenant_id)
+    user_id = current_user["user_id"] if isinstance(current_user, dict) else current_user.id
 
-        try:
-            simulacao = await service.simular_mudanca(
-                plano_destino_id=request.plano_destino_id,
-                usuarios_destino=request.usuarios_destino,
-                assinatura_id=request.assinatura_id,
-                usuario_solicitante_id=current_user['user_id']
-            )
+    try:
+        simulacao = await service.simular_mudanca(
+            plano_destino_id=request.plano_destino_id,
+            usuarios_destino=request.usuarios_destino,
+            assinatura_id=request.assinatura_id,
+            usuario_solicitante_id=user_id,
+            ciclo_destino=request.ciclo_destino,
+        )
 
-            return simulacao
+        return simulacao
 
-        except EntityNotFoundError as e:
-            raise HTTPException(status_code=404, detail=str(e))
-        except BusinessRuleError as e:
-            raise HTTPException(status_code=422, detail=str(e))
-        except Exception as e:
-            logger.error(f"Erro ao simular mudança de plano: {e}")
-            raise HTTPException(status_code=500, detail="Erro interno ao simular mudança")
+    except EntityNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except BusinessRuleError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except Exception as e:
+        logger.error(f"Erro ao simular mudança de plano: {e}")
+        raise HTTPException(status_code=500, detail="Erro interno ao simular mudança")
 
 
 @router.post(
@@ -78,8 +80,9 @@ async def simular_mudanca_plano(
 )
 async def solicitar_mudanca_plano(
     request: SolicitarMudancaPlanoRequest,
-    current_user: dict = Depends(get_current_user),
-    tenant_id: UUID = Depends(get_tenant_id)
+    current_user: Usuario = Depends(get_current_user),
+    tenant_id: UUID = Depends(get_tenant_id),
+    session: AsyncSession = Depends(get_session),
 ):
     """
     Solicita mudança de plano.
@@ -95,38 +98,37 @@ async def solicitar_mudanca_plano(
     - Não gera cobrança
     - Acesso ao plano atual mantido até a data agendada
     """
-    async with async_session_maker() as session:
-        mudanca_service = MudancaPlanoService(session, tenant_id)
-        asaas_service = AsaasService(session)
+    mudanca_service = MudancaPlanoService(session, tenant_id)
+    asaas_service = AsaasService(session)
+    user_id = current_user["user_id"] if isinstance(current_user, dict) else current_user.id
 
-        try:
-            # Criar solicitação
-            mudanca = await mudanca_service.solicitar_mudanca(
-                plano_destino_id=request.plano_destino_id,
-                usuarios_destino=request.usuarios_destino,
-                usuario_solicitante_id=current_user['user_id'],
-                assinatura_id=request.assinatura_id
-            )
+    try:
+        # Criar solicitação
+        mudanca = await mudanca_service.solicitar_mudanca(
+            plano_destino_id=request.plano_destino_id,
+            usuarios_destino=request.usuarios_destino,
+            usuario_solicitante_id=user_id,
+            assinatura_id=request.assinatura_id,
+            ciclo_destino=request.ciclo_destino,
+        )
 
-            # Se for upgrade, criar cobrança no Asaas
-            if mudanca.tipo_mudanca.startswith("UPGRADE") and mudanca.valor_proporcional > 0:
-                try:
-                    cobranca = await asaas_service.criar_cobranca_mudanca_plano(mudanca)
-                    logger.info(f"Cobrança Asaas criada: {cobranca.id} - Mudança {mudanca.id}")
-                except Exception as e:
-                    logger.error(f"Erro ao criar cobrança Asaas: {e}")
-                    # Mudança foi criada, mas falhou ao gerar cobrança
-                    # Admin pode aprovar manualmente
+        # Se for upgrade, criar cobrança no Asaas
+        if mudanca.tipo_mudanca.startswith("UPGRADE") and mudanca.valor_proporcional > 0:
+            try:
+                cobranca = await asaas_service.criar_cobranca_mudanca_plano(mudanca)
+                logger.info(f"Cobrança Asaas criada: {cobranca.id} - Mudança {mudanca.id}")
+            except Exception as e:
+                logger.error(f"Erro ao criar cobrança Asaas: {e}")
 
-            return mudanca
+        return mudanca
 
-        except EntityNotFoundError as e:
-            raise HTTPException(status_code=404, detail=str(e))
-        except BusinessRuleError as e:
-            raise HTTPException(status_code=422, detail=str(e))
-        except Exception as e:
-            logger.error(f"Erro ao solicitar mudança de plano: {e}")
-            raise HTTPException(status_code=500, detail="Erro interno ao solicitar mudança")
+    except EntityNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except BusinessRuleError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except Exception as e:
+        logger.error(f"Erro ao solicitar mudança de plano: {e}")
+        raise HTTPException(status_code=500, detail="Erro interno ao solicitar mudança")
 
 
 @router.get(

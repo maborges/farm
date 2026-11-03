@@ -400,6 +400,22 @@ async def review_invoice(
 
     if review.aprovado:
         fatura.status = "PAGA"
+        # Se houver mudança de plano/acessos pendente vinculada à assinatura desta fatura, aplicar imediatamente
+        from core.models.plan_changes import MudancaPlano
+        from core.services.mudanca_plano_service import MudancaPlanoService
+        mudanca_stmt = (
+            select(MudancaPlano)
+            .where(
+                MudancaPlano.assinatura_id == fatura.assinatura_id,
+                MudancaPlano.status == "pendente_pagamento",
+            )
+            .order_by(MudancaPlano.created_at.desc())
+            .limit(1)
+        )
+        mudanca_pendente = (await session.execute(mudanca_stmt)).scalar_one_or_none()
+        if mudanca_pendente:
+            mudanca_svc = MudancaPlanoService(session, fatura.tenant_id)
+            await mudanca_svc._aplicar_mudanca(mudanca_pendente)
     else:
         fatura.status = "REJEITADA"
         fatura.justificativa_rejeicao = review.justificativa

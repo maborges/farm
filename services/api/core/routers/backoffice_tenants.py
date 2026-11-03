@@ -661,8 +661,12 @@ async def converter_lead(
             session.add(assinatura)
             await session.flush()
 
-            # 12. Criar fatura ABERTA no backoffice financeiro
-            valor_fatura = plano.preco_anual if request.ciclo_pagamento == "ANUAL" else plano.preco_mensal
+            # 12. Criar fatura ABERTA no backoffice financeiro (compondo pacote base + acessos simultâneos extras)
+            valor_fatura, _ = await pricing_service.calcular_preco_total(
+                plano_id=plano.id,
+                quantidade_usuarios=request.usuarios_contratados,
+                ciclo=request.ciclo_pagamento,
+            )
             fatura = Fatura(
                 assinatura_id=assinatura.id,
                 tenant_id=tenant.id,

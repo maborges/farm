@@ -74,6 +74,7 @@ class SolicitarMudancaPlanoRequest(BaseModel):
     plano_destino_id: UUID
     usuarios_destino: int = Field(..., ge=1, description="Quantidade de usuários desejada")
     assinatura_id: Optional[UUID] = Field(None, description="ID da assinatura (se tenant tem múltiplas)")
+    ciclo_destino: Optional[str] = Field(None, description="Ciclo desejado: MENSAL ou ANUAL")
 
 
 class SimularMudancaPlanoRequest(BaseModel):
@@ -81,11 +82,13 @@ class SimularMudancaPlanoRequest(BaseModel):
     plano_destino_id: UUID
     usuarios_destino: int = Field(..., ge=1)
     assinatura_id: Optional[UUID] = None
+    ciclo_destino: Optional[str] = None
 
 
 class SimularMudancaPlanoResponse(BaseModel):
     """Resposta da simulação de mudança de plano."""
     tipo_mudanca: str  # UPGRADE_PLANO, DOWNGRADE_PLANO, etc
+    ciclo: str = "MENSAL"
     plano_atual: dict
     plano_novo: dict
     usuarios_atual: int
@@ -93,6 +96,8 @@ class SimularMudancaPlanoResponse(BaseModel):
     valor_atual_mensal: Decimal
     valor_novo_mensal: Decimal
     diferenca_mensal: Decimal
+    detalhes_atual: list[dict] = []
+    detalhes_novo: list[dict] = []
     dias_restantes_ciclo: int
     valor_proporcional: Decimal
     data_proxima_cobranca: datetime

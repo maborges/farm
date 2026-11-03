@@ -30,29 +30,56 @@ class PlanoPricingService(BaseService[PlanoPricing]):
         ciclo: str = "MENSAL"
     ) -> tuple[Decimal, list[dict]]:
         """
-        Calcula o preço total para uma quantidade de usuários em um plano.
+        Calcula o preço total da assinatura compondo o valor base do pacote com
+        o valor dos acessos simultâneos contratados a mais.
 
-        Usa pricing progressivo por faixas. Exemplo:
-        - 1-10 users: R$40/user = R$400
-        - 11-30 users: R$35/user = R$700 (20 users * R$35)
-        - Total para 30 users: R$1.100
+        Regra de negócio:
+        - O pacote possui um preço base (`preco_mensal` ou `preco_anual`) que já
+          inclui a franquia base de acessos simultâneos (`limite_usuarios_minimo`, padrão 1).
+        - Caso o assinante contrate acessos simultâneos adicionais (`quantidade_usuarios > limite_usuarios_minimo`),
+          os acessos excedentes (`usuarios_adicionais`) são precificados pela tabela progressiva
+          de faixas do pacote (`PlanoPricing`).
 
         Args:
-            plano_id: ID do plano
-            quantidade_usuarios: Quantidade de usuários
-            ciclo: MENSAL ou ANUAL
+            plano_id: ID do pacote/plano.
+            quantidade_usuarios: Quantidade total de acessos simultâneos desejados.
+            ciclo: MENSAL ou ANUAL.
 
         Returns:
             tuple[Decimal, list[dict]]: (valor_total, detalhamento_faixas)
 
         Raises:
-            EntityNotFoundError: Se plano não existe
-            BusinessRuleError: Se quantidade de usuários inválida
+            EntityNotFoundError: Se plano não existe.
+            BusinessRuleError: Se quantidade de usuários inválida ou sem faixa para excedentes.
         """
-        # Validar plano
+        # Validar plano e limites mínimo/máximo
         plano = await self._validar_plano(plano_id, quantidade_usuarios)
 
-        # Buscar faixas de pricing ordenadas por faixa_inicio
+        preco_base_raw = plano.preco_anual if ciclo == "ANUAL" else plano.preco_mensal
+        preco_pacote = Decimal(str(preco_base_raw or 0))
+        usuarios_inclusos = max(1, int(plano.limite_usuarios_minimo or 1))
+        usuarios_adicionais = max(0, quantidade_usuarios - usuarios_inclusos)
+
+        valor_total = preco_pacote
+        detalhamento: list[dict] = [
+            {
+                "tipo": "PACOTE_BASE",
+                "faixa_inicio": 1,
+                "faixa_fim": usuarios_inclusos,
+                "usuarios_nesta_faixa": min(quantidade_usuarios, usuarios_inclusos),
+                "preco_unitario": float(preco_pacote),
+                "valor_faixa": float(preco_pacote),
+            }
+        ]
+
+        if usuarios_adicionais == 0:
+            logger.info(
+                f"Calculado preço base para pacote {plano.nome}: {quantidade_usuarios} acessos "
+                f"(inclusos={usuarios_inclusos}) = R$ {valor_total} ({ciclo})"
+            )
+            return valor_total, detalhamento
+
+        # Buscar faixas de pricing para os acessos adicionais ordenadas por faixa_inicio
         stmt = (
             select(PlanoPricing)
             .where(PlanoPricing.plano_id == plano_id)
@@ -64,61 +91,60 @@ class PlanoPricingService(BaseService[PlanoPricing]):
 
         if not faixas:
             raise BusinessRuleError(
-                f"Plano {plano.nome} não possui pricing configurado. "
-                "Contate o administrador."
+                f"Plano {plano.nome} não possui tabela de preços configurada para "
+                f"acessos simultâneos adicionais ({usuarios_adicionais} adicional(is)). "
+                "Contate o comercial."
             )
 
-        # Calcular preço por faixa
-        valor_total = Decimal("0.00")
-        detalhamento = []
-        usuarios_restantes = quantidade_usuarios
+        usuarios_restantes = usuarios_adicionais
 
         for faixa in faixas:
             if usuarios_restantes <= 0:
                 break
 
-            # Determinar quantos usuários cabem nesta faixa
+            # Determinar quantos acessos adicionais cabem nesta faixa (1..usuarios_adicionais)
             usuarios_nesta_faixa = self._calcular_usuarios_na_faixa(
                 usuarios_restantes,
                 faixa.faixa_inicio,
                 faixa.faixa_fim,
-                quantidade_usuarios
+                usuarios_adicionais
             )
 
             if usuarios_nesta_faixa <= 0:
                 continue
 
-            # Preço por usuário desta faixa
-            preco_unitario = (
-                faixa.preco_por_usuario_anual if ciclo == "ANUAL"
-                else faixa.preco_por_usuario_mensal
+            preco_unitario = Decimal(
+                str(
+                    faixa.preco_por_usuario_anual if ciclo == "ANUAL"
+                    else faixa.preco_por_usuario_mensal
+                )
             )
 
-            # Valor desta faixa
             valor_faixa = preco_unitario * usuarios_nesta_faixa
             valor_total += valor_faixa
 
             detalhamento.append({
+                "tipo": "ACESSO_ADICIONAL",
                 "faixa_inicio": faixa.faixa_inicio,
                 "faixa_fim": faixa.faixa_fim,
                 "usuarios_nesta_faixa": usuarios_nesta_faixa,
                 "preco_unitario": float(preco_unitario),
-                "valor_faixa": float(valor_faixa)
+                "valor_faixa": float(valor_faixa),
             })
 
             usuarios_restantes -= usuarios_nesta_faixa
 
-        # Se ainda sobraram usuários, não há faixa configurada para eles
         if usuarios_restantes > 0:
             raise BusinessRuleError(
-                f"Plano {plano.nome} não possui pricing configurado para "
-                f"{quantidade_usuarios} usuários. Máximo configurado: "
-                f"{quantidade_usuarios - usuarios_restantes}. Contate o administrador."
+                f"Plano {plano.nome} não possui faixa de preço configurada para "
+                f"{usuarios_adicionais} acessos adicionais (total solicitado: {quantidade_usuarios}). "
+                f"Máximo adicional configurado: {usuarios_adicionais - usuarios_restantes}. "
+                "Contate o comercial."
             )
 
         logger.info(
-            f"Calculado preço para plano {plano.nome}: {quantidade_usuarios} users "
-            f"= R$ {valor_total} ({ciclo})"
+            f"Calculado preço composto para pacote {plano.nome}: {quantidade_usuarios} acessos "
+            f"(base={usuarios_inclusos}, adicionais={usuarios_adicionais}) = R$ {valor_total} ({ciclo})"
         )
 
         return valor_total, detalhamento

@@ -47,16 +47,39 @@ async def get_my_account(tenant: Tenant = Depends(get_current_tenant), session: 
     if row:
         assinatura, plano = row
         max_categorias_plano = plano.max_categorias_plano
+        max_usuarios = assinatura.usuarios_contratados or plano.limite_usuarios_minimo or 2
+        ciclo = getattr(assinatura, "ciclo_pagamento", "MENSAL") or "MENSAL"
+        valor_base = float(plano.preco_anual if ciclo == "ANUAL" else plano.preco_mensal)
+        valor_composto = valor_base
+        detalhamento_preco = []
+        try:
+            from core.services.plan_pricing_service import PlanoPricingService
+            pricing_svc = PlanoPricingService(session)
+            total_dec, detalhamento_preco = await pricing_svc.calcular_preco_total(
+                plano_id=plano.id,
+                quantidade_usuarios=max_usuarios,
+                ciclo=ciclo,
+            )
+            valor_composto = float(total_dec)
+        except Exception:
+            valor_composto = valor_base
+
         assinatura_data = {
             "plano": plano.nome,
-            "valor": float(plano.preco_mensal),
+            "plano_id": str(plano.id),
+            "valor": valor_composto,
+            "valor_base": float(plano.preco_mensal),
+            "ciclo_pagamento": ciclo,
             "status": assinatura.status,
             "data_inicio": assinatura.data_inicio,
             "proximo_vencimento": assinatura.data_proxima_renovacao,
             "max_categorias_plano": max_categorias_plano,
+            "limite_hectares": float(plano.limite_hectares) if plano.limite_hectares is not None else None,
+            "usuarios_inclusos": plano.limite_usuarios_minimo or 1,
+            "usuarios_contratados": max_usuarios,
+            "detalhamento_preco": detalhamento_preco,
         }
         modulos_ativos = plano.modulos_inclusos or ["CORE"]
-        max_usuarios = assinatura.usuarios_contratados or 2
 
     return {
         "tenant": {
@@ -115,16 +138,39 @@ async def update_my_account(
     if row:
         assinatura, plano = row
         max_categorias_plano = plano.max_categorias_plano
+        max_usuarios = assinatura.usuarios_contratados or plano.limite_usuarios_minimo or 2
+        ciclo = getattr(assinatura, "ciclo_pagamento", "MENSAL") or "MENSAL"
+        valor_base = float(plano.preco_anual if ciclo == "ANUAL" else plano.preco_mensal)
+        valor_composto = valor_base
+        detalhamento_preco = []
+        try:
+            from core.services.plan_pricing_service import PlanoPricingService
+            pricing_svc = PlanoPricingService(session)
+            total_dec, detalhamento_preco = await pricing_svc.calcular_preco_total(
+                plano_id=plano.id,
+                quantidade_usuarios=max_usuarios,
+                ciclo=ciclo,
+            )
+            valor_composto = float(total_dec)
+        except Exception:
+            valor_composto = valor_base
+
         assinatura_data = {
             "plano": plano.nome,
-            "valor": float(plano.preco_mensal),
+            "plano_id": str(plano.id),
+            "valor": valor_composto,
+            "valor_base": float(plano.preco_mensal),
+            "ciclo_pagamento": ciclo,
             "status": assinatura.status,
             "data_inicio": assinatura.data_inicio,
             "proximo_vencimento": assinatura.data_proxima_renovacao,
             "max_categorias_plano": max_categorias_plano,
+            "limite_hectares": float(plano.limite_hectares) if plano.limite_hectares is not None else None,
+            "usuarios_inclusos": plano.limite_usuarios_minimo or 1,
+            "usuarios_contratados": max_usuarios,
+            "detalhamento_preco": detalhamento_preco,
         }
         modulos_ativos = plano.modulos_inclusos or ["CORE"]
-        max_usuarios = assinatura.usuarios_contratados or 2
 
     # Retorna estrutura completa igual ao GET /my-account
     return {
@@ -281,9 +327,9 @@ async def get_tenant_limits(
     """
     from core.models.billing import AssinaturaTenant, PlanoAssinatura
 
-    # Buscar assinatura ativa do tenant
+    # Buscar assinatura ativado tenant
     stmt = (
-        select(PlanoAssinatura)
+        select(PlanoAssinatura, AssinaturaTenant)
         .join(AssinaturaTenant, AssinaturaTenant.plano_id == PlanoAssinatura.id)
         .where(
             AssinaturaTenant.tenant_id == tenant_id,
@@ -293,12 +339,15 @@ async def get_tenant_limits(
     )
     stmt = stmt.limit(1)
     result = await session.execute(stmt)
-    plano = result.scalar_one_or_none()
+    row = result.first()
+    plano = row[0] if row else None
+    assinatura = row[1] if row else None
 
     if not plano:
         return {
             "max_fazendas": {"atual": 0, "limite": 0, "porcentagem": 0.0, "atingido": False},
-            "max_usuarios": {"atual": 0, "limite": 0, "porcentagem": 0.0, "atingido": False},
+            "limite_hectares": {"atual": 0.0, "limite": None, "porcentagem": 0.0, "atingido": False},
+            "max_usuarios": {"atual": 0, "limite": 0, "usuarios_cadastrados": 0, "porcentagem": 0.0, "atingido": False},
             "storage": {"atual": 0, "limite": 0, "porcentagem": 0.0, "atingido": False},
         }
 
@@ -311,17 +360,42 @@ async def get_tenant_limits(
     fazendas_limite = None if max_fazendas == -1 else max_fazendas
     fazendas_porcentagem = (fazendas_atual / fazendas_limite * 100) if fazendas_limite and fazendas_limite > 0 else 0.0
 
-    # Contar usuários
+    # Somar hectares das propriedades ativas
+    hectares_stmt = select(
+        func.coalesce(
+            func.sum(
+                func.coalesce(Fazenda.area_total_calculada_ha, Fazenda.area_total_ha, 0)
+            ),
+            0,
+        )
+    ).where(Fazenda.tenant_id == tenant_id, Fazenda.ativo == True)
+    hectares_atual = float((await session.execute(hectares_stmt)).scalar_one() or 0)
+    hectares_limite = float(plano.limite_hectares) if plano.limite_hectares is not None else None
+    hectares_porcentagem = (hectares_atual / hectares_limite * 100) if hectares_limite and hectares_limite > 0 else 0.0
+
+    # Contar acessos simultâneos ativos e total de usuários cadastrados na equipe
+    from core.models.sessao import SessaoAtiva
+    from datetime import datetime, timezone
+    agora = datetime.now(timezone.utc)
+    sessoes_count_stmt = select(func.count(SessaoAtiva.id)).where(
+        SessaoAtiva.tenant_id == tenant_id,
+        SessaoAtiva.status == "ATIVA",
+        SessaoAtiva.expira_em > agora,
+    )
+    sessoes_ativas = (await session.execute(sessoes_count_stmt)).scalar_one() or 0
+
     usuarios_count_stmt = select(func.count(TenantUsuario.id)).where(
         TenantUsuario.tenant_id == tenant_id,
         TenantUsuario.status == "ATIVO",
     )
-    usuarios_result = await session.execute(usuarios_count_stmt)
-    usuarios_atual = usuarios_result.scalar_one() or 0
+    usuarios_cadastrados = (await session.execute(usuarios_count_stmt)).scalar_one() or 0
 
-    max_usuarios = plano.limite_usuarios_maximo
-    usuarios_limite = None if max_usuarios is None else max_usuarios
-    usuarios_porcentagem = (usuarios_atual / usuarios_limite * 100) if usuarios_limite and usuarios_limite > 0 else 0.0
+    usuarios_limite = (
+        (assinatura.usuarios_contratados if assinatura else None)
+        or plano.limite_usuarios_maximo
+        or plano.limite_usuarios_minimo
+    )
+    usuarios_porcentagem = (sessoes_ativas / usuarios_limite * 100) if usuarios_limite and usuarios_limite > 0 else 0.0
 
     # Storage
     tenant = await session.get(Tenant, tenant_id)
@@ -336,11 +410,18 @@ async def get_tenant_limits(
             "porcentagem": round(fazendas_porcentagem, 2),
             "atingido": fazendas_atual >= fazendas_limite if fazendas_limite else False,
         },
+        "limite_hectares": {
+            "atual": round(hectares_atual, 2),
+            "limite": hectares_limite,
+            "porcentagem": round(hectares_porcentagem, 2),
+            "atingido": hectares_atual >= hectares_limite if hectares_limite else False,
+        },
         "max_usuarios": {
-            "atual": usuarios_atual,
+            "atual": sessoes_ativas,
             "limite": usuarios_limite,
+            "usuarios_cadastrados": usuarios_cadastrados,
             "porcentagem": round(usuarios_porcentagem, 2),
-            "atingido": usuarios_atual >= usuarios_limite if usuarios_limite else False,
+            "atingido": sessoes_ativas >= usuarios_limite if usuarios_limite else False,
         },
         "storage": {
             "atual": storage_atual,

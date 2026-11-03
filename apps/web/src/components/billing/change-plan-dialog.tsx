@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { apiFetch } from "@/lib/api";
+import { Loader2, Check, ArrowUpRight, ArrowDownRight, AlertCircle, Users, Tractor } from "lucide-react";
+import { toast } from "sonner";
 import {
     Dialog,
     DialogContent,
@@ -13,11 +14,11 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { apiFetch } from "@/lib/api";
 import { formatCurrency } from "@/lib/utils";
-import { Loader2, Check, ArrowUpRight, ArrowDownRight, AlertCircle } from "lucide-react";
-import { toast } from "sonner";
 
 interface Plano {
     id: string;
@@ -25,9 +26,41 @@ interface Plano {
     descricao: string | null;
     preco_mensal: number;
     preco_anual: number;
-    plan_tier: string;
+    limite_usuarios_minimo?: number;
+    limite_usuarios_maximo?: number | null;
+    limite_hectares?: number | null;
+    plan_tier?: string;
     modulos_inclusos: string[];
-    destaque: boolean;
+    destaque?: boolean;
+}
+
+interface SimulacaoDetalheFaixa {
+    tipo?: string;
+    faixa_inicio: number;
+    faixa_fim: number | null;
+    usuarios_nesta_faixa: number;
+    preco_unitario: number;
+    valor_faixa: number;
+}
+
+interface SimulacaoResponse {
+    tipo_mudanca?: string;
+    ciclo?: string;
+    valor_atual?: number;
+    valor_novo?: number;
+    valor_atual_mensal?: number;
+    valor_novo_mensal?: number;
+    diferenca_mensal: number;
+    dias_restantes_ciclo?: number;
+    valor_proporcional?: number | null;
+    detalhes_atual?: SimulacaoDetalheFaixa[];
+    detalhes_novo?: SimulacaoDetalheFaixa[];
+    requer_pagamento?: boolean;
+    mensagem: string;
+}
+
+interface SolicitarResponse {
+    url_pagamento?: string | null;
 }
 
 interface TenantData {
@@ -44,6 +77,9 @@ interface TenantData {
         status: string;
         data_inicio: string;
         proximo_vencimento: string | null;
+        limite_hectares?: number | null;
+        usuarios_inclusos?: number;
+        usuarios_contratados?: number;
     } | null;
 }
 
@@ -56,8 +92,16 @@ interface ChangePlanDialogProps {
 export function ChangePlanDialog({ open, onOpenChange, currentTenant }: ChangePlanDialogProps) {
     const queryClient = useQueryClient();
     const [planoSelecionado, setPlanoSelecionado] = useState<string | null>(null);
+    const [usuariosDestino, setUsuariosDestino] = useState<number>(currentTenant?.tenant.max_usuarios || 1);
+    const [simulacaoData, setSimulacaoData] = useState<SimulacaoResponse | null>(null);
     const [ciclo, setCiclo] = useState<"MENSAL" | "ANUAL">("MENSAL");
     const [showConfirm, setShowConfirm] = useState(false);
+
+    useEffect(() => {
+        if (currentTenant?.tenant.max_usuarios) {
+            setUsuariosDestino(currentTenant.tenant.max_usuarios);
+        }
+    }, [currentTenant?.tenant.max_usuarios]);
 
     // Buscar planos disponíveis
     const { data: planos, isLoading } = useQuery<Plano[]>({
@@ -66,10 +110,10 @@ export function ChangePlanDialog({ open, onOpenChange, currentTenant }: ChangePl
         enabled: open
     });
 
-    // Simular mudança de plano
+    // Simular mudança de plano ou contratação de mais acessos simultâneos
     const simulacaoMutation = useMutation({
-        mutationFn: async (data: { plano_destino_id: string; usuarios_destino: number }) => {
-            const response = await apiFetch("/billing/mudancas-plano/simular", {
+        mutationFn: async (data: { plano_destino_id: string; usuarios_destino: number; ciclo_destino: string }) => {
+            const response = await apiFetch<SimulacaoResponse>("/billing/mudancas-plano/simular", {
                 method: "POST",
                 body: JSON.stringify(data)
             });
@@ -77,31 +121,30 @@ export function ChangePlanDialog({ open, onOpenChange, currentTenant }: ChangePl
         }
     });
 
-    // Solicitar mudança de plano
+    // Solicitar mudança de plano ou contratação de mais acessos
     const solicitarMutation = useMutation({
-        mutationFn: async (data: { plano_destino_id: string; usuarios_destino: number }) => {
-            const response = await apiFetch("/billing/mudancas-plano/solicitar", {
+        mutationFn: async (data: { plano_destino_id: string; usuarios_destino: number; ciclo_destino: string }) => {
+            const response = await apiFetch<SolicitarResponse>("/billing/mudancas-plano/solicitar", {
                 method: "POST",
                 body: JSON.stringify(data)
             });
             return response;
         },
-        onSuccess: (data: any) => {
-            toast.success("Solicitação criada com sucesso!");
+        onSuccess: (data: SolicitarResponse) => {
+            toast.success("Solicitação registrada com sucesso!");
             
-            // Se tiver URL de pagamento, abrir em nova aba
             if (data.url_pagamento) {
                 window.open(data.url_pagamento, "_blank");
             }
             
-            // Atualizar dados do tenant
             queryClient.invalidateQueries({ queryKey: ["tenant-data"] });
             onOpenChange(false);
             setShowConfirm(false);
             setPlanoSelecionado(null);
+            setSimulacaoData(null);
         },
-        onError: (error: any) => {
-            toast.error(error.detail || "Erro ao solicitar mudança de plano");
+        onError: (error: { detail?: string }) => {
+            toast.error(error.detail || "Erro ao solicitar alteração da assinatura");
         }
     });
 
@@ -110,42 +153,42 @@ export function ChangePlanDialog({ open, onOpenChange, currentTenant }: ChangePl
 
     function handleSelecionarPlano(planoId: string) {
         setPlanoSelecionado(planoId);
+        const targetPlan = planos?.find(p => p.id === planoId);
+        if (targetPlan?.limite_usuarios_minimo && usuariosDestino < targetPlan.limite_usuarios_minimo) {
+            setUsuariosDestino(targetPlan.limite_usuarios_minimo);
+        }
     }
 
     async function handleContinuar() {
         if (!planoSelecionado || !currentTenant?.assinatura) return;
 
-        // Buscar assinatura atual para obter o ID
-        const usuariosAtual = currentTenant.tenant.max_usuarios || 1;
-
         try {
-            // Simular primeiro para ver os detalhes
             const simulacao = await simulacaoMutation.mutateAsync({
                 plano_destino_id: planoSelecionado,
-                usuarios_destino: usuariosAtual
+                usuarios_destino: usuariosDestino,
+                ciclo_destino: ciclo,
             });
-
-            // Mostrar confirmação
+            setSimulacaoData(simulacao);
             setShowConfirm(true);
-        } catch (error: any) {
-            toast.error(error.detail || "Erro ao simular mudança");
+        } catch (error) {
+            const err = error as { detail?: string; message?: string };
+            toast.error(err.detail || err.message || "Erro ao simular composição da mensalidade");
         }
     }
 
     async function handleConfirmar() {
         if (!planoSelecionado) return;
 
-        const usuariosAtual = currentTenant?.tenant.max_usuarios || 1;
-
         solicitarMutation.mutate({
             plano_destino_id: planoSelecionado,
-            usuarios_destino: usuariosAtual
+            usuarios_destino: usuariosDestino,
+            ciclo_destino: ciclo,
         });
     }
 
     function handleCancelar() {
         setShowConfirm(false);
-        setPlanoSelecionado(null);
+        setSimulacaoData(null);
     }
 
     return (
@@ -208,9 +251,33 @@ export function ChangePlanDialog({ open, onOpenChange, currentTenant }: ChangePl
                                 </div>
                             </div>
 
+                            {/* Quantidade de Acessos Simultâneos */}
+                            <div className="p-4 border rounded-sm bg-muted/20 space-y-2">
+                                <div className="flex items-center justify-between gap-4">
+                                    <div>
+                                        <Label htmlFor="usuarios_destino" className="text-sm font-bold flex items-center gap-1.5">
+                                            <Users className="size-4 text-primary" />
+                                            Quantidade de Acessos Simultâneos Contratados
+                                        </Label>
+                                        <p className="text-xs text-muted-foreground mt-0.5">
+                                            Você pode cadastrar quantos usuários precisar na equipe. O valor da mensalidade é composto pelo pacote base + acessos simultâneos adicionais.
+                                        </p>
+                                    </div>
+                                    <Input
+                                        id="usuarios_destino"
+                                        type="number"
+                                        min={planoSelecionadoObj?.limite_usuarios_minimo || 1}
+                                        max={planoSelecionadoObj?.limite_usuarios_maximo || undefined}
+                                        className="w-24 h-8 text-xs rounded-sm text-center font-bold"
+                                        value={usuariosDestino}
+                                        onChange={e => setUsuariosDestino(Math.max(1, Number(e.target.value) || 1))}
+                                    />
+                                </div>
+                            </div>
+
                             {/* Lista de Planos */}
                             <div className="space-y-3">
-                                <Label className="text-sm font-bold">Planos Disponíveis</Label>
+                                <Label className="text-sm font-bold">Pacotes Disponíveis</Label>
                                 {isLoading ? (
                                     <div className="flex items-center justify-center py-8">
                                         <Loader2 className="h-6 w-6 animate-spin text-primary" />
@@ -226,23 +293,20 @@ export function ChangePlanDialog({ open, onOpenChange, currentTenant }: ChangePl
                                                 <button
                                                     type="button"
                                                     key={plano.id}
-                                                    disabled={isCurrent}
                                                     aria-pressed={isSelected}
-                                                    className={`w-full p-4 rounded-lg border-2 text-left transition-all ${
+                                                    className={`w-full p-4 rounded-sm border-2 text-left transition-all ${
                                                         isSelected
                                                             ? "border-primary bg-primary/5"
-                                                            : isCurrent
-                                                            ? "border-muted bg-muted/30 cursor-not-allowed"
                                                             : "border-border hover:border-primary/50"
                                                     }`}
-                                                    onClick={() => !isCurrent && handleSelecionarPlano(plano.id)}
+                                                    onClick={() => handleSelecionarPlano(plano.id)}
                                                 >
                                                     <div className="flex items-start justify-between gap-4">
                                                         <div className="flex-1">
-                                                            <div className="flex items-center gap-2">
+                                                            <div className="flex items-center gap-2 flex-wrap">
                                                                 <h3 className="font-bold text-lg">{plano.nome}</h3>
                                                                 {isCurrent && (
-                                                                    <Badge variant="secondary" className="text-xs">Atual</Badge>
+                                                                    <Badge variant="secondary" className="text-xs">Pacote Atual</Badge>
                                                                 )}
                                                                 {plano.destaque && (
                                                                     <Badge className="bg-primary text-primary-foreground text-xs">Mais Popular</Badge>
@@ -251,6 +315,18 @@ export function ChangePlanDialog({ open, onOpenChange, currentTenant }: ChangePl
                                                             {plano.descricao && (
                                                                 <p className="text-sm text-muted-foreground mt-1">{plano.descricao}</p>
                                                             )}
+                                                            <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
+                                                                <span className="flex items-center gap-1">
+                                                                    <Tractor className="size-3.5 text-primary" />
+                                                                    {plano.limite_hectares
+                                                                        ? `Até ${plano.limite_hectares.toLocaleString("pt-BR")} ha`
+                                                                        : "Área ilimitada"}
+                                                                </span>
+                                                                <span className="flex items-center gap-1">
+                                                                    <Users className="size-3.5 text-primary" />
+                                                                    {plano.limite_usuarios_minimo || 1} acesso(s) simultâneo(s) incluso(s)
+                                                                </span>
+                                                            </div>
                                                             <div className="flex flex-wrap gap-2 mt-3">
                                                                 {plano.modulos_inclusos?.map((mod) => (
                                                                     <Badge key={mod} variant="outline" className="text-xs">
@@ -261,12 +337,12 @@ export function ChangePlanDialog({ open, onOpenChange, currentTenant }: ChangePl
                                                         </div>
                                                         <div className="text-right">
                                                             <p className="text-2xl font-bold">{formatCurrency(price)}</p>
-                                                            <p className="text-xs text-muted-foreground">/{ciclo === "MENSAL" ? "mês" : "ano"}</p>
+                                                            <p className="text-xs text-muted-foreground">base /{ciclo === "MENSAL" ? "mês" : "ano"}</p>
                                                         </div>
                                                     </div>
                                                     {isSelected && (
                                                         <div className="mt-3 flex items-center gap-2 text-sm text-primary font-medium">
-                                                            <Check size={14} /> Plano selecionado
+                                                            <Check size={14} /> Pacote selecionado
                                                         </div>
                                                     )}
                                                 </button>
@@ -317,26 +393,78 @@ export function ChangePlanDialog({ open, onOpenChange, currentTenant }: ChangePl
 
                         <div className="space-y-4 py-4">
                             {/* Resumo da Mudança */}
-                            <div className="p-4 bg-muted/50 rounded-lg border space-y-3">
+                            <div className="p-4 bg-muted/50 rounded-sm border space-y-3">
                                 <div className="flex justify-between items-center">
-                                    <span className="text-sm text-muted-foreground">De:</span>
-                                    <span className="font-bold">{currentTenant?.assinatura?.plano}</span>
-                                </div>
-                                <div className="flex justify-between items-center">
-                                    <span className="text-sm text-muted-foreground">Para:</span>
+                                    <span className="text-sm text-muted-foreground">Pacote:</span>
                                     <span className="font-bold text-primary">{planoSelecionadoObj?.nome}</span>
                                 </div>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-sm text-muted-foreground">Acessos simultâneos contratados:</span>
+                                    <span className="font-bold">{usuariosDestino} acesso(s)</span>
+                                </div>
                                 <Separator />
+                                {simulacaoData?.detalhes_novo && simulacaoData.detalhes_novo.length > 0 && (
+                                    <div className="space-y-1 text-xs">
+                                        <p className="font-semibold text-muted-foreground">Composição da mensalidade:</p>
+                                        {simulacaoData.detalhes_novo.map((faixa, idx) => (
+                                            <div key={idx} className="flex justify-between">
+                                                <span>
+                                                    {faixa.tipo === "PACOTE_BASE"
+                                                        ? `Pacote Base (inclui até ${faixa.faixa_fim} acesso(s))`
+                                                        : `Acessos extras (+${faixa.usuarios_nesta_faixa} na faixa ${faixa.faixa_inicio}-${faixa.faixa_fim ?? "∞"})`}
+                                                </span>
+                                                <span className="font-medium">{formatCurrency(faixa.valor_faixa)}</span>
+                                            </div>
+                                        ))}
+                                        <Separator className="my-1" />
+                                    </div>
+                                )}
                                 <div className="flex justify-between items-center">
                                     <span className="text-sm text-muted-foreground">Valor atual:</span>
-                                    <span className="font-bold">{formatCurrency(currentTenant?.assinatura?.valor || 0)}/mês</span>
-                                </div>
-                                <div className="flex justify-between items-center">
-                                    <span className="text-sm text-muted-foreground">Novo valor:</span>
-                                    <span className="font-bold text-primary">
-                                        {formatCurrency(ciclo === "MENSAL" ? planoSelecionadoObj?.preco_mensal || 0 : planoSelecionadoObj?.preco_anual || 0)}/{ciclo === "MENSAL" ? "mês" : "ano"}
+                                    <span className="font-bold">
+                                        {formatCurrency(
+                                            simulacaoData?.valor_atual_mensal ??
+                                            simulacaoData?.valor_atual ??
+                                            currentTenant?.assinatura?.valor ??
+                                            0
+                                        )}/{ciclo === "MENSAL" ? "mês" : "ano"}
                                     </span>
                                 </div>
+                                <div className="flex justify-between items-center">
+                                    <span className="text-sm text-muted-foreground">Novo valor composto:</span>
+                                    <span className="font-bold text-primary">
+                                        {formatCurrency(
+                                            simulacaoData?.valor_novo_mensal ??
+                                            simulacaoData?.valor_novo ??
+                                            (ciclo === "MENSAL" ? planoSelecionadoObj?.preco_mensal || 0 : planoSelecionadoObj?.preco_anual || 0)
+                                        )}/{ciclo === "MENSAL" ? "mês" : "ano"}
+                                    </span>
+                                </div>
+                                {simulacaoData && (
+                                    <>
+                                        <div className="flex justify-between items-center text-xs">
+                                            <span className="text-muted-foreground">
+                                                Diferença na {ciclo === "MENSAL" ? "mensalidade" : "anuidade"}:
+                                            </span>
+                                            <span className="font-semibold">
+                                                {simulacaoData.diferenca_mensal >= 0 ? "+" : ""}
+                                                {formatCurrency(simulacaoData.diferenca_mensal)}/{ciclo === "MENSAL" ? "mês" : "ano"}
+                                            </span>
+                                        </div>
+                                        {simulacaoData.valor_proporcional !== undefined &&
+                                            simulacaoData.valor_proporcional !== null &&
+                                            simulacaoData.valor_proporcional > 0 && (
+                                                <div className="flex justify-between items-center pt-2 border-t text-sm">
+                                                    <span className="font-semibold text-foreground">
+                                                        Fatura de ajuste atual ({simulacaoData.dias_restantes_ciclo ?? 30} dias):
+                                                    </span>
+                                                    <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                                                        {formatCurrency(simulacaoData.valor_proporcional)}
+                                                    </span>
+                                                </div>
+                                            )}
+                                    </>
+                                )}
                             </div>
 
                             {/* Aviso */}

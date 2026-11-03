@@ -8,12 +8,13 @@ from datetime import datetime, timezone, timedelta
 from decimal import Decimal
 from typing import Optional
 from uuid import UUID
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from loguru import logger
 
 from core.models.plan_changes import MudancaPlano, HistoricoBloqueio
-from core.models.billing import PlanoAssinatura, AssinaturaTenant
+from core.models.billing import PlanoAssinatura, AssinaturaTenant, Fatura
+from core.models.unidade_produtiva import UnidadeProdutiva
 from core.models.tenant import Tenant
 from core.models.auth import Usuario
 from core.base_service import BaseService
@@ -33,26 +34,29 @@ class MudancaPlanoService(BaseService[MudancaPlano]):
         plano_destino_id: UUID,
         usuarios_destino: int,
         assinatura_id: Optional[UUID] = None,
-        usuario_solicitante_id: Optional[UUID] = None
+        usuario_solicitante_id: Optional[UUID] = None,
+        ciclo_destino: Optional[str] = None,
     ) -> dict:
         """
-        Simula mudança de plano sem criar registro.
+        Simula mudança de plano e/ou quantidade de acessos simultâneos sem criar registro.
 
-        Calcula valores, identifica tipo de mudança (upgrade/downgrade),
-        e retorna informações para o usuário decidir.
+        Compõe o valor atual (pacote + acessos extras) e o valor novo (novo pacote por
+        tamanho de propriedade + novos acessos extras), apurando a diferença da mensalidade
+        ou anuidade e o valor proporcional (pro-rata) do ciclo corrente.
 
         Args:
             plano_destino_id: Plano desejado
-            usuarios_destino: Quantidade de usuários desejada
+            usuarios_destino: Quantidade de acessos simultâneos desejada
             assinatura_id: ID da assinatura (se tenant tem múltiplas)
             usuario_solicitante_id: ID do usuário solicitante (para validação)
+            ciclo_destino: Ciclo desejado (MENSAL ou ANUAL). Se omitido, usa o da assinatura.
 
         Returns:
             dict com simulação completa
 
         Raises:
             EntityNotFoundError: Se assinatura não existe
-            BusinessRuleError: Se mudança não é permitida
+            BusinessRuleError: Se mudança não é permitida ou área atual excede o pacote destino
         """
         # Buscar assinatura atual
         assinatura = await self._obter_assinatura(assinatura_id)
@@ -61,40 +65,53 @@ class MudancaPlanoService(BaseService[MudancaPlano]):
         plano_atual = await self._obter_plano(assinatura.plano_id)
         plano_novo = await self._obter_plano(plano_destino_id)
 
-        # Determinar tipo de mudança
-        tipo_mudanca = self._determinar_tipo_mudanca(
-            assinatura.plano_id,
-            assinatura.usuarios_contratados,
-            plano_destino_id,
-            usuarios_destino
-        )
+        # Validar se a área total das propriedades ativas cabe no limite_hectares do plano destino
+        await self._validar_compatibilidade_hectares_destino(plano_novo)
 
-        # Calcular valores
+        usuarios_origem = assinatura.usuarios_contratados or plano_atual.limite_usuarios_minimo or 1
+        ciclo_efetivo = (ciclo_destino or assinatura.ciclo_pagamento or "MENSAL").upper()
+
+        # Calcular valores compostos (Pacote Base + Faixas de Acessos Simultâneos Extras)
         calculo = await self.pricing_service.calcular_diferenca_planos(
             plano_origem_id=assinatura.plano_id,
-            usuarios_origem=assinatura.usuarios_contratados,
+            usuarios_origem=usuarios_origem,
             plano_destino_id=plano_destino_id,
             usuarios_destino=usuarios_destino,
-            ciclo=assinatura.ciclo_pagamento
+            ciclo=ciclo_efetivo
         )
 
-        # Calcular proporcional (para upgrade)
+        diferenca_composta = Decimal(str(calculo["diferenca"]))
+
+        # Determinar tipo de mudança considerando pacote, acessos e diferença financeira composta
+        tipo_mudanca = self._determinar_tipo_mudanca(
+            assinatura.plano_id,
+            usuarios_origem,
+            plano_destino_id,
+            usuarios_destino,
+            diferenca_composta
+        )
+
+        # Calcular proporcional (para upgrade) ou diferença integral caso não haja ciclo futuro em curso
+        dias_ciclo = 365 if ciclo_efetivo == "ANUAL" else 30
         dias_restantes = 0
         valor_proporcional = Decimal("0.00")
 
-        if tipo_mudanca.startswith("UPGRADE") and assinatura.data_proxima_renovacao:
-            dias_restantes = (assinatura.data_proxima_renovacao.date() - datetime.now(timezone.utc).date()).days
-            dias_ciclo = 365 if assinatura.ciclo_pagamento == "ANUAL" else 30
+        if tipo_mudanca.startswith("UPGRADE") and diferenca_composta > 0:
+            if assinatura.data_proxima_renovacao:
+                dias_restantes = (assinatura.data_proxima_renovacao.date() - datetime.now(timezone.utc).date()).days
 
-            if dias_restantes > 0:
-                valor_proporcional = (calculo["diferenca"] * dias_restantes) / dias_ciclo
+            if 0 < dias_restantes < dias_ciclo:
+                valor_proporcional = ((diferenca_composta * Decimal(str(dias_restantes))) / Decimal(str(dias_ciclo))).quantize(Decimal("0.01"))
+            else:
+                dias_restantes = dias_ciclo
+                valor_proporcional = diferenca_composta.quantize(Decimal("0.01"))
 
         # Mensagem explicativa
         mensagem = self._gerar_mensagem_simulacao(
             tipo_mudanca,
             plano_atual.nome,
             plano_novo.nome,
-            assinatura.usuarios_contratados,
+            usuarios_origem,
             usuarios_destino,
             valor_proporcional,
             dias_restantes
@@ -102,24 +119,31 @@ class MudancaPlanoService(BaseService[MudancaPlano]):
 
         return {
             "tipo_mudanca": tipo_mudanca,
+            "ciclo": ciclo_efetivo,
             "plano_atual": {
                 "id": str(plano_atual.id),
                 "nome": plano_atual.nome,
-                "modulos": plano_atual.modulos_inclusos
+                "modulos": plano_atual.modulos_inclusos,
+                "limite_hectares": float(plano_atual.limite_hectares) if plano_atual.limite_hectares is not None else None,
+                "usuarios_inclusos": plano_atual.limite_usuarios_minimo or 1,
             },
             "plano_novo": {
                 "id": str(plano_novo.id),
                 "nome": plano_novo.nome,
-                "modulos": plano_novo.modulos_inclusos
+                "modulos": plano_novo.modulos_inclusos,
+                "limite_hectares": float(plano_novo.limite_hectares) if plano_novo.limite_hectares is not None else None,
+                "usuarios_inclusos": plano_novo.limite_usuarios_minimo or 1,
             },
-            "usuarios_atual": assinatura.usuarios_contratados,
+            "usuarios_atual": usuarios_origem,
             "usuarios_novo": usuarios_destino,
             "valor_atual_mensal": float(calculo["valor_atual"]),
             "valor_novo_mensal": float(calculo["valor_novo"]),
-            "diferenca_mensal": float(calculo["diferenca"]),
+            "diferenca_mensal": float(diferenca_composta),
+            "detalhes_atual": calculo.get("detalhes_atual", []),
+            "detalhes_novo": calculo.get("detalhes_novo", []),
             "dias_restantes_ciclo": dias_restantes,
             "valor_proporcional": float(valor_proporcional),
-            "data_proxima_cobranca": assinatura.data_proxima_renovacao,
+            "data_proxima_cobranca": assinatura.data_proxima_renovacao or (datetime.now(timezone.utc) + timedelta(days=dias_ciclo)),
             "mensagem": mensagem
         }
 
@@ -128,19 +152,22 @@ class MudancaPlanoService(BaseService[MudancaPlano]):
         plano_destino_id: UUID,
         usuarios_destino: int,
         usuario_solicitante_id: UUID,
-        assinatura_id: Optional[UUID] = None
+        assinatura_id: Optional[UUID] = None,
+        ciclo_destino: Optional[str] = None,
     ) -> MudancaPlano:
         """
-        Cria solicitação de mudança de plano.
+        Cria solicitação de mudança de plano e/ou quantidade de acessos simultâneos.
 
-        Para UPGRADE: Cria cobrança no Asaas e retorna URL de pagamento.
+        Para UPGRADE: Compõe a fatura com a diferença (proporcional ao ciclo ou integral
+        se em trial/pendente) e registra a mudança para liberação mediante pagamento ou aprovação.
         Para DOWNGRADE: Agenda mudança para próximo ciclo.
 
         Args:
             plano_destino_id: Plano desejado
-            usuarios_destino: Quantidade de usuários
+            usuarios_destino: Quantidade de acessos simultâneos
             usuario_solicitante_id: Quem está solicitando
             assinatura_id: ID da assinatura
+            ciclo_destino: Ciclo desejado (MENSAL ou ANUAL)
 
         Returns:
             MudancaPlano criada
@@ -151,12 +178,13 @@ class MudancaPlanoService(BaseService[MudancaPlano]):
         # Validar que não há mudança pendente
         await self._validar_mudanca_pendente(assinatura_id)
 
-        # Simular para obter valores
+        # Simular para obter valores compostos
         simulacao = await self.simular_mudanca(
             plano_destino_id,
             usuarios_destino,
             assinatura_id,
-            usuario_solicitante_id
+            usuario_solicitante_id,
+            ciclo_destino=ciclo_destino,
         )
 
         # Buscar assinatura
@@ -166,13 +194,14 @@ class MudancaPlanoService(BaseService[MudancaPlano]):
         dias_restantes = simulacao["dias_restantes_ciclo"]
         valor_proporcional = Decimal(str(simulacao["valor_proporcional"]))
         valor_diferenca = Decimal(str(simulacao["diferenca_mensal"]))
+        valor_novo_total = Decimal(str(simulacao["valor_novo_mensal"]))
 
         # Criar registro de mudança
         mudanca = MudancaPlano(
             tenant_id=self.tenant_id,
             assinatura_id=assinatura.id,
             plano_origem_id=assinatura.plano_id,
-            usuarios_origem=assinatura.usuarios_contratados,
+            usuarios_origem=assinatura.usuarios_contratados or 1,
             plano_destino_id=plano_destino_id,
             usuarios_destino=usuarios_destino,
             tipo_mudanca=simulacao["tipo_mudanca"],
@@ -191,6 +220,36 @@ class MudancaPlanoService(BaseService[MudancaPlano]):
                 f"Downgrade agendado para {assinatura.data_proxima_renovacao} - "
                 f"Tenant {self.tenant_id}"
             )
+        else:
+            # UPGRADE (expansão de propriedade e/ou adição de acessos simultâneos):
+            # Compor a fatura no financeiro:
+            # 1) Se a assinatura está em TRIAL ou PENDENTE_PAGAMENTO e já possui fatura ABERTA do ciclo inicial,
+            #    atualizamos a fatura aberta para o novo valor composto integral (pacote + acessos).
+            # 2) Caso contrário (assinatura ATIVA), geramos uma Fatura complementar com a diferença apurada.
+            fatura_aberta_stmt = (
+                select(Fatura)
+                .where(
+                    Fatura.assinatura_id == assinatura.id,
+                    Fatura.status == "ABERTA",
+                )
+                .order_by(Fatura.created_at.desc())
+                .limit(1)
+            )
+            fatura_aberta = (await self.session.execute(fatura_aberta_stmt)).scalar_one_or_none()
+
+            if fatura_aberta and assinatura.status in ("TRIAL", "PENDENTE_PAGAMENTO"):
+                fatura_aberta.valor = valor_novo_total
+            else:
+                valor_fatura_complementar = valor_proporcional if valor_proporcional > 0 else valor_diferenca
+                if valor_fatura_complementar > 0:
+                    nova_fatura = Fatura(
+                        tenant_id=self.tenant_id,
+                        assinatura_id=assinatura.id,
+                        valor=valor_fatura_complementar,
+                        data_vencimento=datetime.now(timezone.utc) + timedelta(days=3),
+                        status="ABERTA",
+                    )
+                    self.session.add(nova_fatura)
 
         self.session.add(mudanca)
         await self.session.commit()
@@ -405,8 +464,44 @@ class MudancaPlanoService(BaseService[MudancaPlano]):
 
         self.session.add(bloqueio)
 
+    async def _validar_compatibilidade_hectares_destino(self, plano_destino: PlanoAssinatura) -> Decimal:
+        """
+        Verifica se a soma atual dos hectares das propriedades ativas do tenant
+        cabe dentro do limite_hectares do pacote de destino.
+
+        Args:
+            plano_destino: Objeto PlanoAssinatura desejado.
+
+        Returns:
+            Decimal: Soma atual de hectares das propriedades ativas do tenant.
+
+        Raises:
+            BusinessRuleError: Se as propriedades ativas excederem o limite de hectares do plano destino.
+        """
+        area_expr = func.coalesce(
+            UnidadeProdutiva.area_total_calculada_ha,
+            UnidadeProdutiva.area_total_ha,
+            0,
+        )
+        stmt_soma = select(func.coalesce(func.sum(area_expr), 0)).where(
+            UnidadeProdutiva.tenant_id == self.tenant_id,
+            UnidadeProdutiva.ativo == True,
+        )
+        area_atual = Decimal(str((await self.session.execute(stmt_soma)).scalar_one() or 0))
+
+        if plano_destino.limite_hectares is not None and Decimal(str(plano_destino.limite_hectares)) > 0:
+            limite_destino = Decimal(str(plano_destino.limite_hectares))
+            if area_atual > limite_destino:
+                raise BusinessRuleError(
+                    f"Não é possível migrar para o pacote '{plano_destino.nome}' (limite de {limite_destino:.2f} ha) "
+                    f"pois suas propriedades ativas somam {area_atual:.2f} ha. "
+                    "Escolha um pacote compatível com o tamanho total das suas propriedades."
+                )
+
+        return area_atual
+
     async def _obter_assinatura(self, assinatura_id: Optional[UUID]) -> AssinaturaTenant:
-        """Busca assinatura do tenant."""
+        """Busca assinatura ativa/trial/pendente do tenant."""
         if assinatura_id:
             stmt = select(AssinaturaTenant).where(
                 and_(
@@ -415,13 +510,17 @@ class MudancaPlanoService(BaseService[MudancaPlano]):
                 )
             )
         else:
-            # Buscar a primeira assinatura GRUPO ativa do tenant
-            stmt = select(AssinaturaTenant).where(
-                and_(
-                    AssinaturaTenant.tenant_id == self.tenant_id,
-                    AssinaturaTenant.tipo_assinatura == "GRUPO"
+            stmt = (
+                select(AssinaturaTenant)
+                .where(
+                    and_(
+                        AssinaturaTenant.tenant_id == self.tenant_id,
+                        AssinaturaTenant.tipo_assinatura.in_(["TENANT", "GRUPO", "PRINCIPAL"]),
+                    )
                 )
-            ).limit(1)
+                .order_by(AssinaturaTenant.data_inicio.desc())
+                .limit(1)
+            )
 
         result = await self.session.execute(stmt)
         assinatura = result.scalar_one_or_none()
@@ -455,27 +554,27 @@ class MudancaPlanoService(BaseService[MudancaPlano]):
         plano_origem_id: UUID,
         usuarios_origem: int,
         plano_destino_id: UUID,
-        usuarios_destino: int
+        usuarios_destino: int,
+        diferenca_valor: Decimal = Decimal("0.00"),
     ) -> str:
-        """Determina tipo de mudança."""
+        """Determina tipo de mudança com base no plano, acessos e diferença financeira composta."""
         mudou_plano = plano_origem_id != plano_destino_id
         mudou_usuarios = usuarios_origem != usuarios_destino
 
         if mudou_plano and mudou_usuarios:
-            if usuarios_destino > usuarios_origem:
+            if diferenca_valor >= 0:
                 return "UPGRADE_COMPLETO"
-            else:
-                return "DOWNGRADE_COMPLETO"
+            return "DOWNGRADE_COMPLETO"
         elif mudou_plano:
-            # Apenas mudança de tier (assumimos upgrade se mudou plano)
-            return "UPGRADE_PLANO"
+            if diferenca_valor >= 0:
+                return "UPGRADE_PLANO"
+            return "DOWNGRADE_PLANO"
         elif mudou_usuarios:
             if usuarios_destino > usuarios_origem:
                 return "UPGRADE_USUARIOS"
-            else:
-                return "DOWNGRADE_USUARIOS"
+            return "DOWNGRADE_USUARIOS"
         else:
-            raise BusinessRuleError("Nenhuma mudança detectada")
+            raise BusinessRuleError("Nenhuma mudança de pacote ou quantidade de acessos simultâneos foi detectada.")
 
     def _gerar_mensagem_simulacao(
         self,

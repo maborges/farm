@@ -1,10 +1,13 @@
+from decimal import Decimal
 import uuid
-from sqlalchemy import select
+from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from core.base_service import BaseService
 from core.exceptions import EntityNotFoundError, BusinessRuleError
+from core.models.unidade_produtiva import UnidadeProdutiva
+from core.models.billing import AssinaturaTenant, PlanoAssinatura
 from .models import AreaRural, RegistroAmbiental, ValorPatrimonial, Infraestrutura, ArquivoGeo, StatusProcessamentoGeo, FILHOS_PERMITIDOS, TIPOS_AREA_PRODUTIVA, TIPOS_AREA_AMBIENTAL, TIPOS_INFRAESTRUTURA, TipoSolo, TipoIrrigacao
 
 
@@ -124,8 +127,123 @@ class AreaRuralService(BaseService[AreaRural]):
                     ativo=True,
                 ))
 
+    async def _validar_limite_hectares_area(
+        self,
+        unidade_produtiva_id: uuid.UUID,
+        tipo: str,
+        nova_area_ha: Decimal | float | None,
+        excluir_area_id: uuid.UUID | None = None,
+    ) -> None:
+        """
+        Valida se a soma dos hectares das áreas produtivas (ex.: TALHAO) não excede
+        a área total da propriedade (UnidadeProdutiva) nem o limite_hectares do pacote contratado.
+
+        Args:
+            unidade_produtiva_id: ID da propriedade vinculada.
+            tipo: Tipo da área rural sendo criada ou atualizada.
+            nova_area_ha: Área em hectares da área rural.
+            excluir_area_id: ID da área a excluir da soma em caso de atualização.
+
+        Raises:
+            BusinessRuleError: Se o somatório ultrapassar a área da propriedade ou o limite do pacote.
+        """
+        if tipo not in TIPOS_AREA_PRODUTIVA or not nova_area_ha or float(nova_area_ha) <= 0:
+            return
+
+        nova_area_dec = Decimal(str(nova_area_ha))
+
+        # 1. Validar contra área total da propriedade (UnidadeProdutiva)
+        up_stmt = select(
+            UnidadeProdutiva.area_total_calculada_ha,
+            UnidadeProdutiva.area_total_ha,
+        ).where(
+            UnidadeProdutiva.id == unidade_produtiva_id,
+            UnidadeProdutiva.tenant_id == self.tenant_id,
+        )
+        up_row = (await self.session.execute(up_stmt)).first()
+        if up_row:
+            area_propriedade = up_row[0] or up_row[1]
+            if area_propriedade is not None and float(area_propriedade) > 0:
+                soma_prop_stmt = select(
+                    func.coalesce(
+                        func.sum(
+                            func.coalesce(
+                                AreaRural.area_hectares_manual,
+                                AreaRural.area_hectares,
+                                0,
+                            )
+                        ),
+                        0,
+                    )
+                ).where(
+                    AreaRural.tenant_id == self.tenant_id,
+                    AreaRural.unidade_produtiva_id == unidade_produtiva_id,
+                    AreaRural.tipo == tipo,
+                    AreaRural.ativo == True,
+                )
+                if excluir_area_id is not None:
+                    soma_prop_stmt = soma_prop_stmt.where(AreaRural.id != excluir_area_id)
+
+                soma_prop_atual = Decimal(str((await self.session.execute(soma_prop_stmt)).scalar_one() or 0))
+                limite_prop_dec = Decimal(str(area_propriedade))
+                if soma_prop_atual + nova_area_dec > limite_prop_dec:
+                    disponivel_prop = max(Decimal("0"), limite_prop_dec - soma_prop_atual)
+                    raise BusinessRuleError(
+                        f"A soma das áreas de '{tipo}' ({soma_prop_atual + nova_area_dec:.2f} ha) "
+                        f"ultrapassa a área total da propriedade ({limite_prop_dec:.2f} ha). "
+                        f"Saldo disponível na propriedade: {disponivel_prop:.2f} ha."
+                    )
+
+        # 2. Validar contra limite_hectares do pacote contratado pelo tenant
+        plano_stmt = (
+            select(PlanoAssinatura.limite_hectares)
+            .join(AssinaturaTenant, AssinaturaTenant.plano_id == PlanoAssinatura.id)
+            .where(
+                AssinaturaTenant.tenant_id == self.tenant_id,
+                AssinaturaTenant.status.in_(["ATIVA", "TRIAL"]),
+            )
+            .limit(1)
+        )
+        limite_plano = (await self.session.execute(plano_stmt)).scalar_one_or_none()
+        if limite_plano is not None and float(limite_plano) > 0:
+            soma_tenant_stmt = select(
+                func.coalesce(
+                    func.sum(
+                        func.coalesce(
+                            AreaRural.area_hectares_manual,
+                            AreaRural.area_hectares,
+                            0,
+                        )
+                    ),
+                    0,
+                )
+            ).where(
+                AreaRural.tenant_id == self.tenant_id,
+                AreaRural.tipo == tipo,
+                AreaRural.ativo == True,
+            )
+            if excluir_area_id is not None:
+                soma_tenant_stmt = soma_tenant_stmt.where(AreaRural.id != excluir_area_id)
+
+            soma_tenant_atual = Decimal(str((await self.session.execute(soma_tenant_stmt)).scalar_one() or 0))
+            limite_plano_dec = Decimal(str(limite_plano))
+            if soma_tenant_atual + nova_area_dec > limite_plano_dec:
+                disponivel_plano = max(Decimal("0"), limite_plano_dec - soma_tenant_atual)
+                raise BusinessRuleError(
+                    f"Limite de área do pacote atingido para '{tipo}' ({limite_plano_dec:.2f} ha). "
+                    f"Área já utilizada: {soma_tenant_atual:.2f} ha. "
+                    f"Disponível no pacote: {disponivel_plano:.2f} ha."
+                )
+
     async def criar_area(self, data: dict) -> AreaRural:
         await self._validar_hierarquia(data["tipo"], data.get("parent_id"))
+        area_efetiva = data.get("area_hectares_manual") or data.get("area_hectares")
+        if data.get("unidade_produtiva_id") and area_efetiva:
+            await self._validar_limite_hectares_area(
+                unidade_produtiva_id=data["unidade_produtiva_id"],
+                tipo=data["tipo"],
+                nova_area_ha=area_efetiva,
+            )
         area = AreaRural(tenant_id=self.tenant_id, **data)
         self.session.add(area)
         await self.session.commit()
@@ -160,6 +278,23 @@ class AreaRuralService(BaseService[AreaRural]):
 
     async def atualizar_area(self, area_id: uuid.UUID, data: dict) -> AreaRural:
         obj = await self.get_or_fail(area_id)
+        novo_tipo = data.get("tipo", obj.tipo)
+        nova_up_id = data.get("unidade_produtiva_id", obj.unidade_produtiva_id)
+        nova_area_manual = data.get("area_hectares_manual", obj.area_hectares_manual)
+        nova_area_calc = data.get("area_hectares", obj.area_hectares)
+        area_efetiva = nova_area_manual if nova_area_manual is not None else nova_area_calc
+        if (
+            "area_hectares_manual" in data
+            or "area_hectares" in data
+            or "tipo" in data
+            or "unidade_produtiva_id" in data
+        ) and nova_up_id and area_efetiva:
+            await self._validar_limite_hectares_area(
+                unidade_produtiva_id=nova_up_id,
+                tipo=novo_tipo,
+                nova_area_ha=area_efetiva,
+                excluir_area_id=area_id,
+            )
         for k, v in data.items():
             setattr(obj, k, v)
         await self.session.commit()

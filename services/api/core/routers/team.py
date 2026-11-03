@@ -290,7 +290,6 @@ async def list_team_members(
     status_code=status.HTTP_201_CREATED,
     dependencies=[
         Depends(require_tenant_permission("tenant:users:invite")),
-        Depends(require_limit("max_usuarios")),  # ← Valida limite de usuários!
     ],
 )
 async def invite_team_member(
@@ -299,7 +298,7 @@ async def invite_team_member(
     current_user: Usuario = Depends(get_current_user),
     session: AsyncSession = Depends(get_session)
 ):
-    """Convida um novo membro para a equipe — bloqueado se limite de usuários atingido."""
+    """Convida um novo membro para a equipe (cadastro de usuários livre; controle aplicado na sessão simultânea)."""
 
     # Verificar se perfil existe
     try:

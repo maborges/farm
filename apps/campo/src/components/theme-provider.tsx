@@ -24,18 +24,33 @@ export function ThemeProvider({
 }: React.PropsWithChildren<{
   defaultTheme?: Theme;
 }>) {
-  const [theme, setThemeState] = React.useState<Theme>(() => {
-    if (typeof window === "undefined") return defaultTheme;
-    const saved = window.localStorage.getItem(STORAGE_KEY);
-    return saved === "dark" || saved === "light" ? saved : defaultTheme;
-  });
+  // Keep the server render and the client's first render identical. Load the
+  // saved browser preference after hydration to avoid mismatched toggle classes.
+  const [theme, setThemeState] = React.useState<Theme>(defaultTheme);
+  const [initialized, setInitialized] = React.useState(false);
 
   React.useEffect(() => {
-    applyTheme(theme);
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(STORAGE_KEY, theme);
+    let savedTheme: string | null = null;
+    try {
+      savedTheme = window.localStorage.getItem(STORAGE_KEY);
+    } catch {
+      // Use the default theme when browser storage is unavailable.
     }
-  }, [theme]);
+    if (savedTheme === "dark" || savedTheme === "light") {
+      setThemeState(savedTheme);
+    }
+    setInitialized(true);
+  }, []);
+
+  React.useEffect(() => {
+    if (!initialized) return;
+    applyTheme(theme);
+    try {
+      window.localStorage.setItem(STORAGE_KEY, theme);
+    } catch {
+      // Theme changes still apply for this page when browser storage is blocked.
+    }
+  }, [initialized, theme]);
 
   return (
     <ThemeContext.Provider
