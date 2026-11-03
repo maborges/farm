@@ -1,6 +1,7 @@
 from core.dependencies import require_tenant_permission
 import uuid
 from datetime import date
+from typing import Literal
 from fastapi import APIRouter, Depends, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from loguru import logger
@@ -88,10 +89,11 @@ async def listar_origens(
 
 from core.schemas.pagination import PaginatedResponse
 
-@router.get("", response_model=PaginatedResponse[LancamentoResponse])
+@router.get("/", response_model=PaginatedResponse[LancamentoResponse])
+@router.get("", response_model=PaginatedResponse[LancamentoResponse], include_in_schema=False)
 async def listar_lancamentos(
     safra_id: uuid.UUID | None = Query(None),
-    tipo: str | None = Query(None, enum=["CUSTO", "RECEITA"]),
+    tipo: Literal["CUSTO", "RECEITA"] | None = Query(None),
     categoria: str | None = Query(None),
     origem: str | None = Query(None),
     data_inicio: date | None = Query(None),
