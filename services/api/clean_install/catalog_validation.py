@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 from sqlalchemy import text
 from sqlalchemy.engine import Connection
 
@@ -12,6 +14,142 @@ _POLICY_ATTRIBUTE_NAMES = (
     "USING",
     "WITH CHECK",
 )
+_DOLLAR_QUOTE = re.compile(r"\$[A-Za-z_][A-Za-z_0-9]*\$|\$\$")
+
+
+def _normalize_policy_expression(expression: str | None) -> str | None:
+    """Collapse SQL whitespace outside quoted values and identifiers.
+
+    Args:
+        expression: Deparsed PostgreSQL policy expression.
+
+    Returns:
+        The expression with insignificant whitespace runs collapsed.
+
+    Raises:
+        None.
+    """
+    if expression is None:
+        return None
+    normalized = []
+    pending_space = False
+    index = 0
+    while index < len(expression):
+        char = expression[index]
+        if char.isspace():
+            pending_space = True
+            index += 1
+            continue
+        if pending_space and normalized:
+            normalized.append(" ")
+        pending_space = False
+        if expression.startswith(("--", "/*"), index):
+            index = _copy_sql_comment(expression, index, normalized)
+            continue
+        if char in "'\"":
+            index = _copy_quoted_sql_token(expression, index, normalized)
+            continue
+        if char == "$":
+            delimiter = _DOLLAR_QUOTE.match(expression, index)
+            if delimiter:
+                index = _copy_dollar_quoted_token(
+                    expression, index, delimiter.group(), normalized
+                )
+                continue
+        normalized.append(char)
+        index += 1
+    return "".join(normalized).strip()
+
+
+def _copy_quoted_sql_token(expression: str, index: int, output: list[str]) -> int:
+    """Copy a quoted SQL token without changing its contents.
+
+    Args:
+        expression: Source policy expression.
+        index: Opening quote position.
+        output: Normalized output buffer.
+
+    Returns:
+        Position immediately after the quoted token.
+
+    Raises:
+        None.
+    """
+    quote = expression[index]
+    escaped = quote == "'" and index > 0 and expression[index - 1] in "eE"
+    output.append(quote)
+    index += 1
+    while index < len(expression):
+        char = expression[index]
+        output.append(char)
+        index += 1
+        if escaped and char == "\\" and index < len(expression):
+            output.append(expression[index])
+            index += 1
+        elif char == quote:
+            if index < len(expression) and expression[index] == quote:
+                output.append(expression[index])
+                index += 1
+            else:
+                break
+    return index
+
+
+def _copy_dollar_quoted_token(
+    expression: str, index: int, delimiter: str, output: list[str]
+) -> int:
+    """Copy a dollar-quoted SQL value without changing its contents.
+
+    Args:
+        expression: Source policy expression.
+        index: Opening delimiter position.
+        delimiter: Dollar quote delimiter.
+        output: Normalized output buffer.
+
+    Returns:
+        Position immediately after the quoted token.
+
+    Raises:
+        None.
+    """
+    end = expression.find(delimiter, index + len(delimiter))
+    end = len(expression) if end < 0 else end + len(delimiter)
+    output.append(expression[index:end])
+    return end
+
+
+def _copy_sql_comment(expression: str, index: int, output: list[str]) -> int:
+    """Copy a SQL comment verbatim so newline semantics remain unchanged.
+
+    Args:
+        expression: Source policy expression.
+        index: Comment opening position.
+        output: Normalized output buffer.
+
+    Returns:
+        Position immediately after the comment.
+
+    Raises:
+        None.
+    """
+    if expression.startswith("--", index):
+        end = expression.find("\n", index)
+        end = len(expression) if end < 0 else end + 1
+        output.append(expression[index:end])
+        return end
+    depth = 1
+    cursor = index + 2
+    while cursor < len(expression) and depth:
+        if expression.startswith("/*", cursor):
+            depth += 1
+            cursor += 2
+        elif expression.startswith("*/", cursor):
+            depth -= 1
+            cursor += 2
+        else:
+            cursor += 1
+    output.append(expression[index:cursor])
+    return cursor
 
 
 def _policy_inventory_differences(expected_rows, actual_rows) -> list[str]:
@@ -70,8 +208,8 @@ def _index_policy_rows(rows) -> dict[tuple[str, str, str], tuple[object, ...]]:
             command,
             tuple(sorted(roles)),
             permissive,
-            using,
-            check,
+            _normalize_policy_expression(using),
+            _normalize_policy_expression(check),
         )
     return indexed
 

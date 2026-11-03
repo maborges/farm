@@ -87,6 +87,52 @@ def test_policy_inventory_ignores_role_order_only() -> None:
     assert _policy_inventory_differences(expected, actual) == []
 
 
+def test_policy_inventory_ignores_postgres_subquery_layout_whitespace() -> None:
+    expected_using = (
+        "((tenant_id = tenant()) OR (EXISTS ( SELECT 1 FROM tenant_passports rp "
+        "WHERE (rp.id = tenant_events.passaporte_id))))"
+    )
+    actual_using = (
+        "((tenant_id = tenant()) OR (EXISTS ( SELECT 1\n"
+        "   FROM tenant_passports rp\n"
+        "  WHERE (rp.id = tenant_events.passaporte_id))))"
+    )
+    expected = [
+        (
+            "farms", "tenant_events", "tenant_events_select_tenant", "SELECT",
+            ("public",), "PERMISSIVE", expected_using, None,
+        )
+    ]
+    actual = [
+        (
+            "farms", "tenant_events", "tenant_events_select_tenant", "SELECT",
+            ["public"], "PERMISSIVE", actual_using, None,
+        )
+    ]
+
+    assert _policy_inventory_differences(expected, actual) == []
+
+
+def test_policy_inventory_preserves_whitespace_inside_string_literals() -> None:
+    expected = [
+        (
+            "farms", "tenant_data", "tenant_policy", "SELECT",
+            ("public",), "PERMISSIVE", "status = 'PUBLICADO'", None,
+        )
+    ]
+    actual = [
+        (
+            "farms", "tenant_data", "tenant_policy", "SELECT",
+            ["public"], "PERMISSIVE", "status = 'PUBLIC ADO'", None,
+        )
+    ]
+
+    differences = _policy_inventory_differences(expected, actual)
+
+    assert len(differences) == 1
+    assert "USING expected=" in differences[0]
+
+
 @pytest.mark.parametrize(
     ("attribute_index", "replacement", "reported_attribute"),
     [
