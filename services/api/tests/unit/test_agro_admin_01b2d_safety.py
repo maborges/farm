@@ -86,7 +86,25 @@ def test_rotas_legadas_de_identidade_agro_nao_sao_montadas_por_padrao() -> None:
     if settings.enable_legacy_agro_db:
         pytest.skip("Ambiente optou explicitamente por habilitar o repositório legado")
 
-    paths = {route.path for route in app.routes}
+    def _extract_all_paths(routes, current_prefix: str = "") -> set[str]:
+        collected = set()
+        for r in routes:
+            if hasattr(r, "path"):
+                full = f"{current_prefix}{r.path}" if not r.path.startswith(current_prefix) else r.path
+                collected.add(full)
+            if hasattr(r, "routes"):
+                sub_prefix = f"{current_prefix}{getattr(r, 'path', '')}"
+                collected.update(_extract_all_paths(r.routes, sub_prefix))
+            if hasattr(r, "original_router"):
+                ctx = getattr(r, "include_context", None)
+                pfx = getattr(ctx, "prefix", "") if ctx else ""
+                collected.update(_extract_all_paths(r.original_router.routes, f"{current_prefix}{pfx}"))
+        return collected
+
+    paths = _extract_all_paths(app.routes)
+    if hasattr(app, "openapi"):
+        paths.update(app.openapi().get("paths", {}).keys())
+
     assert "/api/v1/agro/auth/register" not in paths
     assert "/api/v1/agro/auth/login" not in paths
     assert "/api/v1/agro/auth/logout" not in paths

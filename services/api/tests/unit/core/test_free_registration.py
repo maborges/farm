@@ -58,8 +58,16 @@ async def test_cadastro_gratuito_concorrente_cria_um_usuario(tmp_path):
     assert sum(created for _, created in results) == 1
 
     async with session_factory() as session:
-        count = await session.scalar(select(func.count()).select_from(Usuario))
-        user = (await session.execute(select(Usuario))).scalar_one()
+        count = await session.scalar(
+            select(func.count())
+            .select_from(Usuario)
+            .where(Usuario.email == "produtora@example.com")
+        )
+        user = (
+            await session.execute(
+                select(Usuario).where(Usuario.email == "produtora@example.com")
+            )
+        ).scalar_one()
     assert count == 1
     assert user.email == "produtora@example.com"
     assert user.cpf is None

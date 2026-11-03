@@ -49,6 +49,7 @@ from core.services.auth_service import AuthService
 from datetime import datetime, timezone, timedelta
 import hashlib
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy.pool import NullPool
 from main import app
 
 
@@ -64,14 +65,21 @@ def setup_db(tmp_path):
                 "search_path": "farms,public",
             }
         }
-        test_engine = create_async_engine(db_url, connect_args=connect_args)
+        test_engine = create_async_engine(
+            db_url,
+            connect_args=connect_args,
+            poolclass=NullPool,
+        )
     elif is_ci:
         raise RuntimeError(
             "CI detectada mas nenhum PostgreSQL fornecido. Fallback para SQLite é proibido."
         )
     else:
         test_db = tmp_path / "test_byok_central.db"
-        test_engine = create_async_engine(f"sqlite+aiosqlite:///{test_db}")
+        test_engine = create_async_engine(
+            f"sqlite+aiosqlite:///{test_db}",
+            poolclass=NullPool,
+        )
 
     async def init_tables():
         async with test_engine.begin() as conn:
@@ -104,7 +112,8 @@ def setup_db(tmp_path):
 
 @pytest.fixture
 def client():
-    return TestClient(app)
+    with TestClient(app) as c:
+        yield c
 
 
 def criar_usuario_autenticado(client: TestClient, prefixo: str = "produtor") -> tuple[dict, str]:
@@ -127,34 +136,45 @@ def criar_usuario_autenticado(client: TestClient, prefixo: str = "produtor") -> 
     agora = datetime.now(timezone.utc)
 
     async def _insert_user_and_session():
-        override = app.dependency_overrides[get_session]
-        async for session in override():
-            user = Usuario(
-                id=user_id,
-                email=email,
-                username=email.split("@")[0],
-                nome_completo=nome,
-                apelido=prefixo,
-                senha_hash="dummy_hash",
-                ativo=True,
-            )
-            sessao = SessaoAtiva(
-                tenant_id=None,
-                usuario_id=user_id,
-                token_hash=token_hash,
-                ip_address="testclient",
-                user_agent="testclient",
-                inicio=agora,
-                ultimo_heartbeat=agora,
-                expira_em=agora + timedelta(minutes=60),
-                status="ATIVA",
-            )
-            session.add(user)
-            session.add(sessao)
-            await session.commit()
-            break
+        override = app.dependency_overrides.get(get_session)
+        if not override:
+            return
+        gen = override()
+        try:
+            session = await gen.__anext__()
+            try:
+                user = Usuario(
+                    id=user_id,
+                    email=email,
+                    username=email.split("@")[0],
+                    nome_completo=nome,
+                    apelido=prefixo,
+                    senha_hash="dummy_hash",
+                    ativo=True,
+                )
+                sessao = SessaoAtiva(
+                    tenant_id=None,
+                    usuario_id=user_id,
+                    token_hash=token_hash,
+                    ip_address="testclient",
+                    user_agent="testclient",
+                    inicio=agora,
+                    ultimo_heartbeat=agora,
+                    expira_em=agora + timedelta(minutes=60),
+                    status="ATIVA",
+                )
+                session.add(user)
+                session.add(sessao)
+                await session.commit()
+            finally:
+                await session.close()
+        finally:
+            await gen.aclose()
 
-    asyncio.run(_insert_user_and_session())
+    if hasattr(client, "portal") and client.portal is not None:
+        client.portal.call(_insert_user_and_session)
+    else:
+        asyncio.run(_insert_user_and_session())
 
     user_data = {
         "id": str(user_id),
