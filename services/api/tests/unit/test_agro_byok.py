@@ -44,6 +44,8 @@ from core.database import Base
 from core.dependencies import get_session
 from core.models.auth import Usuario
 from core.models.sessao import SessaoAtiva
+from core.models.tenant import Tenant
+from core.models.unidade_produtiva import UnidadeProdutiva
 from core.models.usuario_byok import UsuarioByokCredential
 from core.services.auth_service import AuthService
 from datetime import datetime, timezone, timedelta
@@ -81,15 +83,31 @@ def setup_db(tmp_path):
             poolclass=NullPool,
         )
 
+    if "sqlite" in str(test_engine.url):
+        from sqlalchemy import event
+
+        @event.listens_for(test_engine.sync_engine, "connect")
+        def _set_sqlite_pragma(dbapi_connection, connection_record):
+            cursor = dbapi_connection.cursor()
+            cursor.execute("PRAGMA foreign_keys=ON")
+            cursor.close()
+
     async def init_tables():
         async with test_engine.begin() as conn:
             if "postgresql" in str(test_engine.url):
                 from sqlalchemy import text
                 await conn.execute(text("CREATE SCHEMA IF NOT EXISTS farms"))
                 await conn.execute(text("SET search_path TO farms, public"))
+            tables = [
+                Usuario.__table__,
+                Tenant.__table__,
+                UnidadeProdutiva.__table__,
+                UsuarioByokCredential.__table__,
+                SessaoAtiva.__table__,
+            ]
             await conn.run_sync(
                 lambda sync_conn: Base.metadata.create_all(
-                    sync_conn, tables=[Usuario.__table__, UsuarioByokCredential.__table__, SessaoAtiva.__table__]
+                    sync_conn, tables=tables
                 )
             )
 
@@ -701,12 +719,11 @@ def test_11_rotacao_de_chaves_via_api(client: TestClient):
 
 def test_12_acesso_byok_com_token_central_global(client: TestClient):
     """Garante que usuário autenticado via identidade central (JWT central) acessa o cofre BYOK."""
-    from unittest.mock import MagicMock
-    from core.services.auth_service import AuthService
-    svc = AuthService(MagicMock())
-    global_user_id = uuid.uuid4()
+    user, _ = criar_usuario_autenticado(client, "produtor_global")
+    global_user_id = user["id"]
+    svc = AuthService(None)
     central_token = svc.create_access_token(
-        data={"sub": str(global_user_id), "email": "produtor.global@agro.com.br", "product_scope": ["agro:free"]}
+        data={"sub": str(global_user_id), "email": user["email"], "product_scope": ["agro:free"]}
     )
     headers = {"Authorization": f"Bearer {central_token}"}
 
@@ -729,12 +746,11 @@ def test_12_acesso_byok_com_token_central_global(client: TestClient):
 
 def test_13_acesso_byok_com_cookie_central(client: TestClient):
     """Garante que o cofre BYOK aceita cookie deepfarms_agro_session ou deepfarms_session emitidos centralmente."""
-    from unittest.mock import MagicMock
-    from core.services.auth_service import AuthService
-    svc = AuthService(MagicMock())
-    global_user_id = uuid.uuid4()
+    user, _ = criar_usuario_autenticado(client, "produtor_cookie")
+    global_user_id = user["id"]
+    svc = AuthService(None)
     central_token = svc.create_access_token(
-        data={"sub": str(global_user_id), "email": "produtor.cookie@agro.com.br", "product_scope": ["agro:free"]}
+        data={"sub": str(global_user_id), "email": user["email"], "product_scope": ["agro:free"]}
     )
 
     # Usa cookie deepfarms_agro_session
