@@ -34,35 +34,50 @@ function ThemeProvider({
   defaultTheme?: Theme
   enableSystem?: boolean
 }>) {
-  const [theme, setThemeState] = React.useState<Theme>(() => {
-    if (typeof window === "undefined") return defaultTheme
-    return (window.localStorage.getItem(STORAGE_KEY) as Theme | null) ?? defaultTheme
-  })
-
-  const [systemTheme, setSystemTheme] = React.useState<"light" | "dark">(() =>
-    getSystemTheme()
-  )
+  // Keep the server render and the client's first render identical. Browser
+  // preferences are loaded in an effect after hydration.
+  const [theme, setThemeState] = React.useState<Theme>(defaultTheme)
+  const [systemTheme, setSystemTheme] = React.useState<"light" | "dark">("light")
+  const [initialized, setInitialized] = React.useState(false)
 
   const resolvedTheme = theme === "system" && enableSystem ? systemTheme : theme
 
   React.useEffect(() => {
-    applyTheme(theme)
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem(STORAGE_KEY, theme)
+    let storedTheme: string | null = null
+    try {
+      storedTheme = window.localStorage.getItem(STORAGE_KEY)
+    } catch {
+      // The default theme still works when browser storage is unavailable.
     }
-  }, [theme])
+    if (storedTheme === "light" || storedTheme === "dark" || storedTheme === "system") {
+      setThemeState(storedTheme)
+    }
+    setSystemTheme(getSystemTheme())
+    setInitialized(true)
+  }, [])
 
   React.useEffect(() => {
-    if (!enableSystem || theme !== "system") return
+    if (!initialized) return
+    applyTheme(theme)
+    try {
+      window.localStorage.setItem(STORAGE_KEY, theme)
+    } catch {
+      // Theme changes remain applied to the current page without browser storage.
+    }
+  }, [initialized, theme])
+
+  React.useEffect(() => {
+    if (!initialized || !enableSystem || theme !== "system") return
     const media = window.matchMedia("(prefers-color-scheme: dark)")
     const handleChange = () => {
       const next = media.matches ? "dark" : "light"
       setSystemTheme(next)
       applyTheme("system")
     }
+    handleChange()
     media.addEventListener("change", handleChange)
     return () => media.removeEventListener("change", handleChange)
-  }, [enableSystem, theme])
+  }, [enableSystem, initialized, theme])
 
   return (
     <ThemeContext.Provider
