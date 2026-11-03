@@ -13,7 +13,10 @@ sys.path.insert(0, str(API_ROOT))
 sys.path.insert(0, str(REPO_ROOT / "scripts" / "homologacao"))
 
 from clean_install import INSTALL_VERSION  # noqa: E402
-from clean_install.catalog_validation import _sequence_default_matches  # noqa: E402
+from clean_install.catalog_validation import (  # noqa: E402
+    _policy_inventory_differences,
+    _sequence_default_matches,
+)
 from clean_install.manifest import verify_artifact_hashes  # noqa: E402
 from clean_install.seed_contract import (  # noqa: E402
     SEED_CATALOGS,
@@ -65,6 +68,73 @@ def test_sequence_default_rejects_different_or_modified_expressions(default) -> 
     sequence = SEQUENCE_CONTRACT["animal_genetica_id_seq"]
 
     assert not _sequence_default_matches(default, sequence, True)
+
+
+def test_policy_inventory_ignores_role_order_only() -> None:
+    expected = [
+        (
+            "farms", "tenant_data", "tenant_policy", "SELECT",
+            ("deepfarms_app", "deepfarms_admin"), "PERMISSIVE", "tenant_id = tenant()", None,
+        )
+    ]
+    actual = [
+        (
+            "farms", "tenant_data", "tenant_policy", "SELECT",
+            ["deepfarms_admin", "deepfarms_app"], "PERMISSIVE", "tenant_id = tenant()", None,
+        )
+    ]
+
+    assert _policy_inventory_differences(expected, actual) == []
+
+
+@pytest.mark.parametrize(
+    ("attribute_index", "replacement", "reported_attribute"),
+    [
+        (3, "UPDATE", "command"),
+        (4, ("deepfarms_app",), "roles"),
+        (5, "RESTRICTIVE", "permissiveness"),
+        (6, "tenant_id IS NOT NULL", "USING"),
+        (7, "tenant_id = tenant()", "WITH CHECK"),
+    ],
+)
+def test_policy_inventory_reports_security_relevant_differences(
+    attribute_index, replacement, reported_attribute
+) -> None:
+    expected_row = (
+        "farms", "tenant_data", "tenant_policy", "SELECT",
+        ("deepfarms_app", "deepfarms_admin"), "PERMISSIVE", "tenant_id = tenant()", None,
+    )
+    actual_row = list(expected_row)
+    actual_row[attribute_index] = replacement
+
+    differences = _policy_inventory_differences([expected_row], [tuple(actual_row)])
+
+    assert len(differences) == 1
+    assert "farms.tenant_data.tenant_policy" in differences[0]
+    assert f"{reported_attribute} expected=" in differences[0]
+    assert " actual=" in differences[0]
+
+
+def test_policy_inventory_reports_missing_and_unexpected_policy_identities() -> None:
+    expected = [
+        (
+            "farms", "tenant_data", "expected_policy", "SELECT",
+            ("public",), "PERMISSIVE", "true", None,
+        )
+    ]
+    actual = [
+        (
+            "farms", "tenant_data", "actual_policy", "SELECT",
+            ["public"], "PERMISSIVE", "true", None,
+        )
+    ]
+
+    differences = _policy_inventory_differences(expected, actual)
+
+    assert differences == [
+        "missing policy farms.tenant_data.expected_policy",
+        "unexpected policy farms.tenant_data.actual_policy",
+    ]
 
 
 def test_seed_contract_has_explicit_order_and_only_global_required_catalogs() -> None:

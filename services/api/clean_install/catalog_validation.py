@@ -5,6 +5,76 @@ from __future__ import annotations
 from sqlalchemy import text
 from sqlalchemy.engine import Connection
 
+_POLICY_ATTRIBUTE_NAMES = (
+    "command",
+    "roles",
+    "permissiveness",
+    "USING",
+    "WITH CHECK",
+)
+
+
+def _policy_inventory_differences(expected_rows, actual_rows) -> list[str]:
+    """Describe policy inventory differences while treating roles as an unordered set.
+
+    Args:
+        expected_rows: Contract rows containing identity and policy attributes.
+        actual_rows: PostgreSQL catalog rows containing identity and policy attributes.
+
+    Returns:
+        Human-readable missing, unexpected, and field-level policy differences.
+
+    Raises:
+        ValueError: If duplicate policy identities appear in either inventory.
+    """
+    expected = _index_policy_rows(expected_rows)
+    actual = _index_policy_rows(actual_rows)
+    differences = [
+        f"missing policy {'.'.join(identity)}"
+        for identity in sorted(expected.keys() - actual.keys())
+    ]
+    differences.extend(
+        f"unexpected policy {'.'.join(identity)}"
+        for identity in sorted(actual.keys() - expected.keys())
+    )
+    for identity in sorted(expected.keys() & actual.keys()):
+        for name, expected_value, actual_value in zip(
+            _POLICY_ATTRIBUTE_NAMES, expected[identity], actual[identity], strict=True
+        ):
+            if expected_value != actual_value:
+                policy = ".".join(identity)
+                differences.append(
+                    f"{policy}: {name} expected={expected_value!r} actual={actual_value!r}"
+                )
+    return differences
+
+
+def _index_policy_rows(rows) -> dict[tuple[str, str, str], tuple[object, ...]]:
+    """Index policy inventory rows by schema, table, and policy name.
+
+    Args:
+        rows: Iterable rows ordered as identity, command, roles, mode, USING, WITH CHECK.
+
+    Returns:
+        Policy attributes keyed by their catalog identity.
+
+    Raises:
+        ValueError: If an inventory contains duplicate policy identities.
+    """
+    indexed = {}
+    for schema, table, name, command, roles, permissive, using, check in rows:
+        identity = (schema, table, name)
+        if identity in indexed:
+            raise ValueError(f"Duplicate RLS policy identity: {'.'.join(identity)}")
+        indexed[identity] = (
+            command,
+            tuple(sorted(roles)),
+            permissive,
+            using,
+            check,
+        )
+    return indexed
+
 
 def _sequence_default_matches(
     default: str | None,
@@ -171,16 +241,12 @@ def validate_catalog(
     if {name for name, (_, forced) in rls.items() if forced} != set(RLS_FORCED_TABLES):
         raise RuntimeError("Clean-install RLS FORCE inventory mismatch")
 
-    policies = {
-        (schema, table, name, command, tuple(roles), permissive, using, check)
-        for schema, table, name, command, roles, permissive, using, check in connection.execute(
-            text("""
+    actual_policies = list(connection.execute(
+        text("""
         SELECT schemaname, tablename, policyname, cmd, roles, permissive, qual, with_check
         FROM pg_policies WHERE schemaname='farms'
-    """)
-        )
-    }
-    expected_policies = {
+    """)))
+    expected_policies = [
         (
             row["schema"],
             row["table"],
@@ -192,9 +258,11 @@ def validate_catalog(
             row["with_check_expression"],
         )
         for row in POLICY_CONTRACT.values()
-    }
-    if policies != expected_policies:
-        raise RuntimeError("Clean-install RLS policy inventory mismatch")
+    ]
+    policy_differences = _policy_inventory_differences(expected_policies, actual_policies)
+    if policy_differences:
+        details = "\n".join(f" - {difference}" for difference in policy_differences)
+        raise RuntimeError(f"Clean-install RLS policy inventory mismatch:\n{details}")
 
     fk_rows = set(
         connection.execute(
@@ -329,5 +397,5 @@ def validate_catalog(
         "tables": len(actual_tables),
         "columns": len(actual_columns),
         "sequences": len(actual_sequences),
-        "policies": len(policies),
+        "policies": len(actual_policies),
     }
