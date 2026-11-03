@@ -13,6 +13,7 @@ sys.path.insert(0, str(API_ROOT))
 sys.path.insert(0, str(REPO_ROOT / "scripts" / "homologacao"))
 
 from clean_install import INSTALL_VERSION  # noqa: E402
+from clean_install.catalog_validation import _sequence_default_matches  # noqa: E402
 from clean_install.manifest import verify_artifact_hashes  # noqa: E402
 from clean_install.seed_contract import (  # noqa: E402
     SEED_CATALOGS,
@@ -23,6 +24,7 @@ from clean_install.seed_contract import (  # noqa: E402
     ordered_seed_rows,
     validate_seed_contract,
 )
+from migrations.baseline_contract import SEQUENCE_CONTRACT  # noqa: E402
 
 
 def _revision_module():
@@ -32,6 +34,37 @@ def _revision_module():
     assert spec and spec.loader
     spec.loader.exec_module(module)
     return module
+
+
+def test_sequence_default_accepts_search_path_dependent_regclass_rendering() -> None:
+    sequence = SEQUENCE_CONTRACT["animal_genetica_id_seq"]
+
+    assert sequence["owned_table"] == "animal_genetica"
+    assert sequence["owned_column"] == "id"
+    assert sequence["schema"] == "farms"
+    assert sequence["default_sql"] == "nextval('farms.animal_genetica_id_seq'::regclass)"
+    assert _sequence_default_matches(sequence["default_sql"], sequence, True)
+    assert _sequence_default_matches(
+        "nextval('animal_genetica_id_seq'::regclass)", sequence, True
+    )
+    assert not _sequence_default_matches(
+        "nextval('animal_genetica_id_seq'::regclass)", sequence, False
+    )
+
+
+@pytest.mark.parametrize(
+    "default",
+    [
+        None,
+        "nextval('other.animal_genetica_id_seq'::regclass)",
+        "nextval('farms.other_id_seq'::regclass)",
+        "nextval('farms.animal_genetica_id_seq'::regclass) + 1",
+    ],
+)
+def test_sequence_default_rejects_different_or_modified_expressions(default) -> None:
+    sequence = SEQUENCE_CONTRACT["animal_genetica_id_seq"]
+
+    assert not _sequence_default_matches(default, sequence, True)
 
 
 def test_seed_contract_has_explicit_order_and_only_global_required_catalogs() -> None:

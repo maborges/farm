@@ -6,6 +6,28 @@ from sqlalchemy import text
 from sqlalchemy.engine import Connection
 
 
+def _sequence_default_matches(
+    default: str | None,
+    sequence: dict[str, object],
+    references_owned_sequence: bool,
+) -> bool:
+    """Compare accepted PostgreSQL renderings for a schema-owned serial default.
+
+    Args:
+        default: Default expression returned by information_schema.
+        sequence: Sequence contract entry, whose schema and name are verified by ownership.
+        references_owned_sequence: Whether pg_depend links this default to the owned sequence OID.
+
+    Returns:
+        Whether the default references the contracted sequence.
+
+    Raises:
+        KeyError: If the sequence contract omits its schema, name, or default SQL.
+    """
+    unqualified = f"nextval('{sequence['name']}'::regclass)"
+    return references_owned_sequence and default in {sequence["default_sql"], unqualified}
+
+
 def validate_catalog(
     connection: Connection,
     *,
@@ -105,7 +127,33 @@ def validate_catalog(
             """),
             {"table_name": sequence["owned_table"], "column_name": sequence["owned_column"]},
         ).scalar_one_or_none()
-        if default != sequence["default_sql"]:
+        references_owned_sequence = connection.execute(
+            text("""
+                SELECT EXISTS (
+                    SELECT 1
+                    FROM pg_attrdef ad
+                    JOIN pg_class table_rel ON table_rel.oid = ad.adrelid
+                    JOIN pg_namespace table_ns ON table_ns.oid = table_rel.relnamespace
+                    JOIN pg_attribute attr
+                      ON attr.attrelid = table_rel.oid AND attr.attnum = ad.adnum
+                    JOIN pg_depend dep
+                      ON dep.classid = 'pg_attrdef'::regclass
+                     AND dep.objid = ad.oid
+                     AND dep.refclassid = 'pg_class'::regclass
+                     AND dep.refobjid = to_regclass(:sequence_name)
+                     AND dep.refobjsubid = 0
+                    WHERE table_ns.nspname = 'farms'
+                      AND table_rel.relname = :table_name
+                      AND attr.attname = :column_name
+                )
+            """),
+            {
+                "sequence_name": expected_owned,
+                "table_name": sequence["owned_table"],
+                "column_name": sequence["owned_column"],
+            },
+        ).scalar_one()
+        if not _sequence_default_matches(default, sequence, references_owned_sequence):
             raise RuntimeError(f"Sequence default mismatch for {sequence['name']}")
 
     rls = {
