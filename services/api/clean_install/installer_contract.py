@@ -99,6 +99,13 @@ def validate_manifest_columns(connection: Connection) -> list[str]:
     return errors
 
 
+def _normalize_pg_catalog_text(val: Any) -> str:
+    """Normalize catalog field value to str handling potential bytes from low-level drivers."""
+    if isinstance(val, bytes):
+        return val.decode("utf-8", errors="replace")
+    return str(val) if val is not None else ""
+
+
 def validate_manifest_constraints(connection: Connection) -> list[str]:
     """Validate constraints on deepfarms_install_manifest.
 
@@ -113,19 +120,27 @@ def validate_manifest_constraints(connection: Connection) -> list[str]:
     """
     rows = connection.execute(
         text("""
-            SELECT con.conname, con.contype, pg_get_constraintdef(con.oid, false)
+            SELECT con.conname, con.contype::text, pg_get_constraintdef(con.oid, false)
             FROM pg_constraint con
             JOIN pg_class rel ON rel.oid = con.conrelid
-            JOIN pg_namespace n ON n.oid = con.connamespace
+            JOIN pg_namespace n ON n.oid = rel.relnamespace
             WHERE n.nspname = :schema AND rel.relname = :table
         """),
         {"schema": INSTALLER_SCHEMA, "table": MANIFEST_TABLE},
     ).all()
     errors: list[str] = []
-    check_constraints = [r for r in rows if r[1] == "c"]
-    pk_constraints = [r for r in rows if r[1] == "p"]
+    parsed_constraints = [
+        (
+            _normalize_pg_catalog_text(r[0]),
+            _normalize_pg_catalog_text(r[1]),
+            _normalize_pg_catalog_text(r[2]),
+        )
+        for r in rows
+    ]
+    check_constraints = [c for c in parsed_constraints if c[1] == "c"]
+    pk_constraints = [c for c in parsed_constraints if c[1] == "p"]
 
-    if not any(r[0] == MANIFEST_CHECK_NAME for r in check_constraints):
+    if not any(c[0] == MANIFEST_CHECK_NAME for c in check_constraints):
         errors.append(
             f"deepfarms_install_manifest missing CHECK constraint {MANIFEST_CHECK_NAME}"
         )
@@ -140,6 +155,18 @@ def validate_manifest_constraints(connection: Connection) -> list[str]:
 
     if not pk_constraints:
         errors.append("deepfarms_install_manifest missing PRIMARY KEY constraint")
+    else:
+        for name, _, defn in pk_constraints:
+            if name != MANIFEST_PK_NAME:
+                errors.append(
+                    f"deepfarms_install_manifest PRIMARY KEY name expected={MANIFEST_PK_NAME!r} "
+                    f"actual={name!r}"
+                )
+            if "PRIMARY KEY (singleton)" not in defn:
+                errors.append(
+                    f"deepfarms_install_manifest PRIMARY KEY definition expected='PRIMARY KEY (singleton)' "
+                    f"actual={defn!r}"
+                )
 
     return errors
 

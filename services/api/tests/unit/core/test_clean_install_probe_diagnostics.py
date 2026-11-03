@@ -190,7 +190,7 @@ def test_validate_manifest_columns_positive_and_negative() -> None:
 
 
 def test_validate_manifest_constraints_positive_and_negative() -> None:
-    """Verify manifest constraint validation detects missing or tampered singleton CHECK."""
+    """Verify manifest constraint validation detects missing or tampered singleton CHECK and PK."""
     mock_conn = MagicMock()
     # Positive case: CHECK singleton IS TRUE + PK
     mock_conn.execute.return_value.all.return_value = [
@@ -204,6 +204,65 @@ def test_validate_manifest_constraints_positive_and_negative() -> None:
     errors = validate_manifest_constraints(mock_conn)
     assert any("missing CHECK constraint ck_deepfarms_install_manifest_singleton" in e for e in errors)
     assert any("missing PRIMARY KEY constraint" in e for e in errors)
+
+
+def test_validate_manifest_constraints_handles_asyncpg_bytes_contype() -> None:
+    """Regression test: asyncpg returns OID 18 \"char\" as Python bytes (b'c', b'p').
+
+    Verifies that validate_manifest_constraints safely normalizes bytes contype
+    so that CHECK and PRIMARY KEY constraints are correctly identified.
+    """
+    mock_conn = MagicMock()
+    # Simulate asyncpg returning raw bytes for name/contype
+    mock_conn.execute.return_value.all.return_value = [
+        (b"ck_deepfarms_install_manifest_singleton", b"c", b"CHECK ((singleton IS TRUE))"),
+        (b"deepfarms_install_manifest_pkey", b"p", b"PRIMARY KEY (singleton)"),
+    ]
+    errors = validate_manifest_constraints(mock_conn)
+    assert errors == []
+
+
+def test_validate_manifest_constraints_detects_tampered_check_or_pk() -> None:
+    """Negative tests: tampered definitions or incorrect constraint names are reported."""
+    mock_conn = MagicMock()
+
+    # Tampered CHECK definition
+    mock_conn.execute.return_value.all.return_value = [
+        ("ck_deepfarms_install_manifest_singleton", "c", "CHECK ((singleton IS FALSE))"),
+        ("deepfarms_install_manifest_pkey", "p", "PRIMARY KEY (singleton)"),
+    ]
+    errors = validate_manifest_constraints(mock_conn)
+    assert len(errors) == 1
+    assert "definition unexpected: 'CHECK ((singleton IS FALSE))'" in errors[0]
+
+    # Tampered PK name
+    mock_conn.execute.return_value.all.return_value = [
+        ("ck_deepfarms_install_manifest_singleton", "c", "CHECK ((singleton IS TRUE))"),
+        ("wrong_manifest_pk_name", "p", "PRIMARY KEY (singleton)"),
+    ]
+    errors = validate_manifest_constraints(mock_conn)
+    assert any("PRIMARY KEY name expected='deepfarms_install_manifest_pkey' actual='wrong_manifest_pk_name'" in e for e in errors)
+
+    # Tampered PK definition
+    mock_conn.execute.return_value.all.return_value = [
+        ("ck_deepfarms_install_manifest_singleton", "c", "CHECK ((singleton IS TRUE))"),
+        ("deepfarms_install_manifest_pkey", "p", "PRIMARY KEY (other_column)"),
+    ]
+    errors = validate_manifest_constraints(mock_conn)
+    assert any("PRIMARY KEY definition expected='PRIMARY KEY (singleton)'" in e for e in errors)
+
+
+def test_validate_manifest_constraints_query_casts_contype_and_joins_relnamespace() -> None:
+    """Verify that the SQL query casts con.contype::text and joins rel.relnamespace."""
+    mock_conn = MagicMock()
+    mock_conn.execute.return_value.all.return_value = [
+        ("ck_deepfarms_install_manifest_singleton", "c", "CHECK ((singleton IS TRUE))"),
+        ("deepfarms_install_manifest_pkey", "p", "PRIMARY KEY (singleton)"),
+    ]
+    validate_manifest_constraints(mock_conn)
+    query_sql = str(mock_conn.execute.call_args[0][0])
+    assert "con.contype::text" in query_sql
+    assert "rel.relnamespace" in query_sql
 
 
 def test_validate_manifest_row_positive_and_negative() -> None:
