@@ -1,0 +1,76 @@
+{
+  "services": {
+    "api": {
+      "healthcheck": {
+        "test": ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=3).read()"],
+        "interval": "30s",
+        "timeout": "10s",
+        "retries": 3,
+        "start_period": "40s"
+      }
+    },
+    "automations-worker": {
+      "healthcheck": {
+        "test": ["CMD", "python", "-c", "import pathlib, sys; cmd = pathlib.Path('/proc/1/cmdline').read_bytes().replace(b'\\0', b' ').decode(errors='replace'); sys.exit(0 if '/app/scripts/run_worker.py' in cmd else 1)"],
+        "interval": "30s",
+        "timeout": "10s",
+        "retries": 3,
+        "start_period": "40s"
+      }
+    },
+    "background-worker": {
+      "healthcheck": {
+        "test": ["CMD", "python", "-c", "import pathlib, sys; cmd = pathlib.Path('/proc/1/cmdline').read_bytes().replace(b'\\0', b' ').decode(errors='replace'); sys.exit(0 if 'background_worker' in cmd else 1)"],
+        "interval": "30s",
+        "timeout": "10s",
+        "retries": 3,
+        "start_period": "40s"
+      }
+    },
+    "outbox-worker": {
+      "healthcheck": {
+        "test": ["CMD", "python", "-c", "import pathlib, sys; cmd = pathlib.Path('/proc/1/cmdline').read_bytes().replace(b'\\0', b' ').decode(errors='replace'); sys.exit(0 if 'events.outbox_worker' in cmd else 1)"],
+        "interval": "30s",
+        "timeout": "10s",
+        "retries": 3,
+        "start_period": "40s"
+      }
+    },
+    "web": {
+      "healthcheck": {
+        "test": ["CMD", "node", "-e", "const h=require('node:http');const r=h.get('http://127.0.0.1:3000/',x=>{x.resume();process.exit(x.statusCode<400?0:1)});r.setTimeout(3000,()=>r.destroy(new Error('timeout')));r.on('error',()=>process.exit(1))"],
+        "interval": "30s",
+        "timeout": "10s",
+        "retries": 3,
+        "start_period": "40s"
+      }
+    },
+    "campo": {
+      "healthcheck": {
+        "test": ["CMD", "node", "-e", "const h=require('node:http');const r=h.get('http://127.0.0.1:3002/',x=>{x.resume();process.exit(x.statusCode<400?0:1)});r.setTimeout(3000,()=>r.destroy(new Error('timeout')));r.on('error',()=>process.exit(1))"],
+        "interval": "30s",
+        "timeout": "10s",
+        "retries": 3,
+        "start_period": "40s"
+      }
+    },
+    "agro": {
+      "healthcheck": {
+        "test": ["CMD", "node", "-e", "const h=require('node:http');const r=h.get('http://127.0.0.1:3004/',x=>{x.resume();process.exit(x.statusCode<400?0:1)});r.setTimeout(3000,()=>r.destroy(new Error('timeout')));r.on('error',()=>process.exit(1))"],
+        "interval": "30s",
+        "timeout": "10s",
+        "retries": 3,
+        "start_period": "40s"
+      }
+    },
+    "redis": {
+      "healthcheck": {
+        "test": ["CMD-SHELL", "REDISCLI_AUTH=\"$$(cat /run/secrets/redis_password)\" redis-cli ping | grep -q '^PONG$$'"],
+        "interval": "30s",
+        "timeout": "10s",
+        "retries": 3,
+        "start_period": "10s"
+      }
+    }
+  }
+}

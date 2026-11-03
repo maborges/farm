@@ -1,0 +1,68 @@
+FROM node:22-bookworm-slim AS deps
+
+ENV PNPM_HOME="/pnpm"
+ENV PATH="/pnpm:$PATH"
+
+WORKDIR /app
+
+RUN corepack enable \
+    && corepack prepare pnpm@10.17.1 --activate
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY apps/campo/package.json ./apps/campo/package.json
+COPY packages/types/package.json ./packages/types/package.json
+COPY packages/utils/package.json ./packages/utils/package.json
+COPY packages/zod-schemas/package.json ./packages/zod-schemas/package.json
+
+RUN pnpm install --frozen-lockfile
+
+
+FROM node:22-bookworm-slim AS builder
+
+ENV PNPM_HOME="/pnpm"
+ENV PATH="/pnpm:$PATH"
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV NODE_OPTIONS="--max-old-space-size=1536"
+
+WORKDIR /app
+
+RUN corepack enable \
+    && corepack prepare pnpm@10.17.1 --activate
+
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/apps/campo/node_modules ./apps/campo/node_modules
+COPY --from=deps /app/packages ./packages
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY apps/campo ./apps/campo
+COPY packages ./packages
+
+WORKDIR /app/apps/campo
+
+RUN pnpm build
+
+
+FROM node:22-bookworm-slim AS runner
+
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV PNPM_HOME="/pnpm"
+ENV PATH="/pnpm:$PATH"
+
+WORKDIR /app
+
+RUN corepack enable \
+    && corepack prepare pnpm@10.17.1 --activate
+
+COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /app/pnpm-lock.yaml ./pnpm-lock.yaml
+COPY --from=builder /app/pnpm-workspace.yaml ./pnpm-workspace.yaml
+COPY --from=builder /app/apps/campo ./apps/campo
+COPY --from=builder /app/packages ./packages
+COPY --from=builder /app/node_modules ./node_modules
+
+WORKDIR /app/apps/campo
+
+EXPOSE 3002
+
+CMD ["pnpm", "start", "--hostname", "0.0.0.0", "--port", "3002"]
