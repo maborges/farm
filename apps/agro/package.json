@@ -9,6 +9,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint src --ext .ts,.tsx",
     "test": "vitest run",
+    "check:routes": "node scripts/verify-routes-manifest.mjs",
     "test:e2e": "playwright test",
     "test:e2e:lab": "playwright test --config=playwright.lab.config.ts"
   },
