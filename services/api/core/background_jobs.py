@@ -99,7 +99,22 @@ async def run_lancar_depreciacao_loop() -> None:
 
 
 async def run_recommendation_scheduler_loop() -> None:
-    """Execute the canonical recommendation scheduler through the shared worker."""
+    """Execute the canonical recommendation scheduler through the shared worker.
+
+    When RECOMMENDATION_DISPATCHER_DATABASE_URL is unset, the dispatcher engine
+    is None and cross-tenant discovery fails closed to enforce RLS isolation.
+    In this scenario, the background loop is safely disabled without generating
+    recurrent exceptions.
+    """
+    from core.database import dispatcher_engine
+
+    if dispatcher_engine is None:
+        logger.bind(component="background_jobs").info(
+            "recommendation_scheduler_loop_disabled",
+            reason="RECOMMENDATION_DISPATCHER_DATABASE_URL unset",
+        )
+        return
+
     from recommendations.scheduler import run_scheduled_recommendation_cycle
 
     while True:
@@ -108,6 +123,7 @@ async def run_recommendation_scheduler_loop() -> None:
             logger.bind(component="background_jobs", tenants_executed=executed).info(
                 "recommendation_scheduler_cycle_finished"
             )
+            await asyncio.sleep(300)
         except asyncio.CancelledError:
             break
         except Exception as exc:
@@ -115,7 +131,10 @@ async def run_recommendation_scheduler_loop() -> None:
                 "recommendation_scheduler_cycle_failed",
                 exception_type=exc.__class__.__name__,
             )
-        await asyncio.sleep(300)
+            try:
+                await asyncio.sleep(300)
+            except asyncio.CancelledError:
+                break
 
 
 async def run_background_jobs() -> None:
