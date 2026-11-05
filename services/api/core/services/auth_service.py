@@ -13,6 +13,7 @@ import unicodedata
 from loguru import logger
 
 from core.models.auth import Usuario, TenantUsuario, PerfilAcesso, UnidadeProdutivaUsuario as FazendaUsuario, TokenRecuperacaoSenha
+from core.models.admin_user import AdminUser
 from core.models.tenant import Tenant
 from core.models.unidade_produtiva import UnidadeProdutiva as Fazenda
 from core.models.billing import AssinaturaTenant, PlanoAssinatura, Fatura
@@ -676,7 +677,130 @@ class AuthService:
         await self.session.commit()
         return access_token
 
-    async def get_user_me(self, user_id: uuid.UUID) -> UsuarioMeResponse:
+    async def get_user_me(self, user_id: uuid.UUID, claims: dict | None = None) -> UsuarioMeResponse:
+        claims = claims or {}
+        if claims.get("impersonating"):
+            impersonator_email = claims.get("impersonator_email")
+            admin_obj = None
+
+            # 1. Tenta localizar em AdminUser por ID
+            admin_obj = (await self.session.execute(
+                select(AdminUser).where(AdminUser.id == user_id)
+            )).scalar_one_or_none()
+
+            # 2. Se não encontrou por ID, tenta por email em AdminUser
+            if not admin_obj and impersonator_email:
+                admin_obj = (await self.session.execute(
+                    select(AdminUser).where(func.lower(AdminUser.email) == str(impersonator_email).strip().lower())
+                )).scalar_one_or_none()
+
+            # 3. Se ainda não encontrou, busca na tabela Usuario (pois o admin pode ser um Usuario global)
+            usuario_obj = None
+            if not admin_obj:
+                usuario_obj = (await self.session.execute(
+                    select(Usuario).where(Usuario.id == user_id)
+                )).scalar_one_or_none()
+                if not usuario_obj and impersonator_email:
+                    usuario_obj = (await self.session.execute(
+                        select(Usuario).where(func.lower(Usuario.email) == str(impersonator_email).strip().lower())
+                    )).scalar_one_or_none()
+
+            # Identidade resolvida do operador (resiliente, nunca quebra com 404)
+            op_id = admin_obj.id if admin_obj else (usuario_obj.id if usuario_obj else user_id)
+            op_email = admin_obj.email if admin_obj else (usuario_obj.email if usuario_obj else (impersonator_email or "suporte@deepfarms.com"))
+            op_nome = admin_obj.nome if admin_obj else (usuario_obj.nome_completo if (usuario_obj and usuario_obj.nome_completo) else (usuario_obj.username if usuario_obj else (claims.get("impersonator_nome") or op_email.split("@")[0])))
+            op_avatar = admin_obj.avatar_url if admin_obj else (usuario_obj.foto_perfil_url if usuario_obj else None)
+            op_role = admin_obj.role if admin_obj else (claims.get("backoffice_role") or "super_admin")
+            op_ativo = admin_obj.ativo if admin_obj else (usuario_obj.ativo if usuario_obj else True)
+            op_created_at = admin_obj.created_at if admin_obj else (usuario_obj.created_at if usuario_obj else datetime.now(timezone.utc))
+
+            tenant_id_str = claims.get("tenant_id")
+            tenants_response = []
+            if tenant_id_str:
+                tenant_id = uuid.UUID(tenant_id_str)
+                # Ativa contexto do tenant para o Postgres RLS liberar a leitura
+                from core.dependencies import _activate_session_tenant
+                await _activate_session_tenant(self.session, tenant_id)
+
+                t_stmt = select(Tenant).where(Tenant.id == tenant_id)
+                tenant = (await self.session.execute(t_stmt)).scalar_one_or_none()
+                if tenant:
+                    f_stmt = select(Fazenda).where(Fazenda.tenant_id == tenant.id, Fazenda.ativo == True)
+                    fazendas_list = (await self.session.execute(f_stmt)).scalars().all()
+                    fazendas_resp = [
+                        FazendaAcessoResponse(unidade_produtiva_id=f.id, nome=f.nome)
+                        for f in fazendas_list
+                    ]
+
+                    plan_stmt = (
+                        select(
+                            PlanoAssinatura.plan_tier,
+                            PlanoAssinatura.max_fazendas,
+                            PlanoAssinatura.modulos_inclusos,
+                            AssinaturaTenant.usuarios_contratados,
+                        )
+                        .join(AssinaturaTenant, AssinaturaTenant.plano_id == PlanoAssinatura.id)
+                        .where(
+                            AssinaturaTenant.tenant_id == tenant.id,
+                            AssinaturaTenant.status.in_(["ATIVA", "PENDENTE_PAGAMENTO", "TRIAL"]),
+                        )
+                    )
+                    plan_rows = (await self.session.execute(plan_stmt)).all()
+                    if plan_rows:
+                        t_plan_tier = plan_rows[0][0] or "BASICO"
+                        t_max_fazendas = max((r[1] or 1) for r in plan_rows)
+                        t_modulos = list({m for r in plan_rows if r[2] for m in r[2]})
+                        t_max_usuarios = max((r[3] or 2) for r in plan_rows)
+                    else:
+                        t_plan_tier = claims.get("plan_tier") or "BASICO"
+                        t_max_fazendas = 1
+                        t_modulos = claims.get("modules") or ["CORE"]
+                        t_max_usuarios = 2
+
+                    tenants_response.append(TenantAcessoResponse(
+                        tenant_id=tenant.id,
+                        nome_tenant=tenant.nome,
+                        is_owner=True,
+                        ativo=tenant.ativo,
+                        activation_pending=bool(tenant.activation_token),
+                        perfil=PerfilSimplesResponse(id=uuid.uuid4(), nome="Owner (Suporte)", permissoes={}),
+                        fazendas=fazendas_resp,
+                        plan_tier=t_plan_tier,
+                        max_fazendas=t_max_fazendas,
+                        max_usuarios=t_max_usuarios,
+                        modulos=t_modulos,
+                    ))
+
+            impersonation_info = {
+                "active": True,
+                "mode": claims.get("impersonation_mode", "READ_ONLY"),
+                "impersonation_id": claims.get("impersonation_id"),
+                "tenant_id": tenant_id_str,
+                "tenant_nome": tenants_response[0].nome_tenant if tenants_response else "",
+                "admin_email": op_email,
+                "admin_nome": op_nome,
+            }
+
+            return UsuarioMeResponse(
+                id=op_id,
+                email=op_email,
+                username=op_email.split("@")[0],
+                nome_completo=op_nome,
+                apelido=op_nome.split()[0] if op_nome else "Suporte",
+                foto_perfil_url=op_avatar,
+                is_superuser=True,
+                navigation_mode="SIDEBAR",
+                tenants=tenants_response,
+                ativo=op_ativo,
+                nome=op_nome,
+                email_verificado=True,
+                emailVerificado=True,
+                created_at=op_created_at,
+                createdAt=op_created_at,
+                impersonation=impersonation_info,
+                backoffice_role=op_role,
+            )
+
         stmt = select(Usuario).where(Usuario.id == user_id)
         user = (await self.session.execute(stmt)).scalar_one_or_none()
         if not user:

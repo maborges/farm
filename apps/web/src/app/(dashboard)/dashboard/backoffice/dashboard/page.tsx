@@ -42,7 +42,7 @@ export default function BackofficeDashboardPage() {
 
     if (isLoading) {
         return (
-            <div className="flex-1 flex flex-col gap-6 w-full px-4 md:px-8 py-8">
+            <div className="p-6 space-y-6">
                 <Skeleton className="h-16 w-full" />
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                     {Array.from({ length: 4 }).map((_, i) => (
@@ -58,11 +58,15 @@ export default function BackofficeDashboardPage() {
     }
 
     return (
-        <div className="flex-1 flex flex-col gap-6 w-full px-4 md:px-8 py-8">
+        <div className="p-6 space-y-6">
             <PageHeader
                 title="Dashboard Executivo"
                 description="Saúde financeira e operacional do DeepFarms em tempo real."
                 icon={<LayoutDashboard className="text-primary" size={22} />}
+                breadcrumbs={[
+                    { label: "DeepFarms", href: "/dashboard" },
+                    { label: "Backoffice" },
+                ]}
             />
 
             {/* ── KPI Cards ── */}

@@ -11,8 +11,8 @@ export default function BackofficeCulturasPage() {
         title="Culturas do Sistema"
         description="Gerencie as culturas e parâmetros agronômicos disponíveis para todos os assinantes"
         breadcrumbs={[
-          { label: "Backoffice", href: "/backoffice" },
-          { label: "Cadastros Auxiliares", href: "/backoffice/cadastros-auxiliares" },
+          { label: "Backoffice", href: "/dashboard/backoffice/dashboard" },
+          { label: "Tabelas do Sistema", href: "/dashboard/backoffice/tabelas" },
           { label: "Culturas" }
         ]}
         icon={<Sprout className="text-primary" size={22} />}

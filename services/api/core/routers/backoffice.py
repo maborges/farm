@@ -678,6 +678,7 @@ async def list_all_tickets(
         c = row.ChamadoSuporte
         tickets.append({
             "id": c.id,
+            "tenant_id": str(c.tenant_id),
             "tenant_nome": row.tenant_nome,
             "usuario_nome": row.usuario_nome,
             "assunto": c.assunto,

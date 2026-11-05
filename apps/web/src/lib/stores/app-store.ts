@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { immer } from "zustand/middleware/immer";
-import { Tenant, User, ModuleId, UnidadeProdutiva, TenantContext, PlanTierId, AssinaturaInfo, TenantSummary, TenantCustomPermissions } from "@/types/global";
+import { Tenant, User, ModuleId, UnidadeProdutiva, TenantContext, PlanTierId, AssinaturaInfo, TenantSummary, TenantCustomPermissions, ImpersonationInfo } from "@/types/global";
 import { apiFetch } from "@/lib/api";
 import { getApiOrigin } from "@/lib/runtime-config";
 import { normalizePlanTier } from "@/lib/constants/planos";
@@ -19,12 +19,20 @@ interface AuthProfileResponse {
     is_superuser: boolean;
     navigation_mode: "SIDEBAR" | "MEGA_MENU";
     tenants: TenantSummary[];
+    impersonation?: ImpersonationInfo | null;
+    backoffice_role?: string | null;
 }
 
 interface AppState {
     // Dados Vitais Autenticados
     tenant: Tenant | null;
     user: User | null;
+
+    // Impersonação / Acesso Assistido
+    impersonation: ImpersonationInfo | null;
+    setImpersonation: (info: ImpersonationInfo | null) => void;
+    switchImpersonationMode: (modo: "READ_ONLY" | "READ_WRITE", motivo: string) => Promise<void>;
+    stopImpersonation: () => Promise<string>;
 
     // Grupos com assinaturas (nova estrutura — substitui campos flat)
     grupos: TenantContext[];
@@ -68,6 +76,7 @@ const initialState = {
     token: null,
     tenant: null,
     user: null,
+    impersonation: null,
     grupos: [],
     unidadesProdutivasAutorizadas: [],
     tenantContexts: [],
@@ -295,6 +304,51 @@ export const useAppStore = create<AppState>()(
 
             hasModule: (id) => get().activeModules().includes(id),
 
+            setImpersonation: (info) => set((s) => {
+                s.impersonation = info;
+            }),
+
+            switchImpersonationMode: async (modo, motivo) => {
+                const response = await apiFetch<{ access_token: string; modo: "READ_ONLY" | "READ_WRITE" }>("/backoffice/impersonate/mode", {
+                    method: "PATCH",
+                    body: JSON.stringify({ modo, motivo }),
+                });
+
+                set((s) => {
+                    s.token = response.access_token;
+                    if (s.impersonation) {
+                        s.impersonation.mode = response.modo;
+                    }
+                });
+
+                const { updateImpersonationTokenCookie } = await import("@/app/actions/auth");
+                await updateImpersonationTokenCookie(response.access_token);
+            },
+
+            stopImpersonation: async () => {
+                const currentImpId = get().impersonation?.impersonation_id;
+                try {
+                    await apiFetch("/backoffice/impersonate/stop", {
+                        method: "POST",
+                        body: JSON.stringify({ impersonation_id: currentImpId }),
+                    });
+                } catch (err) {
+                    console.warn("Aviso ao encerrar impersonação no backend:", err);
+                }
+
+                const { stopImpersonationCookies } = await import("@/app/actions/auth");
+                const { returnPath, returnToken } = await stopImpersonationCookies();
+
+                set((s) => {
+                    s.impersonation = null;
+                    if (returnToken) {
+                        s.token = returnToken;
+                    }
+                });
+
+                return returnPath;
+            },
+
             logout: async () => {
                 // Notifica o backend para encerrar a sessão em segundo plano — não bloqueia o redirect,
                 // pois o resultado já era ignorado (o estado local sempre é limpo de qualquer forma).
@@ -332,6 +386,7 @@ export const useAppStore = create<AppState>()(
                 token: state.token,
                 tenant: state.tenant,
                 user: state.user,
+                impersonation: state.impersonation,
                 grupos: state.grupos,
                 unidadesProdutivasAutorizadas: state.unidadesProdutivasAutorizadas,
                 tenantContexts: state.tenantContexts,

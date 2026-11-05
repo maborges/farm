@@ -21,6 +21,7 @@ from core.routers import onboarding
 from core.routers import backoffice
 from core.routers import billing
 from core.routers import backoffice_admins
+from core.routers import backoffice_impersonation
 from core.routers import backoffice_tenants
 from core.routers import backoffice_agro
 from core.routers import backoffice_agro_config
@@ -277,6 +278,14 @@ class TenantRLSMiddleware(BaseHTTPMiddleware):
                         request.state.rls_tenant_id = tenant_id
                 except Exception:
                     pass
+            if not getattr(request.state, "rls_tenant_id", None):
+                header_tenant = request.headers.get("x-tenant-id")
+                if header_tenant:
+                    try:
+                        import uuid as _uuid
+                        request.state.rls_tenant_id = str(_uuid.UUID(header_tenant))
+                    except ValueError:
+                        pass
         return await call_next(request)
 
 
@@ -334,6 +343,7 @@ app.include_router(auth.router, prefix="/api/v1")
 app.include_router(onboarding.router, prefix="/api/v1")
 app.include_router(backoffice.router, prefix="/api/v1")
 app.include_router(backoffice_admins.router, prefix="/api/v1")
+app.include_router(backoffice_impersonation.router, prefix="/api/v1")
 app.include_router(backoffice_tenants.router, prefix="/api/v1")
 app.include_router(backoffice_agro.router, prefix="/api/v1")
 app.include_router(backoffice_agro_config.router, prefix="/api/v1")

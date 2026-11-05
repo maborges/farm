@@ -10,8 +10,8 @@ export default function ModelosBackofficePage() {
         title="Modelos de Produto"
         description="Gerencie os modelos e referências globais vinculados às marcas"
         breadcrumbs={[
-          { label: "Backoffice", href: "/backoffice" },
-          { label: "Cadastros Auxiliares", href: "/backoffice/cadastros-auxiliares" },
+          { label: "Backoffice", href: "/dashboard/backoffice/dashboard" },
+          { label: "Tabelas do Sistema", href: "/dashboard/backoffice/tabelas" },
           { label: "Modelos" }
         ]}
         icon={<Layers className="text-primary" size={22} />}

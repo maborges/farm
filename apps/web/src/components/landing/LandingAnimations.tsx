@@ -13,6 +13,22 @@ export function LandingAnimations() {
     const elements = document.querySelectorAll("[data-animate], [data-animate-stagger]");
     if (elements.length === 0) return;
 
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduceMotion || !("IntersectionObserver" in window)) {
+      elements.forEach((element) => element.classList.add("is-visible"));
+      document.documentElement.classList.add("landing-animations-ready");
+      return () => document.documentElement.classList.remove("landing-animations-ready");
+    }
+
+    const initialViewportBottom = window.innerHeight - 40;
+    elements.forEach((element) => {
+      const rect = element.getBoundingClientRect();
+      if (rect.top < initialViewportBottom && rect.bottom > 0) {
+        element.classList.add("is-visible");
+      }
+    });
+    document.documentElement.classList.add("landing-animations-ready");
+
     const observer = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
@@ -25,9 +41,14 @@ export function LandingAnimations() {
       { threshold: 0.12, rootMargin: "0px 0px -40px 0px" }
     );
 
-    elements.forEach((el) => observer.observe(el));
+    elements.forEach((element) => {
+      if (!element.classList.contains("is-visible")) observer.observe(element);
+    });
 
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      document.documentElement.classList.remove("landing-animations-ready");
+    };
   }, []);
 
   return null;

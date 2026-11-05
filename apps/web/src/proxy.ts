@@ -28,12 +28,20 @@ function isLocalHost(hostname: string) {
     );
 }
 
+function isStaticAsset(pathname: string) {
+    return /\.(?:avif|css|gif|ico|jpe?g|js|json|map|pdf|png|svg|txt|webmanifest|webp|woff2?|ttf|otf)$/i.test(pathname);
+}
+
 export async function proxy(req: NextRequest) {
     const url = req.nextUrl;
     const hostname = req.headers.get("host") || "";
 
-    // Permitir chamadas internas de API ou assets Next.js sem bloquear
-    if (url.pathname.startsWith("/_next") || url.pathname.startsWith("/api")) {
+    // API, assets do Next e arquivos públicos não devem passar por rewrite de domínio.
+    if (
+        url.pathname.startsWith("/_next") ||
+        url.pathname.startsWith("/api") ||
+        isStaticAsset(url.pathname)
+    ) {
         return NextResponse.next();
     }
 

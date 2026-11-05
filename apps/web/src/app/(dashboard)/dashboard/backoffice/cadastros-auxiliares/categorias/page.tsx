@@ -10,8 +10,8 @@ export default function CategoriasBackofficePage() {
         title="Categorias de Produto"
         description="Estrutura hierárquica global para classificação de insumos e produtos"
         breadcrumbs={[
-          { label: "Backoffice", href: "/backoffice" },
-          { label: "Cadastros Auxiliares", href: "/backoffice/cadastros-auxiliares" },
+          { label: "Backoffice", href: "/dashboard/backoffice/dashboard" },
+          { label: "Tabelas do Sistema", href: "/dashboard/backoffice/tabelas" },
           { label: "Categorias" }
         ]}
         icon={<FolderTree className="text-primary" size={22} />}

@@ -402,11 +402,16 @@ export default function AgroUsuariosPage() {
     const totalPages = listResponse?.total_pages || 1;
 
     return (
-        <div className="p-8 space-y-6 w-full max-w-full">
+        <div className="p-6 space-y-6">
             <PageHeader
                 title="Produtores DeepFarms Agro"
                 description="Governança operacional de produtores rurais gratuitos, sessões ativas e cofre BYOK."
                 icon={<Sprout className="text-emerald-600 dark:text-emerald-400" size={24} />}
+                breadcrumbs={[
+                    { label: "Backoffice", href: "/dashboard/backoffice/dashboard" },
+                    { label: "Agro", href: "/dashboard/backoffice/agro" },
+                    { label: "Produtores" },
+                ]}
             />
 
             {/* Cards de Resumo */}

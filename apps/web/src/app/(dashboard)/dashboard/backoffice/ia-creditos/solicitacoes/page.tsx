@@ -29,6 +29,7 @@ import {
     Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose,
 } from "@/components/ui/dialog";
 import Link from "next/link";
+import { PageHeader } from "@/components/shared/page-header";
 
 interface SolicitacaoItem {
     id: string;
@@ -279,31 +280,32 @@ export default function SolicitacoesPage() {
     }
 
     return (
-        <div className="space-y-6 max-w-6xl">
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-lg font-bold text-foreground flex items-center gap-2">
-                        <BrainCircuit className="size-5 text-primary" />
-                        Solicitações — Créditos de IA
-                    </h1>
-                    <p className="text-sm text-muted-foreground mt-0.5">
-                        Funil comercial e operação das solicitações de créditos de IA.
-                    </p>
-                </div>
-                <div className="flex gap-2">
-                    <Button variant="outline" size="sm" asChild>
-                        <Link href="/dashboard/backoffice/ia-creditos/solicitacoes/fila">
-                            <ArrowUpDown className="size-3.5 mr-1.5" />
-                            Fila prioritária
-                        </Link>
-                    </Button>
-                    <Button variant="outline" size="sm" asChild>
-                        <Link href="/dashboard/backoffice/ia-creditos/solicitacoes/kanban">
-                            Ver Kanban
-                        </Link>
-                    </Button>
-                </div>
-            </div>
+        <div className="p-6 space-y-6">
+            <PageHeader
+                title="Solicitações — Créditos de IA"
+                description="Funil comercial e operação das solicitações de créditos de IA."
+                icon={<BrainCircuit className="size-[22px] text-primary" />}
+                breadcrumbs={[
+                    { label: "Backoffice", href: "/dashboard/backoffice/dashboard" },
+                    { label: "IA", href: "/dashboard/backoffice/ia-creditos" },
+                    { label: "Solicitações" },
+                ]}
+                actions={
+                    <div className="flex items-center gap-2">
+                        <Button variant="outline" size="sm" asChild className="rounded-sm">
+                            <Link href="/dashboard/backoffice/ia-creditos/solicitacoes/fila">
+                                <ArrowUpDown className="size-3.5 mr-1.5" />
+                                Fila prioritária
+                            </Link>
+                        </Button>
+                        <Button variant="outline" size="sm" asChild className="rounded-sm">
+                            <Link href="/dashboard/backoffice/ia-creditos/solicitacoes/kanban">
+                                Ver Kanban
+                            </Link>
+                        </Button>
+                    </div>
+                }
+            />
 
             <Separator />
 

@@ -55,6 +55,8 @@ import { LandingCarousel } from "@/components/landing/LandingCarousel";
 import { LandingFAQ } from "@/components/landing/LandingFAQ";
 import { CountUp } from "@/components/landing/CountUp";
 import { ThemeToggle } from "@/components/landing/ThemeToggle";
+import { ProductSwitcher } from "@/components/landing/ProductSwitcher";
+import { LandingHeroBackground } from "@/components/landing/LandingHeroBackground";
 import { apiFetchServer } from "@/lib/api-server";
 import { ModuloMetadata, Modulos, ModulosPorCategoria, normalizeModuleId, type ModuloId } from "@/lib/constants/modulos";
 
@@ -292,8 +294,8 @@ const complianceCards = [
     subtitle: "Cadeia Criptográfica",
     description: "Hash encadeado em cada etapa. Passaporte do Produto acessível via QR Code, irrefutável.",
     badge: "Blockchain-Ready",
-    color: "from-purple-500/15 to-purple-500/5" as const,
-    iconColor: "text-purple-500" as const,
+    color: "from-amber-700/15 to-amber-700/5" as const,
+    iconColor: "text-amber-700" as const,
   },
 ];
 
@@ -527,26 +529,26 @@ export default async function Home() {
     <main className="min-h-dvh bg-background text-foreground overflow-x-hidden">
 
       {/* ═══════════ HERO ═══════════ */}
-      <section className="relative overflow-hidden">
-        {/* Decorative */}
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_20%_0%,hsl(var(--primary)/0.14),transparent),radial-gradient(ellipse_60%_40%_at_85%_10%,hsl(var(--module-operacional)/0.10),transparent)]" />
-        <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/50 to-transparent" />
-        <div className="float-glow pointer-events-none absolute -left-24 top-16 size-56 rounded-full bg-primary/6 blur-3xl" />
-        <div className="float-glow-delayed pointer-events-none absolute -right-16 top-32 size-40 rounded-full bg-primary/5 blur-3xl" />
+      <section className="relative overflow-hidden border-b border-border/50">
+        <LandingHeroBackground />
 
         <div className="relative mx-auto max-w-7xl px-6 pb-10 pt-6 lg:px-10 lg:pb-14 lg:pt-8">
           {/* Nav */}
-          <header className="landing-hero-reveal mb-10 flex items-center justify-between gap-4 lg:mb-12">
-            <div className="flex items-center gap-3">
-              <div className="flex size-12 items-center justify-center">
-                <Image src="/logos/deepfarms-mark.svg" alt="DeepFarms" width={48} height={48} className="size-full object-contain" />
+          <header className="landing-hero-reveal mb-10 flex flex-wrap items-center justify-between gap-4 lg:mb-12">
+            <div className="flex items-center gap-4 sm:gap-6">
+              <div className="flex items-center gap-3">
+                <div className="flex size-12 items-center justify-center">
+                  <Image src="/logos/deepfarms-mark.svg" alt="DeepFarms" width={48} height={48} className="size-full object-contain" />
+                </div>
+                <div>
+                  <div className="text-xl font-semibold uppercase tracking-[0.16em] text-primary">DeepFarms</div>
+                  <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Gestão rural integrada</div>
+                </div>
               </div>
-              <div>
-                <div className="text-xl font-semibold uppercase tracking-[0.16em] text-primary">DeepFarms</div>
-                <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted-foreground">Gestão rural integrada</div>
-              </div>
+              <ProductSwitcher active="gestao" className="hidden lg:inline-flex" />
             </div>
-            <nav className="flex items-center gap-2">
+            <nav className="flex flex-wrap items-center gap-2">
+              <ProductSwitcher active="gestao" className="lg:hidden" />
               <ThemeToggle />
               <Button asChild variant="outline" size="sm"><Link href="/login">Entrar</Link></Button>
               <Button asChild size="sm"><Link href="/register">Começar grátis</Link></Button>
@@ -563,7 +565,7 @@ export default async function Home() {
 
               <h1 className="landing-hero-reveal landing-hero-title max-w-[600px] text-4xl font-light leading-[1.1] tracking-tight text-balance sm:text-5xl md:text-6xl lg:text-[4rem]">
                 Campo, estoque e financeiro{" "}
-                <span className="bg-gradient-to-r from-primary to-primary/60 bg-clip-text font-semibold text-transparent">
+                <span className="font-semibold text-primary">
                   integrados em um único lugar.
                 </span>
               </h1>
@@ -1068,6 +1070,7 @@ export default async function Home() {
             <div className="space-y-3">
               <h4 className="text-xs font-black uppercase tracking-wider text-foreground">Produto</h4>
               <ul className="space-y-2 text-xs text-muted-foreground">
+                <li><Link href="/agro" className="hover:text-primary">DeepFarms Agro</Link></li>
                 <li><Link href="/register" className="hover:text-primary">Começar grátis</Link></li>
                 <li><Link href="/login" className="hover:text-primary">Demonstração</Link></li>
                 <li><Link href="/frota" className="hover:text-primary">Módulo Frota</Link></li>

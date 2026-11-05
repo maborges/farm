@@ -182,7 +182,7 @@ async def session_heartbeat(
 async def get_me(claims: dict = Depends(get_global_user_claims), session: AsyncSession = Depends(get_session)):
     svc = AuthService(session)
     user_id = uuid.UUID(claims["sub"])
-    return await svc.get_user_me(user_id)
+    return await svc.get_user_me(user_id, claims=claims)
 
 
 @router.patch("/me/preferences/navigation", summary="Atualiza a preferência de modo de navegação do usuário (Sidebar x Mega Menu)")

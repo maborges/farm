@@ -113,6 +113,8 @@ class UsuarioMeResponse(BaseModel):
     emailVerificado: bool = True
     created_at: Optional[datetime] = None
     createdAt: Optional[datetime] = None
+    impersonation: Optional[dict] = None
+    backoffice_role: Optional[str] = None
 
 
 class VerifyEmailRequest(BaseModel):

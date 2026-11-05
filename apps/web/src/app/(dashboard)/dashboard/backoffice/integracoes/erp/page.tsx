@@ -153,14 +153,14 @@ export default async function ErpBridgePage() {
   }
 
   return (
-    <div className="flex flex-col gap-6 p-4 md:p-8">
+    <div className="p-6 space-y-6">
       <PageHeader
         title="Integrações ERP"
         description="Painel de apoio do backoffice para acompanhar a situação da integração, investigar falhas e orientar o produtor."
         icon={<ArrowLeftRight className="text-primary" size={22} />}
         breadcrumbs={[
           { label: "Backoffice", href: "/dashboard/backoffice/dashboard" },
-          { label: "Acompanhamento das Integrações ERP" },
+          { label: "Integrações ERP" },
         ]}
       />
 

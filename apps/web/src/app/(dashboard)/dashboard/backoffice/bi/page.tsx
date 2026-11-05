@@ -69,7 +69,7 @@ export default function BackofficeBIPage() {
 
     if (isLoading) {
         return (
-            <div className="p-8 space-y-8 w-full max-w-full">
+            <div className="p-6 space-y-6">
                 <Skeleton className="h-16 w-full" />
                 <div className="grid gap-4 md:grid-cols-4">
                     {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-28 w-full" />)}
@@ -80,7 +80,7 @@ export default function BackofficeBIPage() {
     }
 
     return (
-        <div className="p-8 space-y-8 w-full max-w-full">
+        <div className="p-6 space-y-6">
             {/* SVG Gradients para Recharts */}
             <svg style={{ height: 0, width: 0, position: "absolute" }}>
                 <defs>
@@ -99,6 +99,10 @@ export default function BackofficeBIPage() {
                 title="Business Intelligence"
                 description="Análise profunda de unit economics e retenção do SaaS."
                 icon={<BarChart3 className="text-primary" size={22} />}
+                breadcrumbs={[
+                    { label: "Backoffice", href: "/dashboard/backoffice/dashboard" },
+                    { label: "Business Intelligence" },
+                ]}
                 actions={
                     <div className="flex items-center gap-3">
                         <Badge variant="secondary">Alpha</Badge>

@@ -10,8 +10,8 @@ export default function MarcasBackofficePage() {
         title="Marcas Globais"
         description="Gerencie os fabricantes e marcas disponíveis para todos os assinantes"
         breadcrumbs={[
-          { label: "Backoffice", href: "/backoffice" },
-          { label: "Cadastros Auxiliares", href: "/backoffice/cadastros-auxiliares" },
+          { label: "Backoffice", href: "/dashboard/backoffice/dashboard" },
+          { label: "Tabelas do Sistema", href: "/dashboard/backoffice/tabelas" },
           { label: "Marcas" }
         ]}
         icon={<BookmarkCheck className="text-primary" size={22} />}

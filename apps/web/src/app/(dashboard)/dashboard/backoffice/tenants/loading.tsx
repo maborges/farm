@@ -3,7 +3,7 @@ import { Building2, ShieldCheck, Users } from "lucide-react";
 
 export default function TenantsLoading() {
     return (
-        <div className="p-6 space-y-6 w-full">
+        <div className="p-6 space-y-6">
             {/* Header */}
             <div className="flex items-center justify-between">
                 <div className="space-y-2">

@@ -186,7 +186,7 @@ export default function EmailTemplatesPage() {
 
     if (isLoading) {
         return (
-            <div className="p-8 space-y-6 w-full max-w-full">
+            <div className="p-6 space-y-6">
                 <Skeleton className="h-16 w-full" />
                 <div className="grid gap-4 md:grid-cols-4">
                     {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24" />)}
@@ -197,13 +197,17 @@ export default function EmailTemplatesPage() {
     }
 
     return (
-        <div className="p-8 space-y-8 w-full max-w-full">
+        <div className="p-6 space-y-6">
             <PageHeader
-                title="Templates de Email"
+                title="Templates de E-mail"
                 description="Gerencie os templates de email transacionais, marketing e sistema."
-                breadcrumbs={[{ label: "Backoffice" }, { label: "Sistema" }, { label: "Email Templates" }]}
+                icon={<Mail className="text-primary" size={22} />}
+                breadcrumbs={[
+                    { label: "Backoffice", href: "/dashboard/backoffice/dashboard" },
+                    { label: "Templates de E-mail" },
+                ]}
                 actions={
-                    <Button onClick={openCreate} size="sm">
+                    <Button onClick={openCreate} size="sm" variant="outline" className="rounded-sm">
                         <Plus className="size-4 mr-2" /> Novo Template
                     </Button>
                 }

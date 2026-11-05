@@ -790,7 +790,7 @@ export default function PlansBackofficePage() {
 
     if (isLoading) {
         return (
-            <div className="flex-1 space-y-8 p-8 max-w-7xl mx-auto w-full">
+            <div className="p-6 space-y-6">
                 <div className="flex items-center justify-between">
                     <Skeleton className="h-10 w-48" />
                     <Skeleton className="h-10 w-32" />
@@ -803,13 +803,17 @@ export default function PlansBackofficePage() {
     }
 
     return (
-        <div className="p-8 space-y-8 w-full max-w-full">
+        <div className="p-6 space-y-6">
             <PageHeader
                 title="Planos & Preços"
                 description="Configure os pacotes comerciais e módulos disponíveis."
                 icon={<Package className="text-primary" size={22} />}
+                breadcrumbs={[
+                    { label: "Backoffice", href: "/dashboard/backoffice/dashboard" },
+                    { label: "Planos & Preços" },
+                ]}
                 actions={
-                    <Button size="sm" onClick={() => setCreateOpen(true)} className="gap-2">
+                    <Button size="sm" variant="outline" onClick={() => setCreateOpen(true)} className="gap-2 rounded-sm">
                         <Plus className="size-4" />
                         Novo Plano
                     </Button>

@@ -11,8 +11,8 @@ export default function BackofficeUnidadesConversoesPage() {
         title="Conversões de Unidade"
         description="Gerencie os fatores de conversão entre unidades de medida globais"
         breadcrumbs={[
-          { label: "Backoffice", href: "/backoffice" },
-          { label: "Cadastros Auxiliares", href: "/backoffice/cadastros-auxiliares" },
+          { label: "Backoffice", href: "/dashboard/backoffice/dashboard" },
+          { label: "Tabelas do Sistema", href: "/dashboard/backoffice/tabelas" },
           { label: "Conversões de Unidade" },
         ]}
         icon={<ArrowLeftRight className="text-primary" size={22} />}

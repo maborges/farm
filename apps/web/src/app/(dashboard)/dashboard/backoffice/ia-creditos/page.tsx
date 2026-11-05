@@ -19,6 +19,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/shared/page-header";
 import { getApiBaseUrl } from "@/lib/runtime-config";
 
 interface AuditoriaItem {
@@ -123,17 +124,17 @@ export default function IACreditsAuditoriaPage() {
     const itens = data?.itens ?? [];
 
     return (
-        <div className="space-y-6 max-w-5xl">
-            {/* Header */}
-            <div>
-                <h1 className="text-lg font-bold text-foreground flex items-center gap-2">
-                    <BrainCircuit className="size-5 text-primary" />
-                    Auditoria — Créditos de IA
-                </h1>
-                <p className="text-sm text-muted-foreground mt-0.5">
-                    Vendas, custos e margem dos pacotes de créditos de IA.
-                </p>
-            </div>
+        <div className="p-6 space-y-6">
+            <PageHeader
+                title="Auditoria — Créditos de IA"
+                description="Vendas, custos e margem dos pacotes de créditos de IA."
+                icon={<BrainCircuit className="size-[22px] text-primary" />}
+                breadcrumbs={[
+                    { label: "Backoffice", href: "/dashboard/backoffice/dashboard" },
+                    { label: "IA", href: "/dashboard/backoffice/ia-creditos" },
+                    { label: "Auditoria" },
+                ]}
+            />
 
             <Separator />
 

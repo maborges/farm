@@ -438,6 +438,7 @@ class BackofficePermissions:
             "backoffice:kb:*",
             "backoffice:profiles:*",
             "backoffice:agro:*",
+            "backoffice:impersonate",
         ],
 
         "suporte": [
@@ -449,6 +450,7 @@ class BackofficePermissions:
             "backoffice:agro:view",
             "backoffice:agro:users:view",
             "backoffice:agro:config:view",
+            "backoffice:impersonate",
         ],
 
         "financeiro": [

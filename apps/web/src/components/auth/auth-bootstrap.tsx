@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAppStore } from "@/lib/stores/app-store";
 import { apiFetch } from "@/lib/api";
 import { extractTenantContextsFromToken } from "@/lib/jwt";
-import type { TenantRole, TenantSummary } from "@/types/global";
+import type { ImpersonationInfo, TenantRole, TenantSummary } from "@/types/global";
 
 interface AuthProfileResponse {
     id: string;
@@ -19,6 +19,7 @@ interface AuthProfileResponse {
     is_superuser: boolean;
     navigation_mode: "SIDEBAR" | "MEGA_MENU";
     tenants: TenantSummary[];
+    impersonation?: ImpersonationInfo | null;
 }
 
 interface AuthBootstrapProps {
@@ -134,6 +135,12 @@ export function AuthBootstrap({
                     unidadesProdutivas,
                     profile.tenants,
                 );
+
+                if (profile.impersonation) {
+                    useAppStore.getState().setImpersonation(profile.impersonation);
+                } else {
+                    useAppStore.getState().setImpersonation(null);
+                }
             })
             .catch(() => {
                 if (cancelled) {

@@ -275,7 +275,7 @@ export default function CuponsBackofficePage() {
 
     if (isLoading) {
         return (
-            <div className="p-8 space-y-6 w-full max-w-full">
+            <div className="p-6 space-y-6">
                 <Skeleton className="h-16 w-full" />
                 <div className="grid gap-4 md:grid-cols-4">
                     {Array.from({ length: 4 }).map((_, i) => (
@@ -288,13 +288,18 @@ export default function CuponsBackofficePage() {
     }
 
     return (
-        <div className="p-8 space-y-8 w-full max-w-full">
+        <div className="p-6 space-y-6">
             <PageHeader
                 title="Cupons & Promoções"
                 description="Gerencie cupons de desconto para assinaturas."
                 icon={<Tag className="text-primary" size={22} />}
+                breadcrumbs={[
+                    { label: "Backoffice", href: "/dashboard/backoffice/dashboard" },
+                    { label: "Planos & Preços", href: "/dashboard/backoffice/plans" },
+                    { label: "Cupons de Desconto" },
+                ]}
                 actions={
-                    <Button onClick={() => setShowCreateDialog(true)} size="sm">
+                    <Button onClick={() => setShowCreateDialog(true)} size="sm" variant="outline" className="rounded-sm">
                         <Plus className="size-4 mr-2" /> Novo Cupom
                     </Button>
                 }

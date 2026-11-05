@@ -101,7 +101,7 @@ export default function BackofficeProfilesPage() {
 
     if (isLoading) {
         return (
-            <div className="p-8 space-y-6">
+            <div className="p-6 space-y-6">
                 <div className="space-y-2">
                     <Skeleton className="h-8 w-72" />
                     <Skeleton className="h-4 w-96" />
@@ -117,12 +117,16 @@ export default function BackofficeProfilesPage() {
     }
 
     return (
-        <div className="p-8 space-y-8 w-full max-w-full">
+        <div className="p-6 space-y-6">
             {/* Header */}
             <PageHeader
                 title="Perfis Padrão do Sistema"
                 description="Perfis globais disponíveis para todos os produtores. Alterações refletem imediatamente."
                 icon={<Shield className="text-primary" size={22} />}
+                breadcrumbs={[
+                    { label: "Backoffice", href: "/dashboard/backoffice/dashboard" },
+                    { label: "Perfis & Permissões" },
+                ]}
                 actions={
                     <Dialog open={createOpen} onOpenChange={setCreateOpen}>
                         <DialogTrigger asChild>

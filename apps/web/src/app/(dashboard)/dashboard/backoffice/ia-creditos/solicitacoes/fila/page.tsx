@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import Link from "next/link";
+import { PageHeader } from "@/components/shared/page-header";
 
 interface SolicitacaoItem {
     id: string;
@@ -79,33 +80,34 @@ export default function FilaPrioritariaPage() {
     const criticas = itens.filter((i) => i.prioridade >= 80);
 
     return (
-        <div className="space-y-6 max-w-3xl">
-            {/* Header */}
-            <div className="flex items-center justify-between">
-                <div>
-                    <h1 className="text-lg font-bold text-foreground flex items-center gap-2">
-                        <BrainCircuit className="size-5 text-primary" />
-                        Fila Prioritária — Créditos de IA
-                    </h1>
-                    <p className="text-sm text-muted-foreground mt-0.5">
-                        Solicitações acionáveis ordenadas por prioridade. Ataque primeiro as vermelhas.
-                    </p>
-                </div>
-                <div className="flex gap-2">
-                    <Button variant="outline" size="sm" asChild>
-                        <Link href="/dashboard/backoffice/ia-creditos/solicitacoes">
-                            <LayoutList className="size-3.5 mr-1.5" />
-                            Ver lista
-                        </Link>
-                    </Button>
-                    <Button variant="ghost" size="sm" asChild>
-                        <Link href="/dashboard/backoffice/ia-creditos/solicitacoes/kanban">
-                            <ArrowLeft className="size-3.5 mr-1.5" />
-                            Kanban
-                        </Link>
-                    </Button>
-                </div>
-            </div>
+        <div className="p-6 space-y-6">
+            <PageHeader
+                title="Fila Prioritária — Créditos de IA"
+                description="Solicitações acionáveis ordenadas por prioridade. Ataque primeiro as vermelhas."
+                icon={<BrainCircuit className="size-[22px] text-primary" />}
+                breadcrumbs={[
+                    { label: "Backoffice", href: "/dashboard/backoffice/dashboard" },
+                    { label: "IA", href: "/dashboard/backoffice/ia-creditos" },
+                    { label: "Solicitações", href: "/dashboard/backoffice/ia-creditos/solicitacoes" },
+                    { label: "Fila Prioritária" },
+                ]}
+                actions={
+                    <div className="flex items-center gap-2">
+                        <Button variant="outline" size="sm" asChild className="rounded-sm">
+                            <Link href="/dashboard/backoffice/ia-creditos/solicitacoes">
+                                <LayoutList className="size-3.5 mr-1.5" />
+                                Ver lista
+                            </Link>
+                        </Button>
+                        <Button variant="outline" size="sm" asChild className="rounded-sm">
+                            <Link href="/dashboard/backoffice/ia-creditos/solicitacoes/kanban">
+                                <ArrowLeft className="size-3.5 mr-1.5" />
+                                Kanban
+                            </Link>
+                        </Button>
+                    </div>
+                }
+            />
 
             <Separator />
 

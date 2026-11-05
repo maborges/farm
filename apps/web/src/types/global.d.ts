@@ -61,6 +61,17 @@ export interface User {
     custom_permissions?: TenantCustomPermissions;
     grupos_auth?: string[];
     navigation_mode?: "SIDEBAR" | "MEGA_MENU";
+    impersonation?: ImpersonationInfo | null;
+}
+
+export interface ImpersonationInfo {
+    active: boolean;
+    mode: "READ_ONLY" | "READ_WRITE";
+    impersonation_id: string;
+    tenant_id: string;
+    tenant_nome: string;
+    admin_email?: string;
+    admin_nome?: string;
 }
 
 export interface FazendaAccess {

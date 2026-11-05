@@ -171,7 +171,7 @@ export default function AdminUsersPage() {
 
     if (loadingStats || loadingAdmins) {
         return (
-            <div className="p-8 space-y-6">
+            <div className="p-6 space-y-6">
                 <Skeleton className="h-10 w-64" />
                 <div className="grid gap-4 md:grid-cols-4">
                     {Array.from({ length: 4 }).map((_, i) => (
@@ -184,16 +184,21 @@ export default function AdminUsersPage() {
     }
 
     return (
-        <div className="p-8 space-y-8 w-full max-w-full">
+        <div className="p-6 space-y-6">
             {/* Header */}
             <PageHeader
                 title="Gestão de Admins"
                 description="Gerencie administradores da plataforma SaaS."
+                icon={<ShieldCheck className="text-primary" size={22} />}
+                breadcrumbs={[
+                    { label: "Backoffice", href: "/dashboard/backoffice/dashboard" },
+                    { label: "Administradores" },
+                ]}
                 actions={
                     <PermissionGuard permission="backoffice:admin_users:create">
                         <Dialog open={createOpen} onOpenChange={setCreateOpen}>
                             <DialogTrigger asChild>
-                                <Button variant="ghost" size="sm" className="gap-2">
+                                <Button variant="outline" size="sm" className="gap-2 rounded-sm">
                                     <UserPlus size={14} />
                                     Novo Admin
                                 </Button>

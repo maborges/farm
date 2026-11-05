@@ -50,6 +50,7 @@ import { NotificationBell } from "./notification-bell";
 import { QuickAddMenu } from "./quick-add-menu";
 import { TenantSwitcher } from "./tenant-switcher";
 import { ToolbarWeatherWidget } from "./weather/toolbar-weather-widget";
+import { ImpersonationBanner } from "./impersonation-banner";
 
 interface MobileHeaderContext {
   title: string;
@@ -170,6 +171,7 @@ export function Topbar(): React.ReactElement {
       data-device={deviceCategory}
       className="sticky top-0 inset-x-0 z-[var(--z-fixed)] w-full border-b border-border/80 bg-background/95 backdrop-blur-md supports-[backdrop-filter]:bg-background/85 safe-area-pt select-none"
     >
+      <ImpersonationBanner />
       <div className="flex h-14 w-full min-w-0 items-center justify-between gap-2 sm:gap-4 px-3 sm:px-4">
         {/* Bloco Esquerdo: Gatilho de Navegação + Identidade / Título Contextual Mobile */}
         <div className="flex min-w-0 items-center gap-2">

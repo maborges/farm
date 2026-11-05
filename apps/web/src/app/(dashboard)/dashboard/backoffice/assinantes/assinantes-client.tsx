@@ -25,7 +25,9 @@ import {
     Phone,
     Mail,
     Plus,
+    LogIn,
 } from "lucide-react";
+import { ImpersonateTenantDialog } from "@/components/backoffice/impersonate-tenant-dialog";
 import { toast } from "sonner";
 import { format, addDays, differenceInDays } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -587,6 +589,7 @@ export default function AssinantesClient({
     const queryClient = useQueryClient();
     const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
     const [selectedTenantDetail, setSelectedTenantDetail] = useState<string | null>(null);
+    const [impersonateTarget, setImpersonateTarget] = useState<{ id: string; nome: string; documento?: string | null } | null>(null);
     const [acaoRapida, setAcaoRapida] = useState<
         "toggle_status" | "trocar_plano" | "add_dias" | null
     >(null);
@@ -812,6 +815,23 @@ export default function AssinantesClient({
                             <Button
                                 variant="ghost"
                                 size="icon-sm"
+                                className="text-muted-foreground hover:text-emerald-600 hover:bg-emerald-500/10"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    setImpersonateTarget({ id: row.id, nome: row.nome, documento: row.documento });
+                                }}
+                            >
+                                <LogIn size={14} />
+                            </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Acessar como Assinante (Suporte)</TooltipContent>
+                    </Tooltip>
+
+                    <Tooltip>
+                        <TooltipTrigger>
+                            <Button
+                                variant="ghost"
+                                size="icon-sm"
                                 className="text-muted-foreground hover:text-primary hover:bg-primary/10"
                                 onClick={(e) => {
                                     e.stopPropagation();
@@ -890,7 +910,7 @@ export default function AssinantesClient({
 
     if (isLoading) {
         return (
-            <div className="p-8 space-y-6">
+            <div className="p-6 space-y-6">
                 <Skeleton className="h-10 w-64" />
                 <div className="grid gap-4 md:grid-cols-4">
                     {Array.from({ length: 4 }).map((_, i) => (
@@ -903,14 +923,13 @@ export default function AssinantesClient({
     }
 
     return (
-        <div className="p-8 space-y-8 w-full max-w-full">
+        <div className="p-6 space-y-6">
             <PageHeader
                 title="Gestão de Assinantes"
                 description="Gerencie os assinantes da plataforma: planos, status, ações comerciais e suporte."
                 breadcrumbs={[
                     { label: "Backoffice", href: "/dashboard/backoffice/dashboard" },
-                    { label: "Comercial", href: "/dashboard/backoffice/assinantes" },
-                    { label: "Gestão de Assinantes" },
+                    { label: "Assinantes" },
                 ]}
                 icon={<Users className="size-6 text-primary" />}
                 actions={
@@ -1027,6 +1046,14 @@ export default function AssinantesClient({
             <TenantDetailsDialog
                 tenantId={selectedTenantDetail}
                 onClose={() => setSelectedTenantDetail(null)}
+            />
+
+            <ImpersonateTenantDialog
+                open={!!impersonateTarget}
+                onOpenChange={(open) => {
+                    if (!open) setImpersonateTarget(null);
+                }}
+                tenant={impersonateTarget}
             />
 
             <AcaoRapidaDialog

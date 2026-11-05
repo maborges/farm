@@ -247,10 +247,16 @@ export default function BibliotecasGlobaisPage() {
     };
 
     return (
-        <div className="p-8 space-y-6 w-full max-w-full">
+        <div className="p-6 space-y-6">
             <PageHeader
                 title="Bibliotecas Globais & Catálogos"
                 description="Governança de commodities padronizadas, culturas agrícolas e unidades de medida compartilhadas no ecossistema DeepFarms Agro."
+                icon={<BookOpen className="text-emerald-600 dark:text-emerald-400" size={24} />}
+                breadcrumbs={[
+                    { label: "Backoffice", href: "/dashboard/backoffice/dashboard" },
+                    { label: "Agro", href: "/dashboard/backoffice/agro" },
+                    { label: "Bibliotecas" },
+                ]}
             />
 
             {/* Banner de Isolamento Multi-Tenant */}

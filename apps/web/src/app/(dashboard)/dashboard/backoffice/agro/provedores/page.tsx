@@ -280,11 +280,16 @@ export default function BackofficeProvedoresClimaticosPage() {
   };
 
   return (
-    <div className="p-8 space-y-6 w-full max-w-full">
+    <div className="p-6 space-y-6">
       <PageHeader
         title="Provedores Climáticos e Contingência"
         description="Administração dinâmica, cofre seguro de credenciais, cadeia de fallback e governança agrometeorológica."
         icon={<CloudSun className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />}
+        breadcrumbs={[
+          { label: "Backoffice", href: "/dashboard/backoffice/dashboard" },
+          { label: "Agro", href: "/dashboard/backoffice/agro" },
+          { label: "Provedores" },
+        ]}
         actions={
           <div className="flex items-center gap-2">
             <Button

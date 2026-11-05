@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatCard } from "@/components/shared/stat-card";
+import { PageHeader } from "@/components/shared/page-header";
 import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
@@ -127,15 +128,23 @@ export default function PipelinePage() {
   const activeCount = (estagios || []).filter((e) => e.ativo).length;
 
   return (
-    <div className="space-y-6">
-      {/* Header com título e botão */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold">Pipeline de Vendas</h1>
-        <Button onClick={openNew} className="gap-2">
-          <Plus size={16} />
-          Novo Estágio
-        </Button>
-      </div>
+    <div className="p-6 space-y-6">
+      <PageHeader
+        title="Pipeline de Vendas"
+        description="Configuração dos estágios do funil de vendas do CRM."
+        icon={<GripVertical size={22} className="text-primary" />}
+        breadcrumbs={[
+          { label: "Backoffice", href: "/dashboard/backoffice/dashboard" },
+          { label: "CRM", href: "/dashboard/backoffice/crm" },
+          { label: "Pipeline" },
+        ]}
+        actions={
+          <Button size="sm" variant="outline" onClick={openNew} className="gap-2 rounded-sm">
+            <Plus size={16} />
+            Novo Estágio
+          </Button>
+        }
+      />
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">

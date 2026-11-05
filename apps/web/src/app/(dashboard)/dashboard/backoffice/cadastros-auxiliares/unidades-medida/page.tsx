@@ -11,8 +11,8 @@ export default function BackofficeUnidadesMedidaPage() {
         title="Unidades de Medida"
         description="Gerencie as unidades de medida globais disponíveis para todos os assinantes"
         breadcrumbs={[
-          { label: "Backoffice", href: "/backoffice" },
-          { label: "Cadastros Auxiliares", href: "/backoffice/cadastros-auxiliares" },
+          { label: "Backoffice", href: "/dashboard/backoffice/dashboard" },
+          { label: "Tabelas do Sistema", href: "/dashboard/backoffice/tabelas" },
           { label: "Unidades de Medida" },
         ]}
         icon={<Ruler className="text-primary" size={22} />}

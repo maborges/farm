@@ -99,7 +99,7 @@ export default function ModulesPage() {
     // Loading skeleton
     if (isLoading) {
         return (
-            <div className="flex flex-col gap-6 p-4 md:p-8">
+            <div className="p-6 space-y-6">
                 <Skeleton className="h-10 w-64" />
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     {[1, 2, 3, 4].map(i => (
@@ -123,7 +123,7 @@ export default function ModulesPage() {
     // Empty state
     if (!modules || modules.length === 0) {
         return (
-            <div className="p-4 md:p-8">
+            <div className="p-6 space-y-6">
                 <PageHeader
                     title="Catálogo de Módulos"
                     description="Configure os módulos disponíveis para assinatura."
@@ -159,7 +159,7 @@ export default function ModulesPage() {
     const totalCategoriasAtivas = Object.keys(grouped).length;
 
     return (
-        <div className="flex flex-col gap-6 p-4 md:p-8">
+        <div className="p-6 space-y-6">
             {/* ── Header com breadcrumb ─────────────────────────────────── */}
             <PageHeader
                 title="Catálogo de Módulos"

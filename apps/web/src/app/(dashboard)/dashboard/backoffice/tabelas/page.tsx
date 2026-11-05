@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { Plus, Pencil, Trash2, ChevronRight, Tag, Box, Layers } from "lucide-react";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { PageHeader } from "@/components/shared/page-header";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -360,12 +361,15 @@ function CategoriasTab() {
 export default function TabelasPadraoPage() {
   return (
     <div className="p-6 space-y-6">
-      <div>
-        <h1 className="text-xl font-semibold">Tabelas Padrão do Sistema</h1>
-        <p className="text-sm text-muted-foreground">
-          Registros padrão disponibilizados para todos os tenants. Tenants podem visualizar estes registros e criar os seus próprios adicionais.
-        </p>
-      </div>
+      <PageHeader
+        title="Tabelas Padrão do Sistema"
+        description="Registros padrão disponibilizados para todos os tenants. Tenants podem visualizar estes registros e criar os seus próprios adicionais."
+        icon={<Layers size={22} className="text-primary" />}
+        breadcrumbs={[
+          { label: "Backoffice", href: "/dashboard/backoffice/dashboard" },
+          { label: "Tabelas Padrão" },
+        ]}
+      />
 
       <Tabs defaultValue="marcas">
         <div className="border-b bg-muted/5">

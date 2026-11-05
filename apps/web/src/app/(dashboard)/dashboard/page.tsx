@@ -260,7 +260,7 @@ function buildCopilotHighlights({
 }
 
 function DashboardContent() {
-  const { tenant, user, activeFazendaId, unidadesProdutivasAutorizadas, _hasHydrated } = useAppStore();
+  const { tenant, user, activeFazendaId, unidadesProdutivasAutorizadas, _hasHydrated, impersonation } = useAppStore();
   const activeModules = useModules();
   const hasFinance = useHasModule(FINANCE_MODULES[0]) || activeModules.some((moduleId) => FINANCE_MODULES.includes(moduleId));
   const hasAgricultureGate = useHasModule(AGRICULTURE_MODULES[0]) || activeModules.some((moduleId) => AGRICULTURE_MODULES.includes(moduleId));
@@ -268,7 +268,8 @@ function DashboardContent() {
   const profile = buildProfile(activeModules, hasFinance);
   const fazendaAtual = unidadesProdutivasAutorizadas.find((fazenda) => fazenda.id === activeFazendaId);
   const contextoLabel = fazendaAtual?.nome ?? tenant?.nome ?? "Contexto atual";
-  const isReady = _hasHydrated && !!tenant;
+  const isImpersonating = Boolean(impersonation?.active);
+  const isReady = _hasHydrated && !!tenant && (!user?.is_superuser || isImpersonating);
 
   const financeiroQuery = useQuery<DashboardFinanceiroResumo>({
     queryKey: ["dashboard-executivo-financeiro", activeFazendaId],
@@ -305,7 +306,7 @@ function DashboardContent() {
     enabled: isReady,
   });
 
-  if (user?.is_superuser && !tenant) {
+  if (user?.is_superuser && !isImpersonating) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center p-8">
         <EmptyState

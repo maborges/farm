@@ -215,7 +215,7 @@ export default function AgroConfiguracoesPage() {
 
     if (isLoading) {
         return (
-            <div className="p-8 space-y-6 w-full max-w-full">
+            <div className="p-6 space-y-6">
                 <Skeleton className="h-14 w-1/3 rounded-sm" />
                 <div className="grid gap-4 md:grid-cols-4">
                     <Skeleton className="h-24 rounded-sm" />
@@ -233,36 +233,41 @@ export default function AgroConfiguracoesPage() {
         : 0;
 
     return (
-        <div className="p-8 space-y-6 w-full max-w-full">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <PageHeader
-                    title="Configurações Globais do DeepFarms Agro"
-                    description="Administração centralizada de parâmetros dinâmicos, textos legais regulatórios e feature flags."
-                    icon={<Settings className="text-emerald-600 dark:text-emerald-400" size={24} />}
-                />
-                <div className="flex items-center gap-2">
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => refetch()}
-                        disabled={isFetching}
-                        className="rounded-sm gap-1.5 h-8 text-xs font-semibold"
-                    >
-                        <RefreshCw size={14} className={isFetching ? "animate-spin" : ""} />
-                        Recarregar
-                    </Button>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => clearCacheMutation.mutate()}
-                        disabled={clearCacheMutation.isPending || !canEdit}
-                        className="rounded-sm gap-1.5 h-8 text-xs font-semibold text-amber-700 hover:text-amber-800 dark:text-amber-400"
-                    >
-                        <RotateCcw size={14} className={clearCacheMutation.isPending ? "animate-spin" : ""} />
-                        Limpar Cache
-                    </Button>
-                </div>
-            </div>
+        <div className="p-6 space-y-6">
+            <PageHeader
+                title="Configurações Globais do DeepFarms Agro"
+                description="Administração centralizada de parâmetros dinâmicos, textos legais regulatórios e feature flags."
+                icon={<Settings className="text-emerald-600 dark:text-emerald-400" size={24} />}
+                breadcrumbs={[
+                    { label: "Backoffice", href: "/dashboard/backoffice/dashboard" },
+                    { label: "Agro", href: "/dashboard/backoffice/agro" },
+                    { label: "Configurações" },
+                ]}
+                actions={
+                    <div className="flex items-center gap-2">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => refetch()}
+                            disabled={isFetching}
+                            className="rounded-sm gap-1.5 h-8 text-xs font-semibold"
+                        >
+                            <RefreshCw size={14} className={isFetching ? "animate-spin" : ""} />
+                            Recarregar
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => clearCacheMutation.mutate()}
+                            disabled={clearCacheMutation.isPending || !canEdit}
+                            className="rounded-sm gap-1.5 h-8 text-xs font-semibold text-amber-700 hover:text-amber-800 dark:text-amber-400"
+                        >
+                            <RotateCcw size={14} className={clearCacheMutation.isPending ? "animate-spin" : ""} />
+                            Limpar Cache
+                        </Button>
+                    </div>
+                }
+            />
 
             {/* Aviso de permissão */}
             {!canEdit && (

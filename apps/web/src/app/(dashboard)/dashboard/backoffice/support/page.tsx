@@ -6,8 +6,9 @@ import { useAppStore } from "@/lib/stores/app-store";
 import {
     Send, CheckCircle,
     ArrowLeft, User, Building, LifeBuoy,
-    Clock, Wifi, WifiOff, Loader2
+    Clock, Wifi, WifiOff, Loader2, LogIn,
 } from "lucide-react";
+import { ImpersonateTenantDialog } from "@/components/backoffice/impersonate-tenant-dialog";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -26,6 +27,7 @@ import { getWsBaseUrl } from "@/lib/runtime-config";
 
 interface AdminTicket {
     id: string;
+    tenant_id?: string;
     tenant_nome: string;
     usuario_nome: string;
     assunto: string;
@@ -98,6 +100,7 @@ function useAdminSupportWS(ticketId: string | null, onMessage: (msg: AdminMessag
 export default function AdminSupportPage() {
     const queryClient = useQueryClient();
     const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
+    const [impersonateTarget, setImpersonateTarget] = useState<{ id: string; nome: string; documento?: string | null } | null>(null);
     const [replyContent, setReplyContent] = useState("");
     const [liveMessages, setLiveMessages] = useState<AdminMessage[]>([]);
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -256,10 +259,29 @@ export default function AdminSupportPage() {
             id: "acao",
             header: "Ação",
             accessorKey: "id",
-            cell: (value) => (
-                <Button variant="ghost" size="sm" onClick={() => handleSelectTicket(value as string)}>
-                    Atender
-                </Button>
+            cell: (value, row) => (
+                <div className="flex items-center gap-1 justify-end">
+                    {row.tenant_id && (
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+                            title="Acessar como Assinante"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setImpersonateTarget({
+                                    id: row.tenant_id!,
+                                    nome: row.tenant_nome,
+                                });
+                            }}
+                        >
+                            <LogIn className="h-3.5 w-3.5" />
+                        </Button>
+                    )}
+                    <Button variant="ghost" size="sm" onClick={() => handleSelectTicket(value as string)}>
+                        Atender
+                    </Button>
+                </div>
             ),
             sortable: false,
             filterable: false,
@@ -271,7 +293,7 @@ export default function AdminSupportPage() {
 
     if (isLoadingTickets) {
         return (
-            <div className="p-8 space-y-8 w-full max-w-full">
+            <div className="p-6 space-y-6">
                 <Skeleton className="h-10 w-48" />
                 <Skeleton className="h-96 w-full" />
             </div>
@@ -281,13 +303,17 @@ export default function AdminSupportPage() {
     // ─── Render ───────────────────────────────────────────────────────────────
 
     return (
-        <div className="p-8 space-y-8 w-full max-w-full">
+        <div className="p-6 space-y-6">
             {!selectedTicketId ? (
                 <>
                     <PageHeader
                         title="Chamados"
                         description="Atenda os usuários e resolva pendências da plataforma."
                         icon={<LifeBuoy className="text-primary" size={22} />}
+                        breadcrumbs={[
+                            { label: "Backoffice", href: "/dashboard/backoffice/dashboard" },
+                            { label: "Suporte Técnico" },
+                        ]}
                     />
 
                     <DataTable
@@ -306,8 +332,13 @@ export default function AdminSupportPage() {
                         title="Detalhes do Chamado"
                         description={`Visualize e responda o ticket de ${activeTicket?.usuario_nome ?? "este usuário"}`}
                         icon={<LifeBuoy className="text-primary" size={22} />}
+                        breadcrumbs={[
+                            { label: "Backoffice", href: "/dashboard/backoffice/dashboard" },
+                            { label: "Suporte Técnico", href: "/dashboard/backoffice/support" },
+                            { label: "Atendimento" },
+                        ]}
                         actions={
-                            <Button variant="ghost" className="gap-2" onClick={() => setSelectedTicketId(null)}>
+                            <Button variant="outline" size="sm" className="gap-2 rounded-sm" onClick={() => setSelectedTicketId(null)}>
                                 <ArrowLeft size={16} /> Voltar para lista
                             </Button>
                         }
@@ -338,6 +369,21 @@ export default function AdminSupportPage() {
                                     </div>
                                 </div>
                                 <div className="flex items-center gap-2">
+                                    {activeTicket?.tenant_id && (
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="text-emerald-700 border-emerald-300 hover:bg-emerald-50 dark:text-emerald-400 dark:border-emerald-600/30 dark:hover:bg-emerald-950/20"
+                                            onClick={() => {
+                                                setImpersonateTarget({
+                                                    id: activeTicket.tenant_id!,
+                                                    nome: activeTicket.tenant_nome,
+                                                });
+                                            }}
+                                        >
+                                            <LogIn size={14} className="mr-1.5" /> Acessar como Assinante
+                                        </Button>
+                                    )}
                                     {activeTicket?.status !== "CONCLUIDO" && (
                                         <Button
                                             variant="outline"
@@ -476,6 +522,14 @@ export default function AdminSupportPage() {
                     </div>
                 </>
             )}
+
+            <ImpersonateTenantDialog
+                open={!!impersonateTarget}
+                onOpenChange={(open) => {
+                    if (!open) setImpersonateTarget(null);
+                }}
+                tenant={impersonateTarget}
+            />
         </div>
     );
 }

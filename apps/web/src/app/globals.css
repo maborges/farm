@@ -527,10 +527,13 @@
     }
 
     [data-animate] {
-      opacity: 0;
-      transform: translateY(28px);
       transition: opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1),
         transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .landing-animations-ready [data-animate]:not(.is-visible) {
+      opacity: 0;
+      transform: translateY(28px);
     }
 
     [data-animate].is-visible {
@@ -552,10 +555,13 @@
 
     /* Staggered children */
     [data-animate-stagger]>* {
-      opacity: 0;
-      transform: translateY(20px);
       transition: opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1),
         transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .landing-animations-ready [data-animate-stagger]:not(.is-visible)>* {
+      opacity: 0;
+      transform: translateY(20px);
     }
 
     [data-animate-stagger].is-visible>*:nth-child(1) {
@@ -654,12 +660,10 @@
     /* ─── Premium landing motion ────────────────────────────────────── */
     @keyframes landing-hero-reveal {
       from {
-        opacity: 0;
         transform: translateY(18px);
       }
 
       to {
-        opacity: 1;
         transform: translateY(0);
       }
     }
@@ -689,7 +693,6 @@
     }
 
     .landing-hero-reveal {
-      opacity: 0;
       animation: landing-hero-reveal 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
     }
 
@@ -733,6 +736,13 @@
     }
 
     @media (prefers-reduced-motion: reduce) {
+
+      .landing-animations-ready [data-animate],
+      .landing-animations-ready [data-animate-stagger]>* {
+        opacity: 1;
+        transform: none;
+        transition: none;
+      }
 
       .landing-hero-reveal,
       .landing-hero-card,

@@ -48,11 +48,11 @@ export default async function DashboardLayout({
                         <ServiceWorkerRegistration />
                         <OfflineStatus />
                         <NavigationShell />
-                            <SidebarInset className="h-svh min-w-0 overflow-hidden bg-background text-foreground">
-                                <Topbar />
-                                <main className="flex min-h-0 flex-1 w-full overflow-y-auto overflow-x-hidden pt-14">
-                                        <AdaptiveDashboardShell hasExplicitSidebarCookie={hasExplicitSidebarCookie}>
-                                            {children}
+                        <SidebarInset className="h-svh min-w-0 overflow-hidden bg-background text-foreground">
+                            <Topbar />
+                            <main className="flex min-h-0 flex-1 w-full overflow-y-auto overflow-x-hidden">
+                                <AdaptiveDashboardShell hasExplicitSidebarCookie={hasExplicitSidebarCookie}>
+                                    {children}
                                 </AdaptiveDashboardShell>
                             </main>
                         </SidebarInset>

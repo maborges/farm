@@ -610,12 +610,12 @@ export function CrmClient({
     }
 
     return (
-        <div className="p-6 space-y-6 w-full max-w-full">
+        <div className="p-6 space-y-6">
             <PageHeader
                 title="CRM"
                 description="Gerencie leads e oportunidades comerciais."
                 breadcrumbs={[
-                    { label: "Backoffice", href: "/dashboard/backoffice" },
+                    { label: "Backoffice", href: "/dashboard/backoffice/dashboard" },
                     { label: "CRM" },
                 ]}
                 icon={<Target className="h-8 w-8 text-primary" />}

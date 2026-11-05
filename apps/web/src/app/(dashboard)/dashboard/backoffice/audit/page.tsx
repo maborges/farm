@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
 import {
-    Activity, ChevronRight, User, Globe, Monitor, Filter, X,
+    Activity, ChevronRight, User, Globe, Monitor, Filter, X, FileText,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -188,7 +188,7 @@ export default function AuditBackofficePage() {
 
     if (isLoading) {
         return (
-            <div className="p-8 space-y-6 w-full max-w-full">
+            <div className="p-6 space-y-6">
                 <Skeleton className="h-16 w-full" />
                 <div className="grid gap-4 md:grid-cols-3">
                     {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-24" />)}
@@ -199,11 +199,15 @@ export default function AuditBackofficePage() {
     }
 
     return (
-        <div className="p-8 space-y-8 w-full max-w-full">
+        <div className="p-6 space-y-6">
             <PageHeader
                 title="Logs de Auditoria"
                 description="Histórico de todas as ações administrativas na plataforma."
-                breadcrumbs={[{ label: "Backoffice" }, { label: "Sistema" }, { label: "Auditoria" }]}
+                icon={<FileText className="text-primary" size={22} />}
+                breadcrumbs={[
+                    { label: "Backoffice", href: "/dashboard/backoffice/dashboard" },
+                    { label: "Logs de Auditoria" },
+                ]}
                 actions={
                     <Button
                         variant={showFilters ? "secondary" : "outline"}

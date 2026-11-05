@@ -37,13 +37,14 @@ function isOnboardingAllowedPath(pathname: string): boolean {
  * acesso ao dashboard até a configuração inicial ser concluída.
  */
 export function OnboardingGuard({ children }: { children: React.ReactNode }) {
-  const { tenant, user, _hasHydrated } = useAppStore();
+  const { tenant, user, impersonation, _hasHydrated } = useAppStore();
   const router = useRouter();
   const pathname = usePathname();
   const [isCheckingStatus, setIsCheckingStatus] = useState(true);
   const tenantId = tenant?.id ?? null;
   const isAllowedPath = isOnboardingAllowedPath(pathname);
-  const needsStatusCheck = _hasHydrated && !!tenantId && !user?.is_superuser;
+  const isImpersonating = Boolean(impersonation?.active);
+  const needsStatusCheck = _hasHydrated && !!tenantId && !user?.is_superuser && !isImpersonating;
 
   useEffect(() => {
     if (!needsStatusCheck || isAllowedPath) {

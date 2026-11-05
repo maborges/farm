@@ -291,7 +291,7 @@ export default function UsersBackofficePage() {
 
     if (isLoading) {
         return (
-            <div className="p-8 space-y-6">
+            <div className="p-6 space-y-6">
                 <Skeleton className="h-10 w-48" />
                 <Skeleton className="h-96 w-full rounded-sm" />
             </div>
@@ -299,11 +299,15 @@ export default function UsersBackofficePage() {
     }
 
     return (
-        <div className="p-8 space-y-8 w-full max-w-full">
+        <div className="p-6 space-y-6">
             <PageHeader
                 title="Usuários Globais"
                 description="Gerencie identidades e acessos em toda a plataforma."
                 icon={<Users className="text-primary" size={22} />}
+                breadcrumbs={[
+                    { label: "Backoffice", href: "/dashboard/backoffice/dashboard" },
+                    { label: "Usuários Globais" },
+                ]}
             />
 
             <div className="grid gap-4 md:grid-cols-3">

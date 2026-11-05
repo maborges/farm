@@ -420,11 +420,16 @@ export default function BackofficeMercadoPage() {
   }
 
   return (
-    <div className="flex-1 space-y-6 p-6">
+    <div className="p-6 space-y-6">
       <PageHeader
         title="Mercado & Fontes Oficiais"
         description="Governança de integridade, parâmetros de cache, rastreabilidade e versionamento atômico das fontes públicas do Agro."
         icon={<TrendingUp className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />}
+        breadcrumbs={[
+          { label: "Backoffice", href: "/dashboard/backoffice/dashboard" },
+          { label: "Configurações Agro", href: "/dashboard/backoffice/agro" },
+          { label: "Mercado & Fontes" },
+        ]}
         actions={
           <div className="flex items-center gap-2">
             <Button

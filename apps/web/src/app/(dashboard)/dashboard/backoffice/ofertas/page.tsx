@@ -155,11 +155,16 @@ export default function OfertasPage() {
     };
 
     return (
-        <div className="p-8 space-y-8 w-full max-w-full">
+        <div className="p-6 space-y-6">
             <PageHeader
                 title="Ofertas & Planos Comerciais"
                 description="Gerencie produtos, módulos e planos de assinatura."
-                breadcrumbs={[{ label: "Backoffice" }, { label: "Comercial" }, { label: "Ofertas" }]}
+                icon={<Package className="text-primary" size={22} />}
+                breadcrumbs={[
+                    { label: "Backoffice", href: "/dashboard/backoffice/dashboard" },
+                    { label: "Planos Comerciais", href: "/dashboard/backoffice/plans" },
+                    { label: "Ofertas" },
+                ]}
             />
 
             {/* Stats */}

@@ -231,7 +231,7 @@ export default function BackofficeKBPage() {
 
     if (isLoading) {
         return (
-            <div className="p-8 space-y-4">
+            <div className="p-6 space-y-6">
                 <Skeleton className="h-10 w-64" />
                 <Skeleton className="h-96 w-full" />
             </div>
@@ -239,25 +239,32 @@ export default function BackofficeKBPage() {
     }
 
     return (
-        <div className="p-6 md:p-8 space-y-6 md:space-y-8 w-full max-w-[1600px] mx-auto">
+        <div className="p-6 space-y-6">
             {/* ─── Header ────────────────────────────────────────────────────── */}
             <PageHeader
                 title="Base de Conhecimento"
                 description="Crie e gerencie os artigos da base de conhecimento para os usuários."
                 icon={<Book className="text-primary" size={22} />}
+                breadcrumbs={[
+                    { label: "Backoffice", href: "/dashboard/backoffice/dashboard" },
+                    { label: "Base de Conhecimento" },
+                ]}
                 actions={
                     <div className="flex gap-2">
                         <Button 
                             variant="outline" 
-                            className="gap-2"
+                            size="sm"
+                            className="gap-2 rounded-sm"
                             onClick={() => handleOpenCategoryModal()}
                         >
                             <LayoutGrid className="size-4" /> 
                             <span className="hidden sm:inline">Nova Categoria</span>
                         </Button>
                         <Button
+                            variant="outline"
+                            size="sm"
                             onClick={() => handleOpenArticleModal()}
-                            className="gap-2"
+                            className="gap-2 rounded-sm"
                         >
                             <BookPlus className="size-4" /> 
                             <span className="hidden sm:inline">Novo Artigo</span>

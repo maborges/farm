@@ -65,7 +65,13 @@ def invalidate_session_cache(token_hash: str) -> None:
 
 async def _activate_session_tenant(session: AsyncSession, tenant_id: uuid.UUID) -> None:
     """Ativa um Tenant já autenticado e autorizado na transação atual."""
-    if "postgresql" in DB_URL:
+    bind = getattr(session, "bind", None)
+    dialect_name = getattr(getattr(bind, "dialect", None), "name", None)
+    if dialect_name == "sqlite":
+        session.info["tenant_id"] = tenant_id
+        return
+
+    if "postgresql" in DB_URL or dialect_name == "postgresql":
         try:
             await session.execute(
                 text("SELECT set_config('app.current_tenant_id', :tenant_id, true)"),
@@ -323,6 +329,24 @@ async def _validate_token_session(token: str, session: AsyncSession) -> dict:
             sessao = result.one_or_none()
             sessao_status = sessao[0] if sessao else None
 
+            if payload.get("impersonating") is True:
+                impersonation_id = payload.get("impersonation_id")
+                if impersonation_id:
+                    from core.models.admin_impersonation import AdminImpersonation
+                    imp_stmt = select(AdminImpersonation.fim).where(
+                        AdminImpersonation.id == uuid.UUID(str(impersonation_id))
+                    )
+                    imp_res = await session.execute(imp_stmt)
+                    imp_row = imp_res.one_or_none()
+                    if imp_row is None or imp_row[0] is not None:
+                        _cache_set(token_hash, False)
+                        raise HTTPException(
+                            status_code=status.HTTP_401_UNAUTHORIZED,
+                            detail="Sessão de impersonação inexistente ou encerrada.",
+                        )
+                _cache_set(token_hash, True)
+                return payload
+
             if payload.get("session_required") is True and sessao is None:
                 _cache_set(token_hash, False)
                 raise HTTPException(status_code=401, detail="Sessão inexistente ou revogada")
@@ -378,11 +402,38 @@ async def get_global_user_claims(
 
 
 async def get_current_user_claims(
+    request: Request = None,
     token: str = Depends(verify_commercial_jwt_guardrail),
     session: AsyncSession = Depends(get_session),
 ) -> dict:
     """Valida identidade/sessão e ativa claim Tenant somente após membership."""
     claims = await _validate_token_session(token, session)
+
+    # Tratamento de Impersonação (Acesso Assistido por Administrador ou Suporte)
+    if claims.get("impersonating") is True:
+        # Se estiver em modo READ_ONLY, bloqueia qualquer mutação de dados (POST, PUT, PATCH, DELETE)
+        if (
+            claims.get("impersonation_mode") == "READ_ONLY"
+            and request is not None
+            and request.method.upper() in ("POST", "PUT", "PATCH", "DELETE")
+        ):
+            path = str(getattr(getattr(request, "url", None), "path", ""))
+            # Rotas de controle da própria impersonação ou logout são liberadas
+            if not path.startswith("/api/v1/backoffice/impersonate") and not path.endswith(("/auth/logout", "/auth/heartbeat")):
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Modo de suporte Somente Leitura ativo. Operações de gravação/edição estão bloqueadas para proteção dos dados do cliente. Alterne para o Modo Edição se necessário.",
+                )
+
+        tenant_id_str = claims.get("tenant_id")
+        if tenant_id_str:
+            try:
+                tenant_id = uuid.UUID(str(tenant_id_str))
+                await _activate_session_tenant(session, tenant_id)
+            except Exception as exc:
+                logger.error(f"Erro ao ativar contexto de tenant para impersonação: {exc}")
+        return claims
+
     tenant_id_str = claims.get("tenant_id")
     if not tenant_id_str:
         return claims
@@ -429,7 +480,7 @@ async def get_tenant_id(
                 raise HTTPException(status_code=403, detail=TENANT_CONTEXT_ERROR)
             if header_tenant_id != tenant_id:
                 raise HTTPException(status_code=403, detail=TENANT_CONTEXT_ERROR)
-        if not claims.get("is_superuser"):
+        if not claims.get("is_superuser") and not claims.get("impersonating"):
             from core.models.auth import TenantUsuario
 
             try:
@@ -532,7 +583,15 @@ async def get_current_user(
 
     result = await session.execute(select(Usuario).where(Usuario.id == user_id))
     user = result.scalar_one_or_none()
-    if not user or not user.ativo:
+    if not user:
+        if claims.get("impersonating") or claims.get("is_superuser"):
+            from core.models.admin_user import AdminUser
+            admin_res = await session.execute(select(AdminUser).where(AdminUser.id == user_id))
+            admin = admin_res.scalar_one_or_none()
+            if admin and admin.ativo:
+                return admin
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Usuário não encontrado ou inativo.")
+    if not user.ativo:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Usuário não encontrado ou inativo.")
     return user
 
@@ -573,7 +632,7 @@ async def get_current_tenant(
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Token inválido: tenant ID malformado.")
 
     user_id: uuid.UUID | None = None
-    if not claims.get("is_superuser"):
+    if not claims.get("is_superuser") and not claims.get("impersonating"):
         user_id_str = claims.get("sub")
         if not user_id_str:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=TENANT_CONTEXT_ERROR)
@@ -631,8 +690,13 @@ async def get_current_tenant(
     return tenant
 
 async def get_current_admin(claims: dict = Depends(get_current_user_claims)) -> dict:
-    """Garante que o usuário é um administrador global do SaaS."""
-    if not claims.get("is_superuser"):
+    """Garante que o usuário é um operador do Backoffice administrativo do SaaS."""
+    is_admin = (
+        claims.get("is_superuser")
+        or claims.get("backoffice_role") in ("super_admin", "admin", "suporte", "financeiro", "comercial")
+        or (claims.get("role") in ("super_admin", "admin", "suporte", "financeiro", "comercial") and claims.get("product_scope") == "backoffice")
+    )
+    if not is_admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Acesso restrito ao Backoffice administrativo."
@@ -719,11 +783,16 @@ def require_module(required_module: str):
             raise HTTPException(status_code=403, detail=TENANT_CONTEXT_ERROR)
 
         tenant_id = uuid.UUID(tenant_id_str)
-        allowed_modules = await _get_modulos_do_tenant(tenant_id, session)
 
-        if Modulos.CORE not in allowed_modules:
-            logger.error(f"CRITICAL: Tenant {tenant_id} sem módulo CORE")
-            raise HTTPException(status_code=403, detail="Licença base inválida. Contate o suporte.")
+        # Suporte técnico em impersonação usa a lista de módulos resolvida na emissão do token
+        if claims.get("impersonating"):
+            allowed_modules = claims.get("modules") or []
+        else:
+            allowed_modules = await _get_modulos_do_tenant(tenant_id, session)
+
+            if Modulos.CORE not in allowed_modules:
+                logger.error(f"CRITICAL: Tenant {tenant_id} sem módulo CORE")
+                raise HTTPException(status_code=403, detail="Licença base inválida. Contate o suporte.")
 
         if required_module not in allowed_modules:
             from core.constants import ModuloMetadata
@@ -765,6 +834,10 @@ def require_tier(minimum_tier: "PlanTier"):
     ):
         from core.models.billing import AssinaturaTenant, PlanoAssinatura
         from core.constants import PlanTier
+
+        # SaaS admin e suporte técnico em impersonação têm acesso irrestrito
+        if claims.get("is_superuser") or claims.get("impersonating"):
+            return True
 
         tenant_id_str = claims.get("tenant_id")
         request_path = str(getattr(getattr(request, "url", None), "path", "")) if request else ""
@@ -900,7 +973,9 @@ def require_grupo_access():
         from core.models.unidade_produtiva import UnidadeProdutiva as Fazenda
         from core.models.auth import TenantUsuario
 
-        # is_owner bypasses group check
+        # is_owner or impersonating bypasses group check
+        if claims.get("impersonating"):
+            return True
         tenant_id_str = claims.get("tenant_id")
         user_id_str = claims.get("sub")
         if not tenant_id_str or not user_id_str:
@@ -1137,10 +1212,13 @@ def require_tenant_permission(permission: str):
     """Dependency para verificar permissão específica no contexto do tenant."""
     async def _dependency(
         request: Request,
+        claims: dict = Depends(get_current_user_claims),
         tenant_id: uuid.UUID = Depends(get_tenant_id),
         user: "Usuario" = Depends(get_current_user),
         session: AsyncSession = Depends(get_session)
     ):
+        if claims.get("impersonating") or claims.get("role") == "owner" or claims.get("is_superuser"):
+            return True
         fazenda_id = None
         fazenda_id_header = request.headers.get("x-fazenda-id")
         if fazenda_id_header:
@@ -1588,9 +1666,10 @@ async def get_unidade_produtiva_context(
         except ValueError:
             raise HTTPException(status_code=401, detail="Token inválido: usuário malformado.")
 
-    # Owner do tenant mantém acesso amplo; demais usuários precisam vínculo
-    # explícito com a unidade produtiva.
-    if user_id is not None:
+    # Superuser, suporte em impersonação e owner têm acesso amplo a todas as UPs do tenant
+    if claims.get("is_superuser") or claims.get("impersonating") or claims.get("role") == "owner":
+        user_id = None
+    elif user_id is not None:
         owner = (
             await session.execute(
                 select(TenantUsuario.id).where(

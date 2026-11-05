@@ -165,13 +165,16 @@ export default function AgroDashboardPage() {
     });
 
     return (
-        <div className="p-8 space-y-6 w-full max-w-full">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <PageHeader
-                    title="Painel Executivo & Governança Operacional"
-                    description="Observabilidade centralizada do DeepFarms Agro: usuários, tráfego público, adaptadores climáticos, fontes oficiais e maturidade técnica."
-                />
-                <div className="flex items-center gap-2 self-start sm:self-center">
+        <div className="p-6 space-y-6">
+            <PageHeader
+                title="Painel Executivo & Governança Operacional"
+                description="Observabilidade centralizada do DeepFarms Agro: usuários, tráfego público, adaptadores climáticos, fontes oficiais e maturidade técnica."
+                icon={<LayoutDashboard className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />}
+                breadcrumbs={[
+                    { label: "Backoffice", href: "/dashboard/backoffice/dashboard" },
+                    { label: "Agro" },
+                ]}
+                actions={
                     <Button
                         variant="outline"
                         size="sm"
@@ -182,8 +185,8 @@ export default function AgroDashboardPage() {
                         <RefreshCw size={13} className={loadingResumo ? "animate-spin" : ""} />
                         Atualizar
                     </Button>
-                </div>
-            </div>
+                }
+            />
 
             {/* Alertas operacionais ficam visíveis no início do painel, fora das abas. */}
             {alertas && alertas.length > 0 && (

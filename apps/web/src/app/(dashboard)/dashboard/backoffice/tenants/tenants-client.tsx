@@ -21,7 +21,9 @@ import {
     UserX,
     UserCheck,
     Plus,
+    LogIn,
 } from "lucide-react";
+import { ImpersonateTenantDialog } from "@/components/backoffice/impersonate-tenant-dialog";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -128,6 +130,7 @@ interface TenantDetailsDialogProps {
     onClose: () => void;
     expandedFazendas: Set<string>;
     setExpandedFazendas: (fazendas: Set<string>) => void;
+    onImpersonate?: (tenant: { id: string; nome: string; documento?: string | null }) => void;
 }
 
 const getModuloLabel = (moduloId: string) => getModuleName(moduloId);
@@ -136,7 +139,8 @@ function TenantDetailsDialog({
     tenantId,
     onClose,
     expandedFazendas,
-    setExpandedFazendas
+    setExpandedFazendas,
+    onImpersonate,
 }: TenantDetailsDialogProps) {
     const queryClient = useQueryClient();
     const { data: details, isLoading, error: detailsError } = useQuery({
@@ -233,12 +237,12 @@ function TenantDetailsDialog({
                 </DialogHeader>
 
                 {isLoading ? (
-                    <div className="p-8 space-y-4">
+                    <div className="p-6 space-y-4">
                         <Skeleton className="h-20 w-full" />
                         <Skeleton className="h-40 w-full" />
                     </div>
                 ) : detailsError ? (
-                    <div className="p-8 flex flex-col items-center justify-center h-full text-center space-y-4">
+                    <div className="p-6 flex flex-col items-center justify-center h-full text-center space-y-4">
                         <div className="h-16 w-16 rounded-full bg-red-500/10 flex items-center justify-center">
                             <UserX className="h-8 w-8 text-red-500" />
                         </div>
@@ -674,8 +678,28 @@ function TenantDetailsDialog({
                     </Tabs>
                 ) : null}
 
-                <DialogFooter className="p-6 border-t shrink-0">
-                    <Button variant="outline" onClick={onClose}>
+                <DialogFooter className="p-6 border-t shrink-0 flex items-center justify-between sm:justify-between">
+                    <div>
+                        {onImpersonate && details?.tenant && (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="gap-1.5 border-emerald-600/50 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/10"
+                                onClick={() => {
+                                    onImpersonate({
+                                        id: details.tenant.id,
+                                        nome: details.tenant.nome,
+                                        documento: details.tenant.documento,
+                                    });
+                                    onClose();
+                                }}
+                            >
+                                <LogIn className="h-4 w-4" />
+                                Acessar como Assinante
+                            </Button>
+                        )}
+                    </div>
+                    <Button variant="outline" size="sm" onClick={onClose}>
                         Fechar Detalhes
                     </Button>
                 </DialogFooter>
@@ -694,6 +718,7 @@ export default function TenantsClient({ initialTenants, initialPlans }: TenantsC
     const [selectedTenant, setSelectedTenant] = useState<Tenant | null>(null);
     const [selectedPlanId, setSelectedPlanId] = useState<string>("");
     const [viewTenantId, setViewTenantId] = useState<string | null>(null);
+    const [impersonateTarget, setImpersonateTarget] = useState<{ id: string; nome: string; documento?: string | null } | null>(null);
     const [expandedFazendas, setExpandedFazendas] = useState<Set<string>>(new Set());
     const [showCreateDialog, setShowCreateDialog] = useState(false);
     const [createFormData, setCreateFormData] = useState({
@@ -779,10 +804,15 @@ export default function TenantsClient({ initialTenants, initialPlans }: TenantsC
     };
 
     return (
-        <div className="p-8 space-y-8 w-full max-w-full">
+        <div className="p-6 space-y-6">
             <PageHeader
                 title="Gestão de Assinantes"
                 description="Controle de produtores, assinaturas e acesso do DeepFarms."
+                icon={<Building2 className="text-primary" size={22} />}
+                breadcrumbs={[
+                    { label: "Backoffice", href: "/dashboard/backoffice/dashboard" },
+                    { label: "Assinantes & Tenants" },
+                ]}
                 actions={
                     <Button size="sm" variant="outline" className="gap-2" onClick={() => setShowCreateDialog(true)}>
                         <Plus className="h-4 w-4" />
@@ -899,6 +929,18 @@ export default function TenantsClient({ initialTenants, initialPlans }: TenantsC
                                 <Button
                                     variant="ghost"
                                     size="sm"
+                                    className="h-7 w-7 p-0 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+                                    title="Acessar como Assinante (Suporte)"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setImpersonateTarget({ id: tenant.id, nome: tenant.nome, documento: tenant.documento });
+                                    }}
+                                >
+                                    <LogIn className="h-3.5 w-3.5" />
+                                </Button>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
                                     className="h-7 w-7 p-0"
                                     title="Visualizar"
                                     onClick={(e) => { e.stopPropagation(); setViewTenantId(tenant.id); }}
@@ -938,6 +980,15 @@ export default function TenantsClient({ initialTenants, initialPlans }: TenantsC
                 onClose={() => setViewTenantId(null)}
                 expandedFazendas={expandedFazendas}
                 setExpandedFazendas={setExpandedFazendas}
+                onImpersonate={setImpersonateTarget}
+            />
+
+            <ImpersonateTenantDialog
+                open={!!impersonateTarget}
+                onOpenChange={(open) => {
+                    if (!open) setImpersonateTarget(null);
+                }}
+                tenant={impersonateTarget}
             />
 
             <Dialog open={!!selectedTenant} onOpenChange={() => setSelectedTenant(null)}>

@@ -79,7 +79,7 @@ export default function SaaSConfigPage() {
 
     if (!mounted || isLoading) {
         return (
-            <div className="flex flex-col gap-6 p-6">
+            <div className="p-6 space-y-6">
                 <Skeleton className="h-10 w-48" />
                 <div className="grid gap-6">
                     <Skeleton className="h-64" />
@@ -91,10 +91,15 @@ export default function SaaSConfigPage() {
 
     if (error) {
         return (
-            <div className="flex flex-col gap-6 p-6">
+            <div className="p-6 space-y-6">
                 <PageHeader
                     title="Parâmetros do SaaS"
                     description="Configurações globais de infraestrutura persistidas no banco de dados."
+                    icon={<Settings className="text-primary" size={22} />}
+                    breadcrumbs={[
+                        { label: "Backoffice", href: "/dashboard/backoffice/dashboard" },
+                        { label: "Configurações Gerais" },
+                    ]}
                 />
                 <Card className="border-destructive/30 bg-destructive/5">
                     <CardContent className="pt-6 flex items-center gap-4">
@@ -150,11 +155,15 @@ export default function SaaSConfigPage() {
     const configsExist = configs && configs.length > 0;
 
     return (
-        <div className="flex flex-col gap-6 p-6">
+        <div className="p-6 space-y-6">
             <PageHeader
                 title="Parâmetros do SaaS"
                 description="Configurações globais persistidas no banco de dados."
                 icon={<Settings className="text-primary" size={22} />}
+                breadcrumbs={[
+                    { label: "Backoffice", href: "/dashboard/backoffice/dashboard" },
+                    { label: "Configurações Gerais" },
+                ]}
                 actions={
                     <Badge variant="outline" className="bg-primary/5 gap-2 px-3 py-1">
                         <Database size={14} className="text-primary" /> Persistente
