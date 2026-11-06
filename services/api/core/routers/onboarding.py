@@ -164,7 +164,7 @@ async def obter_dados_ativacao(token: str, session: AsyncSession = Depends(get_s
     # Buscar assinatura + plano
     stmt = select(AssinaturaTenant).where(
         AssinaturaTenant.tenant_id == tenant.id,
-        AssinaturaTenant.tipo_assinatura == "PRINCIPAL",
+        AssinaturaTenant.tipo_assinatura == "TENANT",
     )
     result = await session.execute(stmt)
     assinatura = result.scalar_one_or_none()
@@ -238,7 +238,7 @@ async def ativar_conta(
     # Buscar assinatura
     stmt = select(AssinaturaTenant).where(
         AssinaturaTenant.tenant_id == tenant.id,
-        AssinaturaTenant.tipo_assinatura == "PRINCIPAL",
+        AssinaturaTenant.tipo_assinatura == "TENANT",
     )
     result = await session.execute(stmt)
     assinatura = result.scalar_one_or_none()
