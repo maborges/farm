@@ -33,11 +33,16 @@ async def stripe_webhook(
     request: Request,
     stripe_signature: str = Header(None, alias="stripe-signature"),
 ):
+    if not stripe_signature:
+        raise HTTPException(status_code=400, detail="Cabeçalho Stripe-Signature ausente")
     payload = await request.body()
 
     stripe_svc = StripeService()
     try:
-        event = stripe_svc.verificar_webhook(payload, stripe_signature or "")
+        event = stripe_svc.verificar_webhook(payload, stripe_signature)
+    except stripe.error.SignatureVerificationError:
+        logger.warning("Webhook Stripe rejeitado: assinatura inválida")
+        raise HTTPException(status_code=400, detail="Assinatura Stripe inválida")
     except ValueError as e:
         logger.warning(f"Webhook Stripe inválido: {e}")
         raise HTTPException(status_code=400, detail=str(e))
