@@ -932,6 +932,8 @@ class AuthService:
             raise HTTPException(status_code=400, detail="CPF ou CNPJ inválido")
 
         agora = datetime.now(timezone.utc)
+        is_trial = not plano.is_free and plano.tem_trial
+        status_assin = "ATIVA" if plano.is_free else "TRIAL" if is_trial else "PENDENTE_PAGAMENTO"
         slug_base = _slugify_tenant_name(nome)
         slug = slug_base
         suffix = 2
@@ -942,7 +944,12 @@ class AuthService:
             suffix += 1
 
         # 1. Criar Tenant
-        tenant = Tenant(nome=nome, documento=documento_tenant, slug=slug, ativo=True)
+        tenant = Tenant(
+            nome=nome,
+            documento=documento_tenant,
+            slug=slug,
+            ativo=status_assin in ("ATIVA", "TRIAL"),
+        )
         self.session.add(tenant)
         await self.session.flush()  # gera tenant.id
 
@@ -956,13 +963,10 @@ class AuthService:
         self.session.add(tu)
 
         # 3. Criar assinatura
-        is_trial = not plano.is_free and plano.tem_trial
         if plano.is_free:
-            status_assin = "ATIVA"
             trial_expira_em = None
             primeiro_vencimento = None
         else:
-            status_assin = "TRIAL" if is_trial else "ATIVA"
             trial_expira_em = agora + timedelta(days=plano.dias_trial) if is_trial else None
             # Vencimento = dia seguinte ao fim do trial
             primeiro_vencimento = (trial_expira_em + timedelta(days=1)).date() if trial_expira_em else None

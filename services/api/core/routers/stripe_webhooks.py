@@ -12,11 +12,12 @@ from pydantic import BaseModel
 from core.dependencies import require_permission
 from sqlalchemy import select
 from datetime import datetime, timezone
+import uuid
 from loguru import logger
 
 from core.database import async_session_maker
 from core.models.tenant import Tenant
-from core.models.billing import AssinaturaTenant, Fatura
+from core.models.billing import AssinaturaTenant, Fatura, PlanoAssinatura
 from core.models.crm import LeadCRM
 from core.services.stripe_service import StripeService
 
@@ -47,72 +48,197 @@ async def stripe_webhook(
         logger.warning(f"Webhook Stripe inválido: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 
-    if event["type"] == "checkout.session.completed":
+    if event["type"] in {
+        "checkout.session.completed",
+        "checkout.session.async_payment_succeeded",
+    }:
         session = event["data"]["object"]
-        await _handle_checkout_completed(session)
+        if hasattr(session, "to_dict"):
+            session = session.to_dict()
+        processed = await _handle_checkout_completed(session)
+        if not processed:
+            return {"status": "ignored"}
 
     return {"status": "ok"}
 
 
-async def _handle_checkout_completed(session: dict) -> None:
-    """
-    Ativa tenant e assinatura após pagamento confirmado.
-    Marca o lead como 'convertido'.
-    """
-    tenant_id = session.get("metadata", {}).get("tenant_id")
-    assinatura_id = session.get("metadata", {}).get("assinatura_id")
-    stripe_subscription_id = session.get("subscription")
+def _checkout_ids(metadata: dict) -> tuple[uuid.UUID, uuid.UUID, uuid.UUID]:
+    """Parse checkout metadata IDs without allowing malformed references.
 
-    if not tenant_id or not assinatura_id:
-        logger.error(f"Webhook checkout.session.completed sem metadata: {session.get('id')}")
-        return
+    Args:
+        metadata: Signed checkout session metadata.
 
+    Returns:
+        Tenant, subscription and plan UUIDs.
+
+    Raises:
+        HTTPException: When any required metadata ID is missing or malformed.
+    """
+    try:
+        return tuple(
+            uuid.UUID(str(metadata[key]))
+            for key in ("tenant_id", "assinatura_id", "plano_id")
+        )
+    except (KeyError, TypeError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail="Metadados de checkout inválidos") from exc
+
+
+def _checkout_subscription_id(session: dict) -> str:
+    """Resolve the subscription ID from a signed Stripe Checkout Session.
+
+    Args:
+        session: Signed Checkout Session event object.
+
+    Returns:
+        Stripe subscription identifier.
+
+    Raises:
+        HTTPException: When session mode or subscription ID is invalid.
+    """
+    subscription = session.get("subscription")
+    if isinstance(subscription, dict):
+        subscription = subscription.get("id")
+    if session.get("mode") != "subscription" or not isinstance(subscription, str) or not subscription:
+        raise HTTPException(status_code=400, detail="Checkout não corresponde a uma assinatura")
+    return subscription
+
+
+async def _convert_approved_lead(db, tenant_id: uuid.UUID) -> None:
+    """Convert the approved CRM lead associated with a paid tenant.
+
+    Args:
+        db: Active webhook database session.
+        tenant_id: Tenant associated with the approved lead.
+
+    Returns:
+        None.
+
+    Raises:
+        Exception: Database failures are propagated to the transaction handler.
+    """
+    stmt = select(LeadCRM).where(LeadCRM.tenant_convertido_id == tenant_id)
+    lead = (await db.execute(stmt)).scalar_one_or_none()
+    if lead and lead.status == "aprovado":
+        lead.status = "convertido"
+        lead.data_conversao = datetime.now(timezone.utc).date()
+
+
+async def _handle_checkout_completed(session: dict) -> bool:
+    """Activate a subscription only after paid checkout or an eligible trial/free flow."""
+    payment_status = session.get("payment_status")
+    if payment_status == "unpaid":
+        return False
+    if payment_status not in {"paid", "no_payment_required"}:
+        raise HTTPException(status_code=400, detail="Status de pagamento do checkout inválido")
+
+    tenant_id, assinatura_id, plano_id = _checkout_ids(session.get("metadata") or {})
+    stripe_subscription_id = _checkout_subscription_id(session)
     async with async_session_maker() as db:
         try:
-            # Ativar tenant
             tenant = await db.get(Tenant, tenant_id)
-            if not tenant:
-                logger.error(f"Tenant {tenant_id} não encontrado no webhook Stripe")
-                return
+            assinatura = await db.get(AssinaturaTenant, assinatura_id)
+            plano = await db.get(PlanoAssinatura, plano_id)
+            if not tenant or not assinatura or not plano:
+                raise HTTPException(status_code=500, detail="Entidade do checkout ainda não foi persistida")
+            if (
+                assinatura.tenant_id != tenant_id
+                or assinatura.plano_id != plano_id
+                or assinatura.tipo_assinatura != "TENANT"
+            ):
+                raise HTTPException(status_code=400, detail="Vínculo da assinatura no checkout é inválido")
+            if assinatura.stripe_subscription_id not in (None, stripe_subscription_id):
+                raise HTTPException(status_code=409, detail="Assinatura já vinculada a outro registro Stripe")
 
+            if payment_status == "no_payment_required":
+                eligible = plano.is_free or (assinatura.status == "TRIAL" and plano.tem_trial)
+                if not eligible:
+                    await _rollback_webhook(db)
+                    return False
+                assinatura.stripe_subscription_id = stripe_subscription_id
+                tenant.ativo = True
+                tenant.activation_token = None
+                tenant.activation_expires_at = None
+                await db.commit()
+                return True
+
+            faturas = await _load_subscription_invoices(db, tenant_id, assinatura_id)
+            already_processed = (
+                assinatura.status == "ATIVA"
+                and tenant.ativo
+                and assinatura.stripe_subscription_id == stripe_subscription_id
+                and any(fatura.status == "PAGA" for fatura in faturas)
+            )
+            if already_processed:
+                return True
+
+            abertas = [fatura for fatura in faturas if fatura.status == "ABERTA"]
+            pagas = [fatura for fatura in faturas if fatura.status == "PAGA"]
+            if len(abertas) > 1:
+                raise HTTPException(status_code=500, detail="Fatura do checkout é ambígua")
+            if abertas:
+                abertas[0].status = "PAGA"
+                abertas[0].data_aprovacao_rejeicao = datetime.now(timezone.utc)
+            elif not pagas:
+                raise HTTPException(status_code=500, detail="Fatura do checkout ainda não foi persistida")
+
+            assinatura.stripe_subscription_id = stripe_subscription_id
+            assinatura.status = "ATIVA"
             tenant.ativo = True
             tenant.activation_token = None
             tenant.activation_expires_at = None
-
-            # Ativar assinatura
-            assinatura = await db.get(AssinaturaTenant, assinatura_id)
-            if assinatura:
-                assinatura.status = "ATIVA"
-                assinatura.stripe_subscription_id = stripe_subscription_id
-
-            # Baixar fatura ABERTA vinculada à assinatura
-            stmt_fatura = select(Fatura).where(
-                Fatura.assinatura_id == assinatura_id,
-                Fatura.status == "ABERTA"
-            )
-            fatura = (await db.execute(stmt_fatura)).scalar_one_or_none()
-            if fatura:
-                fatura.status = "PAGA"
-                fatura.data_aprovacao_rejeicao = datetime.now(timezone.utc)
-
-            # Converter lead vinculado
-            stmt = select(LeadCRM).where(LeadCRM.tenant_convertido_id == tenant.id)
-            result = await db.execute(stmt)
-            lead = result.scalar_one_or_none()
-            if lead and lead.status == "aprovado":
-                lead.status = "convertido"
-                lead.data_conversao = datetime.now(timezone.utc).date()
-
+            await _convert_approved_lead(db, tenant_id)
             await db.commit()
+            logger.info("Checkout Stripe pago processado.")
+            return True
+        except HTTPException:
+            await _rollback_webhook(db)
+            raise
+        except Exception as exc:
+            await _rollback_webhook(db)
+            logger.error("Falha persistindo checkout Stripe; o evento poderá ser repetido.")
+            raise HTTPException(
+                status_code=500,
+                detail="Falha ao persistir o pagamento; o webhook deve ser repetido.",
+            ) from exc
 
-            logger.info(
-                f"Tenant {tenant_id} ativado via Stripe webhook. "
-                f"Assinatura {assinatura_id} → ATIVA. "
-                f"Lead convertido: {lead.id if lead else 'N/A'}"
-            )
 
-        except Exception as e:
-            logger.error(f"Erro ao processar webhook checkout.session.completed: {e}", exc_info=True)
+async def _load_subscription_invoices(db, tenant_id, assinatura_id) -> list[Fatura]:
+    """Load invoices constrained to the signed tenant and subscription IDs.
+
+    Args:
+        db: Active webhook database session.
+        tenant_id: Validated tenant UUID.
+        assinatura_id: Validated subscription UUID.
+
+    Returns:
+        Matching invoice rows.
+
+    Raises:
+        Exception: Database failures are propagated to the transaction handler.
+    """
+    stmt = select(Fatura).where(
+        Fatura.tenant_id == tenant_id,
+        Fatura.assinatura_id == assinatura_id,
+    )
+    return (await db.execute(stmt)).scalars().all()
+
+
+async def _rollback_webhook(db) -> None:
+    """Rollback webhook writes without exposing database error details.
+
+    Args:
+        db: Active webhook database session.
+
+    Returns:
+        None.
+
+    Raises:
+        None: Rollback errors are suppressed so the original failure is preserved.
+    """
+    try:
+        await db.rollback()
+    except Exception:
+        logger.error("Rollback do webhook Stripe também falhou.")
 
 
 @router.post(
@@ -160,11 +286,13 @@ async def sync_stripe_session(body: SyncSessionRequest):
     # Normaliza para dict pois _handle_checkout_completed espera dict com .get()
     session_dict = {
         "id": session.id,
+        "mode": session.mode,
         "subscription": session.subscription,
         "payment_status": session.payment_status,
         "metadata": session.metadata._to_dict_recursive() if session.metadata else {},
     }
-    await _handle_checkout_completed(session_dict)
-    ref = body.session_id or body.payment_intent_id
-    logger.info(f"Sync manual da sessão Stripe {session.id} (ref={ref}) concluído por admin")
+    processed = await _handle_checkout_completed(session_dict)
+    if not processed:
+        raise HTTPException(status_code=409, detail="Checkout ainda não está elegível para ativação")
+    logger.info("Sincronização manual de checkout Stripe concluída.")
     return {"status": "ok", "session_id": session.id}

@@ -56,7 +56,6 @@ class StripeService:
 
             session = stripe.checkout.Session.create(
                 customer_email=email,
-                payment_method_types=["card"],
                 line_items=[{"price": price_id, "quantity": 1}],
                 mode="subscription",
                 success_url=f"{FRONTEND_URL}/onboarding/sucesso?session_id={{CHECKOUT_SESSION_ID}}",
@@ -64,6 +63,7 @@ class StripeService:
                 metadata={
                     "tenant_id": tenant_id,
                     "assinatura_id": assinatura_id,
+                    "plano_id": plano_id,
                 },
             )
 

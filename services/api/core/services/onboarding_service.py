@@ -71,6 +71,8 @@ class OnboardingService:
             raise HTTPException(status_code=404, detail="Plano indisponível ou inativo.")
 
         agora = datetime.now(timezone.utc)
+        is_trial = not plano.is_free and plano.tem_trial
+        status_assin = "ATIVA" if plano.is_free else "TRIAL" if is_trial else "PENDENTE_PAGAMENTO"
 
         # 4. Criar Usuário Global (Assinante Administrador)
         hashed_pw = self.auth_svc.get_password_hash(data.senha) if self.auth_svc else "hash_dummy"
@@ -91,7 +93,7 @@ class OnboardingService:
         tenant = Tenant(
             nome=data.nome_produtor,
             documento=documento_tenant,
-            ativo=True,
+            ativo=status_assin in ("ATIVA", "TRIAL"),
             email_responsavel=data.email,
             telefone_responsavel=data.telefone or None,
             activation_token=secrets.token_urlsafe(32),
@@ -114,13 +116,10 @@ class OnboardingService:
         self.session.add(tu)
 
         # 8. Criar Assinatura com status e trial corretos
-        is_trial = not plano.is_free and plano.tem_trial
         if plano.is_free:
-            status_assin = "ATIVA"
             trial_expira_em = None
             primeiro_vencimento = None
         else:
-            status_assin = "TRIAL" if is_trial else "ATIVA"
             trial_expira_em = agora + timedelta(days=plano.dias_trial) if is_trial else None
             primeiro_vencimento = (trial_expira_em + timedelta(days=1)).date() if trial_expira_em else None
 
@@ -154,7 +153,12 @@ class OnboardingService:
 
         # 12. Enviar e-mail de confirmação do cadastro
         try:
-            await email_service.send_registration_confirmation(
+            send_confirmation = (
+                email_service.send_registration_confirmation
+                if tenant.ativo
+                else email_service.send_activation_link
+            )
+            await send_confirmation(
                 email=user.email,
                 nome=user.nome_completo or user.username,
                 tenant_nome=tenant.nome,
