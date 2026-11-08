@@ -30,6 +30,15 @@ ROLLBACK_IMAGE_RE = re.compile(
     r"^localhost/deepfarms-rollback/(backend|web|campo|agro):"
     r"([0-9]{8}T[0-9]{6}Z)-([0-9a-f]{12})$"
 )
+SERVICE_ROLLBACK_IMAGE_RE = re.compile(
+    r"^localhost/deepfarms-rollback/(backend|web|campo|agro)/"
+    r"([a-z0-9-]+):([0-9]{8}T[0-9]{6}Z)-([0-9a-f]{12})$"
+)
+SERVICE_TO_COMPONENT = {
+    service: component
+    for component, services in SERVICES_BY_COMPONENT.items()
+    for service in services
+}
 
 
 def validate_image(component: str, reference: str) -> None:
@@ -43,8 +52,22 @@ def validate_image(component: str, reference: str) -> None:
 
 
 def validate_rollback_image(component: str, reference: str) -> None:
-    match = ROLLBACK_IMAGE_RE.fullmatch(reference)
-    if not match or match.group(1) != component:
+    if not isinstance(reference, str):
+        raise ValueError(f"imagem local de rollback inválida para {component}")
+    legacy_match = ROLLBACK_IMAGE_RE.fullmatch(reference)
+    if component in SERVICES_BY_COMPONENT and legacy_match:
+        if legacy_match.group(1) != component:
+            raise ValueError(f"imagem local de rollback inválida para {component}")
+        return
+
+    expected_component = SERVICE_TO_COMPONENT.get(component)
+    match = SERVICE_ROLLBACK_IMAGE_RE.fullmatch(reference)
+    if (
+        expected_component is None
+        or not match
+        or match.group(1) != expected_component
+        or match.group(2) != component
+    ):
         raise ValueError(f"imagem local de rollback inválida para {component}")
 
 

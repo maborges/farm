@@ -15,7 +15,13 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from changed_components import affected_components
-from deploy_hostinger import _component_image, main as deploy_main
+from deploy_hostinger import (
+    _apply_images,
+    _rollback_components,
+    _service_image_map,
+    main as deploy_main,
+    snapshot_previous,
+)
 from release_manifest import (
     make_override,
     parse_components,
@@ -233,29 +239,100 @@ class BackupReceiptTests(unittest.TestCase):
 
 
 class DeploySafetyTests(unittest.TestCase):
-    def test_first_deploy_snapshots_pilot_image_by_local_immutable_alias(self) -> None:
+    def test_backend_snapshot_keeps_distinct_previous_image_per_service(self) -> None:
         calls = []
-        image_id = "sha256:" + "c" * 64
+        service_image_ids = {
+            "api": "sha256:" + "a" * 64,
+            "automations-worker": "sha256:" + "b" * 64,
+            "background-worker": "sha256:" + "c" * 64,
+            "outbox-worker": "sha256:" + "d" * 64,
+        }
 
         def fake_run_read(command: list[str], **_: object) -> str:
             calls.append(command)
             if command[0:2] == ["docker", "compose"]:
-                return "container-id"
+                return f"container-{command[-1]}"
             if command[:3] == ["docker", "inspect", "--format"]:
-                return image_id
-            if command[:4] == ["docker", "image", "tag", image_id]:
+                return service_image_ids[command[-1].removeprefix("container-")]
+            if command[:3] == ["docker", "image", "tag"]:
                 return ""
             raise AssertionError("comando inesperado no teste")
 
         with patch("deploy_hostinger.run_read", side_effect=fake_run_read):
-            reference = _component_image(
-                "backend", Path("compose.yml"), Path("health.yml"), "farm", "20261103T120000Z"
+            references = snapshot_previous(
+                ("backend",), Path("compose.yml"), Path("health.yml"), "farm"
             )
 
-        validate_rollback_image("backend", reference)
-        self.assertTrue(reference.endswith("-" + "c" * 12))
-        self.assertEqual(sum(command[:3] == ["docker", "image", "tag"] for command in calls), 1)
-        self.assertEqual(sum(command[-3:-1] == ["ps", "-q"] for command in calls), 4)
+        self.assertEqual(set(references), set(service_image_ids))
+        for service, image_id in service_image_ids.items():
+            reference = references[service]
+            validate_rollback_image(service, reference)
+            self.assertIn(f"/backend/{service}:", reference)
+            self.assertTrue(reference.endswith("-" + image_id.removeprefix("sha256:")[:12]))
+        self.assertEqual(sum(command[:3] == ["docker", "image", "tag"] for command in calls), 4)
+
+    def test_backend_rollback_expands_each_saved_service_image_individually(self) -> None:
+        references = {
+            "api": "localhost/deepfarms-rollback/backend/api:20261103T120000Z-aaaaaaaaaaaa",
+            "automations-worker": "localhost/deepfarms-rollback/backend/automations-worker:20261103T120000Z-bbbbbbbbbbbb",
+            "background-worker": "localhost/deepfarms-rollback/backend/background-worker:20261103T120000Z-cccccccccccc",
+            "outbox-worker": "localhost/deepfarms-rollback/backend/outbox-worker:20261103T120000Z-dddddddddddd",
+        }
+
+        components = _rollback_components(references, 2)
+        self.assertEqual(components, ("backend",))
+        self.assertEqual(_service_image_map(references, components), references)
+
+    def test_backend_rollback_compose_override_keeps_each_service_reference(self) -> None:
+        references = {
+            "api": "localhost/deepfarms-rollback/backend/api:20261103T120000Z-aaaaaaaaaaaa",
+            "automations-worker": "localhost/deepfarms-rollback/backend/automations-worker:20261103T120000Z-bbbbbbbbbbbb",
+            "background-worker": "localhost/deepfarms-rollback/backend/background-worker:20261103T120000Z-cccccccccccc",
+            "outbox-worker": "localhost/deepfarms-rollback/backend/outbox-worker:20261103T120000Z-dddddddddddd",
+        }
+        captured_overrides = []
+
+        def fake_run_read(command: list[str], **_: object) -> str:
+            if command[-2:] == ["config", "--quiet"]:
+                file_args = [index + 1 for index, part in enumerate(command[:-1]) if part == "-f"]
+                captured_overrides.append(json.loads(Path(command[file_args[-1]]).read_text()))
+            return ""
+
+        with patch("deploy_hostinger.run_read", side_effect=fake_run_read), patch(
+            "deploy_hostinger.wait_healthy"
+        ):
+            _apply_images(
+                references,
+                ("backend",),
+                Path("compose.yml"),
+                Path("health.yml"),
+                "farm",
+                180,
+                pull_images=False,
+            )
+
+        self.assertEqual(
+            captured_overrides,
+            [{"services": {service: {"image": ref} for service, ref in references.items()}}],
+        )
+
+    def test_legacy_component_rollback_state_remains_supported(self) -> None:
+        references = {
+            "backend": "localhost/deepfarms-rollback/backend:20261103T120000Z-aaaaaaaaaaaa"
+        }
+        components = _rollback_components(references, 1)
+        self.assertEqual(components, ("backend",))
+        self.assertEqual(
+            set(_service_image_map(references, components)),
+            {"api", "automations-worker", "background-worker", "outbox-worker"},
+        )
+
+    def test_single_service_name_matching_component_is_still_service_rollback(self) -> None:
+        references = {
+            "web": "localhost/deepfarms-rollback/web/web:20261103T120000Z-eeeeeeeeeeee"
+        }
+        self.assertEqual(_rollback_components(references, 2), ("web",))
+        validate_rollback_image("web", references["web"])
 
     def test_deploy_refuses_to_run_without_two_production_gates(self) -> None:
         stderr = StringIO()

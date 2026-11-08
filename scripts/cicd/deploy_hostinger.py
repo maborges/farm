@@ -24,6 +24,7 @@ from release_manifest import (
     COMPONENTS,
     PROTECTED_VOLUMES,
     SERVICES_BY_COMPONENT,
+    SERVICE_TO_COMPONENT,
     load_manifest,
     parse_components,
     validate_backup_receipt,
@@ -83,29 +84,26 @@ def inspect_protected_volumes() -> None:
             raise DeployError(f"volume protegido ausente ou divergente: {name}")
 
 
-def _component_image(
-    component: str,
+def _service_image(
+    service: str,
     compose_file: Path,
     healthcheck_file: Path,
     project: str,
     release_stamp: str,
 ) -> str:
-    image_ids: set[str] = set()
-    for service in SERVICES_BY_COMPONENT[component]:
-        container_ids = run_read(
-            compose_command(compose_file, healthcheck_file, project) + ["ps", "-q", service]
-        ).splitlines()
-        if len(container_ids) != 1:
-            raise DeployError(f"esperado exatamente um container ativo para {service}")
-        image_id = run_read(["docker", "inspect", "--format", "{{.Image}}", container_ids[0]])
-        if not image_id.startswith("sha256:"):
-            raise DeployError(f"ID da imagem ativa de {service} é inválido")
-        image_ids.add(image_id)
-    if len(image_ids) != 1:
-        raise DeployError(f"serviços do grupo {component} não compartilham a mesma imagem ativa")
-
-    image_id = image_ids.pop()
-    alias = f"localhost/deepfarms-rollback/{component}:{release_stamp}-{image_id.removeprefix('sha256:')[:12]}"
+    component = SERVICE_TO_COMPONENT[service]
+    container_ids = run_read(
+        compose_command(compose_file, healthcheck_file, project) + ["ps", "-q", service]
+    ).splitlines()
+    if len(container_ids) != 1:
+        raise DeployError(f"esperado exatamente um container ativo para {service}")
+    image_id = run_read(["docker", "inspect", "--format", "{{.Image}}", container_ids[0]])
+    if not image_id.startswith("sha256:"):
+        raise DeployError(f"ID da imagem ativa de {service} é inválido")
+    alias = (
+        f"localhost/deepfarms-rollback/{component}/{service}:"
+        f"{release_stamp}-{image_id.removeprefix('sha256:')[:12]}"
+    )
     run_read(["docker", "image", "tag", image_id, alias])
     return alias
 
@@ -114,12 +112,54 @@ def snapshot_previous(
     components: tuple[str, ...], compose_file: Path, healthcheck_file: Path, project: str
 ) -> dict[str, str]:
     release_stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    return {
-        component: _component_image(
-            component, compose_file, healthcheck_file, project, release_stamp
-        )
-        for component in components
+    snapshots: dict[str, str] = {}
+    for component in components:
+        for service in SERVICES_BY_COMPONENT[component]:
+            snapshots[service] = _service_image(
+                service, compose_file, healthcheck_file, project, release_stamp
+            )
+    return snapshots
+
+
+def _service_image_map(images: dict[str, str], components: tuple[str, ...]) -> dict[str, str]:
+    """Expand component release images or retain per-service rollback images."""
+    result: dict[str, str] = {}
+    for component in components:
+        services = SERVICES_BY_COMPONENT[component]
+        if component in images:
+            result.update({service: images[component] for service in services})
+            continue
+        missing = set(services) - set(images)
+        if missing:
+            raise DeployError(
+                f"imagens ausentes para serviços de {component}: {', '.join(sorted(missing))}"
+            )
+        result.update({service: images[service] for service in services})
+    return result
+
+
+def _rollback_components(images: Any, schema_version: int) -> tuple[str, ...]:
+    """Return components represented by a legacy component or current service snapshot."""
+    if not isinstance(images, dict) or not images:
+        raise DeployError("manifesto de rollback inválido")
+    keys = set(images)
+    if schema_version == 1:
+        if not keys <= set(COMPONENTS):
+            raise DeployError("manifesto de rollback v1 contém componente não permitido")
+        return tuple(component for component in COMPONENTS if component in keys)
+    if schema_version != 2 or not keys <= set(SERVICE_TO_COMPONENT):
+        raise DeployError("manifesto de rollback contém serviço não permitido")
+    components = tuple(
+        component
+        for component in COMPONENTS
+        if keys & set(SERVICES_BY_COMPONENT[component])
+    )
+    expected_services = {
+        service for component in components for service in SERVICES_BY_COMPONENT[component]
     }
+    if keys != expected_services:
+        raise DeployError("manifesto de rollback não contém todos os serviços dos componentes")
+    return components
 
 
 def _healthcheck_status(
@@ -163,9 +203,8 @@ def _apply_images(
 ) -> None:
     override = {
         "services": {
-            service: {"image": images[component]}
-            for component in components
-            for service in SERVICES_BY_COMPONENT[component]
+            service: {"image": reference}
+            for service, reference in _service_image_map(images, components).items()
         }
     }
     services = tuple(service for component in components for service in SERVICES_BY_COMPONENT[component])
@@ -218,7 +257,7 @@ def _run_deploy(args: argparse.Namespace) -> int:
         previous_path = args.state_dir / "previous.json"
         write_json_atomic(
             previous_path,
-            {"schema_version": 1, "images": previous_images, "saved_at": datetime.now(timezone.utc).isoformat()},
+            {"schema_version": 2, "images": previous_images, "saved_at": datetime.now(timezone.utc).isoformat()},
         )
 
         try:
@@ -294,14 +333,12 @@ def _run_rollback(args: argparse.Namespace) -> int:
         if not previous_path.is_file():
             raise DeployError("não existe manifesto de imagem anterior")
         previous = json.loads(previous_path.read_text(encoding="utf-8"))
-        images = previous.get("images") if isinstance(previous, dict) else None
-        if not isinstance(images, dict) or not images:
+        if not isinstance(previous, dict) or previous.get("schema_version") not in (1, 2):
             raise DeployError("manifesto de rollback inválido")
-        components = tuple(images)
-        if set(components) - set(COMPONENTS):
-            raise DeployError("manifesto de rollback contém componente não permitido")
-        for component, reference in images.items():
-            validate_rollback_image(component, reference)
+        images = previous.get("images")
+        components = _rollback_components(images, previous["schema_version"])
+        for service_or_component, reference in images.items():
+            validate_rollback_image(service_or_component, reference)
             image_id = run_read(["docker", "image", "inspect", "--format", "{{.Id}}", reference])
             if not image_id.startswith("sha256:") or not image_id.removeprefix("sha256:").startswith(
                 reference.rsplit("-", 1)[-1]
@@ -331,7 +368,7 @@ def _run_rollback(args: argparse.Namespace) -> int:
             raise DeployError(f"rollback não ficou saudável; recuperação manual necessária: {exc}") from exc
         write_json_atomic(
             previous_path,
-            {"schema_version": 1, "images": current, "saved_at": datetime.now(timezone.utc).isoformat()},
+            {"schema_version": 2, "images": current, "saved_at": datetime.now(timezone.utc).isoformat()},
         )
         _append_audit(
             args.state_dir,
