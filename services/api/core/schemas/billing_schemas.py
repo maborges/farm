@@ -6,13 +6,18 @@ from datetime import datetime
 class PlanoAssinaturaBase(BaseModel):
     nome: str
     descricao: Optional[str] = None
+    descricao_marketing: Optional[str] = None
     modulos_inclusos: List[str] = ["CORE"]
     limite_usuarios_minimo: int = 1
     limite_usuarios_maximo: Optional[int] = None
     limite_hectares: Optional[float] = None
-    max_categorias_plano: int = 10
+    max_fazendas: int = 1
+    max_categorias_plano: int = 200
+    plan_tier: str = "ENTERPRISE"
     preco_mensal: float = 0.0
     preco_anual: float = 0.0
+    destaque: bool = False
+    ordem: int = 0
     ativo: bool = True
     is_default: bool = False
     disponivel_site: bool = False
@@ -24,13 +29,18 @@ class PlanoAssinaturaCreate(PlanoAssinaturaBase):
 class PlanoAssinaturaUpdate(BaseModel):
     nome: Optional[str] = None
     descricao: Optional[str] = None
+    descricao_marketing: Optional[str] = None
     modulos_inclusos: Optional[List[str]] = None
     limite_usuarios_minimo: Optional[int] = None
     limite_usuarios_maximo: Optional[int] = None
     limite_hectares: Optional[float] = None
+    max_fazendas: Optional[int] = None
     max_categorias_plano: Optional[int] = None
+    plan_tier: Optional[str] = None
     preco_mensal: Optional[float] = None
     preco_anual: Optional[float] = None
+    destaque: Optional[bool] = None
+    ordem: Optional[int] = None
     ativo: Optional[bool] = None
     is_default: Optional[bool] = None
     disponivel_site: Optional[bool] = None
@@ -51,9 +61,13 @@ class LandingPlanoResponse(BaseModel):
     descricao: Optional[str] = None
     descricao_marketing: Optional[str] = None
     modulos_inclusos: List[str] = []
+    limite_usuarios_minimo: int = 1
+    limite_usuarios_maximo: Optional[int] = None
+    limite_hectares: Optional[float] = None
+    max_fazendas: int = 1
     preco_mensal: float = 0.0
     preco_anual: float = 0.0
-    plan_tier: str = "BASICO"
+    plan_tier: str = "ENTERPRISE"
     tem_trial: bool = True
     dias_trial: int = 15
     is_free: bool = False
@@ -61,6 +75,19 @@ class LandingPlanoResponse(BaseModel):
     ordem: int = 0
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class SimulacaoOrcamentoPublicoRequest(BaseModel):
+    """Payload para simulação pública de pacote, licenças simultâneas e Hectares Equivalentes."""
+
+    area_total_ha: float = 100.0
+    area_ambiental_ha: float = 0.0
+    vocacao_predominante: str = "GRAOS"
+    cabecas_pecuaria: int = 0
+    quantidade_usuarios: int = 1
+    dispositivos_campo: int = 0
+    plano_id: Optional[uuid.UUID] = None
+    talhoes_culturas: Optional[List[dict]] = None
 
 class FaturaResponse(BaseModel):
     id: uuid.UUID

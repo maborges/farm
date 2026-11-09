@@ -312,7 +312,7 @@ export function LoginForm() {
     };
 
     return (
-        <div className="space-y-7 relative">
+        <div className="space-y-5 relative">
             {/* Cabeçalho */}
             <div className="flex items-start justify-between gap-4">
                 <div className="space-y-1">

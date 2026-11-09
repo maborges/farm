@@ -125,6 +125,8 @@ def _make_device_jwt(device: DispositivoCampo, user_name: str, user_avatar_url: 
     now = datetime.now(timezone.utc)
     payload = {
         "type": "device",
+        "product_scope": "campo",
+        "session_required": False,
         "device_id": str(device.id),
         "tenant_id": str(device.tenant_id),
         "sub": str(device.user_id),

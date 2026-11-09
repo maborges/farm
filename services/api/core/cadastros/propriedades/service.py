@@ -195,6 +195,11 @@ class AreaRuralService(BaseService[AreaRural]):
                     )
 
         # 2. Validar contra limite_hectares do pacote contratado pelo tenant
+        # Áreas de preservação ambiental (APP, RESERVA_LEGAL, AREA_AMBIENTAL) são isentas (fator 0.0x)
+        # da franquia de hectares produtivos do pacote.
+        if str(tipo).upper() in ("APP", "RESERVA_LEGAL", "AREA_AMBIENTAL"):
+            return
+
         plano_stmt = (
             select(PlanoAssinatura.limite_hectares)
             .join(AssinaturaTenant, AssinaturaTenant.plano_id == PlanoAssinatura.id)

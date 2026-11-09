@@ -432,6 +432,33 @@ class MudancaPlanoService(BaseService[MudancaPlano]):
         mudanca.aplicado_em = datetime.now(timezone.utc)
         mudanca.aplicado_por_job = True
 
+        # Se a assinatura já possui contrato recorrente no Stripe, sincronizar os novos acessos/plano
+        if assinatura.stripe_subscription_id:
+            try:
+                from core.models.tenant import Tenant
+                from core.services.stripe_service import StripeService
+
+                plano_novo = await self._obter_plano(mudanca.plano_destino_id)
+                ciclo = getattr(assinatura, "ciclo_pagamento", "MENSAL") or "MENSAL"
+                _, detalhamento = await self.pricing_service.calcular_preco_total(
+                    plano_id=plano_novo.id,
+                    quantidade_usuarios=mudanca.usuarios_destino,
+                    ciclo=ciclo,
+                )
+                tenant_obj = await self.session.get(Tenant, assinatura.tenant_id)
+                extensoes = list((tenant_obj.branding or {}).get("extensoes_contratadas") or []) if tenant_obj else []
+                StripeService().atualizar_assinatura_recorrente(
+                    stripe_subscription_id=assinatura.stripe_subscription_id,
+                    detalhamento_preco=detalhamento,
+                    nome_plano=plano_novo.nome,
+                    ciclo=ciclo,
+                    usuarios_contratados=mudanca.usuarios_destino,
+                    extensoes_contratadas=extensoes,
+                    cobrar_prorata_no_stripe=False,
+                )
+            except Exception as exc:
+                logger.warning(f"Falha ao atualizar contrato Stripe na mudança {mudanca.id}: {exc}")
+
         logger.info(
             f"Mudança {mudanca.id} aplicada: Plano {mudanca.plano_destino_id}, "
             f"{mudanca.usuarios_destino} usuários"

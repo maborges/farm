@@ -104,6 +104,8 @@ Substitua `backend` por um componente validado (`web`, `campo`, `agro`) ou por u
 
 O controller valida a composição e volumes, captura a imagem anterior, aplica um override temporário de imagem por digest, faz pull e atualiza somente os serviços selecionados. Se o healthcheck falhar, tenta reaplicar as imagens anteriores do componente. Isso não valida todos os fluxos funcionais nem garante rollback quando a configuração Compose ou o próprio host está indisponível; acompanhar saída, estado e auditoria local.
 
+O override de imagem é removido ao terminar a operação: o Compose principal não é atualizado. Uma recriação posterior com apenas o arquivo principal pode restaurar a imagem nele declarada. Antes da janela, definir e homologar como preservar o digest aprovado na configuração usada em futuras recriações, sem alterar o Compose de produção durante o ensaio. Até essa reconciliação, o controller não garante que o release sobreviva a uma operação Compose posterior.
+
 ## 8. Procedimento específico do Web (container criado manualmente)
 
 O Web informado (`farm-web-1`) foi criado manualmente e sua configuração integral não está no checkout. `Dockerfile.web` declara runtime Next.js na porta 3000, mas não define a rede/alias, bind do host, política de restart, variáveis, mounts ou comando efetivamente usados em produção. O Compose local `docker-compose.prod.yml` define um serviço `web`, mas não prova equivalência com o container manual. O controller seleciona `web` como serviço Compose e **não deve ser usado para esse container até regularização e validação da equivalência**.
@@ -167,6 +169,8 @@ sudo --preserve-env=DEEPFARMS_DEPLOY_TARGET \
 
 Por padrão, rollback restaura o último conjunto gravado em `previous.json`, que pode conter mais de um componente. Revise o arquivo com ferramenta que não exponha credenciais e confirme escopo antes de executar. Não editar esse arquivo às cegas nem usar o wrapper para rollback do Web manual não gerenciado.
 
+Cada nova tentativa de deploy sobrescreve `previous.json` antes da aplicação; um rollback manual saudável também o substitui pelo estado que estava ativo antes do rollback. Preserve e revise os registros e aliases de cada janela antes de outra tentativa: o wrapper não é um histórico de releases e uma segunda execução pode inverter o alvo do rollback.
+
 Se o deploy ainda não foi executado pelo controller, ou o script não foi instalado, o wrapper não é um rollback genérico. Nesse caso, interromper novas atualizações, registrar estado/logs e seguir o procedimento específico revisado do host, restaurando apenas as imagens dos serviços afetados. Rollback de imagem não desfaz migrations, DDL/DML ou alteração de schema; este runbook não autoriza nenhuma dessas ações.
 
 ## 11. Baseline informado da migração — 04/11/2026
@@ -223,6 +227,7 @@ Preservar uploads e volumes existentes de PostgreSQL e Redis. Nunca atualizar se
 6. Confirmar espaço em disco, arquitetura da VPS (`linux/amd64` é a plataforma publicada) e retenção das imagens anterior/nova.
 7. Homologar deploy/rollback e falhas em ambiente não produtivo equivalente, incluindo volumes preservados e comportamento dos workers. CI de build não é ensaio de deploy.
 8. Confirmar proteção real do Environment `ghcr-publish` e branch/checks obrigatórios no GitHub.
+9. Homologar a persistência do digest após a remoção do override temporário e as operações Compose posteriores; confirmar o alvo de rollback antes de cada tentativa.
 
 Até fechar essas pendências: **NO-GO para executar o procedimento de produção**. A publicação GHCR aprovada é etapa de criação de artefato; não equivale a autorização nem execução de deploy.
 

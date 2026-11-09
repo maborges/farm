@@ -540,3 +540,257 @@ class TestMudancaPlanoExpansaoFazendaFatura:
         assert faturas_criadas[0].status == "ABERTA"
 
 
+class TestNovaPoliticaCincoPerfisAllInHectaresEquivalentes:
+    """
+    Valida a nova política comercial:
+    - 5 perfis (Familiar, Pequeno Produtor, Médio Produtor, Grande Produtor, Grupo) com 100% dos módulos
+    - Desconto anual no pacote (2 meses grátis) + 20% OFF nas licenças adicionais de acesso simultâneo
+    - Hectares Equivalentes: isenção ambiental (APP/RL), múltiplas culturas, consórcio/safrinha sem duplicação e ILP
+    - Aplicativo Campo isento de acesso simultâneo
+    - Integração Stripe com line_items compostos
+    """
+
+    def test_cinco_pacotes_oficiais_possuem_todos_os_modulos_e_tier_enterprise(self):
+        from core.constants import ALL_MODULES
+        from scripts.initial_load.seed_plans import PLANOS_INICIAIS
+
+        nomes = [p["nome"] for p in PLANOS_INICIAIS]
+        assert nomes == [
+            "Familiar",
+            "Pequeno Produtor",
+            "Médio Produtor",
+            "Grande Produtor",
+            "Grupo",
+        ]
+        for plano in PLANOS_INICIAIS:
+            assert plano["plan_tier"] == "ENTERPRISE"
+            assert set(plano["modulos_inclusos"]) == set(ALL_MODULES)
+            assert plano["preco_anual"] == plano["preco_mensal"] * Decimal("10")
+
+    async def test_desconto_20_porcento_anual_em_licencas_adicionais_de_usuario(self):
+        from core.services.plan_pricing_service import PlanoPricingService
+        from scripts.initial_load.seed_plans import PLANOS_INICIAIS
+
+        session = AsyncMock()
+        svc = PlanoPricingService(session)
+
+        # Médio Produtor: R$ 1.197/mês (R$ 11.970/ano), inclui 5 acessos, máx 15
+        # Adicionais: faixa 1-5 = R$ 110/mês ou R$ 1.056/ano (20% OFF sobre R$ 1.320)
+        dados_medio = next(p for p in PLANOS_INICIAIS if p["nome"] == "Médio Produtor")
+        plano_medio = PlanoAssinatura(**dados_medio)
+
+        res_plano = MagicMock()
+        res_plano.scalar_one_or_none = MagicMock(return_value=plano_medio)
+        scalars_empty = MagicMock()
+        scalars_empty.all = MagicMock(return_value=[])
+        res_empty = MagicMock()
+        res_empty.scalars = MagicMock(return_value=scalars_empty)
+
+        session.execute = AsyncMock(side_effect=[res_plano, res_empty, res_plano, res_empty])
+
+        # 8 acessos simultâneos = 5 inclusos + 3 adicionais
+        total_mensal, _ = await svc.calcular_preco_total(plano_medio.id, 8, "MENSAL")
+        total_anual, det_anual = await svc.calcular_preco_total(plano_medio.id, 8, "ANUAL")
+
+        # Mensal: 1197 + (3 * 110) = 1527.00
+        assert total_mensal == Decimal("1527.00")
+        # Anual: 11970 + (3 * 1056) = 11970 + 3168 = 15138.00
+        assert total_anual == Decimal("15138.00")
+        assert det_anual[1]["preco_unitario"] == 1056.0
+
+    async def test_area_ambiental_app_e_reserva_legal_isentas_do_limite_do_pacote(self):
+        from core.cadastros.propriedades.models import AreaRural
+        from core.cadastros.propriedades.service import AreaRuralService
+
+        session = AsyncMock()
+        tenant_id = uuid.uuid4()
+        up_id = uuid.uuid4()
+        svc = AreaRuralService(AreaRural, session, tenant_id)
+
+        # Propriedade tem 1.000 ha totais; APP tem 0 ha cadastrados
+        call_count = 0
+
+        async def mock_execute(stmt):
+            nonlocal call_count
+            call_count += 1
+            res = MagicMock()
+            if call_count == 1:
+                res.first = MagicMock(return_value=(Decimal("1000.00"), None))
+            else:
+                res.scalar_one = MagicMock(return_value=Decimal("0.00"))
+            return res
+
+        session.execute = mock_execute
+
+        # Mesmo que o pacote fosse Familiar (100 ha), cadastrar 250 ha de RESERVA_LEGAL ou APP é 100% isento e não consulta nem bloqueia no plano
+        await svc._validar_limite_hectares_area(
+            unidade_produtiva_id=up_id,
+            tipo="RESERVA_LEGAL",
+            nova_area_ha=Decimal("250.00"),
+        )
+        await svc._validar_limite_hectares_area(
+            unidade_produtiva_id=up_id,
+            tipo="APP",
+            nova_area_ha=Decimal("100.00"),
+        )
+        assert call_count == 0
+
+    def test_hectares_equivalentes_multicultura_consorcio_safrinha_e_ilp(self):
+        from core.services.plan_pricing_service import PlanoPricingService
+
+        # Fazenda com 1.000 ha físicos, sendo 200 ha de Reserva Legal/APP (isentos -> 800 ha líquidos)
+        # Talhão 1 (500 ha): Soja (verão, 1.0x) + Milho Safrinha (inverno, 1.0x) + Braquiária consorciada (0.5x)
+        #   -> NÃO duplica área física! Deve contar 500 ha * 1.0 = 500 HEq.
+        # Talhão 2 (100 ha): Café Arábica (2.5x) -> 250 HEq.
+        # Talhão 3 (200 ha): Pastagem (0.5x) -> 100 HEq.
+        # Pecuária integrada (ILP): 1.200 cabeças (como 800 ha produtivos suportam até 1.600 cabeças a 2 cab/ha, 0 HEq extra!)
+        resultado = PlanoPricingService.calcular_hectares_equivalentes_operacao(
+            {
+                "area_total_ha": Decimal("1000.00"),
+                "area_ambiental_ha": Decimal("200.00"),
+                "cabecas_pecuaria": 1200,
+                "talhoes_culturas": [
+                    {"talhao_id": "T1", "safra_id": "S26", "area_ha": 500, "cultura": "SOJA", "consorciado": False},
+                    {"talhao_id": "T1", "safra_id": "S26", "area_ha": 500, "cultura": "MILHO", "consorciado": False},
+                    {"talhao_id": "T1", "safra_id": "S26", "area_ha": 500, "cultura": "BRAQUIARIA", "consorciado": True},
+                    {"talhao_id": "T2", "safra_id": "S26", "area_ha": 100, "cultura": "CAFE", "consorciado": False},
+                    {"talhao_id": "T3", "safra_id": "S26", "area_ha": 200, "cultura": "PASTAGEM", "consorciado": False},
+                ],
+            }
+        )
+
+        assert resultado["hectares_fisicos_total"] == 1000.0
+        assert resultado["hectares_ambientais_isentos"] == 200.0
+        assert resultado["hectares_produtivos_liquidos"] == 800.0
+        # 500 (T1) + 250 (T2) + 100 (T3) = 850 HEq
+        assert resultado["hectares_equivalentes_agricola"] == 850.0
+        assert resultado["hectares_equivalentes_pecuaria_excedente"] == 0.0
+        assert resultado["hectares_equivalentes_total"] == 850.0
+
+    async def test_acesso_aplicativo_campo_isento_de_simultaneidade(self):
+        from core.services.auth_service import AuthService
+
+        session = AsyncMock()
+        svc = AuthService(session)
+
+        # Mesmo sem mocks de banco, escopo_produto='campo' retorna imediatamente sem consumir SessaoAtiva
+        await svc._verificar_disponibilidade_licenca_simultanea(
+            tenant_id=uuid.uuid4(),
+            usuario_id=uuid.uuid4(),
+            escopo_produto="campo",
+        )
+        session.execute.assert_not_called()
+
+    def test_stripe_montar_line_items_compostos_pacote_e_usuarios_adicionais(self):
+        from core.services.stripe_service import StripeService
+
+        detalhamento = [
+            {
+                "tipo": "PACOTE_BASE",
+                "faixa_inicio": 1,
+                "faixa_fim": 5,
+                "usuarios_nesta_faixa": 5,
+                "preco_unitario": 11970.0,
+                "valor_faixa": 11970.0,
+            },
+            {
+                "tipo": "ACESSO_ADICIONAL",
+                "faixa_inicio": 1,
+                "faixa_fim": 5,
+                "usuarios_nesta_faixa": 3,
+                "preco_unitario": 1056.0,
+                "valor_faixa": 3168.0,
+            },
+        ]
+        items = StripeService.montar_line_items_compostos(
+            detalhamento_preco=detalhamento,
+            nome_plano="Médio Produtor",
+            ciclo="ANUAL",
+        )
+        assert len(items) == 2
+        assert items[0]["price_data"]["unit_amount"] == 1197000
+        assert items[0]["price_data"]["recurring"]["interval"] == "year"
+        assert items[0]["quantity"] == 1
+        assert items[1]["price_data"]["unit_amount"] == 105600
+        assert items[1]["quantity"] == 3
+
+    def test_extensoes_iot_e_erp_contratadas_a_parte_fora_de_all_modules(self):
+        from core.constants import (
+            ALL_MODULES,
+            EXTENSOES_CONTRATADAS_A_PARTE,
+            TABELA_EXTENSOES_A_PARTE,
+            Modulos,
+        )
+
+        assert Modulos.EXTENSAO_IOT_SENSORES in EXTENSOES_CONTRATADAS_A_PARTE
+        assert Modulos.EXTENSAO_ERP_BRIDGE in EXTENSOES_CONTRATADAS_A_PARTE
+        assert Modulos.EXTENSAO_IOT_SENSORES not in ALL_MODULES
+        assert Modulos.EXTENSAO_ERP_BRIDGE not in ALL_MODULES
+        assert TABELA_EXTENSOES_A_PARTE[Modulos.EXTENSAO_IOT_SENSORES]["preco_mensal"] == 599.0
+        assert TABELA_EXTENSOES_A_PARTE[Modulos.EXTENSAO_ERP_BRIDGE]["preco_mensal"] == 1299.0
+
+    async def test_webhook_stripe_renovacao_paga_e_suspensao_por_inadimplencia(self, monkeypatch):
+        from core.routers import stripe_webhooks
+
+        tenant = MagicMock()
+        tenant.id = uuid.uuid4()
+        tenant.ativo = False
+
+        assinatura = MagicMock()
+        assinatura.id = uuid.uuid4()
+        assinatura.tenant_id = tenant.id
+        assinatura.ciclo_pagamento = "MENSAL"
+        assinatura.status = "SUSPENSA"
+        assinatura.stripe_subscription_id = "sub_contrato_123"
+        assinatura.data_bloqueio = None
+        assinatura.data_proxima_renovacao = None
+
+        fatura = MagicMock()
+        fatura.status = "ABERTA"
+        fatura.valor = Decimal("497.00")
+
+        db_mock = AsyncMock()
+        res_sub = MagicMock()
+        res_sub.scalar_one_or_none = MagicMock(return_value=assinatura)
+        db_mock.execute = AsyncMock(return_value=res_sub)
+        db_mock.get = AsyncMock(return_value=tenant)
+
+        class DummySessionCtx:
+            async def __aenter__(self):
+                return db_mock
+
+            async def __aexit__(self, exc_type, exc, tb):
+                return False
+
+        monkeypatch.setattr(stripe_webhooks, "async_session_maker", lambda: DummySessionCtx())
+        monkeypatch.setattr(
+            stripe_webhooks,
+            "_load_subscription_invoices",
+            AsyncMock(return_value=[fatura]),
+        )
+
+        # 1. Pagamento recorrente (invoice.paid) -> renova contrato e ativa tenant
+        ok_paid = await stripe_webhooks._handle_invoice_paid(
+            {"subscription": "sub_contrato_123", "amount_paid": 49700}
+        )
+        assert ok_paid is True
+        assert assinatura.status == "ATIVA"
+        assert tenant.ativo is True
+        assert fatura.status == "PAGA"
+        assert assinatura.data_proxima_renovacao is not None
+
+        # 2. Inadimplência recorrente (invoice.payment_failed) -> suspende contrato e tenant
+        fatura.status = "ABERTA"
+        ok_failed = await stripe_webhooks._handle_invoice_payment_failed(
+            {"subscription": "sub_contrato_123", "amount_due": 49700}
+        )
+        assert ok_failed is True
+        assert assinatura.status == "SUSPENSA"
+        assert assinatura.data_bloqueio is not None
+        assert tenant.ativo is False
+        assert fatura.status == "VENCIDA"
+
+
+
+
+

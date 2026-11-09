@@ -249,8 +249,40 @@ async def ativar_conta(
             detail="Não foi possível localizar a assinatura vinculada a esta conta. Refaça a ativação ou contate o suporte.",
         )
 
-    # Criar checkout Stripe
+    # Calcular composição de preço (Pacote Base + Licenças Adicionais + Extensões)
+    from decimal import Decimal
+    from core.constants import TABELA_EXTENSOES_A_PARTE
+    from core.services.plan_pricing_service import PlanoPricingService
     from core.services.stripe_service import StripeService
+
+    plano = await session.get(PlanoAssinatura, assinatura.plano_id)
+    qtd_usuarios = assinatura.usuarios_contratados or (plano.limite_usuarios_minimo if plano else 1) or 1
+    detalhamento_preco: list[dict] | None = None
+    valor_total_fatura = (
+        (plano.preco_anual if assinatura.ciclo_pagamento == "ANUAL" else plano.preco_mensal)
+        if plano
+        else Decimal("0.00")
+    )
+    extensoes_contratadas = list((tenant.branding or {}).get("extensoes_contratadas") or [])
+
+    if plano:
+        try:
+            pricing_svc = PlanoPricingService(session)
+            valor_calc, detalhamento_preco = await pricing_svc.calcular_preco_total(
+                plano_id=plano.id,
+                quantidade_usuarios=qtd_usuarios,
+                ciclo=assinatura.ciclo_pagamento,
+            )
+            valor_extensoes = Decimal("0.00")
+            for ext_id in extensoes_contratadas:
+                info_ext = TABELA_EXTENSOES_A_PARTE.get(ext_id)
+                if info_ext:
+                    chave_preco = "preco_anual" if assinatura.ciclo_pagamento == "ANUAL" else "preco_mensal"
+                    valor_extensoes += Decimal(str(info_ext[chave_preco]))
+            valor_total_fatura = valor_calc + valor_extensoes
+        except Exception:
+            detalhamento_preco = None
+
     stripe_svc = StripeService()
     checkout_url = await stripe_svc.criar_checkout_assinatura(
         tenant_id=str(tenant.id),
@@ -258,6 +290,10 @@ async def ativar_conta(
         email=usuario.email,
         plano_id=str(assinatura.plano_id),
         ciclo=assinatura.ciclo_pagamento,
+        detalhamento_preco=detalhamento_preco,
+        nome_plano=plano.nome if plano else None,
+        usuarios_contratados=qtd_usuarios,
+        extensoes_contratadas=extensoes_contratadas,
     )
 
     # Criar fatura ABERTA para que o webhook possa baixá-la ao confirmar pagamento
@@ -268,20 +304,18 @@ async def ativar_conta(
         )
     )).scalar_one_or_none()
 
-    if not fatura_existente:
-        plano = await session.get(PlanoAssinatura, assinatura.plano_id)
-        valor = plano.preco_anual if assinatura.ciclo_pagamento == "ANUAL" else plano.preco_mensal
+    if not fatura_existente and plano:
         vencimento = (datetime.now(timezone.utc) + timedelta(days=3)).date()
         nova_fatura = Fatura(
             id=uuid.uuid4(),
             tenant_id=tenant.id,
             assinatura_id=assinatura.id,
-            valor=valor,
+            valor=valor_total_fatura,
             data_vencimento=vencimento,
             status="ABERTA",
         )
         session.add(nova_fatura)
-        logger.info(f"Fatura ABERTA criada para assinatura {assinatura.id} — R${valor}")
+        logger.info(f"Fatura ABERTA criada para assinatura {assinatura.id} — R${valor_total_fatura}")
 
     await session.commit()
 

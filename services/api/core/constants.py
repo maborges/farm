@@ -387,6 +387,74 @@ class ModuloMetadata:
         return cls.CATALOGO.get(modulo_id, {})
 
     @classmethod
+    def is_modulo_ativo(cls, modulo_id: str, overrides: dict[str, dict] | None = None) -> bool:
+        """
+        Verifica se um módulo ou extensão está ativo no catálogo da plataforma.
+
+        Args:
+            modulo_id: Identificador do módulo (ex: A1_PLANEJAMENTO, EXT_IOT, EXT_ERP).
+            overrides: Dicionário opcional de overrides persistidos no Backoffice.
+
+        Returns:
+            bool: True se ativo, False caso inativo ou inexistente.
+        """
+        if modulo_id == Modulos.CORE:
+            return True
+        info = cls.CATALOGO.get(modulo_id)
+        if not info:
+            return False
+        override_mod = (overrides or {}).get(modulo_id) or {}
+        if "ativo" in override_mod:
+            return bool(override_mod["ativo"])
+        if modulo_id in TABELA_EXTENSOES_A_PARTE and "ativo" in TABELA_EXTENSOES_A_PARTE[modulo_id]:
+            return bool(TABELA_EXTENSOES_A_PARTE[modulo_id]["ativo"])
+        return bool(info.get("ativo", True))
+
+    @classmethod
+    def filtrar_modulos_ativos(
+        cls,
+        modulos: list[str] | tuple[str, ...],
+        overrides: dict[str, dict] | None = None,
+        incluir_extensoes_a_parte: bool = False,
+    ) -> list[str]:
+        """
+        Filtra uma lista de módulos mantendo apenas os módulos ativos no catálogo
+        (e removendo extensões contratadas à parte dos pacotes quando incluir_extensoes_a_parte=False).
+        """
+        filtrados: list[str] = []
+        for mod in modulos:
+            if not incluir_extensoes_a_parte and mod in EXTENSOES_CONTRATADAS_A_PARTE:
+                continue
+            if cls.is_modulo_ativo(mod, overrides):
+                filtrados.append(mod)
+        if Modulos.CORE not in filtrados:
+            filtrados.insert(0, Modulos.CORE)
+        return filtrados
+
+    @classmethod
+    def obter_extensoes_a_parte(cls, overrides: dict[str, dict] | None = None) -> list[dict[str, object]]:
+        """
+        Retorna a lista de extensões contratadas à parte (EXT_IOT e EXT_ERP) com seu status ativo atualizado.
+        """
+        resultado: list[dict[str, object]] = []
+        for ext_id, ext_info in TABELA_EXTENSOES_A_PARTE.items():
+            override_mod = (overrides or {}).get(ext_id) or {}
+            preco_mensal = float(override_mod.get("preco_base_mensal", ext_info["preco_mensal"]))
+            preco_anual = round(preco_mensal * 12 * (1.0 - DESCONTO_ANUAL_LICENCA_ADICIONAL), 2)
+            ativo = cls.is_modulo_ativo(ext_id, overrides)
+            resultado.append({
+                "id": ext_id,
+                "codigo": ext_id,
+                "nome": str(override_mod.get("nome", ext_info["nome"])),
+                "descricao": str(override_mod.get("descricao", ext_info["descricao"])),
+                "preco_mensal": preco_mensal,
+                "preco_anual": preco_anual,
+                "preco_mensal_equivalente_anual": round(preco_anual / 12, 2),
+                "ativo": ativo,
+            })
+        return resultado
+
+    @classmethod
     def calcular_preco_pacote(cls, modulos: list[str]) -> float:
         """Calcula o preço total de um conjunto de módulos."""
         return sum(
@@ -409,6 +477,125 @@ class ModuloMetadata:
                     faltantes.append(f"{mod} requer {dep}")
 
         return len(faltantes) == 0, faltantes
+
+
+# Extensões corporativas opcionais contratadas à parte (não fazem parte do pacote base All-In)
+EXTENSOES_CONTRATADAS_A_PARTE: tuple[str, ...] = (
+    Modulos.EXTENSAO_IOT_SENSORES,
+    Modulos.EXTENSAO_ERP_BRIDGE,
+)
+
+TABELA_EXTENSOES_A_PARTE: dict[str, dict[str, object]] = {
+    Modulos.EXTENSAO_IOT_SENSORES: {
+        "codigo": Modulos.EXTENSAO_IOT_SENSORES,
+        "nome": "Integração IoT",
+        "descricao": "John Deere Ops Center, balanças inteligentes, sensores",
+        "preco_mensal": 599.0,
+        "preco_anual": 5750.4,  # 20% OFF no ciclo anual (R$ 479,20/mês equiv.)
+        "ativo": True,
+    },
+    Modulos.EXTENSAO_ERP_BRIDGE: {
+        "codigo": Modulos.EXTENSAO_ERP_BRIDGE,
+        "nome": "Bridge ERP Corporativo",
+        "descricao": "SAP, Sankhya, Datasul, Open Banking, Power BI",
+        "preco_mensal": 1299.0,
+        "preco_anual": 12470.4,  # 20% OFF no ciclo anual (R$ 1.039,20/mês equiv.)
+        "ativo": True,
+    },
+}
+
+# Lista completa de módulos nativos ativos da plataforma (todos os pacotes incluem 100% destes módulos; IoT e ERP são à parte)
+ALL_MODULES: list[str] = [
+    m
+    for m, meta in ModuloMetadata.CATALOGO.items()
+    if m not in EXTENSOES_CONTRATADAS_A_PARTE and meta.get("ativo", True) is not False
+]
+
+
+async def carregar_overrides_catalogo_modulos(session: object | None) -> dict[str, dict]:
+    """
+    Carrega os overrides persistidos do catálogo de módulos no Backoffice (`backoffice:module_catalog`).
+
+    Args:
+        session: AsyncSession do SQLAlchemy (opcional).
+
+    Returns:
+        dict[str, dict]: Dicionário de overrides por ID de módulo.
+    """
+    if session is None or not hasattr(session, "scalar"):
+        return {}
+    try:
+        from sqlalchemy import select
+        from core.models.configuration import ConfiguracaoSaaS
+
+        config = await session.scalar(
+            select(ConfiguracaoSaaS).where(ConfiguracaoSaaS.chave == "backoffice:module_catalog")
+        )
+        if config and isinstance(config.valor, dict):
+            return dict(config.valor)
+    except Exception:
+        pass
+    return {}
+
+# Tipos de Área Rural isentos da franquia de hectares (preservação ambiental / infraestrutura)
+TIPOS_AREA_ISENTOS_FRANQUIA: tuple[str, ...] = ("APP", "RESERVA_LEGAL")
+
+# Fatores de intensidade operacional para cálculo de Hectares Equivalentes (HEq)
+FATOR_INTENSIDADE_VOCACAO: dict[str, float] = {
+    "PASTAGEM": 0.5,
+    "SILVICULTURA": 0.5,
+    "PECUARIA_EXTENSIVA": 0.5,
+    "GRAOS": 1.0,
+    "ANUAIS": 1.0,
+    "CANA": 1.0,
+    "MISTA": 1.0,
+    "CAFE": 2.5,
+    "PERENES": 2.5,
+    "FRUTICULTURA": 2.5,
+    "ALGODAO": 2.5,
+    "CITROS": 2.5,
+    "HORTIFRUTI": 4.0,
+    "CULTIVO_PROTEGIDO": 4.0,
+}
+
+LOTACAO_PADRAO_CABECAS_POR_HA: float = 2.0
+FATOR_HEQ_POR_CABECA_EXCEDENTE: float = 0.5
+DESCONTO_ANUAL_LICENCA_ADICIONAL: float = 0.20
+
+
+def obter_fator_intensidade_cultura(nome_ou_vocacao: str | None) -> float:
+    """
+    Retorna o fator multiplicador de Hectare Equivalente (HEq) conforme a cultura ou vocação.
+
+    Args:
+        nome_ou_vocacao: Nome da cultura, grupo ou vocação produtiva.
+
+    Returns:
+        float: Fator de intensidade operacional (0.5, 1.0, 2.5 ou 4.0).
+    """
+    if not nome_ou_vocacao:
+        return 1.0
+
+    chave = unicodedata.normalize("NFKD", str(nome_ou_vocacao).strip())
+    chave = chave.encode("ascii", "ignore").decode("ascii").upper()
+
+    if chave in FATOR_INTENSIDADE_VOCACAO:
+        return FATOR_INTENSIDADE_VOCACAO[chave]
+
+    termos_hortifruti = ("HORTI", "TOMATE", "BATATA", "CEBOLA", "ALFACE", "MORANGO", "ESTUFA", "OLERICULTURA")
+    if any(t in chave for t in termos_hortifruti):
+        return 4.0
+
+    termos_alta_intensidade = ("CAFE", "ALGODAO", "CITROS", "LARANJA", "UVA", "FRUTA", "CACAU", "MANGA", "MACA", "PERENE")
+    if any(t in chave for t in termos_alta_intensidade):
+        return 2.5
+
+    termos_extensivos = ("PASTAGEM", "PASTO", "BRAQUIARIA", "PANICUM", "EUCALIPTO", "PINUS", "SILVICULTURA", "FLORESTA")
+    if any(t in chave for t in termos_extensivos):
+        return 0.5
+
+    return 1.0
+
 
 
 # ==================== PERMISSÕES DO BACKOFFICE (Admin SaaS) ====================

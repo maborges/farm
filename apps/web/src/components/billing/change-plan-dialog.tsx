@@ -239,14 +239,14 @@ export function ChangePlanDialog({ open, onOpenChange, currentTenant }: ChangePl
                                         type="button"
                                         onClick={() => setCiclo("ANUAL")}
                                         aria-pressed={ciclo === "ANUAL"}
-                                        className={`flex-1 p-3 rounded-lg border-2 transition-all ${
+                                        className={`flex-1 p-3 rounded-sm border-2 transition-all ${
                                             ciclo === "ANUAL"
                                                 ? "border-primary bg-primary/5"
                                                 : "border-border hover:border-primary/50"
                                         }`}
                                     >
                                         <p className="font-bold">Anual</p>
-                                        <Badge variant="secondary" className="text-xs mt-1">2 meses grátis</Badge>
+                                        <Badge variant="secondary" className="text-xs mt-1 rounded-sm">2 meses grátis + 20% OFF em acessos extras</Badge>
                                     </button>
                                 </div>
                             </div>
@@ -257,10 +257,10 @@ export function ChangePlanDialog({ open, onOpenChange, currentTenant }: ChangePl
                                     <div>
                                         <Label htmlFor="usuarios_destino" className="text-sm font-bold flex items-center gap-1.5">
                                             <Users className="size-4 text-primary" />
-                                            Quantidade de Acessos Simultâneos Contratados
+                                            Quantidade de Acessos Simultâneos Contratados (Web)
                                         </Label>
                                         <p className="text-xs text-muted-foreground mt-0.5">
-                                            Você pode cadastrar quantos usuários precisar na equipe. O valor da mensalidade é composto pelo pacote base + acessos simultâneos adicionais.
+                                            Cadastre quantos usuários precisar na equipe. O valor é composto pelo pacote base + acessos simultâneos adicionais na Web. O uso no <strong>Aplicativo Campo é 100% isento</strong> e não consome acesso simultâneo.
                                         </p>
                                     </div>
                                     <Input

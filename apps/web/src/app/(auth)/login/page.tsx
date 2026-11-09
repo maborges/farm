@@ -12,6 +12,7 @@ export default function LoginPage() {
                 { value: "Offline", label: "Assinaturas Canvas" },
                 { value: "SHA-256", label: "Passaporte Seguro" },
             ]}
+            contentMaxWidthClassName="max-w-[540px]"
         >
             <LoginForm />
         </AuthLayout>

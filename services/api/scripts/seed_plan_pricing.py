@@ -18,10 +18,44 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from loguru import logger
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 from core.database import async_session_maker
 from core.models.billing import PlanoAssinatura
 from core.models.configuration import ConfiguracaoSaaS
 from core.services.plan_pricing_service import PlanoPricingService
+
+# Tabela progressiva oficial de licenças adicionais de acesso simultâneo (Web)
+# No ciclo ANUAL, todas as faixas contam com 20% de desconto (12x mensal * 0.80).
+PRICING_PADRAO_POR_PLANO: dict[str, list[dict]] = {
+    "Familiar": [
+        {"faixa_inicio": 1, "faixa_fim": 2, "mensal": Decimal("89.00"), "anual": Decimal("854.40")},
+    ],
+    "Pequeno Produtor": [
+        {"faixa_inicio": 1, "faixa_fim": 2, "mensal": Decimal("99.00"), "anual": Decimal("950.40")},
+        {"faixa_inicio": 3, "faixa_fim": 4, "mensal": Decimal("85.00"), "anual": Decimal("816.00")},
+    ],
+    "Médio Produtor": [
+        {"faixa_inicio": 1, "faixa_fim": 5, "mensal": Decimal("110.00"), "anual": Decimal("1056.00")},
+        {"faixa_inicio": 6, "faixa_fim": 10, "mensal": Decimal("90.00"), "anual": Decimal("864.00")},
+    ],
+    "Grande Produtor": [
+        {"faixa_inicio": 1, "faixa_fim": 10, "mensal": Decimal("120.00"), "anual": Decimal("1152.00")},
+        {"faixa_inicio": 11, "faixa_fim": 20, "mensal": Decimal("95.00"), "anual": Decimal("912.00")},
+    ],
+    "Grupo": [
+        {"faixa_inicio": 1, "faixa_fim": 15, "mensal": Decimal("110.00"), "anual": Decimal("1056.00")},
+        {"faixa_inicio": 16, "faixa_fim": 30, "mensal": Decimal("90.00"), "anual": Decimal("864.00")},
+        {"faixa_inicio": 31, "faixa_fim": None, "mensal": Decimal("75.00"), "anual": Decimal("720.00")},
+    ],
+}
+
+LIMITES_USUARIOS_POR_PLANO: dict[str, dict[str, int | None]] = {
+    "Familiar": {"minimo": 1, "maximo": 3},
+    "Pequeno Produtor": {"minimo": 2, "maximo": 6},
+    "Médio Produtor": {"minimo": 5, "maximo": 15},
+    "Grande Produtor": {"minimo": 10, "maximo": 30},
+    "Grupo": {"minimo": 20, "maximo": None},
+}
 
 
 async def seed_configuracoes_saas():
@@ -78,106 +112,62 @@ async def seed_configuracoes_saas():
     logger.info("Configurações do SaaS criadas com sucesso\n")
 
 
+async def seed_plan_pricing_with_session(session: AsyncSession) -> int:
+    """
+    Insere de forma idempotente as faixas progressivas de acessos adicionais
+    para todos os planos ativos na sessão informada.
+
+    Args:
+        session: Sessão assíncrona do banco de dados.
+
+    Returns:
+        int: Quantidade de novas faixas de pricing criadas.
+    """
+    pricing_service = PlanoPricingService(session)
+    stmt = select(PlanoAssinatura).where(PlanoAssinatura.ativo == True)
+    result = await session.execute(stmt)
+    planos = result.scalars().all()
+
+    faixas_criadas = 0
+    for plano in planos:
+        faixas_existentes = await pricing_service.obter_faixas_plano(plano.id)
+        if faixas_existentes:
+            continue
+
+        config_plano = PRICING_PADRAO_POR_PLANO.get(plano.nome)
+        if not config_plano:
+            config_plano = [
+                {"faixa_inicio": 1, "faixa_fim": None, "mensal": Decimal("99.00"), "anual": Decimal("950.40")}
+            ]
+
+        for faixa in config_plano:
+            await pricing_service.criar_faixa_pricing(
+                plano_id=plano.id,
+                faixa_inicio=faixa["faixa_inicio"],
+                faixa_fim=faixa["faixa_fim"],
+                preco_mensal=faixa["mensal"],
+                preco_anual=faixa["anual"],
+            )
+            faixas_criadas += 1
+
+        limites = LIMITES_USUARIOS_POR_PLANO.get(plano.nome)
+        if limites:
+            plano.limite_usuarios_minimo = limites["minimo"]
+            plano.limite_usuarios_maximo = limites["maximo"]
+
+    await session.commit()
+    return faixas_criadas
+
+
 async def seed_pricing_exemplo():
     """
-    Cria matriz de pricing exemplo para planos existentes.
-
-    IMPORTANTE: Adapte os valores para sua realidade de negócio!
+    Cria matriz de pricing oficial para os pacotes existentes.
     """
     logger.info("=== Seeding pricing de planos ===")
 
-    # Definir pricing exemplo por plano
-    pricing_config = {
-        "Básico": [
-            {"faixa_inicio": 1, "faixa_fim": 5, "mensal": Decimal("30.00"), "anual": Decimal("300.00")},
-            {"faixa_inicio": 6, "faixa_fim": 10, "mensal": Decimal("25.00"), "anual": Decimal("250.00")},
-        ],
-        "Pro": [
-            {"faixa_inicio": 1, "faixa_fim": 10, "mensal": Decimal("40.00"), "anual": Decimal("400.00")},
-            {"faixa_inicio": 11, "faixa_fim": 30, "mensal": Decimal("35.00"), "anual": Decimal("350.00")},
-            {"faixa_inicio": 31, "faixa_fim": 50, "mensal": Decimal("30.00"), "anual": Decimal("300.00")},
-        ],
-        "Enterprise": [
-            {"faixa_inicio": 1, "faixa_fim": 10, "mensal": Decimal("50.00"), "anual": Decimal("500.00")},
-            {"faixa_inicio": 11, "faixa_fim": 50, "mensal": Decimal("45.00"), "anual": Decimal("450.00")},
-            {"faixa_inicio": 51, "faixa_fim": 100, "mensal": Decimal("40.00"), "anual": Decimal("400.00")},
-            {"faixa_inicio": 101, "faixa_fim": None, "mensal": Decimal("35.00"), "anual": Decimal("350.00")},  # Ilimitado
-        ]
-    }
-
     async with async_session_maker() as session:
-        pricing_service = PlanoPricingService(session)
-
-        # Buscar planos
-        stmt = select(PlanoAssinatura).where(PlanoAssinatura.ativo == True)
-        result = await session.execute(stmt)
-        planos = result.scalars().all()
-
-        if not planos:
-            logger.warning("Nenhum plano encontrado! Execute seed_plans.py primeiro.")
-            return
-
-        for plano in planos:
-            logger.info(f"\nProcessando plano: {plano.nome}")
-
-            # Verificar se já tem pricing
-            faixas_existentes = await pricing_service.obter_faixas_plano(plano.id)
-            if faixas_existentes:
-                logger.info(f"  Plano '{plano.nome}' já possui {len(faixas_existentes)} faixas de pricing, pulando...")
-                continue
-
-            # Buscar configuração de pricing para este plano
-            config_plano = pricing_config.get(plano.nome)
-
-            if not config_plano:
-                logger.warning(f"  Sem configuração de pricing para '{plano.nome}', usando padrão básico...")
-                config_plano = [
-                    {"faixa_inicio": 1, "faixa_fim": None, "mensal": Decimal("50.00"), "anual": Decimal("500.00")}
-                ]
-
-            # Criar faixas
-            for faixa in config_plano:
-                try:
-                    await pricing_service.criar_faixa_pricing(
-                        plano_id=plano.id,
-                        faixa_inicio=faixa["faixa_inicio"],
-                        faixa_fim=faixa["faixa_fim"],
-                        preco_mensal=faixa["mensal"],
-                        preco_anual=faixa["anual"]
-                    )
-
-                    faixa_desc = f"{faixa['faixa_inicio']}-{faixa['faixa_fim'] or '∞'}"
-                    logger.info(
-                        f"  ✓ Faixa {faixa_desc}: "
-                        f"R$ {faixa['mensal']}/user (mensal), "
-                        f"R$ {faixa['anual']}/user (anual)"
-                    )
-
-                except Exception as e:
-                    logger.error(f"  ✗ Erro ao criar faixa: {e}")
-
-        # Atualizar limites de usuários nos planos
-        logger.info("\n=== Atualizando limites de usuários nos planos ===")
-
-        limites_planos = {
-            "Básico": {"minimo": 1, "maximo": 10},
-            "Pro": {"minimo": 1, "maximo": 50},
-            "Enterprise": {"minimo": 1, "maximo": None},  # Ilimitado
-        }
-
-        for plano in planos:
-            limites = limites_planos.get(plano.nome)
-            if limites:
-                plano.limite_usuarios_minimo = limites["minimo"]
-                plano.limite_usuarios_maximo = limites["maximo"]
-                logger.info(
-                    f"✓ Plano '{plano.nome}': "
-                    f"{limites['minimo']}-{limites['maximo'] or '∞'} usuários"
-                )
-
-        await session.commit()
-
-    logger.info("\nPricing de planos criado com sucesso\n")
+        criadas = await seed_plan_pricing_with_session(session)
+        logger.info(f"\nPricing de planos sincronizado ({criadas} novas faixas criadas)\n")
 
 
 async def main():

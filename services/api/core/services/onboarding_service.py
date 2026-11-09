@@ -90,6 +90,25 @@ class OnboardingService:
         await self.session.flush()
 
         # 5. Criar Tenant (Produtor Rural)
+        from core.constants import (
+            ModuloMetadata,
+            TABELA_EXTENSOES_A_PARTE,
+            carregar_overrides_catalogo_modulos,
+        )
+        overrides_catalogo = await carregar_overrides_catalogo_modulos(self.session)
+        extensoes_solicitadas = getattr(data, "extensoes_contratadas", None) or []
+        extensoes_validas: list[str] = []
+        for ext in extensoes_solicitadas:
+            if ext not in TABELA_EXTENSOES_A_PARTE:
+                continue
+            if not ModuloMetadata.is_modulo_ativo(ext, overrides_catalogo):
+                nome_ext = TABELA_EXTENSOES_A_PARTE[ext].get("nome", ext)
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"A extensão '{nome_ext}' não está ativa no momento e não pode ser selecionada.",
+                )
+            extensoes_validas.append(ext)
+
         tenant = Tenant(
             nome=data.nome_produtor,
             documento=documento_tenant,
@@ -98,6 +117,7 @@ class OnboardingService:
             telefone_responsavel=data.telefone or None,
             activation_token=secrets.token_urlsafe(32),
             activation_expires_at=agora + timedelta(hours=48),
+            branding={"extensoes_contratadas": extensoes_validas} if extensoes_validas else None,
         )
         self.session.add(tenant)
         await self.session.flush()
@@ -123,6 +143,14 @@ class OnboardingService:
             trial_expira_em = agora + timedelta(days=plano.dias_trial) if is_trial else None
             primeiro_vencimento = (trial_expira_em + timedelta(days=1)).date() if trial_expira_em else None
 
+        usuarios_inclusos = max(1, int(getattr(plano, "limite_usuarios_minimo", 1) or 1))
+        usuarios_solicitados = getattr(data, "usuarios_contratados", None)
+        usuarios_contratados = (
+            max(usuarios_inclusos, int(usuarios_solicitados))
+            if usuarios_solicitados is not None
+            else usuarios_inclusos
+        )
+
         assinatura = AssinaturaTenant(
             tenant_id=tenant.id,
             plano_id=plano.id,
@@ -131,13 +159,33 @@ class OnboardingService:
             status=status_assin,
             data_inicio=agora,
             data_proxima_renovacao=trial_expira_em,
+            usuarios_contratados=usuarios_contratados,
         )
         self.session.add(assinatura)
         await self.session.flush()
 
         # 11. Criar Fatura automática (apenas se plano pago com trial)
         if not plano.is_free and is_trial and primeiro_vencimento:
-            valor_fatura = Decimal(str(plano.preco_anual)) if data.ciclo == "ANUAL" else Decimal(str(plano.preco_mensal))
+            if usuarios_contratados > usuarios_inclusos:
+                from core.services.plan_pricing_service import PlanoPricingService
+                pricing_svc = PlanoPricingService(self.session)
+                valor_fatura, _ = await pricing_svc._calcular_preco_instancia_plano(
+                    plano, usuarios_contratados, data.ciclo
+                )
+            else:
+                valor_fatura = Decimal(str(plano.preco_anual)) if data.ciclo == "ANUAL" else Decimal(str(plano.preco_mensal))
+
+            if extensoes_validas:
+                extensoes_info = {
+                    e["id"]: e for e in ModuloMetadata.obter_extensoes_a_parte(overrides_catalogo)
+                }
+                chave_preco_ext = "preco_anual" if data.ciclo == "ANUAL" else "preco_mensal"
+                valor_extensoes = sum(
+                    Decimal(str(extensoes_info.get(ext, {}).get(chave_preco_ext, TABELA_EXTENSOES_A_PARTE[ext][chave_preco_ext])))
+                    for ext in extensoes_validas
+                )
+                valor_fatura = (valor_fatura + valor_extensoes).quantize(Decimal("0.01"))
+
             vencimento_dt = datetime.combine(primeiro_vencimento, datetime.min.time(), tzinfo=timezone.utc)
             fatura = Fatura(
                 tenant_id=tenant.id,

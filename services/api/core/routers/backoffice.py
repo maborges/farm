@@ -209,14 +209,25 @@ async def toggle_tenant_status(tenant_id: uuid.UUID, session: AsyncSession = Dep
 
 @router.get("/plans", response_model=List[PlanoAssinaturaResponse], dependencies=[Depends(get_current_admin)])
 async def list_plans(session: AsyncSession = Depends(get_session)):
-    """Lista todos os pacotes de assinatura."""
+    """Lista todos os pacotes de assinatura filtrando módulos inativos."""
+    from core.constants import ModuloMetadata, carregar_overrides_catalogo_modulos
+
+    overrides = await carregar_overrides_catalogo_modulos(session)
     stmt = select(PlanoAssinatura).order_by(PlanoAssinatura.preco_mensal.asc())
     result = await session.execute(stmt)
-    return result.scalars().all()
+    planos = list(result.scalars().all())
+    for plano in planos:
+        plano.modulos_inclusos = ModuloMetadata.filtrar_modulos_ativos(
+            plano.modulos_inclusos or [], overrides
+        )
+    return planos
 
 @router.post("/plans", response_model=PlanoAssinaturaResponse, dependencies=[Depends(get_current_admin)])
 async def create_plan(plan_data: PlanoAssinaturaCreate, session: AsyncSession = Depends(get_session)):
-    """Cria um novo plano/pacote comercial."""
+    """Cria um novo plano/pacote comercial filtrando módulos inativos."""
+    from core.constants import ModuloMetadata, carregar_overrides_catalogo_modulos
+
+    overrides = await carregar_overrides_catalogo_modulos(session)
     # Se o novo plano for marcado como padrão, desmarcar todos os outros
     if plan_data.is_default:
         stmt = select(PlanoAssinatura).where(PlanoAssinatura.is_default == True)
@@ -226,7 +237,11 @@ async def create_plan(plan_data: PlanoAssinaturaCreate, session: AsyncSession = 
             existing_default.is_default = False
             logger.info(f"Plano {existing_default.id} deixou de ser o plano padrão")
 
-    new_plan = PlanoAssinatura(**plan_data.model_dump())
+    payload_dict = plan_data.model_dump()
+    payload_dict["modulos_inclusos"] = ModuloMetadata.filtrar_modulos_ativos(
+        payload_dict.get("modulos_inclusos") or [], overrides
+    )
+    new_plan = PlanoAssinatura(**payload_dict)
     session.add(new_plan)
     await session.commit()
     await session.refresh(new_plan)
@@ -234,10 +249,14 @@ async def create_plan(plan_data: PlanoAssinaturaCreate, session: AsyncSession = 
 
 @router.patch("/plans/{plan_id}", response_model=PlanoAssinaturaResponse, dependencies=[Depends(get_current_admin)])
 async def update_plan(plan_id: uuid.UUID, plan_data: PlanoAssinaturaUpdate, session: AsyncSession = Depends(get_session)):
-    """Atualiza um plano/pacote comercial."""
+    """Atualiza um plano/pacote comercial filtrando módulos inativos."""
+    from core.constants import ModuloMetadata, carregar_overrides_catalogo_modulos
+
     plan = await session.get(PlanoAssinatura, plan_id)
     if not plan:
         raise HTTPException(status_code=404, detail="Plano indisponível ou não encontrado.")
+
+    overrides = await carregar_overrides_catalogo_modulos(session)
 
     # Se estão marcando este plano como padrão, desmarcar os outros
     if plan_data.is_default is True:
@@ -264,7 +283,12 @@ async def update_plan(plan_id: uuid.UUID, plan_data: PlanoAssinaturaUpdate, sess
                 detail="Deve haver pelo menos um plano padrão. Marque outro plano como padrão antes de desmarcar este."
             )
 
-    for field, value in plan_data.model_dump(exclude_unset=True).items():
+    updates = plan_data.model_dump(exclude_unset=True)
+    if "modulos_inclusos" in updates and updates["modulos_inclusos"] is not None:
+        updates["modulos_inclusos"] = ModuloMetadata.filtrar_modulos_ativos(
+            updates["modulos_inclusos"], overrides
+        )
+    for field, value in updates.items():
         setattr(plan, field, value)
     await session.commit()
     await session.refresh(plan)
@@ -282,9 +306,11 @@ async def toggle_plan_status(plan_id: uuid.UUID, session: AsyncSession = Depends
     return {"id": plan_id, "novo_status": plan.ativo}
 
 @router.get("/modules", dependencies=[Depends(get_current_admin)])
-async def list_modules():
-    """Retorna o catálogo completo de módulos disponíveis com metadados."""
-    from core.constants import ModuloMetadata
+async def list_modules(session: AsyncSession = Depends(get_session)):
+    """Retorna o catálogo completo de módulos disponíveis com metadados e status ativo."""
+    from core.constants import ModuloMetadata, carregar_overrides_catalogo_modulos
+
+    overrides = await carregar_overrides_catalogo_modulos(session)
     resultado = []
     for modulo_id, meta in ModuloMetadata.CATALOGO.items():
         resultado.append({
@@ -295,8 +321,67 @@ async def list_modules():
             "obrigatorio": meta.get("obrigatorio", False),
             "preco_base_mensal": meta.get("preco_base_mensal", 0.0),
             "dependencias": meta.get("dependencias", []),
+            "ativo": ModuloMetadata.is_modulo_ativo(modulo_id, overrides),
+            **overrides.get(modulo_id, {}),
         })
     return resultado
+
+
+@router.put("/modules/{module_id}", dependencies=[Depends(get_current_admin)])
+async def update_module(module_id: str, payload: dict[str, Any], session: AsyncSession = Depends(get_session)):
+    """Atualiza os campos comerciais, descritivos e de ativação persistidos do módulo."""
+    from core.constants import ModuloMetadata, Modulos
+    from core.models.configuration import ConfiguracaoSaaS
+    if module_id not in ModuloMetadata.CATALOGO:
+        raise HTTPException(status_code=404, detail="Módulo não encontrado.")
+    allowed = {"nome", "descricao", "categoria", "obrigatorio", "preco_base_mensal", "dependencias", "ativo"}
+    if set(payload) - allowed or not payload:
+        raise HTTPException(status_code=422, detail="Campos de edição inválidos.")
+    if module_id == Modulos.CORE and payload.get("ativo") is False:
+        raise HTTPException(status_code=422, detail="O módulo Núcleo (CORE) é obrigatório e não pode ser desativado.")
+    if "preco_base_mensal" in payload and (not isinstance(payload["preco_base_mensal"], (int, float)) or payload["preco_base_mensal"] < 0):
+        raise HTTPException(status_code=422, detail="O preço deve ser um número maior ou igual a zero.")
+    dependencies = payload.get("dependencias")
+    if dependencies is not None and (
+        not isinstance(dependencies, list)
+        or any(not isinstance(dependency, str) or dependency not in ModuloMetadata.CATALOGO or dependency == module_id for dependency in dependencies)
+    ):
+        raise HTTPException(status_code=422, detail="Selecione dependências válidas para o módulo.")
+    config = await session.scalar(select(ConfiguracaoSaaS).where(ConfiguracaoSaaS.chave == "backoffice:module_catalog"))
+    if config is None:
+        config = ConfiguracaoSaaS(chave="backoffice:module_catalog", valor={}, descricao="Edições do catálogo de módulos")
+        session.add(config)
+    values = dict(config.valor or {})
+    values[module_id] = {**values.get(module_id, {}), **payload}
+    config.valor = values
+    await session.commit()
+    return {"id": module_id, **values[module_id]}
+
+
+@router.post("/modules/{module_id}/toggle-status", dependencies=[Depends(get_current_admin)])
+async def toggle_module_status(module_id: str, session: AsyncSession = Depends(get_session)):
+    """Ativa ou desativa um módulo ou extensão (`EXT_IOT`, `EXT_ERP`, etc.) no catálogo da plataforma."""
+    from core.constants import ModuloMetadata, Modulos, carregar_overrides_catalogo_modulos
+    from core.models.configuration import ConfiguracaoSaaS
+
+    if module_id not in ModuloMetadata.CATALOGO:
+        raise HTTPException(status_code=404, detail="Módulo não encontrado.")
+    if module_id == Modulos.CORE:
+        raise HTTPException(status_code=422, detail="O módulo Núcleo (CORE) é obrigatório e não pode ser desativado.")
+
+    overrides = await carregar_overrides_catalogo_modulos(session)
+    ativo_atual = ModuloMetadata.is_modulo_ativo(module_id, overrides)
+    novo_status = not ativo_atual
+
+    config = await session.scalar(select(ConfiguracaoSaaS).where(ConfiguracaoSaaS.chave == "backoffice:module_catalog"))
+    if config is None:
+        config = ConfiguracaoSaaS(chave="backoffice:module_catalog", valor={}, descricao="Edições do catálogo de módulos")
+        session.add(config)
+    values = dict(config.valor or {})
+    values[module_id] = {**values.get(module_id, {}), "ativo": novo_status}
+    config.valor = values
+    await session.commit()
+    return {"id": module_id, "ativo": novo_status}
 
 
 @router.post("/tenants/{tenant_id}/assign-plan/{plan_id}", dependencies=[Depends(get_current_admin)])

@@ -62,8 +62,9 @@ export function ForgotPasswordClient() {
                 badgeLabel="Verifique seu e-mail"
                 title="Instruções enviadas."
                 description="Acesse o link no seu e-mail para definir uma nova senha. O link expira em 1 hora."
+                contentMaxWidthClassName="max-w-[540px]"
             >
-                <div className="space-y-6">
+                <div className="space-y-4">
                     <div className="space-y-2">
                         <h2 className="text-2xl font-light tracking-tight text-foreground">
                             E-mail enviado
@@ -127,8 +128,9 @@ export function ForgotPasswordClient() {
             badgeLabel="Segurança da Conta"
             title="Recupere o acesso à sua conta."
             description="Informe o e-mail cadastrado e enviaremos um link para criar uma nova senha."
+            contentMaxWidthClassName="max-w-[540px]"
         >
-            <div className="space-y-6">
+            <div className="space-y-4">
                 <div className="space-y-2">
                     <h2 className="text-2xl font-light tracking-tight text-foreground">
                         Recuperar senha

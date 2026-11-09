@@ -61,6 +61,7 @@ export interface ModuleCardProps
   icon?: React.ReactNode;
   title: string;
   description?: string;
+  headerAction?: React.ReactNode;
   /** Wrap em Link externo: passar o wrapper como children ou usar asChild pattern */
   disabled?: boolean;
 }
@@ -72,6 +73,7 @@ export function ModuleCard({
   icon,
   title,
   description,
+  headerAction,
   disabled = false,
   className,
   children,
@@ -96,7 +98,10 @@ export function ModuleCard({
         </CardHeader>
       )}
       <CardContent className={cn("px-4 pb-4", !icon && "pt-4", "space-y-1")}>
-        <p className="font-semibold text-sm text-foreground text-balance">{title}</p>
+        <div className="flex items-start justify-between gap-2">
+          <p className="min-w-0 font-semibold text-sm text-foreground text-balance">{title}</p>
+          {headerAction && <div className="-mr-2 -mt-2 shrink-0">{headerAction}</div>}
+        </div>
         {description && (
           <p className="text-xs text-muted-foreground text-pretty leading-relaxed">
             {description}

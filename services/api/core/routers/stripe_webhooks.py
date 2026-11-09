@@ -4,14 +4,18 @@ Webhook handler para eventos Stripe.
 Registra: POST /stripe/webhook
 
 Eventos tratados:
-- checkout.session.completed → ativa tenant + assinatura + converte lead
+- checkout.session.completed / checkout.session.async_payment_succeeded → ativa tenant + assinatura + vincula stripe_subscription_id
+- invoice.paid / invoice.payment_succeeded → renova ciclo da assinatura recorrente e registra fatura PAGA
+- invoice.payment_failed → marca fatura como VENCIDA e suspende assinatura/tenant por inadimplência
+- customer.subscription.updated / customer.subscription.deleted → sincroniza status (ATIVA, SUSPENSA, CANCELADA)
 """
+from decimal import Decimal
 import stripe
 from fastapi import APIRouter, Request, HTTPException, Header, Depends
 from pydantic import BaseModel
 from core.dependencies import require_permission
 from sqlalchemy import select
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import uuid
 from loguru import logger
 
@@ -48,14 +52,31 @@ async def stripe_webhook(
         logger.warning(f"Webhook Stripe inválido: {e}")
         raise HTTPException(status_code=400, detail=str(e))
 
-    if event["type"] in {
+    event_type = event["type"]
+    obj = event["data"]["object"]
+    if hasattr(obj, "to_dict"):
+        obj = obj.to_dict()
+
+    if event_type in {
         "checkout.session.completed",
         "checkout.session.async_payment_succeeded",
     }:
-        session = event["data"]["object"]
-        if hasattr(session, "to_dict"):
-            session = session.to_dict()
-        processed = await _handle_checkout_completed(session)
+        processed = await _handle_checkout_completed(obj)
+        if not processed:
+            return {"status": "ignored"}
+
+    elif event_type in {"invoice.paid", "invoice.payment_succeeded"}:
+        processed = await _handle_invoice_paid(obj)
+        if not processed:
+            return {"status": "ignored"}
+
+    elif event_type == "invoice.payment_failed":
+        processed = await _handle_invoice_payment_failed(obj)
+        if not processed:
+            return {"status": "ignored"}
+
+    elif event_type in {"customer.subscription.updated", "customer.subscription.deleted"}:
+        processed = await _handle_subscription_status_changed(obj, event_type)
         if not processed:
             return {"status": "ignored"}
 
@@ -149,6 +170,12 @@ async def _handle_checkout_completed(session: dict) -> bool:
             if assinatura.stripe_subscription_id not in (None, stripe_subscription_id):
                 raise HTTPException(status_code=409, detail="Assinatura já vinculada a outro registro Stripe")
 
+            if "usuarios_contratados" in (session.get("metadata") or {}):
+                try:
+                    assinatura.usuarios_contratados = int(session["metadata"]["usuarios_contratados"])
+                except (TypeError, ValueError):
+                    pass
+
             if payment_status == "no_payment_required":
                 eligible = plano.is_free or (assinatura.status == "TRIAL" and plano.tem_trial)
                 if not eligible:
@@ -183,9 +210,13 @@ async def _handle_checkout_completed(session: dict) -> bool:
 
             assinatura.stripe_subscription_id = stripe_subscription_id
             assinatura.status = "ATIVA"
+            assinatura.data_bloqueio = None
+            dias_ciclo = 365 if assinatura.ciclo_pagamento == "ANUAL" else 30
+            assinatura.data_proxima_renovacao = datetime.now(timezone.utc) + timedelta(days=dias_ciclo)
             tenant.ativo = True
             tenant.activation_token = None
             tenant.activation_expires_at = None
+            await _apply_pending_plan_change(db, assinatura)
             await _convert_approved_lead(db, tenant_id)
             await db.commit()
             logger.info("Checkout Stripe pago processado.")
@@ -200,6 +231,204 @@ async def _handle_checkout_completed(session: dict) -> bool:
                 status_code=500,
                 detail="Falha ao persistir o pagamento; o webhook deve ser repetido.",
             ) from exc
+
+
+def _extract_subscription_id_from_invoice(invoice_obj: dict) -> str | None:
+    """Extrai o ID da assinatura Stripe (sub_...) de um objeto Invoice."""
+    sub = invoice_obj.get("subscription")
+    if isinstance(sub, dict):
+        sub = sub.get("id")
+    if isinstance(sub, str) and sub:
+        return sub
+    return None
+
+
+async def _apply_pending_plan_change(db, assinatura: AssinaturaTenant) -> None:
+    """
+    Se houver aditivo de novos acessos simultâneos ou upgrade de pacote pendente de pagamento
+    (MudancaPlano com status='pendente_pagamento'), aplica automaticamente na assinatura ao confirmar o pagamento.
+    """
+    from core.models.plan_changes import MudancaPlano
+
+    stmt = (
+        select(MudancaPlano)
+        .where(
+            MudancaPlano.assinatura_id == assinatura.id,
+            MudancaPlano.status == "pendente_pagamento",
+        )
+        .order_by(MudancaPlano.created_at.desc())
+        .limit(1)
+    )
+    res = await db.execute(stmt)
+    mudanca = res.scalar_one_or_none() if res else None
+    if not mudanca or getattr(mudanca, "status", None) != "pendente_pagamento":
+        return
+
+    assinatura.plano_id = mudanca.plano_destino_id
+    assinatura.usuarios_contratados = mudanca.usuarios_destino
+    mudanca.status = "aplicado"
+    mudanca.aplicado_em = datetime.now(timezone.utc)
+    mudanca.aplicado_por_job = True
+
+
+async def _handle_invoice_paid(invoice_obj: dict) -> bool:
+    """
+    Trata renovação recorrente paga no Stripe (invoice.paid / invoice.payment_succeeded).
+    Dá continuidade automática ao contrato (status ATIVA, renova data_proxima_renovacao e quita fatura).
+    """
+    stripe_sub_id = _extract_subscription_id_from_invoice(invoice_obj)
+    if not stripe_sub_id:
+        return False
+
+    agora = datetime.now(timezone.utc)
+    amount_paid_cents = int(invoice_obj.get("amount_paid") or 0)
+    valor_pago = (Decimal(amount_paid_cents) / Decimal(100)).quantize(Decimal("0.01"))
+
+    async with async_session_maker() as db:
+        try:
+            stmt = select(AssinaturaTenant).where(
+                AssinaturaTenant.stripe_subscription_id == stripe_sub_id
+            )
+            assinatura = (await db.execute(stmt)).scalar_one_or_none()
+            if not assinatura:
+                return False
+
+            tenant = await db.get(Tenant, assinatura.tenant_id)
+            faturas = await _load_subscription_invoices(db, assinatura.tenant_id, assinatura.id)
+            pendentes = [f for f in faturas if f.status in {"ABERTA", "VENCIDA", "REJEITADA"}]
+
+            if pendentes:
+                pendentes[0].status = "PAGA"
+                pendentes[0].data_aprovacao_rejeicao = agora
+                if valor_pago > Decimal("0.00"):
+                    pendentes[0].valor = valor_pago
+            elif valor_pago > Decimal("0.00"):
+                nova_fatura = Fatura(
+                    id=uuid.uuid4(),
+                    tenant_id=assinatura.tenant_id,
+                    assinatura_id=assinatura.id,
+                    valor=valor_pago,
+                    data_vencimento=agora,
+                    status="PAGA",
+                    data_aprovacao_rejeicao=agora,
+                )
+                db.add(nova_fatura)
+
+            dias_ciclo = 365 if assinatura.ciclo_pagamento == "ANUAL" else 30
+            assinatura.status = "ATIVA"
+            assinatura.data_bloqueio = None
+            assinatura.data_proxima_renovacao = agora + timedelta(days=dias_ciclo)
+            if tenant:
+                tenant.ativo = True
+            await _apply_pending_plan_change(db, assinatura)
+
+            await db.commit()
+            logger.info(f"Renovação Stripe paga para assinatura {assinatura.id} ({stripe_sub_id})")
+            return True
+        except Exception as exc:
+            await _rollback_webhook(db)
+            logger.error(f"Falha ao processar invoice.paid ({stripe_sub_id}): {exc}")
+            raise HTTPException(status_code=500, detail="Falha ao processar renovação Stripe") from exc
+
+
+async def _handle_invoice_payment_failed(invoice_obj: dict) -> bool:
+    """
+    Trata inadimplência na cobrança recorrente do Stripe (invoice.payment_failed).
+    Marca a fatura como VENCIDA e suspende a assinatura/tenant por falta de pagamento.
+    """
+    stripe_sub_id = _extract_subscription_id_from_invoice(invoice_obj)
+    if not stripe_sub_id:
+        return False
+
+    agora = datetime.now(timezone.utc)
+    amount_due_cents = int(invoice_obj.get("amount_due") or 0)
+    valor_devido = (Decimal(amount_due_cents) / Decimal(100)).quantize(Decimal("0.01"))
+
+    async with async_session_maker() as db:
+        try:
+            stmt = select(AssinaturaTenant).where(
+                AssinaturaTenant.stripe_subscription_id == stripe_sub_id
+            )
+            assinatura = (await db.execute(stmt)).scalar_one_or_none()
+            if not assinatura:
+                return False
+
+            tenant = await db.get(Tenant, assinatura.tenant_id)
+            faturas = await _load_subscription_invoices(db, assinatura.tenant_id, assinatura.id)
+            abertas = [f for f in faturas if f.status == "ABERTA"]
+
+            if abertas:
+                abertas[0].status = "VENCIDA"
+            elif valor_devido > Decimal("0.00"):
+                fatura_vencida = Fatura(
+                    id=uuid.uuid4(),
+                    tenant_id=assinatura.tenant_id,
+                    assinatura_id=assinatura.id,
+                    valor=valor_devido,
+                    data_vencimento=agora,
+                    status="VENCIDA",
+                )
+                db.add(fatura_vencida)
+
+            assinatura.status = "SUSPENSA"
+            assinatura.data_bloqueio = agora
+            if tenant:
+                tenant.ativo = False
+
+            await db.commit()
+            logger.warning(f"Inadimplência Stripe: assinatura {assinatura.id} ({stripe_sub_id}) suspensa")
+            return True
+        except Exception as exc:
+            await _rollback_webhook(db)
+            logger.error(f"Falha ao processar invoice.payment_failed ({stripe_sub_id}): {exc}")
+            raise HTTPException(status_code=500, detail="Falha ao processar falha de pagamento Stripe") from exc
+
+
+async def _handle_subscription_status_changed(sub_obj: dict, event_type: str) -> bool:
+    """
+    Sincroniza alterações de status do contrato no Stripe
+    (customer.subscription.updated / customer.subscription.deleted).
+    """
+    stripe_sub_id = sub_obj.get("id")
+    if not isinstance(stripe_sub_id, str) or not stripe_sub_id:
+        return False
+
+    stripe_status = str(sub_obj.get("status") or "").lower()
+    agora = datetime.now(timezone.utc)
+
+    async with async_session_maker() as db:
+        try:
+            stmt = select(AssinaturaTenant).where(
+                AssinaturaTenant.stripe_subscription_id == stripe_sub_id
+            )
+            assinatura = (await db.execute(stmt)).scalar_one_or_none()
+            if not assinatura:
+                return False
+
+            tenant = await db.get(Tenant, assinatura.tenant_id)
+
+            if event_type == "customer.subscription.deleted" or stripe_status == "canceled":
+                assinatura.status = "CANCELADA"
+                assinatura.data_bloqueio = agora
+                if tenant:
+                    tenant.ativo = False
+            elif stripe_status in {"past_due", "unpaid", "incomplete_expired"}:
+                assinatura.status = "SUSPENSA"
+                assinatura.data_bloqueio = agora
+                if tenant:
+                    tenant.ativo = False
+            elif stripe_status == "active":
+                assinatura.status = "ATIVA"
+                assinatura.data_bloqueio = None
+                if tenant:
+                    tenant.ativo = True
+
+            await db.commit()
+            return True
+        except Exception as exc:
+            await _rollback_webhook(db)
+            logger.error(f"Falha ao sincronizar subscription ({stripe_sub_id}): {exc}")
+            raise HTTPException(status_code=500, detail="Falha ao sincronizar assinatura Stripe") from exc
 
 
 async def _load_subscription_invoices(db, tenant_id, assinatura_id) -> list[Fatura]:

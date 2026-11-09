@@ -9,7 +9,12 @@ from core.models.tenant import Tenant
 from core.models.billing import AssinaturaTenant, PlanoAssinatura, Fatura
 from core.models.unidade_produtiva import UnidadeProdutiva as Fazenda
 from core.models.auth import TenantUsuario
-from core.schemas.billing_schemas import FaturaResponse, LandingPlanoResponse, PlanoAssinaturaResponse
+from core.schemas.billing_schemas import (
+    FaturaResponse,
+    LandingPlanoResponse,
+    PlanoAssinaturaResponse,
+    SimulacaoOrcamentoPublicoRequest,
+)
 from core.services.storage_service import StorageService, increment_storage
 from core.services.tenant_branding import upload_tenant_logo
 
@@ -51,7 +56,10 @@ async def get_my_account(tenant: Tenant = Depends(get_current_tenant), session: 
         ciclo = getattr(assinatura, "ciclo_pagamento", "MENSAL") or "MENSAL"
         valor_base = float(plano.preco_anual if ciclo == "ANUAL" else plano.preco_mensal)
         valor_composto = valor_base
+        valor_anual_composto = float(plano.preco_anual or (plano.preco_mensal * 10))
+        economia_anual_prevista = 0.0
         detalhamento_preco = []
+        capacidade_equivalente = None
         try:
             from core.services.plan_pricing_service import PlanoPricingService
             pricing_svc = PlanoPricingService(session)
@@ -61,6 +69,19 @@ async def get_my_account(tenant: Tenant = Depends(get_current_tenant), session: 
                 ciclo=ciclo,
             )
             valor_composto = float(total_dec)
+            mensal_dec, _ = await pricing_svc.calcular_preco_total(
+                plano_id=plano.id,
+                quantidade_usuarios=max_usuarios,
+                ciclo="MENSAL",
+            )
+            anual_dec, _ = await pricing_svc.calcular_preco_total(
+                plano_id=plano.id,
+                quantidade_usuarios=max_usuarios,
+                ciclo="ANUAL",
+            )
+            valor_anual_composto = float(anual_dec)
+            economia_anual_prevista = float((mensal_dec * 12) - anual_dec)
+            capacidade_equivalente = await pricing_svc.calcular_consumo_capacidade_tenant(tenant.id)
         except Exception:
             valor_composto = valor_base
 
@@ -69,6 +90,8 @@ async def get_my_account(tenant: Tenant = Depends(get_current_tenant), session: 
             "plano_id": str(plano.id),
             "valor": valor_composto,
             "valor_base": float(plano.preco_mensal),
+            "valor_anual_composto": valor_anual_composto,
+            "economia_anual_prevista": economia_anual_prevista,
             "ciclo_pagamento": ciclo,
             "status": assinatura.status,
             "data_inicio": assinatura.data_inicio,
@@ -78,8 +101,13 @@ async def get_my_account(tenant: Tenant = Depends(get_current_tenant), session: 
             "usuarios_inclusos": plano.limite_usuarios_minimo or 1,
             "usuarios_contratados": max_usuarios,
             "detalhamento_preco": detalhamento_preco,
+            "capacidade_equivalente": capacidade_equivalente,
         }
-        modulos_ativos = plano.modulos_inclusos or ["CORE"]
+        from core.constants import ModuloMetadata, carregar_overrides_catalogo_modulos
+        overrides = await carregar_overrides_catalogo_modulos(session)
+        modulos_ativos = ModuloMetadata.filtrar_modulos_ativos(
+            plano.modulos_inclusos or ["CORE"], overrides
+        )
 
     return {
         "tenant": {
@@ -142,7 +170,10 @@ async def update_my_account(
         ciclo = getattr(assinatura, "ciclo_pagamento", "MENSAL") or "MENSAL"
         valor_base = float(plano.preco_anual if ciclo == "ANUAL" else plano.preco_mensal)
         valor_composto = valor_base
+        valor_anual_composto = float(plano.preco_anual or (plano.preco_mensal * 10))
+        economia_anual_prevista = 0.0
         detalhamento_preco = []
+        capacidade_equivalente = None
         try:
             from core.services.plan_pricing_service import PlanoPricingService
             pricing_svc = PlanoPricingService(session)
@@ -152,6 +183,19 @@ async def update_my_account(
                 ciclo=ciclo,
             )
             valor_composto = float(total_dec)
+            mensal_dec, _ = await pricing_svc.calcular_preco_total(
+                plano_id=plano.id,
+                quantidade_usuarios=max_usuarios,
+                ciclo="MENSAL",
+            )
+            anual_dec, _ = await pricing_svc.calcular_preco_total(
+                plano_id=plano.id,
+                quantidade_usuarios=max_usuarios,
+                ciclo="ANUAL",
+            )
+            valor_anual_composto = float(anual_dec)
+            economia_anual_prevista = float((mensal_dec * 12) - anual_dec)
+            capacidade_equivalente = await pricing_svc.calcular_consumo_capacidade_tenant(tenant.id)
         except Exception:
             valor_composto = valor_base
 
@@ -160,6 +204,8 @@ async def update_my_account(
             "plano_id": str(plano.id),
             "valor": valor_composto,
             "valor_base": float(plano.preco_mensal),
+            "valor_anual_composto": valor_anual_composto,
+            "economia_anual_prevista": economia_anual_prevista,
             "ciclo_pagamento": ciclo,
             "status": assinatura.status,
             "data_inicio": assinatura.data_inicio,
@@ -169,8 +215,13 @@ async def update_my_account(
             "usuarios_inclusos": plano.limite_usuarios_minimo or 1,
             "usuarios_contratados": max_usuarios,
             "detalhamento_preco": detalhamento_preco,
+            "capacidade_equivalente": capacidade_equivalente,
         }
-        modulos_ativos = plano.modulos_inclusos or ["CORE"]
+        from core.constants import ModuloMetadata, carregar_overrides_catalogo_modulos
+        overrides = await carregar_overrides_catalogo_modulos(session)
+        modulos_ativos = ModuloMetadata.filtrar_modulos_ativos(
+            plano.modulos_inclusos or ["CORE"], overrides
+        )
 
     # Retorna estrutura completa igual ao GET /my-account
     return {
@@ -261,17 +312,162 @@ async def register_payment_proof(
     await session.commit()
     return {"message": "Comprovante enviado para análise!", "url_comprovante": url_comprovante}
 
+
+@router.post("/invoices/{invoice_id}/checkout-stripe")
+async def create_invoice_stripe_checkout(
+    invoice_id: uuid.UUID,
+    tenant: Tenant = Depends(get_current_tenant),
+    session: AsyncSession = Depends(get_session),
+):
+    """Gera sessão de pagamento no Stripe Checkout com line_items compostos para fatura em aberto."""
+    from core.services.plan_pricing_service import PlanoPricingService
+    from core.services.stripe_service import StripeService
+
+    fatura = await session.get(Fatura, invoice_id)
+    if not fatura or fatura.tenant_id != tenant.id:
+        raise HTTPException(status_code=404, detail="Fatura indisponível ou não encontrada.")
+
+    if fatura.status == "PAGA":
+        raise HTTPException(status_code=400, detail="Esta fatura já está paga.")
+
+    assinatura = await session.get(AssinaturaTenant, fatura.assinatura_id) if fatura.assinatura_id else None
+    if not assinatura:
+        stmt_ass = (
+            select(AssinaturaTenant)
+            .where(AssinaturaTenant.tenant_id == tenant.id)
+            .order_by(AssinaturaTenant.data_inicio.desc())
+            .limit(1)
+        )
+        assinatura = (await session.execute(stmt_ass)).scalar_one_or_none()
+
+    if not assinatura:
+        raise HTTPException(status_code=404, detail="Assinatura vinculada não encontrada.")
+
+    from core.constants import ModuloMetadata, carregar_overrides_catalogo_modulos
+
+    overrides = await carregar_overrides_catalogo_modulos(session)
+    plano = await session.get(PlanoAssinatura, assinatura.plano_id)
+    ciclo = getattr(assinatura, "ciclo_pagamento", "MENSAL") or "MENSAL"
+    qtd_usuarios = assinatura.usuarios_contratados or (plano.limite_usuarios_minimo if plano else 1) or 1
+    extensoes_contratadas = [
+        ext
+        for ext in list((tenant.branding or {}).get("extensoes_contratadas") or [])
+        if ModuloMetadata.is_modulo_ativo(ext, overrides)
+    ]
+
+    detalhamento_preco: list[dict] | None = None
+    if plano:
+        try:
+            pricing_svc = PlanoPricingService(session)
+            _, detalhamento_preco = await pricing_svc.calcular_preco_total(
+                plano_id=plano.id,
+                quantidade_usuarios=qtd_usuarios,
+                ciclo=ciclo,
+            )
+        except Exception:
+            detalhamento_preco = None
+
+    stripe_svc = StripeService()
+    try:
+        checkout_url = await stripe_svc.criar_checkout_assinatura(
+            tenant_id=str(tenant.id),
+            assinatura_id=str(assinatura.id),
+            email=tenant.email_responsavel or "financeiro@deepfarms.com.br",
+            plano_id=str(assinatura.plano_id),
+            ciclo=ciclo,
+            detalhamento_preco=detalhamento_preco,
+            nome_plano=plano.nome if plano else "DeepFarms",
+            usuarios_contratados=qtd_usuarios,
+            extensoes_contratadas=extensoes_contratadas,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return {"checkout_url": checkout_url}
+
+@router.get("/modules/catalog")
+async def get_public_modules_catalog(session: AsyncSession = Depends(get_session)):
+    """
+    Retorna o status público de ativação dos módulos nativos e das extensões contratadas à parte (`EXT_IOT`, `EXT_ERP`).
+    Módulos inativos não são exibidos nos pacotes e extensões inativas não podem ser selecionadas.
+    """
+    from core.constants import (
+        EXTENSOES_CONTRATADAS_A_PARTE,
+        ModuloMetadata,
+        carregar_overrides_catalogo_modulos,
+    )
+
+    overrides = await carregar_overrides_catalogo_modulos(session)
+    modulos_nativos: list[dict[str, object]] = []
+    modulos_ativos: list[str] = []
+    modulos_inativos: list[str] = []
+
+    for mod_id, meta in ModuloMetadata.CATALOGO.items():
+        ativo = ModuloMetadata.is_modulo_ativo(mod_id, overrides)
+        if ativo:
+            if mod_id not in EXTENSOES_CONTRATADAS_A_PARTE:
+                modulos_ativos.append(mod_id)
+        else:
+            modulos_inativos.append(mod_id)
+
+        if mod_id not in EXTENSOES_CONTRATADAS_A_PARTE:
+            override_mod = overrides.get(mod_id, {})
+            modulos_nativos.append({
+                "id": mod_id,
+                "nome": override_mod.get("nome", meta.get("nome", mod_id)),
+                "descricao": override_mod.get("descricao", meta.get("descricao", "")),
+                "categoria": override_mod.get("categoria", meta.get("categoria", "")),
+                "obrigatorio": bool(override_mod.get("obrigatorio", meta.get("obrigatorio", False))),
+                "ativo": ativo,
+            })
+
+    extensoes = ModuloMetadata.obter_extensoes_a_parte(overrides)
+    return {
+        "modulos_ativos": modulos_ativos,
+        "modulos_inativos": modulos_inativos,
+        "modulos_nativos": modulos_nativos,
+        "extensoes": extensoes,
+    }
+
+
 @router.get("/plans", response_model=List[PlanoAssinaturaResponse])
 async def list_available_plans(session: AsyncSession = Depends(get_session)):
-    """Lista todos os pacotes de assinatura ativos."""
-    stmt = select(PlanoAssinatura).where(PlanoAssinatura.ativo == True).order_by(PlanoAssinatura.preco_mensal.asc())
+    """Lista todos os pacotes de assinatura ativos filtrando módulos inativos."""
+    from core.constants import ModuloMetadata, carregar_overrides_catalogo_modulos
+
+    overrides = await carregar_overrides_catalogo_modulos(session)
+    stmt = select(PlanoAssinatura).where(PlanoAssinatura.ativo == True).order_by(PlanoAssinatura.ordem.asc(), PlanoAssinatura.preco_mensal.asc())
     result = await session.execute(stmt)
-    return result.scalars().all()
+    planos = list(result.scalars().all())
+
+    nomes_atuais = {(p.nome or "").strip().lower() for p in planos}
+    if len(planos) < 5 or any(n in nomes_atuais for n in ("básico", "basico", "profissional", "empresa")):
+        try:
+            from scripts.initial_load.seed_plans import seed_plans_with_session
+            from scripts.seed_plan_pricing import seed_plan_pricing_with_session
+
+            changed = await seed_plans_with_session(session)
+            if changed:
+                await seed_plan_pricing_with_session(session)
+                result = await session.execute(stmt)
+                planos = list(result.scalars().all())
+        except Exception:
+            pass
+
+    for plano in planos:
+        plano.modulos_inclusos = ModuloMetadata.filtrar_modulos_ativos(
+            plano.modulos_inclusos or [], overrides
+        )
+
+    return planos
 
 
 @router.get("/plans/landing", response_model=List[LandingPlanoResponse])
 async def list_landing_plans(session: AsyncSession = Depends(get_session)):
-    """Lista somente planos ativos e explicitamente publicados no site."""
+    """Lista somente planos ativos e explicitamente publicados no site, filtrando módulos inativos."""
+    from core.constants import ModuloMetadata, carregar_overrides_catalogo_modulos
+
+    overrides = await carregar_overrides_catalogo_modulos(session)
     stmt = (
         select(PlanoAssinatura)
         .where(
@@ -281,7 +477,45 @@ async def list_landing_plans(session: AsyncSession = Depends(get_session)):
         .order_by(PlanoAssinatura.ordem.asc(), PlanoAssinatura.preco_mensal.asc())
     )
     result = await session.execute(stmt)
-    return result.scalars().all()
+    planos = list(result.scalars().all())
+
+    nomes_atuais = {(p.nome or "").strip().lower() for p in planos}
+    if len(planos) < 5 or any(n in nomes_atuais for n in ("básico", "basico", "profissional", "empresa")):
+        try:
+            from scripts.initial_load.seed_plans import seed_plans_with_session
+            from scripts.seed_plan_pricing import seed_plan_pricing_with_session
+
+            changed = await seed_plans_with_session(session)
+            if changed:
+                await seed_plan_pricing_with_session(session)
+                result = await session.execute(stmt)
+                planos = list(result.scalars().all())
+        except Exception:
+            pass
+
+    for plano in planos:
+        plano.modulos_inclusos = ModuloMetadata.filtrar_modulos_ativos(
+            plano.modulos_inclusos or [], overrides
+        )
+
+    return planos
+
+
+@router.post("/plans/simular")
+async def simular_orcamento_publico(
+    payload: SimulacaoOrcamentoPublicoRequest,
+    session: AsyncSession = Depends(get_session),
+):
+    """
+    Simulador transparente público (Landing Page, Cadastro e Painel de Assinatura).
+    Calcula Hectares Equivalentes (isenta APP/Reserva Legal, pondera culturas/safrinha/consórcio e ILP),
+    recomenda o pacote ideal entre os 5 perfis (100% dos módulos inclusos) e detalha
+    o valor mensal e anual (2 meses grátis no pacote + 20% OFF nas licenças adicionais).
+    """
+    from core.services.plan_pricing_service import PlanoPricingService
+
+    pricing_svc = PlanoPricingService(session)
+    return await pricing_svc.simular_orcamento_publico(payload.model_dump())
 
 @router.post("/upgrade")
 async def request_upgrade(
@@ -403,6 +637,16 @@ async def get_tenant_limits(
     storage_limite = tenant.storage_limite_mb if tenant else 0
     storage_porcentagem = (storage_atual / storage_limite * 100) if storage_limite > 0 else 0.0
 
+    capacidade_eq = {}
+    try:
+        from core.services.plan_pricing_service import PlanoPricingService
+        capacidade_eq = await PlanoPricingService(session).calcular_consumo_capacidade_tenant(tenant_id)
+    except Exception:
+        capacidade_eq = {}
+
+    hectares_efetivos = float(capacidade_eq.get("hectares_equivalentes_total", hectares_atual))
+    hectares_porcentagem = (hectares_efetivos / hectares_limite * 100) if hectares_limite and hectares_limite > 0 else 0.0
+
     return {
         "max_fazendas": {
             "atual": fazendas_atual,
@@ -411,15 +655,20 @@ async def get_tenant_limits(
             "atingido": fazendas_atual >= fazendas_limite if fazendas_limite else False,
         },
         "limite_hectares": {
-            "atual": round(hectares_atual, 2),
+            "atual": round(hectares_efetivos, 2),
+            "hectares_fisicos": round(hectares_atual, 2),
+            "hectares_ambientais_isentos": round(float(capacidade_eq.get("hectares_ambientais_isentos", 0.0)), 2),
+            "hectares_equivalentes": round(hectares_efetivos, 2),
+            "cabecas_pecuaria_ativas": int(capacidade_eq.get("cabecas_pecuaria_total", 0)),
             "limite": hectares_limite,
             "porcentagem": round(hectares_porcentagem, 2),
-            "atingido": hectares_atual >= hectares_limite if hectares_limite else False,
+            "atingido": hectares_efetivos >= hectares_limite if hectares_limite else False,
         },
         "max_usuarios": {
             "atual": sessoes_ativas,
             "limite": usuarios_limite,
             "usuarios_cadastrados": usuarios_cadastrados,
+            "dispositivos_campo_ativos_isentos": int(capacidade_eq.get("dispositivos_campo_ativos_isentos", 0)),
             "porcentagem": round(usuarios_porcentagem, 2),
             "atingido": sessoes_ativas >= usuarios_limite if usuarios_limite else False,
         },

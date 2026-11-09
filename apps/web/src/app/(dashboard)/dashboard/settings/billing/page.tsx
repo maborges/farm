@@ -10,6 +10,7 @@ import { IACommercialAssistantWidget } from "@/components/ia/ia-commercial-assis
 import { IncentivoGrowthCard } from "@/components/ia/incentivo-growth-card";
 import { apiFetch } from "@/lib/api";
 import { getCommercialPlanName, normalizePlanTier, getModuleName } from "@/lib/constants/planos";
+import { getPacotes } from "@/lib/constants/pacotes";
 import { cn, formatCurrency } from "@/lib/utils";
 import type { PlanTierId } from "@/types/global";
 import {
@@ -65,11 +66,26 @@ interface MyAccount {
     assinatura: {
         plano: string;
         valor: number;
+        valor_base?: number;
+        valor_anual_composto?: number;
+        economia_anual_prevista?: number;
+        ciclo_pagamento?: string;
         status: string;
         data_inicio: string;
         proximo_vencimento: string | null;
+        limite_hectares?: number | null;
+        usuarios_inclusos?: number;
+        usuarios_contratados?: number;
         max_usuarios?: number;
         max_categorias_plano?: number;
+        capacidade_equivalente?: {
+            hectares_fisicos_total: number;
+            hectares_ambientais_isentos: number;
+            hectares_produtivos_liquidos: number;
+            hectares_equivalentes_total: number;
+            dispositivos_campo_ativos_isentos: number;
+            cabecas_pecuaria_total: number;
+        } | null;
     } | null;
 }
 
@@ -424,6 +440,28 @@ export default function BillingPage() {
 
     const proofFileInputRef = useRef<HTMLInputElement>(null);
     const [pendingProofInvoiceId, setPendingProofInvoiceId] = useState<string | null>(null);
+    const [pendingStripeInvoiceId, setPendingStripeInvoiceId] = useState<string | null>(null);
+
+    const stripeCheckoutMutation = useMutation({
+        mutationFn: async (invoiceId: string) => {
+            setPendingStripeInvoiceId(invoiceId);
+            return await apiFetch<{ checkout_url: string }>(
+                `/billing/invoices/${invoiceId}/checkout-stripe`,
+                { method: "POST" }
+            );
+        },
+        onSuccess: (data) => {
+            if (data?.checkout_url) {
+                window.location.href = data.checkout_url;
+            }
+        },
+        onError: (error: Error) => {
+            toast.error(error.message || "Não foi possível abrir o checkout Stripe.");
+        },
+        onSettled: () => {
+            setPendingStripeInvoiceId(null);
+        },
+    });
 
     function handleProofFileChange(event: React.ChangeEvent<HTMLInputElement>) {
         const file = event.target.files?.[0];
@@ -500,11 +538,11 @@ export default function BillingPage() {
                         </Badge>
                     </div>
                     <CardTitle className="text-2xl font-black uppercase tracking-tight">
-                        Plano {currentPlanLabel}
+                        Pacote {account?.assinatura?.plano || currentPlanLabel}
                     </CardTitle>
                     <CardDescription className="max-w-3xl font-medium">
                         {account?.assinatura
-                            ? `Próximo vencimento: ${account.assinatura.proximo_vencimento ? format(new Date(account.assinatura.proximo_vencimento), "dd/MM/yyyy", { locale: ptBR }) : "N/A"}`
+                            ? `Próximo vencimento: ${account.assinatura.proximo_vencimento ? format(new Date(account.assinatura.proximo_vencimento), "dd/MM/yyyy", { locale: ptBR }) : "N/A"} • 100% dos módulos liberados • App Campo offline isento de simultaneidade`
                             : "Conta sem assinatura ativa. Solicite upgrade ou fale com vendas."}
                     </CardDescription>
                 </CardHeader>
@@ -517,15 +555,41 @@ export default function BillingPage() {
                             </Badge>
                         ))}
                     </div>
-                    <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                         <div className="rounded-sm border border-border/60 bg-background/70 p-3">
-                            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Usuários contratados</p>
-                            <p className="mt-1 text-sm font-bold">{account?.tenant.max_usuarios ?? account?.assinatura?.max_usuarios ?? 0}</p>
+                            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Valor Composto</p>
+                            <p className="mt-1 text-sm font-bold">
+                                {formatCurrency(account?.assinatura?.valor ?? 0)}/{account?.assinatura?.ciclo_pagamento === "ANUAL" ? "ano" : "mês"}
+                            </p>
+                            {(account?.assinatura?.economia_anual_prevista ?? 0) > 0 && account?.assinatura?.ciclo_pagamento !== "ANUAL" && (
+                                <p className="text-[10px] font-semibold text-emerald-600 mt-0.5">
+                                    Economize {formatCurrency(account?.assinatura?.economia_anual_prevista ?? 0)}/ano no Anual
+                                </p>
+                            )}
                         </div>
                         <div className="rounded-sm border border-border/60 bg-background/70 p-3">
-                            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Categorias do plano</p>
+                            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Acessos Simultâneos Web</p>
                             <p className="mt-1 text-sm font-bold">
-                                {account?.tenant.max_categorias_plano ?? account?.assinatura?.max_categorias_plano ?? 0}
+                                {account?.assinatura?.usuarios_contratados ?? account?.tenant.max_usuarios ?? 1} acesso(s)
+                            </p>
+                            <p className="text-[10px] text-emerald-600 font-semibold mt-0.5">
+                                App Campo: {account?.assinatura?.capacidade_equivalente?.dispositivos_campo_ativos_isentos ?? 0} disp. (Isento)
+                            </p>
+                        </div>
+                        <div className="rounded-sm border border-border/60 bg-background/70 p-3">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Hectares Equivalentes</p>
+                            <p className="mt-1 text-sm font-bold">
+                                {account?.assinatura?.capacidade_equivalente?.hectares_equivalentes_total ?? 0} / {account?.assinatura?.limite_hectares ?? "∞"} HEq
+                            </p>
+                            <p className="text-[10px] text-muted-foreground mt-0.5">
+                                Isentos (APP/RL): {account?.assinatura?.capacidade_equivalente?.hectares_ambientais_isentos ?? 0} ha
+                            </p>
+                        </div>
+                        <div className="rounded-sm border border-border/60 bg-background/70 p-3">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Módulos Liberados</p>
+                            <p className="mt-1 text-sm font-bold">100% All-In</p>
+                            <p className="text-[10px] text-muted-foreground mt-0.5">
+                                {account?.tenant.modulos_ativos?.length ?? 28} módulos ativos
                             </p>
                         </div>
                     </div>
@@ -654,9 +718,9 @@ export default function BillingPage() {
 
             <Card className="shadow-sm rounded-sm">
                 <CardHeader className="pb-4">
-                    <CardTitle className="text-xl font-black uppercase tracking-tight">Tabela de Preços</CardTitle>
+                    <CardTitle className="text-xl font-black uppercase tracking-tight">Tabela de Pacotes (100% dos Módulos Liberados)</CardTitle>
                     <CardDescription className="text-xs font-medium">
-                        Transparência total nos planos DeepFarms.
+                        Todos os 5 perfis incluem 100% dos módulos da plataforma. O valor varia pela área produtiva equivalente (APP e Reserva Legal isentas; safrinha e consórcio sem duplicação) e acessos simultâneos na Web (App Campo é 100% isento).
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -671,83 +735,106 @@ export default function BillingPage() {
                             </TabsList>
                         </Tabs>
                         <span className={`text-[10px] font-black uppercase tracking-wider ${cycle === "ANUAL" ? "text-emerald-600" : "text-muted-foreground"}`}>
-                            Anual
+                            Anual (2 meses grátis + 20% OFF licenças extras)
                         </span>
                     </div>
 
-                    <div className="grid gap-4 lg:grid-cols-3">
-                        {TIER_ORDER.map((tier) => {
-                            const plan = plans?.find((item) => normalizePlanTier(item.plan_tier as PlanTierId) === tier);
-                            const isCurrent = currentTier === tier;
-                            const isRecommended = upgradeTier === tier;
-                            const price = tierPrice(plan, cycle);
+                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+                        {getPacotes().map((pacote) => {
+                            const apiPlan = plans?.find((p) => p.nome.toLowerCase() === pacote.nome.toLowerCase());
+                            const isCurrent = (account?.assinatura?.plano || "").toLowerCase() === pacote.nome.toLowerCase();
+                            const precoExibido = cycle === "MENSAL" ? pacote.precoMensal : pacote.precoAnual / 12;
 
                             return (
                                 <Card
-                                    key={tier}
+                                    key={pacote.id}
                                     className={cn(
                                         "flex flex-col border shadow-sm rounded-sm transition-all duration-300",
                                         isCurrent && "border-primary/40 bg-primary/5 ring-1 ring-primary/20",
-                                        isRecommended && !isCurrent && "border-primary/30"
+                                        pacote.destaque && !isCurrent && "border-primary/30"
                                     )}
                                 >
-                                    <CardHeader className="gap-3">
+                                    <CardHeader className="gap-2 pb-3">
                                         <div className="flex items-start justify-between gap-2">
                                             <div className="flex flex-col gap-1">
                                                 <Badge variant={isCurrent ? "default" : "outline"} className="w-fit rounded-sm text-[9px] font-black uppercase tracking-widest px-1.5 h-4">
-                                                    {TIER_LABELS[tier]}
+                                                    {pacote.destaque || "100% All-In"}
                                                 </Badge>
-                                                <CardTitle className="text-base font-black uppercase tracking-tight">{getDisplayedPlanName(plan, tier)}</CardTitle>
-                                                <CardDescription className="text-[10px] leading-tight font-medium uppercase text-muted-foreground/80">{TIER_SUBTITLE[tier]}</CardDescription>
+                                                <CardTitle className="text-base font-black uppercase tracking-tight">{pacote.nome}</CardTitle>
                                             </div>
-                                            {tier === "ENTERPRISE" ? <Crown className="text-amber-500 size-5" /> : null}
+                                            {pacote.id === "GRUPO" ? <Crown className="text-amber-500 size-4 shrink-0" /> : null}
                                         </div>
                                         <div className="flex items-end gap-1">
-                                            <span className="text-2xl font-black tracking-tighter">{price}</span>
-                                            <span className="pb-1 text-[10px] font-black uppercase text-muted-foreground">/mês</span>
+                                            <span className="text-xl font-black tracking-tighter">{formatCurrency(precoExibido)}</span>
+                                            <span className="pb-0.5 text-[10px] font-black uppercase text-muted-foreground">/mês</span>
                                         </div>
-                                        {cycle === "ANUAL" && plan && (
+                                        {cycle === "ANUAL" && (
                                             <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-tighter">
-                                                Cobrado anualmente: {formatCurrency(plan.preco_anual)}
+                                                Anual: {formatCurrency(pacote.precoAnual)}/ano
                                             </p>
                                         )}
                                     </CardHeader>
-                                    <CardContent className="flex flex-1 flex-col gap-4">
-                                        <div className="flex flex-wrap gap-1.5">
-                                            {(plan?.modulos_inclusos ?? []).map((mod) => (
-                                                <Badge key={mod} variant="outline" className="gap-1 rounded-sm text-[8px] font-black uppercase py-0 border-primary/5 bg-background/50">
-                                                    <Check size={8} className="text-emerald-500" />
-                                                    {getModuleName(mod)}
-                                                </Badge>
-                                            ))}
+                                    <CardContent className="flex flex-1 flex-col gap-3 text-xs">
+                                        <div className="space-y-1.5 text-[11px] font-medium">
+                                            <div className="flex items-start gap-1.5">
+                                                <Check className="mt-0.5 size-3 text-emerald-600 shrink-0" />
+                                                <span>
+                                                    {pacote.limiteHectares
+                                                        ? `Até ${pacote.limiteHectares.toLocaleString("pt-BR")} ha equivalentes`
+                                                        : "Hectares equivalentes ilimitados"}
+                                                </span>
+                                            </div>
+                                            <div className="flex items-start gap-1.5">
+                                                <Check className="mt-0.5 size-3 text-emerald-600 shrink-0" />
+                                                <span>
+                                                    {pacote.maxFazendas === -1
+                                                        ? "Propriedades ilimitadas"
+                                                        : `Até ${pacote.maxFazendas} propriedade(s)`}
+                                                </span>
+                                            </div>
+                                            <div className="flex items-start gap-1.5">
+                                                <Check className="mt-0.5 size-3 text-emerald-600 shrink-0" />
+                                                <span>
+                                                    {pacote.usuariosInclusos} acesso(s) simultâneo(s) incluso(s) (máx. {pacote.limiteUsuarios === 999 ? "∞" : pacote.limiteUsuarios})
+                                                </span>
+                                            </div>
+                                            <div className="flex items-start gap-1.5">
+                                                <Check className="mt-0.5 size-3 text-emerald-600 shrink-0" />
+                                                <span>App Campo offline ilimitado (isento)</span>
+                                            </div>
+                                            <div className="flex items-start gap-1.5">
+                                                <Check className="mt-0.5 size-3 text-emerald-600 shrink-0" />
+                                                <span>Todos os {pacote.modulos.length} módulos liberados</span>
+                                            </div>
                                         </div>
                                         <Separator className="bg-border/50" />
-                                        <div className="flex flex-col gap-2">
-                                            {(TIER_FEATURES[tier] || []).map((feature) => (
-                                                <div key={feature} className="flex items-start gap-2 text-[11px] font-medium leading-tight">
-                                                    <Check className="mt-0.5 size-3 text-emerald-600 shrink-0" />
-                                                    <span>{feature}</span>
+                                        <div className="space-y-1">
+                                            <p className="text-[10px] font-black uppercase text-muted-foreground">
+                                                Licenças Extras Web {cycle === "ANUAL" ? "(20% OFF)" : ""}:
+                                            </p>
+                                            {pacote.faixasAdicionais.map((f, idx) => (
+                                                <div key={idx} className="flex justify-between text-[10px]">
+                                                    <span className="text-muted-foreground">
+                                                        +{f.faixaInicio} a {f.faixaFim ?? "∞"} extras:
+                                                    </span>
+                                                    <span className="font-bold">
+                                                        {formatCurrency(cycle === "ANUAL" ? f.precoMensalEquivalenteAnual : f.precoMensal)}/mês
+                                                    </span>
                                                 </div>
                                             ))}
                                         </div>
                                     </CardContent>
-                                    <CardFooter className="mt-auto border-t bg-muted/5 p-4">
+                                    <CardFooter className="mt-auto border-t bg-muted/5 p-3">
                                         {isCurrent ? (
-                                            <Button className="w-full text-[10px] font-black uppercase rounded-sm h-8" variant="outline" disabled>
-                                                Plano atual
+                                            <Button className="w-full text-[10px] font-black uppercase rounded-sm h-8" variant="outline" size="sm" disabled>
+                                                Pacote atual
                                             </Button>
-                                        ) : tier === "ENTERPRISE" ? (
-                                            <Button asChild variant="outline" className="w-full gap-2 text-[10px] font-black uppercase rounded-sm h-8 border-amber-500/30 text-amber-600 hover:bg-amber-50">
-                                                <Link href={SUPPORT_HREF}>
-                                                    <ExternalLink size={12} />
-                                                    Falar com vendas
-                                                </Link>
-                                            </Button>
-                                        ) : plan ? (
+                                        ) : apiPlan ? (
                                             <Button
                                                 variant="outline"
-                                                className="w-full gap-2 text-[10px] font-black uppercase rounded-sm h-8"
-                                                onClick={() => upgradeMutation.mutate(plan.id)}
+                                                size="sm"
+                                                className="w-full gap-1.5 text-[10px] font-black uppercase rounded-sm h-8"
+                                                onClick={() => upgradeMutation.mutate(apiPlan.id)}
                                                 disabled={upgradeMutation.isPending}
                                             >
                                                 {upgradeMutation.isPending ? (
@@ -755,11 +842,14 @@ export default function BillingPage() {
                                                 ) : (
                                                     <ArrowRight size={12} />
                                                 )}
-                                                Solicitar upgrade
+                                                Selecionar {pacote.nome}
                                             </Button>
                                         ) : (
-                                            <Button variant="outline" className="w-full text-[10px] font-black uppercase rounded-sm h-8" disabled>
-                                                Indisponível
+                                            <Button asChild variant="outline" size="sm" className="w-full gap-1.5 text-[10px] font-black uppercase rounded-sm h-8">
+                                                <Link href={SUPPORT_HREF}>
+                                                    <ExternalLink size={12} />
+                                                    Contratar
+                                                </Link>
                                             </Button>
                                         )}
                                     </CardFooter>
@@ -843,17 +933,33 @@ export default function BillingPage() {
                                             {inv.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                                         </TableCell>
                                         <TableCell className="text-right px-6">
-                                            {inv.status === "ABERTA" || inv.status === "REJEITADA" ? (
-                                                <Button
-                                                    variant="outline"
-                                                    size="sm"
-                                                    className="gap-2 rounded-sm h-7 text-[10px] font-black uppercase"
-                                                    onClick={() => triggerProofUpload(inv.id)}
-                                                    disabled={sendProofMutation.isPending}
-                                                >
-                                                    <UploadCloud size={12} />
-                                                    {sendProofMutation.isPending && pendingProofInvoiceId === inv.id ? "Enviando..." : "Enviar Comprovante"}
-                                                </Button>
+                                            {inv.status === "ABERTA" || inv.status === "VENCIDA" || inv.status === "REJEITADA" ? (
+                                                <div className="flex items-center justify-end gap-2">
+                                                    <Button
+                                                        variant="default"
+                                                        size="sm"
+                                                        className="gap-1.5 rounded-sm h-7 text-[10px] font-black uppercase"
+                                                        onClick={() => stripeCheckoutMutation.mutate(inv.id)}
+                                                        disabled={stripeCheckoutMutation.isPending}
+                                                    >
+                                                        {stripeCheckoutMutation.isPending && pendingStripeInvoiceId === inv.id ? (
+                                                            <Loader2 size={12} className="animate-spin" />
+                                                        ) : (
+                                                            <CreditCard size={12} />
+                                                        )}
+                                                        Pagar com Cartão (Stripe)
+                                                    </Button>
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        className="gap-1.5 rounded-sm h-7 text-[10px] font-black uppercase"
+                                                        onClick={() => triggerProofUpload(inv.id)}
+                                                        disabled={sendProofMutation.isPending}
+                                                    >
+                                                        <UploadCloud size={12} />
+                                                        {sendProofMutation.isPending && pendingProofInvoiceId === inv.id ? "Enviando..." : "Enviar Comprovante"}
+                                                    </Button>
+                                                </div>
                                             ) : inv.url_comprovante ? (
                                                 <Button variant="ghost" size="sm" className="h-7 w-7 p-0 rounded-sm text-primary hover:bg-primary/5" title="Ver comprovante" asChild>
                                                     <a href={inv.url_comprovante} target="_blank" rel="noreferrer">

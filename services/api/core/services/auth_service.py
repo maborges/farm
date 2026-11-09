@@ -481,19 +481,27 @@ class AuthService:
         self,
         tenant_id: uuid.UUID,
         usuario_id: uuid.UUID,
+        escopo_produto: str = "web",
     ) -> None:
         """
         Verifica se há licença de acesso simultâneo disponível para o tenant antes de criar
         uma nova sessão ativa. Limpa sessões expiradas e encerra sessões anteriores do mesmo
         usuário no mesmo tenant para permitir reconexão sem autotravamento.
 
+        O acesso quando utilizado no aplicativo Campo (escopo_produto='campo') é isento
+        e não é contabilizado para o acesso simultâneo.
+
         Args:
             tenant_id: ID do tenant alvo do login/troca de contexto.
             usuario_id: ID do usuário autenticado.
+            escopo_produto: Escopo do cliente ('web' ou 'campo').
 
         Raises:
             HTTPException 403: Quando todas as licenças simultâneas contratadas estão em uso.
         """
+        if str(escopo_produto).strip().lower() == "campo":
+            return
+
         from core.models.sessao import SessaoAtiva
 
         agora = datetime.now(timezone.utc)

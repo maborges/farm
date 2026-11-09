@@ -951,13 +951,66 @@ export default async function Home() {
       </Section>
 
       {/* ═══════════ PLANOS ═══════════ */}
-      <Section variant="muted" data-animate>
+      <Section variant="muted" id="planos" data-animate>
         <SectionHeader
-          badge="Planos"
-          title="Escolha o ritmo da sua operação."
-          subtitle="Evolua sem mudar de plataforma."
+          badge="Planos 100% Transparentes"
+          title="Todos os pacotes com 100% dos módulos liberados."
+          subtitle="Você não paga por módulo bloqueado. O valor é calculado de forma justa apenas pela sua área produtiva equivalente e pela quantidade de acessos simultâneos no painel web."
           center
         />
+
+        {/* Quadro de Transparência do Cálculo antes do Cadastro */}
+        <div className="mb-8 rounded-sm border border-primary/25 bg-card/90 p-5 shadow-sm">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2 border-b border-border/50 pb-3">
+            <div>
+              <h3 className="text-sm font-black uppercase tracking-wider text-primary">
+                Como calculamos sua mensalidade ou anuidade?
+              </h3>
+              <p className="text-xs text-muted-foreground">
+                Logo no primeiro passo antes de preencher o cadastro, você simula sua área e acessos para saber exatamente o valor a pagar.
+              </p>
+            </div>
+            <Button asChild size="sm" variant="outline">
+              <Link href="/register">
+                Simular meu valor agora <ArrowRight className="ml-1.5 size-3.5" />
+              </Link>
+            </Button>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-sm border border-border/50 bg-background/70 p-3">
+              <div className="mb-1 flex items-center gap-1.5 text-xs font-black text-foreground">
+                <Layers3 className="size-3.5 text-primary" /> 100% dos Módulos
+              </div>
+              <p className="text-[11px] leading-relaxed text-muted-foreground">
+                Do pacote Familiar ao Grupo, todos os assinantes têm acesso integral a todos os módulos da plataforma.
+              </p>
+            </div>
+            <div className="rounded-sm border border-border/50 bg-background/70 p-3">
+              <div className="mb-1 flex items-center gap-1.5 text-xs font-black text-foreground">
+                <Leaf className="size-3.5 text-emerald-600" /> Reserva Legal e APP Isentas
+              </div>
+              <p className="text-[11px] leading-relaxed text-muted-foreground">
+                Áreas de preservação ambiental (<strong>APP e Reserva Legal</strong>) são 100% isentas (R$ 0) e <em>Safra + Safrinha</em> no mesmo talhão não pagam em dobro.
+              </p>
+            </div>
+            <div className="rounded-sm border border-border/50 bg-background/70 p-3">
+              <div className="mb-1 flex items-center gap-1.5 text-xs font-black text-foreground">
+                <Smartphone className="size-3.5 text-emerald-600" /> App Campo 100% Isento
+              </div>
+              <p className="text-[11px] leading-relaxed text-muted-foreground">
+                Cadastre usuários ilimitados. Só conta quem estiver logado ao mesmo tempo na Web. O <strong>App Campo no celular não consome acesso simultâneo</strong>.
+              </p>
+            </div>
+            <div className="rounded-sm border border-border/50 bg-background/70 p-3">
+              <div className="mb-1 flex items-center gap-1.5 text-xs font-black text-foreground">
+                <Sparkles className="size-3.5 text-primary" /> Duplo Desconto no Anual
+              </div>
+              <p className="text-[11px] leading-relaxed text-muted-foreground">
+                No plano Anual você garante <strong>2 meses grátis</strong> no pacote base + <strong>20% de desconto</strong> nas licenças extras de acesso simultâneo.
+              </p>
+            </div>
+          </div>
+        </div>
         {landingPlans.length === 0 ? (
           <Card className="mx-auto max-w-2xl rounded-sm border-border/60 bg-card/80 text-center shadow-sm">
             <CardContent className="space-y-3 p-8">

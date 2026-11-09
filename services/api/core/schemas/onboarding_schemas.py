@@ -34,6 +34,8 @@ class AssinanteRegisterRequest(BaseModel):
     # Plano escolhido
     plano_id: UUID
     ciclo: str = "MENSAL"  # MENSAL | ANUAL
+    usuarios_contratados: Optional[int] = None  # Quantidade total de acessos simultâneos na Web (opcional)
+    extensoes_contratadas: Optional[List[str]] = None  # Extensões contratadas à parte (ex.: ["EXT_IOT", "EXT_ERP"])
 
     @field_validator("cpf")
     @classmethod
