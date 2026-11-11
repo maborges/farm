@@ -25,6 +25,7 @@ test-results/
 **/.env.*
 !.env.example
 !**/.env.example
+.demo-private/
 /data/
 /var/
 !services/api/public_mercado/data/

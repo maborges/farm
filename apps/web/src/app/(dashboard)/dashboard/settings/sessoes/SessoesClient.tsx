@@ -40,6 +40,7 @@ export interface Sessao {
     is_current: boolean;
     usuario_id?: string;
     usuario_apelido?: string | null;
+    usuario_nome?: string | null;
 }
 
 function parseDevice(userAgent: string | null): { icon: React.ReactNode; label: string } {
@@ -77,7 +78,7 @@ function SessaoRow({
         <TableRow>
             {showUser && (
                 <TableCell>
-                    <div className="font-medium text-sm">{sessao.usuario_apelido || "Usuário"}</div>
+                        <div className="font-medium text-sm">{sessao.usuario_nome || sessao.usuario_apelido || "Usuário"}</div>
                 </TableCell>
             )}
             <TableCell>

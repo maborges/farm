@@ -9,7 +9,7 @@ Endpoints:
 """
 import hashlib
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
@@ -49,6 +49,7 @@ class SessaoResponse(BaseModel):
 class SessaoMembroResponse(SessaoResponse):
     usuario_id: uuid.UUID
     usuario_apelido: str | None = None
+    usuario_nome: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -78,10 +79,15 @@ async def listar_minhas_sessoes(
     """Lista todas as sessões ativas do usuário logado."""
     usuario_id = uuid.UUID(claims["sub"])
     current_hash = _token_hash_from_request(request)
+    agora = datetime.now(timezone.utc)
 
     result = await db.execute(
         select(SessaoAtiva)
-        .where(SessaoAtiva.usuario_id == usuario_id, SessaoAtiva.status == "ATIVA")
+        .where(
+            SessaoAtiva.usuario_id == usuario_id,
+            SessaoAtiva.status == "ATIVA",
+            SessaoAtiva.expira_em > agora,
+        )
         .order_by(SessaoAtiva.ultimo_heartbeat.desc())
     )
     sessoes = result.scalars().all()
@@ -152,19 +158,25 @@ async def listar_sessoes_equipe(
 ):
     """Lista sessões ativas de todos os membros do tenant."""
     from core.models.auth import Usuario
+    agora = datetime.now(timezone.utc)
     
     result = await db.execute(
-        select(SessaoAtiva, Usuario.apelido)
+        select(SessaoAtiva, Usuario.apelido, Usuario.nome_completo, Usuario.username)
         .outerjoin(Usuario, Usuario.id == SessaoAtiva.usuario_id)
-        .where(SessaoAtiva.tenant_id == tenant_id, SessaoAtiva.status == "ATIVA")
+        .where(
+            SessaoAtiva.tenant_id == tenant_id,
+            SessaoAtiva.status == "ATIVA",
+            SessaoAtiva.expira_em > agora,
+        )
         .order_by(SessaoAtiva.ultimo_heartbeat.desc())
         .limit(500)
     )
     
     out = []
-    for sessao, apelido in result.all():
+    for sessao, apelido, nome_completo, username in result.all():
         data = SessaoMembroResponse.model_validate(sessao)
         data.usuario_apelido = apelido
+        data.usuario_nome = nome_completo or apelido or username
         out.append(data)
         
     return out
