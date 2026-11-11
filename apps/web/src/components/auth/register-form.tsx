@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Input, PasswordInput } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -1295,17 +1295,26 @@ function Field({
             </Label>
             <div className="relative">
                 {Icon && (
-                    <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                    <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none z-10">
                         <Icon size={14} className="text-primary/70" />
                     </div>
                 )}
-                <Input
-                    type={type}
-                    placeholder={placeholder}
-                    value={value}
-                    onChange={(e) => onChange(e.target.value)}
-                    className={Icon ? "pl-9" : ""}
-                />
+                {type === "password" ? (
+                    <PasswordInput
+                        placeholder={placeholder}
+                        value={value}
+                        onChange={(e) => onChange(e.target.value)}
+                        className={Icon ? "pl-9" : ""}
+                    />
+                ) : (
+                    <Input
+                        type={type}
+                        placeholder={placeholder}
+                        value={value}
+                        onChange={(e) => onChange(e.target.value)}
+                        className={Icon ? "pl-9" : ""}
+                    />
+                )}
             </div>
         </div>
     );

@@ -82,9 +82,9 @@ interface Props {
 }
 
 const STATUS_COLOR: Record<string, string> = {
-    ATIVO: "bg-green-100 text-green-700",
-    VENDIDO: "bg-gray-100 text-gray-700",
-    CANCELADO: "bg-red-100 text-red-700",
+    ATIVO: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20",
+    VENDIDO: "bg-muted text-muted-foreground border-border",
+    CANCELADO: "bg-destructive/10 text-destructive border-destructive/20",
 };
 
 function fmt(d: string | null) {
@@ -471,21 +471,21 @@ export function RastreabilidadeLotes({ safraId, safras = [] }: Props) {
 }
 
 const COR_MAP: Record<string, string> = {
-    emerald: "border-emerald-200 bg-emerald-50/50",
-    blue: "border-blue-200 bg-blue-50/50",
-    amber: "border-amber-200 bg-amber-50/50",
-    purple: "border-purple-200 bg-purple-50/50",
-    green: "border-green-200 bg-green-50/50",
-    rose: "border-rose-200 bg-rose-50/50",
+    emerald: "border-emerald-500/30 bg-emerald-500/10 dark:bg-emerald-950/20",
+    blue: "border-blue-500/30 bg-blue-500/10 dark:bg-blue-950/20",
+    amber: "border-amber-500/30 bg-amber-500/10 dark:bg-amber-950/20",
+    purple: "border-purple-500/30 bg-purple-500/10 dark:bg-purple-950/20",
+    green: "border-green-500/30 bg-green-500/10 dark:bg-green-950/20",
+    rose: "border-rose-500/30 bg-rose-500/10 dark:bg-rose-950/20",
 };
 
 const TITULO_COR: Record<string, string> = {
-    emerald: "text-emerald-700",
-    blue: "text-blue-700",
-    amber: "text-amber-700",
-    purple: "text-purple-700",
-    green: "text-green-700",
-    rose: "text-rose-700",
+    emerald: "text-emerald-700 dark:text-emerald-400",
+    blue: "text-blue-700 dark:text-blue-400",
+    amber: "text-amber-700 dark:text-amber-400",
+    purple: "text-purple-700 dark:text-purple-400",
+    green: "text-green-700 dark:text-green-400",
+    rose: "text-rose-700 dark:text-rose-400",
 };
 
 function CadeiaSection({ titulo, cor, children }: { titulo: string; cor: string; children: React.ReactNode }) {

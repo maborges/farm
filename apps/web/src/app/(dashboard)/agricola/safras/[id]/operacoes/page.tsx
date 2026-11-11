@@ -858,7 +858,7 @@ export default function OperacoesPorFasePage({ params }: { params: Promise<{ id:
                                                     </p>
                                                 )}
                                                 {mostrarAvisoOperadores && (
-                                                    <Alert className="rounded-sm border-amber-200 bg-amber-50/70 text-amber-950">
+                                                    <Alert className="rounded-sm border-amber-500/30 bg-amber-500/10 text-amber-900 dark:text-amber-200">
                                                         <AlertTitle className="text-xs">Nenhum operador disponível</AlertTitle>
                                                         <AlertDescription className="text-xs space-y-1">
                                                             <p>

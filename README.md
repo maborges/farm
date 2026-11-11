@@ -13,6 +13,47 @@ Utilize português (pt-BR) para documentos e interações com o usuário, com ac
 
 > A fonte oficial do frontend web é `apps/web/`. O backend principal fica em `services/api` e os contratos compartilhados em `packages/`.
 
+## Acesso ao laboratório de demonstração
+
+Use estas credenciais somente na demonstração local conectada ao banco isolado
+`deepfarms_demo_lab`. O perfil tem acesso total ao tenant de demonstração; não
+reutilize esta senha em outros ambientes.
+
+- **Endereço:** http://127.0.0.1:3035/login
+- **Usuário:** `demonstracao@deepfarms.com.br`
+- **Senha:** `agro1234`
+- **Tenant:** `demonstracao`
+- **Perfil de acesso:** `demonstracao` (módulos liberados para a demonstração)
+- **Fazendas:** Fazenda Modelo 1 e Fazenda Modelo 2
+
+### Iniciar os serviços
+
+Abra dois terminais e mantenha ambos os processos ativos.
+
+Terminal 1 — API da demonstração. O launcher troca o banco para
+`deepfarms_demo_lab`, valida o destino, aplica a role restrita do laboratório,
+desativa os workers embutidos e escuta apenas em `127.0.0.1:8017`. Não altere
+`services/api/.env.local` para apontar a configuração normal de desenvolvimento
+ao banco de demonstração.
+
+```bash
+cd /opt/lampp/htdocs/farm/services/api
+.venv/bin/python -m scripts.demo_lab_server
+```
+
+Terminal 2 — interface web apontada para a API do laboratório:
+
+```bash
+cd /opt/lampp/htdocs/farm/apps/web
+BACKEND_URL=http://127.0.0.1:8017 NEXT_PUBLIC_API_URL=/api/v1 \
+  pnpm run dev --hostname 127.0.0.1 --port 3035
+```
+
+Abra http://127.0.0.1:3035/login. Se a porta 3035 já estiver ocupada, use a
+instância que já está rodando ou encerre-a com `Ctrl+C` no terminal dela antes
+de iniciar outra. Para usar outra porta, troque `3035` no comando e no endereço.
+Encerre a API e a interface com `Ctrl+C` nos respectivos terminais.
+
 ## Deploy em produção
 
 O servidor de produção é acessado pelo usuário `ubuntu`, com a chave privada
@@ -237,6 +278,22 @@ Detalhamento de cada feature, decisões e histórico de implementação: `docs/C
   2. **Filtro nos pacotes (`ModuloMetadata.filtrar_modulos_ativos`):** `GET /billing/plans`, `GET /billing/plans/landing`, `GET /backoffice/plans`, `GET /billing/my-account` e o simulador (`total_modulos_liberados`) retornam `modulos_inclusos` sem os módulos inativos. Ao criar ou editar um plano no Backoffice, os módulos inativos também são removidos antes de salvar.
   3. **Catálogo público (`GET /api/v1/billing/modules/catalog`):** Retorna `modulos_ativos`, `modulos_inativos` e a lista de `extensoes` com o status `ativo`. O cadastro (`/register`) usa esse retorno para filtrar os módulos dos pacotes e bloquear as extensões inativas (card desabilitado, checkbox `disabled`, badge "Indisponível"). Uma extensão marcada antes de ser desativada sai do cálculo automaticamente.
   4. **Validação no backend:** `OnboardingService.register_new_tenant` recusa com HTTP 400 qualquer pedido que inclua uma extensão inativa, e `POST /billing/invoices/{id}/checkout-stripe` ignora extensões inativas ao montar os `line_items` do Stripe.
+
+### Visualização e Ocultação de Senha (PasswordInput) e Harmonização de Diálogos
+- **Descrição curta:** Implementação de componente padronizado `PasswordInput` com botão interativo para alternar a visibilidade de senha (mostrar/ocultar) em todos os formulários da aplicação, acompanhado da conformidade do diálogo de alteração de senha às diretrizes de design system.
+- **Fluxo de funcionamento:**
+  1. **Componente Reutilizável (`PasswordInput`):** Componente baseado em `Input` nativo com estado local para alternância de tipo (`password` / `text`), botão de alternância com ícones contextuais (`Eye` e `EyeOff`), acessibilidade via `aria-label` e padding interno protegido (`pr-9`), com total compatibilidade para React Hook Form (`forwardRef`).
+  2. **Disponibilização Universal:** Integrado nos formulários de Login (`/login`), Registro inicial (`/register`), Ativação de conta (`/ativar-conta`), Aceite de convite (`/convite/aceitar`), Redefinição de senha (`/reset-password`), Diálogo de alteração de senha (`ChangePasswordDialog`), Gestão de usuários do Backoffice (`/dashboard/backoffice/admin-users`), Criação de assinantes/tenants e Assinatura eletrônica de requisições.
+  3. **Harmonização do Diálogo de Senha:** O modal `ChangePasswordDialog` passa a utilizar `DialogBody`, `DialogFooter`, cabeçalho semântico e botões outline com cantos `rounded-sm`.
+
+### Cadastro Manual de Assinantes no Backoffice com Política Comercial All-In
+- **Descrição curta:** Alinhamento do fluxo de criação administrativa de assinantes (`/dashboard/backoffice/assinantes`) com a nova política comercial All-In, incorporando dimensionamento agronômico por Hectares Equivalentes (HEq), contratação de licenças web adicionais com precificação progressiva, catálogo dinâmico de extensões opcionais (`EXT_IOT` e `EXT_ERP`) com validação de status ativo e geração automática da primeira fatura calculada.
+- **Fluxo de funcionamento:**
+  1. **Abertura e Pré-Preenchimento (`assinantes-client.tsx`):** O operador administrativo aciona o botão "Novo Assinante", que reseta o formulário e pré-seleciona o primeiro pacote comercial ativo com franquia mínima de usuários (`usuarios_contratados`).
+  2. **Auxiliar de Dimensionamento HEq (Opcional):** Permite informar a área total da fazenda, área ambiental/APP isenta, vocação cultural (fator de 0.5x a 4.0x) e rebanho ILP (cabeças excedentes). O sistema calcula instantaneamente o HEq e sugere o pacote All-In mais adequado com ação rápida de "Aplicar".
+  3. **Seleção de Extensões Opcionais com Validação de Catálogo:** O formulário consome `GET /api/v1/billing/modules/catalog` para recuperar preços atualizados de `EXT_IOT` e `EXT_ERP`. Caso alguma extensão esteja desativada globalmente no Backoffice, o card é exibido desabilitado com o badge "Inativo no Catálogo", impedindo sua seleção.
+  4. **Composição Financeira em Tempo Real:** Exibe um resumo discriminado do pacote base, licenças adicionais, extensões e total estimado (mensal ou anual com desconto de 2 meses grátis e 20% off nos adicionais), além da indicação clara de agendamento de cobrança pós-trial.
+  5. **Persistência e Fatura no Backend (`POST /api/v1/backoffice/tenants`):** O backend valida a existência e ativação do plano e das extensões solicitadas, grava `branding={"extensoes_contratadas": [...]}` no `Tenant` e gera a `Fatura` inicial em estado `ABERTA` com vencimento ajustado ao período de trial (ou 3 dias caso sem trial), refletindo exatamente os valores contratados.
 
 ### Blindagem de Isolamento Multi-Tenant e PostgreSQL RLS (Hardening Pré-Deploy)
 - **Descrição curta:** Correção estrutural das políticas de Row-Level Security (RLS) do PostgreSQL, unificação da injeção de sessão (`Depends(get_session)`), propagação parametrizada de `app.current_tenant_id` em rotas web, dispositivos de campo (`device_token`), workers de eventos (`domain_event_outbox`) e motor de alertas, além do ajuste da regra `R1` do linter de segurança multi-tenant.

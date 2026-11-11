@@ -286,15 +286,15 @@ export function EntradaDrawer({ item, onClose, onDelete, canManageStatus = false
           )}
 
           {podeRetificar && (
-            <div className="rounded-sm border border-amber-200 bg-amber-50/70 p-3 space-y-2">
-              <div className="flex items-center gap-2 text-[11px] text-amber-800">
+            <div className="rounded-sm border border-amber-500/30 bg-amber-500/10 dark:bg-amber-950/20 p-3 space-y-2">
+              <div className="flex items-center gap-2 text-[11px] text-amber-800 dark:text-amber-300">
                 <ShieldCheck className="size-3.5" />
                 Retificação documental
               </div>
               <Button
                 size="sm"
                 variant="outline"
-                className="rounded-sm border-amber-300 text-amber-900 hover:bg-amber-100"
+                className="rounded-sm border-amber-500/30 text-amber-900 dark:text-amber-300 hover:bg-amber-500/15"
                 onClick={handleRetificar}
               >
                 Retificar

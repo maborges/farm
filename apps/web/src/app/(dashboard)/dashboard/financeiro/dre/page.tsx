@@ -235,6 +235,14 @@ export default function DREOperacionalPage() {
         enabled: !!activeFazendaId,
     });
 
+    // A demonstração e contas novas costumam ter uma única safra disponível.
+    // Seleciona essa safra automaticamente; com várias, mantém a escolha manual.
+    useEffect(() => {
+        if (!selectedSafraId && safras.length === 1) {
+            setSelectedSafraId(safras[0].id);
+        }
+    }, [safras, selectedSafraId]);
+
     // Fetch DRE
     const { data: dreOficial, isLoading: loadingDRE } = useQuery<DREAgricolaV1>({
         queryKey: ["agricola-dre-v1", selectedSafraId],

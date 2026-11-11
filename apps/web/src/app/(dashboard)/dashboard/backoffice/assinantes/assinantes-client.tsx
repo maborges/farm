@@ -26,7 +26,26 @@ import {
     Mail,
     Plus,
     LogIn,
+    Sparkles,
+    Calculator,
+    Check,
+    Cpu,
+    Share2,
+    Layers,
+    ChevronDown,
+    ChevronUp,
+    Tractor,
+    Smartphone,
+    Info,
 } from "lucide-react";
+import {
+    FATORES_VOCACAO_HEQ,
+    getPacotes,
+    calcularOrcamentoLocal,
+    obterPacotePorNome,
+    mesclarStatusExtensoes,
+    type CatalogoModulosStatus,
+} from "@/lib/constants/pacotes";
 import { ImpersonateTenantDialog } from "@/components/backoffice/impersonate-tenant-dialog";
 import { toast } from "sonner";
 import { format, addDays, differenceInDays } from "date-fns";
@@ -46,7 +65,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
+import { Input, PasswordInput } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent } from "@/components/ui/card";
@@ -81,6 +100,10 @@ interface Plan {
     preco_mensal: number;
     preco_anual: number;
     ativo: boolean;
+    limite_usuarios_minimo?: number;
+    limite_usuarios_maximo?: number | null;
+    limite_hectares?: number | null;
+    dias_trial?: number;
 }
 
 interface Tenant {
@@ -93,6 +116,9 @@ interface Tenant {
         plano: string;
         plano_id: string;
         status: string;
+        usuarios_contratados?: number;
+        ciclo_pagamento?: string;
+        extensoes_contratadas?: string[];
     };
     contato_email?: string;
     contato_telefone?: string;
@@ -390,7 +416,7 @@ function TenantDetailsDialog({
                             </TabsContent>
                         </ScrollArea>
 
-                        <DialogFooter className="p-6 border-t shrink-0">
+                        <DialogFooter showCloseButton={false} className="p-6 border-t shrink-0">
                             <Button variant="outline" onClick={onClose}>
                                 Fechar
                             </Button>
@@ -607,11 +633,135 @@ export default function AssinantesClient({
         senha: "",
         nome_fazenda: "",
         plano_id: "",
-        usuarios_contratados: 5,
-        ciclo_pagamento: "MENSAL",
+        usuarios_contratados: 1,
+        ciclo_pagamento: "MENSAL" as "MENSAL" | "ANUAL",
+        extensoes_contratadas: [] as string[],
         com_trial: true,
         dias_trial: 15,
     });
+
+    // Helper state for optional HEq calculator
+    const [mostrarCalculadoraHEq, setMostrarCalculadoraHEq] = useState(false);
+    const [calcAreaTotal, setCalcAreaTotal] = useState<string>("");
+    const [calcAreaAmbiental, setCalcAreaAmbiental] = useState<string>("");
+    const [calcVocacao, setCalcVocacao] = useState<keyof typeof FATORES_VOCACAO_HEQ>("GRAOS");
+    const [calcCabecasPecuaria, setCalcCabecasPecuaria] = useState<string>("");
+
+    const { data: catalogoModulos } = useQuery<CatalogoModulosStatus>({
+        queryKey: ["modulos-catalogo-status"],
+        queryFn: async ({ signal }) =>
+            await apiFetch<CatalogoModulosStatus>("/billing/modules/catalog", { signal, suppressErrorLog: true }),
+        staleTime: 300_000,
+        retry: 1,
+    });
+
+    const extensoesDisponiveis = useMemo(
+        () => mesclarStatusExtensoes(catalogoModulos),
+        [catalogoModulos]
+    );
+
+    const heqCalculado = useMemo(() => {
+        const areaTotalNum = Math.max(0, Number(calcAreaTotal) || 0);
+        const areaAmbientalNum = Math.min(areaTotalNum, Math.max(0, Number(calcAreaAmbiental) || 0));
+        const areaProdutivaLiquida = Math.max(0, areaTotalNum - areaAmbientalNum);
+        const fatorVocacao = FATORES_VOCACAO_HEQ[calcVocacao]?.fator ?? 1.0;
+
+        const heqAgricolaBruto = areaProdutivaLiquida * fatorVocacao;
+        const tetoProtecaoFamiliar =
+            areaProdutivaLiquida <= 25 && fatorVocacao > 1.0 ? Math.min(heqAgricolaBruto, 100) : heqAgricolaBruto;
+        const tetoProtecaoPequeno =
+            areaProdutivaLiquida > 25 && areaProdutivaLiquida <= 120 && fatorVocacao > 1.0
+                ? Math.min(tetoProtecaoFamiliar, 500)
+                : tetoProtecaoFamiliar;
+
+        const cabecasNum = Math.max(0, Math.floor(Number(calcCabecasPecuaria) || 0));
+        const lotacaoInclusaCabecas = Math.floor(areaProdutivaLiquida * 2);
+        const cabecasExcedentes = Math.max(0, cabecasNum - lotacaoInclusaCabecas);
+        const heqPecuariaExcedente = cabecasExcedentes * 0.5;
+
+        return Math.round((tetoProtecaoPequeno + heqPecuariaExcedente) * 100) / 100;
+    }, [calcAreaTotal, calcAreaAmbiental, calcVocacao, calcCabecasPecuaria]);
+
+    const planoSugeridoHEq = useMemo(() => {
+        if (!heqCalculado || !initialPlans?.length) return null;
+        const ativos = initialPlans.filter((p) => p.ativo);
+        const pacotesOficiais = getPacotes();
+        const pacoteMatch = pacotesOficiais.find(
+            (p) => p.limiteHectares === null || p.limiteHectares >= heqCalculado
+        );
+        if (!pacoteMatch) return null;
+        const planoDb = ativos.find((p) =>
+            p.nome.toLowerCase().includes(pacoteMatch.nome.toLowerCase().split(" ")[0])
+        );
+        return planoDb || null;
+    }, [heqCalculado, initialPlans]);
+
+    const planoSelecionado = useMemo(() => {
+        return initialPlans?.find((p) => p.id === createFormData.plano_id);
+    }, [initialPlans, createFormData.plano_id]);
+
+    const pacoteDefSelecionado = useMemo(() => {
+        if (!planoSelecionado) return getPacotes()[0];
+        return obterPacotePorNome(planoSelecionado.nome) || getPacotes()[0];
+    }, [planoSelecionado]);
+
+    const orcamentoCalculado = useMemo(() => {
+        if (!pacoteDefSelecionado) return null;
+        const extensoesEfetivas = createFormData.extensoes_contratadas.filter((id) =>
+            extensoesDisponiveis.some((ext) => ext.id === id && ext.ativo !== false)
+        );
+        return calcularOrcamentoLocal(
+            pacoteDefSelecionado,
+            createFormData.usuarios_contratados,
+            createFormData.ciclo_pagamento,
+            extensoesEfetivas,
+            extensoesDisponiveis
+        );
+    }, [
+        pacoteDefSelecionado,
+        createFormData.usuarios_contratados,
+        createFormData.ciclo_pagamento,
+        createFormData.extensoes_contratadas,
+        extensoesDisponiveis,
+    ]);
+
+    const resetCreateForm = () => {
+        const primeiroPlano = initialPlans?.find((p) => p.ativo);
+        setCreateFormData({
+            nome_tenant: "",
+            documento: "",
+            email_responsavel: "",
+            telefone_responsavel: "",
+            nome_completo: "",
+            username: "",
+            email: "",
+            senha: "",
+            nome_fazenda: "",
+            plano_id: primeiroPlano?.id || "",
+            usuarios_contratados: primeiroPlano?.limite_usuarios_minimo || 1,
+            ciclo_pagamento: "MENSAL",
+            extensoes_contratadas: [],
+            com_trial: true,
+            dias_trial: 15,
+        });
+        setMostrarCalculadoraHEq(false);
+        setCalcAreaTotal("");
+        setCalcAreaAmbiental("");
+        setCalcVocacao("GRAOS");
+        setCalcCabecasPecuaria("");
+    };
+
+    const toggleExtensao = (extId: string) => {
+        setCreateFormData((prev) => {
+            const existe = prev.extensoes_contratadas.includes(extId);
+            return {
+                ...prev,
+                extensoes_contratadas: existe
+                    ? prev.extensoes_contratadas.filter((id) => id !== extId)
+                    : [...prev.extensoes_contratadas, extId],
+            };
+        });
+    };
 
     const { data: tenantsData, isLoading } = useQuery<Tenant[]>({
         queryKey: ["backoffice", "tenants"],
@@ -620,7 +770,7 @@ export default function AssinantesClient({
         refetchOnWindowFocus: false,
     });
 
-    const tenants = tenantsData ?? [];
+    const tenants = useMemo(() => tenantsData ?? [], [tenantsData]);
 
     // Computed stats from data if no server stats
     const computedStats = useMemo<AssinanteStats>(() => {
@@ -663,22 +813,7 @@ export default function AssinantesClient({
             queryClient.invalidateQueries({ queryKey: ["backoffice", "tenants"] });
             toast.success("Assinante criado com sucesso!");
             setShowCreateDialog(false);
-            setCreateFormData({
-                nome_tenant: "",
-                documento: "",
-                email_responsavel: "",
-                telefone_responsavel: "",
-                nome_completo: "",
-                username: "",
-                email: "",
-                senha: "",
-                nome_fazenda: "",
-                plano_id: "",
-                usuarios_contratados: 5,
-                ciclo_pagamento: "MENSAL",
-                com_trial: true,
-                dias_trial: 15,
-            });
+            resetCreateForm();
         },
         onError: (error: Error) => toast.error(error.message || "Erro ao criar assinante"),
     });
@@ -722,10 +857,25 @@ export default function AssinantesClient({
             id: "plano",
             header: "Plano",
             accessorFn: (row) => row.assinatura?.plano || "-",
-            cell: (value) => (
-                <Badge variant="secondary" className="text-[10px] font-medium">
-                    {value as string}
-                </Badge>
+            cell: (value, row) => (
+                <div className="flex flex-col gap-1 items-start">
+                    <Badge variant="secondary" className="text-[10px] font-medium">
+                        {value as string}
+                    </Badge>
+                    {row.assinatura?.extensoes_contratadas && row.assinatura.extensoes_contratadas.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                            {row.assinatura.extensoes_contratadas.map((ext) => (
+                                <Badge
+                                    key={ext}
+                                    variant="outline"
+                                    className="text-[9px] h-3.5 px-1 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30"
+                                >
+                                    +{ext.replace("EXT_", "")}
+                                </Badge>
+                            ))}
+                        </div>
+                    )}
+                </div>
             ),
             filterable: true,
             filterPlaceholder: "Filtrar por plano...",
@@ -933,7 +1083,15 @@ export default function AssinantesClient({
                 ]}
                 icon={<Users className="size-6 text-primary" />}
                 actions={
-                    <Button size="sm" variant="outline" className="gap-2" onClick={() => setShowCreateDialog(true)}>
+                    <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-2"
+                        onClick={() => {
+                            resetCreateForm();
+                            setShowCreateDialog(true);
+                        }}
+                    >
                         <Plus className="h-4 w-4" />
                         Novo Assinante
                     </Button>
@@ -1068,191 +1226,517 @@ export default function AssinantesClient({
             />
 
             <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-                <DialogContent className="w-[calc(100vw-1rem)] sm:max-w-3xl max-h-[90vh] overflow-hidden p-0">
-                    <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2 text-lg">
-                            <Building2 className="h-4 w-4 text-primary" />
-                            Criar Novo Assinante
-                        </DialogTitle>
-                        <DialogDescription className="text-xs">
-                            Preencha os dados para criar um novo assinante no sistema
-                        </DialogDescription>
-                    </DialogHeader>
-
-                    <div className="max-h-[calc(90vh-6rem)] space-y-3 overflow-y-auto px-4 py-3">
-                        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-                            <div className="space-y-2 p-3 rounded-sm border bg-muted/20">
-                                <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Dados da Empresa</h3>
-
-                                <div className="space-y-1.5">
-                                    <Label className="text-xs">Nome/Razão Social *</Label>
-                                    <Input
-                                        placeholder="Ex: Fazendas Boa Vista Ltda"
-                                        value={createFormData.nome_tenant}
-                                        onChange={(e) => setCreateFormData({ ...createFormData, nome_tenant: e.target.value })}
-                                    />
-                                </div>
-
-                                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                                    <div className="space-y-1.5">
-                                        <Label className="text-xs">CPF/CNPJ *</Label>
-                                        <Input
-                                            placeholder="00.000.000/0000-00"
-                                            value={createFormData.documento}
-                                            onChange={(e) => setCreateFormData({ ...createFormData, documento: e.target.value })}
-                                        />
-                                    </div>
-                                    <div className="space-y-1.5">
-                                        <Label className="text-xs">Telefone</Label>
-                                        <Input
-                                            placeholder="(11) 98765-4321"
-                                            value={createFormData.telefone_responsavel}
-                                            onChange={(e) => setCreateFormData({ ...createFormData, telefone_responsavel: e.target.value })}
-                                        />
-                                    </div>
-                                </div>
-
-                                <div className="space-y-1.5">
-                                    <Label className="text-xs">Email da Empresa *</Label>
-                                    <Input
-                                        type="email"
-                                        placeholder="contato@empresa.com.br"
-                                        value={createFormData.email_responsavel}
-                                        onChange={(e) => setCreateFormData({ ...createFormData, email_responsavel: e.target.value })}
-                                    />
-                                </div>
+                <DialogContent className="w-[calc(100vw-1rem)] sm:max-w-4xl max-h-[92vh] overflow-hidden p-0 flex flex-col gap-0">
+                    <DialogHeader className="px-5 py-3.5 pr-12 border-b bg-muted/10 shrink-0 gap-0">
+                        <div className="flex items-center gap-2.5">
+                            <div className="p-2 rounded-sm bg-primary/10 text-primary shrink-0">
+                                <Building2 className="h-4 w-4" />
                             </div>
-
-                            <div className="space-y-2 p-3 rounded-sm border bg-muted/20">
-                                <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Usuário Proprietário</h3>
-
-                                <div className="space-y-1.5">
-                                    <Label className="text-xs">Nome Completo *</Label>
-                                    <Input
-                                        placeholder="João da Silva"
-                                        value={createFormData.nome_completo}
-                                        onChange={(e) => setCreateFormData({ ...createFormData, nome_completo: e.target.value })}
-                                    />
-                                </div>
-
-                                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                                    <div className="space-y-1.5">
-                                        <Label className="text-xs">Username *</Label>
-                                        <Input
-                                            placeholder="joao.silva"
-                                            value={createFormData.username}
-                                            onChange={(e) => setCreateFormData({ ...createFormData, username: e.target.value })}
-                                        />
-                                    </div>
-                                    <div className="space-y-1.5">
-                                        <Label className="text-xs">Email *</Label>
-                                        <Input
-                                            type="email"
-                                            placeholder="joao@empresa.com"
-                                            value={createFormData.email}
-                                            onChange={(e) => setCreateFormData({ ...createFormData, email: e.target.value })}
-                                        />
-                                    </div>
-                                </div>
-
-                                <div className="space-y-1.5">
-                                    <Label className="text-xs">Senha *</Label>
-                                    <Input
-                                        type="password"
-                                        placeholder="Mínimo 6 caracteres"
-                                        value={createFormData.senha}
-                                        onChange={(e) => setCreateFormData({ ...createFormData, senha: e.target.value })}
-                                    />
-                                </div>
+                            <div className="min-w-0">
+                                <DialogTitle className="flex items-center gap-2 text-base font-semibold">
+                                    Criar Novo Assinante
+                                    <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30">
+                                        Política All-In
+                                    </Badge>
+                                </DialogTitle>
+                                <DialogDescription className="text-xs text-muted-foreground truncate">
+                                    100% dos módulos nativos inclusos · Dimensionamento por HEq e usuários web simultâneos
+                                </DialogDescription>
                             </div>
                         </div>
+                    </DialogHeader>
 
-                        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
-                            <div className="space-y-2 p-3 rounded-sm border bg-muted/20">
-                                <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Primeira Fazenda</h3>
-                                <div className="space-y-1.5">
-                                    <Label className="text-xs">Nome da Fazenda *</Label>
-                                    <Input
-                                        placeholder="Fazenda Boa Vista"
-                                        value={createFormData.nome_fazenda}
-                                        onChange={(e) => setCreateFormData({ ...createFormData, nome_fazenda: e.target.value })}
-                                    />
+                    <div className="flex-1 overflow-y-auto px-5 py-4">
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+                            {/* COLUNA ESQUERDA: DADOS CADASTRAIS (6 COLS) */}
+                            <div className="lg:col-span-6 space-y-3">
+                                {/* DADOS DA EMPRESA */}
+                                <div className="space-y-2.5 p-3.5 rounded-sm border bg-muted/20">
+                                    <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
+                                        <Building2 className="size-3.5 text-primary" />
+                                        Dados da Empresa
+                                    </h3>
+
+                                    <div className="space-y-1.5">
+                                        <Label className="text-xs font-medium text-foreground/90">Razão Social / Nome Fantasia *</Label>
+                                        <Input
+                                            className="h-8 text-xs rounded-sm"
+                                            placeholder="Ex: Fazendas Boa Vista Ltda"
+                                            value={createFormData.nome_tenant}
+                                            onChange={(e) => setCreateFormData({ ...createFormData, nome_tenant: e.target.value })}
+                                        />
+                                    </div>
+
+                                    <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                                        <div className="space-y-1.5">
+                                            <Label className="text-xs font-medium text-foreground/90">CPF / CNPJ *</Label>
+                                            <Input
+                                                className="h-8 text-xs rounded-sm"
+                                                placeholder="00.000.000/0000-00"
+                                                value={createFormData.documento}
+                                                onChange={(e) => setCreateFormData({ ...createFormData, documento: e.target.value })}
+                                            />
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <Label className="text-xs font-medium text-foreground/90">Telefone do Responsável</Label>
+                                            <Input
+                                                className="h-8 text-xs rounded-sm"
+                                                placeholder="(11) 98765-4321"
+                                                value={createFormData.telefone_responsavel}
+                                                onChange={(e) => setCreateFormData({ ...createFormData, telefone_responsavel: e.target.value })}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-1.5">
+                                        <Label className="text-xs font-medium text-foreground/90">Email da Empresa *</Label>
+                                        <Input
+                                            className="h-8 text-xs rounded-sm"
+                                            type="email"
+                                            placeholder="contato@empresa.com.br"
+                                            value={createFormData.email_responsavel}
+                                            onChange={(e) => setCreateFormData({ ...createFormData, email_responsavel: e.target.value })}
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* PRIMEIRA FAZENDA */}
+                                <div className="space-y-2.5 p-3.5 rounded-sm border bg-muted/20">
+                                    <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
+                                        <Tractor className="size-3.5 text-primary" />
+                                        Primeira Fazenda (Unidade Produtiva)
+                                    </h3>
+
+                                    <div className="space-y-1.5">
+                                        <Label className="text-xs font-medium text-foreground/90">Nome da Propriedade / Fazenda *</Label>
+                                        <Input
+                                            className="h-8 text-xs rounded-sm"
+                                            placeholder="Ex: Fazenda Santa Maria"
+                                            value={createFormData.nome_fazenda}
+                                            onChange={(e) => setCreateFormData({ ...createFormData, nome_fazenda: e.target.value })}
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* DADOS DO USUÁRIO ADMINISTRADOR */}
+                                <div className="space-y-2.5 p-3.5 rounded-sm border bg-muted/20">
+                                    <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
+                                        <ShieldCheck className="size-3.5 text-primary" />
+                                        Usuário Administrador (Owner)
+                                    </h3>
+
+                                    <div className="space-y-1.5">
+                                        <Label className="text-xs font-medium text-foreground/90">Nome Completo *</Label>
+                                        <Input
+                                            className="h-8 text-xs rounded-sm"
+                                            placeholder="João da Silva"
+                                            value={createFormData.nome_completo}
+                                            onChange={(e) => setCreateFormData({ ...createFormData, nome_completo: e.target.value })}
+                                        />
+                                    </div>
+
+                                    <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                                        <div className="space-y-1.5">
+                                            <Label className="text-xs font-medium text-foreground/90">Username *</Label>
+                                            <Input
+                                                className="h-8 text-xs rounded-sm"
+                                                placeholder="joao.silva"
+                                                value={createFormData.username}
+                                                onChange={(e) => setCreateFormData({ ...createFormData, username: e.target.value })}
+                                            />
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <Label className="text-xs font-medium text-foreground/90">Email de Acesso *</Label>
+                                            <Input
+                                                className="h-8 text-xs rounded-sm"
+                                                type="email"
+                                                placeholder="joao@empresa.com"
+                                                value={createFormData.email}
+                                                onChange={(e) => setCreateFormData({ ...createFormData, email: e.target.value })}
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-1.5">
+                                        <Label className="text-xs font-medium text-foreground/90">Senha Provisória *</Label>
+                                        <PasswordInput
+                                            className="h-8 text-xs rounded-sm"
+                                            placeholder="Mínimo 6 caracteres"
+                                            value={createFormData.senha}
+                                            onChange={(e) => setCreateFormData({ ...createFormData, senha: e.target.value })}
+                                        />
+                                    </div>
                                 </div>
                             </div>
 
-                            <div className="space-y-2 p-3 rounded-sm border bg-muted/20">
-                                <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Assinatura</h3>
-
-                                <div className="space-y-1.5">
-                                    <Label className="text-xs">Plano *</Label>
-                                    <Select
-                                        value={createFormData.plano_id}
-                                        onValueChange={(value: string) => setCreateFormData({ ...createFormData, plano_id: value })}
+                            {/* COLUNA DIREITA: CONFIGURAÇÃO COMERCIAL ALL-IN (6 COLS) */}
+                            <div className="lg:col-span-6 space-y-3">
+                                {/* AUXILIAR HEQ OPCIONAL */}
+                                <div className="rounded-sm border bg-muted/20 overflow-hidden">
+                                    <button
+                                        type="button"
+                                        onClick={() => setMostrarCalculadoraHEq(!mostrarCalculadoraHEq)}
+                                        className="w-full flex items-center justify-between p-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground hover:bg-muted/30 transition-colors"
                                     >
-                                        <SelectTrigger className="h-7 text-xs">
-                                            <SelectValue placeholder="Selecione um plano" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {initialPlans?.filter((p) => p.ativo).map((plan) => (
-                                                <SelectItem key={plan.id} value={plan.id} className="text-sm">
-                                                    {plan.nome} - {new Intl.NumberFormat("pt-BR", {
-                                                        style: "currency",
-                                                        currency: "BRL",
-                                                    }).format(plan.preco_mensal)}/mês
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
+                                        <span className="flex items-center gap-1.5">
+                                            <Calculator className="size-3.5 text-primary" />
+                                            Auxiliar de Dimensionamento HEq (Opcional)
+                                        </span>
+                                        {mostrarCalculadoraHEq ? (
+                                            <ChevronUp className="size-3.5" />
+                                        ) : (
+                                            <ChevronDown className="size-3.5" />
+                                        )}
+                                    </button>
+
+                                    {mostrarCalculadoraHEq && (
+                                        <div className="p-3.5 pt-2 space-y-2.5 border-t bg-card/50">
+                                            <div className="grid grid-cols-2 gap-2.5">
+                                                <div className="space-y-1.5">
+                                                    <Label className="text-[11px] font-medium text-foreground/90">Área Total (ha)</Label>
+                                                    <Input
+                                                        className="h-8 text-xs rounded-sm"
+                                                        type="number"
+                                                        placeholder="0"
+                                                        value={calcAreaTotal}
+                                                        onChange={(e) => setCalcAreaTotal(e.target.value)}
+                                                    />
+                                                </div>
+                                                <div className="space-y-1.5">
+                                                    <Label className="text-[11px] font-medium text-foreground/90">APP / Reserva Legal (ha)</Label>
+                                                    <Input
+                                                        className="h-8 text-xs rounded-sm"
+                                                        type="number"
+                                                        placeholder="0"
+                                                        value={calcAreaAmbiental}
+                                                        onChange={(e) => setCalcAreaAmbiental(e.target.value)}
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <div className="grid grid-cols-2 gap-2.5">
+                                                <div className="space-y-1.5">
+                                                    <Label className="text-[11px] font-medium text-foreground/90">Vocação Cultural</Label>
+                                                    <Select
+                                                        value={calcVocacao}
+                                                        onValueChange={(val: keyof typeof FATORES_VOCACAO_HEQ) => setCalcVocacao(val)}
+                                                    >
+                                                        <SelectTrigger className="h-8 text-xs rounded-sm">
+                                                            <SelectValue />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            <SelectItem value="GRAOS" className="text-xs">Grãos / Anuais (1.0x)</SelectItem>
+                                                            <SelectItem value="PASTAGEM" className="text-xs">Pastagem / Pecuária (0.5x)</SelectItem>
+                                                            <SelectItem value="CAFE_PERENES" className="text-xs">Café / Perenes / Citros (2.5x)</SelectItem>
+                                                            <SelectItem value="HORTIFRUTI" className="text-xs">Hortifrúti / HF (4.0x)</SelectItem>
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+                                                <div className="space-y-1.5">
+                                                    <Label className="text-[11px] font-medium text-foreground/90">Rebanho ILP (cabeças)</Label>
+                                                    <Input
+                                                        className="h-8 text-xs rounded-sm"
+                                                        type="number"
+                                                        placeholder="0"
+                                                        value={calcCabecasPecuaria}
+                                                        onChange={(e) => setCalcCabecasPecuaria(e.target.value)}
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            {heqCalculado > 0 && (
+                                                <div className="mt-2 p-2.5 rounded-sm bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between gap-2">
+                                                    <div className="text-xs min-w-0">
+                                                        <span className="font-semibold text-emerald-700 dark:text-emerald-300">
+                                                            {heqCalculado.toLocaleString("pt-BR")} ha eq.
+                                                        </span>
+                                                        {planoSugeridoHEq && (
+                                                            <span className="text-muted-foreground ml-1.5">
+                                                                → Sugestão: <strong>{planoSugeridoHEq.nome}</strong>
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                    {planoSugeridoHEq && planoSugeridoHEq.id !== createFormData.plano_id && (
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            type="button"
+                                                            className="h-7 text-[11px] px-2.5 rounded-sm shrink-0 border-emerald-500/50 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/20"
+                                                            onClick={() => {
+                                                                setCreateFormData((prev) => ({
+                                                                    ...prev,
+                                                                    plano_id: planoSugeridoHEq.id,
+                                                                    usuarios_contratados: Math.max(
+                                                                        planoSugeridoHEq.limite_usuarios_minimo || 1,
+                                                                        prev.usuarios_contratados
+                                                                    ),
+                                                                }));
+                                                            }}
+                                                        >
+                                                            Aplicar
+                                                        </Button>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
 
-                                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                                    <div className="space-y-1.5">
-                                        <Label className="text-xs">Usuários *</Label>
-                                        <Input
-                                            type="number"
-                                            min="1"
-                                            value={createFormData.usuarios_contratados}
-                                            onChange={(e) => setCreateFormData({ ...createFormData, usuarios_contratados: parseInt(e.target.value) })}
-                                        />
+                                {/* PACOTE ALL-IN & ACESSOS */}
+                                <div className="space-y-2.5 p-3.5 rounded-sm border bg-muted/20">
+                                    <div className="flex items-center justify-between">
+                                        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
+                                            <Layers className="size-3.5 text-primary" />
+                                            Pacote All-In & Licenças Web
+                                        </h3>
+                                        <Badge variant="outline" className="text-[9px] h-4 px-1.5 bg-primary/5 text-primary border-primary/20">
+                                            100% módulos nativos
+                                        </Badge>
                                     </div>
+
                                     <div className="space-y-1.5">
-                                        <Label className="text-xs">Ciclo *</Label>
+                                        <Label className="text-xs font-medium text-foreground/90">Pacote Comercial *</Label>
                                         <Select
-                                            value={createFormData.ciclo_pagamento}
-                                            onValueChange={(value: string) => setCreateFormData({ ...createFormData, ciclo_pagamento: value })}
+                                            value={createFormData.plano_id}
+                                            onValueChange={(val: string) => {
+                                                const p = initialPlans?.find((x) => x.id === val);
+                                                const minUsers = p?.limite_usuarios_minimo || 1;
+                                                setCreateFormData((prev) => ({
+                                                    ...prev,
+                                                    plano_id: val,
+                                                    usuarios_contratados: Math.max(minUsers, prev.usuarios_contratados),
+                                                }));
+                                            }}
                                         >
-                                            <SelectTrigger className="h-7 text-xs">
-                                                <SelectValue />
+                                            <SelectTrigger className="h-8 text-xs rounded-sm">
+                                                <SelectValue placeholder="Selecione um pacote" />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value="MENSAL" className="text-sm">Mensal</SelectItem>
-                                                <SelectItem value="ANUAL" className="text-sm">Anual</SelectItem>
+                                                {initialPlans?.filter((p) => p.ativo).map((plan) => (
+                                                    <SelectItem key={plan.id} value={plan.id} className="text-xs">
+                                                        {plan.nome} — {formatCurrency(createFormData.ciclo_pagamento === "ANUAL" ? plan.preco_anual : plan.preco_mensal)}/{createFormData.ciclo_pagamento === "ANUAL" ? "ano" : "mês"}
+                                                    </SelectItem>
+                                                ))}
                                             </SelectContent>
                                         </Select>
+                                        {pacoteDefSelecionado?.descricaoMarketing && (
+                                            <p className="text-[11px] text-muted-foreground">
+                                                {pacoteDefSelecionado.descricaoMarketing}
+                                            </p>
+                                        )}
+                                    </div>
+
+                                    <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 items-start pt-1">
+                                        <div className="space-y-1.5">
+                                            <div className="flex items-center justify-between min-h-[18px]">
+                                                <Label className="text-xs font-medium text-foreground/90">Acessos Web Simultâneos *</Label>
+                                                {pacoteDefSelecionado && (
+                                                    <span className="text-[10px] text-muted-foreground">
+                                                        ({pacoteDefSelecionado.usuariosInclusos} inclusos)
+                                                    </span>
+                                                )}
+                                            </div>
+                                            <Input
+                                                className="h-8 text-xs rounded-sm"
+                                                type="number"
+                                                min={pacoteDefSelecionado?.usuariosInclusos || 1}
+                                                value={createFormData.usuarios_contratados}
+                                                onChange={(e) => {
+                                                    const val = Math.max(
+                                                        pacoteDefSelecionado?.usuariosInclusos || 1,
+                                                        parseInt(e.target.value) || 1
+                                                    );
+                                                    setCreateFormData({ ...createFormData, usuarios_contratados: val });
+                                                }}
+                                            />
+                                            <div className="min-h-[16px]">
+                                                {createFormData.usuarios_contratados > (pacoteDefSelecionado?.usuariosInclusos || 1) && (
+                                                    <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
+                                                        +{createFormData.usuarios_contratados - pacoteDefSelecionado.usuariosInclusos} licenças adicionais
+                                                    </p>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-1.5">
+                                            <div className="flex items-center justify-between min-h-[18px]">
+                                                <Label className="text-xs font-medium text-foreground/90">Ciclo de Cobrança *</Label>
+                                            </div>
+                                            <Select
+                                                value={createFormData.ciclo_pagamento}
+                                                onValueChange={(value: "MENSAL" | "ANUAL") =>
+                                                    setCreateFormData({ ...createFormData, ciclo_pagamento: value })
+                                                }
+                                            >
+                                                <SelectTrigger className="h-8 text-xs rounded-sm">
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="MENSAL" className="text-xs">Mensal</SelectItem>
+                                                    <SelectItem value="ANUAL" className="text-xs">
+                                                        Anual (2 meses grátis + 20% off adicionais)
+                                                    </SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                            <div className="min-h-[16px]" />
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-2 pt-0.5">
+                                        <Checkbox
+                                            id="com_trial_assinantes"
+                                            checked={createFormData.com_trial}
+                                            onCheckedChange={(checked) =>
+                                                setCreateFormData({ ...createFormData, com_trial: checked as boolean })
+                                            }
+                                        />
+                                        <Label htmlFor="com_trial_assinantes" className="text-xs cursor-pointer font-medium text-foreground/90">
+                                            Iniciar com período de trial ({createFormData.dias_trial} dias grátis)
+                                        </Label>
+                                    </div>
+                                    <p className="text-[11px] text-muted-foreground flex items-center gap-1.5">
+                                        <Smartphone className="size-3 text-primary shrink-0" />
+                                        O aplicativo Campo (celular/offline) é 100% gratuito e não consome acessos simultâneos.
+                                    </p>
+                                </div>
+
+                                {/* EXTENSÕES OPCIONAIS */}
+                                <div className="space-y-2 p-3.5 rounded-sm border bg-muted/20">
+                                    <div className="flex items-center justify-between">
+                                        <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
+                                            <Sparkles className="size-3.5 text-primary" />
+                                            Extensões Opcionais
+                                        </h3>
+                                        <span className="text-[10px] text-muted-foreground">Contratadas à parte</span>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        {extensoesDisponiveis.map((ext) => {
+                                            const isAtivo = ext.ativo !== false;
+                                            const isSelected = createFormData.extensoes_contratadas.includes(ext.id);
+                                            const precoExt =
+                                                createFormData.ciclo_pagamento === "ANUAL"
+                                                    ? ext.precoAnual
+                                                    : ext.precoMensal;
+
+                                            return (
+                                                <label
+                                                    key={ext.id}
+                                                    htmlFor={`ext-check-${ext.id}`}
+                                                    className={`p-2.5 rounded-sm border transition-all flex items-start gap-2.5 select-none ${
+                                                        !isAtivo
+                                                            ? "opacity-60 bg-muted/30 cursor-not-allowed border-dashed"
+                                                            : isSelected
+                                                            ? "bg-primary/5 border-primary/40 shadow-xs cursor-pointer"
+                                                            : "bg-card/50 hover:bg-card border-border cursor-pointer"
+                                                    }`}
+                                                >
+                                                    <Checkbox
+                                                        id={`ext-check-${ext.id}`}
+                                                        checked={isSelected}
+                                                        disabled={!isAtivo}
+                                                        onCheckedChange={() => {
+                                                            if (isAtivo) toggleExtensao(ext.id);
+                                                        }}
+                                                        className="mt-0.5 shrink-0"
+                                                    />
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="flex items-center justify-between gap-1.5">
+                                                            <span className="text-xs font-semibold text-foreground flex items-center gap-1">
+                                                                {ext.id === "EXT_IOT" ? (
+                                                                    <Cpu className="size-3 text-primary shrink-0" />
+                                                                ) : (
+                                                                    <Share2 className="size-3 text-primary shrink-0" />
+                                                                )}
+                                                                {ext.nome}
+                                                            </span>
+                                                            {isAtivo ? (
+                                                                <span className="text-xs font-bold text-foreground shrink-0">
+                                                                    {formatCurrency(precoExt)}/{createFormData.ciclo_pagamento === "ANUAL" ? "ano" : "mês"}
+                                                                </span>
+                                                            ) : (
+                                                                <Badge
+                                                                    variant="outline"
+                                                                    className="text-[9px] h-3.5 px-1 bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30 uppercase font-bold"
+                                                                >
+                                                                    Inativo no Catálogo
+                                                                </Badge>
+                                                            )}
+                                                        </div>
+                                                        <p className="text-[11px] text-muted-foreground mt-0.5">
+                                                            {ext.descricaoCurta}
+                                                        </p>
+                                                    </div>
+                                                </label>
+                                            );
+                                        })}
                                     </div>
                                 </div>
 
-                                <div className="flex items-center gap-2 pt-1">
-                                    <Checkbox
-                                        id="com_trial_assinantes"
-                                        checked={createFormData.com_trial}
-                                        onCheckedChange={(checked) => setCreateFormData({ ...createFormData, com_trial: checked as boolean })}
-                                    />
-                                    <Label htmlFor="com_trial_assinantes" className="text-xs">
-                                        Iniciar com período de trial ({createFormData.dias_trial} dias)
-                                    </Label>
-                                </div>
+                                {/* RESUMO FINANCEIRO DA CONTRATAÇÃO */}
+                                {orcamentoCalculado && (
+                                    <div className="space-y-2 p-3.5 rounded-sm border bg-card/80 text-xs shadow-xs">
+                                        <div className="flex items-center justify-between text-muted-foreground">
+                                            <span>Pacote Base ({pacoteDefSelecionado?.nome}):</span>
+                                            <span className="font-medium text-foreground">
+                                                {formatCurrency(orcamentoCalculado.valorPacoteBase)}
+                                            </span>
+                                        </div>
+
+                                        {orcamentoCalculado.usuariosAdicionais > 0 && (
+                                            <div className="flex items-center justify-between text-muted-foreground">
+                                                <span>Licenças Web Adicionais ({orcamentoCalculado.usuariosAdicionais}x):</span>
+                                                <span className="font-medium text-foreground">
+                                                    +{formatCurrency(orcamentoCalculado.valorUsuariosAdicionais)}
+                                                </span>
+                                            </div>
+                                        )}
+
+                                        {orcamentoCalculado.valorExtensoes > 0 && (
+                                            <div className="flex items-center justify-between text-muted-foreground">
+                                                <span>Extensões ({orcamentoCalculado.extensoesSelecionadas.length}):</span>
+                                                <span className="font-medium text-foreground">
+                                                    +{formatCurrency(orcamentoCalculado.valorExtensoes)}
+                                                </span>
+                                            </div>
+                                        )}
+
+                                        <Separator className="my-1" />
+
+                                        <div className="flex items-center justify-between font-bold text-sm">
+                                            <span className="text-foreground">Total ({createFormData.ciclo_pagamento}):</span>
+                                            <span className="text-primary text-base font-extrabold">
+                                                {formatCurrency(orcamentoCalculado.valorTotal)}
+                                            </span>
+                                        </div>
+
+                                        {createFormData.ciclo_pagamento === "ANUAL" && (
+                                            <div className="text-[11px] text-muted-foreground text-right">
+                                                Equivalente a {formatCurrency(orcamentoCalculado.equivalenteMensal)}/mês
+                                            </div>
+                                        )}
+
+                                        {createFormData.com_trial && (
+                                            <div className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1.5 pt-0.5">
+                                                <Check className="size-3.5 shrink-0" />
+                                                1ª Cobrança agendada para daqui a {createFormData.dias_trial} dias (após o trial)
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
 
-                    <DialogFooter className="border-t px-4 py-4">
+                    <DialogFooter showCloseButton={false} className="border-t px-5 py-3 bg-muted/10 shrink-0 gap-2 sm:justify-end">
                         <Button
                             size="sm"
                             variant="outline"
                             onClick={() => setShowCreateDialog(false)}
                             disabled={createTenantMutation.isPending}
+                            className="h-8 text-xs rounded-sm gap-1.5"
                         >
+                            <X className="size-3.5" />
                             Cancelar
                         </Button>
                         <Button
@@ -1271,7 +1755,9 @@ export default function AssinantesClient({
                                 !createFormData.nome_fazenda ||
                                 !createFormData.plano_id
                             }
+                            className="h-8 text-xs rounded-sm gap-1.5 border-primary/50 text-primary hover:bg-primary/10"
                         >
+                            <Plus className="size-3.5" />
                             {createTenantMutation.isPending ? "Criando..." : "Criar Assinante"}
                         </Button>
                     </DialogFooter>

@@ -11,7 +11,7 @@ import {
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Input, PasswordInput } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AuthLayout } from "@/components/auth/auth-layout";
 import { apiFetch } from "@/lib/api";
@@ -300,11 +300,10 @@ function ResetPasswordFormContent() {
                         Nova senha
                     </Label>
                     <div className="relative">
-                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-primary/70 pointer-events-none" />
-                        <Input
+                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-primary/70 pointer-events-none z-10" />
+                        <PasswordInput
                             id="nova_senha"
                             {...register("nova_senha")}
-                            type="password"
                             placeholder="Digite sua nova senha"
                             autoComplete="new-password"
                             disabled={isLoading}
@@ -327,11 +326,10 @@ function ResetPasswordFormContent() {
                         Confirmar senha
                     </Label>
                     <div className="relative">
-                        <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-primary/70 pointer-events-none" />
-                        <Input
+                        <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-primary/70 pointer-events-none z-10" />
+                        <PasswordInput
                             id="confirmar_senha"
                             {...register("confirmar_senha")}
-                            type="password"
                             placeholder="Confirme sua nova senha"
                             autoComplete="new-password"
                             disabled={isLoading}

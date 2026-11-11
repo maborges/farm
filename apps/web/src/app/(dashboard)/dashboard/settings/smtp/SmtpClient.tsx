@@ -5,7 +5,7 @@ import { apiFetch } from "@/lib/api";
 import { Mail, ShieldCheck, Server, Key, Send, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Input, PasswordInput } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { useForm } from "react-hook-form";
@@ -139,10 +139,7 @@ export function SmtpClient({ initialData }: { initialData?: SMTPFormData | null 
                                     </div>
                                     <div className="space-y-2">
                                         <Label htmlFor="pass">Chave de App / Senha</Label>
-                                        <div className="relative">
-                                            <Input id="pass" type="password" placeholder="••••••••" {...register("pass")} className="pr-10" />
-                                            <Key className="absolute right-3 top-2.5 text-muted-foreground" size={14} />
-                                        </div>
+                                        <PasswordInput id="pass" placeholder="••••••••" {...register("pass")} />
                                     </div>
                                 </div>
                             </CardContent>

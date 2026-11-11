@@ -5,10 +5,10 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
 import { useAppStore } from "@/lib/stores/app-store";
-import { Loader2, CheckCircle2, XCircle, Sprout, ArrowRight, UserPlus, Eye, EyeOff, Camera } from "lucide-react";
+import { Loader2, CheckCircle2, XCircle, Sprout, ArrowRight, UserPlus, Camera } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
+import { Input, PasswordInput } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Card } from "@/components/ui/card";
@@ -39,7 +39,6 @@ function AcceptInviteContent() {
     const [nome, setNome] = useState("");
     const [senha, setSenha] = useState("");
     const [senhaConfirm, setSenhaConfirm] = useState("");
-    const [showSenha, setShowSenha] = useState(false);
     const [fotoPreview, setFotoPreview] = useState<string | null>(null);
     const [fotoFile, setFotoFile] = useState<File | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -293,27 +292,19 @@ function AcceptInviteContent() {
                             <div className="grid grid-cols-2 gap-3">
                                 <div className="space-y-1.5">
                                     <Label htmlFor="reg-senha" className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Senha</Label>
-                                    <div className="relative">
-                                        <Input
-                                            id="reg-senha"
-                                            type={showSenha ? "text" : "password"}
-                                            placeholder="Sua senha"
-                                            value={senha}
-                                            onChange={(e) => setSenha(e.target.value)}
-                                            required
-                                            className="pr-10"
-                                        />
-                                        <button type="button" onClick={() => setShowSenha(v => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground/30 hover:text-muted-foreground/60">
-                                            {showSenha ? <EyeOff size={14} /> : <Eye size={14} />}
-                                        </button>
-                                    </div>
+                                    <PasswordInput
+                                        id="reg-senha"
+                                        placeholder="Sua senha"
+                                        value={senha}
+                                        onChange={(e) => setSenha(e.target.value)}
+                                        required
+                                    />
                                 </div>
 
                                 <div className="space-y-1.5">
                                     <Label htmlFor="reg-confirm" className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Repetir Senha</Label>
-                                    <Input
+                                    <PasswordInput
                                         id="reg-confirm"
-                                        type="password"
                                         placeholder="Confirme"
                                         value={senhaConfirm}
                                         onChange={(e) => setSenhaConfirm(e.target.value)}

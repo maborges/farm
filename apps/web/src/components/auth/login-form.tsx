@@ -11,7 +11,7 @@ import Link from "next/link";
 import { ThemeToggle } from "@/components/landing/ThemeToggle";
 
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Input, PasswordInput } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { apiFetch } from "@/lib/api";
 import { toast } from "sonner";
@@ -329,7 +329,7 @@ export function LoginForm() {
             </div>
 
             {/* Formulário */}
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" data-testid="login-form">
+            <form method="post" onSubmit={handleSubmit(onSubmit)} className="space-y-4" data-testid="login-form">
                 {submitError && (
                     <div className="space-y-2 rounded-sm border border-destructive/20 bg-destructive/8 px-3 py-2 text-xs font-medium text-destructive">
                         <div>{submitError}</div>
@@ -391,11 +391,10 @@ export function LoginForm() {
                         </Link>
                     </div>
                     <div className="relative">
-                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-primary/70 pointer-events-none" />
-                        <Input
+                        <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-primary/70 pointer-events-none z-10" />
+                        <PasswordInput
                             id="password"
                             {...register("password")}
-                            type="password"
                             placeholder="••••••••"
                             autoComplete="current-password"
                             disabled={isLoading}

@@ -3,7 +3,7 @@
 import { useState, useRef, useCallback } from "react";
 import { useAppStore } from "@/lib/stores/app-store";
 import { toast } from "sonner";
-import { UserCircle, Lock, Loader2, Camera } from "lucide-react";
+import { UserCircle, Lock, Loader2, Camera, KeyRound } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
@@ -330,19 +330,24 @@ export default function AccountSettingsPage() {
                         <CardDescription>Gerencie a segurança da sua conta.</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-3">
-                        <button
-                            type="button"
-                            className="flex w-full items-center justify-between p-3 rounded-lg border bg-muted/50 transition-colors hover:bg-muted text-left"
-                            onClick={() => setShowChangePassword(true)}
+                        <div
+                            className="flex w-full items-center justify-between p-3 rounded-sm border bg-muted/30 text-left"
                         >
                             <div>
                                 <p className="text-sm font-medium">Alterar Senha</p>
                                 <p className="text-xs text-muted-foreground">Atualize sua senha regularmente para maior segurança.</p>
                             </div>
-                            <span className="inline-flex items-center rounded-md border border-transparent px-3 py-1.5 text-sm font-medium text-primary hover:bg-background/60">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="rounded-sm border-primary/50 text-primary hover:bg-primary/10"
+                                onClick={() => setShowChangePassword(true)}
+                            >
+                                <KeyRound className="size-3.5 mr-1.5" />
                                 Alterar
-                            </span>
-                        </button>
+                            </Button>
+                        </div>
                     </CardContent>
                 </Card>
             </div>

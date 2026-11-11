@@ -141,16 +141,18 @@ export function ContextSelector() {
 
                             {grupos.filter((g) => g.id === activeGrupoId).map((grupo) => (
                                 <div key={grupo.id} className="py-1">
-                                    <div className="px-2 pb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
-                                        {grupo.nome}
-                                    </div>
+                                    {grupo.nome && grupo.nome.toUpperCase() !== "DEFAULT" && (
+                                        <div className="px-2 pb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80">
+                                            {grupo.nome}
+                                        </div>
+                                    )}
                                     {grupo.fazendas.length === 0 ? (
                                         <SelectItem value={`grupo:${grupo.id}`} disabled className="italic text-muted-foreground">
                                             (sem fazendas cadastradas)
                                         </SelectItem>
                                     ) : (
                                         grupo.fazendas.map((faz) => (
-                                            <SelectItem key={faz.id} value={faz.id} className="pl-4">
+                                            <SelectItem key={faz.id} value={faz.id}>
                                                 {faz.nome}
                                             </SelectItem>
                                         ))
@@ -190,17 +192,19 @@ export function ContextSelector() {
                                         )}
 
                                         {grupos.map((grupo) => (
-                                            <div key={grupo.id}>
-                                                <div className="px-2 py-1.5 text-[10px] font-semibold uppercase text-muted-foreground">
-                                                    {grupo.nome}
-                                                </div>
+                                            <div key={grupo.id} className="py-0.5">
+                                                {grupo.nome && grupo.nome.toUpperCase() !== "DEFAULT" && (
+                                                    <div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/80">
+                                                        {grupo.nome}
+                                                    </div>
+                                                )}
                                                 {grupo.fazendas.length === 0 && (
-                                                    <SelectItem disabled value={`grupo:${grupo.id}`} className="italic text-muted-foreground pl-4">
+                                                    <SelectItem disabled value={`grupo:${grupo.id}`} className="italic text-muted-foreground">
                                                         (sem fazendas cadastradas)
                                                     </SelectItem>
                                                 )}
                                                 {grupo.fazendas.map((faz) => (
-                                                    <SelectItem key={faz.id} value={faz.id} className="pl-4">
+                                                    <SelectItem key={faz.id} value={faz.id}>
                                                         {faz.nome}
                                                     </SelectItem>
                                                 ))}

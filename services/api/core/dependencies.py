@@ -1028,12 +1028,14 @@ def require_grupo_access():
 
 
 def require_role(roles_allowed: List[str]):
+    from core.constants import normalize_tenant_role
+    normalized_roles_allowed = [normalize_tenant_role(item) for item in roles_allowed]
+
     async def _dependency(
         request: Request,
         claims: dict = Depends(get_current_user_claims)
     ):
         from loguru import logger
-        from core.constants import normalize_tenant_role
         target_fazenda_id = request.headers.get("x-fazenda-id")
         fazendas_auth = claims.get("fazendas_auth", [])
         role = next((f.get("role") for f in fazendas_auth if f.get("id") == target_fazenda_id), None)
@@ -1043,14 +1045,13 @@ def require_role(roles_allowed: List[str]):
         is_superuser = claims.get("is_superuser", False)
         role = normalize_tenant_role(role)
         tenant_role = normalize_tenant_role(tenant_role)
-        roles_allowed = [normalize_tenant_role(item) for item in roles_allowed]
         logger.debug(f"require_role: fazenda={target_fazenda_id}, role_from_db={role}, tenant_role={tenant_role}, is_superuser={is_superuser}")
 
         # Owner e admin do tenant são tratados como 'admin' para permissão
         if is_superuser or tenant_role in ("owner", "admin"):
             role = "admin"
 
-        if not role or role not in roles_allowed:
+        if not role or role not in normalized_roles_allowed:
             raise HTTPException(status_code=403, detail="Role insuficiente nesta Fazenda de trabalho")
         return claims
     return _dependency

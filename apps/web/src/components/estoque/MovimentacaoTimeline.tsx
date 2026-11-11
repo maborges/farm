@@ -99,10 +99,10 @@ export function MovimentacaoTimeline({
 
   if (chartData.length === 0) {
     return (
-      <Card className="border-amber-200 bg-amber-50">
+      <Card>
         <CardHeader>
-          <CardTitle className="text-amber-900">Sem dados para visualizar</CardTitle>
-          <CardDescription className="text-amber-700">
+          <CardTitle>Sem dados para visualizar</CardTitle>
+          <CardDescription>
             Nenhuma movimentação encontrada com os filtros aplicados
           </CardDescription>
         </CardHeader>

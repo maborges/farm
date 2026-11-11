@@ -237,8 +237,8 @@ function KpiCard({
 }) {
   const toneClass = {
     default: "bg-muted text-muted-foreground",
-    ok: "bg-emerald-50 text-emerald-700",
-    warn: "bg-amber-50 text-amber-700",
+    ok: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
+    warn: "bg-amber-500/10 text-amber-700 dark:text-amber-400",
     risk: "bg-destructive/10 text-destructive",
   }[tone];
 
@@ -836,20 +836,20 @@ function ExecutiveAlertsCard({
 
   if (alerts.length === 0) {
     return (
-      <Card className="rounded-sm border-emerald-200 bg-emerald-50/50 shadow-sm">
+      <Card className="rounded-sm border-emerald-500/30 bg-emerald-500/10 dark:bg-emerald-950/20 shadow-sm">
         <CardContent className="flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between">
           <div className="flex items-start gap-3">
-            <div className="rounded-sm bg-emerald-100 p-2 text-emerald-700">
+            <div className="rounded-sm bg-emerald-500/20 p-2 text-emerald-700 dark:text-emerald-300">
               <CheckCircle2 className="size-4" />
             </div>
             <div>
-              <p className="font-medium text-emerald-900">Nenhum risco executivo detectado</p>
-              <p className="text-sm text-emerald-800/80">
+              <p className="font-medium text-emerald-900 dark:text-emerald-200">Nenhum risco executivo detectado</p>
+              <p className="text-sm text-emerald-800/80 dark:text-emerald-300/80">
                 Os dados carregados da safra não indicam alertas críticos ou pontos de atenção neste momento.
               </p>
             </div>
           </div>
-          <Badge variant="outline" className="border-emerald-300 text-emerald-800">
+          <Badge variant="outline" className="border-emerald-500/30 text-emerald-800 dark:text-emerald-300 bg-emerald-500/5">
             Monitoramento saudável
           </Badge>
         </CardContent>

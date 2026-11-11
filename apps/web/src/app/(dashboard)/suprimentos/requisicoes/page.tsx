@@ -9,7 +9,7 @@ import { ClipboardList, FileCheck, Plus, CheckCircle2, XCircle, Package, Clock, 
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
+import { Input, PasswordInput } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogBody, DialogDescription } from "@/components/ui/dialog";
@@ -465,8 +465,7 @@ function ConfirmacaoCredencialDialog({
               </div>
               <div className="flex flex-col gap-1.5">
                 <Label className="text-xs font-medium">Senha *</Label>
-                <Input
-                  type="password"
+                <PasswordInput
                   className="h-8 rounded-sm text-xs"
                   value={senha}
                   onChange={(e) => setSenha(e.target.value)}

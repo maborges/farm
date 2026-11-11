@@ -15,7 +15,7 @@ import {
 import { DataTable, ColumnDef } from "@/components/ui/data-table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Input, PasswordInput } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -400,7 +400,7 @@ function CreateAdminForm({ onSuccess }: { onSuccess: () => void }) {
 
             <div className="space-y-1.5">
                 <Label htmlFor="admin-password">Senha</Label>
-                <Input id="admin-password" {...register("password")} type="password" placeholder="••••••••" />
+                <PasswordInput id="admin-password" {...register("password")} placeholder="••••••••" />
                 {errors.password && <p className="text-xs text-red-500">{errors.password.message}</p>}
             </div>
 
@@ -539,7 +539,7 @@ function ResetPasswordForm({ admin, onSuccess }: { admin: Admin; onSuccess: () =
         <form onSubmit={handleSubmit((data) => resetMutation.mutate(data))} className="space-y-4">
             <div className="space-y-1.5">
                 <Label htmlFor="nova-senha">Nova Senha</Label>
-                <Input id="nova-senha" {...register("nova_senha")} type="password" placeholder="••••••••" />
+                <PasswordInput id="nova-senha" {...register("nova_senha")} placeholder="••••••••" />
                 {errors.nova_senha && <p className="text-xs text-red-500">{errors.nova_senha.message}</p>}
             </div>
 

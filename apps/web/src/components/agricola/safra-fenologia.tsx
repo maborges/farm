@@ -95,10 +95,10 @@ function TalhaoFenologiaCard({ talhaoId, talhaoNome, registros }: {
                     {ultimo ? (
                         <>
                             <div className="text-right hidden sm:block">
-                                <p className="text-xs font-medium text-emerald-700">{ultimo.escala_nome}</p>
+                                <p className="text-xs font-medium text-emerald-600 dark:text-emerald-400">{ultimo.escala_nome}</p>
                                 <p className="text-[11px] text-muted-foreground">{fmt(ultimo.data_observacao)}</p>
                             </div>
-                            <Badge className="text-xs px-2 py-0.5 bg-emerald-100 text-emerald-800 border-emerald-200 font-mono shadow-none">
+                            <Badge className="text-xs px-2 py-0.5 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20 font-mono shadow-none">
                                 {ultimo.escala_codigo}
                             </Badge>
                         </>
@@ -115,22 +115,22 @@ function TalhaoFenologiaCard({ talhaoId, talhaoNome, registros }: {
                     <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3">
                         Histórico Fenológico
                     </p>
-                    <div className="space-y-3 relative before:absolute before:inset-0 before:ml-[11px] before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-slate-200 before:to-transparent">
+                    <div className="space-y-3 relative before:absolute before:inset-0 before:ml-[11px] before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-border before:to-transparent">
                         {[...talhaoRegistros].reverse().map((r, i) => (
                             <div key={r.id} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
-                                <div className="flex items-center justify-center w-6 h-6 rounded-full border-2 border-white bg-slate-200 text-slate-500 shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10">
-                                    <Leaf className="size-3" />
+                                <div className="flex items-center justify-center w-6 h-6 rounded-full border-2 border-background bg-muted text-muted-foreground shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10">
+                                    <Leaf className="size-3 text-emerald-600 dark:text-emerald-400" />
                                 </div>
-                                <div className="w-[calc(100%-3rem)] md:w-[calc(50%-1.5rem)] bg-white p-2.5 rounded-md border shadow-sm flex flex-col gap-1">
+                                <div className="w-[calc(100%-3rem)] md:w-[calc(50%-1.5rem)] bg-card text-card-foreground p-2.5 rounded-sm border shadow-sm flex flex-col gap-1">
                                     <div className="flex items-center justify-between">
-                                        <Badge variant="outline" className="font-mono text-[10px] py-0 px-1.5 bg-slate-50">
+                                        <Badge variant="outline" className="font-mono text-[10px] py-0 px-1.5 bg-muted/50 text-foreground">
                                             {r.escala_codigo}
                                         </Badge>
                                         <span className="text-[11px] text-muted-foreground font-medium">
                                             {fmt(r.data_observacao)}
                                         </span>
                                     </div>
-                                    <span className="text-xs font-medium text-foreground">{r.escala_nome}</span>
+                                    <span className="text-xs font-semibold text-foreground">{r.escala_nome}</span>
                                     {r.observacao && (
                                         <p className="text-[11px] text-muted-foreground mt-1 italic line-clamp-2">
                                             {r.observacao}

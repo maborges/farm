@@ -124,14 +124,14 @@ const FASE_LABEL: Record<string, string> = {
 };
 
 const FASE_COLOR: Record<string, string> = {
-    PLANEJADA: "bg-slate-100 text-slate-700 border-slate-200",
-    PREPARO_SOLO: "bg-amber-50 text-amber-700 border-amber-200",
-    PLANTIO: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    DESENVOLVIMENTO: "bg-green-50 text-green-700 border-green-200",
-    COLHEITA: "bg-yellow-50 text-yellow-700 border-yellow-200",
-    POS_COLHEITA: "bg-orange-50 text-orange-700 border-orange-200",
-    ENCERRADA: "bg-gray-100 text-gray-600 border-gray-200",
-    CANCELADA: "bg-red-50 text-red-600 border-red-200",
+    PLANEJADA: "bg-slate-500/10 text-slate-700 dark:text-slate-300 border-slate-500/20",
+    PREPARO_SOLO: "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20",
+    PLANTIO: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20",
+    DESENVOLVIMENTO: "bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20",
+    COLHEITA: "bg-yellow-500/10 text-yellow-700 dark:text-yellow-400 border-yellow-500/20",
+    POS_COLHEITA: "bg-orange-500/10 text-orange-700 dark:text-orange-400 border-orange-500/20",
+    ENCERRADA: "bg-muted text-muted-foreground border-border",
+    CANCELADA: "bg-red-500/10 text-red-700 dark:text-red-400 border-red-500/20",
 };
 
 function fmt(d: string | null) {
@@ -377,7 +377,7 @@ export default function SafraDetailPage({ params }: { params: Promise<{ id: stri
             : `Safra ${safra.ano_safra}`;
     const safraLabel = getSafraLabel(safra);
 
-    const faseColorClass = FASE_COLOR[safra.status] ?? "bg-slate-100 text-slate-700 border-slate-200";
+    const faseColorClass = FASE_COLOR[safra.status] ?? "bg-muted text-muted-foreground border-border";
 
     return (
         <div className="p-6 space-y-6">

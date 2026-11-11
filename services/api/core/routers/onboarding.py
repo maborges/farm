@@ -256,14 +256,15 @@ async def ativar_conta(
     from core.services.stripe_service import StripeService
 
     plano = await session.get(PlanoAssinatura, assinatura.plano_id)
-    qtd_usuarios = assinatura.usuarios_contratados or (plano.limite_usuarios_minimo if plano else 1) or 1
+    qtd_usuarios = getattr(assinatura, "usuarios_contratados", None) or getattr(plano, "limite_usuarios_minimo", 1) or 1
     detalhamento_preco: list[dict] | None = None
     valor_total_fatura = (
-        (plano.preco_anual if assinatura.ciclo_pagamento == "ANUAL" else plano.preco_mensal)
+        (getattr(plano, "preco_anual", Decimal("0.00")) if assinatura.ciclo_pagamento == "ANUAL" else getattr(plano, "preco_mensal", Decimal("0.00")))
         if plano
         else Decimal("0.00")
     )
-    extensoes_contratadas = list((tenant.branding or {}).get("extensoes_contratadas") or [])
+    branding = getattr(tenant, "branding", None) or {}
+    extensoes_contratadas = list(branding.get("extensoes_contratadas") or []) if isinstance(branding, dict) else []
 
     if plano:
         try:

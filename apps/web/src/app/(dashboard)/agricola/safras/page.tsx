@@ -40,14 +40,14 @@ interface Safra {
 // ---------------------------------------------------------------------------
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; dot: string }> = {
-    PLANEJADA: { label: "Planejada", color: "bg-blue-50 text-blue-700 border-blue-200", dot: "bg-blue-500" },
-    PREPARO_SOLO: { label: "Preparo Solo", color: "bg-amber-50 text-amber-700 border-amber-200", dot: "bg-amber-500" },
-    PLANTIO: { label: "Plantio", color: "bg-lime-50 text-lime-700 border-lime-200", dot: "bg-lime-500" },
-    DESENVOLVIMENTO: { label: "Desenvolvimento", color: "bg-emerald-50 text-emerald-700 border-emerald-200", dot: "bg-emerald-500" },
-    COLHEITA: { label: "Colheita", color: "bg-orange-50 text-orange-700 border-orange-200", dot: "bg-orange-500" },
-    POS_COLHEITA: { label: "Pós-Colheita", color: "bg-purple-50 text-purple-700 border-purple-200", dot: "bg-purple-500" },
-    ENCERRADA: { label: "Encerrada", color: "bg-gray-50 text-gray-600 border-gray-200", dot: "bg-gray-400" },
-    CANCELADA: { label: "Cancelada", color: "bg-red-50 text-red-700 border-red-200", dot: "bg-red-500" },
+    PLANEJADA: { label: "Planejada", color: "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20", dot: "bg-blue-500" },
+    PREPARO_SOLO: { label: "Preparo Solo", color: "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20", dot: "bg-amber-500" },
+    PLANTIO: { label: "Plantio", color: "bg-lime-500/10 text-lime-700 dark:text-lime-400 border-lime-500/20", dot: "bg-lime-500" },
+    DESENVOLVIMENTO: { label: "Desenvolvimento", color: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20", dot: "bg-emerald-500" },
+    COLHEITA: { label: "Colheita", color: "bg-orange-500/10 text-orange-700 dark:text-orange-400 border-orange-500/20", dot: "bg-orange-500" },
+    POS_COLHEITA: { label: "Pós-Colheita", color: "bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-500/20", dot: "bg-purple-500" },
+    ENCERRADA: { label: "Encerrada", color: "bg-muted text-muted-foreground border-border", dot: "bg-muted-foreground" },
+    CANCELADA: { label: "Cancelada", color: "bg-red-500/10 text-red-700 dark:text-red-400 border-red-500/20", dot: "bg-red-500" },
 };
 
 const PHASES_ORDER = [
@@ -224,12 +224,12 @@ function SafrasPageContent() {
     });
 
     useEffect(() => {
-        if (!isLoading) {
-            setLoadTimeout(false);
-            return;
-        }
+        if (!isLoading) return;
         const timer = setTimeout(() => setLoadTimeout(true), 5000);
-        return () => clearTimeout(timer);
+        return () => {
+            clearTimeout(timer);
+            setLoadTimeout(false);
+        };
     }, [isLoading]);
 
     const filteredSafras = safras.filter(s => selectedFase === "todas" || s.status === selectedFase);
@@ -238,10 +238,10 @@ function SafrasPageContent() {
         return (
             <div className="space-y-6 p-6">
                 {loadTimeout && (
-                    <Card className="border-yellow-200 bg-yellow-50">
+                    <Card className="border-amber-500/30 bg-amber-500/10 dark:bg-amber-950/20">
                         <CardContent className="pt-6">
-                            <p className="text-yellow-700 font-bold">⚠️ Carregamento demorando...</p>
-                            <p className="text-yellow-600 text-sm mt-2">
+                            <p className="text-amber-700 dark:text-amber-400 font-bold">⚠️ Carregamento demorando...</p>
+                            <p className="text-amber-600/90 dark:text-amber-300/80 text-sm mt-2">
                                 O servidor está demorando para responder. Verifique sua conexão.
                             </p>
                         </CardContent>
@@ -262,10 +262,10 @@ function SafrasPageContent() {
         return (
             <div className="space-y-6 p-6">
                 <PageHeader title="Safras" />
-                <Card className="border-red-200 bg-red-50">
+                <Card className="border-destructive/30 bg-destructive/10">
                     <CardContent className="pt-6">
-                        <p className="text-red-700 font-bold">Erro ao carregar safras:</p>
-                        <p className="text-red-600 text-sm mt-2">{(error as any).message}</p>
+                        <p className="text-destructive font-bold">Erro ao carregar safras:</p>
+                        <p className="text-destructive/80 text-sm mt-2">{(error as any).message}</p>
                     </CardContent>
                 </Card>
             </div>

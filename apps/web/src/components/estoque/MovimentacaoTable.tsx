@@ -23,11 +23,11 @@ interface MovimentacaoTableProps {
 }
 
 const TIPO_CORES = {
-  ENTRADA: 'bg-green-100 text-green-800',
-  SAIDA: 'bg-red-100 text-red-800',
-  SAIDA_REVERSA: 'bg-purple-100 text-purple-800',
-  AJUSTE: 'bg-yellow-100 text-yellow-800',
-  TRANSFERENCIA: 'bg-blue-100 text-blue-800',
+  ENTRADA: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20',
+  SAIDA: 'bg-red-500/10 text-red-700 dark:text-red-400 border-red-500/20',
+  SAIDA_REVERSA: 'bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-500/20',
+  AJUSTE: 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20',
+  TRANSFERENCIA: 'bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/20',
 };
 
 const TIPO_LABELS = {
@@ -63,10 +63,10 @@ export function MovimentacaoTable({
 
   if (!data || data.movimentacoes.length === 0) {
     return (
-      <Card className="border-amber-200 bg-amber-50">
+      <Card>
         <CardHeader>
-          <CardTitle className="text-amber-900">Sem registros</CardTitle>
-          <CardDescription className="text-amber-700">
+          <CardTitle>Sem registros</CardTitle>
+          <CardDescription>
             Nenhuma movimentação encontrada com os filtros aplicados
           </CardDescription>
         </CardHeader>

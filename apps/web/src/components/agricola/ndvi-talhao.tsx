@@ -76,10 +76,10 @@ function ndviLabel(v: number | null): string {
 
 function ndviBadgeClass(v: number | null): string {
     if (v === null) return "bg-muted text-muted-foreground";
-    if (v >= 0.6) return "bg-emerald-100 text-emerald-800";
-    if (v >= 0.4) return "bg-green-100 text-green-800";
-    if (v >= 0.2) return "bg-yellow-100 text-yellow-800";
-    return "bg-red-100 text-red-800";
+    if (v >= 0.6) return "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20";
+    if (v >= 0.4) return "bg-green-500/10 text-green-700 dark:text-green-400 border-green-500/20";
+    if (v >= 0.2) return "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20";
+    return "bg-destructive/10 text-destructive border-destructive/20";
 }
 
 // ── Custom Tooltip ─────────────────────────────────────────────────────────────
@@ -88,7 +88,7 @@ function CustomTooltip({ active, payload, label }: any) {
     if (!active || !payload?.length) return null;
     const d = payload[0]?.payload;
     return (
-        <div className="bg-white border rounded-lg shadow-sm px-3 py-2 text-xs space-y-1">
+        <div className="bg-popover text-popover-foreground border border-border rounded-sm shadow-md px-3 py-2 text-xs space-y-1">
             <p className="font-medium">{label}</p>
             {d?.indice_medio != null && (
                 <p>NDVI: <strong className={ndviColor(d.indice_medio)}>{d.indice_medio.toFixed(3)}</strong></p>

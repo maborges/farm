@@ -42,7 +42,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
+import { Input, PasswordInput } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -1176,8 +1176,8 @@ export default function TenantsClient({ initialTenants, initialPlans }: TenantsC
 
                                 <div className="space-y-1.5">
                                     <Label className="text-xs">Senha *</Label>
-                                    <Input
-                                        type="password"
+                                    <PasswordInput
+                                        className="h-8 text-xs rounded-sm"
                                         placeholder="Mínimo 6 caracteres"
                                         value={createFormData.senha}
                                         onChange={(e) => setCreateFormData({ ...createFormData, senha: e.target.value })}

@@ -9,15 +9,15 @@ interface CategoryProgressBarProps {
   custo_total: number;
 }
 
-const CATEGORIA_COLORS: Record<string, { bg: string; bar: string; text: string }> = {
-  SEMENTE: { bg: "bg-emerald-50", bar: "bg-emerald-500", text: "text-emerald-700" },
-  FERTILIZANTE: { bg: "bg-amber-50", bar: "bg-amber-500", text: "text-amber-700" },
-  DEFENSIVO: { bg: "bg-orange-50", bar: "bg-orange-500", text: "text-orange-700" },
-  COMBUSTIVEL: { bg: "bg-red-50", bar: "bg-red-500", text: "text-red-700" },
-  MAO_DE_OBRA: { bg: "bg-blue-50", bar: "bg-blue-500", text: "text-blue-700" },
-  SERVICO: { bg: "bg-purple-50", bar: "bg-purple-500", text: "text-purple-700" },
-  SEGURO: { bg: "bg-slate-50", bar: "bg-slate-500", text: "text-slate-700" },
-  OUTROS: { bg: "bg-gray-50", bar: "bg-gray-500", text: "text-gray-700" },
+const CATEGORIA_COLORS: Record<string, { bg: string; border: string; bar: string; text: string }> = {
+  SEMENTE: { bg: "bg-emerald-500/10", border: "border-emerald-500/20", bar: "bg-emerald-500", text: "text-emerald-700 dark:text-emerald-400" },
+  FERTILIZANTE: { bg: "bg-amber-500/10", border: "border-amber-500/20", bar: "bg-amber-500", text: "text-amber-700 dark:text-amber-400" },
+  DEFENSIVO: { bg: "bg-orange-500/10", border: "border-orange-500/20", bar: "bg-orange-500", text: "text-orange-700 dark:text-orange-400" },
+  COMBUSTIVEL: { bg: "bg-red-500/10", border: "border-red-500/20", bar: "bg-red-500", text: "text-red-700 dark:text-red-400" },
+  MAO_DE_OBRA: { bg: "bg-blue-500/10", border: "border-blue-500/20", bar: "bg-blue-500", text: "text-blue-700 dark:text-blue-400" },
+  SERVICO: { bg: "bg-purple-500/10", border: "border-purple-500/20", bar: "bg-purple-500", text: "text-purple-700 dark:text-purple-400" },
+  SEGURO: { bg: "bg-slate-500/10", border: "border-slate-500/20", bar: "bg-slate-500", text: "text-slate-700 dark:text-slate-400" },
+  OUTROS: { bg: "bg-muted/50", border: "border-border", bar: "bg-muted-foreground", text: "text-muted-foreground" },
 };
 
 const CATEGORIA_LABELS: Record<string, string> = {
@@ -45,14 +45,14 @@ export function CategoryProgressBar({
   const label = categoriaLabel(categoria);
 
   return (
-    <div className={`p-4 rounded-lg ${colors.bg} border border-gray-200`}>
+    <div className={`p-4 rounded-sm ${colors.bg} border ${colors.border}`}>
       <div className="flex items-center justify-between mb-2">
         <h4 className={`text-sm font-semibold ${colors.text}`}>{label}</h4>
         <span className="text-xs text-muted-foreground font-mono">{percentual.toFixed(1)}%</span>
       </div>
 
       {/* Barra de progresso */}
-      <div className="h-2 bg-white rounded-full overflow-hidden mb-2">
+      <div className="h-2 bg-muted rounded-full overflow-hidden mb-2">
         <div
           className={`h-full ${colors.bar} transition-all duration-300`}
           style={{ width: `${Math.min(percentual, 100)}%` }}

@@ -31,10 +31,10 @@ export function SaldoGrid({ data, isLoading, isError }: SaldoGridProps) {
 
   if (isError || !data) {
     return (
-      <Card className="border-red-200 bg-red-50">
+      <Card className="border-destructive/30 bg-destructive/5">
         <CardHeader>
-          <CardTitle className="text-red-900">Erro ao carregar saldos</CardTitle>
-          <CardDescription className="text-red-700">
+          <CardTitle className="text-destructive">Erro ao carregar saldos</CardTitle>
+          <CardDescription>
             Verifique sua conexão e tente novamente
           </CardDescription>
         </CardHeader>
@@ -44,10 +44,10 @@ export function SaldoGrid({ data, isLoading, isError }: SaldoGridProps) {
 
   if (data.depositos.length === 0) {
     return (
-      <Card className="border-amber-200 bg-amber-50">
+      <Card>
         <CardHeader>
-          <CardTitle className="text-amber-900">Sem estoque</CardTitle>
-          <CardDescription className="text-amber-700">
+          <CardTitle>Sem estoque</CardTitle>
+          <CardDescription>
             Nenhum lote ativo com saldo disponível
           </CardDescription>
         </CardHeader>

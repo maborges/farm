@@ -95,7 +95,9 @@ export function TransacaoTimeline({ safraId }: TransacaoTimelineProps) {
                                     <div className="flex items-center gap-2 flex-wrap mb-1">
                                         <Badge
                                             variant="outline"
-                                            className={transacao.type === "operacao" ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-emerald-50 text-emerald-700 border-emerald-200"}
+                                            className={transacao.type === "operacao" 
+                                                ? "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20" 
+                                                : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20"}
                                         >
                                             {transacao.type === "operacao" ? "Despesa" : "Receita"}
                                         </Badge>
@@ -109,7 +111,7 @@ export function TransacaoTimeline({ safraId }: TransacaoTimelineProps) {
                                     </div>
                                 </div>
                                 <div className="text-right shrink-0">
-                                    <p className={`font-bold text-sm ${transacao.valor < 0 ? "text-amber-600" : "text-emerald-600"}`}>
+                                    <p className={`font-bold text-sm ${transacao.valor < 0 ? "text-amber-600 dark:text-amber-400" : "text-emerald-600 dark:text-emerald-400"}`}>
                                         {transacao.valor < 0 ? "-" : "+"}{moeda(Math.abs(transacao.valor))}
                                     </p>
                                 </div>

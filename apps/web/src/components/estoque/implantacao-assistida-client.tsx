@@ -1209,9 +1209,9 @@ export function ImplantacaoAssistidaDetailPage({ sessionId }: { sessionId: strin
                     </div>
 
                     {!!aptidao.erros_bloqueantes.length && (
-                      <div className="rounded-sm border border-red-200 bg-red-50 p-4">
-                        <p className="text-sm font-semibold text-red-900">Bloqueios</p>
-                        <ul className="mt-2 space-y-1 text-sm text-red-800">
+                      <div className="rounded-sm border border-destructive/30 bg-destructive/10 p-4">
+                        <p className="text-sm font-semibold text-destructive">Bloqueios</p>
+                        <ul className="mt-2 space-y-1 text-sm text-destructive/90">
                           {aptidao.erros_bloqueantes.map((erro) => (
                             <li key={erro}>{erro}</li>
                           ))}
@@ -1220,9 +1220,9 @@ export function ImplantacaoAssistidaDetailPage({ sessionId }: { sessionId: strin
                     )}
 
                     {!!aptidao.avisos.length && (
-                      <div className="rounded-sm border border-amber-200 bg-amber-50 p-4">
-                        <p className="text-sm font-semibold text-amber-900">Avisos</p>
-                        <ul className="mt-2 space-y-1 text-sm text-amber-800">
+                      <div className="rounded-sm border border-amber-500/30 bg-amber-500/10 dark:bg-amber-950/20 p-4">
+                        <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">Avisos</p>
+                        <ul className="mt-2 space-y-1 text-sm text-amber-800 dark:text-amber-300">
                           {aptidao.avisos.map((aviso) => (
                             <li key={aviso}>{aviso}</li>
                           ))}
@@ -1369,7 +1369,7 @@ export function ImplantacaoAssistidaDetailPage({ sessionId }: { sessionId: strin
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <div className="space-y-4 px-1 text-sm">
-                <div className="rounded-sm border border-amber-200 bg-amber-50 p-4 text-amber-900">
+                <div className="rounded-sm border border-amber-500/30 bg-amber-500/10 dark:bg-amber-950/20 p-4 text-amber-900 dark:text-amber-200">
                   <p className="font-semibold">Aviso operacional</p>
                   <p className="mt-1">
                     Após confirmar, a sessão ficará bloqueada para edição e a conferência deve ser feita em saldos/movimentações.

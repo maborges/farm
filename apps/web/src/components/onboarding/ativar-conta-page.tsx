@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Input, PasswordInput } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -190,8 +190,7 @@ export function AtivarContaClientPage() {
                                 <div className="grid grid-cols-2 gap-3">
                                     <div className="space-y-1.5">
                                         <Label>Senha *</Label>
-                                        <Input
-                                            type="password"
+                                        <PasswordInput
                                             value={senha}
                                             onChange={(e) => setSenha(e.target.value)}
                                             placeholder="Mínimo 6 caracteres"
@@ -200,8 +199,7 @@ export function AtivarContaClientPage() {
                                     </div>
                                     <div className="space-y-1.5">
                                         <Label>Confirmar senha *</Label>
-                                        <Input
-                                            type="password"
+                                        <PasswordInput
                                             value={confirmarSenha}
                                             onChange={(e) => setConfirmarSenha(e.target.value)}
                                             placeholder="Repita a senha"

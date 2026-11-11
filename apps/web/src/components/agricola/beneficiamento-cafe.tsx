@@ -115,7 +115,7 @@ const STATUS_COLOR: Record<string, string> = {
     SECAGEM: "bg-amber-100 text-amber-700",
     CLASSIFICACAO: "bg-purple-100 text-purple-700",
     ARMAZENADO: "bg-green-100 text-green-700",
-    VENDIDO: "bg-gray-100 text-gray-700",
+    VENDIDO: "bg-muted text-muted-foreground border-border",
 };
 
 const METODO_COLOR: Record<string, string> = {
@@ -362,7 +362,7 @@ export function BeneficiamentoCafe({ safraId, talhoes }: Props) {
                                 <TableBody>
                                     {relatorio.por_metodo.map(m => {
                                         const eff = m.eficiencia_pct;
-                                        const effColor = eff >= 95 ? "bg-green-50" : eff >= 80 ? "bg-amber-50" : "bg-red-50";
+                                        const effColor = eff >= 95 ? "bg-emerald-500/5 hover:bg-emerald-500/10" : eff >= 80 ? "bg-amber-500/5 hover:bg-amber-500/10" : "bg-destructive/5 hover:bg-destructive/10";
                                         return (
                                             <TableRow key={m.metodo} className={effColor}>
                                                 <TableCell className="font-medium">
@@ -376,7 +376,7 @@ export function BeneficiamentoCafe({ safraId, talhoes }: Props) {
                                                 <TableCell className="text-right">{m.fator_reducao_real ? `${fmt(m.fator_reducao_real)}:1` : "—"}</TableCell>
                                                 <TableCell className="text-right">{m.fator_reducao_esperado}:1</TableCell>
                                                 <TableCell className="text-right">
-                                                    <Badge className={cn("text-xs", eff >= 95 ? "bg-green-100 text-green-700" : eff >= 80 ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700")}>
+                                                    <Badge className={cn("text-xs", eff >= 95 ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20" : eff >= 80 ? "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20" : "bg-destructive/10 text-destructive border-destructive/20")}>
                                                         {fmt(eff)}%
                                                     </Badge>
                                                 </TableCell>

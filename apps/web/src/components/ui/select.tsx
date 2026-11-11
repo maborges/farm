@@ -296,7 +296,7 @@ function SelectContent({
           data-slot="select-content"
           role="listbox"
           className={cn(
-            "glass-chrome absolute z-50 min-w-[8rem] overflow-y-auto rounded-sm p-1",
+            "absolute z-50 min-w-[8rem] overflow-y-auto rounded-sm p-1.5 border border-border/80 bg-popover text-popover-foreground shadow-xl backdrop-blur-md dark:border-white/15 dark:bg-[#111c17]/95",
             className
           )}
           style={{
@@ -354,7 +354,8 @@ function SelectItem({
       aria-selected={isSelected}
       disabled={disabled}
       className={cn(
-        "relative flex w-full cursor-default select-none items-center rounded-sm py-1 pl-7 pr-2 text-sm md:text-xs outline-none transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus:bg-sidebar-accent focus:text-sidebar-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 disabled:pointer-events-none disabled:opacity-50",
+        "relative flex w-full cursor-pointer select-none items-center rounded-sm py-1.5 pl-8 pr-2 text-sm md:text-xs outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 disabled:pointer-events-none disabled:opacity-50",
+        isSelected && "font-semibold text-primary",
         className
       )}
       {...props}
@@ -365,7 +366,7 @@ function SelectItem({
         setOpen(false)
       }}
     >
-      <span className="absolute left-2 flex size-3.5 items-center justify-center">
+      <span className="absolute left-2 flex size-3.5 items-center justify-center text-primary">
         <CheckIcon className={cn("size-3.5", isSelected ? "opacity-100" : "opacity-0")} />
       </span>
       <span className="truncate">{children}</span>

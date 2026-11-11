@@ -212,8 +212,8 @@ export function SafraChecklist({ safraId, cultura, fase }: SafraChecklistProps) 
 
     const { itens, concluidos, total, obrigatorios_pendentes, veredito } = data;
     const VEREDITO_BADGE: Record<ChecklistFaseStatus["veredito"], { label: string; className: string }> = {
-        OK: { label: "OK para avançar", className: "text-emerald-700 border-emerald-200 bg-emerald-50" },
-        OK_PARCIAL: { label: "OK parcial — com pendências justificadas", className: "text-amber-700 border-amber-200 bg-amber-50" },
+        OK: { label: "OK para avançar", className: "text-emerald-700 dark:text-emerald-400 border-emerald-500/20 bg-emerald-500/10" },
+        OK_PARCIAL: { label: "OK parcial — com pendências justificadas", className: "text-amber-700 dark:text-amber-400 border-amber-500/20 bg-amber-500/10" },
         BLOQUEANTE: { label: "Bloqueado para avançar", className: "text-destructive border-destructive/30 bg-destructive/5" },
     };
 
@@ -260,7 +260,7 @@ export function SafraChecklist({ safraId, cultura, fase }: SafraChecklistProps) 
                         <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Progresso da Fase</span>
                     </div>
                     {obrigatorios_pendentes > 0 && (
-                        <Badge variant="outline" className="text-amber-600 border-amber-200 bg-amber-50/50 gap-1 text-[10px] font-bold">
+                        <Badge variant="outline" className="text-amber-700 dark:text-amber-400 border-amber-500/30 bg-amber-500/10 gap-1 text-[10px] font-bold">
                             <AlertTriangle className="size-3" />
                             {obrigatorios_pendentes} PENDENTE{obrigatorios_pendentes > 1 ? "S" : ""}
                         </Badge>
@@ -298,9 +298,9 @@ export function SafraChecklist({ safraId, cultura, fase }: SafraChecklistProps) 
                             className={cn(
                                 "group relative flex flex-col rounded-sm border border-border/50 bg-muted/30 p-2.5 transition-colors",
                                 isManual && "cursor-pointer hover:bg-muted/40",
-                                item.concluido && "border-emerald-200/60 bg-emerald-50/20",
+                                item.concluido && "border-emerald-500/30 bg-emerald-500/10",
                                 item.cancelado && "opacity-60 grayscale",
-                                !item.concluido && !item.cancelado && item.obrigatorio && "border-amber-200",
+                                !item.concluido && !item.cancelado && item.obrigatorio && "border-amber-500/30",
                                 item.status_verificacao === "BLOQUEANTE" && "border-destructive/40",
                             )}
                             onClick={() => isManual && !item.cancelado && toggleMutation.mutate({ itemId: item.id, concluido: !item.concluido })}
@@ -317,7 +317,7 @@ export function SafraChecklist({ safraId, cultura, fase }: SafraChecklistProps) 
                                     <p className={cn(
                                         "text-sm font-semibold leading-tight",
                                         (item.concluido || item.cancelado) && "line-through text-muted-foreground",
-                                        !item.concluido && !item.cancelado && item.obrigatorio && "text-amber-900",
+                                        !item.concluido && !item.cancelado && item.obrigatorio && "text-amber-800 dark:text-amber-300",
                                     )}>
                                         {item.titulo}
                                     </p>
@@ -352,12 +352,12 @@ export function SafraChecklist({ safraId, cultura, fase }: SafraChecklistProps) 
 
                             <div className="flex flex-wrap items-center gap-1.5 mt-2">
                                 {item.obrigatorio && !item.concluido && !item.cancelado && (
-                                    <span className="text-[10px] font-bold px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded-full">
+                                    <span className="text-[10px] font-bold px-1.5 py-0.5 bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20 rounded-full">
                                         OBRIGATÓRIO
                                     </span>
                                 )}
                                 {!isManual && (
-                                    <span className="text-[10px] px-1.5 py-0.5 bg-sky-100 text-sky-700 rounded-full">
+                                    <span className="text-[10px] px-1.5 py-0.5 bg-sky-500/10 text-sky-700 dark:text-sky-300 border border-sky-500/20 rounded-full">
                                         {TIPO_RESULTADO_LABEL[item.tipo_resultado]}
                                     </span>
                                 )}
@@ -367,7 +367,7 @@ export function SafraChecklist({ safraId, cultura, fase }: SafraChecklistProps) 
                                     </span>
                                 )}
                                 {item.status_verificacao === "OK_PARCIAL" && (
-                                    <span className="text-[10px] font-bold px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded-full" title={item.justificativa_ok_parcial ?? undefined}>
+                                    <span className="text-[10px] font-bold px-1.5 py-0.5 bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20 rounded-full" title={item.justificativa_ok_parcial ?? undefined}>
                                         OK PARCIAL
                                     </span>
                                 )}
@@ -417,7 +417,7 @@ export function SafraChecklist({ safraId, cultura, fase }: SafraChecklistProps) 
                                         <Button
                                             size="sm"
                                             variant="outline"
-                                            className="min-h-8 h-auto border-amber-300 px-2 py-1 text-[10px] text-amber-700"
+                                            className="min-h-8 h-auto border-amber-500/30 px-2 py-1 text-[10px] text-amber-700 dark:text-amber-300 hover:bg-amber-500/10"
                                             onClick={(e) => { e.stopPropagation(); setOverrideItem(item); }}
                                         >
                                             Justificar OK parcial
@@ -509,7 +509,7 @@ export function SafraChecklist({ safraId, cultura, fase }: SafraChecklistProps) 
                     <DialogHeader>
                         <DialogTitle>Justificar OK parcial</DialogTitle>
                         <DialogDescription className="text-xs">
-                            O saldo de estoque ainda não atende "{overrideItem?.titulo}". Se a compra já foi providenciada, justifique para liberar o avanço com pendência.
+                            O saldo de estoque ainda não atende &ldquo;{overrideItem?.titulo}&rdquo;. Se a compra já foi providenciada, justifique para liberar o avanço com pendência.
                         </DialogDescription>
                     </DialogHeader>
                     <DialogBody className="space-y-1.5">
@@ -541,7 +541,7 @@ export function SafraChecklist({ safraId, cultura, fase }: SafraChecklistProps) 
                     <DialogHeader>
                         <DialogTitle>Gerar OS</DialogTitle>
                         <DialogDescription className="text-xs">
-                            Escolha o talhão onde "{gerarOsItem?.titulo}" será executado. A safra pode ter mais de um talhão — não há como escolher automaticamente.
+                            Escolha o talhão onde &ldquo;{gerarOsItem?.titulo}&rdquo; será executado. A safra pode ter mais de um talhão — não há como escolher automaticamente.
                         </DialogDescription>
                     </DialogHeader>
                     <DialogBody className="space-y-1.5">

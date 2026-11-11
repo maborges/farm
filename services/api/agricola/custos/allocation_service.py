@@ -104,8 +104,8 @@ async def registrar_allocations_fin_rateio(session: AsyncSession, rateio: Rateio
               INSERT INTO cost_allocations (
                 id, tenant_id, production_unit_id,
                 source, source_id, fin_rateio_id,
-                cost_category, amount, allocation_date,
-                allocation_method, allocation_basis
+                cost_category, amount, currency, allocation_date,
+                allocation_method, allocation_basis, created_at
               )
               SELECT
                 gen_random_uuid(),
@@ -119,9 +119,11 @@ async def registrar_allocations_fin_rateio(session: AsyncSession, rateio: Rateio
                   WHEN p.qtd_pus = 1 THEN round(p.valor_rateado, 2)
                   ELSE round((p.valor_rateado * p.area_ha / NULLIF(p.total_area, 0))::numeric, 2)
                 END,
+                'BRL',
                 p.allocation_date,
                 CASE WHEN p.qtd_pus = 1 THEN 'DIRECT' ELSE 'AREA_HA' END,
-                CASE WHEN p.qtd_pus = 1 THEN p.area_ha ELSE p.total_area END
+                CASE WHEN p.qtd_pus = 1 THEN p.area_ha ELSE p.total_area END,
+                CURRENT_TIMESTAMP
               FROM ponderado p
               WHERE p.total_area > 0
                 AND NOT EXISTS (

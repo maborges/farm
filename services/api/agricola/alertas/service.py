@@ -1288,8 +1288,16 @@ class AlertasAgricolasService:
                 CostAllocation,
                 and_(
                     CostAllocation.tenant_id == self.tenant_id,
-                    CostAllocation.source == "INVENTORY_MOVEMENT",
                     CostAllocation.inventory_movement_id == EstoqueMovimento.id,
+                    or_(
+                        CostAllocation.source == "INVENTORY_MOVEMENT",
+                        and_(
+                            CostAllocation.source == "OPERATION_EXECUTION",
+                            EstoqueMovimento.origem == "OPERACAO_EXECUCAO",
+                            CostAllocation.operation_execution_id == EstoqueMovimento.operacao_execucao_id,
+                            CostAllocation.production_unit_id == EstoqueMovimento.production_unit_id,
+                        ),
+                    ),
                 ),
             )
             .where(

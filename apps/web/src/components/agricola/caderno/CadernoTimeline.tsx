@@ -52,13 +52,13 @@ interface Props {
 }
 
 const TIPO_CONFIG: Record<string, { label: string; icon: React.ElementType; color: string }> = {
-  OPERACAO_AUTO: { label: "Operação", icon: Sprout, color: "text-green-600 bg-green-50" },
-  MONITORAMENTO: { label: "Monitoramento", icon: Stethoscope, color: "text-orange-600 bg-orange-50" },
-  VISITA_TECNICA: { label: "Visita Técnica", icon: Clipboard, color: "text-blue-600 bg-blue-50" },
-  EPI_ENTREGA: { label: "EPI", icon: Layers, color: "text-purple-600 bg-purple-50" },
-  OBSERVACAO: { label: "Observação", icon: Eye, color: "text-gray-600 bg-gray-50" },
-  CLIMA: { label: "Clima", icon: CloudRain, color: "text-sky-600 bg-sky-50" },
-  SOLO: { label: "Solo", icon: Layers, color: "text-amber-600 bg-amber-50" },
+  OPERACAO_AUTO: { label: "Operação", icon: Sprout, color: "text-emerald-700 dark:text-emerald-400 bg-emerald-500/10" },
+  MONITORAMENTO: { label: "Monitoramento", icon: Stethoscope, color: "text-orange-700 dark:text-orange-400 bg-orange-500/10" },
+  VISITA_TECNICA: { label: "Visita Técnica", icon: Clipboard, color: "text-blue-700 dark:text-blue-400 bg-blue-500/10" },
+  EPI_ENTREGA: { label: "EPI", icon: Layers, color: "text-purple-700 dark:text-purple-400 bg-purple-500/10" },
+  OBSERVACAO: { label: "Observação", icon: Eye, color: "text-muted-foreground bg-muted" },
+  CLIMA: { label: "Clima", icon: CloudRain, color: "text-sky-700 dark:text-sky-400 bg-sky-500/10" },
+  SOLO: { label: "Solo", icon: Layers, color: "text-amber-700 dark:text-amber-400 bg-amber-500/10" },
 };
 
 const SEVERIDADE_DOT: Record<string, string> = {

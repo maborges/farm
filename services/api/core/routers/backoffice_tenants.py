@@ -7,6 +7,7 @@ from typing import Optional
 from uuid import UUID
 import uuid as uuid_module
 import secrets
+from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
@@ -52,8 +53,9 @@ class CriarTenantRequest(BaseModel):
 
     # Assinatura
     plano_id: UUID
-    usuarios_contratados: int = Field(5, ge=1, description="Quantidade de usuários simultâneos")
+    usuarios_contratados: int = Field(1, ge=1, description="Quantidade de usuários simultâneos")
     ciclo_pagamento: str = Field("MENSAL", description="MENSAL ou ANUAL")
+    extensoes_contratadas: list[str] = Field(default_factory=list, description="Lista de extensões opcionais (ex: EXT_IOT, EXT_ERP)")
 
     # Trial
     com_trial: bool = Field(True, description="Iniciar com período de trial")
@@ -178,6 +180,22 @@ async def criar_tenant(
             if not plano or not plano.ativo:
                 raise EntityNotFoundError("Plano indisponível ou inativo.")
 
+            # 3.1. Validar e filtrar extensões solicitadas
+            from core.constants import (
+                ModuloMetadata,
+                TABELA_EXTENSOES_A_PARTE,
+                carregar_overrides_catalogo_modulos,
+            )
+            overrides_catalogo = await carregar_overrides_catalogo_modulos(session)
+            extensoes_validas: list[str] = []
+            for ext in request.extensoes_contratadas:
+                if ext not in TABELA_EXTENSOES_A_PARTE:
+                    continue
+                if not ModuloMetadata.is_modulo_ativo(ext, overrides_catalogo):
+                    nome_ext = TABELA_EXTENSOES_A_PARTE[ext].get("nome", ext)
+                    raise BusinessRuleError(f"A extensão '{nome_ext}' está inativa no catálogo e não pode ser contratada.")
+                extensoes_validas.append(ext)
+
             # 4. Validar quantidade de usuários
             pricing_service = PlanoPricingService(session)
             await pricing_service.validar_quantidade_usuarios(plano.id, request.usuarios_contratados)
@@ -202,7 +220,8 @@ async def criar_tenant(
                 documento=request.documento,
                 email_responsavel=request.email_responsavel,
                 telefone_responsavel=request.telefone_responsavel,
-                ativo=True
+                ativo=True,
+                branding={"extensoes_contratadas": extensoes_validas} if extensoes_validas else None,
             )
             session.add(tenant)
             await session.flush()
@@ -268,30 +287,48 @@ async def criar_tenant(
             session.add(assinatura)
             await session.flush()
 
-            # 12. Se não for trial, criar cobrança no Asaas
-            cobranca_criada = None
-            if not request.com_trial:
-                try:
-                    # Calcular valor
-                    valor_total, _ = await pricing_service.calcular_preco_total(
-                        plano_id=plano.id,
-                        quantidade_usuarios=request.usuarios_contratados,
-                        ciclo=request.ciclo_pagamento
+            # 13. Calcular valor da fatura inicial (incluindo usuários adicionais e extensões ativas)
+            usuarios_inclusos = max(1, int(getattr(plano, "limite_usuarios_minimo", 1) or 1))
+            if not plano.is_free:
+                if request.usuarios_contratados > usuarios_inclusos:
+                    valor_fatura, _ = await pricing_service._calcular_preco_instancia_plano(
+                        plano, request.usuarios_contratados, request.ciclo_pagamento
+                    )
+                else:
+                    valor_fatura = (
+                        Decimal(str(plano.preco_anual))
+                        if request.ciclo_pagamento == "ANUAL"
+                        else Decimal(str(plano.preco_mensal))
                     )
 
-                    # Criar cobrança no Asaas
-                    asaas_service = AsaasService(session)
-                    # TODO: Implementar criação de cobrança para assinatura recorrente
-                    # Por enquanto, deixar pendente para aprovação manual
-
-                    logger.info(
-                        f"Assinatura criada com valor calculado: R$ {valor_total} "
-                        f"({request.ciclo_pagamento})"
+                if extensoes_validas:
+                    extensoes_info = {
+                        e["id"]: e for e in ModuloMetadata.obter_extensoes_a_parte(overrides_catalogo)
+                    }
+                    chave_preco_ext = "preco_anual" if request.ciclo_pagamento == "ANUAL" else "preco_mensal"
+                    valor_extensoes = sum(
+                        Decimal(str(extensoes_info.get(ext, {}).get(chave_preco_ext, TABELA_EXTENSOES_A_PARTE[ext][chave_preco_ext])))
+                        for ext in extensoes_validas
                     )
+                    valor_fatura = (valor_fatura + valor_extensoes).quantize(Decimal("0.01"))
 
-                except Exception as e:
-                    logger.error(f"Erro ao criar cobrança no Asaas: {e}")
-                    # Continua mesmo com erro, admin pode gerar cobrança depois
+                # Data de vencimento da fatura
+                if request.com_trial:
+                    vencimento_dt = data_proxima_renovacao + timedelta(days=1)
+                else:
+                    vencimento_dt = data_inicio + timedelta(days=3)
+
+                fatura = Fatura(
+                    tenant_id=tenant.id,
+                    assinatura_id=assinatura.id,
+                    valor=valor_fatura,
+                    data_vencimento=vencimento_dt,
+                    status="ABERTA",
+                )
+                session.add(fatura)
+                logger.info(
+                    f"Fatura criada: R$ {valor_fatura} vence em {vencimento_dt} para {tenant.nome}"
+                )
 
             await session.commit()
             await session.refresh(tenant)
@@ -300,7 +337,7 @@ async def criar_tenant(
             logger.info(
                 f"Tenant criado: {tenant.nome} (ID: {tenant.id}) - "
                 f"Plano: {plano.nome}, Usuários: {request.usuarios_contratados}, "
-                f"Status: {status_assinatura}"
+                f"Extensões: {extensoes_validas}, Status: {status_assinatura}"
             )
 
             # Preparar response
@@ -312,7 +349,8 @@ async def criar_tenant(
                 "status": assinatura.status,
                 "usuarios_contratados": assinatura.usuarios_contratados,
                 "ciclo_pagamento": assinatura.ciclo_pagamento,
-                "data_proxima_renovacao": assinatura.data_proxima_renovacao
+                "data_proxima_renovacao": assinatura.data_proxima_renovacao,
+                "extensoes_contratadas": extensoes_validas,
             }
 
             return tenant_data
@@ -387,7 +425,8 @@ async def listar_tenants(
                     "status": assinatura.status,
                     "usuarios_contratados": assinatura.usuarios_contratados,
                     "ciclo_pagamento": assinatura.ciclo_pagamento,
-                    "data_proxima_renovacao": assinatura.data_proxima_renovacao
+                    "data_proxima_renovacao": assinatura.data_proxima_renovacao,
+                    "extensoes_contratadas": (tenant.branding or {}).get("extensoes_contratadas", []) if isinstance(tenant.branding, dict) else [],
                 }
 
             response.append(tenant_data)
@@ -436,7 +475,8 @@ async def obter_tenant(
                 "ciclo_pagamento": assinatura.ciclo_pagamento,
                 "data_inicio": assinatura.data_inicio,
                 "data_proxima_renovacao": assinatura.data_proxima_renovacao,
-                "created_at": assinatura.created_at
+                "created_at": assinatura.created_at,
+                "extensoes_contratadas": (tenant.branding or {}).get("extensoes_contratadas", []) if isinstance(tenant.branding, dict) else [],
             }
 
         return tenant_data
