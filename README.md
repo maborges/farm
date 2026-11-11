@@ -13,47 +13,6 @@ Utilize português (pt-BR) para documentos e interações com o usuário, com ac
 
 > A fonte oficial do frontend web é `apps/web/`. O backend principal fica em `services/api` e os contratos compartilhados em `packages/`.
 
-## Acesso ao laboratório de demonstração
-
-Use estas credenciais somente na demonstração local conectada ao banco isolado
-`deepfarms_demo_lab`. O perfil tem acesso total ao tenant de demonstração; não
-reutilize esta senha em outros ambientes.
-
-- **Endereço:** http://127.0.0.1:3035/login
-- **Usuário:** `demonstracao@deepfarms.com.br`
-- **Senha:** `agro1234`
-- **Tenant:** `demonstracao`
-- **Perfil de acesso:** `demonstracao` (módulos liberados para a demonstração)
-- **Fazendas:** Fazenda Modelo 1 e Fazenda Modelo 2
-
-### Iniciar os serviços
-
-Abra dois terminais e mantenha ambos os processos ativos.
-
-Terminal 1 — API da demonstração. O launcher troca o banco para
-`deepfarms_demo_lab`, valida o destino, aplica a role restrita do laboratório,
-desativa os workers embutidos e escuta apenas em `127.0.0.1:8017`. Não altere
-`services/api/.env.local` para apontar a configuração normal de desenvolvimento
-ao banco de demonstração.
-
-```bash
-cd /opt/lampp/htdocs/farm/services/api
-.venv/bin/python -m scripts.demo_lab_server
-```
-
-Terminal 2 — interface web apontada para a API do laboratório:
-
-```bash
-cd /opt/lampp/htdocs/farm/apps/web
-BACKEND_URL=http://127.0.0.1:8017 NEXT_PUBLIC_API_URL=/api/v1 \
-  pnpm run dev --hostname 127.0.0.1 --port 3035
-```
-
-Abra http://127.0.0.1:3035/login. Se a porta 3035 já estiver ocupada, use a
-instância que já está rodando ou encerre-a com `Ctrl+C` no terminal dela antes
-de iniciar outra. Para usar outra porta, troque `3035` no comando e no endereço.
-Encerre a API e a interface com `Ctrl+C` nos respectivos terminais.
-
 ## Deploy em produção
 
 O servidor de produção é acessado pelo usuário `ubuntu`, com a chave privada
@@ -294,6 +253,10 @@ Detalhamento de cada feature, decisões e histórico de implementação: `docs/C
   3. **Seleção de Extensões Opcionais com Validação de Catálogo:** O formulário consome `GET /api/v1/billing/modules/catalog` para recuperar preços atualizados de `EXT_IOT` e `EXT_ERP`. Caso alguma extensão esteja desativada globalmente no Backoffice, o card é exibido desabilitado com o badge "Inativo no Catálogo", impedindo sua seleção.
   4. **Composição Financeira em Tempo Real:** Exibe um resumo discriminado do pacote base, licenças adicionais, extensões e total estimado (mensal ou anual com desconto de 2 meses grátis e 20% off nos adicionais), além da indicação clara de agendamento de cobrança pós-trial.
   5. **Persistência e Fatura no Backend (`POST /api/v1/backoffice/tenants`):** O backend valida a existência e ativação do plano e das extensões solicitadas, grava `branding={"extensoes_contratadas": [...]}` no `Tenant` e gera a `Fatura` inicial em estado `ABERTA` com vencimento ajustado ao período de trial (ou 3 dias caso sem trial), refletindo exatamente os valores contratados.
+
+### Correção: Sessões Vencidas Exibidas como Ativas (`/dashboard/settings/sessoes`)
+- **Problema corrigido:** As listagens `GET /api/v1/auth/sessions/me` e `GET /api/v1/auth/sessions/team` consideravam apenas `status = 'ATIVA'`, exibindo como ativas sessões cujo `expira_em` já havia passado; a lista da equipe mostrava somente o apelido do usuário.
+- **Comportamento esperado:** As duas listagens filtram também por `expira_em > agora` (UTC). A lista da equipe exibe `usuario_nome` (`nome_completo`, com fallback para apelido e username).
 
 ### Blindagem de Isolamento Multi-Tenant e PostgreSQL RLS (Hardening Pré-Deploy)
 - **Descrição curta:** Correção estrutural das políticas de Row-Level Security (RLS) do PostgreSQL, unificação da injeção de sessão (`Depends(get_session)`), propagação parametrizada de `app.current_tenant_id` em rotas web, dispositivos de campo (`device_token`), workers de eventos (`domain_event_outbox`) e motor de alertas, além do ajuste da regra `R1` do linter de segurança multi-tenant.

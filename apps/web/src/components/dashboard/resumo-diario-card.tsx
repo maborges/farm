@@ -45,7 +45,7 @@ export function ResumoDiarioCard({ safraId }: { safraId?: string }) {
     const fallbackFazendaId = fazendasDoGrupoAtivo[0]?.id ?? firstUnidadeProdutivaId ?? undefined;
     const unidadeContextoId = activeFazendaValida ? activeFazendaId : fallbackFazendaId;
     const { data: safras = [], isLoading: safrasLoading } = useSafrasAtivas(unidadeContextoId);
-    const effectiveSafraId = safraId ?? safras[0]?.id;
+    const effectiveSafraId = safraId || safras[0]?.id;
 
     const { data: resumo, isLoading } = useQuery<ResumoDiario>({
         queryKey: ["resumo-diario", effectiveSafraId],
@@ -123,9 +123,9 @@ export function ResumoDiarioCard({ safraId }: { safraId?: string }) {
             const params = new URLSearchParams();
             if (sugestao.parametros.receita_percentual !== undefined) params.set("receita", sugestao.parametros.receita_percentual.toString());
             if (sugestao.parametros.custos_percentual !== undefined) params.set("custos", sugestao.parametros.custos_percentual.toString());
-            router.push(`/dashboard/financeiro/dre?safra_id=${safraId}&${params.toString()}&auto_simular=true${actionParam}`);
+            router.push(`/dashboard/financeiro/dre?safra_id=${effectiveSafraId}&${params.toString()}&auto_simular=true${actionParam}`);
         } else if (sugestao.acao === "AJUSTE_CENARIO") {
-            router.push(`/dashboard/agricola/safras/${safraId}/cenarios?ajuste_sugerido=true&cenario_id=${sugestao.parametros.cenario_id}${actionParam}`);
+            router.push(`/dashboard/agricola/safras/${effectiveSafraId}/cenarios?ajuste_sugerido=true&cenario_id=${sugestao.parametros.cenario_id}${actionParam}`);
         }
     };
 
@@ -224,7 +224,7 @@ export function ResumoDiarioCard({ safraId }: { safraId?: string }) {
                         <Button 
                             size="sm" 
                             variant="outline" 
-                            onClick={() => router.push(`/dashboard/financeiro/dre?safra_id=${safraId}`)}
+                            onClick={() => router.push(`/dashboard/financeiro/dre?safra_id=${effectiveSafraId}`)}
                             className={dashboardCardButtonClass}
                         >
                             Analisar safra completa

@@ -195,6 +195,9 @@ export function hasTenantPermission(
     permission: string,
     customPermissions?: TenantCustomPermissions
 ): boolean {
+    // A API autoriza o proprietário do tenant independentemente do JSON legado do perfil.
+    if (role === "owner") return true;
+
     const granted = customPermissions?.granted ?? customPermissions?.permissions;
 
     // Formato novo: lista explícita de permissões concedidas.

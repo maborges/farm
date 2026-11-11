@@ -78,7 +78,7 @@ function SessaoRow({
         <TableRow>
             {showUser && (
                 <TableCell>
-                        <div className="font-medium text-sm">{sessao.usuario_nome || sessao.usuario_apelido || "Usuário"}</div>
+                    <div className="font-medium text-sm">{sessao.usuario_nome || sessao.usuario_apelido || "Usuário"}</div>
                 </TableCell>
             )}
             <TableCell>

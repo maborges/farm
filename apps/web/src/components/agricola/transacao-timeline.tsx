@@ -95,8 +95,8 @@ export function TransacaoTimeline({ safraId }: TransacaoTimelineProps) {
                                     <div className="flex items-center gap-2 flex-wrap mb-1">
                                         <Badge
                                             variant="outline"
-                                            className={transacao.type === "operacao" 
-                                                ? "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20" 
+                                            className={transacao.type === "operacao"
+                                                ? "bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/20"
                                                 : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20"}
                                         >
                                             {transacao.type === "operacao" ? "Despesa" : "Receita"}

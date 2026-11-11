@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { useHasModule, useModules } from "@/hooks/use-has-module";
+import { usePermission } from "@/hooks/use-permission";
 import { apiFetch } from "@/lib/api";
 import type { ModuleId } from "@/types/global";
 import { useAppStore } from "@/lib/stores/app-store";
@@ -13,9 +14,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { DashboardAlertsCard, type AlertSummaryPayload } from "@/components/dashboard/dashboard-alerts-card";
 import { DashboardCopilotCard } from "@/components/dashboard/dashboard-copilot-card";
 import { FirstStepsCard } from "@/components/dashboard/first-steps-card";
-import { RecentNavigationCard } from "@/components/dashboard/recent-navigation-card";
-import { PersonalDashboardWidgets } from "@/components/dashboard/personal-dashboard-widgets";
-import { AiOnboardingCard } from "@/components/dashboard/ai-onboarding-card";
+import { DashboardActionGrid } from "@/components/dashboard/dashboard-action-grid";
 import { DashboardPageSkeleton, TenantSelectionPrompt } from "@/components/dashboard/dashboard-states";
 import { DomainMiniCard, MetricCard } from "@/components/dashboard/dashboard-metric-card";
 import { SectionShell, SectionSkeleton } from "@/components/dashboard/dashboard-section";
@@ -24,7 +23,6 @@ import {
   BarChart3,
   Beef,
   LayoutDashboard,
-  Loader2,
   MapPinned,
   Sprout,
   Tractor,
@@ -36,7 +34,10 @@ import {
   Activity,
   PlusCircle,
   Package,
-  BookOpen
+  BookOpen,
+  ClipboardList,
+  CheckCircle2,
+  RotateCcw
 } from "lucide-react";
 
 type DashboardFinanceiroResumo = {
@@ -271,6 +272,12 @@ function DashboardContent() {
   const isImpersonating = Boolean(impersonation?.active);
   const isReady = _hasHydrated && !!tenant && (!user?.is_superuser || isImpersonating);
 
+  const canViewSafras = usePermission("agricola:safras:view");
+  const canViewTarefas = usePermission("campo:tarefas:view");
+  const canViewEstoque = usePermission("estoque:movimentacoes:view");
+  const canViewFinanceiro = usePermission("financeiro:dashboard:view");
+  const canViewPecuaria = usePermission("pecuaria:dashboard:view");
+
   const financeiroQuery = useQuery<DashboardFinanceiroResumo>({
     queryKey: ["dashboard-executivo-financeiro", activeFazendaId],
     queryFn: () => apiFetch("/relatorios/dashboard"),
@@ -368,137 +375,92 @@ function DashboardContent() {
         {!profile.hasLivestock && <Badge variant="outline" className="rounded-sm">Pecuária indisponível</Badge>}
       </div>
 
-      <FirstStepsCard
-        isLoading={firstStepsIsLoading}
-        hasProperty={unidadesProdutivasAutorizadas.length > 0}
-        hasHarvest={Boolean(agricolaData?.kpis.total_safras_ativas)}
-        hasOperation={Boolean(operationalData?.concluidas)}
+      {/* CENTRAL DE COMANDOS & ATALHOS OPERACIONAIS (Todos disponíveis e agrupados em formato de botão com ícone e descritivo) */}
+      <DashboardActionGrid
+        hasAgriculture={profile.hasAgriculture}
         hasFinance={profile.hasFinance}
-        hasFinanceData={hasFinancialData(financeData)}
+        hasLivestock={profile.hasLivestock}
+        canViewSafras={canViewSafras}
+        canViewTarefas={canViewTarefas}
+        canViewEstoque={canViewEstoque}
+        canViewFinanceiro={canViewFinanceiro}
+        canViewPecuaria={canViewPecuaria}
       />
 
-      <RecentNavigationCard />
-
-      <PersonalDashboardWidgets />
-
-      <AiOnboardingCard />
-
-      {/* AÇÕES RÁPIDAS (Top Horizontal) */}
-      <div className="flex flex-col gap-3">
-        <h3 className="text-sm font-semibold tracking-tight text-muted-foreground uppercase">Ações Rápidas</h3>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-          {profile.hasAgriculture && (
-            <Button asChild variant="outline" className="justify-start gap-3 h-14 rounded-sm shadow-sm hover:border-primary/50 transition-colors">
-              <Link href="/agricola/safras">
-                <div className="size-8 rounded-sm bg-primary/10 flex items-center justify-center shrink-0">
-                  <Sprout className="size-4.5 text-primary" />
-                </div>
-                <div className="flex flex-col items-start text-left min-w-0">
-                  <span className="font-semibold text-sm truncate w-full">Safras</span>
-                  <span className="text-[10px] text-muted-foreground font-normal truncate w-full">Painéis agrícolas</span>
-                </div>
-              </Link>
-            </Button>
-          )}
-          <Button asChild variant="outline" className="justify-start gap-3 h-14 rounded-sm shadow-sm hover:border-amber-500/50 transition-colors">
-            <Link href="/dashboard/operacional/campo/tarefas">
-              <div className="size-8 rounded-sm bg-amber-500/10 flex items-center justify-center shrink-0">
-                <Loader2 className="size-4.5 text-amber-600" />
-              </div>
-              <div className="flex flex-col items-start text-left min-w-0">
-                <span className="font-semibold text-sm truncate w-full">Tarefas</span>
-                <span className="text-[10px] text-muted-foreground font-normal truncate w-full">Operacional</span>
-              </div>
-            </Link>
-          </Button>
-          <Button asChild variant="outline" className="justify-start gap-3 h-14 rounded-sm shadow-sm hover:border-blue-500/50 transition-colors">
-            <Link href="/suprimentos/estoque">
-              <div className="size-8 rounded-sm bg-blue-500/10 flex items-center justify-center shrink-0">
-                <Package className="size-4.5 text-blue-600" />
-              </div>
-              <div className="flex flex-col items-start text-left min-w-0">
-                <span className="font-semibold text-sm truncate w-full">Estoque</span>
-                <span className="text-[10px] text-muted-foreground font-normal truncate w-full">Insumos gerais</span>
-              </div>
-            </Link>
-          </Button>
-          {profile.hasFinance && (
-            <Button asChild variant="outline" className="justify-start gap-3 h-14 rounded-sm shadow-sm hover:border-emerald-500/50 transition-colors">
-              <Link href="/dashboard/financeiro">
-                <div className="size-8 rounded-sm bg-emerald-500/10 flex items-center justify-center shrink-0">
-                  <Wallet className="size-4.5 text-emerald-600" />
-                </div>
-                <div className="flex flex-col items-start text-left min-w-0">
-                  <span className="font-semibold text-sm truncate w-full">Financeiro</span>
-                  <span className="text-[10px] text-muted-foreground font-normal truncate w-full">Fluxo e DRE</span>
-                </div>
-              </Link>
-            </Button>
-          )}
-          {profile.hasLivestock && (
-            <Button asChild variant="outline" className="justify-start gap-3 h-14 rounded-sm shadow-sm hover:border-indigo-500/50 transition-colors">
-              <Link href="/dashboard/pecuaria">
-                <div className="size-8 rounded-sm bg-indigo-500/10 flex items-center justify-center shrink-0">
-                  <Beef className="size-4.5 text-indigo-600" />
-                </div>
-                <div className="flex flex-col items-start text-left min-w-0">
-                  <span className="font-semibold text-sm truncate w-full">Rebanho</span>
-                  <span className="text-[10px] text-muted-foreground font-normal truncate w-full">Lotes e manejo</span>
-                </div>
-              </Link>
-            </Button>
-          )}
-        </div>
-      </div>
-
-      <div className="flex flex-col gap-6 mt-2">
-        {/* PRECISA DE ATENÇÃO */}
+      {/* PRECISA DE ATENÇÃO (Prioridade máxima de acompanhamento) */}
+      <div className="flex flex-col gap-6">
         <SectionShell
           title="Precisa de atenção"
           description="Pendências críticas e alertas que exigem ação imediata."
         >
-          <div className="grid gap-4 grid-cols-1">
-            {operationalData && operationalData.atrasadas > 0 && (
-              <div className="rounded-sm border border-rose-200 bg-rose-50/50 p-4 shadow-sm dark:bg-rose-950/20 dark:border-rose-900/50 flex flex-col gap-2 relative overflow-hidden">
-                <div className="absolute right-0 top-0 opacity-5 pointer-events-none">
-                  <AlertTriangle className="size-24 -mt-4 -mr-4" />
+          {(() => {
+            const hasOverdueTasks = operationalData && operationalData.atrasadas > 0;
+            const hasOverduePayables = financeData && financeData.vencendo_7d.length > 0;
+            const isAllClear = !operacionalQuery.isLoading && !financeiroQuery.isLoading && !hasOverdueTasks && !hasOverduePayables;
+
+            return (
+              <div className="space-y-4">
+                {(hasOverdueTasks || hasOverduePayables) && (
+                  <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
+                    {hasOverdueTasks && (
+                      <div className="rounded-sm border border-rose-200 bg-rose-50/50 p-4 shadow-sm dark:bg-rose-950/20 dark:border-rose-900/50 flex flex-col gap-2 relative overflow-hidden">
+                        <div className="absolute right-0 top-0 opacity-5 pointer-events-none">
+                          <AlertTriangle className="size-24 -mt-4 -mr-4" />
+                        </div>
+                        <div className="flex items-center gap-2 text-rose-700 dark:text-rose-400 font-semibold text-sm z-10">
+                          <AlertTriangle className="size-4" />
+                          <span>Tarefas Vencidas</span>
+                        </div>
+                        <p className="text-3xl font-bold text-rose-700 dark:text-rose-400 z-10">{formatCount(operationalData.atrasadas)}</p>
+                        <Button asChild size="sm" variant="outline" className="mt-2 w-fit bg-white/50 dark:bg-black/20 border-rose-200 hover:bg-rose-100 text-rose-700 dark:border-rose-800 dark:hover:bg-rose-900/50 dark:text-rose-300 z-10">
+                          <Link href="/dashboard/operacional/campo/tarefas">Ver tarefas</Link>
+                        </Button>
+                      </div>
+                    )}
+                    
+                    {hasOverduePayables && (
+                      <div className="rounded-sm border border-amber-200 bg-amber-50/50 p-4 shadow-sm dark:bg-amber-950/20 dark:border-amber-900/50 flex flex-col gap-2 relative overflow-hidden">
+                        <div className="absolute right-0 top-0 opacity-5 pointer-events-none">
+                          <Wallet className="size-24 -mt-4 -mr-4" />
+                        </div>
+                        <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400 font-semibold text-sm z-10">
+                          <Wallet className="size-4" />
+                          <span>Contas a Vencer (7d)</span>
+                        </div>
+                        <p className="text-3xl font-bold text-amber-700 dark:text-amber-400 z-10">{financeData.vencendo_7d.length}</p>
+                        <Button asChild size="sm" variant="outline" className="mt-2 w-fit bg-white/50 dark:bg-black/20 border-amber-200 hover:bg-amber-100 text-amber-700 dark:border-amber-800 dark:hover:bg-amber-900/50 dark:text-amber-300 z-10">
+                          <Link href="/dashboard/financeiro/contas-pagar">Ver contas</Link>
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {isAllClear && (
+                  <div className="rounded-sm border border-emerald-500/20 bg-emerald-500/5 p-4 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-sm bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                        <CheckCircle2 className="size-5" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">Nenhuma pendência crítica no momento</p>
+                        <p className="text-xs text-muted-foreground">Não há tarefas atrasadas nem contas urgentes vencendo nos próximos 7 dias.</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="mt-2">
+                  <DashboardAlertsCard
+                    summary={alertSummaryQuery.data}
+                    isLoading={alertSummaryQuery.isLoading}
+                    isError={alertSummaryQuery.isError}
+                    onRetry={() => alertSummaryQuery.refetch()}
+                  />
                 </div>
-                <div className="flex items-center gap-2 text-rose-700 dark:text-rose-400 font-semibold text-sm z-10">
-                  <AlertTriangle className="size-4" />
-                  <span>Tarefas Vencidas</span>
-                </div>
-                <p className="text-3xl font-bold text-rose-700 dark:text-rose-400 z-10">{formatCount(operationalData.atrasadas)}</p>
-                <Button asChild size="sm" variant="outline" className="mt-2 w-fit bg-white/50 dark:bg-black/20 border-rose-200 hover:bg-rose-100 text-rose-700 dark:border-rose-800 dark:hover:bg-rose-900/50 dark:text-rose-300 z-10">
-                  <Link href="/dashboard/operacional/campo/tarefas">Ver tarefas</Link>
-                </Button>
               </div>
-            )}
-            
-            {financeData && financeData.vencendo_7d.length > 0 && (
-              <div className="rounded-sm border border-amber-200 bg-amber-50/50 p-4 shadow-sm dark:bg-amber-950/20 dark:border-amber-900/50 flex flex-col gap-2 relative overflow-hidden">
-                <div className="absolute right-0 top-0 opacity-5 pointer-events-none">
-                  <Wallet className="size-24 -mt-4 -mr-4" />
-                </div>
-                <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400 font-semibold text-sm z-10">
-                  <Wallet className="size-4" />
-                  <span>Contas a Vencer (7d)</span>
-                </div>
-                <p className="text-3xl font-bold text-amber-700 dark:text-amber-400 z-10">{financeData.vencendo_7d.length}</p>
-                <Button asChild size="sm" variant="outline" className="mt-2 w-fit bg-white/50 dark:bg-black/20 border-amber-200 hover:bg-amber-100 text-amber-700 dark:border-amber-800 dark:hover:bg-amber-900/50 dark:text-amber-300 z-10">
-                  <Link href="/dashboard/financeiro/contas-pagar">Ver contas</Link>
-                </Button>
-              </div>
-            )}
-          </div>
-          
-          <div className="mt-2">
-              <DashboardAlertsCard
-              summary={alertSummaryQuery.data}
-              isLoading={alertSummaryQuery.isLoading}
-              isError={alertSummaryQuery.isError}
-              onRetry={() => alertSummaryQuery.refetch()}
-              />
-          </div>
+            );
+          })()}
         </SectionShell>
 
         {/* PRÓXIMAS ATIVIDADES & COPILOT */}
@@ -508,15 +470,15 @@ function DashboardContent() {
         >
           <div className="grid gap-4 grid-cols-1 md:grid-cols-2">
             <MetricCard
-              label="Tarefas de hoje"
-              value={operationalData ? formatCount(operationalData.pendentes) : "0"}
-              description="Tarefas programadas"
+              label="Tarefas pendentes"
+              value={operacionalQuery.isLoading ? "..." : (operationalData ? formatCount(operationalData.pendentes) : "0")}
+              description="Aguardando execução ou início"
               icon={<CalendarDays className="size-5 text-slate-600" />}
               tone="bg-slate-500/10"
             />
             <MetricCard
               label="Operações em andamento"
-              value={operationalData ? formatCount(operationalData.em_execucao) : "0"}
+              value={operacionalQuery.isLoading ? "..." : (operationalData ? formatCount(operationalData.em_execucao) : "0")}
               description="Equipe em campo"
               icon={<Activity className="size-5 text-emerald-600" />}
               tone="bg-emerald-500/10"
@@ -534,6 +496,16 @@ function DashboardContent() {
         <Button asChild variant="link" className="w-fit px-0 text-xs text-muted-foreground"><Link href="/aprendizado"><BookOpen className="mr-1 size-3.5" aria-hidden="true" />Aprenda a usar melhor a plataforma</Link></Button>
       </div>
 
+      {/* GUIA DE PRIMEIROS PASSOS (Apenas quando houver pendências de configuração inicial) */}
+      <FirstStepsCard
+        isLoading={firstStepsIsLoading}
+        hasProperty={unidadesProdutivasAutorizadas.length > 0}
+        hasHarvest={Boolean(agricolaData?.kpis.total_safras_ativas)}
+        hasOperation={Boolean(operationalData?.concluidas)}
+        hasFinance={profile.hasFinance}
+        hasFinanceData={hasFinancialData(financeData)}
+      />
+
       {/* INDICADORES RESUMIDOS */}
       <div className="mt-8 border-t pt-8 space-y-6">
         <h3 className="text-lg font-semibold tracking-tight">Indicadores Resumidos</h3>
@@ -541,42 +513,57 @@ function DashboardContent() {
         {profile.hasFinance && (
           <SectionShell
             title="Financeiro"
-            description="Receitas, despesas, resultado e fluxo de caixa."
+            description="Receitas, despesas, resultado operacional e fluxo de caixa."
           >
             {financeiroQuery.isLoading ? (
               <SectionSkeleton cards={4} columnsClassName="md:grid-cols-2 xl:grid-cols-4" />
+            ) : financeiroQuery.isError ? (
+              <div className="rounded-sm border border-destructive/20 bg-destructive/5 p-4 flex items-center justify-between">
+                <div className="flex items-center gap-2 text-destructive text-sm">
+                  <AlertTriangle className="size-4" />
+                  <span>Não foi possível carregar os dados financeiros no momento.</span>
+                </div>
+                <Button size="sm" variant="outline" onClick={() => financeiroQuery.refetch()} className="gap-1.5 h-7 text-xs rounded-sm">
+                  <RotateCcw className="size-3.5" />
+                  Tentar novamente
+                </Button>
+              </div>
             ) : financeData && hasFinancialData(financeData) ? (
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                 <MetricCard
-                  label="Receitas"
+                  label="Receitas do mês"
                   value={formatCurrency(financeData.total_recebido_mes)}
-                  description={`${formatCount(financeData.total_a_receber)} em aberto`}
+                  description={`${formatCurrency(financeData.total_a_receber)} a receber`}
                   icon={<TrendingUp className="size-5 text-emerald-600" />}
                   tone="bg-emerald-500/10"
                 />
                 <MetricCard
-                  label="Despesas"
+                  label="Despesas do mês"
                   value={formatCurrency(financeData.total_pago_mes)}
-                  description={`${formatCount(financeData.total_a_pagar)} em aberto`}
+                  description={`${formatCurrency(financeData.total_a_pagar)} a pagar`}
                   icon={<Wallet className="size-5 text-rose-600" />}
                   tone="bg-rose-500/10"
                 />
                 <MetricCard
-                  label="Resultado"
+                  label="Resultado operacional"
                   value={formatCurrency(financeValue)}
-                  description={financeValue >= 0 ? "Saldo operacional positivo" : "Saldo operacional negativo"}
+                  description={financeValue >= 0 ? "Saldo positivo (Recebido - Pago)" : "Saldo negativo (Recebido - Pago)"}
                   icon={<BarChart3 className="size-5 text-sky-600" />}
                   tone="bg-sky-500/10"
                 />
                 <MetricCard
-                  label="Saldo / Fluxo de caixa"
+                  label="Saldo de caixa consolidado"
                   value={formatCurrency(financeData.saldo_mes)}
-                  description={`Atraso: ${formatCurrency(financeData.total_atrasado_despesas)}`}
+                  description={financeData.total_atrasado_despesas > 0 ? `Atraso: ${formatCurrency(financeData.total_atrasado_despesas)}` : "Sem contas em atraso"}
                   icon={<Waves className="size-5 text-primary" />}
                   tone="bg-primary/10"
                 />
               </div>
-            ) : null}
+            ) : (
+              <div className="rounded-sm border border-border/50 bg-muted/10 p-4 text-center text-xs text-muted-foreground">
+                Nenhuma movimentação financeira consolidada no período.
+              </div>
+            )}
           </SectionShell>
         )}
 
@@ -587,6 +574,17 @@ function DashboardContent() {
           >
             {agricolaQuery.isLoading ? (
               <SectionSkeleton cards={4} columnsClassName="md:grid-cols-2 xl:grid-cols-4" />
+            ) : agricolaQuery.isError ? (
+              <div className="rounded-sm border border-destructive/20 bg-destructive/5 p-4 flex items-center justify-between">
+                <div className="flex items-center gap-2 text-destructive text-sm">
+                  <AlertTriangle className="size-4" />
+                  <span>Não foi possível carregar os dados agrícolas no momento.</span>
+                </div>
+                <Button size="sm" variant="outline" onClick={() => agricolaQuery.refetch()} className="gap-1.5 h-7 text-xs rounded-sm">
+                  <RotateCcw className="size-3.5" />
+                  Tentar novamente
+                </Button>
+              </div>
             ) : agricolaData && hasAgricolaData(agricolaData) ? (
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                 <MetricCard
@@ -611,24 +609,39 @@ function DashboardContent() {
                   tone="bg-rose-500/10"
                 />
                 <MetricCard
-                  label="Alertas"
+                  label="Alertas agrícolas"
                   value={formatCount(agricolaData.kpis.total_alertas)}
-                  description="Pendências e desvios oficiais"
+                  description="Pendências e desvios de manejo"
                   icon={<BarChart3 className="size-5 text-sky-600" />}
                   tone="bg-sky-500/10"
                 />
               </div>
-            ) : null}
+            ) : (
+              <div className="rounded-sm border border-border/50 bg-muted/10 p-4 text-center text-xs text-muted-foreground">
+                Nenhuma safra ou área cultivada registrada no contexto atual.
+              </div>
+            )}
           </SectionShell>
         )}
 
         {profile.hasLivestock && (
           <SectionShell
             title="Pecuária"
-            description="Resumo executivo do rebanho, sanidade e custo sanitário."
+            description="Resumo executivo do rebanho, sanidade e áreas de pastejo."
           >
             {pecuariaQuery.isLoading ? (
               <SectionSkeleton cards={6} columnsClassName="md:grid-cols-2 xl:grid-cols-3" />
+            ) : pecuariaQuery.isError ? (
+              <div className="rounded-sm border border-destructive/20 bg-destructive/5 p-4 flex items-center justify-between">
+                <div className="flex items-center gap-2 text-destructive text-sm">
+                  <AlertTriangle className="size-4" />
+                  <span>Não foi possível carregar os dados pecuários no momento.</span>
+                </div>
+                <Button size="sm" variant="outline" onClick={() => pecuariaQuery.refetch()} className="gap-1.5 h-7 text-xs rounded-sm">
+                  <RotateCcw className="size-3.5" />
+                  Tentar novamente
+                </Button>
+              </div>
             ) : pecuariaData && hasPecuariaData(pecuariaData) ? (
               <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                 <MetricCard
@@ -653,7 +666,11 @@ function DashboardContent() {
                   tone="bg-amber-500/10"
                 />
               </div>
-            ) : null}
+            ) : (
+              <div className="rounded-sm border border-border/50 bg-muted/10 p-4 text-center text-xs text-muted-foreground">
+                Nenhum lote ou animal ativo no contexto atual.
+              </div>
+            )}
           </SectionShell>
         )}
       </div>
