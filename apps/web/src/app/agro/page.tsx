@@ -32,6 +32,16 @@ export const metadata: Metadata = {
   title: "DeepFarms Agro | Ferramentas gratuitas para o produtor rural",
   description:
     "Acompanhe clima e indicadores do agro, consulte referências de mercado e use calculadoras rurais no celular, inclusive sem internet.",
+  alternates: { canonical: "/agro" },
+  openGraph: {
+    type: "website",
+    locale: "pt_BR",
+    url: "https://app.deepfarms.com.br/agro",
+    siteName: "DeepFarms",
+    title: "DeepFarms Agro | Ferramentas gratuitas para o produtor rural",
+    description: "Clima, mercado e calculadoras rurais gratuitas, disponíveis no celular e preparados para uso offline.",
+    images: [{ url: "/images/agro/agro-inicio.png", alt: "DeepFarms Agro" }],
+  },
 };
 
 const features = [

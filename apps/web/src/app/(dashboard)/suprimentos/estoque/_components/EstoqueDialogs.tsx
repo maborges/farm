@@ -910,9 +910,9 @@ export function NovoDepositoDialog({ fazendaId, deposito, onClose, onSuccess }: 
 // ── Reserva: helpers inline ────────────────────────────────────────────────────
 
 const RESERVA_STATUS: Record<string, { label: string; color: string }> = {
-  ATIVA:     { label: "Ativa",     color: "bg-purple-100 text-purple-700 border-purple-200" },
-  CONSUMIDA: { label: "Consumida", color: "bg-green-100 text-green-700 border-green-200" },
-  CANCELADA: { label: "Cancelada", color: "bg-gray-100 text-gray-500 border-gray-200" },
+  ATIVA:     { label: "Ativa",     color: "bg-purple-500/15 text-purple-700 dark:text-purple-300 border-purple-500/20" },
+  CONSUMIDA: { label: "Consumida", color: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/20" },
+  CANCELADA: { label: "Cancelada", color: "bg-muted text-muted-foreground border-border" },
 };
 
 export function ReservaStatusBadge({ status }: { status: string }) {

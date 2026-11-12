@@ -2,6 +2,8 @@ import { apiFetchServer } from "@/lib/api-server";
 import { PedidosClient } from "./PedidosClient";
 import type { ComponentProps } from "react";
 
+export const dynamic = "force-dynamic";
+
 type PedidosClientProps = ComponentProps<typeof PedidosClient>;
 
 export const metadata = {

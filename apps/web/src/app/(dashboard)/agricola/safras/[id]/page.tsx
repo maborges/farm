@@ -9,19 +9,15 @@ import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { SafraTimeline } from "@/components/agricola/safra-timeline";
 import { SafraChecklist } from "@/components/agricola/safra-checklist";
-import { SafraFenologia } from "@/components/agricola/safra-fenologia";
-import { SafraTarefas } from "@/components/agricola/safra-tarefas";
-import { CultivoCard } from "@/components/agricola/cultivo-card";
-import { CultivoAnaliseSoloDrawer, type CultivoAreaInfo } from "@/components/agricola/cultivo-analise-drawer";
 import { SafraCreateDialog } from "@/components/agricola/safra-create-dialog";
+import { QuickActionGrid } from "@/components/ui/quick-action-grid";
 import {
     ClipboardList, Bug, Leaf, CheckSquare, FlaskConical, Wheat, Coffee,
     Calculator, Satellite, BookOpen, Sprout, Pencil,
-    ChevronDown, History, ListTodo, BarChart2, ArrowRight, Layers, Gauge,
-    Package, DollarSign, AlertTriangle, Rocket, CalendarDays, Wallet, BarChart3,
+    History, ListTodo, BarChart2, ArrowRight, Layers, Gauge,
+    Package, DollarSign, AlertTriangle, Rocket, Wallet, BarChart3,
 } from "lucide-react";
 import { getSafraLabel } from "@/lib/safra-label";
 import Link from "next/link";
@@ -34,15 +30,6 @@ import { useHasTier } from "@/hooks/use-has-tier";
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
-
-interface SafraFaseHistorico {
-    id: string;
-    fase_anterior: string | null;
-    fase_nova: string;
-    usuario_id: string | null;
-    observacao: string | null;
-    created_at: string;
-}
 
 interface Safra {
     id: string;
@@ -86,13 +73,6 @@ interface AreaRural {
     area_hectares_manual?: number | null;
 }
 
-interface GrupoFenologia {
-    id: string;
-    nome: string;
-    cor: string | null;
-    itens: { talhao_id: string }[];
-}
-
 interface CenarioListItem {
     id: string;
     nome: string;
@@ -111,6 +91,8 @@ interface CenarioListItem {
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
+
+const TAREFA_STATUS_ABERTOS = new Set(["PENDENTE_APROVACAO", "APROVADA", "EM_EXECUCAO"]);
 
 const FASE_LABEL: Record<string, string> = {
     PLANEJADA: "Planejamento",
@@ -242,8 +224,6 @@ export default function SafraDetailPage({ params }: { params: Promise<{ id: stri
     const pathname = usePathname();
     const queryKey = ["safra", id];
     const [isEditOpen, setIsEditOpen] = useState(false);
-    const [historicoOpen, setHistoricoOpen] = useState(false);
-    const [analiseDrawerArea, setAnaliseDrawerArea] = useState<CultivoAreaInfo | null>(null);
     const hasProfessionalTier = useHasTier("PROFISSIONAL");
 
     const { data: safra, isLoading } = useQuery<Safra>({
@@ -257,12 +237,6 @@ export default function SafraDetailPage({ params }: { params: Promise<{ id: stri
         enabled: !!safra,
     });
 
-    const { data: historico } = useQuery<SafraFaseHistorico[]>({
-        queryKey: ["safra-historico", id],
-        queryFn: () => apiFetch(`/safras/${id}/historico-fases`),
-        enabled: !!safra,
-    });
-
     const { data: todasAreas = [] } = useQuery<AreaRural[]>({
         queryKey: ["areas-rurais-talhoes"],
         queryFn: () => apiFetch("/cadastros/areas-rurais?tipo=TALHAO"),
@@ -272,32 +246,12 @@ export default function SafraDetailPage({ params }: { params: Promise<{ id: stri
         [todasAreas],
     );
 
-    const { data: gruposFenologia = [] } = useQuery<GrupoFenologia[]>({
-        queryKey: ["grupos-talhoes", id],
-        queryFn: () => apiFetch(`/safras/${id}/grupos-talhoes`),
-    });
-
     const { data: tarefasSafra = [] } = useQuery<{ cultivo_area_id: string | null; origem: string; status: string }[]>({
         queryKey: ["safras", id, "tarefas"],
         queryFn: () => apiFetch(`/safras/${id}/tarefas`),
         enabled: !!safra,
     });
-    // Status da correção de solo por talhão: distingue "tarefa gerada mas ainda
-    // não executada" de "correção já concluída" — não basta saber que existe
-    // uma tarefa, é preciso saber se ela já terminou.
-    const cultivoAreaCorrecaoStatus = useMemo(() => {
-        const ativos = new Set(["PENDENTE_APROVACAO", "APROVADA", "EM_EXECUCAO", "CONCLUIDA"]);
-        const status = new Map<string, "PENDENTE" | "CONCLUIDA">();
-        for (const t of tarefasSafra) {
-            if (t.origem !== "SOLO" || !t.cultivo_area_id || !ativos.has(t.status)) continue;
-            if (t.status === "CONCLUIDA") {
-                status.set(t.cultivo_area_id, "CONCLUIDA");
-            } else if (!status.has(t.cultivo_area_id)) {
-                status.set(t.cultivo_area_id, "PENDENTE");
-            }
-        }
-        return status;
-    }, [tarefasSafra]);
+    const tarefasAbertas = tarefasSafra.filter((t) => TAREFA_STATUS_ABERTOS.has(t.status)).length;
 
     const { data: cenarios = [] } = useQuery<CenarioListItem[]>({
         queryKey: ["safra-cenarios-strip", id],
@@ -328,27 +282,7 @@ export default function SafraDetailPage({ params }: { params: Promise<{ id: stri
                     regiao_analise: a.regiao_analise ?? null,
                 })),
         }));
-    }, [cultivos, todasAreas]);
-
-    const talhoesDaSafra = useMemo(
-        () => {
-            const map = new Map<string, { id: string; nome: string }>();
-
-            for (const cultivo of cultivos) {
-                for (const area of cultivo.areas) {
-                    const areaRural = todasAreas.find((a) => a.id === area.area_id);
-                    if (!areaRural || map.has(areaRural.id)) continue;
-                    map.set(areaRural.id, {
-                        id: areaRural.id,
-                        nome: areaRural.nome,
-                    });
-                }
-            }
-
-            return Array.from(map.values());
-        },
-        [cultivos, todasAreas],
-    );
+    }, [cultivos]);
 
     if (isLoading || !safra) {
         return (
@@ -413,60 +347,85 @@ export default function SafraDetailPage({ params }: { params: Promise<{ id: stri
                 queryKey={queryKey}
             />
 
-            {/* AÇÕES RÁPIDAS (Top Horizontal) */}
-            <div className="flex flex-col gap-3">
-                <h3 className="text-sm font-semibold tracking-tight text-muted-foreground uppercase">Ações Rápidas</h3>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    <Button asChild variant="outline" className="justify-start gap-3 h-14 rounded-sm shadow-sm hover:border-primary/50 transition-colors">
-                        <Link href={`/agricola/safras/${id}/operacoes`}>
-                            <div className="size-8 rounded-sm bg-primary/10 flex items-center justify-center shrink-0">
-                                <ClipboardList className="size-4.5 text-primary" />
-                            </div>
-                            <div className="flex flex-col items-start text-left min-w-0">
-                                <span className="font-semibold text-sm truncate w-full">Operações</span>
-                                <span className="text-[10px] text-muted-foreground font-normal truncate w-full">Registrar diário</span>
-                            </div>
-                        </Link>
-                    </Button>
-                    <Button asChild variant="outline" className="justify-start gap-3 h-14 rounded-sm shadow-sm hover:border-amber-500/50 transition-colors">
-                        <Link href={`/agricola/safras/${id}/planejamento-operacional`}>
-                            <div className="size-8 rounded-sm bg-amber-500/10 flex items-center justify-center shrink-0">
-                                <CalendarDays className="size-4.5 text-amber-600" />
-                            </div>
-                            <div className="flex flex-col items-start text-left min-w-0">
-                                <span className="font-semibold text-sm truncate w-full">Planejamento</span>
-                                <span className="text-[10px] text-muted-foreground font-normal truncate w-full">Visão operacional</span>
-                            </div>
-                        </Link>
-                    </Button>
-                    <Button asChild variant="outline" className="justify-start gap-3 h-14 rounded-sm shadow-sm hover:border-purple-500/50 transition-colors">
-                        <Link href={`/agricola/safras/${id}/orcamento`}>
-                            <div className="size-8 rounded-sm bg-purple-500/10 flex items-center justify-center shrink-0">
-                                <Wallet className="size-4.5 text-purple-600" />
-                            </div>
-                            <div className="flex flex-col items-start text-left min-w-0">
-                                <span className="font-semibold text-sm truncate w-full">Orçamento</span>
-                                <span className="text-[10px] text-muted-foreground font-normal truncate w-full">Custos previstos</span>
-                            </div>
-                        </Link>
-                    </Button>
-                    {hasProfessionalTier ? (
-                        <Button asChild variant="outline" className="justify-start gap-3 h-14 rounded-sm shadow-sm hover:border-emerald-500/50 transition-colors">
-                            <Link href={`/agricola/safras/${id}/dashboard`}>
-                                <div className="size-8 rounded-sm bg-emerald-500/10 flex items-center justify-center shrink-0">
-                                    <BarChart3 className="size-4.5 text-emerald-600" />
-                                </div>
-                                <div className="flex flex-col items-start text-left min-w-0">
-                                    <span className="font-semibold text-sm truncate w-full">Dashboard</span>
-                                    <span className="text-[10px] text-muted-foreground font-normal truncate w-full">Análise avançada</span>
-                                </div>
-                            </Link>
-                        </Button>
-                    ) : (
-                        <div /> /* Placeholder for grid alignment if tier is not professional */
-                    )}
-                </div>
-            </div>
+            {/* AÇÕES RÁPIDAS
+                Linha 1: 1. Cultivos | 2. Orçamento | 3. Estoque & Insumos | 4. Tarefas | 5. Operações | 6. Caderno de Campo
+                Linha 2: 7. Fenologia | 8. Monitoramento | 9. Histórico de Fases | 10. Romaneios | 11. Dashboard
+            */}
+            <QuickActionGrid
+                label="Ações Rápidas da Safra"
+                layout="centered"
+                actions={[
+                    {
+                        title: "Cultivos",
+                        description: "Cultivos, talhões e unidades operacionais da safra",
+                        icon: Sprout,
+                        href: `/agricola/safras/${id}/production-units`,
+                        badge: initialCultivos.length > 0 ? initialCultivos.length : null,
+                    },
+                    {
+                        title: "Orçamento",
+                        description: "Custos previstos e controle orçamentário",
+                        icon: Wallet,
+                        href: `/agricola/safras/${id}/orcamento`,
+                    },
+                    {
+                        title: "Estoque & Insumos",
+                        description: "Aplicações de insumos e saldo de estoque da safra",
+                        icon: Package,
+                        href: `/agricola/safras/${id}/estoque`,
+                    },
+                    {
+                        title: "Tarefas",
+                        description: "Planejamento, aprovação e execução das atividades da safra",
+                        icon: ListTodo,
+                        href: `/agricola/safras/${id}/tarefas`,
+                        badge: tarefasAbertas > 0 ? tarefasAbertas : null,
+                    },
+                    {
+                        title: "Operações",
+                        description: "Registro de tratos culturais, plantio e colheita",
+                        icon: ClipboardList,
+                        href: `/agricola/safras/${id}/operacoes`,
+                    },
+                    {
+                        title: "Caderno de Campo",
+                        description: "Anotações diárias, fotos e ocorrências da safra",
+                        icon: BookOpen,
+                        href: `/agricola/safras/${id}/caderno`,
+                    },
+                    {
+                        title: "Fenologia",
+                        description: "Estágios de desenvolvimento da cultura por talhão",
+                        icon: Leaf,
+                        href: `/agricola/safras/${id}/fenologia`,
+                    },
+                    {
+                        title: "Monitoramento",
+                        description: "Controle de pragas, doenças e armadilhas fitossanitárias",
+                        icon: Bug,
+                        href: `/agricola/safras/${id}/monitoramento`,
+                    },
+                    {
+                        title: "Histórico de Fases",
+                        description: "Linha do tempo das mudanças de fase da safra",
+                        icon: History,
+                        href: `/agricola/safras/${id}/historico`,
+                    },
+                    {
+                        title: "Romaneios",
+                        description: "Controle de pesagens, cargas e entrega de colheita",
+                        icon: Wheat,
+                        href: `/agricola/safras/${id}/romaneios`,
+                    },
+                    {
+                        title: "Dashboard",
+                        description: "Análise avançada, produtividade e DRE da safra",
+                        icon: BarChart3,
+                        href: `/agricola/safras/${id}/dashboard`,
+                        badge: !hasProfessionalTier ? "PRO" : undefined,
+                    },
+                ]}
+            />
 
             <div className="flex flex-col gap-6 mt-2">
                 {/* Resumo - KPIs Compactos */}
@@ -544,134 +503,17 @@ export default function SafraDetailPage({ params }: { params: Promise<{ id: stri
                     </Card>
                 )}
 
-                {/* Tarefas */}
-                <Card className="shadow-sm">
-                    <CardHeader className="pb-0 pt-4 px-4">
-                        <CardTitle className="text-sm font-medium flex items-center gap-2 text-foreground">
-                            <ListTodo className="size-4 text-muted-foreground" />
-                            Próximas atividades
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="px-4 pb-4 pt-4">
-                        <SafraTarefas 
-                            safraId={id} 
-                            fase={safra.status} 
-                            cultura={culturaAtual || ""} 
-                        />
+            </div>
+
+            {/* Observações */}
+            {safra.observacoes && (
+                <Card className="mt-6 rounded-sm shadow-xs border border-border/70">
+                    <CardContent className="p-4">
+                        <p className="text-xs font-medium text-muted-foreground mb-1.5">Observações</p>
+                        <p className="text-sm">{safra.observacoes}</p>
                     </CardContent>
                 </Card>
-            </div>
-
-            {/* JORNADA & CONTEXTO COMPLEMENTAR */}
-            <div className="mt-8 pt-8 space-y-6 border-t">
-
-                {/* Cultivos */}
-                {initialCultivos.length > 0 && (
-                    <div className="space-y-2 mt-4">
-                        <div className="flex items-center gap-2">
-                            <Sprout className="size-4 text-muted-foreground" />
-                            <h2 className="text-sm font-semibold">
-                                {initialCultivos.length === 1 ? "Cultivo" : `Cultivos (${initialCultivos.length})`}
-                            </h2>
-                        </div>
-                        <div className={cn("grid gap-3", initialCultivos.length === 1 ? "grid-cols-1" : "sm:grid-cols-2")}>
-                            {initialCultivos.map((c) => (
-                                <CultivoCard
-                                    key={c.id}
-                                    cultivo={c}
-                                    areas={todasAreas}
-                                    readOnly
-                                    cultivoAreaCorrecaoStatus={cultivoAreaCorrecaoStatus}
-                                    onAnaliseSolo={(area) => setAnaliseDrawerArea({
-                                        id: area.id,
-                                        area_id: area.area_id,
-                                        area_ha: areaRuralMap.get(area.area_id)?.area_hectares ?? areaRuralMap.get(area.area_id)?.area_hectares_manual ?? area.area_ha,
-                                        area_nome: todasAreas.find(a => a.id === area.area_id)?.nome,
-                                        analise_solo_id: area.analise_solo_id,
-                                        analise_status: area.analise_status ?? "NAO_SELECIONADA",
-                                        regiao_analise: area.regiao_analise,
-                                        cultivo_id: c.id,
-                                        safra_id: id,
-                                        cultivar_id: c.cultivar_id ?? null,
-                                        cultura: c.cultura,
-                                    })}
-                                />
-                            ))}
-                        </div>
-                    </div>
-                )}
-
-                {/* Fenologia */}
-                {!["CANCELADA"].includes(safra.status) && culturaAtual && (
-                    <Card>
-                        <CardHeader className="pb-2 pt-4 px-4">
-                            <div className="flex items-center gap-2">
-                                <Leaf className="size-4 text-muted-foreground" />
-                                <CardTitle className="text-sm font-medium text-muted-foreground">Fenologia</CardTitle>
-                            </div>
-                        </CardHeader>
-                        <CardContent className="px-4 pb-4 pt-1">
-                            <SafraFenologia safraId={id} cultura={culturaAtual} grupos={gruposFenologia} talhoes={talhoesDaSafra} />
-                        </CardContent>
-                    </Card>
-                )}
-
-                {/* Histórico de fases — colapsível */}
-                {historico && historico.length > 0 && (
-                    <Collapsible open={historicoOpen} onOpenChange={setHistoricoOpen}>
-                        <Card>
-                            <CardHeader className="pb-3 pt-4 px-4">
-                                <CollapsibleTrigger className="w-full">
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-2">
-                                            <History className="size-4 text-muted-foreground" />
-                                            <CardTitle className="text-sm font-medium text-muted-foreground">
-                                                Histórico de Fases
-                                            </CardTitle>
-                                            <Badge variant="secondary" className="text-xs">{historico.length}</Badge>
-                                        </div>
-                                        <ChevronDown className={cn("size-4 text-muted-foreground transition-transform", historicoOpen && "rotate-180")} />
-                                    </div>
-                                </CollapsibleTrigger>
-                            </CardHeader>
-                            <CollapsibleContent>
-                                <CardContent className="px-4 pb-4 pt-0">
-                                    <ol className="relative border-l border-border ml-3 space-y-4 py-2">
-                                        {historico.map((h) => (
-                                            <li key={h.id} className="ml-4">
-                                                <div className="absolute -left-1.5 mt-1 size-3 rounded-full bg-primary" />
-                                                <div className="flex items-center gap-2 flex-wrap">
-                                                    {h.fase_anterior && (
-                                                        <>
-                                                            <Badge variant="outline" className="text-xs">{FASE_LABEL[h.fase_anterior] ?? h.fase_anterior}</Badge>
-                                                            <span className="text-muted-foreground text-xs">→</span>
-                                                        </>
-                                                    )}
-                                                    <Badge className="text-xs">{FASE_LABEL[h.fase_nova] ?? h.fase_nova}</Badge>
-                                                    <span className="text-xs text-muted-foreground ml-auto">{fmt(h.created_at)}</span>
-                                                </div>
-                                                {h.observacao && (
-                                                    <p className="text-sm text-muted-foreground mt-1">{h.observacao}</p>
-                                                )}
-                                            </li>
-                                        ))}
-                                    </ol>
-                                </CardContent>
-                            </CollapsibleContent>
-                        </Card>
-                    </Collapsible>
-                )}
-
-                {/* Observações */}
-                {safra.observacoes && (
-                    <Card>
-                        <CardContent className="p-4">
-                            <p className="text-xs font-medium text-muted-foreground mb-1.5">Observações</p>
-                            <p className="text-sm">{safra.observacoes}</p>
-                        </CardContent>
-                    </Card>
-                )}
-            </div>
+            )}
 
             {isEditOpen && (
                 <SafraCreateDialog
@@ -680,17 +522,6 @@ export default function SafraDetailPage({ params }: { params: Promise<{ id: stri
                     safraId={id}
                     initialSafra={{ ano_safra: safra.ano_safra }}
                     initialCultivos={initialCultivos}
-                />
-            )}
-
-            {analiseDrawerArea && (
-                <CultivoAnaliseSoloDrawer
-                    area={analiseDrawerArea}
-                    open={!!analiseDrawerArea}
-                    onClose={() => setAnaliseDrawerArea(null)}
-                    onSuccess={() => {
-                        setAnaliseDrawerArea(null);
-                    }}
                 />
             )}
         </div>

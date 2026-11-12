@@ -1,13 +1,17 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { BrainCircuit, Target, TrendingUp, Zap } from "lucide-react";
+import { BrainCircuit, Target, TrendingUp, Zap, Sparkles, Activity, AlertTriangle, Compass, SlidersHorizontal } from "lucide-react";
 import { useAppStore } from "@/lib/stores/app-store";
 import { useSafrasAtivas } from "@/hooks/use-agricola";
 import { PageHeader } from "@/components/shared/page-header";
 import { Separator } from "@/components/ui/separator";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { QuickActionGrid } from "@/components/ui/quick-action-grid";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { IAPlanoAcaoCard } from "@/components/ia/ia-plano-acao-card";
 import { IAPredicoesCard } from "@/components/ia/ia-predicoes-card";
@@ -62,6 +66,59 @@ export function IADashboardView({ initialSafraId }: IADashboardViewProps) {
     setSelectedSafraId(value);
   };
 
+  const safraParam = effectiveSafraId ? `?safra_id=${effectiveSafraId}` : "";
+  const quickActions = [
+    {
+      href: `/dashboard/ia/resumo${safraParam}`,
+      title: "Resumo da Safra",
+      desc: "Síntese executiva diária e status consolidado",
+      icon: Sparkles,
+      badge: "Diário",
+    },
+    {
+      href: `/dashboard/ia/plano-acao${safraParam}`,
+      title: "Plano de Ação",
+      desc: "Tarefas priorizadas e mitigação de gargalos",
+      icon: Target,
+    },
+    {
+      href: `/dashboard/ia/performance${safraParam}`,
+      title: "Performance de Modelos",
+      desc: "Acurácia de predições e aprendizado contínuo",
+      icon: Activity,
+    },
+    {
+      href: `/dashboard/inteligencia-operacional/recomendacoes`,
+      title: "Recomendações IA",
+      desc: "Sugestões de manejo e otimização em campo",
+      icon: Compass,
+    },
+    {
+      href: `/dashboard/agricola/prioridades`,
+      title: "Matriz de Prioridades",
+      desc: "Classificação por impacto operacional e custo",
+      icon: AlertTriangle,
+    },
+    {
+      href: `/dashboard/ia#predicoes`,
+      title: "Predição de Riscos",
+      desc: "Modelos preditivos de produtividade e pragas",
+      icon: TrendingUp,
+    },
+    {
+      href: `/dashboard/ia#estresse`,
+      title: "Simulação de Estresse",
+      desc: "Análise de estresse hídrico e térmico",
+      icon: Zap,
+    },
+    {
+      href: `/dashboard/configuracoes/globais`,
+      title: "Ajustes de Modelo",
+      desc: "Parâmetros e sensibilidade dos alertas IA",
+      icon: SlidersHorizontal,
+    },
+  ];
+
   return (
     <div className="flex flex-1 flex-col gap-6 p-6">
       <PageHeader
@@ -69,6 +126,17 @@ export function IADashboardView({ initialSafraId }: IADashboardViewProps) {
         description="Seu copiloto prioriza o que exige atenção agora. Menos ruído, mais decisão."
         icon={<BrainCircuit className="text-primary animate-pulse" size={24} />}
         breadcrumbs={breadcrumbs}
+      />
+
+      {/* Quick Actions Grid */}
+      <QuickActionGrid
+        actions={quickActions.map(a => ({
+          title: a.title,
+          description: a.desc,
+          icon: a.icon,
+          href: a.href,
+          badge: a.badge,
+        }))}
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">

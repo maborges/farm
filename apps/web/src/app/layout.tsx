@@ -9,8 +9,27 @@ const outfit = Outfit({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://app.deepfarms.com.br"),
   title: "DeepFarms | Gestão Rural",
   description: "Sistema Integrado de Gestão do Agronegócio",
+  applicationName: "DeepFarms",
+  robots: { index: true, follow: true },
+  openGraph: {
+    type: "website",
+    locale: "pt_BR",
+    siteName: "DeepFarms",
+    title: "DeepFarms | Gestão Rural",
+    description: "Sistema Integrado de Gestão do Agronegócio",
+    url: "https://app.deepfarms.com.br/",
+    images: [{ url: "/images/deepfarms-hero.webp", width: 1200, height: 630, alt: "DeepFarms — Gestão Rural Integrada" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "DeepFarms | Gestão Rural",
+    description: "Sistema Integrado de Gestão do Agronegócio",
+    images: ["/images/deepfarms-hero.webp"],
+  },
+  alternates: { canonical: "/" },
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,

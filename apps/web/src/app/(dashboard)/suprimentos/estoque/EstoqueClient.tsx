@@ -125,12 +125,12 @@ interface Movimentacao {
 }
 
 const TIPO_MOV_LABEL: Record<string, { label: string; color: string }> = {
-  ENTRADA: { label: "Entrada", color: "bg-green-100 text-green-700 border-green-200" },
-  SAIDA: { label: "Saída", color: "bg-red-100 text-red-700 border-red-200" },
-  TRANSFERENCIA: { label: "Transferência", color: "bg-blue-100 text-blue-700 border-blue-200" },
-  AJUSTE: { label: "Ajuste", color: "bg-orange-100 text-orange-700 border-orange-200" },
-  SALDO_INICIAL: { label: "Saldo inicial", color: "bg-teal-100 text-teal-700 border-teal-200" },
-  DEVOLUCAO: { label: "Devolução", color: "bg-emerald-100 text-emerald-700 border-emerald-200" },
+  ENTRADA: { label: "Entrada", color: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/20" },
+  SAIDA: { label: "Saída", color: "bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/20" },
+  TRANSFERENCIA: { label: "Transferência", color: "bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/20" },
+  AJUSTE: { label: "Ajuste", color: "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/20" },
+  SALDO_INICIAL: { label: "Saldo inicial", color: "bg-teal-500/15 text-teal-700 dark:text-teal-300 border-teal-500/20" },
+  DEVOLUCAO: { label: "Devolução", color: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/20" },
 };
 
 const FILTROS_TIPO_MOV = [
@@ -333,17 +333,17 @@ export function EstoqueClient({ initialData }: { initialData: any }) {
 
       {/* KPI Cards */}
       <div className="grid gap-4 md:grid-cols-4">
-        <Card className="border-l-4 border-l-primary border-t-0 border-r-0 border-b-0 rounded-l-none shadow-sm">
+        <Card className="rounded-sm border border-border/70 shadow-xs">
           <CardContent className="p-4">
-            <p className="text-xs font-semibold uppercase text-muted-foreground">Itens em Estoque</p>
-            <p className="text-3xl font-bold mt-1">{saldos.length}</p>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Itens em Estoque</p>
+            <p className="text-2xl font-bold mt-1 tabular-nums">{saldos.length}</p>
             <p className="text-xs text-muted-foreground mt-1">posições ativas</p>
           </CardContent>
         </Card>
-        <Card className="border-l-4 border-l-emerald-500 border-t-0 border-r-0 border-b-0 rounded-l-none shadow-sm">
+        <Card className="rounded-sm border border-border/70 shadow-xs">
           <CardContent className="p-4">
-            <p className="text-xs font-semibold uppercase text-muted-foreground">Valor Total</p>
-            <p className="text-3xl font-bold mt-1">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Valor Total</p>
+            <p className="text-2xl font-bold mt-1 tabular-nums text-foreground">
               {totalValorEstoque > 0
                 ? `R$ ${(totalValorEstoque / 1000).toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}k`
                 : "—"}
@@ -352,15 +352,18 @@ export function EstoqueClient({ initialData }: { initialData: any }) {
           </CardContent>
         </Card>
         <Card className={cn(
-          "border-l-4 border-t-0 border-r-0 border-b-0 rounded-l-none shadow-sm",
-          alertas.length > 0 ? "border-l-red-500" : "border-l-green-500"
+          "rounded-sm border shadow-xs transition-colors",
+          alertas.length > 0 ? "border-rose-500/30 bg-rose-500/[0.04]" : "border-border/70"
         )}>
           <CardContent className="p-4">
             <p className={cn(
-              "text-xs font-semibold uppercase",
-              alertas.length > 0 ? "text-red-600" : "text-muted-foreground"
+              "text-[10px] font-semibold uppercase tracking-wider",
+              alertas.length > 0 ? "text-rose-600 dark:text-rose-400" : "text-muted-foreground"
             )}>Abaixo do Mínimo</p>
-            <p className={cn("text-3xl font-bold mt-1", alertas.length > 0 && "text-red-600")}>
+            <p className={cn(
+              "text-2xl font-bold mt-1 tabular-nums",
+              alertas.length > 0 ? "text-rose-600 dark:text-rose-400" : "text-foreground"
+            )}>
               {alertas.length}
             </p>
             <p className="text-xs text-muted-foreground mt-1">
@@ -368,10 +371,10 @@ export function EstoqueClient({ initialData }: { initialData: any }) {
             </p>
           </CardContent>
         </Card>
-        <Card className="border-l-4 border-l-blue-500 border-t-0 border-r-0 border-b-0 rounded-l-none shadow-sm">
+        <Card className="rounded-sm border border-border/70 shadow-xs">
           <CardContent className="p-4">
-            <p className="text-xs font-semibold uppercase text-muted-foreground">Depósitos Ativos</p>
-            <p className="text-3xl font-bold mt-1">{depositos.filter(d => d.ativo).length}</p>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Depósitos Ativos</p>
+            <p className="text-2xl font-bold mt-1 tabular-nums">{depositos.filter(d => d.ativo).length}</p>
             <p className="text-xs text-muted-foreground mt-1">locais de armazenagem</p>
           </CardContent>
         </Card>
@@ -379,10 +382,10 @@ export function EstoqueClient({ initialData }: { initialData: any }) {
 
       {/* Alerta de reposição */}
       {alertas.length > 0 && (
-        <div className="flex items-start gap-3 rounded-sm border border-red-200 bg-red-50 p-4">
-          <AlertTriangle className="size-4 shrink-0 text-red-600 mt-0.5" />
-          <div className="text-sm text-red-700">
-            <strong>{alertas.length} produto(s)</strong> abaixo do estoque mínimo:{" "}
+        <div className="flex items-start gap-3 rounded-sm border border-rose-500/20 bg-rose-500/10 p-3.5 text-foreground">
+          <AlertTriangle className="size-4 shrink-0 text-rose-600 dark:text-rose-400 mt-0.5" />
+          <div className="text-xs leading-relaxed text-rose-800 dark:text-rose-200">
+            <strong className="font-semibold text-rose-900 dark:text-rose-100">{alertas.length} produto(s)</strong> abaixo do estoque mínimo:{" "}
             {alertas.slice(0, 3).map(a => a.produto_nome).join(", ")}
             {alertas.length > 3 && ` e mais ${alertas.length - 3}...`}
           </div>
@@ -395,13 +398,17 @@ export function EstoqueClient({ initialData }: { initialData: any }) {
           <TabsTrigger value="posicao" className="gap-1.5">
             <Package size={14} /> Posição
             {alertas.length > 0 && (
-              <Badge className="bg-red-500 text-white text-[9px] h-4 px-1 ml-1">{alertas.length}</Badge>
+              <Badge variant="secondary" className="bg-rose-500/15 text-rose-700 dark:text-rose-400 border border-rose-500/20 text-[9px] h-4 px-1.5 ml-1 rounded-sm">
+                {alertas.length}
+              </Badge>
             )}
           </TabsTrigger>
           <TabsTrigger value="reservas" className="gap-1.5">
             <Lock size={14} /> Reservas
             {reservasAtivas.length > 0 && (
-              <Badge className="bg-purple-500 text-white text-[9px] h-4 px-1 ml-1">{reservasAtivas.length}</Badge>
+              <Badge variant="secondary" className="bg-purple-500/15 text-purple-700 dark:text-purple-300 border border-purple-500/20 text-[9px] h-4 px-1.5 ml-1 rounded-sm">
+                {reservasAtivas.length}
+              </Badge>
             )}
           </TabsTrigger>
           <TabsTrigger value="historico" className="gap-1.5">
@@ -465,7 +472,7 @@ export function EstoqueClient({ initialData }: { initialData: any }) {
                     </TableRow>
                   ) : (
                     saldosFiltrados.map(s => (
-                      <TableRow key={s.id} className={s.abaixo_minimo ? "bg-red-50/50" : ""}>
+                      <TableRow key={s.id} className={s.abaixo_minimo ? "bg-rose-500/[0.04] hover:bg-rose-500/[0.08]" : ""}>
                         <TableCell className="font-medium text-sm py-2.5">{s.produto_nome}</TableCell>
                         <TableCell className="text-muted-foreground text-xs">{s.deposito_nome}</TableCell>
                         <TableCell className="text-right text-xs text-muted-foreground tabular-nums">
@@ -473,7 +480,7 @@ export function EstoqueClient({ initialData }: { initialData: any }) {
                         </TableCell>
                         <TableCell className="text-right tabular-nums text-xs">
                           {s.quantidade_reservada > 0 ? (
-                            <span className="text-purple-600 font-medium flex items-center justify-end gap-1">
+                            <span className="text-purple-600 dark:text-purple-400 font-medium flex items-center justify-end gap-1">
                               <Lock size={10} />{s.quantidade_reservada.toLocaleString("pt-BR", { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
                             </span>
                           ) : (
@@ -482,7 +489,7 @@ export function EstoqueClient({ initialData }: { initialData: any }) {
                         </TableCell>
                         <TableCell className={cn(
                           "text-right font-bold tabular-nums text-sm",
-                          s.abaixo_minimo && "text-red-600"
+                          s.abaixo_minimo ? "text-rose-600 dark:text-rose-400" : "text-foreground"
                         )}>
                           {s.quantidade_disponivel.toLocaleString("pt-BR", { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
                         </TableCell>
@@ -497,11 +504,13 @@ export function EstoqueClient({ initialData }: { initialData: any }) {
                         </TableCell>
                         <TableCell>
                           {s.abaixo_minimo ? (
-                            <Badge className="bg-red-100 text-red-700 border border-red-200 text-[10px] gap-1 font-normal">
+                            <Badge variant="outline" className="bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/20 text-[10px] gap-1 font-medium rounded-sm">
                               <AlertTriangle size={9} /> Repor
                             </Badge>
                           ) : (
-                            <Badge className="bg-green-100 text-green-700 border border-green-200 text-[10px] font-normal">OK</Badge>
+                            <Badge variant="outline" className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20 text-[10px] font-medium rounded-sm">
+                              OK
+                            </Badge>
                           )}
                         </TableCell>
                       </TableRow>
@@ -560,7 +569,7 @@ export function EstoqueClient({ initialData }: { initialData: any }) {
                         <TableRow key={r.id} className={r.status !== "ATIVA" ? "opacity-60" : ""}>
                           <TableCell className="font-medium text-sm">{produto?.produto_nome ?? r.produto_id.slice(0, 8)}</TableCell>
                           <TableCell className="text-xs text-muted-foreground">{deposito?.nome ?? "—"}</TableCell>
-                          <TableCell className="text-right font-bold tabular-nums text-sm text-purple-700">
+                          <TableCell className="text-right font-bold tabular-nums text-sm text-purple-600 dark:text-purple-400">
                             {r.quantidade.toLocaleString("pt-BR", { minimumFractionDigits: 3, maximumFractionDigits: 3 })}
                           </TableCell>
                           <TableCell className="text-xs text-muted-foreground">
@@ -594,7 +603,7 @@ export function EstoqueClient({ initialData }: { initialData: any }) {
         {/* ── HISTÓRICO ──────────────────────────────────────────────────────── */}
         <TabsContent value="historico" className="mt-4">
           {filtroImplantacaoAtivo ? (
-            <div className="mb-4 flex items-center gap-2 rounded-sm border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
+            <div className="mb-4 flex items-center gap-2 rounded-sm border border-sky-500/20 bg-sky-500/10 px-4 py-3 text-sm text-sky-800 dark:text-sky-200">
               <History className="size-4" />
               Mostrando apenas movimentações da implantação assistida desta sessão.
             </div>
@@ -679,8 +688,8 @@ export function EstoqueClient({ initialData }: { initialData: any }) {
                           <TableCell className="text-xs text-muted-foreground">{local}</TableCell>
                           <TableCell className="text-right text-sm font-bold tabular-nums">
                             {m.quantidade < 0
-                              ? <span className="text-red-600">−{Math.abs(m.quantidade).toLocaleString("pt-BR", { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</span>
-                              : <span className="text-green-700">+{m.quantidade.toLocaleString("pt-BR", { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</span>}
+                              ? <span className="text-rose-600 dark:text-rose-400">−{Math.abs(m.quantidade).toLocaleString("pt-BR", { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</span>
+                              : <span className="text-emerald-600 dark:text-emerald-400">+{m.quantidade.toLocaleString("pt-BR", { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</span>}
                           </TableCell>
                           <TableCell className="text-right text-xs text-muted-foreground tabular-nums">
                             {m.custo_unitario > 0 ? `R$ ${m.custo_unitario.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}
@@ -742,11 +751,11 @@ export function EstoqueClient({ initialData }: { initialData: any }) {
                           {p.preco_medio > 0 ? `R$ ${p.preco_medio.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}
                         </TableCell>
                         <TableCell>
-                          <Badge className={cn(
-                            "text-[10px] font-normal border",
+                          <Badge variant="outline" className={cn(
+                            "text-[10px] font-medium rounded-sm border",
                             p.ativo
-                              ? "bg-green-100 text-green-700 border-green-200"
-                              : "bg-gray-100 text-gray-500 border-gray-200"
+                              ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20"
+                              : "bg-muted text-muted-foreground border-border"
                           )}>
                             {p.ativo ? "Ativo" : "Inativo"}
                           </Badge>
@@ -801,11 +810,11 @@ export function EstoqueClient({ initialData }: { initialData: any }) {
                         <CardTitle className="text-sm font-semibold truncate">{dep.nome}</CardTitle>
                         <CardDescription className="text-xs uppercase">{dep.tipo}</CardDescription>
                       </div>
-                      <Badge className={cn(
-                        "ml-auto text-[10px] shrink-0",
+                      <Badge variant="outline" className={cn(
+                        "ml-auto text-[10px] shrink-0 font-medium rounded-sm border",
                         dep.ativo
-                          ? "bg-green-100 text-green-700 border border-green-200"
-                          : "bg-gray-100 text-gray-500 border border-gray-200"
+                          ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20"
+                          : "bg-muted text-muted-foreground border-border"
                       )}>
                         {dep.ativo ? "Ativo" : "Inativo"}
                       </Badge>

@@ -24,6 +24,7 @@ import {
     Satellite,
     Sprout,
     Wheat,
+    History,
     ChevronDown,
     ChevronRight,
     Grid,
@@ -127,6 +128,7 @@ export function SafraContextHeader({ safraId }: SafraContextHeaderProps) {
             items: [
                 { href: `/agricola/safras/${safraId}`, label: "Visão Geral", icon: Sprout, desc: "Resumo operacional da safra", color: "text-primary bg-primary/10" },
                 ...(hasProfessionalTier ? [{ href: `/agricola/safras/${safraId}/dashboard`, label: "Dashboard", icon: Gauge, desc: "KPIs, riscos e cenários", color: "text-emerald-600 bg-emerald-50 dark:text-emerald-400 dark:bg-emerald-950/40" }] : []),
+                { href: `/agricola/safras/${safraId}/historico`, label: "Histórico de Fases", icon: History, desc: "Linha do tempo das mudanças de fase", color: "text-slate-600 bg-slate-50 dark:text-slate-400 dark:bg-slate-950/40" },
             ],
         },
         {

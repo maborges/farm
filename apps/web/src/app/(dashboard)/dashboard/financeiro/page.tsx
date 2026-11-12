@@ -8,11 +8,13 @@ import {
     ArrowUpRight, ArrowDownRight, CreditCard,
     AlertTriangle, Bell, Clock, CheckCircle2,
     TrendingUp, Wallet, LayoutDashboard,
+    DollarSign, Receipt, BarChart3, Scale, ShieldCheck, FileSpreadsheet, ArrowLeftRight, Landmark,
 } from "lucide-react";
 import { IAPredicoesCard } from "@/components/ia/ia-predicoes-card";
 import { IAEstresseCard } from "@/components/ia/ia-estresse-card";
 import { IAPlanoAcaoCard } from "@/components/ia/ia-plano-acao-card";
 import { PageHeader } from "@/components/shared/page-header";
+import { QuickActionGrid } from "@/components/ui/quick-action-grid";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -153,6 +155,17 @@ export default function FinanceiroDashboard() {
 
     const isLoading = loadingDash || loadingDesp || loadingRec;
 
+    const quickActions = [
+        { href: "/dashboard/financeiro/contas-pagar", icon: ArrowDownRight, title: "Contas a Pagar", desc: "Títulos a liquidar e fornecedores", badge: dash?.total_a_pagar ? fmt(dash.total_a_pagar) : undefined },
+        { href: "/dashboard/financeiro/receitas", icon: ArrowUpRight, title: "Contas a Receber", desc: "Entradas e faturamento", badge: dash?.total_a_receber ? fmt(dash.total_a_receber) : undefined },
+        { href: "/dashboard/financeiro/fluxo-caixa", icon: TrendingUp, title: "Fluxo de Caixa", desc: "Projeção diária e mensal consolidada" },
+        { href: "/dashboard/financeiro/dre", icon: BarChart3, title: "DRE Gerencial", desc: "Demonstrativo de resultado e margens" },
+        { href: "/dashboard/financeiro/conciliacao", icon: ArrowLeftRight, title: "Conciliação Bancária", desc: "Extratos e conciliação OFX" },
+        { href: "/dashboard/financeiro/contas-bancarias", icon: Landmark, title: "Contas Bancárias", desc: "Saldos e instituições financeiras" },
+        { href: "/dashboard/financeiro/hedge/painel", icon: ShieldCheck, title: "Hedge & Commodities", desc: "Contratos futuros e travas de preço" },
+        { href: "/dashboard/financeiro/relatorios", icon: FileSpreadsheet, title: "Relatórios & LCDPR", desc: "Livro caixa e demonstrativos" },
+    ];
+
     return (
         <div className="space-y-6 p-6">
             <PageHeader
@@ -165,6 +178,17 @@ export default function FinanceiroDashboard() {
                         <Link href="/dashboard/financeiro/comercializacoes">Comercializações</Link>
                     </Button>
                 }
+            />
+
+            {/* Quick Actions Grid */}
+            <QuickActionGrid
+                actions={quickActions.map(a => ({
+                    title: a.title,
+                    description: a.desc,
+                    icon: a.icon,
+                    href: a.href,
+                    badge: a.badge,
+                }))}
             />
 
             {/* ── KPIs do mês ── */}

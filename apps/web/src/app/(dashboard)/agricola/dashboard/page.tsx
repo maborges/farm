@@ -10,9 +10,11 @@ import { SafrasKanban } from "@/components/agricola/safras-kanban";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { QuickActionGrid, QuickActionItem } from "@/components/ui/quick-action-grid";
 import {
     AlertTriangle, Bell, Bug, ArrowRight, TrendingUp, Sprout,
-    DollarSign, RefreshCw, LayoutDashboard, Target, Lock
+    DollarSign, RefreshCw, LayoutDashboard, Target, Lock,
+    ClipboardList, MapPin, Package, BookOpen, CheckCircle2, Wheat
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -122,12 +124,12 @@ function ProductionChart({ kpis }: { kpis: DashboardData["kpis"] }) {
     const hasData = kpis.meta_producao_sc > 0 || kpis.sacas_colhidas > 0;
 
     return (
-        <Card className="shadow-md hover:shadow-lg transition-shadow duration-200 rounded-lg flex flex-col">
-            <CardHeader className="pb-3">
-                <CardTitle className="text-base font-bold">Produção vs Meta</CardTitle>
-                <CardDescription className="text-sm">Acompanhamento de sacas em relação ao objetivo</CardDescription>
+        <Card className="shadow-xs border border-border/70 rounded-sm flex flex-col">
+            <CardHeader className="pb-3 border-b border-border/40">
+                <CardTitle className="text-sm font-semibold">Produção vs Meta</CardTitle>
+                <CardDescription className="text-xs">Acompanhamento de sacas em relação ao objetivo</CardDescription>
             </CardHeader>
-            <CardContent className="flex-1">
+            <CardContent className="flex-1 p-4">
                 {hasData ? (
                     <div className="h-[180px] w-full mt-4 relative">
                         <ResponsiveContainer width="100%" height="100%">
@@ -223,15 +225,15 @@ function PrimaryKPIs({ kpis }: { kpis: DashboardData["kpis"] }) {
     return (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {items.map((item) => (
-                <Card key={item.label} className="shadow-md hover:shadow-lg transition-all duration-200 rounded-lg hover:-translate-y-0.5">
-                    <CardContent className="p-6 flex items-start gap-4">
-                        <div className={cn("size-11 rounded-lg flex items-center justify-center shrink-0", item.bg)}>
+                <Card key={item.label} className="shadow-xs border border-border/70 rounded-sm hover:border-primary/50 transition-all">
+                    <CardContent className="p-5 flex items-start gap-4">
+                        <div className={cn("size-10 rounded-sm flex items-center justify-center shrink-0", item.bg)}>
                             <item.icon className={cn("size-5", item.color)} />
                         </div>
                         <div className="min-w-0 flex-1">
-                            <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">{item.label}</p>
-                            <p className="text-3xl font-black tabular-nums tracking-tight mt-1">{item.value}</p>
-                            <p className="text-xs text-muted-foreground mt-2 font-medium">{item.sub}</p>
+                            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-widest">{item.label}</p>
+                            <p className="text-2xl font-bold tabular-nums tracking-tight mt-0.5">{item.value}</p>
+                            <p className="text-xs text-muted-foreground mt-1 font-normal">{item.sub}</p>
                         </div>
                     </CardContent>
                 </Card>
@@ -251,30 +253,44 @@ function AlertasSection({
     const hasNDE = nde.length > 0;
     const totalAlertas = checklist.length + nde.length;
 
-    if (!hasChecklist && !hasNDE) return null;
-
-    return (
-        <Card className="shadow-md hover:shadow-lg transition-all duration-200 rounded-lg border-amber-200/50 dark:border-amber-900/30">
-            <CardHeader className="pb-3">
+    if (!hasChecklist && !hasNDE) {
+        return (
+            <div className="rounded-sm border border-emerald-500/20 bg-emerald-500/5 p-4 flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                    <div className="size-10 rounded-lg bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center shrink-0">
-                        <AlertTriangle className="size-5 text-amber-600" aria-hidden="true" />
+                    <div className="p-2 rounded-sm bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                        <CheckCircle2 className="size-5" />
                     </div>
                     <div>
-                        <CardTitle className="text-lg font-bold">Central de Alertas</CardTitle>
-                        <CardDescription className="text-sm">
-                            {totalAlertas} ocorrência{totalAlertas !== 1 ? "s" : ""} ativa{totalAlertas !== 1 ? "s" : ""}
+                        <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">Nenhum alerta fitossanitário ou de checklist ativo</p>
+                        <p className="text-xs text-muted-foreground">Suas safras estão em conformidade com o NDE de pragas e com as etapas planejadas.</p>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <Card className="shadow-xs border border-amber-200/60 dark:border-amber-900/40 rounded-sm">
+            <CardHeader className="pb-3 border-b border-border/40">
+                <div className="flex items-center gap-3">
+                    <div className="size-9 rounded-sm bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+                        <AlertTriangle className="size-4.5" aria-hidden="true" />
+                    </div>
+                    <div>
+                        <CardTitle className="text-base font-semibold">Central de Alertas Fitossanitários e Checklist</CardTitle>
+                        <CardDescription className="text-xs">
+                            {totalAlertas} ocorrência{totalAlertas !== 1 ? "s" : ""} ativa{totalAlertas !== 1 ? "s" : ""} exigindo atenção técnica
                         </CardDescription>
                     </div>
                 </div>
             </CardHeader>
             <CardContent className="p-0">
                 <Tabs defaultValue={hasChecklist ? "checklist" : "nde"}>
-                    <TabsList className="w-full justify-start rounded-none h-10 bg-muted/30 px-4 border-b">
-                        <TabsTrigger value="checklist" disabled={!hasChecklist} className="rounded-none text-xs font-bold uppercase tracking-wider">
+                    <TabsList className="w-full justify-start rounded-none h-9 bg-muted/20 px-4 border-b">
+                        <TabsTrigger value="checklist" disabled={!hasChecklist} className="rounded-sm text-xs font-semibold">
                             Checklist ({checklist.length})
                         </TabsTrigger>
-                        <TabsTrigger value="nde" disabled={!hasNDE} className="rounded-none text-xs font-bold uppercase tracking-wider">
+                        <TabsTrigger value="nde" disabled={!hasNDE} className="rounded-sm text-xs font-semibold">
                             NDE - Pragas ({nde.length})
                         </TabsTrigger>
                     </TabsList>
@@ -342,23 +358,23 @@ function FenologiaGrid({ data }: { data: DashboardData["fenologia_atual"] }) {
     if (data.length === 0) return null;
 
     return (
-        <Card className="shadow-md hover:shadow-lg transition-all duration-200 rounded-lg">
-            <CardHeader className="pb-3">
-                <CardTitle className="text-base font-bold">Estágios Fenológicos</CardTitle>
-                <CardDescription className="text-sm">Últimas observações em campo</CardDescription>
+        <Card className="shadow-xs border border-border/70 rounded-sm">
+            <CardHeader className="pb-3 border-b border-border/40">
+                <CardTitle className="text-sm font-semibold">Estágios Fenológicos</CardTitle>
+                <CardDescription className="text-xs">Últimas observações registradas no campo</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-3">
                 <div className="grid gap-2 grid-cols-1">
                     {data.map((f, i) => (
-                        <div key={i} className="flex items-center gap-3 px-3 py-2.5 border border-border rounded-lg hover:bg-muted/50 hover:border-border/60 transition-all duration-200 group cursor-default">
-                            <div className="size-10 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center shrink-0">
-                                <span className="text-sm font-black text-emerald-700 dark:text-emerald-400">
+                        <div key={i} className="flex items-center gap-3 px-3 py-2 border border-border/60 rounded-sm hover:bg-muted/30 transition-colors">
+                            <div className="size-8 rounded-sm bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                                <span className="text-xs font-bold">
                                     {f.estagio_codigo ?? "?"}
                                 </span>
                             </div>
                             <div className="min-w-0 flex-1">
-                                <p className="text-sm font-semibold truncate text-foreground">{f.safra}</p>
-                                <p className="text-xs text-muted-foreground font-medium mt-0.5 truncate">
+                                <p className="text-xs font-semibold truncate text-foreground">{f.safra}</p>
+                                <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
                                     {f.estagio_nome ?? "Intermediário"}
                                     {f.data_observacao && <span className="text-muted-foreground"> • {fmt(f.data_observacao)}</span>}
                                 </p>
@@ -519,6 +535,62 @@ export default function DashboardAgricolaPage() {
                 </Alert>
             )}
 
+            {/* ── Comandos & Ações Rápidas no Topo ── */}
+            <QuickActionGrid
+                label="Comandos & Ações Rápidas da Safra"
+                columnsClassName="grid-cols-2 sm:grid-cols-4 lg:grid-cols-8"
+                actions={[
+                    {
+                        title: "Safras",
+                        description: "Painéis e ciclos produtivos da lavoura",
+                        icon: Sprout,
+                        href: "/agricola/safras",
+                    },
+                    {
+                        title: "Mapa & Talhões",
+                        description: "Zoneamento geográfico e limites dos talhões",
+                        icon: MapPin,
+                        href: "/agricola/mapa",
+                    },
+                    {
+                        title: "Caderno de Campo",
+                        description: "Registro de atividades diárias de manejo",
+                        icon: BookOpen,
+                        href: "/agricola/caderno",
+                    },
+                    {
+                        title: "Operações",
+                        description: "Histórico e apontamentos operacionais de máquinas",
+                        icon: ClipboardList,
+                        href: "/agricola/operacoes",
+                    },
+                    {
+                        title: "Monitoramento",
+                        description: "Controle de pragas, doenças e armadilhas fitossanitárias",
+                        icon: Bug,
+                        href: "/agricola/monitoramento",
+                    },
+                    {
+                        title: "Insumos da Safra",
+                        description: "Estoque, sementes, defensivos e aplicações por talhão",
+                        icon: Package,
+                        href: estoqueHref,
+                    },
+                    {
+                        title: "Romaneios",
+                        description: "Controle de cargas, pesagens e colheita",
+                        icon: Wheat,
+                        href: "/agricola/romaneios",
+                    },
+                    {
+                        title: "DRE da Safra",
+                        description: "Custos operacionais e resultado gerencial",
+                        icon: DollarSign,
+                        href: "/dashboard/financeiro/dre",
+                    },
+                ]}
+            />
+
             {/* ── KPIs primários ── */}
             <PrimaryKPIs kpis={data.kpis} />
 
@@ -528,18 +600,18 @@ export default function DashboardAgricolaPage() {
                 <div className="space-y-6 min-w-0">
                     <ProductionChart kpis={data.kpis} />
 
-                    <Card className="shadow-md hover:shadow-lg transition-all duration-200 rounded-lg">
-                        <CardHeader className="pb-3">
-                            <CardTitle className="text-base font-bold">Dados Financeiros</CardTitle>
+                    <Card className="shadow-xs border border-border/70 rounded-sm">
+                        <CardHeader className="pb-3 border-b border-border/40">
+                            <CardTitle className="text-sm font-semibold">Dados Financeiros da Safra</CardTitle>
                         </CardHeader>
-                        <CardContent className="space-y-4">
-                            <div className="bg-emerald-50 dark:bg-emerald-950/20 p-4 rounded-lg border border-emerald-100 dark:border-emerald-900/30 hover:border-emerald-200 dark:hover:border-emerald-800/50 transition-colors">
-                                <p className="text-xs font-bold text-emerald-600 uppercase tracking-widest">Receita de Colheita</p>
-                                <p className="text-2xl font-black text-emerald-700 dark:text-emerald-400 mt-2">{fmtBRL(data.kpis.receita_colheita)}</p>
+                        <CardContent className="p-4 space-y-3">
+                            <div className="bg-emerald-500/10 p-3.5 rounded-sm border border-emerald-500/20">
+                                <p className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400 uppercase tracking-widest">Receita de Colheita</p>
+                                <p className="text-xl font-bold text-emerald-800 dark:text-emerald-300 mt-1">{fmtBRL(data.kpis.receita_colheita)}</p>
                             </div>
-                            <div className="flex items-center justify-between text-xs font-bold uppercase tracking-wider px-3 py-2 bg-muted/40 rounded-lg">
-                                <span className="text-muted-foreground">ROI Estimado</span>
-                                <span className="text-emerald-600">+12.4%</span>
+                            <div className="flex items-center justify-between text-xs font-semibold px-3 py-2 bg-muted/30 rounded-sm">
+                                <span className="text-muted-foreground">Margem Operacional</span>
+                                <span className="text-emerald-600 font-bold">+12.4%</span>
                             </div>
                         </CardContent>
                     </Card>
@@ -549,42 +621,26 @@ export default function DashboardAgricolaPage() {
 
                 {/* Centro: Kanban e Alertas */}
                 <div className="lg:col-span-2 space-y-6 min-w-0">
-                    <Card className="shadow-md hover:shadow-lg transition-all duration-200 rounded-lg">
-                        <CardHeader className="pb-3 flex flex-row items-center justify-between space-y-0">
+                    <Card className="shadow-xs border border-border/70 rounded-sm">
+                        <CardHeader className="pb-3 border-b border-border/40 flex flex-row items-center justify-between space-y-0">
                             <div className="flex flex-row items-center gap-2">
-                                <Sprout className="size-5 text-emerald-600" />
-                                <CardTitle className="text-lg font-bold">Acompanhamento de Safras
-                                </CardTitle>
+                                <Sprout className="size-4.5 text-primary" />
+                                <CardTitle className="text-base font-semibold">Acompanhamento de Safras</CardTitle>
                                 <CardDescription className="text-xs">Fluxo visual por estágio de produção</CardDescription>
                             </div>
-                            <Link href="/agricola/safras">
-                                <Button variant="ghost" size="sm">
+                            <Button asChild variant="ghost" size="sm" className="h-7 text-xs rounded-sm">
+                                <Link href="/agricola/safras">
                                     Detalhes das Safras <ArrowRight className="size-3 ml-1" />
-                                </Button>
-                            </Link>
+                                </Link>
+                            </Button>
                         </CardHeader>
-                        <CardContent className="pt-0">
+                        <CardContent className="p-4">
                             <SafrasKanban safrasPorFase={data.safras_por_fase} />
                         </CardContent>
                     </Card>
 
                     <AlertasSection checklist={data.alertas_checklist} nde={data.alertas_nde} />
                 </div>
-            </div>
-
-            {/* ── Atalhos no rodapé ── */}
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                {[
-                    { label: "Caderno de Campo", sub: "Atividades diárias", href: "/agricola/caderno" },
-                    { label: "Operações do Campo", sub: "Registro e histórico operacional", href: "/agricola/operacoes" },
-                    { label: "Insumos", sub: "Estoque e aplicações", href: estoqueHref },
-                    { label: "Financeiro", sub: "Custos e ROI", href: "/financeiro" },
-                ].map((link, i) => (
-                    <Link key={i} href={link.href} className="flex flex-col p-4 bg-card border rounded-sm hover:border-primary transition-all group">
-                        <p className="text-sm font-bold tracking-tight">{link.label}</p>
-                        <p className="text-[10px] text-muted-foreground font-bold uppercase tracking-wider mt-0.5">{link.sub}</p>
-                    </Link>
-                ))}
             </div>
         </div>
     );

@@ -6,14 +6,14 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
   DialogDescription,
+  DialogBody,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { PenTool, AlertTriangle, AlertOctagon } from "lucide-react";
+import { PenTool, AlertTriangle, AlertOctagon, Loader2 } from "lucide-react";
 import { format, parseISO, isPast, isWithinInterval, addDays } from "date-fns";
 
 interface Props {
@@ -65,107 +65,110 @@ export function AssinarRTDialog({ open, onClose, onConfirm, isPending }: Props) 
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && handleClose()}>
-      <DialogContent className="sm:max-w-[560px] p-0 gap-0 overflow-hidden">
-        <DialogHeader className="border-b px-6 py-5">
-          <DialogTitle className="flex items-center gap-2">
-            <PenTool />
-            Assinar Caderno de Campo
-          </DialogTitle>
-          <DialogDescription>
-            A assinatura do responsável técnico valida o caderno para auditoria, rastreabilidade
-            e certificações.
-          </DialogDescription>
-        </DialogHeader>
-
-        <ScrollArea className="min-h-0 max-h-[70vh]">
-          <div className="px-6 py-5">
-            <div className="flex flex-col gap-5">
-              <section className="rounded-sm border bg-muted/30 p-4">
-                <div className="mb-4">
-                  <h3 className="text-sm font-medium text-foreground">Identificação do responsável</h3>
-                  <p className="text-xs text-muted-foreground">
-                    Informe quem está validando o caderno e o registro profissional correspondente.
-                  </p>
-                </div>
-
-                <div className="flex flex-col gap-4">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="rt-nome">Nome do Responsável Técnico</Label>
-                    <Input
-                      id="rt-nome"
-                      placeholder="Ex: João da Silva"
-                      value={nome}
-                      onChange={(e) => setNome(e.target.value)}
-                    />
-                    {!nomeValido && nome.length > 0 && (
-                      <p className="text-xs text-destructive">Mínimo 3 caracteres.</p>
-                    )}
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label htmlFor="rt-crea">Número do CREA</Label>
-                    <Input
-                      id="rt-crea"
-                      placeholder="Ex: 123456/UF"
-                      value={crea}
-                      onChange={(e) => setCrea(e.target.value.toUpperCase())}
-                    />
-                    {!creaValido && crea.length > 0 && (
-                      <p className="text-xs text-destructive">Mínimo 4 caracteres.</p>
-                    )}
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label htmlFor="rt-crea-validade">Validade do CREA</Label>
-                    <Input
-                      id="rt-crea-validade"
-                      type="date"
-                      value={creaValidade}
-                      onChange={(e) => setCreaValidade(e.target.value)}
-                    />
-                    {creaValidadeDate && creaVencido && (
-                      <div className="flex items-start gap-2 rounded-sm border border-red-500/20 bg-red-500/10 p-3">
-                        <AlertOctagon className="flex-shrink-0 text-red-500" />
-                        <p className="text-xs text-red-600">
-                          CREA vencido em {format(creaValidadeDate, "dd/MM/yyyy")}. Renove antes de assinar.
-                        </p>
-                      </div>
-                    )}
-                    {creaValidadeDate && creaVencendoEmBreve && !creaVencido && (
-                      <div className="flex items-start gap-2 rounded-sm border border-amber-500/20 bg-amber-500/10 p-3">
-                        <AlertTriangle className="flex-shrink-0 text-amber-500" />
-                        <p className="text-xs text-amber-600">
-                          CREA vence em {format(creaValidadeDate, "dd/MM/yyyy")}. Considere renovar.
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </section>
-
-              <section className="rounded-sm border border-amber-500/20 bg-amber-500/5 p-4">
-                <div className="flex items-start gap-3">
-                  <AlertTriangle className="flex-shrink-0 text-amber-500" />
-                  <div className="space-y-1">
-                    <h4 className="text-sm font-medium text-foreground">Validação e responsabilidade</h4>
-                    <p className="text-xs text-muted-foreground">
-                      Ao assinar, você declara que as informações registradas neste caderno de campo
-                      são verdadeiras e foram verificadas pelo responsável técnico.
-                    </p>
-                  </div>
-                </div>
-              </section>
+      <DialogContent className="max-w-lg p-0">
+        <DialogHeader>
+          <div className="flex items-center gap-2.5">
+            <div className="size-8 rounded-sm bg-primary/10 flex items-center justify-center shrink-0">
+              <PenTool className="size-4 text-primary" />
+            </div>
+            <div>
+              <DialogTitle>Assinar Caderno de Campo</DialogTitle>
+              <DialogDescription className="text-xs text-muted-foreground mt-0.5">
+                Validação formal do caderno para auditoria, rastreabilidade e certificações.
+              </DialogDescription>
             </div>
           </div>
-        </ScrollArea>
+        </DialogHeader>
+
+        <DialogBody className="space-y-4 max-h-[70vh]">
+          <div className="space-y-1.5">
+            <Label htmlFor="rt-nome" className="text-xs font-medium">Nome do Responsável Técnico <span className="text-destructive">*</span></Label>
+            <Input
+              id="rt-nome"
+              placeholder="Ex: João da Silva"
+              value={nome}
+              onChange={(e) => setNome(e.target.value)}
+              className="h-8 text-xs rounded-sm"
+            />
+            {!nomeValido && nome.length > 0 && (
+              <p className="text-[11px] text-destructive">Mínimo 3 caracteres.</p>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="rt-crea" className="text-xs font-medium">Número do CREA <span className="text-destructive">*</span></Label>
+              <Input
+                id="rt-crea"
+                placeholder="Ex: 123456/UF"
+                value={crea}
+                onChange={(e) => setCrea(e.target.value.toUpperCase())}
+                className="h-8 text-xs rounded-sm"
+              />
+              {!creaValido && crea.length > 0 && (
+                <p className="text-[11px] text-destructive">Mínimo 4 caracteres.</p>
+              )}
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="rt-crea-validade" className="text-xs font-medium">Validade do CREA</Label>
+              <Input
+                id="rt-crea-validade"
+                type="date"
+                value={creaValidade}
+                onChange={(e) => setCreaValidade(e.target.value)}
+                className="h-8 text-xs rounded-sm"
+              />
+            </div>
+          </div>
+
+          {creaValidadeDate && creaVencido && (
+            <div className="flex items-start gap-2 rounded-sm border border-red-500/20 bg-red-500/10 p-3">
+              <AlertOctagon className="size-4 shrink-0 text-red-500 mt-0.5" />
+              <p className="text-xs text-red-600">
+                CREA vencido em {format(creaValidadeDate, "dd/MM/yyyy")}. Renove antes de assinar.
+              </p>
+            </div>
+          )}
+          {creaValidadeDate && creaVencendoEmBreve && !creaVencido && (
+            <div className="flex items-start gap-2 rounded-sm border border-amber-500/20 bg-amber-500/10 p-3">
+              <AlertTriangle className="size-4 shrink-0 text-amber-500 mt-0.5" />
+              <p className="text-xs text-amber-600">
+                CREA vence em {format(creaValidadeDate, "dd/MM/yyyy")}. Considere renovar.
+              </p>
+            </div>
+          )}
+
+          <div className="rounded-sm border border-amber-500/20 bg-amber-500/5 p-3">
+            <div className="flex items-start gap-2.5">
+              <AlertTriangle className="size-4 shrink-0 text-amber-500 mt-0.5" />
+              <div className="space-y-0.5">
+                <h4 className="text-xs font-semibold text-amber-900 dark:text-amber-300">Validação e responsabilidade</h4>
+                <p className="text-[11px] text-muted-foreground">
+                  Ao assinar, você declara que as informações registradas neste caderno de campo
+                  são verdadeiras e foram verificadas pelo responsável técnico.
+                </p>
+              </div>
+            </div>
+          </div>
+        </DialogBody>
 
         <DialogFooter>
-          <Button variant="outline" onClick={handleClose} disabled={isPending}>
+          <Button variant="outline" size="sm" className="rounded-sm" onClick={handleClose} disabled={isPending}>
             Cancelar
           </Button>
-          <Button onClick={handleConfirm} disabled={isPending || !podeAssinar}>
-            <PenTool />
-            {isPending ? "Assinando..." : "Assinar"}
+          <Button size="sm" className="rounded-sm gap-1.5" onClick={handleConfirm} disabled={isPending || !podeAssinar}>
+            {isPending ? (
+              <>
+                <Loader2 className="size-3.5 animate-spin" />
+                Assinando...
+              </>
+            ) : (
+              <>
+                <PenTool className="size-3.5" />
+                Assinar
+              </>
+            )}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -9,6 +9,7 @@ import {
   DialogTitle,
   DialogFooter,
   DialogDescription,
+  DialogBody,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,9 +17,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
-import { BookOpen, UserCircle2 } from "lucide-react";
+import { BookOpen, UserCircle2, Check, Loader2 } from "lucide-react";
 import { PessoaSelect } from "@/components/cadastros/PessoaSelect";
 
 interface Talhao {
@@ -104,246 +104,233 @@ export function NovaEntradaForm({ open, onClose, safraId, talhoes, talhaoIdSelec
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && handleClose()}>
-      <DialogContent className="sm:max-w-[720px] p-0 gap-0 overflow-hidden">
-        <form onSubmit={handleSubmit(onFormSubmit)} className="flex max-h-[85vh] min-h-0 flex-col">
-          <DialogHeader className="border-b px-6 py-5">
-            <DialogTitle className="flex items-center gap-2">
-              <BookOpen />
-              Novo Registro no Caderno
-            </DialogTitle>
-            <DialogDescription>
-              Registre observações, monitoramentos e eventos do talhão com data, tipo e contexto.
-            </DialogDescription>
-          </DialogHeader>
+      <DialogContent className="max-w-xl p-0">
+        <DialogHeader>
+          <div className="flex items-center gap-2.5">
+            <div className="size-8 rounded-sm bg-primary/10 flex items-center justify-center shrink-0">
+              <BookOpen className="size-4 text-primary" />
+            </div>
+            <div>
+              <DialogTitle>Novo Registro no Caderno</DialogTitle>
+              <DialogDescription className="text-xs text-muted-foreground mt-0.5">
+                Registre observações, monitoramentos e eventos do talhão com data, tipo e contexto.
+              </DialogDescription>
+            </div>
+          </div>
+        </DialogHeader>
 
-          <ScrollArea className="min-h-0 flex-1">
-            <div className="px-6 py-5">
-              <div className="flex flex-col gap-5">
-                <section className="rounded-sm border bg-muted/30 p-4">
-                  <div className="mb-4">
-                    <h3 className="text-sm font-medium text-foreground">Identificação do registro</h3>
-                    <p className="text-xs text-muted-foreground">
-                      Escolha o talhão, o tipo e a data do lançamento.
-                    </p>
-                  </div>
-
-                  <div className="flex flex-col gap-4">
-                    <div className="space-y-1.5">
-                      <Label>
-                        Talhão <span className="text-destructive">*</span>
-                      </Label>
-                      <Controller
-                        name="talhao_id"
-                        control={control}
-                        rules={{ required: "Selecione um talhão" }}
-                        render={({ field }) => (
-                          <Select onValueChange={field.onChange} value={field.value || ""}>
-                            <SelectTrigger disabled={talhoes.length === 0}>
-                              <SelectValue placeholder="Selecionar talhão..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {talhoes.length === 0 ? (
-                                <SelectItem value="__empty" disabled>
-                                  Nenhum talhão vinculado a esta safra
-                                </SelectItem>
-                              ) : (
-                                talhoes.map((t) => (
-                                  <SelectItem key={t.id} value={t.id}>
-                                    {t.nome}
-                                    {t.codigo ? ` (${t.codigo})` : ""}
-                                    {t.principal ? " ★" : ""}
-                                  </SelectItem>
-                                ))
-                              )}
-                            </SelectContent>
-                          </Select>
-                        )}
-                      />
-                      {talhoes.length === 0 && (
-                        <p className="text-xs text-muted-foreground">
-                          Nenhum talhão está disponível para esta safra no momento.
-                        </p>
+        <form id="nova-entrada-form" onSubmit={handleSubmit(onFormSubmit)}>
+          <DialogBody className="space-y-4 max-h-[70vh]">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium">
+                Talhão <span className="text-destructive">*</span>
+              </Label>
+              <Controller
+                name="talhao_id"
+                control={control}
+                rules={{ required: "Selecione um talhão" }}
+                render={({ field }) => (
+                  <Select onValueChange={field.onChange} value={field.value || ""}>
+                    <SelectTrigger className="h-8 text-xs rounded-sm" disabled={talhoes.length === 0}>
+                      <SelectValue placeholder="Selecionar talhão..." />
+                    </SelectTrigger>
+                    <SelectContent className="rounded-sm">
+                      {talhoes.length === 0 ? (
+                        <SelectItem value="__empty" disabled>
+                          Nenhum talhão vinculado a esta safra
+                        </SelectItem>
+                      ) : (
+                        talhoes.map((t) => (
+                          <SelectItem key={t.id} value={t.id} className="text-xs">
+                            {t.nome}
+                            {t.codigo ? ` (${t.codigo})` : ""}
+                            {t.principal ? " ★" : ""}
+                          </SelectItem>
+                        ))
                       )}
-                    </div>
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+              {talhoes.length === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Nenhum talhão está disponível para esta safra no momento.
+                </p>
+              )}
+            </div>
 
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <div className="space-y-1.5">
-                        <Label>Tipo de Registro</Label>
-                        <Controller
-                          name="tipo"
-                          control={control}
-                          rules={{ required: true }}
-                          render={({ field }) => (
-                            <Select onValueChange={field.onChange} value={field.value}>
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {TIPOS.map((t) => (
-                                  <SelectItem key={t.value} value={t.value}>
-                                    {t.label}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          )}
-                        />
-                      </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium">Tipo de Registro</Label>
+                <Controller
+                  name="tipo"
+                  control={control}
+                  rules={{ required: true }}
+                  render={({ field }) => (
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <SelectTrigger className="h-8 text-xs rounded-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-sm">
+                        {TIPOS.map((t) => (
+                          <SelectItem key={t.value} value={t.value} className="text-xs">
+                            {t.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+              </div>
 
-                      <div className="space-y-1.5">
-                        <Label>Data do Registro</Label>
-                        <Input type="date" {...register("data_registro", { required: true })} />
-                      </div>
-                    </div>
-
-                    <div className="space-y-1.5 pt-2 border-t border-border/50">
-                      <Label className="flex items-center gap-1.5 text-muted-foreground">
-                        <UserCircle2 className="size-3.5" />
-                        Executor da Operação (Opcional)
-                      </Label>
-                      <Controller
-                        name="executado_por_pessoa_id"
-                        control={control}
-                        render={({ field }) => (
-                          <PessoaSelect
-                            value={field.value}
-                            onChange={field.onChange}
-                            placeholder="Selecione quem executou no campo..."
-                            unidadeProdutivaId={unidadeProdutivaId}
-                            dataReferencia={dataRegistro}
-                          />
-                        )}
-                      />
-                      <p className="text-[11px] text-muted-foreground">
-                        Deixe em branco se você mesmo executou ou se for um apontamento apenas sistêmico.
-                      </p>
-                    </div>
-                  </div>
-                </section>
-
-                <section className="rounded-sm border bg-muted/30 p-4">
-                  <div className="mb-4">
-                    <h3 className="text-sm font-medium text-foreground">Conteúdo do lançamento</h3>
-                    <p className="text-xs text-muted-foreground">
-                      Descreva o que foi observado e inclua dados complementares quando necessário.
-                    </p>
-                  </div>
-
-                  <div className="flex flex-col gap-4">
-                    <div className="space-y-1.5">
-                      <Label>
-                        Descrição <span className="text-destructive">*</span>
-                      </Label>
-                      <Textarea
-                        rows={3}
-                        placeholder="Descreva o que foi observado..."
-                        {...register("descricao", { required: true })}
-                      />
-                    </div>
-
-                    {tipo === "MONITORAMENTO" && (
-                      <div className="rounded-sm border border-amber-500/20 bg-amber-500/5 p-4">
-                        <div className="mb-4">
-                          <h4 className="text-sm font-medium text-foreground">
-                            Dados complementares do monitoramento
-                          </h4>
-                          <p className="text-xs text-muted-foreground">
-                            Use estes campos para detalhar severidade, receituário e recomendação técnica.
-                          </p>
-                        </div>
-
-                        <div className="flex flex-col gap-4">
-                          <div className="grid gap-4 sm:grid-cols-2">
-                            <div className="space-y-1.5">
-                              <Label>Nível de Severidade</Label>
-                              <Controller
-                                name="nivel_severidade"
-                                control={control}
-                                render={({ field }) => (
-                                  <Select onValueChange={field.onChange} value={field.value ?? ""}>
-                                    <SelectTrigger>
-                                      <SelectValue placeholder="Selecionar..." />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {SEVERIDADES.map((s) => (
-                                        <SelectItem key={s.value} value={s.value}>
-                                          {s.label}
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                )}
-                              />
-                            </div>
-
-                            <div className="space-y-1.5">
-                              <Label>
-                                N° Receituário <span className="text-xs text-muted-foreground">(Lei 7.802/89)</span>
-                              </Label>
-                              <Input placeholder="Ex: RA-2024-001" {...register("numero_receituario")} />
-                            </div>
-                          </div>
-
-                          <div className="space-y-1.5">
-                            <Label>Recomendação</Label>
-                            <Textarea
-                              rows={2}
-                              placeholder="Ação recomendada..."
-                              {...register("recomendacao")}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="rounded-sm border bg-background p-4">
-                      <div className="flex items-start gap-3">
-                        <Controller
-                          name="digitalizacao_retroativa"
-                          control={control}
-                          render={({ field }) => (
-                            <Checkbox
-                              id="retroativa"
-                              checked={field.value}
-                              onCheckedChange={field.onChange}
-                            />
-                          )}
-                        />
-                        <div className="space-y-1">
-                          <Label htmlFor="retroativa" className="text-sm cursor-pointer">
-                            Digitalização retroativa (caderno de papel)
-                          </Label>
-                          <p className="text-xs text-muted-foreground">
-                            Marque quando o lançamento vier de apontamentos feitos fora da plataforma.
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {retroativa && (
-                      <div className="space-y-1.5">
-                        <Label>
-                          Justificativa <span className="text-destructive">*</span>
-                        </Label>
-                        <Textarea
-                          rows={2}
-                          placeholder="Motivo da digitalização retroativa..."
-                          {...register("justificativa_retroativa", { required: retroativa })}
-                        />
-                      </div>
-                    )}
-                  </div>
-                </section>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium">Data do Registro</Label>
+                <Input
+                  type="date"
+                  {...register("data_registro", { required: true })}
+                  className="h-8 text-xs rounded-sm"
+                />
               </div>
             </div>
-          </ScrollArea>
+
+            <div className="space-y-1.5">
+              <Label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                <UserCircle2 className="size-3.5" />
+                Executor da Operação (Opcional)
+              </Label>
+              <Controller
+                name="executado_por_pessoa_id"
+                control={control}
+                render={({ field }) => (
+                  <PessoaSelect
+                    value={field.value}
+                    onChange={field.onChange}
+                    placeholder="Selecione quem executou no campo..."
+                    unidadeProdutivaId={unidadeProdutivaId}
+                    dataReferencia={dataRegistro}
+                  />
+                )}
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Deixe em branco se você mesmo executou ou se for um apontamento apenas sistêmico.
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium">
+                Descrição <span className="text-destructive">*</span>
+              </Label>
+              <Textarea
+                rows={3}
+                placeholder="Descreva o que foi observado..."
+                {...register("descricao", { required: true })}
+                className="text-xs rounded-sm"
+              />
+            </div>
+
+            {tipo === "MONITORAMENTO" && (
+              <div className="rounded-sm border border-amber-500/20 bg-amber-500/5 p-3 space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-medium">Nível de Severidade</Label>
+                    <Controller
+                      name="nivel_severidade"
+                      control={control}
+                      render={({ field }) => (
+                        <Select onValueChange={field.onChange} value={field.value ?? ""}>
+                          <SelectTrigger className="h-8 text-xs rounded-sm bg-background">
+                            <SelectValue placeholder="Selecionar..." />
+                          </SelectTrigger>
+                          <SelectContent className="rounded-sm">
+                            {SEVERIDADES.map((s) => (
+                              <SelectItem key={s.value} value={s.value} className="text-xs">
+                                {s.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-medium">
+                      N° Receituário <span className="text-[10px] text-muted-foreground">(Lei 7.802/89)</span>
+                    </Label>
+                    <Input
+                      placeholder="Ex: RA-2024-001"
+                      {...register("numero_receituario")}
+                      className="h-8 text-xs rounded-sm bg-background"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium">Recomendação</Label>
+                  <Textarea
+                    rows={2}
+                    placeholder="Ação recomendada..."
+                    {...register("recomendacao")}
+                    className="text-xs rounded-sm bg-background"
+                  />
+                </div>
+              </div>
+            )}
+
+            <div className="flex items-start gap-2 pt-1">
+              <Controller
+                name="digitalizacao_retroativa"
+                control={control}
+                render={({ field }) => (
+                  <Checkbox
+                    id="retroativa"
+                    checked={field.value}
+                    onCheckedChange={field.onChange}
+                    className="rounded-xs mt-0.5"
+                  />
+                )}
+              />
+              <div className="space-y-0.5">
+                <Label htmlFor="retroativa" className="text-xs font-medium cursor-pointer">
+                  Digitalização retroativa (caderno de papel)
+                </Label>
+                <p className="text-[11px] text-muted-foreground">
+                  Marque quando o lançamento vier de apontamentos feitos fora da plataforma.
+                </p>
+              </div>
+            </div>
+
+            {retroativa && (
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium">
+                  Justificativa <span className="text-destructive">*</span>
+                </Label>
+                <Textarea
+                  rows={2}
+                  placeholder="Motivo da digitalização retroativa..."
+                  {...register("justificativa_retroativa", { required: retroativa })}
+                  className="text-xs rounded-sm"
+                />
+              </div>
+            )}
+          </DialogBody>
 
           <DialogFooter>
-            <Button variant="outline" type="button" onClick={handleClose}>
+            <Button variant="outline" size="sm" type="button" className="rounded-sm" onClick={handleClose} disabled={isLoading}>
               Cancelar
             </Button>
-            <Button type="submit" disabled={isLoading || talhoes.length === 0}>
-              {isLoading ? "Salvando..." : "Registrar"}
+            <Button size="sm" type="submit" className="rounded-sm gap-1.5" disabled={isLoading || talhoes.length === 0}>
+              {isLoading ? (
+                <>
+                  <Loader2 className="size-3.5 animate-spin" />
+                  Salvando...
+                </>
+              ) : (
+                <>
+                  <Check className="size-3.5" />
+                  Registrar
+                </>
+              )}
             </Button>
           </DialogFooter>
         </form>

@@ -65,6 +65,16 @@ export const metadata: Metadata = {
   title: "DeepFarms | Plataforma de Gestão Rural Integrada",
   description:
     "Campo, estoque e financeiro em uma única plataforma. Conformidade EUDR, rastreabilidade SHA-256, IA financeira e gestão por safra. Comece grátis.",
+  alternates: { canonical: "/" },
+  openGraph: {
+    type: "website",
+    locale: "pt_BR",
+    url: "https://app.deepfarms.com.br/",
+    siteName: "DeepFarms",
+    title: "DeepFarms | Plataforma de Gestão Rural Integrada",
+    description: "Campo, estoque e financeiro em uma única plataforma. Conformidade EUDR, rastreabilidade SHA-256, IA financeira e gestão por safra.",
+    images: [{ url: "/images/deepfarms-hero.webp", width: 1200, height: 630, alt: "Plataforma DeepFarms de gestão rural" }],
+  },
 };
 
 /* ═══════════════════════════════════════════════════════

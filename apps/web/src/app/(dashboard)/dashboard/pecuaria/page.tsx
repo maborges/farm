@@ -18,6 +18,7 @@ import {
     Weight, Shuffle, ChevronRight, TrendingUp, Activity
 } from "lucide-react";
 import { PageHeader } from "@/components/shared/page-header";
+import { QuickActionGrid } from "@/components/ui/quick-action-grid";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -109,10 +110,13 @@ export default function PecuariaDashboard() {
     });
 
     const quickActions = [
-        { href: "/dashboard/pecuaria/lotes", icon: Beef, label: "Lotes" },
-        { href: "/dashboard/pecuaria/genetica", icon: Activity, label: "Genética" },
-        { href: "/dashboard/pecuaria/confinamento", icon: Layers, label: "Confinamento" },
-        { href: "/dashboard/pecuaria/leite", icon: TrendingUp, label: "Leite" },
+        { href: "/dashboard/pecuaria/lotes", icon: Beef, label: "Lotes & Rebanho", desc: "Controle e pesagens", color: "text-amber-600 dark:text-amber-400", bg: "bg-amber-500/10" },
+        { href: "/dashboard/pecuaria/manejo", icon: Syringe, label: "Manejo & Sanidade", desc: "Vacinas e tratamentos", color: "text-purple-600 dark:text-purple-400", bg: "bg-purple-500/10" },
+        { href: "/dashboard/pecuaria/piquetes", icon: MapPin, label: "Piquetes & Pastos", desc: "Lotação e suporte", color: "text-emerald-600 dark:text-emerald-400", bg: "bg-emerald-500/10" },
+        { href: "/dashboard/pecuaria/genetica", icon: Activity, label: "Genética & Matrizes", desc: "Reprodução e IATF", color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-500/10" },
+        { href: "/dashboard/pecuaria/confinamento", icon: Layers, label: "Confinamento", desc: "Dietas e engorda", color: "text-orange-600 dark:text-orange-400", bg: "bg-orange-500/10" },
+        { href: "/dashboard/pecuaria/leite", icon: TrendingUp, label: "Produção Leiteira", desc: "Ordenhas e tanques", color: "text-cyan-600 dark:text-cyan-400", bg: "bg-cyan-500/10" },
+        { href: "/dashboard/pecuaria/relatorios", icon: Scale, label: "Relatórios Zootécnicos", desc: "GMD e curva de peso", color: "text-indigo-600 dark:text-indigo-400", bg: "bg-indigo-500/10" },
     ];
 
     // ── KPIs ─────────────────────────────────────────────────────────────────
@@ -173,61 +177,57 @@ export default function PecuariaDashboard() {
     // ── Render ────────────────────────────────────────────────────────────────
     return (
         <div className="p-6 space-y-6">
+            <PageHeader
+                title="Painel de Rebanhos"
+                description="Painel zootécnico — lotes, manejos sanitários, piquetes e indicadores zootécnicos"
+                icon={<LayoutDashboard className="size-6 text-primary" />}
+                breadcrumbs={[{ label: "Dashboard", href: "/dashboard" }, { label: "Pecuária" }]}
+                actions={
+                    <div className="flex gap-2">
+                        <Button asChild variant="outline" size="sm" className="h-8 text-xs rounded-sm">
+                            <Link href="/dashboard/pecuaria/lotes">Ver Lotes</Link>
+                        </Button>
+                        <Button asChild size="sm" className="h-8 text-xs rounded-sm">
+                            <Link href="/dashboard/pecuaria/manejo">Registrar Manejo</Link>
+                        </Button>
+                    </div>
+                }
+            />
 
-            <div>
-                <PageHeader
-                    title="Painel de Rebanhos"
-                    description="Painel do rebanho — lotes, manejos e piquetes"
-                    icon={<LayoutDashboard className="size-6" />}
-                    actions={
-                        <div className="flex gap-2">
-                            <Link href="/dashboard/pecuaria/lotes">
-                                <Button variant="outline" size="sm">Ver Lotes</Button>
-                            </Link>
-                            <Link href="/dashboard/pecuaria/manejo">
-                                <Button size="sm">Registrar Manejo</Button>
-                            </Link>
-                        </div>
-                    }
-                />
-            </div>
+            {/* ── Comandos & Ações Rápidas da Pecuária no Topo ── */}
+            <QuickActionGrid
+                label="Ações & Comandos do Rebanho"
+                columnsClassName="grid-cols-2 sm:grid-cols-4 lg:grid-cols-7"
+                actions={quickActions.map(a => ({
+                    title: a.label,
+                    description: a.desc,
+                    icon: a.icon,
+                    href: a.href,
+                }))}
+            />
 
             {/* KPI Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
                 {[
-                    { label: "Total de Cabeças", value: kpis.totalCabecas.toLocaleString("pt-BR"), icon: Beef,     color: "text-amber-600" },
-                    { label: "Lotes Ativos",      value: kpis.lotesAtivos,                         icon: Layers,   color: "text-blue-600" },
-                    { label: "Piquetes",           value: kpis.piquetesAtivos,                      icon: MapPin,   color: "text-green-600" },
-                    { label: "Peso Médio (kg)",    value: kpis.pesoMedio.toFixed(0),                icon: Scale,    color: "text-purple-600" },
-                    { label: "UA Estimada",        value: kpis.totalUA.toFixed(0),                  icon: Activity, color: "text-orange-600" },
-                ].map(({ label, value, icon: Icon, color }) => (
-                    <Card key={label}>
-                        <CardContent className="pt-5 pb-4">
+                    { label: "Total de Cabeças", value: kpis.totalCabecas.toLocaleString("pt-BR"), icon: Beef, color: "text-amber-600 dark:text-amber-400", bg: "bg-amber-500/10" },
+                    { label: "Lotes Ativos", value: kpis.lotesAtivos, icon: Layers, color: "text-blue-600 dark:text-blue-400", bg: "bg-blue-500/10" },
+                    { label: "Piquetes", value: kpis.piquetesAtivos, icon: MapPin, color: "text-emerald-600 dark:text-emerald-400", bg: "bg-emerald-500/10" },
+                    { label: "Peso Médio (kg)", value: kpis.pesoMedio.toFixed(0), icon: Scale, color: "text-purple-600 dark:text-purple-400", bg: "bg-purple-500/10" },
+                    { label: "UA Estimada", value: kpis.totalUA.toFixed(0), icon: Activity, color: "text-orange-600 dark:text-orange-400", bg: "bg-orange-500/10" },
+                ].map(({ label, value, icon: Icon, color, bg }) => (
+                    <Card key={label} className="shadow-xs border border-border/70 rounded-sm">
+                        <CardContent className="p-4">
                             <div className="flex items-start justify-between gap-2">
                                 <div>
-                                    <div className="text-2xl font-bold leading-none">{value}</div>
-                                    <div className="text-xs text-muted-foreground mt-1.5 leading-tight">{label}</div>
+                                    <div className="text-2xl font-bold leading-none tabular-nums">{value}</div>
+                                    <div className="text-xs text-muted-foreground mt-1.5 leading-tight font-medium">{label}</div>
                                 </div>
-                                <div className={`p-2 bg-muted rounded-sm ${color}`}>
-                                    <Icon className="size-5" />
+                                <div className={`p-2 rounded-sm ${bg} ${color}`}>
+                                    <Icon className="size-4.5" />
                                 </div>
                             </div>
                         </CardContent>
                     </Card>
-                ))}
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                {quickActions.map(({ href, icon: Icon, label }) => (
-                    <Link key={href} href={href} className="rounded-lg border bg-card p-4 transition-shadow hover:shadow-sm">
-                        <div className="flex items-center justify-between gap-4">
-                            <div>
-                                <p className="text-sm font-semibold">{label}</p>
-                                <p className="text-xs text-muted-foreground">Acesso direto ao módulo</p>
-                            </div>
-                            <Icon className="size-5 text-primary" />
-                        </div>
-                    </Link>
                 ))}
             </div>
 
@@ -382,31 +382,6 @@ export default function PecuariaDashboard() {
                         )}
                     </CardContent>
                 </Card>
-            </div>
-
-            {/* Quick access */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                {[
-                    { href: "/dashboard/pecuaria/lotes",      icon: Beef,       label: "Controle de Lotes",        desc: `${kpis.lotesAtivos} lotes ativos` },
-                    { href: "/dashboard/pecuaria/piquetes",   icon: MapPin,     label: "Piquetes e Pastos",        desc: `${kpis.piquetesAtivos} piquetes` },
-                    { href: "/dashboard/pecuaria/manejo",     icon: Syringe,    label: "Manejo e Sanidade",        desc: `${manejos.length} registros` },
-                    { href: "/dashboard/pecuaria/relatorios", icon: TrendingUp, label: "Relatórios Zootécnicos",   desc: "Curva de peso & GMD" },
-                ].map(({ href, icon: Icon, label, desc }) => (
-                    <Link
-                        key={href}
-                        href={href}
-                        className="flex items-center gap-3 p-4 border rounded-xl hover:bg-muted/50 transition-colors group"
-                    >
-                        <div className="p-2 bg-muted rounded-sm group-hover:bg-background transition-colors">
-                            <Icon className="size-5 text-muted-foreground" />
-                        </div>
-                        <div className="min-w-0">
-                            <div className="font-medium text-sm leading-tight">{label}</div>
-                            <div className="text-xs text-muted-foreground mt-0.5">{desc}</div>
-                        </div>
-                        <ChevronRight className="size-4 text-muted-foreground ml-auto opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
-                    </Link>
-                ))}
             </div>
         </div>
     );

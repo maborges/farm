@@ -1,14 +1,20 @@
 "use client";
 
-import { useEffect } from "react";
 import { useForm, Controller } from "react-hook-form";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogBody,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { HardHat, Check, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 interface Props {
@@ -62,31 +68,43 @@ export function EPIEntregaForm({ open, onClose, onSubmit, isLoading }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && handleClose()}>
-      <DialogContent className="sm:max-w-[480px]">
-        <form onSubmit={handleSubmit(onFormSubmit)}>
-          <DialogHeader>
-            <DialogTitle>Registrar Entrega de EPI</DialogTitle>
-          </DialogHeader>
+      <DialogContent className="max-w-lg p-0">
+        <DialogHeader>
+          <div className="flex items-center gap-2.5">
+            <div className="size-8 rounded-sm bg-primary/10 flex items-center justify-center shrink-0">
+              <HardHat className="size-4 text-primary" />
+            </div>
+            <div>
+              <DialogTitle>Registrar Entrega de EPI</DialogTitle>
+              <DialogDescription className="text-xs text-muted-foreground mt-0.5">
+                Registro de fornecimento de EPI aos colaboradores conforme NR-6 e NR-31.
+              </DialogDescription>
+            </div>
+          </div>
+        </DialogHeader>
 
-          <div className="grid gap-4 py-4">
+        <form onSubmit={handleSubmit(onFormSubmit)}>
+          <DialogBody className="space-y-4 max-h-[70vh]">
             <div className="space-y-1.5">
-              <Label>Nome do Trabalhador <span className="text-destructive">*</span></Label>
-              <Input placeholder="Nome completo" {...register("nome_trabalhador", { required: true })} />
+              <Label className="text-xs font-medium">Nome do Trabalhador <span className="text-destructive">*</span></Label>
+              <Input placeholder="Nome completo" {...register("nome_trabalhador", { required: true })} className="h-8 text-xs rounded-sm" />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label>Tipo de EPI <span className="text-destructive">*</span></Label>
+                <Label className="text-xs font-medium">Tipo de EPI <span className="text-destructive">*</span></Label>
                 <Controller
                   name="epi_tipo"
                   control={control}
                   rules={{ required: true }}
                   render={({ field }) => (
                     <Select onValueChange={field.onChange} value={field.value || ""}>
-                      <SelectTrigger><SelectValue placeholder="Selecionar..." /></SelectTrigger>
-                      <SelectContent>
+                      <SelectTrigger className="h-8 text-xs rounded-sm">
+                        <SelectValue placeholder="Selecionar..." />
+                      </SelectTrigger>
+                      <SelectContent className="rounded-sm">
                         {EPI_TIPOS.map((t) => (
-                          <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
+                          <SelectItem key={t.value} value={t.value} className="text-xs">{t.label}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -95,38 +113,50 @@ export function EPIEntregaForm({ open, onClose, onSubmit, isLoading }: Props) {
               </div>
 
               <div className="space-y-1.5">
-                <Label>Quantidade</Label>
-                <Input type="number" min={1} {...register("quantidade", { valueAsNumber: true, min: 1 })} />
+                <Label className="text-xs font-medium">Quantidade</Label>
+                <Input type="number" min={1} {...register("quantidade", { valueAsNumber: true, min: 1 })} className="h-8 text-xs rounded-sm" />
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label>Data de Entrega</Label>
-                <Input type="date" {...register("data_entrega", { required: true })} />
+                <Label className="text-xs font-medium">Data de Entrega</Label>
+                <Input type="date" {...register("data_entrega", { required: true })} className="h-8 text-xs rounded-sm" />
               </div>
               <div className="space-y-1.5">
-                <Label>Validade do EPI</Label>
-                <Input type="date" {...register("validade")} />
+                <Label className="text-xs font-medium">Validade do EPI</Label>
+                <Input type="date" {...register("validade")} className="h-8 text-xs rounded-sm" />
               </div>
             </div>
 
             {epiTipo && (
-              <div className="rounded-md bg-blue-500/10 border border-blue-500/20 p-3">
-                <p className="text-xs text-blue-600">
-                  EPI: <strong>{EPI_TIPOS.find(t => t.value === epiTipo)?.label}</strong>
-                  <br />
-                  Conforme NR-6, o empregador deve fornecer EPI adequado gratuitamente
-                  e fiscalizar o uso correto.
+              <div className="rounded-sm bg-primary/5 border border-primary/20 p-3">
+                <p className="text-xs text-primary font-medium">
+                  EPI: {EPI_TIPOS.find(t => t.value === epiTipo)?.label}
+                </p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Conforme normas regulamentadoras, o empregador deve fornecer EPI adequado e fiscalizar o uso correto.
                 </p>
               </div>
             )}
-          </div>
+          </DialogBody>
 
           <DialogFooter>
-            <Button variant="outline" type="button" onClick={handleClose}>Cancelar</Button>
-            <Button type="submit" disabled={isLoading}>
-              {isLoading ? "Registrando..." : "Registrar Entrega"}
+            <Button variant="outline" size="sm" type="button" className="rounded-sm" onClick={handleClose} disabled={isLoading}>
+              Cancelar
+            </Button>
+            <Button size="sm" type="submit" className="rounded-sm gap-1.5" disabled={isLoading}>
+              {isLoading ? (
+                <>
+                  <Loader2 className="size-3.5 animate-spin" />
+                  Registrando...
+                </>
+              ) : (
+                <>
+                  <Check className="size-3.5" />
+                  Registrar Entrega
+                </>
+              )}
             </Button>
           </DialogFooter>
         </form>

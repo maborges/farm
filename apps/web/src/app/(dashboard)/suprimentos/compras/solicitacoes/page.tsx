@@ -1,6 +1,8 @@
 import { apiFetchServer } from "@/lib/api-server";
 import { SolicitacoesClient } from "./SolicitacoesClient";
 
+export const dynamic = "force-dynamic";
+
 export const metadata = {
   title: "Solicitações de Compra | AGRO",
   description: "Gestão de solicitações de suprimentos e reposição de estoque.",

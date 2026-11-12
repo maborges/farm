@@ -777,3 +777,37 @@
       mask-composite: exclude;
       pointer-events: none;
     }
+
+    /* ─── Quick action grid items with strict equal dimensions ─────────── */
+    .quick-action-item {
+      width: calc((100% - 10px) / 2);
+      max-width: calc((100% - 10px) / 2);
+      flex: 0 0 calc((100% - 10px) / 2);
+      height: 96px;
+      min-height: 96px;
+      max-height: 96px;
+      box-sizing: border-box;
+    }
+
+    .quick-action-item > * {
+      width: 100% !important;
+      height: 100% !important;
+      display: flex !important;
+    }
+
+    @media (min-width: 640px) {
+      .quick-action-item {
+        width: calc((100% - 20px) / 3);
+        max-width: calc((100% - 20px) / 3);
+        flex: 0 0 calc((100% - 20px) / 3);
+      }
+    }
+
+    @media (min-width: 1024px) {
+      .quick-action-item {
+        width: calc((100% - 50px) / 6);
+        max-width: calc((100% - 50px) / 6);
+        flex: 0 0 calc((100% - 50px) / 6);
+      }
+    }
+

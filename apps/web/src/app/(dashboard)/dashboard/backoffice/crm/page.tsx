@@ -2,6 +2,8 @@ import { apiFetchServer } from "@/lib/api-server";
 import { CrmClient } from "./_components/CrmClient";
 import { CRMStats, Estagio, KanbanData } from "./_components/types";
 
+export const dynamic = "force-dynamic";
+
 export const metadata = {
     title: "CRM - DeepFarms",
     description: "Gerencie leads e oportunidades comerciais no funil de vendas.",

@@ -830,7 +830,7 @@ export function WizardClient() {
                 <Button
                   type="button"
                   variant={effectiveLoadStrategy === "MANUAL" ? "default" : "outline"}
-                  className="h-auto w-full justify-start rounded-xl p-4 text-left"
+                  className="h-auto w-full justify-start rounded-sm p-4 text-left border-border/70"
                   onClick={() => setLoadStrategy("MANUAL")}
                 >
                   <div className="flex w-full items-center justify-between gap-3">
@@ -846,7 +846,7 @@ export function WizardClient() {
                 <Button
                   type="button"
                   variant={effectiveLoadStrategy === "ERP" ? "default" : "outline"}
-                  className="h-auto w-full justify-start rounded-xl p-4 text-left"
+                  className="h-auto w-full justify-start rounded-sm p-4 text-left border-border/70"
                   onClick={() => setLoadStrategy("ERP")}
                 >
                   <div className="flex w-full items-center justify-between gap-3">
@@ -862,7 +862,7 @@ export function WizardClient() {
                 <Button
                   type="button"
                   variant={effectiveLoadStrategy === "LATER" ? "default" : "outline"}
-                  className="h-auto w-full justify-start rounded-xl p-4 text-left"
+                  className="h-auto w-full justify-start rounded-sm p-4 text-left border-border/70"
                   onClick={() => setLoadStrategy("LATER")}
                 >
                   <div className="flex w-full items-center justify-between gap-3">
@@ -878,24 +878,24 @@ export function WizardClient() {
               </div>
 
               {effectiveLoadStrategy === "ERP" ? (
-                <div className="space-y-4 rounded-xl border border-blue-100 bg-blue-50/60 p-4">
+                <div className="space-y-4 rounded-sm border border-border/70 bg-muted/30 p-4">
                   <div className="space-y-2">
-                    <label htmlFor="wizard-erp-name" className="text-sm font-medium text-slate-900">
+                    <label htmlFor="wizard-erp-name" className="text-sm font-medium">
                       ERP utilizado
                     </label>
                     {isLoadingErps ? (
-                      <div className="flex items-center gap-2 text-sm text-slate-500"><Loader2 className="size-4 animate-spin" /> Carregando lista de ERPs...</div>
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" /> Carregando lista de ERPs...</div>
                     ) : isErpsError || erps.length === 0 ? (
-                      <div className="rounded-md bg-red-50 p-4 border border-red-200">
-                        <p className="text-sm text-red-800 font-medium mb-3">
+                      <div className="rounded-sm bg-destructive/10 p-4 border border-destructive/30">
+                        <p className="text-sm text-destructive font-medium mb-3">
                           Não foi possível carregar a lista de ERPs.
                         </p>
                         <div className="flex gap-3">
-                          <Button variant="outline" size="sm" onClick={() => refetchErps()}>
+                          <Button variant="outline" size="sm" className="rounded-sm" onClick={() => refetchErps()}>
                             <RefreshCw className="size-4 mr-2" />
                             Tentar novamente
                           </Button>
-                          <Button variant="secondary" size="sm" onClick={() => setLoadStrategy("LATER")}>
+                          <Button variant="secondary" size="sm" className="rounded-sm" onClick={() => setLoadStrategy("LATER")}>
                             Configurar depois
                           </Button>
                         </div>
@@ -912,7 +912,7 @@ export function WizardClient() {
                           }
                         }}
                       >
-                        <SelectTrigger className="w-full bg-white">
+                        <SelectTrigger className="w-full bg-background rounded-sm">
                           <SelectValue placeholder="Selecione um ERP" />
                         </SelectTrigger>
                         <SelectContent>
@@ -929,7 +929,7 @@ export function WizardClient() {
               ) : null}
             </div>
 
-            <div className="rounded-xl border border-slate-200 bg-slate-50/80 p-5">
+            <div className="rounded-sm border border-border/70 bg-muted/20 p-5">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Resumo da decisão</p>
               <div className="mt-4 space-y-3">
                 <Badge variant="outline" className="border-slate-300 bg-white text-slate-700">

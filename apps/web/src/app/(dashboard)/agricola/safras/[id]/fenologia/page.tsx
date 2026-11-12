@@ -17,9 +17,24 @@ interface Safra {
     ano_safra: string;
 }
 
+interface GrupoItem {
+    id: string;
+    talhao_id: string;
+}
+
+interface Grupo {
+    id: string;
+    nome: string;
+    cor: string | null;
+    ordem: number;
+    itens: GrupoItem[];
+}
+
 interface Talhao {
     id: string;
     nome: string;
+    area_ha?: number | null;
+    codigo?: string | null;
 }
 
 export default function FenologiaPage() {
@@ -43,11 +58,17 @@ export default function FenologiaPage() {
         enabled: !!safra,
     });
 
+    const { data: grupos = [], isLoading: loadingGrupos } = useQuery<Grupo[]>({
+        queryKey: ["grupos-talhoes", id],
+        queryFn: () => apiFetch(`/safras/${id}/grupos-talhoes`),
+        enabled: !!safra,
+    });
+
     const talhoes = talhoesSafra
         .map((t) => todasAreas.find((a) => a.id === t.area_id))
         .filter((a): a is Talhao => !!a);
 
-    if (isLoading || loadingTalhoesSafra || loadingAreas) {
+    if (isLoading || loadingTalhoesSafra || loadingAreas || loadingGrupos) {
         return (
             <div className="space-y-6 p-6">
                 <Skeleton className="h-10 w-64" />
@@ -60,19 +81,29 @@ export default function FenologiaPage() {
         <div className="space-y-6 p-6">
             <PageHeader
                 title={`Fenologia — ${safraLabel}`}
-                icon={<Leaf className="text-green-600" size={22} />}
-                description={safraLabel}
+                icon={<Leaf className="text-emerald-600" size={22} />}
+                description="Acompanhamento do desenvolvimento e estágios vegetativos e reprodutivos por talhão."
+                breadcrumbs={[
+                    { label: "Agrícola", href: "/agricola" },
+                    { label: "Safras", href: "/agricola/safras" },
+                    { label: safraLabel, href: `/agricola/safras/${id}` },
+                    { label: "Fenologia" },
+                ]}
             />
             <Tabs defaultValue="registros">
-                <TabsList>
-                    <TabsTrigger value="registros">Registros por Talhão</TabsTrigger>
-                    <TabsTrigger value="grupos">Grupos de Talhões</TabsTrigger>
+                <TabsList className="rounded-sm">
+                    <TabsTrigger value="registros" className="rounded-sm text-xs">
+                        Acompanhamento e Registros
+                    </TabsTrigger>
+                    <TabsTrigger value="grupos" className="rounded-sm text-xs">
+                        Grupos de Talhões ({grupos.length})
+                    </TabsTrigger>
                 </TabsList>
                 <TabsContent value="registros" className="mt-4">
-                    <SafraFenologia safraId={id} cultura={safra?.cultura ?? null} grupos={[]} talhoes={talhoes} />
+                    <SafraFenologia safraId={id} cultura={safra?.cultura ?? null} grupos={grupos} talhoes={talhoes} />
                 </TabsContent>
                 <TabsContent value="grupos" className="mt-4">
-                    <SafraGruposTalhoes safraId={id} fazendaTalhoes={[]} />
+                    <SafraGruposTalhoes safraId={id} fazendaTalhoes={talhoes} />
                 </TabsContent>
             </Tabs>
         </div>

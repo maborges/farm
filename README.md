@@ -543,6 +543,17 @@ Detalhamento de cada feature, decisões e histórico de implementação: `docs/C
   6. Na aba "Incidentes & Alertas", o endpoint `GET /api/v1/backoffice/agro/dashboard/alertas` avalia dinamicamente e sem poluição de banco as condições do ecossistema: indisponibilidade de Redis compartilhado, ativação de contingência meteorológica, acúmulo de timeouts upstream, defasagem de snapshot DERAL superior a 14 dias e desativação de feature flags críticas.
   7. Na aba "Homologação (11 Itens)", o endpoint `GET /api/v1/backoffice/agro/dashboard/homologacao` audita de forma auditável e auditada as 11 pendências técnicas obrigatórias de governança (KMS/Master Key, Licenciamento de Provedores, Contabilização de Cotas, Proveniência DERAL, Parser XLS Oficial, PostgreSQL Real, Redis Real, Sincronização Multi-Worker, Retenção de Bytes Originais, Integridade de Catálogos Globais e Build/Testes Integrados Web/Agro), classificando cada item como APROVADO (com evidência técnica no código e suíte de testes), EM VALIDAÇÃO ou PENDENTE.
 
+### Acompanhamento Fenológico Inteligente da Safra (`/agricola/safras/[id]/fenologia`)
+- **Descrição curta:** Reformulação completa da experiência de monitoramento e registro fenológico por talhão na safra, introduzindo painel de KPIs agronômicos, pipeline horizontal de desenvolvimento da cultura (escala BBCH), filtros dinâmicos com busca por texto, ação de registro rápido diretamente nos cards de talhão, alerta visual para talhões desatualizados (> 15 dias), integração real de grupos de talhões e visualização consolidada em `DataTable` com suporte a pesquisa e exportação para PDF e Excel.
+- **Fluxo de funcionamento:**
+  1. O usuário acessa a safra e clica no atalho **Fenologia** (`/agricola/safras/[id]/fenologia`).
+  2. O topo da tela apresenta 4 cards de síntese: Total de Talhões/Área (ha), Talhões Monitorados (% de cobertura), Estágio Predominante da cultura e Talhões que requerem atenção/visita.
+  3. A barra de desenvolvimento da cultura exibe visualmente todos os estágios BBCH cadastrados para a cultura em sequência horizontal, indicando a quantidade de talhões em cada fase e permitindo filtrar talhões ao clicar diretamente no estágio.
+  4. Na visão em Cards, cada talhão exibe seu estágio atual, data e tempo relativo da última observação, indicador de alerta para talhões sem visita há mais de 15 dias e botão de registro rápido ("+ Registrar") que abre o modal com o talhão já pré-selecionado.
+  5. O histórico do talhão foi linearizado em uma linha do tempo vertical à esquerda (eliminando o layout confuso em zigue-zague).
+  6. Pela barra de ferramentas, o usuário pode alternar entre a visão de **Cards** e a visão de **Tabela** (`DataTable`), mantendo paridade 1:1 na quantidade de talhões exibidos e filtros sincronizados. Na visão de tabela, o usuário pode visualizar a situação atual de cada talhão (com atalho para registrar e modal de histórico) ou alternar para o histórico completo de observações com exportação para PDF e Excel conforme as diretrizes do sistema.
+  7. A aba **Grupos de Talhões** e o registro em lote por grupo agora estão totalmente integrados à API da safra.
+
 ## Conceitos-Chave: Propriedade, Talhão e Unidade Produtiva
 
 

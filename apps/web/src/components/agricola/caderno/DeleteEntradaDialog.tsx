@@ -40,20 +40,20 @@ export function DeleteEntradaDialog({ open, onClose, onConfirm, isPending }: Pro
 
   return (
     <AlertDialog open={open} onOpenChange={(v) => !v && handleClose()}>
-      <AlertDialogContent>
+      <AlertDialogContent className="rounded-sm max-w-md">
         <AlertDialogHeader>
-          <AlertDialogTitle className="flex items-center gap-2 text-destructive">
+          <AlertDialogTitle className="flex items-center gap-2 text-destructive text-base font-semibold">
             <AlertTriangle className="size-4" />
             Excluir registro do caderno
           </AlertDialogTitle>
-          <AlertDialogDescription>
+          <AlertDialogDescription className="text-xs text-muted-foreground">
             Esta ação não remove permanentemente o registro. Ele será mantido para auditoria
             com status de &quot;excluído&quot; e o motivo informado será registrado.
           </AlertDialogDescription>
         </AlertDialogHeader>
 
-        <div className="space-y-1.5 py-2">
-          <Label htmlFor="motivo">
+        <div className="space-y-1 py-2">
+          <Label htmlFor="motivo" className="text-xs font-medium">
             Motivo da exclusão <span className="text-destructive">*</span>
           </Label>
           <Textarea
@@ -62,25 +62,29 @@ export function DeleteEntradaDialog({ open, onClose, onConfirm, isPending }: Pro
             placeholder="Descreva o motivo da exclusão (mínimo 10 caracteres)..."
             value={motivo}
             onChange={(e) => setMotivo(e.target.value)}
-            className={error ? "border-destructive" : ""}
+            className={`rounded-sm text-sm ${error ? "border-destructive" : ""}`}
           />
           {error && (
-            <p className="text-xs text-destructive">
+            <p className="text-[11px] text-destructive">
               O motivo deve ter pelo menos 10 caracteres.
             </p>
           )}
         </div>
 
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={isPending}>Cancelar</AlertDialogCancel>
+          <AlertDialogCancel disabled={isPending} className="rounded-sm h-8 text-xs">
+            Cancelar
+          </AlertDialogCancel>
           <AlertDialogAction
             asChild
             disabled={isPending || motivo.length < 10}
           >
             <Button
               variant="destructive"
+              size="sm"
               onClick={handleConfirm}
               disabled={isPending || motivo.length < 10}
+              className="rounded-sm"
             >
               {isPending ? "Excluindo..." : "Excluir registro"}
             </Button>

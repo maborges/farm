@@ -34,6 +34,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { QuickActionGrid } from "@/components/ui/quick-action-grid";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
@@ -511,6 +512,48 @@ export default function BillingPage() {
         : undefined;
     const currentPlanLabel = TIER_LABELS[currentTier];
 
+    const quickActions = [
+        {
+            title: "Assinatura Atual",
+            desc: `Pacote ${account?.assinatura?.plano || currentPlanLabel} ativo`,
+            icon: Crown,
+            badge: account?.assinatura?.status || "ATIVO",
+            href: "#assinatura-atual",
+        },
+        {
+            title: "Tabela de Pacotes",
+            desc: "Comparar planos, módulos e áreas",
+            icon: Sparkles,
+            badge: "All-In",
+            href: "#tabela-pacotes",
+        },
+        {
+            title: "Histórico de Faturas",
+            desc: "Pagamentos via Stripe e comprovantes",
+            icon: History,
+            badge: invoices?.length ? `${invoices.length} faturas` : undefined,
+            href: "#historico-faturas",
+        },
+        {
+            title: "Consumo de IA",
+            desc: "Créditos e análises inteligentes utilizadas",
+            icon: BrainCircuit,
+            href: "/dashboard/settings/ia",
+        },
+        {
+            title: "Gestão Comercial",
+            desc: "Growth engine e incentivos por plano",
+            icon: Zap,
+            href: "#gestao-comercial",
+        },
+        {
+            title: "Chamado Comercial",
+            desc: "Falar com vendas ou suporte de faturamento",
+            icon: LifeBuoy,
+            href: SUPPORT_HREF,
+        },
+    ];
+
     return (
         <div className="p-6 flex flex-col gap-6 animate-in fade-in duration-500">
             <PageHeader
@@ -524,7 +567,19 @@ export default function BillingPage() {
                 ]}
             />
 
-            <Card className="overflow-hidden border-primary/15 bg-gradient-to-br from-background to-primary/5 rounded-sm">
+            {/* Quick Actions Grid */}
+            <QuickActionGrid
+                columnsClassName="grid-cols-2 sm:grid-cols-3 lg:grid-cols-6"
+                actions={quickActions.map(a => ({
+                    title: a.title,
+                    description: a.desc,
+                    icon: a.icon,
+                    href: a.href,
+                    badge: a.badge,
+                }))}
+            />
+
+            <Card id="assinatura-atual" className="overflow-hidden border-primary/15 bg-gradient-to-br from-background to-primary/5 rounded-sm">
                 <CardHeader className="gap-2 pb-4">
                     <div className="flex items-center justify-between">
                         <Badge variant="secondary" className="rounded-sm text-[10px] uppercase font-black tracking-wider">
@@ -629,7 +684,9 @@ export default function BillingPage() {
 
             <IncentivoGrowthCard incentivo={growthPlano?.incentivo} />
 
-            <GrowthEngineSection config={growthEngineConfig} currentTier={currentTier} />
+            <div id="gestao-comercial">
+                <GrowthEngineSection config={growthEngineConfig} currentTier={currentTier} />
+            </div>
 
             <div className="grid gap-6 lg:grid-cols-[1.5fr_0.9fr]">
                 <Card className="border shadow-sm rounded-sm overflow-hidden">
@@ -716,7 +773,7 @@ export default function BillingPage() {
                 </Card>
             </div>
 
-            <Card className="shadow-sm rounded-sm">
+            <Card id="tabela-pacotes" className="shadow-sm rounded-sm">
                 <CardHeader className="pb-4">
                     <CardTitle className="text-xl font-black uppercase tracking-tight">Tabela de Pacotes (100% dos Módulos Liberados)</CardTitle>
                     <CardDescription className="text-xs font-medium">
@@ -877,7 +934,7 @@ export default function BillingPage() {
             </div>
 
             {/* History Section */}
-            <div className="flex flex-col gap-4">
+            <div id="historico-faturas" className="flex flex-col gap-4">
                 <div className="flex items-center gap-2">
                     <History className="size-5 text-primary" />
                     <h3 className="text-base font-black uppercase tracking-tight">Histórico de faturamentos</h3>

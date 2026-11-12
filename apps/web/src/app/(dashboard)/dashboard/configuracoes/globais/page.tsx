@@ -1,6 +1,8 @@
 import { apiFetchServer } from "@/lib/api-server";
 import { GlobaisClient } from "./GlobaisClient";
 
+export const dynamic = "force-dynamic";
+
 interface ConfigGeral {
   ano_agricola: { mes_inicio: number; mes_fim: number };
   unidade_area: string;

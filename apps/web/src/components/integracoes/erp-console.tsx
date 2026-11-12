@@ -23,6 +23,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { QuickActionGrid } from "@/components/ui/quick-action-grid";
 import { ErpCapabilityCenter } from "@/components/integracoes/erp/capability-center";
 import { AssociationCenter } from "@/components/integracoes/erp/association-center";
 import { ErpConfigurationSection } from "@/components/integracoes/erp/configuration-section";
@@ -608,6 +609,7 @@ export function DynamicErpConsole({
     providerName: currentErpLabel,
     hasSavedConfig: hasSavedProviderConfig,
   });
+
   const capabilityViewModels = buildErpCapabilityViewModels({
     providerSlug,
     providerSchema: schema,
@@ -622,6 +624,59 @@ export function DynamicErpConsole({
     canConfigure: Boolean(resolvedEndpoints.saveConfig && hasEditableConfigFields),
   });
   const fullSyncAction = operationalConfig?.fullSyncAction;
+
+  const quickActions = [
+    {
+      id: "tab-dados",
+      title: "Dados Sincronizados",
+      desc: "Status de entidades, contatos e itens",
+      icon: Database,
+      badge: `${capabilityViewModels.length} fluxos`,
+      onClick: () => setWorkspaceTab("dados"),
+    },
+    {
+      id: "tab-atividade",
+      title: "Atividade & Diagnóstico",
+      desc: "Histórico de jobs, falhas e integridade",
+      icon: Activity,
+      badge: diagnosis?.jobs_falhos ? `${diagnosis.jobs_falhos} falhas` : undefined,
+      onClick: () => setWorkspaceTab("atividade"),
+    },
+    {
+      id: "tab-associacoes",
+      title: "Mapeamento De/Para",
+      desc: "Vínculos de fazendas, contas e produtos",
+      icon: Link2,
+      onClick: () => setWorkspaceTab("associacoes"),
+    },
+    {
+      id: "tab-configuracao",
+      title: "Configurar Conexão",
+      desc: "Credenciais de API, tokens e endpoints",
+      icon: Settings2,
+      onClick: () => setWorkspaceTab("configuracao"),
+    },
+    {
+      id: "action-test",
+      title: "Testar Comunicação",
+      desc: "Checar latência e handshake do provedor",
+      icon: ShieldAlert,
+      onClick: () => void handleTestConnection(),
+    },
+    {
+      id: "action-sync",
+      title: "Sincronizar Agora",
+      desc: "Disparar atualização de dados do ERP",
+      icon: RefreshCw,
+      onClick: () => {
+        if (fullSyncAction) {
+          void handleSync(fullSyncAction.code);
+        } else {
+          void loadConsole();
+        }
+      },
+    },
+  ];
   const capabilityDetails = buildErpCapabilityDetailsViewModels({
     capabilities: capabilityViewModels,
     jobs,
@@ -716,6 +771,19 @@ export function DynamicErpConsole({
 
   return (
     <div className="space-y-6">
+      {/* Quick Actions Grid */}
+      <QuickActionGrid
+        label="Comandos Rápidos"
+        columnsClassName="grid-cols-2 sm:grid-cols-3 lg:grid-cols-6"
+        actions={quickActions.map(a => ({
+          title: a.title,
+          description: a.desc,
+          icon: a.icon,
+          onClick: a.onClick,
+          badge: a.badge,
+        }))}
+      />
+
       <Card className="rounded-sm border-border/70 bg-gradient-to-br from-background via-background to-primary/5">
         <CardHeader className="gap-4 md:flex-row md:items-start md:justify-between">
           <div className="space-y-1">
