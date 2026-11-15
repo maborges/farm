@@ -13,7 +13,7 @@ class BalancaServiceUnavailable(RuntimeError):
 
 
 class BalancaServiceClient:
-    """Adapter HTTP do AgroSaaS para o serviço Balança independente."""
+    """Adapter HTTP do DeepFarms para o serviço Pondaxis independente."""
 
     def __init__(self, base_url: str, client_id: str, client_secret: str):
         self.base_url = base_url.rstrip("/")
@@ -22,13 +22,13 @@ class BalancaServiceClient:
 
     @classmethod
     def from_settings(cls) -> "BalancaServiceClient":
-        """Cria o conector usando a configuração obrigatória do AgroSaaS.
+        """Cria o conector usando a configuração obrigatória do DeepFarms.
 
         Raises:
             BalancaServiceUnavailable: quando a integração não foi configurada.
         """
         if not all((settings.balanca_service_url, settings.balanca_service_client_id, settings.balanca_service_client_secret)):
-            raise BalancaServiceUnavailable("Integração com o serviço Balança não configurada.")
+            raise BalancaServiceUnavailable("Integração com o serviço Pondaxis não configurada.")
         return cls(
             settings.balanca_service_url,
             settings.balanca_service_client_id,

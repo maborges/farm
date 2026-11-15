@@ -283,7 +283,7 @@ export const ModuloMetadata: Record<
   },
   [Modulos.OPERACIONAL_BALANCA]: {
     nome: "Balança de Pesagem",
-    descricao: "Integração de pesagens de carga e animais com a Plataforma TARA",
+    descricao: "Integração de pesagens de carga e animais com a Plataforma Pondaxis",
     categoria: "OPERACIONAL",
     icone: "⚖️",
     cor: "bg-cyan-600",

@@ -576,7 +576,7 @@ Rotas principais: `PUT/GET /config`, `POST /clients`, `POST /orders`,
 `GET /orders/{id}`, `GET /weighings`, `POST /weighings/sync`, `GET /events`,
 `GET/PUT /webhooks`, `POST /webhooks/replay` e `POST /stations/activate`.
 A sincronização de pesagens preserva o cursor opaco no banco e só o avança
-após processar cada página com sucesso.
+após processar cada página com sucesso. O diagnóstico de teste de conexão (`POST /config/testar-conexao`) emite mensagens claras e amigáveis em caso de falha de conexão ou credenciais inválidas, com diagnóstico inline e dicas práticas de resolução em `/dashboard/settings/integracoes/tara`.
 
 ## Referência Oficial FIELD-CORE
 

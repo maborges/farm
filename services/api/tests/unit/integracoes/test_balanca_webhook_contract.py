@@ -17,7 +17,7 @@ def _envelope() -> BalancaEventEnvelope:
         event_id=uuid4(), idempotency_key="capture:abc", capture_id="abc",
         event_type="balanca.pesagem.concluida.v1", event_version="v1",
         occurred_at="2026-08-28T12:00:00Z", received_at="2026-08-28T12:00:01Z",
-        account_id=uuid4(), client_system="agrosaas", client_tenant_id=str(tenant_id),
+        account_id=uuid4(), client_system="deepfarms", client_tenant_id=str(tenant_id),
         correlation_id="correlation-1", external_reference="pecuaria:animal:" + str(uuid4()),
         entity_id=uuid4(), payload={"peso_liquido_kg": "10"},
     )

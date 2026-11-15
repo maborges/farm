@@ -1,4 +1,4 @@
-"""Contratos públicos da integração HTTP com a Plataforma TARA."""
+"""Contratos públicos da integração HTTP com a Plataforma Pondaxis."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field, HttpUrl, model_validator
 
 
 class TaraConfigUpsert(BaseModel):
-    """Dados persistidos para conectar uma Conta TARA."""
+    """Dados persistidos para conectar uma Conta Pondaxis."""
 
     base_url: HttpUrl
     client_id: str = Field(min_length=1, max_length=160)
@@ -18,7 +18,7 @@ class TaraConfigUpsert(BaseModel):
 
 
 class TaraConfigResponse(BaseModel):
-    """Configuração TARA sem materializar o segredo."""
+    """Configuração Pondaxis sem materializar o segredo."""
 
     id: int
     tenant_id: str
@@ -81,7 +81,7 @@ class TaraOperatorCreate(BaseModel):
 
 
 class TaraWeighingPage(BaseModel):
-    """Página opaca de pesagens retornada pela TARA."""
+    """Página opaca de pesagens retornada pelo Pondaxis."""
 
     items: list[dict[str, Any]] = Field(default_factory=list)
     next_cursor: str | None = None

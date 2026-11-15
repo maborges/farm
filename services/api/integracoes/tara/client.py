@@ -20,7 +20,7 @@ class TaraApiError(RuntimeError):
 
 
 class TaraClient:
-    """Implementa somente os endpoints HTTP públicos e versionados da TARA."""
+    """Implementa somente os endpoints HTTP públicos e versionados do Pondaxis."""
 
     def __init__(self, base_url: str, client_id: str, client_secret: str, timeout: float = 15) -> None:
         self.base_url = str(base_url).rstrip("/")
@@ -43,7 +43,7 @@ class TaraClient:
                     response = await http.request(method, f"{self.base_url}{path}", headers=headers, json=json, params=params)
             except httpx.HTTPError as exc:
                 if not retryable or attempt == 2:
-                    raise TaraApiError(503, "Plataforma TARA indisponível") from exc
+                    raise TaraApiError(503, "Plataforma Pondaxis indisponível") from exc
                 await asyncio.sleep(2**attempt)
                 continue
             if response.status_code not in (429,) and response.status_code < 500:
@@ -54,17 +54,17 @@ class TaraClient:
                         body = {}
                     detail = body.get("detail") if isinstance(body, dict) else None
                     if response.status_code == 401:
-                        message = "Credencial do sistema cliente não autenticada na TARA."
+                        message = "Credencial do sistema cliente não autenticada no Pondaxis."
                     elif response.status_code == 403:
-                        message = "Sistema cliente não autorizado a executar esta operação na TARA."
+                        message = "Sistema cliente não autorizado a executar esta operação no Pondaxis."
                     else:
-                        message = detail or f"TARA recusou a operação ({response.status_code})"
+                        message = detail or f"Pondaxis recusou a operação ({response.status_code})"
                     raise TaraApiError(response.status_code, message)
                 return response.json() if response.content else None
             if not retryable or attempt == 2:
-                raise TaraApiError(response.status_code, f"Falha temporária da TARA ({response.status_code})")
+                raise TaraApiError(response.status_code, f"Falha temporária do Pondaxis ({response.status_code})")
             await asyncio.sleep(2**attempt)
-        raise TaraApiError(503, "Plataforma TARA indisponível")
+        raise TaraApiError(503, "Plataforma Pondaxis indisponível")
 
     async def register_client(self, payload: dict[str, Any]) -> Any:
         """Registra o sistema consumidor de forma idempotente."""
@@ -80,7 +80,7 @@ class TaraClient:
     def order_idempotency_key(payload: dict[str, Any]) -> str:
         """Qualifica a idempotência pela identidade externa completa.
 
-        A API TARA também escopa idempotência pela Conta autenticada; o digest
+        A API Pondaxis também escopa idempotência pela Conta autenticada; o digest
         mantém o header curto e evita ambiguidades quando referências contêm `:`.
         """
         identity = [
@@ -107,15 +107,15 @@ class TaraClient:
         return await self._request("POST", "/v1/client/operators", json=tara_payload, idempotency_key=key)
 
     async def list_operators(self) -> Any:
-        """Consulta operadores disponíveis para o cliente na Conta TARA."""
+        """Consulta operadores disponíveis para o cliente na Conta Pondaxis."""
         return await self._request("GET", "/v1/client/operators")
 
     async def revoke_operator(self, operator_id: str) -> Any:
-        """Revoga um operador pela referência pública retornada pela TARA."""
+        """Revoga um operador pela referência pública retornada pelo Pondaxis."""
         return await self._request("POST", f"/v1/client/operators/{operator_id}/revoke", json={})
 
     async def get_order(self, order_id: str) -> Any:
-        """Consulta uma Ordem por seu identificador TARA."""
+        """Consulta uma Ordem por seu identificador Pondaxis."""
         return await self._request("GET", f"/v1/orders/{order_id}")
 
     async def list_weighings(self, limit: int = 100, cursor: str | None = None) -> Any:
@@ -149,5 +149,5 @@ class TaraClient:
         return await self._request("POST", "/v1/webhooks/replay", json=payload)
 
     async def activate_station(self, payload: dict[str, Any]) -> Any:
-        """Ativa uma Estação através do endpoint público da TARA."""
+        """Ativa uma Estação através do endpoint público do Pondaxis."""
         return await self._request("POST", "/v1/stations/activate", json=payload)

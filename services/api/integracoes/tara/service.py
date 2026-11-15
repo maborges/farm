@@ -1,4 +1,4 @@
-"""Regras de persistência e resolução do conector TARA."""
+"""Regras de persistência e resolução do conector Pondaxis."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from .schemas import TaraConfigResponse, TaraConfigUpsert
 
 
 class TaraNotConfigured(ValueError):
-    """Indica ausência de configuração TARA para o tenant."""
+    """Indica ausência de configuração Pondaxis para o tenant."""
 
 
 async def _provider(db: AsyncSession) -> MarketplaceIntegracao:
@@ -21,7 +21,7 @@ async def _provider(db: AsyncSession) -> MarketplaceIntegracao:
     provider = result.scalar_one_or_none()
     if provider:
         return provider
-    provider = MarketplaceIntegracao(nome="TARA", slug="tara", provider_type="WEIGHING", oficial=True, ativa=True)
+    provider = MarketplaceIntegracao(nome="Pondaxis", slug="tara", provider_type="WEIGHING", oficial=True, ativa=True)
     db.add(provider)
     await db.flush()
     return provider
@@ -102,18 +102,18 @@ async def _secret(db: AsyncSession, config: TenantIntegracao) -> str:
 
 
 async def resolve_client(db: AsyncSession, tenant_id: str) -> TaraClient:
-    """Resolve o cliente TARA somente a partir da configuração persistida."""
+    """Resolve o cliente Pondaxis somente a partir da configuração persistida."""
     provider = await _provider(db)
     config = await _config(db, tenant_id, provider.id)
     if not config:
-        raise TaraNotConfigured("Integração TARA não configurada para o tenant.")
+        raise TaraNotConfigured("Integração Pondaxis não configurada para o tenant.")
     secret = await _secret(db, config)
     values = config.configuracoes or {}
     if not all((values.get("base_url"), values.get("client_id"), secret)):
-        raise TaraNotConfigured("Configuração TARA incompleta.")
+        raise TaraNotConfigured("Configuração Pondaxis incompleta.")
     client = TaraClient(values["base_url"], values["client_id"], secret)
     # A chamada HTTP seguinte pode durar vários segundos. Não mantenha uma
-    # conexão do pool do DeepFarms ocupada enquanto a TARA responde.
+    # conexão do pool do DeepFarms ocupada enquanto o Pondaxis responde.
     await db.rollback()
     return client
 
@@ -123,21 +123,72 @@ async def diagnose_connection(db: AsyncSession, tenant_id: str) -> dict[str, obj
     provider = await _provider(db)
     config = await _config(db, tenant_id, provider.id)
     if not config:
-        return {"tara_reachable": False, "credentials_valid": False, "client_authorized": False, "client_registered": False, "status": "CONFIG_INCOMPLETE", "message": "A integração TARA ainda não foi configurada."}
+        return {
+            "tara_reachable": False,
+            "credentials_valid": False,
+            "client_authorized": False,
+            "client_registered": False,
+            "status": "CONFIG_INCOMPLETE",
+            "message": "A integração Pondaxis ainda não foi configurada. Salve a URL e as credenciais antes de testar.",
+        }
 
     values = config.configuracoes or {}
     client_system = values.get("client_system")
     client_tenant_id = values.get("client_tenant_id")
     if not client_system or not client_tenant_id:
-        return {"tara_reachable": False, "credentials_valid": bool(values.get("client_id")), "client_authorized": False, "client_registered": False, "status": "CLIENT_IDENTITY_INCOMPLETE", "message": "Informe o sistema e o identificador textual do Cliente TARA."}
+        return {
+            "tara_reachable": False,
+            "credentials_valid": bool(values.get("client_id")),
+            "client_authorized": False,
+            "client_registered": False,
+            "status": "CLIENT_IDENTITY_INCOMPLETE",
+            "message": "Informe o Sistema Cliente e o Identificador do Cliente Pondaxis antes de testar a conexão.",
+        }
 
-    client = await resolve_client(db, tenant_id)
     try:
-        response = await client.register_client({"sistema_cliente": client_system, "tenant_cliente_id": client_tenant_id, "nome_exibicao": f"{client_system} ({client_tenant_id})"})
+        client = await resolve_client(db, tenant_id)
+        response = await client.register_client({
+            "sistema_cliente": client_system,
+            "tenant_cliente_id": client_tenant_id,
+            "nome_exibicao": f"{client_system} ({client_tenant_id})",
+        })
+    except TaraNotConfigured:
+        return {
+            "tara_reachable": False,
+            "credentials_valid": False,
+            "client_authorized": False,
+            "client_registered": False,
+            "status": "CONFIG_INCOMPLETE",
+            "message": "Configuração do Pondaxis incompleta. Certifique-se de preencher e salvar a URL base, Client ID e Client Secret.",
+        }
     except TaraApiError as exc:
-        status_map = {401: ("INVALID_CREDENTIALS", "Client ID ou Client Secret inválido."), 403: ("CLIENT_NOT_AUTHORIZED", "A API Key não está autorizada para este Cliente TARA."), 404: ("CLIENT_NOT_REGISTERED", "Cliente ainda não cadastrado na TARA."), 409: ("CLIENT_CONFLICT", "O Cliente já existe com dados incompatíveis.")}
-        status, message = status_map.get(exc.status_code, ("TARA_UNAVAILABLE", "A TARA está temporariamente indisponível."))
-        return {"tara_reachable": exc.status_code < 500, "credentials_valid": exc.status_code not in (401,), "client_authorized": exc.status_code not in (401, 403), "client_registered": False, "status": status, "message": message}
+        status_map = {
+            401: ("INVALID_CREDENTIALS", "Credenciais não autorizadas. Verifique se o Client ID e Client Secret estão corretos."),
+            403: ("CLIENT_NOT_AUTHORIZED", "Acesso não autorizado. A credencial informada não tem permissão para este Cliente Pondaxis."),
+            404: ("CLIENT_NOT_REGISTERED", "Cliente ainda não cadastrado na Plataforma Pondaxis."),
+            409: ("CLIENT_CONFLICT", "O Cliente já existe com dados cadastrais conflitantes no Pondaxis."),
+        }
+        status, message = status_map.get(
+            exc.status_code,
+            ("TARA_UNAVAILABLE", "Não foi possível estabelecer contato com a Plataforma Pondaxis. Verifique a URL informada e se o serviço está ligado."),
+        )
+        return {
+            "tara_reachable": exc.status_code < 500,
+            "credentials_valid": exc.status_code not in (401,),
+            "client_authorized": exc.status_code not in (401, 403),
+            "client_registered": False,
+            "status": status,
+            "message": message,
+        }
+    except Exception:
+        return {
+            "tara_reachable": False,
+            "credentials_valid": False,
+            "client_authorized": False,
+            "client_registered": False,
+            "status": "TARA_UNAVAILABLE",
+            "message": "Não foi possível conectar ao servidor do Pondaxis. Verifique se a URL informada está correta e acessível na rede.",
+        }
 
     tara_client_id = response.get("id") or response.get("client_id") if isinstance(response, dict) else None
     if tara_client_id:
@@ -151,7 +202,15 @@ async def diagnose_connection(db: AsyncSession, tenant_id: str) -> dict[str, obj
         )
         config.configuracoes = {**values, "tara_client_id": str(tara_client_id)}
         await db.commit()
-    return {"tara_reachable": True, "tenant_valid": True, "credentials_valid": True, "client_authorized": True, "client_registered": True, "status": "CONNECTED", "message": "Conexão e associação do Cliente TARA validadas com sucesso."}
+    return {
+        "tara_reachable": True,
+        "tenant_valid": True,
+        "credentials_valid": True,
+        "client_authorized": True,
+        "client_registered": True,
+        "status": "CONNECTED",
+        "message": "Conexão e associação com a Plataforma Pondaxis validadas com sucesso!",
+    }
 
 
 async def sync_weighings(db: AsyncSession, tenant_id: str, limit: int = 100) -> list[dict]:

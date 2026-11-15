@@ -1,4 +1,4 @@
-"""Endpoints internos que orquestram a integração com TARA."""
+"""Endpoints internos que orquestram a integração com o Pondaxis."""
 
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ from .schemas import (
 )
 from .service import TaraNotConfigured, diagnose_connection, get_config, resolve_client, save_config, sync_weighings
 
-router = APIRouter(prefix="/tara", tags=["Integração TARA"])
+router = APIRouter(prefix="/tara", tags=["Integração Pondaxis"])
 
 
 def _error(exc: TaraApiError | TaraNotConfigured) -> HTTPException:
@@ -32,7 +32,7 @@ def _error(exc: TaraApiError | TaraNotConfigured) -> HTTPException:
 async def read_config(tenant_id: UUID = Depends(get_tenant_id), db: AsyncSession = Depends(get_session)) -> TaraConfigResponse:
     config = await get_config(db, str(tenant_id))
     if not config:
-        raise HTTPException(404, "TARA não configurada")
+        raise HTTPException(404, "Pondaxis não configurado")
     return config
 
 

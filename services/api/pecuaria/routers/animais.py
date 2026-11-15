@@ -167,7 +167,7 @@ async def solicitar_pesagem_balanca(
 
     ordem = await (await resolve_client(db, str(tenant_id))).create_order(
         TaraOrderCreate(
-            client_system="agrosaas",
+            client_system="deepfarms",
             client_tenant_id=str(tenant_id),
             external_reference=f"pecuaria:animal:{animal_id}",
             correlation_id=f"pecuaria-pesagem:{animal_id}",

@@ -1,4 +1,4 @@
-"""Contratos do conector AgroSaaS para a Plataforma Balança."""
+"""Contratos do conector DeepFarms para a Plataforma Pondaxis."""
 
 from .schemas import (
     BalancaEventEnvelope,

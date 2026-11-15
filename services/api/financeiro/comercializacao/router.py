@@ -56,7 +56,7 @@ async def solicitar_pesagem_balanca(
 
     ordem = await (await resolve_client(session, str(tenant_id))).create_order(
         TaraOrderCreate(
-            client_system="agrosaas",
+            client_system="deepfarms",
             client_tenant_id=str(tenant_id),
             external_reference=f"financeiro:comercializacao:{comercializacao_id}",
             correlation_id=f"comercializacao-pesagem:{comercializacao_id}",

@@ -98,7 +98,7 @@ function formatDataHora(value: string): string {
 function errorMessage(error: unknown): string {
   if (error instanceof Error && error.message.trim()) return error.message;
   if (isRecord(error) && typeof error.detail === "string") return error.detail;
-  return "Verifique a configuração e a disponibilidade da TARA.";
+  return "Verifique a configuração e a disponibilidade do Pondaxis.";
 }
 
 const columns: ColumnDef<TaraWeighing>[] = [
@@ -154,7 +154,7 @@ export function TaraWeighingsTable() {
     <Card>
       <CardHeader>
         <CardTitle>Pesagens recentes</CardTitle>
-        <CardDescription>Consulta somente leitura da TARA, com pesos e data/hora no padrão brasileiro.</CardDescription>
+        <CardDescription>Consulta somente leitura do Pondaxis, com pesos e data/hora no padrão brasileiro.</CardDescription>
       </CardHeader>
       <CardContent>
         {weighingsQuery.isError ? (

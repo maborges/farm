@@ -9,7 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from integracoes.tara.schemas import TaraOrderCreate
 
 # Alias transitório: fluxos legados ainda importam este nome, mas o contrato
-# canônico de criação de Ordem pertence à integração HTTP com a Plataforma TARA.
+# canônico de criação de Ordem pertence à integração HTTP com a Plataforma Pondaxis.
 BalancaOrderRequest = TaraOrderCreate
 
 

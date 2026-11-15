@@ -12,7 +12,7 @@ from integracoes.tara.schemas import TaraOrderCreate
 def test_ordem_balanca_exige_referencia_externa_e_correlacao() -> None:
     with pytest.raises(ValidationError):
         BalancaOrderRequest(
-            client_system="agrosaas",
+            client_system="deepfarms",
             client_tenant_id="tenant-a",
             external_reference="",
             correlation_id="corr-1",
@@ -23,7 +23,7 @@ def test_ordem_balanca_exige_referencia_externa_e_correlacao() -> None:
 
 def test_contrato_tara_aceita_multipla_com_natureza_e_identidade_local_opcional() -> None:
     order = TaraOrderCreate(
-        client_system="agrosaas",
+        client_system="deepfarms",
         client_tenant_id="tenant-a",
         external_reference="operacional:compra:pedido-1",
         correlation_id="corr-1",
@@ -42,7 +42,7 @@ def test_contrato_tara_aceita_multipla_com_natureza_e_identidade_local_opcional(
 def test_contrato_tara_rejeita_multipla_sem_natureza() -> None:
     with pytest.raises(ValidationError):
         TaraOrderCreate(
-            client_system="agrosaas",
+            client_system="deepfarms",
             client_tenant_id="tenant-a",
             external_reference="external-1",
             correlation_id="corr-1",
@@ -53,7 +53,7 @@ def test_contrato_tara_rejeita_multipla_sem_natureza() -> None:
 
 def test_contrato_legado_de_balanca_permanece_alias_compativel() -> None:
     order = BalancaOrderRequest(
-        client_system="agrosaas",
+        client_system="deepfarms",
         client_tenant_id="tenant-a",
         external_reference="pecuaria:animal:1",
         correlation_id="corr-1",
@@ -74,7 +74,7 @@ def test_evento_balanca_tem_envelope_versionado() -> None:
         occurred_at=datetime.now(timezone.utc),
         received_at=datetime.now(timezone.utc),
         account_id=uuid4(),
-        client_system="agrosaas",
+        client_system="deepfarms",
         client_tenant_id=str(tenant_id),
         correlation_id="corr-1",
         external_reference="compra-1",

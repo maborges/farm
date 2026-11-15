@@ -320,7 +320,7 @@ class RomaneioService(BaseService[RomaneioColheita]):
 
         ordem = await (await resolve_client(self.session, str(self.tenant_id))).create_order(
             TaraOrderCreate(
-                client_system="agrosaas",
+                client_system="deepfarms",
                 client_tenant_id=str(self.tenant_id),
                 external_reference=f"agricola:romaneio:{romaneio.id}",
                 correlation_id=f"romaneio-pesagem:{romaneio.id}",

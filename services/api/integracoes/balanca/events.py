@@ -15,7 +15,7 @@ _REFERENCE_TYPES = {
 
 
 def completed_weighing_metadata(event: Any) -> dict[str, Any]:
-    """Normaliza o envelope externo para os consumidores legados do AgroSaaS."""
+    """Normaliza o envelope externo para os consumidores legados do DeepFarms."""
 
     metadata = dict(getattr(event, "metadata", {}) or {})
     payload = metadata.get("payload") or getattr(event, "payload", None) or {}

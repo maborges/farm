@@ -15,12 +15,12 @@ from integracoes.models import BalancaWebhookCredential
 from .webhook import WebhookDelivery, WebhookIngestionError, ingest_event
 from .webhook_credentials import upsert_webhook_credential
 
-router = APIRouter(prefix="/balanca", tags=["Integração TARA"])
+router = APIRouter(prefix="/balanca", tags=["Integração Pondaxis"])
 
 
 @router.post("/events", status_code=204)
 async def receive_event(request: Request, session: AsyncSession = Depends(get_session)) -> None:
-    """Accept a signed TARA event after durable, idempotent processing."""
+    """Accept a signed Pondaxis event after durable, idempotent processing."""
     delivery = WebhookDelivery(
         body=await request.body(),
         headers={key.lower(): value for key, value in request.headers.items()},
@@ -53,7 +53,7 @@ async def configure_webhook_credential(
     tenant_id: UUID = Depends(get_tenant_id),
     session: AsyncSession = Depends(get_session),
 ) -> BalancaWebhookCredentialResponse:
-    """Persist or rotate the HMAC secret for a TARA account."""
+    """Persist or rotate the HMAC secret for a Pondaxis account."""
     credential = await upsert_webhook_credential(session, tenant_id, data.account_id, data.secret)
     await session.commit()
     return BalancaWebhookCredentialResponse.model_validate(credential, from_attributes=True)

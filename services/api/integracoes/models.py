@@ -228,7 +228,7 @@ class TenantIntegracao(Base):
 
 
 class BalancaInboundEvent(Base):
-    """Evento recebido da TARA, persistido para deduplicação e auditoria."""
+    """Evento recebido do Pondaxis, persistido para deduplicação e auditoria."""
 
     __tablename__ = "balanca_inbound_events"
 
@@ -248,7 +248,7 @@ class BalancaInboundEvent(Base):
 
 
 class BalancaWebhookCredential(Base):
-    """Credencial HMAC persistida para uma Conta TARA consumidora."""
+    """Credencial HMAC persistida para uma Conta Pondaxis consumidora."""
 
     __tablename__ = "balanca_webhook_credentials"
 

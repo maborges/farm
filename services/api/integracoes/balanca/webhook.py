@@ -51,7 +51,7 @@ class WebhookIngestionError(Exception):
 async def ingest_event(
     delivery: WebhookDelivery, session: AsyncSession, config: Settings
 ) -> IngestionResult:
-    """Authenticate, validate, and durably accept one TARA webhook delivery."""
+    """Authenticate, validate, and durably accept one Pondaxis webhook delivery."""
     account_id = _header_account_id(delivery.headers)
     envelope = _parse_envelope(delivery.body)
     try:
@@ -70,7 +70,7 @@ def _parse_envelope(body: bytes) -> BalancaEventEnvelope:
     try:
         return BalancaEventEnvelope.model_validate_json(body)
     except ValidationError as exc:
-        raise WebhookIngestionError(422, "Envelope TARA inválido") from exc
+        raise WebhookIngestionError(422, "Envelope Pondaxis inválido") from exc
 
 
 def _header_account_id(headers: Mapping[str, str]) -> UUID:
@@ -78,7 +78,7 @@ def _header_account_id(headers: Mapping[str, str]) -> UUID:
     try:
         return UUID(value)
     except ValueError as exc:
-        raise WebhookIngestionError(401, "Conta TARA ausente ou inválida") from exc
+        raise WebhookIngestionError(401, "Conta Pondaxis ausente ou inválida") from exc
 
 
 def _validate_headers(headers: Mapping[str, str], envelope: BalancaEventEnvelope, account_id: UUID) -> None:
@@ -91,24 +91,24 @@ def _validate_headers(headers: Mapping[str, str], envelope: BalancaEventEnvelope
 def verify_signature(
     body: bytes, headers: Mapping[str, str], path: str, secret: str, max_skew: int
 ) -> None:
-    """Validate TARA's timestamped HMAC signature over the raw HTTP request."""
+    """Validate Pondaxis's timestamped HMAC signature over the raw HTTP request."""
     timestamp = _header(headers, "x-tara-timestamp")
     signature = _header(headers, "x-tara-signature")
     event_id = _header(headers, "x-tara-event-id")
     if not secret or not timestamp or not signature.startswith("sha256=") or not event_id:
-        raise WebhookIngestionError(401, "Assinatura TARA ausente")
+        raise WebhookIngestionError(401, "Assinatura Pondaxis ausente")
     try:
         timestamp_value = int(timestamp)
         supplied = base64.b64decode(signature.removeprefix("sha256="), validate=True)
     except (ValueError, binascii.Error) as exc:
-        raise WebhookIngestionError(401, "Assinatura TARA inválida") from exc
+        raise WebhookIngestionError(401, "Assinatura Pondaxis inválida") from exc
     if abs(time.time() - timestamp_value) > max_skew:
-        raise WebhookIngestionError(401, "Timestamp TARA expirado")
+        raise WebhookIngestionError(401, "Timestamp Pondaxis expirado")
     path = path or "/"
     message = b"\n".join((b"POST", path.encode(), timestamp.encode(), body))
     expected = hmac.new(secret.encode(), message, hashlib.sha256).digest()
     if not hmac.compare_digest(expected, supplied):
-        raise WebhookIngestionError(401, "Assinatura TARA inválida")
+        raise WebhookIngestionError(401, "Assinatura Pondaxis inválida")
     try:
         UUID(event_id)
     except ValueError as exc:
@@ -116,7 +116,7 @@ def verify_signature(
 
 
 def to_domain_event(envelope: BalancaEventEnvelope) -> DomainEvent:
-    """Translate the public TARA envelope into the AgroSaaS event model."""
+    """Translate the public Pondaxis envelope into the DeepFarms event model."""
     tenant_id = _uuid_or_bad_request(envelope.client_tenant_id, "client_tenant_id")
     correlation_id = _optional_uuid(envelope.correlation_id)
     return DomainEvent(
@@ -134,7 +134,7 @@ def to_domain_event(envelope: BalancaEventEnvelope) -> DomainEvent:
 
 
 async def accept_event(session: AsyncSession, envelope: BalancaEventEnvelope) -> bool:
-    """Persist one TARA event and enqueue its business processing."""
+    """Persist one Pondaxis event and enqueue its business processing."""
     tenant_id = _uuid_or_bad_request(envelope.client_tenant_id, "client_tenant_id")
     await session.execute(text("SELECT set_config('app.current_tenant_id', :tenant, true)"), {"tenant": str(tenant_id)})
     existing = await session.get(BalancaInboundEvent, envelope.event_id)

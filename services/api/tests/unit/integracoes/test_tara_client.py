@@ -21,7 +21,7 @@ async def test_client_envia_headers_tara_e_idempotency_key() -> None:
     response = httpx.Response(201, json={"id": "order-1"}, request=httpx.Request("POST", "https://tara.example/v1/orders"))
     with patch("httpx.AsyncClient.request", new_callable=AsyncMock, return_value=response) as request:
         payload = {
-            "client_system": "agrosaas",
+            "client_system": "deepfarms",
             "client_tenant_id": "tenant-a",
             "external_reference": "stable-1",
             "correlation_id": "corr-1",
@@ -30,7 +30,7 @@ async def test_client_envia_headers_tara_e_idempotency_key() -> None:
     headers = request.call_args.kwargs["headers"]
     assert headers["X-Balanca-Client-ID"] == "client-1"
     assert headers["X-Balanca-Client-Secret"] == "secret-1"
-    canonical = json.dumps(["agrosaas", "tenant-a", "stable-1"], ensure_ascii=False, separators=(",", ":"))
+    canonical = json.dumps(["deepfarms", "tenant-a", "stable-1"], ensure_ascii=False, separators=(",", ":"))
     assert headers["Idempotency-Key"] == f"tara-order:{hashlib.sha256(canonical.encode()).hexdigest()}"
 
 
