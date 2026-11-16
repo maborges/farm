@@ -482,6 +482,13 @@ async def obter_tenant(
         return tenant_data
 
 
+def _as_utc(dt: Optional[datetime]) -> Optional[datetime]:
+    """Garante datetime timezone-aware em UTC para comparações seguras."""
+    if dt is None:
+        return None
+    return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
+
+
 @router.patch(
     "/{tenant_id}/desativar",
     status_code=status.HTTP_204_NO_CONTENT,
@@ -747,3 +754,158 @@ async def converter_lead(
         except Exception as e:
             logger.error(f"Erro ao converter lead {lead_id}: {e}", exc_info=True)
             raise HTTPException(status_code=500, detail="Erro ao converter lead")
+
+
+class AddDiasCortesiaRequest(BaseModel):
+    """Payload para adicionar dias de cortesia/extensão de trial ao tenant."""
+    dias: int = Field(..., ge=1, le=365)
+
+
+class TrocarPlanoTenantRequest(BaseModel):
+    """Payload para troca administrativa de plano de um tenant."""
+    plano_id: UUID
+
+
+@router.patch(
+    "/{tenant_id}/add-dias",
+    summary="Adicionar dias de cortesia / estender trial",
+    dependencies=[Depends(require_permission("backoffice:tenants:manage"))],
+)
+async def adicionar_dias_cortesia(
+    tenant_id: UUID,
+    request: AddDiasCortesiaRequest,
+    current_admin: dict = Depends(get_current_admin),
+):
+    """Estende o período de trial/vigência da assinatura e prorroga fatura em aberto."""
+    async with async_session_maker() as session:
+        tenant = await session.get(Tenant, tenant_id)
+        if not tenant:
+            raise HTTPException(status_code=404, detail="Tenant não encontrado")
+
+        assinatura = (
+            await session.execute(
+                select(AssinaturaTenant)
+                .where(
+                    AssinaturaTenant.tenant_id == tenant_id,
+                    AssinaturaTenant.tipo_assinatura == "TENANT",
+                )
+                .order_by(AssinaturaTenant.data_inicio.desc())
+                .limit(1)
+            )
+        ).scalar_one_or_none()
+        if not assinatura:
+            raise HTTPException(status_code=404, detail="Assinatura do tenant não encontrada")
+
+        agora = datetime.now(timezone.utc)
+        delta = timedelta(days=request.dias)
+
+        trial_atual = _as_utc(assinatura.trial_expires_at)
+        base_trial = trial_atual if trial_atual and trial_atual > agora else agora
+        if assinatura.status in ("TRIAL", "PENDENTE_PAGAMENTO", "SUSPENSA", "BLOQUEADA") or trial_atual is not None:
+            assinatura.trial_expires_at = base_trial + delta
+
+        renovacao_atual = _as_utc(assinatura.data_proxima_renovacao)
+        base_renovacao = renovacao_atual if renovacao_atual and renovacao_atual > agora else agora
+        assinatura.data_proxima_renovacao = base_renovacao + delta
+
+        if assinatura.status in ("SUSPENSA", "BLOQUEADA"):
+            assinatura.status = "TRIAL" if assinatura.trial_expires_at is not None else "ATIVA"
+            assinatura.data_bloqueio = None
+            tenant.ativo = True
+
+        faturas_abertas = (
+            await session.execute(
+                select(Fatura).where(
+                    Fatura.assinatura_id == assinatura.id,
+                    Fatura.status == "ABERTA",
+                )
+            )
+        ).scalars().all()
+        for fatura in faturas_abertas:
+            venc_atual = _as_utc(fatura.data_vencimento)
+            base_venc = venc_atual if venc_atual and venc_atual > agora else agora
+            fatura.data_vencimento = base_venc + delta
+
+        await session.commit()
+        logger.info(
+            f"Cortesia de {request.dias} dias aplicada ao tenant {tenant_id} "
+            f"por admin {current_admin.get('admin_id', current_admin.get('sub', 'unknown'))}"
+        )
+        return {
+            "tenant_id": str(tenant_id),
+            "dias_adicionados": request.dias,
+            "status": assinatura.status,
+            "trial_expires_at": assinatura.trial_expires_at,
+            "data_proxima_renovacao": assinatura.data_proxima_renovacao,
+        }
+
+
+@router.patch(
+    "/{tenant_id}/trocar-plano",
+    summary="Trocar plano do tenant administrativamente",
+    dependencies=[Depends(require_permission("backoffice:tenants:manage"))],
+)
+async def trocar_plano_tenant(
+    tenant_id: UUID,
+    request: TrocarPlanoTenantRequest,
+    current_admin: dict = Depends(get_current_admin),
+):
+    """Altera o plano da assinatura do tenant pelo backoffice (inclusive para plano gratuito/isento)."""
+    async with async_session_maker() as session:
+        tenant = await session.get(Tenant, tenant_id)
+        if not tenant:
+            raise HTTPException(status_code=404, detail="Tenant não encontrado")
+
+        plano = await session.get(PlanoAssinatura, request.plano_id)
+        if not plano or not plano.ativo:
+            raise HTTPException(status_code=404, detail="Plano indisponível ou inativo")
+
+        assinatura = (
+            await session.execute(
+                select(AssinaturaTenant)
+                .where(
+                    AssinaturaTenant.tenant_id == tenant_id,
+                    AssinaturaTenant.tipo_assinatura == "TENANT",
+                )
+                .order_by(AssinaturaTenant.data_inicio.desc())
+                .limit(1)
+            )
+        ).scalar_one_or_none()
+        if not assinatura:
+            raise HTTPException(status_code=404, detail="Assinatura do tenant não encontrada")
+
+        assinatura.plano_id = plano.id
+        assinatura.usuarios_contratados = max(assinatura.usuarios_contratados or 1, plano.limite_usuarios_minimo or 1)
+
+        faturas_abertas = (
+            await session.execute(
+                select(Fatura).where(
+                    Fatura.assinatura_id == assinatura.id,
+                    Fatura.status == "ABERTA",
+                )
+            )
+        ).scalars().all()
+
+        if plano.is_free:
+            assinatura.status = "ATIVA"
+            assinatura.trial_expires_at = None
+            assinatura.data_bloqueio = None
+            tenant.ativo = True
+            for fatura in faturas_abertas:
+                fatura.status = "CANCELADA"
+        elif assinatura.status in ("TRIAL", "PENDENTE_PAGAMENTO"):
+            preco_novo = Decimal(str(plano.preco_anual if assinatura.ciclo_pagamento == "ANUAL" else plano.preco_mensal or 0))
+            for fatura in faturas_abertas:
+                fatura.valor = preco_novo
+
+        await session.commit()
+        logger.info(
+            f"Plano do tenant {tenant_id} alterado para {plano.nome} "
+            f"por admin {current_admin.get('admin_id', current_admin.get('sub', 'unknown'))}"
+        )
+        return {
+            "tenant_id": str(tenant_id),
+            "plano_id": str(plano.id),
+            "plano_nome": plano.nome,
+            "status": assinatura.status,
+        }

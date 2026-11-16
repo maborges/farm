@@ -616,6 +616,14 @@ async def request_upgrade(
         except Exception as exc:
             logger.error(f"Erro ao gerar checkout Stripe no upgrade {mudanca.id}: {exc}")
 
+    if mudanca.status == "aplicado":
+        return {
+            "message": f"Plano atualizado para {plan.nome} no período de trial!",
+            "instructions": "Os novos limites já estão liberados sem cobrança imediata durante o período de testes.",
+            "url_pagamento": None,
+            "mudanca_id": str(mudanca.id),
+        }
+
     return {
         "message": f"Solicitação de upgrade para {plan.nome} registrada!",
         "instructions": (

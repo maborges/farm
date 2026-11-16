@@ -162,7 +162,8 @@ class AreaRuralService(BaseService[AreaRural]):
         )
         up_row = (await self.session.execute(up_stmt)).first()
         if up_row:
-            area_propriedade = up_row[0] or up_row[1]
+            candidatos_area = [Decimal(str(v)) for v in up_row if v is not None and Decimal(str(v)) > 0]
+            area_propriedade = max(candidatos_area) if candidatos_area else None
             if area_propriedade is not None and float(area_propriedade) > 0:
                 soma_prop_stmt = select(
                     func.coalesce(

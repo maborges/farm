@@ -647,6 +647,8 @@ const columns = useMemo<ColumnDef<UnidadeProdutiva>[]>(() => [
 ], []);
 
 const totalArea = fazendasDisponiveis.reduce((acc, f) => acc + toAreaNumber(f.area_total_ha), 0);
+const totalAreaCalculada = fazendasDisponiveis.reduce((acc, f) => acc + toAreaNumber(f.area_total_calculada_ha), 0);
+const areaGeometriaExibida = totalAreaCalculada > 0 ? totalAreaCalculada : areaCalculada;
 const totalAreaReal = fazendasDisponiveis.reduce((acc, f) => {
     const total = toAreaNumber(f.area_total_ha);
     const app = toAreaNumber(f.area_app_ha);
@@ -706,27 +708,33 @@ return (
             />
             <PropertyMetricCard
                 icon={Layers}
-                label="Área calculada pela geometria"
-                value={`${areaCalculada.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} ha`}
-                subtitle={`Var. ${((areaCalculada / (totalArea || 1) - 1) * 100).toFixed(1)}% vs informada`}
+                label="Área geométrica (polígono)"
+                value={`${areaGeometriaExibida.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} ha`}
+                subtitle={`Var. ${((areaGeometriaExibida / (totalArea || 1) - 1) * 100).toFixed(1)}% vs informada`}
             />
         </div>
 
         {limiteHectaresInfo && limiteHectaresInfo.limite !== null && (
             <PlanUsageBanner
-                label="ha contratados no pacote"
+                label="ha equivalentes em operação (talhões/cultivos) no limite do pacote"
                 atual={limiteHectaresInfo.atual}
                 limite={limiteHectaresInfo.limite}
                 atingido={limiteHectaresInfo.atingido}
+                hint="Considera a área produtiva em uso nos talhões (APP/RL isentas). A inclusão ou edição de áreas respeita o limite total do pacote."
             />
         )}
 
         {limiteInfo && (
             <PlanUsageBanner
-                label="unidade(s) produtiva(s)"
+                label="unidade(s) produtiva(s) cadastrada(s) (cota de fazendas do plano)"
                 atual={limiteInfo.atual}
                 limite={limiteInfo.limite}
                 atingido={limiteInfo.atingido}
+                hint={
+                    limiteInfo.atingido
+                        ? "As unidades já cadastradas permanecem ativas. Faça upgrade apenas se precisar incluir uma nova unidade."
+                        : undefined
+                }
             />
         )}
 
@@ -1417,8 +1425,8 @@ function PropriedadeDialog({
                 if (!value) setGeoDialogOpen(false);
                 onOpenChange(value);
             }}>
-                <DialogContent className="max-h-[calc(100vh-2rem)] w-[calc(100vw-2rem)] max-w-5xl rounded-sm p-0">
-                    <DialogHeader>
+                <DialogContent className="flex max-h-[calc(100vh-2rem)] w-[calc(100vw-2rem)] max-w-5xl flex-col gap-0 overflow-hidden rounded-sm p-0">
+                    <DialogHeader className="shrink-0">
                         <div className="flex items-center gap-2 px-5 pt-5">
                             <Landmark className="size-5 text-primary" />
                             <DialogTitle>{isEdit ? "Editar Unidade Produtiva" : "Nova Unidade Produtiva"}</DialogTitle>
@@ -1430,8 +1438,9 @@ function PropriedadeDialog({
                         </DialogDescription>
                     </DialogHeader>
 
-                    <form onSubmit={handleSubmit(handleFormSubmit, onInvalidSubmit)} className="flex min-h-0 flex-1 flex-col">
-                        <div className="grid min-h-0 flex-1 gap-4 overflow-y-auto px-5 pb-5 lg:grid-cols-2">
+                    <form onSubmit={handleSubmit(handleFormSubmit, onInvalidSubmit)} className="flex min-h-0 flex-1 flex-col overflow-hidden">
+                        <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-5">
+                            <div className="grid gap-4 lg:grid-cols-2">
                             {(Object.keys(errors).length > 0 || coordinateErrors.lat || coordinateErrors.lng) && (
                                 <Alert variant="destructive" className="rounded-sm lg:col-span-2">
                                     <AlertTriangle className="size-4" />
@@ -1835,9 +1844,10 @@ function PropriedadeDialog({
                                     </p>
                                 </div>
                             )}
+                            </div>
                         </div>
 
-                        <DialogFooter className="border-t px-5 py-3">
+                        <DialogFooter className="shrink-0 border-t px-5 py-3">
                             <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={isPending} className="rounded-sm" size="sm">
                                 Cancelar
                             </Button>

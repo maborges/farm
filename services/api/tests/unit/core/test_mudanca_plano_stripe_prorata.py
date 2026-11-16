@@ -191,3 +191,180 @@ async def test_gerar_checkout_stripe_prorata_e_webhook_aplica_mudanca(stripe_pro
         assert mudanca_atualizada.status == "aplicado"
         assert assinatura_atualizada.plano_id == plano_destino_id
         assert assinatura_atualizada.usuarios_contratados == 2
+
+
+@pytest.mark.asyncio
+async def test_upgrade_durante_trial_aplica_imediatamente_sem_cobrar(stripe_prorata_session):
+    """Durante período TRIAL (sem stripe_subscription_id), upgrade aplica na hora sem redirecionar para pagamento."""
+    tenant_id = uuid.uuid4()
+    user_id = uuid.uuid4()
+    plano_origem_id = uuid.uuid4()
+    plano_destino_id = uuid.uuid4()
+    assinatura_id = uuid.uuid4()
+    fatura_id = uuid.uuid4()
+
+    async with stripe_prorata_session() as db:
+        db.add(Tenant(id=tenant_id, nome="Fazenda Trial", email_responsavel="trial@fazenda.com", ativo=True))
+        db.add(Usuario(id=user_id, email="trial@fazenda.com", username="trial_user", ativo=True))
+        db.add(
+            PlanoAssinatura(
+                id=plano_origem_id,
+                nome="Pequeno Produtor",
+                plan_tier="BASICO",
+                preco_mensal=197.0,
+                preco_anual=1891.0,
+                limite_usuarios_minimo=1,
+                limite_usuarios_maximo=5,
+                ativo=True,
+            )
+        )
+        db.add(
+            PlanoAssinatura(
+                id=plano_destino_id,
+                nome="Médio Produtor",
+                plan_tier="PROFISSIONAL",
+                preco_mensal=497.0,
+                preco_anual=4771.0,
+                limite_usuarios_minimo=1,
+                limite_usuarios_maximo=10,
+                ativo=True,
+            )
+        )
+        db.add(
+            AssinaturaTenant(
+                id=assinatura_id,
+                tenant_id=tenant_id,
+                plano_id=plano_origem_id,
+                tipo_assinatura="TENANT",
+                status="TRIAL",
+                ciclo_pagamento="MENSAL",
+                usuarios_contratados=1,
+                stripe_subscription_id=None,
+                data_inicio=datetime.now(timezone.utc),
+                data_proxima_renovacao=datetime.now(timezone.utc) + timedelta(days=14),
+            )
+        )
+        db.add(
+            Fatura(
+                id=fatura_id,
+                tenant_id=tenant_id,
+                assinatura_id=assinatura_id,
+                valor=Decimal("197.00"),
+                data_vencimento=datetime.now(timezone.utc) + timedelta(days=14),
+                status="ABERTA",
+            )
+        )
+        await db.commit()
+
+        svc = MudancaPlanoService(db, tenant_id)
+        with patch.object(svc, "_validar_compatibilidade_hectares_destino", return_value=Decimal("0.00")):
+            mudanca = await svc.solicitar_mudanca(
+                plano_destino_id=plano_destino_id,
+                usuarios_destino=1,
+                usuario_solicitante_id=user_id,
+                assinatura_id=assinatura_id,
+            )
+
+        assert mudanca.status == "aplicado"
+        assert mudanca.valor_proporcional == Decimal("0.00")
+        assert mudanca.url_pagamento is None
+
+        assinatura_atualizada = await db.get(AssinaturaTenant, assinatura_id)
+        fatura_atualizada = await db.get(Fatura, fatura_id)
+        assert assinatura_atualizada.plano_id == plano_destino_id
+        assert fatura_atualizada.valor == Decimal("497.00")
+
+
+@pytest.mark.asyncio
+async def test_backoffice_add_dias_e_trocar_plano_gratuito(stripe_prorata_session):
+    """Valida extensão de dias de cortesia/trial e troca para plano gratuito sem cobrança."""
+    from core.routers import backoffice_tenants
+
+    tenant_id = uuid.uuid4()
+    plano_pago_id = uuid.uuid4()
+    plano_free_id = uuid.uuid4()
+    assinatura_id = uuid.uuid4()
+    fatura_id = uuid.uuid4()
+    agora = datetime.now(timezone.utc)
+
+    async with stripe_prorata_session() as db:
+        db.add(Tenant(id=tenant_id, nome="Fazenda Demo", email_responsavel="demo@fazenda.com", ativo=True))
+        db.add(
+            PlanoAssinatura(
+                id=plano_pago_id,
+                nome="Pequeno Produtor",
+                plan_tier="BASICO",
+                preco_mensal=197.0,
+                preco_anual=1891.0,
+                limite_usuarios_minimo=1,
+                limite_usuarios_maximo=5,
+                ativo=True,
+            )
+        )
+        db.add(
+            PlanoAssinatura(
+                id=plano_free_id,
+                nome="Cortesia / Demo",
+                plan_tier="ENTERPRISE",
+                preco_mensal=0.0,
+                preco_anual=0.0,
+                is_free=True,
+                limite_usuarios_minimo=1,
+                limite_usuarios_maximo=50,
+                ativo=True,
+            )
+        )
+        db.add(
+            AssinaturaTenant(
+                id=assinatura_id,
+                tenant_id=tenant_id,
+                plano_id=plano_pago_id,
+                tipo_assinatura="TENANT",
+                status="TRIAL",
+                ciclo_pagamento="MENSAL",
+                usuarios_contratados=1,
+                trial_expires_at=agora + timedelta(days=5),
+                data_inicio=agora - timedelta(days=9),
+                data_proxima_renovacao=agora + timedelta(days=5),
+            )
+        )
+        db.add(
+            Fatura(
+                id=fatura_id,
+                tenant_id=tenant_id,
+                assinatura_id=assinatura_id,
+                valor=Decimal("197.00"),
+                data_vencimento=agora + timedelta(days=5),
+                status="ABERTA",
+            )
+        )
+        await db.commit()
+
+    admin_mock = {"admin_id": str(uuid.uuid4()), "sub": "admin@deepfarms.com"}
+    with patch.object(backoffice_tenants, "async_session_maker", stripe_prorata_session):
+        resp_dias = await backoffice_tenants.adicionar_dias_cortesia(
+            tenant_id=tenant_id,
+            request=backoffice_tenants.AddDiasCortesiaRequest(dias=30),
+            current_admin=admin_mock,
+        )
+        assert resp_dias["dias_adicionados"] == 30
+
+        async with stripe_prorata_session() as db:
+            ass = await db.get(AssinaturaTenant, assinatura_id)
+            fat = await db.get(Fatura, fatura_id)
+            assert ass.trial_expires_at.replace(tzinfo=timezone.utc) > agora + timedelta(days=33)
+            assert fat.data_vencimento.replace(tzinfo=timezone.utc) > agora + timedelta(days=33)
+
+        resp_plano = await backoffice_tenants.trocar_plano_tenant(
+            tenant_id=tenant_id,
+            request=backoffice_tenants.TrocarPlanoTenantRequest(plano_id=plano_free_id),
+            current_admin=admin_mock,
+        )
+        assert resp_plano["status"] == "ATIVA"
+
+        async with stripe_prorata_session() as db:
+            ass = await db.get(AssinaturaTenant, assinatura_id)
+            fat = await db.get(Fatura, fatura_id)
+            assert ass.plano_id == plano_free_id
+            assert ass.status == "ATIVA"
+            assert fat.status == "CANCELADA"

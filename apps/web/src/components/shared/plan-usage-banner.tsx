@@ -11,10 +11,11 @@ interface PlanUsageBannerProps {
     atual: number;
     limite: number | null;
     atingido: boolean;
+    hint?: string;
     className?: string;
 }
 
-export function PlanUsageBanner({ label, atual, limite, atingido, className }: PlanUsageBannerProps) {
+export function PlanUsageBanner({ label, atual, limite, atingido, hint, className }: PlanUsageBannerProps) {
     const ilimitado = limite === null || limite === -1;
     const pct = ilimitado ? 0 : Math.round((atual / limite!) * 100);
     const alerta = !ilimitado && pct >= 80 && !atingido;
@@ -44,6 +45,9 @@ export function PlanUsageBanner({ label, atual, limite, atingido, className }: P
                         value={pct}
                         className={cn("h-1.5 mt-1", atingido && "[&>div]:bg-destructive", alerta && "[&>div]:bg-amber-500")}
                     />
+                )}
+                {hint && (
+                    <p className="text-xs opacity-80 mt-1">{hint}</p>
                 )}
             </div>
 

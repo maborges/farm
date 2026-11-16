@@ -96,7 +96,7 @@ class MudancaPlanoService(BaseService[MudancaPlano]):
         dias_restantes = 0
         valor_proporcional = Decimal("0.00")
 
-        if tipo_mudanca.startswith("UPGRADE") and diferenca_composta > 0:
+        if tipo_mudanca.startswith("UPGRADE") and diferenca_composta > 0 and assinatura.status != "TRIAL":
             if assinatura.data_proxima_renovacao:
                 dias_restantes = (assinatura.data_proxima_renovacao.date() - datetime.now(timezone.utc).date()).days
 
@@ -237,7 +237,14 @@ class MudancaPlanoService(BaseService[MudancaPlano]):
             )
             fatura_aberta = (await self.session.execute(fatura_aberta_stmt)).scalar_one_or_none()
 
-            if fatura_aberta and assinatura.status in ("TRIAL", "PENDENTE_PAGAMENTO"):
+            if assinatura.status == "TRIAL" and not assinatura.stripe_subscription_id:
+                if fatura_aberta:
+                    fatura_aberta.valor = valor_novo_total
+                assinatura.plano_id = plano_destino_id
+                assinatura.usuarios_contratados = usuarios_destino
+                mudanca.status = "aplicado"
+                mudanca.aplicado_em = datetime.now(timezone.utc)
+            elif fatura_aberta and assinatura.status == "PENDENTE_PAGAMENTO":
                 fatura_aberta.valor = valor_novo_total
             else:
                 valor_fatura_complementar = valor_proporcional if valor_proporcional > 0 else valor_diferenca

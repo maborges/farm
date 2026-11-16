@@ -1117,7 +1117,7 @@ export function PropriedadeDetalheClient({ propriedadeId }: { propriedadeId: str
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
               {[
                 { label: "Área Total Informada", value: areaTotalInformada > 0 ? `${areaTotalInformada.toFixed(1)} ha` : "—", icon: <Ruler className="size-5 text-primary" />, bg: "bg-primary/10" },
-                { label: "Área Total Calculada", value: areaTotalCalculada > 0 ? `${areaTotalCalculada.toFixed(1)} ha` : "—", icon: <MapIcon className="size-5 text-emerald-600" />, bg: "bg-emerald-100" },
+                { label: "Área Geométrica (Polígono)", value: areaTotalCalculada > 0 ? `${areaTotalCalculada.toFixed(1)} ha` : "—", icon: <MapIcon className="size-5 text-emerald-600" />, bg: "bg-emerald-100" },
                 { label: "Glebas", value: allAreas.filter((a) => a.tipo === "GLEBA").length, icon: <Layers className="size-5 text-emerald-600" />, bg: "bg-emerald-100" },
                 { label: "Talhões", value: allAreas.filter((a) => a.tipo === "TALHAO").length, icon: <Sprout className="size-5 text-teal-600" />, bg: "bg-teal-100" },
                 { label: "Infraestruturas", value: allAreas.filter((a) => ["INFRAESTRUTURA", "SEDE", "ARMAZEM", "CURRAL", "OUTROS"].includes(a.tipo)).length, icon: <Building2 className="size-5 text-blue-600" />, bg: "bg-blue-100" },
