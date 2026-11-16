@@ -21,21 +21,52 @@ class OnboardingService:
         self.session = session
         self.auth_svc = auth_service # pass AuthService instance to hash pass
 
+    async def _criar_perfil_owner_padrao(self, perfil_id: uuid.UUID) -> PerfilAcesso:
+        """Cria e persiste o perfil global 'Owner' padrão no banco.
+
+        Args:
+            perfil_id: Identificador UUID reservado para o perfil global.
+
+        Returns:
+            PerfilAcesso: Registro criado e persistido no banco.
+        """
+        existente = await self.session.get(PerfilAcesso, perfil_id)
+        if existente:
+            return existente
+        logger.warning("Perfil padrão 'Owner' ausente. Auto-provisionando perfil do sistema.")
+        perfil = PerfilAcesso(
+            id=perfil_id,
+            tenant_id=None,
+            nome="Owner",
+            is_custom=False,
+            permissoes={"*": "*"},
+            descricao="Acesso total ao tenant",
+        )
+        self.session.add(perfil)
+        await self.session.flush()
+        return perfil
+
     async def _get_perfil_owner_sistema(self) -> PerfilAcesso:
-        """Retorna o perfil 'owner' padrão do sistema (tenant_id=NULL)."""
+        """Busca o perfil global 'Owner' do sistema, auto-provisionando se ausente.
+
+        Returns:
+            PerfilAcesso: Registro do perfil global do sistema.
+        """
+        from sqlalchemy import func, or_
         from core.constants import TenantRoles
+
+        id_padrao = uuid.UUID("671656ad-1e32-4244-a2d8-0e4dbbddd072")
         stmt = select(PerfilAcesso).where(
             PerfilAcesso.tenant_id.is_(None),
-            PerfilAcesso.is_custom == False,
-            PerfilAcesso.nome == TenantRoles.OWNER,
+            or_(
+                PerfilAcesso.id == id_padrao,
+                func.lower(PerfilAcesso.nome).in_(["owner", "proprietario", TenantRoles.OWNER.lower()]),
+            ),
         )
         perfil = (await self.session.execute(stmt)).scalars().first()
-        if not perfil:
-            raise HTTPException(
-                status_code=500,
-                detail="Perfil padrão 'owner' não encontrado. Execute: python scripts/initial_load/seed_perfis.py"
-            )
-        return perfil
+        if perfil:
+            return perfil
+        return await self._criar_perfil_owner_padrao(id_padrao)
 
     async def register_new_tenant(self, data: AssinanteRegisterRequest) -> Usuario:
         """

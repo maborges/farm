@@ -554,6 +554,13 @@ Detalhamento de cada feature, decisões e histórico de implementação: `docs/C
   6. Pela barra de ferramentas, o usuário pode alternar entre a visão de **Cards** e a visão de **Tabela** (`DataTable`), mantendo paridade 1:1 na quantidade de talhões exibidos e filtros sincronizados. Na visão de tabela, o usuário pode visualizar a situação atual de cada talhão (com atalho para registrar e modal de histórico) ou alternar para o histórico completo de observações com exportação para PDF e Excel conforme as diretrizes do sistema.
   7. A aba **Grupos de Talhões** e o registro em lote por grupo agora estão totalmente integrados à API da safra.
 
+### Auto-Provisionamento Resiliente do Perfil Owner no Onboarding
+- **Descrição curta:** Eliminação do erro 500 no cadastro de novos assinantes por incompatibilidade de case ("owner" vs "Owner") ou ausência prévia da carga inicial de perfis, implementando busca tolerante e provisionamento automático do perfil global do sistema.
+- **Fluxo de funcionamento:**
+  1. Durante a criação de uma nova conta no DeepFarms (`register_new_tenant`), o sistema busca o perfil global do proprietário utilizando tanto o ID canônico de implantação quanto busca case-insensitive por `Owner`, `owner` ou `proprietario`.
+  2. Caso o banco de dados não possua o perfil cadastrado (ex.: implantação recente ou banco sem execução prévia de scripts manuais), o `OnboardingService` auto-provisiona o perfil global `Owner` com permissões completas de forma transparente e idempotente.
+  3. O script `seed_perfis.py` foi atualizado para ser não-destrutivo e tolerante a perfis pré-existentes, atualizando permissões e descrições sem disparar exceções de conflito.
+
 ## Conceitos-Chave: Propriedade, Talhão e Unidade Produtiva
 
 

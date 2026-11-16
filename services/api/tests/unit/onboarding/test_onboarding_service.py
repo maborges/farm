@@ -3,10 +3,9 @@ from __future__ import annotations
 import uuid
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.constants import TenantRoles
 from core.models.auth import PerfilAcesso, TenantUsuario
 from core.models.billing import AssinaturaTenant, PlanoAssinatura
 from core.models.tenant import Tenant
@@ -48,12 +47,10 @@ async def test_register_new_tenant_cria_usuario_tenant_e_assinatura(
         await session.execute(
             select(PerfilAcesso).where(
                 PerfilAcesso.tenant_id.is_(None),
-                PerfilAcesso.is_custom == False,
-                PerfilAcesso.nome == TenantRoles.OWNER,
+                func.lower(PerfilAcesso.nome) == "owner",
             )
         )
     ).scalars().first()
-    assert perfil_owner is not None
 
     auth_svc = AuthService(session)
     onboard_svc = OnboardingService(session, auth_svc)
@@ -94,6 +91,16 @@ async def test_register_new_tenant_cria_usuario_tenant_e_assinatura(
         )
     )
     assert tenant_usuario is not None
+    if perfil_owner is None:
+        perfil_owner = (
+            await session.execute(
+                select(PerfilAcesso).where(
+                    PerfilAcesso.tenant_id.is_(None),
+                    func.lower(PerfilAcesso.nome) == "owner",
+                )
+            )
+        ).scalars().first()
+    assert perfil_owner is not None
     assert tenant_usuario.is_owner is True
     assert tenant_usuario.perfil_id == perfil_owner.id
 

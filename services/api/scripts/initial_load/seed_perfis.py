@@ -12,7 +12,7 @@ for import_root in (SCRIPTS_DIR, API_ROOT):
     if import_root not in sys.path:
         sys.path.insert(0, import_root)
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from core.database import async_session_maker
 from core.models.auth import PerfilAcesso
@@ -71,17 +71,20 @@ async def seed_perfis() -> None:
         for perfil_data in PERFIS_PADRAO:
             perfil = await session.get(PerfilAcesso, perfil_data["id"])
             if perfil is None:
-                conflito = await session.scalar(
-                    select(PerfilAcesso.id).where(
+                perfil_existente = (await session.execute(
+                    select(PerfilAcesso).where(
                         PerfilAcesso.tenant_id.is_(None),
-                        PerfilAcesso.nome == perfil_data["nome"],
+                        func.lower(PerfilAcesso.nome) == perfil_data["nome"].lower(),
                     )
-                )
-                if conflito is not None:
-                    raise ValueError(
-                        "Já existe perfil global com o nome "
-                        f"{perfil_data['nome']!r} e ID diferente do contrato de implantação."
-                    )
+                )).scalars().first()
+                if perfil_existente is not None:
+                    perfil_existente.nome = perfil_data["nome"]
+                    perfil_existente.is_custom = False
+                    perfil_existente.permissoes = perfil_data["permissoes"]
+                    perfil_existente.descricao = perfil_data["descricao"]
+                    atualizados += 1
+                    continue
+
                 perfil = PerfilAcesso(
                     id=perfil_data["id"],
                     tenant_id=None,

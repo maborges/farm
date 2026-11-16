@@ -90,6 +90,8 @@ async def _ensure_global_mock_data(conn) -> None:
     await conn.execute(text("INSERT INTO usuarios (id, email, username, senha_hash, ativo, is_superuser, created_at, updated_at) VALUES ('eeeeeeee-0000-0000-0000-000000000005', 'admin@teste.com', 'admin_teste', 'xyz', true, true, now(), now()) ON CONFLICT DO NOTHING"))
     # Insere pessoa para o usuario
     await conn.execute(text("INSERT INTO cadastros_pessoas (id, tenant_id, tipo, nome_exibicao, base_legal, ativo, tags, dados_extras, created_at, updated_at) VALUES ('eeeeeeee-0000-0000-0000-000000000005', 'aaaaaaaa-0000-0000-0000-000000000001', 'PF', 'Admin Teste', 'LEGITIMO_INTERESSE', true, '[]'::jsonb, '{}'::jsonb, now(), now()) ON CONFLICT DO NOTHING"))
+    # Insere perfil global Owner se não existir
+    await conn.execute(text("INSERT INTO perfis_acesso (id, tenant_id, nome, descricao, is_custom, permissoes, created_at) VALUES ('671656ad-1e32-4244-a2d8-0e4dbbddd072', NULL, 'Owner', 'Acesso total ao tenant', false, '{\"*\": \"*\"}'::jsonb, now()) ON CONFLICT DO NOTHING"))
 
 
 @pytest.fixture
