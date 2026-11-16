@@ -291,6 +291,10 @@ class ChecklistEngine:
         *aliases: str,
     ) -> bool:
         scope = implantacao.escopo_modulos or {}
+        operational_keys = {"agricultura", "pecuaria", "estoque", "financeiro", "frota", "maquinas"}
+        has_explicit_modules = any(k in scope for k in operational_keys)
+        if not has_explicit_modules:
+            return any(alias in operational_keys for alias in aliases)
         for alias in aliases:
             value = scope.get(alias)
             if isinstance(value, dict) and value.get("enabled") is True:

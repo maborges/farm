@@ -615,3 +615,29 @@ async def test_checklist_erp_nao_adota_escopo_unidade_produtiva() -> None:
     assert "IntegrationScope.TENANT.value" in source
     assert "IntegrationScope.ESTABELECIMENTO.value" in source
     assert "unidade_produtiva_id" not in source
+
+
+async def test_escopo_apenas_com_flags_erp_avalia_modulos_operacionais_em_vez_de_dispensar() -> None:
+    session = _make_session()
+    engine = ChecklistEngine(session)
+    implantacao = _make_implantacao(
+        escopo_modulos={"utiliza_erp": False, "configurar_erp_depois": False}
+    )
+    item_talhao = _make_item("CHECK_AGRICULTURA_TALHAO")
+    item_deposito = _make_item("CHECK_ESTOQUE_DEPOSITO")
+
+    engine._find_area_by_tipo = AsyncMock(return_value=None)  # type: ignore[method-assign]
+    engine._find_deposito = AsyncMock(return_value=None)  # type: ignore[method-assign]
+    engine.implantacao_service.pendencia_service.buscar_pendencia_aberta_por_titulo = (
+        AsyncMock(return_value=None)
+    )
+    engine.implantacao_service.pendencia_service.criar_ou_manter_pendencia = AsyncMock(
+        return_value=(MagicMock(), True)
+    )
+    engine.implantacao_service.historico_service.registrar = AsyncMock()
+
+    res_talhao = await engine.avaliar_item(implantacao, item_talhao)
+    res_deposito = await engine.avaliar_item(implantacao, item_deposito)
+
+    assert res_talhao.status == ChecklistItemStatus.FALHOU.value
+    assert res_deposito.status == ChecklistItemStatus.PENDENTE.value

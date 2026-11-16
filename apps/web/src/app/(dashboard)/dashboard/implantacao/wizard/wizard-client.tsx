@@ -535,6 +535,11 @@ export function WizardClient() {
 
   const buildCargaPayload = (strategy: LoadStrategy, erpId: number | null, erpSlug: string | null, erpName: string | null) => {
     const intent = {
+      agricultura: true,
+      pecuaria: true,
+      estoque: true,
+      financeiro: true,
+      frota: true,
       utiliza_erp: strategy === "ERP",
       configurar_erp_depois: strategy === "LATER",
       marketplace_integracao_id: strategy === "ERP" ? erpId : null,
