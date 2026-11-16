@@ -344,11 +344,49 @@ async def create_invoice_stripe_checkout(
         raise HTTPException(status_code=404, detail="Assinatura vinculada não encontrada.")
 
     from core.constants import ModuloMetadata, carregar_overrides_catalogo_modulos
+    from core.models.plan_changes import MudancaPlano
+
+    mudanca_pendente = (
+        await session.execute(
+            select(MudancaPlano)
+            .where(
+                MudancaPlano.assinatura_id == assinatura.id,
+                MudancaPlano.status == "pendente_pagamento",
+            )
+            .order_by(MudancaPlano.created_at.desc())
+            .limit(1)
+        )
+    ).scalar_one_or_none()
+
+    stripe_svc = StripeService()
+    email_checkout = tenant.email_responsavel or "financeiro@deepfarms.com.br"
+
+    if mudanca_pendente and assinatura.stripe_subscription_id:
+        plano_destino = await session.get(PlanoAssinatura, mudanca_pendente.plano_destino_id)
+        try:
+            checkout_url = await stripe_svc.criar_checkout_mudanca_prorata(
+                tenant_id=str(tenant.id),
+                assinatura_id=str(assinatura.id),
+                mudanca_plano_id=str(mudanca_pendente.id),
+                plano_destino_id=str(mudanca_pendente.plano_destino_id),
+                nome_plano_destino=plano_destino.nome if plano_destino else "DeepFarms",
+                valor_reais=float(fatura.valor or mudanca_pendente.valor_proporcional or 0),
+                email=email_checkout,
+                fatura_id=str(fatura.id),
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        return {"checkout_url": checkout_url}
 
     overrides = await carregar_overrides_catalogo_modulos(session)
-    plano = await session.get(PlanoAssinatura, assinatura.plano_id)
+    plano_id_checkout = mudanca_pendente.plano_destino_id if mudanca_pendente else assinatura.plano_id
+    plano = await session.get(PlanoAssinatura, plano_id_checkout)
     ciclo = getattr(assinatura, "ciclo_pagamento", "MENSAL") or "MENSAL"
-    qtd_usuarios = assinatura.usuarios_contratados or (plano.limite_usuarios_minimo if plano else 1) or 1
+    qtd_usuarios = (
+        mudanca_pendente.usuarios_destino
+        if mudanca_pendente
+        else assinatura.usuarios_contratados or (plano.limite_usuarios_minimo if plano else 1) or 1
+    )
     extensoes_contratadas = [
         ext
         for ext in list((tenant.branding or {}).get("extensoes_contratadas") or [])
@@ -367,13 +405,12 @@ async def create_invoice_stripe_checkout(
         except Exception:
             detalhamento_preco = None
 
-    stripe_svc = StripeService()
     try:
         checkout_url = await stripe_svc.criar_checkout_assinatura(
             tenant_id=str(tenant.id),
             assinatura_id=str(assinatura.id),
-            email=tenant.email_responsavel or "financeiro@deepfarms.com.br",
-            plano_id=str(assinatura.plano_id),
+            email=email_checkout,
+            plano_id=str(plano_id_checkout),
             ciclo=ciclo,
             detalhamento_preco=detalhamento_preco,
             nome_plano=plano.nome if plano else "DeepFarms",
@@ -520,33 +557,74 @@ async def simular_orcamento_publico(
 @router.post("/upgrade")
 async def request_upgrade(
     plan_id: uuid.UUID = Body(..., embed=True),
+    claims: dict = Depends(get_current_user_claims),
     tenant: Tenant = Depends(get_current_tenant),
     session: AsyncSession = Depends(get_session)
 ):
     """
-    Solicita upgrade para um novo plano.
-    Gera um chamado de suporte interno e uma fatura pendente (simulado).
+    Solicita upgrade para um novo plano, calculando pro-rata e gerando checkout Stripe.
     """
+    from core.exceptions import BusinessRuleError, EntityNotFoundError
+    from core.services.mudanca_plano_service import MudancaPlanoService
+
     plan = await session.get(PlanoAssinatura, plan_id)
     if not plan or not plan.ativo:
         raise HTTPException(
             status_code=404,
             detail="Plano indisponível ou inativo. Se necessário, escolha outro plano ou contate o suporte.",
         )
-        
-    # Verifica se já está nesse plano
-    stmt = select(AssinaturaTenant).where(AssinaturaTenant.tenant_id == tenant.id)
-    result = await session.execute(stmt)
-    assinatura = result.scalar_one_or_none()
-    
-    if assinatura and assinatura.plano_id == plan_id:
+
+    stmt = (
+        select(AssinaturaTenant)
+        .where(
+            AssinaturaTenant.tenant_id == tenant.id,
+            AssinaturaTenant.tipo_assinatura == "TENANT",
+        )
+        .order_by(AssinaturaTenant.data_inicio.desc())
+        .limit(1)
+    )
+    assinatura = (await session.execute(stmt)).scalar_one_or_none()
+    if not assinatura:
+        raise HTTPException(status_code=404, detail="Assinatura ativa não encontrada para este tenant.")
+    if assinatura.plano_id == plan_id:
         raise HTTPException(status_code=400, detail="Seu tenant já está nesse plano.")
 
-    # Em uma implementação real, integraríamos com Stripe ou geraria fatura.
-    # Aqui, vamos registrar a intenção e avisar o suporte.
+    raw_user_id = claims.get("sub") or claims.get("user_id")
+    usuario_id = uuid.UUID(str(raw_user_id)) if raw_user_id else tenant.id
+    usuarios_destino = max(assinatura.usuarios_contratados or 1, plan.limite_usuarios_minimo or 1)
+
+    mudanca_svc = MudancaPlanoService(session, tenant.id)
+    try:
+        mudanca = await mudanca_svc.solicitar_mudanca(
+            plano_destino_id=plan.id,
+            usuarios_destino=usuarios_destino,
+            usuario_solicitante_id=usuario_id,
+            assinatura_id=assinatura.id,
+        )
+    except EntityNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except BusinessRuleError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    url_pagamento: str | None = None
+    if mudanca.tipo_mudanca.startswith("UPGRADE") and mudanca.status == "pendente_pagamento":
+        try:
+            url_pagamento = await mudanca_svc.gerar_checkout_stripe(
+                mudanca,
+                email_responsavel=tenant.email_responsavel,
+            )
+        except Exception as exc:
+            logger.error(f"Erro ao gerar checkout Stripe no upgrade {mudanca.id}: {exc}")
+
     return {
-        "message": f"Solicitação de upgrade para {plan.nome} recebida!",
-        "instructions": "Nossa equipe entrará em contato em instantes para concluir a migração."
+        "message": f"Solicitação de upgrade para {plan.nome} registrada!",
+        "instructions": (
+            "Prossiga no checkout Stripe aberto para concluir o pagamento pro-rata e liberar o novo plano."
+            if url_pagamento
+            else "Solicitação registrada no financeiro."
+        ),
+        "url_pagamento": url_pagamento,
+        "mudanca_id": str(mudanca.id),
     }
 
 

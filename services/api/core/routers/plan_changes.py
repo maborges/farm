@@ -11,7 +11,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from core.dependencies import get_current_user, get_session, get_tenant_id, require_tenant_permission
 from core.models.auth import Usuario
 from core.services.mudanca_plano_service import MudancaPlanoService
-from core.services.asaas_service import AsaasService
 from core.schemas.plan_changes_schemas import (
     SimularMudancaPlanoRequest,
     SimularMudancaPlanoResponse,
@@ -99,7 +98,6 @@ async def solicitar_mudanca_plano(
     - Acesso ao plano atual mantido até a data agendada
     """
     mudanca_service = MudancaPlanoService(session, tenant_id)
-    asaas_service = AsaasService(session)
     user_id = current_user["user_id"] if isinstance(current_user, dict) else current_user.id
 
     try:
@@ -112,13 +110,12 @@ async def solicitar_mudanca_plano(
             ciclo_destino=request.ciclo_destino,
         )
 
-        # Se for upgrade, criar cobrança no Asaas
-        if mudanca.tipo_mudanca.startswith("UPGRADE") and mudanca.valor_proporcional > 0:
+        # Se for upgrade, gerar checkout no Stripe (pro-rata ou nova assinatura se em trial)
+        if mudanca.tipo_mudanca.startswith("UPGRADE") and mudanca.status == "pendente_pagamento":
             try:
-                cobranca = await asaas_service.criar_cobranca_mudanca_plano(mudanca)
-                logger.info(f"Cobrança Asaas criada: {cobranca.id} - Mudança {mudanca.id}")
+                await mudanca_service.gerar_checkout_stripe(mudanca)
             except Exception as e:
-                logger.error(f"Erro ao criar cobrança Asaas: {e}")
+                logger.error(f"Erro ao criar checkout Stripe para mudança {mudanca.id}: {e}")
 
         return mudanca
 

@@ -561,6 +561,13 @@ Detalhamento de cada feature, decisões e histórico de implementação: `docs/C
   2. Caso o banco de dados não possua o perfil cadastrado (ex.: implantação recente ou banco sem execução prévia de scripts manuais), o `OnboardingService` auto-provisiona o perfil global `Owner` com permissões completas de forma transparente e idempotente.
   3. O script `seed_perfis.py` foi atualizado para ser não-destrutivo e tolerante a perfis pré-existentes, atualizando permissões e descrições sem disparar exceções de conflito.
 
+### Mudança de Plano com Cobrança Pro-Rata via Stripe
+- **Descrição curta:** Integração completa do fluxo de upgrade de plano e adição de acessos simultâneos com cobrança pro-rata via Stripe Checkout, unificando `/billing/upgrade`, `/billing/mudancas-plano/solicitar`, pagamento de faturas em aberto e efetivação automática via webhook.
+- **Fluxo de funcionamento:**
+  1. Ao solicitar upgrade pela tela de faturamento (`/dashboard/settings/billing` → `POST /api/v1/billing/upgrade`) ou pelo modal de alteração de plano (`POST /api/v1/billing/mudancas-plano/solicitar`), o `MudancaPlanoService` calcula o valor proporcional (pro-rata) aos dias restantes do ciclo e registra `MudancaPlano` + `Fatura`.
+  2. Se a assinatura já possui `stripe_subscription_id`, o `StripeService` gera uma sessão avulsa (`mode="payment"`) pelo valor exato do pro-rata; se estiver em `TRIAL` ou `PENDENTE_PAGAMENTO`, gera a assinatura com o plano destino.
+  3. Ao confirmar o pagamento no webhook (`checkout.session.completed`), o backend quita a fatura complementar, aplica o novo plano/limites no tenant e sincroniza a assinatura recorrente no Stripe (`proration_behavior="none"`) para as próximas renovações.
+
 ## Conceitos-Chave: Propriedade, Talhão e Unidade Produtiva
 
 

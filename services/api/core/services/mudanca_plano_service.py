@@ -262,6 +262,77 @@ class MudancaPlanoService(BaseService[MudancaPlano]):
 
         return mudanca
 
+    async def gerar_checkout_stripe(
+        self,
+        mudanca: MudancaPlano,
+        email_responsavel: Optional[str] = None,
+    ) -> Optional[str]:
+        """Gera URL de Checkout Stripe para uma mudança de plano pendente de pagamento.
+
+        Args:
+            mudanca: Registro de MudancaPlano recém-criado ou pendente.
+            email_responsavel: E-mail opcional para pré-preencher o checkout.
+
+        Returns:
+            URL do checkout Stripe ou None se não houver valor a cobrar.
+        """
+        from core.models.tenant import Tenant
+        from core.services.stripe_service import StripeService
+
+        assinatura = await self._obter_assinatura(mudanca.assinatura_id)
+        plano_destino = await self._obter_plano(mudanca.plano_destino_id)
+        tenant = await self.session.get(Tenant, assinatura.tenant_id)
+        email = email_responsavel or (tenant.email_responsavel if tenant else None) or "financeiro@deepfarms.com.br"
+
+        fatura_aberta = (
+            await self.session.execute(
+                select(Fatura)
+                .where(Fatura.assinatura_id == assinatura.id, Fatura.status == "ABERTA")
+                .order_by(Fatura.created_at.desc())
+                .limit(1)
+            )
+        ).scalar_one_or_none()
+
+        stripe_svc = StripeService()
+        if assinatura.stripe_subscription_id:
+            valor_cobrar = fatura_aberta.valor if fatura_aberta else mudanca.valor_proporcional
+            if Decimal(str(valor_cobrar or 0)) <= 0:
+                return None
+            url = await stripe_svc.criar_checkout_mudanca_prorata(
+                tenant_id=str(assinatura.tenant_id),
+                assinatura_id=str(assinatura.id),
+                mudanca_plano_id=str(mudanca.id),
+                plano_destino_id=str(plano_destino.id),
+                nome_plano_destino=plano_destino.nome,
+                valor_reais=float(valor_cobrar),
+                email=email,
+                fatura_id=str(fatura_aberta.id) if fatura_aberta else None,
+            )
+        else:
+            ciclo = getattr(assinatura, "ciclo_pagamento", "MENSAL") or "MENSAL"
+            _, detalhamento = await self.pricing_service.calcular_preco_total(
+                plano_id=plano_destino.id,
+                quantidade_usuarios=mudanca.usuarios_destino,
+                ciclo=ciclo,
+            )
+            extensoes = list((tenant.branding or {}).get("extensoes_contratadas") or []) if tenant else []
+            url = await stripe_svc.criar_checkout_assinatura(
+                tenant_id=str(assinatura.tenant_id),
+                assinatura_id=str(assinatura.id),
+                email=email,
+                plano_id=str(plano_destino.id),
+                ciclo=ciclo,
+                detalhamento_preco=detalhamento,
+                nome_plano=plano_destino.nome,
+                usuarios_contratados=mudanca.usuarios_destino,
+                extensoes_contratadas=extensoes,
+            )
+
+        mudanca.url_pagamento = url
+        await self.session.commit()
+        await self.session.refresh(mudanca)
+        return url
+
     async def aprovar_manualmente(
         self,
         mudanca_id: UUID,

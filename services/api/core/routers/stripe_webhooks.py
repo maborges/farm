@@ -144,15 +144,79 @@ async def _convert_approved_lead(db, tenant_id: uuid.UUID) -> None:
         lead.data_conversao = datetime.now(timezone.utc).date()
 
 
+async def _handle_prorata_upgrade_checkout(session: dict) -> bool:
+    """Processa pagamento avulso (pro-rata) de upgrade de plano via Stripe Checkout."""
+    from core.models.plan_changes import MudancaPlano
+    from core.services.mudanca_plano_service import MudancaPlanoService
+
+    payment_status = session.get("payment_status")
+    if payment_status == "unpaid":
+        return False
+    if payment_status != "paid":
+        raise HTTPException(status_code=400, detail="Status de pagamento pro-rata inválido")
+
+    metadata = session.get("metadata") or {}
+    try:
+        tenant_id = uuid.UUID(str(metadata["tenant_id"]))
+        assinatura_id = uuid.UUID(str(metadata["assinatura_id"]))
+        mudanca_id = uuid.UUID(str(metadata["mudanca_plano_id"]))
+        fatura_id = uuid.UUID(str(metadata["fatura_id"])) if metadata.get("fatura_id") else None
+    except (KeyError, TypeError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail="Metadata pro-rata inválida no checkout") from exc
+
+    async with async_session_maker() as db:
+        try:
+            mudanca = await db.get(MudancaPlano, mudanca_id)
+            assinatura = await db.get(AssinaturaTenant, assinatura_id)
+            if not mudanca or not assinatura or mudanca.assinatura_id != assinatura.id or assinatura.tenant_id != tenant_id:
+                raise HTTPException(status_code=400, detail="Vínculo da mudança pro-rata inválido")
+
+            if mudanca.status == "aplicado":
+                return True
+
+            if fatura_id:
+                fatura = await db.get(Fatura, fatura_id)
+                if fatura and fatura.assinatura_id == assinatura.id and fatura.status == "ABERTA":
+                    fatura.status = "PAGA"
+                    fatura.data_aprovacao_rejeicao = datetime.now(timezone.utc)
+            else:
+                faturas = await _load_subscription_invoices(db, tenant_id, assinatura_id)
+                for fatura in faturas:
+                    if fatura.status == "ABERTA":
+                        fatura.status = "PAGA"
+                        fatura.data_aprovacao_rejeicao = datetime.now(timezone.utc)
+                        break
+
+            mudanca_svc = MudancaPlanoService(db, tenant_id)
+            await mudanca_svc._aplicar_mudanca(mudanca)
+            await db.commit()
+            logger.info(f"Upgrade pro-rata Stripe aplicado: mudança {mudanca.id}")
+            return True
+        except HTTPException:
+            await _rollback_webhook(db)
+            raise
+        except Exception as exc:
+            await _rollback_webhook(db)
+            logger.error(f"Falha persistindo upgrade pro-rata Stripe ({mudanca_id}): {exc}")
+            raise HTTPException(
+                status_code=500,
+                detail="Falha ao persistir pagamento pro-rata; o webhook deve ser repetido.",
+            ) from exc
+
+
 async def _handle_checkout_completed(session: dict) -> bool:
     """Activate a subscription only after paid checkout or an eligible trial/free flow."""
+    metadata = session.get("metadata") or {}
+    if session.get("mode") == "payment" and metadata.get("tipo") == "mudanca_plano_prorata":
+        return await _handle_prorata_upgrade_checkout(session)
+
     payment_status = session.get("payment_status")
     if payment_status == "unpaid":
         return False
     if payment_status not in {"paid", "no_payment_required"}:
         raise HTTPException(status_code=400, detail="Status de pagamento do checkout inválido")
 
-    tenant_id, assinatura_id, plano_id = _checkout_ids(session.get("metadata") or {})
+    tenant_id, assinatura_id, plano_id = _checkout_ids(metadata)
     stripe_subscription_id = _checkout_subscription_id(session)
     async with async_session_maker() as db:
         try:
@@ -161,12 +225,22 @@ async def _handle_checkout_completed(session: dict) -> bool:
             plano = await db.get(PlanoAssinatura, plano_id)
             if not tenant or not assinatura or not plano:
                 raise HTTPException(status_code=500, detail="Entidade do checkout ainda não foi persistida")
-            if (
-                assinatura.tenant_id != tenant_id
-                or assinatura.plano_id != plano_id
-                or assinatura.tipo_assinatura != "TENANT"
-            ):
+            if assinatura.tenant_id != tenant_id or assinatura.tipo_assinatura != "TENANT":
                 raise HTTPException(status_code=400, detail="Vínculo da assinatura no checkout é inválido")
+            if assinatura.plano_id != plano_id:
+                from core.models.plan_changes import MudancaPlano
+
+                mudanca_match = (
+                    await db.execute(
+                        select(MudancaPlano).where(
+                            MudancaPlano.assinatura_id == assinatura.id,
+                            MudancaPlano.plano_destino_id == plano_id,
+                            MudancaPlano.status == "pendente_pagamento",
+                        )
+                    )
+                ).scalar_one_or_none()
+                if not mudanca_match:
+                    raise HTTPException(status_code=400, detail="Vínculo da assinatura no checkout é inválido")
             if assinatura.stripe_subscription_id not in (None, stripe_subscription_id):
                 raise HTTPException(status_code=409, detail="Assinatura já vinculada a outro registro Stripe")
 

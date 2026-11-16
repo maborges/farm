@@ -185,6 +185,60 @@ class StripeService:
     def stripe_configured(self) -> bool:
         return bool(stripe.api_key)
 
+    async def criar_checkout_mudanca_prorata(
+        self,
+        tenant_id: str,
+        assinatura_id: str,
+        mudanca_plano_id: str,
+        plano_destino_id: str,
+        nome_plano_destino: str,
+        valor_reais: float,
+        email: str,
+        fatura_id: str | None = None,
+    ) -> str:
+        """Cria sessão Stripe Checkout avulsa (mode='payment') para cobrança pro-rata de upgrade."""
+        if not stripe.api_key:
+            logger.warning("STRIPE_SECRET_KEY não configurada — usando checkout pro-rata simulado")
+            return f"{FRONTEND_URL}/dashboard/settings/billing?mudanca_id={mudanca_plano_id}"
+
+        unit_amount = max(50, int(round(float(valor_reais) * 100)))
+        metadata = {
+            "tipo": "mudanca_plano_prorata",
+            "tenant_id": tenant_id,
+            "assinatura_id": assinatura_id,
+            "mudanca_plano_id": mudanca_plano_id,
+            "plano_destino_id": plano_destino_id,
+        }
+        if fatura_id:
+            metadata["fatura_id"] = fatura_id
+
+        try:
+            session = stripe.checkout.Session.create(
+                customer_email=email,
+                line_items=[
+                    {
+                        "price_data": {
+                            "currency": "brl",
+                            "unit_amount": unit_amount,
+                            "product_data": {
+                                "name": f"Upgrade de Plano (Pro-rata) — {nome_plano_destino}",
+                                "description": "Diferença proporcional ao período restante do ciclo atual",
+                            },
+                        },
+                        "quantity": 1,
+                    }
+                ],
+                mode="payment",
+                success_url=f"{FRONTEND_URL}/dashboard/settings/billing?upgrade=sucesso&session_id={{CHECKOUT_SESSION_ID}}",
+                cancel_url=f"{FRONTEND_URL}/dashboard/settings/billing?upgrade=cancelado",
+                metadata=metadata,
+            )
+            logger.info(f"Checkout pro-rata Stripe criado: {session.id} para mudança {mudanca_plano_id}")
+            return session.url
+        except stripe.StripeError as e:
+            logger.error(f"Erro Stripe ao criar checkout pro-rata: {e}")
+            raise ValueError(f"Erro ao criar sessão de pagamento: {e.user_message}")
+
     def atualizar_assinatura_recorrente(
         self,
         stripe_subscription_id: str,
