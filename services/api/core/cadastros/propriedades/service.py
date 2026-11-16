@@ -39,6 +39,7 @@ class AreaRuralService(BaseService[AreaRural]):
         if parent_id is not None:
             stmt = stmt.where(AreaRural.parent_id == parent_id)
 
+        stmt = stmt.order_by(func.lower(AreaRural.nome).asc(), AreaRural.created_at.asc())
         result = await self.session.execute(stmt)
         rows = result.all()
 
@@ -60,7 +61,8 @@ class AreaRuralService(BaseService[AreaRural]):
         )
         if unidade_produtiva_id:
             stmt = stmt.where(AreaRural.unidade_produtiva_id == unidade_produtiva_id)
-        
+
+        stmt = stmt.order_by(func.lower(AreaRural.nome).asc(), AreaRural.created_at.asc())
         result = await self.session.execute(stmt)
         rows = result.all()
         

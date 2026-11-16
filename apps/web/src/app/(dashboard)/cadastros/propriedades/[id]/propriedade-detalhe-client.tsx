@@ -966,7 +966,19 @@ function buildTree(areas: AreaRural[]): AreaRuralTree[] {
     return node.area_hectares;
   }
 
+  function sortByName(nodes: AreaRuralTree[]) {
+    nodes.sort((a, b) =>
+      (a.nome ?? "").localeCompare(b.nome ?? "", "pt-BR", { numeric: true, sensitivity: "base" }),
+    );
+    nodes.forEach((n) => {
+      if (n.filhos && n.filhos.length > 0) {
+        sortByName(n.filhos);
+      }
+    });
+  }
+
   roots.forEach(computeArea);
+  sortByName(roots);
   return roots;
 }
 
