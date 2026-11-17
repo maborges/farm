@@ -30,7 +30,7 @@ Em cumprimento irrestrito às restrições de segurança do projeto (*"Não util
 | :--- | :--- | :--- |
 | **Docker Local** | **Não Utilizado** | Diretriz do operador mantida: Docker local desabilitado para execução. |
 | **PostgreSQL Local** | Client-only | Apenas utilitários clientes (`psql`); sem daemon servidor no host. |
-| **Banco Compartilhado (`farms`)** | **Intocado / Preservado** | Instância `192.168.0.2:5432/farms` mantida intacta; zero DDLs ou testes destrutivos. |
+| **Banco Compartilhado (`farms`)** | **Intocado / Preservado** | Instância `192.168.0.3:5432/farms` mantida intacta; zero DDLs ou testes destrutivos. |
 | **RDS / Produção** | **Intocado / Preservado** | Nenhuma conexão aberta ou alterada. |
 | **Estratégia Escolhida** | **GitHub Actions CI** | Serviço efêmero `postgres:16-alpine` provisionado em runner isolado da nuvem. |
 

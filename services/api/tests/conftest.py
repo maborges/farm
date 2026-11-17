@@ -33,7 +33,7 @@ TENANT_B_ID = uuid.UUID("bbbbbbbb-0000-0000-0000-000000000020")
 def _get_db_url():
     db_url = str(settings.database_url)
     if "postgresql" not in db_url:
-        db_url = "postgresql+asyncpg://borgus:numsey01@192.168.0.2/farms"
+        db_url = "postgresql+asyncpg://borgus:numsey01@192.168.0.3/farms"
     return db_url
 
 

@@ -20,7 +20,7 @@ Diagnóstico feito em 2026-10-25 por leitura do sistema, pacotes instalados, `/p
 
 ### Interferência com recursos existentes
 
-Relatórios anteriores identificam `services/api/.env.local` como apontando ao PostgreSQL compartilhado no host/rede `192.168.0.2`, database `farms`. Esse destino é proibido. O relatório 01D registrou, em auditoria passada, só `farms` e `postgres` como databases visíveis e ausência de privilégio `CREATEDB`; isso não foi revalidado agora. O host atual ter `psql` não significa que tenha servidor local. Nenhum valor de credencial comercial deve ser usado ou copiado.
+Relatórios anteriores identificam `services/api/.env.local` como apontando ao PostgreSQL compartilhado no host/rede `192.168.0.3`, database `farms`. Esse destino é proibido. O relatório 01D registrou, em auditoria passada, só `farms` e `postgres` como databases visíveis e ausência de privilégio `CREATEDB`; isso não foi revalidado agora. O host atual ter `psql` não significa que tenha servidor local. Nenhum valor de credencial comercial deve ser usado ou copiado.
 
 As portas candidatas parecem livres apenas dentro da namespace WSL observada. Não se conectou a elas. A checagem deve ser repetida com `lsof` e `/proc/net` imediatamente antes de iniciar; se houver listener, abortar e escolher outro ID/ambiente após revisão, sem parar o processo encontrado.
 

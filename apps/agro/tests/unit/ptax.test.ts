@@ -76,7 +76,7 @@ describe("Módulo PTAX Frontend — Parsing, Validação e Formatação", () => 
     expect(ptaxApiUrl({ hostname: "127.0.0.1", protocol: "http:" })).toBe(
       "/api/v1/public/mercado/ptax"
     );
-    expect(ptaxApiUrl({ hostname: "192.168.0.2", protocol: "http:" })).toBe(
+    expect(ptaxApiUrl({ hostname: "192.168.0.3", protocol: "http:" })).toBe(
       "/api/v1/public/mercado/ptax"
     );
     expect(ptaxApiUrl({ hostname: "agro.deepfarms.com.br", protocol: "https:" })).toBe(

@@ -20,7 +20,7 @@
 
 O database novo era inexistente antes da criação e vazio de objetos de aplicação antes da migration. A identidade PostgreSQL foi confirmada imediatamente antes da aplicação. O gate `agro_labctl.py identity` passou na verificação final. Na primeira tentativa, o executável `redis-cli` não estava no `PATH`; a tentativa seguinte encontrou o binário, mas faltava `LD_LIBRARY_PATH` para `liblzf.so.1`. Com o caminho das bibliotecas extraídas e privadas do laboratório, o mesmo gate passou: PostgreSQL e Redis responderam e os identificadores conferiram. Nenhuma instalação sistêmica foi feita.
 
-Não foram herdadas variáveis de conexão do shell: o Alembic foi executado com ambiente limpo construído da configuração sintética privada. Nenhum `.env.local`/`.env.production`, RDS, `192.168.0.2`, provedor comercial, FastAPI ou frontend foi acessado/iniciado.
+Não foram herdadas variáveis de conexão do shell: o Alembic foi executado com ambiente limpo construído da configuração sintética privada. Nenhum `.env.local`/`.env.production`, RDS, `192.168.0.3`, provedor comercial, FastAPI ou frontend foi acessado/iniciado.
 
 ## 2. Preflight, workspace e revisão aplicada
 

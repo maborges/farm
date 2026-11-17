@@ -568,6 +568,13 @@ Detalhamento de cada feature, decisões e histórico de implementação: `docs/C
   2. Se a assinatura já possui `stripe_subscription_id`, o `StripeService` gera uma sessão avulsa (`mode="payment"`) pelo valor exato do pro-rata; se estiver em `TRIAL` ou `PENDENTE_PAGAMENTO`, gera a assinatura com o plano destino.
   3. Ao confirmar o pagamento no webhook (`checkout.session.completed`), o backend quita a fatura complementar, aplica o novo plano/limites no tenant e sincroniza a assinatura recorrente no Stripe (`proration_behavior="none"`) para as próximas renovações.
 
+### Painel Café: Qualidade (SCA/ABIC) × Preço × Margem
+- **Descrição curta:** Correlação entre classificação de qualidade do lote de café (pontuação SCA e bebida), custo de produção por saca da safra, preço de venda comercializado e margem financeira, destacando o prêmio de qualidade obtido por cafés especiais (`SCA ≥ 80`).
+- **Fluxo de funcionamento:**
+  1. O endpoint `GET /api/v1/beneficiamento/qualidade-margem?safra_id=<uuid>` (módulo `A5_COLHEITA`, liberado em todos os pacotes All-In por tamanho de propriedade) consolida os lotes da safra, rateia o custo total da safra pelas sacas beneficiadas e cruza com os preços de venda registrados em `ComercializacaoCommodity` vinculados ao lote (`dados_extras["lote_beneficiamento_id"]`).
+  2. O serviço calcula margem por saca (`R$/sc` e `%`), agrupa os indicadores por tipo de bebida e computa o prêmio percentual de preço dos lotes especiais (`SCA ≥ 80`) em relação aos lotes convencionais.
+  3. Na interface `/agricola/safras/[id]/beneficiamento`, o componente `BeneficiamentoCafe` exibe os 4 cards-resumo (`Custo Médio / Saca`, `Preço Médio Especial`, `Preço Médio Convencional`, `Prêmio Qualidade`), chips agrupados por bebida e a tabela comparativa lote a lote.
+
 ## Conceitos-Chave: Propriedade, Talhão e Unidade Produtiva
 
 

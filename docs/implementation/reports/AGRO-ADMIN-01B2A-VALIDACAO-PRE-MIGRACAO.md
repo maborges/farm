@@ -14,7 +14,7 @@ A fase **AGRO-ADMIN-01B2A** executou a validação de prontidão prévia para a 
 
 ### Principais Conquistas e Constatações:
 1. **Auditoria de Conectividade PostgreSQL e Isolamento:**  
-   O ambiente foi minuciosamente inspecionado. O endpoint configurado em `.env.local` (`192.168.0.2:5432/farms`) foi avaliado: trata-se do banco de desenvolvimento compartilhado da plataforma, contendo 41 tenants e dados estruturais. Como o usuário `borgus` não possui privilégio `rolcreatedb` e o daemon Docker local não está em execução, **nenhuma DDL foi aplicada no banco compartilhado**, em cumprimento estrito à diretriz: *"Se PostgreSQL isolado não estiver disponível, documentar o impedimento e interromper essa validação. Não substituir pelo banco comercial."*
+   O ambiente foi minuciosamente inspecionado. O endpoint configurado em `.env.local` (`192.168.0.3:5432/farms`) foi avaliado: trata-se do banco de desenvolvimento compartilhado da plataforma, contendo 41 tenants e dados estruturais. Como o usuário `borgus` não possui privilégio `rolcreatedb` e o daemon Docker local não está em execução, **nenhuma DDL foi aplicada no banco compartilhado**, em cumprimento estrito à diretriz: *"Se PostgreSQL isolado não estiver disponível, documentar o impedimento e interromper essa validação. Não substituir pelo banco comercial."*
 2. **Validação DDL do Alembic (Offline com Dialeto PostgreSQL):**  
    O ciclo de migration `20261022_agro_admin_01b1_session_nullable.py` foi testado e homologado no motor de compilação estática do Alembic com dialeto PostgreSQL nativo. Foi corrigida uma fragilidade no método `downgrade()`, assegurando geração perfeitamente válida e idempotente tanto no modo offline quanto no modo online.
 3. **Diagnóstico Forense de Colisões (Reconciliação 100% Limpa):**  
@@ -37,7 +37,7 @@ SELECT current_database(), current_user, inet_server_addr(), inet_server_port();
 -- Resultado obtido:
 -- current_database: farms
 -- current_user:     borgus
--- inet_server_addr: 172.26.132.19 (exposto em 192.168.0.2:5432)
+-- inet_server_addr: 172.26.132.19 (exposto em 192.168.0.3:5432)
 -- inet_server_port: 5432
 ```
 
@@ -60,7 +60,7 @@ SELECT current_database(), current_user, inet_server_addr(), inet_server_port();
 
 > **Regra Mandatória:** *"Se PostgreSQL isolado não estiver disponível, documentar o impedimento e interromper essa validação. Não substituir pelo banco comercial."*
 
-**Ação Tomada:** A aplicação da migration em runtime foi **interrompida de forma segura**. O banco `192.168.0.2/farms` foi preservado sem alteração física de schema. Toda a validação de DDL e sintaxe SQL foi redirecionada para a esteira offline do Alembic com dialeto PostgreSQL compilado.
+**Ação Tomada:** A aplicação da migration em runtime foi **interrompida de forma segura**. O banco `192.168.0.3/farms` foi preservado sem alteração física de schema. Toda a validação de DDL e sintaxe SQL foi redirecionada para a esteira offline do Alembic com dialeto PostgreSQL compilado.
 
 ---
 

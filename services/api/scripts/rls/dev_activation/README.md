@@ -20,25 +20,25 @@ Os scripts estão limitados ao banco `farms` e às tabelas do recorte. Habilitam
 
 ## Pré-requisitos e sequência autorizada
 
-Executar somente depois de autorização explícita, janela de manutenção, backup e disponibilidade de identidade PostgreSQL **superuser**. Não usar `admin_farms` como substituto: tem `BYPASSRLS`, mas não `SUPERUSER`; `borgus` não pode criar roles. Usar cliente/rede que alcance `192.168.0.2:5432`. Os comandos abaixo são modelos; `<DBA_LOGIN>` deve ser substituído localmente e nenhum segredo deve ser colocado na linha de comando.
+Executar somente depois de autorização explícita, janela de manutenção, backup e disponibilidade de identidade PostgreSQL **superuser**. Não usar `admin_farms` como substituto: tem `BYPASSRLS`, mas não `SUPERUSER`; `borgus` não pode criar roles. Usar cliente/rede que alcance `192.168.0.3:5432`. Os comandos abaixo são modelos; `<DBA_LOGIN>` deve ser substituído localmente e nenhum segredo deve ser colocado na linha de comando.
 
 1. Registrar baseline em sessão somente leitura e conferir banco/identidade:
 
    ```bash
-   psql -h 192.168.0.2 -p 5432 -U <DBA_LOGIN> -d farms -W -X -v ON_ERROR_STOP=1 -c "BEGIN READ ONLY; SELECT current_database(), current_user, session_user, current_setting('transaction_read_only'); SELECT rolname, rolsuper, rolbypassrls, rolcreaterole FROM pg_roles WHERE rolname IN ('borgus','admin_farms'); SELECT n.nspname, c.relname, pg_get_userbyid(c.relowner), c.relrowsecurity, c.relforcerowsecurity FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='farms' AND c.relname IN ('tenants','usuarios','tenant_usuarios','perfis_acesso','unidade_produtiva_usuarios','assinaturas_tenant','planos_assinatura','unidades_produtivas','configuracoes_saas','configuracoes_tenant','sessoes_ativas','login_tentativas','notificacoes','notificacoes_leituras','notificacoes_preferencias','tenant_audit_log') ORDER BY c.relname; ROLLBACK;"
+   psql -h 192.168.0.3 -p 5432 -U <DBA_LOGIN> -d farms -W -X -v ON_ERROR_STOP=1 -c "BEGIN READ ONLY; SELECT current_database(), current_user, session_user, current_setting('transaction_read_only'); SELECT rolname, rolsuper, rolbypassrls, rolcreaterole FROM pg_roles WHERE rolname IN ('borgus','admin_farms'); SELECT n.nspname, c.relname, pg_get_userbyid(c.relowner), c.relrowsecurity, c.relforcerowsecurity FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='farms' AND c.relname IN ('tenants','usuarios','tenant_usuarios','perfis_acesso','unidade_produtiva_usuarios','assinaturas_tenant','planos_assinatura','unidades_produtivas','configuracoes_saas','configuracoes_tenant','sessoes_ativas','login_tentativas','notificacoes','notificacoes_leituras','notificacoes_preferencias','tenant_audit_log') ORDER BY c.relname; ROLLBACK;"
    ```
 
    Confirmar que database é `farms`, que a sessão de aplicação não está sendo usada e que as 16 tabelas/owners/estado RLS correspondem ao baseline documentado. Se algo divergir, parar e revisar o pacote. Antes de DDL, criar backup seguro somente do schema, incluindo ACL/owners, fora do repositório:
 
    ```bash
-   pg_dump -h 192.168.0.2 -p 5432 -U <DBA_LOGIN> -d farms --schema-only --schema=farms --file=<CAMINHO_SEGURO>/farms-schema-before-rls.sql
+   pg_dump -h 192.168.0.3 -p 5432 -U <DBA_LOGIN> -d farms --schema-only --schema=farms --file=<CAMINHO_SEGURO>/farms-schema-before-rls.sql
    ```
 
 2. Provisionar roles (script verifica `current_database()` e exige `rolsuper`). Senhas não estão nos arquivos. Defini-las interativamente sem eco/log, e armazená-las no cofre usado pelo serviço:
 
    ```bash
-   psql -h 192.168.0.2 -p 5432 -U <DBA_LOGIN> -d farms -W -X -v ON_ERROR_STOP=1 -f services/api/scripts/rls/dev_activation/00_roles.sql
-   psql -h 192.168.0.2 -p 5432 -U <DBA_LOGIN> -d farms -W -X
+   psql -h 192.168.0.3 -p 5432 -U <DBA_LOGIN> -d farms -W -X -v ON_ERROR_STOP=1 -f services/api/scripts/rls/dev_activation/00_roles.sql
+   psql -h 192.168.0.3 -p 5432 -U <DBA_LOGIN> -d farms -W -X
    ```
 
    No prompt `psql`, executar `\password deepfarms_runtime` e `\password deepfarms_auth`; depois `\q`. Não imprimir ou salvar credenciais no repositório.
@@ -46,9 +46,9 @@ Executar somente depois de autorização explícita, janela de manutenção, bac
 3. Aplicar primeiro o recorte base, depois o adendo de efeitos assíncronos, e só então executar a verificação completa somente leitura. `20_verify_readonly.sql` agora espera as quatro roles:
 
    ```bash
-   psql -h 192.168.0.2 -p 5432 -U <DBA_LOGIN> -d farms -W -X -v ON_ERROR_STOP=1 -f services/api/scripts/rls/dev_activation/10_login_notifications_rls.sql
-   psql -h 192.168.0.2 -p 5432 -U <DBA_LOGIN> -d farms -W -X -v ON_ERROR_STOP=1 -f services/api/scripts/rls/dev_activation/30_notification_async_effects.sql
-   psql -h 192.168.0.2 -p 5432 -U <DBA_LOGIN> -d farms -W -X -v ON_ERROR_STOP=1 -f services/api/scripts/rls/dev_activation/20_verify_readonly.sql
+   psql -h 192.168.0.3 -p 5432 -U <DBA_LOGIN> -d farms -W -X -v ON_ERROR_STOP=1 -f services/api/scripts/rls/dev_activation/10_login_notifications_rls.sql
+   psql -h 192.168.0.3 -p 5432 -U <DBA_LOGIN> -d farms -W -X -v ON_ERROR_STOP=1 -f services/api/scripts/rls/dev_activation/30_notification_async_effects.sql
+   psql -h 192.168.0.3 -p 5432 -U <DBA_LOGIN> -d farms -W -X -v ON_ERROR_STOP=1 -f services/api/scripts/rls/dev_activation/20_verify_readonly.sql
    ```
 
    Investigar qualquer linha inesperada no verificador antes de continuar; o checker não é um “PASS” automático se grants herdados, ACLs ou policies divergirem.
@@ -71,8 +71,8 @@ Executar somente depois de autorização explícita, janela de manutenção, bac
 Rollback exige autorização e superuser. Primeiro remover o roteamento para canário/parar a canário e restaurar a configuração anterior do processo. `90_rollback_login_notifications_rls.sql` aceita o estado integralmente aplicado ou somente as roles de `00_roles.sql` (por exemplo, se `10_...sql` abortar atomicamente):
 
 ```bash
-psql -h 192.168.0.2 -p 5432 -U <DBA_LOGIN> -d farms -W -X -v ON_ERROR_STOP=1 -f services/api/scripts/rls/dev_activation/90_rollback_login_notifications_rls.sql
-psql -h 192.168.0.2 -p 5432 -U <DBA_LOGIN> -d farms -W -X -v ON_ERROR_STOP=1 -c "BEGIN READ ONLY; SELECT rolname FROM pg_roles WHERE rolname IN ('deepfarms_runtime','deepfarms_auth','deepfarms_auth_fn_owner'); SELECT c.relname,c.relrowsecurity,c.relforcerowsecurity FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='farms' AND c.relname IN ('usuarios','tenant_usuarios','perfis_acesso','unidade_produtiva_usuarios','assinaturas_tenant','unidades_produtivas','configuracoes_saas','configuracoes_tenant','sessoes_ativas','login_tentativas','notificacoes','notificacoes_leituras','notificacoes_preferencias','tenant_audit_log') ORDER BY c.relname; SELECT schemaname,tablename,policyname FROM pg_policies WHERE schemaname='farms' AND policyname LIKE '%_deepfarms_%'; SELECT to_regprocedure('farms.auth_login_material(text)'); ROLLBACK;"
+psql -h 192.168.0.3 -p 5432 -U <DBA_LOGIN> -d farms -W -X -v ON_ERROR_STOP=1 -f services/api/scripts/rls/dev_activation/90_rollback_login_notifications_rls.sql
+psql -h 192.168.0.3 -p 5432 -U <DBA_LOGIN> -d farms -W -X -v ON_ERROR_STOP=1 -c "BEGIN READ ONLY; SELECT rolname FROM pg_roles WHERE rolname IN ('deepfarms_runtime','deepfarms_auth','deepfarms_auth_fn_owner'); SELECT c.relname,c.relrowsecurity,c.relforcerowsecurity FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace WHERE n.nspname='farms' AND c.relname IN ('usuarios','tenant_usuarios','perfis_acesso','unidade_produtiva_usuarios','assinaturas_tenant','unidades_produtivas','configuracoes_saas','configuracoes_tenant','sessoes_ativas','login_tentativas','notificacoes','notificacoes_leituras','notificacoes_preferencias','tenant_audit_log') ORDER BY c.relname; SELECT schemaname,tablename,policyname FROM pg_policies WHERE schemaname='farms' AND policyname LIKE '%_deepfarms_%'; SELECT to_regprocedure('farms.auth_login_material(text)'); ROLLBACK;"
 ```
 
 O rollback desabilita RLS, remove policies/grants do recorte, função e roles do pacote, mas não apaga linhas criadas por testes HTTP (tentativas, sessões, notificações ou auditoria). Registrar IDs das fixtures e limpar apenas linhas sintéticas identificadas, em operação separada autorizada. Se o preflight encontrar policies adicionais, memberships ou estado diferente, ele interrompe; não contornar manualmente. Não executar `20_verify_readonly.sql` depois do rollback: ele verifica roles já removidas.

@@ -61,27 +61,22 @@ class TestAssinaturaAtivaFilter:
 
 
 class TestRequireTier:
-    async def test_bloqueia_tier_baixo_com_headers(self):
+    async def test_permite_assinatura_ativa_independente_do_tier_all_in(self):
         from core.constants import PlanTier
         from core.dependencies import require_tier
 
         verificador = require_tier(PlanTier.PROFISSIONAL)
 
-        with pytest.raises(HTTPException) as exc:
-            await verificador(
-                request=None,
-                claims={
-                    "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
-                    "plan_tier": "BASICO",
-                },
-                session=AsyncMock(),
-            )
+        result = await verificador(
+            request=None,
+            claims={
+                "tenant_id": "aaaaaaaa-0000-0000-0000-000000000010",
+                "plan_tier": "BASICO",
+            },
+            session=AsyncMock(),
+        )
 
-        assert exc.value.status_code == 402
-        assert exc.value.headers == {
-            "X-Tier-Required": "PROFISSIONAL",
-            "X-Tier-Current": "BASICO",
-        }
+        assert result == PlanTier.BASICO
 
     async def test_permite_tier_profissional(self):
         from core.constants import PlanTier

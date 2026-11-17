@@ -83,7 +83,7 @@ SELECT pg_reload_conf();
 
 | Métrica | Valor |
 |---------|-------|
-| **Database** | farms (192.168.0.2) |
+| **Database** | farms (192.168.0.3) |
 | **Tamanho** | 15 MB |
 | **Cache Hit Ratio** | 99.90% ✅ |
 | **Tabelas monitoradas** | 30 |
@@ -190,7 +190,7 @@ SELECT pg_reload_conf();
 ### Desafios
 
 1. **Permissões de DBA:** Necessário envolver administrador de banco de dados
-2. **Ambiente remoto:** Banco em servidor separado (192.168.0.2)
+2. **Ambiente remoto:** Banco em servidor separado (192.168.0.3)
 
 ### Ações Corretivas
 
@@ -253,7 +253,7 @@ SELECT pg_reload_conf();
 - DBA: _______________________
 
 **Acesso ao banco de dados:**
-- Host: 192.168.0.2
+- Host: 192.168.0.3
 - Database: farms
 - Usuário: borgus
 

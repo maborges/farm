@@ -2,7 +2,7 @@
 
 **Data:** 2026-10-31  
 **Escopo:** recuperação de estado, somente leitura no PostgreSQL; sem repetir testes de escrita  
-**Destino consultado:** `192.168.0.2:5432`, database `deepfarms_rls_lab`  
+**Destino consultado:** `192.168.0.3:5432`, database `deepfarms_rls_lab`  
 **Veredicto:** **PARCIALMENTE CONCLUÍDO**
 
 ## 1. Resumo executivo
@@ -27,7 +27,7 @@ Consulta de catálogo em transação `READ ONLY`, conectada diretamente como run
 | PostgreSQL | `16.15` |
 | Database | Existe, aceita conexão; owner `deepfarms_rls_lab_owner` |
 
-A conexão foi estabelecida ao endpoint de desenvolvimento autorizado `192.168.0.2:5432`; `inet_server_addr()` reportou o endereço interno `172.26.132.19`. Nenhuma conexão à Hostinger foi feita.
+A conexão foi estabelecida ao endpoint de desenvolvimento autorizado `192.168.0.3:5432`; `inet_server_addr()` reportou o endereço interno `172.26.132.19`. Nenhuma conexão à Hostinger foi feita.
 
 ### Roles e memberships
 

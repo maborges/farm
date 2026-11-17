@@ -67,8 +67,9 @@ async def tenant_tem_ia(tenant_id: uuid.UUID, session: AsyncSession) -> bool:
         tier_str = result.scalar_one_or_none()
         if not tier_str:
             return False
-        tier = PlanTier(tier_str)
-        return tier >= PlanTier.PROFISSIONAL
+        PlanTier(tier_str)
+        # Política All-In por tamanho de propriedade: qualquer assinatura ativa/trial libera IA.
+        return True
     except Exception as exc:
         logger.warning(f"Falha ao verificar tier do tenant {tenant_id}: {exc}")
         return False

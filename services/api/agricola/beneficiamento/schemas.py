@@ -151,3 +151,42 @@ class BeneficiamentoRelatorioRendimento(BaseModel):
     sacas_total: float
     rendimento_medio_pct: float
     por_metodo: list[RendimentoPorMetodo]
+
+
+class CafeQualidadeMargemItem(BaseModel):
+    lote_id: UUID
+    numero_lote: str
+    status: str
+    metodo: Optional[str] = None
+    bebida: Optional[str] = None
+    peneira_principal: Optional[str] = None
+    pontuacao_scaa: Optional[float] = None
+    especial: bool = False
+    sacas_beneficiadas: float = 0.0
+    custo_por_saca: Optional[float] = None
+    preco_venda_por_saca: Optional[float] = None
+    margem_por_saca: Optional[float] = None
+    margem_pct: Optional[float] = None
+    receita_estimada: float = 0.0
+    origem_preco: str = "SEM_VENDA"
+
+
+class CafeQualidadeMargemPorBebida(BaseModel):
+    bebida: str
+    total_lotes: int
+    sacas_totais: float
+    scaa_medio: Optional[float] = None
+    preco_medio_saca: Optional[float] = None
+    margem_media_saca: Optional[float] = None
+
+
+class CafeQualidadeMargemResponse(BaseModel):
+    safra_id: UUID
+    custo_total_safra: float = 0.0
+    total_sacas_safra: float = 0.0
+    custo_medio_saca_safra: Optional[float] = None
+    preco_medio_saca_especial: Optional[float] = None
+    preco_medio_saca_convencional: Optional[float] = None
+    premio_qualidade_pct: Optional[float] = None
+    lotes: list[CafeQualidadeMargemItem]
+    por_bebida: list[CafeQualidadeMargemPorBebida]

@@ -40,7 +40,7 @@ WeatherAPI ainda exige `WEATHERAPI_ENABLED=true` e uma chave no backend; o defau
 - Ruff dos módulos backend completos: **não passou**; apontou 59 ocorrências distribuídas nos módulos auditados (ordenação/imports, linhas longas, regras de compatibilidade e avisos de segurança já presentes nesses arquivos). Não foi feita refatoração ampla para limpar débitos fora do ajuste funcional. O teste backend novo, isoladamente, passa no Ruff.
 - `git diff --check`: **não passou por uma linha em branco no fim de `services/api/core/routers/backoffice_sessions.py`**, arquivo fora deste escopo e já modificado previamente. Não foi alterado.
 
-O pytest global de `services/api/tests` não foi executado. `services/api/tests/conftest.py` define fallback de teste para `postgresql+asyncpg://...@192.168.0.2/farms`, executa `metadata.create_all` e inserts de fixtures. Esse caminho é incompatível com a restrição de não acessar bancos comerciais/compartilhados e explica por que a suite anterior não era segura para execução indiscriminada. O teste novo foi executado com `--confcutdir=tests/unit` e plugin autoload desabilitado para evitar esse conftest.
+O pytest global de `services/api/tests` não foi executado. `services/api/tests/conftest.py` define fallback de teste para `postgresql+asyncpg://...@192.168.0.3/farms`, executa `metadata.create_all` e inserts de fixtures. Esse caminho é incompatível com a restrição de não acessar bancos comerciais/compartilhados e explica por que a suite anterior não era segura para execução indiscriminada. O teste novo foi executado com `--confcutdir=tests/unit` e plugin autoload desabilitado para evitar esse conftest.
 
 ## Limites e riscos remanescentes
 

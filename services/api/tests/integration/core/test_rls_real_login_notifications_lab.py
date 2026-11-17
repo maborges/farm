@@ -65,7 +65,7 @@ def _model_tables():
 
 
 def _validate_lab_urls():
-    expected = ("192.168.0.2", 5432, "deepfarms_rls_lab")
+    expected = ("192.168.0.3", 5432, "deepfarms_rls_lab")
     assert RUNTIME_URL and DEPLOY_URL and AUTH_URL
     for value, username in (
         (RUNTIME_URL, "deepfarms_rls_lab_runtime"),

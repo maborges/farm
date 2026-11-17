@@ -110,7 +110,7 @@ Existem dois alertas específicos e ativos (não são o alerta aposentado de 04I
 
 Ambos usam `registrar_e_aplicar_enforcement(..., allow_block=True)`, mas como `WORKFLOW_ENFORCEMENT_MODE = WORKFLOW_ENFORCEMENT_WARNING_ONLY` está hardcoded (não lido de env/config), **nenhum dos dois bloqueia hoje**. A lacuna real não é "ausência de alerta" — é "alerta existe mas não é enforçado por configuração padrão". Não existe dashboard de inconsistências dedicado a este código nem guardrail de CI/go-live localizado para este cenário específico.
 
-## 13. Dados existentes (PostgreSQL de dev, `192.168.0.2/farms`, somente SELECT)
+## 13. Dados existentes (PostgreSQL de dev, `192.168.0.3/farms`, somente SELECT)
 
 | Métrica | Valor |
 |---|---|

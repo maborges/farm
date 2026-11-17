@@ -26,7 +26,7 @@ async def lab_session_factory():
         pytest.skip("DEEPFARMS_RLS_LAB_DATABASE_URL não configurada")
 
     url = make_url(LAB_URL)
-    assert url.host == "192.168.0.2", "RLS integration tests só aceitam o host autorizado"
+    assert url.host == "192.168.0.3", "RLS integration tests só aceitam o host autorizado"
     assert url.port == 5432, "RLS integration tests só aceitam a porta autorizada"
     assert url.database == "deepfarms_rls_lab", "RLS integration tests só aceitam o banco de laboratório"
     assert url.username == "deepfarms_rls_lab_runtime", "RLS integration tests exigem a role runtime"

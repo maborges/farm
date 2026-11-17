@@ -7,7 +7,6 @@
  */
 
 import { useAppStore } from "@/lib/stores/app-store";
-import { tierAtLeast } from "@/lib/constants/planos";
 import type { PlanTierId } from "@/types/global";
 
 /**
@@ -18,15 +17,12 @@ export function usePlanTier(): PlanTierId | null {
 }
 
 /**
- * Retorna true se o grupo ativo tem o tier mínimo exigido.
- *
- * @example
- * const podeRateio = useHasTier("PROFISSIONAL");
- * if (!podeRateio) return <UpgradePrompt tier="PROFISSIONAL" />;
+ * Política All-In por tamanho de propriedade (Hectares Equivalentes):
+ * todos os pacotes liberam 100% das funcionalidades dos módulos contratados.
+ * Mantido como hook para compatibilidade com componentes existentes.
  */
-export function useHasTier(minimum: PlanTierId): boolean {
-  const planTier = useAppStore((s) => s.activePlanTier());
-  return tierAtLeast(planTier, minimum);
+export function useHasTier(_minimum: PlanTierId): boolean {
+  return true;
 }
 
 /**

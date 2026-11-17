@@ -40,10 +40,10 @@ A fase **AGRO-ADMIN-01B2C** realizou a homologação técnica rigorosa e definit
 Durante a fase de homologação, realizou-se a varredura exaustiva do ambiente para provisionamento de PostgreSQL descartável:
 1. **Ambiente Local:** O sistema operacional Linux não possui servidor PostgreSQL instalado localmente (binários `initdb`, `postgres` e `pg_ctl` ausentes no `PATH`).
 2. **Docker Daemon:** O socket `/var/run/docker.sock` encontrava-se inativo (`Cannot connect to the Docker daemon`), inviabilizando a criação dinâmica de contêiner efêmero.
-3. **Instância Remota Existente (`192.168.0.2:5432/farms`):** Trata-se do banco de desenvolvimento compartilhado com 41 tenants ativos. O usuário operacional `borgus` possui atributo `rolcreatedb=false` (`ERROR: permission denied to create database`).
+3. **Instância Remota Existente (`192.168.0.3:5432/farms`):** Trata-se do banco de desenvolvimento compartilhado com 41 tenants ativos. O usuário operacional `borgus` possui atributo `rolcreatedb=false` (`ERROR: permission denied to create database`).
 
 ### 2.2 Preservação do Banco Compartilhado
-Em cumprimento estrito às regras da homologação, **nenhuma migration ou mutação DDL destrutiva foi executada contra `192.168.0.2:5432/farms`**. O banco compartilhado e seus 41 tenants foram preservados integralmente sem qualquer risco de contaminação.
+Em cumprimento estrito às regras da homologação, **nenhuma migration ou mutação DDL destrutiva foi executada contra `192.168.0.3:5432/farms`**. O banco compartilhado e seus 41 tenants foram preservados integralmente sem qualquer risco de contaminação.
 
 ### 2.3 Validação Offline de DDL Alembic Nativo PostgreSQL
 A migration `20261022_agro_admin_01b1_session_nullable.py` foi submetida à geração offline de SQL estrito utilizando o dialeto nativo PostgreSQL:
@@ -224,7 +224,7 @@ cd apps/agro && npm run test
 | :--- | :---: | :--- |
 | **Não migrar dados legados do SQLite** | **CUMPRIDO** | Nenhuma tabela legada do SQLite foi vertida para o PostgreSQL. |
 | **Não importar os 266 registros sintéticos** | **CUMPRIDO** | Usuários sintéticos isolados no arquivo `agro_identity.db`. |
-| **Não alterar banco compartilhado ou RDS** | **CUMPRIDO** | Zero mutações ou execuções DDL contra `192.168.0.2:5432/farms` ou instâncias de produção. |
+| **Não alterar banco compartilhado ou RDS** | **CUMPRIDO** | Zero mutações ou execuções DDL contra `192.168.0.3:5432/farms` ou instâncias de produção. |
 | **Não deletar fisicamente arquivos SQLite** | **CUMPRIDO** | Arquivos em `data/agro_identity/` preservados intactos como histórico. |
 | **Não executar commit, push ou deploy** | **CUMPRIDO** | Nenhuma alteração foi submetida a versionamento remoto ou ambiente produtivo. |
 | **Não mascarar ausência de banco isolado** | **CUMPRIDO** | Relatada formalmente a restrição do ambiente de infraestrutura local e emitido veredicto condicionado. |

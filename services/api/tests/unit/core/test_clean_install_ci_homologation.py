@@ -35,7 +35,7 @@ def test_accepts_only_the_workflow_disposable_postgresql_target() -> None:
         ),
         (
             "DATABASE_URL",
-            "postgresql+asyncpg://deepfarms_test:synthetic@192.168.0.2:5432/farms_test",
+            "postgresql+asyncpg://deepfarms_test:synthetic@192.168.0.3:5432/farms_test",
         ),
         (
             "DATABASE_URL",

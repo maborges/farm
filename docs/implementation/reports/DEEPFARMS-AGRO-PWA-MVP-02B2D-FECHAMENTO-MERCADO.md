@@ -8,7 +8,7 @@
 
 Os módulos `tests/unit/test_macro_publico.py` e `tests/unit/test_ibge_sidra_publico.py` importavam `main.app` no escopo do módulo. `main` importa um grafo amplo da aplicação e executa trabalho durante a importação, incluindo criação do diretório local de estáticos. Isso fazia a coleta carregar a aplicação monolítica antes de selecionar os testes. O teste também não precisava inicializar a API para exercer os serviços SGS/SIDRA.
 
-O `tests/conftest.py` global é um risco independente: ele importa modelos e possui fixture que pode executar `Base.metadata.create_all`, executar DML de dados de teste e, se `DATABASE_URL` não indicar PostgreSQL, usar o fallback `192.168.0.2/farms`. Esse arquivo foi excluído com `--confcutdir=tests/unit`; nenhum teste do relatório o carregou.
+O `tests/conftest.py` global é um risco independente: ele importa modelos e possui fixture que pode executar `Base.metadata.create_all`, executar DML de dados de teste e, se `DATABASE_URL` não indicar PostgreSQL, usar o fallback `192.168.0.3/farms`. Esse arquivo foi excluído com `--confcutdir=tests/unit`; nenhum teste do relatório o carregou.
 
 Foi aplicada uma separação mínima apenas nos testes:
 

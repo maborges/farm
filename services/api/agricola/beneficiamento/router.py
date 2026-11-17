@@ -4,15 +4,15 @@ from typing import List
 from uuid import UUID
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.constants import PlanTier
-from core.dependencies import get_tenant_id, require_module, require_role, require_tier
+from core.dependencies import get_tenant_id, require_module, require_role
 from core.dependencies import get_session
 from agricola.beneficiamento.schemas import (
-    LoteBeneficiamentoCreate,
-    LoteBeneficiamentoUpdate,
-    LoteBeneficiamentoResponse,
     BeneficiamentoKPIs,
     BeneficiamentoRelatorioRendimento,
+    CafeQualidadeMargemResponse,
+    LoteBeneficiamentoCreate,
+    LoteBeneficiamentoResponse,
+    LoteBeneficiamentoUpdate,
     LoteFromRomaneiosRequest,
 )
 from agricola.beneficiamento.service import BeneficiamentoService
@@ -22,7 +22,6 @@ router = APIRouter(
     tags=["Beneficiamento Pós-Colheita"],
     dependencies=[
         Depends(require_module("A5_COLHEITA")),
-        Depends(require_tier(PlanTier.PROFISSIONAL)),
     ],
 )
 
@@ -60,6 +59,17 @@ async def relatorio_rendimento(
     """Gera relatório de rendimento por método de beneficiamento."""
     svc = BeneficiamentoService(session, tenant_id)
     return await svc.relatorio_rendimento(safra_id)
+
+
+@router.get("/qualidade-margem", response_model=CafeQualidadeMargemResponse)
+async def qualidade_margem_cafe(
+    safra_id: UUID,
+    session: AsyncSession = Depends(get_session),
+    tenant_id: UUID = Depends(get_tenant_id),
+):
+    """Correlaciona classificação de qualidade (SCA/ABIC), custo/saca e preço/margem."""
+    svc = BeneficiamentoService(session, tenant_id)
+    return await svc.analise_qualidade_margem(safra_id)
 
 
 @router.get("/", response_model=List[LoteBeneficiamentoResponse])

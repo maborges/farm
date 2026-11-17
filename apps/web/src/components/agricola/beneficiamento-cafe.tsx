@@ -17,14 +17,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
     Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
-import { Plus, Pencil, TrendingDown, Package, Star, Layers, ShoppingCart, BarChart3, Archive } from "lucide-react";
+import { Plus, Pencil, TrendingDown, TrendingUp, Package, Star, Layers, ShoppingCart, BarChart3, Archive } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { useHasTier } from "@/hooks/use-has-tier";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Lock } from "lucide-react";
-import Link from "next/link";
-import { trackMonetizationEvent, useMonetizationPromptTracking } from "@/lib/monetization";
 
 interface Talhao { id: string; nome: string; }
 
@@ -96,6 +91,45 @@ interface RelatorioRendimento {
     por_metodo: RendimentoPorMetodo[];
 }
 
+interface CafeQualidadeMargemItem {
+    lote_id: string;
+    numero_lote: string;
+    status: string;
+    metodo: string;
+    bebida: string | null;
+    peneira_principal: string | null;
+    pontuacao_scaa: number | null;
+    especial: boolean;
+    sacas_beneficiadas: number | null;
+    custo_por_saca: number | null;
+    preco_venda_por_saca: number | null;
+    margem_por_saca: number | null;
+    margem_pct: number | null;
+    receita_estimada: number | null;
+    origem_preco: string | null;
+}
+
+interface CafeQualidadeMargemPorBebida {
+    bebida: string;
+    total_lotes: number;
+    sacas_totais: number;
+    scaa_medio: number | null;
+    preco_medio_saca: number | null;
+    margem_media_saca: number | null;
+}
+
+interface CafeQualidadeMargemResponse {
+    safra_id: string;
+    custo_total_safra: number;
+    total_sacas_safra: number;
+    custo_medio_saca_safra: number | null;
+    preco_medio_saca_especial: number | null;
+    preco_medio_saca_convencional: number | null;
+    premio_qualidade_pct: number | null;
+    lotes: CafeQualidadeMargemItem[];
+    por_bebida: CafeQualidadeMargemPorBebida[];
+}
+
 interface BeneficiamentoMutacaoResult {
     id?: string;
     numero_contrato?: string;
@@ -131,11 +165,15 @@ function fmt(n: number | null | undefined, dec = 1) {
     return n.toLocaleString("pt-BR", { minimumFractionDigits: dec, maximumFractionDigits: dec });
 }
 
+function fmtCurrency(n: number | null | undefined) {
+    if (n == null) return "—";
+    return n.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
 export function BeneficiamentoCafe({ safraId, talhoes }: Props) {
     const qc = useQueryClient();
     const [openNew, setOpenNew] = useState(false);
     const [editId, setEditId] = useState<string | null>(null);
-    const hasProfessionalTier = useHasTier("PROFISSIONAL");
 
     const [ehCafe, setEhCafe] = useState(true);
     const [form, setForm] = useState({
@@ -146,29 +184,24 @@ export function BeneficiamentoCafe({ safraId, talhoes }: Props) {
 
     const [editForm, setEditForm] = useState<Record<string, string>>({});
 
-    useMonetizationPromptTracking(!hasProfessionalTier, {
-        feature: "agricola.beneficiamento",
-        surface: "agricola.beneficiamento.panel",
-        requiredTier: "PROFISSIONAL",
-        ctaLabel: "Ver planos",
-    });
-
     const { data: lotes = [], isLoading } = useQuery<Lote[]>({
         queryKey: ["beneficiamento", safraId],
         queryFn: () => apiFetch(`/beneficiamento?safra_id=${safraId}`),
-        enabled: hasProfessionalTier,
     });
 
     const { data: kpis } = useQuery<KPIs>({
         queryKey: ["beneficiamento-kpis", safraId],
         queryFn: () => apiFetch(`/beneficiamento/kpis?safra_id=${safraId}`),
-        enabled: hasProfessionalTier,
     });
 
     const { data: relatorio } = useQuery<RelatorioRendimento>({
         queryKey: ["beneficiamento-relatorio", safraId],
         queryFn: () => apiFetch(`/beneficiamento/relatorio-rendimento?safra_id=${safraId}`),
-        enabled: hasProfessionalTier,
+    });
+
+    const { data: qualidadeMargem } = useQuery<CafeQualidadeMargemResponse>({
+        queryKey: ["beneficiamento-qualidade-margem", safraId],
+        queryFn: () => apiFetch(`/beneficiamento/qualidade-margem?safra_id=${safraId}`),
     });
 
     const talhaoMap = Object.fromEntries(talhoes.map(t => [t.id, t.nome]));
@@ -218,31 +251,6 @@ export function BeneficiamentoCafe({ safraId, talhoes }: Props) {
         },
         onError: (e: unknown) => toast.error(e instanceof Error ? e.message : "Erro ao armazenar."),
     });
-
-    if (!hasProfessionalTier) {
-        return (
-            <Alert className="rounded-sm">
-                <Lock className="size-4" />
-                <AlertTitle>Beneficiamento avançado disponível no PROFISSIONAL</AlertTitle>
-                <AlertDescription className="space-y-3">
-                    <p>O plano atual mantém a operação de safra. Lotes de beneficiamento, KPIs e relatórios de rendimento exigem plano Profissional.</p>
-                    <Button
-                        asChild
-                        size="sm"
-                        className="rounded-sm"
-                        onClick={() => trackMonetizationEvent("monetization_cta_clicked", {
-                            feature: "agricola.beneficiamento",
-                            surface: "agricola.beneficiamento.panel",
-                            requiredTier: "PROFISSIONAL",
-                            ctaLabel: "Ver planos",
-                        })}
-                    >
-                        <Link href="/dashboard/settings/billing">Ver planos</Link>
-                    </Button>
-                </AlertDescription>
-            </Alert>
-        );
-    }
 
     function handleCriar() {
         if (!form.numero_lote || !form.peso_entrada_kg) {
@@ -390,6 +398,142 @@ export function BeneficiamentoCafe({ safraId, talhoes }: Props) {
                             Rendimento geral: <strong>{fmt(relatorio.rendimento_medio_pct)}%</strong> ·
                             {fmt(relatorio.peso_entrada_total_kg, 0)} kg entrada → {fmt(relatorio.peso_saida_total_kg, 0)} kg saída
                         </p>
+                    </CardContent>
+                </Card>
+            )}
+
+            {/* Painel Qualidade (SCA/ABIC) × Preço × Margem */}
+            {qualidadeMargem && qualidadeMargem.lotes.length > 0 && (
+                <Card className="rounded-sm">
+                    <CardContent className="pt-4 space-y-4">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                                <TrendingUp className="size-4 text-emerald-600" />
+                                <h3 className="font-semibold text-sm">Qualidade (SCA/ABIC) × Preço × Margem</h3>
+                            </div>
+                            <span className="text-xs text-muted-foreground">
+                                Custo total safra: <strong>{fmtCurrency(qualidadeMargem.custo_total_safra)}</strong> · {fmt(qualidadeMargem.total_sacas_safra, 1)} sc
+                            </span>
+                        </div>
+
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                            <Card className="rounded-sm">
+                                <CardContent className="pt-3 pb-3">
+                                    <span className="text-xs text-muted-foreground">Custo Médio / Saca</span>
+                                    <p className="text-lg font-bold mt-1">{fmtCurrency(qualidadeMargem.custo_medio_saca_safra)}</p>
+                                </CardContent>
+                            </Card>
+                            <Card className="rounded-sm">
+                                <CardContent className="pt-3 pb-3">
+                                    <span className="text-xs text-muted-foreground">Preço Médio Especial (SCA ≥ 80)</span>
+                                    <p className="text-lg font-bold mt-1 text-emerald-700 dark:text-emerald-400">
+                                        {fmtCurrency(qualidadeMargem.preco_medio_saca_especial)}
+                                    </p>
+                                </CardContent>
+                            </Card>
+                            <Card className="rounded-sm">
+                                <CardContent className="pt-3 pb-3">
+                                    <span className="text-xs text-muted-foreground">Preço Médio Convencional</span>
+                                    <p className="text-lg font-bold mt-1">{fmtCurrency(qualidadeMargem.preco_medio_saca_convencional)}</p>
+                                </CardContent>
+                            </Card>
+                            <Card className="rounded-sm">
+                                <CardContent className="pt-3 pb-3">
+                                    <span className="text-xs text-muted-foreground">Prêmio Qualidade (SCA ≥ 80)</span>
+                                    <p className={cn(
+                                        "text-lg font-bold mt-1",
+                                        (qualidadeMargem.premio_qualidade_pct ?? 0) > 0
+                                            ? "text-emerald-700 dark:text-emerald-400"
+                                            : "text-muted-foreground",
+                                    )}>
+                                        {qualidadeMargem.premio_qualidade_pct != null
+                                            ? `${qualidadeMargem.premio_qualidade_pct > 0 ? "+" : ""}${fmt(qualidadeMargem.premio_qualidade_pct, 1)}%`
+                                            : "—"}
+                                    </p>
+                                </CardContent>
+                            </Card>
+                        </div>
+
+                        {qualidadeMargem.por_bebida.length > 0 && (
+                            <div className="flex flex-wrap gap-2">
+                                {qualidadeMargem.por_bebida.map((grupo) => (
+                                    <div key={grupo.bebida} className="rounded-sm border px-3 py-1.5 text-xs flex items-center gap-2 bg-muted/30">
+                                        <Badge variant="outline" className="rounded-sm text-[11px]">{grupo.bebida}</Badge>
+                                        <span className="text-muted-foreground">{grupo.total_lotes} lote(s)</span>
+                                        <span>· {fmt(grupo.sacas_totais, 1)} sc</span>
+                                        {grupo.scaa_medio != null && <span>· SCA {fmt(grupo.scaa_medio, 1)}</span>}
+                                        {grupo.preco_medio_saca != null && (
+                                            <span className="font-medium">· {fmtCurrency(grupo.preco_medio_saca)}/sc</span>
+                                        )}
+                                        {grupo.margem_media_saca != null && (
+                                            <span className={cn(
+                                                "font-semibold",
+                                                grupo.margem_media_saca >= 0 ? "text-emerald-700 dark:text-emerald-400" : "text-destructive",
+                                            )}>
+                                                ({grupo.margem_media_saca >= 0 ? "+" : ""}{fmtCurrency(grupo.margem_media_saca)})
+                                            </span>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        <div className="rounded-sm border overflow-x-auto">
+                            <Table className="text-xs">
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead className="h-8">Lote</TableHead>
+                                        <TableHead className="h-8">Bebida</TableHead>
+                                        <TableHead className="h-8 text-right">SCA</TableHead>
+                                        <TableHead className="h-8 text-right">Sacas</TableHead>
+                                        <TableHead className="h-8 text-right">Custo/sc</TableHead>
+                                        <TableHead className="h-8 text-right">Preço/sc</TableHead>
+                                        <TableHead className="h-8 text-right">Margem/sc</TableHead>
+                                        <TableHead className="h-8 text-right">Margem %</TableHead>
+                                    </TableRow>
+                                </TableHeader>
+                                <TableBody>
+                                    {qualidadeMargem.lotes.map((item) => (
+                                        <TableRow key={item.lote_id}>
+                                            <TableCell className="font-medium">
+                                                <div className="flex items-center gap-1.5">
+                                                    <span>{item.numero_lote}</span>
+                                                    {item.especial && (
+                                                        <Badge className="rounded-sm text-[10px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/20">
+                                                            Especial
+                                                        </Badge>
+                                                    )}
+                                                </div>
+                                            </TableCell>
+                                            <TableCell>{item.bebida ?? "—"}</TableCell>
+                                            <TableCell className="text-right font-semibold">
+                                                {item.pontuacao_scaa != null ? fmt(item.pontuacao_scaa, 1) : "—"}
+                                            </TableCell>
+                                            <TableCell className="text-right">
+                                                {item.sacas_beneficiadas != null ? fmt(item.sacas_beneficiadas, 1) : "—"}
+                                            </TableCell>
+                                            <TableCell className="text-right">{fmtCurrency(item.custo_por_saca)}</TableCell>
+                                            <TableCell className="text-right">
+                                                {item.preco_venda_por_saca != null ? fmtCurrency(item.preco_venda_por_saca) : "—"}
+                                            </TableCell>
+                                            <TableCell className={cn(
+                                                "text-right font-semibold",
+                                                item.margem_por_saca == null
+                                                    ? "text-muted-foreground"
+                                                    : item.margem_por_saca >= 0
+                                                        ? "text-emerald-700 dark:text-emerald-400"
+                                                        : "text-destructive",
+                                            )}>
+                                                {fmtCurrency(item.margem_por_saca)}
+                                            </TableCell>
+                                            <TableCell className="text-right">
+                                                {item.margem_pct != null ? `${fmt(item.margem_pct, 1)}%` : "—"}
+                                            </TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </div>
                     </CardContent>
                 </Card>
             )}

@@ -892,23 +892,9 @@ def require_tier(minimum_tier: "PlanTier"):
             ).info("monetization_blocked")
             raise HTTPException(status_code=402, detail=PLAN_INVALID_ERROR)
 
-        if tenant_tier < minimum_tier:
-            logger.bind(
-                event="monetization_blocked",
-                surface="backend.require_tier",
-                feature="tier_gate",
-                tenant_id=str(tenant_id),
-                required_tier=minimum_tier.value,
-                current_tier=tenant_tier.value,
-                path=request_path,
-                method=request_method,
-                reason="insufficient_tier",
-            ).info("monetization_blocked")
-            raise HTTPException(
-                status_code=402,
-                detail=f"Este recurso exige o plano {minimum_tier.value} ou superior. Faça upgrade do plano para continuar.",
-                headers={"X-Tier-Required": minimum_tier.value, "X-Tier-Current": tenant_tier.value},
-            )
+        # Política All-In por tamanho de propriedade (limite_hectares / HEq):
+        # todas as assinaturas ativas têm acesso completo às funcionalidades dos módulos contratados,
+        # independentemente do tier legado (BASICO/PROFISSIONAL/ENTERPRISE).
         return tenant_tier
     return _dependency
 

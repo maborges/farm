@@ -217,7 +217,7 @@ def test_migration_env_is_bound_to_a_distinct_synthetic_role_and_exact_lab_targe
 @pytest.mark.parametrize(
     "database_url",
     [
-        "postgresql+asyncpg://agro_hml_migrate_case01x:synthetic-migration-secret-long-enough@192.168.0.2:5433/agro_hml_case01",
+        "postgresql+asyncpg://agro_hml_migrate_case01x:synthetic-migration-secret-long-enough@192.168.0.3:5433/agro_hml_case01",
         "postgresql+asyncpg://agro_hml_migrate_case01x:synthetic-migration-secret-long-enough@127.0.0.1:5433/farms",
         "postgresql+asyncpg://lab_user:synthetic-migration-secret-long-enough@127.0.0.1:5433/agro_hml_case01",
         "postgresql+asyncpg://agro_hml_owner_case01x:synthetic-migration-secret-long-enough@127.0.0.1:5433/agro_hml_case01",

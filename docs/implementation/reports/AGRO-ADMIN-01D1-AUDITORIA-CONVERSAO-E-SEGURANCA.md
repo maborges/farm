@@ -213,7 +213,7 @@ A inspeção do código-fonte dos testes revelou um **achado crítico de infraes
   $\rightarrow$ **Executado 100% em SQLite na máquina local.**
 
 ### 4.2 Causa Raiz do Erro 500 no PostgreSQL
-A execução exclusiva dos testes em SQLite explica por que a ausência física da tabela `usuario_byok_credenciais` no PostgreSQL compartilhado (`192.168.0.2/farms`) não foi detectada pela suíte de 27 testes.  
+A execução exclusiva dos testes em SQLite explica por que a ausência física da tabela `usuario_byok_credenciais` no PostgreSQL compartilhado (`192.168.0.3/farms`) não foi detectada pela suíte de 27 testes.  
 No SQLite, o método `Base.metadata.create_all` sintetiza as tabelas diretamente a partir dos modelos Python, contornando completamente a cadeia de migrations do Alembic (`alembic upgrade head`). Somente quando a API real foi acionada via HTTP é que o PostgreSQL retornou:
 ```text
 UndefinedTableError: relation "usuario_byok_credenciais" does not exist

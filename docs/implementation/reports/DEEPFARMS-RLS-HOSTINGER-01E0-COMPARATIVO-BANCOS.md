@@ -7,7 +7,7 @@
 
 ## 1. Resumo executivo
 
-O responsável pelo DeepFarms confirmou expressamente que `192.168.0.2` é o servidor PostgreSQL de desenvolvimento. A configuração efetiva carregada pelo backend apontou para esse host, database `farms`; a conexão confirmou database/schema `farms`, usuário e sessão `borgus`, porta 5432 e PostgreSQL 16.15. Nenhuma credencial foi impressa. O servidor reportou seu endereço de interface como `172.26.132.19/32`; a relação de rede entre esse endereço e o endpoint confirmado `192.168.0.2` não foi inspecionada de forma independente. A identificação do ambiente, portanto, se apoia na confirmação do responsável, no endpoint configurado e na identidade retornada pelo banco.
+O responsável pelo DeepFarms confirmou expressamente que `192.168.0.3` é o servidor PostgreSQL de desenvolvimento. A configuração efetiva carregada pelo backend apontou para esse host, database `farms`; a conexão confirmou database/schema `farms`, usuário e sessão `borgus`, porta 5432 e PostgreSQL 16.15. Nenhuma credencial foi impressa. O servidor reportou seu endereço de interface como `172.26.132.19/32`; a relação de rede entre esse endereço e o endpoint confirmado `192.168.0.3` não foi inspecionada de forma independente. A identificação do ambiente, portanto, se apoia na confirmação do responsável, no endpoint configurado e na identidade retornada pelo banco.
 
 O schema de desenvolvimento `farms` **não é uma cópia física equivalente** à fotografia Hostinger do 01C. Há 355 tabelas locais e 350 na Hostinger: 343 nomes coincidem, 7 estão somente na fotografia Hostinger e 12 somente no desenvolvimento. No desenvolvimento há 52 tabelas com RLS/51 com FORCE, contra 49/48 na Hostinger. As três diferenças de estado são tabelas comuns que têm RLS e FORCE ativos no desenvolvimento, mas estavam sem RLS na fotografia Hostinger. Os 188 nomes de policies da Hostinger estão presentes no schema local, que também tem 12 policies adicionais em `farms`; há ainda 31 policies em um schema separado `tara`.
 
@@ -21,7 +21,7 @@ O servidor PostgreSQL 16 de desenvolvimento pode servir como **hospedeiro técni
 
 - [01C — Inventário real Hostinger](DEEPFARMS-RLS-HOSTINGER-01C-INVENTARIO-REAL.md) e extrato `/tmp/deepfarms-rls-01c-metadados.txt` (1.883 linhas), fornecidos a partir de comandos executados pelo operador na Hostinger. A fotografia é limitada ao instante e à abrangência daquela coleta; não houve nova consulta à produção.
 - [01D — Plano de correção controlada](DEEPFARMS-RLS-HOSTINGER-01D-PLANO-CORRECAO-CONTROLADA.md) e [01E — Prova de isolamento em laboratório](DEEPFARMS-RLS-HOSTINGER-01E-LABORATORIO-ISOLAMENTO.md), usados apenas como referência de escopo.
-- Configuração do backend em `services/api/core/config.py`, `services/api/core/database.py` e configuração local carregada sem imprimir a URL ou credenciais. O objeto `settings` da própria aplicação foi usado para abrir a conexão; o host efetivo foi conferido como `192.168.0.2` sem exibir os demais componentes secretos.
+- Configuração do backend em `services/api/core/config.py`, `services/api/core/database.py` e configuração local carregada sem imprimir a URL ou credenciais. O objeto `settings` da própria aplicação foi usado para abrir a conexão; o host efetivo foi conferido como `192.168.0.3` sem exibir os demais componentes secretos.
 - Consultas a `current_database()`, `current_schema()`, `current_user`, `session_user`, versão e catálogos PostgreSQL, executadas dentro de transação `READ ONLY`. Foram consultados nomes/definições de catálogo, ACLs, flags de roles e o valor de `alembic_version`. Nenhuma tabela de negócio foi lida e nenhum teste comportamental foi executado.
 - Snapshot local temporário dos metadados em `/tmp/deepfarms-rls-01e0-dev-catalog.json`; não contém linhas de negócio nem credenciais.
 
@@ -31,7 +31,7 @@ Os conjuntos foram comparados pelo nome exato no schema `farms`. Para FKs, a com
 
 | Propriedade | Resultado observado | Nota |
 |---|---|---|
-| Endpoint configurado | `192.168.0.2` | Confirmado como servidor de desenvolvimento pelo responsável; nenhuma conexão à Hostinger foi feita. |
+| Endpoint configurado | `192.168.0.3` | Confirmado como servidor de desenvolvimento pelo responsável; nenhuma conexão à Hostinger foi feita. |
 | Database / schema atual | `farms` / `farms` | Retornados pela conexão efetiva. |
 | Porta | `5432` | Retornada pelo servidor. |
 | Usuário / sessão efetivos | `borgus` / `borgus` | Não são credenciais de produção. |

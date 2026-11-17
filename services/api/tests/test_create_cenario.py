@@ -8,7 +8,7 @@ from agricola.cenarios.schemas import CenarioCreate
 
 async def test():
     # Database URL from .env.local
-    db_url = "postgresql+asyncpg://borgus:numsey01@192.168.0.2/farms"
+    db_url = "postgresql+asyncpg://borgus:numsey01@192.168.0.3/farms"
     engine = create_async_engine(db_url)
     async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     

@@ -1,7 +1,7 @@
 # TENANT-INTEGRITY-REPAIR-01B1 — Auditoria de tenant_id
 
 **Data:** 2026-07-17
-**Banco:** `postgresql://borgus:numsey01@192.168.0.2/farms` (schema `farms`)
+**Banco:** `postgresql://borgus:numsey01@192.168.0.3/farms` (schema `farms`)
 **Contexto:** Preparação para execução da fase 01B — conversão de tabelas varchar e adição de FK para tabelas Classe F.
 **Escopo:** Somente leitura. Nenhum DDL ou DML executado.
 

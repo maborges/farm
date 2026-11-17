@@ -11,14 +11,17 @@ from core.services.audit_service import write_audit_log
 
 from agricola.beneficiamento.models import LoteBeneficiamento, LoteBeneficiamentoCafeDetalhe
 from agricola.beneficiamento.schemas import (
-    LoteBeneficiamentoCreate,
-    LoteBeneficiamentoUpdate,
+    BeneficiamentoKPIs,
+    BeneficiamentoRelatorioRendimento,
+    CafeQualidadeMargemItem,
+    CafeQualidadeMargemPorBebida,
+    CafeQualidadeMargemResponse,
     LoteBeneficiamentoCafeDetalheCreate,
     LoteBeneficiamentoCafeDetalheUpdate,
-    BeneficiamentoKPIs,
-    RendimentoPorMetodo,
-    BeneficiamentoRelatorioRendimento,
+    LoteBeneficiamentoCreate,
+    LoteBeneficiamentoUpdate,
     LoteFromRomaneiosRequest,
+    RendimentoPorMetodo,
 )
 from agricola.beneficiamento.models import LoteBeneficiamentoRomaneio
 from agricola.colheita.models import ProdutoColhido
@@ -573,3 +576,121 @@ class BeneficiamentoService(BaseService[LoteBeneficiamento]):
             "quantidade": float(lote.sacas_beneficiadas),
             "deposito_id": str(lote.armazem_id),
         }
+
+    async def _obter_custo_total_safra(self, safra_id: UUID) -> float:
+        """Obtém custo total consolidado da safra via DREAgricolaV1Service."""
+        try:
+            from agricola.dre import DREAgricolaV1Service
+
+            dre = await DREAgricolaV1Service(self.session, self.tenant_id).gerar(safra_id=safra_id)
+            return float(dre.totais.custo_total or 0.0)
+        except Exception:
+            return 0.0
+
+    async def _mapear_precos_por_lote(self) -> dict[str, float]:
+        """Mapeia preço unitário médio de venda por lote_beneficiamento_id nas comercializações."""
+        from financeiro.comercializacao.models import ComercializacaoCommodity
+
+        stmt = select(ComercializacaoCommodity).where(
+            ComercializacaoCommodity.tenant_id == self.tenant_id,
+            ComercializacaoCommodity.status != "CANCELADO",
+        )
+        vendas = (await self.session.execute(stmt)).scalars().all()
+        totais: dict[str, list[float]] = {}
+        for v in vendas:
+            extras = v.dados_extras if isinstance(v.dados_extras, dict) else {}
+            lote_ref = extras.get("lote_beneficiamento_id")
+            if lote_ref and float(v.preco_unitario or 0) > 0:
+                totais.setdefault(str(lote_ref), []).append(float(v.preco_unitario))
+        return {k: round(sum(vals) / len(vals), 2) for k, vals in totais.items() if vals}
+
+    @staticmethod
+    def _agrupar_por_bebida(itens: list[CafeQualidadeMargemItem]) -> list[CafeQualidadeMargemPorBebida]:
+        """Agrupa métricas de preço e margem por classificação de bebida ABIC."""
+        grupos: dict[str, list[CafeQualidadeMargemItem]] = {}
+        for item in itens:
+            chave = item.bebida or "NAO_CLASSIFICADA"
+            grupos.setdefault(chave, []).append(item)
+
+        resultado: list[CafeQualidadeMargemPorBebida] = []
+        for bebida, lista in sorted(grupos.items()):
+            scaa_vals = [i.pontuacao_scaa for i in lista if i.pontuacao_scaa is not None]
+            precos = [i.preco_venda_por_saca for i in lista if i.preco_venda_por_saca is not None]
+            margens = [i.margem_por_saca for i in lista if i.margem_por_saca is not None]
+            resultado.append(
+                CafeQualidadeMargemPorBebida(
+                    bebida=bebida,
+                    total_lotes=len(lista),
+                    sacas_totais=round(sum(i.sacas_beneficiadas for i in lista), 2),
+                    scaa_medio=round(sum(scaa_vals) / len(scaa_vals), 2) if scaa_vals else None,
+                    preco_medio_saca=round(sum(precos) / len(precos), 2) if precos else None,
+                    margem_media_saca=round(sum(margens) / len(margens), 2) if margens else None,
+                )
+            )
+        return resultado
+
+    async def analise_qualidade_margem(self, safra_id: UUID) -> CafeQualidadeMargemResponse:
+        """Correlaciona qualidade (SCA/ABIC/peneira), custo/saca e preço de venda por lote.
+
+        Args:
+            safra_id: Identificador da safra analisada.
+
+        Returns:
+            CafeQualidadeMargemResponse: Consolidado de lotes, prêmio por qualidade e agrupamento por bebida.
+        """
+        lotes = await self.listar_com_detalhe(safra_id=safra_id)
+        custo_total_safra = await self._obter_custo_total_safra(safra_id)
+        precos_por_lote = await self._mapear_precos_por_lote()
+
+        total_sacas = sum(float(l.sacas_beneficiadas or 0) for l in lotes)
+        custo_medio_saca = round(custo_total_safra / total_sacas, 2) if total_sacas > 0 and custo_total_safra > 0 else None
+
+        itens: list[CafeQualidadeMargemItem] = []
+        for lote in lotes:
+            det = getattr(lote, "detalhe_cafe", None)
+            scaa = float(det.pontuacao_scaa) if det and det.pontuacao_scaa is not None else None
+            sacas = float(lote.sacas_beneficiadas or 0)
+            preco = precos_por_lote.get(str(lote.id))
+            margem = round(preco - custo_medio_saca, 2) if preco is not None and custo_medio_saca is not None else None
+            margem_pct = round((margem / preco) * 100, 2) if margem is not None and preco and preco > 0 else None
+            itens.append(
+                CafeQualidadeMargemItem(
+                    lote_id=lote.id,
+                    numero_lote=lote.numero_lote,
+                    status=lote.status,
+                    metodo=det.metodo if det else None,
+                    bebida=det.bebida if det else None,
+                    peneira_principal=det.peneira_principal if det else None,
+                    pontuacao_scaa=scaa,
+                    especial=bool(scaa is not None and scaa >= 80),
+                    sacas_beneficiadas=round(sacas, 2),
+                    custo_por_saca=custo_medio_saca,
+                    preco_venda_por_saca=preco,
+                    margem_por_saca=margem,
+                    margem_pct=margem_pct,
+                    receita_estimada=round(sacas * preco, 2) if preco is not None else 0.0,
+                    origem_preco="LOTE" if preco is not None else "SEM_VENDA",
+                )
+            )
+
+        precos_esp = [i.preco_venda_por_saca for i in itens if i.especial and i.preco_venda_por_saca is not None]
+        precos_conv = [i.preco_venda_por_saca for i in itens if not i.especial and i.preco_venda_por_saca is not None]
+        media_esp = round(sum(precos_esp) / len(precos_esp), 2) if precos_esp else None
+        media_conv = round(sum(precos_conv) / len(precos_conv), 2) if precos_conv else None
+        premio_pct = (
+            round(((media_esp - media_conv) / media_conv) * 100, 2)
+            if media_esp is not None and media_conv is not None and media_conv > 0
+            else None
+        )
+
+        return CafeQualidadeMargemResponse(
+            safra_id=safra_id,
+            custo_total_safra=round(custo_total_safra, 2),
+            total_sacas_safra=round(total_sacas, 2),
+            custo_medio_saca_safra=custo_medio_saca,
+            preco_medio_saca_especial=media_esp,
+            preco_medio_saca_convencional=media_conv,
+            premio_qualidade_pct=premio_pct,
+            lotes=itens,
+            por_bebida=self._agrupar_por_bebida(itens),
+        )

@@ -20,7 +20,7 @@ Comando read-only:
 PGPASSWORD='***' pg_dump --schema-only --schema=farms \
   --no-owner --no-privileges \
   --file=/tmp/deepfarms_farms_01d.sql \
-  -h 192.168.0.2 -U borgus farms
+  -h 192.168.0.3 -U borgus farms
 ```
 
 Resultado: PostgreSQL 16.15, 31.141 linhas, sem dados extraídos.

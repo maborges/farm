@@ -345,7 +345,7 @@ def test_16_cors_permite_agro_na_rede_local_sem_liberar_origens_publicas():
     allowed = client.options(
         "/api/v1/public/mercado/ptax",
         headers={
-            "Origin": "http://192.168.0.2:3003",
+            "Origin": "http://192.168.0.3:3003",
             "Access-Control-Request-Method": "GET",
         },
     )
@@ -358,6 +358,6 @@ def test_16_cors_permite_agro_na_rede_local_sem_liberar_origens_publicas():
     )
 
     assert allowed.status_code == 200
-    assert allowed.headers["access-control-allow-origin"] == "http://192.168.0.2:3003"
+    assert allowed.headers["access-control-allow-origin"] == "http://192.168.0.3:3003"
     assert denied.status_code == 400
     assert "access-control-allow-origin" not in denied.headers
