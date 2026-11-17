@@ -599,6 +599,13 @@ Detalhamento de cada feature, decisões e histórico de implementação: `docs/C
   1. O endpoint `GET /api/v1/dashboard/maturidade` (`MaturidadeService.calcular_e_registrar`) calcula as notas dos 4 pilares a partir dos registros reais do tenant (funcionando com dados parciais agrícolas, pecuários ou mistos), persiste o snapshot mensal em `maturidade_snapshots` e calcula a tendência em relação ao mês anterior.
   2. No painel executivo `/dashboard`, o card `DashboardMaturidadeCard` exibe a nota geral, barras por pilar e links diretos para os módulos que puxam a nota para baixo.
 
+### DeepFarmIA Multi-Provider com Failover Automático
+- **Descrição curta:** Camada de inteligência artificial desacoplada de um único fornecedor, permitindo operar com **Anthropic**, **OpenAI**, **Google Gemini (Free Tier)**, **Groq (Free Tier)** ou **Ollama**, mantendo fallback determinístico quando offline ou sem cota.
+- **Fluxo de funcionamento:**
+  1. O cliente central (`services/api/ia/anthropic_client.py`) lê `IA_PROVIDER` do ambiente (`services/api/.env.local` em dev ou `services/api/.env.production` em produção).
+  2. Com `IA_PROVIDER=auto`, o sistema tenta automaticamente os provedores configurados na ordem **`anthropic` → `openai` → `gemini` → `groq` → `ollama`** com failover em caso de erro ou limite de cota; também é possível fixar um provedor específico (`IA_PROVIDER=groq`, `openai`, `gemini`, `anthropic` ou `ollama`).
+  3. Caso nenhum provedor esteja disponível ou a cota mensal do tenant seja atingida, o sistema retorna análises determinísticas (`fonte: "DETERMINISTICO"`) sem interromper o uso da DRE Operacional.
+
 ## Conceitos-Chave: Propriedade, Talhão e Unidade Produtiva
 
 

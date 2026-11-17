@@ -1,4 +1,4 @@
-"""Cliente compartilhado multi-provider da DeepFarmIA (Anthropic, Gemini, Groq e Ollama).
+"""Cliente compartilhado multi-provider da DeepFarmIA (Anthropic, OpenAI, Gemini, Groq e Ollama).
 
 Centraliza resolução de provider/API key/modelo, headers e retry/backoff para
 todos os serviços do módulo IA, mantendo `chamar_anthropic` e `get_ia_model`
@@ -11,6 +11,7 @@ import httpx
 
 ANTHROPIC_MESSAGES_URL = "https://api.anthropic.com/v1/messages"
 ANTHROPIC_VERSION = "2023-06-01"
+OPENAI_CHAT_URL = "https://api.openai.com/v1/chat/completions"
 GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models"
 GROQ_CHAT_URL = "https://api.groq.com/openai/v1/chat/completions"
 
@@ -24,6 +25,8 @@ def get_ia_provider() -> str:
         return explicit
     if os.getenv("ANTHROPIC_API_KEY", "").strip():
         return "anthropic"
+    if os.getenv("OPENAI_API_KEY", "").strip():
+        return "openai"
     if os.getenv("GEMINI_API_KEY", "").strip():
         return "gemini"
     if os.getenv("GROQ_API_KEY", "").strip():
@@ -36,6 +39,8 @@ def get_ia_provider() -> str:
 def has_ia_configured() -> bool:
     """Retorna True se o provedor ativo possui chave/URL configurada."""
     provider = get_ia_provider()
+    if provider == "openai":
+        return bool(os.getenv("OPENAI_API_KEY", "").strip())
     if provider == "gemini":
         return bool(os.getenv("GEMINI_API_KEY", "").strip())
     if provider == "groq":
@@ -51,6 +56,8 @@ def get_ia_model() -> str:
     custom = os.getenv("IA_MODEL", "").strip()
     if custom and not (provider != "anthropic" and custom.startswith("claude-")):
         return custom
+    if provider == "openai":
+        return os.getenv("OPENAI_MODEL", "gpt-4o-mini")
     if provider == "gemini":
         return os.getenv("GEMINI_MODEL", "gemini-flash-latest")
     if provider == "groq":
@@ -118,6 +125,62 @@ async def _chamar_gemini(
     return data["candidates"][0]["content"]["parts"][0]["text"].strip()
 
 
+async def _chamar_openai_compat(
+    *,
+    url: str,
+    api_key: str,
+    model: str,
+    prompt: str,
+    max_tokens: int,
+    timeout: float,
+    max_retries: int,
+    backoff_base: float,
+    extra_payload: dict | None = None,
+) -> str:
+    payload: dict = {
+        "model": model,
+        "max_tokens": max_tokens,
+        "messages": [{"role": "user", "content": prompt}],
+    }
+    if extra_payload:
+        payload.update(extra_payload)
+    data = await _post_with_retry(
+        url,
+        headers={
+            "authorization": f"Bearer {api_key}",
+            "content-type": "application/json",
+        },
+        payload=payload,
+        timeout=timeout,
+        max_retries=max_retries,
+        backoff_base=backoff_base,
+    )
+    return (data["choices"][0]["message"].get("content") or "").strip()
+
+
+async def _chamar_openai(
+    prompt: str,
+    *,
+    max_tokens: int,
+    timeout: float,
+    max_retries: int,
+    backoff_base: float,
+) -> str:
+    api_key = os.getenv("OPENAI_API_KEY", "").strip()
+    if not api_key:
+        raise ValueError("OPENAI_API_KEY não configurada")
+    return await _chamar_openai_compat(
+        url=OPENAI_CHAT_URL,
+        api_key=api_key,
+        model=_get_model_for_provider("openai"),
+        prompt=prompt,
+        max_tokens=max_tokens,
+        timeout=timeout,
+        max_retries=max_retries,
+        backoff_base=backoff_base,
+    )
+
+
 async def _chamar_groq(
     prompt: str,
     *,
@@ -129,23 +192,17 @@ async def _chamar_groq(
     api_key = os.getenv("GROQ_API_KEY", "").strip()
     if not api_key:
         raise ValueError("GROQ_API_KEY não configurada")
-    data = await _post_with_retry(
-        GROQ_CHAT_URL,
-        headers={
-            "authorization": f"Bearer {api_key}",
-            "content-type": "application/json",
-        },
-        payload={
-            "model": _get_model_for_provider("groq"),
-            "max_tokens": max(max_tokens, 1500),
-            "reasoning_effort": "low",
-            "messages": [{"role": "user", "content": prompt}],
-        },
+    return await _chamar_openai_compat(
+        url=GROQ_CHAT_URL,
+        api_key=api_key,
+        model=_get_model_for_provider("groq"),
+        prompt=prompt,
+        max_tokens=max(max_tokens, 1500),
         timeout=timeout,
         max_retries=max_retries,
         backoff_base=backoff_base,
+        extra_payload={"reasoning_effort": "low"},
     )
-    return (data["choices"][0]["message"].get("content") or "").strip()
 
 
 async def _chamar_ollama(
@@ -184,6 +241,10 @@ async def _chamar_provider(
     max_retries: int,
     backoff_base: float,
 ) -> str:
+    if provider == "openai":
+        return await _chamar_openai(
+            prompt, max_tokens=max_tokens, timeout=timeout, max_retries=max_retries, backoff_base=backoff_base
+        )
     if provider == "gemini":
         return await _chamar_gemini(
             prompt, max_tokens=max_tokens, timeout=timeout, max_retries=max_retries, backoff_base=backoff_base
@@ -224,6 +285,8 @@ def _get_model_for_provider(provider: str) -> str:
     custom = os.getenv("IA_MODEL", "").strip()
     if custom and not (provider != "anthropic" and custom.startswith("claude-")):
         return custom
+    if provider == "openai":
+        return os.getenv("OPENAI_MODEL", "gpt-4o-mini")
     if provider == "gemini":
         return os.getenv("GEMINI_MODEL", "gemini-flash-latest")
     if provider == "groq":
@@ -261,6 +324,7 @@ async def chamar_anthropic(
         p
         for p, env_var in (
             ("anthropic", "ANTHROPIC_API_KEY"),
+            ("openai", "OPENAI_API_KEY"),
             ("gemini", "GEMINI_API_KEY"),
             ("groq", "GROQ_API_KEY"),
             ("ollama", "OLLAMA_BASE_URL"),
