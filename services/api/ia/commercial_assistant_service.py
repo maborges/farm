@@ -487,8 +487,9 @@ CONTEXTO:
             )
             return {**heur, "log_id": log_id, "contexto": contexto}
 
-        api_key = os.getenv("ANTHROPIC_API_KEY", "")
-        if not api_key:
+        from ia.anthropic_client import chamar_anthropic, get_ia_model, has_ia_configured
+
+        if not has_ia_configured():
             heur = cls._resposta_heuristica(contexto, mensagem_usuario)
             await _usage_svc.registrar_uso_ia(db, tenant_id, "growth_assistente_comercial", "FALLBACK", usuario_id=usuario_id)
             log_id = await cls.registrar_interacao_assistente(
@@ -505,8 +506,6 @@ CONTEXTO:
                 acao_sugerida=heur["acao_sugerida"],
             )
             return {**heur, "log_id": log_id, "contexto": contexto}
-
-        from ia.anthropic_client import chamar_anthropic, get_ia_model
 
         prompt = cls._montar_prompt(contexto, mensagem_usuario)
         model = get_ia_model()

@@ -19,5 +19,11 @@ class LoteIndicadoresResponse(BaseModel):
     custo_sanitario_por_kg: float = Field(ge=0)
     custo_sanitario_por_arroba: float = Field(ge=0)
     custo_aquisicao_total: float = Field(0, ge=0)
+    area_piquete_ha: float = Field(0.0, ge=0)
+    lotacao_ua_ha: float = Field(0.0, ge=0)
+    arrobas_por_hectare: float = Field(0.0, ge=0)
+    custo_nutricao_total: float = Field(0.0, ge=0)
+    custo_total_operacional: float = Field(0.0, ge=0)
+    custo_total_por_arroba: float = Field(0.0, ge=0)
 
     model_config = ConfigDict(from_attributes=True)

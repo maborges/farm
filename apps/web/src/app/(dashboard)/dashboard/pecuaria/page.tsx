@@ -44,6 +44,14 @@ interface ManejoLote {
     observacoes?: string;
 }
 
+interface PiqueAreaResumo {
+    area_pastagem_ha: number;
+    lotacao_ua_ha: number;
+    arrobas_totais: number;
+    arrobas_por_hectare: number;
+    custo_total_por_arroba: number;
+}
+
 interface PiqueteTerritorial {
     id: string;
     nome: string;
@@ -106,6 +114,12 @@ export default function PecuariaDashboard() {
     const { data: piquetes = [] } = useQuery<PiqueteTerritorial[]>({
         queryKey: ["piquetes", activeFazendaId],
         queryFn: () => apiFetch<PiqueteTerritorial[]>(`/cadastros/areas-rurais?tipo=PIQUETE&unidade_produtiva_id=${activeFazendaId}`),
+        enabled: !!activeFazendaId,
+    });
+
+    const { data: resumoEconomico } = useQuery<PiqueAreaResumo>({
+        queryKey: ["pecuaria-resumo-economico", activeFazendaId],
+        queryFn: () => apiFetch<PiqueAreaResumo>(`/pecuaria/dashboard/resumo${qs}`),
         enabled: !!activeFazendaId,
     });
 
@@ -226,6 +240,29 @@ export default function PecuariaDashboard() {
                                     <Icon className="size-4.5" />
                                 </div>
                             </div>
+                        </CardContent>
+                    </Card>
+                ))}
+            </div>
+
+            {/* Indicadores Econômicos & Lotação */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                {[
+                    { label: "Lotação (UA/ha)", value: (resumoEconomico?.lotacao_ua_ha ?? 0).toFixed(2) },
+                    { label: "Arrobas / ha (@/ha)", value: (resumoEconomico?.arrobas_por_hectare ?? 0).toFixed(2) },
+                    {
+                        label: "Custo Total / @",
+                        value: (resumoEconomico?.custo_total_por_arroba ?? 0).toLocaleString("pt-BR", {
+                            style: "currency",
+                            currency: "BRL",
+                        }),
+                    },
+                    { label: "Área de Pastagem (ha)", value: (resumoEconomico?.area_pastagem_ha ?? 0).toFixed(1) },
+                ].map((item) => (
+                    <Card key={item.label} className="shadow-xs border border-border/70 rounded-sm">
+                        <CardContent className="p-4">
+                            <div className="text-xs text-muted-foreground font-medium">{item.label}</div>
+                            <div className="text-xl font-bold mt-1 tabular-nums">{item.value}</div>
                         </CardContent>
                     </Card>
                 ))}

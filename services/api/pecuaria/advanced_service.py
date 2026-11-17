@@ -3,8 +3,11 @@ from __future__ import annotations
 
 import uuid
 from datetime import date
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from agricola.custos.models import CostAllocation
+from financeiro.models.lancamento import LancamentoFinanceiro
 
 from enterprise.models.sprints_27_33 import (
     ConfinamentoLote,
@@ -302,15 +305,88 @@ class PecuariaAdvancedService:
         return obj
 
     async def resumo_leite(self) -> dict:
+        """Consolida produção, qualidade, produtividade por vaca e custo/margem por litro.
+
+        Returns:
+            dict: Métricas produtivas e econômicas da pecuária leiteira.
+        """
         registros = await self.listar_producao()
         volume_total = sum(float(r.volume_litros or 0) for r in registros)
         media_volume = volume_total / len(registros) if registros else 0.0
         media_gordura = sum(float(r.gordura_pct or 0) for r in registros) / len(registros) if registros else 0.0
         media_proteina = sum(float(r.proteina_pct or 0) for r in registros) / len(registros) if registros else 0.0
+
+        producao_por_vaca = await self._calcular_producao_por_vaca_dia(registros, volume_total)
+        custo_total_leite = await self._somar_custo_leite()
+        custo_por_litro = round(custo_total_leite / volume_total, 4) if volume_total > 0 else 0.0
+        preco_medio_litro = self._calcular_preco_medio_litro(registros)
+        margem_por_litro = round(preco_medio_litro - custo_por_litro, 4) if preco_medio_litro > 0 else 0.0
+
         return {
             "total_registros": len(registros),
-            "volume_total_litros": volume_total,
-            "media_volume_litros": media_volume,
-            "media_gordura_pct": media_gordura,
-            "media_proteina_pct": media_proteina,
+            "volume_total_litros": round(volume_total, 2),
+            "media_volume_litros": round(media_volume, 2),
+            "media_gordura_pct": round(media_gordura, 2),
+            "media_proteina_pct": round(media_proteina, 2),
+            "producao_media_por_vaca_dia": producao_por_vaca,
+            "custo_total_leite": round(custo_total_leite, 2),
+            "custo_por_litro": custo_por_litro,
+            "preco_medio_litro": preco_medio_litro,
+            "margem_por_litro": margem_por_litro,
         }
+
+    async def _calcular_producao_por_vaca_dia(self, registros: list[ProducaoLeite], volume_total: float) -> float:
+        """Calcula litros por vaca por dia com base nos registros ou plantel leiteiro ativo."""
+        if not registros or volume_total <= 0:
+            return 0.0
+        dias_unicos = len({r.data for r in registros if r.data is not None})
+        if dias_unicos <= 0:
+            return 0.0
+        animais_individuais = {r.animal_id for r in registros if r.animal_id is not None}
+        if animais_individuais:
+            return round(volume_total / (len(animais_individuais) * dias_unicos), 2)
+        vacas_stmt = select(func.count(Animal.id)).where(
+            Animal.tenant_id == self.tenant_uuid,
+            Animal.status == "ATIVO",
+            Animal.categoria == "VACA_LEITE",
+        )
+        vacas_ativas = int((await self.session.execute(vacas_stmt)).scalar_one() or 0)
+        if vacas_ativas <= 0:
+            return 0.0
+        return round(volume_total / (vacas_ativas * dias_unicos), 2)
+
+    async def _somar_custo_leite(self) -> float:
+        """Soma custos alocados ou lançamentos financeiros vinculados à pecuária leiteira."""
+        ca_stmt = select(func.coalesce(func.sum(CostAllocation.amount), 0)).where(
+            CostAllocation.tenant_id == self.tenant_uuid,
+            CostAllocation.source.in_(("PECUARIA_LEITE", "PECUARIA_ORDENHA", "PECUARIA_NUTRICAO_LEITE")),
+        )
+        custo_ca = float((await self.session.execute(ca_stmt)).scalar_one() or 0)
+        fin_stmt = select(func.coalesce(func.sum(LancamentoFinanceiro.valor), 0)).where(
+            LancamentoFinanceiro.tenant_id == self.tenant_uuid,
+            LancamentoFinanceiro.tipo == "CUSTO",
+            or_(
+                LancamentoFinanceiro.origem.in_(("PECUARIA_LEITE", "LEITE")),
+                LancamentoFinanceiro.categoria == "PECUARIA_LEITE",
+            ),
+        )
+        custo_fin = float((await self.session.execute(fin_stmt)).scalar_one() or 0)
+        return custo_ca + custo_fin
+
+    def _calcular_preco_medio_litro(self, registros: list[ProducaoLeite]) -> float:
+        """Calcula preço médio ponderado por volume nos registros com preço/valor informado."""
+        vol_precificado = 0.0
+        receita_total = 0.0
+        for reg in registros:
+            vol = float(reg.volume_litros or 0)
+            if vol <= 0:
+                continue
+            if reg.valor_total is not None and float(reg.valor_total) > 0:
+                vol_precificado += vol
+                receita_total += float(reg.valor_total)
+            elif reg.preco_litro is not None and float(reg.preco_litro) > 0:
+                vol_precificado += vol
+                receita_total += vol * float(reg.preco_litro)
+        if vol_precificado <= 0:
+            return 0.0
+        return round(receita_total / vol_precificado, 4)

@@ -212,6 +212,13 @@ export function TenantSwitcher() {
                     })}
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
+                        onClick={() => router.push("/dashboard/carteira")}
+                        className="gap-2 cursor-pointer"
+                    >
+                        <Briefcase size={12} className="text-primary" />
+                        Ver Carteira Completa
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
                         onClick={() => setWizardOpen(true)}
                         className="gap-2 cursor-pointer text-primary"
                     >

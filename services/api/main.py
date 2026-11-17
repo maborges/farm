@@ -69,6 +69,7 @@ from operacional.routers import documento_equipamento as router_doc_equipamento
 from alert_engine.router import router as alert_engine_router
 from recommendations.router import router as recommendations_router
 from core.cadastros.router import router as router_core_cadastros
+from core.routers import dashboard_maturidade, planos_acao
 from core.cadastros.propriedades.propriedade_router import router as router_propriedades_econ
 from core.cadastros.pessoas.router import router as router_pessoas, router_tipos as router_tipos_relacionamento
 from core.cadastros.equipamentos.router import router as router_equipamentos
@@ -372,6 +373,8 @@ app.include_router(support.router, prefix="/api/v1")
 app.include_router(support_ws.router, prefix="/api/v1")
 app.include_router(knowledge_base.router, prefix="/api/v1")
 app.include_router(reports.router, prefix="/api/v1")
+app.include_router(planos_acao.router, prefix="/api/v1")
+app.include_router(dashboard_maturidade.router, prefix="/api/v1")
 app.include_router(configuration.router, prefix="/api/v1")
 app.include_router(frota.router, prefix="/api/v1")
 app.include_router(growth_router.router, prefix="/api/v1")

@@ -13,6 +13,7 @@ import { EmptyState } from "@/components/shared/empty-state";
 import { PageHeader } from "@/components/shared/page-header";
 import { DashboardAlertsCard, type AlertSummaryPayload } from "@/components/dashboard/dashboard-alerts-card";
 import { DashboardCopilotCard } from "@/components/dashboard/dashboard-copilot-card";
+import { DashboardMaturidadeCard } from "@/components/dashboard/dashboard-maturidade-card";
 import { FirstStepsCard } from "@/components/dashboard/first-steps-card";
 import { DashboardActionGrid } from "@/components/dashboard/dashboard-action-grid";
 import { DashboardPageSkeleton, TenantSelectionPrompt } from "@/components/dashboard/dashboard-states";
@@ -374,6 +375,8 @@ function DashboardContent() {
         {!profile.hasAgriculture && <Badge variant="outline" className="rounded-sm">Agricultura indisponível</Badge>}
         {!profile.hasLivestock && <Badge variant="outline" className="rounded-sm">Pecuária indisponível</Badge>}
       </div>
+
+      <DashboardMaturidadeCard unidadeProdutivaId={activeFazendaId} />
 
       {/* CENTRAL DE COMANDOS & ATALHOS OPERACIONAIS (Todos disponíveis e agrupados em formato de botão com ícone e descritivo) */}
       <DashboardActionGrid

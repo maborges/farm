@@ -133,7 +133,7 @@ REGRAS:
 - Destaque alertas reais se a margem estiver baixa ou custos concentrados.
 
 DADOS DA DRE:
-{json.dumps(dados, ensure_ascii=False, indent=2)}
+{json.dumps(dados, ensure_ascii=False, indent=2, default=str)}
 
 Responda EXCLUSIVAMENTE em formato JSON:
 {{
@@ -183,8 +183,11 @@ async def analisar_dre_safra(
         return res
 
     # 4. Chama IA
-    modelo = os.getenv("IA_MODEL", "claude-haiku-4-5-20251001")
+    from ia.anthropic_client import get_ia_model
+
+    modelo = get_ia_model()
     try:
+        await session.commit()
         resultado = await _chamar_ia_dre(ctx)
         resultado.ia_disponivel = True
         
@@ -260,8 +263,11 @@ async def analisar_simulacao_dre(
         return res
 
     # 4. Chama IA
-    modelo = os.getenv("IA_MODEL", "claude-haiku-4-5-20251001")
+    from ia.anthropic_client import get_ia_model
+
+    modelo = get_ia_model()
     try:
+        await session.commit()
         resultado = await _chamar_ia_simulacao(ctx)
         resultado.ia_disponivel = True
         
@@ -304,7 +310,7 @@ def _montar_prompt_simulacao(ctx: ContextoSimulacao) -> str:
 Analise esta SIMULAÇÃO "What-if" de resultado de safra comparando o cenário REAL com o SIMULADO.
 
 DADOS DA SIMULAÇÃO:
-{json.dumps(dados, ensure_ascii=False, indent=2)}
+{json.dumps(dados, ensure_ascii=False, indent=2, default=str)}
 
 Responda EXCLUSIVAMENTE em formato JSON:
 {{
@@ -564,7 +570,7 @@ CRITÉRIOS DE ESCOLHA:
 3. Justifique por que este cenário é o mais equilibrado para o produtor.
 {prompt_historico}
 DADOS PARA ANÁLISE:
-{json.dumps(dados, ensure_ascii=False, indent=2)}
+{json.dumps(dados, ensure_ascii=False, indent=2, default=str)}
 
 Responda EXCLUSIVAMENTE em formato JSON:
 {{
@@ -628,8 +634,11 @@ async def recomendar_cenario_safra(
     ctx.historico = await _obter_historico_decisoes(tenant_id, session)
 
     # 6. Chama IA
-    modelo = os.getenv("IA_MODEL", "claude-haiku-4-5-20251001")
+    from ia.anthropic_client import get_ia_model
+
+    modelo = get_ia_model()
     try:
+        await session.commit()
         resultado = await _chamar_ia_recomendacao(ctx)
         resultado.ia_disponivel = True
         

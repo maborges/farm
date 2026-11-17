@@ -349,6 +349,15 @@ export default function PrioridadesOperacionaisEconomicasAgricolaPage() {
     comentarioMutation.mutate({ prioridadeId, comentario });
   };
 
+  const gerarPlanoMutation = useMutation({
+    mutationFn: (payload: { titulo: string; origem_indicador: string; descricao?: string }) =>
+      apiFetch("/planos-acao/", { method: "POST", body: JSON.stringify(payload) }),
+    onSuccess: () => {
+      toast.success("Plano de ação gerado em /dashboard/planos-acao.");
+    },
+    onError: () => toast.error("Não foi possível gerar o plano de ação."),
+  });
+
   if (!hasProfessionalTier) {
     return (
       <div className="flex flex-col gap-6 p-6">
@@ -645,6 +654,21 @@ export default function PrioridadesOperacionaisEconomicasAgricolaPage() {
                           disabled={statusMutation.isPending}
                         >
                           Ignorar
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="rounded-sm"
+                          disabled={gerarPlanoMutation.isPending}
+                          onClick={() =>
+                            gerarPlanoMutation.mutate({
+                              titulo: `${item.entidade_label}: ${item.acao_sugerida}`.slice(0, 195),
+                              origem_indicador: item.origem_codigo,
+                              descricao: item.acao_sugerida,
+                            })
+                          }
+                        >
+                          <Target className="size-3.5 mr-1" /> Gerar Plano de Ação
                         </Button>
                       </div>
                       <p className="text-xs text-muted-foreground">

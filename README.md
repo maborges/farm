@@ -575,6 +575,30 @@ Detalhamento de cada feature, decisões e histórico de implementação: `docs/C
   2. O serviço calcula margem por saca (`R$/sc` e `%`), agrupa os indicadores por tipo de bebida e computa o prêmio percentual de preço dos lotes especiais (`SCA ≥ 80`) em relação aos lotes convencionais.
   3. Na interface `/agricola/safras/[id]/beneficiamento`, o componente `BeneficiamentoCafe` exibe os 4 cards-resumo (`Custo Médio / Saca`, `Preço Médio Especial`, `Preço Médio Convencional`, `Prêmio Qualidade`), chips agrupados por bebida e a tabela comparativa lote a lote.
 
+### Portal de Carteira do Consultor (Multi-Tenant)
+- **Descrição curta:** Visão consolidada para consultores e produtores com múltiplos tenants vinculados, exibindo propriedades, safras ativas, alertas abertos e última visita técnica com troca de contexto em 1 clique.
+- **Fluxo de funcionamento:**
+  1. O endpoint `GET /api/v1/auth/my-tenants/resumo` (`CarteiraService.obter_resumo_carteira`) consulta exclusivamente os tenants onde o usuário possui vínculo `TenantUsuario` ativo e consolida em lote (`GROUP BY tenant_id`) safras em andamento, notificações não lidas e data da última `VisitaTecnica`.
+  2. Na interface `/dashboard/carteira` (`CarteiraClient`), acessível também pelo atalho **"Ver Carteira Completa"** no `TenantSwitcher` da topbar, o usuário filtra suas contas e acessa qualquer propriedade diretamente via `switchTenantContext`.
+
+### Pecuária Econômica (Leite e Corte)
+- **Descrição curta:** Indicadores econômicos e zootécnicos reais para pecuária leiteira (`L/vaca/dia`, `R$/L` e margem por litro) e pecuária de corte (`UA/ha`, `@/ha` e custo total por arroba).
+- **Fluxo de funcionamento:**
+  1. Em `PecuariaAdvancedService.resumo_leite` (`GET /api/v1/pecuaria/leite/dashboard`), o backend cruza `ProducaoLeite`, plantel de vacas leiteiras ativas (`VACA_LEITE`) e custos alocados/lançamentos (`PECUARIA_LEITE`), exibindo `producao_media_por_vaca_dia`, `custo_por_litro`, `preco_medio_litro` e `margem_por_litro` em `/dashboard/pecuaria/leite`.
+  2. Em `LoteIndicadoresService` e `PecuariaDashboardResumoService` (`GET /api/v1/pecuaria/dashboard/resumo`), o backend calcula `lotacao_ua_ha`, `arrobas_por_hectare`, `custo_nutricao_total` e `custo_total_por_arroba` com base na área dos piquetes (`AreaRural`) e custos vinculados, exibidos nos cards econômicos de `/dashboard/pecuaria`.
+
+### Planos de Ação Gerenciais (Indicador → Ação)
+- **Descrição curta:** Conversão de prioridades e gargalos operacionais/econômicos em planos de ação persistidos, com responsável, meta, prazo e acompanhamento de status (`ABERTO`, `EM_ANDAMENTO`, `ATRASADO`, `CONCLUIDO`).
+- **Fluxo de funcionamento:**
+  1. Os endpoints `GET/POST/PATCH/DELETE /api/v1/planos-acao` (`PlanoAcaoService`) persistem ações na tabela `planos_acao_gerenciais` com isolamento estrito por `tenant_id`, derivação automática de atraso quando o prazo expira e registro de `concluido_em` + `resultado_obtido`.
+  2. Em `/dashboard/agricola/prioridades`, cada card possui o botão **"Gerar Plano de Ação"**; a gestão completa fica centralizada em `/dashboard/planos-acao`.
+
+### Score Consolidado de Maturidade da Fazenda
+- **Descrição curta:** Nota executiva determinística de 0 a 100 em 4 pilares (*Operacional*, *Agronômico/Zootécnico*, *Econômico* e *Financeiro*) com histórico mensal e recomendações diretas.
+- **Fluxo de funcionamento:**
+  1. O endpoint `GET /api/v1/dashboard/maturidade` (`MaturidadeService.calcular_e_registrar`) calcula as notas dos 4 pilares a partir dos registros reais do tenant (funcionando com dados parciais agrícolas, pecuários ou mistos), persiste o snapshot mensal em `maturidade_snapshots` e calcula a tendência em relação ao mês anterior.
+  2. No painel executivo `/dashboard`, o card `DashboardMaturidadeCard` exibe a nota geral, barras por pilar e links diretos para os módulos que puxam a nota para baixo.
+
 ## Conceitos-Chave: Propriedade, Talhão e Unidade Produtiva
 
 

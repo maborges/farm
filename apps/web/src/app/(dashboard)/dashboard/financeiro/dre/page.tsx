@@ -476,71 +476,92 @@ export default function DREOperacionalPage() {
                     </div>
                     {/* ── IA Recommendation Card ── */}
                     {iaRecomendacao && (
-                        <Card className="rounded-sm border shadow-lg bg-indigo-50/30 border-indigo-200 animate-in slide-in-from-top duration-500 mb-6 overflow-hidden">
-                            <div className="h-1 w-full bg-indigo-500" />
-                            <CardHeader className="pb-3 flex flex-row items-center justify-between">
-                                <div className="space-y-1">
-                                    <CardTitle className="text-sm font-bold flex items-center gap-2 text-indigo-900">
-                                        <Sparkles size={18} className="text-indigo-600" />
-                                        Recomendação de Cenário AgroIA
-                                    </CardTitle>
-                                    <CardDescription className="text-[10px] uppercase font-bold text-indigo-700/60">
-                                        Análise comparativa de cenários simulados
-                                    </CardDescription>
+                        <Card className="rounded-sm border border-primary/25 bg-card shadow-sm animate-in slide-in-from-top duration-300 mb-6 overflow-hidden">
+                            <div className="h-1 w-full bg-primary" />
+                            <CardHeader className="pb-3 flex flex-row items-start justify-between gap-4 border-b bg-muted/20">
+                                <div className="flex items-start gap-2.5">
+                                    <div className="p-2 rounded-sm bg-primary/10 text-primary border border-primary/20 shrink-0">
+                                        <Sparkles size={16} />
+                                    </div>
+                                    <div className="space-y-0.5">
+                                        <CardTitle className="text-sm font-semibold text-foreground">
+                                            Recomendação de Cenário DeepFarmIA
+                                        </CardTitle>
+                                        <CardDescription className="text-xs text-muted-foreground">
+                                            Análise comparativa de cenários simulados
+                                        </CardDescription>
+                                    </div>
                                 </div>
-                                <Badge variant="outline" className={`text-[9px] font-bold border-indigo-200 ${iaRecomendacao.fonte === "IA" ? "bg-indigo-100 text-indigo-700" : "bg-slate-100 text-slate-700"}`}>
-                                    FONTE: {iaRecomendacao.fonte}
-                                </Badge>
+                                <div className="flex items-center gap-2 shrink-0">
+                                    <Badge
+                                        variant="outline"
+                                        className={`rounded-sm text-[11px] font-medium ${
+                                            iaRecomendacao.fonte === "IA"
+                                                ? "bg-primary/10 text-primary border-primary/25"
+                                                : "bg-muted text-muted-foreground border-border"
+                                        }`}
+                                    >
+                                        Fonte: {iaRecomendacao.fonte}
+                                    </Badge>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-7 px-2 rounded-sm text-xs"
+                                        onClick={() => setIaRecomendacao(null)}
+                                    >
+                                        Fechar
+                                    </Button>
+                                </div>
                             </CardHeader>
-                            <CardContent className="space-y-6">
+                            <CardContent className="pt-4 space-y-4">
                                 {iaRecomendacao.fonte === "DETERMINISTICO" && (
-                                    <div className="bg-amber-50 border border-amber-200 p-3 rounded-sm flex items-start gap-3">
-                                        <AlertCircle size={16} className="text-amber-600 shrink-0 mt-0.5" />
-                                        <div className="text-xs text-amber-900 space-y-1">
-                                            <p className="font-bold">Análise Matemática (Fallback)</p>
-                                            <p className="opacity-80">
+                                    <div className="bg-amber-500/10 border border-amber-500/25 p-3 rounded-sm flex items-start gap-3">
+                                        <AlertCircle size={16} className="text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                                        <div className="text-xs text-foreground space-y-1">
+                                            <p className="font-semibold text-amber-800 dark:text-amber-300">Análise Matemática (Fallback)</p>
+                                            <p className="text-muted-foreground">
                                                 A recomendação foi baseada estritamente na maior margem projetada.
-                                                {iaRecomendacao.limite_atingido 
-                                                    ? " A sua cota mensal de requisições de Inteligência Artificial foi atingida." 
-                                                    : (iaRecomendacao.motivo_fallback === "SISTEMA_OFFLINE" 
-                                                        ? " O serviço de Inteligência Artificial está temporariamente indisponível no sistema." 
-                                                        : (iaRecomendacao.motivo_fallback === "PLANO_INADEQUADO" 
-                                                            ? " O serviço avançado de Inteligência Artificial não está disponível no seu plano atual." 
-                                                            : "")
-                                                    )}
+                                                {iaRecomendacao.limite_atingido
+                                                    ? " A sua cota mensal de requisições de Inteligência Artificial foi atingida."
+                                                    : iaRecomendacao.motivo_fallback === "SISTEMA_OFFLINE"
+                                                        ? " O serviço de Inteligência Artificial está temporariamente indisponível no sistema."
+                                                        : iaRecomendacao.motivo_fallback === "PLANO_INADEQUADO"
+                                                            ? " O serviço avançado de Inteligência Artificial não está disponível no seu plano atual."
+                                                            : ""}
                                             </p>
                                         </div>
                                     </div>
                                 )}
-                                <div className="p-4 bg-white/80 rounded-sm border border-indigo-100 shadow-sm">
-                                    <p className="text-sm font-bold text-indigo-950 leading-relaxed italic">
-                                        "{iaRecomendacao.resumo}"
+
+                                <div className="p-3.5 bg-muted/30 rounded-sm border border-border/70">
+                                    <p className="text-sm font-medium text-foreground leading-relaxed">
+                                        {iaRecomendacao.resumo}
                                     </p>
                                 </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                    <div className="space-y-3">
-                                        <h4 className="text-[10px] font-black uppercase text-indigo-800 tracking-wider flex items-center gap-1.5">
-                                            <CheckCircle2 size={12} className="text-indigo-500" /> Justificativas da Escolha
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="rounded-sm border border-border/70 p-3.5 space-y-2.5 bg-background/60">
+                                        <h4 className="text-xs font-semibold uppercase text-emerald-700 dark:text-emerald-400 tracking-wide flex items-center gap-1.5">
+                                            <CheckCircle2 size={14} /> Justificativas da Escolha
                                         </h4>
-                                        <ul className="space-y-2">
+                                        <ul className="space-y-1.5">
                                             {iaRecomendacao.justificativas.map((j, i) => (
-                                                <li key={i} className="text-[11px] text-muted-foreground flex items-start gap-2">
-                                                    <span className="h-1.5 w-1.5 rounded-full bg-indigo-400 mt-1 shrink-0" />
-                                                    {j}
+                                                <li key={i} className="text-xs text-muted-foreground flex items-start gap-2">
+                                                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 mt-1.5 shrink-0" />
+                                                    <span>{j}</span>
                                                 </li>
                                             ))}
                                         </ul>
                                     </div>
-                                    <div className="space-y-3">
-                                        <h4 className="text-[10px] font-black uppercase text-red-800 tracking-wider flex items-center gap-1.5">
-                                            <AlertCircle size={12} className="text-red-500" /> Pontos de Risco
+                                    <div className="rounded-sm border border-border/70 p-3.5 space-y-2.5 bg-background/60">
+                                        <h4 className="text-xs font-semibold uppercase text-destructive tracking-wide flex items-center gap-1.5">
+                                            <AlertCircle size={14} /> Pontos de Risco
                                         </h4>
-                                        <ul className="space-y-2">
+                                        <ul className="space-y-1.5">
                                             {iaRecomendacao.pontos_risco.map((r, i) => (
-                                                <li key={i} className="text-[11px] text-muted-foreground flex items-start gap-2">
-                                                    <span className="h-1.5 w-1.5 rounded-full bg-red-400 mt-1 shrink-0" />
-                                                    {r}
+                                                <li key={i} className="text-xs text-muted-foreground flex items-start gap-2">
+                                                    <span className="h-1.5 w-1.5 rounded-full bg-destructive mt-1.5 shrink-0" />
+                                                    <span>{r}</span>
                                                 </li>
                                             ))}
                                         </ul>
@@ -548,16 +569,16 @@ export default function DREOperacionalPage() {
                                 </div>
 
                                 {iaRecomendacao.cenario_recomendado_id && (
-                                    <div className="pt-4 border-t border-indigo-100 flex items-center justify-between">
-                                        <div className="flex items-center gap-3">
-                                            <span className="text-[10px] font-black uppercase text-indigo-900/40">Cenário Sugerido:</span>
-                                            <Badge className="bg-indigo-600 text-white border-none rounded-sm px-3 py-1 font-bold text-xs">
+                                    <div className="pt-3 border-t border-border/70 flex flex-wrap items-center justify-between gap-2">
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-xs font-medium text-muted-foreground">Cenário Sugerido:</span>
+                                            <Badge className="bg-primary text-primary-foreground border-none rounded-sm px-2.5 py-0.5 font-semibold text-xs">
                                                 {cenarios.find(c => c.id === iaRecomendacao.cenario_recomendado_id)?.nome || "Cenário Selecionado"}
                                             </Badge>
                                         </div>
-                                        <div className="flex items-center gap-2 text-[10px] font-bold text-indigo-800/50">
-                                            Confiança da Análise: {(iaRecomendacao.nivel_confianca * 100).toFixed(0)}%
-                                        </div>
+                                        <span className="text-xs font-medium text-muted-foreground">
+                                            Confiança da Análise: <strong className="text-foreground">{(iaRecomendacao.nivel_confianca * 100).toFixed(0)}%</strong>
+                                        </span>
                                     </div>
                                 )}
                             </CardContent>
@@ -566,76 +587,101 @@ export default function DREOperacionalPage() {
 
                     {/* ── Simulation Panel ── */}
                     {simulacaoAberta && (
-                        <Card className="rounded-sm shadow-lg bg-amber-50/30 border animate-in slide-in-from-top duration-300 mb-6">
-                            <CardHeader className="pb-3">
-                                <div className="flex items-center justify-between">
-                                    <div className="space-y-1">
-                                        <CardTitle className="text-sm font-bold flex items-center gap-2 text-amber-700">
-                                            <Calculator size={18} />
-                                            Simulador de Resultados (What-If)
-                                        </CardTitle>
-                                        <CardDescription className="text-[10px] uppercase font-medium">Ajuste as variáveis para projetar novos cenários</CardDescription>
-                                    </div>
-                                    <div className="flex items-center gap-4">
-                                        <div className="flex flex-col items-end text-right">
-                                            <span className="text-[10px] font-bold text-muted-foreground uppercase">Impacto Projetado</span>
-                                            <span className={`text-lg font-black tabular-nums ${ (simulacao?.variacao_resultado ?? 0) >= 0 ? "text-green-600" : "text-red-600" }`}>
-                                                {simulacao ? (simulacao.variacao_resultado >= 0 ? "+" : "") + fmt(simulacao.variacao_resultado) : "---"}
-                                            </span>
+                        <Card className="rounded-sm border border-border bg-card shadow-sm animate-in slide-in-from-top duration-300 mb-6 overflow-hidden">
+                            <div className="h-1 w-full bg-amber-500" />
+                            <CardHeader className="pb-3 border-b bg-muted/20">
+                                <div className="flex flex-wrap items-center justify-between gap-4">
+                                    <div className="flex items-start gap-2.5">
+                                        <div className="p-2 rounded-sm bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 shrink-0">
+                                            <Calculator size={16} />
                                         </div>
+                                        <div className="space-y-0.5">
+                                            <CardTitle className="text-sm font-semibold text-foreground">
+                                                Simulador de Resultados (What-If)
+                                            </CardTitle>
+                                            <CardDescription className="text-xs text-muted-foreground">
+                                                Ajuste as variáveis para projetar novos cenários
+                                            </CardDescription>
+                                        </div>
+                                    </div>
+                                    <div className="flex flex-col items-end text-right">
+                                        <span className="text-[11px] font-medium text-muted-foreground">Impacto Projetado</span>
+                                        <span
+                                            className={`text-lg font-bold tabular-nums ${
+                                                (simulacao?.variacao_resultado ?? 0) >= 0
+                                                    ? "text-emerald-700 dark:text-emerald-400"
+                                                    : "text-destructive"
+                                            }`}
+                                        >
+                                            {simulacao ? (simulacao.variacao_resultado >= 0 ? "+" : "") + fmt(simulacao.variacao_resultado) : "—"}
+                                        </span>
                                     </div>
                                 </div>
                             </CardHeader>
-                            <CardContent className="space-y-6">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            <CardContent className="pt-4 space-y-5">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     {/* Controles */}
-                                    <div className="space-y-6">
-                                        <div className="space-y-4">
+                                    <div className="space-y-5 rounded-sm border border-border/70 p-4 bg-background/60">
+                                        <div className="space-y-2.5">
                                             <div className="flex items-center justify-between">
-                                                <label className="text-xs font-bold text-muted-foreground flex items-center gap-2">
-                                                    <TrendingUp size={14} className="text-green-600" />
+                                                <label className="text-xs font-medium text-foreground flex items-center gap-2">
+                                                    <TrendingUp size={14} className="text-emerald-600 dark:text-emerald-400" />
                                                     Variação na Receita (%)
                                                 </label>
-                                                <span className={`text-xs font-black ${ajusteReceita >= 0 ? "text-green-600" : "text-red-600"}`}>
-                                                    {ajusteReceita > 0 ? "+" : ""}{ajusteReceita}%
+                                                <span
+                                                    className={`text-xs font-bold tabular-nums ${
+                                                        ajusteReceita >= 0
+                                                            ? "text-emerald-700 dark:text-emerald-400"
+                                                            : "text-destructive"
+                                                    }`}
+                                                >
+                                                    {ajusteReceita > 0 ? "+" : ""}
+                                                    {ajusteReceita}%
                                                 </span>
                                             </div>
-                                            <input 
-                                                type="range" 
-                                                min="-50" 
-                                                max="100" 
+                                            <input
+                                                type="range"
+                                                min="-50"
+                                                max="100"
                                                 step="1"
-                                                value={ajusteReceita} 
+                                                value={ajusteReceita}
                                                 onChange={(e) => setAjusteReceita(parseInt(e.target.value))}
-                                                className="w-full h-1.5 bg-muted rounded-lg appearance-none cursor-pointer accent-green-600"
+                                                className="w-full h-1.5 bg-muted rounded-sm appearance-none cursor-pointer accent-emerald-600"
                                             />
-                                            <div className="flex justify-between text-[9px] text-muted-foreground font-bold uppercase">
+                                            <div className="flex justify-between text-[10px] text-muted-foreground font-medium">
                                                 <span>-50%</span>
                                                 <span>0%</span>
                                                 <span>+100%</span>
                                             </div>
                                         </div>
 
-                                        <div className="space-y-4">
+                                        <div className="space-y-2.5">
                                             <div className="flex items-center justify-between">
-                                                <label className="text-xs font-bold text-muted-foreground flex items-center gap-2">
-                                                    <TrendingDown size={14} className="text-red-600" />
+                                                <label className="text-xs font-medium text-foreground flex items-center gap-2">
+                                                    <TrendingDown size={14} className="text-destructive" />
                                                     Variação nos Custos (%)
                                                 </label>
-                                                <span className={`text-xs font-black ${ajusteCustos <= 0 ? "text-green-600" : "text-red-600"}`}>
-                                                    {ajusteCustos > 0 ? "+" : ""}{ajusteCustos}%
+                                                <span
+                                                    className={`text-xs font-bold tabular-nums ${
+                                                        ajusteCustos <= 0
+                                                            ? "text-emerald-700 dark:text-emerald-400"
+                                                            : "text-destructive"
+                                                    }`}
+                                                >
+                                                    {ajusteCustos > 0 ? "+" : ""}
+                                                    {ajusteCustos}%
                                                 </span>
                                             </div>
-                                            <input 
-                                                type="range" 
-                                                min="-50" 
-                                                max="50" 
+                                            <input
+                                                type="range"
+                                                min="-50"
+                                                max="50"
                                                 step="1"
-                                                value={ajusteCustos} 
+                                                value={ajusteCustos}
                                                 onChange={(e) => setAjusteCustos(parseInt(e.target.value))}
-                                                className="w-full h-1.5 bg-muted rounded-lg appearance-none cursor-pointer accent-red-600"
+                                                className="w-full h-1.5 bg-muted rounded-sm appearance-none cursor-pointer accent-destructive"
                                             />
-                                            <div className="flex justify-between text-[9px] text-muted-foreground font-bold uppercase">
+                                            <div className="flex justify-between text-[10px] text-muted-foreground font-medium">
                                                 <span>-50%</span>
                                                 <span>0%</span>
                                                 <span>+50%</span>
@@ -644,51 +690,76 @@ export default function DREOperacionalPage() {
                                     </div>
 
                                     {/* Resumo Comparativo */}
-                                    <div className="bg-white/50 rounded-sm border border-amber-200 p-4 space-y-4 shadow-inner">
-                                        <h4 className="text-[10px] font-black uppercase text-amber-800 tracking-wider">Projeção Comparativa</h4>
-                                        
+                                    <div className="bg-muted/30 rounded-sm border border-border/70 p-4 space-y-4">
+                                        <h4 className="text-xs font-semibold uppercase text-muted-foreground tracking-wide">
+                                            Projeção Comparativa
+                                        </h4>
+
                                         <div className="grid grid-cols-2 gap-4">
                                             <div className="space-y-1">
-                                                <p className="text-[9px] font-bold text-muted-foreground uppercase">Resultado Real</p>
-                                                <p className="text-sm font-black text-foreground">{fmt(simulacao?.resultado_real ?? 0)}</p>
-                                                <p className="text-[9px] font-medium text-muted-foreground uppercase">Margem: {simulacao?.margem_real.toFixed(1)}%</p>
+                                                <p className="text-[11px] font-medium text-muted-foreground">Resultado Real</p>
+                                                <p className="text-base font-bold text-foreground tabular-nums">
+                                                    {fmt(simulacao?.resultado_real ?? 0)}
+                                                </p>
+                                                <p className="text-[11px] text-muted-foreground">
+                                                    Margem: {(simulacao?.margem_real ?? 0).toFixed(1)}%
+                                                </p>
                                             </div>
                                             <div className="space-y-1">
-                                                <p className="text-[9px] font-bold text-amber-700 uppercase">Resultado Simulado</p>
-                                                <p className="text-sm font-black text-amber-900">{fmt(simulacao?.resultado_simulado ?? 0)}</p>
-                                                <p className={`text-[9px] font-bold uppercase ${ (simulacao?.margem_simulada ?? 0) >= (simulacao?.margem_real ?? 0) ? "text-green-600" : "text-red-600" }`}>
-                                                    Margem: {simulacao?.margem_simulada.toFixed(1)}%
+                                                <p className="text-[11px] font-medium text-muted-foreground">Resultado Simulado</p>
+                                                <p className="text-base font-bold text-foreground tabular-nums">
+                                                    {fmt(simulacao?.resultado_simulado ?? 0)}
+                                                </p>
+                                                <p
+                                                    className={`text-[11px] font-semibold ${
+                                                        (simulacao?.margem_simulada ?? 0) >= (simulacao?.margem_real ?? 0)
+                                                            ? "text-emerald-700 dark:text-emerald-400"
+                                                            : "text-destructive"
+                                                    }`}
+                                                >
+                                                    Margem: {(simulacao?.margem_simulada ?? 0).toFixed(1)}%
                                                 </p>
                                             </div>
                                         </div>
 
-                                        <div className="pt-2 border-t border-amber-200">
-                                            <div className="flex items-center justify-between mb-1">
-                                                <span className="text-[10px] font-bold text-muted-foreground uppercase">Variação de Lucratividade</span>
-                                                <span className={`text-xs font-black ${ (simulacao?.variacao_resultado_percentual ?? 0) >= 0 ? "text-green-600" : "text-red-600" }`}>
-                                                    {(simulacao?.variacao_resultado_percentual ?? 0) > 0 ? "+" : ""}{(simulacao?.variacao_resultado_percentual ?? 0).toFixed(1)}%
+                                        <div className="pt-3 border-t border-border/70">
+                                            <div className="flex items-center justify-between mb-1.5">
+                                                <span className="text-xs font-medium text-muted-foreground">
+                                                    Variação de Lucratividade
+                                                </span>
+                                                <span
+                                                    className={`text-xs font-bold tabular-nums ${
+                                                        (simulacao?.variacao_resultado_percentual ?? 0) >= 0
+                                                            ? "text-emerald-700 dark:text-emerald-400"
+                                                            : "text-destructive"
+                                                    }`}
+                                                >
+                                                    {(simulacao?.variacao_resultado_percentual ?? 0) > 0 ? "+" : ""}
+                                                    {(simulacao?.variacao_resultado_percentual ?? 0).toFixed(1)}%
                                                 </span>
                                             </div>
-                                            <Progress 
-                                                value={Math.min(100, Math.abs(simulacao?.variacao_resultado_percentual ?? 0))} 
-                                                className={`h-1.5 ${ (simulacao?.variacao_resultado_percentual ?? 0) >= 0 ? "[&>div]:bg-green-500 bg-green-100" : "[&>div]:bg-red-500 bg-red-100" }`} 
+                                            <Progress
+                                                value={Math.min(100, Math.abs(simulacao?.variacao_resultado_percentual ?? 0))}
+                                                className="h-1.5"
                                             />
                                         </div>
                                     </div>
                                 </div>
 
                                 {/* Save Scenario Controls */}
-                                <div className="pt-4 border-t border-amber-200 flex flex-col md:flex-row items-center justify-between gap-4">
+                                <div className="pt-3 border-t border-border/70 flex flex-col md:flex-row items-center justify-between gap-3">
                                     <div className="flex items-center gap-3 w-full md:w-auto">
-                                        <label className="text-[10px] font-black uppercase text-amber-800 tracking-wider whitespace-nowrap">Nome do Cenário:</label>
-                                        <Input 
+                                        <label className="text-xs font-medium text-muted-foreground whitespace-nowrap">
+                                            Nome do Cenário:
+                                        </label>
+                                        <Input
                                             placeholder="Ex: Otimista 2026, Redução de Custos..."
-                                            className="h-8 text-xs rounded-sm w-full md:w-64 border-amber-200"
+                                            className="h-8 text-xs rounded-sm w-full md:w-64"
                                             value={nomeCenario}
                                             onChange={(e) => setNomeCenario(e.target.value)}
                                         />
                                     </div>
-                                    <Button 
+                                    <Button
                                         variant="outline"
                                         size="sm"
                                         onClick={handleSalvarCenario}
@@ -702,37 +773,41 @@ export default function DREOperacionalPage() {
 
                                 {/* IA Simulation Feedback */}
                                 {simulacaoIA && (
-                                    <div className="mt-4 p-4 bg-white/80 rounded-sm border border-amber-200 shadow-sm space-y-4 animate-in fade-in zoom-in duration-500">
-                                        <div className="flex items-center gap-2 text-amber-800">
-                                            <Sparkles size={16} className="animate-pulse" />
-                                            <h5 className="text-xs font-black uppercase tracking-tight">Análise Estratégica do Cenário</h5>
+                                    <div className="p-4 bg-muted/30 rounded-sm border border-border/70 space-y-3 animate-in fade-in duration-300">
+                                        <div className="flex items-center gap-2 text-primary">
+                                            <Sparkles size={15} />
+                                            <h5 className="text-xs font-semibold uppercase tracking-wide">
+                                                Análise Estratégica do Cenário
+                                            </h5>
                                         </div>
-                                        
-                                        <p className="text-xs text-foreground leading-relaxed italic">
-                                            "{simulacaoIA.impacto}"
+
+                                        <p className="text-xs text-foreground leading-relaxed">
+                                            {simulacaoIA.impacto}
                                         </p>
 
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-                                            <div className="space-y-2">
-                                                <h6 className="text-[9px] font-black text-red-700 uppercase flex items-center gap-1">
-                                                    <AlertCircle size={10} /> Riscos Identificados
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+                                            <div className="rounded-sm border border-border/70 p-3 bg-background/60 space-y-2">
+                                                <h6 className="text-xs font-semibold text-destructive uppercase flex items-center gap-1.5">
+                                                    <AlertCircle size={12} /> Riscos Identificados
                                                 </h6>
                                                 <ul className="space-y-1">
                                                     {(simulacaoIA.riscos || []).map((r, i) => (
-                                                        <li key={i} className="text-[10px] text-muted-foreground flex items-center gap-1.5">
-                                                            <span className="h-1 w-1 rounded-full bg-red-400 shrink-0" /> {r}
+                                                        <li key={i} className="text-xs text-muted-foreground flex items-start gap-2">
+                                                            <span className="h-1.5 w-1.5 rounded-full bg-destructive mt-1.5 shrink-0" />
+                                                            <span>{r}</span>
                                                         </li>
                                                     ))}
                                                 </ul>
                                             </div>
-                                            <div className="space-y-2">
-                                                <h6 className="text-[9px] font-black text-primary uppercase flex items-center gap-1">
-                                                    <Lightbulb size={10} /> Recomendações
+                                            <div className="rounded-sm border border-border/70 p-3 bg-background/60 space-y-2">
+                                                <h6 className="text-xs font-semibold text-primary uppercase flex items-center gap-1.5">
+                                                    <Lightbulb size={12} /> Recomendações
                                                 </h6>
                                                 <ul className="space-y-1">
                                                     {(simulacaoIA.recomendacoes || []).map((r, i) => (
-                                                        <li key={i} className="text-[10px] text-muted-foreground flex items-center gap-1.5">
-                                                            <span className="h-1 w-1 rounded-full bg-primary/60 shrink-0" /> {r}
+                                                        <li key={i} className="text-xs text-muted-foreground flex items-start gap-2">
+                                                            <span className="h-1.5 w-1.5 rounded-full bg-primary mt-1.5 shrink-0" />
+                                                            <span>{r}</span>
                                                         </li>
                                                     ))}
                                                 </ul>
@@ -999,7 +1074,7 @@ export default function DREOperacionalPage() {
                                             </span>
                                         </div>
                                         <div className="flex items-center gap-1 text-[9px] font-bold text-primary italic">
-                                            <Zap size={10} /> Powered by AgroIA
+                                            <Zap size={10} /> Powered by DeepFarmIA
                                         </div>
                                     </div>
                                 </div>

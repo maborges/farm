@@ -220,6 +220,18 @@ async def get_my_tenants(claims: dict = Depends(get_current_user_claims), sessio
     }
 
 
+@router.get("/my-tenants/resumo", summary="Resumo consolidado da carteira de tenants do usuário")
+async def get_my_tenants_resumo(
+    claims: dict = Depends(get_current_user_claims),
+    session: AsyncSession = Depends(get_session),
+):
+    """Retorna indicadores resumidos (propriedades, safras ativas, alertas, última visita) dos tenants ativos."""
+    from core.services.carteira_service import CarteiraService
+
+    user_id = uuid.UUID(claims["sub"])
+    return await CarteiraService(session).obter_resumo_carteira(user_id)
+
+
 @router.post("/create-subscription", response_model=CreateSubscriptionResponse, summary="Cria nova assinatura (tenant) para usuário logado")
 async def create_subscription(
     data: CreateSubscriptionRequest,

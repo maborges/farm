@@ -1,9 +1,12 @@
 import os
 from pathlib import Path
+from dotenv import load_dotenv
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Resolve path to .env.local relative to this config file location
 _env_path = Path(__file__).parent.parent / ".env.local"
+if _env_path.exists():
+    load_dotenv(_env_path, override=False)
 
 class Settings(BaseSettings):
     project_name: str = "AgroSaaS"

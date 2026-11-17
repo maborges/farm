@@ -16,7 +16,18 @@ import { DataTable, type ColumnDef } from "@/components/ui/data-table";
 import { Milk, Plus, LineChart, Activity, Droplets } from "lucide-react";
 import { toast } from "sonner";
 
-type Resumo = { total_registros: number; volume_total_litros: number; media_volume_litros: number; media_gordura_pct: number; media_proteina_pct: number };
+type Resumo = {
+  total_registros: number;
+  volume_total_litros: number;
+  media_volume_litros: number;
+  media_gordura_pct: number;
+  media_proteina_pct: number;
+  producao_media_por_vaca_dia?: number;
+  custo_total_leite?: number;
+  custo_por_litro?: number;
+  preco_medio_litro?: number;
+  margem_por_litro?: number;
+};
 type Producao = { id: string; data: string; turno: string; volume_litros: number; gordura_pct?: number | null; proteina_pct?: number | null; destino?: string | null; preco_litro?: number | null; valor_total?: number | null };
 
 const cols: ColumnDef<Producao>[] = [
@@ -104,6 +115,36 @@ export default function LeiteClient() {
               <div className="p-2 bg-muted rounded-sm text-green-600">
                 <LineChart className="size-5" />
               </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card className="rounded-sm">
+          <CardContent className="pt-5 pb-4">
+            <div className="text-xs text-muted-foreground">Produção Média / Vaca / Dia</div>
+            <div className="text-2xl font-bold mt-1">
+              {(resumo?.producao_media_por_vaca_dia ?? 0).toFixed(2)} <span className="text-xs font-normal text-muted-foreground">L/vaca/dia</span>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="rounded-sm">
+          <CardContent className="pt-5 pb-4">
+            <div className="text-xs text-muted-foreground">Custo por Litro</div>
+            <div className="text-2xl font-bold mt-1">
+              {(resumo?.custo_por_litro ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+              <span className="text-xs font-normal text-muted-foreground"> / L</span>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="rounded-sm">
+          <CardContent className="pt-5 pb-4">
+            <div className="text-xs text-muted-foreground">
+              Margem por Litro (Preço {(resumo?.preco_medio_litro ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })})
+            </div>
+            <div className={`text-2xl font-bold mt-1 ${(resumo?.margem_por_litro ?? 0) >= 0 ? "text-emerald-700 dark:text-emerald-400" : "text-destructive"}`}>
+              {(resumo?.margem_por_litro ?? 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}
+              <span className="text-xs font-normal text-muted-foreground"> / L</span>
             </div>
           </CardContent>
         </Card>

@@ -43,7 +43,14 @@ class ResumoConsultivo:
 
 
 def _ia_globalmente_habilitada() -> bool:
-    return os.getenv("IA_ENABLED", "false").lower() in ("true", "1", "yes")
+    from ia.anthropic_client import has_ia_configured
+
+    flag = os.getenv("IA_ENABLED", "").strip().lower()
+    if flag in ("false", "0", "no"):
+        return False
+    if flag in ("true", "1", "yes"):
+        return True
+    return has_ia_configured()
 
 
 async def tenant_tem_ia(tenant_id: uuid.UUID, session: AsyncSession) -> bool:

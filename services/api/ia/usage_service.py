@@ -254,6 +254,10 @@ async def registrar_uso_ia(
         await session.flush()
     except Exception as exc:
         logger.warning(f"Falha ao registrar uso de IA (tenant={tenant_id}): {exc}")
+        try:
+            await session.rollback()
+        except Exception:
+            pass
 
 
 async def consultar_tier_assinatura(

@@ -243,3 +243,8 @@ class ProducaoLeiteResumoResponse(BaseModel):
     media_volume_litros: float
     media_gordura_pct: float
     media_proteina_pct: float
+    producao_media_por_vaca_dia: float = 0.0
+    custo_total_leite: float = 0.0
+    custo_por_litro: float = 0.0
+    preco_medio_litro: float = 0.0
+    margem_por_litro: float = 0.0
