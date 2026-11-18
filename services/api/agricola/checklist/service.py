@@ -228,6 +228,7 @@ class SafraChecklistService(BaseService[SafraChecklistItem]):
         if not talhao or talhao.tenant_id != self.tenant_id:
             raise BusinessRuleError(f"Talhão {talhao_id} não encontrado.")
 
+        area_talhao = talhao.area_hectares or talhao.area_hectares_manual
         hoje = date.today()
         op_create = OperacaoAgricolaCreate(
             safra_id=item.safra_id,
@@ -236,7 +237,7 @@ class SafraChecklistService(BaseService[SafraChecklistItem]):
             descricao=item.titulo,
             data_prevista=hoje,
             data_realizada=hoje,
-            area_aplicada_ha=float(talhao.area_hectares) if talhao.area_hectares else 1.0,
+            area_aplicada_ha=float(area_talhao) if area_talhao else 1.0,
             status="PLANEJADA",
         )
         op_svc = OperacaoService(self.session, self.tenant_id)

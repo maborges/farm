@@ -470,7 +470,7 @@ export default function TalhoesPage() {
             }))
     };
 
-    const totalArea = displayAreas.reduce((s, t) => s + (t.area_hectares ?? 0), 0);
+    const totalArea = displayAreas.reduce((s, t) => s + (t.area_hectares ?? t.area_hectares_manual ?? 0), 0);
     const mappedCount = displayAreas.filter(t => t.geometria).length;
 
     return (

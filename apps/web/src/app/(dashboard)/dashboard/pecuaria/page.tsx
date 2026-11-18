@@ -56,6 +56,7 @@ interface PiqueteTerritorial {
     id: string;
     nome: string;
     area_hectares: number | null;
+    area_hectares_manual?: number | null;
     dados_extras?: {
         capacidade_suporte_ua?: number | null;
     } | null;
@@ -357,7 +358,7 @@ export default function PecuariaDashboard() {
                                             <div className="flex justify-between text-sm mb-1">
                                                 <span className="font-medium text-sm truncate">{p.nome}</span>
                                                 <span className="text-xs text-muted-foreground shrink-0 ml-2">
-                                                    {p.cabecas} cab. · {p.area_hectares ?? 0} ha
+                                                    {p.cabecas} cab. · {p.area_hectares ?? p.area_hectares_manual ?? 0} ha
                                                 </span>
                                             </div>
                                             {p.lotPct !== null ? (

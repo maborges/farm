@@ -32,6 +32,7 @@ interface AreaRural {
     id: string;
     nome: string;
     area_hectares: number | null;
+    area_hectares_manual?: number | null;
 }
 
 interface Props {
@@ -123,12 +124,15 @@ export function CultivoForm({ areas, onSubmit, isLoading = false }: Props) {
                                                         <SelectContent>
                                                             {areas
                                                                 .filter(a => a.id === field.value || !selectedAreaIds.includes(a.id))
-                                                                .map(area => (
-                                                                    <SelectItem key={area.id} value={area.id}>
-                                                                        {area.nome}
-                                                                        {area.area_hectares && ` (${area.area_hectares} ha)`}
-                                                                    </SelectItem>
-                                                                ))}
+                                                                .map(area => {
+                                                                    const areaHa = area.area_hectares ?? area.area_hectares_manual;
+                                                                    return (
+                                                                        <SelectItem key={area.id} value={area.id}>
+                                                                            {area.nome}
+                                                                            {areaHa != null && ` (${areaHa} ha)`}
+                                                                        </SelectItem>
+                                                                    );
+                                                                })}
                                                         </SelectContent>
                                                     </Select>
                                                     {errors.areas?.[idx]?.area_id && (

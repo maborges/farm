@@ -155,7 +155,7 @@ class LoteIndicadoresService:
         """Retorna a área em hectares do piquete atual do lote."""
         if piquete_id is None:
             return 0.0
-        stmt = select(AreaRural.area_hectares).where(
+        stmt = select(func.coalesce(AreaRural.area_hectares, AreaRural.area_hectares_manual)).where(
             AreaRural.id == piquete_id,
             AreaRural.tenant_id == self.tenant_id,
         )

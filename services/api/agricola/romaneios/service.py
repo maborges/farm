@@ -157,7 +157,9 @@ class RomaneioService(BaseService[RomaneioColheita]):
         )
         area_ha = (await self.session.execute(stmt_st)).scalar()
         if not area_ha:
-            stmt_ar = select(AreaRural.area_hectares).where(AreaRural.id == dados.talhao_id)
+            stmt_ar = select(func.coalesce(AreaRural.area_hectares, AreaRural.area_hectares_manual)).where(
+                AreaRural.id == dados.talhao_id
+            )
             area_ha = (await self.session.execute(stmt_ar)).scalar()
         if area_ha and float(area_ha) > 0:
             dados_dict["produtividade_sc_ha"] = sacas / float(area_ha)

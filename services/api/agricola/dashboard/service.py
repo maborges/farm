@@ -475,7 +475,12 @@ class DashboardAgricolaService:
         for tid in talhao_ids:
             talhao = await self.session.get(AreaRural, tid)
             talhao_nome = talhao.nome if talhao else str(tid)[:8]
-            talhao_area = area_por_talhao.get(tid, 0) or float(talhao.area_hectares or 0) if talhao else 0
+            talhao_area = (
+                area_por_talhao.get(tid, 0)
+                or float(talhao.area_hectares or talhao.area_hectares_manual or 0)
+                if talhao
+                else 0
+            )
 
             custo_op = custo_por_talhao.get(tid, 0)
             rec_rom = receita_rom_por_talhao.get(tid, 0)

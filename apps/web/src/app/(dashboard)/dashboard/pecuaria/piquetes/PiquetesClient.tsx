@@ -21,6 +21,7 @@ export interface PiqueteArea {
   nome: string;
   tipo: string;
   area_hectares: number | null;
+  area_hectares_manual?: number | null;
   ativo: boolean;
   dados_extras?: {
     capacidade_suporte_ua?: number | null;
@@ -124,7 +125,7 @@ export function PiquetesClient({
 
   const resumo = useMemo(() => {
     const ativos = piquetes.filter((item) => item.ativo);
-    const areaTotal = ativos.reduce((sum, item) => sum + Number(item.area_hectares || 0), 0);
+    const areaTotal = ativos.reduce((sum, item) => sum + Number(item.area_hectares ?? item.area_hectares_manual ?? 0), 0);
     const capacidadeTotal = ativos.reduce(
       (sum, item) => sum + Number(item.dados_extras?.capacidade_suporte_ua || 0),
       0
@@ -155,7 +156,7 @@ export function PiquetesClient({
     {
       id: "area_hectares",
       header: "Área (ha)",
-      accessorKey: "area_hectares",
+      accessorFn: (row) => row.area_hectares ?? row.area_hectares_manual,
       cell: (value) => (value ? `${formatNumber(Number(value))} ha` : "—"),
     },
     {

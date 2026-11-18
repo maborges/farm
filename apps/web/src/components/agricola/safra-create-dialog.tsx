@@ -61,6 +61,7 @@ interface AreaRural {
     id: string;
     nome: string;
     area_hectares: number | null;
+    area_hectares_manual?: number | null;
 }
 
 interface CultivoArea {
@@ -208,6 +209,7 @@ function CultivoEntry({
 
                 {fields.map((field, aIdx) => {
                     const selectedTalhao = areas.find(a => a.id === watch(`cultivos.${index}.areas.${aIdx}.area_id`));
+                    const selectedTalhaoArea = selectedTalhao?.area_hectares ?? selectedTalhao?.area_hectares_manual;
                     return (
                     <div key={field.id} className="p-2 rounded bg-muted/30 border grid grid-cols-12 gap-2 items-start">
                         {/* Talhão */}
@@ -220,11 +222,12 @@ function CultivoEntry({
                                     const handleAreaChange = (areaId: string) => {
                                         f.onChange(areaId);
                                         const selectedArea = areas.find(a => a.id === areaId);
-                                        if (selectedArea?.area_hectares && selectedArea.area_hectares > 0) {
+                                        const selectedAreaHa = selectedArea?.area_hectares ?? selectedArea?.area_hectares_manual;
+                                        if (selectedAreaHa && selectedAreaHa > 0) {
                                             const currentArea = watch(`cultivos.${index}.areas.${aIdx}.area_ha`);
                                             const areaValue = Number(currentArea) || 0;
                                             if (areaValue === 0) {
-                                                const numValue = Number(selectedArea.area_hectares);
+                                                const numValue = Number(selectedAreaHa);
                                                 setValue(`cultivos.${index}.areas.${aIdx}.area_ha`, numValue, { shouldValidate: true, shouldDirty: true });
                                             }
                                         }
@@ -235,8 +238,8 @@ function CultivoEntry({
                                                 {selectedTalhao ? (
                                                     <span className="text-xs">
                                                         {selectedTalhao.nome}
-                                                        {selectedTalhao.area_hectares && (
-                                                            <span className="text-muted-foreground ml-1">({selectedTalhao.area_hectares} ha)</span>
+                                                        {selectedTalhaoArea != null && (
+                                                            <span className="text-muted-foreground ml-1">({selectedTalhaoArea} ha)</span>
                                                         )}
                                                     </span>
                                                 ) : (
@@ -246,11 +249,14 @@ function CultivoEntry({
                                         <SelectContent>
                                             {areas
                                                 .filter(a => !selectedAreaIds.includes(a.id) || a.id === f.value)
-                                                .map(a => (
-                                                    <SelectItem key={a.id} value={a.id} className="text-xs">
-                                                        {a.nome} {a.area_hectares && `· ${a.area_hectares} ha`}
-                                                    </SelectItem>
-                                                ))}
+                                                .map(a => {
+                                                    const areaHa = a.area_hectares ?? a.area_hectares_manual;
+                                                    return (
+                                                        <SelectItem key={a.id} value={a.id} className="text-xs">
+                                                            {a.nome} {areaHa != null && `· ${areaHa} ha`}
+                                                        </SelectItem>
+                                                    );
+                                                })}
                                         </SelectContent>
                                     </Select>
                                     );
@@ -261,17 +267,17 @@ function CultivoEntry({
                         {/* Área a Plantar */}
                         <div className="col-span-4 space-y-0.5">
                             <Label htmlFor={`area_ha_${aIdx}`} className="text-xs font-medium">
-                                Plantar (ha) {selectedTalhao?.area_hectares && <span className="font-normal text-muted-foreground">máx {selectedTalhao.area_hectares}</span>}
+                                Plantar (ha) {selectedTalhaoArea != null && <span className="font-normal text-muted-foreground">máx {selectedTalhaoArea}</span>}
                             </Label>
                             <Input
                                 id={`area_ha_${aIdx}`}
                                 type="number" step="0.01"
-                                placeholder={selectedTalhao?.area_hectares?.toString() ?? "0.00"}
+                                placeholder={selectedTalhaoArea?.toString() ?? "0.00"}
                                 {...register(`cultivos.${index}.areas.${aIdx}.area_ha`, {
                                     validate: (v: number) => {
-                                        if (!selectedTalhao?.area_hectares) return true;
+                                        if (!selectedTalhaoArea) return true;
                                         if (!v || v <= 0) return "Deve ser > 0";
-                                        if (v > selectedTalhao.area_hectares) return `Máximo ${selectedTalhao.area_hectares} ha`;
+                                        if (v > selectedTalhaoArea) return `Máximo ${selectedTalhaoArea} ha`;
                                         return true;
                                     },
                                 })}

@@ -221,10 +221,11 @@ async def listar_talhoes_safra(
             AreaRural.id,
             AreaRural.nome,
             AreaRural.area_hectares,
+            AreaRural.area_hectares_manual,
         ).where(AreaRural.id.in_(area_ids))
         dados_areas = {
-            area_id: (nome, area_hectares)
-            for area_id, nome, area_hectares in (await session.execute(stmt_areas)).all()
+            area_id: (nome, area_hectares if area_hectares is not None else area_hectares_manual)
+            for area_id, nome, area_hectares, area_hectares_manual in (await session.execute(stmt_areas)).all()
         }
 
     return [

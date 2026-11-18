@@ -120,7 +120,12 @@ class CultivoService(BaseService[Cultivo]):
 
         for area_data in areas_data:
             talhao = talhoes.get(area_data.area_id)
-            if not talhao or not talhao.area_hectares:
+            capacidade_talhao = (
+                getattr(talhao, "area_hectares", None) or getattr(talhao, "area_hectares_manual", None)
+                if talhao
+                else None
+            )
+            if not talhao or not capacidade_talhao:
                 continue
             cultivos = cultivos_por_area.get(area_data.area_id, [])
 
@@ -157,9 +162,9 @@ class CultivoService(BaseService[Cultivo]):
                         total_area += float(areas_cultivo.get((area_data.area_id, cultivo.id), 0.0))
 
                 # Validar se soma de não-consorciados excede capacidade
-                if total_area > float(talhao.area_hectares):
+                if total_area > float(capacidade_talhao):
                     raise BusinessRuleError(
-                        f"Talhão '{talhao.nome}' tem capacidade de {talhao.area_hectares} ha, "
+                        f"Talhão '{talhao.nome}' tem capacidade de {capacidade_talhao} ha, "
                         f"mas seria ocupado com {total_area:.2f} ha no período. "
                         f"Reduza a área ou use outro talhão."
                     )

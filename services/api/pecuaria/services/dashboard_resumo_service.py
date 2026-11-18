@@ -151,7 +151,9 @@ class PecuariaDashboardResumoService:
 
     async def _somar_area_pastagem(self) -> float:
         """Soma a área em hectares dos piquetes ativos no contexto."""
-        stmt = select(func.coalesce(func.sum(AreaRural.area_hectares), 0)).where(
+        stmt = select(
+            func.coalesce(func.sum(func.coalesce(AreaRural.area_hectares, AreaRural.area_hectares_manual, 0)), 0)
+        ).where(
             AreaRural.tenant_id == self.tenant_id,
             AreaRural.ativo.is_(True),
             AreaRural.tipo == "PIQUETE",
