@@ -91,12 +91,14 @@ class MudancaPlanoService(BaseService[MudancaPlano]):
             diferenca_composta
         )
 
-        # Calcular proporcional (para upgrade) ou diferença integral caso não haja ciclo futuro em curso
+        ja_pagou = await self._assinatura_ja_paga(assinatura)
+
+        # Calcular proporcional (para upgrade) somente quando a assinatura já possui pagamento prévio
         dias_ciclo = 365 if ciclo_efetivo == "ANUAL" else 30
         dias_restantes = 0
         valor_proporcional = Decimal("0.00")
 
-        if tipo_mudanca.startswith("UPGRADE") and diferenca_composta > 0 and assinatura.status != "TRIAL":
+        if tipo_mudanca.startswith("UPGRADE") and diferenca_composta > 0 and ja_pagou:
             if assinatura.data_proxima_renovacao:
                 dias_restantes = (assinatura.data_proxima_renovacao.date() - datetime.now(timezone.utc).date()).days
 
@@ -106,6 +108,8 @@ class MudancaPlanoService(BaseService[MudancaPlano]):
                 dias_restantes = dias_ciclo
                 valor_proporcional = diferenca_composta.quantize(Decimal("0.01"))
 
+        requer_pagamento = bool(ja_pagou and tipo_mudanca.startswith("UPGRADE") and valor_proporcional > 0)
+
         # Mensagem explicativa
         mensagem = self._gerar_mensagem_simulacao(
             tipo_mudanca,
@@ -114,7 +118,9 @@ class MudancaPlanoService(BaseService[MudancaPlano]):
             usuarios_origem,
             usuarios_destino,
             valor_proporcional,
-            dias_restantes
+            dias_restantes,
+            ja_pagou=ja_pagou,
+            valor_novo_total=Decimal(str(calculo["valor_novo"])),
         )
 
         return {
@@ -144,6 +150,7 @@ class MudancaPlanoService(BaseService[MudancaPlano]):
             "dias_restantes_ciclo": dias_restantes,
             "valor_proporcional": float(valor_proporcional),
             "data_proxima_cobranca": assinatura.data_proxima_renovacao or (datetime.now(timezone.utc) + timedelta(days=dias_ciclo)),
+            "requer_pagamento": requer_pagamento,
             "mensagem": mensagem
         }
 
@@ -158,9 +165,9 @@ class MudancaPlanoService(BaseService[MudancaPlano]):
         """
         Cria solicitação de mudança de plano e/ou quantidade de acessos simultâneos.
 
-        Para UPGRADE: Compõe a fatura com a diferença (proporcional ao ciclo ou integral
-        se em trial/pendente) e registra a mudança para liberação mediante pagamento ou aprovação.
-        Para DOWNGRADE: Agenda mudança para próximo ciclo.
+        Se o assinante está em TRIAL ou sem pagamento prévio, cancela cobranças em aberto
+        anteriores, gera nova fatura com o valor do novo plano e aplica a mudança na hora.
+        Caso já tenha pago, cobra a diferença proporcional (upgrade) ou agenda (downgrade).
 
         Args:
             plano_destino_id: Plano desejado
@@ -175,8 +182,12 @@ class MudancaPlanoService(BaseService[MudancaPlano]):
         Raises:
             BusinessRuleError: Se mudança não permitida
         """
-        # Validar que não há mudança pendente
-        await self._validar_mudanca_pendente(assinatura_id)
+        assinatura = await self._obter_assinatura(assinatura_id)
+        ja_pagou = await self._assinatura_ja_paga(assinatura)
+
+        if ja_pagou:
+            # Validar que não há mudança pendente apenas no ciclo pago
+            await self._validar_mudanca_pendente(assinatura_id)
 
         # Simular para obter valores compostos
         simulacao = await self.simular_mudanca(
@@ -186,9 +197,6 @@ class MudancaPlanoService(BaseService[MudancaPlano]):
             usuario_solicitante_id,
             ciclo_destino=ciclo_destino,
         )
-
-        # Buscar assinatura
-        assinatura = await self._obter_assinatura(assinatura_id)
 
         # Calcular valores
         dias_restantes = simulacao["dias_restantes_ciclo"]
@@ -212,8 +220,63 @@ class MudancaPlanoService(BaseService[MudancaPlano]):
             status="pendente_pagamento"
         )
 
-        # Se for DOWNGRADE, agendar para próximo ciclo
-        if simulacao["tipo_mudanca"].startswith("DOWNGRADE"):
+        if not ja_pagou:
+            # Assinante em TRIAL ou sem pagamento confirmado:
+            # 1) Cancela mudanças pendentes anteriores para não bloquear nova troca
+            mudancas_antigas = (
+                await self.session.execute(
+                    select(MudancaPlano).where(
+                        MudancaPlano.assinatura_id == assinatura.id,
+                        MudancaPlano.status.in_(["pendente_pagamento", "agendado"]),
+                    )
+                )
+            ).scalars().all()
+            for mudanca_antiga in mudancas_antigas:
+                mudanca_antiga.status = "cancelado"
+                mudanca_antiga.observacoes = "Substituída automaticamente por nova alteração antes do pagamento"
+
+            # 2) Cancela cobrança anterior em aberto e gera nova fatura no valor do novo plano
+            faturas_abertas = (
+                await self.session.execute(
+                    select(Fatura)
+                    .where(
+                        Fatura.assinatura_id == assinatura.id,
+                        Fatura.status == "ABERTA",
+                    )
+                    .order_by(Fatura.data_vencimento.desc())
+                )
+            ).scalars().all()
+
+            vencimento_novo = None
+            for fatura_antiga in faturas_abertas:
+                if vencimento_novo is None and fatura_antiga.data_vencimento is not None:
+                    vencimento_novo = fatura_antiga.data_vencimento
+                fatura_antiga.status = "CANCELADA"
+
+            if vencimento_novo is None:
+                vencimento_novo = assinatura.data_proxima_renovacao or (datetime.now(timezone.utc) + timedelta(days=3))
+
+            if valor_novo_total > 0:
+                nova_fatura = Fatura(
+                    tenant_id=self.tenant_id,
+                    assinatura_id=assinatura.id,
+                    valor=valor_novo_total,
+                    data_vencimento=vencimento_novo,
+                    status="ABERTA",
+                )
+                self.session.add(nova_fatura)
+
+            # 3) Aplica o novo pacote/acessos imediatamente sem exigir pagamento de diferença
+            assinatura.plano_id = plano_destino_id
+            assinatura.usuarios_contratados = usuarios_destino
+            if simulacao.get("ciclo"):
+                assinatura.ciclo_pagamento = simulacao["ciclo"]
+            mudanca.valor_proporcional = Decimal("0.00")
+            mudanca.dias_restantes_ciclo = None
+            mudanca.status = "aplicado"
+            mudanca.aplicado_em = datetime.now(timezone.utc)
+
+        elif simulacao["tipo_mudanca"].startswith("DOWNGRADE"):
             mudanca.agendado_para = assinatura.data_proxima_renovacao
             mudanca.status = "agendado"
             logger.info(
@@ -221,42 +284,17 @@ class MudancaPlanoService(BaseService[MudancaPlano]):
                 f"Tenant {self.tenant_id}"
             )
         else:
-            # UPGRADE (expansão de propriedade e/ou adição de acessos simultâneos):
-            # Compor a fatura no financeiro:
-            # 1) Se a assinatura está em TRIAL ou PENDENTE_PAGAMENTO e já possui fatura ABERTA do ciclo inicial,
-            #    atualizamos a fatura aberta para o novo valor composto integral (pacote + acessos).
-            # 2) Caso contrário (assinatura ATIVA), geramos uma Fatura complementar com a diferença apurada.
-            fatura_aberta_stmt = (
-                select(Fatura)
-                .where(
-                    Fatura.assinatura_id == assinatura.id,
-                    Fatura.status == "ABERTA",
+            # Assinatura já paga solicitando UPGRADE: gera fatura complementar com a diferença pro-rata
+            valor_fatura_complementar = valor_proporcional if valor_proporcional > 0 else valor_diferenca
+            if valor_fatura_complementar > 0:
+                nova_fatura = Fatura(
+                    tenant_id=self.tenant_id,
+                    assinatura_id=assinatura.id,
+                    valor=valor_fatura_complementar,
+                    data_vencimento=datetime.now(timezone.utc) + timedelta(days=3),
+                    status="ABERTA",
                 )
-                .order_by(Fatura.created_at.desc())
-                .limit(1)
-            )
-            fatura_aberta = (await self.session.execute(fatura_aberta_stmt)).scalar_one_or_none()
-
-            if assinatura.status == "TRIAL" and not assinatura.stripe_subscription_id:
-                if fatura_aberta:
-                    fatura_aberta.valor = valor_novo_total
-                assinatura.plano_id = plano_destino_id
-                assinatura.usuarios_contratados = usuarios_destino
-                mudanca.status = "aplicado"
-                mudanca.aplicado_em = datetime.now(timezone.utc)
-            elif fatura_aberta and assinatura.status == "PENDENTE_PAGAMENTO":
-                fatura_aberta.valor = valor_novo_total
-            else:
-                valor_fatura_complementar = valor_proporcional if valor_proporcional > 0 else valor_diferenca
-                if valor_fatura_complementar > 0:
-                    nova_fatura = Fatura(
-                        tenant_id=self.tenant_id,
-                        assinatura_id=assinatura.id,
-                        valor=valor_fatura_complementar,
-                        data_vencimento=datetime.now(timezone.utc) + timedelta(days=3),
-                        status="ABERTA",
-                    )
-                    self.session.add(nova_fatura)
+                self.session.add(nova_fatura)
 
         self.session.add(mudanca)
         await self.session.commit()
@@ -689,9 +727,19 @@ class MudancaPlanoService(BaseService[MudancaPlano]):
         usuarios_atual: int,
         usuarios_novo: int,
         valor_proporcional: Decimal,
-        dias_restantes: int
+        dias_restantes: int,
+        ja_pagou: bool = True,
+        valor_novo_total: Decimal | None = None,
     ) -> str:
         """Gera mensagem explicativa para o usuário."""
+        if not ja_pagou:
+            valor_cheio = valor_novo_total if valor_novo_total is not None else Decimal("0.00")
+            return (
+                f"Como a assinatura ainda está em trial ou sem pagamento confirmado, a mudança para "
+                f"{plano_novo} ({usuarios_novo} usuários) será aplicada imediatamente: a cobrança em aberto "
+                f"anterior será cancelada e uma nova fatura de R$ {valor_cheio:.2f} será gerada com o valor do novo plano."
+            )
+
         if tipo_mudanca.startswith("UPGRADE"):
             if valor_proporcional > 0:
                 return (
@@ -710,6 +758,34 @@ class MudancaPlanoService(BaseService[MudancaPlano]):
                 f"{plano_novo} ({usuarios_novo} users) será agendado para o próximo "
                 f"ciclo de cobrança. Você continuará com acesso ao plano atual até lá."
             )
+
+    async def _assinatura_ja_paga(self, assinatura: AssinaturaTenant) -> bool:
+        """Indica se a assinatura já teve pagamento prévio confirmado."""
+        if getattr(assinatura, "status", None) in ("TRIAL", "PENDENTE_PAGAMENTO", "PENDENTE"):
+            fatura_paga_stmt = (
+                select(Fatura.id)
+                .where(
+                    Fatura.assinatura_id == assinatura.id,
+                    Fatura.status == "PAGA",
+                )
+                .limit(1)
+            )
+            fatura_paga = (await self.session.execute(fatura_paga_stmt)).scalar_one_or_none()
+            return fatura_paga is not None
+
+        if getattr(assinatura, "stripe_subscription_id", None):
+            return True
+
+        fatura_paga_stmt = (
+            select(Fatura.id)
+            .where(
+                Fatura.assinatura_id == assinatura.id,
+                Fatura.status == "PAGA",
+            )
+            .limit(1)
+        )
+        fatura_paga = (await self.session.execute(fatura_paga_stmt)).scalar_one_or_none()
+        return fatura_paga is not None or getattr(assinatura, "status", None) == "ATIVA"
 
     async def _validar_mudanca_pendente(self, assinatura_id: Optional[UUID]) -> None:
         """Valida que não há mudança pendente."""

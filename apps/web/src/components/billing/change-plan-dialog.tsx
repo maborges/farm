@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Loader2, Check, ArrowUpRight, ArrowDownRight, AlertCircle, Users, Tractor } from "lucide-react";
+import { Loader2, Check, ArrowUpRight, ArrowDownRight, AlertCircle, Users, Tractor, ExternalLink, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import {
     Dialog,
@@ -60,7 +60,96 @@ interface SimulacaoResponse {
 }
 
 interface SolicitarResponse {
+    status?: string;
     url_pagamento?: string | null;
+}
+
+interface MudancaPlanoItem {
+    id: string;
+    tipo_mudanca: string;
+    plano_destino_id: string;
+    usuarios_destino: number;
+    valor_proporcional: number | string;
+    status: string;
+    url_pagamento?: string | null;
+    agendado_para?: string | null;
+    created_at: string;
+}
+
+interface ListarMudancasPlanoResponse {
+    mudancas: MudancaPlanoItem[];
+    total: number;
+    pagina: number;
+    por_pagina: number;
+}
+
+const MUDANCA_STATUS_LABELS: Record<string, string> = {
+    pendente_pagamento: "aguardando pagamento",
+    agendado: "agendada para o próximo ciclo",
+    liberado_manualmente: "liberada manualmente (aguardando regularização)",
+};
+
+function PendingPlanChangeBanner({
+    mudanca,
+    planoNome,
+    canceling,
+    onCancel,
+}: {
+    mudanca: MudancaPlanoItem;
+    planoNome?: string;
+    canceling: boolean;
+    onCancel: (id: string) => void;
+}) {
+    const statusLabel = MUDANCA_STATUS_LABELS[mudanca.status] ?? mudanca.status;
+    const podeCancelar = mudanca.status === "pendente_pagamento" || mudanca.status === "agendado";
+
+    return (
+        <div className="flex gap-3 p-4 rounded-sm border border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-300">
+            <AlertCircle className="shrink-0 mt-0.5 size-4" />
+            <div className="space-y-2.5 flex-1 text-xs sm:text-sm">
+                <div>
+                    <p className="font-semibold">Existe uma alteração de plano pendente</p>
+                    <p className="mt-1 opacity-90">
+                        Solicitação para <strong>{planoNome ?? "outro pacote"}</strong> ({mudanca.usuarios_destino}{" "}
+                        acesso(s)) encontra-se {statusLabel}. Conclua ou cancele a solicitação pendente antes de enviar uma nova.
+                    </p>
+                </div>
+                {(mudanca.url_pagamento || podeCancelar) && (
+                    <div className="flex flex-wrap gap-2">
+                        {mudanca.url_pagamento && (
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="rounded-sm"
+                                onClick={() => window.open(mudanca.url_pagamento!, "_blank", "noopener,noreferrer")}
+                            >
+                                <ExternalLink className="size-3.5 mr-1.5" />
+                                Concluir Pagamento
+                            </Button>
+                        )}
+                        {podeCancelar && (
+                            <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="rounded-sm text-destructive hover:text-destructive"
+                                disabled={canceling}
+                                onClick={() => onCancel(mudanca.id)}
+                            >
+                                {canceling ? (
+                                    <Loader2 className="size-3.5 mr-1.5 animate-spin" />
+                                ) : (
+                                    <XCircle className="size-3.5 mr-1.5" />
+                                )}
+                                Cancelar solicitação pendente
+                            </Button>
+                        )}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
 }
 
 interface TenantData {
@@ -110,6 +199,38 @@ export function ChangePlanDialog({ open, onOpenChange, currentTenant }: ChangePl
         enabled: open
     });
 
+    // Buscar mudanças de plano pendentes para alertar o usuário e permitir cancelamento
+    const { data: mudancasData, refetch: refetchMudancas } = useQuery<ListarMudancasPlanoResponse>({
+        queryKey: ["billing-mudancas-plano"],
+        queryFn: () => apiFetch("/billing/mudancas-plano", { params: { por_pagina: 20 } }),
+        enabled: open,
+    });
+
+    const isPrePagamento = ["TRIAL", "PENDENTE_PAGAMENTO", "PENDENTE"].includes(
+        currentTenant?.assinatura?.status ?? ""
+    );
+
+    const mudancaPendente = mudancasData?.mudancas?.find((m) =>
+        ["pendente_pagamento", "agendado", "liberado_manualmente"].includes(m.status)
+    );
+
+    const cancelarPendenteMutation = useMutation({
+        mutationFn: async (mudancaId: string) => {
+            await apiFetch(`/billing/mudancas-plano/${mudancaId}`, {
+                method: "DELETE",
+                body: JSON.stringify({ motivo: "Cancelado pelo usuário para solicitar nova alteração" }),
+            });
+        },
+        onSuccess: () => {
+            toast.success("Alteração de plano pendente cancelada com sucesso.");
+            queryClient.invalidateQueries({ queryKey: ["billing-mudancas-plano"] });
+            queryClient.invalidateQueries({ queryKey: ["tenant-data"] });
+        },
+        onError: (error: { detail?: string; message?: string }) => {
+            toast.error(error.detail || error.message || "Erro ao cancelar solicitação pendente");
+        },
+    });
+
     // Simular mudança de plano ou contratação de mais acessos simultâneos
     const simulacaoMutation = useMutation({
         mutationFn: async (data: { plano_destino_id: string; usuarios_destino: number; ciclo_destino: string }) => {
@@ -131,22 +252,34 @@ export function ChangePlanDialog({ open, onOpenChange, currentTenant }: ChangePl
             return response;
         },
         onSuccess: (data: SolicitarResponse) => {
-            toast.success("Solicitação registrada com sucesso!");
-            
-            if (data.url_pagamento) {
-                window.open(data.url_pagamento, "_blank");
+                if (data.status === "aplicado") {
+                    toast.success(
+                        "Plano atualizado com sucesso! A cobrança anterior foi cancelada e uma nova fatura foi gerada com o valor do novo plano."
+                    );
+                } else if (data.status === "agendado") {
+                    toast.success("Alteração agendada para o próximo ciclo de faturamento.");
+                } else {
+                    toast.success("Solicitação registrada com sucesso!");
+                    if (data.url_pagamento) {
+                        window.open(data.url_pagamento, "_blank");
+                    }
+                }
+
+
+                queryClient.invalidateQueries({ queryKey: ["billing-mudancas-plano"] });
+                queryClient.invalidateQueries({ queryKey: ["tenant-data"] });
+                queryClient.invalidateQueries({ queryKey: ["billing", "invoices"] });
+                queryClient.invalidateQueries({ queryKey: ["tenant-invoices"] });
+                onOpenChange(false);
+                setShowConfirm(false);
+                setPlanoSelecionado(null);
+                setSimulacaoData(null);
+            },
+            onError: (error: { detail?: string; message?: string }) => {
+                void refetchMudancas();
+                toast.error(error.detail || error.message || "Erro ao solicitar alteração da assinatura");
             }
-            
-            queryClient.invalidateQueries({ queryKey: ["tenant-data"] });
-            onOpenChange(false);
-            setShowConfirm(false);
-            setPlanoSelecionado(null);
-            setSimulacaoData(null);
-        },
-        onError: (error: { detail?: string }) => {
-            toast.error(error.detail || "Erro ao solicitar alteração da assinatura");
-        }
-    });
+        });
 
     const planoAtual = planos?.find(p => p.nome === currentTenant?.assinatura?.plano);
     const planoSelecionadoObj = planos?.find(p => p.id === planoSelecionado);
@@ -186,6 +319,10 @@ export function ChangePlanDialog({ open, onOpenChange, currentTenant }: ChangePl
         });
     }
 
+    const planoPendenteNome = mudancaPendente
+        ? planos?.find((p) => p.id === mudancaPendente.plano_destino_id)?.nome
+        : undefined;
+
     function handleCancelar() {
         setShowConfirm(false);
         setSimulacaoData(null);
@@ -193,7 +330,7 @@ export function ChangePlanDialog({ open, onOpenChange, currentTenant }: ChangePl
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto rounded-sm">
                 {!showConfirm ? (
                     <>
                         <DialogHeader>
@@ -204,6 +341,15 @@ export function ChangePlanDialog({ open, onOpenChange, currentTenant }: ChangePl
                         </DialogHeader>
 
                         <div className="space-y-6">
+                            {mudancaPendente && (
+                                <PendingPlanChangeBanner
+                                    mudanca={mudancaPendente}
+                                    planoNome={planoPendenteNome}
+                                    canceling={cancelarPendenteMutation.isPending}
+                                    onCancel={(id) => cancelarPendenteMutation.mutate(id)}
+                                />
+                            )}
+
                             {/* Plano Atual */}
                             {currentTenant?.assinatura && (
                                 <div className="p-4 bg-muted/50 rounded-lg border">
@@ -227,11 +373,10 @@ export function ChangePlanDialog({ open, onOpenChange, currentTenant }: ChangePl
                                         type="button"
                                         onClick={() => setCiclo("MENSAL")}
                                         aria-pressed={ciclo === "MENSAL"}
-                                        className={`flex-1 p-3 rounded-lg border-2 transition-all ${
-                                            ciclo === "MENSAL"
+                                        className={`flex-1 p-3 rounded-lg border-2 transition-all ${ciclo === "MENSAL"
                                                 ? "border-primary bg-primary/5"
                                                 : "border-border hover:border-primary/50"
-                                        }`}
+                                            }`}
                                     >
                                         <p className="font-bold">Mensal</p>
                                     </button>
@@ -239,11 +384,10 @@ export function ChangePlanDialog({ open, onOpenChange, currentTenant }: ChangePl
                                         type="button"
                                         onClick={() => setCiclo("ANUAL")}
                                         aria-pressed={ciclo === "ANUAL"}
-                                        className={`flex-1 p-3 rounded-sm border-2 transition-all ${
-                                            ciclo === "ANUAL"
+                                        className={`flex-1 p-3 rounded-sm border-2 transition-all ${ciclo === "ANUAL"
                                                 ? "border-primary bg-primary/5"
                                                 : "border-border hover:border-primary/50"
-                                        }`}
+                                            }`}
                                     >
                                         <p className="font-bold">Anual</p>
                                         <Badge variant="secondary" className="text-xs mt-1 rounded-sm">2 meses grátis + 20% OFF em acessos extras</Badge>
@@ -288,17 +432,16 @@ export function ChangePlanDialog({ open, onOpenChange, currentTenant }: ChangePl
                                             const isCurrent = plano.nome === currentTenant?.assinatura?.plano;
                                             const isSelected = plano.id === planoSelecionado;
                                             const price = ciclo === "MENSAL" ? plano.preco_mensal : plano.preco_anual;
-                                            
+
                                             return (
                                                 <button
                                                     type="button"
                                                     key={plano.id}
                                                     aria-pressed={isSelected}
-                                                    className={`w-full p-4 rounded-sm border-2 text-left transition-all ${
-                                                        isSelected
+                                                    className={`w-full p-4 rounded-sm border-2 text-left transition-all ${isSelected
                                                             ? "border-primary bg-primary/5"
                                                             : "border-border hover:border-primary/50"
-                                                    }`}
+                                                        }`}
                                                     onClick={() => handleSelecionarPlano(plano.id)}
                                                 >
                                                     <div className="flex items-start justify-between gap-4">
@@ -392,6 +535,15 @@ export function ChangePlanDialog({ open, onOpenChange, currentTenant }: ChangePl
                         </DialogHeader>
 
                         <div className="space-y-4 py-4">
+                            {mudancaPendente && (
+                                <PendingPlanChangeBanner
+                                    mudanca={mudancaPendente}
+                                    planoNome={planoPendenteNome}
+                                    canceling={cancelarPendenteMutation.isPending}
+                                    onCancel={(id) => cancelarPendenteMutation.mutate(id)}
+                                />
+                            )}
+
                             {/* Resumo da Mudança */}
                             <div className="p-4 bg-muted/50 rounded-sm border space-y-3">
                                 <div className="flex justify-between items-center">
@@ -468,34 +620,42 @@ export function ChangePlanDialog({ open, onOpenChange, currentTenant }: ChangePl
                             </div>
 
                             {/* Aviso */}
-                            <div className="flex gap-3 p-4 bg-amber-500/10 border border-amber-500/20 rounded-lg">
+                            <div className="flex gap-3 p-4 bg-amber-500/10 border border-amber-500/20 rounded-sm">
                                 <AlertCircle className="text-amber-500 shrink-0 mt-0.5" size={18} />
                                 <div className="text-sm">
-                                    <p className="font-bold text-amber-700">Importante</p>
+                                    <p className="font-bold text-amber-700 dark:text-amber-300">Importante</p>
                                     <p className="text-muted-foreground mt-1">
-                                        {(() => {
-                                            const precoAtual = planoAtual?.preco_mensal || 0;
-                                            const precoNovo = ciclo === "MENSAL" ? planoSelecionadoObj?.preco_mensal || 0 : planoSelecionadoObj?.preco_anual || 0;
-                                            const isUpgrade = precoNovo > precoAtual;
-                                            
-                                            if (isUpgrade) {
-                                                return "Você será redirecionado para o pagamento da diferença proporcional do plano. A mudança será aplicada após a confirmação do pagamento.";
-                                            } else {
-                                                return "O downgrade será aplicado no próximo ciclo de faturamento. Você manterá acesso ao plano atual até lá.";
+                                            {
+                                                simulacaoData?.mensagem || (() => {
+                                                    const precoAtual = planoAtual?.preco_mensal || 0;
+                                                    const precoNovo = ciclo === "MENSAL" ? planoSelecionadoObj?.preco_mensal || 0 : planoSelecionadoObj?.preco_anual || 0;
+                                                    const isUpgrade = precoNovo > precoAtual;
+
+                                                    if (isUpgrade) {
+                                                        return "Você será redirecionado para o pagamento da diferença proporcional do plano. A mudança será aplicada após a confirmação do pagamento.";
+                                                    } else {
+                                                        return "O downgrade será aplicado no próximo ciclo de faturamento. Você manterá acesso ao plano atual até lá.";
+                                                    }
+                                                })()
                                             }
-                                        })()}
                                     </p>
                                 </div>
                             </div>
                         </div>
 
                         <DialogFooter className="gap-2">
-                            <Button variant="outline" onClick={handleCancelar}>
+                            <Button variant="outline" size="sm" className="rounded-sm" onClick={handleCancelar}>
                                 Voltar
                             </Button>
                             <Button
+                                variant="outline"
+                                size="sm"
+                                className="rounded-sm"
                                 onClick={handleConfirmar}
-                                disabled={solicitarMutation.isPending}
+                                disabled={
+                                    solicitarMutation.isPending ||
+                                    (!!mudancaPendente && !isPrePagamento && simulacaoData?.requer_pagamento !== false)
+                                }
                             >
                                 {solicitarMutation.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                 Confirmar Mudança

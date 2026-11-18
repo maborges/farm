@@ -138,39 +138,36 @@ async def listar_mudancas_plano(
     pagina: int = 1,
     por_pagina: int = 20,
     status: Optional[str] = None,
-    current_user: dict = Depends(get_current_user),
-    tenant_id: UUID = Depends(get_tenant_id)
+    current_user: Usuario = Depends(get_current_user),
+    tenant_id: UUID = Depends(get_tenant_id),
+    session: AsyncSession = Depends(get_session),
 ):
     """Lista mudanças de plano do tenant."""
-    async with async_session_maker() as session:
-        service = MudancaPlanoService(session, tenant_id)
+    service = MudancaPlanoService(session, tenant_id)
 
-        try:
-            # Construir filtros
-            filters = {}
-            if status:
-                filters['status'] = status
+    try:
+        filters = {}
+        if status:
+            filters['status'] = status
 
-            # Buscar mudanças
-            mudancas = await service.list_all(
-                limit=por_pagina,
-                offset=(pagina - 1) * por_pagina,
-                **filters
-            )
+        mudancas = await service.list_all(
+            limit=por_pagina,
+            skip=(pagina - 1) * por_pagina,
+            **filters
+        )
 
-            # Contar total (simplificado, idealmente usar count query)
-            total = len(mudancas)
+        total = len(mudancas)
 
-            return {
-                "mudancas": mudancas,
-                "total": total,
-                "pagina": pagina,
-                "por_pagina": por_pagina
-            }
+        return {
+            "mudancas": mudancas,
+            "total": total,
+            "pagina": pagina,
+            "por_pagina": por_pagina
+        }
 
-        except Exception as e:
-            logger.error(f"Erro ao listar mudanças: {e}")
-            raise HTTPException(status_code=500, detail="Erro ao listar mudanças")
+    except Exception as e:
+        logger.error(f"Erro ao listar mudanças: {e}")
+        raise HTTPException(status_code=500, detail="Erro ao listar mudanças")
 
 
 @router.get(
@@ -180,22 +177,22 @@ async def listar_mudancas_plano(
 )
 async def obter_mudanca_plano(
     mudanca_id: UUID,
-    current_user: dict = Depends(get_current_user),
-    tenant_id: UUID = Depends(get_tenant_id)
+    current_user: Usuario = Depends(get_current_user),
+    tenant_id: UUID = Depends(get_tenant_id),
+    session: AsyncSession = Depends(get_session),
 ):
     """Obtém detalhes de uma mudança específica."""
-    async with async_session_maker() as session:
-        service = MudancaPlanoService(session, tenant_id)
+    service = MudancaPlanoService(session, tenant_id)
 
-        try:
-            mudanca = await service.get_or_fail(mudanca_id)
-            return mudanca
+    try:
+        mudanca = await service.get_or_fail(mudanca_id)
+        return mudanca
 
-        except EntityNotFoundError as e:
-            raise HTTPException(status_code=404, detail=str(e))
-        except Exception as e:
-            logger.error(f"Erro ao buscar mudança: {e}")
-            raise HTTPException(status_code=500, detail="Erro ao buscar mudança")
+    except EntityNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"Erro ao buscar mudança: {e}")
+        raise HTTPException(status_code=500, detail="Erro ao buscar mudança")
 
 
 @router.delete(
@@ -203,35 +200,36 @@ async def obter_mudanca_plano(
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Cancelar mudança de plano",
     description="Cancela mudança pendente ou agendada",
-    dependencies=[Depends(require_tenant_permission("tenant:billing:manage"))]
+    dependencies=[Depends(require_tenant_permission("tenant:billing:view"))]
 )
 async def cancelar_mudanca_plano(
     mudanca_id: UUID,
-    request: CancelarMudancaPlanoRequest,
-    current_user: dict = Depends(get_current_user),
-    tenant_id: UUID = Depends(get_tenant_id)
+    request: Optional[CancelarMudancaPlanoRequest] = None,
+    current_user: Usuario = Depends(get_current_user),
+    tenant_id: UUID = Depends(get_tenant_id),
+    session: AsyncSession = Depends(get_session),
 ):
     """
     Cancela mudança de plano pendente.
 
     Apenas mudanças em status `pendente_pagamento` ou `agendado` podem ser canceladas.
     """
-    async with async_session_maker() as session:
-        service = MudancaPlanoService(session, tenant_id)
+    service = MudancaPlanoService(session, tenant_id)
+    user_id = current_user["user_id"] if isinstance(current_user, dict) else current_user.id
 
-        try:
-            await service.cancelar_mudanca(
-                mudanca_id=mudanca_id,
-                usuario_id=current_user['user_id'],
-                motivo=request.motivo
-            )
+    try:
+        await service.cancelar_mudanca(
+            mudanca_id=mudanca_id,
+            usuario_id=user_id,
+            motivo=request.motivo if request else "Cancelado pelo usuário",
+        )
 
-            return None
+        return None
 
-        except EntityNotFoundError as e:
-            raise HTTPException(status_code=404, detail=str(e))
-        except BusinessRuleError as e:
-            raise HTTPException(status_code=422, detail=str(e))
-        except Exception as e:
-            logger.error(f"Erro ao cancelar mudança: {e}")
-            raise HTTPException(status_code=500, detail="Erro ao cancelar mudança")
+    except EntityNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except BusinessRuleError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except Exception as e:
+        logger.error(f"Erro ao cancelar mudança: {e}")
+        raise HTTPException(status_code=500, detail="Erro ao cancelar mudança")

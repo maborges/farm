@@ -101,6 +101,7 @@ class SimularMudancaPlanoResponse(BaseModel):
     dias_restantes_ciclo: int
     valor_proporcional: Decimal
     data_proxima_cobranca: datetime
+    requer_pagamento: bool = True
     mensagem: str
 
 

@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from core.database import Base
@@ -258,6 +259,15 @@ async def test_upgrade_durante_trial_aplica_imediatamente_sem_cobrar(stripe_pror
 
         svc = MudancaPlanoService(db, tenant_id)
         with patch.object(svc, "_validar_compatibilidade_hectares_destino", return_value=Decimal("0.00")):
+            simulacao = await svc.simular_mudanca(
+                plano_destino_id=plano_destino_id,
+                usuarios_destino=1,
+                usuario_solicitante_id=user_id,
+                assinatura_id=assinatura_id,
+            )
+            assert simulacao["requer_pagamento"] is False
+            assert simulacao["valor_proporcional"] == 0.0
+
             mudanca = await svc.solicitar_mudanca(
                 plano_destino_id=plano_destino_id,
                 usuarios_destino=1,
@@ -270,9 +280,134 @@ async def test_upgrade_durante_trial_aplica_imediatamente_sem_cobrar(stripe_pror
         assert mudanca.url_pagamento is None
 
         assinatura_atualizada = await db.get(AssinaturaTenant, assinatura_id)
-        fatura_atualizada = await db.get(Fatura, fatura_id)
+        fatura_anterior = await db.get(Fatura, fatura_id)
+        faturas_abertas = (
+            await db.execute(
+                select(Fatura).where(
+                    Fatura.assinatura_id == assinatura_id,
+                    Fatura.status == "ABERTA",
+                )
+            )
+        ).scalars().all()
+
         assert assinatura_atualizada.plano_id == plano_destino_id
-        assert fatura_atualizada.valor == Decimal("497.00")
+        assert fatura_anterior.status == "CANCELADA"
+        assert len(faturas_abertas) == 1
+        assert faturas_abertas[0].id != fatura_id
+        assert faturas_abertas[0].valor == Decimal("497.00")
+
+
+@pytest.mark.asyncio
+async def test_upgrade_sem_fatura_paga_cancela_mudanca_pendente_e_fatura_anterior(stripe_prorata_session):
+    """Assinante em trial/pré-pagamento com solicitação anterior pendente cancela a pendência, cancela a fatura anterior e gera nova fatura."""
+    tenant_id = uuid.uuid4()
+    user_id = uuid.uuid4()
+    plano_origem_id = uuid.uuid4()
+    plano_destino_id = uuid.uuid4()
+    assinatura_id = uuid.uuid4()
+    fatura_id = uuid.uuid4()
+    mudanca_antiga_id = uuid.uuid4()
+
+    async with stripe_prorata_session() as db:
+        db.add(Tenant(id=tenant_id, nome="Fazenda Trial Pendente", email_responsavel="tp@fazenda.com", ativo=True))
+        db.add(Usuario(id=user_id, email="tp@fazenda.com", username="tp_user", ativo=True))
+        db.add(
+            PlanoAssinatura(
+                id=plano_origem_id,
+                nome="Familiar",
+                plan_tier="BASICO",
+                preco_mensal=197.0,
+                preco_anual=1891.0,
+                limite_usuarios_minimo=1,
+                limite_usuarios_maximo=5,
+                ativo=True,
+            )
+        )
+        db.add(
+            PlanoAssinatura(
+                id=plano_destino_id,
+                nome="Médio Produtor",
+                plan_tier="PROFISSIONAL",
+                preco_mensal=497.0,
+                preco_anual=4771.0,
+                limite_usuarios_minimo=1,
+                limite_usuarios_maximo=10,
+                ativo=True,
+            )
+        )
+        db.add(
+            AssinaturaTenant(
+                id=assinatura_id,
+                tenant_id=tenant_id,
+                plano_id=plano_origem_id,
+                tipo_assinatura="TENANT",
+                status="TRIAL",
+                ciclo_pagamento="MENSAL",
+                usuarios_contratados=1,
+                stripe_subscription_id=None,
+                data_inicio=datetime.now(timezone.utc),
+                data_proxima_renovacao=datetime.now(timezone.utc) + timedelta(days=10),
+            )
+        )
+        db.add(
+            Fatura(
+                id=fatura_id,
+                tenant_id=tenant_id,
+                assinatura_id=assinatura_id,
+                valor=Decimal("197.00"),
+                data_vencimento=datetime.now(timezone.utc) + timedelta(days=10),
+                status="ABERTA",
+            )
+        )
+        db.add(
+            MudancaPlano(
+                id=mudanca_antiga_id,
+                tenant_id=tenant_id,
+                assinatura_id=assinatura_id,
+                plano_origem_id=plano_origem_id,
+                usuarios_origem=1,
+                plano_destino_id=plano_destino_id,
+                usuarios_destino=1,
+                tipo_mudanca="UPGRADE_PLANO",
+                valor_calculado=Decimal("300.00"),
+                valor_proporcional=Decimal("300.00"),
+                dias_restantes_ciclo=10,
+                solicitado_por_usuario_id=user_id,
+                status="pendente_pagamento",
+            )
+        )
+        await db.commit()
+
+        svc = MudancaPlanoService(db, tenant_id)
+        with patch.object(svc, "_validar_compatibilidade_hectares_destino", return_value=Decimal("0.00")):
+            nova_mudanca = await svc.solicitar_mudanca(
+                plano_destino_id=plano_destino_id,
+                usuarios_destino=1,
+                usuario_solicitante_id=user_id,
+                assinatura_id=assinatura_id,
+            )
+
+        assert nova_mudanca.status == "aplicado"
+        assert nova_mudanca.valor_proporcional == Decimal("0.00")
+
+        mudanca_antiga = await db.get(MudancaPlano, mudanca_antiga_id)
+        fatura_anterior = await db.get(Fatura, fatura_id)
+        faturas_abertas = (
+            await db.execute(
+                select(Fatura).where(
+                    Fatura.assinatura_id == assinatura_id,
+                    Fatura.status == "ABERTA",
+                )
+            )
+        ).scalars().all()
+        assinatura_atualizada = await db.get(AssinaturaTenant, assinatura_id)
+
+        assert mudanca_antiga.status == "cancelado"
+        assert fatura_anterior.status == "CANCELADA"
+        assert len(faturas_abertas) == 1
+        assert faturas_abertas[0].id != fatura_id
+        assert faturas_abertas[0].valor == Decimal("497.00")
+        assert assinatura_atualizada.plano_id == plano_destino_id
 
 
 @pytest.mark.asyncio
