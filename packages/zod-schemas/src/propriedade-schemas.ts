@@ -187,8 +187,8 @@ export const TipoAreaRuralValues = Object.values(TipoAreaRural) as [string, ...s
 export const AREA_HIERARQUIA: Record<string, readonly string[]> = {
   __raiz__:         ["AREA_RURAL", "INFRAESTRUTURA"],
   AREA_RURAL:       ["GLEBA"],
-  GLEBA:            ["TALHAO", "AREA_AMBIENTAL"],
-  TALHAO:           ["AREA_OPERACIONAL"],
+  GLEBA:            ["TALHAO", "PIQUETE", "AREA_AMBIENTAL"],
+  TALHAO:           ["AREA_OPERACIONAL", "SUBTALHAO", "ZONA_MANEJO", "PIQUETE"],
   AREA_OPERACIONAL: ["PIQUETE", "ZONA_MANEJO", "SUBTALHAO"],
   AREA_AMBIENTAL:   ["APP", "RESERVA_LEGAL"],
   INFRAESTRUTURA:   ["SEDE", "ARMAZEM", "CURRAL", "OUTROS"],
